@@ -746,10 +746,16 @@ class ResearchOrchestrator:
         context_files: list | None = None,
     ) -> OrchestratorResult:
         """
-        Run Deep Research with context files from Step 1.
+        Run Deep Research with optional context files.
 
-        Uses a modified prompt that instructs the agent to build upon
-        the initial research findings rather than repeating them.
+        When context_files are provided (Step 2 of complete mode):
+        - Uses strategic_layer prompt that builds on existing research
+        - Avoids repeating foundational information
+
+        When no context_files (standalone --mode deep):
+        - Uses company_profile prompt with ALL sections
+        - Generates comprehensive report including Executive Summary,
+          Products/Services, History, Financials, Leadership, etc.
         """
         def progress_callback(progress: ResearchProgress) -> None:
             if on_progress:
@@ -759,9 +765,14 @@ class ResearchOrchestrator:
         # Execute deep research with context
         priority_urls = [website] if website else None
 
+        # Always use company_profile for comprehensive report with ALL sections
+        # Phase 1 context (if provided) INFORMS the research, it doesn't replace sections
+        # The Deep Research API should generate the full polished report
+        output_format = "company_profile"
+
         result = await self.deep_research_client.research(
             query=f"Research {company_name}" + (f" ({website})" if website else ""),
-            output_format="strategic_layer",  # Use strategic layer prompt
+            output_format=output_format,
             poll_interval=config.poll_interval,
             timeout=config.timeout,
             on_progress=progress_callback,
@@ -780,6 +791,14 @@ class ResearchOrchestrator:
                 error=result.error
             )
 
+        # Format the report (resolve citation URLs, clean TOC)
+        formatter = ReportFormatter()
+        formatted = formatter.format_report(
+            raw_content=result.content,
+            company_name=company_name,
+            citation_style="numbered"
+        )
+
         # Normalize the result to section format
         section_results = self._normalize_deep_research_result(result)
 
@@ -788,8 +807,8 @@ class ResearchOrchestrator:
             website=website,
             mode=ResearchMode.DEEP_RESEARCH,
             section_results=section_results,
-            raw_content=result.content,
-            citations=result.citations,
+            raw_content=formatted.markdown,  # Use formatted content with resolved URLs
+            citations=formatted.citations,   # Use resolved citations
             success=True
         )
 

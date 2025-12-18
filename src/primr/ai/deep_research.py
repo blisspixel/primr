@@ -557,7 +557,7 @@ class DeepResearchClient:
                         error=str(error_msg)
                     )
 
-                # Still in progress - show phase changes only (no repeated messages)
+                # Still in progress - show phase changes and periodic updates
                 if on_progress:
                     # Determine current phase based on elapsed time
                     if elapsed < 60:
@@ -571,15 +571,27 @@ class DeepResearchClient:
                     else:
                         phase = "Finalizing"
 
-                    # Only show progress on phase change (not time intervals)
-                    if not hasattr(self, '_last_phase') or self._last_phase != phase:
+                    mins = int(elapsed // 60)
+                    secs = int(elapsed % 60)
+                    time_str = f"{mins}m {secs}s" if mins > 0 else f"{secs}s"
+
+                    # Show progress on phase change OR every 30 seconds for reassurance
+                    phase_changed = not hasattr(self, '_last_phase') or self._last_phase != phase
+                    time_for_update = (elapsed - getattr(self, '_last_progress_time', 0)) >= 30
+
+                    if phase_changed or time_for_update:
                         self._last_phase = phase
-                        mins = int(elapsed // 60)
-                        secs = int(elapsed % 60)
-                        time_str = f"{mins}m {secs}s" if mins > 0 else f"{secs}s"
+                        self._last_progress_time = elapsed
+
+                        # Add activity indicator for long waits
+                        if time_for_update and not phase_changed:
+                            message = f". {phase} ({time_str})"
+                        else:
+                            message = f"{phase} ({time_str})"
+
                         on_progress(ResearchProgress(
                             status=ResearchStatus.IN_PROGRESS,
-                            message=f"{phase} ({time_str})"
+                            message=message
                         ))
 
                 # Use adaptive polling interval
@@ -724,15 +736,21 @@ Cite all sources.
         Structure: Foundational sections first (know them), then strategic analysis (so what).
         """
         from datetime import datetime
+        import re
         current_date = datetime.now().strftime("%B %d, %Y")
-        
+
+        # Extract company name from query for header
+        # Query format: "Research CompanyName (https://...)" or "Research CompanyName"
+        company_match = re.search(r'Research\s+(.+?)(?:\s*\(|$)', query)
+        company_name = company_match.group(1).strip() if company_match else "Company"
+
         return f"""You are a senior strategy consultant preparing pre-meeting research. Generate a comprehensive company overview.
 
 =============================================================================
 OUTPUT FORMAT (Start the document with this exact header)
 =============================================================================
 
-# Strategic Company Overview
+# Strategic Company Overview: {company_name}
 
 **Prepared by:** Primr Research System  
 **Date:** {current_date}
@@ -740,6 +758,16 @@ OUTPUT FORMAT (Start the document with this exact header)
 ---
 
 Then continue with the sections below.
+
+=============================================================================
+HARD REQUIREMENTS (Non-Negotiable)
+=============================================================================
+
+You MUST output EVERY section header listed below, in the exact order specified.
+- Do NOT skip sections.
+- Do NOT merge sections.
+- Do NOT rename section headers.
+- If information is not publicly available for a section, write: "Information not publicly available." Then list 2-3 specific questions we would want to validate in conversation with the client.
 
 =============================================================================
 RESEARCH INSTRUCTIONS
@@ -827,12 +855,20 @@ Revenue, growth trajectory, profitability indicators, funding history if private
 ## Key Business Drivers and Strategic KPIs
 What metrics likely matter most to this business? What appears to drive their success? What would their board probably be tracking?
 
-## SWOT Analysis (Initial Assessment)
-Based on public information. Frame as observations to validate with the client:
-- Strengths: What appears to be working well?
-- Weaknesses: What potential constraints, tradeoffs, or gaps might be worth discussing openly?
-- Opportunities: What options might be worth exploring?
-- Threats: What risks should we discuss with them?
+## Strategic Tensions (Derived from SWOT)
+Based on public information, use SWOT analysis (Strengths, Weaknesses, Opportunities, Threats) as inputs to identify 3-5 core strategic tensions the organization must actively manage. Frame these as persistent tradeoffs to navigate, not problems to solve.
+
+Examples of tensions:
+- Scale vs customization
+- Speed vs governance
+- Innovation vs operational reliability
+- Growth vs profitability
+- Centralization vs local autonomy
+
+For each tension, describe:
+- The tension: What two valuable things are in natural conflict?
+- How they appear to be managing it: What signals suggest their current approach?
+- Question to explore: What would we want to understand about their choices?
 
 ## Leadership and Culture
 Key executives and their backgrounds. Leadership stability (tenure, recent departures). Board composition if relevant. Cultural signals from careers page, press releases, how they talk about their team.
@@ -933,6 +969,21 @@ RESEARCH INSTRUCTIONS
 {query}
 
 CONTEXT: You have access to initial research findings that cover the basics: company overview, products/services, history, and factual information. That foundation is already done. Do not repeat what's in the context files.
+
+=============================================================================
+HARD REQUIREMENTS (Non-Negotiable)
+=============================================================================
+
+You MUST output EVERY section header listed below, in the exact order specified.
+- Do NOT skip sections.
+- Do NOT merge sections.
+- Do NOT rename section headers.
+- If information is not publicly available for a section, write: "Information not publicly available." Then list 2-3 specific questions we would want to validate in conversation.
+
+CRITICAL - SECTION BOUNDARIES:
+- Do NOT output any sections from the Company Overview document.
+- Do NOT include: Executive Summary, Detailed Products and Services, Unique Selling Proposition, Mission and Vision, Company History, Key Achievements, Target Audience, Financial Overview, Key Business Drivers and Strategic KPIs, or Leadership and Culture.
+- Those sections belong to the Company Overview. This document is ONLY for strategic analysis.
 
 PURPOSE:
 This is the strategic analysis layer of our pre-meeting research. We are NOT providing answers or telling the client what to do. We are:
@@ -1862,6 +1913,7 @@ class DeepResearchOrchestrator:
         """
         start_time = time.time()
         last_phase = ""
+        last_progress_time = 0.0
         
         while True:
             elapsed = time.time() - start_time
@@ -1901,15 +1953,26 @@ class DeepResearchOrchestrator:
                     model=self.AGENT_ID
                 )
             
-            # Still in progress - show phase changes
+            # Still in progress - show phase changes and periodic updates
             if on_progress:
                 phase = self._get_phase_name(elapsed)
-                if phase != last_phase:
+                mins = int(elapsed // 60)
+                secs = int(elapsed % 60)
+                time_str = f"{mins}m {secs}s" if mins > 0 else f"{secs}s"
+
+                # Show progress on phase change OR every 30 seconds
+                phase_changed = phase != last_phase
+                time_for_update = (elapsed - last_progress_time) >= 30
+
+                if phase_changed or time_for_update:
                     last_phase = phase
-                    mins = int(elapsed // 60)
-                    secs = int(elapsed % 60)
-                    time_str = f"{mins}m {secs}s" if mins > 0 else f"{secs}s"
-                    on_progress(f"{phase} ({time_str})")
+                    last_progress_time = elapsed
+
+                    # Add activity indicator for long waits
+                    if time_for_update and not phase_changed:
+                        on_progress(f". {phase} ({time_str})")
+                    else:
+                        on_progress(f"{phase} ({time_str})")
             
             # Adaptive polling interval
             interval = self._get_poll_interval(elapsed)
