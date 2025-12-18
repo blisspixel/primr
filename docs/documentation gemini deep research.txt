@@ -1,0 +1,606 @@
+Gemini Deep Research Agent
+
+content_copy
+
+
+The Gemini Deep Research Agent autonomously plans, executes, and synthesizes multi-step research tasks. Powered by Gemini 3 Pro, it navigates complex information landscapes using web search and your own data to produce detailed, cited reports.
+
+Research tasks involve iterative searching and reading and can take several minutes to complete. You must use background execution (set background=true) to run the agent asynchronously and poll for results. See Handling long running tasks for more details.
+
+Preview: The Gemini Deep Research Agent is currently in preview. The Deep Research agent is exclusively available using the Interactions API. You cannot access it through generate_content.
+The following example shows how to start a research task in the background and poll for results.
+
+Python
+JavaScript
+REST
+
+import time
+from google import genai
+
+client = genai.Client()
+
+interaction = client.interactions.create(
+    input="Research the history of Google TPUs.",
+    agent='deep-research-pro-preview-12-2025',
+    background=True
+)
+
+print(f"Research started: {interaction.id}")
+
+while True:
+    interaction = client.interactions.get(interaction.id)
+    if interaction.status == "completed":
+        print(interaction.outputs[-1].text)
+        break
+    elif interaction.status == "failed":
+        print(f"Research failed: {interaction.error}")
+        break
+    time.sleep(10)
+Research with your own data
+Deep Research has access to a variety of tools. By default, the agent has access to information on the public internet using the google_search and url_context tool. You don't need to specify these tools by default. However, if you additionally want to give the agent access to your own data by using the File Search tool you will need to add it as shown in the following example.
+
+Experimental: Using Deep Research with file_search is still experimental.
+Python
+JavaScript
+REST
+
+import time
+from google import genai
+
+client = genai.Client()
+
+interaction = client.interactions.create(
+    input="Compare our 2025 fiscal year report against current public web news.",
+    agent="deep-research-pro-preview-12-2025",
+    background=True,
+    tools=[
+        {
+            "type": "file_search",
+            "file_search_store_names": ['fileSearchStores/my-store-name']
+        }
+    ]
+)
+Steerability and formatting
+You can steer the agent's output by providing specific formatting instructions in your prompt. This allows you to structure reports into specific sections and subsections, include data tables, or adjust tone for different audiences (e.g., "technical," "executive," "casual").
+
+Define the desired output format explicitly in your input text.
+
+Python
+JavaScript
+REST
+
+prompt = """
+Research the competitive landscape of EV batteries.
+
+Format the output as a technical report with the following structure:
+1. Executive Summary
+2. Key Players (Must include a data table comparing capacity and chemistry)
+3. Supply Chain Risks
+"""
+
+interaction = client.interactions.create(
+    input=prompt,
+    agent="deep-research-pro-preview-12-2025",
+    background=True
+)
+Handling long-running tasks
+Deep Research is a multi-step process involving planning, searching, reading, and writing. This cycle typically exceeds the standard timeout limits of synchronous API calls.
+
+Agents are required to use background=True. The API returns a partial Interaction object immediately. You can use the id property to retrieve an interaction for polling. The interaction state will transition from in_progress to completed or failed.
+
+Streaming
+Deep Research supports streaming to receive real-time updates on the research progress. You must set stream=True and background=True.
+
+Note: To receive intermediate reasoning steps (thoughts) and progress updates, you must enable thinking summaries in the agent_config. If this is not set to "auto", the stream may only provide the final results without the real-time thought process.
+The following example shows how to start a research task and process the stream. Crucially, it demonstrates how to track the interaction_id from the interaction.start event. You will need this ID to resume the stream if a network interruption occurs. This code also introduces an event_id variable which lets you resume from the specific point where you disconnected.
+
+Python
+JavaScript
+REST
+
+stream = client.interactions.create(
+    input="Research the history of Google TPUs.",
+    agent="deep-research-pro-preview-12-2025",
+    background=True,
+    stream=True,
+    agent_config={
+        "type": "deep-research",
+        "thinking_summaries": "auto"
+    }
+)
+
+interaction_id = None
+last_event_id = None
+
+for chunk in stream:
+    if chunk.event_type == "interaction.start":
+        interaction_id = chunk.interaction.id
+        print(f"Interaction started: {interaction_id}")
+
+    if chunk.event_id:
+        last_event_id = chunk.event_id
+
+    if chunk.event_type == "content.delta":
+        if chunk.delta.type == "text":
+            print(chunk.delta.text, end="", flush=True)
+        elif chunk.delta.type == "thought_summary":
+            print(f"Thought: {chunk.delta.content.text}", flush=True)
+
+    elif chunk.event_type == "interaction.complete":
+        print("\nResearch Complete")
+Reconnecting to stream
+Network interruptions can occur during long-running research tasks. To handle this gracefully, your application should catch connection errors and resume the stream using client.interactions.get().
+
+You must provide two values to resume:
+
+Interaction ID: Acquired from the interaction.start event in the initial stream.
+Last Event ID: The ID of the last successfully processed event. This tells the server to resume sending events after that specific point. If not provided, you will get the beginning of the stream.
+The following examples demonstrate a resilient pattern: attempting to stream the initial create request, and falling back to a get loop if the connection drops.
+
+Python
+JavaScript
+REST
+
+import time
+from google import genai
+
+client = genai.Client()
+
+# Configuration
+agent_name = 'deep-research-pro-preview-12-2025'
+prompt = 'Compare golang SDK test frameworks'
+
+# State tracking
+last_event_id = None
+interaction_id = None
+is_complete = False
+
+def process_stream(event_stream):
+    """Helper to process events from any stream source."""
+    global last_event_id, interaction_id, is_complete
+    for event in event_stream:
+        # Capture Interaction ID
+        if event.event_type == "interaction.start":
+            interaction_id = event.interaction.id
+            print(f"Interaction started: {interaction_id}")
+
+        # Capture Event ID
+        if event.event_id:
+            last_event_id = event.event_id
+
+        # Print content
+        if event.event_type == "content.delta":
+            if event.delta.type == "text":
+                print(event.delta.text, end="", flush=True)
+            elif event.delta.type == "thought_summary":
+                print(f"Thought: {event.delta.content.text}", flush=True)
+
+        # Check completion
+        if event.event_type in ['interaction.complete', 'error']:
+            is_complete = True
+
+# 1. Attempt initial streaming request
+try:
+    print("Starting Research...")
+    initial_stream = client.interactions.create(
+        input=prompt,
+        agent=agent_name,
+        background=True,
+        stream=True,
+        agent_config={
+            "type": "deep-research",
+            "thinking_summaries": "auto"
+        }
+    )
+    process_stream(initial_stream)
+except Exception as e:
+    print(f"\nInitial connection dropped: {e}")
+
+# 2. Reconnection Loop
+# If the code reaches here and is_complete is False, we resume using .get()
+while not is_complete and interaction_id:
+    print(f"\nConnection lost. Resuming from event {last_event_id}...")
+    time.sleep(2) 
+
+    try:
+        resume_stream = client.interactions.get(
+            id=interaction_id,
+            stream=True,
+            last_event_id=last_event_id
+        )
+        process_stream(resume_stream)
+    except Exception as e:
+        print(f"Reconnection failed, retrying... ({e})")
+Follow-up questions and interactions
+You can continue the conversation after the agent returns the final report by using the previous_interaction_id. This lets you to ask for clarification, summarization or elaboration on specific sections of the research without restarting the entire task.
+
+Python
+JavaScript
+REST
+
+import time
+from google import genai
+
+client = genai.Client()
+
+interaction = client.interactions.create(
+    input="Can you elaborate on the second point in the report?",
+    model="gemini-3-pro-preview",
+    previous_interaction_id="COMPLETED_INTERACTION_ID"
+)
+
+print(interaction.outputs[-1].text)
+When to use Gemini Deep Research Agent
+Deep Research is an agent, not just a model. It is best suited for workloads that require an "analyst-in-a-box" approach rather than low-latency chat.
+
+Feature	Standard Gemini Models	Gemini Deep Research Agent
+Latency	Seconds	Minutes (Async/Background)
+Process	Generate -> Output	Plan -> Search -> Read -> Iterate -> Output
+Output	Conversational text, code, short summaries	Detailed reports, long-form analysis, comparative tables
+Best For	Chatbots, extraction, creative writing	Market analysis, due diligence, literature reviews, competitive landscaping
+Availability and pricing
+Note: Google Search tool calls are free of charge until January 5th, 2026. After this date, standard pricing applies.
+Availability: Accessible using the Interactions API in Google AI Studio and Gemini API.
+Pricing: See the Pricing page for specific rates and details.
+Safety considerations
+Giving an agent access to the web and your private files requires careful consideration of safety risks.
+
+Prompt injection using files: The agent reads the contents of the files you provide. Ensure that uploaded documents (PDFs, text files) come from trusted sources. A malicious file could contain hidden text designed to manipulate the agent's output.
+Web content risks: The agent searches the public web. While we implement robust safety filters, there is a risk that the agent may encounter and process malicious web pages. We recommend reviewing the citations provided in the response to verify the sources.
+Exfiltration: Be cautious when asking the agent to summarize sensitive internal data if you are also allowing it to browse the web.
+Best practices
+Prompt for unknowns: Instruct the agent on how to handle missing data. For example, add "If specific figures for 2025 are not available, explicitly state they are projections or unavailable rather than estimating" to your prompt.
+Provide context: Ground the agent's research by providing background information or constraints directly in the input prompt.
+Multimodal inputs Deep Research Agent supports multi-modal inputs. Use cautiously, as this increases costs and risks context window overflow.
+Limitations
+Beta status: The Interactions API is in public beta. Features and schemas may change.
+Custom tools: You cannot currently provide custom Function Calling tools or remote MCP (Model Context Protocol) servers to the Deep Research agent.
+Structured output and plan approval: The Deep Research Agent currently doesn't support human approved planning or structured outputs.
+Max research time: The Deep Research agent has a maximum research time of 60 minutes. Most tasks should complete within 20 minutes.
+Store requirement: Agent execution using background=True requires store=True.
+Google search: Google Search is enabled by default and specific restrictions apply to the grounded results.
+Audio inputs: Audio inputs are not supported.
+What's next
+Learn more about the Interactions API.
+Read about the Gemini 3 Pro model that powers this agent.
+Learn how to use your own data using the File Search tool.
+
+Using Tools & Agents with Gemini API
+
+content_copy
+
+
+Tools and Agents extend the capabilities of Gemini models, enabling them to take action in the world, access real-time information, and perform complex computational tasks. Models can use tools in both standard request-response interactions and real-time streaming sessions using the Live API.
+
+Tools are specific capabilities (like Google Search or Code Execution) that a model can use to answer queries.
+Agents are systems that can plan, execute, and synthesize multi-step tasks to achieve a user goal.
+The Gemini API provides a suite of fully managed, built-in tools and agents optimized for Gemini models, or you can define custom tools using Function Calling.
+
+Available built-in tools
+Tool	Description	Use Cases
+Google Search	Ground responses in current events and facts from the web to reduce hallucinations.	- Answering questions about recent events
+- Verifying facts with diverse sources
+Google Maps	Build location-aware assistants that can find places, get directions, and provide rich local context.	- Planning travel itineraries with multiple stops
+- Finding local businesses based on user criteria
+Code Execution	Allow the model to write and run Python code to solve math problems or process data accurately.	- Solving complex mathematical equations
+- Processing and analyzing text data precisely
+URL Context	Direct the model to read and analyze content from specific web pages or documents.	- Answering questions based on specific URLs or documents
+- Retrieving information across different web pages
+Computer Use (Preview)	Enable Gemini to view a screen and generate actions to interact with web browser UIs (Client-side execution).	- Automating repetitive web-based workflows
+- Testing web application user interfaces
+File Search	Index and search your own documents to enable Retrieval Augmented Generation (RAG).	- Searching technical manuals
+- Question answering over proprietary data
+See the Pricing page for details on costs associated with specific tools.
+
+Available Agents
+Agent	Description	Use Cases
+Deep Research	Autonomously plans, executes, and synthesizes multi-step research tasks.	- Market analysis
+- Due diligence
+- Literature reviews
+How tools execution works
+Tools allow the model to request actions during a conversation. The flow differs depending on whether the tool is built-in (managed by Google) or custom (managed by you).
+
+Built-in tool flow
+For built-in tools like Google Search or Code Execution, the entire process happens within one API call:
+
+You send a prompt: "What is the square root of the latest stock price of GOOG?"
+Gemini decides it needs tools and executes them on Google's servers (e.g., searches for the stock price, then runs Python code to calculate the square root).
+Gemini sends back the final answer grounded in the tool results.
+Custom tool flow (Function Calling)
+For custom tools and Computer Use, your application handles the execution:
+
+You send a prompt along with functions (tools) declarations.
+Gemini might send back a structured JSON to call a specific function (for example, {"name": "get_order_status", "args": {"order_id": "123"}}).
+You execute the function in your application or environment.
+You send the function results back to Gemini.
+Gemini uses the results to generate a final response or another tool call.
+Learn more in the Function calling guide.
+
+Structured outputs vs. function Calling
+Gemini offers two methods for generating structured outputs. Use Function calling when the model needs to perform an intermediate step by connecting to your own tools or data systems. Use Structured Outputs when you strictly need the model's final response to adhere to a specific schema, such as for rendering a custom UI.
+
+Structured outputs with tools
+Preview: This is a feature available only with the gemini-3-pro-preview model.
+You can combine Structured Outputs with built-in tools to ensure that model responses grounded in external data or computation still adhere to a strict schema.
+
+See Structured outputs with tools for code examples.
+
+Building agents
+Agents are systems that use models and tools to complete multi-step tasks. While Gemini provides the reasoning capabilities (the "brain") and the essential tools (the "hands"), you often need an orchestration framework to manage the agent's memory, plan loops, and perform complex tool chaining.
+
+To maximize reliability in multi-step workflows, you should craft instructions that explicitly control how the model reasons and plans. While Gemini provides strong general reasoning, complex agents benefit from prompts that enforce specific behaviors like persistence in the face of issues, risk assessment, and proactive planning.
+
+See the Agentic workflows for strategies on designing these prompts. Here is a example, of a system instruction that improved performance on several agentic benchmarks by around 5%.
+
+Agent frameworks
+Gemini integrates with leading open-source agent frameworks such as:
+
+LangChain / LangGraph: Build stateful, complex application flows and multi-agent systems using graph structures.
+LlamaIndex: Connect Gemini agents to your private data for RAG-enhanced workflows.
+CrewAI: Orchestrate collaborative, role-playing autonomous AI agents.
+Vercel AI SDK: Build AI-powered user interfaces and agents in JavaScript/TypeScript.
+Google ADK: An open-source framework for building and orchestrating interoperable AI agents.
+
+Gemini 3 Developer Guide
+
+content_copy
+
+
+Gemini 3 is our most intelligent model family to date, built on a foundation of state-of-the-art reasoning. It is designed to bring any idea to life by mastering agentic workflows, autonomous coding, and complex multimodal tasks. This guide covers key features of the Gemini 3 model family and how to get the most out of it.
+
+Try Gemini 3 Pro for free
+
+Explore our collection of Gemini 3 apps to see how the model handles advanced reasoning, autonomous coding, and complex multimodal tasks.
+
+Get started with few lines of code:
+
+Python
+JavaScript
+REST
+
+from google import genai
+
+client = genai.Client()
+
+response = client.models.generate_content(
+    model="gemini-3-pro-preview",
+    contents="Find the race condition in this multi-threaded C++ snippet: [code here]",
+)
+
+print(response.text)
+Meet Gemini 3
+Gemini 3 Pro is the first model in the new series. gemini-3-pro-preview is best for your complex tasks that require broad world knowledge and advanced reasoning across modalities.
+
+Model ID	Context Window (In / Out)	Knowledge Cutoff	Pricing (Input / Output)*
+gemini-3-pro-preview	1M / 64k	Jan 2025	$2 / $12 (<200k tokens)
+$4 / $18 (>200k tokens)
+gemini-3-pro-image-preview	65k / 32k	Jan 2025	$2 (Text Input) / $0.134 (Image Output)**
+* Pricing is per 1 million tokens unless otherwise noted. ** Image pricing varies by resolution. See the pricing page for details.
+
+For detailed rate limits, batch pricing, and additional information, see the models page.
+
+New API features in Gemini 3
+Gemini 3 introduces new parameters designed to give developers more control over latency, cost, and multimodal fidelity.
+
+Thinking level
+Gemini 3 Pro uses dynamic thinking by default to reason through prompts. You can use the thinking_level parameter, which controls the maximum depth of the model's internal reasoning process before it produces a response. Gemini 3 treats these levels as relative allowances for thinking rather than strict token guarantees.
+
+If thinking_level is not specified, Gemini 3 Pro will default to high. For faster, lower-latency responses when complex reasoning isn't required, you can constrain the model's thinking level to low.
+
+low: Minimizes latency and cost. Best for simple instruction following, chat, or high-throughput applications
+medium: Currently not supported
+high (Default): Maximizes reasoning depth. The model may take significantly longer to reach a first token, but the output will be more carefully reasoned.
+
+Python
+JavaScript
+REST
+
+from google import genai
+from google.genai import types
+
+client = genai.Client()
+
+response = client.models.generate_content(
+    model="gemini-3-pro-preview",
+    contents="How does AI work?",
+    config=types.GenerateContentConfig(
+        thinking_config=types.ThinkingConfig(thinking_level="low")
+    ),
+)
+
+print(response.text)
+Important: You cannot use both thinking_level and the legacy thinking_budget parameter in the same request. Doing so will return a 400 error.
+Media resolution
+Gemini 3 introduces granular control over multimodal vision processing via the media_resolution parameter. Higher resolutions improve the model's ability to read fine text or identify small details, but increase token usage and latency. The media_resolution parameter determines the maximum number of tokens allocated per input image or video frame.
+
+You can now set the resolution to media_resolution_low, media_resolution_medium, media_resolution_high, or media_resolution_ultra_high per individual media part or globally (via generation_config, global not available for ultra high). If unspecified, the model uses optimal defaults based on the media type.
+
+Recommended settings
+
+Media Type	Recommended Setting	Max Tokens	Usage Guidance
+Images	media_resolution_high	1120	Recommended for most image analysis tasks to ensure maximum quality.
+PDFs	media_resolution_medium	560	Optimal for document understanding; quality typically saturates at medium. Increasing to high rarely improves OCR results for standard documents.
+Video (General)	media_resolution_low (or media_resolution_medium)	70 (per frame)	Note: For video, low and medium settings are treated identically (70 tokens) to optimize context usage. This is sufficient for most action recognition and description tasks.
+Video (Text-heavy)	media_resolution_high	280 (per frame)	Required only when the use case involves reading dense text (OCR) or small details within video frames.
+Note: The media_resolution parameter maps to different token counts depending on the input type. While images scale linearly (media_resolution_low: 280, media_resolution_medium: 560, media_resolution_high: 1120), Video is compressed more aggressively. For Video, both media_resolution_low and media_resolution_medium are capped at 70 tokens per frame, and media_resolution_high is capped at 280 tokens. See full details here
+Python
+JavaScript
+REST
+
+from google import genai
+from google.genai import types
+import base64
+
+# The media_resolution parameter is currently only available in the v1alpha API version.
+client = genai.Client(http_options={'api_version': 'v1alpha'})
+
+response = client.models.generate_content(
+    model="gemini-3-pro-preview",
+    contents=[
+        types.Content(
+            parts=[
+                types.Part(text="What is in this image?"),
+                types.Part(
+                    inline_data=types.Blob(
+                        mime_type="image/jpeg",
+                        data=base64.b64decode("..."),
+                    ),
+                    media_resolution={"level": "media_resolution_high"}
+                )
+            ]
+        )
+    ]
+)
+
+print(response.text)
+Temperature
+For Gemini 3, we strongly recommend keeping the temperature parameter at its default value of 1.0.
+
+While previous models often benefited from tuning temperature to control creativity versus determinism, Gemini 3's reasoning capabilities are optimized for the default setting. Changing the temperature (setting it below 1.0) may lead to unexpected behavior, such as looping or degraded performance, particularly in complex mathematical or reasoning tasks.
+
+Thought signatures
+Gemini 3 uses Thought signatures to maintain reasoning context across API calls. These signatures are encrypted representations of the model's internal thought process. To ensure the model maintains its reasoning capabilities you must return these signatures back to the model in your request exactly as they were received:
+
+Function Calling (Strict): The API enforces strict validation on the "Current Turn". Missing signatures will result in a 400 error.
+Text/Chat: Validation is not strictly enforced, but omitting signatures will degrade the model's reasoning and answer quality.
+Image generation/editing (Strict): The API enforces strict validation on all Model parts including a thoughtSignature. Missing signatures will result in a 400 error.
+Success: If you use the official SDKs (Python, Node, Java) and standard chat history, Thought Signatures are handled automatically. You do not need to manually manage these fields.
+Function calling (strict validation)
+When Gemini generates a functionCall, it relies on the thoughtSignature to process the tool's output correctly in the next turn. The "Current Turn" includes all Model (functionCall) and User (functionResponse) steps that occurred since the last standard User text message.
+
+Single Function Call: The functionCall part contains a signature. You must return it.
+Parallel Function Calls: Only the first functionCall part in the list will contain the signature. You must return the parts in the exact order received.
+Multi-Step (Sequential): If the model calls a tool, receives a result, and calls another tool (within the same turn), both function calls have signatures. You must return all accumulated signatures in the history.
+Text and streaming
+For standard chat or text generation, the presence of a signature is not guaranteed.
+
+Non-Streaming: The final content part of the response may contain a thoughtSignature, though it is not always present. If one is returned, you should send it back to maintain best performance.
+Streaming: If a signature is generated, it may arrive in a final chunk that contains an empty text part. Ensure your stream parser checks for signatures even if the text field is empty.
+Image generation and editing
+For gemini-3-pro-image-preview, thought signatures are critical for conversational editing. When you ask the model to modify an image it relies on the thoughtSignature from the previous turn to understand the composition and logic of the original image.
+
+Editing: Signatures are guaranteed on the first part after the thoughts of the response (text or inlineData) and on every subsequent inlineData part. You must return all of these signatures to avoid errors.
+Code examples
+Multi-step Function Calling (Sequential)
+Parallel Function Calling
+Text/In-Context Reasoning (No Validation)
+Image Generation & Editing
+Migrating from other models
+If you are transferring a conversation trace from another model (e.g., Gemini 2.5) or injecting a custom function call that was not generated by Gemini 3, you will not have a valid signature.
+
+To bypass strict validation in these specific scenarios, populate the field with this specific dummy string: "thoughtSignature": "context_engineering_is_the_way_to_go"
+
+Structured Outputs with tools
+Gemini 3 allows you to combine Structured Outputs with built-in tools, including Grounding with Google Search, URL Context, and Code Execution.
+
+Python
+JavaScript
+REST
+
+from google import genai
+from google.genai import types
+from pydantic import BaseModel, Field
+from typing import List
+
+class MatchResult(BaseModel):
+    winner: str = Field(description="The name of the winner.")
+    final_match_score: str = Field(description="The final match score.")
+    scorers: List[str] = Field(description="The name of the scorer.")
+
+client = genai.Client()
+
+response = client.models.generate_content(
+    model="gemini-3-pro-preview",
+    contents="Search for all details for the latest Euro.",
+    config={
+        "tools": [
+            {"google_search": {}},
+            {"url_context": {}}
+        ],
+        "response_mime_type": "application/json",
+        "response_json_schema": MatchResult.model_json_schema(),
+    },  
+)
+
+result = MatchResult.model_validate_json(response.text)
+print(result)
+Image generation
+Gemini 3 Pro Image lets you generate and edit images from text prompts. It uses reasoning to "think" through a prompt and can retrieve real-time data—such as weather forecasts or stock charts—before using Google Search grounding before generating high-fidelity images.
+
+New & improved capabilities:
+
+4K & text rendering: Generate sharp, legible text and diagrams with up to 2K and 4K resolutions.
+Grounded generation: Use the google_search tool to verify facts and generate imagery based on real-world information.
+Conversational editing: Multi-turn image editing by simply asking for changes (e.g., "Make the background a sunset"). This workflow relies on Thought Signatures to preserve visual context between turns.
+For complete details on aspect ratios, editing workflows, and configuration options, see the Image Generation guide.
+
+Python
+JavaScript
+REST
+
+from google import genai
+from google.genai import types
+
+client = genai.Client()
+
+response = client.models.generate_content(
+    model="gemini-3-pro-image-preview",
+    contents="Generate an infographic of the current weather in Tokyo.",
+    config=types.GenerateContentConfig(
+        tools=[{"google_search": {}}],
+        image_config=types.ImageConfig(
+            aspect_ratio="16:9",
+            image_size="4K"
+        )
+    )
+)
+
+image_parts = [part for part in response.parts if part.inline_data]
+
+if image_parts:
+    image = image_parts[0].as_image()
+    image.save('weather_tokyo.png')
+    image.show()
+Example Response
+
+Weather Tokyo
+
+Migrating from Gemini 2.5
+Gemini 3 is our most capable model family to date and offers a stepwise improvement over Gemini 2.5 Pro. When migrating, consider the following:
+
+Thinking: If you were previously using complex prompt engineering (like Chain-of-thought) to force Gemini 2.5 to reason, try Gemini 3 with thinking_level: "high" and simplified prompts.
+Temperature settings: If your existing code explicitly sets temperature (especially to low values for deterministic outputs), we recommend removing this parameter and using the Gemini 3 default of 1.0 to avoid potential looping issues or performance degradation on complex tasks.
+PDF & document understanding: Default OCR resolution for PDFs has changed. If you relied on specific behavior for dense document parsing, test the new media_resolution_high setting to ensure continued accuracy.
+Token consumption: Migrating to Gemini 3 Pro defaults may increase token usage for PDFs but decrease token usage for video. If requests now exceed the context window due to higher default resolutions, we recommend explicitly reducing the media resolution.
+Image segmentation: Image segmentation capabilities (returning pixel-level masks for objects) are not supported in Gemini 3 Pro. For workloads requiring native image segmentation, we recommend continuing to utilize Gemini 2.5 Flash with thinking turned off or Gemini Robotics-ER 1.5.
+OpenAI compatibility
+For users utilizing the OpenAI compatibility layer, standard parameters are automatically mapped to Gemini equivalents:
+
+reasoning_effort (OAI) maps to thinking_level (Gemini). Note that reasoning_effort medium maps to thinking_level high.
+Prompting best practices
+Gemini 3 is a reasoning model, which changes how you should prompt.
+
+Precise instructions: Be concise in your input prompts. Gemini 3 responds best to direct, clear instructions. It may over-analyze verbose or overly complex prompt engineering techniques used for older models.
+Output verbosity: By default, Gemini 3 is less verbose and prefers providing direct, efficient answers. If your use case requires a more conversational or "chatty" persona, you must explicitly steer the model in the prompt (e.g., "Explain this as a friendly, talkative assistant").
+Context management: When working with large datasets (e.g., entire books, codebases, or long videos), place your specific instructions or questions at the end of the prompt, after the data context. Anchor the model's reasoning to the provided data by starting your question with a phrase like, "Based on the information above...".
+Learn more about prompt design strategies in the prompt engineering guide.
+
+FAQ
+What is the knowledge cutoff for Gemini 3 Pro? Gemini 3 has a knowledge cutoff of January 2025. For more recent information, use the Search Grounding tool.
+
+What are the context window limits? Gemini 3 Pro supports a 1 million token input context window and up to 64k tokens of output.
+
+Is there a free tier for Gemini 3 Pro? You can try the model for free in Google AI Studio, but currently, there is no free tier available for gemini-3-pro-preview in the Gemini API.
+
+Will my old thinking_budget code still work? Yes, thinking_budget is still supported for backward compatibility, but we recommend migrating to thinking_level for more predictable performance. Do not use both in the same request.
+
+Does Gemini 3 support the Batch API? Yes, Gemini 3 supports the Batch API.
+
+Is Context Caching supported? Yes, Context Caching is supported for Gemini 3. The minimum token count required to initiate caching is 2,048 tokens.
+
+Which tools are supported in Gemini 3? Gemini 3 supports Google Search, File Search, Code Execution, and URL Context. It also supports standard Function Calling for your own custom tools. Please note that Grounding with Google Maps and Computer Use are currently not supported.
+
+Note: Gemini 3 billing for Grounding with Google Search will begin on January 5, 2026.
+Next steps
+Get started with the Gemini 3 Cookbook
+Check the dedicated Cookbook guide on thinking levels and how to migrate from thinking budget to thinking

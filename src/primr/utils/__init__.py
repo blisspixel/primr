@@ -1,0 +1,155 @@
+"""
+Utils module - Logging, console output, and utility functions.
+"""
+
+from primr.utils.chat_logger import log_chat_interaction
+from primr.utils.console import Console, console, get_console, set_console
+from primr.utils.errors import (
+    AIError,
+    ConfigurationError,
+    ErrorContext,
+    OutputError,
+    ResearchError,
+    RetryConfig,
+    ScrapingError,
+    SearchError,
+    ValidationError,
+    async_safe_callback,
+    calculate_backoff_delay,
+    error_context,
+    retry_on_failure,
+    safe_call,
+)
+from primr.utils.files import (
+    ensure_parent_exists,
+    get_cache_key,
+    get_cache_path,
+    get_company_folder,
+    get_safe_path,
+    sanitize_filename,
+    secure_temp_dir,
+    secure_temp_file,
+    validate_directory_exists,
+    validate_file_exists,
+)
+from primr.utils.formatting import (
+    clean_content,
+    format_currency,
+    format_number,
+    remove_em_dashes,
+    remove_emojis,
+)
+from primr.utils.logging_config import (
+    LogContext,
+    get_logger,
+    setup_logging,
+)
+from primr.utils.observability import (
+    Metrics,
+    OperationContext,
+    emit_metrics,
+    get_correlation_id,
+    operation_context,
+    set_correlation_id,
+    timed,
+    tracked_operation,
+)
+from primr.utils.resources import (
+    BoundedCache,
+    CacheMetrics,
+    ThreadSafeSingleton,
+    managed_http_client,
+    managed_temp_dir,
+    managed_temp_file,
+)
+from primr.utils.type_guards import (
+    TypeValidationError,
+    is_valid_type,
+    validate_api_response,
+    validate_dataclass,
+    validate_type,
+)
+from primr.utils.validators import (
+    InputValidationError,
+    safe_json_get,
+    safe_json_parse,
+    sanitize_for_filename,
+    validate_company_name,
+    validate_file_path,
+    validate_url,
+)
+
+__all__ = [
+    # Console
+    "Console",
+    "console",
+    "get_console",
+    "set_console",
+    # Errors
+    "ResearchError",
+    "ConfigurationError",
+    "ScrapingError",
+    "AIError",
+    "SearchError",
+    "OutputError",
+    "ValidationError",
+    "safe_call",
+    "retry_on_failure",
+    "ErrorContext",
+    "RetryConfig",
+    "calculate_backoff_delay",
+    "error_context",
+    "async_safe_callback",
+    # Logging
+    "setup_logging",
+    "get_logger",
+    "LogContext",
+    "log_chat_interaction",
+    # Files
+    "secure_temp_file",
+    "secure_temp_dir",
+    "sanitize_filename",
+    "get_safe_path",
+    "get_company_folder",
+    "get_cache_key",
+    "get_cache_path",
+    "validate_file_exists",
+    "validate_directory_exists",
+    "ensure_parent_exists",
+    # Formatting
+    "clean_content",
+    "format_number",
+    "format_currency",
+    "remove_emojis",
+    "remove_em_dashes",
+    # Type Guards
+    "TypeValidationError",
+    "validate_type",
+    "validate_dataclass",
+    "validate_api_response",
+    "is_valid_type",
+    # Resources
+    "managed_temp_file",
+    "managed_temp_dir",
+    "managed_http_client",
+    "BoundedCache",
+    "CacheMetrics",
+    "ThreadSafeSingleton",
+    # Observability
+    "get_correlation_id",
+    "set_correlation_id",
+    "OperationContext",
+    "operation_context",
+    "timed",
+    "Metrics",
+    "emit_metrics",
+    "tracked_operation",
+    # Validators
+    "InputValidationError",
+    "validate_url",
+    "validate_file_path",
+    "validate_company_name",
+    "sanitize_for_filename",
+    "safe_json_parse",
+    "safe_json_get",
+]

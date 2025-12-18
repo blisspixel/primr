@@ -1,0 +1,376 @@
+"""
+Async AI client for parallel LLM operations.
+
+This module provides:
+- Async AI client for concurrent requests
+- Batch processing for multiple prompts
+- Semaphore-based concurrency control
+- Compatible with the sync AIClient interface
+"""
+
+import asyncio
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any, TypeVar
+
+from google import genai
+from google.genai import types
+
+from primr.config.settings import get_settings
+from primr.utils.errors import AIError
+from primr.utils.logging_config import get_logger
+
+logger = get_logger("ai.async_client")
+
+T = TypeVar("T")
+
+
+@dataclass
+class BatchResult:
+    """Result of a batch AI operation."""
+
+    prompt: str
+    response: str | None = None
+    error: Exception | None = None
+    duration_ms: float = 0.0
+
+    @property
+    def success(self) -> bool:
+        """Whether the request succeeded."""
+        return self.error is None and self.response is not None
+
+
+@dataclass
+class BatchStats:
+    """Statistics for a batch operation."""
+
+    total: int = 0
+    succeeded: int = 0
+    failed: int = 0
+    total_duration_ms: float = 0.0
+
+    @property
+    def success_rate(self) -> float:
+        """Success rate as a percentage."""
+        return (self.succeeded / self.total * 100) if self.total > 0 else 0.0
+
+    @property
+    def avg_duration_ms(self) -> float:
+        """Average duration per request."""
+        return self.total_duration_ms / self.total if self.total > 0 else 0.0
+
+
+class AsyncAIClient:
+    """
+    Async AI client for parallel LLM operations.
+
+    Example:
+        async with AsyncAIClient() as client:
+            response = await client.generate("What is Python?")
+
+            # Batch processing
+            results = await client.generate_batch([
+                "Summarize company A",
+                "Summarize company B",
+                "Summarize company C",
+            ])
+    """
+
+    def __init__(
+        self,
+        api_key: str | None = None,
+        max_concurrent: int = 5,
+    ):
+        """
+        Initialize the async AI client.
+
+        Args:
+            api_key: Optional API key override
+            max_concurrent: Maximum concurrent requests
+        """
+        settings = get_settings()
+        self._api_key = api_key or settings.api.gemini_key
+        self._client: genai.Client | None = None
+        self._settings = settings.ai
+        self._max_concurrent = max_concurrent
+        self._semaphore: asyncio.Semaphore | None = None
+        logger.debug(f"Async AI client initialized (max_concurrent={max_concurrent})")
+
+    async def __aenter__(self) -> "AsyncAIClient":
+        """Async context manager entry."""
+        self._client = genai.Client(api_key=self._api_key)
+        self._semaphore = asyncio.Semaphore(self._max_concurrent)
+        return self
+
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        """Async context manager exit."""
+        self._client = None
+        self._semaphore = None
+
+    def _ensure_initialized(self) -> None:
+        """Ensure client is initialized."""
+        if self._client is None:
+            self._client = genai.Client(api_key=self._api_key)
+        if self._semaphore is None:
+            self._semaphore = asyncio.Semaphore(self._max_concurrent)
+
+    async def generate(
+        self,
+        prompt: str,
+        model_type: str = "research",
+        temperature: float = 1.0,
+        thinking_level: str = "high",
+        max_retries: int | None = None,
+    ) -> str:
+        """
+        Generate content asynchronously.
+
+        Args:
+            prompt: The prompt to send
+            model_type: "research" or "report"
+            temperature: Sampling temperature
+            thinking_level: "low" or "high"
+            max_retries: Override default retry count
+
+        Returns:
+            Generated text response
+
+        Raises:
+            AIError: If all retries fail
+        """
+        self._ensure_initialized()
+
+        model = self._get_model(model_type)
+        retries = max_retries or self._settings.max_retries
+
+        config = types.GenerateContentConfig(
+            temperature=temperature,
+            thinking_config=types.ThinkingConfig(thinking_level=thinking_level)  # type: ignore[arg-type]
+        )
+
+        last_error = None
+
+        async with self._semaphore:  # type: ignore
+            for attempt in range(retries):
+                try:
+                    logger.debug(f"Async AI call attempt {attempt + 1}/{retries}")
+
+                    # Run sync call in thread pool
+                    loop = asyncio.get_event_loop()
+                    response = await loop.run_in_executor(
+                        None,
+                        lambda: self._client.models.generate_content(  # type: ignore
+                            model=model,
+                            contents=prompt,
+                            config=config
+                        )
+                    )
+
+                    result = (response.text or "").strip()
+                    logger.debug(f"Async AI response: {len(result)} chars")
+                    return result
+
+                except Exception as e:
+                    last_error = e
+                    error_str = str(e).lower()
+
+                    # Check for quota exhaustion (daily limit hit) - STOP IMMEDIATELY
+                    is_quota_exhausted = (
+                        "resource_exhausted" in error_str and
+                        ("per_day" in error_str or "quota" in error_str and "exceeded" in error_str)
+                    )
+
+                    if is_quota_exhausted:
+                        logger.error("Daily API quota exhausted - stopping immediately")
+                        raise AIError(
+                            "Daily API quota exhausted. Wait until quota resets or upgrade your plan. "
+                            "Check status with: python company_research.py --check-quota",
+                            cause=e
+                        ) from e
+
+                    logger.warning(f"Async AI call failed (attempt {attempt + 1}): {e}")
+
+                    if attempt < retries - 1:
+                        # Use longer backoff for rate limits
+                        if "429" in str(e) or "resource_exhausted" in error_str:
+                            delay = min(2 ** attempt * 5, 60)  # 5s, 10s, 20s, max 60s
+                        else:
+                            delay = 2 ** attempt
+                        await asyncio.sleep(delay)
+
+        raise AIError(f"Async AI call failed after {retries} attempts", cause=last_error)
+
+    async def generate_fast(
+        self,
+        prompt: str,
+        model_type: str = "research"
+    ) -> str:
+        """Fast generation with minimal thinking."""
+        return await self.generate(
+            prompt,
+            model_type=model_type,
+            thinking_level="low"
+        )
+
+    async def generate_batch(
+        self,
+        prompts: list[str],
+        model_type: str = "research",
+        temperature: float = 1.0,
+        thinking_level: str = "high",
+        on_progress: Callable[[int, int], None] | None = None,
+    ) -> list[BatchResult]:
+        """
+        Generate responses for multiple prompts in parallel.
+
+        Args:
+            prompts: List of prompts to process
+            model_type: "research" or "report"
+            temperature: Sampling temperature
+            thinking_level: "low" or "high"
+            on_progress: Optional callback(completed, total)
+
+        Returns:
+            List of BatchResult objects
+        """
+        import time
+
+        self._ensure_initialized()
+        completed = 0
+
+        async def process_one(prompt: str) -> BatchResult:
+            nonlocal completed
+            start = time.perf_counter()
+
+            try:
+                response = await self.generate(
+                    prompt,
+                    model_type=model_type,
+                    temperature=temperature,
+                    thinking_level=thinking_level,
+                )
+                duration = (time.perf_counter() - start) * 1000
+                result = BatchResult(prompt=prompt, response=response, duration_ms=duration)
+            except Exception as e:
+                duration = (time.perf_counter() - start) * 1000
+                result = BatchResult(prompt=prompt, error=e, duration_ms=duration)
+
+            completed += 1
+            if on_progress:
+                on_progress(completed, len(prompts))
+
+            return result
+
+        tasks = [process_one(p) for p in prompts]
+        results = await asyncio.gather(*tasks)
+
+        return list(results)
+
+    async def generate_batch_with_context(
+        self,
+        items: list[dict[str, Any]],
+        prompt_template: str,
+        model_type: str = "research",
+        **kwargs: Any
+    ) -> list[BatchResult]:
+        """
+        Generate responses for items using a template.
+
+        Args:
+            items: List of context dictionaries
+            prompt_template: Template string with {key} placeholders
+            model_type: "research" or "report"
+            **kwargs: Additional arguments for generate_batch
+
+        Returns:
+            List of BatchResult objects
+        """
+        prompts = [prompt_template.format(**item) for item in items]
+        return await self.generate_batch(prompts, model_type=model_type, **kwargs)
+
+    def _get_model(self, model_type: str) -> str:
+        """Get the model name for a given type."""
+        if model_type == "research":
+            return self._settings.research_model
+        elif model_type == "report":
+            return self._settings.report_model
+        else:
+            return self._settings.research_model
+
+
+def get_batch_stats(results: list[BatchResult]) -> BatchStats:
+    """
+    Calculate statistics for batch results.
+
+    Args:
+        results: List of BatchResult objects
+
+    Returns:
+        BatchStats with aggregated metrics
+    """
+    stats = BatchStats(total=len(results))
+
+    for r in results:
+        if r.success:
+            stats.succeeded += 1
+        else:
+            stats.failed += 1
+        stats.total_duration_ms += r.duration_ms
+
+    return stats
+
+
+# =============================================================================
+# CONVENIENCE FUNCTIONS
+# =============================================================================
+
+async def generate_parallel(
+    prompts: list[str],
+    model_type: str = "research",
+    max_concurrent: int = 5,
+    **kwargs: Any
+) -> list[BatchResult]:
+    """
+    Generate responses for multiple prompts in parallel.
+
+    Convenience function that creates a client and processes prompts.
+
+    Args:
+        prompts: List of prompts to process
+        model_type: "research" or "report"
+        max_concurrent: Maximum concurrent requests
+        **kwargs: Additional arguments for generate_batch
+
+    Returns:
+        List of BatchResult objects
+    """
+    async with AsyncAIClient(max_concurrent=max_concurrent) as client:
+        return await client.generate_batch(prompts, model_type=model_type, **kwargs)
+
+
+def run_parallel(
+    prompts: list[str],
+    model_type: str = "research",
+    max_concurrent: int = 5,
+    **kwargs: Any
+) -> list[BatchResult]:
+    """
+    Synchronous wrapper for parallel generation.
+
+    Use this when you need parallel AI calls from sync code.
+
+    Args:
+        prompts: List of prompts to process
+        model_type: "research" or "report"
+        max_concurrent: Maximum concurrent requests
+        **kwargs: Additional arguments
+
+    Returns:
+        List of BatchResult objects
+    """
+    return asyncio.run(generate_parallel(
+        prompts,
+        model_type=model_type,
+        max_concurrent=max_concurrent,
+        **kwargs
+    ))
