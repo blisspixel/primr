@@ -1,42 +1,205 @@
 # config.py
+"""
+Configuration module with lazy API key validation.
+
+API keys are loaded at import time but NOT validated until accessed.
+This allows modules to be imported and tested without requiring API keys.
+
+Usage:
+    # For code that needs API keys:
+    from primr.config.config import get_gemini_api_key
+    api_key = get_gemini_api_key()  # Raises ConfigurationError if not set
+
+    # For startup validation (e.g., in main() or doctor command):
+    from primr.config.config import validate_config, require_valid_config
+    result = validate_config()
+    if not result.valid:
+        print(result.errors)
+"""
 import os
+from dataclasses import dataclass
 from pathlib import Path
 
 from dotenv import load_dotenv
 
-# Load environment variables
+# Load environment variables (safe, no validation)
 load_dotenv()
 
 
-def get_project_root():
+# =============================================================================
+# PROJECT ROOT DETECTION
+# =============================================================================
+
+def get_project_root() -> Path:
     """
     Returns the project root directory.
     Works whether running from package or directly.
     """
-    # Start from this file's location and go up to find project root
     current = Path(__file__).resolve()
     # Go up: config.py -> config/ -> primr/ -> src/ -> project_root
     for _ in range(4):
         current = current.parent
-        # Check if we're at project root by looking for key files
         if (current / ".env").exists() or (current / "pyproject.toml").exists():
             return current
-    # Fallback to current working directory
     return Path.cwd()
 
 
 PROJECT_ROOT = get_project_root()
 
-### **API Keys & Authentication** ###
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")  # Google AI API Key (for consumer API)
-SEARCH_API_KEY = os.getenv("SEARCH_API_KEY")  # Google Custom Search API Key
-SEARCH_ENGINE_ID = os.getenv("SEARCH_ENGINE_ID")  # Google Custom Search Engine ID
 
-# Validate API Keys - GOOD!
-if not GEMINI_API_KEY:
-    raise ValueError("[ERROR] Missing Gemini API Key in .env")
-if not SEARCH_API_KEY or not SEARCH_ENGINE_ID:
-    raise ValueError("[ERROR] Missing Google Search API Key or Engine ID in .env")
+# =============================================================================
+# LAZY API KEY ACCESS
+# =============================================================================
+
+# Private storage (loaded but not validated at import time)
+_gemini_api_key: str | None = os.getenv("GEMINI_API_KEY")
+_search_api_key: str | None = os.getenv("SEARCH_API_KEY")
+_search_engine_id: str | None = os.getenv("SEARCH_ENGINE_ID")
+
+
+class ConfigurationError(Exception):
+    """Raised when required configuration is missing or invalid."""
+
+    def __init__(self, message: str, guidance: str | None = None):
+        super().__init__(message)
+        self.message = message
+        self.guidance = guidance
+
+    def __str__(self) -> str:
+        if self.guidance:
+            return f"{self.message}\n  Guidance: {self.guidance}"
+        return self.message
+
+
+def get_gemini_api_key() -> str:
+    """
+    Get Gemini API key, raising if not configured.
+
+    Raises:
+        ConfigurationError: If GEMINI_API_KEY is not set in environment or .env
+    """
+    if not _gemini_api_key:
+        raise ConfigurationError(
+            "GEMINI_API_KEY not configured",
+            guidance="Add GEMINI_API_KEY=your_key to your .env file or environment"
+        )
+    return _gemini_api_key
+
+
+def get_search_api_key() -> str:
+    """
+    Get Google Search API key, raising if not configured.
+
+    Raises:
+        ConfigurationError: If SEARCH_API_KEY is not set
+    """
+    if not _search_api_key:
+        raise ConfigurationError(
+            "SEARCH_API_KEY not configured",
+            guidance="Add SEARCH_API_KEY=your_key to your .env file or environment"
+        )
+    return _search_api_key
+
+
+def get_search_engine_id() -> str:
+    """
+    Get Google Search Engine ID, raising if not configured.
+
+    Raises:
+        ConfigurationError: If SEARCH_ENGINE_ID is not set
+    """
+    if not _search_engine_id:
+        raise ConfigurationError(
+            "SEARCH_ENGINE_ID not configured",
+            guidance="Add SEARCH_ENGINE_ID=your_id to your .env file or environment"
+        )
+    return _search_engine_id
+
+
+# =============================================================================
+# EXPLICIT VALIDATION
+# =============================================================================
+
+@dataclass
+class ConfigValidationResult:
+    """Result of configuration validation."""
+    valid: bool
+    errors: tuple[str, ...]
+    warnings: tuple[str, ...]
+
+
+def validate_config(include_optional: bool = False) -> ConfigValidationResult:
+    """
+    Explicitly validate all required configuration.
+
+    Call this at application startup (e.g., in main() or doctor command)
+    to fail fast with clear error messages.
+
+    Args:
+        include_optional: If True, also check optional config values
+
+    Returns:
+        ConfigValidationResult with validation status and any errors
+    """
+    errors: list[str] = []
+    warnings: list[str] = []
+
+    # Required API keys
+    if not _gemini_api_key:
+        errors.append("GEMINI_API_KEY not set")
+    if not _search_api_key:
+        warnings.append("SEARCH_API_KEY not set (optional, for Google Search)")
+    if not _search_engine_id:
+        warnings.append("SEARCH_ENGINE_ID not set (optional, for Google Search)")
+
+    # Check directories are writable
+    for dir_name, dir_path in [
+        ("OUTPUT_DIR", OUTPUT_DIR),
+        ("WORKING_DIR", WORKING_DIR),
+        ("LOGS_DIR", LOGS_DIR),
+    ]:
+        path = Path(dir_path)
+        if not path.exists():
+            try:
+                path.mkdir(parents=True, exist_ok=True)
+            except OSError as e:
+                errors.append(f"{dir_name} cannot be created: {e}")
+        elif not os.access(path, os.W_OK):
+            errors.append(f"{dir_name} is not writable: {path}")
+
+    return ConfigValidationResult(
+        valid=len(errors) == 0,
+        errors=tuple(errors),
+        warnings=tuple(warnings)
+    )
+
+
+def require_valid_config() -> None:
+    """
+    Require valid configuration, raising if invalid.
+
+    Use this as a guard at the start of operations that need config.
+    """
+    result = validate_config()
+    if not result.valid:
+        raise ConfigurationError(
+            "Configuration validation failed",
+            guidance="Errors:\n  - " + "\n  - ".join(result.errors)
+        )
+
+
+# =============================================================================
+# BACKWARD COMPATIBLE CONSTANTS
+# =============================================================================
+
+# These are still available for backward compatibility.
+# Code should migrate to using get_*() functions for API keys.
+
+# Expose API keys as module-level constants for backward compatibility
+# WARNING: These will be None if not configured. Use get_*() functions instead.
+GEMINI_API_KEY = _gemini_api_key
+SEARCH_API_KEY = _search_api_key
+SEARCH_ENGINE_ID = _search_engine_id
 
 ### **Search & Scraping Configuration** ###
 NUM_SEARCH_RESULTS = 3
@@ -50,22 +213,20 @@ SCRAPE_MAX_DEPTH = 2
 EXCLUDED_SITES = ["login", "captcha", "privacy-policy", "terms-of-service"]
 
 ### **AI Model Configuration** ###
-AI_RESEARCH_MODEL = "gemini-3-pro-preview"  # Most capable model for deep research
-AI_REPORT_MODEL = "gemini-3-pro-preview"    # Can be the same or different
+AI_RESEARCH_MODEL = os.getenv("AI_RESEARCH_MODEL", "gemini-3-pro-preview")
+AI_REPORT_MODEL = os.getenv("AI_REPORT_MODEL", "gemini-3-pro-preview")
 
 MAX_RETRIES = 3
 GRADE_THRESHOLD_FOR_RESEARCH_REFINEMENT = 80
 
 ### **File Handling & Output Settings** ###
-# Use project root for runtime directories
 OUTPUT_DIR = str(PROJECT_ROOT / "output")
 WORKING_DIR = str(PROJECT_ROOT / "working")
 LOGS_DIR = str(PROJECT_ROOT / "logs" / "chat_history")
 
-# Ensure necessary directories exist - GOOD!
+# Ensure necessary directories exist (safe operation)
 for directory in [OUTPUT_DIR, WORKING_DIR, LOGS_DIR]:
-    if not os.path.exists(directory):
-        os.makedirs(directory)
+    Path(directory).mkdir(parents=True, exist_ok=True)
 
 ### **Document Processing Settings** ###
 SUPPORTED_FILE_TYPES = [".pdf", ".docx", ".txt", ".xlsx"]

@@ -251,10 +251,17 @@ class Console:
         elapsed = self._elapsed(self._phase_start) if self._phase_start else ""
         self._print()
         self._print(f"{INDENT_STEP}{self._theme.SUCCESS}{self._theme.INDICATOR_DONE} {title} COMPLETE{self._theme.RESET}")
+        
+        # Check if stats already contains a Duration entry
+        has_duration_stat = False
         if stats:
             for label, value in stats:
                 self._print(f"{INDENT_DETAIL}{self._theme.MUTED}- {label}: {value}{self._theme.RESET}")
-        if elapsed:
+                if label.lower() == "duration":
+                    has_duration_stat = True
+        
+        # Only print auto-calculated duration if not already in stats
+        if elapsed and not has_duration_stat:
             self._print(f"{INDENT_DETAIL}{self._theme.MUTED}- Duration: {elapsed}{self._theme.RESET}")
         self._print()
 
@@ -267,9 +274,11 @@ class Console:
     def info(self, msg):
         if self.quiet:
             return
-        with self._lock:
-            sys.stdout.write("\r" + " " * 70 + "\r")
-            sys.stdout.flush()
+        # Clear any in-place updates (heartbeat, spinner) before printing
+        if self._caps.should_update_in_place():
+            with self._lock:
+                sys.stdout.write("\r" + " " * 70 + "\r")
+                sys.stdout.flush()
         self._print(f"{INDENT_DETAIL}{self._theme.MUTED}{msg}{self._theme.RESET}")
 
     def detail(self, label, value):
@@ -449,17 +458,34 @@ class Console:
 
     @contextmanager
     def heartbeat(self, message, interval=30.0):
+        """
+        Show periodic heartbeat messages during long operations.
+        
+        The heartbeat uses in-place updates (carriage return) to avoid
+        cluttering the output with repeated messages. It only prints
+        a new line when other output has occurred.
+        """
         if self.quiet:
             yield
             return
         start = time.time()
         stop_event = threading.Event()
+        
         def show_heartbeat():
             while not stop_event.is_set():
                 stop_event.wait(interval)
                 if not stop_event.is_set():
                     elapsed = self._elapsed(start)
-                    self._print(f"{INDENT_DETAIL}{self._theme.MUTED}{self._theme.INDICATOR_INFO} {message} ({elapsed}){self._theme.RESET}")
+                    # Use in-place update to avoid cluttering output
+                    if self._caps.should_update_in_place():
+                        with self._lock:
+                            line = f"\r{INDENT_DETAIL}{self._theme.MUTED}{self._theme.INDICATOR_INFO} {message} ({elapsed}){self._theme.RESET}"
+                            sys.stdout.write(line.ljust(70))
+                            sys.stdout.flush()
+                    else:
+                        # Fallback for non-interactive terminals
+                        self._print(f"{INDENT_DETAIL}{self._theme.MUTED}{self._theme.INDICATOR_INFO} {message} ({elapsed}){self._theme.RESET}")
+        
         heartbeat_thread = threading.Thread(target=show_heartbeat, daemon=True)
         heartbeat_thread.start()
         try:
@@ -467,6 +493,11 @@ class Console:
         finally:
             stop_event.set()
             heartbeat_thread.join(timeout=0.5)
+            # Clear the heartbeat line
+            if self._caps.should_update_in_place():
+                with self._lock:
+                    sys.stdout.write("\r" + " " * 70 + "\r")
+                    sys.stdout.flush()
 
     def blank(self):
         if self.quiet:

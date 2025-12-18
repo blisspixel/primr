@@ -200,17 +200,21 @@ This comprehensive strategic overview was generated using Primr's Recursive Hier
         chapters: list[ChapterResult],
         company_name: str,
     ) -> str:
-        """Generate a table of contents."""
+        """Generate a clean table of contents (no status markers)."""
         lines = ["## Table of Contents\n"]
         
         for chapter in chapters:
-            status = "✓" if chapter.success else "✗"
+            # Clean TOC - NO status markers (✓/✗)
+            # Only include successful chapters in TOC
+            if not chapter.success:
+                continue
+                
             # Create anchor link
             anchor = chapter.title.lower().replace(" ", "-").replace("&", "and")
             anchor = re.sub(r'[^a-z0-9-]', '', anchor)
             
             lines.append(
-                f"{chapter.chapter_number}. [{chapter.title}](#{anchor}) {status}"
+                f"{chapter.chapter_number}. [{chapter.title}](#{anchor})"
             )
         
         return "\n".join(lines)

@@ -29,7 +29,10 @@ from enum import Enum
 
 from primr.ai.deep_research import (
     DeepResearchClient,
+    DeepResearchOrchestrator,
+    ReportFormatter,
     ResearchProgress,
+    get_deep_research_orchestrator,
 )
 from primr.ai.deep_research import ResearchResult as DeepResearchResult
 from primr.utils.errors import ResearchError
@@ -387,30 +390,23 @@ class ResearchOrchestrator:
         context_files: list | None = None,
     ) -> OrchestratorResult:
         """
-        Run complete research using Recursive Hierarchical Architecture.
+        Run complete research using Single-Call Deep Research Architecture.
 
-        This is the recommended mode for comprehensive 40+ page reports:
+        This is the recommended mode for comprehensive reports:
 
-        Phase 0: Structured Pipeline (Data Collection)
+        Phase 1: Structured Pipeline (Data Collection)
             - Full website scraping + Google search
-            - Creates baseline context for all chapters
-            - ~20-25 minutes
+            - Creates baseline context (Stage 1)
+            - ~15-25 minutes
 
-        Phase 1: Master Architect (Planning)
-            - Decomposes report into 10 chapters
-            - Uses gemini-2.0-flash for fast planning
-            - ~1-2 minutes
+        Phase 2: Single Deep Research Call
+            - ONE comprehensive API call (not parallel chapters)
+            - Uses Stage 1 context via File Search Store
+            - Generates complete cohesive report
+            - ~10-20 minutes
 
-        Phase 2: Parallel Research Nodes (Execution)
-            - Runs Deep Research for each chapter
-            - Max 3 concurrent tasks (rate limiting)
-            - Each chapter: ~10-15 minutes
-            - Total: ~15-20 minutes (parallel)
-
-        Phase 3: Aggregation (Synthesis)
-            - Combines chapters into single document
-            - Generates TOC, smooths transitions
-            - ~1-2 minutes
+        This architecture avoids the 429 quota errors that occurred with
+        the previous parallel-chapter approach (10 concurrent API calls).
 
         Args:
             company_name: Name of the company to research
@@ -424,22 +420,19 @@ class ResearchOrchestrator:
         """
         import time as time_module
 
-        from primr.ai.report_aggregator import ReportAggregator
-        from primr.ai.report_architect import MasterArchitect
-        from primr.ai.research_executor import ResearchNodeExecutor
         from primr.utils.console import console
 
         total_start = time_module.time()
-        file_search_store: str | None = None
+        step1_context_file: str | None = None
 
         try:
             # ================================================================
-            # PHASE 0: Data Collection (Structured Pipeline)
+            # PHASE 1: Data Collection (Structured Pipeline) - UNCHANGED
             # ================================================================
-            phase0_start = time_module.time()
+            phase1_start = time_module.time()
             console.phase_banner(
                 step_num=1,
-                total_steps=4,
+                total_steps=2,
                 title="Data Collection",
                 description="Website scraping + Google search + AI analysis",
                 expected_duration="15-25 minutes"
@@ -453,129 +446,93 @@ class ResearchOrchestrator:
                 logger.warning("Structured Pipeline failed, continuing with limited context")
                 console.warn("Data collection had issues, continuing with limited context...")
             else:
-                phase0_duration = time_module.time() - phase0_start
+                phase1_duration = time_module.time() - phase1_start
                 console.phase_complete(
                     "Data Collection",
                     stats=[
                         ("Sections generated", str(len(structured_result.section_results))),
-                        ("Duration", f"{int(phase0_duration // 60)}m {int(phase0_duration % 60)}s")
+                        ("Duration", f"{int(phase1_duration // 60)}m {int(phase1_duration % 60)}s")
                     ]
                 )
 
-            # Prepare context file and upload to File Search Store
-            step1_context_file = None
+            # Prepare Stage 1 context for Deep Research
+            stage1_context: str | None = None
             if structured_result.success and structured_result.section_results:
                 try:
                     step1_context_file = self._prepare_step1_context(
                         company_name, structured_result.section_results
                     )
-                    # Upload to File Search Store
-                    file_search_store = await self._upload_to_file_search_store(
-                        step1_context_file, context_files, company_name
-                    )
-                    logger.info(f"Context uploaded to File Search Store: {file_search_store}")
+                    # Read the context file content
+                    with open(step1_context_file, 'r', encoding='utf-8') as f:
+                        stage1_context = f.read()
+                    logger.info(f"Stage 1 context prepared: {len(stage1_context)} chars")
                 except Exception as e:
-                    logger.warning(f"Failed to upload context: {e}")
+                    logger.warning(f"Failed to prepare Stage 1 context: {e}")
                     if on_progress:
-                        on_progress("Warning: Could not upload context, proceeding without shared context")
+                        on_progress("Warning: Could not prepare context, proceeding without it")
 
             # ================================================================
-            # PHASE 1: Master Architect (Planning)
-            # ================================================================
-            phase1_start = time_module.time()
-            console.phase_banner(
-                step_num=2,
-                total_steps=4,
-                title="Report Planning",
-                description="Decomposing report into 10 chapters",
-                expected_duration="1-2 minutes"
-            )
-
-            # Generate context summary for the architect
-            context_summary = self._summarize_context(
-                structured_result.section_results if structured_result.success else {}
-            )
-
-            architect = MasterArchitect()
-            chapter_plan = await architect.generate_chapter_plan(
-                company_name, context_summary
-            )
-
-            phase1_duration = time_module.time() - phase1_start
-            console.phase_complete(
-                "Report Planning",
-                stats=[
-                    ("Chapters planned", str(len(chapter_plan.chapters))),
-                    ("Expected pages", f"~{chapter_plan.total_expected_pages}"),
-                    ("Duration", f"{int(phase1_duration)}s")
-                ]
-            )
-
-            if on_progress:
-                on_progress(f"Chapter plan: {len(chapter_plan.chapters)} chapters")
-                for ch in chapter_plan.chapters:
-                    on_progress(f"  {ch.chapter_number}. {ch.title}")
-
-            # ================================================================
-            # PHASE 2: Parallel Research Nodes (Execution)
+            # PHASE 2: Single Deep Research Call (NEW ARCHITECTURE)
             # ================================================================
             phase2_start = time_module.time()
             console.phase_banner(
-                step_num=3,
-                total_steps=4,
-                title="Parallel Deep Research",
-                description=f"Executing {len(chapter_plan.chapters)} chapters (3 concurrent)",
-                expected_duration="15-20 minutes"
+                step_num=2,
+                total_steps=2,
+                title="Deep Research",
+                description="Single comprehensive API call for complete report",
+                expected_duration="10-20 minutes"
             )
 
-            executor = ResearchNodeExecutor(
-                file_search_store=file_search_store,
-                max_concurrent=3
-            )
+            # Use the new DeepResearchOrchestrator (single call, not parallel)
+            orchestrator = get_deep_research_orchestrator()
+            
+            def progress_wrapper(msg: str) -> None:
+                if on_progress:
+                    on_progress(msg)
+                console.info(msg)
 
-            execution_result = await executor.execute_all(
-                chapter_plan.chapters,
-                company_name,
-                on_progress
+            deep_result = await orchestrator.generate_report(
+                company_name=company_name,
+                website_url=website,
+                stage1_context=stage1_context,
+                on_progress=progress_wrapper,
             )
 
             phase2_duration = time_module.time() - phase2_start
+
+            if not deep_result.success:
+                logger.error(f"Deep Research failed: {deep_result.error}")
+                console.error(f"Deep Research failed: {deep_result.error}")
+                
+                # Suggest scrape mode if quota exhausted
+                if deep_result.error and "quota" in deep_result.error.lower():
+                    console.warn("Tip: Try --mode scrape to generate report without Deep Research API")
+                
+                return OrchestratorResult(
+                    company_name=company_name,
+                    website=website,
+                    mode=ResearchMode.COMPLETE,
+                    section_results=structured_result.section_results if structured_result.success else {},
+                    success=False,
+                    error=deep_result.error,
+                    duration_seconds=time_module.time() - total_start
+                )
+
+            # Format the report (clean TOC, no failure markers)
+            formatter = ReportFormatter()
+            formatted = formatter.format_report(
+                raw_content=deep_result.content,
+                company_name=company_name,
+                citation_style="numbered"
+            )
+
             console.phase_complete(
-                "Parallel Deep Research",
+                "Deep Research",
                 stats=[
-                    ("Successful chapters", f"{execution_result.successful_chapters}/{len(chapter_plan.chapters)}"),
-                    ("Total words", f"~{execution_result.total_word_count:,}"),
+                    ("Word count", f"~{formatted.word_count:,}"),
+                    ("Chapters", str(len(formatted.chapters))),
+                    ("API calls", str(deep_result.api_calls)),
                     ("Duration", f"{int(phase2_duration // 60)}m {int(phase2_duration % 60)}s")
-                ]
-            )
-
-            # ================================================================
-            # PHASE 3: Aggregation (Synthesis)
-            # ================================================================
-            phase3_start = time_module.time()
-            console.phase_banner(
-                step_num=4,
-                total_steps=4,
-                title="Report Aggregation",
-                description="Combining chapters into comprehensive document",
-                expected_duration="1-2 minutes"
-            )
-
-            aggregator = ReportAggregator()
-            aggregated_report = await aggregator.aggregate(
-                execution_result.chapters,
-                company_name,
-                smooth_transitions=False  # Skip for now to save time
-            )
-
-            phase3_duration = time_module.time() - phase3_start
-            console.phase_complete(
-                "Report Aggregation",
-                stats=[
-                    ("Final chapters", str(aggregated_report.chapter_count)),
-                    ("Total words", f"~{aggregated_report.total_word_count:,}"),
-                    ("Estimated pages", f"~{aggregated_report.estimated_pages}"),
-                    ("Duration", f"{int(phase3_duration)}s")
                 ]
             )
 
@@ -583,10 +540,6 @@ class ResearchOrchestrator:
             # CLEANUP & RETURN
             # ================================================================
             total_duration = time_module.time() - total_start
-
-            # Clean up File Search Store
-            if file_search_store:
-                await self._delete_file_search_store(file_search_store)
 
             # Clean up temp file
             if step1_context_file:
@@ -596,21 +549,22 @@ class ResearchOrchestrator:
                 except Exception:
                     pass
 
-            # Convert aggregated report to section format for compatibility
+            # Build section results for compatibility
             section_results = {
-                "strategic_overview": aggregated_report.content,
-                "table_of_contents": aggregated_report.table_of_contents,
+                "strategic_overview": formatted.markdown,
+                "table_of_contents": formatted.table_of_contents,
             }
 
-            # Also include structured pipeline results for backward compatibility
+            # Include structured pipeline results for backward compatibility
             if structured_result.success:
                 for key, value in structured_result.section_results.items():
                     if key not in section_results:
                         section_results[key] = value
 
             logger.info(
-                f"Complete research finished: {aggregated_report.chapter_count} chapters, "
-                f"~{aggregated_report.total_word_count} words, {total_duration:.0f}s total"
+                f"Complete research finished: {len(formatted.chapters)} chapters, "
+                f"~{formatted.word_count} words, {total_duration:.0f}s total, "
+                f"{deep_result.api_calls} API call(s)"
             )
 
             return OrchestratorResult(
@@ -618,8 +572,8 @@ class ResearchOrchestrator:
                 website=website,
                 mode=ResearchMode.COMPLETE,
                 section_results=section_results,
-                raw_content=aggregated_report.content,
-                citations=aggregated_report.citations,
+                raw_content=formatted.markdown,
+                citations=deep_result.citations,
                 success=True,
                 duration_seconds=total_duration
             )
@@ -628,9 +582,10 @@ class ResearchOrchestrator:
             logger.error(f"Complete research failed: {e}")
 
             # Cleanup on error
-            if file_search_store:
+            if step1_context_file:
                 try:
-                    await self._delete_file_search_store(file_search_store)
+                    import os
+                    os.remove(step1_context_file)
                 except Exception:
                     pass
 
@@ -718,9 +673,11 @@ class ResearchOrchestrator:
             self.deep_research_client._client.file_search_stores.delete(
                 name=store_name
             )
-            logger.info(f"Deleted File Search Store: {store_name}")
+            logger.debug(f"Deleted File Search Store: {store_name}")
         except Exception as e:
-            logger.warning(f"Failed to delete File Search Store {store_name}: {e}")
+            # This is expected if the store has files - not actionable by user
+            # Log at debug level to avoid cluttering output
+            logger.debug(f"Could not delete File Search Store {store_name}: {e}")
 
     def _prepare_step1_context(
         self,

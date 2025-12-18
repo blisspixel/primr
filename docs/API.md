@@ -165,6 +165,173 @@ if result.success:
         print(f"{citation['number']}: {citation['url']}")
 ```
 
+## Core Modules
+
+The `primr.core` package contains specialized modules for different aspects of research. These can be imported directly for more granular control.
+
+### Workspace Management
+
+Working folder creation and file operations.
+
+```python
+from primr.core.workspace import (
+    create_working_folder,
+    consolidate_working_folder,
+    save_section_output,
+    validate_context_files,
+    WorkspaceConfig,
+    ConsolidationResult,
+)
+```
+
+```python
+# Create a working folder for research
+folder = create_working_folder("Tesla")
+print(f"Working folder: {folder}")
+
+# Save section output
+save_section_output(folder, "company_overview", "Tesla is an electric vehicle company...")
+
+# Consolidate all sections into a single file
+result = consolidate_working_folder(folder)
+print(f"Consolidated {result.section_count} sections")
+```
+
+### AI Strategy Generation
+
+Generate AI strategy recommendations with cloud vendor context.
+
+```python
+from primr.core.ai_strategy import (
+    generate_ai_strategy_sync,
+    CloudVendor,
+    AIStrategyConfig,
+    AIStrategyResult,
+)
+```
+
+```python
+# Generate AI strategy for a company
+config = AIStrategyConfig(
+    company_name="Tesla",
+    cloud_vendor=CloudVendor.AWS,
+    working_folder=Path("working/Tesla"),
+)
+
+result = generate_ai_strategy_sync(config)
+if result.success:
+    print(result.content)
+```
+
+**CloudVendor enum:**
+
+```python
+CloudVendor.AWS      # Amazon Web Services
+CloudVendor.AZURE    # Microsoft Azure
+CloudVendor.GCP      # Google Cloud Platform
+```
+
+### Deep Research Runner
+
+Execute Deep Research with preflight validation.
+
+```python
+from primr.core.deep_research_runner import (
+    perform_deep_research,
+    validate_preflight,
+    DeepResearchConfig,
+    DeepResearchMode,
+    PreflightResult,
+    PreflightStatus,
+)
+```
+
+```python
+# Validate before running expensive operations
+preflight = validate_preflight()
+if preflight.status == PreflightStatus.READY:
+    config = DeepResearchConfig(
+        company_name="Tesla",
+        prompt="Research Tesla's competitive position",
+        mode=DeepResearchMode.STANDARD,
+    )
+    result = await perform_deep_research(config)
+else:
+    print(f"Preflight failed: {preflight.message}")
+```
+
+### CLI Module
+
+Command-line interface components for programmatic use.
+
+```python
+from primr.core.cli import (
+    main,
+    run_doctor,
+    parse_args,
+    process_csv,
+    Command,
+    CLIConfig,
+)
+```
+
+```python
+# Run system check programmatically
+success = run_doctor()
+
+# Parse CLI arguments
+config = parse_args(["Tesla", "https://tesla.com", "--mode", "deep"])
+print(f"Company: {config.company_name}")
+print(f"Mode: {config.mode}")
+```
+
+### Structured Research
+
+Website scraping pipeline with section-by-section analysis.
+
+```python
+from primr.core.structured_research import (
+    run_research,
+    research_section,
+    generate_initial_overview,
+    ScrapedData,
+    AnalysisResult,
+    ResearchContext,
+)
+```
+
+### Vendor Research
+
+Cloud vendor AI capabilities research.
+
+```python
+from primr.core.vendor_research import (
+    get_or_generate_vendor_research,
+    get_or_generate_vendor_research_sync,
+    VendorResearchFile,
+    VendorResearchResult,
+)
+```
+
+### Backward Compatibility
+
+For existing code, all functions remain available from `research_agent.py`:
+
+```python
+# These imports still work (delegate to new modules internally)
+from primr.core.research_agent import (
+    main,
+    run_doctor,
+    create_working_folder,
+    consolidate_working_folder,
+    run_research,
+    research_section,
+    CloudVendor,
+    DeepResearchConfig,
+    DeepResearchMode,
+)
+```
+
 ## AI Client
 
 Direct access to the AI client for custom prompts.

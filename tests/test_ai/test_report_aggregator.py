@@ -78,7 +78,7 @@ class TestReportAggregator:
         assert "Hierarchy of Truth" in header
 
     def test_generate_toc(self, aggregator: ReportAggregator) -> None:
-        """Test table of contents generation."""
+        """Test table of contents generation - clean format without status markers."""
         chapters = [
             ChapterResult(1, "Executive Summary", "content", success=True),
             ChapterResult(2, "Products", "content", success=True),
@@ -90,9 +90,11 @@ class TestReportAggregator:
         assert "Table of Contents" in toc
         assert "Executive Summary" in toc
         assert "Products" in toc
-        assert "Failed Chapter" in toc
-        assert "✓" in toc  # Success marker
-        assert "✗" in toc  # Failure marker
+        # Failed chapters should NOT appear in TOC (clean format)
+        assert "Failed Chapter" not in toc
+        # No status markers in clean TOC
+        assert "✓" not in toc
+        assert "✗" not in toc
 
     def test_clean_chapter_content_adds_header(
         self, aggregator: ReportAggregator

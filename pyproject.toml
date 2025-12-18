@@ -57,7 +57,7 @@ dev = [
 ]
 
 [project.scripts]
-primr = "primr.core.research_agent:main"
+primr = "primr.core.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/blisspixel/primr"

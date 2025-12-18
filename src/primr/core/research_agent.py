@@ -1,15 +1,101 @@
 """
-Automated Company Research Agent
-Premium CLI experience
+Automated Company Research Agent - Orchestration Hub
 
-Supports two research engines:
-- Structured Pipeline: Fine-grained control, website deep-dives
-- Deep Research: Gemini Deep Research Agent for autonomous research
+This module serves as the main entry point and orchestration hub for company research.
+It delegates to specialized modules for specific functionality:
+
+- workspace: Working folder management, file consolidation
+- structured_research: Website scraping and section generation
+- vendor_research: Cloud vendor AI capabilities research
+- ai_strategy: AI strategy generation
+- deep_research_runner: Deep Research execution
+- cli: Command-line interface
+
+For backward compatibility, this module re-exports key functions from the specialized modules.
+
+Usage:
+    from primr.core.research_agent import perform_research, main
+
+    # Run research programmatically
+    result = perform_research("Tesla", "https://tesla.com")
+
+    # Run CLI
+    main()
 """
 # Suppress RuntimeWarning FIRST - before any other imports
 import warnings
 
 warnings.filterwarnings("ignore", message=".*found in sys.modules.*", category=RuntimeWarning)
+
+# =============================================================================
+# BACKWARD COMPATIBLE RE-EXPORTS
+# =============================================================================
+# These imports ensure existing code that imports from research_agent.py continues to work.
+# New code should import directly from the specialized modules.
+
+# From workspace module
+from primr.core.workspace import (
+    create_working_folder as _create_working_folder_new,
+    consolidate_working_folder as _consolidate_working_folder_new,
+    save_section_output as _save_section_output_new,
+    validate_context_files as _validate_context_files_new,
+)
+
+# From structured_research module
+from primr.core.structured_research import (
+    run_research as _run_research_new,
+    research_section as _research_section_new,
+    generate_initial_overview as _generate_initial_overview_new,
+)
+
+# From cli module
+from primr.core.cli import (
+    main as _main_new,
+    run_doctor as _run_doctor_new,
+    process_csv as _process_csv_new,
+)
+
+# From ai_strategy module
+from primr.core.ai_strategy import (
+    generate_ai_strategy_sync as _generate_ai_strategy_sync,
+    CloudVendor,
+)
+
+# From deep_research_runner module
+from primr.core.deep_research_runner import (
+    perform_deep_research as _perform_deep_research_async,
+    validate_preflight,
+    DeepResearchConfig,
+    DeepResearchMode,
+)
+
+# =============================================================================
+# PUBLIC API
+# =============================================================================
+
+__all__ = [
+    # Main entry points
+    "perform_research",
+    "main",
+    "run_doctor",
+    # Structured research
+    "run_research",
+    "research_section",
+    "generate_initial_overview",
+    # Workspace management
+    "create_working_folder",
+    "consolidate_working_folder",
+    "save_section_output",
+    "validate_context_files",
+    # Utility
+    "process_csv",
+    "ensure_valid_url",
+    "get_user_input",
+    # Re-exported types
+    "CloudVendor",
+    "DeepResearchConfig",
+    "DeepResearchMode",
+]
 
 import argparse
 import asyncio
@@ -749,13 +835,15 @@ def perform_deep_research(
     with correlation_scope("deep_research", company=display_name, mode=mode) as ctx:
         log_structured("info", "Starting deep research", company=display_name, mode=mode)
 
-        # Show mode and context info cleanly
-        context_info = ""
-        if context_files:
-            context_info = f" with {len(context_files)} context file(s)"
+        # For COMPLETE mode, the orchestrator handles all phase banners
+        # For simple DEEP_RESEARCH mode, we show our own phase banners
+        is_simple_deep_research = mode == "deep-research"
         
-        # Phase 1: Deep Research
-        console.phase_banner(1, 3, f"{mode_label}{context_info}", "Autonomous AI research", "10-15 min")
+        if is_simple_deep_research:
+            context_info = ""
+            if context_files:
+                context_info = f" with {len(context_files)} context file(s)"
+            console.phase_banner(1, 3, f"{mode_label}{context_info}", "Autonomous AI research", "10-15 min")
 
         def progress_callback(msg: str) -> None:
             console.info(msg)
@@ -789,10 +877,10 @@ def perform_deep_research(
                 return None
 
             log_structured("info", "Deep research complete", sections=len(result.section_results))
-            console.phase_complete("Deep Research", [("Sections", str(len(result.section_results))), ("Citations", str(len(result.citations)))])
-
-            # Phase 2: Save and Convert
-            console.phase_banner(2, 3, "Processing Results", "Saving and converting output", "1-2 min")
+            
+            if is_simple_deep_research:
+                console.phase_complete("Deep Research", [("Sections", str(len(result.section_results))), ("Citations", str(len(result.citations)))])
+                console.phase_banner(2, 3, "Processing Results", "Saving and converting output", "1-2 min")
 
             # Save section results to working folder
             folder_path = create_working_folder(company_name, website)
@@ -821,12 +909,16 @@ def perform_deep_research(
                     # Structured pipeline: use DocumentBuilder to assemble sections
                     docx_path = generate_final_report(company_name or display_name, citation_style=citation_style)
 
-            console.phase_complete("Processing Results")
+            if is_simple_deep_research:
+                console.phase_complete("Processing Results")
 
             # Generate AI strategy if requested (uses Deep Research with company context)
             ai_strategy_path = None
             if ai_strategy:
-                console.phase_banner(3, 3, "AI Strategy Analysis", "Generating AI recommendations", "5-10 min")
+                # Show phase banner - for simple deep research it's phase 3/3, for complete mode it's a follow-up
+                phase_num = 3 if is_simple_deep_research else 5
+                total_phases = 3 if is_simple_deep_research else 5
+                console.phase_banner(phase_num, total_phases, "AI Strategy Analysis", "Generating AI recommendations", "5-10 min")
                 with console.heartbeat("AI Strategy generation in progress", interval=30.0):
                     ai_strategy_path = _generate_ai_strategy_section(
                         company_name or display_name,
@@ -1143,9 +1235,24 @@ Evaluation/Observability: LangSmith, Weights & Biases, Arize, Helicone"""
     }
     service_map = service_maps.get(cloud_vendor.lower(), "")
 
-    prompt = f"""
-RESEARCH REQUEST: Latest {vendor_name} AI Services and Capabilities
-DATE: {current_date}
+    prompt = f"""You are an AI technology analyst. Research the latest AI services and capabilities.
+
+=============================================================================
+OUTPUT FORMAT (Start the document with this exact header)
+=============================================================================
+
+# {vendor_name} AI Services and Capabilities
+
+**Prepared by:** Primr Research System  
+**Date:** {current_date}
+
+---
+
+Then continue with the sections below.
+
+=============================================================================
+RESEARCH INSTRUCTIONS
+=============================================================================
 
 CRITICAL: This research must reflect the AI landscape as of {current_date}.
 You MUST use live web search to find the latest information.
@@ -1560,7 +1667,8 @@ def _generate_ai_strategy_section(
         docx_path = os.path.join(OUTPUT_DIR, f"{base_name}.docx")
         try:
             subtitle_parts = [datetime.now().strftime("%B %d, %Y")]
-            subtitle_parts.append(f"Cloud Vendor: {cloud_vendor.upper()}")
+            # Clean subtitle: "December 18, 2024 | Azure" (no "Cloud Vendor:" prefix)
+            subtitle_parts.append(cloud_vendor.title())
             subtitle = " | ".join(subtitle_parts)
 
             markdown_to_docx(
@@ -1762,9 +1870,24 @@ IMPORTANT: Search for additional information to verify current availability and 
 Cite specific announcement dates and sources for all technology recommendations.
 """
 
-    return f"""
-RESEARCH REQUEST: Comprehensive AI Strategy for {company_name}
-DATE: {current_date}
+    return f"""You are a senior AI strategy consultant. Generate a comprehensive AI roadmap for board-level decision making.
+
+=============================================================================
+OUTPUT FORMAT (Start the document with this exact header)
+=============================================================================
+
+# AI Strategy: {company_name}
+
+**Prepared by:** Primr Research System  
+**Date:** {current_date}
+
+---
+
+Then continue with the sections below.
+
+=============================================================================
+RESEARCH INSTRUCTIONS
+=============================================================================
 
 CRITICAL: This strategy must reflect the AI landscape as of {current_date}.
 AI technology evolves rapidly. You MUST actively search for the latest announcements,
@@ -1853,29 +1976,29 @@ FORMATTING RULES:
 DOCUMENT STRUCTURE
 =============================================================================
 
-## AI Strategic Thesis
+## AI Strategic Thesis (Recommended Direction)
 
-Before diving into recommendations, articulate a clear strategic thesis addressing:
+Based on our research into {company_name}'s business model, industry, and competitive landscape, we recommend the following strategic thesis. This is a PROPOSED direction to discuss with leadership, not an assessment of their current plans.
 
-**Current State**: Is {company_name} currently "AI-enabled" (AI bolted onto existing processes) or moving toward "AI-native" (intelligence as the operating substrate)?
+**Recommended Transformation Path**: Based on their industry and business model, should {company_name} pursue:
+- "AI-enabled" (AI bolted onto existing processes for efficiency) - lower risk, faster wins
+- "AI-native" (intelligence as the operating substrate) - higher investment, transformational potential
 
-**The Transformation Goal**: Over the next 3 years, what is the PRIMARY role AI will play?
-- Reimagining business models (new value propositions, outcomes-as-a-service)?
-- Operational resilience through continuous intelligence?
-- Cost reduction and efficiency?
+**Proposed Primary Value Lever**: Based on their competitive position and industry dynamics, where should AI investment focus?
+- Cost reduction and operational efficiency?
+- Revenue growth and customer experience?
+- Risk reduction and compliance?
 - Competitive differentiation?
 
-**The Dominant Value Lever**: Be specific. Is this primarily about cost reduction, revenue growth, risk reduction, or competitive necessity?
+**Recommended Priorities**: Based on their business, what should they focus on first?
 
-**What We Will NOT Do**: What will {company_name} explicitly defer or avoid in this period?
+**Suggested Deprioritizations**: What should they explicitly NOT pursue in the near term, and why?
+- Include the condition under which they should revisit
+- Include the signal that would indicate the condition has changed
 
-Optionality Guardrail: Deprioritized initiatives must include:
-- The condition under which we would revisit them
-- The signal that would indicate the condition has changed
+**Change Management Reality**: Most AI projects fail due to change management, not technology. Recommend allocating 70% of AI budget to people, processes, and cultural transformation.
 
-**Change Management Commitment**: How will the organization allocate effort across technology vs. people/process? (Rule of thumb: most AI projects fail due to change management, not technology.)
-
-Avoid generic statements like "AI will transform our business." Instead: "AI will primarily drive operational efficiency in our supply chain and customer service, targeting $X in cost savings. We are currently AI-enabled and will transition to AI-native in customer service by Month 18. We deliberately defer customer-facing generative AI until our data foundation is stronger. We commit to allocating the majority of our AI budget to change management and workflow redesign."
+Be specific to {company_name}'s situation. Avoid generic statements like "AI will transform the business." Instead: "Based on {company_name}'s position in [industry], we recommend focusing AI investment on [specific area] because [specific reason]. This could target [estimated impact]. We suggest deferring [specific thing] until [specific condition]."
 
 ## Executive Summary
 
@@ -1884,34 +2007,44 @@ The "so what" for the board. 2-3 paragraphs covering:
 - The recommended investment level and expected ROI
 - The 3 most important things to do in the next 12 months
 
-## Current State Assessment
+## Likely Current State (Hypotheses to Validate)
 
-Based on the company research, assess their AI readiness across four dimensions:
+IMPORTANT: We do NOT have visibility into {company_name}'s internal systems, data platforms, or organizational readiness. The following are HYPOTHESES based on:
+- Their industry and company size
+- Public signals (job postings, press releases, tech stack mentions)
+- Typical patterns for companies in their sector
 
-### Data Readiness (The "Data Debt" Assessment)
-Data is the oxygen for AI. Most enterprises are suffocating under "data debt" that compounds over time.
-- **Unified Accessibility**: Is data accessible via a unified fabric, or trapped in application silos?
-- **Semantic Context**: Does the data have business meaning? Can AI understand that "churn" in Marketing means email unsubscriptions while "churn" in Sales means contract cancellations?
-- **Data Lineage**: Can decisions be traced back to source data? (Required for compliance)
-- **Data Debt Level**: Low/Medium/High. What is the "cleanup tax" they face?
+Frame each assessment as "Based on [evidence], we hypothesize..." and note what we'd want to validate in conversation.
 
-### Technology Infrastructure
-- Cloud adoption level and AI-specific readiness
-- API landscape: Are business functions exposed as APIs that agents can call?
-- Vector database capability for RAG implementations
-- FinOps mechanisms for token consumption monitoring
+### Data Platform Maturity (Hypothesis)
+Based on their industry and size, hypothesize their likely data situation:
+- **Likely data sources**: What systems probably generate their core business data?
+- **Probable challenges**: Based on industry patterns, what data debt might they face?
+- **Signals we observed**: Any public mentions of data initiatives, cloud migrations, or analytics investments?
 
-### Organizational Readiness
-- AI fluency (not just literacy) across the workforce
-- Leadership alignment and understanding that productivity may dip during learning before surging
-- Change management capability
-- Risk appetite defined by the board
+Frame as: "Companies of this size in this industry typically face [X]. We'd want to understand their specific situation."
 
-### Strategic Anti-Patterns Assessment
-Assess whether {company_name} is at risk of these common failure modes (use plain language in board presentations):
-- **Building without rigor**: Treating AI as a magic shortcut without engineering discipline
-- **Technology-first thinking**: Deploying AI because competitors did, not because of identified business pain
-- **Pilot proliferation**: Dozens of disconnected PoCs without path to production or measurable outcomes
+### Technology Signals (What We Can Observe)
+Based on public information (job postings, press releases, tech blog posts, conference talks):
+- **Cloud posture**: Any signals about their cloud provider or migration status?
+- **Tech stack hints**: What technologies appear in their job postings?
+- **Digital maturity signals**: E-commerce sophistication, mobile apps, API mentions?
+
+Note: This is inference from public signals, not confirmed knowledge.
+
+### Organizational Readiness (Industry Baseline)
+Based on typical patterns for their industry and size:
+- **AI adoption curve**: Where do companies like this typically sit on AI maturity?
+- **Change management capacity**: What's typical for organizations of this scale?
+- **Likely constraints**: Budget cycles, regulatory requirements, talent availability?
+
+Frame as hypotheses to explore, not assertions about their actual state.
+
+### Common Anti-Patterns to Discuss
+These are common failure modes we'd want to explore with leadership (not accusations):
+- **Pilot proliferation**: Many companies have dozens of disconnected AI PoCs. Worth asking about their current AI initiatives.
+- **Tool sprawl**: Without governance, teams often adopt conflicting AI tools. Worth understanding their current landscape.
+- **Data foundation gaps**: AI projects often stall on data quality. Worth exploring their data readiness.
 
 ## Competitive AI Landscape
 
@@ -1922,31 +2055,34 @@ Be specific about the competitive context:
 
 Framing Guidance: When discussing the cost of inaction, emphasize the value that could be protected or created by acting, not a presumption of failure if action is delayed. Express as a range of potential impacts, not a single deterministic outcome. Present best-case, likely-case, and worst-case scenarios rather than asserting a single inevitable future.
 
-## Target AI Architecture Posture
+## Recommended AI Architecture Posture
 
-Before recommending specific initiatives, define the architectural guardrails that prevent tool sprawl and ensure consistency:
+Based on the target cloud vendor and industry best practices, here's what {company_name} SHOULD build toward. These are recommendations, not assessments of their current state.
 
 ### Knowledge Grounding Pattern (RAG as Default)
-- Default to Retrieval-Augmented Generation (RAG) for knowledge grounding
-- Define what data sources are in scope for RAG (documents, wikis, databases, APIs)
-- Fine-tuning should be reserved for cases requiring style/format changes or domain-specific reasoning
-- Specify the vector database and embedding strategy
+For most enterprise AI use cases, recommend:
+- Retrieval-Augmented Generation (RAG) as the default pattern for knowledge grounding
+- Specific vector database and embedding strategy for the target cloud vendor
+- Fine-tuning reserved only for style/format changes or domain-specific reasoning
+- Data sources to prioritize: internal documents, wikis, customer data, operational databases
 
-### Identity, Access, and Audit
-- How will users authenticate to AI systems?
-- How will AI agents authenticate to backend systems (service principals, managed identities)?
-- What actions are logged? Where are audit trails stored?
-- How is PII handled in prompts and responses?
+### Identity, Access, and Audit (Recommended Framework)
+What they should implement:
+- User authentication to AI systems (SSO integration)
+- Service principal / managed identity for AI agents calling backend systems
+- Audit logging for all AI interactions (prompts, responses, actions taken)
+- PII handling policies for prompts and responses
 
-### Agent Boundaries and Kill Switches
-- Where can agents take autonomous actions vs. require human approval?
-- What are the dollar/impact thresholds for human-in-the-loop?
-- How are runaway agents detected and stopped?
-- What is the escalation path when agents fail or behave unexpectedly?
+### Agent Boundaries and Kill Switches (Governance Model)
+Recommended guardrails:
+- Define where agents can act autonomously vs. require human approval
+- Set dollar/impact thresholds for human-in-the-loop
+- Implement runaway agent detection and automatic stopping
+- Establish escalation paths for agent failures
 
-### Reusable Platform Components
-To prevent every team from rebuilding the same stack, define shared components:
-- Common prompt templates and guardrails
+### Reusable Platform Components (Build Once, Use Many)
+To prevent tool sprawl, recommend building shared infrastructure:
+- Common prompt templates and guardrails library
 - Shared vector stores and knowledge bases
 - Centralized model endpoints and API gateway
 - Evaluation and monitoring infrastructure
