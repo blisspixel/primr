@@ -1,0 +1,250 @@
+# RESEARCH REQUEST: Latest Google Cloud Platform (GCP) AI Services and Capabilities
+**DATE:** December 2025
+
+## Executive Summary
+
+As of December 2025, Google Cloud Platform (GCP) has aggressively pivoted its AI strategy from "generative" experimentation to "agentic" production. The defining theme of late 2025 is the operationalization of autonomous agents that can reason, plan, and execute complex workflows, powered by the newly released **Gemini 3.0** model family.
+
+Key strategic shifts include:
+*   **The Agentic Shift:** The launch of **Google Antigravity** (an agent-first development platform) and **Vertex AI Agent Engine** (a managed runtime) signals a move beyond simple chatbots to stateful, multi-turn agents capable of long-running tasks [cite: 1, 2].
+*   **Model Maturity:** **Gemini 3.0 Pro** has introduced "thinking" capabilities and "vibe coding," positioning it as a direct competitor to reasoning-heavy models, while **Gemini 3.0 Pro Image** (colloquially "Nano Banana Pro") sets new standards for text rendering and fidelity [cite: 3, 4].
+*   **Infrastructure Dominance:** The general availability of **TPU v7 "Ironwood"** provides the massive compute scale required for these agentic workloads, offering significant efficiency gains over previous generations [cite: 5].
+*   **Democratization of Automation:** **Google Workspace Studio** now allows non-technical business users to build AI agents using natural language, bridging the gap between enterprise AI and daily productivity [cite: 6].
+
+## Service Map
+
+The following map outlines the organization of GCP's AI services as of December 2025. Note the consolidation of security tools and the expansion of the "Agent" layer.
+
+*   **AI Platform (Foundation & Training)**
+    *   **Vertex AI:** Unified platform for model training, tuning, and serving.
+    *   **Gemini API:** Direct access to Gemini 3.0, 2.5, and Flash models.
+    *   **Vision AI / Document AI:** Specialized perception services.
+    *   **Model Garden:** Hub for first-party, open-source (Gemma, Llama), and third-party models (DeepSeek).
+
+*   **Agent & Copilot Layer (Orchestration)**
+    *   **Vertex AI Agent Builder:** The umbrella suite for building agents.
+    *   **Vertex AI Agent Engine:** Managed runtime for deploying and scaling agents (GA as of Dec 2025).
+    *   **Google Antigravity:** Agent-native IDE and development platform (Preview).
+    *   **Google Workspace Studio:** No-code agent builder for Workspace users.
+    *   **Dialogflow CX:** Conversational AI for structured customer interactions.
+
+*   **Data Plane (Grounding & Storage)**
+    *   **Vertex AI Search:** RAG and enterprise search service.
+    *   **BigQuery:** Data warehouse with integrated AI agent capabilities.
+    *   **AlloyDB for PostgreSQL:** Operational database with native AI vector search acceleration.
+    *   **Firestore:** NoSQL database with vector support.
+
+*   **App Plane (Execution)**
+    *   **Cloud Run:** Serverless container platform (primary host for custom agent runtimes).
+    *   **Workflows:** Orchestration for chaining AI services.
+    *   **Eventarc:** Event-driven architecture for asynchronous agent triggers.
+
+*   **Security Plane (Governance)**
+    *   **Google Unified Security:** Consolidated platform (formerly Security Command Center/Chronicle components).
+    *   **Model Armor:** AI-specific security layer for prompt injection defense and PII filtering.
+    *   **IAM:** Identity management extended to "Agent Identity" for autonomous permissions.
+
+## Foundation Models and AI Services
+
+Vertex AI remains the core delivery mechanism for Google's foundation models. The portfolio has expanded significantly in Q4 2025 with the Gemini 3 series.
+
+### Gemini Model Family
+*   **Gemini 3.0 Pro (Preview)**
+    *   **Description:** Google's state-of-the-art reasoning model. Features "adaptive thinking" to handle complex agentic workflows and coding tasks.
+    *   **Status:** Public Preview (Released Nov 18, 2025) [cite: 3].
+    *   **New Features:** "Thinking levels" (control reasoning depth), "vibe coding" (natural language app generation), 1M token context window.
+    *   **Pricing (Indicative):** $2.00 per 1M input tokens / $12.00 per 1M output tokens (for prompts <200k tokens) [cite: 7].
+*   **Gemini 3.0 Pro Image (Preview)**
+    *   **Also known as:** "Nano Banana Pro" (internal/community nickname).
+    *   **Description:** High-fidelity image generation with superior text rendering and character consistency. Supports up to 14 reference inputs for style transfer.
+    *   **Status:** Public Preview (Released Nov 20, 2025) [cite: 4].
+    *   **Pricing (Indicative):** ~$0.0011 per image input; Output ranges from $0.134 (1K res) to $0.24 (4K res) per image [cite: 7].
+*   **Gemini 2.5 Pro (GA)**
+    *   **Description:** Stable high-capability model for production workloads requiring complex reasoning.
+    *   **Status:** Generally Available.
+    *   **Pricing (Indicative):** $1.25 per 1M input tokens / $10.00 per 1M output tokens (<200k context) [cite: 8].
+*   **Gemini 2.5 Flash (GA)**
+    *   **Description:** Low-latency, cost-effective model optimized for high-volume tasks.
+    *   **Status:** Generally Available.
+    *   **Pricing (Indicative):** $0.30 per 1M input tokens / $2.50 per 1M output tokens [cite: 8].
+
+### Other Notable Models
+*   **Imagen 3:** GA. Photorealistic image generation.
+*   **Veo:** Video generation model available in Vertex AI [cite: 9].
+*   **DeepSeek-V3.2:** Now available as a managed API in Model Garden (added Dec 10, 2025) [cite: 2].
+
+### Customization & Features
+*   **Prompt Caching:** Available for Gemini models to reduce latency and cost for repetitive context.
+*   **Grounding:** Integrated with Google Search and enterprise data via Vertex AI Search.
+*   **Fine-tuning:** Available for select Gemini and open models.
+
+## Productivity AI and Copilots
+
+Google has moved to embed agentic capabilities directly into the productivity stack, allowing users to automate workflows without leaving their primary tools.
+
+*   **Google Workspace Studio**
+    *   **Status:** Generally Available (Dec 4, 2025) [cite: 6].
+    *   **Capability:** A no-code platform within Workspace that allows employees to build "Agents" using natural language. These agents can orchestrate tasks across Gmail, Drive, Docs, and Chat (e.g., "Triage my emails and create a summary doc for Project X").
+    *   **Licensing:** Included in Business and Enterprise Workspace plans; usage limits apply [cite: 10].
+*   **Gemini for Workspace**
+    *   **Updates:** Integration of **Nano Banana Pro** (Gemini 3 Pro Image) into Google Slides and Vids for high-fidelity visual generation [cite: 11].
+    *   **Deep Research:** Now available in the Gemini app, allowing users to generate comprehensive reports from multiple sources [cite: 12].
+
+## Agentic AI and Automation
+
+This is the most active area of development in late 2025, focusing on tools to build, deploy, and manage autonomous agents.
+
+*   **Vertex AI Agent Engine**
+    *   **Status:** Generally Available (Sessions & Memory Bank GA as of Dec 16, 2025) [cite: 2].
+    *   **Capability:** A managed runtime for AI agents. It handles the infrastructure, state management (Sessions), and long-term memory (Memory Bank) required for agents to operate reliably in production.
+    *   **Region Availability:** Expanded to regions including europe-west6, asia-east2, and northamerica-northeast2 in Dec 2025 [cite: 2].
+    *   **Pricing:** Runtime pricing was lowered in Dec 2025; charges for Sessions/Memory Bank begin Jan 28, 2026 [cite: 2].
+*   **Google Antigravity**
+    *   **Status:** Public Preview [cite: 1].
+    *   **Capability:** An "agent-first" IDE and development platform. It is a fork of VS Code designed to let developers manage a team of coding agents. It supports "vibe coding"—building apps via natural language prompts—and includes an "Agent Manager" view for orchestration [cite: 3, 13].
+*   **Agent Development Kit (ADK)**
+    *   **Status:** Open Source / GA.
+    *   **Capability:** A framework for building agents that defines how they reason, plan, and use tools. It supports the **Agent2Agent (A2A)** protocol for multi-agent collaboration [cite: 14].
+
+## Data and Analytics AI
+
+Google continues to integrate AI directly into its data fabric to support RAG (Retrieval-Augmented Generation) and analysis.
+
+*   **AlloyDB AI**
+    *   **Status:** Vector Search Accelerator is GA (Nov 2025) [cite: 15].
+    *   **Capability:** Provides native, high-performance vector search within PostgreSQL. New features include **inline filtering** (filtering vectors during query execution for speed) and auto-embedding generation [cite: 15, 16].
+*   **Vertex AI Search**
+    *   **Updates:** "Natural language query filters" are GA (Nov 2025), allowing users to query structured data stores using conversational language [cite: 17].
+    *   **RAG Pattern:** The default enterprise pattern for RAG now leverages **Gemini Enterprise** for orchestration and **Vertex AI** for managed datastores, emphasizing an agent-driven approach over simple vector retrieval [cite: 18].
+
+## AI Development Platform
+
+*   **TPU v7 "Ironwood"**
+    *   **Status:** Generally Available (announced Nov 2025, rolling out Q4) [cite: 5].
+    *   **Capability:** Purpose-built for the "age of inference" and agentic workloads. Offers 4x better performance per chip than Trillium (v6e) and scales to 9,216 chips in a superpod [cite: 5].
+*   **Vertex AI Studio:** Remains the central interface for prompt engineering, model comparison, and fine-tuning.
+*   **Evaluation:** Vertex AI offers a "Gen AI Evaluation Service" to assess model performance, now integrated with Agent Engine for evaluating agent trajectories [cite: 19].
+
+## Security and Governance
+
+*   **Google Unified Security**
+    *   **Status:** Generally Available (Platform consolidation announced April 2025) [cite: 20].
+    *   **Capability:** Consolidates threat intelligence, security operations (formerly Chronicle), and cloud security into a single platform. It uses Gemini agents to assist in threat hunting and alert triage [cite: 21].
+*   **Model Armor**
+    *   **Status:** Generally Available [cite: 20].
+    *   **Capability:** A managed security layer that sits between the application and the model. It filters prompt injection attacks, toxic content, and PII (Personally Identifiable Information) without requiring code changes in the application [cite: 22].
+*   **Agent Identity:** A new IAM feature (Preview) allows specific AI agents to have their own identity and permissions, distinct from the user or service account invoking them [cite: 19].
+
+## Recommendation Guidance
+
+*   **Model Hosting:**
+    *   **Use Vertex AI (Gemini API):** For standard enterprise applications requiring managed scale, safety filters, and SLA.
+    *   **Use Model Garden:** When you need specific open-source models (Llama, Gemma) or third-party models (DeepSeek) for regulatory or specialized performance reasons.
+*   **RAG (Retrieval-Augmented Generation):**
+    *   **Default Pattern:** Use **Vertex AI Search** for a fully managed "search-as-a-service" experience on unstructured data.
+    *   **Custom Pattern:** Use **AlloyDB AI** if you are already using PostgreSQL and need high-performance vector search co-located with operational data.
+*   **Agents vs. Automation:**
+    *   **Use Agents (Agent Engine/Antigravity):** For "fuzzy" problems requiring reasoning, planning, and adaptation (e.g., "Research this competitor and summarize their strategy").
+    *   **Use Workflows/Automation:** For deterministic, rigid processes (e.g., "If invoice > $5k, email manager").
+*   **Anti-Patterns:**
+    *   **"Pilot Purgatory":** Avoid building agents without a clear path to production runtime (Agent Engine).
+    *   **Skipping Evaluation:** Do not deploy agents without using the Gen AI Evaluation service to test for hallucination and instruction following.
+
+## Notable Customer Case Studies
+
+*   **Wells Fargo:**
+    *   **Use Case:** Utilizing **Google Agentspace** (now integrated into Agent Engine/Gemini Enterprise) to deploy AI agents for employees. Agents assist with synthesizing information from internal documents and automating workflows for branch bankers and customer relations teams.
+    *   **Source:** Official Google Cloud Blog (Aug 5, 2025) [cite: 23].
+*   **NextEra Energy:**
+    *   **Use Case:** Partnering with Google Cloud to build gigawatt-scale data centers and utilizing Google Cloud AI to optimize energy grid operations and digital transformation.
+    *   **Source:** Official Press Release (Dec 8, 2025) [cite: 24].
+*   **Kärcher:**
+    *   **Use Case:** Early adopter of **Google Workspace Studio**. Used agents to automate internal product-planning workflows, reportedly reducing manual planning time by up to 90%.
+    *   **Source:** Google Workspace Blog (Dec 4, 2025) [cite: 6, 25].
+
+## New in the Past 6 Months (July - Dec 2025)
+
+*   **Vertex AI Agent Engine (GA):** Managed runtime for agents with Sessions and Memory Bank (Dec 16, 2025) [cite: 2].
+*   **Google Workspace Studio (GA):** No-code agent builder for business users (Dec 4, 2025) [cite: 6].
+*   **Gemini 3.0 Pro (Preview):** Next-gen reasoning model (Nov 18, 2025) [cite: 3].
+*   **Gemini 3.0 Pro Image / "Nano Banana Pro" (Preview):** High-fidelity image generation (Nov 20, 2025) [cite: 4].
+*   **TPU v7 "Ironwood" (GA):** New AI infrastructure hardware (Nov 2025) [cite: 5].
+*   **AlloyDB AI Vector Search (GA):** Native vector acceleration (Nov 2025) [cite: 15].
+*   **Google Antigravity (Preview):** Agent-first IDE platform (Nov 2025) [cite: 1].
+
+## Deprecations and Migrations (Past 12 Months)
+
+*   **MedLM:**
+    *   **Status:** Deprecated.
+    *   **Impact:** Access ends **September 29, 2025**.
+    *   **Migration:** Users must migrate to **Gemini** models (specifically versions tuned for medical domains if available, or standard Gemini 2.5/3.0 Pro) [cite: 26].
+*   **LearnLM:**
+    *   **Status:** Standalone model deprecated/integrated.
+    *   **Impact:** Capabilities integrated directly into Gemini models; standalone offering removed from AI Studio [cite: 9].
+*   **Imagen 4 Preview Models:**
+    *   **Status:** Retired.
+    *   **Impact:** `imagen-4.0-generate-preview` models retired **November 30, 2025**.
+    *   **Migration:** Move to Imagen 4 GA or Gemini 3 Pro Image [cite: 27].
+*   **Vertex AI SDK "Generative AI" Module:**
+    *   **Status:** Deprecated.
+    *   **Impact:** Deprecated as of June 24, 2025; removal scheduled for June 2026.
+    *   **Migration:** Migrate to the new **Google Gen AI SDK** [cite: 27].
+
+## Sources
+
+*   **[cite: 17]** Google Cloud. *Vertex AI Search release notes*. Dec 09, 2025.
+*   **[cite: 9]** Releasebot. *Vertex AI release notes*. Dec 08, 2025.
+*   **[cite: 27]** Google Cloud. *Generative AI on Vertex AI deprecations*.
+*   **[cite: 26]** Google Cloud. *Vertex AI Model descriptions*.
+*   **[cite: 28]** Google Cloud. *Cloud TPU*.
+*   **[cite: 5]** Google Cloud Blog. *Ironwood TPUs and new Axion-based VMs*. Nov 06, 2025.
+*   **[cite: 3]** Google Developer Blog. *Build anything with Gemini 3*. Nov 18, 2025.
+*   **[cite: 7]** Google AI. *Gemini API Pricing*.
+*   **[cite: 23]** Google Cloud Blog. *How Wells Fargo is using Google Cloud AI*. Aug 05, 2025.
+*   **[cite: 8]** LangCopilot. *Gemini 2.5 Flash vs Pro Pricing*. Sep 22, 2025.
+*   **[cite: 1]** Google Antigravity. *Documentation Home*.
+*   **[cite: 18]** Google Cloud. *RAG infrastructure for generative AI using Gemini Enterprise*. Nov 10, 2025.
+*   **[cite: 16]** InfoQ. *AlloyDB AI vector search updates*. Mar 06, 2025.
+*   **[cite: 15]** Google Cloud. *AlloyDB release notes*. Nov 13, 2025.
+*   **[cite: 6]** Google Workspace Blog. *Introducing Google Workspace Studio*. Dec 04, 2025.
+*   **[cite: 29]** Google Cloud. *Vertex AI Agent Builder Product Page*.
+*   **[cite: 19]** Google Cloud. *Vertex AI Agent Builder Overview*.
+*   **[cite: 14]** Medium. *Google's AI Agent Ecosystem Overview*. Jul 18, 2025.
+*   **[cite: 11]** Google Workspace Updates. *Nano Banana Pro in Workspace*. Nov 20, 2025.
+*   **[cite: 4]** Google Cloud Blog. *Nano Banana Pro available for enterprise*. Nov 21, 2025.
+*   **[cite: 2]** Google Cloud. *Vertex AI Release Notes*. Dec 16, 2025.
+*   **[cite: 6]** Google Workspace Blog. *Introducing Google Workspace Studio*. Dec 04, 2025.
+*   **[cite: 24]** Google Cloud Press Corner. *NextEra Energy and Google Cloud Partnership*. Dec 08, 2025.
+*   **[cite: 20]** SiliconAngle. *Google launches Unified Security platform*. Apr 09, 2025.
+*   **[cite: 22]** Medium. *Google Cloud Model Armor*. Feb 06, 2025.
+
+**Sources:**
+1. [antigravity.google](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGh2um3JnBT2w2FNK3EEcAHaq-g5sXD0vcLz70l0GH4jdmvk2uxNvdjzMtbucHOomJIRccY961Oq68qf0Q848UF4C_Z6m6PeA5wB0btysmH0JpaJiBmY1jdqa0=)
+2. [google.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGrLfhYmMTXO9GLrkortWOtnx72YfZxkNuGHRtzUPImKtCZNkPCsVMzDvu_xLn2OJkn5_gFoRwEtuolWdbpve9ysyNd8fZH7AcbBq3a7PkOzNz6LhtqX_EJZzq0BtNY_3uL4CRxKeCNmMPkvQ8UjdbxXpKkb5xFqpQdU3jeyMQ=)
+3. [blog.google](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQENxtwtTUI0vrjozHw8Fe2FH6MFcyvdVyo2HiIdJ6W05WXSuPZnt7SDNPFhhafKjYW5DpAOn29xslZa6CM9C5Q3SIB9deM8Pj4cxG4YXevfWs2CWCIp1Yg-2nChBj3_Tkp2KD8EjsSAKTlEzQwN3MAZR-96OQ==)
+4. [google.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEsN9YTfZ6yz20HmGgV5860AEkZwWokdkafpNjnRq72-9zvtbKzDi1GgdhBY6UlHPYTZHyqtE6lhzuqzqavO-7fQ3flmctfYfEESE8hBRpgCYsos_tcpX-unL9c_WYKDVd8GfE1mFaZVel9mP8GRxCNPyxNqo41oL3ojats_3SZaVr3GLcTKIZ4vphypDCZlGA8bYFbAnHy_cY=)
+5. [google.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQG411bh639DsoNZdveIlcPEoTbETkHJVPW9NqYZbMWNFrqFQsqq40AUpfHgcedjWHbA76OGtXBBg9blN-YLeeOJVrijzeqylW4A5KsEQ9N7uxuZunQZzjHCLVqMG_DCyY7xTT4bIL1ji7aFHyLyjjA6hYKCfNQrTfDdzEokK3FeLeLAyaZBXQmjaUota3FH5NI_u1XNITs_7Yuzyt_OwWsM)
+6. [google.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFPlyA_vJLRZvDmVAuX0ghDF2ZiojctVgKacfdLXtFnc5C2vrL8HkZpenYpD9-iquEy0qo-B6OkTRw5sqbzZ6keXQRbgOiIXstCu6JUk24DlwCdT5z8yr_iTLE4QggZ714HJ_2Z4sSAc-be3nuPv1UamOw1aj10dI1ajx_-Dm6FTxjN37JkHAewFGfiLccWBSWXYeQDxJksRcgjJw1UILHcu7ZzhjPxMj6toA==)
+7. [google.dev](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHoc0A7Io0iG0TenJc27rzSS4zjqAaI8K0AQQDkUplFWuRGxOCCS6zKN-sgqWsjAlx1_z8_yC2VYkfTeTt5OVLnnqL5QdYB3pXlXo5cBb3XMtJYzcWMVGempEb42ORylmI37no=)
+8. [langcopilot.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFuT7j-qarY0CGD2523fhzRAJerC1k76H0l9XuB-faXpKyYDmWmxo8bMnv5huHv2SFh4BAs8gN8H8_pk9RIjGVEA4SO3EnOxTJSEo1g3xKf6XzRDy_UcwEPyZPbNfDw7S0iF_ENPhIe7caJquBKtlOc8AMxhivU4Hw=)
+9. [releasebot.io](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHv7eWwDntoH5rQCoKP-vliOyawyPL2tywmmAH7nF9XIXdjggzVtxNmcyvz8UhVOO3f6_ePgP5LgQXKnCRJu5iIwwwq9n5seEm0vxEEOLD0hkUUgwIAlh2icdQDvQ_O5wl8HzXY)
+10. [unifiedaihub.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGmVa0Owlz5wxvrX2u27Hcf13q-8LUaNGS16q9vQXSR6ZKUXd4zDvfc2cWOBLY5Pc8jpSUxQcVZWoiYPpEVagnBpPDhlM-nfQWrpgwQtbVBWvgcHW3Wsbiwo8AlEbVVnY9FWUuciobmZpkLqYFC9KaFza07ZHv4mvaXjyOL8wzjtFbpdh30eYAu0jYGpTLpXC67FxRkmsdzAx9zi5TSxJ0h)
+11. [googleblog.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQF7__ExJAWry8S-NBMT4JQTvrUzr0QpHUYWMKhb2MHFg8m00n5kKUqn9rKmmpLTmi4h1NtocSoK0hZsNL475WDpmol0X9RsROqW7uoRI23KIHRlKypE8EHBDfnk9_ZTe8DT0U05hqUMgb_7784PAFCQwNeWGdip3o-tUoUuGS_LKLn1Wnc=)
+12. [gemini.google](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHBdfrsqiFgreMlBDvwtrC80IbRE4B4n8iarnbzVtkajrlOga4o4V4t0186Dy3PAy7VgQC8-7UrIMLJSviXgbVkVxXk6NuPIQvapwFtqramrd8i2NcPj9LrHy6QepH-4_B6gBquIdY=)
+13. [medium.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQET7foG8e9RTc510qY4VSnk3zc5M2gmf8mQ_YMB2uVIabCpeUUew_kELM4RAYsfYDQ1V4ag2ziOJNG7mJsVz2T2BLogmqASiuMGFptDHbOKTAvr_T0rVVL5imXKHxGFRXJyLz51MLwfVQ-Hz3f8EY-oXS_Qbd-9TW7lYa4UlqEj7ER1I7-1M6Wr-_bZSF6nWwfn34s=)
+14. [medium.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGaK8FOB0bALMFVxXMgurmFJET9IRw7sKXm-Qz1KORcKaQ--cCZGDnfaV2OpZh3e2wKrTgR4xqQA_xEM8Sp_E1Xmy7na1iS_QW_JxhJYzgxsostD_o1wTDJGJTcawPqqab6I5l-Y1PnuUQrQaZKzq6Jdak1KqIMIg0TN5OmB8KQ2js-EnMSjFXIyA==)
+15. [google.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFXb36soUJ6v3cW56D_TrgIy9c7aeco-2fFYsNUgRNjQ_N553Q_ITyP7Y6G-dO97_RIdBcIA9qm5f8BqsNopufL3SRYHaIHbRh6urxtYy9f8x06e7SnSu3YPi24qImagLJ14R5ncq6VYc4pJ0szVg==)
+16. [infoq.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGq2-Qm6vo6xTdjm053zhuKBMkhGMI2ZuwvG1sXqzwwgqLwiHww1reb_4aGfDwpB3Z8YoYY3qDWfo6NQHjBKEwAGnxt5r8kzSTn3ajeSwEq30cbUssuMdYetJ-bFCqzxdwXq7E13wqfZNTGKDlSo212YTAsEVROrlY1)
+17. [google.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFHNcHpAFsezprzbFdrytYKsXxm1rCnjxiyc_uF25gs2-QRnq4fOy072b2Hvm42b7wnFRU0-iPGvHjSBeEFDDCNidIAC4tJ7HCvZsanO_mayYtDnR4aNR7cnWjLG9W9OWy2b81aXao8c3ubER0curH8J2MAhAXzyKbMVayOOOVhDw==)
+18. [google.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHYm4wZvjSEYnUnNMrwiAdnieeQKK0HHqqgxvc3FE1M0J7rmR-_7ww1vsr5k2lbM85YlBzdovFs3RshJqIhPaGGy46C66REzD9-rkPTCbs5YiM8q5QEHotPajdrGIcbsDWek8bbVOglfjjdNaNgkgnJB2LrJRu5osnD6jbY3svNNSTlIdab)
+19. [google.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHdFRH_ODDUIcIbdcAKhsw444VU1UrK5YYAQ3YSXZAPsCuJF22qGy058rg5B1sh_yzKTOrh5BNI5ayWBpNI6Sa7do3L0UeGjA29BOpnadKuw9seO1TPGnXRIW6Q5AlnTDAElqxldiv5WpFQ)
+20. [siliconangle.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHGFrizYcBTHcCToFlNg_D2GYyyz-udg1i17Gu-OhS6pSHHvvllVZyZEHmh-1d8eOezTANPpBZq0HoyVJEnwam_DPNkl67yDKdyoYBfDyYyS1zQiYnHuLe3goG5gvOoetLHNt0eUCnWgn2cry_kL4X34NvTZpElVkyP9INHEIwRgceAor3KzuZi-zlaVwMTDny5Ti3BzlcPW0yQfT_VKGXKqvMhgc-eYoyfQSY=)
+21. [google.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFWZ21MNI0-oHZ74CHb-JBYCG6fGH2jfd_kAZDdH4B-UV8QF2QqtC2eOW3r1FCi47rlYJuWaWgSbfO7UoJ1nW4QsQDz8wRNgc1-RYyKJwep02YEr1ghocjjMTMehalZ7MIDeVmapucbyViHMv7jreJXBlCKp-cNiTG_YYQCNZW9ln-2ioil_zI_OONwbuEJZ_KD2dwZ36DmcR7GpptpEt_9Ndlt2K6H8jjgA5HF-8G9)
+22. [medium.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHhzrag-k3XJVkUw_IvqAVgovNLSW80g1ggvybRok-ZmVAPvD5QNMjOJ3nJa4Unlo9VTYurpxpluG1Ckl8_Be0PEkG-LVcV5XAa05Plr9W6sSbq9ssJH6fAHbfmJvJUNEjf4ao4E8XhLGx_1qkx8qEYzVjMxWwrKF7QhSw=)
+23. [google.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFhggWkNmc7aAQtfwpP9gi1UcpPExyJ6Lro-cx2m5UBTphxYhbIJsH5WjYvto7UZq5JGlrf949wla8EYZYj7WKIdbrHGk_jdgQBr5Fxv8g8LkRtESDw7QppVoku6MOJrL-Xy2XCASminBwcvcVI1BBl0tWCdcb6xnOpRsba7A5Kwl94lBqsVcpOzCSogylPFJjG0F80mp3i_cTzyUNVGkqM9Z8=)
+24. [googlecloudpresscorner.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQH-Sl1XFUBC9XzH2XA1-5vhj8t5mO7o03Nu8L8ZMQHBV4nG3e3whFThYnq6yGIHbOSGPPOPeBkAJbJDJzDDo6A5MTLAqjL1R3qM64laIOsCXl2mS6y_WYbLkcuwK5aI0PGymS3xTR9vEckWffojtvoxinQrECrywjHPoT4L_g8i4WIoTRrbqc6thXBYS3dAUetwVul_bNTJvf1tgvoGCx4-B9bRtTBMgc7Nx5jJljEY7qICKbwk6z9ealBGj3492MGETH4mFScFi2coObPGhBDr3YBPLwJQ-UpLhnu-a3luu-C3tqY2lv-BDQVk8uZZdbfCROXry3O6W8L3tks48_EC)
+25. [siliconangle.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEA_CWbTcTxBkSE9lAbVBkyqDJKi_Gup5SZHFVSS77OtAgXwlYZwTNOZS0_Ds_AgAF77gmWrhxfYSB-k9eMsCy6TiUYTdDYmGoQQZVVOBy450myde3g7oPudT6kkQJBNE72oIwvfoaPQnP2zixewgeF0td374xoGHV4kE90MVhxmnWbcZ4MjSv2Bw_8ueoS4V41yzfXqfC_1TxGEd4bun1XgzdY)
+26. [google.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQF5jc-1c7r7IWy33eNNjCWhpMEsRiUQkyHrXGJ2AqK-2mOA-IbrOwlkrglkDcJ_TN1I3ymFa651qc4ZEHEJ4tYxpdP83ZsUdkz5KypGPSnsz3-xzoTbgq3UG0lkkzhEqTwm9ypl6qEabG0VHq2BH4VvtybLoCbB8g==)
+27. [google.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQE9hKaCSe60wI-Of6vK0CHV-SFfiNXWGzGxwF_D-rz5x2FF_I8KiNAZgfFGiLTo2aKHEe62oJRyrfTQlF36bMqxhZcSg0ErLjnpWzoD0GrGQV74D46SBMaGidcvmekmes-cURk7YerA4nGoXtRc28MvoYnvNKQMg_F4c_H1bg==)
+28. [google.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHLgTxmo5n8aR0a7tjEV1GA8r8Nxv9BCEMJww5VxQvhE_DtYkrMokEnL6u97-J-cZcPM6GoyeGbPGJlfyGam2krQx251VZy-yNKFlugpPT47b0q)
+29. [google.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGy2PW1XzhLG2omzOJIcpBLL76Y6-0vIKnZquo0OD93EFcTUB0kV7Nt_JuSkZh7mtooBRlGk-dAk0Xpuhq3ygU2iPPMCT9noMy2aYDD-DF5VXSSAKNwJFVe5z4b8hy8wKhbDw_mgQ==)

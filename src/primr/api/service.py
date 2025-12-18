@@ -1,0 +1,434 @@
+"""
+REST API service for company research.
+
+This module provides:
+- FastAPI application for research requests
+- Job management and status tracking
+- Webhook notifications
+- Health checks
+"""
+
+import asyncio
+import threading
+import uuid
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import Enum
+from typing import Any
+
+from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
+
+from primr.api.auth import verify_api_key
+from primr.api.rate_limit import check_rate_limit
+from primr.utils.logging_config import get_logger
+
+logger = get_logger("api.service")
+
+
+class ResearchStatus(str, Enum):
+    """Status of a research job."""
+
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+class ResearchRequest(BaseModel):
+    """Request to start a research job."""
+
+    company_name: str = Field(..., description="Name of the company to research")
+    company_url: str | None = Field(None, description="Company website URL")
+    sections: list[str] | None = Field(None, description="Specific sections to include")
+    output_format: str = Field("markdown", description="Output format: markdown, html, text")
+    webhook_url: str | None = Field(None, description="URL for completion notification")
+    priority: int = Field(5, ge=1, le=10, description="Priority 1-10 (10 highest)")
+
+
+class ResearchResponse(BaseModel):
+    """Response with research results."""
+
+    job_id: str
+    status: ResearchStatus
+    company_name: str
+    created_at: str
+    completed_at: str | None = None
+    result: dict[str, Any] | None = None
+    error: str | None = None
+    progress: float = 0.0
+
+
+class JobStatus(BaseModel):
+    """Status of a research job."""
+
+    job_id: str
+    status: ResearchStatus
+    progress: float
+    message: str = ""
+    created_at: str
+    updated_at: str
+
+
+class HealthResponse(BaseModel):
+    """Health check response."""
+
+    status: str
+    version: str
+    uptime_seconds: float
+    jobs_pending: int
+    jobs_completed: int
+
+
+@dataclass
+class ResearchJob:
+    """Internal representation of a research job."""
+
+    job_id: str
+    company_name: str
+    company_url: str | None
+    sections: list[str] | None
+    output_format: str
+    webhook_url: str | None
+    priority: int
+    status: ResearchStatus = ResearchStatus.PENDING
+    progress: float = 0.0
+    message: str = ""
+    result: dict[str, Any] | None = None
+    error: str | None = None
+    created_at: datetime = field(default_factory=datetime.now)
+    updated_at: datetime = field(default_factory=datetime.now)
+    completed_at: datetime | None = None
+    api_key: str = ""
+
+
+class JobManager:
+    """
+    Manages research jobs.
+
+    Example:
+        manager = JobManager()
+        job_id = manager.create_job(request, api_key)
+        status = manager.get_status(job_id)
+    """
+
+    def __init__(self):
+        """Initialize the job manager."""
+        self._jobs: dict[str, ResearchJob] = {}
+        self._lock = threading.Lock()
+        self._start_time = datetime.now()
+        self._completed_count = 0
+        logger.debug("JobManager initialized")
+
+    def create_job(self, request: ResearchRequest, api_key: str) -> str:
+        """
+        Create a new research job.
+
+        Args:
+            request: Research request
+            api_key: API key that created the job
+
+        Returns:
+            Job ID
+        """
+        job_id = str(uuid.uuid4())
+
+        job = ResearchJob(
+            job_id=job_id,
+            company_name=request.company_name,
+            company_url=request.company_url,
+            sections=request.sections,
+            output_format=request.output_format,
+            webhook_url=request.webhook_url,
+            priority=request.priority,
+            api_key=api_key,
+        )
+
+        with self._lock:
+            self._jobs[job_id] = job
+
+        logger.info(f"Created job {job_id} for {request.company_name}")
+        return job_id
+
+    def get_job(self, job_id: str) -> ResearchJob | None:
+        """Get a job by ID."""
+        with self._lock:
+            return self._jobs.get(job_id)
+
+    def update_status(
+        self,
+        job_id: str,
+        status: ResearchStatus,
+        progress: float = 0.0,
+        message: str = "",
+    ) -> None:
+        """Update job status."""
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if job:
+                job.status = status
+                job.progress = progress
+                job.message = message
+                job.updated_at = datetime.now()
+
+                if status == ResearchStatus.COMPLETED:
+                    job.completed_at = datetime.now()
+                    self._completed_count += 1
+
+    def set_result(self, job_id: str, result: dict[str, Any]) -> None:
+        """Set job result."""
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if job:
+                job.result = result
+                job.status = ResearchStatus.COMPLETED
+                job.progress = 100.0
+                job.completed_at = datetime.now()
+                job.updated_at = datetime.now()
+                self._completed_count += 1
+
+    def set_error(self, job_id: str, error: str) -> None:
+        """Set job error."""
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if job:
+                job.error = error
+                job.status = ResearchStatus.FAILED
+                job.updated_at = datetime.now()
+
+    def cancel_job(self, job_id: str) -> bool:
+        """Cancel a job."""
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if job and job.status in (ResearchStatus.PENDING, ResearchStatus.RUNNING):
+                job.status = ResearchStatus.CANCELLED
+                job.updated_at = datetime.now()
+                return True
+            return False
+
+    def list_jobs(self, api_key: str, limit: int = 100) -> list[ResearchJob]:
+        """List jobs for an API key."""
+        with self._lock:
+            jobs = [j for j in self._jobs.values() if j.api_key == api_key]
+            jobs.sort(key=lambda j: j.created_at, reverse=True)
+            return jobs[:limit]
+
+    def get_stats(self) -> dict[str, Any]:
+        """Get job statistics."""
+        with self._lock:
+            pending = sum(1 for j in self._jobs.values() if j.status == ResearchStatus.PENDING)
+            running = sum(1 for j in self._jobs.values() if j.status == ResearchStatus.RUNNING)
+
+            return {
+                "pending": pending,
+                "running": running,
+                "completed": self._completed_count,
+                "total": len(self._jobs),
+                "uptime_seconds": (datetime.now() - self._start_time).total_seconds(),
+            }
+
+
+# =============================================================================
+# FASTAPI APPLICATION
+# =============================================================================
+
+def create_app(
+    title: str = "Company Research API",
+    version: str = "1.0.0",
+    job_manager: JobManager | None = None,
+) -> FastAPI:
+    """
+    Create the FastAPI application.
+
+    Args:
+        title: API title
+        version: API version
+        job_manager: Optional custom job manager
+
+    Returns:
+        FastAPI application
+    """
+    app = FastAPI(
+        title=title,
+        version=version,
+        description="REST API for automated company research",
+    )
+
+    # Add CORS middleware
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    # Store job manager in app state
+    app.state.job_manager = job_manager or JobManager()
+    app.state.start_time = datetime.now()
+
+    # Dependency for API key verification
+    async def verify_key(x_api_key: str = Header(..., alias="X-API-Key")) -> str:
+        if not verify_api_key(x_api_key):
+            raise HTTPException(status_code=401, detail="Invalid API key")
+
+        # Check rate limit
+        allowed, retry_after = check_rate_limit(x_api_key)
+        if not allowed:
+            raise HTTPException(
+                status_code=429,
+                detail="Rate limit exceeded",
+                headers={"Retry-After": str(int(retry_after))},
+            )
+
+        return x_api_key
+
+    @app.get("/health", response_model=HealthResponse)
+    async def health_check():
+        """Health check endpoint."""
+        stats = app.state.job_manager.get_stats()
+        return HealthResponse(
+            status="healthy",
+            version=version,
+            uptime_seconds=stats["uptime_seconds"],
+            jobs_pending=stats["pending"],
+            jobs_completed=stats["completed"],
+        )
+
+    @app.post("/research", response_model=ResearchResponse)
+    async def create_research(
+        request: ResearchRequest,
+        background_tasks: BackgroundTasks,
+        api_key: str = Depends(verify_key),
+    ) -> ResearchResponse:
+        """
+        Start a new research job.
+
+        Returns immediately with job ID. Use /research/{job_id} to check status.
+        """
+        job_id = app.state.job_manager.create_job(request, api_key)
+        job = app.state.job_manager.get_job(job_id)
+
+        # Start research in background
+        background_tasks.add_task(run_research, app.state.job_manager, job_id)
+
+        return ResearchResponse(
+            job_id=job_id,
+            status=job.status,
+            company_name=job.company_name,
+            created_at=job.created_at.isoformat(),
+            progress=job.progress,
+        )
+
+    @app.get("/research/{job_id}", response_model=ResearchResponse)
+    async def get_research(job_id: str, api_key: str = Depends(verify_key)) -> ResearchResponse:
+        """Get research job status and results."""
+        job = app.state.job_manager.get_job(job_id)
+
+        if job is None:
+            raise HTTPException(status_code=404, detail="Job not found")
+
+        if job.api_key != api_key:
+            raise HTTPException(status_code=403, detail="Access denied")
+
+        return ResearchResponse(
+            job_id=job.job_id,
+            status=job.status,
+            company_name=job.company_name,
+            created_at=job.created_at.isoformat(),
+            completed_at=job.completed_at.isoformat() if job.completed_at else None,
+            result=job.result,
+            error=job.error,
+            progress=job.progress,
+        )
+
+    @app.delete("/research/{job_id}")
+    async def cancel_research(job_id: str, api_key: str = Depends(verify_key)) -> dict[str, str]:
+        """Cancel a research job."""
+        job = app.state.job_manager.get_job(job_id)
+
+        if job is None:
+            raise HTTPException(status_code=404, detail="Job not found")
+
+        if job.api_key != api_key:
+            raise HTTPException(status_code=403, detail="Access denied")
+
+        if app.state.job_manager.cancel_job(job_id):
+            return {"message": "Job cancelled"}
+        else:
+            raise HTTPException(status_code=400, detail="Cannot cancel job")
+
+    @app.get("/research", response_model=list[JobStatus])
+    async def list_research(api_key: str = Depends(verify_key), limit: int = 100) -> list[JobStatus]:
+        """List research jobs for the authenticated user."""
+        jobs = app.state.job_manager.list_jobs(api_key, limit)
+
+        return [
+            JobStatus(
+                job_id=j.job_id,
+                status=j.status,
+                progress=j.progress,
+                message=j.message,
+                created_at=j.created_at.isoformat(),
+                updated_at=j.updated_at.isoformat(),
+            )
+            for j in jobs
+        ]
+
+    return app
+
+
+async def run_research(job_manager: JobManager, job_id: str) -> None:
+    """
+    Run research in background.
+
+    This is a placeholder that simulates research.
+    In production, this would call the actual research pipeline.
+    """
+    job = job_manager.get_job(job_id)
+    if job is None:
+        return
+
+    try:
+        job_manager.update_status(job_id, ResearchStatus.RUNNING, 0.0, "Starting research...")
+
+        # Simulate research progress
+        for progress in [10, 25, 50, 75, 90, 100]:
+            await asyncio.sleep(0.1)  # Simulated work
+
+            job = job_manager.get_job(job_id)
+            if job is None or job.status == ResearchStatus.CANCELLED:
+                return
+
+            messages = {
+                10: "Gathering initial data...",
+                25: "Scraping company website...",
+                50: "Analyzing content...",
+                75: "Generating report...",
+                90: "Finalizing...",
+                100: "Complete",
+            }
+            job_manager.update_status(
+                job_id,
+                ResearchStatus.RUNNING,
+                float(progress),
+                messages.get(progress, "Processing..."),
+            )
+
+        # Set mock result
+        job_manager.set_result(job_id, {
+            "company_name": job.company_name,
+            "summary": f"Research report for {job.company_name}",
+            "sections": {
+                "overview": f"{job.company_name} is a company.",
+                "financials": "Financial information would go here.",
+            },
+        })
+
+        logger.info(f"Completed research job {job_id}")
+
+    except Exception as e:
+        logger.error(f"Research job {job_id} failed: {e}")
+        job_manager.set_error(job_id, str(e))

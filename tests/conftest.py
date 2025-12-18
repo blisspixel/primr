@@ -1,0 +1,41 @@
+"""
+Shared pytest fixtures and configuration for Company Researcher tests.
+"""
+
+import asyncio
+import sys
+import warnings
+from pathlib import Path
+import pytest
+
+# Add src to path for imports
+PROJECT_ROOT = Path(__file__).parent.parent
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
+
+
+@pytest.fixture
+def project_root():
+    """Return the project root directory."""
+    return PROJECT_ROOT
+
+
+@pytest.fixture
+def src_dir():
+    """Return the src directory."""
+    return PROJECT_ROOT / "src"
+
+
+@pytest.fixture
+def package_dir():
+    """Return the company_researcher package directory."""
+    return PROJECT_ROOT / "src" / "primr"
+
+
+def pytest_configure(config):
+    """Configure pytest to suppress external library warnings."""
+    # Suppress unclosed event loop warnings from asyncio
+    warnings.filterwarnings(
+        "ignore",
+        message="unclosed event loop",
+        category=ResourceWarning
+    )

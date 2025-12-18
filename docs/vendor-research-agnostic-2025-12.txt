@@ -1,0 +1,314 @@
+# RESEARCH REQUEST: Latest AI Industry Services and Capabilities
+**DATE:** December 2025
+
+## Executive Summary
+
+As of December 2025, the AI industry has shifted decisively from the "generative" phase to the **"agentic" phase**. The defining theme of late 2025 is the operationalization of autonomous agents that can reason, plan, and execute complex workflows with minimal human oversight. This shift is anchored by major architectural breakthroughs from OpenAI, Google, and Anthropic, who have all released "thinking" or "reasoning" models that prioritize logic and multi-step execution over simple token prediction.
+
+The competitive landscape has intensified into a "Code Red" velocity war. Following Google's release of **Gemini 3** in November 2025, OpenAI accelerated its roadmap to release **GPT-5.2** in early December, marking the fastest flagship iteration cycle in the industry's history. Meanwhile, the open-weight ecosystem remains vibrant with Meta's **Llama 4** and Mistral's **Mistral 3** families offering enterprise-grade alternatives to closed APIs.
+
+Infrastructure has evolved to support these workloads. Microsoft's **Agent 365**, AWS's **Amazon Nova 2** family, and Google's **Agent2Agent (A2A)** protocol represent a new layer of the stack dedicated to agent orchestration, governance, and interoperability. The industry is moving away from standalone chatbots toward integrated "digital coworkers" governed by strict enterprise policies.
+
+## Service Map
+
+The AI stack has expanded to include dedicated agent control planes and interoperability protocols.
+
+*   **Model Providers:**
+    *   **OpenAI:** GPT-5.2 (Instant, Thinking, Pro), GPT-Image 1.5
+    *   **Google:** Gemini 3 (Pro, Deep Think), Gemini 2.0/2.5 Flash
+    *   **Anthropic:** Claude 4.5 (Opus, Sonnet, Haiku)
+    *   **Meta:** Llama 4 (Scout, Maverick, Behemoth)
+    *   **Mistral:** Mistral 3 (Large, Ministral), Pixtral
+    *   **Cohere:** Command A, Rerank 3.5
+    *   **AWS:** Amazon Nova 2 (Lite, Pro, Sonic, Omni)
+
+*   **Infrastructure:**
+    *   **Compute:** NVIDIA (Blackwell GB200, H200), AWS Trainium3, Google TPU v6 (Ironwood)
+    *   **Inference:** NVIDIA NIM, vLLM, TensorRT-LLM
+
+*   **Cloud AI Platforms:**
+    *   **Microsoft:** Azure AI Foundry (formerly Azure AI Studio), Agent 365
+    *   **AWS:** Amazon Bedrock, SageMaker AI
+    *   **Google:** Vertex AI, Gemini Enterprise
+
+*   **Agent Frameworks & Protocols:**
+    *   **Protocols:** Model Context Protocol (MCP), Agent2Agent (A2A)
+    *   **Frameworks:** LangGraph, LlamaIndex, AutoGen, Semantic Kernel, CrewAI
+    *   **Control Planes:** Agent 365 (Microsoft), Bedrock AgentCore (AWS)
+
+*   **Vector Databases:**
+    *   **Managed:** Pinecone (Serverless), Weaviate Cloud, MongoDB Atlas Vector Search
+    *   **Self-Hostable:** Milvus, Qdrant, Chroma, pgvector
+
+*   **Evaluation/Observability:**
+    *   LangSmith, Weights & Biases, Arize, Databricks Mosaic AI Agent Evaluation
+
+## Foundation Models and AI Services
+
+### OpenAI
+*   **Models Available:** GPT-5.2 (Instant, Thinking, Pro), GPT-5.1, GPT-Image 1.5.
+*   **New in Past 6 Months:**
+    *   **GPT-5.2 (Dec 11, 2025):** Released in response to Gemini 3. Features "Thinking" mode for deep reasoning and "Instant" for low-latency tasks. GPT-5.2 Pro achieved 100% on AIME 2025 benchmarks [cite: 1].
+    *   **GPT-Image 1.5 (Dec 16, 2025):** Integrated into ChatGPT, offering 4x faster generation and precise editing capabilities [cite: 2, 3].
+*   **Status:** GPT-5.2 is GA for paid tiers and API.
+*   **Customization:** Fine-tuning available for GPT-5.1; GPT-5.2 fine-tuning in preview.
+*   **Pricing (Indicative):** GPT-5.2 is priced at **$1.75 / 1M input tokens** and **$14.00 / 1M output tokens** [cite: 1, 4].
+
+### Google (DeepMind / Vertex AI)
+*   **Models Available:** Gemini 3 (Pro, Deep Think), Gemini 2.5 (Flash, Pro), Gemini 2.0.
+*   **New in Past 6 Months:**
+    *   **Gemini 3 (Nov 18, 2025):** Google's most capable model, featuring "Deep Think" capabilities for complex reasoning [cite: 5].
+    *   **Gemini 2.5 Flash:** Optimized for speed and cost, becoming the default for high-volume workloads.
+*   **Status:** Gemini 3 is GA on Vertex AI.
+*   **Customization:** Vertex AI offers supervised fine-tuning and Reinforcement Learning from Human Feedback (RLHF).
+*   **Pricing (Indicative):** Gemini 3 priced competitively at ~$2.00 / 1M input and $12.00 / 1M output [cite: 6].
+
+### Anthropic
+*   **Models Available:** Claude 4.5 (Opus, Sonnet, Haiku).
+*   **New in Past 6 Months:**
+    *   **Claude Opus 4.5 (Nov 24, 2025):** Flagship reasoning model, positioned for coding and complex agentic tasks [cite: 7, 8].
+    *   **Claude Sonnet 4.5 (Sept 29, 2025):** Balanced model, widely adopted for "Computer Use" capabilities (beta) allowing direct UI interaction [cite: 8].
+    *   **Claude Haiku 4.5 (Oct 15, 2025):** High-speed, low-cost model [cite: 8].
+*   **Status:** All 4.5 models are GA.
+*   **Customization:** Fine-tuning capabilities expanded via AWS Bedrock.
+*   **Pricing (Indicative):** Claude Opus 4.5 is ~$5.00 / 1M input and $25.00 / 1M output (significantly cheaper than Opus 3/4) [cite: 7].
+
+### Meta AI
+*   **Models Available:** Llama 4 (Scout, Maverick, Behemoth).
+*   **New in Past 6 Months:**
+    *   **Llama 4 Family (April 2025):** While released earlier in the year, updates continue. **Scout** (17B active params) and **Maverick** (multimodal, 400B total params) are the core open-weight options. **Behemoth** (2T+ params) serves as a teacher model [cite: 9, 10].
+*   **Status:** Open weights available (Community License).
+*   **Customization:** Highly customizable via Llama Stack and fine-tuning on all major clouds.
+*   **Pricing:** Free weights; hosting costs depend on provider (e.g., Azure, AWS, Groq).
+
+### Mistral AI
+*   **Models Available:** Mistral 3 (Large, Ministral), Pixtral.
+*   **New in Past 6 Months:**
+    *   **Mistral 3 Family (Dec 2, 2025):** Includes **Mistral Large 3** (675B parameter MoE) and **Ministral 3** (edge-optimized 3B/8B/14B). All released under Apache 2.0 [cite: 11, 12, 13].
+*   **Status:** GA / Open Weights.
+*   **Pricing:** Mistral Large 3 API is priced for high-performance enterprise use; weights are free.
+
+### AWS (Amazon Nova)
+*   **Models Available:** Amazon Nova 2 (Lite, Pro, Sonic, Omni).
+*   **New in Past 6 Months:**
+    *   **Amazon Nova 2 (Dec 2, 2025):** A new family of first-party models. **Nova 2 Omni** is a unified multimodal model; **Nova 2 Sonic** handles speech-to-speech; **Nova 2 Lite** is a cost-effective reasoning model [cite: 14, 15].
+*   **Status:** GA and Preview (varies by region).
+*   **Pricing:** Nova 2 Lite is positioned as a price-performance leader for everyday tasks.
+
+### Cohere
+*   **Models Available:** Command A, Command R+, Rerank 3.5.
+*   **New in Past 6 Months:**
+    *   **Command A (March/Aug 2025):** Optimized for agentic workflows and tool use with a 256k context window [cite: 16, 17].
+    *   **Rerank 3.5:** Enhanced multilingual and reasoning capabilities for RAG [cite: 18].
+*   **Status:** GA.
+
+## Productivity AI and Copilots
+
+*   **Microsoft Agent 365:**
+    *   Announced at Ignite 2025 (Nov), this is the evolution of Copilot into a broader "agent ecosystem." It serves as a unified control plane to manage AI agents (digital employees) alongside human users. It integrates with Microsoft 365 to allow agents to autonomously execute tasks across Office apps [cite: 19, 20].
+    *   **Work IQ:** A new data intelligence layer that grounds agents in organizational context [cite: 21].
+
+*   **Google Gemini Enterprise:**
+    *   Launched as the "front door for workplace AI," offering a unified platform for employees to access Gemini agents. Includes **Model Armor** for security and compliance [cite: 22, 23].
+    *   **Deep Research:** A new agent capability for complex information synthesis [cite: 24].
+
+*   **Licensing:**
+    *   Microsoft introduced **Copilot Business** pricing for SMBs starting Dec 1, 2025, at ~$21/user/month [cite: 25].
+    *   Google Gemini Enterprise pricing tiers start at ~$21/seat/month for Business and ~$30/seat/month for Enterprise [cite: 22].
+
+## Agentic AI and Automation
+
+*   **Agent Frameworks & Protocols:**
+    *   **Agent2Agent (A2A):** Google's open protocol (released April 2025) allowing agents from different frameworks (LangChain, AutoGen) to interoperate and negotiate tasks [cite: 26, 27].
+    *   **Model Context Protocol (MCP):** Anthropic's standard for connecting AI assistants to systems of record (data sources, tools). Supported by AWS, Google, and others [cite: 28].
+    *   **LangChain 2025:** Now focuses on interoperability (supporting A2A and MCP) and **LangGraph** for building stateful, multi-agent flows [cite: 29].
+
+*   **Building Platforms:**
+    *   **AWS Bedrock AgentCore:** A new suite (Dec 2025) for building agents with built-in policy control, memory persistence, and evaluation [cite: 14, 30].
+    *   **Azure AI Foundry:** Rebranded from Azure AI Studio, now features **Foundry Agent Service** for hosting and orchestrating multi-agent systems [cite: 31, 32].
+    *   **Databricks Agent Bricks:** A modular approach to building agents that auto-generates synthetic data for evaluation [cite: 33, 34].
+
+*   **Orchestration:**
+    *   The industry is moving toward "Supervisor" patterns where a master agent routes tasks to specialized sub-agents (e.g., a coding agent, a research agent).
+
+## Data and Analytics AI
+
+*   **Snowflake Cortex AI:**
+    *   **Cortex Agents:** Orchestrate multi-step tasks using enterprise data.
+    *   **Cortex AISQL:** Enables multimodal AI (text, image, audio) directly within SQL queries [cite: 35, 36].
+    *   **Snowflake Intelligence:** A new tool for deep research on enterprise data [cite: 37].
+
+*   **Databricks Mosaic AI:**
+    *   **Mosaic AI Gateway:** Centralized management for LLMs with rate limiting and caching.
+    *   **Agent Evaluation:** Automated grading of agent outputs using "LLM-as-a-Judge" [cite: 33, 38].
+
+*   **Vector Search & RAG:**
+    *   **Default Pattern:** "Hybrid Search" (Keyword + Vector) with re-ranking is now the standard enterprise pattern for RAG to ensure accuracy.
+    *   **Pinecone:** Mature "Serverless" offering handles massive scale without provisioning [cite: 39, 40].
+    *   **Weaviate:** Strong focus on hybrid search and modularity; available as Weaviate Cloud [cite: 39, 41].
+
+## AI Development Platform
+
+*   **Azure AI Foundry:**
+    *   The central hub for Microsoft's AI stack. Includes **Foundry IQ** for RAG and **Foundry Control Plane** for governance. Supports models from OpenAI, Mistral, Cohere, and Meta [cite: 31, 32].
+
+*   **Amazon Bedrock:**
+    *   Expanded with **Nova 2** models and **AgentCore**. Remains the "Switzerland of AI" on AWS, offering easy access to Anthropic, Cohere, Meta, and Mistral models [cite: 14, 30].
+
+*   **Google Vertex AI:**
+    *   Integrates **Gemini 3** and **Agent Engine**. Features **Agent Development Kit (ADK)** for building A2A-compliant agents [cite: 26].
+
+*   **Evaluation:**
+    *   **LangSmith** and **Databricks Mosaic AI Agent Evaluation** are critical for "unit testing" agents before deployment, checking for hallucinations and policy adherence [cite: 29, 38].
+
+## Security and Governance
+
+*   **Google Model Armor:**
+    *   A security layer that inspects inputs and outputs for prompt injection, toxic content, and data exfiltration risks. Integrated into Gemini Enterprise [cite: 22, 42].
+
+*   **AWS AgentCore Policy:**
+    *   Allows enterprises to define strict "guardrails" for agents, preventing them from taking unauthorized actions or accessing restricted data [cite: 14, 43].
+
+*   **Microsoft Agent 365 / Entra Agent ID:**
+    *   Treats AI agents as identities within Entra ID (formerly Azure AD), allowing for Role-Based Access Control (RBAC) and audit logging of agent activities [cite: 43, 44].
+
+## Recommendation Guidance
+
+*   **Model Hosting:**
+    *   **Use Azure OpenAI/Foundry** if you are a Microsoft shop needing strict governance and GPT-5.2 performance.
+    *   **Use AWS Bedrock** for flexibility (switching between Claude, Nova, and Llama) and if you need strong data privacy assurances without managing infrastructure.
+    *   **Use Vertex AI** if you are deeply integrated into the Google ecosystem or need the massive context window and reasoning of Gemini 3.
+
+*   **RAG Pattern:**
+    *   **Default:** Use a managed vector database (Pinecone Serverless or Weaviate Cloud) + Hybrid Search (Sparse/Dense vectors) + a Reranker (Cohere Rerank 3.5).
+    *   **Avoid:** Naive vector-only search for complex enterprise documents; it often misses specific keyword matches.
+
+*   **Agents vs. Automation:**
+    *   **Use Agents** when the path to the solution is ambiguous and requires reasoning (e.g., "Plan a travel itinerary based on these vague constraints").
+    *   **Use Workflow Automation** (Logic Apps, Step Functions) when the process is deterministic and repetitive (e.g., "If invoice > $5k, email manager").
+
+*   **Anti-Patterns:**
+    *   **"Pilot Purgatory":** Building chatbots without an evaluation framework (like LangSmith) leads to stalled projects.
+    *   **Tool Sprawl:** Allowing agents to access too many tools without a "Policy" layer creates security risks.
+
+## Notable Customer Case Studies
+
+*   **Air Canada (AWS):**
+    *   Used **AWS Transform** (agentic AI service) to modernize thousands of legacy Lambda functions.
+    *   **Result:** Completed migration in days vs. weeks; reported **80% reduction** in maintenance costs and manual effort [cite: 30, 45].
+
+*   **Salesforce (AWS):**
+    *   Utilized **Amazon Bedrock** and **SageMaker** for model customization.
+    *   **Result:** Demonstrated up to **73% improvement** in accuracy over base models using Reinforcement Fine-Tuning (RFT) [cite: 30].
+
+*   **Reddit (AWS):**
+    *   Early adopter of **Amazon Nova Forge** for model training/customization.
+    *   **Result:** Reported **90% reliability** in automating web UI tasks using Nova models [cite: 45, 46].
+
+## New in the Past 6 Months
+
+*   **OpenAI GPT-Image 1.5 (Dec 16, 2025):** GA. Advanced editing and 4x speed [cite: 2].
+*   **OpenAI GPT-5.2 (Dec 11, 2025):** GA. "Thinking" model, 100% AIME score [cite: 1].
+*   **Mistral 3 Family (Dec 2, 2025):** GA. Open-weight MoE models [cite: 12].
+*   **Amazon Nova 2 (Dec 2, 2025):** GA/Preview. Multimodal and reasoning models [cite: 14].
+*   **Claude Opus 4.5 (Nov 24, 2025):** GA. Flagship reasoning model [cite: 8].
+*   **Google Gemini 3 (Nov 18, 2025):** GA. Top-tier reasoning model [cite: 5].
+*   **Microsoft Agent 365 (Nov 2025):** Preview. Agent control plane [cite: 19].
+*   **Claude Sonnet 4.5 (Sept 29, 2025):** GA. "Computer Use" capabilities [cite: 8].
+
+## Deprecations and Migrations (Past 12 Months)
+
+*   **OpenAI GPT-5.1:**
+    *   **Status:** Legacy.
+    *   **Migration:** Users encouraged to migrate to **GPT-5.2** (Instant/Thinking) for better performance and cost efficiency [cite: 47, 48].
+*   **Cohere Command R (Older Versions):**
+    *   **Status:** Deprecated on platforms like GitHub Models (June 2025).
+    *   **Migration:** Transition to **Command R 08-2024** or **Command A** [cite: 49].
+*   **Google Gemini 1.5 Flash/Pro:**
+    *   **Status:** Superseded.
+    *   **Migration:** **Gemini 2.0 Flash** and **Gemini 3** are the new defaults for efficiency and performance respectively [cite: 5].
+*   **Azure AI Studio:**
+    *   **Status:** Renamed/Rebranded.
+    *   **Migration:** Now **Azure AI Foundry** [cite: 31].
+
+## Sources
+
+### Foundation Models
+*   [cite: 1] OpenAI, "Introducing GPT-5.2", Dec 11, 2025.
+*   [cite: 1] OpenAI, "GPT-5.2 Availability", Dec 11, 2025.
+*   [cite: 2] TokenRing, "OpenAI Unleashes GPT Image 1.5", Dec 16, 2025.
+*   [cite: 5] Wikipedia, "Gemini (language model)", Accessed Dec 2025.
+*   [cite: 8] Wikipedia, "Claude (language model)", Accessed Dec 2025.
+*   [cite: 9] TechTarget, "Meta Llama 4 Explained", May 5, 2025.
+*   [cite: 12] Wikipedia, "Mistral AI", Accessed Dec 2025.
+*   [cite: 16] HowAIWorks, "Cohere Command A", Aug 28, 2025.
+
+### Cloud & Infrastructure
+*   [cite: 14] AI Data Insider, "AWS re:Invent 2025 Roundup", Dec 8, 2025.
+*   [cite: 15] AWS, "Amazon Nova Announcements", Dec 8, 2025.
+*   [cite: 19] CRN, "Microsoft Ignite 2025 AI News", Nov 18, 2025.
+*   [cite: 31] Plain Concepts, "Microsoft Ignite 2025 Summary", Nov 2025.
+*   [cite: 22] Techzine, "Google Launches Gemini Enterprise", Oct 9, 2025.
+
+### Agents & Data
+*   [cite: 26] Efficiently Connected, "Vertex AI & Agent2Agent", April 2025.
+*   [cite: 28] Ikangai, "A2A vs MCP AI Standards", April 12, 2025.
+*   [cite: 29] Medium, "LangChain 2025 Guide", Oct 13, 2025.
+*   [cite: 35] Snowflake, "Cortex AI Functions GA", Nov 4, 2025.
+*   [cite: 34] Databricks, "Databricks Launches Agent Bricks", June 11, 2025.
+*   [cite: 39] Medium, "Top 10 Vector Databases for 2025", Sept 12, 2025.
+
+### Case Studies
+*   [cite: 45] Callista, "Air Canada AWS Case Study", Dec 8, 2025.
+*   [cite: 30] Amazon, "AWS re:Invent 2025 AI News", Dec 4, 2025.
+
+**Sources:**
+1. [openai.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQF7QvHkrHatrjn4fJKimQw-Ly8D8wCf0QGwmNaMS9wrMWdvpLkerelBp2Pt95Rr8g9wCfVxgmVJ3E1Z0DstYJtMLxmGZ_PCFAxqDhi8cXKV2pGciSet5vfKpe7RrLnIC7hfxs8=)
+2. [financialcontent.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHNT097icfLzdtdiiu1Bx5eqMdQy5RD0qxWtQF_E-d8VcrwrZ8c0hvaOyBxXzuNNbhQW-L1n6Mj_vgOHgL6_HbWEAWocO45mdFkv6B8Xu7hhFFmpWna-g88Z-IqRcRwZaaYRWE3SKfPTw2IoFbt4uKxzN-mr5MG597Auk9WfrOHIqa_KoU_owucyfJ9EOIi1xv_ZhjQERmV-wXIYVm_W_tf8MG7qZ1Gj4gnyUjaaNBFm3i5jhZQxuE2YoWS)
+3. [findarticles.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFmdD5OQnsSCZfunpuPSEDgLx64pA5CpkCpo8aHn3WNbDsgmCE9SmHE7h_w9H6U1SxBv1Jn0gdNU9Q8pJsLKDtT2mgqYNN9PAM-8lG8BR2SUj8504938M7Ggecf1s0ZFsUav-PfQj9U3mJPtWZVGYqk9E1ItWljrvG0mhzhPwsLxqNg7SZC-EPYVQ==)
+4. [scrumlaunch.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGKa5Ros6LP3yFiA7GAOrHIaymc3OV5Jr0RFISvdbjKtkEmjiiA8IipNIVDZ0VlJAK9Q8-UCCVrbU1SOKVdynnLAlm8O5IQzGEEqBUYpyGy-hOP6gW55gz_FeXrvRxWA1dlqAxRcw==)
+5. [wikipedia.org](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEl-tlyGtIMCxwya4gWZWy8oar8DCAPuXWAetbkqwzL-jaELNA1jVLSDW1a_yHWT8vaWjjZzuUIehpdB873Fy1BDLSRxMwvnZxy_2aYpJQvvGY1C061D1s_0d-V6P6DmiyWhSPuHLBJJtrBbA==)
+6. [mashable.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEPCxEHLNEEfs0JzWNrM5LxwuNmlYvUQgufzKdEKyonCYFSumzS55M2dxRo-1JYe_p7nDT08UFUg_ZSXfKUFn4GIV_XNE3yyWkCQaYuCJyoj2Q9Cwst-Xey-TDl9LtjEIOVQSxE9FEXWqBRsqWTqUECCCBveXkEU4ZIbPPuE3ASk58A8LSh)
+7. [vertu.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHN61dhJTGuc6lOtJxWHoMhE-nESTJm6g0ETCvKz46QZEKQ4TA4g_TCLeLNprCz-HKOT-VAZ_doXCnv2itkYNgnbx5iNxW2CrykApYjn9BjPPHS-8fYqXKZzrZzybxC9lBkTyDE22HzdtwDo_-Td6YOBz3b7Yyojl2PMe0r6qg=)
+8. [wikipedia.org](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGZdWcDgP-ir0sdcpBNk4DfDqv6MTa3hu1blxnncOHhmLRoRsGX6opgp9e0nDyaw-yPJMZ1fJrg1FszFGHa5WiW0nzP6PAkH1WTRnEb8Ydxd9l4gUxEkGaIueRS8EOcJd3ywR8KmcyNAyBKHA==)
+9. [techtarget.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFPwGT-qb9MIP3RGw7UuCw_EqcYyCrRWja4JeeR0WG8iiMFu4OwS8yaGiKniPRlFFSmBsi4k_ChNd4pJrGJnZuuJGC8tyEq1SgJPPNkd88pvUgpkPr-x2bdoOCGWwIUTkEKE5N-oVsozPy3El9Hb0228CZ1ck1ZVmTT1Ov3rALFMvlcl0_ci0ERor-jQCeKx74upQ==)
+10. [medium.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHu-HpFLFjR0gEHxMwvz_2B1TkeEC0Sehr544ny7N-L-HdVBCzMgyF9-B8EXX2UBdYHcSA3MlYAxSNTjrx6Jmi6ad6LAillnh_XqTS25werkNKWbBl4hV8TBSlvXnF_pkhFfrLOM4erqempQM9l7ri31WYk5tGViDBU30Z4Z9oo7XviOnD7LPW_rZBWTX1WVA==)
+11. [pymnts.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFlGQSG9YWw3t5JrSYO0ZLVXfL5dqB7kS_4jknp9mdksppj9w28-Oco1nXxUikfSWnXdJeLEe897s91bPMkZ7qiPnWTpV8zxfCOMz0M2c_5RgEgIQRQNheW_wd9EvKUQ6_LM8JmQr_w8aE0K39qJlR_lkmAfV02Opvag3f2dswmGopPFMnDs1r5s1QJF1yz0D3NijGFq4u2h5Sd2k7c5E0UZrK34jNnkrGmK_MTzPK_E_BCtXVMqHCh40U=)
+12. [wikipedia.org](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEdR07npJ22oMc9eUWNobJ4T3KXlmpxm_DY_tdHmBGNAsyoafXi9G492f8RvUmKjbMzR7F2G29kVBhc6JfKzzP3TIZ0pDxWm5OQ9SVa8Eq9SGqC74vp74GrryjzyYf1)
+13. [reddit.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGAwZbzU4b7XwOsd_w40fNXVd-8Lsc0TGAtQ2v5w2VcSdfscaA5kEcqbTrpxFlciWiz45AcQ71r9jY7dPKMHRNpEYPJiB5oe5fqKaFyInFLeMc8LoO4R13tGmRatITUAHevWrf5-Xtq3kwo_LNgb0Mr9Cq8ISqh8uHpoeYE4hxRob_0fTTl0cDt_f3InAEBrS7tqKjnnjcxzqzg1Sj9)
+14. [aidatainsider.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHqa7XQA5waXquJjcnEF8phKjzZRCFH4ciCzNNg4iqUoeNbQheRTMa5Jybkn0pn4bNu6vXMy0Hthm5gvIko6drwQgNPYt_CQny4NT_o2tTq0zo6MS0g8lbSC2J7tZEp7y7kEbrB_ZncB1vBhQ4KKLGhesUQWlfzy1VH3jEB4HaxPI4=)
+15. [aws.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEuqPxUphckW--DRM2WEtB_8jagWDAiFtWnUiJyt7tAfg39Pq3laDQnr78m-3mA1wwIb7hEY3o8gVH-KxRvF0uXA4yzb9rXyUjhX3d8vaxXRxFYGzH4hhzE8PIMqTOXaz0bZFevYrWCwzxGgsedijYUnPVGH7dcEhspDbTaP68XE-bsn9q-8fZzLc8h-z2m15Jrcag1QTu8jWQYggYv2iyN7wgQ9mGWqh1rkHKOdom0JW392ILwlxzY6IOtJW8q_TmU3cXezl8Dtj9yCioYZGxvghDP2G0WfLvXBkLFsFXm7JRfMCc-0MXHMC6c9j8v7DdD-uP-PVVJcDTfhQpj)
+16. [howaiworks.ai](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQECxUUPB_wc9kq_-Ci-Lntvjp3HosXdqPxwS5_-o4cNZ0CbhCelWZU3oFKf3ktJeCK8qDE9RmlXjYbQbI69wtSUrdZF-fPynJUbJXbkZM7TpsNXFWpwE6UVVzQ=)
+17. [apxml.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHHlgN1IclYrs7MEZwKh4e5lmLQQ9rdy8Oq0-ewHb9Rfp_snI-1O7K_UPzRUDyU1Wj8VpGg-fAn05Mi3nECjR56EjbjbOaeCZdWtQBXL51hyG1F9IOh0Zmx)
+18. [oracle.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEgY99zXO1OdTbNYuzSMYI1wqgicuQZ5MWx4QyBue7gKvYOpzr98rrBXXL9Mz5lYwZSp7Ng6rlmwJcBCP09tegtB-6U6dA9MBfRsk4RkmJyQyeRAvtjWcXGzHUE6xrvIEku41kbPOQnT7oKZ_FahibEh2Oh80YC4Kw8d7D70pQ_SsY_3oA=)
+19. [crn.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQE585p1MThTnPA1dpsTMlfhenUP-crjzrM08-TVyV50AlqVnhZRQSPob5F5JvJkUg6_0z6Jdm1S6mpPrQylxMmzAYjxUTWrl0DhRnWGkCbG376IUXAWvXvpwlG9zxsBzA4Qmp8PbcqcU2GXrzRYsWikUisrdn-JAoJrc4OhZJSI7EsYUhe-rilaHu42RCWY6g==)
+20. [bluemantis.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGgyHtWLBO2r9dHHl_DMZFe88IIB6-62V-boE7dNHe2IT9z6kN09tiAkgL8Be1WXRo07n_8sVAL7Y6_L-nb4rQ2BlGkAmOxMX1i8_caJl3ZaCTVxF3hZzppI7ahQ5V-GbXieG0ihn7KNaTBX1z5QF57tS7WQjG7uGvneNQ-5CDKzpNDyOwUFHOo20bZn1rMFiqAc97GLQ==)
+21. [techtarget.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFrCKisHS5KFyOv0tDuKLAtSpJL7P0EVChO8g3oYnZ_jqPiBROFqQFeUZxSylKeuOfSANHVRE-v_KigH1D7jN6pFUOtjD_DECOsuIJvkmM0aFAktrC3IpPWjuzOtY7s51PxstfjIyx9qvexLDNbW1cpuasj7nY3rT1zYvjVPTdSg021iOE6Wj3ee7OfuUu5nTPxvRyoRpANZErdCccA1cWbQOBw0tPoEA==)
+22. [techzine.eu](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQG_TztdDHD8mtD5nv_9wIQP5S5wxlCXrKIL14f5YQVMgDkTc7XgGGXAKLwPq5DKxbSlhWkmuLJIgIX2LdQokduqVANm2wMJnGd2FaGmeUO_lHyFhRoafQWGQ_A0Q02toTmnzeQJs4HfjZuibf_SN-e_zDd6ruURS21FuKHPflOB-TxRPUZ_5p_BlI4FvLeaM0ZJ_eLYF1oP-vtVk4c29CS0lWMHlkV9cR4S)
+23. [google.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQH35lSpfa-DNblJcaG8AeSBaAuzoyLeUWOWxJbg2nk9ZV_9aBsft9b3_O-YiQBvbIFBa2nUEoStT_zDoDe1yFJGCeZceV2yPJ53lB0sVZFq72JJS0SrbEhi-0PuanwzyKo=)
+24. [blog.google](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGhAWdKyDEtxhX8JNzcV21FOxn2ne3loa4D2HS_3yJIjqijPYnf41gYEbsuLmVhwxlzHUZai8lv0FPSDxm0JBypSqR3RoPXVfpJbp8Ww4TacEVx-BWfz6b_YeydEJZPYO92DZv4GDK3VHoZHDITXGO_HrGcMbKcmryLnmxPFatXLcEW_ovrYfgI5aM4)
+25. [greymatter.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGoSt2bsNAli9jD-PYvoku4oqmOKantHRIHhVDTkLz2jyZoIEH5KFN6NUm2jpaYMoa9eQq6WzQ2HpuXm_cMO_k9q94oQyyBDMN7VjSjHhC_hdZQBNLSZsAHSIWq89OLPioFnQahd0z4Kkoh4kGP3GRN7Ca1Zy9Bx-SXk5_KA48QuQmwv4d_QZP8dJ8feA==)
+26. [efficientlyconnected.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGMMQl-gvh1mIXxuJjMbHwxUsz9JIspvW4tQFnd4admfAwdsP43SMgm0c3rWBRa9qWDgR1zy8PNZ85Jl8jxqBR13v5mXaTJMSI3GqW4Pm5QxgAteJwRbjdO3SlEFDb0czjx7wo9QkcdKUxFg-4kg-BWLUePqTu1NK8jmtGYhYf7ioLWG50Nf-sc-s-1wBuzM0UC3dd1l-2cO_F-V0aBQ-hUHwY=)
+27. [substack.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHnmOK_fOo3f9EzEW01R4VJD12sSiVWAu-lMbXEVTXr5fIsLyiIeQx3lyZAer-4BhY8txAjqwGwns1kNWbmkxUmIeL1dXiUK0-UL2pcW4YQrTuMyXKNsPFv4kQreWsUeR7SLLJUtuakAD5xYrTrG82dv_2iB9NWow==)
+28. [ikangai.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHCR5j-4mBSylllqdNRybJA7Wf2IH9tc2_5_WOKHk2SRMaLtJ3jAtCIUIbznzWX7I_rlXG52szZn-7Rsp7RJHR_myNjgzF_pXguQSblwCoaGvQHOsVAwY8MHv7y_b4-E9yEJvU6aIM=)
+29. [medium.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHN-oXvgaXTplMHtOt73LAdnfSWCsRf69kaO4DoLy91plpsgdsd1h3C3cTKQ4_8D480ew6ETl8mid9xYZnUrzOIWJe37H0OzhYSTIAAmhXKYoz4E42hE_JkSdHWKAf0tdw22nrOBvwuFJjzeRlnu9VxIcgoK6_nXy-Ky3etBcOpk2kglx5SO5HnCCj6tCd9bPYyfYgNGR5Qa3hD6ECXZy4FGQIdudSJOUdNml6duTR4a5t5MHIfshkYKzD1et6Hsrw=)
+30. [aboutamazon.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEM2wmDtpa5dPBM6HUjxZXTMf_mm5Su1GyWyALUlayRAVl1kRZ5K142ZDE47T08cz8cVRl_8Ap_6qHDz3XsuxJiILQ_ZpxaUKQr4l5JyTuftkwl5TuTXeukdUHwGapYxTfbQYSxEWzwGIWCbbeJGmjxA39y32m55JXffnABpQ==)
+31. [plainconcepts.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHP5pOIZyU5JzX03A1kiWbLQH5j3s0i--yuzjDPoN34m26hQcKhqevEckLlMUgfUxmG1NoIE9t-kpmSuAKz-E7x_4DxJjv7BrsGZ0MUiJOz9xShTI-T9n65f1vDqNUYJlDn_nFdQZNEWJEzxwKr7qpS2TE=)
+32. [microsoft.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFYlY2kH65TsI4hDU3K-b4ZWRp5tuNODvgzJXzwp4Akn5stiKZwbNZV_1Ru3yG2GCrmQYxJbDh64xk6Uq3q2fLFBCI75OvZJtKiMyAIWFnrgCia5LPuL_MgBvSEcBxe-xT9cmfIu-kB60kwjS5vuIERlbOeGurNyOV6X_ON6WNbR9cBUCADfS1sv-n8_0HIYByklI9IGaAYsQmTm9mOKYLwsq_BFh8wySPEnolPfG3jy91Q)
+33. [databricks.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHWHrNiGWbc0PX76m5TroLFV-NG2kdrL7OSOftvfQWpvaktTU3XRafVlpj1dgADzcKp53trJaYQ8mMm8POSz-ogkw3JaJaG2cTAfZBtub22IV9fBjjhSe15NzyabB-YpsqZBx0etHzl94fW6Ly1MNf7YUEhdZZ_m5PQ7oqGzPuBG7c=)
+34. [databricks.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHG8KHUNH7TAfksAPQrKSN0buIkOA7sP32kaNmfn-2qp59qeEGC6iROao_W-6QHjXlVSPW3AkISyJDnJxhcS-Sj-WJipVGRMNs1cLH5463FKMQMxVtHZJGWTZQ58hmqI9h2_-ChevtjL51xN6fOeTV1N-b9Smon4grVcYpda3rHDtFzq-46rCwRhpcfZi88EMsoJYfhSMhmqeklZQVKIsFstF1hxJyN0Jj7JY76yjee3-4=)
+35. [snowflake.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGMZgUeFvDN2yehW6869wz8CUcXdu24Y4U8vXSUBEy41G08pnYvxXbGD_MxLJPxqSwdJ7xKetnAdX5V-xgH-tV4UR5E3lcOt_tspIqZqMgGMF26RUBPaNnNzfQtvu1pDFRwoFNV10yZ9IpqtNcHYRUEn3cq0gPHtrcdAGHdh4G4R7aB65JWsKMk8uEpGDJL50FZ)
+36. [siliconangle.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHEzXcD1VEvmDk_WMqKGTqokEZCQbB4EHBi9tMwq0c4RIKe5OuZM0mk_73KK8hYb4qke0QJBCqs5v2rq6HQDHox9WTDNT_5Vn9ouCv6SNW0Fz9FaNBAQ1Ydf78lj4Px216D19mLInX_vPNBkbJT_XJGTBjXf8RGphcVyeuyTw5oGPoKS-TrSON4b2zgYtOrW3HfadpRkrDznHz28DqH65POa_u5wQGf1w==)
+37. [medium.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHkXuzfOCKi3Dkc8FnB9ihup_1Y1M_5oQDGrrA3xunyk_AJxmvTR1gTMYUX7wDfL7Q_jTaZ1jS_BdKHc-OSZFhMnaCh6egCTczt7GDiWqnQOpmvESLR67_HynH9yNkJ8DDSEPA6cZwGnk62TM5BSACXohn1G6HeJWe9wPXMqKt804Fz8KNL8TVoW827TY2tAcuZkzAE4RsFT-reIhrqddMhSPemAmpRTchSh4-6PkiYDdc=)
+38. [hyperframeresearch.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFns01fYhKkT2pjR4d5fxEAwe7s2rfnmU9ybyZDVRH9XoKFeOC0WHiGbwN43PybKVuQOFS72_1__cNhxLuRcWepUqLQpCNnH4JPQ6Jm2LAeYbr03BlH_VuCzlMfXO7n-kDGsgnVvQi08Bx4bG_IwVbCI8N0WFhgpWHns8WQSEjIwg-ovD2msJSPmZX5SM432kj6-5RUUyNuyNArH1cT3ur0dj3bBk7Z_CMWSk-H6fM7-A==)
+39. [medium.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQH2mlv8iPgMDykEqICKMkvAK4URUsBo1C5gVJoVRTeOQI6274ruvQPmrs2PeWK8sQ-gYkAggkT5MKLJjfv97h4MGCfXpph7RVMfVQMQlqm85ZMsauiCY_JcE1IbzC6TVjjdm1Yd5JBwqBCkkCY3IupYkRApkPCCDh36h2CVZBr4_h4h-piYB_96b7-jAw14YVP1PuVOmHjg)
+40. [ai-infra-link.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEZv1QWbzCNNpOQehRei-FstGD6oJ7DQgvKio5zi05sWgrlmBPB-fLWmnPvEQ2BzjDF9qDs9SFGdkIZou4TWmP1dwkJjcbjjHigAqQi4uLeyvKu_pAJ-G3dx6QCzBY2Zq6OZCSfv9fe8bSc6FQe5ulhbtznWVC8V7nokywBIH2teacKhPXpCFUkySmdC8YjCrmnlfBFE0ZqUx09NxCAUuolMd1d-tc844G3bw==)
+41. [firecrawl.dev](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQF3wRlmE_CyPTzXmzgD1iF1Rc4LCAgxira5JjmbFL05iUf6I2yS89vRD7OMFFxq8yjApWtjQf_albwA08TcTxAZGkLvEYDAAOC8NLyMJ9F5BHJR0_w-8bxn2KAp3L2o_CkPs2LpNtHcf6P4KdPyzQo=)
+42. [google.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHcMoD-kf_2sVG888MsILWThiVjdtfy0V8n4X2KLiAAgUYIhUFXJfF_HZ3XfiWArIAdAJUdeRiJCnozKnwjGwJafqkUb5ilops2EhxMH9cAz-IKzb1Mc7vNXZLu0uCZfy26N0RfmQTq3l7KKU8BoRJvUDBwLxFHrp4rEXUm87nAEf8PLRqvWCzZnYG3zvEssyzeRqCR9j72qMYARNPS3zHMuTkBRg==)
+43. [hireninja.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFpZpXW4FCjshcsVhYz3NtyPKyYujvE0Xhu7DUIKYd4qxM7TJ6aDqYk5BvCrJMoRhzhF7Nip_GMBU8QWYxy6HLJE5fbXXcWOwKwdrPW_wV-2FY=)
+44. [intelegain.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEf301zUmFs_DTGjz8WvcDjvJybAPr432HC6Lkp8Vnk1qj_QRwUhRjnv7iMYb7jheQ4B4wXP7k9irdIkHN_OR8Iel6HaQJznFBsjGZ4B0031SGhhQqBZFnLNe8SQGmz7bdhA_sWOV318D61l0_8W1YM2yLA7sDMPORQP9d3vRUEDlliqKzOfieK3ZPxsA==)
+45. [callista.ch](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEn2gKnbK0NdqQrtTtnXNvxtVYynMuXZuum26aahZmGZ02ODgLI_ULvkWDcN_K1W8b3yrvea-DqGdVv5xrBZPZ-rgldN3j5VNv4P8MMFPDtOeKUylddrJnBMNLGpKAt1WmkFKsnesR2IG8t5f0Zu45lfvDnFHklUhNx5C75Ob-tdg==)
+46. [constellationr.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHYTmuqgyN0Suo7tWCUoTsJEE1Lm7wpJlHZpnYcJ9OiltX1LRT6fidfc4NF3BO6pOTdHCsRWZXC6ouBKFCJG48lsB-2i0Xy80fxqNI6ConU4iJ7ToXL4aa8iYS7EhTR1dPk5rGy0iLka0rbx4NcmC-QpFHuEIKceX1nmQ6FAPccnZVjFbKDfsnJyJk795KvD7JEyw==)
+47. [fonearena.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGpTp2pFxr2lgpfAyDEnP8DNvc05uoZGOeZ5FSQ7a90wmlebkMBjMTyOq7j3zHk-XxEkeQdaQrqwQpaAKFR2c2D8kYIyabgZImbJuWsmc7r5IXSTSqespfh2W-TurXTK31VEBeWHM47CzOQQgRl6DmOwhGC8Oc_rki52pCi8Lk5bw==)
+48. [365i.co.uk](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQESb1zBWkB0YuyzKxKEOJ1mkTSP7VGEjCza-GPBHeLsN1V3vi-eq9_P8xmEjNv5sMfZDU4CPDnqhIV6Bh8ldui9V6ngRk4gCLgz-KYuaxJHomAv76pITZlBiCOmq1_EEaUPHw85VRP6RgY92jx0cDNr-ZbvDw==)
+49. [github.blog](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHkA6ruHe6pmJ1B1a2v9LwX-kQEZrJMk_RfRzU2I_GCKVs3ntnlW9k_khIaHCwhPGY0UrXRm1oABJw-uWyiRyBgydjUXzylhjlehnoZzN6mfhd2vUwnzuTDxXIbBwzCjskC1JXphXQxJa6a7TPUwDd7T-yhplmk1kQt0wSr0Ga2bIzlCqrzmQhyggOi17Lo7aq66BqisRhcAA==)

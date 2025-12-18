@@ -1,0 +1,17 @@
+google-genai>=1.55.0  # Google AI API client (modern SDK) - requires 1.55+ for Interactions API
+requests             # HTTP requests for web scraping
+beautifulsoup4       # Parsing and extracting web content
+fpdf                 # Generating PDFs for reports
+python-docx          # DOCX document handling
+pymupdf              # PDF text extraction
+pandas               # Handling Excel (XLSX) files
+openpyxl             # XLSX processing
+pytesseract          # OCR for extracting text from images/PDFs
+markdown             # Converting markdown reports
+colorama             # CLI colorized output for better debugging
+python-dotenv        # Managing environment variables
+httpx[http2]          # HTTP/2 client (better TLS fingerprint)
+playwright            # Stealth browser automation
+docx2pdf
+pytest                # Testing framework
+pytest-mock           # Mocking utilities for pytest
