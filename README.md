@@ -198,7 +198,7 @@ primr doctor
 # Run tests
 pytest tests/ -v
 
-# Current test count: 2100+ tests
+# Current test count: 2200+ tests
 ```
 
 ## Known Limitations

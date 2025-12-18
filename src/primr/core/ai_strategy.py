@@ -424,6 +424,72 @@ async def _execute_strategy_research(
         return None
 
 
+def _process_citations(content: str) -> str:
+    """
+    Process citations in AI strategy content.
+    
+    - Converts [cite: X, Y, Z] to clean [1] [2] [3] format
+    - Resolves Google redirect URLs to final destinations
+    """
+    import re
+    from urllib.parse import urlparse
+    from primr.ai.deep_research import resolve_citation_urls_sync
+    
+    # Convert inline [cite: X, Y, Z] references to clean [1] [2] [3] format
+    def replace_cite_ref(match: re.Match) -> str:
+        nums_str = match.group(1)
+        nums = [n.strip() for n in nums_str.split(',')]
+        refs = [f"[{num}]" for num in nums]
+        return ' '.join(refs)
+    
+    content = re.sub(r'\[cite:\s*([\d,\s]+)\]', replace_cite_ref, content)
+    
+    # Extract citations from Sources section
+    citations: list[dict[str, str]] = []
+    sources_match = re.search(r'\*\*Sources:\*\*\s*([\s\S]*?)$', content)
+    if sources_match:
+        sources_text = sources_match.group(1)
+        citation_pattern = r'(\d+)\.\s*\[([^\]]+)\]\(([^)]+)\)'
+        for match in re.finditer(citation_pattern, sources_text):
+            citations.append({
+                'number': match.group(1),
+                'title': match.group(2),
+                'url': match.group(3)
+            })
+    
+    # Resolve redirect URLs
+    if citations:
+        logger.info(f"Resolving {len(citations)} AI strategy citation URLs...")
+        citations = resolve_citation_urls_sync(citations)
+        logger.info("AI strategy citation URLs resolved")
+        
+        # Rebuild Sources section with resolved URLs
+        if sources_match:
+            sources_header = "**Sources:**\n"
+            cleaned_lines = []
+            for citation in citations:
+                num = citation.get('number', '')
+                url = citation.get('url', '')
+                title = citation.get('title', '')
+                
+                if url:
+                    parsed = urlparse(url)
+                    domain = parsed.netloc.replace('www.', '')
+                    # Use domain as display text if title looks like a redirect URL
+                    if 'vertexaisearch' in title.lower() or not title:
+                        display_text = domain
+                    else:
+                        display_text = title
+                    cleaned_lines.append(f"{num}. [{display_text}]({url})")
+                elif title:
+                    cleaned_lines.append(f"{num}. {title}")
+            
+            new_sources = sources_header + '\n'.join(cleaned_lines)
+            content = content[:sources_match.start()] + new_sources
+    
+    return content
+
+
 def _save_strategy_outputs(
     content: str,
     company_name: str,
@@ -431,6 +497,9 @@ def _save_strategy_outputs(
 ) -> dict[str, str | None]:
     """Save AI strategy outputs in multiple formats."""
     from primr.output.markdown_converter import markdown_to_docx
+
+    # Process citations (resolve URLs, clean formatting)
+    content = _process_citations(content)
 
     date_str = datetime.now().strftime("%m-%d-%Y")
     base_name = f"{company_name}_AI_Strategy_{date_str}"
@@ -674,20 +743,20 @@ RESEARCH INSTRUCTIONS
 =============================================================================
 
 CRITICAL: This strategy must reflect the AI landscape as of {current_date}.
-AI technology evolves rapidly. You MUST actively search for the latest announcements,
-services, and capabilities. Do NOT rely on potentially outdated training data.
-Every technology recommendation must be verified and cited per the Research Protocol below.
+You MUST actively search for the latest announcements, services, and capabilities.
+Do NOT rely on potentially outdated training data.
 
-You have access to research about {company_name} in the context files. Use that foundation
-to develop a comprehensive AI strategy that their CIO and board would actually use.
+Use the research about {company_name} in the context files to develop a comprehensive
+AI strategy that their CIO and board would actually use.
 
-AUDIENCE CLARIFICATION:
-This strategy is an internal planning artifact. Recommendations represent proposed directions to evaluate, not commitments or final decisions.
+THE GOAL: Answer "What should we actually do with AI, and why?" Connect AI capabilities
+to THIS company's specific business model, pain points, and competitive pressures.
+Help leadership make confident, well-sequenced decisions.
 
-THE GOAL: Produce an AI roadmap that answers "What should we actually do with AI, and why?"
-This is not a generic list of AI buzzwords. It's a strategic document that connects AI
-capabilities to THIS company's specific business model, pain points, competitive pressures,
-and organizational reality. The intent is to help leadership make confident, well-sequenced decisions, not to prescribe a single correct path.
+TRANSFORMATION RULE (apply throughout):
+If a sentence implies inevitability, failure, or "only viable path", rewrite it as a scenario comparison.
+Example: Instead of "Companies that don't adopt AI will fail", write "Organizations that move early may gain compounding advantages, while delayed adoption increases the cost of catching up."
+Acknowledge tradeoffs. Avoid best-practice absolutism.
 
 =============================================================================
 RESEARCH AND VALIDATION PROTOCOL
@@ -732,7 +801,7 @@ The output should give them:
 2. A framework for thinking about AI across ALL domains
 3. 5 specific Quick Wins they can start in 90 days (with ROI models)
 4. 5 specific Bigger Bets for transformational impact
-5. 3 things they should explicitly NOT pursue (deprioritization)
+5. 3 things they should explicitly NOT pursue (as deliberate strategic choices)
 6. ROI frameworks using the appropriate model (productivity, revenue, or risk)
 7. An organizational model with governance "traffic light" system
 8. A target AI architecture posture to prevent tool sprawl
@@ -762,11 +831,26 @@ DOCUMENT STRUCTURE
 
 ## AI Strategic Thesis (Recommended Direction)
 
-Based on our research into {company_name}'s business model, industry, and competitive landscape, we recommend the following strategic thesis. This is a PROPOSED direction to discuss with leadership, not an assessment of their current plans.
+### Why AI Becomes Structurally Non-Optional
 
-**Recommended Transformation Path**: Based on their industry and business model, should {company_name} pursue:
+Before recommending specific initiatives, explain the structural forces that make AI adoption increasingly non-optional for {company_name}'s business model, independent of ambition or hype.
+
+Consider forces such as:
+- Scale: Data volumes, transaction counts, or customer interactions that exceed human processing capacity
+- Complexity: Decision spaces too large for manual analysis
+- Speed: Competitive or operational requirements that demand faster response times
+- Labor constraints: Talent scarcity, cost pressures, or skill gaps in critical functions
+- Customer expectations: Rising baseline for personalization, availability, or responsiveness
+
+Be specific to {company_name}'s situation. This reframes AI as structural necessity, not enthusiasm.
+
+### Recommended Transformation Path
+
+Based on their industry and business model, should {company_name} pursue:
 - "AI-enabled" (AI bolted onto existing processes for efficiency) - lower risk, faster wins
 - "AI-native" (intelligence as the operating substrate) - higher investment, transformational potential
+
+This is a PROPOSED direction to discuss with leadership, not an assessment of their current plans.
 
 **Proposed Primary Value Lever**: Based on their competitive position and industry dynamics, where should AI investment focus?
 - Cost reduction and operational efficiency?
@@ -806,38 +890,28 @@ Based on their industry ({company_name}'s sector) and size, hypothesize their li
 - **Probable challenges**: Based on industry patterns, what data debt might they face?
 - **Signals we observed**: Any public mentions of data initiatives, cloud migrations, or analytics investments?
 
-Frame as: "Companies of this size in this industry typically face [X]. We'd want to understand their specific situation."
-
 ### Technology Signals (What We Can Observe)
-Based on public information (job postings, press releases, tech blog posts, conference talks):
+Based on public information (job postings, press releases, tech blog posts):
 - **Cloud posture**: Any signals about their cloud provider or migration status?
 - **Tech stack hints**: What technologies appear in their job postings?
 - **Digital maturity signals**: E-commerce sophistication, mobile apps, API mentions?
 
-Note: This is inference from public signals, not confirmed knowledge.
-
 ### Organizational Readiness (Industry Baseline)
-Based on typical patterns for their industry and size:
 - **AI adoption curve**: Where do companies like this typically sit on AI maturity?
 - **Change management capacity**: What's typical for organizations of this scale?
 - **Likely constraints**: Budget cycles, regulatory requirements, talent availability?
 
-Frame as hypotheses to explore, not assertions about their actual state.
-
 ### Common Anti-Patterns to Discuss
-These are common failure modes we'd want to explore with leadership (not accusations):
-- **Pilot proliferation**: Many companies have dozens of disconnected AI PoCs. Worth asking about their current AI initiatives.
-- **Tool sprawl**: Without governance, teams often adopt conflicting AI tools. Worth understanding their current landscape.
-- **Data foundation gaps**: AI projects often stall on data quality. Worth exploring their data readiness.
+Failure modes worth exploring with leadership:
+- **Pilot proliferation**: Dozens of disconnected AI PoCs
+- **Tool sprawl**: Teams adopting conflicting AI tools without governance
+- **Data foundation gaps**: AI projects stalling on data quality
 
 ## Competitive AI Landscape
 
-Be specific about the competitive context:
-- **One competitor ahead on AI**: Who is doing AI better? What specifically are they doing? What is the gap?
-- **One peer making common AI mistakes**: What mistakes should {company_name} avoid? (e.g., pilot proliferation, tool sprawl, no governance)
-- **Value at stake over 24 months**: What value could be protected or created by acting on AI?
-
-Framing Guidance: When discussing the cost of inaction, emphasize the value that could be protected or created by acting, not a presumption of failure if action is delayed. Express as a range of potential impacts, not a single deterministic outcome. Present best-case, likely-case, and worst-case scenarios rather than asserting a single inevitable future.
+- **One competitor ahead on AI**: Who is doing AI better? What specifically? What is the gap?
+- **One peer making common AI mistakes**: What should {company_name} avoid?
+- **Value at stake over 24 months**: What value could be protected or created? (Present as a range: best-case, likely-case, delayed-action scenarios)
 
 ## Recommended AI Architecture Posture
 
@@ -934,18 +1008,42 @@ For each Quick Win, provide:
 - **ROI Calculation**: Use the appropriate model with specific numbers
 - **Success Metrics**: How do you verify "realized" vs "projected" savings?
 
+## Compounding Logic Across the AI Portfolio
+
+Before presenting Bigger Bets, explain how early initiatives generate data, trust, and capabilities that enable later, more ambitious bets. Make dependencies explicit.
+
+For example:
+- Quick Win A generates labeled data that trains the model for Bigger Bet X
+- Quick Win B builds organizational trust in AI that reduces resistance to Bigger Bet Y
+- Quick Win C creates the data infrastructure that Bigger Bet Z requires
+
+This shows how the portfolio builds on itself, not just that initiatives exist. The ambition gradient should feel earned, not arbitrary.
+
 ## Five Bigger Bets (6-18 Month Horizon)
 
 For each Bigger Bet, provide comprehensive details including technology architecture, ROI model, risk factors, and governance tier.
 
-## Three Things NOT to Pursue (Explicit Deprioritization)
+## Explicit Strategic Choices (What We Are Choosing NOT to Pursue)
 
-For each deprioritized item:
+Frame each deprioritization as a deliberate strategic choice that enables focus, not as fear or inability.
+
+For each choice:
 - **What it is**: The AI initiative being deprioritized
 - **Why it is tempting**: Why might someone advocate for this?
-- **Why NOT now**: What makes this wrong for {company_name} at this time?
+- **What focus it enables**: What does saying "no" here allow us to say "yes" to?
 - **Revisit trigger**: Under what conditions should this be reconsidered?
 - **Signal to watch**: What observable signal would indicate the trigger condition has changed?
+
+This signals strategic clarity, not avoidance.
+
+## What Would Have to Be True (Key Hypotheses)
+
+For each major recommendation (Quick Wins and Bigger Bets), identify:
+- **Conditions for success**: What assumptions must hold for this to work?
+- **Early signals to monitor**: What would indicate we're on track or off track?
+- **Disconfirming evidence**: What would tell us this hypothesis is wrong?
+
+This turns recommendations into testable experiments rather than confident assertions. It acknowledges uncertainty while providing a framework for learning.
 
 =============================================================================
 ORGANIZATIONAL MODEL
@@ -972,8 +1070,15 @@ Year 1 Investment Estimate, ROI Framework, Build vs. Buy vs. Partner guidance.
 RISK ANALYSIS
 =============================================================================
 
-## The Cost of Inaction
-Quantify the cost of NOT acting.
+## The Value at Stake
+Quantify the value that could be protected or created by acting on AI, framed as a range of potential impacts rather than a single deterministic outcome.
+
+Present:
+- **Best case**: What value could be captured with strong execution?
+- **Likely case**: What's a reasonable expectation given typical organizational constraints?
+- **Delayed action scenario**: What value might be harder to capture if action is deferred 12-24 months?
+
+Avoid framing this as "you will fail if you don't act." Instead: "Early movers may gain compounding advantages in [specific area], while delayed adoption increases the cost of catching up because [specific reason]."
 
 ## Technology Risks
 Vendor lock-in, model obsolescence, integration complexity, data quality dependencies.

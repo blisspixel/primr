@@ -20,6 +20,8 @@ Professional TXT, DOCX, and PDF outputs
 
 Citation styles: numbered, inline, sidecar
 
+Automatic citation URL resolution (Google redirect URLs resolved to final destinations)
+
 Structured report sectioning
 
 Internal analysis-first orientation with downstream translation guidance
@@ -42,7 +44,7 @@ Usage tracking and job recovery
 
 System diagnostics (primr doctor)
 
-Strong test coverage (1,900+ tests)
+Strong test coverage (2,200+ tests)
 
 Design Philosophy (Locked)
 
@@ -96,6 +98,10 @@ Resource cleanup and cache hygiene
 Observability primitives (correlation IDs, structured logging)
 
 Configuration validation and safer defaults
+
+Citation URL resolution (redirect URLs resolved to readable final destinations)
+
+Enhanced prompt engineering for Company Overview and AI Strategy reports
 
 Near-Term Roadmap
 v1.2.0 – Stability and Maintainability (Planned)
