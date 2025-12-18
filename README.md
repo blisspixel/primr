@@ -8,7 +8,7 @@ Primr runs company research using two complementary engines:
 
 **Scrape Mode**: Website-focused research with multi-tier web scraping (requests, httpx, Playwright, aggressive browser), section-by-section AI analysis with quality grading. Useful for deep website analysis and specific data extraction.
 
-**Deep Mode**: Powered by Gemini Deep Research Agent with autonomous multi-step research and built-in Google Search. Useful for broad market analysis, competitive intelligence, and industry trends.
+**Deep Mode**: Powered by Gemini Deep Research Agent with autonomous multi-step research and built-in Google Search. Generates a comprehensive company profile with all sections (Executive Summary through Discovery Questions).
 
 Both engines produce DOCX/PDF reports with optional AI strategy recommendations.
 
@@ -118,9 +118,9 @@ All systems ready.
 
 | Mode | Flag | Best For | Duration |
 |------|------|----------|----------|
-| Full | `--mode full` (default) | Most comprehensive | 30-40 min |
-| Scrape | `--mode scrape` | Website deep-dives | 20-25 min |
-| Deep | `--mode deep` | Market analysis | 10-15 min |
+| Full | `--mode full` (default) | Most comprehensive - scrape + deep research | 30-40 min |
+| Scrape | `--mode scrape` | Website deep-dives, no Deep Research API | 20-25 min |
+| Deep | `--mode deep` | Comprehensive report via Deep Research API | 10-15 min |
 
 ## Project Structure
 
