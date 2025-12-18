@@ -225,6 +225,100 @@ def get_pending_jobs() -> dict[str, dict[str, Any]]:
         return {}
 
 
+# =============================================================================
+# URL RESOLUTION - Resolve Google redirect URLs to final destinations
+# =============================================================================
+
+async def resolve_redirect_url(url: str, timeout: float = 5.0) -> str:
+    """
+    Resolve a Google grounding redirect URL to its final destination.
+    
+    The Deep Research API returns URLs like:
+    https://vertexaisearch.cloud.google.com/grounding-api-redirect/...
+    
+    This function follows the redirect chain to get the actual source URL.
+    
+    Args:
+        url: The redirect URL to resolve
+        timeout: Maximum time to wait for resolution (seconds)
+        
+    Returns:
+        The final destination URL, or the original URL if resolution fails
+    """
+    import httpx
+    
+    # Only resolve Google grounding redirect URLs
+    if "vertexaisearch.cloud.google.com/grounding-api-redirect" not in url:
+        return url
+    
+    try:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=timeout) as client:
+            # Use HEAD request to follow redirects without downloading content
+            response = await client.head(url)
+            # Return the final URL after all redirects
+            final_url = str(response.url)
+            logger.debug(f"Resolved URL: {url[:50]}... -> {final_url[:80]}...")
+            return final_url
+    except asyncio.TimeoutError:
+        logger.warning(f"URL resolution timed out: {url[:50]}...")
+        return url
+    except Exception as e:
+        logger.warning(f"URL resolution failed: {e}")
+        return url
+
+
+async def resolve_citation_urls(citations: list[dict[str, str]]) -> list[dict[str, str]]:
+    """
+    Resolve all citation URLs in parallel.
+    
+    Args:
+        citations: List of citation dicts with 'url' keys
+        
+    Returns:
+        Updated citations with resolved URLs
+    """
+    if not citations:
+        return citations
+    
+    # Create tasks for all URL resolutions
+    tasks = [resolve_redirect_url(c.get('url', '')) for c in citations]
+    
+    # Run all resolutions in parallel
+    resolved_urls = await asyncio.gather(*tasks)
+    
+    # Update citations with resolved URLs
+    for citation, resolved_url in zip(citations, resolved_urls):
+        if resolved_url:
+            citation['url'] = resolved_url
+    
+    return citations
+
+
+def resolve_citation_urls_sync(citations: list[dict[str, str]]) -> list[dict[str, str]]:
+    """
+    Synchronous wrapper for resolve_citation_urls.
+    
+    Uses asyncio.run() or gets the existing event loop.
+    """
+    if not citations:
+        return citations
+    
+    try:
+        # Try to get existing event loop
+        loop = asyncio.get_running_loop()
+        # If we're already in an async context, create a task
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(
+                asyncio.run, 
+                resolve_citation_urls(citations)
+            )
+            return future.result(timeout=30)
+    except RuntimeError:
+        # No running loop, safe to use asyncio.run()
+        return asyncio.run(resolve_citation_urls(citations))
+
+
 class DeepResearchClient:
     """
     Client for Gemini Deep Research Agent.
@@ -1285,41 +1379,30 @@ Research {company_name}{website_context} and produce a comprehensive strategic o
     def _get_purpose_section(self) -> str:
         """Get the purpose section."""
         return """PURPOSE:
-This is pre-meeting research to help consultants deeply understand the company before a discovery conversation. We are gathering publicly available information and forming initial hypotheses. We do NOT have the answers yet. The real insights will come from talking with the client directly. This document should:
-- Prime consultants with solid foundational knowledge
-- Surface interesting questions and hypotheses to explore
-- Demonstrate we've done our homework without pretending we know their business better than they do
+Pre-meeting research to deeply understand the company before discovery. We are forming initial hypotheses from public information. The real insights come from talking with the client.
 
-Subject-Positive Intent: We assume this company is rational, competent, and generally successful in its context. Our goal is not to critique from the outside, but to understand how they create value today and where thoughtful support could help them go further or move faster."""
+This document should:
+- Prime consultants with solid foundational knowledge
+- Surface questions and hypotheses to explore
+- Demonstrate homework without pretending we know their business better than they do
+
+Subject-Positive Intent: Assume this company is rational, competent, and successful in its context. Understand how they create value and where support could help them go further."""
     
     def _get_epistemic_contract(self) -> str:
         """Get the epistemic contract section."""
         return """EPISTEMIC CONTRACT:
-This document represents preliminary pattern recognition, not conclusions. Every strategic observation must be expressed as one of:
+Every strategic observation must be expressed as one of:
 - A verified fact (with citation)
-- An inference (clearly labeled as such)
+- An inference (clearly labeled)
 - A hypothesis to validate in conversation
-If a statement cannot be placed cleanly into one of these categories, rewrite it."""
-    
-    def _get_tone_guidelines(self) -> str:
-        """Get the tone and epistemic humility guidelines."""
-        return """TONE AND EPISTEMIC HUMILITY (critical):
-- This is research and initial thinking, not conclusions
-- Frame strategic observations as "initial hypotheses to explore with the client"
-- Use language like "based on public information", "appears to", "worth exploring", "we'd want to validate"
-- Clearly distinguish between facts (what we found) and inferences (what we think it might mean)
-- Avoid asserting causality or intent without evidence
-- Never use absolutist language ("existential threat", "only viable path", "must do", "will definitely")
-- Present questions to ask the client, not answers we're telling them
-- For any strategic observation, frame it as "something to discuss" not "something we've concluded"
-- Frame risks, gaps, or pressures in terms of where support, capability, or focus could unlock value, not as evidence of mismanagement or strategic error
-- Do not imply leadership blind spots or strategic naivety unless directly supported by credible evidence
+
+If a statement cannot be placed cleanly into one of these categories, rewrite it.
 
 TRANSFORMATION RULE:
 If a sentence implies inevitability, failure, or urgency, rewrite it as a question or scenario comparison.
-Example: Instead of "X faces an existential threat from Y", write "One risk worth exploring is whether Y could materially pressure X's margins over time"
+Example: Instead of "X faces an existential threat from Y", write "One area worth exploring is whether Y could pressure X's margins over time"
 
-The goal is to walk in informed and curious, not informed and arrogant."""
+TONE: Walk in informed and curious, not informed and arrogant. Use language like "appears to", "worth exploring", "we'd want to validate". Frame risks as areas where support could unlock value, not as evidence of mismanagement."""
     
     def _get_key_metrics_format(self) -> str:
         """Get the key metrics format section."""
@@ -1362,12 +1445,20 @@ Revenue, growth trajectory, profitability indicators, funding history if private
 ## Key Business Drivers and Strategic KPIs
 What metrics likely matter most to this business? What appears to drive their success? What would their board probably be tracking?
 
-## SWOT Analysis (Initial Assessment)
-Based on public information. Frame as observations to validate with the client:
-- Strengths: What appears to be working well?
-- Weaknesses: What potential constraints, tradeoffs, or gaps might be worth discussing openly?
-- Opportunities: What options might be worth exploring?
-- Threats: What risks should we discuss with them?
+## Strategic Tensions (Derived from SWOT)
+Based on public information, use SWOT analysis (Strengths, Weaknesses, Opportunities, Threats) as inputs to identify 3-5 core strategic tensions the organization must actively manage. Frame these as persistent tradeoffs to navigate, not problems to solve.
+
+Examples of tensions:
+- Scale vs customization
+- Speed vs governance
+- Innovation vs operational reliability
+- Growth vs profitability
+- Centralization vs local autonomy
+
+For each tension, describe:
+- The tension: What two valuable things are in natural conflict?
+- How they appear to be managing it: What signals suggest their current approach?
+- Question to explore: What would we want to understand about their choices?
 
 ## Leadership and Culture
 Key executives and their backgrounds. Leadership stability (tenure, recent departures). Board composition if relevant. Cultural signals from careers page, press releases, how they talk about their team.
@@ -1378,6 +1469,33 @@ What's happening in their market? Growth trends, disruption factors, regulatory 
 ## Competitive Landscape
 Who are the main competitors? How does {company_name} appear to stack up based on public information? Where do they seem to win? Where might they face challenges?
 
+## Underlying Theory of Value Creation (Initial)
+Articulate the implied logic of how {company_name} creates and captures value today. This is the business model made explicit.
+
+Describe:
+- The core value proposition: What problem do they solve, for whom, better than alternatives?
+- Reinforcing mechanisms: What creates flywheel effects or compounding advantages?
+- Key assumptions: What must remain true for this model to work?
+- Vulnerabilities: Where could the logic break down?
+
+Frame this as an initial theory to be tested in conversation, not a conclusion. The goal is to make the implicit logic explicit so we can have a more productive discussion about where support could strengthen or extend it.
+
+## Strategic Constraints and Degrees of Freedom
+Identify structural constraints that limit near-term change, and distinguish them from areas where leadership appears to have genuine degrees of freedom.
+
+Constraints to consider:
+- Organizational: Legacy systems, team capabilities, cultural inertia
+- Regulatory: Compliance requirements, licensing, industry standards
+- Asset-based: Physical infrastructure, contractual obligations, capital structure
+- Market: Customer expectations, competitive dynamics, channel dependencies
+
+Degrees of freedom to consider:
+- Where do they appear to have flexibility?
+- What decisions seem genuinely open?
+- Where might small changes have outsized impact?
+
+This prevents overconfident recommendations and signals realism about what's actually changeable.
+
 ## Narrative Gap Analysis
 Interesting contrasts we noticed between what the company says and external signals. These are observations to explore, not accusations.
 
@@ -1386,8 +1504,15 @@ Format each as:
 - What we observed: [external signals]
 - Question to explore: [what we'd want to understand from them]
 
-## Potential Risks to Discuss
-Areas that caught our attention, prioritized by apparent severity. Frame as "areas we'd want to understand better" not definitive threats.
+## Areas of Structural Fragility
+Identify areas where the business model may be sensitive to shocks, scale, or external change. Frame these as areas to understand more deeply rather than failures or criticisms.
+
+For each fragility:
+- The fragility: What aspect of the system appears sensitive?
+- Why it matters: What could trigger stress or failure?
+- What we'd want to understand: How are they thinking about this?
+
+This is system awareness, not critique. Every business has fragilities; the question is whether they're understood and managed.
 
 ## Patterns and Questions
 Interesting patterns we noticed. For each, what question does it raise?
@@ -1942,7 +2067,13 @@ class ReportFormatter:
         # Extract citations
         citations = self._extract_citations(content)
         
-        # Apply citation formatting
+        # Resolve redirect URLs to final destinations (for trust/readability)
+        if citations:
+            logger.info(f"Resolving {len(citations)} citation URLs...")
+            citations = resolve_citation_urls_sync(citations)
+            logger.info("Citation URLs resolved")
+        
+        # Apply citation formatting (with resolved URLs)
         if citation_style == "numbered":
             content = self._format_numbered_citations(content, citations)
         
@@ -2048,9 +2179,57 @@ class ReportFormatter:
         content: str,
         citations: list[dict[str, str]]
     ) -> str:
-        """Apply numbered citation formatting."""
-        # For now, just return content as-is
-        # Future: could renumber citations, add footnotes, etc.
+        """Apply numbered citation formatting with clickable links and resolved URLs."""
+        import re
+        from urllib.parse import urlparse
+        
+        if not citations:
+            return content
+        
+        # Build a mapping of citation numbers to their info (with resolved URLs)
+        citation_map = {c.get('number', str(i+1)): c for i, c in enumerate(citations)}
+        
+        # Convert inline [cite: X, Y, Z] references to clean [1] [2] [3] format
+        def replace_cite_ref(match: re.Match) -> str:
+            nums_str = match.group(1)
+            nums = [n.strip() for n in nums_str.split(',')]
+            refs = [f"[{num}]" for num in nums]
+            return ' '.join(refs)
+        
+        content = re.sub(r'\[cite:\s*([\d,\s]+)\]', replace_cite_ref, content)
+        
+        # Rebuild the Sources section with resolved URLs
+        # The citations list now contains resolved URLs (not redirect URLs)
+        sources_pattern = r'(\*\*Sources:\*\*\s*)([\s\S]*?)$'
+        sources_match = re.search(sources_pattern, content)
+        
+        if sources_match and citations:
+            sources_header = sources_match.group(1)
+            
+            # Build clean sources list using resolved URLs from citations
+            cleaned_lines = []
+            for citation in citations:
+                num = citation.get('number', '')
+                url = citation.get('url', '')
+                title = citation.get('title', '')
+                
+                # Extract clean domain name for display if title is ugly
+                if url:
+                    parsed = urlparse(url)
+                    domain = parsed.netloc.replace('www.', '')
+                    # Use domain as display text if title looks like a redirect URL
+                    if 'vertexaisearch' in title.lower() or not title:
+                        display_text = domain
+                    else:
+                        display_text = title
+                    cleaned_lines.append(f"{num}. [{display_text}]({url})")
+                elif title:
+                    cleaned_lines.append(f"{num}. {title}")
+            
+            # Rebuild the sources section with resolved URLs
+            new_sources = sources_header + '\n'.join(cleaned_lines)
+            content = content[:sources_match.start()] + new_sources
+        
         return content
     
     def has_failure_markers(self, content: str) -> bool:
