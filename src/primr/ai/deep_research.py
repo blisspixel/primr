@@ -21,6 +21,7 @@ Usage:
 """
 
 import asyncio
+import threading
 import time
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
@@ -628,8 +629,27 @@ Cite all sources.
 
         Structure: Foundational sections first (know them), then strategic analysis (so what).
         """
-        return f"""
-RESEARCH REQUEST: Strategic Company Overview for Consulting Prep
+        from datetime import datetime
+        current_date = datetime.now().strftime("%B %d, %Y")
+        
+        return f"""You are a senior strategy consultant preparing pre-meeting research. Generate a comprehensive company overview.
+
+=============================================================================
+OUTPUT FORMAT (Start the document with this exact header)
+=============================================================================
+
+# Strategic Company Overview
+
+**Prepared by:** Primr Research System  
+**Date:** {current_date}
+
+---
+
+Then continue with the sections below.
+
+=============================================================================
+RESEARCH INSTRUCTIONS
+=============================================================================
 
 {query}
 
@@ -794,8 +814,27 @@ This output is intended to inform internal thinking and deck creation. When reus
         This adds strategic depth on top of the factual foundation from Step 1.
         The context files contain company overview, products, basic info.
         """
-        return f"""
-RESEARCH REQUEST: Strategic Deep-Dive (Building on Initial Research)
+        from datetime import datetime
+        current_date = datetime.now().strftime("%B %d, %Y")
+        
+        return f"""You are a senior strategy consultant adding strategic depth to initial research findings.
+
+=============================================================================
+OUTPUT FORMAT (Start the document with this exact header)
+=============================================================================
+
+# Strategic Deep-Dive Analysis
+
+**Prepared by:** Primr Research System  
+**Date:** {current_date}
+
+---
+
+Then continue with the sections below.
+
+=============================================================================
+RESEARCH INSTRUCTIONS
+=============================================================================
 
 {query}
 
@@ -1143,10 +1182,1109 @@ The 3-5 most important questions to explore in our first conversation. Based on 
 
 
 # =============================================================================
-# SINGLETON ACCESS (Thread-Safe)
+# CONSULTING PROMPT BUILDER
 # =============================================================================
 
-import threading
+
+class ConsultingPromptBuilder:
+    """
+    Builds consulting-grade prompts for Deep Research.
+    
+    Creates comprehensive prompts that include:
+    - Consulting persona injection ("Senior Strategy Consultant")
+    - All 10 chapter specifications in a single prompt
+    - Hierarchy of truth instructions
+    - Formatting and epistemic standards
+    
+    This ensures Deep Research generates a complete, cohesive report
+    in a single API call rather than multiple parallel calls.
+    """
+    
+    # The 10 standard chapters for a Strategic Company Overview
+    CHAPTERS = [
+        "Executive Summary",
+        "Detailed Products and Services",
+        "Unique Selling Proposition",
+        "Mission and Vision",
+        "Company History",
+        "Key Achievements",
+        "Target Audience",
+        "Financial Overview",
+        "Key Business Drivers and Strategic KPIs",
+        "SWOT Analysis",
+    ]
+    
+    def __init__(self):
+        """Initialize the ConsultingPromptBuilder."""
+        pass
+    
+    def build_comprehensive_prompt(
+        self,
+        company_name: str,
+        website_url: str | None = None,
+    ) -> str:
+        """
+        Build a single prompt requesting the complete 10-chapter report.
+        
+        Args:
+            company_name: Name of the company to research
+            website_url: Optional company website URL
+            
+        Returns:
+            Complete prompt string for Deep Research
+        """
+        current_date = datetime.now().strftime("%B %d, %Y")
+        
+        website_context = f" ({website_url})" if website_url else ""
+        priority_source = f"\n\nPriority Source: Analyze {website_url} first." if website_url else ""
+        
+        return f"""You are a senior strategy consultant preparing pre-meeting research. Generate a comprehensive company overview for {company_name}{website_context}.
+
+=============================================================================
+OUTPUT FORMAT (Start the document with this exact header)
+=============================================================================
+
+# Strategic Company Overview: {company_name}
+
+**Prepared by:** Primr Research System  
+**Date:** {current_date}
+
+---
+
+Then continue with the sections below.
+
+=============================================================================
+RESEARCH INSTRUCTIONS
+=============================================================================
+
+Research {company_name}{website_context} and produce a comprehensive strategic overview.{priority_source}
+
+{self._get_formatting_rules()}
+
+{self._get_purpose_section()}
+
+{self._get_epistemic_contract()}
+
+{self._get_tone_guidelines()}
+
+{self._get_key_metrics_format()}
+
+{self._get_chapter_specifications(company_name)}
+
+{self._get_downstream_note()}
+"""
+    
+    def _get_formatting_rules(self) -> str:
+        """Get the formatting rules section."""
+        return """FORMATTING RULES (follow these exactly):
+- Write in full paragraphs unless bullets genuinely help clarity
+- Keep bullets single-level only, no nested sub-bullets
+- No em-dashes or en-dashes, use commas or periods instead
+- Cite sources at the end of each major section, not inline"""
+    
+    def _get_purpose_section(self) -> str:
+        """Get the purpose section."""
+        return """PURPOSE:
+This is pre-meeting research to help consultants deeply understand the company before a discovery conversation. We are gathering publicly available information and forming initial hypotheses. We do NOT have the answers yet. The real insights will come from talking with the client directly. This document should:
+- Prime consultants with solid foundational knowledge
+- Surface interesting questions and hypotheses to explore
+- Demonstrate we've done our homework without pretending we know their business better than they do
+
+Subject-Positive Intent: We assume this company is rational, competent, and generally successful in its context. Our goal is not to critique from the outside, but to understand how they create value today and where thoughtful support could help them go further or move faster."""
+    
+    def _get_epistemic_contract(self) -> str:
+        """Get the epistemic contract section."""
+        return """EPISTEMIC CONTRACT:
+This document represents preliminary pattern recognition, not conclusions. Every strategic observation must be expressed as one of:
+- A verified fact (with citation)
+- An inference (clearly labeled as such)
+- A hypothesis to validate in conversation
+If a statement cannot be placed cleanly into one of these categories, rewrite it."""
+    
+    def _get_tone_guidelines(self) -> str:
+        """Get the tone and epistemic humility guidelines."""
+        return """TONE AND EPISTEMIC HUMILITY (critical):
+- This is research and initial thinking, not conclusions
+- Frame strategic observations as "initial hypotheses to explore with the client"
+- Use language like "based on public information", "appears to", "worth exploring", "we'd want to validate"
+- Clearly distinguish between facts (what we found) and inferences (what we think it might mean)
+- Avoid asserting causality or intent without evidence
+- Never use absolutist language ("existential threat", "only viable path", "must do", "will definitely")
+- Present questions to ask the client, not answers we're telling them
+- For any strategic observation, frame it as "something to discuss" not "something we've concluded"
+- Frame risks, gaps, or pressures in terms of where support, capability, or focus could unlock value, not as evidence of mismanagement or strategic error
+- Do not imply leadership blind spots or strategic naivety unless directly supported by credible evidence
+
+TRANSFORMATION RULE:
+If a sentence implies inevitability, failure, or urgency, rewrite it as a question or scenario comparison.
+Example: Instead of "X faces an existential threat from Y", write "One risk worth exploring is whether Y could materially pressure X's margins over time"
+
+The goal is to walk in informed and curious, not informed and arrogant."""
+    
+    def _get_key_metrics_format(self) -> str:
+        """Get the key metrics format section."""
+        return """KEY METRICS FORMAT (use these exact formats so we can extract them):
+- Employees: X,XXX (or "Employees: ~X,XXX estimated")
+- Revenue: $X.XB or $XXM (or "Revenue: ~$XXM estimated")
+- Founded: YYYY
+- Headquarters: City, State
+
+Build this as a consultant-grade overview using publicly available sources (company site, press releases, earnings calls, news, trusted databases). If financials aren't public, use estimates and label them clearly."""
+    
+    def _get_chapter_specifications(self, company_name: str) -> str:
+        """Get the complete chapter specifications."""
+        return f"""CRITICAL: Follow this EXACT section order. Do not skip or reorder sections.
+
+## Executive Summary
+The "so what" up front. 2-3 paragraphs synthesizing the most critical findings. What does a decision-maker need to know in 60 seconds? Frame key strategic observations as hypotheses worth exploring.
+
+## Detailed Products and Services
+What do they actually sell? Product lines, service offerings, how they make money, what customers are buying. This is the foundation for understanding their business.
+
+## Unique Selling Proposition
+What appears to differentiate them? Why might customers choose them over alternatives? What seems to be their moat?
+
+## Mission and Vision
+What do they say they stand for? What's their stated purpose and direction?
+
+## Company History
+Key milestones, founding story, major pivots, acquisitions. How did they get here?
+
+## Key Achievements
+Notable wins, awards, milestones, growth markers. What are they proud of?
+
+## Target Audience
+Who buys from them? Customer segments, industries served, geographic focus, typical buyer profile.
+
+## Financial Overview
+Revenue, growth trajectory, profitability indicators, funding history if private. Use estimates if needed and label them clearly. If truly unavailable, say so.
+
+## Key Business Drivers and Strategic KPIs
+What metrics likely matter most to this business? What appears to drive their success? What would their board probably be tracking?
+
+## SWOT Analysis (Initial Assessment)
+Based on public information. Frame as observations to validate with the client:
+- Strengths: What appears to be working well?
+- Weaknesses: What potential constraints, tradeoffs, or gaps might be worth discussing openly?
+- Opportunities: What options might be worth exploring?
+- Threats: What risks should we discuss with them?
+
+## Leadership and Culture
+Key executives and their backgrounds. Leadership stability (tenure, recent departures). Board composition if relevant. Cultural signals from careers page, press releases, how they talk about their team.
+
+## Industry Context and Dynamics
+What's happening in their market? Growth trends, disruption factors, regulatory pressures. Where does the industry appear to be heading?
+
+## Competitive Landscape
+Who are the main competitors? How does {company_name} appear to stack up based on public information? Where do they seem to win? Where might they face challenges?
+
+## Narrative Gap Analysis
+Interesting contrasts we noticed between what the company says and external signals. These are observations to explore, not accusations.
+
+Format each as:
+- Claim: [what they say]
+- What we observed: [external signals]
+- Question to explore: [what we'd want to understand from them]
+
+## Potential Risks to Discuss
+Areas that caught our attention, prioritized by apparent severity. Frame as "areas we'd want to understand better" not definitive threats.
+
+## Patterns and Questions
+Interesting patterns we noticed. For each, what question does it raise?
+
+Format as:
+- Observation: [what we found]
+- Question for them: [what we'd want to understand]
+
+## Questions for Our First Conversation
+The 3-5 most important things we want to understand from them. Based on our research, what are we most curious about? Frame as genuine questions, not conclusions."""
+    
+    def _get_downstream_note(self) -> str:
+        """Get the downstream translation note."""
+        return """=============================================================================
+DOWNSTREAM TRANSLATION NOTE
+=============================================================================
+This output is intended to inform internal thinking and deck creation. When reused externally, conclusions should be softened, hypotheses foregrounded, and language reframed for diplomacy."""
+    
+    def contains_all_chapters(self, prompt: str) -> bool:
+        """
+        Check if a prompt contains specifications for all 10 chapters.
+        
+        Args:
+            prompt: The prompt text to check
+            
+        Returns:
+            True if all chapters are present
+        """
+        for chapter in self.CHAPTERS:
+            if chapter not in prompt:
+                return False
+        return True
+    
+    def contains_consulting_persona(self, prompt: str) -> bool:
+        """
+        Check if a prompt contains the consulting persona.
+        
+        Args:
+            prompt: The prompt text to check
+            
+        Returns:
+            True if consulting persona is present
+        """
+        return "senior strategy consultant" in prompt.lower()
+
+
+# =============================================================================
+# DEEP RESEARCH ORCHESTRATOR
+# =============================================================================
+
+
+@dataclass
+class DeepResearchOrchestratorResult:
+    """Result from DeepResearchOrchestrator report generation."""
+    
+    company_name: str
+    content: str
+    citations: list[dict[str, str]]
+    duration_seconds: float
+    success: bool
+    error: str | None = None
+    interaction_id: str = ""
+    api_calls: int = 1  # Always 1 for single-call architecture
+    
+    @property
+    def word_count(self) -> int:
+        """Approximate word count of the content."""
+        return len(self.content.split()) if self.content else 0
+
+
+class DeepResearchOrchestrator:
+    """
+    Orchestrates a single Deep Research API call for complete report generation.
+    
+    This is the core component of the cohesive report architecture. Instead of
+    making 10 parallel API calls (which fail with 429 quota errors), this
+    orchestrator makes a single comprehensive call that generates the entire
+    report in one invocation.
+    
+    Key features:
+    - Single API call per report (not parallel chapters)
+    - Exponential backoff retry (60s base, 5 attempts max)
+    - Adaptive polling (5s → 10s → 20s → 30s)
+    - 60-minute timeout
+    - Automatic File Search Store cleanup
+    
+    Usage:
+        orchestrator = DeepResearchOrchestrator()
+        result = await orchestrator.generate_report(
+            company_name="Acme Corp",
+            website_url="https://acme.com",
+            stage1_context="... structured research from Stage 1 ...",
+            on_progress=lambda msg: print(msg)
+        )
+    """
+    
+    AGENT_ID = "deep-research-pro-preview-12-2025"
+    MAX_RETRIES = 5
+    BASE_RETRY_DELAY = 60.0  # 1 minute base delay for exponential backoff
+    TIMEOUT_SECONDS = 3600  # 60 minutes
+    
+    def __init__(self, api_key: str | None = None):
+        """
+        Initialize the DeepResearchOrchestrator.
+        
+        Args:
+            api_key: Optional API key override. Uses settings if not provided.
+        """
+        settings = get_settings()
+        self._api_key = api_key or settings.api.gemini_key
+        self._client = genai.Client(api_key=self._api_key)
+        self._prompt_builder = ConsultingPromptBuilder()
+        self._store_manager = FileSearchStoreManager(api_key=api_key)
+        self._api_call_count = 0
+        logger.debug("DeepResearchOrchestrator initialized")
+    
+    async def generate_report(
+        self,
+        company_name: str,
+        website_url: str | None = None,
+        stage1_context: str | None = None,
+        on_progress: Callable[[str], None] | None = None,
+    ) -> DeepResearchOrchestratorResult:
+        """
+        Generate a complete strategic report using Deep Research.
+        
+        Makes a single Deep Research API call with comprehensive prompt
+        and optional Stage 1 context. Handles retries with exponential
+        backoff and ensures cleanup of temporary resources.
+        
+        Args:
+            company_name: Target company name
+            website_url: Optional company website URL
+            stage1_context: Optional structured research from Stage 1
+            on_progress: Optional progress callback
+            
+        Returns:
+            DeepResearchOrchestratorResult with complete report or error
+        """
+        start_time = time.time()
+        store_name: str | None = None
+        self._api_call_count = 0
+        
+        try:
+            # Build the comprehensive prompt
+            prompt = self._prompt_builder.build_comprehensive_prompt(
+                company_name=company_name,
+                website_url=website_url,
+            )
+            
+            if on_progress:
+                on_progress("Building comprehensive research prompt...")
+            
+            # Upload Stage 1 context if provided
+            if stage1_context:
+                if on_progress:
+                    on_progress("Uploading Stage 1 context to File Search Store...")
+                store_name = self._store_manager.create_store(f"research_{company_name}")
+                self._store_manager.upload_context(
+                    store_name=store_name,
+                    content=stage1_context,
+                    filename="stage1_research.txt",
+                    mime_type="text/plain"
+                )
+            
+            # Execute with retry
+            if on_progress:
+                on_progress("Starting Deep Research (single comprehensive call)...")
+            
+            result = await self._execute_with_retry(
+                prompt=prompt,
+                store_name=store_name,
+                on_progress=on_progress,
+            )
+            
+            return DeepResearchOrchestratorResult(
+                company_name=company_name,
+                content=result.content,
+                citations=result.citations,
+                duration_seconds=time.time() - start_time,
+                success=result.success,
+                error=result.error,
+                interaction_id=result.interaction_id,
+                api_calls=self._api_call_count,
+            )
+            
+        except Exception as e:
+            logger.error(f"DeepResearchOrchestrator error: {e}")
+            return DeepResearchOrchestratorResult(
+                company_name=company_name,
+                content="",
+                citations=[],
+                duration_seconds=time.time() - start_time,
+                success=False,
+                error=str(e),
+                api_calls=self._api_call_count,
+            )
+        finally:
+            # Always cleanup the File Search Store
+            if store_name:
+                if on_progress:
+                    on_progress("Cleaning up File Search Store...")
+                self._store_manager.delete_store(store_name)
+    
+    async def _execute_with_retry(
+        self,
+        prompt: str,
+        store_name: str | None = None,
+        on_progress: Callable[[str], None] | None = None,
+    ) -> ResearchResult:
+        """
+        Execute Deep Research with exponential backoff retry.
+        
+        Args:
+            prompt: The research prompt
+            store_name: Optional File Search Store name
+            on_progress: Optional progress callback
+            
+        Returns:
+            ResearchResult from the API
+        """
+        last_error: Exception | None = None
+        
+        for attempt in range(self.MAX_RETRIES):
+            try:
+                self._api_call_count += 1
+                return await self._execute_single(
+                    prompt=prompt,
+                    store_name=store_name,
+                    on_progress=on_progress,
+                )
+            except AIError as e:
+                last_error = e
+                error_str = str(e).lower()
+                
+                # Check if it's a quota error (429)
+                if "429" in error_str or "quota" in error_str or "rate" in error_str:
+                    if attempt < self.MAX_RETRIES - 1:
+                        delay = self._calculate_backoff_delay(attempt)
+                        logger.warning(
+                            f"Quota limit hit, waiting {delay:.0f}s "
+                            f"(attempt {attempt + 1}/{self.MAX_RETRIES})"
+                        )
+                        if on_progress:
+                            on_progress(
+                                f"Quota limit reached. Retrying in {delay:.0f}s "
+                                f"(attempt {attempt + 1}/{self.MAX_RETRIES})..."
+                            )
+                        await asyncio.sleep(delay)
+                        continue
+                
+                # Non-quota error, don't retry
+                raise
+        
+        # All retries exhausted
+        error_msg = (
+            f"Deep Research quota exhausted after {self.MAX_RETRIES} attempts. "
+            "Try --mode scrape instead."
+        )
+        logger.error(error_msg)
+        return ResearchResult(
+            content="",
+            status=ResearchStatus.FAILED,
+            error=error_msg,
+        )
+    
+    def _calculate_backoff_delay(self, attempt: int) -> float:
+        """
+        Calculate exponential backoff delay.
+        
+        delay = base_delay * 2^attempt
+        
+        Args:
+            attempt: Current attempt number (0-indexed)
+            
+        Returns:
+            Delay in seconds
+        """
+        return self.BASE_RETRY_DELAY * (2 ** attempt)
+    
+    async def _execute_single(
+        self,
+        prompt: str,
+        store_name: str | None = None,
+        on_progress: Callable[[str], None] | None = None,
+    ) -> ResearchResult:
+        """
+        Execute a single Deep Research API call.
+        
+        Args:
+            prompt: The research prompt
+            store_name: Optional File Search Store name
+            on_progress: Optional progress callback
+            
+        Returns:
+            ResearchResult from the API
+        """
+        # Build tools list
+        tools: list[dict[str, Any]] = []
+        if store_name:
+            tools.append({
+                "type": "file_search",
+                "file_search_store_names": [store_name]
+            })
+        
+        # Start the research
+        create_kwargs: dict[str, Any] = {
+            "input": prompt,
+            "agent": self.AGENT_ID,
+            "background": True
+        }
+        if tools:
+            create_kwargs["tools"] = tools
+        
+        interaction = self._client.interactions.create(**create_kwargs)
+        interaction_id = interaction.id
+        logger.info(f"Deep Research started: {interaction_id}")
+        
+        if on_progress:
+            on_progress(f"Research started (ID: {interaction_id[:8]}...)")
+        
+        # Poll for completion with adaptive intervals
+        return await self._poll_for_completion(
+            interaction_id=interaction_id,
+            on_progress=on_progress,
+        )
+    
+    async def _poll_for_completion(
+        self,
+        interaction_id: str,
+        on_progress: Callable[[str], None] | None = None,
+    ) -> ResearchResult:
+        """
+        Poll for research completion with adaptive intervals and timeout.
+        
+        Polling intervals: 5s → 10s → 20s → 30s based on elapsed time.
+        
+        Args:
+            interaction_id: The interaction ID to poll
+            on_progress: Optional progress callback
+            
+        Returns:
+            ResearchResult when complete
+            
+        Raises:
+            AIError: If research fails or times out
+        """
+        start_time = time.time()
+        last_phase = ""
+        
+        while True:
+            elapsed = time.time() - start_time
+            
+            # Check timeout
+            if elapsed > self.TIMEOUT_SECONDS:
+                raise AIError(
+                    f"Deep Research timed out after {self.TIMEOUT_SECONDS}s. "
+                    f"ID: {interaction_id}",
+                    model=self.AGENT_ID
+                )
+            
+            # Get status
+            interaction = self._client.interactions.get(interaction_id)
+            status = interaction.status
+            
+            if status == "completed":
+                # Extract content
+                content = ""
+                if hasattr(interaction, 'outputs') and interaction.outputs:
+                    content = str(interaction.outputs[-1].text)
+                
+                logger.info(f"Deep Research completed in {elapsed:.0f}s")
+                
+                return ResearchResult(
+                    content=content,
+                    citations=[],  # TODO: Extract citations
+                    interaction_id=interaction_id,
+                    duration_seconds=elapsed,
+                    status=ResearchStatus.COMPLETED,
+                )
+            
+            elif status == "failed":
+                error_msg = getattr(interaction, 'error', 'Unknown error')
+                raise AIError(
+                    f"Deep Research failed: {error_msg}",
+                    model=self.AGENT_ID
+                )
+            
+            # Still in progress - show phase changes
+            if on_progress:
+                phase = self._get_phase_name(elapsed)
+                if phase != last_phase:
+                    last_phase = phase
+                    mins = int(elapsed // 60)
+                    secs = int(elapsed % 60)
+                    time_str = f"{mins}m {secs}s" if mins > 0 else f"{secs}s"
+                    on_progress(f"{phase} ({time_str})")
+            
+            # Adaptive polling interval
+            interval = self._get_poll_interval(elapsed)
+            await asyncio.sleep(interval)
+    
+    def _get_phase_name(self, elapsed_seconds: float) -> str:
+        """Get the current phase name based on elapsed time."""
+        if elapsed_seconds < 60:
+            return "Initializing research"
+        elif elapsed_seconds < 180:
+            return "Searching sources"
+        elif elapsed_seconds < 360:
+            return "Analyzing findings"
+        elif elapsed_seconds < 600:
+            return "Generating report"
+        else:
+            return "Finalizing"
+    
+    def _get_poll_interval(self, elapsed_seconds: float) -> float:
+        """
+        Get adaptive polling interval based on elapsed time.
+        
+        5s → 10s → 20s → 30s
+        """
+        if elapsed_seconds < 60:
+            return 5.0
+        elif elapsed_seconds < 180:
+            return 10.0
+        elif elapsed_seconds < 360:
+            return 20.0
+        else:
+            return 30.0
+
+
+# Singleton instance for DeepResearchOrchestrator
+_orchestrator: DeepResearchOrchestrator | None = None
+_orchestrator_lock = threading.Lock()
+
+
+def get_deep_research_orchestrator() -> DeepResearchOrchestrator:
+    """Get the global DeepResearchOrchestrator instance (thread-safe)."""
+    global _orchestrator
+    if _orchestrator is None:
+        with _orchestrator_lock:
+            if _orchestrator is None:
+                _orchestrator = DeepResearchOrchestrator()
+    return _orchestrator
+
+
+# =============================================================================
+# REPORT FORMATTER
+# =============================================================================
+
+
+@dataclass
+class FormattedReport:
+    """Formatted report ready for output."""
+    
+    markdown: str
+    table_of_contents: str
+    chapters: list[str]
+    citations: list[dict[str, str]]
+    company_name: str
+    word_count: int
+    
+    @property
+    def estimated_pages(self) -> int:
+        """Estimate page count (assuming ~500 words per page)."""
+        return max(1, self.word_count // 500)
+
+
+class ReportFormatter:
+    """
+    Formats Deep Research output into clean report deliverables.
+    
+    Key responsibilities:
+    - Generate clean Table of Contents (no ✓/✗ markers)
+    - Apply consistent citation formatting
+    - Remove any debug artifacts
+    - Ensure no memo-style headers remain
+    
+    This formatter is designed for the single-call architecture where
+    Deep Research generates a complete report in one invocation.
+    """
+    
+    # Patterns that should NOT appear in output
+    PROHIBITED_PATTERNS = [
+        r"RESEARCH REQUEST:",
+        r"^TO:\s*",
+        r"^FROM:\s*",
+        r"^SUBJECT:\s*",
+        r"^DATE:\s*\w+\s+\d{4}",  # DATE: Month YYYY
+        r"✓",  # Success marker
+        r"✗",  # Failure marker
+        r"\[DEBUG\]",
+        r"\[ERROR\]",
+        r"Traceback \(most recent call last\)",
+    ]
+    
+    # Standard chapters for TOC generation
+    STANDARD_CHAPTERS = [
+        "Executive Summary",
+        "Detailed Products and Services",
+        "Unique Selling Proposition",
+        "Mission and Vision",
+        "Company History",
+        "Key Achievements",
+        "Target Audience",
+        "Financial Overview",
+        "Key Business Drivers and Strategic KPIs",
+        "SWOT Analysis",
+        "Leadership and Culture",
+        "Industry Context and Dynamics",
+        "Competitive Landscape",
+        "Narrative Gap Analysis",
+        "Potential Risks to Discuss",
+        "Patterns and Questions",
+        "Questions for Our First Conversation",
+    ]
+    
+    def __init__(self):
+        """Initialize the ReportFormatter."""
+        import re
+        self._prohibited_re = [re.compile(p, re.MULTILINE) for p in self.PROHIBITED_PATTERNS]
+    
+    def format_report(
+        self,
+        raw_content: str,
+        company_name: str,
+        citation_style: str = "numbered",
+    ) -> FormattedReport:
+        """
+        Format raw Deep Research output into clean Markdown.
+        
+        Args:
+            raw_content: Raw content from Deep Research
+            company_name: Company name for header
+            citation_style: Citation formatting style
+            
+        Returns:
+            FormattedReport with clean content
+        """
+        import re
+        
+        # Clean the content
+        content = self._remove_prohibited_patterns(raw_content)
+        content = self._ensure_clean_header(content, company_name)
+        
+        # Extract chapters
+        chapters = self._extract_chapters(content)
+        
+        # Generate clean TOC
+        toc = self._generate_clean_toc(chapters)
+        
+        # Extract citations
+        citations = self._extract_citations(content)
+        
+        # Apply citation formatting
+        if citation_style == "numbered":
+            content = self._format_numbered_citations(content, citations)
+        
+        # Calculate word count
+        word_count = len(content.split())
+        
+        return FormattedReport(
+            markdown=content,
+            table_of_contents=toc,
+            chapters=chapters,
+            citations=citations,
+            company_name=company_name,
+            word_count=word_count,
+        )
+    
+    def _remove_prohibited_patterns(self, content: str) -> str:
+        """Remove prohibited patterns from content."""
+        for pattern in self._prohibited_re:
+            content = pattern.sub("", content)
+        return content
+    
+    def _ensure_clean_header(self, content: str, company_name: str) -> str:
+        """Ensure the document has a clean professional header."""
+        import re
+        
+        # Check if content already has a clean header
+        if content.strip().startswith(f"# Strategic Company Overview: {company_name}"):
+            return content
+        if content.strip().startswith(f"# Strategic Company Overview"):
+            return content
+        if content.strip().startswith(f"# AI Strategy: {company_name}"):
+            return content
+        
+        # If no clean header, check for memo-style and replace
+        memo_patterns = [
+            r"^RESEARCH REQUEST:.*?\n",
+            r"^DATE:.*?\n",
+            r"^TO:.*?\n",
+            r"^FROM:.*?\n",
+            r"^SUBJECT:.*?\n",
+        ]
+        
+        for pattern in memo_patterns:
+            content = re.sub(pattern, "", content, flags=re.MULTILINE)
+        
+        return content.strip()
+    
+    def _extract_chapters(self, content: str) -> list[str]:
+        """Extract chapter titles from content."""
+        import re
+        
+        chapters = []
+        # Match ## headers (level 2)
+        pattern = r"^##\s+(.+?)$"
+        for match in re.finditer(pattern, content, re.MULTILINE):
+            title = match.group(1).strip()
+            # Remove any numbering prefix like "1. " or "1) "
+            title = re.sub(r"^\d+[\.\)]\s*", "", title)
+            if title and title not in chapters:
+                chapters.append(title)
+        
+        return chapters
+    
+    def _generate_clean_toc(self, chapters: list[str]) -> str:
+        """Generate a clean Table of Contents without status markers."""
+        import re
+        
+        lines = ["## Table of Contents\n"]
+        
+        for i, chapter in enumerate(chapters, 1):
+            # Create anchor link
+            anchor = chapter.lower().replace(" ", "-").replace("&", "and")
+            anchor = re.sub(r'[^a-z0-9-]', '', anchor)
+            
+            # Clean TOC entry - NO status markers
+            lines.append(f"{i}. [{chapter}](#{anchor})")
+        
+        return "\n".join(lines)
+    
+    def _extract_citations(self, content: str) -> list[dict[str, str]]:
+        """Extract citations from content."""
+        import re
+        
+        citations: list[dict[str, str]] = []
+        
+        # Look for Sources section
+        sources_match = re.search(r'\*\*Sources:\*\*\s*([\s\S]*?)$', content)
+        if sources_match:
+            sources_text = sources_match.group(1)
+            # Extract numbered citations: 1. [text](url)
+            citation_pattern = r'(\d+)\.\s*\[([^\]]+)\]\(([^)]+)\)'
+            for match in re.finditer(citation_pattern, sources_text):
+                citations.append({
+                    'number': match.group(1),
+                    'title': match.group(2),
+                    'url': match.group(3)
+                })
+        
+        return citations
+    
+    def _format_numbered_citations(
+        self,
+        content: str,
+        citations: list[dict[str, str]]
+    ) -> str:
+        """Apply numbered citation formatting."""
+        # For now, just return content as-is
+        # Future: could renumber citations, add footnotes, etc.
+        return content
+    
+    def has_failure_markers(self, content: str) -> bool:
+        """Check if content contains failure markers."""
+        return "✗" in content or "✓" in content
+    
+    def has_memo_headers(self, content: str) -> bool:
+        """Check if content contains memo-style headers."""
+        import re
+        memo_patterns = [
+            r"RESEARCH REQUEST:",
+            r"^TO:\s*",
+            r"^FROM:\s*",
+            r"^SUBJECT:\s*",
+        ]
+        for pattern in memo_patterns:
+            if re.search(pattern, content, re.MULTILINE):
+                return True
+        return False
+    
+    def has_debug_artifacts(self, content: str) -> bool:
+        """Check if content contains debug artifacts."""
+        debug_patterns = [
+            "[DEBUG]",
+            "[ERROR]",
+            "Traceback (most recent call last)",
+            "Exception:",
+        ]
+        for pattern in debug_patterns:
+            if pattern in content:
+                return True
+        return False
+    
+    def count_chapters(self, content: str) -> int:
+        """Count the number of chapters in content."""
+        return len(self._extract_chapters(content))
+
+
+# =============================================================================
+# FILE SEARCH STORE MANAGER
+# =============================================================================
+
+
+class FileSearchStoreManager:
+    """
+    Manages File Search Store lifecycle for Deep Research context.
+    
+    Handles creation, upload, and cleanup of temporary stores used to provide
+    context to Deep Research API calls. Ensures proper cleanup to avoid
+    orphaned stores and data governance issues.
+    
+    Usage:
+        manager = FileSearchStoreManager()
+        store_name = manager.create_store("company_research")
+        manager.upload_context(store_name, content, "research.txt")
+        # ... use store in Deep Research ...
+        manager.delete_store(store_name)  # Always cleanup!
+    """
+    
+    def __init__(self, api_key: str | None = None):
+        """
+        Initialize the FileSearchStoreManager.
+        
+        Args:
+            api_key: Optional API key override. Uses settings if not provided.
+        """
+        settings = get_settings()
+        self._api_key = api_key or settings.api.gemini_key
+        self._client = genai.Client(api_key=self._api_key)
+        logger.debug("FileSearchStoreManager initialized")
+    
+    def create_store(self, display_name: str) -> str:
+        """
+        Create a new File Search Store.
+        
+        Args:
+            display_name: Human-readable name for the store
+            
+        Returns:
+            Store name (ID) for use in subsequent operations
+            
+        Raises:
+            AIError: If store creation fails
+        """
+        try:
+            store = self._client.file_search_stores.create(
+                config={"display_name": f"{display_name}_{int(time.time())}"}
+            )
+            store_name: str = store.name or ""
+            if not store_name:
+                raise AIError(
+                    "Failed to create file store - no name returned",
+                    model="file_search_store"
+                )
+            logger.info(f"Created File Search Store: {store_name}")
+            return store_name
+        except AIError:
+            raise
+        except Exception as e:
+            raise AIError(
+                f"Failed to create File Search Store: {e}",
+                model="file_search_store",
+                cause=e
+            ) from e
+    
+    def upload_context(
+        self,
+        store_name: str,
+        content: str,
+        filename: str,
+        mime_type: str = "text/plain"
+    ) -> None:
+        """
+        Upload text content to a File Search Store.
+        
+        Args:
+            store_name: Store name from create_store()
+            content: Text content to upload
+            filename: Name for the uploaded file
+            mime_type: MIME type of the content
+            
+        Raises:
+            AIError: If upload fails
+        """
+        import tempfile
+        import os
+        
+        # Write content to temp file for upload
+        fd, temp_path = tempfile.mkstemp(suffix=f"_{filename}")
+        try:
+            with os.fdopen(fd, 'w', encoding='utf-8') as f:
+                f.write(content)
+            
+            self._client.file_search_stores.upload_to_file_search_store(
+                file=temp_path,
+                file_search_store_name=store_name,
+                config={"mime_type": mime_type}  # type: ignore[arg-type]
+            )
+            logger.info(f"Uploaded {filename} to store {store_name}")
+        except Exception as e:
+            raise AIError(
+                f"Failed to upload context to store: {e}",
+                model="file_search_store",
+                cause=e
+            ) from e
+        finally:
+            # Clean up temp file
+            try:
+                os.unlink(temp_path)
+            except OSError:
+                pass
+    
+    def upload_file(self, store_name: str, file_path: str) -> None:
+        """
+        Upload a file to a File Search Store.
+        
+        Args:
+            store_name: Store name from create_store()
+            file_path: Path to file to upload
+            
+        Raises:
+            AIError: If upload fails
+        """
+        import os
+        
+        if not os.path.exists(file_path):
+            raise AIError(
+                f"File not found: {file_path}",
+                model="file_search_store"
+            )
+        
+        # MIME type mapping
+        mime_types = {
+            '.md': 'text/markdown',
+            '.txt': 'text/plain',
+            '.json': 'application/json',
+            '.csv': 'text/csv',
+            '.pdf': 'application/pdf',
+        }
+        
+        ext = os.path.splitext(file_path)[1].lower()
+        mime_type = mime_types.get(ext)
+        config = {"mime_type": mime_type} if mime_type else None
+        
+        try:
+            self._client.file_search_stores.upload_to_file_search_store(
+                file=file_path,
+                file_search_store_name=store_name,
+                config=config  # type: ignore[arg-type]
+            )
+            logger.info(f"Uploaded {file_path} to store {store_name}")
+        except Exception as e:
+            raise AIError(
+                f"Failed to upload {file_path}: {e}",
+                model="file_search_store",
+                cause=e
+            ) from e
+    
+    def delete_store(self, store_name: str) -> None:
+        """
+        Delete a File Search Store.
+        
+        Should be called after Deep Research completes (success or failure)
+        to clean up temporary context and ensure data governance.
+        
+        Args:
+            store_name: Store name to delete
+        """
+        try:
+            self._client.file_search_stores.delete(name=store_name)
+            logger.info(f"Deleted File Search Store: {store_name}")
+        except Exception as e:
+            # Log but don't raise - cleanup failures shouldn't break the flow
+            logger.warning(f"Failed to delete File Search Store {store_name}: {e}")
+
+
+# Singleton instance for FileSearchStoreManager
+_store_manager: FileSearchStoreManager | None = None
+_store_manager_lock = threading.Lock()
+
+
+def get_file_search_store_manager() -> FileSearchStoreManager:
+    """Get the global FileSearchStoreManager instance (thread-safe)."""
+    global _store_manager
+    if _store_manager is None:
+        with _store_manager_lock:
+            if _store_manager is None:
+                _store_manager = FileSearchStoreManager()
+    return _store_manager
+
+
+# =============================================================================
+# SINGLETON ACCESS (Thread-Safe)
+# =============================================================================
 
 _client: DeepResearchClient | None = None
 _client_lock = threading.Lock()

@@ -210,6 +210,33 @@ result = await orchestrator.research(
 )
 ```
 
+### Core Module Structure
+
+The `src/primr/core/` directory contains the research orchestration logic, decomposed into focused modules:
+
+| Module | Responsibility |
+|--------|----------------|
+| `research_agent.py` | Main entry point with backward-compatible re-exports |
+| `workspace.py` | Working folder creation, file consolidation, section output |
+| `structured_research.py` | Website scraping pipeline, section-by-section analysis |
+| `vendor_research.py` | Cloud vendor AI capabilities research (AWS, Azure, GCP) |
+| `ai_strategy.py` | AI strategy generation with cloud vendor context |
+| `deep_research_runner.py` | Deep Research execution with preflight validation |
+| `cli.py` | Command-line interface, argument parsing, utility commands |
+
+Each module exposes dataclasses and functions that can be imported directly:
+
+```python
+# Direct imports from specialized modules (preferred for new code)
+from primr.core.workspace import create_working_folder, WorkspaceConfig
+from primr.core.ai_strategy import generate_ai_strategy_sync, CloudVendor
+from primr.core.deep_research_runner import validate_preflight, DeepResearchConfig
+from primr.core.cli import parse_args, CLIConfig
+
+# Backward-compatible imports (still work, delegate to new modules)
+from primr.core.research_agent import main, run_doctor, create_working_folder
+```
+
 ### 4-Tier Scraping Engine
 
 Location: `src/primr/data/scrape.py`
@@ -479,7 +506,13 @@ src/primr/
 │
 ├── core/                    # Research orchestration
 │   ├── research_orchestrator.py  # Mode coordination
-│   ├── research_agent.py    # Main research pipeline
+│   ├── research_agent.py    # Main entry point, backward-compatible re-exports
+│   ├── workspace.py         # Working folder management, file consolidation
+│   ├── structured_research.py # Website scraping pipeline, section generation
+│   ├── vendor_research.py   # Cloud vendor AI capabilities research
+│   ├── ai_strategy.py       # AI strategy generation with cloud vendor context
+│   ├── deep_research_runner.py # Deep Research execution, preflight validation
+│   ├── cli.py               # Command-line interface, argument parsing
 │   ├── report_models.py     # Report data structures
 │   └── container.py         # Dependency injection
 │

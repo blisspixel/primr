@@ -114,8 +114,9 @@ class ResearchNodeExecutor:
     # Deep Research agent identifier
     AGENT_ID = "deep-research-pro-preview-12-2025"
     
-    # Default concurrency limit (to avoid rate limits)
-    DEFAULT_MAX_CONCURRENT = 3
+    # Default concurrency limit (conservative to avoid rate limits)
+    # Deep Research has strict quota limits - 2 concurrent is safer
+    DEFAULT_MAX_CONCURRENT = 2
     
     # Polling configuration
     POLL_INTERVAL_FAST = 5.0    # First 60s
@@ -197,88 +198,119 @@ class ResearchNodeExecutor:
             chapter_research_prompt=chapter.research_prompt,
         )
         
-        try:
-            # Start the research task
-            interaction = self._start_research(prompt)
-            interaction_id = interaction.id
-            
-            logger.info(f"[{chapter_id}] Research started: {interaction_id}")
-            
-            # Poll for completion
-            while True:
-                elapsed = time.time() - start_time
+        # Retry configuration for quota errors
+        max_retries = 3
+        base_delay = 60.0  # Start with 60s delay for quota errors
+        
+        for attempt in range(max_retries):
+            try:
+                # Start the research task
+                interaction = self._start_research(prompt)
+                interaction_id = interaction.id
                 
-                if elapsed > self.CHAPTER_TIMEOUT:
-                    logger.warning(f"[{chapter_id}] Timed out after {elapsed:.0f}s")
-                    return ChapterResult(
-                        chapter_number=chapter.chapter_number,
-                        title=chapter.title,
-                        content="",
-                        duration_seconds=elapsed,
-                        success=False,
-                        error=f"Timed out after {elapsed:.0f}s",
-                        interaction_id=interaction_id,
-                    )
+                logger.info(f"[{chapter_id}] Research started: {interaction_id}")
                 
-                # Check status
-                interaction = self._get_interaction(interaction_id)
-                status = interaction.status
-                
-                if status == "completed":
-                    content = self._extract_content(interaction)
-                    citations = self._extract_citations(interaction)
-                    duration = time.time() - start_time
+                # Poll for completion
+                while True:
+                    elapsed = time.time() - start_time
                     
-                    logger.info(
-                        f"[{chapter_id}] Completed in {duration:.0f}s, "
-                        f"{len(content.split())} words"
-                    )
+                    if elapsed > self.CHAPTER_TIMEOUT:
+                        logger.warning(f"[{chapter_id}] Timed out after {elapsed:.0f}s")
+                        return ChapterResult(
+                            chapter_number=chapter.chapter_number,
+                            title=chapter.title,
+                            content="",
+                            duration_seconds=elapsed,
+                            success=False,
+                            error=f"Timed out after {elapsed:.0f}s",
+                            interaction_id=interaction_id,
+                        )
                     
+                    # Check status
+                    interaction = self._get_interaction(interaction_id)
+                    status = interaction.status
+                    
+                    if status == "completed":
+                        content = self._extract_content(interaction)
+                        citations = self._extract_citations(interaction)
+                        duration = time.time() - start_time
+                        
+                        logger.info(
+                            f"[{chapter_id}] Completed in {duration:.0f}s, "
+                            f"{len(content.split())} words"
+                        )
+                        
+                        if on_progress:
+                            on_progress(f"[{chapter_id}] Completed: {chapter.title}")
+                        
+                        return ChapterResult(
+                            chapter_number=chapter.chapter_number,
+                            title=chapter.title,
+                            content=content,
+                            citations=citations,
+                            duration_seconds=duration,
+                            success=True,
+                            interaction_id=interaction_id,
+                        )
+                    
+                    elif status == "failed":
+                        error_msg = getattr(interaction, 'error', 'Unknown error')
+                        duration = time.time() - start_time
+                        
+                        logger.error(f"[{chapter_id}] Failed: {error_msg}")
+                        
+                        return ChapterResult(
+                            chapter_number=chapter.chapter_number,
+                            title=chapter.title,
+                            content="",
+                            duration_seconds=duration,
+                            success=False,
+                            error=str(error_msg),
+                            interaction_id=interaction_id,
+                        )
+                    
+                    # Still in progress - adaptive polling
+                    poll_interval = self._get_poll_interval(elapsed)
+                    await asyncio.sleep(poll_interval)
+                    
+            except Exception as e:
+                error_str = str(e)
+                is_quota_error = "429" in error_str or "quota" in error_str.lower() or "too_many_requests" in error_str.lower()
+                
+                if is_quota_error and attempt < max_retries - 1:
+                    # Exponential backoff for quota errors
+                    delay = base_delay * (2 ** attempt)
+                    logger.warning(
+                        f"[{chapter_id}] Quota limit hit, waiting {delay:.0f}s before retry "
+                        f"(attempt {attempt + 1}/{max_retries})"
+                    )
                     if on_progress:
-                        on_progress(f"[{chapter_id}] Completed: {chapter.title}")
-                    
-                    return ChapterResult(
-                        chapter_number=chapter.chapter_number,
-                        title=chapter.title,
-                        content=content,
-                        citations=citations,
-                        duration_seconds=duration,
-                        success=True,
-                        interaction_id=interaction_id,
-                    )
+                        on_progress(f"[{chapter_id}] Rate limited, waiting {int(delay)}s...")
+                    await asyncio.sleep(delay)
+                    continue
                 
-                elif status == "failed":
-                    error_msg = getattr(interaction, 'error', 'Unknown error')
-                    duration = time.time() - start_time
-                    
-                    logger.error(f"[{chapter_id}] Failed: {error_msg}")
-                    
-                    return ChapterResult(
-                        chapter_number=chapter.chapter_number,
-                        title=chapter.title,
-                        content="",
-                        duration_seconds=duration,
-                        success=False,
-                        error=str(error_msg),
-                        interaction_id=interaction_id,
-                    )
+                # Non-quota error or final attempt
+                duration = time.time() - start_time
+                logger.error(f"[{chapter_id}] Error: {e}")
                 
-                # Still in progress - adaptive polling
-                poll_interval = self._get_poll_interval(elapsed)
-                await asyncio.sleep(poll_interval)
-                
-        except Exception as e:
-            duration = time.time() - start_time
-            logger.error(f"[{chapter_id}] Error: {e}")
-            
-            return ChapterResult(
-                chapter_number=chapter.chapter_number,
-                title=chapter.title,
-                content="",
-                duration_seconds=duration,
-                success=False,
-                error=str(e),
-            )
+                return ChapterResult(
+                    chapter_number=chapter.chapter_number,
+                    title=chapter.title,
+                    content="",
+                    duration_seconds=duration,
+                    success=False,
+                    error=error_str,
+                )
+        
+        # Should not reach here, but just in case
+        return ChapterResult(
+            chapter_number=chapter.chapter_number,
+            title=chapter.title,
+            content="",
+            duration_seconds=time.time() - start_time,
+            success=False,
+            error="Max retries exceeded",
+        )
     
     async def execute_all(
         self,

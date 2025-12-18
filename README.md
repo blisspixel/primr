@@ -128,6 +128,13 @@ All systems ready.
 primr/
 ├── src/primr/              # Main package
 │   ├── core/               # Research orchestration
+│   │   ├── research_agent.py       # Main entry point, backward-compatible API
+│   │   ├── workspace.py            # Working folder management
+│   │   ├── structured_research.py  # Website scraping pipeline
+│   │   ├── vendor_research.py      # Cloud vendor AI research
+│   │   ├── ai_strategy.py          # AI strategy generation
+│   │   ├── deep_research_runner.py # Deep Research execution
+│   │   └── cli.py                  # Command-line interface
 │   ├── data/               # Data collection (scraping, search)
 │   ├── ai/                 # AI operations (LLM, grading)
 │   ├── output/             # Report generation
@@ -191,7 +198,7 @@ primr doctor
 # Run tests
 pytest tests/ -v
 
-# Current test count: 1900+ tests
+# Current test count: 2100+ tests
 ```
 
 ## Known Limitations
