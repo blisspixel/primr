@@ -60,26 +60,25 @@ These rules are repeated because AI models tend to drift toward their default fo
 
 ### Section Structure
 
-The company profile prompt specifies exact section order:
+Report sections are defined in YAML configuration files, not hardcoded in Python. This makes the structure:
+- **Reviewable**: Sections can be reviewed as standalone artifacts
+- **Versionable**: Changes are tracked in version control
+- **Customizable**: Users can modify sections without changing code
+- **Extensible**: New strategy reports can be added by creating new YAML files
 
-1. Executive Summary (the "so what" up front)
-2. Detailed Products and Services
-3. Unique Selling Proposition
-4. Mission and Vision
-5. Company History
-6. Key Achievements
-7. Target Audience
-8. Financial Overview
-9. Key Business Drivers and Strategic KPIs
-10. SWOT Analysis
-11. Leadership and Culture
-12. Industry Context and Dynamics
-13. Competitive Landscape
-14. Narrative Gap Analysis
-15. Strategic Hypotheses
-16. Discovery Questions
+**As of December 2025, the Strategic Company Overview uses 20 sections** defined in `src/primr/prompts/company_overview.yaml`:
 
-This order is intentional: foundational facts first (know them), then strategic analysis (so what).
+| Part | Sections |
+|------|----------|
+| 1 - Foundational | Executive Summary, Products and Services, Target Customers, Competitive Differentiation, Financial Profile, Company History, Leadership and Organization |
+| 2 - Industry | Industry Dynamics, Competitive Landscape |
+| 3 - Strategic | Business Model, SWOT Analysis, Strategic Tensions, Constraints and Degrees of Freedom |
+| 4 - Patterns | Narrative Gap Analysis, Fragilities, Patterns Worth Exploring, Discovery Questions |
+| 5 - Frameworks | Porter's Five Forces, Value Chain Analysis, Strategic Positioning Hypothesis |
+
+**AI Strategy Report** uses 17 sections defined in `src/primr/prompts/strategies/ai_strategy.yaml`, including vendor-specific guidance for Azure, AWS, and GCP.
+
+The architecture is designed for extensibility - new strategy modules can be added by creating YAML files in `src/primr/prompts/strategies/`.
 
 ### Key Metrics Extraction
 
@@ -330,6 +329,41 @@ Metadata structure:
 
 ## Deep Research Integration
 
+### The Accordion Method
+
+The Accordion Method produces 30+ page reports by separating research from writing:
+
+```
+Phase 1: Deep Research (Lead Researcher)
+  - Agent: deep-research-pro-preview-12-2025
+  - Role: Gather facts, data, citations
+  - Output: ~12 page research dossier
+
+Phase 2: Section Writing (Gemini 3 Flash)
+  - Model: gemini-3-flash-preview
+  - Role: Write each section with analytical depth
+  - Input: Dossier + previous sections in prompt
+  - Output: 20 sections × ~1.5 pages = 30+ pages
+```
+
+This architecture treats Deep Research as the **researcher** and Gemini 3 Flash as the **writer**.
+
+### Why Not `previous_interaction_id`?
+
+The Gemini docs mention `previous_interaction_id` for follow-up questions. However, testing showed that direct `generate_content()` calls with the dossier in the prompt produce better results:
+
+- More reliable (no interaction state to manage)
+- Faster (no interaction lookup overhead)
+- More controllable (full prompt visible)
+
+### Model Selection
+
+| Component | Model | Rationale |
+|-----------|-------|-----------|
+| Research Dossier | `deep-research-pro-preview-12-2025` | Autonomous web research |
+| Section Writing | `gemini-3-flash-preview` | Fast, intelligent, cost-effective |
+| Stage 1 Analysis | `gemini-3-flash-preview` | Quick section analysis |
+
 ### Adaptive Polling
 
 Polling interval increases over time:
@@ -465,3 +499,239 @@ model_fallbacks = {
 ```
 
 On failure, the next model in the chain is tried.
+
+
+## Prompt Architecture
+
+### Overview
+
+Primr uses an externalized prompt architecture where prompts are defined in YAML configuration files rather than hardcoded Python strings. This makes prompts:
+
+- **Reviewable**: Prompts can be reviewed as standalone artifacts
+- **Versionable**: Changes to prompts are tracked in version control
+- **Customizable**: Users can modify prompts without changing code
+- **Composable**: Shared components are reused across prompts
+
+### Directory Structure
+
+```
+src/primr/prompts/
+├── __init__.py           # Public API exports
+├── composer.py           # PromptComposer class
+├── loader.py             # Legacy loader functions
+├── registry.py           # StrategyModuleRegistry
+├── schema.py             # Dataclass definitions
+├── shared_loader.py      # SharedComponentLoader
+├── exceptions.py         # Custom exceptions
+├── company_overview.yaml # Company research prompt
+├── strategic_layer.yaml  # Strategic analysis prompt
+├── shared/
+│   ├── epistemic_rules.yaml  # Epistemic standards
+│   ├── formatting.yaml       # Formatting rules
+│   └── personas.yaml         # Analyst personas
+└── strategies/
+    ├── ai_strategy.yaml      # AI strategy module
+    ├── cloud_migration.yaml  # Cloud migration (placeholder)
+    └── data_strategy.yaml    # Data strategy (placeholder)
+```
+
+### Core Components
+
+#### PromptComposer
+
+The central class for composing prompts from YAML configurations:
+
+```python
+from primr.prompts import PromptComposer, PromptContext
+
+composer = PromptComposer()
+context = PromptContext(
+    company_name="Acme Corp",
+    website_url="https://acme.com",
+    cloud_vendor="azure",
+)
+
+# Compose a standard prompt
+result = composer.compose("company_overview", context)
+print(result.content)
+
+# Compose a strategy prompt
+result = composer.compose_strategy("ai", context)
+print(result.content)
+```
+
+#### PromptContext
+
+Runtime context for variable substitution:
+
+```python
+@dataclass
+class PromptContext:
+    company_name: str
+    website_url: str | None = None
+    cloud_vendor: str = "agnostic"
+    current_date: str | None = None
+    has_stage1_context: bool = False
+    custom_vars: dict[str, str] = field(default_factory=dict)
+```
+
+#### StrategyModuleRegistry
+
+Discovers and manages strategy modules:
+
+```python
+from primr.prompts import get_registry
+
+registry = get_registry()
+
+# List available strategies
+for name in registry.list_names():
+    print(name)
+
+# Get a specific strategy
+strategy = registry.get("ai")
+print(strategy.display_name)
+
+# Get context files for a strategy
+files = registry.get_context_files("ai", vendor="azure")
+```
+
+### YAML Schema
+
+#### Prompt Configuration
+
+```yaml
+meta:
+  name: "Strategic Company Overview"
+  version: "1.1.0"
+  description: "Comprehensive company research"
+  output_format: "markdown"
+  expected_pages: "20-70"
+
+document_purpose: |
+  This is INTERNAL PREP to understand the company...
+
+epistemic_rules:
+  fact_inference_hypothesis: |
+    Distinguish facts (with citations) from inferences...
+
+formatting:
+  paragraphs: "Write in full paragraphs..."
+  bullets: "Use bullets only when they genuinely help..."
+
+sections:
+  - id: executive_summary
+    name: "Executive Summary"
+    part: 1
+    purpose: "The 'so what' for the reader"
+    covers:
+      - "Key findings"
+      - "Strategic implications"
+    depth: "2-3 paragraphs. Concise and actionable."
+```
+
+#### Strategy Module
+
+Strategy modules extend the base schema with:
+
+```yaml
+# Data sources for File Search Store
+data_sources:
+  - name: "vendor_research_azure"
+    path: "docs/vendor-research-azure-2025-12.txt"
+    description: "Latest Azure AI services"
+    vendor: "azure"
+    required: false
+
+# Vendor-specific guidance
+vendor_guidance:
+  azure:
+    display_name: "Microsoft Azure"
+    key_services:
+      productivity_copilots:
+        - "Microsoft 365 Copilot"
+        - "Copilot Studio"
+```
+
+### Creating a New Strategy Module
+
+1. Create a new YAML file in `src/primr/prompts/strategies/`:
+
+```yaml
+# my_strategy.yaml
+meta:
+  name: "My Strategy"
+  version: "1.0.0"
+  description: "Description of the strategy"
+  status: "active"  # or "placeholder"
+
+persona: "senior_consultant"
+
+document_purpose: |
+  Purpose of this strategy document...
+
+sections:
+  - id: executive_summary
+    name: "Executive Summary"
+    part: 1
+    purpose: "High-level overview"
+    covers:
+      - "Key findings"
+    depth: "2-3 paragraphs"
+```
+
+2. The strategy is automatically discovered by the registry.
+
+3. Use it via CLI:
+
+```bash
+primr research "Company Name" --strategy my
+```
+
+### Error Handling
+
+Custom exceptions provide helpful error messages:
+
+```python
+from primr.prompts import (
+    PromptConfigNotFoundError,
+    PromptConfigValidationError,
+    StrategyModuleNotFoundError,
+)
+
+try:
+    composer.compose("nonexistent", context)
+except PromptConfigNotFoundError as e:
+    print(f"Not found: {e.prompt_name}")
+    print(f"Available: {e.available_prompts}")
+```
+
+### Shared Components
+
+Shared components are loaded from `shared/` and merged into prompts:
+
+- **epistemic_rules.yaml**: Standards for distinguishing facts, inferences, and hypotheses
+- **formatting.yaml**: Formatting rules (paragraphs, bullets, citations)
+- **personas.yaml**: Analyst personas (senior_consultant, ai_strategist, technical_architect)
+
+Prompts can override shared components:
+
+```yaml
+# In a prompt YAML
+epistemic_rules_override:
+  confidence_labeling: |
+    Custom confidence labeling rule...
+```
+
+### Variable Substitution
+
+Variables in prompts are substituted at runtime:
+
+| Variable | Source |
+|----------|--------|
+| `{company_name}` | `context.company_name` |
+| `{website_url}` | `context.website_url` |
+| `{cloud_vendor}` | `context.cloud_vendor` |
+| `{current_date}` | `context.current_date` or auto-generated |
+
+Custom variables can be added via `context.custom_vars`.

@@ -1,0 +1,69 @@
+# Epistemic Rules for Consulting-Grade Research
+# =============================================================================
+# These rules ensure intellectual honesty and appropriate hedging in all
+# generated content. They are shared across all prompt configurations.
+#
+# Purpose: Maintain rigorous standards for distinguishing facts from inferences
+# Usage: Loaded by SharedComponentLoader and merged into all prompts
+# =============================================================================
+
+meta:
+  name: "Epistemic Rules"
+  version: "1.0.0"
+  description: "Standards for intellectual honesty in research output"
+
+# Core epistemic rules applied to all prompts
+rules:
+  fact_inference_hypothesis: |
+    Distinguish facts (with citations) from inferences (labeled as such) 
+    from hypotheses (to validate). Facts require sources. Inferences must 
+    be labeled "we infer" or "this suggests". Hypotheses are framed as 
+    "to validate with the client".
+
+  risk_framing: |
+    Frame risks as "areas to explore" not definitive threats. Avoid 
+    language that implies certainty about negative outcomes. Present 
+    risks as questions to investigate, not conclusions to deliver.
+
+  hedging_language: |
+    Use language like "appears to", "worth exploring", "we'd want to 
+    validate", "based on available evidence", "signals suggest". Avoid 
+    absolutist language like "definitely", "certainly", "always", "never".
+
+  transformation_rule: |
+    If a sentence implies inevitability or failure, rewrite it as a 
+    scenario comparison. Example: Instead of "Companies that don't adopt 
+    AI will fail", write "Organizations that move early may gain 
+    compounding advantages, while delayed adoption increases the cost 
+    of catching up."
+
+  confidence_labeling: |
+    For any claim without direct citation, indicate confidence level:
+    - High confidence: Multiple corroborating sources or well-established patterns
+    - Medium confidence: Single source or logical inference from evidence
+    - Low confidence: Speculation based on patterns, requires validation
+
+  hypothesis_framing: |
+    Frame assessments of current state as hypotheses to validate, not facts.
+    Use language like "Based on [evidence], we hypothesize..." This 
+    acknowledges uncertainty while providing actionable starting points.
+
+  source_hierarchy: |
+    When multiple sources conflict, present both perspectives with source 
+    attribution. Primary sources (company website, SEC filings) take 
+    precedence over secondary sources (news articles, analyst reports).
+
+# Strategy-specific epistemic rules (can be referenced by strategy modules)
+strategy_rules:
+  ai_confidence_labeling: |
+    All AI recommendations must be labeled as one of:
+    - "Low-regret / proven pattern" - widely adopted, strong evidence base
+    - "Context-dependent bet" - success depends on company-specific factors
+    - "Exploratory / frontier" - emerging capability, higher uncertainty
+
+  technology_verification: |
+    For every vendor service, tool, or capability named:
+    1. Verify current name (services get renamed/deprecated)
+    2. Note if GA (Generally Available) or Preview/Beta
+    3. Flag if limited to specific regions
+    4. If unverifiable, mark as "UNCONFIRMED"

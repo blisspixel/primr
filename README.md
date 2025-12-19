@@ -4,13 +4,18 @@ A research tool that generates company intelligence briefs using Google's Gemini
 
 ## What It Does
 
-Primr runs company research using two complementary engines:
+Primr runs company research using complementary engines that work together:
 
-**Scrape Mode**: Website-focused research with multi-tier web scraping (requests, httpx, Playwright, aggressive browser), section-by-section AI analysis with quality grading. Useful for deep website analysis and specific data extraction.
+**Scrape Mode**: Website-focused research with multi-tier web scraping (requests, httpx, Playwright, aggressive browser), section-by-section AI analysis with quality grading. Useful for deep website analysis and specific data extraction. Produces ~15-20 page reports.
 
-**Deep Mode**: Powered by Gemini Deep Research Agent with autonomous multi-step research and built-in Google Search. Generates a comprehensive company profile with all sections (Executive Summary through Discovery Questions).
+**Deep Mode**: Powered by Gemini Deep Research Agent with autonomous multi-step research and built-in Google Search. Generates a comprehensive company profile. Produces ~12 page reports.
 
-Both engines produce DOCX/PDF reports with optional AI strategy recommendations.
+**Full Mode** (recommended): Combines both engines using the "Accordion Method" for comprehensive 30+ page reports:
+1. **Data Collection**: Website scraping + Google Search (baseline facts)
+2. **Research Dossier**: Deep Research gathers external context (as Lead Researcher, not Writer)
+3. **Section Writing**: Gemini 3 Flash writes sections sequentially with context continuity
+
+All modes produce DOCX/PDF reports with optional AI strategy recommendations.
 
 ## Intended Use
 
@@ -62,6 +67,12 @@ primr "Tesla" https://tesla.com --cloud-vendor aws
 primr "Tesla" https://tesla.com --cloud-vendor gcp
 primr "Tesla" https://tesla.com --no-ai-strategy
 
+# Strategy modules (v1.2.6)
+primr "Tesla" https://tesla.com --strategy ai              # AI strategy only
+primr "Tesla" https://tesla.com --strategy ai,cloud,data   # Multiple strategies
+primr "Tesla" https://tesla.com --strategy-only --context-folder output/  # Run on existing research
+primr --list-strategies                                     # Show available strategies
+
 # Citation styles
 primr "Tesla" https://tesla.com --citation-style numbered  # [1] style (default)
 primr "Tesla" https://tesla.com --citation-style inline    # preserve URLs
@@ -77,9 +88,10 @@ primr "Tesla" https://tesla.com --verbose    # Detailed output
 primr "Tesla" https://tesla.com --quiet      # Minimal output
 
 # Utility commands
-primr doctor          # System check
-primr --check-jobs    # Pending Deep Research jobs
-primr --check-quota   # API quota status
+primr doctor            # System check
+primr --check-jobs      # Pending Deep Research jobs
+primr --check-quota     # API quota status
+primr --list-strategies # Available strategy modules
 ```
 
 ### URL Handling
@@ -116,11 +128,11 @@ All systems ready.
 
 ### Research Modes
 
-| Mode | Flag | Best For | Duration |
-|------|------|----------|----------|
-| Full | `--mode full` (default) | Most comprehensive - scrape + deep research | 30-40 min |
-| Scrape | `--mode scrape` | Website deep-dives, no Deep Research API | 20-25 min |
-| Deep | `--mode deep` | Comprehensive report via Deep Research API | 10-15 min |
+| Mode | Flag | Best For | Duration | Output |
+|------|------|----------|----------|--------|
+| Full | `--mode full` (default) | Most comprehensive - Accordion Method | 35-50 min | 30+ pages |
+| Scrape | `--mode scrape` | Website deep-dives, no Deep Research API | 20-25 min | 15-20 pages |
+| Deep | `--mode deep` | Quick research via Deep Research API | 10-15 min | ~12 pages |
 
 ## Project Structure
 
@@ -197,12 +209,32 @@ primr doctor
 ```bash
 # Run tests
 pytest tests/ -v
-
-# Current test count: 2200+ tests
 ```
+
+## Deep Research API Limitation (December 2025)
+
+Google's Gemini Deep Research Agent (`deep-research-pro-preview-12-2025`) is excellent at autonomous research but has a practical output limit of ~8-12 pages per API call, regardless of how many pages you request in the prompt.
+
+**Why this matters:** If you ask Deep Research for a "30-page report," it will produce ~8-12 pages of high-quality, well-structured content with citations. It gathers information thoroughly but compresses the output.
+
+**The Accordion Method (Full Mode):** To produce 30+ page reports, Primr uses a multi-phase approach:
+
+1. **Phase 1 - Data Collection**: Website scraping + Google Search + Gemini Flash analysis creates baseline facts (~15-25 min)
+2. **Phase 2 - Research Dossier**: Deep Research acts as "Lead Researcher" gathering external context. This produces the ~12 page research dossier with citations.
+3. **Phase 3 - Section Writing**: Gemini 3 Flash writes each section one-by-one, passing the dossier and previous sections in each prompt for context continuity.
+
+This architecture treats Deep Research as the **researcher** (gathers facts) and Gemini 3 Flash as the **writer** (produces prose). The result is comprehensive 30+ page reports that avoid the "middle muddle" problem where pages 10-40 become vague and repetitive.
+
+**Resilience:** If Deep Research fails (500 errors, rate limits), the pipeline falls back to using Stage 1 context as the research dossier and continues with section writing.
+
+**Mode comparison:**
+- `--mode deep`: Single Deep Research call → ~12 pages (fast, good for quick scans)
+- `--mode scrape`: Website scraping + Gemini Flash → ~15-20 pages (no Deep Research API)
+- `--mode full`: Accordion Method → 30+ pages (recommended for comprehensive research)
 
 ## Known Limitations
 
+- Deep Research API produces ~8-12 pages max per call (see above)
 - Some sites with aggressive bot protection may not be scrapable
 - API rate limits apply (Google Search, Gemini)
 - PDF generation requires Microsoft Word on Windows

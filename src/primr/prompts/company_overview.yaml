@@ -1,0 +1,430 @@
+# Company Strategic Overview Prompt Configuration
+# This file defines the structure and content requirements for company research reports.
+#
+# Purpose: Internal prep to understand a company before discovery conversations.
+# Goal: Form hypotheses about how they create value and where support could help.
+# Audience: Consultants preparing for client meetings.
+
+meta:
+  name: "Strategic Company Overview"
+  version: "1.1.0"
+  description: "Comprehensive company research for pre-meeting preparation"
+  output_format: "markdown"
+  expected_pages: "20-70"
+  
+# Dependencies on shared components:
+#   - shared/epistemic_rules.yaml
+#   - shared/formatting.yaml
+#   - shared/personas.yaml
+  
+document_purpose: |
+  This is INTERNAL PREP to understand the company before a discovery conversation. The goal is to:
+  1. Understand how they create value today
+  2. Form hypotheses about where support could help them move faster, reduce risk, or unlock opportunities
+  3. Surface smart questions to validate our thinking WITH them
+  
+  This is NOT a client deliverable. It's the thinking that makes you walk in informed and curious.
+  Write with analytical depth. Surface uncomfortable hypotheses. Prioritize clarity over diplomacy.
+  Treat strong claims as working hypotheses unless explicitly supported by cited sources.
+
+epistemic_rules:
+  fact_inference_hypothesis: |
+    Distinguish facts (with citations) from inferences (labeled as such) from hypotheses (to validate).
+  risk_framing: |
+    Frame risks as "areas to explore" not definitive threats.
+  language: |
+    Use language like "appears to", "worth exploring", "we'd want to validate".
+  transformation_rule: |
+    If a sentence implies inevitability or failure, rewrite it as a scenario comparison.
+
+formatting:
+  paragraphs: "Write in full paragraphs with evidence"
+  bullets: "Use bullets only for lists of specific items"
+  bullet_depth: "Single-level bullets only"
+  citations: "Cite sources at section end using [cite: X, Y, Z] format"
+  tables: "Include tables for financials, competitors, timelines"
+
+key_metrics:
+  format: |
+    **Key Metrics:**
+    - Employees: [X,XXX or ~X,XXX estimated]
+    - Revenue: [$X.XB or ~$XXM estimated]
+    - Founded: [YYYY]
+    - Headquarters: [City, State]
+
+sections:
+  - id: executive_summary
+    name: "Executive Summary"
+    part: 1
+    position: opening  # opening, middle, or closing - for narrative flow
+    purpose: "The 'so what' a partner reads before walking into the meeting"
+    covers:
+      - "What this company does and their market position"
+      - "Key financial metrics and growth trajectory"
+      - "What they appear to be good at"
+      - "2-3 areas where consulting support could create meaningful impact"
+      - "The central hypothesis about how they create value (to validate with them)"
+    depth: "Synthesizes the document. Do not introduce conclusions not explored later."
+
+  - id: products_services
+    name: "Products and Services"
+    part: 1
+    position: middle
+    purpose: "Understand what they actually sell and how they make money"
+    covers:
+      - "Complete product/service catalog organized by category"
+      - "How each offering generates revenue (pricing models, contract structures)"
+      - "Revenue mix across product lines (if discernible)"
+      - "Recent launches, discontinuations, or pivots (last 2-3 years)"
+      - "Technology or platform underpinning their offerings"
+      - "Go-to-market and fulfillment approach"
+    depth: "Include specific product names, features, and positioning. A consultant should understand their entire offering."
+
+  - id: target_customers
+    name: "Target Customers"
+    part: 1
+    position: middle
+    purpose: "Understand who they serve and how they reach them"
+    covers:
+      - "Primary customer segments with size/revenue estimates"
+      - "Buyer personas and purchasing behavior"
+      - "Geographic distribution of customer base"
+      - "Industry verticals served (with relative importance)"
+      - "Enterprise vs SMB vs consumer mix"
+      - "Channel strategy and key partners"
+    depth: "Thorough segmentation analysis"
+
+  - id: competitive_differentiation
+    name: "Competitive Differentiation"
+    part: 1
+    position: middle
+    purpose: "Understand why customers choose them over alternatives"
+    covers:
+      - "Primary value proposition and core messaging"
+      - "Specific capabilities competitors demonstrably lack"
+      - "Evidence of differentiation (customer reviews, case studies, analyst commentary)"
+      - "Durability of the moat - what protects it, what could erode it"
+    depth: "Evidence-based analysis of their competitive advantages"
+
+  - id: financial_profile
+    name: "Financial Profile"
+    part: 1
+    position: middle
+    purpose: "Understand their economic reality"
+    covers:
+      - "Revenue (actual or estimated with source and confidence)"
+      - "Revenue growth rate and multi-year trajectory"
+      - "Profitability indicators (margins, EBITDA if available)"
+      - "Funding history with investors, dates, amounts"
+      - "Current valuation (if known)"
+      - "Capital structure and debt profile"
+    depth: |
+      REQUIRED: Include a financial summary table with columns for Metric, Value, 
+      Source, and Confidence Level. If public financials unavailable, estimate 
+      using employee count, funding rounds, and market signals. Always note 
+      confidence level for each data point.
+
+  - id: company_history
+    name: "Company History and Evolution"
+    part: 1
+    position: middle
+    purpose: "Understand how they got here"
+    covers:
+      - "Founding story and original business model"
+      - "Major pivots or strategic shifts (with context on why)"
+      - "All significant acquisitions (dates, deal sizes if known, strategic rationale)"
+      - "Key leadership transitions"
+      - "Funding milestones"
+      - "Geographic expansion"
+    depth: |
+      REQUIRED: Include a timeline table with columns for Year, Event, and 
+      Significance. For companies with complex histories (10+ years, multiple 
+      pivots, or significant M&A), this section should be 2-3 pages.
+
+  - id: leadership_organization
+    name: "Leadership and Organization"
+    part: 1
+    position: middle
+    purpose: "Understand who runs the company and how they operate"
+    covers:
+      - "C-suite profiles with backgrounds, tenure, previous roles"
+      - "Board composition and notable directors"
+      - "Leadership stability (recent departures, average tenure)"
+      - "Cultural signals from careers page, press, employee reviews"
+    depth: "Comprehensive leadership analysis"
+
+  - id: industry_dynamics
+    name: "Industry Dynamics"
+    part: 2
+    position: middle
+    purpose: "Understand the forces shaping their world"
+    covers:
+      - "Industry size, growth rate, and trajectory"
+      - "Key trends and disruption factors"
+      - "Regulatory environment and upcoming changes"
+      - "Technology shifts affecting the industry"
+      - "Consolidation or fragmentation trends"
+    depth: "Thorough industry analysis"
+
+  - id: competitive_landscape
+    name: "Competitive Landscape"
+    part: 2
+    position: middle
+    purpose: "Understand who they're fighting and how they stack up"
+    covers:
+      - "Direct competitors with brief profiles"
+      - "Market share estimates (with sources)"
+      - "Head-to-head comparison on key dimensions"
+      - "Where they appear to win deals (and why)"
+      - "Where they appear to lose deals (and why)"
+      - "Emerging competitors or disruptors to watch"
+    depth: |
+      REQUIRED: Include a competitor comparison table with at least 5 competitors.
+      Columns should include: Company, Revenue/Size, Key Strengths, Key Weaknesses,
+      Market Position. This section should be 3-5 pages with substantive analysis
+      of competitive dynamics, not just a list.
+
+  - id: business_model
+    name: "Business Model and Value Creation"
+    part: 3
+    position: middle
+    purpose: "Articulate how they actually make money - the logic made explicit"
+    covers:
+      - "Core value proposition: What problem, for whom, better than alternatives?"
+      - "Revenue model and unit economics (if discernible)"
+      - "Reinforcing mechanisms: What creates flywheel effects?"
+      - "Key assumptions: What must remain true for this model to work?"
+      - "Vulnerabilities: Where could the logic break down?"
+    depth: "Frame as an initial theory to test in conversation"
+
+  - id: swot_analysis
+    name: "SWOT Analysis"
+    part: 3
+    position: middle
+    purpose: "Structured assessment of position"
+    covers:
+      - "Strengths (internal capabilities and advantages) - 5-8 items with evidence"
+      - "Weaknesses (internal gaps and limitations) - 5-8 items with evidence"
+      - "Opportunities (external openings and tailwinds) - 5-8 items with evidence"
+      - "Threats (external risks and headwinds) - 5-8 items with evidence"
+    depth: "Each item must have specific evidence"
+
+  - id: strategic_tensions
+    name: "Strategic Tensions"
+    part: 3
+    position: middle
+    purpose: "Identify core tensions they must actively manage"
+    covers:
+      - "4-6 tensions derived from the SWOT"
+      - "For each: The tension, Evidence, Current approach, Question to explore"
+    depth: "Examples: Scale vs customization, Speed vs governance, Growth vs profitability"
+
+  - id: constraints_freedom
+    name: "Constraints and Degrees of Freedom"
+    part: 3
+    position: middle
+    purpose: "Understand what's changeable vs fixed"
+    covers:
+      - "Structural Constraints: Regulatory, legacy systems, contracts, capital structure, cultural inertia"
+      - "Degrees of Freedom: Decisions that appear genuinely open, areas where small changes could have outsized impact"
+    depth: "Specific evidence for each constraint and freedom"
+
+  - id: narrative_gaps
+    name: "Narrative Gap Analysis"
+    part: 4
+    position: middle
+    purpose: "Contrasts between what they say and external signals"
+    covers:
+      - "4-6 gaps identified"
+      - "For each: Claim (with quote/source), Evidence (external signals), Question to explore"
+    depth: "Observations to explore, not accusations"
+
+  - id: fragilities
+    name: "Areas of Potential Fragility"
+    part: 4
+    position: middle
+    purpose: "Areas where the business may be sensitive to shocks"
+    covers:
+      - "4-6 fragilities identified"
+      - "For each: The fragility, Evidence, Question about how they're thinking about it"
+    depth: "System awareness, not critique"
+
+  - id: patterns
+    name: "Patterns Worth Exploring"
+    part: 4
+    position: middle
+    purpose: "Interesting patterns from the research"
+    covers:
+      - "5-8 patterns identified"
+      - "For each: Observation (with evidence), Interpretation A, Interpretation B, Question"
+    depth: "Multiple interpretations for each pattern"
+
+  - id: discovery_questions
+    name: "Discovery Questions"
+    part: 4
+    position: middle
+    purpose: "The most important questions for our first conversation"
+    covers:
+      - "8-10 questions"
+      - "For each: The question, Why we're asking, What we hope to learn"
+    depth: "Specific and thoughtful, not gotcha questions"
+
+  - id: porters_five_forces
+    name: "Porter's Five Forces Assessment"
+    part: 5
+    position: middle
+    purpose: "Understand industry profitability dynamics"
+    covers:
+      - "Threat of new entrants (High/Medium/Low with evidence)"
+      - "Bargaining power of suppliers"
+      - "Bargaining power of buyers"
+      - "Threat of substitutes"
+      - "Competitive rivalry"
+    depth: "Each force assessed with specific evidence"
+
+  - id: value_chain
+    name: "Value Chain Analysis"
+    part: 5
+    position: middle
+    purpose: "Where in the value chain do they participate and capture margin?"
+    covers:
+      - "Primary activities and where they have advantages"
+      - "Potential for vertical integration or disintermediation"
+    depth: "Connect to their competitive position"
+
+  - id: strategic_positioning
+    name: "Strategic Positioning Hypothesis"
+    part: 5
+    position: closing  # This is the final section - ties everything together
+    purpose: "Initial hypothesis about their strategic position"
+    covers:
+      - "Are they competing on cost leadership, differentiation, or focus?"
+      - "Is their strategy coherent (do the pieces reinforce each other)?"
+      - "Where might the strategy be under pressure?"
+    depth: "Frame explicitly as a hypothesis to validate in conversation"
+
+# =============================================================================
+# ACCORDION METHOD PROMPTS
+# =============================================================================
+# These prompts are used by the Accordion Method for generating comprehensive reports.
+# Phase 1: Research Dossier - Deep Research gathers raw facts
+# Phase 2: Section Writing - Gemini Pro writes each section with context continuity
+
+accordion_method:
+  # Phase 1: Research Dossier prompt
+  # Deep Research acts as "Lead Researcher" gathering raw facts, not writing prose
+  research_dossier_prompt: |
+    You are a Lead Researcher compiling a research dossier on {company_name}{website_context}.
+
+    I am writing a 30-page strategic company overview. I do NOT want the final report yet.
+    I want a comprehensive Research Dossier containing raw facts and data.
+
+    You have access to initial research findings uploaded to File Search Store.
+    Use that as your starting point - it contains verified information from the company's website.
+    Your job is to EXPAND on that with external research: news, analyst reports, industry data.
+
+    Compile the following:
+
+    1. COMPANY BASICS
+       - Official name, headquarters, founding date
+       - Employee count (with source and date)
+       - Revenue figures (with source, date, and confidence level)
+       - Ownership structure (public/private, key investors)
+
+    2. PRODUCTS AND SERVICES
+       - Complete list of products/services with descriptions
+       - Pricing information if available
+       - Recent launches or discontinuations (last 2-3 years)
+
+    3. CUSTOMERS AND MARKETS
+       - Target customer segments
+       - Geographic markets served
+       - Key customer names if public
+       - Industry verticals
+
+    4. COMPETITIVE LANDSCAPE
+       - Top 5-10 competitors with brief descriptions
+       - Market share data if available
+       - Competitive positioning signals
+
+    5. FINANCIAL DATA
+       - Revenue history (multi-year if available)
+       - Growth rates
+       - Profitability indicators
+       - Funding rounds (for private companies)
+       - Stock performance (for public companies)
+
+    6. LEADERSHIP
+       - C-suite executives with backgrounds
+       - Board members
+       - Recent leadership changes
+
+    7. INDUSTRY CONTEXT
+       - Industry size and growth rate
+       - Key trends affecting the industry
+       - Regulatory factors
+
+    8. STRATEGIC SIGNALS
+       - Recent news and announcements
+       - Partnerships and acquisitions
+       - Strategic initiatives mentioned in press
+
+    OUTPUT FORMAT: Detailed markdown notes organized by section above.
+    Include specific numbers, dates, and citations for every fact.
+    Note confidence levels (confirmed/estimated/unclear) for key figures.
+    Do NOT write polished prose - this is raw research material.
+
+  # Phase 2: Section Writing prompt template
+  # Used for each section, with variables substituted at runtime
+  section_writing_prompt: |
+    You are writing a section of a strategic company overview for {company_name}.
+
+    {stage1_context}
+
+    ## RESEARCH DOSSIER (Deep Research Findings)
+    External research and analysis gathered from web sources.
+
+    {research_dossier}
+
+    ## PREVIOUS SECTIONS (for narrative continuity)
+    {previous_sections}
+
+    ## YOUR TASK
+    Write the **{section_title}** section with depth and analytical rigor.
+
+    Instructions:
+    {section_instructions}
+
+    ## NARRATIVE GUIDANCE
+    {position_guidance}
+
+    ## WRITING STANDARDS
+    - Write in flowing prose with clear subheadings
+    - Every paragraph should contain specific facts, figures, or analysis
+    - Avoid filler phrases ("it is important to note", "there are many factors")
+    - Analyze, don't just describe - explain WHY things matter
+    - Reference previous sections naturally ("As discussed in...", "Building on...")
+    - Use transitions that connect to the overall narrative
+    - Cite sources using [cite: X] format
+    - Frame assessments as hypotheses to validate, not conclusions
+
+    ## COHESION
+    This section should feel like part of ONE document, not a standalone piece.
+    - Reference the report's central thesis
+    - Connect to themes from previous sections
+    - Set up points that later sections will develop
+
+    Write the **{section_title}** section now:
+
+  # Position guidance templates for narrative flow
+  position_guidance:
+    opening: |
+      This is the OPENING section. Set the analytical tone for the entire report.
+      Establish the central thesis that subsequent sections will develop.
+    middle: |
+      This is section {section_number} of {total_sections}.
+      Build naturally on the previous sections. Reference earlier points where relevant.
+      Set up themes that later sections will develop.
+    closing: |
+      This is the CLOSING section. Tie together all previous analysis.
+      Reference key insights from earlier sections. Provide closure.

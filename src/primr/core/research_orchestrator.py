@@ -472,18 +472,18 @@ class ResearchOrchestrator:
                         on_progress("Warning: Could not prepare context, proceeding without it")
 
             # ================================================================
-            # PHASE 2: Single Deep Research Call (NEW ARCHITECTURE)
+            # PHASE 2: Comprehensive Deep Research (Sequential Elaboration)
             # ================================================================
             phase2_start = time_module.time()
             console.phase_banner(
                 step_num=2,
                 total_steps=2,
                 title="Deep Research",
-                description="Single comprehensive API call for complete report",
-                expected_duration="10-20 minutes"
+                description="Comprehensive report with sequential elaboration (50+ pages)",
+                expected_duration="15-30 minutes"
             )
 
-            # Use the new DeepResearchOrchestrator (single call, not parallel)
+            # Use the new comprehensive report generation with sequential elaboration
             orchestrator = get_deep_research_orchestrator()
             
             def progress_wrapper(msg: str) -> None:
@@ -491,11 +491,12 @@ class ResearchOrchestrator:
                     on_progress(msg)
                 console.info(msg)
 
-            deep_result = await orchestrator.generate_report(
+            deep_result = await orchestrator.generate_comprehensive_report(
                 company_name=company_name,
                 website_url=website,
                 stage1_context=stage1_context,
                 on_progress=progress_wrapper,
+                target_pages=50,  # Target 50+ pages
             )
 
             phase2_duration = time_module.time() - phase2_start
@@ -748,14 +749,8 @@ class ResearchOrchestrator:
         """
         Run Deep Research with optional context files.
 
-        When context_files are provided (Step 2 of complete mode):
-        - Uses strategic_layer prompt that builds on existing research
-        - Avoids repeating foundational information
-
-        When no context_files (standalone --mode deep):
-        - Uses company_profile prompt with ALL sections
-        - Generates comprehensive report including Executive Summary,
-          Products/Services, History, Financials, Leadership, etc.
+        Always uses company_profile prompt with ALL sections from company_overview.yaml.
+        Context files (if provided) are uploaded to File Search Store to inform the research.
         """
         def progress_callback(progress: ResearchProgress) -> None:
             if on_progress:

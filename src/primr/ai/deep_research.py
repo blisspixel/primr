@@ -229,7 +229,7 @@ def get_pending_jobs() -> dict[str, dict[str, Any]]:
 # URL RESOLUTION - Resolve Google redirect URLs to final destinations
 # =============================================================================
 
-async def resolve_redirect_url(url: str, timeout: float = 5.0) -> str:
+async def resolve_redirect_url(url: str, timeout: float = 10.0, retries: int = 2) -> str:
     """
     Resolve a Google grounding redirect URL to its final destination.
     
@@ -241,6 +241,7 @@ async def resolve_redirect_url(url: str, timeout: float = 5.0) -> str:
     Args:
         url: The redirect URL to resolve
         timeout: Maximum time to wait for resolution (seconds)
+        retries: Number of retry attempts on failure
         
     Returns:
         The final destination URL, or the original URL if resolution fails
@@ -251,20 +252,75 @@ async def resolve_redirect_url(url: str, timeout: float = 5.0) -> str:
     if "vertexaisearch.cloud.google.com/grounding-api-redirect" not in url:
         return url
     
+    for attempt in range(retries + 1):
+        try:
+            async with httpx.AsyncClient(follow_redirects=True, timeout=timeout) as client:
+                # Use HEAD request to follow redirects without downloading content
+                response = await client.head(url)
+                # Return the final URL after all redirects
+                final_url = str(response.url)
+                logger.debug(f"Resolved URL: {url[:50]}... -> {final_url[:80]}...")
+                return final_url
+        except asyncio.TimeoutError:
+            if attempt < retries:
+                logger.debug(f"URL resolution timeout (attempt {attempt + 1}), retrying...")
+                await asyncio.sleep(0.5)
+                continue
+            logger.warning(f"URL resolution timed out after {retries + 1} attempts: {url[:50]}...")
+            # Try to extract domain from the redirect URL as fallback
+            return _extract_domain_from_redirect(url)
+        except Exception as e:
+            if attempt < retries:
+                logger.debug(f"URL resolution failed (attempt {attempt + 1}): {e}, retrying...")
+                await asyncio.sleep(0.5)
+                continue
+            logger.warning(f"URL resolution failed after {retries + 1} attempts: {e}")
+            return _extract_domain_from_redirect(url)
+    
+    return url
+
+
+def _extract_domain_from_redirect(redirect_url: str) -> str:
+    """
+    Extract a readable domain hint from a Google redirect URL.
+    
+    When URL resolution fails, we try to extract any domain hints from the
+    redirect URL itself. This is better than showing the ugly redirect URL.
+    
+    Args:
+        redirect_url: The Google grounding redirect URL
+        
+    Returns:
+        A cleaner URL or the original if extraction fails
+    """
+    import base64
+    import re
+    
+    # The redirect URL often contains base64-encoded data with the target URL
+    # Try to extract it
     try:
-        async with httpx.AsyncClient(follow_redirects=True, timeout=timeout) as client:
-            # Use HEAD request to follow redirects without downloading content
-            response = await client.head(url)
-            # Return the final URL after all redirects
-            final_url = str(response.url)
-            logger.debug(f"Resolved URL: {url[:50]}... -> {final_url[:80]}...")
-            return final_url
-    except asyncio.TimeoutError:
-        logger.warning(f"URL resolution timed out: {url[:50]}...")
-        return url
-    except Exception as e:
-        logger.warning(f"URL resolution failed: {e}")
-        return url
+        # Look for the encoded part after /grounding-api-redirect/
+        match = re.search(r'/grounding-api-redirect/([A-Za-z0-9_-]+)', redirect_url)
+        if match:
+            encoded = match.group(1)
+            # Add padding if needed
+            padding = 4 - len(encoded) % 4
+            if padding != 4:
+                encoded += '=' * padding
+            # Try to decode
+            try:
+                decoded = base64.urlsafe_b64decode(encoded).decode('utf-8', errors='ignore')
+                # Look for URLs in the decoded content
+                url_match = re.search(r'https?://[^\s<>"\']+', decoded)
+                if url_match:
+                    return url_match.group(0)
+            except Exception:
+                pass
+    except Exception:
+        pass
+    
+    # Return original if we can't extract anything useful
+    return redirect_url
 
 
 async def resolve_citation_urls(citations: list[dict[str, str]]) -> list[dict[str, str]]:
@@ -453,7 +509,7 @@ class DeepResearchClient:
         # 5. Test API connectivity with a lightweight call before expensive operations
         try:
             # Verify we can reach the API (this is cheap)
-            _ = self._client.models.get(model="gemini-2.0-flash")
+            _ = self._client.models.get(model="gemini-3-flash-preview")
             logger.info("Pre-flight: API connectivity verified")
         except Exception as e:
             raise AIError(f"Pre-flight: API connectivity check failed: {e}", model=self.AGENT_ID) from e
@@ -733,209 +789,27 @@ Cite all sources.
         """
         Build a structured company profile prompt for consulting-grade research.
 
-        Structure: Foundational sections first (know them), then strategic analysis (so what).
+        Structure: Foundational sections first (know them), then strategic analysis (so what),
+        then frameworks and hypotheses at the end.
+        
+        Uses externalized YAML configuration from src/primr/prompts/company_overview.yaml
         """
-        from datetime import datetime
         import re
-        current_date = datetime.now().strftime("%B %d, %Y")
+        from primr.prompts import build_company_overview_prompt
 
         # Extract company name from query for header
-        # Query format: "Research CompanyName (https://...)" or "Research CompanyName"
         company_match = re.search(r'Research\s+(.+?)(?:\s*\(|$)', query)
         company_name = company_match.group(1).strip() if company_match else "Company"
+        
+        # Extract website URL if present in query
+        url_match = re.search(r'\((https?://[^\)]+)\)', query)
+        website_url = url_match.group(1) if url_match else None
 
-        return f"""You are a senior strategy consultant preparing pre-meeting research. Generate a comprehensive company overview.
-
-=============================================================================
-OUTPUT FORMAT (Start the document with this exact header)
-=============================================================================
-
-# Strategic Company Overview: {company_name}
-
-**Prepared by:** Primr Research System  
-**Date:** {current_date}
-
----
-
-Then continue with the sections below.
-
-=============================================================================
-HARD REQUIREMENTS (Non-Negotiable)
-=============================================================================
-
-You MUST output EVERY section header listed below, in the exact order specified.
-- Do NOT skip sections.
-- Do NOT merge sections.
-- Do NOT rename section headers.
-- If information is not publicly available for a section, write: "Information not publicly available." Then list 2-3 specific questions we would want to validate in conversation with the client.
-
-=============================================================================
-RESEARCH INSTRUCTIONS
-=============================================================================
-
-{query}
-
-FORMATTING RULES (follow these exactly):
-- Write in full paragraphs unless bullets genuinely help clarity
-- Keep bullets single-level only, no nested sub-bullets
-- No em-dashes or en-dashes, use commas or periods instead
-- Cite sources at the end of each major section, not inline
-
-PURPOSE:
-This is pre-meeting research to help consultants deeply understand the company before a discovery conversation. We are gathering publicly available information and forming initial hypotheses. We do NOT have the answers yet. The real insights will come from talking with the client directly. This document should:
-- Prime consultants with solid foundational knowledge
-- Surface interesting questions and hypotheses to explore
-- Demonstrate we've done our homework without pretending we know their business better than they do
-
-Subject-Positive Intent: We assume this company is rational, competent, and generally successful in its context. Our goal is not to critique from the outside, but to understand how they create value today and where thoughtful support could help them go further or move faster.
-
-EPISTEMIC CONTRACT:
-This document represents preliminary pattern recognition, not conclusions. Every strategic observation must be expressed as one of:
-- A verified fact (with citation)
-- An inference (clearly labeled as such)
-- A hypothesis to validate in conversation
-If a statement cannot be placed cleanly into one of these categories, rewrite it.
-
-TONE AND EPISTEMIC HUMILITY (critical):
-- This is research and initial thinking, not conclusions
-- Frame strategic observations as "initial hypotheses to explore with the client"
-- Use language like "based on public information", "appears to", "worth exploring", "we'd want to validate"
-- Clearly distinguish between facts (what we found) and inferences (what we think it might mean)
-- Avoid asserting causality or intent without evidence
-- Never use absolutist language ("existential threat", "only viable path", "must do", "will definitely")
-- Present questions to ask the client, not answers we're telling them
-- For any strategic observation, frame it as "something to discuss" not "something we've concluded"
-- Frame risks, gaps, or pressures in terms of where support, capability, or focus could unlock value, not as evidence of mismanagement or strategic error
-- Do not imply leadership blind spots or strategic naivety unless directly supported by credible evidence. Prefer framing as tradeoffs, constraints, or decisions made under prior conditions.
-
-TRANSFORMATION RULE:
-If a sentence implies inevitability, failure, or urgency, rewrite it as a question or scenario comparison.
-Example transformation:
-- Instead of: "X faces an existential threat from Y"
-- Write: "One risk worth exploring is whether Y could materially pressure X's margins over time"
-
-The goal is to walk in informed and curious, not informed and arrogant. We want the client to think "they've done their homework and are asking smart questions" not "they think they already know our business."
-
-KEY METRICS FORMAT (use these exact formats so we can extract them):
-- Employees: X,XXX (or "Employees: ~X,XXX estimated")
-- Revenue: $X.XB or $XXM (or "Revenue: ~$XXM estimated")
-- Founded: YYYY
-- Headquarters: City, State
-
-Build this as a consultant-grade overview using publicly available sources (company site, press releases, earnings calls, news, trusted databases). If financials aren't public, use estimates and label them clearly (e.g., "Estimated ~$75M revenue per ZoomInfo").
-
-CRITICAL: Follow this EXACT section order. Do not skip or reorder sections.
-
-## Executive Summary
-The "so what" up front. 2-3 paragraphs synthesizing the most critical findings. What does a decision-maker need to know in 60 seconds? Frame key strategic observations as hypotheses worth exploring.
-
-Constraint: The Executive Summary may not introduce new conclusions that are not explored later as questions or hypotheses. The summary should reflect what the company appears to do well, what they seem to care most about, and 2-3 areas where we could likely help them create meaningful impact.
-
-## Detailed Products and Services
-What do they actually sell? Product lines, service offerings, how they make money, what customers are buying. This is the foundation for understanding their business.
-
-## Unique Selling Proposition
-What appears to differentiate them? Why might customers choose them over alternatives? What seems to be their moat?
-
-## Mission and Vision
-What do they say they stand for? What's their stated purpose and direction?
-
-## Company History
-Key milestones, founding story, major pivots, acquisitions. How did they get here?
-
-## Key Achievements
-Notable wins, awards, milestones, growth markers. What are they proud of?
-
-## Target Audience
-Who buys from them? Customer segments, industries served, geographic focus, typical buyer profile.
-
-## Financial Overview
-Revenue, growth trajectory, profitability indicators, funding history if private. Use estimates if needed and label them clearly. If truly unavailable, say so.
-
-## Key Business Drivers and Strategic KPIs
-What metrics likely matter most to this business? What appears to drive their success? What would their board probably be tracking?
-
-## Strategic Tensions (Derived from SWOT)
-Based on public information, use SWOT analysis (Strengths, Weaknesses, Opportunities, Threats) as inputs to identify 3-5 core strategic tensions the organization must actively manage. Frame these as persistent tradeoffs to navigate, not problems to solve.
-
-Examples of tensions:
-- Scale vs customization
-- Speed vs governance
-- Innovation vs operational reliability
-- Growth vs profitability
-- Centralization vs local autonomy
-
-For each tension, describe:
-- The tension: What two valuable things are in natural conflict?
-- How they appear to be managing it: What signals suggest their current approach?
-- Question to explore: What would we want to understand about their choices?
-
-## Leadership and Culture
-Key executives and their backgrounds. Leadership stability (tenure, recent departures). Board composition if relevant. Cultural signals from careers page, press releases, how they talk about their team.
-
-## Industry Context and Dynamics
-What's happening in their market? Growth trends, disruption factors, regulatory pressures. Where does the industry appear to be heading? What external forces may be shaping their world?
-
-## Competitive Landscape
-Who are the main competitors? How does this company appear to stack up based on public information? Where do they seem to win? Where might they face challenges? (To validate with them - they know their competitive dynamics better than we do.)
-
-## Narrative Gap Analysis
-Interesting contrasts we noticed between what the company says and external signals. These are observations to explore, not accusations:
-- What they say vs. what external sources suggest
-- Stated strategy vs. observable actions
-
-Scenario Framing Requirement: Present gaps as:
-- Base case: what happens if current trends persist
-- Alternative case: what happens if mitigating factors exist
-Do not present a single-path interpretation.
-
-Format each as:
-- Claim: [what they say]
-- What we observed: [external signals]
-- Base case: [if this gap persists]
-- Alternative case: [if mitigating factors apply]
-- Question to explore: [what we'd want to understand from them]
-
-## Potential Risks to Discuss
-Areas that caught our attention, prioritized by apparent severity:
-- Competitive considerations
-- Operational considerations
-- Market/macro factors
-- Leadership/execution factors
-
-Scenario Framing Requirement: Risks must be framed as:
-- Base case: what happens if current trends persist
-- Alternative case: what happens if mitigating factors exist
-Do not present a single-path interpretation. Frame as "areas we'd want to understand better" not definitive threats.
-
-## Patterns and Questions
-Interesting patterns we noticed. For each, what question does it raise?
-
-Scenario Framing Requirement: Patterns must include:
-- Base case interpretation
-- Alternative interpretation
-Do not present a single-path interpretation.
-
-Format as:
-- Observation: [what we found]
-- Base case: [one interpretation]
-- Alternative case: [another interpretation]
-- Question for them: [what we'd want to understand]
-
-Example:
-- Observation: "They acquired two companies in 18 months"
-- Base case: "Could indicate organic growth challenges requiring inorganic expansion"
-- Alternative case: "Could reflect a deliberate market consolidation strategy from a position of strength"
-- Question for them: "Can you help us understand the acquisition strategy? How is integration going?"
-
-## Questions for Our First Conversation
-The 3-5 most important things we want to understand from them. Based on our research, what are we most curious about? Frame as genuine questions, not conclusions.
-
-=============================================================================
-DOWNSTREAM TRANSLATION NOTE
-=============================================================================
-This output is intended to inform internal thinking and deck creation. When reused externally, conclusions should be softened, hypotheses foregrounded, and language reframed for diplomacy.
-"""
+        return build_company_overview_prompt(
+            company_name=company_name,
+            query=query,
+            website_url=website_url,
+        )
 
     def _build_strategic_layer_prompt(self, query: str) -> str:
         """
@@ -943,153 +817,41 @@ This output is intended to inform internal thinking and deck creation. When reus
 
         This adds strategic depth on top of the factual foundation from Step 1.
         The context files contain company overview, products, basic info.
+        
+        Prompt is loaded from strategic_layer.yaml via PromptComposer.
         """
         from datetime import datetime
-        current_date = datetime.now().strftime("%B %d, %Y")
+        from primr.prompts.composer import PromptComposer
+        from primr.prompts.schema import PromptContext
         
-        return f"""You are a senior strategy consultant adding strategic depth to initial research findings.
-
-=============================================================================
-OUTPUT FORMAT (Start the document with this exact header)
-=============================================================================
-
-# Strategic Deep-Dive Analysis
-
-**Prepared by:** Primr Research System  
-**Date:** {current_date}
-
----
-
-Then continue with the sections below.
-
-=============================================================================
-RESEARCH INSTRUCTIONS
-=============================================================================
+        try:
+            composer = PromptComposer()
+            context = PromptContext(
+                company_name="Company",  # Will be extracted from query
+                current_date=datetime.now().strftime("%B %d, %Y"),
+            )
+            composed = composer.compose("strategic_layer", context)
+            
+            # Insert the query into the prompt
+            return composed.content.replace("{query}", query)
+            
+        except Exception as e:
+            logger.warning(f"Failed to load strategic_layer from YAML: {e}, using fallback")
+            # Fallback to minimal prompt
+            return f"""You are a senior strategy consultant adding strategic depth to initial research findings.
 
 {query}
 
-CONTEXT: You have access to initial research findings that cover the basics: company overview, products/services, history, and factual information. That foundation is already done. Do not repeat what's in the context files.
+Provide strategic analysis including:
+- Narrative Gap Analysis
+- Competitive Deep-Dive  
+- Industry Dynamics
+- Strategic Assessment (SWOT)
+- Risk Analysis
+- Strategic Options
+- Discovery Questions
 
-=============================================================================
-HARD REQUIREMENTS (Non-Negotiable)
-=============================================================================
-
-You MUST output EVERY section header listed below, in the exact order specified.
-- Do NOT skip sections.
-- Do NOT merge sections.
-- Do NOT rename section headers.
-- If information is not publicly available for a section, write: "Information not publicly available." Then list 2-3 specific questions we would want to validate in conversation.
-
-CRITICAL - SECTION BOUNDARIES:
-- Do NOT output any sections from the Company Overview document.
-- Do NOT include: Executive Summary, Detailed Products and Services, Unique Selling Proposition, Mission and Vision, Company History, Key Achievements, Target Audience, Financial Overview, Key Business Drivers and Strategic KPIs, or Leadership and Culture.
-- Those sections belong to the Company Overview. This document is ONLY for strategic analysis.
-
-PURPOSE:
-This is the strategic analysis layer of our pre-meeting research. We are NOT providing answers or telling the client what to do. We are:
-- Surfacing patterns and questions that warrant discussion
-- Forming initial hypotheses based on public information
-- Identifying areas where we'd want to dig deeper WITH the client
-- Preparing smart questions to ask, not conclusions to deliver
-
-The real strategic insights will come from the actual conversation with leadership. This document helps us walk in informed and curious, ready to explore these topics together.
-
-FORMATTING RULES (follow these exactly):
-- Write in full paragraphs unless bullets genuinely help clarity
-- Keep bullets single-level only, no nested sub-bullets
-- No em-dashes or en-dashes, use commas or periods instead
-- Cite sources at the end of each section, not inline
-
-TONE AND EPISTEMIC HUMILITY (critical):
-- This is research and initial thinking, NOT conclusions
-- Frame everything as "initial observations" and "hypotheses to explore with the client"
-- Use language like "based on public sources", "appears to", "worth discussing", "we'd want to understand"
-- Clearly separate facts (what we found) from inferences (what we think it might mean)
-- Never assert causality or intent without evidence
-- Avoid absolutist language ("existential threat", "only viable path", "must do", "will definitely")
-- Present questions to explore, not answers we're delivering
-- For any strategic observation: "This is worth discussing with leadership to understand [X]"
-
-The goal is to demonstrate we've done thoughtful homework while being genuinely curious about their perspective. We want them to think "these consultants ask great questions" not "these consultants think they already know our business."
-
-SECTION STRUCTURE:
-
-## Narrative Gap Analysis
-Compare what the company says about itself vs. external signals.
-- Website claims vs. what customers/press actually say
-- Stated strategy vs. observable actions and investments
-- Financial claims vs. industry benchmarks
-
-Format each gap as:
-- Claim: [what they say]
-- Evidence: [what external sources suggest]
-- Hypothesis: [what this might mean, framed as something to validate]
-
-## Competitive Deep-Dive
-Go beyond listing competitors. Analyze the dynamics:
-- Where does this company appear to win deals? Where might they lose?
-- What seems to be their competitive moat (or potential lack thereof)?
-- Who appears to be gaining ground? Who might be an emerging threat?
-- Market share trends if available (note confidence level in data)
-
-Frame competitive assessments as hypotheses: "Based on [evidence], we believe [hypothesis]. This would imply [implication]. Worth validating by [method]."
-
-## Industry Dynamics & Pressures
-What external forces appear to be shaping their world?
-- Industry growth/contraction signals
-- Regulatory changes on the horizon
-- Technology disruption (AI, automation, platform shifts)
-- Supply chain or talent pressures
-- What might be keeping their leadership up at night?
-
-## Strategic Assessment
-SWOT framed as observations and questions to explore with the client:
-- Strengths: What appears difficult to replicate? (to validate with them)
-- Weaknesses: What potential gaps did we observe? (to discuss openly)
-- Opportunities: What options seem worth exploring? (to prioritize together)
-- Threats: What risks should we discuss? (to understand their perspective)
-
-Frame as "based on our research, we'd want to discuss..." not "they are bad at X."
-
-## Risk Analysis
-Potential risks we observed, to discuss with leadership:
-- Competitive risks
-- Operational risks
-- Market/macro risks
-- Leadership/execution risks
-
-Frame as "areas we'd want to understand better" not definitive threats. Note what's based on solid evidence vs. inference.
-
-## Strategic Options to Explore
-3-5 strategic directions worth discussing with the client. These are conversation starters, not recommendations:
-- Quick wins: Lower-effort options that might be worth exploring
-- Strategic bets: Bigger moves that could be transformational
-- Defensive considerations: Risk areas that might warrant attention
-
-For each option, note:
-- Why it caught our attention (based on research)
-- Questions we'd want to explore with them
-- What we'd need to understand before forming a real recommendation
-
-## Second-Order Insights
-Patterns and questions that emerged from connecting the dots.
-- What patterns did we notice?
-- What questions do these patterns raise?
-- What would we want to explore with leadership?
-
-Format as:
-- Observation: [what we found]
-- Initial hypothesis: [what this might suggest]
-- Question for the client: [what we'd want to understand from them]
-
-Example:
-- Observation: "They've had 3 CFOs in 4 years"
-- Initial hypothesis: "This pattern might indicate strategic disagreement, operational challenges, or founder dynamics"
-- Question for the client: "We noticed the CFO turnover. Can you help us understand what's been driving that? Is there context we're missing?"
-
-## Questions for Discovery
-The 3-5 most important questions to explore in our first conversation. Based on our research, what do we most want to understand from them? Frame as genuine curiosity, not gotcha questions.
-"""
+Frame everything as hypotheses to explore, not conclusions."""
 
     def _upload_context_files(self, file_paths: list[str]) -> str:
         """
@@ -1220,9 +982,18 @@ The 3-5 most important questions to explore in our first conversation. Based on 
         return self._client.interactions.get(interaction_id)
 
     def _extract_content(self, interaction: Any) -> str:
-        """Extract the text content from a completed interaction."""
+        """Extract the text content from a completed interaction.
+        
+        The Deep Research API may return multiple output parts.
+        We concatenate all text outputs to ensure we capture the full response.
+        """
         if hasattr(interaction, 'outputs') and interaction.outputs:
-            return str(interaction.outputs[-1].text)
+            # Concatenate all text outputs - the API may split long responses
+            text_parts = []
+            for output in interaction.outputs:
+                if hasattr(output, 'text') and output.text:
+                    text_parts.append(str(output.text))
+            return '\n'.join(text_parts) if text_parts else ""
         return ""
 
     def _extract_citations(self, interaction: Any) -> list[dict[str, str]]:
@@ -1369,7 +1140,7 @@ class ConsultingPromptBuilder:
         website_url: str | None = None,
     ) -> str:
         """
-        Build a single prompt requesting the complete 10-chapter report.
+        Build a single prompt requesting a comprehensive strategic overview.
         
         Args:
             company_name: Name of the company to research
@@ -1381,12 +1152,25 @@ class ConsultingPromptBuilder:
         current_date = datetime.now().strftime("%B %d, %Y")
         
         website_context = f" ({website_url})" if website_url else ""
-        priority_source = f"\n\nPriority Source: Analyze {website_url} first." if website_url else ""
+        priority_source = f"Priority Source: Analyze {website_url} first.\n\n" if website_url else ""
         
-        return f"""You are a senior strategy consultant preparing pre-meeting research. Generate a comprehensive company overview for {company_name}{website_context}.
+        return f"""You are a senior strategy consultant preparing pre-meeting research for a client engagement.
 
 =============================================================================
-OUTPUT FORMAT (Start the document with this exact header)
+DOCUMENT PURPOSE
+=============================================================================
+
+This is INTERNAL PREP to understand {company_name} before a discovery conversation. The goal is to:
+1. Understand how they create value today
+2. Form hypotheses about where support could help them move faster, reduce risk, or unlock opportunities
+3. Surface smart questions to validate our thinking WITH them
+
+This is NOT a client deliverable. It's the thinking that makes you walk in informed and curious.
+Write with analytical depth. Surface uncomfortable hypotheses. Prioritize clarity over diplomacy.
+Treat strong claims as working hypotheses unless explicitly supported by cited sources.
+
+=============================================================================
+OUTPUT FORMAT
 =============================================================================
 
 # Strategic Company Overview: {company_name}
@@ -1394,38 +1178,259 @@ OUTPUT FORMAT (Start the document with this exact header)
 **Prepared by:** Primr Research System  
 **Date:** {current_date}
 
----
+**Key Metrics:**
+- Employees: [X,XXX or ~X,XXX estimated]
+- Revenue: [$X.XB or ~$XXM estimated]
+- Founded: [YYYY]
+- Headquarters: [City, State]
 
-Then continue with the sections below.
+---
 
 =============================================================================
 RESEARCH INSTRUCTIONS
 =============================================================================
 
-Research {company_name}{website_context} and produce a comprehensive strategic overview.{priority_source}
+Research {company_name}{website_context} and produce a comprehensive strategic overview.
 
-{self._get_formatting_rules()}
+{priority_source}DEPTH REQUIREMENT: This document must be THOROUGH. Each section needs substantive analysis with specific evidence, not surface-level summaries. Include data tables where they add clarity. A consultant should be able to read this and walk into a meeting genuinely understanding the business.
 
-{self._get_purpose_section()}
+EPISTEMIC RULES:
+- Distinguish facts (with citations) from inferences (labeled as such) from hypotheses (to validate)
+- Frame risks as "areas to explore" not definitive threats
+- Use language like "appears to", "worth exploring", "we'd want to validate"
+- If a sentence implies inevitability or failure, rewrite it as a scenario comparison
 
-{self._get_epistemic_contract()}
+FORMATTING:
+- Write in full paragraphs with evidence
+- Use bullets only for lists of specific items
+- Single-level bullets only
+- Cite sources at section end using [cite: X, Y, Z] format
+- Include tables for financials, competitors, timelines
 
-{self._get_tone_guidelines()}
+=============================================================================
+PART 1: FOUNDATIONAL UNDERSTANDING (Know Them)
+=============================================================================
 
-{self._get_key_metrics_format()}
+## Executive Summary
 
-{self._get_chapter_specifications(company_name)}
+The "so what" a partner reads before walking into the meeting. Include:
+- What this company does and their market position
+- Key financial metrics and growth trajectory  
+- What they appear to be good at
+- 2-3 areas where consulting support could create meaningful impact
+- The central hypothesis about how they create value (to validate with them)
 
-{self._get_downstream_note()}
+## Products and Services
+
+Understand what they actually sell and how they make money. Cover:
+- Complete product/service catalog organized by category
+- How each offering generates revenue (pricing models, contract structures)
+- Revenue mix across product lines (if discernible)
+- Recent launches, discontinuations, or pivots (last 2-3 years)
+- Technology or platform underpinning their offerings
+- Go-to-market and fulfillment approach
+
+## Target Customers
+
+Understand who they serve and how they reach them. Cover:
+- Primary customer segments with size/revenue estimates
+- Buyer personas and purchasing behavior
+- Geographic distribution of customer base
+- Industry verticals served (with relative importance)
+- Enterprise vs SMB vs consumer mix
+- Channel strategy and key partners
+
+## Competitive Differentiation
+
+Understand why customers choose them over alternatives. Cover:
+- Primary value proposition and core messaging
+- Specific capabilities competitors demonstrably lack
+- Evidence of differentiation (customer reviews, case studies, analyst commentary)
+- Durability of the moat - what protects it, what could erode it
+
+## Financial Profile
+
+Understand their economic reality. Cover:
+- Revenue (actual or estimated with source and confidence)
+- Revenue growth rate and multi-year trajectory
+- Profitability indicators (margins, EBITDA if available)
+- Funding history with investors, dates, amounts
+- Current valuation (if known)
+- Capital structure and debt profile
+
+Include a financial summary table.
+
+## Company History and Evolution
+
+Understand how they got here. Cover:
+- Founding story and original business model
+- Major pivots or strategic shifts (with context on why)
+- All significant acquisitions (dates, deal sizes if known, strategic rationale)
+- Key leadership transitions
+- Funding milestones
+- Geographic expansion
+
+Include a timeline table for complex histories.
+
+## Leadership and Organization
+
+Understand who runs the company and how they operate. Cover:
+- C-suite profiles with backgrounds, tenure, previous roles
+- Board composition and notable directors
+- Leadership stability (recent departures, average tenure)
+- Cultural signals from careers page, press, employee reviews
+
+=============================================================================
+PART 2: MARKET CONTEXT (Their World)
+=============================================================================
+
+## Industry Dynamics
+
+Understand the forces shaping their world. Cover:
+- Industry size, growth rate, and trajectory
+- Key trends and disruption factors
+- Regulatory environment and upcoming changes
+- Technology shifts affecting the industry
+- Consolidation or fragmentation trends
+
+## Competitive Landscape
+
+Understand who they're fighting and how they stack up. Cover:
+- Direct competitors with brief profiles
+- Market share estimates (with sources)
+- Head-to-head comparison on key dimensions
+- Where {company_name} appears to win deals (and why)
+- Where {company_name} appears to lose deals (and why)
+- Emerging competitors or disruptors to watch
+
+Include a competitor comparison table.
+
+=============================================================================
+PART 3: STRATEGIC ANALYSIS (So What)
+=============================================================================
+
+## Business Model and Value Creation
+
+Articulate how they actually make money - the logic made explicit. Cover:
+- Core value proposition: What problem, for whom, better than alternatives?
+- Revenue model and unit economics (if discernible)
+- Reinforcing mechanisms: What creates flywheel effects?
+- Key assumptions: What must remain true for this model to work?
+- Vulnerabilities: Where could the logic break down?
+
+Frame this as an initial theory to test in conversation.
+
+## SWOT Analysis
+
+Thorough analysis with 5-8 items per quadrant, each with specific evidence:
+
+**Strengths** (internal capabilities and advantages)
+**Weaknesses** (internal gaps and limitations)  
+**Opportunities** (external openings and tailwinds)
+**Threats** (external risks and headwinds)
+
+## Strategic Tensions
+
+Derived from the SWOT, identify 4-6 core tensions they must actively manage.
+
+For each tension:
+- The tension: What two valuable things are in natural conflict?
+- Evidence: What signals suggest this tension exists?
+- Current approach: How do they appear to be managing it?
+- Question to explore: What would we want to understand?
+
+## Constraints and Degrees of Freedom
+
+**Structural Constraints** (things that limit near-term change):
+- Regulatory, legacy systems, contracts, capital structure, cultural inertia
+
+**Degrees of Freedom** (where they have flexibility):
+- Decisions that appear genuinely open
+- Areas where small changes could have outsized impact
+
+=============================================================================
+PART 4: HYPOTHESES AND QUESTIONS (To Validate)
+=============================================================================
+
+## Narrative Gap Analysis
+
+Contrasts between what they say and external signals (identify 4-6).
+
+For each gap:
+- Claim: What they say (with specific quote or source)
+- Evidence: What external sources suggest
+- Question to explore: What we'd want to understand from them
+
+## Areas of Potential Fragility
+
+Areas where the business may be sensitive to shocks (identify 4-6).
+
+For each fragility:
+- The fragility: What aspect appears sensitive?
+- Evidence: What signals suggest this?
+- Question: How are they thinking about this?
+
+## Patterns Worth Exploring
+
+Interesting patterns from the research (identify 5-8).
+
+For each pattern:
+- Observation: What we found (with evidence)
+- Interpretation A: One way to read this
+- Interpretation B: Alternative reading
+- Question: What we'd want to understand
+
+## Discovery Questions
+
+The 8-10 most important questions for our first conversation. For each:
+- The question (specific and thoughtful)
+- Why we're asking (what research finding prompted this)
+- What we hope to learn
+
+=============================================================================
+PART 5: STRATEGIC FRAMEWORKS (Guiding Theories)
+=============================================================================
+
+## Porter's Five Forces Assessment
+
+Apply Porter's framework to understand industry profitability dynamics:
+- Threat of new entrants (High/Medium/Low with evidence)
+- Bargaining power of suppliers
+- Bargaining power of buyers
+- Threat of substitutes
+- Competitive rivalry
+
+## Value Chain Analysis
+
+Where in the value chain does {company_name} participate and capture margin?
+- Primary activities and where they have advantages
+- Potential for vertical integration or disintermediation
+
+## Strategic Positioning Hypothesis
+
+Based on all research, articulate an initial hypothesis about their strategic position:
+- Are they competing on cost leadership, differentiation, or focus?
+- Is their strategy coherent (do the pieces reinforce each other)?
+- Where might the strategy be under pressure?
+
+Frame explicitly as a hypothesis to validate in conversation.
+
+=============================================================================
+INTERNAL USE ONLY
+=============================================================================
+This document is for internal research and strategic sensemaking. When reusing externally, soften conclusions, foreground hypotheses, and retain only claims supported by citations.
 """
     
     def _get_formatting_rules(self) -> str:
         """Get the formatting rules section."""
         return """FORMATTING RULES (follow these exactly):
-- Write in full paragraphs unless bullets genuinely help clarity
+- Write in full, detailed paragraphs - this is a comprehensive research document, not a summary
+- Use bullets only when listing specific items (products, competitors, etc.)
 - Keep bullets single-level only, no nested sub-bullets
 - No em-dashes or en-dashes, use commas or periods instead
-- Cite sources at the end of each major section, not inline"""
+- Cite sources at the end of each major section using [cite: X, Y, Z] format
+- Include data tables where they add clarity (financials, competitors, timeline)
+- Every section should have substantial depth - multiple paragraphs with specific evidence"""
     
     def _get_purpose_section(self) -> str:
         """Get the purpose section."""
@@ -1455,6 +1460,20 @@ Example: Instead of "X faces an existential threat from Y", write "One area wort
 
 TONE: Walk in informed and curious, not informed and arrogant. Use language like "appears to", "worth exploring", "we'd want to validate". Frame risks as areas where support could unlock value, not as evidence of mismanagement."""
     
+    def _get_tone_guidelines(self) -> str:
+        """Get the tone and epistemic humility guidelines."""
+        return """TONE AND EPISTEMIC HUMILITY (critical):
+- This is research and initial thinking, not conclusions
+- Frame strategic observations as "initial hypotheses to explore with the client"
+- Use language like "based on public information", "appears to", "worth exploring", "we'd want to validate"
+- Clearly distinguish between facts (what we found) and inferences (what we think it might mean)
+- Avoid asserting causality or intent without evidence
+- Never use absolutist language ("existential threat", "only viable path", "must do", "will definitely")
+- Present questions to ask the client, not answers we're telling them
+- For any strategic observation, frame it as "something to discuss" not "something we've concluded"
+- Frame risks, gaps, or pressures in terms of where support could unlock value, not as evidence of mismanagement
+- Do not imply leadership blind spots or strategic naivety unless directly supported by credible evidence"""
+    
     def _get_key_metrics_format(self) -> str:
         """Get the key metrics format section."""
         return """KEY METRICS FORMAT (use these exact formats so we can extract them):
@@ -1467,113 +1486,217 @@ Build this as a consultant-grade overview using publicly available sources (comp
     
     def _get_chapter_specifications(self, company_name: str) -> str:
         """Get the complete chapter specifications."""
-        return f"""CRITICAL: Follow this EXACT section order. Do not skip or reorder sections.
+        return f"""
+=============================================================================
+LENGTH AND DEPTH REQUIREMENTS (CRITICAL)
+=============================================================================
+
+This document must be COMPREHENSIVE and DETAILED. Target 15,000-20,000 words (40-60 pages).
+- Each section requires THOROUGH analysis, not brief summaries
+- Include specific examples, data points, quotes, and evidence throughout
+- Provide multiple paragraphs per section with substantive analysis
+- Include tables and structured data where appropriate
+- Do NOT write superficial overviews - write detailed analysis a consultant can actually use
+- Every claim must be supported with specific evidence and citations
+
+CRITICAL: Follow this EXACT section order. Do not skip or reorder sections.
 
 ## Executive Summary
-The "so what" up front. 2-3 paragraphs synthesizing the most critical findings. What does a decision-maker need to know in 60 seconds? Frame key strategic observations as hypotheses worth exploring.
+The "so what" up front. 5-7 paragraphs synthesizing the most critical findings. Include:
+- Company positioning and market context (1-2 paragraphs)
+- Key financial metrics and growth trajectory (1 paragraph)
+- Strategic priorities and recent major initiatives (1-2 paragraphs)
+- 3-5 areas where consulting support could create meaningful impact (1-2 paragraphs)
+Frame key strategic observations as hypotheses worth exploring.
 
 ## Detailed Products and Services
-What do they actually sell? Product lines, service offerings, how they make money, what customers are buying. This is the foundation for understanding their business.
+COMPREHENSIVE breakdown of their entire offering. Write 8-10 paragraphs covering:
+- Complete product/service catalog organized by category with specific product names
+- Revenue contribution by product line (if available, estimate if not)
+- Pricing models and go-to-market approach for each major offering
+- Recent product launches, discontinuations, or pivots (last 2-3 years)
+- Technology or platform underpinning their offerings
+- Service delivery model and fulfillment approach
+- How products/services have evolved over time
+- Competitive positioning of each major product line
 
 ## Unique Selling Proposition
-What appears to differentiate them? Why might customers choose them over alternatives? What seems to be their moat?
+Deep analysis of competitive differentiation. Write 5-6 paragraphs covering:
+- Primary value proposition and core messaging
+- Specific capabilities that competitors demonstrably lack
+- Customer testimonials, case studies, or reviews that illustrate differentiation
+- Evidence of differentiation from third-party sources (analysts, press, awards)
+- Potential vulnerabilities or erosion risks in their differentiation
+- How their USP has evolved over time
 
 ## Mission and Vision
-What do they say they stand for? What's their stated purpose and direction?
+What do they say they stand for? Write 3-4 paragraphs covering:
+- Official mission and vision statements (quoted directly)
+- How these have evolved over time (compare current to historical if available)
+- Alignment or gaps between stated values and observable actions
+- Cultural artifacts that reinforce or contradict the mission
 
 ## Company History
-Key milestones, founding story, major pivots, acquisitions. How did they get here?
+Detailed chronological narrative. Write 6-8 paragraphs covering:
+- Founding story and original business model
+- Key pivots or strategic shifts with context on why
+- ALL significant acquisitions with dates, deal sizes (if known), and strategic rationale
+- Major leadership transitions and their impact
+- Funding rounds, investors, and valuation milestones
+- Geographic expansion timeline
+- Major crises, setbacks, or turnaround moments
+Include a timeline table if helpful.
 
 ## Key Achievements
-Notable wins, awards, milestones, growth markers. What are they proud of?
+Comprehensive list with context. Write 4-5 paragraphs covering:
+- Revenue and growth milestones with specific numbers
+- Industry awards and recognition (with dates)
+- Major customer wins or strategic partnerships
+- Innovation achievements, patents, or technology milestones
+- Employee or culture awards
+- Market share gains or competitive wins
 
 ## Target Audience
-Who buys from them? Customer segments, industries served, geographic focus, typical buyer profile.
+Detailed customer segmentation. Write 5-6 paragraphs covering:
+- Primary customer segments with size estimates
+- Detailed customer personas and buying behavior
+- Geographic distribution of customer base
+- Industry verticals served with relative importance
+- Enterprise vs. SMB vs. consumer mix
+- Channel partners and distribution strategy
+- Customer concentration risks (if discernible)
 
 ## Financial Overview
-Revenue, growth trajectory, profitability indicators, funding history if private. Use estimates if needed and label them clearly. If truly unavailable, say so.
+Thorough financial analysis. Write 6-8 paragraphs covering:
+- Revenue (actual or estimated with source and confidence level)
+- Revenue growth rate and multi-year trajectory
+- Profitability indicators (margins, EBITDA, net income if available)
+- Complete funding history with investors, dates, and amounts
+- Valuation (current and historical if known)
+- Key financial ratios vs. industry benchmarks
+- Recent financial news, analyst commentary, or credit ratings
+- Capital structure and debt profile
+Include a financial summary table.
 
 ## Key Business Drivers and Strategic KPIs
-What metrics likely matter most to this business? What appears to drive their success? What would their board probably be tracking?
+Analysis of what drives their business. Write 4-5 paragraphs covering:
+- Primary revenue drivers and their relative importance
+- Unit economics (if discernible from public information)
+- Operational KPIs they likely track based on their business model
+- Leading indicators of business health
+- Metrics that would concern their board
+- How KPIs likely differ across business units
 
 ## Strategic Tensions (Derived from SWOT)
-Based on public information, use SWOT analysis (Strengths, Weaknesses, Opportunities, Threats) as inputs to identify 3-5 core strategic tensions the organization must actively manage. Frame these as persistent tradeoffs to navigate, not problems to solve.
+First, provide a COMPLETE SWOT analysis with 5-8 items per quadrant. Then identify 4-6 core strategic tensions. Write 8-10 paragraphs total covering:
 
-Examples of tensions:
-- Scale vs customization
-- Speed vs governance
-- Innovation vs operational reliability
-- Growth vs profitability
-- Centralization vs local autonomy
+SWOT Analysis (be thorough):
+- Strengths: Internal capabilities, assets, advantages (5-8 specific items with evidence)
+- Weaknesses: Internal gaps, limitations, vulnerabilities (5-8 specific items with evidence)
+- Opportunities: External market shifts, trends, openings (5-8 specific items with evidence)
+- Threats: External risks, competitive pressures, macro factors (5-8 specific items with evidence)
 
-For each tension, describe:
+Then derive 4-6 strategic tensions from the SWOT. For each tension:
 - The tension: What two valuable things are in natural conflict?
-- How they appear to be managing it: What signals suggest their current approach?
+- Evidence: What signals suggest this tension exists?
+- How they appear to be managing it: What's their current approach?
 - Question to explore: What would we want to understand about their choices?
 
 ## Leadership and Culture
-Key executives and their backgrounds. Leadership stability (tenure, recent departures). Board composition if relevant. Cultural signals from careers page, press releases, how they talk about their team.
+Comprehensive leadership analysis. Write 6-8 paragraphs covering:
+- Complete C-suite profiles with backgrounds, tenure, and previous roles
+- Board composition and notable directors
+- Leadership stability analysis (recent departures, average tenure)
+- Organizational structure insights
+- Cultural signals from careers page, press releases, employee reviews
+- Leadership communication style and strategic messaging
+- Succession planning signals (if any)
+- Diversity and inclusion indicators
 
 ## Industry Context and Dynamics
-What's happening in their market? Growth trends, disruption factors, regulatory pressures. Where does the industry appear to be heading?
+Thorough industry analysis. Write 6-8 paragraphs covering:
+- Industry size, growth rate, and trajectory
+- Key industry trends and disruption factors
+- Regulatory environment and upcoming changes
+- Technology shifts affecting the industry
+- Consolidation or fragmentation trends
+- Geographic dynamics (regional differences)
+- Supply chain and input cost factors
+- Labor market dynamics in the industry
+Include industry data tables where helpful.
 
 ## Competitive Landscape
-Who are the main competitors? How does {company_name} appear to stack up based on public information? Where do they seem to win? Where might they face challenges?
+Detailed competitive analysis. Write 8-10 paragraphs covering:
+- Complete list of direct competitors with brief profiles
+- Market share estimates (with sources)
+- Competitive positioning map or framework
+- Head-to-head comparison on key dimensions (price, quality, service, technology)
+- Where {company_name} appears to win deals and why
+- Where {company_name} appears to lose deals and why
+- Emerging competitors or disruptors to watch
+- Competitive dynamics and intensity
+- Barriers to entry and competitive moats
+Include a competitor comparison table.
 
 ## Underlying Theory of Value Creation (Initial)
-Articulate the implied logic of how {company_name} creates and captures value today. This is the business model made explicit.
-
-Describe:
+Articulate the implied logic of how {company_name} creates and captures value. Write 5-6 paragraphs covering:
 - The core value proposition: What problem do they solve, for whom, better than alternatives?
+- Revenue model: How exactly do they make money? What are the unit economics?
 - Reinforcing mechanisms: What creates flywheel effects or compounding advantages?
 - Key assumptions: What must remain true for this model to work?
 - Vulnerabilities: Where could the logic break down?
+- Evolution: How has their value creation model changed over time?
 
-Frame this as an initial theory to be tested in conversation, not a conclusion. The goal is to make the implicit logic explicit so we can have a more productive discussion about where support could strengthen or extend it.
+Frame this as an initial theory to be tested in conversation, not a conclusion.
 
 ## Strategic Constraints and Degrees of Freedom
-Identify structural constraints that limit near-term change, and distinguish them from areas where leadership appears to have genuine degrees of freedom.
+Identify structural constraints and areas of flexibility. Write 5-6 paragraphs covering:
 
-Constraints to consider:
+Constraints (with specific evidence for each):
 - Organizational: Legacy systems, team capabilities, cultural inertia
 - Regulatory: Compliance requirements, licensing, industry standards
 - Asset-based: Physical infrastructure, contractual obligations, capital structure
 - Market: Customer expectations, competitive dynamics, channel dependencies
 
-Degrees of freedom to consider:
-- Where do they appear to have flexibility?
+Degrees of freedom (with specific evidence for each):
+- Where do they appear to have genuine flexibility?
 - What decisions seem genuinely open?
 - Where might small changes have outsized impact?
-
-This prevents overconfident recommendations and signals realism about what's actually changeable.
+- What resources or capabilities are underutilized?
 
 ## Narrative Gap Analysis
-Interesting contrasts we noticed between what the company says and external signals. These are observations to explore, not accusations.
-
-Format each as:
-- Claim: [what they say]
-- What we observed: [external signals]
+Identify 4-6 interesting contrasts between what the company says and external signals. Write 4-5 paragraphs. For each gap:
+- Claim: [what they say - with specific quote or source]
+- What we observed: [external signals - with specific evidence]
+- Possible explanations: [why this gap might exist]
 - Question to explore: [what we'd want to understand from them]
 
-## Areas of Structural Fragility
-Identify areas where the business model may be sensitive to shocks, scale, or external change. Frame these as areas to understand more deeply rather than failures or criticisms.
+These are observations to explore, not accusations.
 
-For each fragility:
+## Areas of Structural Fragility
+Identify 4-6 areas where the business model may be sensitive to shocks. Write 4-5 paragraphs. For each fragility:
 - The fragility: What aspect of the system appears sensitive?
+- Evidence: What signals suggest this fragility exists?
 - Why it matters: What could trigger stress or failure?
+- Severity assessment: How material is this risk?
 - What we'd want to understand: How are they thinking about this?
 
-This is system awareness, not critique. Every business has fragilities; the question is whether they're understood and managed.
+This is system awareness, not critique.
 
 ## Patterns and Questions
-Interesting patterns we noticed. For each, what question does it raise?
-
-Format as:
-- Observation: [what we found]
+Identify 5-8 interesting patterns from the research. Write 4-5 paragraphs. For each pattern:
+- Observation: [what we found - with specific evidence]
+- Why it's interesting: [what makes this pattern notable]
+- Possible interpretations: [what it might mean]
 - Question for them: [what we'd want to understand]
 
 ## Questions for Our First Conversation
-The 3-5 most important things we want to understand from them. Based on our research, what are we most curious about? Frame as genuine questions, not conclusions."""
+The 8-10 most important questions to explore with them. Write 3-4 paragraphs introducing the questions, then list them. For each question:
+- The question itself (specific and thoughtful)
+- Why we're asking (what research finding prompted this)
+- What we hope to learn (how the answer would inform our thinking)
+
+Frame as genuine curiosity, not gotcha questions."""
     
     def _get_downstream_note(self) -> str:
         """Get the downstream translation note."""
@@ -1644,14 +1767,23 @@ class DeepResearchOrchestrator:
     report in one invocation.
     
     Key features:
+    - Pre-flight validation before expensive operations
     - Single API call per report (not parallel chapters)
     - Exponential backoff retry (60s base, 5 attempts max)
     - Adaptive polling (5s → 10s → 20s → 30s)
     - 60-minute timeout
     - Automatic File Search Store cleanup
+    - Fallback to Stage 1 context if Deep Research fails
     
     Usage:
         orchestrator = DeepResearchOrchestrator()
+        
+        # Validate before starting (recommended)
+        validation = await orchestrator.validate_prerequisites()
+        if not validation["success"]:
+            print(f"Pre-flight failed: {validation['errors']}")
+            return
+        
         result = await orchestrator.generate_report(
             company_name="Acme Corp",
             website_url="https://acme.com",
@@ -1661,6 +1793,7 @@ class DeepResearchOrchestrator:
     """
     
     AGENT_ID = "deep-research-pro-preview-12-2025"
+    SECTION_MODEL = "gemini-3-flash-preview"  # For section writing
     MAX_RETRIES = 5
     BASE_RETRY_DELAY = 60.0  # 1 minute base delay for exponential backoff
     TIMEOUT_SECONDS = 3600  # 60 minutes
@@ -1675,10 +1808,65 @@ class DeepResearchOrchestrator:
         settings = get_settings()
         self._api_key = api_key or settings.api.gemini_key
         self._client = genai.Client(api_key=self._api_key)
-        self._prompt_builder = ConsultingPromptBuilder()
+        self._prompt_builder = ConsultingPromptBuilder()  # Legacy, kept for compatibility
         self._store_manager = FileSearchStoreManager(api_key=api_key)
         self._api_call_count = 0
         logger.debug("DeepResearchOrchestrator initialized")
+    
+    async def validate_prerequisites(
+        self,
+        company_name: str | None = None,
+        website_url: str | None = None,
+        mode: str = "full",
+        on_progress: Callable[[str], None] | None = None,
+    ) -> dict:
+        """
+        Run pre-flight validation before starting expensive operations.
+        
+        This is a convenience wrapper around PreflightValidator.
+        For more control, use PreflightValidator directly.
+        
+        Args:
+            company_name: Target company name (unused, kept for compatibility)
+            website_url: Target website URL
+            mode: Research mode - "full", "deep", or "scrape"
+            on_progress: Optional progress callback
+            
+        Returns:
+            dict with success, errors, warnings, details
+        """
+        from primr.ai.preflight import PreflightValidator
+        
+        validator = PreflightValidator()
+        result = await validator.validate(
+            mode=mode,
+            website_url=website_url,
+            on_progress=on_progress,
+        )
+        
+        # Convert to dict for backward compatibility
+        return {
+            "success": result.success,
+            "errors": result.errors,
+            "warnings": result.warnings,
+            "details": result.checks,
+            "estimated_duration": result.estimated_duration,
+            "estimated_cost": result.estimated_cost,
+        }
+        success = len(errors) == 0
+        
+        if on_progress:
+            if success:
+                on_progress("  ✓ Pre-flight validation passed")
+            else:
+                on_progress(f"  ✗ Pre-flight validation failed: {len(errors)} errors")
+        
+        return {
+            "success": success,
+            "errors": errors,
+            "warnings": warnings,
+            "details": details,
+        }
     
     async def generate_report(
         self,
@@ -1708,11 +1896,18 @@ class DeepResearchOrchestrator:
         self._api_call_count = 0
         
         try:
-            # Build the comprehensive prompt
-            prompt = self._prompt_builder.build_comprehensive_prompt(
+            # Build the comprehensive prompt using PromptComposer
+            from primr.prompts.composer import PromptComposer
+            from primr.prompts.schema import PromptContext
+            
+            composer = PromptComposer()
+            context = PromptContext(
                 company_name=company_name,
                 website_url=website_url,
+                has_stage1_context=stage1_context is not None,
             )
+            composed = composer.compose("company_overview", context)
+            prompt = composed.content
             
             if on_progress:
                 on_progress("Building comprehensive research prompt...")
@@ -1777,6 +1972,12 @@ class DeepResearchOrchestrator:
         """
         Execute Deep Research with exponential backoff retry.
         
+        Handles retryable errors:
+        - 429: Quota/rate limit errors
+        - 500: Internal server errors (transient)
+        - 503: Service unavailable
+        - Connection errors
+        
         Args:
             prompt: The research prompt
             store_name: Optional File Search Store name
@@ -1799,29 +2000,80 @@ class DeepResearchOrchestrator:
                 last_error = e
                 error_str = str(e).lower()
                 
-                # Check if it's a quota error (429)
-                if "429" in error_str or "quota" in error_str or "rate" in error_str:
-                    if attempt < self.MAX_RETRIES - 1:
-                        delay = self._calculate_backoff_delay(attempt)
-                        logger.warning(
-                            f"Quota limit hit, waiting {delay:.0f}s "
-                            f"(attempt {attempt + 1}/{self.MAX_RETRIES})"
-                        )
-                        if on_progress:
-                            on_progress(
-                                f"Quota limit reached. Retrying in {delay:.0f}s "
-                                f"(attempt {attempt + 1}/{self.MAX_RETRIES})..."
-                            )
-                        await asyncio.sleep(delay)
-                        continue
+                # Check if it's a retryable error
+                is_retryable = (
+                    "429" in error_str or 
+                    "quota" in error_str or 
+                    "rate" in error_str or
+                    "500" in error_str or
+                    "internal server error" in error_str or
+                    "503" in error_str or
+                    "service unavailable" in error_str or
+                    "connection" in error_str or
+                    "timeout" in error_str
+                )
                 
-                # Non-quota error, don't retry
+                if is_retryable and attempt < self.MAX_RETRIES - 1:
+                    delay = self._calculate_backoff_delay(attempt)
+                    
+                    # Categorize the error for logging
+                    if "429" in error_str or "quota" in error_str or "rate" in error_str:
+                        error_type = "Rate limit"
+                    elif "500" in error_str or "internal server error" in error_str:
+                        error_type = "Server error (500)"
+                    elif "503" in error_str or "service unavailable" in error_str:
+                        error_type = "Service unavailable (503)"
+                    else:
+                        error_type = "Connection error"
+                    
+                    logger.warning(
+                        f"{error_type}, waiting {delay:.0f}s "
+                        f"(attempt {attempt + 1}/{self.MAX_RETRIES})"
+                    )
+                    if on_progress:
+                        on_progress(
+                            f"{error_type}. Retrying in {delay:.0f}s "
+                            f"(attempt {attempt + 1}/{self.MAX_RETRIES})..."
+                        )
+                    await asyncio.sleep(delay)
+                    continue
+                
+                # Non-retryable error or max retries reached
+                if attempt >= self.MAX_RETRIES - 1:
+                    logger.error(f"Max retries ({self.MAX_RETRIES}) exhausted: {e}")
+                raise
+            except Exception as e:
+                # Catch any other exceptions and check if retryable
+                last_error = e
+                error_str = str(e).lower()
+                
+                is_retryable = (
+                    "500" in error_str or
+                    "internal server error" in error_str or
+                    "connection" in error_str or
+                    "timeout" in error_str
+                )
+                
+                if is_retryable and attempt < self.MAX_RETRIES - 1:
+                    delay = self._calculate_backoff_delay(attempt)
+                    logger.warning(
+                        f"Transient error, waiting {delay:.0f}s "
+                        f"(attempt {attempt + 1}/{self.MAX_RETRIES}): {e}"
+                    )
+                    if on_progress:
+                        on_progress(
+                            f"Transient error. Retrying in {delay:.0f}s "
+                            f"(attempt {attempt + 1}/{self.MAX_RETRIES})..."
+                        )
+                    await asyncio.sleep(delay)
+                    continue
+                
                 raise
         
         # All retries exhausted
         error_msg = (
-            f"Deep Research quota exhausted after {self.MAX_RETRIES} attempts. "
-            "Try --mode scrape instead."
+            f"Deep Research failed after {self.MAX_RETRIES} attempts. "
+            f"Last error: {last_error}"
         )
         logger.error(error_msg)
         return ResearchResult(
@@ -1900,6 +2152,7 @@ class DeepResearchOrchestrator:
         Poll for research completion with adaptive intervals and timeout.
         
         Polling intervals: 5s → 10s → 20s → 30s based on elapsed time.
+        Handles transient 500/503 errors during polling with retry.
         
         Args:
             interaction_id: The interaction ID to poll
@@ -1914,6 +2167,8 @@ class DeepResearchOrchestrator:
         start_time = time.time()
         last_phase = ""
         last_progress_time = 0.0
+        consecutive_poll_errors = 0
+        max_poll_errors = 5  # Allow up to 5 consecutive poll failures
         
         while True:
             elapsed = time.time() - start_time
@@ -1926,8 +2181,42 @@ class DeepResearchOrchestrator:
                     model=self.AGENT_ID
                 )
             
-            # Get status
-            interaction = self._client.interactions.get(interaction_id)
+            # Get status with retry for transient errors
+            try:
+                interaction = self._client.interactions.get(interaction_id)
+                consecutive_poll_errors = 0  # Reset on success
+            except Exception as e:
+                error_str = str(e).lower()
+                is_transient = (
+                    "500" in error_str or
+                    "internal server error" in error_str or
+                    "503" in error_str or
+                    "service unavailable" in error_str or
+                    "connection" in error_str or
+                    "timeout" in error_str
+                )
+                
+                if is_transient and consecutive_poll_errors < max_poll_errors:
+                    consecutive_poll_errors += 1
+                    wait_time = 10 * consecutive_poll_errors  # 10s, 20s, 30s, etc.
+                    logger.warning(
+                        f"Transient error during polling (attempt {consecutive_poll_errors}/{max_poll_errors}), "
+                        f"waiting {wait_time}s: {e}"
+                    )
+                    if on_progress:
+                        on_progress(
+                            f"API hiccup, retrying in {wait_time}s "
+                            f"({consecutive_poll_errors}/{max_poll_errors})..."
+                        )
+                    await asyncio.sleep(wait_time)
+                    continue
+                else:
+                    # Non-transient or too many failures
+                    raise AIError(
+                        f"Deep Research polling failed: {e}",
+                        model=self.AGENT_ID
+                    )
+            
             status = interaction.status
             
             if status == "completed":
@@ -1981,7 +2270,7 @@ class DeepResearchOrchestrator:
     def _get_phase_name(self, elapsed_seconds: float) -> str:
         """Get the current phase name based on elapsed time."""
         if elapsed_seconds < 60:
-            return "Initializing research"
+            return "Initializing"
         elif elapsed_seconds < 180:
             return "Searching sources"
         elif elapsed_seconds < 360:
@@ -2006,6 +2295,866 @@ class DeepResearchOrchestrator:
         else:
             return 30.0
 
+    # =========================================================================
+    # ACCORDION METHOD - Generate 30+ page reports
+    # =========================================================================
+    #
+    # Architecture (from docs/more deep research guidance.txt):
+    # 1. Deep Research = Lead Researcher (gather facts, NOT write final report)
+    # 2. Blueprint = Detailed outline with word count targets
+    # 3. Section-by-Section Writing = Write each section with context continuity
+    #
+    # This avoids "Middle Muddle" and hallucination spirals that occur when
+    # asking for 50 pages at once.
+    
+    # Sections and prompts are loaded dynamically from company_overview.yaml
+    # This allows the report structure to be modified without code changes
+    _sections_cache: list[dict] | None = None
+    _accordion_prompts_cache: dict | None = None
+    
+    @classmethod
+    def _load_accordion_prompts(cls) -> dict:
+        """
+        Load Accordion Method prompts from company_overview.yaml.
+        
+        Returns dict with:
+        - research_dossier_prompt: Template for Phase 1 (gathering raw facts)
+        - section_writing_prompt: Template for Phase 2 (writing sections)
+        - position_guidance: Dict of opening/middle/closing guidance
+        """
+        if cls._accordion_prompts_cache is not None:
+            return cls._accordion_prompts_cache
+        
+        from primr.prompts.composer import PromptComposer
+        
+        try:
+            composer = PromptComposer()
+            config = composer._load_config("company_overview")
+            
+            accordion = config.raw_config.get("accordion_method", {})
+            
+            cls._accordion_prompts_cache = {
+                "research_dossier_prompt": accordion.get("research_dossier_prompt", ""),
+                "section_writing_prompt": accordion.get("section_writing_prompt", ""),
+                "position_guidance": accordion.get("position_guidance", {}),
+            }
+            
+            logger.info("Loaded Accordion Method prompts from company_overview.yaml")
+            return cls._accordion_prompts_cache
+            
+        except Exception as e:
+            logger.warning(f"Failed to load accordion prompts from YAML: {e}")
+            return cls._get_default_accordion_prompts()
+    
+    @classmethod
+    def _get_default_accordion_prompts(cls) -> dict:
+        """Fallback default accordion prompts if YAML loading fails."""
+        return {
+            "research_dossier_prompt": """You are a Lead Researcher compiling a research dossier on {company_name}{website_context}.
+Compile comprehensive facts about the company including basics, products, customers, competitors, financials, leadership, and industry context.
+Do NOT write polished prose - this is raw research material.""",
+            "section_writing_prompt": """Write the **{section_title}** section with depth and analytical rigor.
+Instructions: {section_instructions}""",
+            "position_guidance": {
+                "opening": "This is the OPENING section. Set the analytical tone for the entire report.",
+                "middle": "Build naturally on the previous sections.",
+                "closing": "This is the CLOSING section. Tie together all previous analysis.",
+            },
+        }
+    
+    @classmethod
+    def _load_sections_from_yaml(cls) -> list[dict]:
+        """
+        Load report sections from company_overview.yaml.
+        
+        Converts SectionSpec objects to the dict format needed for section writing.
+        Sections are cached after first load.
+        
+        The YAML defines:
+        - id: unique section identifier
+        - name: display title
+        - part: grouping (1-5)
+        - position: opening, middle, or closing (for narrative flow)
+        - purpose: what this section accomplishes
+        - covers: bullet points of what to include
+        - depth: guidance on level of detail
+        """
+        if cls._sections_cache is not None:
+            return cls._sections_cache
+        
+        from primr.prompts.composer import PromptComposer
+        
+        try:
+            composer = PromptComposer()
+            config = composer._load_config("company_overview")
+            
+            sections = []
+            for section in config.sections:
+                # Build instructions from purpose, covers, and depth
+                instructions_parts = []
+                if section.purpose:
+                    instructions_parts.append(section.purpose)
+                if section.covers:
+                    instructions_parts.append("\nCover:")
+                    for item in section.covers:
+                        instructions_parts.append(f"- {item}")
+                if section.depth:
+                    instructions_parts.append(f"\n{section.depth}")
+                
+                # Get position from YAML (defaults to 'middle' if not specified)
+                position = getattr(section, 'position', 'middle') or 'middle'
+                
+                sections.append({
+                    "id": section.id,
+                    "title": section.name,
+                    "instructions": "\n".join(instructions_parts),
+                    "part": section.part,
+                    "position": position,
+                })
+            
+            cls._sections_cache = sections
+            logger.info(f"Loaded {len(sections)} sections from company_overview.yaml")
+            return sections
+            
+        except Exception as e:
+            logger.warning(f"Failed to load sections from YAML: {e}, using defaults")
+            return cls._get_default_sections()
+    
+    @classmethod
+    def _get_default_sections(cls) -> list[dict]:
+        """Fallback default sections if YAML loading fails."""
+        return [
+            {
+                "id": "executive_summary",
+                "title": "Executive Summary",
+                "instructions": "Write the executive summary synthesizing key insights.",
+                "part": 1,
+                "position": "opening",
+            },
+            {
+                "id": "products_services",
+                "title": "Products and Services",
+                "instructions": "Analyze what they sell and how they make money.",
+                "part": 1,
+                "position": "middle",
+            },
+            {
+                "id": "competitive_landscape",
+                "title": "Competitive Landscape",
+                "instructions": "Analyze competitors and market position.",
+                "part": 2,
+                "position": "middle",
+            },
+            {
+                "id": "strategic_assessment",
+                "title": "Strategic Assessment",
+                "instructions": "Provide SWOT analysis and strategic tensions.",
+                "part": 3,
+                "position": "middle",
+            },
+            {
+                "id": "discovery_questions",
+                "title": "Discovery Questions",
+                "instructions": "Key questions for the first conversation.",
+                "part": 4,
+                "position": "closing",
+            },
+        ]
+    
+    @property
+    def REPORT_SECTIONS(self) -> list[dict]:
+        """Get report sections (loaded from YAML)."""
+        return self._load_sections_from_yaml()
+    
+    # Delay between section writes (seconds)
+    SECTION_WRITE_DELAY = 10
+    SECTION_WRITE_DELAY_AFTER_ERROR = 30
+    
+    async def generate_comprehensive_report(
+        self,
+        company_name: str,
+        website_url: str | None = None,
+        stage1_context: str | None = None,
+        on_progress: Callable[[str], None] | None = None,
+        target_pages: int = 30,
+    ) -> DeepResearchOrchestratorResult:
+        """
+        Generate a comprehensive 30+ page report using the Accordion Method.
+        
+        Architecture (from docs/more deep research guidance.txt):
+        
+        Phase 1: Research Dossier
+            - Use Deep Research as Lead Researcher to gather facts
+            - NOT to write the final report
+            - Output: Raw research with citations
+        
+        Phase 2: Section-by-Section Writing  
+            - Write each section using previous_interaction_id
+            - Pass context from previous sections for consistency
+            - One API call per section (not parallel)
+        
+        This avoids:
+        - "Middle Muddle" (pages 10-40 becoming vague)
+        - Hallucination spirals (errors compounding)
+        - 429 quota errors (sequential, not parallel)
+        
+        Args:
+            company_name: Target company name
+            website_url: Optional company website URL
+            stage1_context: Optional structured research from Stage 1
+            on_progress: Optional progress callback
+            target_pages: Target page count (default 30)
+            
+        Returns:
+            DeepResearchOrchestratorResult with comprehensive report
+        """
+        start_time = time.time()
+        store_name: str | None = None
+        self._api_call_count = 0
+        current_delay = self.SECTION_WRITE_DELAY
+        
+        # Track written sections for context continuity
+        written_sections: list[dict[str, str]] = []
+        all_citations: list[dict[str, str]] = []
+        
+        try:
+            # ================================================================
+            # PHASE 1: Research Dossier (Deep Research as Lead Researcher)
+            # ================================================================
+            if on_progress:
+                on_progress("Phase 1: Gathering research dossier...")
+                on_progress("  Deep Research will compile facts, NOT write the final report")
+            
+            # Build research dossier prompt - asking for RAW FACTS, not polished prose
+            dossier_prompt = self._build_research_dossier_prompt(company_name, website_url)
+            
+            # Upload Stage 1 context if provided
+            if stage1_context:
+                if on_progress:
+                    on_progress("  Uploading Stage 1 context to File Search Store...")
+                store_name = self._store_manager.create_store(f"research_{company_name}")
+                self._store_manager.upload_context(
+                    store_name=store_name,
+                    content=stage1_context,
+                    filename="stage1_research.txt",
+                    mime_type="text/plain"
+                )
+            
+            # Execute Deep Research for dossier
+            dossier_result = await self._execute_with_retry(
+                prompt=dossier_prompt,
+                store_name=store_name,
+                on_progress=on_progress,
+            )
+            
+            # FALLBACK: If Deep Research fails but we have Stage 1 context, use that
+            if not dossier_result.success:
+                if stage1_context:
+                    if on_progress:
+                        on_progress(f"  Deep Research failed: {dossier_result.error}")
+                        on_progress("  FALLBACK: Using Stage 1 context as research dossier")
+                    research_dossier = stage1_context
+                    # Continue to Phase 2 with Stage 1 data as the dossier
+                else:
+                    # No fallback available
+                    return DeepResearchOrchestratorResult(
+                        company_name=company_name,
+                        content="",
+                        citations=[],
+                        duration_seconds=time.time() - start_time,
+                        success=False,
+                        error=f"Research dossier failed and no Stage 1 context available: {dossier_result.error}",
+                        api_calls=self._api_call_count,
+                    )
+            else:
+                research_dossier = dossier_result.content
+                all_citations.extend(dossier_result.citations)
+            
+            dossier_words = len(research_dossier.split())
+            if on_progress:
+                on_progress(f"Phase 1 complete: Research dossier gathered ({dossier_words:,} words)")
+            
+            # ================================================================
+            # PHASE 2: Section-by-Section Writing
+            # ================================================================
+            if on_progress:
+                on_progress(f"Phase 2: Writing {len(self.REPORT_SECTIONS)} sections...")
+                on_progress("  Each section maintains context from previous sections")
+            
+            successful_sections = 0
+            failed_sections = 0
+            consecutive_failures = 0
+            
+            for i, section in enumerate(self.REPORT_SECTIONS):
+                # Stop if too many consecutive failures
+                if consecutive_failures >= 3:
+                    if on_progress:
+                        on_progress(f"Stopping: {consecutive_failures} consecutive failures")
+                        on_progress("  API quota may be exhausted. Returning partial report.")
+                    break
+                
+                section_num = i + 1
+                total_sections = len(self.REPORT_SECTIONS)
+                
+                if on_progress:
+                    on_progress(f"Writing: {section['title']} ({section_num}/{total_sections})...")
+                
+                # Add delay between sections (except first)
+                if i > 0:
+                    if on_progress:
+                        on_progress(f"  Waiting {current_delay}s...")
+                    await asyncio.sleep(current_delay)
+                
+                # Build section prompt with full context (Stage 1 + dossier + previous sections)
+                section_prompt = self._build_section_prompt(
+                    section=section,
+                    company_name=company_name,
+                    research_dossier=research_dossier,
+                    previous_sections=written_sections,
+                    stage1_context=stage1_context,
+                    section_index=i,
+                    total_sections=total_sections,
+                )
+                
+                # Write section using direct Gemini Pro generation
+                # This is the proven approach from AccordionTestRunner:
+                # - Pass dossier + previous sections in the prompt
+                # - Use generate_content() directly (not interactions API)
+                max_retries = 3
+                section_success = False
+                
+                for retry in range(max_retries):
+                    try:
+                        result = await self._execute_direct_generation(
+                            prompt=section_prompt,
+                            on_progress=None,  # Don't spam progress for retries
+                        )
+                        
+                        if result.success and result.content:
+                            words = len(result.content.split())
+                            # Accept any substantive content (at least 100 words)
+                            min_words = 100
+                            
+                            if words >= min_words:
+                                written_sections.append({
+                                    'id': section['id'],
+                                    'title': section['title'],
+                                    'content': result.content,
+                                    'words': words,
+                                })
+                                all_citations.extend(result.citations)
+                                successful_sections += 1
+                                consecutive_failures = 0
+                                section_success = True
+                                
+                                # Reduce delay on success
+                                current_delay = max(8, current_delay - 2)
+                                
+                                if on_progress:
+                                    on_progress(f"  Written: {words:,} words")
+                                break
+                            else:
+                                logger.warning(f"Section too short: {words} words (min {min_words})")
+                                if retry < max_retries - 1:
+                                    await asyncio.sleep(5)
+                                    continue
+                        else:
+                            error_msg = result.error or "No content"
+                            logger.warning(f"Section failed: {error_msg}")
+                            
+                            # Check for rate limiting
+                            if "429" in str(error_msg) or "quota" in str(error_msg).lower():
+                                current_delay = min(60, current_delay + 15)
+                                if on_progress:
+                                    on_progress(f"  Rate limited. Delay now {current_delay}s")
+                            
+                            if retry < max_retries - 1:
+                                wait = self.SECTION_WRITE_DELAY_AFTER_ERROR
+                                if on_progress:
+                                    on_progress(f"  Retrying in {wait}s...")
+                                await asyncio.sleep(wait)
+                                continue
+                                
+                    except Exception as e:
+                        logger.warning(f"Section error: {e}")
+                        if retry < max_retries - 1:
+                            await asyncio.sleep(self.SECTION_WRITE_DELAY_AFTER_ERROR)
+                            continue
+                
+                if not section_success:
+                    failed_sections += 1
+                    consecutive_failures += 1
+                    current_delay = min(60, current_delay + 10)
+                    if on_progress:
+                        on_progress(f"  Skipped after {max_retries} attempts")
+            
+            if on_progress:
+                on_progress(f"Phase 2 complete: {successful_sections} sections written, {failed_sections} skipped")
+            
+            # ================================================================
+            # PHASE 3: Assemble Final Report
+            # ================================================================
+            if on_progress:
+                on_progress("Phase 3: Assembling final report...")
+            
+            # Extract metadata from Stage 1 context (if available)
+            industry = self._extract_industry_from_context(stage1_context)
+            full_company_name = self._extract_full_company_name(stage1_context)
+            
+            final_content = self._assemble_report(
+                company_name=company_name,
+                website_url=website_url,
+                sections=written_sections,
+                industry=industry,
+                full_company_name=full_company_name,
+            )
+            
+            final_words = len(final_content.split())
+            final_pages = final_words // 500
+            
+            if on_progress:
+                on_progress(f"Report complete: ~{final_pages} pages ({final_words:,} words)")
+                on_progress(f"API calls: {self._api_call_count} (1 research + {successful_sections} sections)")
+            
+            # Success if we got at least half the sections
+            success = successful_sections >= len(self.REPORT_SECTIONS) // 2
+            
+            return DeepResearchOrchestratorResult(
+                company_name=company_name,
+                content=final_content,
+                citations=all_citations,
+                duration_seconds=time.time() - start_time,
+                success=success,
+                error=None if success else f"Only {successful_sections}/{len(self.REPORT_SECTIONS)} sections completed",
+                interaction_id=base_interaction_id,
+                api_calls=self._api_call_count,
+            )
+            
+        except Exception as e:
+            logger.error(f"Report generation error: {e}")
+            # Return partial report if we have sections
+            industry = self._extract_industry_from_context(stage1_context) if stage1_context else None
+            full_name = self._extract_full_company_name(stage1_context) if stage1_context else None
+            partial = self._assemble_report(company_name, website_url, written_sections, industry, full_name) if written_sections else ""
+            return DeepResearchOrchestratorResult(
+                company_name=company_name,
+                content=partial,
+                citations=all_citations,
+                duration_seconds=time.time() - start_time,
+                success=bool(written_sections),
+                error=str(e),
+                api_calls=self._api_call_count,
+            )
+        finally:
+            if store_name:
+                if on_progress:
+                    on_progress("Cleaning up...")
+                self._store_manager.delete_store(store_name)
+    
+    def _build_research_dossier_prompt(self, company_name: str, website_url: str | None) -> str:
+        """
+        Build prompt for Phase 1: Research Dossier.
+        
+        This asks Deep Research to gather RAW FACTS, not write polished prose.
+        The dossier becomes the source material for section-by-section writing.
+        
+        Prompt is loaded from company_overview.yaml accordion_method.research_dossier_prompt
+        """
+        website_context = f" (website: {website_url})" if website_url else ""
+        
+        # Load prompt template from YAML
+        accordion_prompts = self._load_accordion_prompts()
+        prompt_template = accordion_prompts.get("research_dossier_prompt", "")
+        
+        if not prompt_template:
+            # Fallback if YAML loading fails
+            prompt_template = self._get_default_accordion_prompts()["research_dossier_prompt"]
+        
+        return prompt_template.format(
+            company_name=company_name,
+            website_context=website_context,
+        )
+    
+    def _build_section_prompt(
+        self,
+        section: dict,
+        company_name: str,
+        research_dossier: str,
+        previous_sections: list[dict[str, str]],
+        stage1_context: str | None = None,
+        section_index: int = 0,
+        total_sections: int = 1,
+    ) -> str:
+        """
+        Build prompt for writing a single section with full context continuity.
+        
+        Prompt template is loaded from company_overview.yaml accordion_method.section_writing_prompt
+        Position guidance is loaded from accordion_method.position_guidance
+        """
+        # Load prompts from YAML
+        accordion_prompts = self._load_accordion_prompts()
+        position_guidance_templates = accordion_prompts.get("position_guidance", {})
+        
+        # Build previous section context (summaries, not full text)
+        prev_context = "This is the first section."
+        if previous_sections:
+            prev_summaries = []
+            for prev in previous_sections[-3:]:  # Last 3 sections for context
+                # First 200 words as summary
+                summary = ' '.join(prev['content'].split()[:200])
+                prev_summaries.append(f"**{prev['title']}** (excerpt): {summary}...")
+            prev_context = "\n\n".join(prev_summaries)
+        
+        # Position guidance for narrative flow - use position from YAML
+        position = section.get('position', 'middle')
+        position_guidance = position_guidance_templates.get(position, "")
+        
+        # Format position guidance with section numbers if needed
+        if position == 'middle' and '{section_number}' in position_guidance:
+            position_guidance = position_guidance.format(
+                section_number=section_index + 1,
+                total_sections=total_sections,
+            )
+        
+        # Include Stage 1 context if available (ground truth from website)
+        stage1_section = ""
+        if stage1_context:
+            # Truncate Stage 1 context to key portions
+            stage1_truncated = stage1_context[:6000] if len(stage1_context) > 6000 else stage1_context
+            stage1_section = f"""## STAGE 1 RESEARCH (Website Analysis - Ground Truth)
+This is verified information from the company's own website and public sources.
+Prioritize this data when it conflicts with external research.
+
+{stage1_truncated}
+
+---
+"""
+        
+        # Get section writing prompt template from YAML
+        prompt_template = accordion_prompts.get("section_writing_prompt", "")
+        
+        if prompt_template:
+            # Use YAML template with variable substitution
+            return prompt_template.format(
+                company_name=company_name,
+                stage1_context=stage1_section,
+                research_dossier=research_dossier[:8000],
+                previous_sections=prev_context,
+                section_title=section['title'],
+                section_instructions=section['instructions'],
+                position_guidance=position_guidance,
+            )
+        else:
+            # Fallback to inline prompt if YAML loading fails
+            return f"""You are writing a section of a strategic company overview for {company_name}.
+
+{stage1_section}## RESEARCH DOSSIER (Deep Research Findings)
+{research_dossier[:8000]}
+
+## PREVIOUS SECTIONS
+{prev_context}
+
+## YOUR TASK
+Write the **{section['title']}** section with depth and analytical rigor.
+
+Instructions:
+{section['instructions']}
+
+## NARRATIVE GUIDANCE
+{position_guidance}
+
+Write the **{section['title']}** section now:"""
+    
+    def _extract_industry_from_context(self, stage1_context: str | None) -> str | None:
+        """Extract Industry from Stage 1 context if present."""
+        if not stage1_context:
+            return None
+        
+        import re
+        # Look for "## Industry" section in the context
+        match = re.search(r'##\s*Industry\s*\n+(.+?)(?=\n##|\n---|\Z)', stage1_context, re.IGNORECASE | re.DOTALL)
+        if match:
+            industry = match.group(1).strip()
+            # Clean up - take first line if multi-line
+            industry = industry.split('\n')[0].strip()
+            if industry and len(industry) < 200:  # Sanity check
+                return industry
+        return None
+    
+    def _extract_full_company_name(self, stage1_context: str | None) -> str | None:
+        """Extract full legal company name from Stage 1 context if present."""
+        if not stage1_context:
+            return None
+        
+        import re
+        # Look for "## Company Name" section in the context
+        match = re.search(r'##\s*Company\s*Name\s*\n+(.+?)(?=\n##|\n---|\Z)', stage1_context, re.IGNORECASE | re.DOTALL)
+        if match:
+            full_name = match.group(1).strip()
+            # Clean up - take first line if multi-line
+            full_name = full_name.split('\n')[0].strip()
+            if full_name and len(full_name) < 200:  # Sanity check
+                return full_name
+        return None
+    
+    def _assemble_report(
+        self,
+        company_name: str,
+        website_url: str | None,
+        sections: list[dict[str, str]],
+        industry: str | None = None,
+        full_company_name: str | None = None,
+    ) -> str:
+        """
+        Assemble written sections into final report.
+        
+        Format: Clean, modern header with metadata, then sections.
+        No table of contents (clutters the document).
+        
+        Args:
+            company_name: User-provided name (used in title)
+            website_url: Company website
+            sections: Written section content
+            industry: Industry classification from Stage 1
+            full_company_name: Full legal name from Stage 1 (e.g., "Bank of Hawaii Corporation")
+        """
+        from datetime import datetime
+        
+        current_date = datetime.now().strftime("%B %Y")
+        
+        # Use full legal name if available, otherwise user-provided name
+        display_name = full_company_name or company_name
+        
+        # Clean header - modern format, not 90s Word template
+        lines = [
+            f"# Strategic Company Overview: {company_name}",  # Title uses user input
+            "",
+            f"*{current_date}*",
+            "",
+            f"**Company Name:** {display_name}",  # Metadata uses full legal name
+            "",
+        ]
+        
+        # Website
+        if website_url:
+            lines.extend([
+                f"**Website:** {website_url}",
+                "",
+            ])
+        
+        # Industry (from Stage 1 analysis)
+        if industry:
+            lines.extend([
+                f"**Industry:** {industry}",
+                "",
+            ])
+        
+        # Sections - clean flow, no horizontal rules between every section
+        for i, section in enumerate(sections):
+            lines.append(f"## {section['title']}")
+            lines.append("")
+            lines.append(section['content'])
+            lines.append("")
+            # Only add separator between major parts (every 4-5 sections)
+            if i > 0 and (i + 1) % 5 == 0 and i < len(sections) - 1:
+                lines.append("---")
+                lines.append("")
+        
+        return "\n".join(lines)
+    
+    async def _execute_followup(
+        self,
+        previous_interaction_id: str,
+        prompt: str,
+        on_progress: Callable[[str], None] | None = None,
+    ) -> ResearchResult:
+        """
+        Execute a follow-up interaction using previous_interaction_id.
+        
+        This uses the Gemini 3 Pro model (not Deep Research agent) for
+        follow-up elaboration, which is faster and doesn't hit the same
+        rate limits as the Deep Research agent.
+        
+        Per the Gemini docs:
+        "You can continue the conversation after the agent returns the final 
+        report by using the previous_interaction_id. This lets you ask for 
+        clarification, summarization or elaboration on specific sections of 
+        the research without restarting the entire task."
+        
+        Args:
+            previous_interaction_id: ID from the initial Deep Research call
+            prompt: The elaboration prompt
+            on_progress: Optional progress callback
+            
+        Returns:
+            ResearchResult with elaborated content
+        """
+        self._api_call_count += 1
+        start_time = time.time()
+        
+        try:
+            logger.debug(f"Follow-up call with previous_interaction_id: {previous_interaction_id[:20]}...")
+            
+            # Use gemini-3-pro for follow-up (faster, no Deep Research rate limits)
+            # The previous_interaction_id provides context from the original research
+            interaction = self._client.interactions.create(
+                input=prompt,
+                model="gemini-3-pro-preview",
+                previous_interaction_id=previous_interaction_id,
+            )
+            
+            # Extract content - handle multiple output formats
+            content = ""
+            if hasattr(interaction, 'outputs') and interaction.outputs:
+                # Concatenate all text outputs
+                text_parts = []
+                for output in interaction.outputs:
+                    if hasattr(output, 'text') and output.text:
+                        text_parts.append(str(output.text))
+                content = '\n'.join(text_parts)
+            
+            duration = time.time() - start_time
+            word_count = len(content.split()) if content else 0
+            
+            logger.info(f"Follow-up completed: {word_count} words in {duration:.1f}s")
+            
+            if not content:
+                logger.warning("Follow-up returned empty content")
+                return ResearchResult(
+                    content="",
+                    citations=[],
+                    status=ResearchStatus.FAILED,
+                    error="Empty response from follow-up call",
+                )
+            
+            return ResearchResult(
+                content=content,
+                citations=[],
+                interaction_id=interaction.id if hasattr(interaction, 'id') else "",
+                duration_seconds=duration,
+                status=ResearchStatus.COMPLETED,
+            )
+            
+        except Exception as e:
+            error_str = str(e).lower()
+            duration = time.time() - start_time
+            
+            # Check for specific error types
+            if "429" in error_str or "quota" in error_str or "rate" in error_str:
+                logger.warning(f"Follow-up rate limited: {e}")
+                return ResearchResult(
+                    content="",
+                    citations=[],
+                    status=ResearchStatus.FAILED,
+                    error=f"Rate limited: {e}",
+                    duration_seconds=duration,
+                )
+            elif "previous_interaction_id" in error_str or "invalid" in error_str:
+                logger.warning(f"Follow-up interaction ID issue: {e}")
+                return ResearchResult(
+                    content="",
+                    citations=[],
+                    status=ResearchStatus.FAILED,
+                    error=f"Interaction ID issue: {e}",
+                    duration_seconds=duration,
+                )
+            else:
+                logger.warning(f"Follow-up interaction failed: {e}")
+                return ResearchResult(
+                    content="",
+                    citations=[],
+                    status=ResearchStatus.FAILED,
+                    error=str(e),
+                    duration_seconds=duration,
+                )
+
+    async def _execute_direct_generation(
+        self,
+        prompt: str,
+        on_progress: Callable[[str], None] | None = None,
+    ) -> ResearchResult:
+        """
+        Execute direct Gemini Pro generation (no interaction context).
+        
+        This is used as a fallback when Deep Research fails and we don't have
+        a previous_interaction_id. Uses the same approach as the validated
+        AccordionTestRunner: direct generate_content() calls.
+        
+        Args:
+            prompt: The generation prompt
+            on_progress: Optional progress callback
+            
+        Returns:
+            ResearchResult with generated content
+        """
+        self._api_call_count += 1
+        start_time = time.time()
+        
+        try:
+            logger.debug("Direct Gemini Pro generation (fallback mode)...")
+            
+            # Use gemini-3-flash-preview for direct generation (fast, intelligent)
+            response = self._client.models.generate_content(
+                model="gemini-3-flash-preview",
+                contents=prompt,
+            )
+            
+            # Extract content
+            content = ""
+            if hasattr(response, 'text') and response.text:
+                content = response.text.strip()
+            elif hasattr(response, 'parts'):
+                text_parts = []
+                for part in response.parts:
+                    if hasattr(part, 'text') and part.text:
+                        text_parts.append(part.text)
+                content = '\n'.join(text_parts).strip()
+            
+            duration = time.time() - start_time
+            word_count = len(content.split()) if content else 0
+            
+            logger.info(f"Direct generation completed: {word_count} words in {duration:.1f}s")
+            
+            if not content:
+                logger.warning("Direct generation returned empty content")
+                return ResearchResult(
+                    content="",
+                    citations=[],
+                    status=ResearchStatus.FAILED,
+                    error="Empty response from direct generation",
+                )
+            
+            return ResearchResult(
+                content=content,
+                citations=[],
+                interaction_id="",  # No interaction ID for direct calls
+                duration_seconds=duration,
+                status=ResearchStatus.COMPLETED,
+            )
+            
+        except Exception as e:
+            error_str = str(e).lower()
+            duration = time.time() - start_time
+            
+            # Check for rate limiting
+            if "429" in error_str or "quota" in error_str or "rate" in error_str:
+                logger.warning(f"Direct generation rate limited: {e}")
+                return ResearchResult(
+                    content="",
+                    citations=[],
+                    status=ResearchStatus.FAILED,
+                    error=f"Rate limited: {e}",
+                    duration_seconds=duration,
+                )
+            else:
+                logger.warning(f"Direct generation failed: {e}")
+                return ResearchResult(
+                    content="",
+                    citations=[],
+                    status=ResearchStatus.FAILED,
+                    error=str(e),
+                    duration_seconds=duration,
+                )
 
 # Singleton instance for DeepResearchOrchestrator
 _orchestrator: DeepResearchOrchestrator | None = None
@@ -2217,23 +3366,29 @@ class ReportFormatter:
         return "\n".join(lines)
     
     def _extract_citations(self, content: str) -> list[dict[str, str]]:
-        """Extract citations from content."""
+        """Extract ALL citations from content (from all Sources sections)."""
         import re
         
         citations: list[dict[str, str]] = []
+        seen_urls: set[str] = set()  # Deduplicate by URL
         
-        # Look for Sources section
-        sources_match = re.search(r'\*\*Sources:\*\*\s*([\s\S]*?)$', content)
-        if sources_match:
+        # Find ALL Sources sections throughout the document
+        # Each section may have its own **Sources:** block
+        sources_pattern = r'\*\*Sources:\*\*\s*((?:\d+\.\s*\[[^\]]+\]\([^)]+\)\s*)+)'
+        
+        for sources_match in re.finditer(sources_pattern, content):
             sources_text = sources_match.group(1)
             # Extract numbered citations: 1. [text](url)
             citation_pattern = r'(\d+)\.\s*\[([^\]]+)\]\(([^)]+)\)'
             for match in re.finditer(citation_pattern, sources_text):
-                citations.append({
-                    'number': match.group(1),
-                    'title': match.group(2),
-                    'url': match.group(3)
-                })
+                url = match.group(3)
+                if url not in seen_urls:
+                    seen_urls.add(url)
+                    citations.append({
+                        'number': match.group(1),
+                        'title': match.group(2),
+                        'url': url
+                    })
         
         return citations
     
@@ -2261,37 +3416,96 @@ class ReportFormatter:
         
         content = re.sub(r'\[cite:\s*([\d,\s]+)\]', replace_cite_ref, content)
         
-        # Rebuild the Sources section with resolved URLs
-        # The citations list now contains resolved URLs (not redirect URLs)
-        sources_pattern = r'(\*\*Sources:\*\*\s*)([\s\S]*?)$'
-        sources_match = re.search(sources_pattern, content)
+        # REMOVE all inline **Sources:** blocks - we'll add ONE consolidated section at the end
+        # This makes the document much more readable
+        # Pattern 1: **Sources:** followed by numbered markdown links
+        sources_pattern = r'\n*\*\*Sources:\*\*\s*(?:\d+\.\s*\[[^\]]+\]\([^)]+\)\s*)+'
+        content = re.sub(sources_pattern, '', content)
         
-        if sources_match and citations:
-            sources_header = sources_match.group(1)
-            
-            # Build clean sources list using resolved URLs from citations
-            cleaned_lines = []
+        # Pattern 2: **Sources:** followed by just [1] [2] [3] style refs
+        sources_refs_pattern = r'\n*\*\*Sources:\*\*\s*(?:\[\d+\]\s*)+'
+        content = re.sub(sources_refs_pattern, '', content)
+        
+        # Remove standalone lines that are just citation references like "[1] [2] [3]"
+        content = re.sub(r'\n\s*(?:\[\d+\]\s*)+\s*\n', '\n\n', content)
+        
+        # Clean up multiple blank lines
+        content = re.sub(r'\n{3,}', '\n\n', content)
+        
+        # Move KEY METRICS to after Executive Summary (if it exists at the end)
+        content = self._relocate_key_metrics(content)
+        
+        # Build consolidated References section at the very end
+        if citations:
+            # Deduplicate and renumber citations
+            seen_urls: dict[str, dict] = {}
             for citation in citations:
-                num = citation.get('number', '')
+                url = citation.get('url', '')
+                if url and url not in seen_urls:
+                    seen_urls[url] = citation
+            
+            # Build clean references list
+            ref_lines = ["\n\n---\n\n## References\n"]
+            for i, citation in enumerate(seen_urls.values(), 1):
                 url = citation.get('url', '')
                 title = citation.get('title', '')
                 
-                # Extract clean domain name for display if title is ugly
                 if url:
-                    parsed = urlparse(url)
-                    domain = parsed.netloc.replace('www.', '')
-                    # Use domain as display text if title looks like a redirect URL
-                    if 'vertexaisearch' in title.lower() or not title:
-                        display_text = domain
+                    # Check if URL is still an unresolved redirect
+                    if 'vertexaisearch.cloud.google.com/grounding-api-redirect' in url:
+                        # Show just the title/domain without the broken link
+                        display_text = title if title and 'vertexaisearch' not in title.lower() else 'Source'
+                        ref_lines.append(f"{i}. {display_text} (link unavailable)")
                     else:
-                        display_text = title
-                    cleaned_lines.append(f"{num}. [{display_text}]({url})")
+                        parsed = urlparse(url)
+                        domain = parsed.netloc.replace('www.', '')
+                        # Use domain as display text if title looks like a redirect URL
+                        if 'vertexaisearch' in title.lower() or not title:
+                            display_text = domain
+                        else:
+                            display_text = title
+                        ref_lines.append(f"{i}. [{display_text}]({url})")
                 elif title:
-                    cleaned_lines.append(f"{num}. {title}")
+                    ref_lines.append(f"{i}. {title}")
             
-            # Rebuild the sources section with resolved URLs
-            new_sources = sources_header + '\n'.join(cleaned_lines)
-            content = content[:sources_match.start()] + new_sources
+            content = content.rstrip() + '\n'.join(ref_lines)
+        
+        return content
+    
+    def _relocate_key_metrics(self, content: str) -> str:
+        """Move KEY METRICS section to after Executive Summary for better readability."""
+        import re
+        
+        # Find KEY METRICS block (usually at the end)
+        # Pattern: **KEY METRICS:** followed by bullet points until next section or end
+        metrics_pattern = r'\n*\*\*KEY METRICS:\*\*\s*((?:[-*]\s*[^\n]+\n?)+)'
+        metrics_match = re.search(metrics_pattern, content, re.IGNORECASE)
+        
+        if not metrics_match:
+            return content
+        
+        # Extract the metrics block
+        metrics_block = metrics_match.group(0).strip()
+        
+        # Remove it from original location
+        content = re.sub(metrics_pattern, '', content, flags=re.IGNORECASE)
+        
+        # Find the end of Executive Summary section
+        # Look for the next ## header after Executive Summary
+        exec_summary_end = re.search(
+            r'(## Executive Summary.*?)(\n## )',
+            content,
+            re.DOTALL | re.IGNORECASE
+        )
+        
+        if exec_summary_end:
+            # Insert metrics after Executive Summary, before next section
+            insert_pos = exec_summary_end.end(1)
+            content = (
+                content[:insert_pos] +
+                '\n\n' + metrics_block + '\n' +
+                content[insert_pos:]
+            )
         
         return content
     

@@ -118,9 +118,9 @@ class TestDeepResearchClient:
         
         assert "Research Tesla" in prompt
         assert "Executive Summary" in prompt
-        assert "Detailed Products and Services" in prompt
-        assert "Financial Overview" in prompt
-        assert "Competitive Landscape" in prompt
+        assert "Products and Services" in prompt
+        assert "Financial" in prompt
+        assert "Competitive" in prompt
 
     def test_build_prompt_executive_summary(self):
         """Build prompt with executive_summary format."""
@@ -162,14 +162,13 @@ class TestPromptFormats:
         
         required_sections = [
             "Executive Summary",
-            "Detailed Products and Services",
-            "Unique Selling Proposition",
-            "Mission and Vision",
+            "Products and Services",
+            "Competitive Differentiation",
             "Company History",
-            "Financial Overview",
+            "Financial Profile",
             "SWOT Analysis",
             "Competitive Landscape",
-            "Patterns and Questions",  # Renamed from Second-Order Insights
+            "Discovery Questions",
         ]
         
         for section in required_sections:
@@ -335,11 +334,11 @@ class TestCulturePrompt:
         assert found_any, "Should reference official sources for culture analysis"
 
     def test_patterns_and_questions_section(self):
-        """Prompt includes patterns and questions section (formerly second-order insights)."""
+        """Prompt includes patterns section for exploring observations."""
         client = DeepResearchClient.__new__(DeepResearchClient)
         prompt = client._build_company_profile_prompt("Research Acme Corp")
         
-        assert "Patterns and Questions" in prompt
+        assert "Patterns Worth Exploring" in prompt
         assert "question" in prompt.lower()
 
 

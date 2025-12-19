@@ -127,67 +127,97 @@ Autonomous research using Gemini's Deep Research Agent with built-in Google Sear
 
 ### Complete Mode (Recommended)
 
-Two-phase architecture combining both engines for comprehensive 40+ page reports.
+Three-phase "Accordion Method" architecture for comprehensive 30+ page reports. This approach treats Deep Research as a Lead Researcher (gathering facts) and Gemini 3 Pro as the Writer (crafting sections with context continuity).
+
+**Critical API Limitation (December 2025):** Google's Deep Research Agent (`deep-research-pro-preview-12-2025`) produces ~8-12 pages maximum per API call, regardless of prompt instructions. Tested with explicit "30 page" requests, the API consistently returns ~4,000-5,000 words. This is a fundamental output token limit, not a prompt engineering issue. The Accordion Method works around this by using Deep Research for fact-gathering and Gemini 3 Pro for section-by-section writing.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                    Complete Mode: Recursive Hierarchical             │
-│                         Research Architecture                        │
+│                    Complete Mode: Accordion Method                   │
+│                  (Research → Outline → Write Sections)              │
 └─────────────────────────────────────────────────────────────────────┘
 
-Phase 0: Data Collection (15-25 min)
+Phase 1: Data Collection (15-25 min)
 ┌─────────────────────────────────────────────────────────────────────┐
 │                      Structured Pipeline                             │
 │         (Full website scraping + Google search + AI analysis)       │
 │                              │                                       │
 │                              ▼                                       │
 │                    Context File Generation                           │
-│              (Baseline facts for all subsequent phases)             │
+│              (Baseline facts uploaded to File Search Store)         │
 └─────────────────────────────────────────────────────────────────────┘
                                    │
                                    ▼
-Phase 1: Planning (1-2 min)
+Phase 2: Research Dossier (10-15 min)
 ┌─────────────────────────────────────────────────────────────────────┐
-│                       Master Architect                               │
-│                    (gemini-2.0-flash)                               │
+│                    Deep Research Agent                               │
+│                (deep-research-pro-preview-12-2025)                  │
 │  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  Input: Context summary from Phase 0                         │   │
-│  │  Output: 10-chapter plan with research prompts               │   │
-│  │  Each chapter: title, detailed instructions, expected pages  │   │
+│  │  Role: Lead Researcher (NOT Writer)                          │   │
+│  │  Input: "Compile a research dossier, NOT the final report"   │   │
+│  │  Output: Raw facts, data tables, citations, case studies     │   │
+│  │  Access: File Search Store with Phase 1 context              │   │
 │  └─────────────────────────────────────────────────────────────┘   │
+│                                                                      │
+│  Key insight: Don't ask Deep Research to write 30 pages.            │
+│  Ask it to gather the facts that will support 30 pages.             │
 └─────────────────────────────────────────────────────────────────────┘
                                    │
                                    ▼
-Phase 2: Parallel Execution (15-20 min)
+Phase 3: Section-by-Section Writing (10-15 min)
 ┌─────────────────────────────────────────────────────────────────────┐
-│                   Research Node Executor                             │
-│              (Max 3 concurrent Deep Research tasks)                 │
-│  ┌─────────┐  ┌─────────┐  ┌─────────┐                             │
-│  │ Ch 1-3  │  │ Ch 4-6  │  │ Ch 7-10 │  (batched by concurrency)   │
-│  │ parallel│  │ parallel│  │ parallel│                             │
-│  └─────────┘  └─────────┘  └─────────┘                             │
-│                              │                                       │
-│                    File Search Store                                 │
-│         (Shared context from Phase 0, accessible to all nodes)      │
-└─────────────────────────────────────────────────────────────────────┘
-                                   │
-                                   ▼
-Phase 3: Aggregation (1-2 min)
-┌─────────────────────────────────────────────────────────────────────┐
-│                      Report Aggregator                               │
+│                    Sequential Section Writer                         │
+│                      (gemini-3-pro-preview)                         │
 │  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  - Concatenate chapters in order                             │   │
+│  │  Uses: previous_interaction_id from Phase 2                  │   │
+│  │  Process: Write one section at a time, sequentially          │   │
+│  │  Context: Research dossier + summary of previous sections    │   │
+│  │  Output: ~1,000-2,000 words per section                      │   │
+│  └─────────────────────────────────────────────────────────────┘   │
+│                                                                      │
+│  Section 1 ──▶ Section 2 ──▶ Section 3 ──▶ ... ──▶ Section 10      │
+│      │             │             │                      │           │
+│      └─────────────┴─────────────┴──────────────────────┘           │
+│              Context flows forward for consistency                   │
+└─────────────────────────────────────────────────────────────────────┘
+                                   │
+                                   ▼
+Phase 4: Assembly (< 1 min)
+┌─────────────────────────────────────────────────────────────────────┐
+│                      Report Assembler                                │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │  - Combine sections with consistent formatting               │   │
 │  │  - Generate table of contents                                │   │
 │  │  - Consolidate citations                                     │   │
-│  │  - Handle missing chapters gracefully                        │   │
+│  │  - Apply clean header style (no PART headers)                │   │
 │  └─────────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-**Hierarchy of Truth:** The Complete Mode establishes a clear precedence for information:
-1. Company Facts (from Phase 0 scraping): highest authority
-2. External Context (from Phase 2 web search): market conditions, competitive intel
-3. Synthesis: integrated analysis combining both sources
+**Why the Accordion Method?**
+
+A single Deep Research call produces ~12 pages due to output token limits. Asking for "50 pages" causes:
+- **Middle Muddle**: Pages 10-40 become vague and repetitive
+- **Hallucination Spirals**: Small errors compound as the model consumes its own output
+
+The Accordion Method solves this by:
+1. **Expanding** (research): Gather comprehensive facts
+2. **Contracting** (outline): Structure into sections with word targets
+3. **Expanding** (writing): Write each section with full context
+
+**Model Usage:**
+- `deep-research-pro-preview-12-2025`: Autonomous web research (Phase 2)
+- `gemini-3-pro-preview`: Section writing with `previous_interaction_id` (Phase 3)
+
+**Rate Limit Strategy:**
+- Sequential section writes (not parallel) avoid 429 errors
+- 10-20 second delays between sections
+- Adaptive backoff on rate limit detection
+
+**Hierarchy of Truth:**
+1. Company Facts (from Phase 1 scraping): highest authority
+2. Research Dossier (from Phase 2 Deep Research): external context
+3. Section Writing (Phase 3): synthesis with consistent voice
 
 ## Core Components
 
@@ -223,6 +253,21 @@ The `src/primr/core/` directory contains the research orchestration logic, decom
 | `ai_strategy.py` | AI strategy generation with cloud vendor context |
 | `deep_research_runner.py` | Deep Research execution with preflight validation |
 | `cli.py` | Command-line interface, argument parsing, utility commands |
+
+### Prompt Architecture
+
+The `src/primr/prompts/` directory contains the externalized prompt system (v1.2.5+):
+
+| Module | Responsibility |
+|--------|----------------|
+| `composer.py` | PromptComposer class for building prompts from YAML |
+| `loader.py` | YAML loading utilities and legacy prompt builders |
+| `registry.py` | StrategyModuleRegistry for discovering strategy modules |
+| `schema.py` | Dataclass definitions for prompt configs |
+| `shared_loader.py` | SharedComponentLoader for epistemic rules, formatting, personas |
+| `exceptions.py` | Custom exceptions for prompt configuration errors |
+
+Strategy modules are YAML configs in `src/primr/prompts/strategies/` that define different types of strategic analysis (AI, cloud migration, data strategy, etc.).
 
 Each module exposes dataclasses and functions that can be imported directly:
 
@@ -407,14 +452,14 @@ URL Input
 Section Results
 ```
 
-### Complete Mode Data Flow
+### Complete Mode Data Flow (Accordion Method)
 
 ```
 Company Name + URL
     │
     ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  Phase 0: Structured Pipeline                                    │
+│  Phase 1: Structured Pipeline (Data Collection)                  │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
 │  │  Scraping   │─▶│  Section    │─▶│  Context    │             │
 │  │  Engine     │  │  Extraction │  │  File Gen   │             │
@@ -424,33 +469,42 @@ Company Name + URL
     ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │  File Search Store Upload                                        │
-│  (Context accessible to all Deep Research nodes)                │
+│  (Baseline facts accessible to Deep Research)                   │
 └─────────────────────────────────────────────────────────────────┘
     │
     ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  Phase 1: Master Architect                                       │
-│  ┌─────────────┐  ┌─────────────┐                               │
-│  │  Context    │─▶│  Chapter    │                               │
-│  │  Summary    │  │  Plan (10)  │                               │
-│  └─────────────┘  └─────────────┘                               │
+│  Phase 2: Research Dossier (ONE Deep Research call)             │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │  deep-research-pro-preview-12-2025                       │   │
+│  │  Role: Lead Researcher (gather facts, NOT write report)  │   │
+│  │  Output: Raw facts, data tables, citations               │   │
+│  │  Returns: interaction_id for follow-up calls             │   │
+│  └─────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────┘
     │
     ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  Phase 2: Parallel Execution                                     │
-│  ┌─────────┐  ┌─────────┐  ┌─────────┐  ... (10 chapters)      │
-│  │ Deep    │  │ Deep    │  │ Deep    │                          │
-│  │Research │  │Research │  │Research │  (3 concurrent max)      │
-│  └─────────┘  └─────────┘  └─────────┘                          │
+│  Phase 3: Sequential Section Writing                             │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │  gemini-3-pro-preview with previous_interaction_id       │   │
+│  │                                                          │   │
+│  │  Section 1 ──▶ Section 2 ──▶ Section 3 ──▶ ... ──▶ 10   │   │
+│  │      │             │             │                       │   │
+│  │      └─────────────┴─────────────┘                       │   │
+│  │         Context flows forward for consistency            │   │
+│  │                                                          │   │
+│  │  Each section: ~1,000-2,000 words                        │   │
+│  │  Delay: 10-20s between sections (rate limit avoidance)   │   │
+│  └─────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────┘
     │
     ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  Phase 3: Aggregation                                            │
+│  Phase 4: Report Assembly                                        │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
-│  │  Chapter    │─▶│  TOC        │─▶│  Citation   │             │
-│  │  Concat     │  │  Generation │  │  Consolidate│             │
+│  │  Section    │─▶│  TOC        │─▶│  Citation   │             │
+│  │  Combine    │  │  Generation │  │  Consolidate│             │
 │  └─────────────┘  └─────────────┘  └─────────────┘             │
 └─────────────────────────────────────────────────────────────────┘
     │
@@ -515,6 +569,24 @@ src/primr/
 │   ├── cli.py               # Command-line interface, argument parsing
 │   ├── report_models.py     # Report data structures
 │   └── container.py         # Dependency injection
+│
+├── prompts/                 # Externalized prompt architecture (v1.2.5+)
+│   ├── composer.py          # PromptComposer for YAML-based prompts
+│   ├── loader.py            # YAML loading and legacy builders
+│   ├── registry.py          # StrategyModuleRegistry
+│   ├── schema.py            # Dataclass definitions
+│   ├── shared_loader.py     # Shared component loading
+│   ├── exceptions.py        # Custom exceptions
+│   ├── company_overview.yaml # Company research prompt
+│   ├── strategic_layer.yaml # Strategic analysis prompt
+│   ├── shared/              # Shared components
+│   │   ├── epistemic_rules.yaml
+│   │   ├── formatting.yaml
+│   │   └── personas.yaml
+│   └── strategies/          # Strategy modules
+│       ├── ai_strategy.yaml
+│       ├── cloud_migration.yaml
+│       └── data_strategy.yaml
 │
 ├── output/                  # Report generation
 │   ├── document_builder.py  # DOCX generation
@@ -669,11 +741,11 @@ See `docs/CONFIG.md` for detailed configuration reference.
 
 ### Typical Durations
 
-| Mode | Duration | Output Size |
-|------|----------|-------------|
-| Scrape | 20-25 min | 15-20 pages |
-| Deep | 10-15 min | 8-12 pages |
-| Complete | 30-40 min | 40-50 pages |
+| Mode | Duration | Output Size | API Calls |
+|------|----------|-------------|-----------|
+| Scrape | 20-25 min | 15-20 pages | ~20 Gemini |
+| Deep | 10-15 min | ~12 pages | 1 Deep Research |
+| Complete | 35-50 min | 30+ pages | 1 Deep Research + 10 Gemini 3 Pro |
 
 ### Resource Usage
 

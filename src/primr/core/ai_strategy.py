@@ -293,6 +293,8 @@ def build_ai_strategy_prompt(company_name: str, cloud_vendor: CloudVendor) -> st
     """
     Build Deep Research prompt for AI strategy.
 
+    Uses externalized YAML configuration from src/primr/prompts/ai_strategy.yaml
+
     Args:
         company_name: Name of the company
         cloud_vendor: Cloud vendor preference
@@ -300,11 +302,12 @@ def build_ai_strategy_prompt(company_name: str, cloud_vendor: CloudVendor) -> st
     Returns:
         Complete prompt string for Deep Research
     """
-    current_date = datetime.now().strftime("%B %Y")
-    vendor_guidance = _get_vendor_guidance(cloud_vendor, current_date)
-    vendor_context = _build_vendor_context(cloud_vendor, current_date, vendor_guidance)
-
-    return _build_full_prompt(company_name, current_date, vendor_context)
+    from primr.prompts import build_ai_strategy_prompt as build_from_yaml
+    
+    return build_from_yaml(
+        company_name=company_name,
+        cloud_vendor=cloud_vendor.value,
+    )
 
 
 # =============================================================================
@@ -342,13 +345,13 @@ async def _gather_context(
     """
     Gather context files for AI strategy generation.
 
+    Uses data sources defined in the strategy YAML configuration,
+    filtered by the specified cloud vendor.
+
     Returns:
         Tuple of (context_files, vendor_research_paths)
     """
-    from primr.core.vendor_research import (
-        generate_vendor_research,
-        get_or_generate_vendor_research,
-    )
+    from primr.prompts.registry import get_registry
 
     context_files = []
     vendor_paths = []
@@ -357,31 +360,52 @@ async def _gather_context(
     if config.company_research_path and os.path.exists(config.company_research_path):
         context_files.append(config.company_research_path)
 
-    # Get vendor-specific research
-    if config.cloud_vendor != CloudVendor.AGNOSTIC:
-        vendor_str = config.cloud_vendor.value
+    # Get data sources from strategy YAML configuration
+    registry = get_registry()
+    vendor_str = config.cloud_vendor.value
+    
+    # Get context files for the AI strategy, filtered by vendor
+    yaml_context_files = registry.get_context_files("ai", vendor=vendor_str)
+    
+    for path in yaml_context_files:
+        if path.exists():
+            path_str = str(path)
+            if path_str not in context_files:
+                context_files.append(path_str)
+                vendor_paths.append(path_str)
+    
+    if yaml_context_files:
+        console.info(f"Using {len(yaml_context_files)} vendor research file(s) from strategy config")
 
-        if config.force_refresh_vendor:
-            console.info(f"Force refreshing {vendor_str.upper()} vendor research...")
-            generated = await generate_vendor_research(vendor_str, on_progress)
-            if generated:
-                vendor_paths = [generated]
-        else:
-            result = await get_or_generate_vendor_research(vendor_str, on_progress=on_progress)
-            vendor_paths = [str(p) for p in result.paths]
+    # Fallback: If no YAML data sources found, use legacy vendor research
+    if not yaml_context_files:
+        from primr.core.vendor_research import (
+            generate_vendor_research,
+            get_or_generate_vendor_research,
+        )
+        
+        if config.cloud_vendor != CloudVendor.AGNOSTIC:
+            if config.force_refresh_vendor:
+                console.info(f"Force refreshing {vendor_str.upper()} vendor research...")
+                generated = await generate_vendor_research(vendor_str, on_progress)
+                if generated:
+                    vendor_paths = [generated]
+            else:
+                result = await get_or_generate_vendor_research(vendor_str, on_progress=on_progress)
+                vendor_paths = [str(p) for p in result.paths]
 
-        # Add vendor research to context
-        for path in vendor_paths:
-            if path and os.path.exists(path):
-                context_files.append(path)
+            # Add vendor research to context
+            for path in vendor_paths:
+                if path and os.path.exists(path):
+                    context_files.append(path)
 
-        if vendor_paths:
-            console.info(f"Using {len(vendor_paths)} {vendor_str.upper()} research doc(s) as context")
+            if vendor_paths:
+                console.info(f"Using {len(vendor_paths)} {vendor_str.upper()} research doc(s) as context")
 
-    # Always include agnostic research as additional context
-    agnostic_path = Path(PROJECT_ROOT) / "docs" / f"vendor-research-agnostic-{datetime.now().strftime('%Y-%m')}.txt"
-    if agnostic_path.exists() and str(agnostic_path) not in context_files:
-        context_files.append(str(agnostic_path))
+        # Always include agnostic research as additional context
+        agnostic_path = Path(PROJECT_ROOT) / "docs" / f"vendor-research-agnostic-{datetime.now().strftime('%Y-%m')}.txt"
+        if agnostic_path.exists() and str(agnostic_path) not in context_files:
+            context_files.append(str(agnostic_path))
 
     return context_files, vendor_paths
 
@@ -401,7 +425,8 @@ async def _execute_strategy_research(
         if progress.message:
             if on_progress:
                 on_progress(progress.message)
-            console.info(f"AI Strategy: {progress.message}")
+            # Use status_with_time for in-place updates (cleaner UX)
+            console.status_with_time(f"AI Strategy: {progress.message}")
 
     try:
         result = await client.research(
@@ -574,549 +599,3 @@ def _track_usage(company_name: str, content: str, duration_seconds: float) -> No
         )
     except Exception as e:
         logger.warning(f"Failed to track usage: {e}")
-
-
-def _get_vendor_guidance(vendor: CloudVendor, current_date: str) -> str:
-    """Get vendor-specific guidance for the prompt."""
-    guidance = {
-        CloudVendor.AZURE: """
-KEY AZURE AI SERVICES TO RESEARCH AND RECOMMEND (search for latest as of {current_date}):
-
-Productivity & Copilots:
-- Microsoft 365 Copilot (Word, Excel, PowerPoint, Outlook, Teams)
-- Copilot Studio (build custom copilots and agents)
-- Work IQ (personalized AI based on work patterns)
-
-Agentic AI & Automation:
-- Agent 365 (AI agent control plane, governance, monitoring)
-- Foundry (unified AI platform for building and deploying agents)
-- Power Automate with AI Builder
-- Semantic Kernel for agent orchestration
-
-Data & Analytics:
-- Microsoft Fabric (unified analytics platform)
-- Fabric IQ (semantic layer for AI-ready data)
-- Azure AI Search (vector search, RAG)
-- Power BI with Copilot
-
-AI Development:
-- Azure OpenAI Service (GPT-4, GPT-4o, o1 models)
-- Azure AI Foundry (model catalog, fine-tuning)
-- GitHub Copilot for developers
-
-Security & Governance:
-- Entra Agent ID (identity for AI agents)
-- Microsoft Purview (data governance, compliance)
-- Microsoft Defender for Cloud (AI security)
-- Responsible AI dashboard
-
-Search for the latest announcements from Microsoft Ignite 2025 and recent Azure updates.
-""",
-        CloudVendor.AWS: """
-KEY AWS AI SERVICES TO RESEARCH AND RECOMMEND (search for latest as of {current_date}):
-
-Productivity & Assistants:
-- Amazon Q (AI assistant for business and developers)
-- Amazon Q in Connect (customer service AI)
-- Amazon Q Business (enterprise knowledge assistant)
-
-Agentic AI & Automation:
-- Amazon Bedrock Agents (autonomous AI agents)
-- AWS Step Functions for AI orchestration
-- Amazon Bedrock Flows (visual agent builder)
-
-Data & Analytics:
-- Amazon SageMaker (ML platform)
-- Amazon Bedrock Knowledge Bases (RAG)
-- Amazon QuickSight Q (natural language BI)
-- AWS Glue for data integration
-
-AI Development:
-- Amazon Bedrock (Claude, Llama, Titan, Mistral models)
-- Amazon SageMaker JumpStart (model hub)
-- Amazon CodeWhisperer for developers
-- PartyRock (no-code AI app builder)
-
-Security & Governance:
-- Amazon Bedrock Guardrails (content filtering, PII protection)
-- AWS IAM for AI access control
-- Amazon Macie (data security)
-- AWS CloudTrail for AI audit logging
-
-Search for the latest announcements from AWS re:Invent 2024 and recent AWS updates.
-""",
-        CloudVendor.GCP: """
-KEY GOOGLE CLOUD AI SERVICES TO RESEARCH AND RECOMMEND (search for latest as of {current_date}):
-
-Productivity & Assistants:
-- Gemini for Google Workspace (Docs, Sheets, Slides, Gmail, Meet)
-- Gemini for Google Cloud (cloud console assistant)
-- NotebookLM (AI research assistant)
-
-Agentic AI & Automation:
-- Vertex AI Agent Builder (build and deploy agents)
-- Vertex AI Extensions (connect agents to APIs)
-- Google Cloud Workflows for orchestration
-
-Data & Analytics:
-- BigQuery with Gemini (natural language SQL)
-- Vertex AI Search (enterprise search)
-- Looker with Gemini (conversational BI)
-- Dataplex for data governance
-
-AI Development:
-- Vertex AI (Gemini Pro, Gemini Ultra, PaLM models)
-- Vertex AI Model Garden (model catalog)
-- Gemini Code Assist for developers
-- Vertex AI Studio (prompt design, tuning)
-
-Security & Governance:
-- Vertex AI Model Monitoring
-- Google Cloud IAM for AI
-- Data Loss Prevention API
-- Cloud Audit Logs
-
-Search for the latest announcements from Google Cloud Next 2024 and recent GCP updates.
-""",
-        CloudVendor.AGNOSTIC: """
-MULTI-CLOUD AI STRATEGY (search for latest as of {current_date}):
-
-Compare and recommend the best services across Azure, AWS, and GCP for each use case.
-Consider:
-- Which vendor has the strongest offering for each domain?
-- Interoperability and avoiding vendor lock-in
-- Cost comparison across platforms
-- Enterprise readiness and support
-
-Key areas to compare:
-- Foundation models: Azure OpenAI vs Amazon Bedrock vs Vertex AI
-- Productivity AI: M365 Copilot vs Amazon Q vs Gemini for Workspace
-- Agent platforms: Copilot Studio vs Bedrock Agents vs Agent Builder
-- Data platforms: Fabric vs SageMaker/Bedrock vs BigQuery/Vertex
-- Governance: Purview vs Bedrock Guardrails vs Vertex AI governance
-
-Search for the latest announcements from all three vendors' recent conferences.
-"""
-    }
-    return guidance.get(vendor, guidance[CloudVendor.AGNOSTIC]).format(current_date=current_date)
-
-
-def _build_vendor_context(vendor: CloudVendor, current_date: str, vendor_guidance: str) -> str:
-    """Build vendor context section for the prompt."""
-    return f"""
-CLOUD VENDOR FOCUS: {vendor.display_name}
-
-CRITICAL RESEARCH REQUIREMENT:
-You MUST actively search for and cite the LATEST AI services and capabilities from {vendor.display_name}
-as of {current_date}. Do NOT rely on training data. AI technology changes monthly.
-
-You have access to context files with the latest vendor announcements and capabilities.
-USE THESE CONTEXT FILES as your primary source for current technology recommendations.
-
-{vendor_guidance}
-
-IMPORTANT: Search for additional information to verify current availability and pricing.
-Cite specific announcement dates and sources for all technology recommendations.
-"""
-
-
-
-def _build_full_prompt(company_name: str, current_date: str, vendor_context: str) -> str:
-    """Build the complete AI strategy prompt."""
-    return f"""You are a senior AI strategy consultant. Generate a comprehensive AI roadmap for board-level decision making.
-
-=============================================================================
-OUTPUT FORMAT (Start the document with this exact header)
-=============================================================================
-
-# AI Strategy: {company_name}
-
-**Prepared by:** Primr Research System  
-**Date:** {current_date}
-
----
-
-Then continue with the sections below.
-
-=============================================================================
-RESEARCH INSTRUCTIONS
-=============================================================================
-
-CRITICAL: This strategy must reflect the AI landscape as of {current_date}.
-You MUST actively search for the latest announcements, services, and capabilities.
-Do NOT rely on potentially outdated training data.
-
-Use the research about {company_name} in the context files to develop a comprehensive
-AI strategy that their CIO and board would actually use.
-
-THE GOAL: Answer "What should we actually do with AI, and why?" Connect AI capabilities
-to THIS company's specific business model, pain points, and competitive pressures.
-Help leadership make confident, well-sequenced decisions.
-
-TRANSFORMATION RULE (apply throughout):
-If a sentence implies inevitability, failure, or "only viable path", rewrite it as a scenario comparison.
-Example: Instead of "Companies that don't adopt AI will fail", write "Organizations that move early may gain compounding advantages, while delayed adoption increases the cost of catching up."
-Acknowledge tradeoffs. Avoid best-practice absolutism.
-
-=============================================================================
-RESEARCH AND VALIDATION PROTOCOL
-=============================================================================
-
-For every vendor service, tool, or capability named in this document:
-
-1. **Verify current name**: Confirm the service still exists and has not been renamed or deprecated
-2. **Status**: Note if GA (Generally Available) or Preview/Beta
-3. **Region availability**: Flag if limited to specific regions
-4. **Compliance certifications**: Note relevant certifications (SOC2, HIPAA, FedRAMP) if applicable
-5. **Citation**: Link to official product page or release note with date (e.g., "Announced Nov 2024")
-6. **Pricing**: If pricing varies, cite pricing page and state assumptions (users, tokens, volume)
-7. **Unconfirmed flag**: If anything cannot be verified through search, mark as "UNCONFIRMED" and offer an alternative
-
-This protocol reduces confident but incorrect vendor claims.
-
-=============================================================================
-STRATEGIC CONTEXT
-=============================================================================
-
-THE AGENTIC TRANSFORMATION
-We are in the "Agentic Era" where AI evolves from passive assistants to proactive agents
-capable of planning, reasoning, and executing multi-step workflows autonomously. The key
-distinction is between "AI-enabled" (AI bolted onto legacy processes) vs "AI-native"
-(intelligence as the foundational operating substrate). The competitive advantage lies
-not in "using AI" but in "becoming agentic." Not every function needs to become agentic
-immediately. The strategy must distinguish where autonomy creates real economic leverage
-versus where it adds unnecessary risk.
-
-HEURISTICS AND RULES OF THUMB (internal planning guidance, not cited facts):
-- The "10-20-70 Rule": Allocate roughly 10% effort to algorithms, 20% to technology
-  infrastructure, and 70% to people, processes, and cultural transformation.
-  In plain language: most AI projects fail due to change management, not technology.
-- The "J-Curve": Expect productivity to dip during the learning phase before surging.
-  Leadership must be prepared for a 2-4 month adjustment period.
-- Default to RAG over fine-tuning for 90% of enterprise use cases. Fine-tune only when
-  you need to change the model's style, format, or domain-specific reasoning.
-
-The output should give them:
-1. A clear strategic thesis: AI-enabled vs AI-native, and the path between
-2. A framework for thinking about AI across ALL domains
-3. 5 specific Quick Wins they can start in 90 days (with ROI models)
-4. 5 specific Bigger Bets for transformational impact
-5. 3 things they should explicitly NOT pursue (as deliberate strategic choices)
-6. ROI frameworks using the appropriate model (productivity, revenue, or risk)
-7. An organizational model with governance "traffic light" system
-8. A target AI architecture posture to prevent tool sprawl
-
-CONFIDENCE LABELING RULE:
-All recommendations must be labeled as one of:
-- "Low-regret / proven pattern" - widely adopted, strong evidence base
-- "Context-dependent bet" - success depends on company-specific factors
-- "Exploratory / frontier" - emerging capability, higher uncertainty
-Never present a recommendation without one of these labels. Confidence labels reflect uncertainty in outcomes, not confidence in the team's ability to execute.
-
-{vendor_context}
-
-FORMATTING RULES:
-- Write in full paragraphs for strategic sections
-- Use bullets only for specific recommendations or lists
-- No em-dashes, use commas or periods
-- Tone: Strategic and direct, like a CIO presenting to the board
-- Avoid hype language. Prefer operational language over visionary claims.
-- Cite sources per the Research and Validation Protocol above
-- For each recommendation, include: Business Case, Technology, ROI Model, Timeline
-- The final Board Summary must fit on ONE PAGE (approximately 500-600 words)
-
-=============================================================================
-DOCUMENT STRUCTURE
-=============================================================================
-
-## AI Strategic Thesis (Recommended Direction)
-
-### Why AI Becomes Structurally Non-Optional
-
-Before recommending specific initiatives, explain the structural forces that make AI adoption increasingly non-optional for {company_name}'s business model, independent of ambition or hype.
-
-Consider forces such as:
-- Scale: Data volumes, transaction counts, or customer interactions that exceed human processing capacity
-- Complexity: Decision spaces too large for manual analysis
-- Speed: Competitive or operational requirements that demand faster response times
-- Labor constraints: Talent scarcity, cost pressures, or skill gaps in critical functions
-- Customer expectations: Rising baseline for personalization, availability, or responsiveness
-
-Be specific to {company_name}'s situation. This reframes AI as structural necessity, not enthusiasm.
-
-### Recommended Transformation Path
-
-Based on their industry and business model, should {company_name} pursue:
-- "AI-enabled" (AI bolted onto existing processes for efficiency) - lower risk, faster wins
-- "AI-native" (intelligence as the operating substrate) - higher investment, transformational potential
-
-This is a PROPOSED direction to discuss with leadership, not an assessment of their current plans.
-
-**Proposed Primary Value Lever**: Based on their competitive position and industry dynamics, where should AI investment focus?
-- Cost reduction and operational efficiency?
-- Revenue growth and customer experience?
-- Risk reduction and compliance?
-- Competitive differentiation?
-
-**Recommended Priorities**: Based on their business, what should they focus on first?
-
-**Suggested Deprioritizations**: What should they explicitly NOT pursue in the near term, and why?
-- Include the condition under which they should revisit
-- Include the signal that would indicate the condition has changed
-
-**Change Management Reality**: Most AI projects fail due to change management, not technology. Recommend allocating 70% of AI budget to people, processes, and cultural transformation.
-
-Be specific to {company_name}'s situation. Avoid generic statements like "AI will transform the business." Instead: "Based on {company_name}'s position in [industry], we recommend focusing AI investment on [specific area] because [specific reason]. This could target [estimated impact]. We suggest deferring [specific thing] until [specific condition]."
-
-## Executive Summary
-
-The "so what" for the board. 2-3 paragraphs covering:
-- Why AI matters for THIS company specifically (competitive pressure, efficiency opportunity)
-- The recommended investment level and expected ROI
-- The 3 most important things to do in the next 12 months
-
-## Likely Current State (Hypotheses to Validate)
-
-IMPORTANT: We do NOT have visibility into {company_name}'s internal systems, data platforms, or organizational readiness. The following are HYPOTHESES based on:
-- Their industry and company size
-- Public signals (job postings, press releases, tech stack mentions)
-- Typical patterns for companies in their sector
-
-Frame each assessment as "Based on [evidence], we hypothesize..." and note what we'd want to validate in conversation.
-
-### Data Platform Maturity (Hypothesis)
-Based on their industry ({company_name}'s sector) and size, hypothesize their likely data situation:
-- **Likely data sources**: What systems probably generate their core business data?
-- **Probable challenges**: Based on industry patterns, what data debt might they face?
-- **Signals we observed**: Any public mentions of data initiatives, cloud migrations, or analytics investments?
-
-### Technology Signals (What We Can Observe)
-Based on public information (job postings, press releases, tech blog posts):
-- **Cloud posture**: Any signals about their cloud provider or migration status?
-- **Tech stack hints**: What technologies appear in their job postings?
-- **Digital maturity signals**: E-commerce sophistication, mobile apps, API mentions?
-
-### Organizational Readiness (Industry Baseline)
-- **AI adoption curve**: Where do companies like this typically sit on AI maturity?
-- **Change management capacity**: What's typical for organizations of this scale?
-- **Likely constraints**: Budget cycles, regulatory requirements, talent availability?
-
-### Common Anti-Patterns to Discuss
-Failure modes worth exploring with leadership:
-- **Pilot proliferation**: Dozens of disconnected AI PoCs
-- **Tool sprawl**: Teams adopting conflicting AI tools without governance
-- **Data foundation gaps**: AI projects stalling on data quality
-
-## Competitive AI Landscape
-
-- **One competitor ahead on AI**: Who is doing AI better? What specifically? What is the gap?
-- **One peer making common AI mistakes**: What should {company_name} avoid?
-- **Value at stake over 24 months**: What value could be protected or created? (Present as a range: best-case, likely-case, delayed-action scenarios)
-
-## Recommended AI Architecture Posture
-
-Based on the target cloud vendor and industry best practices, here's what {company_name} SHOULD build toward. These are recommendations, not assessments of their current state.
-
-### Knowledge Grounding Pattern (RAG as Default)
-For most enterprise AI use cases, recommend:
-- Retrieval-Augmented Generation (RAG) as the default pattern for knowledge grounding
-- Specific vector database and embedding strategy for the target cloud vendor
-- Fine-tuning reserved only for style/format changes or domain-specific reasoning
-- Data sources to prioritize: internal documents, wikis, customer data, operational databases
-
-### Identity, Access, and Audit (Recommended Framework)
-What they should implement:
-- User authentication to AI systems (SSO integration)
-- Service principal / managed identity for AI agents calling backend systems
-- Audit logging for all AI interactions (prompts, responses, actions taken)
-- PII handling policies for prompts and responses
-
-### Agent Boundaries and Kill Switches (Governance Model)
-Recommended guardrails:
-- Define where agents can act autonomously vs. require human approval
-- Set dollar/impact thresholds for human-in-the-loop
-- Implement runaway agent detection and automatic stopping
-- Establish escalation paths for agent failures
-
-### Reusable Platform Components (Build Once, Use Many)
-To prevent tool sprawl, recommend building shared infrastructure:
-- Common prompt templates and guardrails library
-- Shared vector stores and knowledge bases
-- Centralized model endpoints and API gateway
-- Evaluation and monitoring infrastructure
-- Cost allocation and chargeback mechanisms
-
-=============================================================================
-AI OPPORTUNITY DOMAINS
-=============================================================================
-
-For EACH domain below, provide specific recommendations tailored to {company_name}.
-Do not give generic advice. Connect every recommendation to their actual business.
-
-### Productivity AI by Persona
-Different user groups need different AI tools. Identify 3-4 key personas and recommend specific productivity AI for each.
-
-### Process Automation
-Identify 3-5 high-value automation opportunities specific to {company_name}'s operations.
-
-### Conversational AI
-**Internal Conversational AI (Employee-Facing)** and **External Conversational AI (Customer-Facing)** recommendations.
-
-### Agentic AI (Connected to Data, Apps, Services)
-Identify 2-3 agentic AI opportunities for {company_name}.
-
-### Generative BI and Analytics
-Recommend how {company_name} should evolve their analytics.
-
-### Traditional AI/ML
-Identify opportunities for traditional ML (forecasting, churn prediction, etc.).
-
-### Security, Governance, and Responsible AI
-Recommend a framework for {company_name}.
-
-=============================================================================
-PRIORITIZATION FILTERS
-=============================================================================
-
-Before presenting recommendations, evaluate all candidate initiatives using these 5 filters:
-- **Expected Business Impact**: Revenue, cost savings, risk reduction, or strategic value
-- **Data Readiness**: Is the required data available, clean, and accessible?
-- **Integration Complexity**: How many systems must connect? Are APIs available?
-- **Adoption and Change Load**: How much workflow change and training is required?
-- **Risk and Compliance Exposure**: Data sensitivity, regulatory requirements, autonomy level
-
-=============================================================================
-STRATEGIC RECOMMENDATIONS
-=============================================================================
-
-## ROI Model Selection
-
-Use the appropriate ROI model for each recommendation type:
-
-**Productivity ROI** (for labor savings and throughput)
-**Revenue ROI** (for conversion, retention, pricing initiatives)
-**Risk ROI** (for compliance, security, error reduction)
-
-## Five Quick Wins (Start in 90 Days)
-
-For each Quick Win, provide:
-- **The Opportunity**: What is it?
-- **Why It Matters for {company_name}**: Connect to their specific business pain point
-- **Why It Won** (Prioritization): Reference prioritization filters
-- **Technology**: Specific tools/services with citations
-- **Implementation**: What does it take?
-- **ROI Calculation**: Use the appropriate model with specific numbers
-- **Success Metrics**: How do you verify "realized" vs "projected" savings?
-
-## Compounding Logic Across the AI Portfolio
-
-Before presenting Bigger Bets, explain how early initiatives generate data, trust, and capabilities that enable later, more ambitious bets. Make dependencies explicit.
-
-For example:
-- Quick Win A generates labeled data that trains the model for Bigger Bet X
-- Quick Win B builds organizational trust in AI that reduces resistance to Bigger Bet Y
-- Quick Win C creates the data infrastructure that Bigger Bet Z requires
-
-This shows how the portfolio builds on itself, not just that initiatives exist. The ambition gradient should feel earned, not arbitrary.
-
-## Five Bigger Bets (6-18 Month Horizon)
-
-For each Bigger Bet, provide comprehensive details including technology architecture, ROI model, risk factors, and governance tier.
-
-## Explicit Strategic Choices (What We Are Choosing NOT to Pursue)
-
-Frame each deprioritization as a deliberate strategic choice that enables focus, not as fear or inability.
-
-For each choice:
-- **What it is**: The AI initiative being deprioritized
-- **Why it is tempting**: Why might someone advocate for this?
-- **What focus it enables**: What does saying "no" here allow us to say "yes" to?
-- **Revisit trigger**: Under what conditions should this be reconsidered?
-- **Signal to watch**: What observable signal would indicate the trigger condition has changed?
-
-This signals strategic clarity, not avoidance.
-
-## What Would Have to Be True (Key Hypotheses)
-
-For each major recommendation (Quick Wins and Bigger Bets), identify:
-- **Conditions for success**: What assumptions must hold for this to work?
-- **Early signals to monitor**: What would indicate we're on track or off track?
-- **Disconfirming evidence**: What would tell us this hypothesis is wrong?
-
-This turns recommendations into testable experiments rather than confident assertions. It acknowledges uncertainty while providing a framework for learning.
-
-=============================================================================
-ORGANIZATIONAL MODEL
-=============================================================================
-
-## AI Practice Group Structure
-
-Recommend how {company_name} should organize for sustained AI innovation.
-
-**Governance "Traffic Light" System for AI Approval**
-- **Green (Low Risk)**: Internal, non-PII data. Auto-approved.
-- **Yellow (Medium Risk)**: Customer data, proprietary IP. AI CoE Review required.
-- **Red (High Risk)**: Health/Financial decisions, autonomous external agents. Board sign-off required.
-
-## Operating Model for Experimentation and Failure
-
-AI initiatives will fail. A mature organization plans for this.
-
-## Investment Framework
-
-Year 1 Investment Estimate, ROI Framework, Build vs. Buy vs. Partner guidance.
-
-=============================================================================
-RISK ANALYSIS
-=============================================================================
-
-## The Value at Stake
-Quantify the value that could be protected or created by acting on AI, framed as a range of potential impacts rather than a single deterministic outcome.
-
-Present:
-- **Best case**: What value could be captured with strong execution?
-- **Likely case**: What's a reasonable expectation given typical organizational constraints?
-- **Delayed action scenario**: What value might be harder to capture if action is deferred 12-24 months?
-
-Avoid framing this as "you will fail if you don't act." Instead: "Early movers may gain compounding advantages in [specific area], while delayed adoption increases the cost of catching up because [specific reason]."
-
-## Technology Risks
-Vendor lock-in, model obsolescence, integration complexity, data quality dependencies.
-
-## Organizational Risks
-Change resistance, skills gaps, competing priorities.
-
-## AI-Specific Security Risks
-Jailbreaks, hallucinations, model drift.
-
-=============================================================================
-BOARD SUMMARY (ONE PAGE)
-=============================================================================
-
-CRITICAL: This section must fit on ONE PAGE (approximately 500-600 words).
-
-**Strategic Thesis** (1 paragraph)
-**The 5 Most Important Decisions** (concise list with investment and ROI)
-**Investment Summary** (Total Year 1 Investment Ask)
-**Expected Year 1 Returns** (Hard savings, productivity gains, risk reduction)
-**What We Are Choosing NOT to Do** (3 deprioritized items)
-**Key Risks Acknowledged** (Top 3 risks and mitigation)
-
-=============================================================================
-NEXT STEPS (Next 30 Days)
-=============================================================================
-
-Specific, actionable next steps with owners and dates.
-
-=============================================================================
-CITATIONS
-=============================================================================
-
-All vendor services, capabilities, and benchmarks cited should be listed with source URLs and dates.
-
-=============================================================================
-DOWNSTREAM TRANSLATION NOTE
-=============================================================================
-
-This output is intended to inform internal thinking and deck creation. When reused externally, conclusions should be softened, hypotheses foregrounded, and language reframed for diplomacy.
-"""

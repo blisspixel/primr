@@ -1,0 +1,3 @@
+# Strategy modules directory
+# Contains YAML configurations for different strategic analyses
+# Each file defines a strategy module that can be selected via --strategy flag

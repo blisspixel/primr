@@ -1,0 +1,198 @@
+# Strategic Layer Prompt Configuration
+# =============================================================================
+# This file defines the structure for Stage 2 strategic analysis.
+# It builds on top of Stage 1 foundational research (company overview).
+#
+# Purpose: Add strategic depth to initial research findings
+# Usage: Used when Stage 1 context is available from structured pipeline
+# Audience: Consultants preparing for client meetings
+#
+# Dependencies:
+#   - shared/epistemic_rules.yaml
+#   - shared/formatting.yaml
+#   - shared/personas.yaml
+# =============================================================================
+
+meta:
+  name: "Strategic Deep-Dive Analysis"
+  version: "1.0.0"
+  description: "Strategic analysis layer building on foundational research"
+  output_format: "markdown"
+  expected_pages: "15-25"
+
+# Use senior_consultant persona from shared/personas.yaml
+persona: "senior_consultant"
+
+document_purpose: |
+  This is the STRATEGIC ANALYSIS layer of our pre-meeting research. We are NOT 
+  providing answers or telling the client what to do. We are:
+  - Surfacing patterns and questions that warrant discussion
+  - Forming initial hypotheses based on public information
+  - Identifying areas where we'd want to dig deeper WITH the client
+  - Preparing smart questions to ask, not conclusions to deliver
+  
+  The real strategic insights will come from the actual conversation with 
+  leadership. This document helps us walk in informed and curious, ready to 
+  explore these topics together.
+
+# Context instructions for when Stage 1 data is available
+context_instructions: |
+  CONTEXT: You have access to initial research findings that cover the basics: 
+  company overview, products/services, history, and factual information. That 
+  foundation is already done. Do not repeat what's in the context files.
+  
+  CRITICAL - SECTION BOUNDARIES:
+  - Do NOT output any sections from the Company Overview document.
+  - Do NOT include: Executive Summary, Detailed Products and Services, Unique 
+    Selling Proposition, Mission and Vision, Company History, Key Achievements, 
+    Target Audience, Financial Overview, Key Business Drivers and Strategic KPIs, 
+    or Leadership and Culture.
+  - Those sections belong to the Company Overview. This document is ONLY for 
+    strategic analysis.
+
+# Hard requirements for output
+hard_requirements: |
+  You MUST output EVERY section header listed below, in the exact order specified.
+  - Do NOT skip sections.
+  - Do NOT merge sections.
+  - Do NOT rename section headers.
+  - If information is not publicly available for a section, write: 
+    "Information not publicly available." Then list 2-3 specific questions 
+    we would want to validate in conversation.
+
+# Override epistemic rules for strategic analysis
+epistemic_rules_override:
+  tone_and_humility: |
+    This is research and initial thinking, NOT conclusions.
+    - Frame everything as "initial observations" and "hypotheses to explore with the client"
+    - Use language like "based on public sources", "appears to", "worth discussing", "we'd want to understand"
+    - Clearly separate facts (what we found) from inferences (what we think it might mean)
+    - Never assert causality or intent without evidence
+    - Avoid absolutist language ("existential threat", "only viable path", "must do", "will definitely")
+    - Present questions to explore, not answers we're delivering
+    - For any strategic observation: "This is worth discussing with leadership to understand [X]"
+    
+    The goal is to demonstrate we've done thoughtful homework while being genuinely 
+    curious about their perspective. We want them to think "these consultants ask 
+    great questions" not "these consultants think they already know our business."
+
+# =============================================================================
+# SECTIONS
+# =============================================================================
+
+sections:
+  - id: narrative_gap_analysis
+    name: "Narrative Gap Analysis"
+    part: 1
+    purpose: "Compare what the company says about itself vs. external signals"
+    covers:
+      - "Website claims vs. what customers/press actually say"
+      - "Stated strategy vs. observable actions and investments"
+      - "Financial claims vs. industry benchmarks"
+    depth: |
+      Format each gap as:
+      - Claim: [what they say]
+      - Evidence: [what external sources suggest]
+      - Hypothesis: [what this might mean, framed as something to validate]
+      
+      Identify 4-6 gaps. These are observations to explore, not accusations.
+
+  - id: competitive_deep_dive
+    name: "Competitive Deep-Dive"
+    part: 1
+    purpose: "Go beyond listing competitors. Analyze the dynamics."
+    covers:
+      - "Where does this company appear to win deals? Where might they lose?"
+      - "What seems to be their competitive moat (or potential lack thereof)?"
+      - "Who appears to be gaining ground? Who might be an emerging threat?"
+      - "Market share trends if available (note confidence level in data)"
+    depth: |
+      Frame competitive assessments as hypotheses: "Based on [evidence], we 
+      believe [hypothesis]. This would imply [implication]. Worth validating 
+      by [method]."
+
+  - id: industry_dynamics
+    name: "Industry Dynamics & Pressures"
+    part: 1
+    purpose: "What external forces appear to be shaping their world?"
+    covers:
+      - "Industry growth/contraction signals"
+      - "Regulatory changes on the horizon"
+      - "Technology disruption (AI, automation, platform shifts)"
+      - "Supply chain or talent pressures"
+      - "What might be keeping their leadership up at night?"
+    depth: "Connect industry forces to specific implications for this company."
+
+  - id: strategic_assessment
+    name: "Strategic Assessment"
+    part: 2
+    purpose: "SWOT framed as observations and questions to explore with the client"
+    covers:
+      - "Strengths: What appears difficult to replicate? (to validate with them)"
+      - "Weaknesses: What potential gaps did we observe? (to discuss openly)"
+      - "Opportunities: What options seem worth exploring? (to prioritize together)"
+      - "Threats: What risks should we discuss? (to understand their perspective)"
+    depth: |
+      Frame as "based on our research, we'd want to discuss..." not "they are 
+      bad at X." Each item should have specific evidence.
+
+  - id: risk_analysis
+    name: "Risk Analysis"
+    part: 2
+    purpose: "Potential risks we observed, to discuss with leadership"
+    covers:
+      - "Competitive risks"
+      - "Operational risks"
+      - "Market/macro risks"
+      - "Leadership/execution risks"
+    depth: |
+      Frame as "areas we'd want to understand better" not definitive threats. 
+      Note what's based on solid evidence vs. inference.
+
+  - id: strategic_options
+    name: "Strategic Options to Explore"
+    part: 3
+    purpose: "3-5 strategic directions worth discussing with the client"
+    covers:
+      - "Quick wins: Lower-effort options that might be worth exploring"
+      - "Strategic bets: Bigger moves that could be transformational"
+      - "Defensive considerations: Risk areas that might warrant attention"
+    depth: |
+      These are conversation starters, not recommendations. For each option, note:
+      - Why it caught our attention (based on research)
+      - Questions we'd want to explore with them
+      - What we'd need to understand before forming a real recommendation
+
+  - id: second_order_insights
+    name: "Second-Order Insights"
+    part: 3
+    purpose: "Patterns and questions that emerged from connecting the dots"
+    covers:
+      - "What patterns did we notice?"
+      - "What questions do these patterns raise?"
+      - "What would we want to explore with leadership?"
+    depth: |
+      Format as:
+      - Observation: [what we found]
+      - Initial hypothesis: [what this might suggest]
+      - Question for the client: [what we'd want to understand from them]
+      
+      Example:
+      - Observation: "They've had 3 CFOs in 4 years"
+      - Initial hypothesis: "This pattern might indicate strategic disagreement, 
+        operational challenges, or founder dynamics"
+      - Question for the client: "We noticed the CFO turnover. Can you help us 
+        understand what's been driving that? Is there context we're missing?"
+
+  - id: discovery_questions
+    name: "Questions for Discovery"
+    part: 4
+    purpose: "The 3-5 most important questions to explore in our first conversation"
+    covers:
+      - "Based on our research, what do we most want to understand from them?"
+      - "Frame as genuine curiosity, not gotcha questions"
+    depth: |
+      For each question:
+      - The question itself
+      - Why we're asking (what research finding prompted this)
+      - What we hope to learn

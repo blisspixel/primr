@@ -546,7 +546,9 @@ def perform_research(
     cloud_vendor: str = "agnostic",
     skip_confirm: bool = False,
     context_files: list[Any] | None = None,
-    refresh_vendor_research: bool = False
+    refresh_vendor_research: bool = False,
+    strategies: list[str] | None = None,
+    strategy_only: bool = False,
 ) -> str | None:
     if not company_name and not website:
         console.error("No company name or website provided")
@@ -577,7 +579,11 @@ def perform_research(
 
         # Check if using Deep Research, Complete, or Hybrid mode
         if mode in ("deep-research", "complete", "hybrid"):
-            return perform_deep_research(company_name, website, mode, start_time, citation_style, ai_strategy, cloud_vendor, context_files, refresh_vendor_research)
+            return perform_deep_research(
+                company_name, website, mode, start_time, citation_style,
+                ai_strategy, cloud_vendor, context_files, refresh_vendor_research,
+                strategies=strategies, strategy_only=strategy_only
+            )
 
         folder_path = create_working_folder(company_name, website)
 
@@ -677,13 +683,13 @@ def perform_research(
                 console.phase_banner(5, 5, "AI Strategy Analysis", "Generating AI recommendations", "5-10 min")
                 # Consolidate working folder into single context file for AI strategy
                 context_file = consolidate_working_folder(folder_path)
-                with console.heartbeat("AI Strategy generation in progress", interval=30.0):
-                    ai_strategy_path = _generate_ai_strategy_section(
-                        company_name or display_name,
-                        cloud_vendor,
-                        company_research_path=context_file,
-                        force_refresh_vendor=refresh_vendor_research
-                    )
+                # No heartbeat - the progress callback provides phase-aware status updates
+                ai_strategy_path = _generate_ai_strategy_section(
+                    company_name or display_name,
+                    cloud_vendor,
+                    company_research_path=context_file,
+                    force_refresh_vendor=refresh_vendor_research
+                )
                 if ai_strategy_path:
                     console.phase_complete("AI Strategy Analysis")
 
@@ -770,7 +776,9 @@ def perform_deep_research(
     ai_strategy: bool = False,
     cloud_vendor: str = "agnostic",
     context_files: list[Any] | None = None,
-    refresh_vendor_research: bool = False
+    refresh_vendor_research: bool = False,
+    strategies: list[str] | None = None,
+    strategy_only: bool = False,
 ) -> str | None:
     """
     Perform research using Deep Research Agent, Complete, or Hybrid mode.
@@ -781,10 +789,12 @@ def perform_deep_research(
         mode: Research mode ('deep-research', 'complete', or 'hybrid')
         start_time: Start timestamp for duration tracking
         citation_style: Citation formatting style
-        ai_strategy: If True, generate AI opportunity recommendations
+        ai_strategy: If True, generate AI opportunity recommendations (legacy, use strategies instead)
         cloud_vendor: Cloud vendor for AI recommendations
         context_files: Optional list of files (PDFs, docs) to upload as context for Deep Research
         refresh_vendor_research: If True, force regenerate vendor research
+        strategies: List of strategy module names to generate (e.g., ['ai', 'cloud'])
+        strategy_only: If True, skip company overview and only run strategies
     """
     display_name: str = company_name or (urlparse(website or "").netloc if website else "")
 
@@ -912,22 +922,53 @@ def perform_deep_research(
             if is_simple_deep_research:
                 console.phase_complete("Processing Results")
 
-            # Generate AI strategy if requested (uses Deep Research with company context)
-            ai_strategy_path = None
-            if ai_strategy:
-                # Show phase banner - for simple deep research it's phase 3/3, for complete mode it's a follow-up
-                phase_num = 3 if is_simple_deep_research else 5
-                total_phases = 3 if is_simple_deep_research else 5
-                console.phase_banner(phase_num, total_phases, "AI Strategy Analysis", "Generating AI recommendations", "5-10 min")
-                with console.heartbeat("AI Strategy generation in progress", interval=30.0):
-                    ai_strategy_path = _generate_ai_strategy_section(
-                        company_name or display_name,
-                        cloud_vendor,
+            # Determine which strategies to run
+            strategies_to_run: list[str] = []
+            if strategies:
+                # Explicit --strategy flag takes precedence
+                strategies_to_run = strategies
+            elif ai_strategy:
+                # Legacy --ai-strategy flag (default behavior)
+                strategies_to_run = ["ai"]
+
+            # Generate strategies (uses Deep Research with company context)
+            strategy_paths: dict[str, str] = {}
+            if strategies_to_run:
+                base_phase = 3 if is_simple_deep_research else 5
+                total_strategies = len(strategies_to_run)
+                
+                for idx, strategy_name in enumerate(strategies_to_run):
+                    phase_num = base_phase + idx
+                    total_phases = base_phase + total_strategies - 1
+                    
+                    # Get display name from registry
+                    from primr.prompts.registry import get_registry
+                    registry = get_registry()
+                    strategy_module = registry.get(strategy_name)
+                    display_strategy_name = strategy_module.display_name if strategy_module else strategy_name.replace("_", " ").title()
+                    
+                    console.phase_banner(
+                        phase_num, total_phases,
+                        f"{display_strategy_name} Analysis",
+                        f"Generating {display_strategy_name.lower()} recommendations",
+                        "5-10 min"
+                    )
+                    
+                    # Generate the strategy
+                    strategy_path = _generate_strategy_section(
+                        strategy_name=strategy_name,
+                        company_name=company_name or display_name,
+                        cloud_vendor=cloud_vendor,
                         company_research_path=raw_md_path,
                         force_refresh_vendor=refresh_vendor_research
                     )
-                if ai_strategy_path:
-                    console.phase_complete("AI Strategy Analysis")
+                    
+                    if strategy_path:
+                        strategy_paths[strategy_name] = strategy_path
+                        console.phase_complete(f"{display_strategy_name} Analysis")
+            
+            # For backward compatibility
+            ai_strategy_path = strategy_paths.get("ai")
 
             elapsed = time.time() - start_time
             mins = int(elapsed // 60)
@@ -940,8 +981,13 @@ def perform_deep_research(
             if docx_path:
                 console.success_box("Report ready", str(Path(docx_path).resolve()))
 
-            if ai_strategy_path:
-                console.success_box("AI Strategy", str(Path(ai_strategy_path).resolve()))
+            # Show all generated strategy outputs
+            for strategy_name, strategy_path in strategy_paths.items():
+                from primr.prompts.registry import get_registry
+                registry = get_registry()
+                strategy_module = registry.get(strategy_name)
+                display_name = strategy_module.display_name if strategy_module else strategy_name.replace("_", " ").title()
+                console.success_box(display_name, str(Path(strategy_path).resolve()))
 
             # Get actual usage from AI client (for structured pipeline calls)
             from primr.ai.client import get_client
@@ -1486,6 +1532,64 @@ def _get_or_generate_vendor_research(cloud_vendor: str) -> list[str]:
             result_paths.append(generated)
 
     return result_paths
+
+
+def _generate_strategy_section(
+    strategy_name: str,
+    company_name: str,
+    cloud_vendor: str,
+    company_research_path: str | None = None,
+    force_refresh_vendor: bool = False
+) -> str | None:
+    """
+    Generate a strategy document using Deep Research.
+
+    This is a generic function that can generate any strategy module
+    defined in the strategies/ directory.
+
+    Args:
+        strategy_name: Name of the strategy module (e.g., 'ai', 'cloud_migration', 'data')
+        company_name: Name of the company
+        cloud_vendor: Cloud vendor preference (azure, aws, gcp, agnostic)
+        company_research_path: Path to company research markdown (used as context)
+        force_refresh_vendor: If True, regenerate vendor research even if current
+
+    Returns:
+        Path to the generated DOCX file, or None if generation failed
+    """
+    # For now, delegate to the specific AI strategy function for 'ai'
+    # Other strategies will be implemented as the placeholder YAMLs are fleshed out
+    if strategy_name == "ai":
+        return _generate_ai_strategy_section(
+            company_name=company_name,
+            cloud_vendor=cloud_vendor,
+            company_research_path=company_research_path,
+            force_refresh_vendor=force_refresh_vendor
+        )
+    
+    # For placeholder strategies, show a message
+    from primr.prompts.registry import get_registry
+    registry = get_registry()
+    strategy_module = registry.get(strategy_name)
+    
+    if not strategy_module:
+        console.error(f"Strategy module not found: {strategy_name}")
+        return None
+    
+    # Check if it's a placeholder
+    import yaml
+    if strategy_module.config_path.exists():
+        with open(strategy_module.config_path, encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+            meta = data.get("meta", {})
+            if meta.get("status") == "placeholder":
+                console.warn(f"Strategy '{strategy_name}' is a placeholder - not yet implemented")
+                console.info(f"To implement, update: {strategy_module.config_path}")
+                return None
+    
+    # For fully implemented strategies (future), use PromptComposer
+    console.warn(f"Strategy '{strategy_name}' generation not yet implemented")
+    return None
 
 
 def _generate_ai_strategy_section(
@@ -2625,6 +2729,44 @@ def _check_api_quota():
             console.error(f"API check failed: {e}")
 
 
+def _list_strategies():
+    """List available strategy modules from the strategies/ directory."""
+    from primr.prompts.registry import get_registry
+
+    console.banner("Available Strategy Modules")
+
+    registry = get_registry()
+    strategies = registry.discover()
+
+    if not strategies:
+        console.info("No strategy modules found.")
+        console.info("Strategy modules are YAML files in src/primr/prompts/strategies/")
+        return
+
+    console.info(f"Found {len(strategies)} strategy module(s):\n")
+
+    for strategy in strategies:
+        status = ""
+        # Check if it's a placeholder
+        if strategy.config_path.exists():
+            import yaml
+            with open(strategy.config_path, encoding="utf-8") as f:
+                data = yaml.safe_load(f)
+                meta = data.get("meta", {})
+                if meta.get("status") == "placeholder":
+                    status = " (placeholder)"
+
+        console.step(f"{strategy.name}{status}")
+        console.info(f"  Display Name: {strategy.display_name}")
+        if strategy.description:
+            console.info(f"  Description: {strategy.description}")
+        if strategy.data_sources:
+            console.info(f"  Data Sources: {len(strategy.data_sources)} file(s)")
+        print()
+
+    console.info("Use --strategy <name> to generate a specific strategy (coming in v1.2.6)")
+
+
 def _clean_temp_files():
     """Clean up temporary files from working directory."""
     import glob
@@ -2962,6 +3104,17 @@ Utility Commands:
     )
     parser.add_argument("--check-jobs", action="store_true", help="Check pending research jobs")
     parser.add_argument("--check-quota", action="store_true", help="Check API quota")
+    parser.add_argument("--list-strategies", action="store_true", help="List available strategy modules")
+    parser.add_argument(
+        "--strategy",
+        type=str,
+        help="Strategy modules to generate (comma-separated, e.g., ai,cloud,data)"
+    )
+    parser.add_argument(
+        "--strategy-only",
+        action="store_true",
+        help="Run strategies only (skip company overview, requires --context-folder)"
+    )
 
     args = parser.parse_args()
 
@@ -3009,6 +3162,45 @@ Utility Commands:
     if getattr(args, 'check_quota', False):
         _check_api_quota()
         return
+
+    # Handle --list-strategies flag
+    if getattr(args, 'list_strategies', False):
+        _list_strategies()
+        return
+
+    # Parse and validate --strategy argument
+    strategy_arg = getattr(args, 'strategy', None)
+    strategy_only = getattr(args, 'strategy_only', False)
+    requested_strategies: list[str] = []
+    
+    if strategy_arg:
+        from primr.prompts.registry import get_registry
+        registry = get_registry()
+        available = set(registry.list_names())
+        
+        # Parse comma-separated strategies
+        requested_strategies = [s.strip().lower() for s in strategy_arg.split(',')]
+        
+        # Validate each strategy
+        invalid = [s for s in requested_strategies if s not in available]
+        if invalid:
+            console.error(f"Unknown strategy module(s): {', '.join(invalid)}")
+            console.info(f"Available strategies: {', '.join(sorted(available))}")
+            console.info("Run 'primr --list-strategies' to see all available modules")
+            return
+        
+        console.info(f"Strategies requested: {', '.join(requested_strategies)}")
+
+    # Handle --strategy-only validation
+    if strategy_only:
+        if not strategy_arg:
+            console.error("--strategy-only requires --strategy to specify which strategies to run")
+            return
+        context_folder = getattr(args, 'context_folder', None)
+        if not context_folder:
+            console.error("--strategy-only requires --context-folder with existing company research")
+            console.info("Example: primr \"Company\" url --strategy ai,cloud --strategy-only --context-folder working/Company")
+            return
 
     # Handle --check-jobs flag
     if getattr(args, 'check_jobs', False):
@@ -3185,7 +3377,9 @@ Utility Commands:
             cloud_vendor=cloud_vendor,
             skip_confirm=skip_confirm,
             context_files=context_files if context_files else None,
-            refresh_vendor_research=refresh_vendor
+            refresh_vendor_research=refresh_vendor,
+            strategies=requested_strategies if requested_strategies else None,
+            strategy_only=strategy_only,
         )
 
         # Open the report if requested
