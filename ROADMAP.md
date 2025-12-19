@@ -44,7 +44,7 @@ Usage tracking and job recovery
 
 System diagnostics (primr doctor)
 
-Strong test coverage (2,200+ tests)
+Test coverage
 
 Design Philosophy (Locked)
 
@@ -121,6 +121,122 @@ Refined error messages for failed research stages
 This phase intentionally adds no new user-facing features.
 
 Medium-Term Roadmap: Make Primr Iterative
+
+v1.2.5 – Externalized Prompt Architecture (Complete)
+
+Goal: Move prompts from hardcoded Python strings to structured, versionable configuration files.
+
+Implemented Structure:
+```
+src/primr/prompts/
+├── __init__.py                # Public API
+├── loader.py                  # YAML loading and prompt building
+├── company_overview.yaml      # Company research prompt (20 sections)
+└── ai_strategy.yaml           # AI strategy prompt (vendor-specific)
+```
+
+Each prompt YAML file contains:
+- Meta information (name, version, description)
+- Document purpose and epistemic rules
+- Formatting guidelines
+- Sections organized by part (Foundational, Market Context, Strategic Analysis, etc.)
+- Each section has: id, name, part, purpose, covers (bullet points), depth guidance
+- Vendor-specific guidance (Azure, AWS, GCP, Agnostic) for AI strategy
+
+Usage:
+```python
+from primr.prompts import (
+    load_prompt_config,
+    build_company_overview_prompt,
+    build_ai_strategy_prompt,
+    get_available_prompts,
+)
+
+# List available prompts
+prompts = get_available_prompts()  # ['ai_strategy', 'company_overview']
+
+# Build prompts from YAML
+prompt = build_company_overview_prompt("Acme Corp", website_url="https://acme.com")
+prompt = build_ai_strategy_prompt("Acme Corp", cloud_vendor="azure")
+```
+
+Benefits achieved:
+- Prompts are now reviewable YAML artifacts (not buried in Python)
+- Version control shows prompt evolution clearly
+- Easier to iterate on section structure and guidance
+- Clear separation of prompt engineering from code logic
+- **Foundation for v1.2.6**: Adding a new strategy module = adding a YAML file
+
+v1.2.6 – Extensible Strategy Modules (Complete)
+
+Goal: Make the "strategy layer" configurable and extensible beyond AI.
+
+Currently, Primr generates an AI Strategy report after the company research. This is valuable but limiting. The same rich company context could inform other strategic analyses.
+
+**How It Works (Building on v1.2.5)**
+
+The externalized prompt architecture (v1.2.5) makes this straightforward:
+1. Company Overview is always generated first (the research foundation)
+2. Strategy modules are YAML configs in `src/primr/prompts/strategies/`
+3. Each module defines its own sections, epistemic rules, and output structure
+4. CLI flag selects which strategy reports to generate
+
+**Implemented Strategy Modules:**
+```
+src/primr/prompts/strategies/
+├── ai_strategy.yaml           # AI roadmap, quick wins, bigger bets (fully implemented)
+├── cloud_migration.yaml       # Infrastructure and platform decisions (placeholder)
+├── data_strategy.yaml         # Data platform, governance, analytics maturity (placeholder)
+```
+
+**Future Strategy Modules (not yet implemented):**
+- digital_transformation.yaml - Broader tech modernization
+- security_posture.yaml - Risk areas, compliance gaps
+- operational_excellence.yaml - Process automation, efficiency opportunities
+- customer_experience.yaml - CX improvements, journey optimization
+
+**CLI Usage:**
+```bash
+# Current behavior (AI strategy by default)
+primr "Tesla" https://tesla.com --cloud-vendor azure
+
+# Select specific strategy modules
+primr "Tesla" https://tesla.com --strategy ai
+primr "Tesla" https://tesla.com --strategy cloud
+primr "Tesla" https://tesla.com --strategy data
+
+# Multiple strategies in one run
+primr "Tesla" https://tesla.com --strategy ai,cloud,data
+
+# Skip all strategy reports (company overview only)
+primr "Tesla" https://tesla.com --no-strategy
+
+# List available strategy modules
+primr --list-strategies
+```
+
+**Each Strategy Module YAML Contains:**
+- Meta information (name, version, description)
+- Document purpose and audience
+- Epistemic rules specific to that domain
+- Sections with purpose, covers, and depth guidance
+- Domain-specific context (e.g., vendor guidance for cloud, compliance frameworks for security)
+
+**Benefits:**
+- Adding a new strategy type = adding a YAML file (no code changes)
+- Users can customize existing strategies or create their own
+- Same company research feeds multiple strategic analyses
+- Clear separation between research (company overview) and analysis (strategy modules)
+
+**Implementation Details:**
+- PromptComposer class handles YAML loading and variable substitution
+- StrategyModuleRegistry auto-discovers modules from strategies/ directory
+- Shared components (epistemic rules, formatting, personas) are reused across all prompts
+- Custom exceptions provide error messages for missing/invalid configs
+
+This makes Primr more flexible for different types of strategic analysis.
+
+
 v1.3.0 – Research State and Iteration (Planned)
 
 Goal: Move from “generate once” to “think over time.”
@@ -298,9 +414,15 @@ primr "Tesla" https://tesla.com --mode scrape
 primr "Tesla" https://tesla.com --mode deep
 primr "Tesla" https://tesla.com --mode full
 
-# AI Strategy
+# AI Strategy (legacy)
 primr "Tesla" https://tesla.com --cloud-vendor azure
 primr "Tesla" https://tesla.com --no-ai-strategy
+
+# Strategy modules (v1.2.6)
+primr "Tesla" https://tesla.com --strategy ai              # AI strategy
+primr "Tesla" https://tesla.com --strategy ai,cloud,data   # Multiple strategies
+primr "Tesla" https://tesla.com --strategy-only --context-folder output/  # Run on existing
+primr --list-strategies                                     # Show available
 
 # Operations
 primr doctor
@@ -316,11 +438,12 @@ Version	Date	Highlights
 0.5.0	Dec 2025	Cost tracking, job recovery
 1.0.0	Dec 2025	Rebrand to Primr, pip installable
 1.1.0	Dec 2025	Code quality hardening
+1.2.5	Dec 2025	Externalized prompt architecture (YAML configs)
+1.2.6	Dec 2025	Extensible strategy modules (--strategy flag)
 1.2.0	Early 2026	Stability and reliability
 1.3.0	TBD	Research state and hypothesis tracking
 1.4.0	TBD	Iterative refinement loop
 1.5.0	TBD	POV evolution and narrative continuity
 Final Framing
 
-Primr is not trying to scale users yet.
-It is trying to scale clarity, judgment, and preparedness.
+Primr is a tool for understanding companies. The focus is on useful output, not user growth.

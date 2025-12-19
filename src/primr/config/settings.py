@@ -193,10 +193,10 @@ class AIConfig:
     """AI model configuration."""
 
     research_model: str = field(
-        default_factory=lambda: os.getenv("AI_RESEARCH_MODEL", "gemini-2.0-flash")
+        default_factory=lambda: os.getenv("AI_RESEARCH_MODEL", "gemini-3-flash-preview")
     )
     report_model: str = field(
-        default_factory=lambda: os.getenv("AI_REPORT_MODEL", "gemini-2.0-flash")
+        default_factory=lambda: os.getenv("AI_REPORT_MODEL", "gemini-3-flash-preview")
     )
 
     max_retries: int = 3

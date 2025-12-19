@@ -46,6 +46,7 @@ class Command(Enum):
     DRY_RUN = "dry-run"
     GENERATE_VENDOR = "generate-vendor"
     BATCH = "batch"
+    TEST_ACCORDION = "test-accordion"
 
 
 # =============================================================================
@@ -72,6 +73,8 @@ class CLIConfig:
     open_after: bool = False
     quiet: bool = False
     verbose: bool = False
+    test_accordion_topic: str | None = None
+    test_accordion_pages: int = 50
 
     @property
     def has_company_info(self) -> bool:
@@ -156,6 +159,8 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         open_after=getattr(parsed, 'open', False),
         quiet=parsed.quiet,
         verbose=parsed.verbose,
+        test_accordion_topic=getattr(parsed, 'test_accordion', None),
+        test_accordion_pages=getattr(parsed, 'accordion_pages', 50),
     )
 
 
@@ -169,7 +174,19 @@ def main(args: list[str] | None = None) -> int:
     Returns:
         Exit code (0 for success, non-zero for failure)
     """
+    from pathlib import Path
+    from primr.utils.logging_config import setup_logging
+    
     config = parse_args(args)
+
+    # Setup logging to proper directory (not root!)
+    log_level = "DEBUG" if config.verbose else "INFO"
+    console_level = "INFO" if config.verbose else "WARNING"
+    setup_logging(
+        level=log_level,
+        log_dir=Path(LOGS_DIR).parent,  # logs/ directory (LOGS_DIR is logs/chat_history)
+        console_level=console_level,
+    )
 
     # Configure console
     if config.quiet:
@@ -190,6 +207,7 @@ def main(args: list[str] | None = None) -> int:
         Command.DRY_RUN: _handle_dry_run,
         Command.GENERATE_VENDOR: _handle_generate_vendor,
         Command.BATCH: _handle_batch,
+        Command.TEST_ACCORDION: _handle_test_accordion,
         Command.RESEARCH: _handle_research,
     }
 
@@ -270,6 +288,10 @@ Examples:
   primr "Tesla" https://tesla.com
   primr "Tesla" tesla.com --mode deep
   primr doctor                              # System diagnostics
+  
+Accordion Method Test (for development):
+  primr --test-accordion "Oceanography 2026-2030"
+  primr --test-accordion "Topic" --accordion-pages 30
 """
     )
 
@@ -319,6 +341,20 @@ Examples:
     parser.add_argument("--generate-vendor-research", type=str, choices=["azure", "aws", "gcp", "agnostic", "all"])
     parser.add_argument("--check-jobs", action="store_true", help="Check pending research jobs")
     parser.add_argument("--check-quota", action="store_true", help="Check API quota")
+    
+    # Accordion Method test
+    parser.add_argument(
+        "--test-accordion",
+        type=str,
+        metavar="TOPIC",
+        help="Test Accordion Method with a standalone topic (e.g., 'Oceanography 2026-2030')"
+    )
+    parser.add_argument(
+        "--accordion-pages",
+        type=int,
+        default=50,
+        help="Target pages for Accordion test (default: 50)"
+    )
 
     return parser
 
@@ -330,6 +366,8 @@ def _determine_command(args: argparse.Namespace) -> Command:
         return Command.DOCTOR
 
     # Check utility flags
+    if getattr(args, 'test_accordion', None):
+        return Command.TEST_ACCORDION
     if getattr(args, 'show_usage', False):
         return Command.SHOW_USAGE
     if getattr(args, 'list_recent', False):
@@ -449,6 +487,38 @@ def _handle_batch(config: CLIConfig) -> int:
         cloud_vendor=config.cloud_vendor
     )
     return 0
+
+
+def _handle_test_accordion(config: CLIConfig) -> int:
+    """Handle test-accordion command."""
+    from primr.ai.accordion_test import run_accordion_test
+    
+    if not config.test_accordion_topic:
+        console.error("No topic specified for Accordion test")
+        console.info("Usage: primr --test-accordion \"Oceanography 2026-2030\"")
+        return 1
+    
+    console.banner("Accordion Method Test")
+    console.info(f"Topic: {config.test_accordion_topic}")
+    console.info(f"Target: {config.test_accordion_pages} pages")
+    console.blank()
+    
+    result = run_accordion_test(
+        topic=config.test_accordion_topic,
+        target_pages=config.test_accordion_pages,
+    )
+    
+    if result.success:
+        console.blank()
+        console.success_box(
+            f"Test completed: {result.page_estimate:.1f} pages",
+            f"Output: {result.output_path}"
+        )
+        return 0
+    else:
+        console.blank()
+        console.error(f"Test failed: {result.error or 'Unknown error'}")
+        return 1
 
 
 def _handle_research(config: CLIConfig) -> int:

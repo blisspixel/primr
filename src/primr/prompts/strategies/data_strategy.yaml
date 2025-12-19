@@ -1,0 +1,100 @@
+# Data Strategy Prompt Configuration (PLACEHOLDER)
+# This file defines the structure for data platform assessment reports.
+#
+# Status: PLACEHOLDER - Basic structure only, not fully implemented
+# Purpose: Data platform strategy and modernization roadmap.
+# Goal: Answer "How should we organize and leverage our data assets?"
+# Audience: CDO, CTO, data leadership, executive leadership.
+#
+# Dependencies:
+#   - shared/epistemic_rules.yaml (epistemic standards)
+#   - shared/formatting.yaml (formatting rules)
+#   - shared/personas.yaml (technical_architect persona)
+
+meta:
+  name: "Data Strategy"
+  version: "0.1.0"
+  description: "Data platform strategy and modernization roadmap (placeholder)"
+  output_format: "markdown"
+  output_filename: "{company_name}_Data_Strategy"
+  expected_pages: "15-25"
+  status: "placeholder"
+
+# Override default persona for this strategy
+persona: "technical_architect"
+
+document_purpose: |
+  This is a STRATEGIC DOCUMENT for data platform planning. The goal is to:
+  1. Assess current data architecture and maturity
+  2. Identify data opportunities and gaps
+  3. Recommend a data platform modernization approach
+  
+  This is NOT a generic data overview. It's a specific data strategy for THIS company.
+  Write with technical clarity. Be direct about data quality and governance challenges.
+
+# =============================================================================
+# DATA SOURCES (Placeholder - to be populated)
+# =============================================================================
+
+data_sources: []
+
+# =============================================================================
+# SECTIONS (Placeholder structure)
+# =============================================================================
+
+sections:
+  - id: executive_summary
+    name: "Executive Summary"
+    part: 1
+    purpose: "High-level overview of data strategy recommendation"
+    covers:
+      - "Current data maturity assessment"
+      - "Recommended data platform approach"
+      - "Key opportunities and investments"
+      - "Governance and quality priorities"
+    depth: "2-3 paragraphs. Concise and actionable."
+
+  - id: current_state
+    name: "Current Data Landscape"
+    part: 2
+    purpose: "Understand the current data environment"
+    covers:
+      - "Data sources and systems inventory"
+      - "Data quality assessment"
+      - "Governance maturity"
+      - "Analytics capabilities"
+    depth: "Detailed assessment based on available information"
+
+  - id: data_architecture
+    name: "Target Data Architecture"
+    part: 3
+    purpose: "Define the recommended data platform"
+    covers:
+      - "Data platform architecture recommendation"
+      - "Data integration patterns"
+      - "Analytics and BI strategy"
+      - "AI/ML data requirements"
+    depth: "Specific recommendations with rationale"
+
+  - id: governance_framework
+    name: "Data Governance Framework"
+    part: 4
+    purpose: "Establish governance and quality standards"
+    covers:
+      - "Data ownership model"
+      - "Quality management approach"
+      - "Privacy and compliance requirements"
+      - "Metadata management"
+    depth: "Practical governance recommendations"
+
+  - id: next_steps
+    name: "Next Steps"
+    part: 5
+    purpose: "Actionable next steps"
+    covers:
+      - "Immediate actions (30 days)"
+      - "Short-term milestones (90 days)"
+      - "Success criteria"
+    depth: "Concrete and actionable"
+
+# Note: This is a placeholder strategy module. Full implementation pending.

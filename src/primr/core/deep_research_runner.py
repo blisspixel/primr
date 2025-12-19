@@ -449,20 +449,22 @@ async def _execute_research(
     def progress_callback(msg: str) -> None:
         if on_progress:
             on_progress(msg)
-        console.info(msg)
+        # Use status_with_time for in-place updates (cleaner UX)
+        # The msg already contains timing info from the API polling
+        console.status_with_time(msg)
         log_structured("debug", f"Deep research progress: {msg}")
 
     try:
         orchestrator = get_orchestrator()
 
-        with console.heartbeat("Deep Research in progress", interval=30.0):
-            result = await orchestrator.research(
-                company_name=config.company_name or config.display_name,
-                website=config.website,
-                mode=research_mode,
-                on_progress=progress_callback,
-                context_files=list(config.context_files) if config.context_files else None
-            )
+        # No heartbeat - the progress_callback provides phase-aware status updates
+        result = await orchestrator.research(
+            company_name=config.company_name or config.display_name,
+            website=config.website,
+            mode=research_mode,
+            on_progress=progress_callback,
+            context_files=list(config.context_files) if config.context_files else None
+        )
 
         if not result.success:
             console.error(f"Research failed: {result.error}")
@@ -583,13 +585,13 @@ async def _generate_ai_strategy(
 
     console.phase_banner(3, 3, "AI Strategy Analysis", "Generating AI recommendations", "5-10 min")
 
-    with console.heartbeat("AI Strategy generation in progress", interval=30.0):
-        result = await generate_ai_strategy(
-            company_name=config.company_name or config.display_name,
-            cloud_vendor=config.cloud_vendor,
-            company_research_path=company_research_path,
-            force_refresh_vendor=config.refresh_vendor_research
-        )
+    # No heartbeat - the progress callback provides phase-aware status updates
+    result = await generate_ai_strategy(
+        company_name=config.company_name or config.display_name,
+        cloud_vendor=config.cloud_vendor,
+        company_research_path=company_research_path,
+        force_refresh_vendor=config.refresh_vendor_research
+    )
 
     if result.success:
         console.phase_complete("AI Strategy Analysis")

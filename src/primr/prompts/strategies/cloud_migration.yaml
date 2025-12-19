@@ -1,0 +1,100 @@
+# Cloud Migration Strategy Prompt Configuration (PLACEHOLDER)
+# This file defines the structure for cloud migration assessment reports.
+#
+# Status: PLACEHOLDER - Basic structure only, not fully implemented
+# Purpose: Cloud migration assessment and roadmap for strategic decision making.
+# Goal: Answer "How should we approach cloud migration, and what's the path forward?"
+# Audience: CTO, IT leadership, executive leadership.
+#
+# Dependencies:
+#   - shared/epistemic_rules.yaml (epistemic standards)
+#   - shared/formatting.yaml (formatting rules)
+#   - shared/personas.yaml (technical_architect persona)
+
+meta:
+  name: "Cloud Migration Strategy"
+  version: "0.1.0"
+  description: "Cloud migration assessment and roadmap (placeholder)"
+  output_format: "markdown"
+  output_filename: "{company_name}_Cloud_Migration_Strategy"
+  expected_pages: "15-25"
+  status: "placeholder"
+
+# Override default persona for this strategy
+persona: "technical_architect"
+
+document_purpose: |
+  This is a STRATEGIC DOCUMENT for cloud migration planning. The goal is to:
+  1. Assess current infrastructure and cloud readiness
+  2. Identify migration priorities and dependencies
+  3. Recommend a phased migration approach with risk mitigation
+  
+  This is NOT a generic cloud overview. It's a specific migration roadmap for THIS company.
+  Write with technical clarity. Be direct about complexity and risks.
+
+# =============================================================================
+# DATA SOURCES (Placeholder - to be populated)
+# =============================================================================
+
+data_sources: []
+
+# =============================================================================
+# SECTIONS (Placeholder structure)
+# =============================================================================
+
+sections:
+  - id: executive_summary
+    name: "Executive Summary"
+    part: 1
+    purpose: "High-level overview of migration recommendation"
+    covers:
+      - "Current state assessment summary"
+      - "Recommended migration approach"
+      - "Timeline and investment overview"
+      - "Key risks and mitigations"
+    depth: "2-3 paragraphs. Concise and actionable."
+
+  - id: current_state
+    name: "Current Infrastructure Assessment"
+    part: 2
+    purpose: "Understand what exists today"
+    covers:
+      - "Application portfolio overview"
+      - "Infrastructure dependencies"
+      - "Technical debt assessment"
+      - "Cloud readiness indicators"
+    depth: "Detailed assessment based on available information"
+
+  - id: migration_strategy
+    name: "Migration Strategy Recommendation"
+    part: 3
+    purpose: "Define the recommended approach"
+    covers:
+      - "Migration pattern recommendation (lift-and-shift, refactor, rebuild)"
+      - "Prioritization framework"
+      - "Phased approach with milestones"
+      - "Resource requirements"
+    depth: "Specific recommendations with rationale"
+
+  - id: risk_analysis
+    name: "Risk Analysis"
+    part: 4
+    purpose: "Identify and mitigate risks"
+    covers:
+      - "Technical risks"
+      - "Operational risks"
+      - "Business continuity risks"
+      - "Mitigation strategies"
+    depth: "Comprehensive risk assessment"
+
+  - id: next_steps
+    name: "Next Steps"
+    part: 5
+    purpose: "Actionable next steps"
+    covers:
+      - "Immediate actions (30 days)"
+      - "Short-term milestones (90 days)"
+      - "Success criteria"
+    depth: "Concrete and actionable"
+
+# Note: This is a placeholder strategy module. Full implementation pending.

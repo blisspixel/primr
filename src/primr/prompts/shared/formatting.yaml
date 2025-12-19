@@ -1,0 +1,79 @@
+# Formatting Standards for Professional Output
+# =============================================================================
+# These rules ensure clean, readable documents without manual cleanup.
+# They are shared across all prompt configurations.
+#
+# Purpose: Maintain consistent, professional formatting in all output
+# Usage: Loaded by SharedComponentLoader and merged into all prompts
+# =============================================================================
+
+meta:
+  name: "Formatting Standards"
+  version: "1.0.0"
+  description: "Rules for clean, professional document formatting"
+
+# Core formatting rules applied to all prompts
+rules:
+  paragraphs: |
+    Write in full paragraphs with evidence. Strategic analysis requires 
+    narrative prose that explains reasoning, not just bullet points.
+
+  bullets: |
+    Use bullets only for lists of specific items (products, competitors, 
+    metrics). Never use bullets for strategic analysis or recommendations.
+
+  bullet_depth: |
+    Single-level bullets only. No nested hierarchies or sub-bullets. 
+    If you need hierarchy, use headings instead.
+
+  no_dashes: |
+    No em-dashes (—) or en-dashes (–). Use commas or periods instead. 
+    Em-dashes create visual clutter and break reading flow.
+
+  citations: |
+    Cite sources at section end using [cite: X, Y, Z] format. Do not 
+    use inline URLs that break reading flow. Citations should be 
+    numbered references.
+
+  tables: |
+    Include tables for financials, competitors, timelines, and comparisons.
+    Tables should be simple markdown format with clear headers.
+
+  numbers: |
+    Use readable formats: $50M not $50,000,000.00. Round to appropriate 
+    precision. Include units and context.
+
+  headings: |
+    Use natural headings that flow like a narrative. Not numbered like 
+    "1. Executive Summary" but simply "Executive Summary".
+
+  tone: |
+    Direct, conversational professional tone. Not stiff corporate-speak.
+    Write like a senior consultant presenting to a peer.
+
+# Document structure rules
+structure:
+  heading_hierarchy: |
+    Maintain correct heading hierarchy: H1 > H2 > H3. Never skip levels.
+    H1 is document title only. Sections are H2. Subsections are H3.
+
+  section_length: |
+    Each major section should be substantive (500-2000 words depending 
+    on topic). Avoid thin sections that add no value.
+
+  transitions: |
+    Use transition sentences between sections to maintain narrative flow.
+    The document should read as a cohesive analysis, not disconnected parts.
+
+# Table formatting
+table_rules:
+  financial_tables: |
+    Financial tables should include: metric name, value, source/confidence,
+    year-over-year change if available.
+
+  competitor_tables: |
+    Competitor comparison tables should include: company name, key metrics,
+    strengths, weaknesses, market position.
+
+  timeline_tables: |
+    Timeline tables should include: date, event, significance, source.

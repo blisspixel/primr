@@ -36,6 +36,12 @@ An internal working document that captures hypotheses about how a company create
 
 ## Architecture Terms
 
+### Composed Prompt
+The result of building a prompt from YAML configuration. Contains the final prompt content, source files used, section count, word count, and list of substituted variables.
+
+### Data Source
+A file associated with a strategy module that provides context to the Deep Research agent. For AI Strategy, this includes vendor research files (e.g., `vendor-research-azure-2025-12.txt`). Data sources are uploaded to File Search Store before research.
+
 ### File Search Store
 A Gemini API feature that allows uploading documents for the Deep Research Agent to reference. In Complete Mode, Phase 0 results are uploaded here so all chapter research nodes can access the baseline context.
 
@@ -51,11 +57,26 @@ The central coordinator (`ResearchOrchestrator`) that routes research requests t
 ### Research Node
 A single Deep Research task executing one chapter of a report. In Complete Mode, up to 3 nodes run in parallel, each with access to the shared File Search Store.
 
+### Prompt Composer
+The central class (`PromptComposer`) that builds prompts from YAML configurations. Loads prompt configs, merges shared components, performs variable substitution, and produces composed prompts ready for the AI.
+
+### Prompt Config
+A YAML file defining a prompt's structure: meta information, document purpose, epistemic rules, formatting guidelines, and sections. Located in `src/primr/prompts/`.
+
 ### Report Aggregator
 The component that combines chapter outputs into a cohesive document. Generates table of contents, consolidates citations, and handles missing chapters gracefully.
 
+### Shared Components
+Reusable YAML fragments for epistemic rules, formatting standards, and consulting personas. Located in `src/primr/prompts/shared/`. Automatically merged into all prompts by the PromptComposer.
+
 ### Soft Block
 When a website blocks a scraping request without returning an HTTP error. Examples: captchas, "please enable JavaScript" messages, Cloudflare challenges. Detected by content analysis.
+
+### Strategy Module
+A pluggable YAML configuration that generates a specific type of strategic analysis. Examples: AI Strategy, Cloud Migration, Data Strategy. Located in `src/primr/prompts/strategies/`. Each module can define its own sections, data sources, and vendor-specific guidance.
+
+### Strategy Module Registry
+The component (`StrategyModuleRegistry`) that discovers and manages strategy modules. Auto-discovers YAML files in the `strategies/` directory and provides access to their metadata and data sources.
 
 ### Tier (Scraping)
 One of four scraping methods, tried in order of increasing complexity:
@@ -65,6 +86,9 @@ One of four scraping methods, tried in order of increasing complexity:
 4. Playwright Aggressive: Full browser with stealth evasion
 
 ## Data Structures
+
+### ComposedPrompt
+The result from PromptComposer containing: content (the final prompt string), source_files (YAML files used), section_count, word_count, and variables_substituted.
 
 ### ChapterPlan
 A single chapter in the research plan, containing: chapter number, title, research prompt, and expected page count.
@@ -78,8 +102,17 @@ The complete result from a research run, containing: section results (dict), raw
 ### ReportPlan
 The complete plan for a multi-chapter report, containing: company name, list of ChapterPlans, and total expected pages.
 
+### PromptContext
+Runtime context for prompt variable substitution: company_name, website_url, cloud_vendor, current_date, has_stage1_context, and custom_vars dictionary.
+
 ### ResearchConfig
 Configuration for a research task: mode, timeout, poll interval, and optional section filters.
+
+### SectionSpec
+A YAML definition of a report section: id, name, part number, purpose, covers (list of topics), depth guidance, and optional subsections.
+
+### StrategyModule
+Metadata about a strategy module: name, display_name, description, config_path, is_builtin flag, and data_sources list.
 
 ### ResearchProgress
 A progress update from deep research: status, message, thought (if available), and partial result.

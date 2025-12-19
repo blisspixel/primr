@@ -834,6 +834,111 @@ if __name__ == "__main__":
     asyncio.run(research_company("Tesla", "https://tesla.com"))
 ```
 
+## Prompt Architecture
+
+The prompt system (v1.2.5+) externalizes prompts to YAML configuration files.
+
+```python
+from primr.prompts import (
+    PromptComposer,
+    PromptContext,
+    ComposedPrompt,
+    StrategyModuleRegistry,
+    get_registry,
+    load_prompt_config,
+    build_company_overview_prompt,
+    build_ai_strategy_prompt,
+    get_available_prompts,
+)
+```
+
+### PromptComposer
+
+Build prompts from YAML configurations with variable substitution.
+
+```python
+from primr.prompts import PromptComposer, PromptContext
+
+composer = PromptComposer()
+context = PromptContext(
+    company_name="Tesla",
+    website_url="https://tesla.com",
+    cloud_vendor="azure",
+)
+
+# Compose a standard prompt
+result = composer.compose("company_overview", context)
+print(result.content)
+print(f"Sections: {result.section_count}")
+print(f"Words: {result.word_count}")
+
+# Compose a strategy prompt
+result = composer.compose_strategy("ai", context)
+print(result.content)
+```
+
+### StrategyModuleRegistry
+
+Discover and manage strategy modules.
+
+```python
+from primr.prompts import get_registry
+
+registry = get_registry()
+
+# List available strategies
+for name in registry.list_names():
+    print(name)  # ai, cloud, data
+
+# Get strategy details
+strategy = registry.get("ai")
+print(strategy.display_name)  # "AI Strategy"
+print(strategy.description)
+
+# Get context files for a strategy (for File Search Store)
+files = registry.get_context_files("ai", vendor="azure")
+for f in files:
+    print(f)  # docs/vendor-research-azure-2025-12.txt
+```
+
+### Legacy Prompt Builders
+
+For backward compatibility, the original functions still work:
+
+```python
+from primr.prompts import (
+    build_company_overview_prompt,
+    build_ai_strategy_prompt,
+    get_available_prompts,
+)
+
+# List available prompts
+prompts = get_available_prompts()  # ['ai_strategy', 'company_overview', ...]
+
+# Build prompts (delegates to PromptComposer internally)
+prompt = build_company_overview_prompt("Tesla", website_url="https://tesla.com")
+prompt = build_ai_strategy_prompt("Tesla", cloud_vendor="azure")
+```
+
+### Custom Exceptions
+
+```python
+from primr.prompts import (
+    PromptConfigError,
+    PromptConfigNotFoundError,
+    PromptConfigValidationError,
+    StrategyModuleNotFoundError,
+    DataSourceNotFoundError,
+)
+
+try:
+    composer.compose("nonexistent", context)
+except PromptConfigNotFoundError as e:
+    print(f"Not found: {e.prompt_name}")
+    print(f"Searched: {e.searched_paths}")
+    print(f"Available: {e.available_prompts}")
+```
+
 ## Singleton Management
 
 Most components use thread-safe singletons. For testing or custom configurations, you can reset them:

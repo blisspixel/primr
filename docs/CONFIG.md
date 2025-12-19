@@ -194,3 +194,51 @@ from primr.config import reset_settings
 # Reset singleton for test isolation
 reset_settings()
 ```
+
+## Prompt Configuration
+
+Prompts are configured via YAML files in `src/primr/prompts/`. See `docs/INTERNALS.md` for the full prompt architecture documentation.
+
+### Prompt Directory Structure
+
+```
+src/primr/prompts/
+├── company_overview.yaml      # Company research prompt
+├── strategic_layer.yaml       # Strategic analysis prompt
+├── shared/
+│   ├── epistemic_rules.yaml   # Fact/inference/hypothesis rules
+│   ├── formatting.yaml        # Formatting standards
+│   └── personas.yaml          # Analyst personas
+└── strategies/
+    ├── ai_strategy.yaml       # AI strategy module
+    ├── cloud_migration.yaml   # Cloud migration (placeholder)
+    └── data_strategy.yaml     # Data strategy (placeholder)
+```
+
+### Adding Custom Strategy Modules
+
+Create a new YAML file in `src/primr/prompts/strategies/`:
+
+```yaml
+meta:
+  name: "My Strategy"
+  version: "1.0.0"
+  description: "Description of the strategy"
+  status: "active"
+
+persona: "senior_consultant"
+
+document_purpose: |
+  Purpose of this strategy document...
+
+sections:
+  - id: executive_summary
+    name: "Executive Summary"
+    part: 1
+    purpose: "High-level overview"
+    covers:
+      - "Key findings"
+    depth: "2-3 paragraphs"
+```
+
+The strategy is automatically discovered and available via `--strategy my`.

@@ -1,0 +1,540 @@
+# AI Strategy Prompt Configuration
+# This file defines the structure and content requirements for AI strategy reports.
+#
+# Purpose: Board-level AI roadmap for strategic decision making.
+# Goal: Answer "What should we actually do with AI, and why?"
+# Audience: CIO, board members, executive leadership.
+#
+# Dependencies:
+#   - shared/epistemic_rules.yaml (epistemic standards)
+#   - shared/formatting.yaml (formatting rules)
+#   - shared/personas.yaml (ai_strategist persona)
+
+meta:
+  name: "AI Strategy Roadmap"
+  version: "1.0.0"
+  description: "Comprehensive AI strategy for board-level decision making"
+  output_format: "markdown"
+  output_filename: "{company_name}_AI_Strategy"
+  expected_pages: "15-30"
+
+# Override default persona for this strategy
+persona: "ai_strategist"
+
+document_purpose: |
+  This is a STRATEGIC DOCUMENT for board-level decision making. The goal is to:
+  1. Answer "What should we actually do with AI, and why?"
+  2. Connect AI capabilities to THIS company's specific business model, pain points, and competitive pressures
+  3. Help leadership make confident, well-sequenced decisions
+  
+  This is NOT a generic AI overview. It's a specific roadmap for THIS company.
+  Write with strategic clarity. Be direct about tradeoffs. Avoid hype language.
+
+# =============================================================================
+# DATA SOURCES
+# =============================================================================
+# These files are uploaded to File Search Store as context for Deep Research.
+# The vendor field filters which files are used based on --cloud-vendor flag.
+
+data_sources:
+  - name: "vendor_research_azure"
+    path: "docs/vendor-research-azure-2025-12.txt"
+    description: "Latest Azure AI services and capabilities from Microsoft Ignite 2024/2025"
+    vendor: "azure"
+    required: false
+  - name: "vendor_research_aws"
+    path: "docs/vendor-research-aws-2025-12.txt"
+    description: "Latest AWS AI services and capabilities from re:Invent 2024"
+    vendor: "aws"
+    required: false
+  - name: "vendor_research_gcp"
+    path: "docs/vendor-research-gcp-2025-12.txt"
+    description: "Latest GCP AI services and capabilities from Google Cloud Next 2024"
+    vendor: "gcp"
+    required: false
+  - name: "vendor_research_agnostic"
+    path: "docs/vendor-research-agnostic-2025-12.txt"
+    description: "Cloud-agnostic AI guidance and multi-cloud comparison"
+    vendor: "agnostic"
+    required: false
+
+# =============================================================================
+# EPISTEMIC RULES (Strategy-Specific Overrides)
+# =============================================================================
+
+epistemic_rules:
+  confidence_labeling: |
+    All recommendations must be labeled as one of:
+    - "Low-regret / proven pattern" - widely adopted, strong evidence base
+    - "Context-dependent bet" - success depends on company-specific factors
+    - "Exploratory / frontier" - emerging capability, higher uncertainty
+  transformation_rule: |
+    If a sentence implies inevitability, failure, or "only viable path", rewrite it as a scenario comparison.
+    Example: Instead of "Companies that don't adopt AI will fail", write "Organizations that move early 
+    may gain compounding advantages, while delayed adoption increases the cost of catching up."
+  hypothesis_framing: |
+    Frame assessments of current state as hypotheses to validate, not facts.
+    Use language like "Based on [evidence], we hypothesize..."
+
+formatting:
+  paragraphs: "Write in full paragraphs for strategic sections"
+  bullets: "Use bullets only for specific recommendations or lists"
+  tone: "Strategic and direct, like a CIO presenting to the board"
+  citations: "Cite sources per the Research and Validation Protocol"
+  tables: "Include ROI tables, comparison matrices, timeline tables"
+
+heuristics:
+  ten_twenty_seventy: |
+    The "10-20-70 Rule": Allocate roughly 10% effort to algorithms, 20% to technology
+    infrastructure, and 70% to people, processes, and cultural transformation.
+    Most AI projects fail due to change management, not technology.
+  j_curve: |
+    The "J-Curve": Expect productivity to dip during the learning phase before surging.
+    Leadership must be prepared for a 2-4 month adjustment period.
+  rag_default: |
+    Default to RAG over fine-tuning for 90% of enterprise use cases. Fine-tune only when
+    you need to change the model's style, format, or domain-specific reasoning.
+
+research_validation_protocol: |
+  For every vendor service, tool, or capability named in this document:
+  1. Verify current name: Confirm the service still exists and has not been renamed or deprecated
+  2. Status: Note if GA (Generally Available) or Preview/Beta
+  3. Region availability: Flag if limited to specific regions
+  4. Compliance certifications: Note relevant certifications (SOC2, HIPAA, FedRAMP) if applicable
+  5. Citation: Link to official product page or release note with date
+  6. Pricing: If pricing varies, cite pricing page and state assumptions
+  7. Unconfirmed flag: If anything cannot be verified through search, mark as "UNCONFIRMED"
+
+
+# =============================================================================
+# STRATEGIC CONTEXT
+# =============================================================================
+
+strategic_context:
+  agentic_transformation: |
+    We are in the "Agentic Era" where AI evolves from passive assistants to proactive agents
+    capable of planning, reasoning, and executing multi-step workflows autonomously. The key
+    distinction is between "AI-enabled" (AI bolted onto legacy processes) vs "AI-native"
+    (intelligence as the foundational operating substrate). The competitive advantage lies
+    not in "using AI" but in "becoming agentic." Not every function needs to become agentic
+    immediately. The strategy must distinguish where autonomy creates real economic leverage
+    versus where it adds unnecessary risk.
+
+# =============================================================================
+# SECTIONS
+# =============================================================================
+
+sections:
+  - id: strategic_thesis
+    name: "AI Strategic Thesis"
+    part: 1
+    purpose: "Establish the recommended direction before diving into specifics"
+    subsections:
+      - id: why_non_optional
+        name: "Why AI Becomes Structurally Non-Optional"
+        covers:
+          - "Scale: Data volumes that exceed human processing capacity"
+          - "Complexity: Decision spaces too large for manual analysis"
+          - "Speed: Competitive requirements demanding faster response"
+          - "Labor constraints: Talent scarcity, cost pressures, skill gaps"
+          - "Customer expectations: Rising baseline for personalization"
+        depth: "Be specific to the company's situation. Reframe AI as structural necessity, not enthusiasm."
+      - id: transformation_path
+        name: "Recommended Transformation Path"
+        covers:
+          - "AI-enabled vs AI-native recommendation with rationale"
+          - "Proposed primary value lever (cost, revenue, risk, differentiation)"
+          - "Recommended priorities with specific reasoning"
+          - "Suggested deprioritizations with revisit conditions"
+          - "Change management reality (70% of budget to people/process)"
+        depth: "Avoid generic statements. Be specific to the company's situation."
+
+  - id: executive_summary
+    name: "Executive Summary"
+    part: 1
+    purpose: "The 'so what' for the board"
+    covers:
+      - "Why AI matters for THIS company specifically"
+      - "The recommended investment level and expected ROI"
+      - "The 3 most important things to do in the next 12 months"
+    depth: "2-3 paragraphs. Concise and actionable."
+
+  - id: current_state
+    name: "Likely Current State (Hypotheses to Validate)"
+    part: 2
+    purpose: "Frame assessments as hypotheses since we lack internal visibility"
+    subsections:
+      - id: data_platform_maturity
+        name: "Data Platform Maturity (Hypothesis)"
+        covers:
+          - "Likely data sources based on industry"
+          - "Probable challenges based on industry patterns"
+          - "Signals observed from public information"
+      - id: technology_signals
+        name: "Technology Signals (What We Can Observe)"
+        covers:
+          - "Cloud posture signals"
+          - "Tech stack hints from job postings"
+          - "Digital maturity signals"
+      - id: organizational_readiness
+        name: "Organizational Readiness (Industry Baseline)"
+        covers:
+          - "AI adoption curve position"
+          - "Change management capacity"
+          - "Likely constraints"
+      - id: anti_patterns
+        name: "Common Anti-Patterns to Discuss"
+        covers:
+          - "Pilot proliferation"
+          - "Tool sprawl"
+          - "Data foundation gaps"
+    depth: "Frame each assessment as 'Based on [evidence], we hypothesize...'"
+
+  - id: competitive_landscape
+    name: "Competitive AI Landscape"
+    part: 2
+    purpose: "Understand competitive positioning on AI"
+    covers:
+      - "One competitor ahead on AI: Who, what specifically, what's the gap"
+      - "One peer making common AI mistakes: What to avoid"
+      - "Value at stake over 24 months (best-case, likely-case, delayed-action)"
+    depth: "Specific examples with evidence"
+
+  - id: architecture_posture
+    name: "Recommended AI Architecture Posture"
+    part: 3
+    purpose: "Define what they SHOULD build toward"
+    subsections:
+      - id: knowledge_grounding
+        name: "Knowledge Grounding Pattern (RAG as Default)"
+        covers:
+          - "RAG as default pattern recommendation"
+          - "Vector database and embedding strategy"
+          - "When to fine-tune vs RAG"
+          - "Data sources to prioritize"
+      - id: identity_access
+        name: "Identity, Access, and Audit"
+        covers:
+          - "User authentication to AI systems"
+          - "Service principal for AI agents"
+          - "Audit logging requirements"
+          - "PII handling policies"
+      - id: agent_boundaries
+        name: "Agent Boundaries and Kill Switches"
+        covers:
+          - "Autonomy vs human approval boundaries"
+          - "Dollar/impact thresholds"
+          - "Runaway agent detection"
+          - "Escalation paths"
+      - id: platform_components
+        name: "Reusable Platform Components"
+        covers:
+          - "Common prompt templates and guardrails"
+          - "Shared vector stores and knowledge bases"
+          - "Centralized model endpoints"
+          - "Evaluation and monitoring infrastructure"
+          - "Cost allocation mechanisms"
+    depth: "Specific to target cloud vendor and industry best practices"
+
+  - id: opportunity_domains
+    name: "AI Opportunity Domains"
+    part: 4
+    purpose: "Specific recommendations tailored to the company"
+    subsections:
+      - id: productivity_ai
+        name: "Productivity AI by Persona"
+        covers:
+          - "3-4 key personas identified"
+          - "Specific productivity AI for each persona"
+      - id: process_automation
+        name: "Process Automation"
+        covers:
+          - "3-5 high-value automation opportunities"
+          - "Specific to company's operations"
+      - id: conversational_ai
+        name: "Conversational AI"
+        covers:
+          - "Internal (employee-facing) recommendations"
+          - "External (customer-facing) recommendations"
+      - id: agentic_ai
+        name: "Agentic AI"
+        covers:
+          - "2-3 agentic AI opportunities"
+          - "Connected to data, apps, services"
+      - id: generative_bi
+        name: "Generative BI and Analytics"
+        covers:
+          - "Analytics evolution recommendations"
+      - id: traditional_ml
+        name: "Traditional AI/ML"
+        covers:
+          - "Forecasting, churn prediction, etc."
+      - id: security_governance
+        name: "Security, Governance, and Responsible AI"
+        covers:
+          - "Framework recommendations"
+    depth: "Do not give generic advice. Connect every recommendation to their actual business."
+
+  - id: prioritization_filters
+    name: "Prioritization Filters"
+    part: 5
+    purpose: "Framework for evaluating all candidate initiatives"
+    covers:
+      - "Expected Business Impact"
+      - "Data Readiness"
+      - "Integration Complexity"
+      - "Adoption and Change Load"
+      - "Risk and Compliance Exposure"
+    depth: "Apply these filters to all recommendations"
+
+  - id: roi_models
+    name: "ROI Model Selection"
+    part: 5
+    purpose: "Use appropriate ROI model for each recommendation type"
+    covers:
+      - "Productivity ROI (labor savings, throughput)"
+      - "Revenue ROI (conversion, retention, pricing)"
+      - "Risk ROI (compliance, security, error reduction)"
+    depth: "Include specific calculation frameworks"
+
+  - id: quick_wins
+    name: "Five Quick Wins (Start in 90 Days)"
+    part: 5
+    purpose: "Immediate, high-confidence opportunities"
+    covers:
+      - "The Opportunity"
+      - "Why It Matters for the company"
+      - "Why It Won (prioritization rationale)"
+      - "Technology (specific tools with citations)"
+      - "Implementation requirements"
+      - "ROI Calculation with specific numbers"
+      - "Success Metrics"
+    depth: "Each Quick Win needs comprehensive detail"
+
+  - id: compounding_logic
+    name: "Compounding Logic Across the AI Portfolio"
+    part: 5
+    purpose: "Show how early initiatives enable later bets"
+    covers:
+      - "Data generation dependencies"
+      - "Trust-building dependencies"
+      - "Infrastructure dependencies"
+    depth: "Make dependencies explicit. Show how portfolio builds on itself."
+
+  - id: bigger_bets
+    name: "Five Bigger Bets (6-18 Month Horizon)"
+    part: 5
+    purpose: "Transformational opportunities requiring more investment"
+    covers:
+      - "Technology architecture"
+      - "ROI model"
+      - "Risk factors"
+      - "Governance tier"
+    depth: "Comprehensive details for each bet"
+
+  - id: strategic_choices
+    name: "Explicit Strategic Choices (What We Are Choosing NOT to Pursue)"
+    part: 5
+    purpose: "Frame deprioritizations as deliberate strategic choices"
+    covers:
+      - "What it is"
+      - "Why it is tempting"
+      - "What focus it enables"
+      - "Revisit trigger"
+      - "Signal to watch"
+    depth: "Signals strategic clarity, not avoidance"
+
+  - id: hypotheses
+    name: "What Would Have to Be True (Key Hypotheses)"
+    part: 5
+    purpose: "Turn recommendations into testable experiments"
+    covers:
+      - "Conditions for success"
+      - "Early signals to monitor"
+      - "Disconfirming evidence"
+    depth: "Acknowledges uncertainty while providing learning framework"
+
+  - id: organizational_model
+    name: "AI Practice Group Structure"
+    part: 6
+    purpose: "How to organize for sustained AI innovation"
+    subsections:
+      - id: governance_traffic_light
+        name: "Governance Traffic Light System"
+        covers:
+          - "Green (Low Risk): Internal, non-PII data. Auto-approved."
+          - "Yellow (Medium Risk): Customer data, proprietary IP. AI CoE Review."
+          - "Red (High Risk): Health/Financial decisions, autonomous agents. Board sign-off."
+      - id: operating_model
+        name: "Operating Model for Experimentation and Failure"
+        covers:
+          - "How to handle AI initiative failures"
+          - "Learning and iteration framework"
+      - id: investment_framework
+        name: "Investment Framework"
+        covers:
+          - "Year 1 Investment Estimate"
+          - "ROI Framework"
+          - "Build vs. Buy vs. Partner guidance"
+    depth: "Practical organizational recommendations"
+
+  - id: risk_analysis
+    name: "Risk Analysis"
+    part: 7
+    purpose: "Comprehensive risk assessment"
+    subsections:
+      - id: value_at_stake
+        name: "The Value at Stake"
+        covers:
+          - "Best case scenario"
+          - "Likely case scenario"
+          - "Delayed action scenario"
+        depth: "Present as range, not deterministic outcome"
+      - id: technology_risks
+        name: "Technology Risks"
+        covers:
+          - "Vendor lock-in"
+          - "Model obsolescence"
+          - "Integration complexity"
+          - "Data quality dependencies"
+      - id: organizational_risks
+        name: "Organizational Risks"
+        covers:
+          - "Change resistance"
+          - "Skills gaps"
+          - "Competing priorities"
+      - id: ai_security_risks
+        name: "AI-Specific Security Risks"
+        covers:
+          - "Jailbreaks"
+          - "Hallucinations"
+          - "Model drift"
+    depth: "Specific risks with mitigation strategies"
+
+  - id: board_summary
+    name: "Board Summary (ONE PAGE)"
+    part: 8
+    purpose: "Executive summary for board presentation"
+    covers:
+      - "Strategic Thesis (1 paragraph)"
+      - "The 5 Most Important Decisions (with investment and ROI)"
+      - "Investment Summary (Total Year 1 Ask)"
+      - "Expected Year 1 Returns"
+      - "What We Are Choosing NOT to Do (3 items)"
+      - "Key Risks Acknowledged (Top 3 with mitigation)"
+    depth: "MUST fit on ONE PAGE (approximately 500-600 words)"
+
+  - id: next_steps
+    name: "Next Steps (Next 30 Days)"
+    part: 9
+    purpose: "Specific, actionable next steps"
+    covers:
+      - "Action items with owners"
+      - "Target dates"
+      - "Dependencies"
+    depth: "Concrete and actionable"
+
+# =============================================================================
+# VENDOR-SPECIFIC GUIDANCE
+# =============================================================================
+
+vendor_guidance:
+  azure:
+    display_name: "Microsoft Azure"
+    key_services:
+      productivity_copilots:
+        - "Microsoft 365 Copilot (Word, Excel, PowerPoint, Outlook, Teams)"
+        - "Copilot Studio (build custom copilots and agents)"
+        - "Work IQ (personalized AI based on work patterns)"
+      agentic_ai:
+        - "Agent 365 (AI agent control plane, governance, monitoring)"
+        - "Foundry (unified AI platform for building and deploying agents)"
+        - "Power Automate with AI Builder"
+        - "Semantic Kernel for agent orchestration"
+      data_analytics:
+        - "Microsoft Fabric (unified analytics platform)"
+        - "Fabric IQ (semantic layer for AI-ready data)"
+        - "Azure AI Search (vector search, RAG)"
+        - "Power BI with Copilot"
+      ai_development:
+        - "Azure OpenAI Service (GPT-4, GPT-4o, o1 models)"
+        - "Azure AI Foundry (model catalog, fine-tuning)"
+        - "GitHub Copilot for developers"
+      security_governance:
+        - "Entra Agent ID (identity for AI agents)"
+        - "Microsoft Purview (data governance, compliance)"
+        - "Microsoft Defender for Cloud (AI security)"
+        - "Responsible AI dashboard"
+    research_sources: "Microsoft Ignite 2025 and recent Azure updates"
+
+  aws:
+    display_name: "Amazon Web Services (AWS)"
+    key_services:
+      productivity_assistants:
+        - "Amazon Q (AI assistant for business and developers)"
+        - "Amazon Q in Connect (customer service AI)"
+        - "Amazon Q Business (enterprise knowledge assistant)"
+      agentic_ai:
+        - "Amazon Bedrock Agents (autonomous AI agents)"
+        - "AWS Step Functions for AI orchestration"
+        - "Amazon Bedrock Flows (visual agent builder)"
+      data_analytics:
+        - "Amazon SageMaker (ML platform)"
+        - "Amazon Bedrock Knowledge Bases (RAG)"
+        - "Amazon QuickSight Q (natural language BI)"
+        - "AWS Glue for data integration"
+      ai_development:
+        - "Amazon Bedrock (Claude, Llama, Titan, Mistral models)"
+        - "Amazon SageMaker JumpStart (model hub)"
+        - "Amazon CodeWhisperer for developers"
+        - "PartyRock (no-code AI app builder)"
+      security_governance:
+        - "Amazon Bedrock Guardrails (content filtering, PII protection)"
+        - "AWS IAM for AI access control"
+        - "Amazon Macie (data security)"
+        - "AWS CloudTrail for AI audit logging"
+    research_sources: "AWS re:Invent 2024 and recent AWS updates"
+
+  gcp:
+    display_name: "Google Cloud Platform (GCP)"
+    key_services:
+      productivity_assistants:
+        - "Gemini for Google Workspace (Docs, Sheets, Slides, Gmail, Meet)"
+        - "Gemini for Google Cloud (cloud console assistant)"
+        - "NotebookLM (AI research assistant)"
+      agentic_ai:
+        - "Vertex AI Agent Builder (build and deploy agents)"
+        - "Vertex AI Extensions (connect agents to APIs)"
+        - "Google Cloud Workflows for orchestration"
+      data_analytics:
+        - "BigQuery with Gemini (natural language SQL)"
+        - "Vertex AI Search (enterprise search)"
+        - "Looker with Gemini (conversational BI)"
+        - "Dataplex for data governance"
+      ai_development:
+        - "Vertex AI (Gemini Pro, Gemini Ultra, PaLM models)"
+        - "Vertex AI Model Garden (model catalog)"
+        - "Gemini Code Assist for developers"
+        - "Vertex AI Studio (prompt design, tuning)"
+      security_governance:
+        - "Vertex AI Model Monitoring"
+        - "Google Cloud IAM for AI"
+        - "Data Loss Prevention API"
+        - "Cloud Audit Logs"
+    research_sources: "Google Cloud Next 2024 and recent GCP updates"
+
+  agnostic:
+    display_name: "Cloud Agnostic (Multi-Cloud)"
+    guidance: |
+      Compare and recommend the best services across Azure, AWS, and GCP for each use case.
+      Consider:
+      - Which vendor has the strongest offering for each domain?
+      - Interoperability and avoiding vendor lock-in
+      - Cost comparison across platforms
+      - Enterprise readiness and support
+    comparison_areas:
+      - "Foundation models: Azure OpenAI vs Amazon Bedrock vs Vertex AI"
+      - "Productivity AI: M365 Copilot vs Amazon Q vs Gemini for Workspace"
+      - "Agent platforms: Copilot Studio vs Bedrock Agents vs Agent Builder"
+      - "Data platforms: Fabric vs SageMaker/Bedrock vs BigQuery/Vertex"
+      - "Governance: Purview vs Bedrock Guardrails vs Vertex AI governance"
