@@ -202,7 +202,7 @@ class ReportAnalyzer:
 
         # Report duplicate sections if any
         if structure['duplicate_sections']:
-            report += f"\n**⚠️ DUPLICATE SECTIONS DETECTED:**\n"
+            report += f"\n**WARNING: DUPLICATE SECTIONS DETECTED:**\n"
             for title, count in structure['duplicate_sections'].items():
                 report += f"  - '{title}' appears {count} times\n"
             report += "\n"
