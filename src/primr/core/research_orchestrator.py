@@ -122,6 +122,7 @@ class OrchestratorResult:
     success: bool = True
     error: str | None = None
     timestamp: datetime = field(default_factory=datetime.now)
+    sections_written: int = 0  # Actual number of sections written (for accordion method)
 
 
 class ResearchOrchestrator:
@@ -747,55 +748,74 @@ class ResearchOrchestrator:
         context_files: list | None = None,
     ) -> OrchestratorResult:
         """
-        Run Deep Research with optional context files.
+        Run Deep Research using the Accordion Method for comprehensive reports.
 
-        Always uses company_profile prompt with ALL sections from company_overview.yaml.
+        This uses the same Accordion Method as --mode full, but WITHOUT Stage 1 scraping:
+        - Phase 1: Deep Research gathers research dossier (raw facts)
+        - Phase 2: Gemini Flash writes each section with context continuity
+        
+        This produces 30+ page reports with substantive long-form content,
+        not the terse bullet-point output from raw Deep Research.
+        
         Context files (if provided) are uploaded to File Search Store to inform the research.
         """
-        def progress_callback(progress: ResearchProgress) -> None:
+        import time as time_module
+        
+        start_time = time_module.time()
+        
+        if on_progress:
+            on_progress("Using Accordion Method for comprehensive report...")
+            on_progress("  Phase 1: Deep Research gathers facts")
+            on_progress("  Phase 2: Section-by-section writing with Gemini Flash")
+        
+        # Use the Accordion Method orchestrator (same as --mode full, but no Stage 1)
+        orchestrator = get_deep_research_orchestrator()
+        
+        def progress_wrapper(msg: str) -> None:
             if on_progress:
-                msg = progress.message or progress.thought or "Processing..."
                 on_progress(msg)
-
-        # Execute deep research with context
-        priority_urls = [website] if website else None
-
-        # Always use company_profile for comprehensive report with ALL sections
-        # Phase 1 context (if provided) INFORMS the research, it doesn't replace sections
-        # The Deep Research API should generate the full polished report
-        output_format = "company_profile"
-
-        result = await self.deep_research_client.research(
-            query=f"Research {company_name}" + (f" ({website})" if website else ""),
-            output_format=output_format,
-            poll_interval=config.poll_interval,
-            timeout=config.timeout,
-            on_progress=progress_callback,
-            priority_urls=priority_urls,
-            context_files=context_files
+        
+        # Generate comprehensive report using Accordion Method
+        # Pass None for stage1_context since we're skipping Stage 1
+        deep_result = await orchestrator.generate_comprehensive_report(
+            company_name=company_name,
+            website_url=website,
+            stage1_context=None,  # No Stage 1 - Deep Research will gather all facts
+            on_progress=progress_wrapper,
+            target_pages=30,  # Target 30+ pages
         )
-
-        if not result.success:
-            logger.warning(f"Deep research failed: {result.error}")
+        
+        total_duration = time_module.time() - start_time
+        
+        if not deep_result.success:
+            logger.warning(f"Deep research failed: {deep_result.error}")
             return OrchestratorResult(
                 company_name=company_name,
                 website=website,
                 mode=ResearchMode.DEEP_RESEARCH,
                 section_results={},
                 success=False,
-                error=result.error
+                error=deep_result.error,
+                duration_seconds=total_duration
             )
 
         # Format the report (resolve citation URLs, clean TOC)
         formatter = ReportFormatter()
         formatted = formatter.format_report(
-            raw_content=result.content,
+            raw_content=deep_result.content,
             company_name=company_name,
             citation_style="numbered"
         )
 
-        # Normalize the result to section format
-        section_results = self._normalize_deep_research_result(result)
+        # Build section results for compatibility
+        section_results = {
+            "strategic_overview": formatted.markdown,
+        }
+
+        logger.info(
+            f"Deep research (Accordion) completed: ~{formatted.word_count} words, "
+            f"{deep_result.api_calls} API calls, {total_duration:.0f}s"
+        )
 
         return OrchestratorResult(
             company_name=company_name,
@@ -804,7 +824,9 @@ class ResearchOrchestrator:
             section_results=section_results,
             raw_content=formatted.markdown,  # Use formatted content with resolved URLs
             citations=formatted.citations,   # Use resolved citations
-            success=True
+            success=True,
+            duration_seconds=total_duration,
+            sections_written=deep_result.sections_written,
         )
 
     def _merge_research_results(

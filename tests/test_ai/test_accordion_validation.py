@@ -81,7 +81,7 @@ class TestYAMLConfiguration:
         assert "closing" in guidance, "Missing closing guidance"
 
     def test_all_sections_have_required_fields(self):
-        """All 20 sections have id, name, part, position, purpose, covers."""
+        """All 21 sections have id, name, part, position, purpose, covers."""
         from primr.prompts.composer import PromptComposer
         
         composer = PromptComposer()
@@ -95,13 +95,13 @@ class TestYAMLConfiguration:
                 assert value is not None, f"Section {section.id} missing {field}"
 
     def test_sections_have_position_field(self):
-        """All sections have position field (opening/middle/closing)."""
+        """All sections have position field (opening/middle/closing/framework)."""
         from primr.prompts.composer import PromptComposer
         
         composer = PromptComposer()
         config = composer._load_config("company_overview")
         
-        valid_positions = {"opening", "middle", "closing"}
+        valid_positions = {"opening", "middle", "closing", "framework"}
         
         for section in config.sections:
             position = getattr(section, "position", None)
@@ -109,14 +109,14 @@ class TestYAMLConfiguration:
                 f"Section {section.id} has invalid position: {position}"
 
     def test_section_count(self):
-        """Should have 20 sections defined."""
+        """Should have 21 sections defined."""
         from primr.prompts.composer import PromptComposer
         
         composer = PromptComposer()
         config = composer._load_config("company_overview")
         
-        assert len(config.sections) == 20, \
-            f"Expected 20 sections, got {len(config.sections)}"
+        assert len(config.sections) == 21, \
+            f"Expected 21 sections, got {len(config.sections)}"
 
 
 class TestPreflightValidator:
@@ -215,7 +215,7 @@ class TestOrchestratorConfiguration:
         orchestrator = DeepResearchOrchestrator.__new__(DeepResearchOrchestrator)
         sections = orchestrator.REPORT_SECTIONS
         
-        assert len(sections) == 20, f"Expected 20 sections, got {len(sections)}"
+        assert len(sections) == 21, f"Expected 21 sections, got {len(sections)}"
         
         # Verify structure
         for section in sections:

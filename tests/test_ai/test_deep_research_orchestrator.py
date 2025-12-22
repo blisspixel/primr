@@ -65,7 +65,7 @@ class TestSectionLoadingFromYAML:
         
         for section in sections:
             assert "position" in section, f"Section missing 'position': {section.get('id')}"
-            assert section["position"] in ("opening", "middle", "closing")
+            assert section["position"] in ("opening", "middle", "closing", "framework")
 
     def test_first_section_is_executive_summary(self):
         """First section should be Executive Summary."""

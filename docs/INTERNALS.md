@@ -66,14 +66,14 @@ Report sections are defined in YAML configuration files, not hardcoded in Python
 - **Customizable**: Users can modify sections without changing code
 - **Extensible**: New strategy reports can be added by creating new YAML files
 
-**As of December 2025, the Strategic Company Overview uses 20 sections** defined in `src/primr/prompts/company_overview.yaml`:
+**As of December 2025, the Strategic Company Overview uses 21 sections** defined in `src/primr/prompts/company_overview.yaml`:
 
 | Part | Sections |
 |------|----------|
 | 1 - Foundational | Executive Summary, Products and Services, Target Customers, Competitive Differentiation, Financial Profile, Company History, Leadership and Organization |
 | 2 - Industry | Industry Dynamics, Competitive Landscape |
 | 3 - Strategic | Business Model, SWOT Analysis, Strategic Tensions, Constraints and Degrees of Freedom |
-| 4 - Patterns | Narrative Gap Analysis, Fragilities, Patterns Worth Exploring, Discovery Questions |
+| 4 - Patterns | Narrative Gap Analysis, Fragilities, Patterns Worth Exploring, Discovery Questions, Engagement Opportunities |
 | 5 - Frameworks | Porter's Five Forces, Value Chain Analysis, Strategic Positioning Hypothesis |
 
 **AI Strategy Report** uses 17 sections defined in `src/primr/prompts/strategies/ai_strategy.yaml`, including vendor-specific guidance for Azure, AWS, and GCP.

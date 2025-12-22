@@ -392,13 +392,22 @@ class PromptComposer:
             lines.append(f"Priority Source: Analyze {context.website_url} first.")
             lines.append("")
 
-        # Add depth requirement
-        lines.extend([
-            "DEPTH REQUIREMENT: This document must be THOROUGH. Each section needs ",
-            "substantive analysis with specific evidence, not surface-level summaries. ",
-            "Include data tables where they add clarity.",
-            "",
-        ])
+        # Add writing standards if present (quality-focused guidance)
+        writing_standards = config.raw_config.get("writing_standards", "")
+        if writing_standards:
+            lines.extend([
+                "WRITING STANDARDS:",
+                writing_standards.strip(),
+                "",
+            ])
+        else:
+            # Default depth requirement if no writing standards specified
+            lines.extend([
+                "DEPTH REQUIREMENT: This document must be THOROUGH. Each section needs ",
+                "substantive analysis with specific evidence, not surface-level summaries. ",
+                "Include data tables where they add clarity.",
+                "",
+            ])
 
         # Add epistemic rules (merged with overrides)
         lines.append("EPISTEMIC RULES:")

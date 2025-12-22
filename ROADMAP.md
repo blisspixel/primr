@@ -104,19 +104,28 @@ Citation URL resolution (redirect URLs resolved to readable final destinations)
 Enhanced prompt engineering for Company Overview and AI Strategy reports
 
 Near-Term Roadmap
-v1.2.0 – Stability and Maintainability (Planned)
+v1.2.0 – Stability and Maintainability (In Progress)
 
 Goal: Make Primr boringly reliable.
 
-Static analysis compliance (mypy, ruff)
+**Completed:**
+- Test coverage hardening with 146 new tests across 9 test files
+- pytest custom marks (slow, integration, smoke, resilience) for selective test execution
+- CLI smoke tests for basic functionality validation
+- API resilience tests (retry, backoff, fallback, consecutive failure handling)
+- sections_written field accuracy and propagation tests
+- Citation URL resolution and deduplication tests
+- YAML configuration validation tests
+- Output format consistency tests (DOCX tables, heading hierarchy)
+- Thread safety tests for console and file operations
+- Cost estimation accuracy tests
+- File Search Store lifecycle and cleanup tests
 
-Additional property-based tests
-
-Performance profiling and bottleneck identification
-
-Documentation cleanup and developer guidance
-
-Refined error messages for failed research stages
+**Remaining:**
+- Static analysis compliance (mypy, ruff)
+- Performance profiling and bottleneck identification
+- Documentation cleanup and developer guidance
+- Refined error messages for failed research stages
 
 This phase intentionally adds no new user-facing features.
 
@@ -440,7 +449,7 @@ Version	Date	Highlights
 1.1.0	Dec 2025	Code quality hardening
 1.2.5	Dec 2025	Externalized prompt architecture (YAML configs)
 1.2.6	Dec 2025	Extensible strategy modules (--strategy flag)
-1.2.0	Early 2026	Stability and reliability
+1.2.0	Dec 2025	Test coverage hardening (146 new tests, pytest marks)
 1.3.0	TBD	Research state and hypothesis tracking
 1.4.0	TBD	Iterative refinement loop
 1.5.0	TBD	POV evolution and narrative continuity

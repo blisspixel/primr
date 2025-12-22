@@ -886,10 +886,12 @@ def perform_deep_research(
                 log_structured("error", "Deep research failed", error=result.error)
                 return None
 
-            log_structured("info", "Deep research complete", sections=len(result.section_results))
+            # Use sections_written for accurate count (accordion method tracks this)
+            section_count = result.sections_written if result.sections_written > 0 else len(result.section_results)
+            log_structured("info", "Deep research complete", sections=section_count)
             
             if is_simple_deep_research:
-                console.phase_complete("Deep Research", [("Sections", str(len(result.section_results))), ("Citations", str(len(result.citations)))])
+                console.phase_complete("Deep Research", [("Sections", str(section_count)), ("Citations", str(len(result.citations)))])
                 console.phase_banner(2, 3, "Processing Results", "Saving and converting output", "1-2 min")
 
             # Save section results to working folder
@@ -1012,10 +1014,13 @@ def perform_deep_research(
             from primr.utils.cost_estimator import estimate_cost
             pre_estimate = estimate_cost(mode, ai_strategy, use_historical=False)
 
+            # Use sections_written for accurate count
+            section_count = result.sections_written if result.sections_written > 0 else len(result.section_results)
+            
             # Summary stats with estimated vs actual comparison
             summary_items = [
                 ("Mode", mode_label),
-                ("Sections", str(len(result.section_results))),
+                ("Sections", str(section_count)),
                 ("Citations", str(len(result.citations))),
                 ("Duration", time_str),
                 ("Est. Cost", f"${pre_estimate.total_cost:.2f}"),
@@ -1044,7 +1049,7 @@ def perform_deep_research(
                 duration_seconds=elapsed,
                 api_calls=0,  # Deep Research doesn't expose API call count
                 total_tokens=total_input + total_output,
-                sections_generated=len(result.section_results),
+                sections_generated=section_count,
                 output_path=docx_path,
             )
             log_job_summary(job_summary)
