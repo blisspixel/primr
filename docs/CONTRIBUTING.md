@@ -186,9 +186,29 @@ pytest tests/test_ai/test_client.py -v
 # Run with coverage
 pytest tests/ --cov=src/primr --cov-report=html
 
-# Run only fast tests (skip integration)
-pytest tests/ -v -m "not integration"
+# Run only fast tests (skip slow and integration)
+pytest tests/ -v -m "not slow and not integration"
+
+# Run smoke tests only (quick CLI validation)
+pytest tests/ -v -m smoke
+
+# Run resilience tests only (API retry/fallback behavior)
+pytest tests/ -v -m resilience
+
+# Run integration tests only
+pytest tests/ -v -m integration
 ```
+
+### Test Categories
+
+Primr uses pytest markers to categorize tests:
+
+| Marker | Description | Example |
+|--------|-------------|---------|
+| `@pytest.mark.slow` | Tests that take >5 seconds | Deep research integration |
+| `@pytest.mark.integration` | Tests requiring external services | API calls, web scraping |
+| `@pytest.mark.smoke` | Quick CLI validation tests | `primr doctor`, `primr --help` |
+| `@pytest.mark.resilience` | API retry and fallback tests | 429 handling, exponential backoff |
 
 ### Test Structure
 

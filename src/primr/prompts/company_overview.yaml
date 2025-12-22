@@ -26,6 +26,11 @@ document_purpose: |
   This is NOT a client deliverable. It's the thinking that makes you walk in informed and curious.
   Write with analytical depth. Surface uncomfortable hypotheses. Prioritize clarity over diplomacy.
   Treat strong claims as working hypotheses unless explicitly supported by cited sources.
+  
+  IMPORTANT - Avoid Repetition:
+  Each insight should live in ONE section. Don't repeat the same point across SWOT, Strategic 
+  Tensions, Fragilities, and Patterns. Pick the best home for each idea and develop it there.
+  Cross-reference other sections rather than restating.
 
 epistemic_rules:
   fact_inference_hypothesis: |
@@ -36,6 +41,14 @@ epistemic_rules:
     Use language like "appears to", "worth exploring", "we'd want to validate".
   transformation_rule: |
     If a sentence implies inevitability or failure, rewrite it as a scenario comparison.
+  numeric_precision: |
+    For numbers not directly from filings or official sources, soften phrasing:
+    "reported," "management commentary suggests," "directionally indicates," "estimated at"
+    This protects credibility if challenged. Overconfident precision undermines trust.
+  measurement_uncertainty: |
+    For impacts that are necessarily speculative (conversion rates, attribution, ROI projections),
+    explicitly acknowledge measurement uncertainty: "If tracking exists...", "Absent strong 
+    attribution, this may function primarily as...", "The actual impact depends on..."
 
 formatting:
   paragraphs: "Write in full paragraphs with evidence"
@@ -57,14 +70,18 @@ sections:
     name: "Executive Summary"
     part: 1
     position: opening  # opening, middle, or closing - for narrative flow
-    purpose: "The 'so what' a partner reads before walking into the meeting"
+    purpose: "Strategic synthesis a partner reads before walking into the meeting"
     covers:
-      - "What this company does and their market position"
-      - "Key financial metrics and growth trajectory"
-      - "What they appear to be good at"
+      - "What this company does and their market position (2-3 paragraphs)"
+      - "Key financial metrics and growth trajectory with specific numbers"
+      - "What they appear to be good at - their core competitive advantages"
       - "2-3 areas where consulting support could create meaningful impact"
       - "The central hypothesis about how they create value (to validate with them)"
-    depth: "Synthesizes the document. Do not introduce conclusions not explored later."
+    depth: |
+      This should be 2-3 pages of substantive analysis, NOT a bullet list.
+      Write in flowing prose. Synthesize the document's key insights.
+      Do not introduce conclusions not explored in later sections.
+      Do NOT use labels like "The 'So What'" - just write the analysis directly.
 
   - id: products_services
     name: "Products and Services"
@@ -187,7 +204,7 @@ sections:
   - id: business_model
     name: "Business Model and Value Creation"
     part: 3
-    position: middle
+    position: framework
     purpose: "Articulate how they actually make money - the logic made explicit"
     covers:
       - "Core value proposition: What problem, for whom, better than alternatives?"
@@ -200,24 +217,39 @@ sections:
   - id: swot_analysis
     name: "SWOT Analysis"
     part: 3
-    position: middle
-    purpose: "Structured assessment of position"
+    position: framework
+    purpose: "Structured assessment of position - the canonical home for strengths, weaknesses, opportunities, threats"
     covers:
-      - "Strengths (internal capabilities and advantages) - 5-8 items with evidence"
-      - "Weaknesses (internal gaps and limitations) - 5-8 items with evidence"
-      - "Opportunities (external openings and tailwinds) - 5-8 items with evidence"
-      - "Threats (external risks and headwinds) - 5-8 items with evidence"
-    depth: "Each item must have specific evidence"
+      - "Strengths (internal capabilities and advantages) - 4-6 items with evidence"
+      - "Weaknesses (internal gaps and limitations) - 4-6 items with evidence"
+      - "Opportunities (external openings and tailwinds) - 4-6 items with evidence"
+      - "Threats (external risks and headwinds) - 4-6 items with evidence"
+    depth: |
+      This is the CANONICAL HOME for position assessment. Do NOT repeat these points 
+      in Strategic Tensions, Fragilities, or Patterns - those sections should build 
+      on SWOT, not duplicate it.
+      
+      For each item:
+      - State the strength/weakness/opportunity/threat clearly
+      - Provide specific evidence (numbers, examples, citations)
+      - Explain strategic significance in 1-2 sentences
+      
+      Keep this section focused and evidence-based. Save the "what to do about it" 
+      for Strategic Tensions and Discovery Questions.
 
   - id: strategic_tensions
     name: "Strategic Tensions"
     part: 3
-    position: middle
-    purpose: "Identify core tensions they must actively manage"
+    position: framework
+    purpose: "Identify core tensions they must actively manage - derived from SWOT"
     covers:
-      - "4-6 tensions derived from the SWOT"
+      - "3-5 tensions that emerge from the SWOT analysis"
       - "For each: The tension, Evidence, Current approach, Question to explore"
-    depth: "Examples: Scale vs customization, Speed vs governance, Growth vs profitability"
+    depth: |
+      This section BUILDS ON SWOT - don't repeat the same points, synthesize them into tensions.
+      A tension is a tradeoff they must manage, not just a weakness restated.
+      Examples: Scale vs customization, Speed vs governance, Growth vs profitability
+      Reference the SWOT section rather than restating evidence.
 
   - id: constraints_freedom
     name: "Constraints and Degrees of Freedom"
@@ -243,21 +275,35 @@ sections:
     name: "Areas of Potential Fragility"
     part: 4
     position: middle
-    purpose: "Areas where the business may be sensitive to shocks"
+    purpose: "System-level vulnerabilities not captured in SWOT threats"
     covers:
-      - "4-6 fragilities identified"
+      - "3-4 fragilities that represent systemic risk, not just threats"
       - "For each: The fragility, Evidence, Question about how they're thinking about it"
-    depth: "System awareness, not critique"
+    depth: |
+      This is for SYSTEMIC fragilities - things that could cascade or compound.
+      Don't repeat SWOT threats here. Focus on:
+      - Single points of failure
+      - Concentration risks
+      - Dependencies that could break under stress
+      If it's already in SWOT Threats, don't repeat it here.
 
   - id: patterns
     name: "Patterns Worth Exploring"
     part: 4
     position: middle
-    purpose: "Interesting patterns from the research"
+    purpose: "Interesting patterns that don't fit neatly into other sections"
     covers:
-      - "5-8 patterns identified"
+      - "3-5 patterns that are genuinely novel observations"
       - "For each: Observation (with evidence), Interpretation A, Interpretation B, Question"
-    depth: "Multiple interpretations for each pattern"
+    depth: |
+      This is for NOVEL patterns not already covered elsewhere.
+      Don't restate SWOT items or Strategic Tensions as "patterns."
+      Focus on:
+      - Surprising correlations
+      - Timing patterns
+      - Behavioral signals
+      - Things that don't quite fit the narrative
+      If you've already made the point elsewhere, don't repeat it here.
 
   - id: discovery_questions
     name: "Discovery Questions"
@@ -265,14 +311,31 @@ sections:
     position: middle
     purpose: "The most important questions for our first conversation"
     covers:
-      - "8-10 questions"
+      - "6-8 questions"
       - "For each: The question, Why we're asking, What we hope to learn"
     depth: "Specific and thoughtful, not gotcha questions"
+
+  - id: engagement_opportunities
+    name: "Where They're Likely to Say Yes"
+    part: 4
+    position: middle
+    purpose: "Tie hypotheses to decision ownership and budget reality"
+    covers:
+      - "Budget-Adjacent Areas: Where spend is already happening or planned"
+      - "Budget-Resistant Areas: Where we'd need to create the case from scratch"
+      - "Decision Ownership: Who owns each area (CFO, CTO, Head of X)"
+      - "Time Horizon: 2025 priorities vs 2026+ strategic bets"
+    depth: |
+      This is the "so what for us" section. Connect the analysis to:
+      - Specific decision-makers and their likely priorities
+      - Revenue vs efficiency vs defensive spend categories
+      - Near-term budget cycles vs longer-term strategic planning
+      Be realistic about where there's likely appetite vs where we'd be pushing uphill.
 
   - id: porters_five_forces
     name: "Porter's Five Forces Assessment"
     part: 5
-    position: middle
+    position: framework
     purpose: "Understand industry profitability dynamics"
     covers:
       - "Threat of new entrants (High/Medium/Low with evidence)"
@@ -285,7 +348,7 @@ sections:
   - id: value_chain
     name: "Value Chain Analysis"
     part: 5
-    position: middle
+    position: framework
     purpose: "Where in the value chain do they participate and capture margin?"
     covers:
       - "Primary activities and where they have advantages"
@@ -378,11 +441,17 @@ accordion_method:
   # Used for each section, with variables substituted at runtime
   section_writing_prompt: |
     You are writing a section of a strategic company overview for {company_name}.
+    
+    PURPOSE: This is for internal sensemaking and go-to-market preparation - helping 
+    us understand how this company creates value and where we might help them. It's 
+    NOT a client deliverable. Frame insights as hypotheses to explore, not conclusions.
 
     {stage1_context}
 
     ## RESEARCH DOSSIER (Deep Research Findings)
-    External research and analysis gathered from web sources.
+    The research dossier below contains compressed facts gathered by Deep Research.
+    Your job is to take these facts and write them out properly - developing the 
+    analysis, surfacing implications, and identifying patterns worth exploring.
 
     {research_dossier}
 
@@ -390,7 +459,7 @@ accordion_method:
     {previous_sections}
 
     ## YOUR TASK
-    Write the **{section_title}** section with depth and analytical rigor.
+    Write the **{section_title}** section.
 
     Instructions:
     {section_instructions}
@@ -398,33 +467,57 @@ accordion_method:
     ## NARRATIVE GUIDANCE
     {position_guidance}
 
-    ## WRITING STANDARDS
-    - Write in flowing prose with clear subheadings
-    - Every paragraph should contain specific facts, figures, or analysis
-    - Avoid filler phrases ("it is important to note", "there are many factors")
-    - Analyze, don't just describe - explain WHY things matter
-    - Reference previous sections naturally ("As discussed in...", "Building on...")
-    - Use transitions that connect to the overall narrative
-    - Cite sources using [cite: X] format
-    - Frame assessments as hypotheses to validate, not conclusions
-
-    ## COHESION
-    This section should feel like part of ONE document, not a standalone piece.
-    - Reference the report's central thesis
-    - Connect to themes from previous sections
-    - Set up points that later sections will develop
+    ## WRITING APPROACH
+    
+    This is exploratory analysis, not authoritative prescription:
+    - Frame findings as hypotheses: "This suggests..." not "They must..."
+    - Surface patterns worth exploring, questions to ask
+    - Be specific with evidence (numbers, names, comparisons)
+    - Acknowledge uncertainty - what we don't know matters too
+    - Write for someone preparing to engage, not delivering a verdict
+    
+    NUMERIC PRECISION:
+    - For numbers from filings/official sources: state directly
+    - For estimates or inferences: "reported at," "estimated at," "directionally indicates"
+    - For speculative impacts: acknowledge measurement uncertainty explicitly
+    
+    AVOID REPETITION:
+    - Check the previous sections - don't restate points already made
+    - Each insight should live in ONE section
+    - Reference other sections rather than restating: "As noted in the SWOT analysis..."
+    
+    Write as much as the content needs - no more, no less. Let the material guide you.
+    
+    GOOD:
+    - "NIM of 2.46% vs First Hawaiian's 3.19% suggests potential pricing constraints worth exploring"
+    - "The Cetera partnership may signal a pivot toward fee income - worth validating in conversation"
+    
+    NOT THIS:
+    - "They must improve their margins" (too prescriptive)
+    - "The company has lower margins" (too generic, no insight)
+    
+    Use natural section titles (not numbered). Cite sources with [cite: X] format.
 
     Write the **{section_title}** section now:
 
   # Position guidance templates for narrative flow
   position_guidance:
     opening: |
-      This is the OPENING section. Set the analytical tone for the entire report.
-      Establish the central thesis that subsequent sections will develop.
+      This is the OPENING section. Set the exploratory tone for the report.
+      Surface the key hypotheses that subsequent sections will develop.
     middle: |
       This is section {section_number} of {total_sections}.
       Build naturally on the previous sections. Reference earlier points where relevant.
-      Set up themes that later sections will develop.
+      Develop themes and surface questions worth exploring.
+    framework: |
+      This is a FRAMEWORK section - apply the analytical framework rigorously.
+      Consulting frameworks like SWOT, Porter's Five Forces, and Value Chain are 
+      valuable because they structure thinking and surface insights. Use them well:
+      - Apply each element of the framework systematically
+      - Ground every assessment in specific evidence from the research
+      - Draw out implications - what does each finding suggest?
+      - Connect to the broader strategic picture
+      This is where structured analysis adds real value.
     closing: |
-      This is the CLOSING section. Tie together all previous analysis.
-      Reference key insights from earlier sections. Provide closure.
+      This is the CLOSING section. Synthesize the key hypotheses and patterns.
+      Highlight the most important questions to explore in engagement.

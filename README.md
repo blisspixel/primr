@@ -6,14 +6,14 @@ A research tool that generates company intelligence briefs using Google's Gemini
 
 Primr runs company research using complementary engines that work together:
 
-**Scrape Mode**: Website-focused research with multi-tier web scraping (requests, httpx, Playwright, aggressive browser), section-by-section AI analysis with quality grading. Useful for deep website analysis and specific data extraction. Produces ~15-20 page reports.
+**Scrape Mode**: Website-focused research with multi-tier web scraping (requests, httpx, Playwright, aggressive browser), section-by-section AI analysis with quality grading. Useful for deep website analysis and specific data extraction.
 
-**Deep Mode**: Powered by Gemini Deep Research Agent with autonomous multi-step research and built-in Google Search. Generates a comprehensive company profile. Produces ~12 page reports.
+**Deep Mode**: Uses the Accordion Method - Deep Research gathers facts, then Gemini Flash writes each section with proper analysis and implications. No website scraping, relies entirely on web research.
 
-**Full Mode** (recommended): Combines both engines using the "Accordion Method" for comprehensive 30+ page reports:
+**Full Mode** (recommended): Combines both engines:
 1. **Data Collection**: Website scraping + Google Search (baseline facts)
-2. **Research Dossier**: Deep Research gathers external context (as Lead Researcher, not Writer)
-3. **Section Writing**: Gemini 3 Flash writes sections sequentially with context continuity
+2. **Research Dossier**: Deep Research gathers external context
+3. **Section Writing**: Gemini Flash writes sections with full context
 
 All modes produce DOCX/PDF reports with optional AI strategy recommendations.
 
@@ -21,12 +21,20 @@ All modes produce DOCX/PDF reports with optional AI strategy recommendations.
 
 Primr outputs are designed for internal research, go-to-market preparation, and strategic sensemaking. They are not written as client-ready deliverables. The goal is to understand how a company creates value and where support could help them move faster, reduce risk, or unlock opportunities.
 
-Reports may:
-- Surface aggressive or uncomfortable hypotheses
-- Compress competitive or regulatory risk into direct language for internal discussion
-- Prioritize analytical clarity over diplomatic tone
+**What makes Primr output useful:**
+- Coherent strategic thesis that ties the analysis together
+- Hypothesis-driven framing (not declarative pronouncements)
+- Specific evidence with citations (not generic observations)
+- Framework sections (SWOT, Porter's, Value Chain) applied rigorously
+- "Where They're Likely to Say Yes" section connecting analysis to engagement opportunities
 
-Treat strong claims as working hypotheses unless explicitly supported by cited sources. Downstream teams should translate insights into materials appropriate for external audiences.
+**Calibration notes:**
+- Observations are framed as hypotheses to validate in conversation
+- Numeric claims use appropriate precision (ranges for estimates, exact figures only from filings)
+- Competitive comparisons use directional language ("materially faster") not precise multiples
+- Each insight lives in one section - no repetition across SWOT, Tensions, Patterns, etc.
+
+Reports may surface aggressive or uncomfortable hypotheses. Treat strong claims as working hypotheses unless explicitly supported by cited sources. Downstream teams should translate insights into materials appropriate for external audiences.
 
 ## Quick Start
 
@@ -128,11 +136,11 @@ All systems ready.
 
 ### Research Modes
 
-| Mode | Flag | Best For | Duration | Output |
-|------|------|----------|----------|--------|
-| Full | `--mode full` (default) | Most comprehensive - Accordion Method | 35-50 min | 30+ pages |
-| Scrape | `--mode scrape` | Website deep-dives, no Deep Research API | 20-25 min | 15-20 pages |
-| Deep | `--mode deep` | Quick research via Deep Research API | 10-15 min | ~12 pages |
+| Mode | Flag | Best For | Duration |
+|------|------|----------|----------|
+| Full | `--mode full` (default) | Most comprehensive - scraping + Accordion Method | 35-50 min |
+| Scrape | `--mode scrape` | Website deep-dives, no Deep Research API | 20-25 min |
+| Deep | `--mode deep` | Web research only - Accordion Method | 15-25 min |
 
 ## Project Structure
 
@@ -207,30 +215,43 @@ primr doctor
 ## Development
 
 ```bash
-# Run tests
+# Run all tests
 pytest tests/ -v
+
+# Run fast tests only (skip slow/integration)
+pytest tests/ -v -m "not slow and not integration"
+
+# Run smoke tests (quick CLI validation)
+pytest tests/ -v -m smoke
+
+# Run resilience tests (API retry/fallback)
+pytest tests/ -v -m resilience
 ```
 
 ## Deep Research API Limitation (December 2025)
 
-Google's Gemini Deep Research Agent (`deep-research-pro-preview-12-2025`) is excellent at autonomous research but has a practical output limit of ~8-12 pages per API call, regardless of how many pages you request in the prompt.
+Google's Gemini Deep Research Agent (`deep-research-pro-preview-12-2025`) is excellent at autonomous research but compresses output to ~8-12 pages per API call, regardless of prompt instructions. It gathers information thoroughly but writes in a dense, compressed style.
 
-**Why this matters:** If you ask Deep Research for a "30-page report," it will produce ~8-12 pages of high-quality, well-structured content with citations. It gathers information thoroughly but compresses the output.
+**The Accordion Method:** Primr uses a two-phase approach to produce better-written reports:
 
-**The Accordion Method (Full Mode):** To produce 30+ page reports, Primr uses a multi-phase approach:
+1. **Phase 1 - Research Dossier**: Deep Research gathers facts as "Lead Researcher" - thorough research, compressed output (~8-12 pages of dense facts with citations)
 
-1. **Phase 1 - Data Collection**: Website scraping + Google Search + Gemini Flash analysis creates baseline facts (~15-25 min)
-2. **Phase 2 - Research Dossier**: Deep Research acts as "Lead Researcher" gathering external context. This produces the ~12 page research dossier with citations.
-3. **Phase 3 - Section Writing**: Gemini 3 Flash writes each section one-by-one, passing the dossier and previous sections in each prompt for context continuity.
+2. **Phase 2 - Section Writing**: Gemini Flash takes each section and writes it out properly - with analysis, implications, and strategic connections. Quality over quantity - each section is as long as the content needs, no more.
 
-This architecture treats Deep Research as the **researcher** (gathers facts) and Gemini 3 Flash as the **writer** (produces prose). The result is comprehensive 30+ page reports that avoid the "middle muddle" problem where pages 10-40 become vague and repetitive.
+The key insight: Deep Research is the **researcher** (gathers facts), Gemini Flash is the **writer** (produces prose). The result is naturally longer because it's better written - facts are explained, implications are drawn out, connections are made explicit.
 
-**Resilience:** If Deep Research fails (500 errors, rate limits), the pipeline falls back to using Stage 1 context as the research dossier and continues with section writing.
+**Quality calibration:**
+- Observations use humble, exploratory language ("This suggests...", "Worth validating...")
+- Framework sections (SWOT, Porter's, Value Chain) apply structured analysis rigorously
+- Each insight lives in ONE section - no repetition across multiple analytical frameworks
+- Numeric precision matches source confidence (ranges for estimates, exact figures from filings)
+
+**Resilience:** If Deep Research fails (500 errors, rate limits), the pipeline falls back to Stage 1 context and continues with section writing.
 
 **Mode comparison:**
-- `--mode deep`: Single Deep Research call → ~12 pages (fast, good for quick scans)
-- `--mode scrape`: Website scraping + Gemini Flash → ~15-20 pages (no Deep Research API)
-- `--mode full`: Accordion Method → 30+ pages (recommended for comprehensive research)
+- `--mode deep`: Accordion Method (web research only, no scraping)
+- `--mode scrape`: Website scraping + Gemini Flash (~15-20 pages, no Deep Research API)
+- `--mode full`: Stage 1 scraping + Accordion Method (most comprehensive)
 
 ## Known Limitations
 

@@ -22,13 +22,94 @@ meta:
 persona: "ai_strategist"
 
 document_purpose: |
-  This is a STRATEGIC DOCUMENT for board-level decision making. The goal is to:
-  1. Answer "What should we actually do with AI, and why?"
-  2. Connect AI capabilities to THIS company's specific business model, pain points, and competitive pressures
-  3. Help leadership make confident, well-sequenced decisions
+  This is for internal preparation before engaging with the company on AI strategy.
+  The goal is to understand their situation and develop hypotheses about where AI 
+  could help them - NOT to prescribe what they "must" do.
   
-  This is NOT a generic AI overview. It's a specific roadmap for THIS company.
-  Write with strategic clarity. Be direct about tradeoffs. Avoid hype language.
+  Frame this as:
+  1. "Based on what we can observe, here's what we think might be true..."
+  2. "These are the questions worth exploring in conversation..."
+  3. "If our hypotheses are correct, here are options to consider..."
+  
+  This is NOT a client deliverable. It's sensemaking to prepare for engagement.
+  Be specific about evidence. Be humble about uncertainty. Surface patterns worth exploring.
+  
+  KEY CALIBRATION (applies to ALL companies):
+  - Competitive claims: Use ranges and directional language ("materially faster", 
+    "order-of-magnitude improvement") rather than precise multiples that invite challenge
+  - ROI projections: Present as ranges with explicit assumptions, not confident point estimates
+  - Vendor specifics: Frame as "reference architecture" not commitments - the substance 
+    is right but the posture should feel optional
+  - Risk vs upside: Match framing to company culture - some want upside, others want 
+    downside protection. The company research should reveal which.
+  - Year 1 scope: Frame as "AI hygiene + two competitive necessities" - everything else 
+    becomes "sequenced optionality"
+  - AI enables distinctiveness: Frame AI as enabling what makes THIS company special, 
+    not replacing it. "AI lets [Company] remain a [X] company at scale."
+
+context_instructions: |
+  You have access to two types of context in the File Search Store:
+  
+  1. COMPANY RESEARCH: A detailed company overview with facts about their business,
+     financials, competitive position, and strategic situation. Use this to ground
+     every AI recommendation in their specific context - not generic advice.
+  
+  2. VENDOR RESEARCH: Current information about cloud AI services (Azure, AWS, or GCP).
+     Use this for specific, accurate technology recommendations with proper service names.
+  
+  CRITICAL: Every recommendation must connect to something specific from the company
+  research. "They could use AI for customer service" is generic. "Given their [specific 
+  characteristic from research], [specific AI capability] could [specific benefit]" is 
+  what we want. Ground every recommendation in THIS company's reality.
+
+# =============================================================================
+# WRITING QUALITY STANDARDS
+# =============================================================================
+
+writing_standards: |
+  SECTION-APPROPRIATE TONE:
+  
+  For OBSERVATION sections (Current State, Competitive Landscape):
+  - Humble and exploratory: "Based on public signals, we hypothesize..."
+  - Surface questions to validate in conversation
+  - Acknowledge what we can't know from outside
+  
+  For FRAMEWORK sections (Prioritization Filters, ROI Models, Governance, Architecture):
+  - Apply frameworks rigorously - this is where structured thinking adds value
+  - Prioritization matrices, governance tiers, ROI models are useful tools
+  - Ground every assessment in specific evidence
+  - Draw out implications - what does each finding suggest?
+  
+  For RECOMMENDATION sections (Quick Wins, Bigger Bets, Strategic Choices):
+  - Frame as options to explore, not prescriptions
+  - "If our hypotheses are correct, this could be worth pursuing..."
+  - Include specific technologies with citations (Azure OpenAI, Bedrock, etc.)
+  - ROI as ranges with explicit assumptions, not point estimates
+  
+  COMPETITIVE CLAIMS:
+  - Use directional language: "materially faster", "order-of-magnitude improvement"
+  - Avoid precise multiples that invite challenge: NOT "13× faster"
+  - Frame as "directional threat" not precise measurement
+  - Soften: "near-real-time decisions for certain segments" vs "instant decisioning"
+  
+  ROI AND INVESTMENT:
+  - Present as ranges: "$2-4M investment" not "$3.2M"
+  - Explicit assumptions: "Assuming 20% adoption in Year 1..."
+  - Include uncertainty: "ROI of 2-4× over 18-24 months, depending on..."
+  - For risk-averse organizations: emphasize risk avoidance alongside upside
+  - Match the company's culture: aggressive companies want upside, conservative ones want downside protection
+  
+  VENDOR SPECIFICS:
+  - Frame as "reference architecture" not commitments
+  - "One approach would be..." not "You should use..."
+  - Emphasize governance principles over specific SKUs in early conversations
+  - The substance is right; the posture should feel optional
+  
+  THROUGHOUT:
+  - Specific over generic: actual product names, numbers, comparisons
+  - Connected to THIS company's situation
+  - No numbered section headings (use natural titles)
+  - Cite sources and flag uncertainty
 
 # =============================================================================
 # DATA SOURCES
@@ -138,7 +219,15 @@ sections:
           - "Speed: Competitive requirements demanding faster response"
           - "Labor constraints: Talent scarcity, cost pressures, skill gaps"
           - "Customer expectations: Rising baseline for personalization"
-        depth: "Be specific to the company's situation. Reframe AI as structural necessity, not enthusiasm."
+        depth: |
+          Be specific to the company's situation. Reframe AI as structural necessity, not enthusiasm.
+          
+          Key framing principle: AI should ENABLE what makes this company distinctive, not replace it.
+          - For service-oriented companies: "AI lets [Company] remain a [service/relationship/trust] company at scale"
+          - For efficiency-focused companies: "AI accelerates [Company]'s cost advantage"
+          - For innovation-focused companies: "AI amplifies [Company]'s ability to move fast"
+          
+          Match the framing to what the company research reveals about their identity and strategy.
       - id: transformation_path
         name: "Recommended Transformation Path"
         covers:
@@ -147,7 +236,11 @@ sections:
           - "Recommended priorities with specific reasoning"
           - "Suggested deprioritizations with revisit conditions"
           - "Change management reality (70% of budget to people/process)"
-        depth: "Avoid generic statements. Be specific to the company's situation."
+        depth: |
+          Avoid generic statements. Be specific to the company's situation.
+          Frame Year 1 as "AI hygiene + two competitive necessities" - everything else 
+          becomes sequenced optionality. This reduces perceived ambition while maintaining 
+          strategic direction.
 
   - id: executive_summary
     name: "Executive Summary"
@@ -195,15 +288,20 @@ sections:
     part: 2
     purpose: "Understand competitive positioning on AI"
     covers:
-      - "One competitor ahead on AI: Who, what specifically, what's the gap"
+      - "One competitor ahead on AI: Who, what specifically, what's the directional gap"
       - "One peer making common AI mistakes: What to avoid"
       - "Value at stake over 24 months (best-case, likely-case, delayed-action)"
-    depth: "Specific examples with evidence"
+    depth: |
+      Specific examples with evidence, but use directional language for competitive claims:
+      - "Materially faster" not "13× faster"
+      - "Order-of-magnitude improvement" not precise multiples
+      - "Near-real-time for certain segments" not "instant decisioning"
+      This protects credibility if someone challenges a figure in a live conversation.
 
   - id: architecture_posture
     name: "Recommended AI Architecture Posture"
     part: 3
-    purpose: "Define what they SHOULD build toward"
+    purpose: "Define what they SHOULD build toward - as reference architecture, not commitment"
     subsections:
       - id: knowledge_grounding
         name: "Knowledge Grounding Pattern (RAG as Default)"
@@ -234,7 +332,12 @@ sections:
           - "Centralized model endpoints"
           - "Evaluation and monitoring infrastructure"
           - "Cost allocation mechanisms"
-    depth: "Specific to target cloud vendor and industry best practices"
+    depth: |
+      Frame as REFERENCE ARCHITECTURE, not commitments:
+      - "One approach would be..." not "You should use..."
+      - Emphasize governance principles over specific SKUs
+      - The substance is right; the posture should feel optional
+      - CIO/CISO should not feel the strategy is already implementation-locked
 
   - id: opportunity_domains
     name: "AI Opportunity Domains"
@@ -295,7 +398,20 @@ sections:
       - "Productivity ROI (labor savings, throughput)"
       - "Revenue ROI (conversion, retention, pricing)"
       - "Risk ROI (compliance, security, error reduction)"
-    depth: "Include specific calculation frameworks"
+      - "Risk Containment ROI (avoiding downside, not just generating upside)"
+    depth: |
+      Include specific calculation frameworks. Present ROI as RANGES with explicit assumptions:
+      - "ROI of 2-4× over 18-24 months, assuming..."
+      - "Investment of $2-4M depending on scope"
+      - "Payback period of 12-18 months if adoption reaches 20%+"
+      
+      Match ROI framing to company culture (from company research):
+      - Risk-averse/conservative companies: ELEVATE RISK CONTAINMENT as first-order benefit
+        - Reduced compliance backlog, fewer manual errors, lower key-person dependency
+      - Growth-focused companies: Lead with revenue and competitive advantage
+      - Efficiency-focused companies: Lead with cost reduction and productivity
+      
+      The company research should reveal which framing will resonate.
 
   - id: quick_wins
     name: "Five Quick Wins (Start in 90 Days)"
@@ -305,11 +421,22 @@ sections:
       - "The Opportunity"
       - "Why It Matters for the company"
       - "Why It Won (prioritization rationale)"
-      - "Technology (specific tools with citations)"
+      - "Technology (specific tools with citations, framed as reference architecture)"
       - "Implementation requirements"
-      - "ROI Calculation with specific numbers"
+      - "ROI Calculation with ranges and explicit assumptions"
       - "Success Metrics"
-    depth: "Each Quick Win needs comprehensive detail"
+    depth: |
+      Each Quick Win needs comprehensive detail. Frame Year 1 as:
+      "AI hygiene + two competitive necessities"
+      
+      ROI should be presented as ranges:
+      - "Expected savings of $500K-$1.2M annually, assuming..."
+      - "Productivity improvement of 15-25% for target personas"
+      - "Payback in 6-12 months depending on adoption curve"
+      
+      Technology recommendations should feel optional:
+      - "One approach would be [specific tool]..."
+      - "Reference architecture could include..."
 
   - id: compounding_logic
     name: "Compounding Logic Across the AI Portfolio"
@@ -335,14 +462,23 @@ sections:
   - id: strategic_choices
     name: "Explicit Strategic Choices (What We Are Choosing NOT to Pursue)"
     part: 5
-    purpose: "Frame deprioritizations as deliberate strategic choices"
+    purpose: "Frame deprioritizations as deliberate strategic choices - boards love knowing what not to do"
     covers:
       - "What it is"
       - "Why it is tempting"
       - "What focus it enables"
       - "Revisit trigger"
       - "Signal to watch"
-    depth: "Signals strategic clarity, not avoidance"
+    depth: |
+      Signals strategic clarity, not avoidance. This section often resonates most strongly 
+      with boards because it demonstrates discipline.
+      
+      Tailor the "do not pursue" list to what the company research reveals:
+      - Service/trust-focused companies: Reject fully autonomous customer-facing AI, human-replacing AI
+      - Cost-focused companies: Reject expensive custom model training when APIs suffice
+      - Speed-focused companies: Reject governance-heavy approaches that slow innovation
+      
+      Frame as: "We are choosing to preserve [what makes this company distinctive] by NOT pursuing..."
 
   - id: hypotheses
     name: "What Would Have to Be True (Key Hypotheses)"
@@ -381,15 +517,27 @@ sections:
   - id: risk_analysis
     name: "Risk Analysis"
     part: 7
-    purpose: "Comprehensive risk assessment"
+    purpose: "Comprehensive risk assessment - this section builds trust with risk-aware leadership"
     subsections:
       - id: value_at_stake
         name: "The Value at Stake"
         covers:
-          - "Best case scenario"
-          - "Likely case scenario"
-          - "Delayed action scenario"
-        depth: "Present as range, not deterministic outcome"
+          - "Best case scenario (with ranges)"
+          - "Likely case scenario (with ranges)"
+          - "Delayed action scenario (competitive cost of waiting)"
+        depth: "Present as ranges, not deterministic outcomes. Acknowledge uncertainty explicitly."
+      - id: risk_containment_benefits
+        name: "Risk Containment Benefits"
+        covers:
+          - "Reduced compliance backlog"
+          - "Fewer manual errors and rework"
+          - "Lower key-person dependency"
+          - "Improved audit trail and governance"
+          - "Faster regulatory response capability"
+        depth: |
+          For risk-averse organizations, this is as compelling as upside.
+          Frame AI as reducing operational risk, not just generating returns.
+          Tailor emphasis based on what company research reveals about their risk posture.
       - id: technology_risks
         name: "Technology Risks"
         covers:

@@ -231,7 +231,7 @@ class PreflightValidator:
             
             section_count = len(config.sections)
             if section_count < 10:
-                warnings.append(f"Only {section_count} sections in config (expected 20)")
+                warnings.append(f"Only {section_count} sections in config (expected 21)")
             
             # Check accordion prompts
             accordion = config.raw_config.get("accordion_method", {})
