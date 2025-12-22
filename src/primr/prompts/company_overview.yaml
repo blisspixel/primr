@@ -249,17 +249,22 @@ sections:
       - "Opportunities (external openings and tailwinds) - 4-6 items with evidence"
       - "Threats (external risks and headwinds) - 4-6 items with evidence"
     depth: |
-      This is the CANONICAL HOME for position assessment. Do NOT repeat these points 
-      in Strategic Tensions, Fragilities, or Patterns - those sections should build 
-      on SWOT, not duplicate it.
+      FRAMEWORK DISCIPLINE: This is the CANONICAL HOME for position assessment. 
+      Your job is to ORGANIZE insights from sections 1-9, not generate new ones.
       
-      For each item:
+      For each SWOT item:
       - State the strength/weakness/opportunity/threat clearly
+      - Reference the section where it was first developed: "As noted in [Section Name]..."
       - Provide specific evidence (numbers, examples, citations)
       - Explain strategic significance in 1-2 sentences
       
-      Keep this section focused and evidence-based. Save the "what to do about it" 
-      for Strategic Tensions and Discovery Questions.
+      Do NOT:
+      - Introduce new observations not covered in earlier sections
+      - Repeat these points in Strategic Tensions, Fragilities, or Patterns
+      - Use this as a catch-all for leftover insights
+      
+      This section should feel like a structured summary of insights already developed,
+      not a source of new analysis.
 
   - id: strategic_tensions
     name: "Strategic Tensions"
@@ -350,11 +355,38 @@ sections:
       - "Decision Ownership: Who owns each area (CFO, CTO, Head of X)"
       - "Time Horizon: 2025 priorities vs 2026+ strategic bets"
     depth: |
+      ENGAGEMENT REALISM: Ground each opportunity in budget reality and decision complexity.
+      
+      For each opportunity, explicitly address:
+      
+      **BUDGET REALITY**
+      - Is there existing budget for this? (Yes/No/Unclear)
+      - If no, what would need to be true to create budget?
+      - What's the likely budget range? ($50K? $500K? $5M?)
+      
+      **DECISION COMPLEXITY**
+      - Who owns this decision? (Specific title, not just "leadership")
+      - How many stakeholders need to align?
+      - What's the typical decision timeline? (Weeks? Quarters? Years?)
+      
+      **COMPETITIVE ALTERNATIVES**
+      - Can they do this internally?
+      - Are there cheaper alternatives? (Software? Contractors? Other consultants?)
+      - Why would they choose us over alternatives?
+      
+      **PRIORITY SIGNALS**
+      - Is there evidence they're already working on this?
+      - Is this a stated priority or our inference?
+      - What would make this urgent vs. "nice to have"?
+      
+      Be honest about "Budget-Resistant Areas" - where we'd be creating demand, not 
+      meeting existing demand. These aren't bad opportunities, but they require 
+      different sales approaches and longer timelines.
+      
       This is the "so what for us" section. Connect the analysis to:
       - Specific decision-makers and their likely priorities
       - Revenue vs efficiency vs defensive spend categories
       - Near-term budget cycles vs longer-term strategic planning
-      Be realistic about where there's likely appetite vs where we'd be pushing uphill.
 
   - id: porters_five_forces
     name: "Porter's Five Forces Assessment"
@@ -388,7 +420,24 @@ sections:
       - "Are they competing on cost leadership, differentiation, or focus?"
       - "Is their strategy coherent (do the pieces reinforce each other)?"
       - "Where might the strategy be under pressure?"
-    depth: "Frame explicitly as a hypothesis to validate in conversation"
+    depth: |
+      FALSIFICATION REQUIRED: Frame explicitly as a hypothesis to validate in conversation.
+      
+      For your main strategic positioning hypothesis, include:
+      
+      **Primary Hypothesis**: [Your main thesis about their strategic position]
+      
+      **Supporting Evidence**: [What supports this view]
+      
+      **Counter-Hypothesis**: [Alternative explanation that fits the same facts]
+      
+      **Falsification Tests**: 
+      - What evidence would disprove the primary hypothesis?
+      - What would we expect to see if the counter-hypothesis were correct?
+      - What questions would help us distinguish between these explanations?
+      
+      This approach acknowledges uncertainty while providing actionable starting points
+      for discovery conversations.
 
 # =============================================================================
 # ACCORDION METHOD PROMPTS
@@ -488,6 +537,28 @@ accordion_method:
     Instructions:
     {section_instructions}
 
+    ## EPISTEMIC DISCIPLINE REMINDERS
+    
+    **CONFIDENCE RESET**: This section starts fresh. Do NOT inherit confidence from 
+    previous sections. If a hypothesis was stated earlier, it remains a hypothesis 
+    here unless you have NEW evidence to upgrade it.
+    
+    **FRAMEWORK DISCIPLINE**: If this is SWOT, Porter's Five Forces, or Value Chain:
+    - Your job is to ORGANIZE insights from earlier sections, not generate new ones
+    - Each item should reference where it was first developed
+    - Do NOT introduce new observations in framework sections
+    
+    **AUDIENCE CONSISTENCY**: Write for a consulting partner preparing for discovery.
+    - Analytical and curious tone
+    - Hypothesis-driven approach
+    - Comfortable with uncertainty
+    - Evidence-based reasoning
+    
+    **NARRATIVE CEILING**: Maintain consistent stakes. Avoid escalation patterns:
+    - Don't upgrade "opportunity" to "transformational opportunity"
+    - Don't upgrade "hypothesis" to "central thesis"
+    - Keep scope realistic: "for this company" not "for the industry"
+
     ## NARRATIVE GUIDANCE
     {position_guidance}
 
@@ -498,6 +569,7 @@ accordion_method:
     - Surface patterns worth exploring, questions to ask
     - Be specific with evidence (numbers, names, comparisons)
     - Acknowledge uncertainty - what we don't know matters too
+    - For major hypotheses, consider the counter-case: what evidence would disprove this?
     - Write for someone preparing to engage, not delivering a verdict
     
     CONFIDENCE LABELING (REQUIRED):
@@ -542,7 +614,39 @@ accordion_method:
     
     Use natural section titles (not numbered). Cite sources with [cite: X] format.
 
-    Write the **{section_title}** section now:
+    ## CRITICAL FORMATTING INSTRUCTION
+    
+    The section title **{section_title}** will be added as a heading automatically by the framework.
+    
+    DO NOT write:
+    - "## {section_title}"
+    - "### {section_title}"  
+    - Any heading that repeats or closely matches "{section_title}"
+    
+    INSTEAD, start immediately with:
+    - The first paragraph of analysis
+    - OR a descriptive subtitle that adds context (e.g., "### Market Position and Strategy" for a "Competitive Differentiation" section)
+    
+    Example of WRONG approach:
+    ```
+    ### Executive Summary
+    
+    MRI Software stands at a critical juncture...
+    ```
+    
+    Example of CORRECT approach:
+    ```
+    MRI Software stands at a critical juncture...
+    ```
+    
+    OR with descriptive subtitle:
+    ```
+    ### Strategic Position and Value Creation
+    
+    MRI Software stands at a critical juncture...
+    ```
+    
+    Write the content for the **{section_title}** section now, following the formatting rules above.
 
   # Position guidance templates for narrative flow
   position_guidance:

@@ -20,6 +20,129 @@ rules:
     be labeled "we infer" or "this suggests". Hypotheses are framed as 
     "to validate with the client".
 
+  section_confidence_reset: |
+    CONFIDENCE CALIBRATION: Each section starts fresh. Do NOT inherit confidence 
+    from previous sections. If a hypothesis was stated earlier, it remains a 
+    hypothesis here unless you have NEW evidence to upgrade it.
+    
+    Before writing, review your confidence labels:
+    - Confirmed: Only if you have direct evidence in THIS section
+    - Reported: Only if citing a specific source
+    - Estimated: Only if showing calculation
+    - Hypothesis: Default for interpretations and inferences
+
+  intent_vs_incentive: |
+    INTENT VS. INCENTIVE: Distinguish what incentives suggest from what the 
+    company has stated they intend.
+    
+    WRONG: "They are optimizing for an IPO" (assumes intent)
+    RIGHT: "PE ownership creates incentives to optimize for exit, though the 
+    company has not publicly stated IPO plans (Hypothesis)"
+    
+    WRONG: "They want to become the platform of record"
+    RIGHT: "Their 'Open and Connected' positioning suggests a platform strategy, 
+    though we'd need to validate their actual strategic priorities (Hypothesis)"
+
+  falsification_checks: |
+    FALSIFICATION: For each major hypothesis, explicitly consider the counter-case.
+    
+    After stating a hypothesis, add a "Counter-Hypothesis" subsection:
+    - What evidence would disprove this?
+    - What alternative explanation fits the same facts?
+    - What would we expect to see if this hypothesis were wrong?
+    
+    Example:
+    **Hypothesis**: MRI is transitioning to a data orchestration platform
+    **Counter-Hypothesis**: MRI is primarily a financial system of record with 
+    good integrations, and "data orchestration" is marketing language rather 
+    than strategic reality. Evidence to validate: actual data flows, API usage 
+    patterns, customer use cases beyond financial reporting.
+
+  framework_constraints: |
+    FRAMEWORK SECTIONS (SWOT, Porter's, Value Chain): These are ORGANIZING 
+    frameworks, not GENERATIVE sections. Your job is to CATEGORIZE insights 
+    already developed in earlier sections, not introduce new ones.
+    
+    SWOT Analysis:
+    - Review sections 1-9 (through Competitive Landscape)
+    - Organize existing insights into Strengths/Weaknesses/Opportunities/Threats
+    - Do NOT introduce new observations here
+    - Each item should reference the section where it was first developed
+    
+    Porter's Five Forces:
+    - Review Industry Dynamics and Competitive Landscape sections
+    - Organize existing competitive insights into the five forces framework
+    - Do NOT introduce new competitive analysis here
+    
+    Value Chain Analysis:
+    - Review Products/Services and Business Model sections
+    - Organize existing value creation insights into value chain framework
+    - Do NOT introduce new business model observations here
+
+  audience_consistency: |
+    AUDIENCE: You are writing for a consulting partner preparing for a discovery 
+    conversation. Every section should serve that purpose.
+    
+    NOT for:
+    - The client (this is internal prep)
+    - Junior analysts (assume strategic sophistication)
+    - Sales teams (this is sensemaking, not pitching)
+    
+    Tone throughout:
+    - Analytical and curious
+    - Hypothesis-driven
+    - Evidence-based
+    - Comfortable with uncertainty
+    
+    Ask yourself: "Would a partner read this section the night before a meeting 
+    and feel more prepared?" If not, revise.
+
+  narrative_ceiling: |
+    NARRATIVE CEILING: Maintain consistent stakes throughout. Do NOT escalate 
+    drama or confidence as the document progresses.
+    
+    Avoid escalation patterns:
+    - "Critical juncture" → "Existential moment" → "Industry-defining inflection point"
+    - "Opportunity" → "Significant opportunity" → "Transformational opportunity"
+    - "Hypothesis" → "Strong hypothesis" → "Central thesis"
+    
+    Maintain consistent framing:
+    - Stakes: "Meaningful impact" not "Industry transformation"
+    - Confidence: "Worth exploring" not "We believe"
+    - Scope: "For this company" not "For the entire industry"
+    
+    If you find yourself writing "transformational", "revolutionary", "paradigm shift", 
+    or "industry-defining", stop and rewrite with more measured language.
+
+  engagement_realism: |
+    WHERE THEY'LL SAY YES: Ground recommendations in budget reality and decision-making complexity.
+    
+    For each opportunity, explicitly address:
+    
+    1. BUDGET REALITY
+       - Is there existing budget for this? (Yes/No/Unclear)
+       - If no, what would need to be true to create budget?
+       - What's the likely budget range? ($50K? $500K? $5M?)
+    
+    2. DECISION COMPLEXITY
+       - Who owns this decision? (Title, not just "leadership")
+       - How many stakeholders need to align?
+       - What's the typical decision timeline? (Weeks? Quarters? Years?)
+    
+    3. COMPETITIVE ALTERNATIVES
+       - Can they do this internally?
+       - Are there cheaper alternatives? (Software? Contractors? Other consultants?)
+       - Why would they choose us over alternatives?
+    
+    4. PRIORITY SIGNALS
+       - Is there evidence they're already working on this?
+       - Is this a stated priority or our inference?
+       - What would make this urgent vs. "nice to have"?
+    
+    Be honest about "Budget-Resistant Areas" - where we'd be creating demand, not 
+    meeting existing demand. These aren't bad opportunities, but they require 
+    different sales approaches and longer timelines.
+
   risk_framing: |
     Frame risks as "areas to explore" not definitive threats. Avoid 
     language that implies certainty about negative outcomes. Present 
