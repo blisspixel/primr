@@ -23,23 +23,30 @@ persona: "ai_strategist"
 
 document_purpose: |
   This is for internal preparation before engaging with the company on AI strategy.
-  The goal is to understand their situation and develop hypotheses about where AI 
-  could help them - NOT to prescribe what they "must" do.
+  We're thinking through what might make sense for them - this is ONE perspective, 
+  not THE answer. They might see things differently, and that's fine.
   
   Frame this as:
-  1. "Based on what we can observe, here's what we think might be true..."
-  2. "These are the questions worth exploring in conversation..."
-  3. "If our hypotheses are correct, here are options to consider..."
+  1. "Based on what we can observe, here's what we're thinking..."
+  2. "These are questions worth discussing together..."
+  3. "Here's one way to approach this - there are other valid approaches too..."
   
-  This is NOT a client deliverable. It's sensemaking to prepare for engagement.
-  Be specific about evidence. Be humble about uncertainty. Surface patterns worth exploring.
+  This is NOT a client deliverable. It's our thinking to prepare for conversation.
+  Be specific about evidence. Be humble about uncertainty. Acknowledge alternatives.
+  
+  TONE CALIBRATION:
+  - We're offering one perspective, not declaring the right answer
+  - Technology mentions (like Agent365) are examples, not requirements - other vendors have similar offerings
+  - Frame as "here's one approach..." not "you should do this..."
+  - Acknowledge when we're speculating vs when we have evidence
+  - Present ideas for them to evaluate, not decisions we've made for them
+  - Remember: this is just one input into their decision-making
   
   KEY CALIBRATION (applies to ALL companies):
   - Competitive claims: Use ranges and directional language ("materially faster", 
     "order-of-magnitude improvement") rather than precise multiples that invite challenge
-  - ROI projections: Present as ranges with explicit assumptions, not confident point estimates
-  - Vendor specifics: Frame as "reference architecture" not commitments - the substance 
-    is right but the posture should feel optional
+  - ROI projections: Present as rough estimates with explicit assumptions, not confident predictions
+  - Vendor specifics: Frame as examples worth considering - acknowledge alternatives exist
   - Risk vs upside: Match framing to company culture - some want upside, others want 
     downside protection. The company research should reveal which.
   - Year 1 scope: Frame as "AI hygiene + two competitive necessities" - everything else 
@@ -101,10 +108,11 @@ writing_standards: |
   - Draw out implications - what does each finding suggest?
   
   For RECOMMENDATION sections (Quick Wins, Bigger Bets, Strategic Choices):
-  - Frame as options to explore, not prescriptions
-  - "If our hypotheses are correct, this could be worth pursuing..."
-  - Include specific technologies with citations (Azure OpenAI, Bedrock, etc.)
-  - ROI as ranges with explicit assumptions, not point estimates
+  - Frame as one perspective among many: "Here's one way to think about this..."
+  - "This is just our take based on what we can see - you might see it differently"
+  - Include specific technologies as examples, not prescriptions: "Something like Azure OpenAI could work here, though there are other options"
+  - ROI as rough estimates: "Ballpark ROI might be 2-4× if our assumptions hold..."
+  - Always acknowledge we might be wrong: "This assumes X, but if Y is true instead..."
   
   COMPETITIVE CLAIMS:
   - Use directional language: "materially faster", "order-of-magnitude improvement"
@@ -120,10 +128,11 @@ writing_standards: |
   - Match the company's culture: aggressive companies want upside, conservative ones want downside protection
   
   VENDOR SPECIFICS:
-  - Frame as "reference architecture" not commitments
-  - "One approach would be..." not "You should use..."
-  - Emphasize governance principles over specific SKUs in early conversations
-  - The substance is right; the posture should feel optional
+  - Frame as "one perspective" not definitive recommendations: "From our research, something like..."
+  - "This is just one way to think about it - there are other valid approaches..."
+  - "Worth considering tools like Agent365, though other vendors have similar offerings"
+  - Always acknowledge alternatives: "Azure/AWS/GCP all have versions of this..."
+  - The goal is to spark thinking, not lock in decisions
   
   THROUGHOUT:
   - Specific over generic: actual product names, numbers, comparisons
@@ -378,11 +387,12 @@ sections:
           - "Evaluation and monitoring infrastructure"
           - "Cost allocation mechanisms"
     depth: |
-      Frame as REFERENCE ARCHITECTURE, not commitments:
-      - "One approach would be..." not "You should use..."
-      - Emphasize governance principles over specific SKUs
-      - The substance is right; the posture should feel optional
-      - CIO/CISO should not feel the strategy is already implementation-locked
+      Frame as ONE PERSPECTIVE, not the definitive answer:
+      - "Here's one way to approach this architecture..."
+      - "Tools like [specific service] are one option - there are others with similar capabilities"
+      - "This is just our take based on current market research"
+      - Always acknowledge alternatives exist and might be better fits
+      - The goal is to provide a starting point for their own evaluation, not make the decision for them
 
   - id: opportunity_domains
     name: "AI Opportunity Domains"
