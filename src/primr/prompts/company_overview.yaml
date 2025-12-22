@@ -33,8 +33,19 @@ document_purpose: |
   Cross-reference other sections rather than restating.
 
 epistemic_rules:
+  confidence_labeling: |
+    REQUIRED: Label every significant claim with confidence level:
+    - **Confirmed**: From official filings, company statements, or verified sources
+    - **Reported**: From credible third-party sources (news, analysts) but not verified
+    - **Estimated**: Calculated or inferred from available data
+    - **Hypothesis**: Our interpretation or speculation to validate
+    
+    Example: "Revenue of ~$1B (Reported - market sources, Sept 2025)"
+    Example: "EBITDA margin of ~40% (Estimated - calculated from reported figures)"
+    Example: "Integration debt may be limiting R&D velocity (Hypothesis)"
   fact_inference_hypothesis: |
     Distinguish facts (with citations) from inferences (labeled as such) from hypotheses (to validate).
+    Never state a hypothesis as if it were confirmed fact.
   risk_framing: |
     Frame risks as "areas to explore" not definitive threats.
   language: |
@@ -42,13 +53,26 @@ epistemic_rules:
   transformation_rule: |
     If a sentence implies inevitability or failure, rewrite it as a scenario comparison.
   numeric_precision: |
-    For numbers not directly from filings or official sources, soften phrasing:
-    "reported," "management commentary suggests," "directionally indicates," "estimated at"
+    For numbers not directly from filings or official sources:
+    - Use ranges: "$800M-$1.2B" not "$1B"
+    - Soften phrasing: "reported," "management commentary suggests," "estimated at"
+    - Note the source and date: "(per industry reports, Q3 2024)"
     This protects credibility if challenged. Overconfident precision undermines trust.
   measurement_uncertainty: |
     For impacts that are necessarily speculative (conversion rates, attribution, ROI projections),
     explicitly acknowledge measurement uncertainty: "If tracking exists...", "Absent strong 
     attribution, this may function primarily as...", "The actual impact depends on..."
+  avoid_overreach: |
+    Do NOT:
+    - State internal priorities or board decisions as if you have inside knowledge
+    - Claim precise market share in opaque markets
+    - Assert causal certainty ("X enables Y, therefore Z will happen")
+    - Present speculation about internal dynamics as confirmed
+    
+    DO:
+    - Frame internal dynamics as hypotheses: "If PE exit pressure is driving decisions..."
+    - Acknowledge what you can't know from outside: "Internal prioritization is unclear"
+    - Use conditional language: "This could suggest..." not "This proves..."
 
 formatting:
   paragraphs: "Write in full paragraphs with evidence"
@@ -476,10 +500,28 @@ accordion_method:
     - Acknowledge uncertainty - what we don't know matters too
     - Write for someone preparing to engage, not delivering a verdict
     
+    CONFIDENCE LABELING (REQUIRED):
+    Label significant claims with confidence level:
+    - **Confirmed**: Official filings, company statements, verified sources
+    - **Reported**: Credible third-party sources but not verified
+    - **Estimated**: Calculated or inferred from available data  
+    - **Hypothesis**: Our interpretation to validate in conversation
+    
+    Examples:
+    - "Revenue of ~$1B (Reported - market sources, Sept 2025)"
+    - "EBITDA margin of ~40% (Estimated - calculated from reported figures)"
+    - "Integration debt may be limiting R&D velocity (Hypothesis)"
+    
     NUMERIC PRECISION:
-    - For numbers from filings/official sources: state directly
-    - For estimates or inferences: "reported at," "estimated at," "directionally indicates"
+    - For numbers from filings/official sources: state directly with source
+    - For estimates: use ranges ("$800M-$1.2B") and note source
     - For speculative impacts: acknowledge measurement uncertainty explicitly
+    
+    AVOID OVERREACH:
+    - Don't state internal priorities as if you have inside knowledge
+    - Don't claim precise market share in opaque markets
+    - Don't assert causal certainty - use conditional language
+    - Frame internal dynamics as hypotheses, not facts
     
     AVOID REPETITION:
     - Check the previous sections - don't restate points already made
@@ -489,12 +531,14 @@ accordion_method:
     Write as much as the content needs - no more, no less. Let the material guide you.
     
     GOOD:
-    - "NIM of 2.46% vs First Hawaiian's 3.19% suggests potential pricing constraints worth exploring"
-    - "The Cetera partnership may signal a pivot toward fee income - worth validating in conversation"
+    - "NIM of 2.46% vs First Hawaiian's 3.19% (Confirmed - Q3 filings) suggests potential pricing constraints worth exploring"
+    - "The Cetera partnership may signal a pivot toward fee income (Hypothesis) - worth validating in conversation"
+    - "Revenue estimated at $800M-$1.2B (Reported - industry sources vary)"
     
     NOT THIS:
     - "They must improve their margins" (too prescriptive)
-    - "The company has lower margins" (too generic, no insight)
+    - "Revenue is exactly $1.03B" (false precision without source)
+    - "The board has decided to prioritize X" (claiming inside knowledge)
     
     Use natural section titles (not numbered). Cite sources with [cite: X] format.
 

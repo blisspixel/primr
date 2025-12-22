@@ -48,19 +48,39 @@ document_purpose: |
     not replacing it. "AI lets [Company] remain a [X] company at scale."
 
 context_instructions: |
-  You have access to two types of context in the File Search Store:
+  You have access to context in the File Search Store. USE IT EXTENSIVELY.
   
-  1. COMPANY RESEARCH: A detailed company overview with facts about their business,
-     financials, competitive position, and strategic situation. Use this to ground
-     every AI recommendation in their specific context - not generic advice.
+  PRIMARY SOURCE - STRATEGIC COMPANY REPORT:
+  Your File Search Store contains a comprehensive strategic analysis of this company
+  (typically 15,000-20,000 words). This is your PRIMARY source. It includes:
+  - Executive Summary and company overview
+  - Products/Services and Target Customers analysis
+  - Competitive Differentiation and Financial Profile
+  - SWOT Analysis and Strategic Tensions
+  - Porter's Five Forces and Value Chain Analysis
+  - "Where They're Likely to Say Yes" - specific engagement opportunities
+  - Discovery Questions already identified
   
-  2. VENDOR RESEARCH: Current information about cloud AI services (Azure, AWS, or GCP).
-     Use this for specific, accurate technology recommendations with proper service names.
+  READ THIS REPORT THOROUGHLY before writing. Every AI recommendation must connect
+  to specific insights from this strategic analysis. The report has already done
+  the hard work of understanding this company - build on it, don't ignore it.
   
-  CRITICAL: Every recommendation must connect to something specific from the company
-  research. "They could use AI for customer service" is generic. "Given their [specific 
-  characteristic from research], [specific AI capability] could [specific benefit]" is 
-  what we want. Ground every recommendation in THIS company's reality.
+  SECONDARY SOURCE - VENDOR RESEARCH:
+  Current information about cloud AI services (Azure, AWS, or GCP depending on
+  --cloud-vendor flag). Use this for accurate technology recommendations with
+  proper service names, pricing context, and capability details.
+  
+  HOW TO USE CONTEXT:
+  - Search the strategic report for relevant sections before writing each part
+  - Quote or reference specific findings: "The strategic analysis notes that..."
+  - Connect AI opportunities to tensions/patterns already identified in the report
+  - Use the "Where They're Likely to Say Yes" section to inform Quick Wins
+  - Don't repeat generic AI advice - make it specific to THIS company's situation
+  
+  BAD: "They could use AI for customer service"
+  GOOD: "Given their 45,000+ client base and emphasis on the 'Open and Connected' 
+  ecosystem [from strategic report], an AI-powered integration assistant could 
+  reduce the support burden of maintaining 400+ partner APIs"
 
 # =============================================================================
 # WRITING QUALITY STANDARDS
@@ -145,10 +165,22 @@ data_sources:
 
 epistemic_rules:
   confidence_labeling: |
-    All recommendations must be labeled as one of:
+    REQUIRED: Label every significant claim and recommendation:
+    
+    For FACTS about the company:
+    - **Confirmed**: From the strategic report with citations
+    - **Reported**: From credible sources but not verified
+    - **Estimated**: Calculated or inferred
+    - **Hypothesis**: Our interpretation to validate
+    
+    For AI RECOMMENDATIONS:
     - "Low-regret / proven pattern" - widely adopted, strong evidence base
     - "Context-dependent bet" - success depends on company-specific factors
     - "Exploratory / frontier" - emerging capability, higher uncertainty
+    
+    Example: "Given their 45,000+ client base (Confirmed - company website), 
+    an AI-powered support assistant could reduce ticket volume by 20-40% 
+    (Context-dependent bet - depends on current support maturity)"
   transformation_rule: |
     If a sentence implies inevitability, failure, or "only viable path", rewrite it as a scenario comparison.
     Example: Instead of "Companies that don't adopt AI will fail", write "Organizations that move early 
@@ -156,6 +188,19 @@ epistemic_rules:
   hypothesis_framing: |
     Frame assessments of current state as hypotheses to validate, not facts.
     Use language like "Based on [evidence], we hypothesize..."
+  avoid_overreach: |
+    The strategic report you're building on is itself a hypothesis document.
+    Don't compound speculation on speculation:
+    - If the report says "estimated revenue of $1B" don't calculate precise ROI from it
+    - If the report hypothesizes about internal priorities, don't build recommendations assuming it's true
+    - Use ranges for ROI projections, not point estimates
+    - Acknowledge when recommendations depend on unverified assumptions
+  numeric_precision: |
+    For ROI and investment figures:
+    - Use ranges: "$2-4M investment" not "$3.2M"
+    - State assumptions explicitly: "Assuming 20% adoption in Year 1..."
+    - Acknowledge uncertainty: "ROI of 2-4× over 18-24 months, depending on..."
+    - For risk-averse organizations: emphasize risk avoidance alongside upside
 
 formatting:
   paragraphs: "Write in full paragraphs for strategic sections"

@@ -200,11 +200,11 @@ class TestConsolidateWorkingFolder:
             consolidate_working_folder("/nonexistent/folder")
 
     def test_raises_on_empty_folder(self):
-        """Raises ValueError when folder has no .txt files."""
+        """Raises ValueError when folder has no research files (.txt or .md)."""
         from primr.core.workspace import consolidate_working_folder
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            with pytest.raises(ValueError, match="No .txt files"):
+            with pytest.raises(ValueError, match="No research files"):
                 consolidate_working_folder(tmpdir)
 
 

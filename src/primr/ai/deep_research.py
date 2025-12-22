@@ -1289,11 +1289,30 @@ Frame everything as hypotheses to explore, not conclusions."""
                         remove_pending_job(interaction_id)
                     return True, final_content
                 
-                # Handle errors
+                # Handle errors - gateway_timeout is recoverable via reconnection
                 if event.event_type == "error":
-                    error_msg = str(event)
-                    logger.error(f"Stream error event: {error_msg}")
-                    # Don't mark complete - allow reconnection attempt
+                    error_obj = getattr(event, 'error', None)
+                    error_code = getattr(error_obj, 'code', '') if error_obj else ''
+                    error_message = getattr(error_obj, 'message', str(event)) if error_obj else str(event)
+                    
+                    # Log the error with details
+                    logger.warning(f"Stream error event: code={error_code}, message={error_message}")
+                    
+                    # gateway_timeout is recoverable - don't mark complete, allow reconnection
+                    if error_code == 'gateway_timeout':
+                        if on_progress:
+                            on_progress(ResearchProgress(
+                                status=ResearchStatus.IN_PROGRESS,
+                                message="Gateway timeout - will reconnect..."
+                            ))
+                        return False, ''.join(content_parts)
+                    
+                    # Other errors - still try reconnection
+                    if on_progress:
+                        on_progress(ResearchProgress(
+                            status=ResearchStatus.IN_PROGRESS,
+                            message=f"Stream error ({error_code}) - will retry..."
+                        ))
                     return False, ''.join(content_parts)
             
             return is_complete, ''.join(content_parts)
@@ -1354,7 +1373,8 @@ Frame everything as hypotheses to explore, not conclusions."""
                 raise AIError(f"Research timed out after {elapsed:.0f}s", model=self.AGENT_ID)
             
             reconnect_attempt += 1
-            delay = base_reconnect_delay * (2 ** (reconnect_attempt - 1))  # Exponential backoff
+            # Use longer delays for gateway_timeout - the server needs time to recover
+            delay = base_reconnect_delay * (2 ** min(reconnect_attempt - 1, 4))  # Cap exponential at 16x
             delay = min(delay, 60)  # Cap at 60 seconds
             
             logger.info(f"Reconnecting (attempt {reconnect_attempt}/{max_reconnect_attempts}) in {delay:.0f}s...")
@@ -1367,6 +1387,34 @@ Frame everything as hypotheses to explore, not conclusions."""
             await asyncio.sleep(delay)
             
             try:
+                # First, check if the interaction completed while we were waiting
+                try:
+                    interaction = self._get_interaction(interaction_id)
+                    if interaction.status == "completed":
+                        content = self._extract_content(interaction)
+                        citations = self._extract_citations(interaction)
+                        remove_pending_job(interaction_id)
+                        logger.info(f"Research completed during reconnection wait")
+                        return ResearchResult(
+                            content=content,
+                            citations=citations,
+                            interaction_id=interaction_id,
+                            duration_seconds=time.time() - start_time,
+                            status=ResearchStatus.COMPLETED,
+                        )
+                    elif interaction.status == "failed":
+                        error_msg = getattr(interaction, 'error', 'Unknown error')
+                        remove_pending_job(interaction_id)
+                        return ResearchResult(
+                            content="",
+                            interaction_id=interaction_id,
+                            duration_seconds=time.time() - start_time,
+                            status=ResearchStatus.FAILED,
+                            error=str(error_msg),
+                        )
+                except Exception as poll_error:
+                    logger.debug(f"Status poll failed, will try streaming: {poll_error}")
+                
                 # Resume stream using interaction.get with last_event_id
                 get_kwargs: dict[str, Any] = {
                     "id": interaction_id,
@@ -1387,11 +1435,25 @@ Frame everything as hypotheses to explore, not conclusions."""
                         status=ResearchStatus.COMPLETED,
                     )
                     
-                # Reset reconnect counter on successful stream (even if not complete)
+                # Successful stream connection (even if not complete) - reduce reconnect counter
                 reconnect_attempt = max(0, reconnect_attempt - 1)
                 
             except Exception as e:
-                logger.warning(f"Reconnection attempt {reconnect_attempt} failed: {e}")
+                error_str = str(e).lower()
+                # Check if this is a transient error that warrants retry
+                is_transient = (
+                    'gateway_timeout' in error_str or
+                    'deadline expired' in error_str or
+                    '500' in error_str or
+                    '503' in error_str or
+                    'internal' in error_str or
+                    'connection' in error_str or
+                    'timeout' in error_str
+                )
+                if is_transient:
+                    logger.warning(f"Reconnection attempt {reconnect_attempt} failed (transient): {e}")
+                else:
+                    logger.error(f"Reconnection attempt {reconnect_attempt} failed (non-transient): {e}")
                 # Continue to next attempt
         
         # If we get here, we've exhausted reconnection attempts
@@ -4075,6 +4137,10 @@ class FileSearchStoreManager:
         Should be called after Deep Research completes (success or failure)
         to clean up temporary context and ensure data governance.
         
+        Note: Non-empty stores cannot be deleted directly. The API will return
+        FAILED_PRECONDITION. This is expected behavior - the store will be
+        cleaned up automatically by Google's retention policies.
+        
         Args:
             store_name: Store name to delete
         """
@@ -4082,8 +4148,14 @@ class FileSearchStoreManager:
             self._client.file_search_stores.delete(name=store_name)
             logger.info(f"Deleted File Search Store: {store_name}")
         except Exception as e:
-            # Log but don't raise - cleanup failures shouldn't break the flow
-            logger.warning(f"Failed to delete File Search Store {store_name}: {e}")
+            error_str = str(e).lower()
+            # Non-empty stores can't be deleted - this is expected and not a problem
+            # Google will clean them up automatically via retention policies
+            if 'failed_precondition' in error_str or 'non-empty' in error_str:
+                logger.debug(f"File Search Store {store_name} not empty, will be cleaned up by retention policy")
+            else:
+                # Log other errors at debug level - cleanup failures shouldn't clutter output
+                logger.debug(f"Could not delete File Search Store {store_name}: {e}")
 
 
 # Singleton instance for FileSearchStoreManager
