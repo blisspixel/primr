@@ -488,9 +488,10 @@ class ResearchOrchestrator:
             orchestrator = get_deep_research_orchestrator()
             
             def progress_wrapper(msg: str) -> None:
+                # Only call on_progress - avoid duplicate console output
+                # The parent callback handles console display
                 if on_progress:
                     on_progress(msg)
-                console.info(msg)
 
             deep_result = await orchestrator.generate_comprehensive_report(
                 company_name=company_name,

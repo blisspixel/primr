@@ -425,7 +425,7 @@ async def _execute_strategy_research(
         if progress.message:
             if on_progress:
                 on_progress(progress.message)
-            # Use status_with_time for in-place updates (cleaner UX)
+            # Only use console output here since AI strategy doesn't have a parent callback
             console.status_with_time(f"AI Strategy: {progress.message}")
 
     try:
@@ -438,7 +438,8 @@ async def _execute_strategy_research(
         )
 
         if result.status != ResearchStatus.COMPLETED or not result.content:
-            console.error("AI Strategy research failed")
+            error_msg = result.error if hasattr(result, 'error') and result.error else "Unknown error"
+            console.error(f"AI Strategy research failed: {error_msg}")
             return None
 
         return result.content

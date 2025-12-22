@@ -447,11 +447,10 @@ async def _execute_research(
     research_mode = mode_map.get(config.mode, ResearchMode.DEEP_RESEARCH)
 
     def progress_callback(msg: str) -> None:
+        # Only call the parent callback - it handles console output
+        # Don't duplicate with console.status_with_time here
         if on_progress:
             on_progress(msg)
-        # Use status_with_time for in-place updates (cleaner UX)
-        # The msg already contains timing info from the API polling
-        console.status_with_time(msg)
         log_structured("debug", f"Deep research progress: {msg}")
 
     try:

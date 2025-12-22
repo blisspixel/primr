@@ -167,9 +167,23 @@ def working_folder(
                 logger.warning(f"Failed to cleanup working folder: {e}")
 
 
+def _read_file_content(file_path: Path) -> tuple[str, int]:
+    """Read file content, return (content, size) or ("", 0) on error."""
+    try:
+        content = file_path.read_text(encoding="utf-8").strip()
+        return content, len(content)
+    except Exception as e:
+        logger.warning(f"Failed to read {file_path}: {e}")
+        return "", 0
+
+
 def consolidate_working_folder(folder_path: str | Path) -> str:
     """
-    Consolidate all .txt files from a working folder into a single context file.
+    Consolidate research files from a working folder into a single context file.
+
+    Prioritizes the strategic report (deep_research_output.md) as the primary source,
+    then includes key supporting files. Avoids redundancy by not including all 20+ 
+    section files when the strategic report already synthesizes them.
 
     Args:
         folder_path: Path to working folder (e.g., working/Parts_Town)
@@ -178,68 +192,61 @@ def consolidate_working_folder(folder_path: str | Path) -> str:
         Path to the consolidated temporary file
 
     Raises:
-        ValueError: If folder doesn't exist or contains no .txt files
+        ValueError: If folder doesn't exist or contains no research files
     """
     folder_path = Path(folder_path) if isinstance(folder_path, str) else folder_path
 
     if not folder_path.is_dir():
         raise ValueError(f"Working folder not found: {folder_path}")
 
-    # Find all .txt files
-    txt_files = list(folder_path.glob("*.txt"))
-    if not txt_files:
-        raise ValueError(f"No .txt files found in {folder_path}")
+    deep_research_file = folder_path / "deep_research_output.md"
+    has_deep_research = deep_research_file.exists()
+    
+    # Key supporting files (raw data not fully captured in strategic report)
+    key_files = ["scraped_website_summary.txt", "financial_overview.txt", "industry_insights.txt"]
+    txt_files = [folder_path / f for f in key_files if (folder_path / f).exists()]
+    
+    # If no strategic report, fall back to all .txt files
+    if not has_deep_research:
+        txt_files = list(folder_path.glob("*.txt"))
+    
+    if not txt_files and not has_deep_research:
+        raise ValueError(f"No research files found in {folder_path}")
 
-    # Extract company name from folder
     company_name = folder_path.name.replace("_", " ")
-
-    # Build consolidated document
-    lines = [
-        f"# Research Context: {company_name}",
-        f"Source: {folder_path}",
-        "",
-        "This document contains research findings from the Structured Pipeline.",
-        "",
-        "---",
-        ""
-    ]
-
-    sections_processed = []
+    lines = [f"# Research Context: {company_name}", f"Source: {folder_path}", ""]
     total_size = 0
 
-    # Read each file and add to document
-    for txt_file in sorted(txt_files):
-        filename = txt_file.name
-        section_name = filename.replace(".txt", "").replace("_", " ").title()
+    # PRIMARY: Include strategic report first
+    if has_deep_research:
+        content, size = _read_file_content(deep_research_file)
+        total_size += size
+        if content:
+            lines.extend([
+                "# STRATEGIC COMPANY REPORT (PRIMARY SOURCE)", "",
+                "This comprehensive analysis is your PRIMARY source. Read it thoroughly.",
+                "Every AI recommendation should connect to insights from this report.", "",
+                content, "", "---", ""
+            ])
+            logger.info(f"Included strategic report ({size:,} chars)")
 
-        try:
-            content = txt_file.read_text(encoding="utf-8").strip()
-            total_size += len(content)
-
+    # SECONDARY: Include key supporting files only
+    if txt_files:
+        lines.extend(["# SUPPORTING DATA", "", "---", ""])
+        for txt_file in txt_files:
+            content, size = _read_file_content(txt_file)
+            total_size += size
             if content:
-                lines.extend([
-                    f"## {section_name}",
-                    "",
-                    content,
-                    "",
-                    "---",
-                    ""
-                ])
-                sections_processed.append(section_name)
-        except Exception as e:
-            logger.warning(f"Failed to read {txt_file}: {e}")
+                section_name = txt_file.stem.replace("_", " ").title()
+                lines.extend([f"## {section_name}", "", content, "", "---", ""])
 
-    # Write to temp file
-    content = '\n'.join(lines)
-    fd, filepath = tempfile.mkstemp(
-        suffix='.txt',
-        prefix=f'{company_name.replace(" ", "_")}_context_'
-    )
-
+    # Write consolidated file
+    fd, filepath = tempfile.mkstemp(suffix='.txt', prefix=f'{company_name.replace(" ", "_")}_context_')
     with open(filepath, 'w', encoding='utf-8') as f:
-        f.write(content)
+        f.write('\n'.join(lines))
 
-    logger.info(f"Consolidated {len(txt_files)} files into {filepath}")
+    file_count = len(txt_files) + (1 if has_deep_research else 0)
+    logger.info(f"Consolidated {file_count} files ({total_size:,} chars) into {filepath}")
     return filepath
 
 
