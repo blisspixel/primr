@@ -47,6 +47,7 @@ class Command(Enum):
     GENERATE_VENDOR = "generate-vendor"
     BATCH = "batch"
     TEST_ACCORDION = "test-accordion"
+    ANALYZE_REPORT = "analyze-report"
 
 
 # =============================================================================
@@ -75,6 +76,7 @@ class CLIConfig:
     verbose: bool = False
     test_accordion_topic: str | None = None
     test_accordion_pages: int = 50
+    analyze_report_path: str | None = None
 
     @property
     def has_company_info(self) -> bool:
@@ -161,6 +163,7 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         verbose=parsed.verbose,
         test_accordion_topic=getattr(parsed, 'test_accordion', None),
         test_accordion_pages=getattr(parsed, 'accordion_pages', 50),
+        analyze_report_path=getattr(parsed, 'analyze_report', None),
     )
 
 
@@ -208,6 +211,7 @@ def main(args: list[str] | None = None) -> int:
         Command.GENERATE_VENDOR: _handle_generate_vendor,
         Command.BATCH: _handle_batch,
         Command.TEST_ACCORDION: _handle_test_accordion,
+        Command.ANALYZE_REPORT: _handle_analyze_report,
         Command.RESEARCH: _handle_research,
     }
 
@@ -355,6 +359,14 @@ Accordion Method Test (for development):
         default=50,
         help="Target pages for Accordion test (default: 50)"
     )
+    
+    # Report analysis
+    parser.add_argument(
+        "--analyze-report",
+        type=str,
+        metavar="PATH",
+        help="Analyze quality of an existing report file"
+    )
 
     return parser
 
@@ -366,6 +378,8 @@ def _determine_command(args: argparse.Namespace) -> Command:
         return Command.DOCTOR
 
     # Check utility flags
+    if getattr(args, 'analyze_report', None):
+        return Command.ANALYZE_REPORT
     if getattr(args, 'test_accordion', None):
         return Command.TEST_ACCORDION
     if getattr(args, 'show_usage', False):
@@ -518,6 +532,23 @@ def _handle_test_accordion(config: CLIConfig) -> int:
     else:
         console.blank()
         console.error(f"Test failed: {result.error or 'Unknown error'}")
+        return 1
+
+
+def _handle_analyze_report(config: CLIConfig) -> int:
+    """Handle report analysis command."""
+    if not config.analyze_report_path:
+        console.error("Report path is required for analysis")
+        return 1
+    
+    try:
+        from report_analyzer import ReportAnalyzer
+        analyzer = ReportAnalyzer(config.analyze_report_path)
+        report = analyzer.generate_report()
+        print(report)
+        return 0
+    except Exception as e:
+        console.error(f"Analysis failed: {e}")
         return 1
 
 

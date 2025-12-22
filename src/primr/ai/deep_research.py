@@ -2774,8 +2774,43 @@ class DeepResearchOrchestrator:
             "research_dossier_prompt": """You are a Lead Researcher compiling a research dossier on {company_name}{website_context}.
 Compile comprehensive facts about the company including basics, products, customers, competitors, financials, leadership, and industry context.
 Do NOT write polished prose - this is raw research material.""",
-            "section_writing_prompt": """Write the **{section_title}** section with depth and analytical rigor.
-Instructions: {section_instructions}""",
+            "section_writing_prompt": """Write the content for the **{section_title}** section with depth and analytical rigor.
+
+## CRITICAL FORMATTING INSTRUCTION
+
+The section title **{section_title}** will be added as a heading automatically by the framework.
+
+DO NOT write:
+- "## {section_title}"
+- "### {section_title}"  
+- Any heading that repeats or closely matches "{section_title}"
+
+INSTEAD, start immediately with:
+- The first paragraph of analysis
+- OR a descriptive subtitle that adds context
+
+Example of WRONG approach:
+```
+### Executive Summary
+
+MRI Software stands at a critical juncture...
+```
+
+Example of CORRECT approach:
+```
+MRI Software stands at a critical juncture...
+```
+
+OR with descriptive subtitle:
+```
+### Strategic Position and Value Creation
+
+MRI Software stands at a critical juncture...
+```
+
+Instructions: {section_instructions}
+
+Write the content now, following the formatting rules above.""",
             "position_guidance": {
                 "opening": "This is the OPENING section. Set the analytical tone for the entire report.",
                 "middle": "Build naturally on the previous sections.",
@@ -3288,7 +3323,10 @@ Instructions:
 ## NARRATIVE GUIDANCE
 {position_guidance}
 
-Write the **{section['title']}** section now:"""
+Write the content for the **{section['title']}** section now. Do NOT repeat the section 
+title as a heading - it will be added automatically. Do NOT start with a heading that 
+matches or closely resembles the section title. Start directly with the content or 
+use a descriptive subtitle if needed."""
     
     def _extract_industry_from_context(self, stage1_context: str | None) -> str | None:
         """Extract Industry from Stage 1 context if present."""

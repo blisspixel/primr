@@ -890,8 +890,11 @@ def perform_deep_research(
             section_count = result.sections_written if result.sections_written > 0 else len(result.section_results)
             log_structured("info", "Deep research complete", sections=section_count)
             
+            # Get accurate citation count for display
+            citation_count_for_display = len(result.citations)  # Default fallback
+            
             if is_simple_deep_research:
-                console.phase_complete("Deep Research", [("Sections", str(section_count)), ("Citations", str(len(result.citations)))])
+                console.phase_complete("Deep Research", [("Sections", str(section_count)), ("Citations", str(citation_count_for_display))])
                 console.phase_banner(2, 3, "Processing Results", "Saving and converting output", "1-2 min")
 
             # Save section results to working folder
@@ -1017,11 +1020,28 @@ def perform_deep_research(
             # Use sections_written for accurate count
             section_count = result.sections_written if result.sections_written > 0 else len(result.section_results)
             
+            # Get accurate citation count using report analyzer
+            citation_count = 0
+            if docx_path:
+                try:
+                    # Convert DOCX path to MD path for analysis
+                    md_path = str(docx_path).replace('.docx', '.md')
+                    if os.path.exists(md_path):
+                        from report_analyzer import ReportAnalyzer
+                        analyzer = ReportAnalyzer(md_path)
+                        citation_analysis = analyzer.analyze_citations()
+                        citation_count = citation_analysis['unique_citations']
+                except Exception as e:
+                    logger.debug(f"Could not analyze citations: {e}")
+                    citation_count = len(result.citations)  # Fallback to original
+            else:
+                citation_count = len(result.citations)
+            
             # Summary stats with estimated vs actual comparison
             summary_items = [
                 ("Mode", mode_label),
                 ("Sections", str(section_count)),
-                ("Citations", str(len(result.citations))),
+                ("Citations", str(citation_count)),
                 ("Duration", time_str),
                 ("Est. Cost", f"${pre_estimate.total_cost:.2f}"),
                 ("Actual Cost", f"~${actual_cost:.2f}"),
