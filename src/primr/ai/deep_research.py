@@ -404,9 +404,12 @@ class DeepResearchClient:
             output_format="executive_summary"
         )
     """
+    
+    # Import centralized model config
+    from primr.config.models import PrimrModels
 
-    # Agent identifier for Deep Research
-    AGENT_ID = "deep-research-pro-preview-12-2025"
+    # Agent identifier for Deep Research - USE CENTRALIZED CONFIG
+    AGENT_ID = PrimrModels.DEEP_RESEARCH_AGENT
 
     # Default polling interval (seconds) - used as base, actual interval is adaptive
     DEFAULT_POLL_INTERVAL = 10
@@ -535,7 +538,8 @@ class DeepResearchClient:
         # 5. Test API connectivity with a lightweight call before expensive operations
         try:
             # Verify we can reach the API (this is cheap)
-            _ = self._client.models.get(model="gemini-3-flash-preview")
+            from primr.config.models import PrimrModels
+            _ = self._client.models.get(model=PrimrModels.FLASH_MODEL)
             logger.info("Pre-flight: API connectivity verified")
         except Exception as e:
             raise AIError(f"Pre-flight: API connectivity check failed: {e}", model=self.AGENT_ID) from e
@@ -694,19 +698,19 @@ class DeepResearchClient:
                     secs = int(elapsed % 60)
                     time_str = f"{mins}m {secs}s" if mins > 0 else f"{secs}s"
 
-                    # Show progress on phase change OR every 30 seconds for reassurance
+                    # Show progress on phase change OR every 60 seconds (less frequent)
                     phase_changed = not hasattr(self, '_last_phase') or self._last_phase != phase
-                    time_for_update = (elapsed - getattr(self, '_last_progress_time', 0)) >= 30
+                    time_for_update = (elapsed - getattr(self, '_last_progress_time', 0)) >= 60
 
                     if phase_changed or time_for_update:
                         self._last_phase = phase
                         self._last_progress_time = elapsed
 
-                        # Add activity indicator for long waits
-                        if time_for_update and not phase_changed:
-                            message = f". {phase} ({time_str})"
-                        else:
+                        # Only show time on phase changes, not periodic updates
+                        if phase_changed:
                             message = f"{phase} ({time_str})"
+                        else:
+                            message = f"  {phase}..."  # Minimal update
 
                         on_progress(ResearchProgress(
                             status=ResearchStatus.IN_PROGRESS,
@@ -2213,8 +2217,11 @@ class DeepResearchOrchestrator:
         )
     """
     
-    AGENT_ID = "deep-research-pro-preview-12-2025"
-    SECTION_MODEL = "gemini-3-flash-preview"  # For section writing
+    # Import centralized model config
+    from primr.config.models import PrimrModels
+    
+    AGENT_ID = PrimrModels.DEEP_RESEARCH_AGENT
+    SECTION_MODEL = PrimrModels.FLASH_MODEL  # For section writing (cheap, fast)
     MAX_RETRIES = 5
     BASE_RETRY_DELAY = 60.0  # 1 minute base delay for exponential backoff
     TIMEOUT_SECONDS = 3600  # 60 minutes
@@ -3059,8 +3066,7 @@ Write the content now, following the formatting rules above.""",
                 
                 # Add delay between sections (except first)
                 if i > 0:
-                    if on_progress:
-                        on_progress(f"  Waiting {current_delay}s...")
+                    # Brief delay between sections (no verbose output)
                     await asyncio.sleep(current_delay)
                 
                 # Build section prompt with full context (Stage 1 + dossier + previous sections)
@@ -3109,7 +3115,7 @@ Write the content now, following the formatting rules above.""",
                                 current_delay = max(8, current_delay - 2)
                                 
                                 if on_progress:
-                                    on_progress(f"  Written: {words:,} words")
+                                    on_progress(f"  {section['title']}: {words:,} words")
                                 break
                             else:
                                 logger.warning(f"Section too short: {words} words (min {min_words})")
@@ -3458,11 +3464,12 @@ use a descriptive subtitle if needed."""
         try:
             logger.debug(f"Follow-up call with previous_interaction_id: {previous_interaction_id[:20]}...")
             
-            # Use gemini-3-pro for follow-up (faster, no Deep Research rate limits)
+            # Use Pro model for follow-up (faster, no Deep Research rate limits)
             # The previous_interaction_id provides context from the original research
+            from primr.config.models import PrimrModels
             interaction = self._client.interactions.create(
                 input=prompt,
-                model="gemini-3-pro-preview",
+                model=PrimrModels.PRO_MODEL,
                 previous_interaction_id=previous_interaction_id,
             )
             
@@ -3554,11 +3561,12 @@ use a descriptive subtitle if needed."""
         start_time = time.time()
         
         try:
-            logger.debug("Direct Gemini Pro generation (fallback mode)...")
+            logger.debug("Direct Flash generation (fallback mode)...")
             
-            # Use gemini-3-flash-preview for direct generation (fast, intelligent)
+            # Use Flash model for direct generation (fast, intelligent)
+            from primr.config.models import PrimrModels
             response = self._client.models.generate_content(
-                model="gemini-3-flash-preview",
+                model=PrimrModels.FLASH_MODEL,
                 contents=prompt,
             )
             

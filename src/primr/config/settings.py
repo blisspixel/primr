@@ -14,6 +14,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from primr.config.models import PrimrModels
+
 from dotenv import load_dotenv
 
 from primr.utils.errors import ConfigurationError
@@ -190,13 +192,37 @@ class ScrapingConfig:
 
 @dataclass
 class AIConfig:
-    """AI model configuration."""
+    """
+    AI model configuration.
+    
+    Model assignments (update PrimrModels to change globally):
+        - flash_model: Fast tasks (summarization, filtering) - cheap
+        - pro_model: Complex tasks (report generation, reasoning) - expensive
+        - fast_model/reasoning_model: Aliases for flash/pro
+    """
 
+    # Primary model assignments - pull from PrimrModels
+    flash_model: str = field(
+        default_factory=lambda: os.getenv("AI_FAST_MODEL", PrimrModels.FLASH_MODEL)
+    )
+    pro_model: str = field(
+        default_factory=lambda: os.getenv("AI_REASONING_MODEL", PrimrModels.PRO_MODEL)
+    )
+    
+    # Task-specific aliases (for backward compatibility)
+    fast_model: str = field(
+        default_factory=lambda: os.getenv("AI_FAST_MODEL", PrimrModels.FAST_MODEL)
+    )
+    reasoning_model: str = field(
+        default_factory=lambda: os.getenv("AI_REASONING_MODEL", PrimrModels.REASONING_MODEL)
+    )
+    
+    # Legacy aliases (backward compatible)
     research_model: str = field(
-        default_factory=lambda: os.getenv("AI_RESEARCH_MODEL", "gemini-3-flash-preview")
+        default_factory=lambda: os.getenv("AI_RESEARCH_MODEL", PrimrModels.FAST_MODEL)
     )
     report_model: str = field(
-        default_factory=lambda: os.getenv("AI_REPORT_MODEL", "gemini-3-flash-preview")
+        default_factory=lambda: os.getenv("AI_REPORT_MODEL", PrimrModels.PRO_MODEL)
     )
 
     max_retries: int = 3
@@ -204,11 +230,8 @@ class AIConfig:
     default_temperature: float = 1.0
     default_thinking_level: str = "high"
 
-    # Model fallbacks for when primary model fails
-    model_fallbacks: dict[str, list[str]] = field(default_factory=lambda: {
-        "gemini-3-pro-preview": ["gemini-2.5-pro", "gemini-2.0-flash"],
-        "gemini-2.5-pro": ["gemini-2.0-flash"],
-    })
+    # No fallback models - fail immediately if model unavailable
+    model_fallbacks: dict[str, list[str]] = field(default_factory=dict)
 
 
 @dataclass

@@ -240,14 +240,31 @@ class AIClient:
         return self.generate(full_prompt, model_type=model_type, **kwargs)
 
     def _get_model(self, model_type: str) -> str:
-        """Get the model name for a given type."""
-        if model_type == "research":
-            return self._settings.research_model
-        elif model_type == "report":
-            return self._settings.report_model
+        """Get the model name for a given type.
+        
+        Model types (USE THESE):
+            - "scraping": Flash - summarizing scraped content
+            - "link_selection": Flash - intelligent link prioritization (which pages to scrape)
+            - "fast": Flash - general quick tasks
+            - "section_writing": Pro - writing report sections
+            - "analysis": Pro - complex analysis
+            - "reasoning": Pro - general reasoning tasks
+        
+        Legacy aliases (backward compatible):
+            - "filtering" -> Flash (DEPRECATED - use link_selection)
+            - "research" -> Flash (DEPRECATED - confusing name)
+            - "report" -> Pro
+            - "summarization" -> Flash
+        """
+        # Flash model tasks (cheap, fast)
+        if model_type in ("scraping", "link_selection", "filtering", "fast", "research", "summarization"):
+            return self._settings.flash_model
+        # Pro model tasks (expensive, smart)
+        elif model_type in ("section_writing", "analysis", "reasoning", "report"):
+            return self._settings.pro_model
         else:
-            logger.warning(f"Unknown model type '{model_type}', using research model")
-            return self._settings.research_model
+            logger.warning(f"Unknown model type '{model_type}', using flash model")
+            return self._settings.flash_model
 
     def _get_fallback_model(self, current_model: str) -> str | None:
         """Get a fallback model if available."""

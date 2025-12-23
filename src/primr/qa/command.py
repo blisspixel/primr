@@ -1,269 +1,289 @@
 """
-QA command for detailed analysis review.
+QA command-line interface for reviewing and analyzing report quality.
 """
 
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
+import glob
+import os
+from datetime import datetime
 
-from ..utils.console import console
+from .integration import QAIntegration
+from .models import QAOptions
 from .report_loader import ReportLoader
+from ..config.models import PrimrModels
 
 logger = logging.getLogger(__name__)
 
 
 class QACommand:
-    """Handles QA command-line operations."""
+    """Command-line interface for QA operations."""
     
     def __init__(self):
-        """Initialize QA command handler."""
+        """Initialize QA command with default options."""
+        # Check if verbose mode is enabled globally
+        try:
+            from primr.utils.console import console
+            verbose_mode = hasattr(console, 'verbose') and console.verbose
+        except:
+            verbose_mode = False
+            
+        self.qa_integration = QAIntegration(QAOptions(
+            enabled=True,
+            save_detailed=True,
+            model=PrimrModels.QA_MODEL,
+            verbose_cli=verbose_mode
+        ))
         self.report_loader = ReportLoader()
-        self.output_dir = Path("output")
     
     def show_detailed_analysis(self, company_name: str) -> int:
         """
-        Show detailed QA analysis for a company.
+        Show detailed QA analysis for a company's most recent report.
         
         Args:
-            company_name: Name of company to show QA analysis for
+            company_name: Name of company to analyze
             
         Returns:
             Exit code (0 for success, 1 for failure)
         """
         try:
-            console.banner(f"QA Analysis: {company_name}")
-            console.blank()
+            print(f"\nQA Analysis for {company_name}")
+            print("=" * 60)
             
-            # Find QA report file
-            qa_report_path = self._find_qa_report(company_name)
-            if not qa_report_path:
-                console.error(f"No QA analysis found for {company_name}")
-                console.info("QA analysis is generated automatically when reports are created.")
-                console.info("To generate a new report with QA: primr \"Company Name\" https://company.com")
+            # Find the most recent report for this company
+            report_path = self._find_recent_report(company_name)
+            if not report_path:
+                print(f"No reports found for '{company_name}'")
+                print("\nAvailable companies:")
+                self._list_available_companies()
                 return 1
             
-            # Read and display QA report
-            console.info(f"Reading QA analysis from: {qa_report_path.name}")
-            console.blank()
+            print(f"Analyzing: {os.path.basename(report_path)}")
+            print(f"Path: {report_path}")
+            print()
             
-            qa_content = qa_report_path.read_text(encoding='utf-8')
+            # Run QA analysis
+            qa_result = self.qa_integration.run_post_generation_qa(
+                Path(report_path), 
+                company_name
+            )
             
-            # Display the content with some formatting
-            lines = qa_content.split('\n')
-            for line in lines:
-                if line.startswith('='):
-                    console.info(line)
-                elif line.startswith('-'):
-                    console.info(line)
-                elif line.startswith('Quality Assessment Report'):
-                    console.step(line)
-                elif line.startswith('OVERALL ASSESSMENT'):
-                    console.step(line)
-                elif line.startswith('SECTION SCORES'):
-                    console.step(line)
-                elif line.startswith('CITATION ANALYSIS'):
-                    console.step(line)
-                elif line.startswith('LOGICAL CONSISTENCY'):
-                    console.step(line)
-                elif line.startswith('COMPLETENESS ASSESSMENT'):
-                    console.step(line)
-                elif line.startswith('DETAILED ISSUES'):
-                    console.step(line)
-                elif line.startswith('RECOMMENDATIONS'):
-                    console.step(line)
-                elif line.strip():
-                    print(line)
-                else:
-                    print()
+            if not qa_result:
+                print("QA analysis failed or is disabled")
+                return 1
             
-            console.blank()
-            console.success_box("QA Analysis Complete", f"Report: {qa_report_path}")
+            # Display results
+            print("ASSESSMENT RESULTS")
+            print("-" * 30)
+            print(f"Grade: {qa_result.grade}/100")
+            print(f"Summary: {qa_result.summary}")
+            print(f"Needs Attention: {'Yes' if qa_result.needs_attention else 'No'}")
+            
+            if qa_result.error_message:
+                print(f"Error: {qa_result.error_message}")
+            
+            # Show detailed analysis if available
+            detailed_file = self._find_qa_report(company_name)
+            if detailed_file:
+                print(f"\nDetailed analysis:")
+                print(f"File: {detailed_file}")
+                print()
+                self._display_detailed_analysis(detailed_file)
+            
             return 0
             
         except Exception as e:
-            logger.error(f"Failed to show QA analysis for {company_name}: {e}")
-            console.error(f"Failed to display QA analysis: {e}")
+            print(f"QA analysis failed: {e}")
+            logger.error(f"QA analysis failed for {company_name}: {e}")
+            return 1
+    
+    def analyze_report_file(self, report_path: str) -> int:
+        """
+        Analyze a specific report file.
+        
+        Args:
+            report_path: Path to the report file to analyze
+            
+        Returns:
+            Exit code (0 for success, 1 for failure)
+        """
+        try:
+            report_file = Path(report_path)
+            if not report_file.exists():
+                print(f"Report file not found: {report_path}")
+                return 1
+            
+            # Extract company name from filename
+            filename = report_file.stem
+            company_name = filename.split('_')[0] if '_' in filename else "Unknown Company"
+            
+            print(f"\nQA Analysis for Report File")
+            print("=" * 60)
+            print(f"File: {report_file.name}")
+            print(f"Company: {company_name}")
+            print()
+            
+            # Run QA analysis
+            qa_result = self.qa_integration.run_post_generation_qa(
+                report_file, 
+                company_name
+            )
+            
+            if not qa_result:
+                print("QA analysis failed or is disabled")
+                return 1
+            
+            # Display results
+            print("ASSESSMENT RESULTS")
+            print("-" * 30)
+            print(f"Grade: {qa_result.grade}/100")
+            print(f"Summary: {qa_result.summary}")
+            print(f"Needs Attention: {'Yes' if qa_result.needs_attention else 'No'}")
+            
+            if qa_result.error_message:
+                print(f"Error: {qa_result.error_message}")
+            
+            return 0
+            
+        except Exception as e:
+            print(f"QA analysis failed: {e}")
+            logger.error(f"QA analysis failed for {report_path}: {e}")
             return 1
     
     def show_recent_qa_summary(self, count: int = 5) -> int:
         """
-        Show QA summary for the N most recent reports.
+        Show QA summary for recent reports.
         
         Args:
-            count: Number of recent reports to show QA for
+            count: Number of recent reports to show
             
         Returns:
             Exit code (0 for success, 1 for failure)
         """
         try:
-            console.banner(f"QA Summary: {count} Most Recent Reports")
-            console.blank()
+            print(f"\nQA Summary - {count} Most Recent Reports")
+            print("=" * 60)
             
-            # Get recent reports with QA data
-            recent_reports = self._get_recent_reports_with_qa(count)
+            # Get recent assessments from monitoring
+            recent_assessments = self.qa_integration.get_recent_qa_reports(24)
             
-            if not recent_reports:
-                console.error("No reports with QA analysis found")
-                console.info("QA analysis is generated automatically when reports are created.")
-                return 1
+            if not recent_assessments:
+                print("No recent QA assessments found")
+                print("\nTip: QA assessments are logged when reports are generated")
+                return 0
             
-            # Display summary table
-            console.info(f"Found {len(recent_reports)} report(s) with QA analysis:")
-            console.blank()
+            # Sort by timestamp and take the most recent
+            recent_assessments.sort(key=lambda x: x.timestamp, reverse=True)
+            recent_assessments = recent_assessments[:count]
             
-            # Table header
-            print(f"{'#':<3} {'Company':<30} {'Date':<12} {'Grade':<8} {'Status':<12}")
-            print("-" * 70)
+            print(f"Found {len(recent_assessments)} recent assessment(s):\n")
             
-            for i, report_data in enumerate(recent_reports, 1):
-                company = report_data['company'][:27] + "..." if len(report_data['company']) > 30 else report_data['company']
-                date = report_data['date']
-                grade = report_data['grade']
-                status = "⚠️ Needs Work" if grade < 70 else "✓ Good" if grade >= 80 else "~ Acceptable"
-                
-                print(f"{i:<3} {company:<30} {date:<12} {grade:<8} {status:<12}")
+            for i, assessment in enumerate(recent_assessments, 1):
+                timestamp = datetime.fromisoformat(assessment.timestamp)
+                print(f"{i}. {assessment.company_name}")
+                print(f"   Grade: {assessment.grade}/100")
+                print(f"   Type: {assessment.report_type}")
+                print(f"   Confidence: {assessment.confidence_level.title()}")
+                print(f"   Ready: {'Yes' if assessment.ready_for_use else 'No'}")
+                print(f"   Date: {timestamp.strftime('%Y-%m-%d %H:%M')}")
+                if assessment.error_type:
+                    print(f"   Error: {assessment.error_type}")
+                print()
             
-            console.blank()
-            
-            # Show average grade
-            avg_grade = sum(r['grade'] for r in recent_reports) / len(recent_reports)
-            console.info(f"Average Quality Grade: {avg_grade:.1f}/100")
-            
-            # Show any concerning trends
-            low_grades = [r for r in recent_reports if r['grade'] < 70]
-            if low_grades:
-                console.blank()
-                console.warn(f"{len(low_grades)} report(s) need attention (grade < 70)")
-                for report in low_grades:
-                    console.info(f"  • {report['company']}: {report['grade']}/100")
-            
-            console.blank()
-            console.info("Use 'primr --qa \"Company Name\"' for detailed analysis of any report")
+            # Show system status
+            print("SYSTEM STATUS")
+            print("-" * 20)
+            self.qa_integration.print_qa_status()
             
             return 0
             
         except Exception as e:
-            logger.error(f"Failed to show recent QA summary: {e}")
-            console.error(f"Failed to display QA summary: {e}")
+            print(f"Failed to show QA summary: {e}")
+            logger.error(f"Failed to show QA summary: {e}")
             return 1
     
-    def _get_recent_reports_with_qa(self, count: int) -> list[dict]:
-        """
-        Get recent reports that have QA analysis.
+    def _find_recent_report(self, company_name: str) -> Optional[str]:
+        """Find the most recent report for a company."""
+        from primr.config.config import OUTPUT_DIR
         
-        Args:
-            count: Maximum number of reports to return
-            
-        Returns:
-            List of report data dictionaries with QA info
-        """
-        import glob
-        from datetime import datetime
-        
-        if not self.output_dir.exists():
-            return []
-        
-        # Find all QA report files
-        qa_files = list(self.output_dir.glob("*QA_Report*.txt"))
-        if not qa_files:
-            return []
-        
-        # Sort by modification time, newest first
-        qa_files.sort(key=lambda f: f.stat().st_mtime, reverse=True)
-        
-        reports = []
-        for qa_file in qa_files[:count]:
-            try:
-                # Extract company name from QA filename
-                filename = qa_file.name
-                # Remove "_QA_Report_" and date suffix
-                if "_QA_Report_" in filename:
-                    company_name = filename.split("_QA_Report_")[0]
-                else:
-                    continue
-                
-                # Get file date
-                mtime = datetime.fromtimestamp(qa_file.stat().st_mtime)
-                
-                # Parse QA grade from file content
-                content = qa_file.read_text(encoding='utf-8')
-                grade = None
-                for line in content.split('\n'):
-                    if line.startswith('Quality Score:'):
-                        # Extract score like "Quality Score: 85/100"
-                        parts = line.split(':')[1].strip().split('/')
-                        if parts and parts[0].isdigit():
-                            grade = int(parts[0])
-                            break
-                
-                if grade is not None:
-                    reports.append({
-                        'company': company_name.replace('_', ' '),
-                        'date': mtime.strftime('%Y-%m-%d'),
-                        'grade': grade,
-                        'qa_file': qa_file
-                    })
-                    
-            except Exception as e:
-                logger.warning(f"Failed to parse QA file {qa_file}: {e}")
-                continue
-        
-        return reports
-    
-    def _find_qa_report(self, company_name: str) -> Optional[Path]:
-        """
-        Find the most recent QA report for a company.
-        
-        Args:
-            company_name: Name of company
-            
-        Returns:
-            Path to QA report file, or None if not found
-        """
-        if not self.output_dir.exists():
-            return None
-        
-        # Clean company name for pattern matching
-        clean_name = self.report_loader._clean_company_name_for_search(company_name)
-        
-        # Try multiple patterns with increasing flexibility
+        # Look for various report types
         patterns = [
-            f"{company_name}*QA_Report*.txt",  # Exact match first
-            f"*{company_name}*QA_Report*.txt",  # Anywhere in filename
-            f"{clean_name}*QA_Report*.txt",  # Clean name
-            f"*{clean_name}*QA_Report*.txt",  # Clean name anywhere
-            "*QA_Report*.txt"  # All QA reports as fallback
+            f"{company_name}_*.docx",
+            f"{company_name.replace(' ', '_')}_*.docx",
+            f"{company_name.replace(' ', '')}_*.docx"
         ]
         
-        all_matches = []
+        all_files = []
         for pattern in patterns:
-            matches = list(self.output_dir.glob(pattern))
-            if matches:
-                # If we found matches with this pattern, use them
-                all_matches.extend(matches)
-                break  # Use first successful pattern
+            files = glob.glob(os.path.join(OUTPUT_DIR, pattern))
+            all_files.extend(files)
         
-        if not all_matches:
+        if not all_files:
             return None
         
-        # If we used the fallback pattern, filter by company name similarity
-        if len(patterns) > 0 and not any(company_name.lower() in str(match).lower() or clean_name.lower() in str(match).lower() for match in all_matches):
-            # Filter matches that contain parts of the company name
-            company_words = company_name.lower().split()
-            filtered_matches = []
-            for match in all_matches:
-                match_str = str(match).lower()
-                if any(word in match_str for word in company_words if len(word) > 2):
-                    filtered_matches.append(match)
-            all_matches = filtered_matches if filtered_matches else all_matches
+        # Return the most recent file
+        all_files.sort(key=os.path.getmtime, reverse=True)
+        return all_files[0]
+    
+    def _find_qa_report(self, company_name: str) -> Optional[str]:
+        """Find the most recent QA report for a company."""
+        from primr.config.config import OUTPUT_DIR
         
-        # Remove duplicates and sort by modification time
-        unique_matches = list(set(all_matches))
-        if not unique_matches:
+        # Look for QA report files
+        patterns = [
+            f"{company_name}_QA_Report_*.txt",
+            f"{company_name.replace(' ', '_')}_QA_Report_*.txt",
+            f"{company_name.replace(' ', '')}_QA_Report_*.txt"
+        ]
+        
+        all_files = []
+        for pattern in patterns:
+            files = glob.glob(os.path.join(OUTPUT_DIR, pattern))
+            all_files.extend(files)
+        
+        if not all_files:
             return None
+        
+        # Return the most recent file
+        all_files.sort(key=os.path.getmtime, reverse=True)
+        return all_files[0]
+    
+    def _list_available_companies(self) -> None:
+        """List companies with available reports."""
+        from primr.config.config import OUTPUT_DIR
+        
+        # Find all report files
+        report_files = glob.glob(os.path.join(OUTPUT_DIR, "*_*.docx"))
+        
+        if not report_files:
+            print("  No reports found in output directory")
+            return
+        
+        # Extract company names
+        companies = set()
+        for filepath in report_files:
+            filename = os.path.basename(filepath)
+            # Extract company name (everything before the first underscore)
+            if '_' in filename:
+                company = filename.split('_')[0]
+                companies.add(company)
+        
+        if companies:
+            for company in sorted(companies):
+                print(f"  - {company}")
+        else:
+            print("  No company reports found")
+    
+    def _display_detailed_analysis(self, qa_file_path: str) -> None:
+        """Display the contents of a detailed QA analysis file."""
+        try:
+            with open(qa_file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
             
-        latest_file = max(unique_matches, key=lambda f: f.stat().st_mtime)
-        
-        return latest_file
-        
-        return latest_file
+            print("\nDETAILED QA ANALYSIS")
+            print("=" * 60)
+            print(content)
+            
+        except Exception as e:
+            print(f"Failed to read detailed analysis: {e}")

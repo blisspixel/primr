@@ -96,15 +96,18 @@ class PreflightValidator:
     - scrape: Scraping + search + Gemini only
     """
     
-    # Model identifiers (single source of truth)
-    DEEP_RESEARCH_AGENT = "deep-research-pro-preview-12-2025"
-    SECTION_MODEL = "gemini-3-flash-preview"
+    # Import centralized model config
+    from primr.config.models import PrimrModels
+    
+    # Model identifiers - USE CENTRALIZED CONFIG
+    DEEP_RESEARCH_AGENT = PrimrModels.DEEP_RESEARCH_AGENT
+    SECTION_MODEL = PrimrModels.FLASH_MODEL
     
     # Estimates by mode
     ESTIMATES = {
         "full": {"duration": "35-50 minutes", "cost": "~$0.50-1.00"},
         "deep": {"duration": "10-15 minutes", "cost": "~$0.10-0.20"},
-        "scrape": {"duration": "20-25 minutes", "cost": "~$0.20-0.40"},
+        "scrape": {"duration": "2-5 minutes", "cost": "~$0.01"},  # Scrape-only is cheap
     }
     
     def __init__(self):

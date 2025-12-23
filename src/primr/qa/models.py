@@ -28,7 +28,7 @@ class Severity(Enum):
 @dataclass
 class QAOptions:
     """Configuration for QA execution."""
-    model: str = "gemini-2.0-flash-thinking-exp"  # QA model to use
+    model: str = None  # QA model to use (defaults to PrimrModels.QA_MODEL)
     enabled: bool = True  # QA enabled by default
     verbose_cli: bool = False  # Show detailed CLI output
     save_detailed: bool = True  # Save detailed analysis to workspace

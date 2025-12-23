@@ -176,7 +176,7 @@ Benefits achieved:
 - Clear separation of prompt engineering from code logic
 - **Foundation for v1.2.6**: Adding a new strategy module = adding a YAML file
 
-v1.2.6 – Extensible Strategy Modules (Complete)
+v1.2.6 – Extensible Strategy Modules (In Progress)
 
 Goal: Make the "strategy layer" configurable and extensible beyond AI.
 
@@ -190,25 +190,25 @@ The externalized prompt architecture (v1.2.5) makes this straightforward:
 3. Each module defines its own sections, epistemic rules, and output structure
 4. CLI flag selects which strategy reports to generate
 
-**Implemented Strategy Modules:**
+**Implemented:**
+- Strategy module YAML configs exist in `src/primr/prompts/strategies/`
+- StrategyModuleRegistry auto-discovers modules from strategies/ directory
+- PromptComposer class handles YAML loading and variable substitution
+
+**Not Yet Implemented:**
+- CLI flags (`--strategy`, `--list-strategies`, `--strategy-only`)
+- Integration with research pipeline to generate multiple strategy reports
+
+**Strategy Modules (YAML configs ready):**
 ```
 src/primr/prompts/strategies/
-├── ai_strategy.yaml           # AI roadmap, quick wins, bigger bets (fully implemented)
-├── cloud_migration.yaml       # Infrastructure and platform decisions (placeholder)
-├── data_strategy.yaml         # Data platform, governance, analytics maturity (placeholder)
+├── ai_strategy.yaml           # AI roadmap, quick wins, bigger bets
+├── cloud_migration.yaml       # Infrastructure and platform decisions
+├── data_strategy.yaml         # Data platform, governance, analytics maturity
 ```
 
-**Future Strategy Modules (not yet implemented):**
-- digital_transformation.yaml - Broader tech modernization
-- security_posture.yaml - Risk areas, compliance gaps
-- operational_excellence.yaml - Process automation, efficiency opportunities
-- customer_experience.yaml - CX improvements, journey optimization
-
-**CLI Usage:**
+**Planned CLI Usage (not yet working):**
 ```bash
-# Current behavior (AI strategy by default)
-primr "Tesla" https://tesla.com --cloud-vendor azure
-
 # Select specific strategy modules
 primr "Tesla" https://tesla.com --strategy ai
 primr "Tesla" https://tesla.com --strategy cloud
@@ -231,19 +231,11 @@ primr --list-strategies
 - Sections with purpose, covers, and depth guidance
 - Domain-specific context (e.g., vendor guidance for cloud, compliance frameworks for security)
 
-**Benefits:**
+**Benefits (when complete):**
 - Adding a new strategy type = adding a YAML file (no code changes)
 - Users can customize existing strategies or create their own
 - Same company research feeds multiple strategic analyses
 - Clear separation between research (company overview) and analysis (strategy modules)
-
-**Implementation Details:**
-- PromptComposer class handles YAML loading and variable substitution
-- StrategyModuleRegistry auto-discovers modules from strategies/ directory
-- Shared components (epistemic rules, formatting, personas) are reused across all prompts
-- Custom exceptions provide error messages for missing/invalid configs
-
-This makes Primr more flexible for different types of strategic analysis.
 
 
 v1.3.0 – Research State and Iteration (Planned)
@@ -423,15 +415,9 @@ primr "Tesla" https://tesla.com --mode scrape
 primr "Tesla" https://tesla.com --mode deep
 primr "Tesla" https://tesla.com --mode full
 
-# AI Strategy (legacy)
+# AI Strategy
 primr "Tesla" https://tesla.com --cloud-vendor azure
 primr "Tesla" https://tesla.com --no-ai-strategy
-
-# Strategy modules (v1.2.6)
-primr "Tesla" https://tesla.com --strategy ai              # AI strategy
-primr "Tesla" https://tesla.com --strategy ai,cloud,data   # Multiple strategies
-primr "Tesla" https://tesla.com --strategy-only --context-folder output/  # Run on existing
-primr --list-strategies                                     # Show available
 
 # Operations
 primr doctor
@@ -447,9 +433,9 @@ Version	Date	Highlights
 0.5.0	Dec 2025	Cost tracking, job recovery
 1.0.0	Dec 2025	Rebrand to Primr, pip installable
 1.1.0	Dec 2025	Code quality hardening
-1.2.5	Dec 2025	Externalized prompt architecture (YAML configs)
-1.2.6	Dec 2025	Extensible strategy modules (--strategy flag)
 1.2.0	Dec 2025	Test coverage hardening (146 new tests, pytest marks)
+1.2.5	Dec 2025	Externalized prompt architecture (YAML configs)
+1.2.6	In Progress	Extensible strategy modules (YAML ready, CLI pending)
 1.3.0	TBD	Research state and hypothesis tracking
 1.4.0	TBD	Iterative refinement loop
 1.5.0	TBD	POV evolution and narrative continuity

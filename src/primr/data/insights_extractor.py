@@ -8,7 +8,8 @@ from typing import Any
 import google.generativeai as genai
 from dotenv import load_dotenv
 
-from primr.config.config import AI_RESEARCH_MODEL, GEMINI_API_KEY, MAX_RETRIES
+from primr.config.config import GEMINI_API_KEY, MAX_RETRIES
+from primr.config.models import PrimrModels
 from primr.utils.logging_config import get_logger
 
 load_dotenv()
@@ -17,7 +18,7 @@ logger = get_logger("insights")
 
 # Configure Google AI client
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel(AI_RESEARCH_MODEL)
+model = genai.GenerativeModel(PrimrModels.FAST_MODEL)  # Use Flash for insights
 
 
 def generate_ai_response(prompt, retries=MAX_RETRIES, min_length=200):

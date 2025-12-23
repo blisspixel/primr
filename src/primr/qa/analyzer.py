@@ -13,6 +13,7 @@ from .models import (
     IssueType, Severity
 )
 from .issue_classifier import IssueClassifier
+from ..config.models import PrimrModels
 from .error_handler import (
     QAModelError, QAAnalysisError, QARetryHandler, QAErrorHandler,
     with_retry, safe_qa_operation
@@ -24,7 +25,7 @@ logger = logging.getLogger(__name__)
 class QAAnalyzer:
     """Performs quality analysis on reports using AI model."""
     
-    def __init__(self, model_name: str = "gemini-2.0-flash-thinking-exp"):
+    def __init__(self, model_name: str = PrimrModels.QA_MODEL):
         """Initialize with QA model configuration."""
         self.model_name = model_name
         self.issue_classifier = IssueClassifier()

@@ -23,6 +23,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Protocol
 
+from primr.config.models import PrimrModels
+
 from primr.config.config import LOGS_DIR, OUTPUT_DIR, WORKING_DIR
 from primr.utils.console import console
 from primr.utils.logging_config import get_logger
@@ -106,7 +108,7 @@ class CLIRunner(Protocol):
 
 # Mode name mapping (new -> old internal names)
 MODE_MAP = {
-    "scrape": "structured",
+    "scrape": "scrape-only",  # NEW: scrape-only mode (just scraping + insights)
     "deep": "deep-research",
     "full": "complete",
     "parallel": "hybrid",
@@ -115,6 +117,7 @@ MODE_MAP = {
     "deep-research": "deep-research",
     "complete": "complete",
     "hybrid": "hybrid",
+    "scrape-only": "scrape-only",
 }
 
 
@@ -141,8 +144,14 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
     # Map mode name
     mode = MODE_MAP.get(parsed.mode, parsed.mode)
 
-    # AI strategy is on by default, --no-ai-strategy disables it
-    ai_strategy = not getattr(parsed, 'no_ai_strategy', False)
+    # AI strategy is on by default for full modes, off for scrape-only
+    # --no-ai-strategy explicitly disables it
+    if getattr(parsed, 'no_ai_strategy', False):
+        ai_strategy = False
+    elif mode == "scrape-only":
+        ai_strategy = False  # Scrape-only doesn't need AI strategy
+    else:
+        ai_strategy = True
 
     # Build context files tuple
     context_files = tuple(getattr(parsed, 'context', None) or [])
@@ -292,13 +301,14 @@ def _create_parser() -> argparse.ArgumentParser:
         epilog="""
 Research Modes:
   full     Two-step pipeline: scrape then deep research (~30-40 min) [DEFAULT]
-  scrape   Website scraping + Google search, 18 sections (~20-25 min)
+  scrape   Scrape website + extract insights only (~2-5 min)
   deep     Autonomous AI web research, 8 sections (~10-15 min)
   parallel Both engines in parallel (legacy, ~25 min)
 
 Examples:
   primr "Tesla" https://tesla.com
   primr "Tesla" tesla.com --mode deep
+  primr "Tesla" tesla.com --mode scrape     # Quick scrape + insights only
   primr doctor                              # System diagnostics
   primr --qa "Tesla"                        # Show detailed QA analysis
   primr --qa-recent 5                       # Show QA summary for recent reports
@@ -383,8 +393,8 @@ Accordion Method Test (for development):
     parser.add_argument(
         "--qa",
         type=str,
-        metavar="COMPANY",
-        help="Show detailed QA analysis for a company report"
+        metavar="COMPANY_OR_PATH",
+        help="Show detailed QA analysis for a company report or analyze a specific file path"
     )
     parser.add_argument(
         "--qa-recent",
@@ -585,15 +595,42 @@ def _handle_analyze_report(config: CLIConfig) -> int:
 
 def _handle_qa(config: CLIConfig) -> int:
     """Handle QA review command."""
+    print(f"DEBUG: _handle_qa called with qa_company: '{config.qa_company}'")
+    
     if not config.qa_company:
-        console.error("Company name is required for QA review")
+        console.error("Company name or file path is required for QA review")
         console.info("Usage: primr --qa \"Company Name\"")
+        console.info("   or: primr --qa \"path/to/report.docx\"")
         return 1
     
     try:
         from primr.qa.command import QACommand
+        from pathlib import Path
+        
         qa_command = QACommand()
-        return qa_command.show_detailed_analysis(config.qa_company)
+        
+        print(f"DEBUG: Received argument: '{config.qa_company}'")
+        
+        # Check if the argument is a file path by checking if it exists as a file
+        potential_path = Path(config.qa_company)
+        print(f"DEBUG: Path object created: {potential_path}")
+        print(f"DEBUG: Path exists: {potential_path.exists()}")
+        if potential_path.exists():
+            print(f"DEBUG: Is file: {potential_path.is_file()}")
+        
+        if potential_path.exists() and potential_path.is_file():
+            # Treat as file path
+            print(f"DEBUG: File exists, calling analyze_report_file with: {config.qa_company}")
+            return qa_command.analyze_report_file(config.qa_company)
+        elif (config.qa_company.endswith(('.docx', '.pdf')) or 
+              '\\' in config.qa_company or 
+              '/' in config.qa_company):
+            # Looks like a file path but doesn't exist
+            console.error(f"File not found: {config.qa_company}")
+            return 1
+        else:
+            # Treat as company name
+            return qa_command.show_detailed_analysis(config.qa_company)
     except Exception as e:
         console.error(f"QA review failed: {e}")
         return 1
@@ -781,7 +818,7 @@ def _check_api_connectivity(all_passed: bool, warnings_count: int) -> tuple[bool
         try:
             import google.generativeai as genai
             genai.configure(api_key=gemini_key)
-            model = genai.GenerativeModel("gemini-2.0-flash")
+            model = genai.GenerativeModel(PrimrModels.FAST_MODEL)
             response = model.generate_content("Say 'ok'", generation_config={"max_output_tokens": 10})
             if response.text:
                 console.ok("Gemini API responding")
@@ -879,7 +916,7 @@ def check_api_quota() -> None:
     try:
         client = genai.Client(api_key=settings.api.gemini_key)
         response = client.models.generate_content(
-            model="gemini-2.0-flash",
+            model=PrimrModels.FAST_MODEL,
             contents="Say 'OK' in one word."
         )
         if response and response.text:

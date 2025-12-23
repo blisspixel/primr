@@ -67,10 +67,15 @@ class CostEstimate:
 
 
 # Pricing constants (per 1M tokens, USD)
+# Gemini 3 Pro (for full research modes)
 GEMINI_3_PRO_INPUT_PRICE_SMALL = 2.00  # prompts <= 200k tokens
 GEMINI_3_PRO_INPUT_PRICE_LARGE = 4.00  # prompts > 200k tokens
 GEMINI_3_PRO_OUTPUT_PRICE_SMALL = 12.00  # prompts <= 200k tokens
 GEMINI_3_PRO_OUTPUT_PRICE_LARGE = 18.00  # prompts > 200k tokens
+
+# Gemini 3 Flash (for scrape-only mode - much cheaper)
+GEMINI_3_FLASH_INPUT_PRICE = 0.10  # $0.10/1M tokens
+GEMINI_3_FLASH_OUTPUT_PRICE = 0.40  # $0.40/1M tokens
 
 # Google Search pricing (free until Jan 5, 2026)
 GOOGLE_SEARCH_PRICE_PER_1000 = 14.00  # $14 per 1000 queries after free period
@@ -79,6 +84,13 @@ GOOGLE_SEARCH_FREE_UNTIL = "January 5, 2026"
 # Estimated token usage by mode (based on actual runs Dec 2025)
 # These are fallback defaults - actual estimates come from usage_history.json
 MODE_ESTIMATES = {
+    "scrape-only": {
+        "input_tokens": 20_000,   # Scraped content + insight extraction
+        "output_tokens": 5_000,   # Just insights summary
+        "search_queries": 2,      # Minimal external search
+        "duration_min": 2,        # Minutes (low estimate)
+        "duration_max": 5,        # Minutes (high estimate)
+    },
     "structured": {
         "input_tokens": 80_000,   # Website content + prompts
         "output_tokens": 40_000,  # 18 sections
@@ -131,7 +143,7 @@ def estimate_cost(
     otherwise falls back to default estimates.
 
     Args:
-        mode: Research mode (structured, deep-research, complete, hybrid)
+        mode: Research mode (scrape-only, structured, deep-research, complete, hybrid)
         include_ai_strategy: Whether AI strategy analysis is included
         search_free: Whether Google Search is in free period
         use_historical: Whether to use historical averages (requires 3+ samples)
@@ -139,7 +151,7 @@ def estimate_cost(
     Returns:
         CostEstimate with breakdown
     """
-    estimates = MODE_ESTIMATES.get(mode, MODE_ESTIMATES["structured"])
+    estimates = MODE_ESTIMATES.get(mode, MODE_ESTIMATES["scrape-only"])
 
     input_tokens = estimates["input_tokens"]
     output_tokens = estimates["output_tokens"]
@@ -192,10 +204,14 @@ def estimate_cost(
     if include_ai_strategy:
         duration += " + AI strategy"
 
-    # Calculate costs
-    # Use small context pricing (most research fits in 200k)
-    input_cost = (input_tokens / 1_000_000) * GEMINI_3_PRO_INPUT_PRICE_SMALL
-    output_cost = (output_tokens / 1_000_000) * GEMINI_3_PRO_OUTPUT_PRICE_SMALL
+    # Calculate costs - use Flash pricing for scrape-only (much cheaper)
+    if mode == "scrape-only":
+        input_cost = (input_tokens / 1_000_000) * GEMINI_3_FLASH_INPUT_PRICE
+        output_cost = (output_tokens / 1_000_000) * GEMINI_3_FLASH_OUTPUT_PRICE
+    else:
+        # Use Pro pricing for full research modes
+        input_cost = (input_tokens / 1_000_000) * GEMINI_3_PRO_INPUT_PRICE_SMALL
+        output_cost = (output_tokens / 1_000_000) * GEMINI_3_PRO_OUTPUT_PRICE_SMALL
 
     # Search cost (free until Jan 5, 2026)
     if search_free:

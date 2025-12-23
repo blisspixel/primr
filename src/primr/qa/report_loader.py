@@ -313,6 +313,37 @@ class ReportLoader:
         numbered_citations = re.findall(r'\[\d+\]', content)
         citations.extend(numbered_citations)
         
+        # Look for inline citations like [cite: 1, 2, 3]
+        inline_pattern = r'\[cite:\s*([\d,\s]+)\]'
+        inline_matches = re.findall(inline_pattern, content)
+        for match in inline_matches:
+            # Split comma-separated numbers and add each as a citation
+            nums = [n.strip() for n in match.split(',') if n.strip().isdigit()]
+            for num in nums:
+                citations.append(f"[cite: {num}]")
+        
+        # Look for bibliography sections and extract sources
+        bibliography_patterns = [
+            r'(?i)(?:sources?|references?|bibliography|citations?):\s*\n(.*?)(?:\n\n|\n#|\Z)',
+            r'(?i)## (?:sources?|references?|bibliography|citations?)\s*\n(.*?)(?:\n\n|\n#|\Z)',
+            r'(?i)# (?:sources?|references?|bibliography|citations?)\s*\n(.*?)(?:\n\n|\n#|\Z)'
+        ]
+        
+        for pattern in bibliography_patterns:
+            matches = re.findall(pattern, content, re.DOTALL)
+            for match in matches:
+                # Split by lines and extract each source
+                lines = match.strip().split('\n')
+                for line in lines:
+                    line = line.strip()
+                    if line and not line.startswith('#'):
+                        citations.append(line)
+        
+        # Look for document references (common in strategy reports)
+        doc_pattern = r'(?:based on|according to|as outlined in|referenced in)\s+([^.]+(?:overview|analysis|report|document|study)[^.]*)'
+        doc_refs = re.findall(doc_pattern, content, re.IGNORECASE)
+        citations.extend(doc_refs)
+        
         return list(set(citations))  # Remove duplicates
     
     def _extract_metadata(self, report_path: Path, company_name: str) -> ReportMetadata:

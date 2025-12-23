@@ -18,6 +18,8 @@ from typing import Any
 
 from google import genai
 
+from primr.config.models import PrimrModels
+
 from primr.ai.research_executor import ChapterResult
 from primr.config.settings import get_settings
 from primr.utils.logging_config import get_logger
@@ -66,7 +68,7 @@ class ReportAggregator:
     """
     
     # Model for transition smoothing (optional)
-    SMOOTHING_MODEL = "gemini-2.0-flash"
+    SMOOTHING_MODEL = PrimrModels.FAST_MODEL
     
     def __init__(self, api_key: str | None = None):
         """
