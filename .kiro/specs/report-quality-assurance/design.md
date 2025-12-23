@@ -50,45 +50,71 @@ The QA system operates as an integrated final step in the research pipeline, usi
 
 ### Component Interaction Flow
 
-1. **User Invocation**: User runs `primr qa "Company"` or includes `--auto-qa` flag
-2. **Report Loading**: QA system locates and loads the most recent report
-3. **QA Analysis**: Separate AI model evaluates report across multiple dimensions
-4. **Issue Classification**: Problems are categorized and scored
-5. **Report Generation**: QA findings are formatted and saved
-6. **User Feedback**: Results displayed in CLI and saved to workspace
+1. **Automatic Integration**: QA runs automatically after every report generation (unless `--no-qa` specified)
+2. **Report Analysis**: Separate AI model evaluates report across multiple dimensions
+3. **Clean CLI Output**: Display simple "Grade: (XX/100)" summary to user
+4. **Detailed Storage**: Save comprehensive QA analysis to workspace for later review
+5. **Optional Detail Access**: `primr qa "Company"` command shows detailed analysis when needed
 
 ## Components and Interfaces
 
-### 1. QA Command Handler (`qa_command.py`)
+### 1. QA Integration Handler (`qa_integration.py`)
 
-**Responsibility**: CLI interface for QA operations
+**Responsibility**: Integrate QA into main research pipeline
 
 ```python
-class QACommand:
-    """Handles QA command execution from CLI"""
+class QAIntegration:
+    """Handles automatic QA integration with report generation"""
     
-    def execute(self, company_name: str, options: QAOptions) -> QAResult:
+    def run_post_generation_qa(self, report_path: Path, options: QAOptions) -> QAResult:
         """
-        Execute QA analysis for a company report
+        Run QA automatically after report generation
         
         Args:
-            company_name: Name of company to analyze
+            report_path: Path to generated report
             options: QA configuration options
             
         Returns:
-            QAResult with scores and issues
+            QAResult with grade and summary for CLI display
         """
         pass
     
-    def validate_inputs(self, company_name: str) -> bool:
-        """Validate that report exists and is accessible"""
+    def format_cli_summary(self, qa_result: QAResult) -> str:
+        """Format clean CLI output: 'Grade: (XX/100)'"""
         pass
 ```
 
 **Interface**:
-- Input: Company name, optional flags (--model, --verbose, --output-format)
-- Output: QA results displayed to console, saved to file
-- Error handling: Clear messages for missing reports, API failures
+- Input: Generated report path, QA options
+- Output: Clean CLI summary, detailed analysis saved to workspace
+- Integration: Called automatically by research pipeline
+
+### 2. QA Command Handler (`qa_command.py`)
+
+**Responsibility**: CLI interface for detailed QA review
+
+```python
+class QACommand:
+    """Handles detailed QA review command"""
+    
+    def show_detailed_analysis(self, company_name: str) -> None:
+        """
+        Display detailed QA analysis for a company report
+        
+        Args:
+            company_name: Name of company to show QA details for
+        """
+        pass
+    
+    def validate_qa_exists(self, company_name: str) -> bool:
+        """Validate that QA analysis exists for company"""
+        pass
+```
+
+**Interface**:
+- Input: Company name for detailed review
+- Output: Comprehensive QA analysis displayed to console
+- Usage: `primr qa "Tesla"` shows detailed analysis
 
 ### 2. Report Loader (`report_loader.py`)
 
@@ -221,10 +247,21 @@ class QAReportGenerator:
 class QAOptions:
     """Configuration for QA execution"""
     model: str = "gemini-2.0-flash-thinking-exp"  # QA model to use
-    verbose: bool = False
-    output_format: str = "txt"  # txt, json, both
-    save_to_workspace: bool = True
-    auto_mode: bool = False  # True when triggered by --auto-qa
+    enabled: bool = True  # QA enabled by default
+    verbose_cli: bool = False  # Show detailed CLI output
+    save_detailed: bool = True  # Save detailed analysis to workspace
+```
+
+### QAResult
+
+```python
+@dataclass
+class QAResult:
+    """QA execution result"""
+    grade: int  # 0-100 overall score
+    summary: str  # Clean CLI summary
+    detailed_analysis: QAAnalysis  # Full analysis for workspace storage
+    needs_attention: bool  # True if grade < 70
 ```
 
 ### ReportContent

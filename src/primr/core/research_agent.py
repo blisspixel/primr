@@ -549,6 +549,7 @@ def perform_research(
     refresh_vendor_research: bool = False,
     strategies: list[str] | None = None,
     strategy_only: bool = False,
+    no_qa: bool = False,
 ) -> str | None:
     if not company_name and not website:
         console.error("No company name or website provided")
@@ -693,6 +694,21 @@ def perform_research(
                 if ai_strategy_path:
                     console.phase_complete("AI Strategy Analysis")
 
+            # Run QA analysis if enabled (default: enabled, --no-qa disables)
+            qa_result = None
+            if not no_qa and docx_path:
+                try:
+                    from primr.qa.integration import QAIntegration
+                    qa_integration = QAIntegration()
+                    
+                    # Find the corresponding TXT report for QA analysis
+                    txt_report_path = Path(docx_path).with_suffix('.txt')
+                    if txt_report_path.exists():
+                        qa_result = qa_integration.run_post_generation_qa(txt_report_path, company_name or display_name)
+                except Exception as e:
+                    logger.warning(f"QA analysis failed: {e}")
+                    # Don't break the pipeline if QA fails
+
             elapsed = time.time() - start_time
             mins = int(elapsed // 60)
             secs = int(elapsed % 60)
@@ -709,6 +725,11 @@ def perform_research(
 
             if ai_strategy_path:
                 console.success_box("AI Strategy", ai_strategy_path)
+
+            # Display QA result if available
+            if qa_result:
+                console.blank()
+                console.info(qa_result.summary)
 
             # Get actual usage from AI client
             from primr.ai.client import get_client
@@ -732,6 +753,8 @@ def perform_research(
             ]
             if ai_strategy:
                 summary_items.append(("AI Strategy", "Yes"))
+            if qa_result:
+                summary_items.append(("Quality Grade", f"{qa_result.grade}/100"))
             console.summary(summary_items)
 
             # Save usage to history
@@ -2649,7 +2672,8 @@ def process_csv(
     mode: str = "complete",
     citation_style: str = "numbered",
     ai_strategy: bool = True,
-    cloud_vendor: str = "azure"
+    cloud_vendor: str = "azure",
+    no_qa: bool = False
 ) -> None:
     import csv
     console.header("Batch Processing", file_path)
@@ -2668,7 +2692,8 @@ def process_csv(
                         mode=mode,
                         citation_style=citation_style,
                         ai_strategy=ai_strategy,
-                        cloud_vendor=cloud_vendor
+                        cloud_vendor=cloud_vendor,
+                        no_qa=no_qa
                     )
                 except Exception as e:
                     console.error(f"Failed: {company or website} - {e}")
@@ -2685,6 +2710,7 @@ def _list_recent_outputs():
     """List recent research outputs from the output directory."""
     import glob
     from datetime import datetime
+    from pathlib import Path
 
     output_files = glob.glob(os.path.join(OUTPUT_DIR, "*.docx"))
     if not output_files:
@@ -2695,16 +2721,85 @@ def _list_recent_outputs():
     output_files.sort(key=os.path.getmtime, reverse=True)
 
     print("\nRECENT RESEARCH OUTPUTS")
-    print("-" * 60)
+    print("-" * 80)
+    print(f"{'#':<3} {'Report':<40} {'Date':<12} {'Size':<8} {'QA Grade':<10}")
+    print("-" * 80)
+    
     for i, filepath in enumerate(output_files[:20], 1):
         filename = os.path.basename(filepath)
         mtime = datetime.fromtimestamp(os.path.getmtime(filepath))
         size_kb = os.path.getsize(filepath) / 1024
-        print(f"{i:2}. {filename}")
-        print(f"    {mtime.strftime('%Y-%m-%d %H:%M')} | {size_kb:.1f} KB")
+        
+        # Look for corresponding QA report
+        qa_grade = _get_qa_grade_for_report(filepath)
+        qa_display = f"{qa_grade}/100" if qa_grade is not None else "N/A"
+        
+        # Truncate filename if too long
+        display_name = filename[:37] + "..." if len(filename) > 40 else filename
+        
+        print(f"{i:2}. {display_name:<40} {mtime.strftime('%Y-%m-%d'):<12} {size_kb:6.1f}KB {qa_display:<10}")
+    
     if len(output_files) > 20:
         print(f"... and {len(output_files) - 20} more files")
-    print("-" * 60)
+    print("-" * 80)
+
+
+def _get_qa_grade_for_report(report_path: str) -> int | None:
+    """
+    Get QA grade for a report by finding its corresponding QA report file.
+    
+    Args:
+        report_path: Path to the main report file
+        
+    Returns:
+        QA grade (0-100) or None if no QA report found
+    """
+    try:
+        from pathlib import Path
+        
+        report_file = Path(report_path)
+        # Extract company name from filename (remove extension and date)
+        filename = report_file.stem
+        
+        # Remove common suffixes to get company name
+        for suffix in ["_Strategic_Overview", "_Company_Overview", "_AI_Strategy"]:
+            if suffix in filename:
+                company_part = filename.split(suffix)[0]
+                break
+        else:
+            company_part = filename
+        
+        # Look for QA report files
+        output_dir = Path(OUTPUT_DIR)
+        qa_patterns = [
+            f"{company_part}*QA_Report*.txt",
+            f"*{company_part}*QA_Report*.txt"
+        ]
+        
+        qa_files = []
+        for pattern in qa_patterns:
+            matches = list(output_dir.glob(pattern))
+            qa_files.extend(matches)
+        
+        if not qa_files:
+            return None
+        
+        # Get the most recent QA file
+        latest_qa = max(qa_files, key=lambda f: f.stat().st_mtime)
+        
+        # Parse the grade from the QA report
+        content = latest_qa.read_text(encoding='utf-8')
+        for line in content.split('\n'):
+            if line.startswith('Quality Score:'):
+                # Extract score like "Quality Score: 85/100"
+                parts = line.split(':')[1].strip().split('/')
+                if parts and parts[0].isdigit():
+                    return int(parts[0])
+        
+        return None
+        
+    except Exception:
+        return None
 
 
 def _check_api_quota():
@@ -3002,6 +3097,29 @@ def run_doctor():
         console.warn("Skipping API test (no key configured)")
         warnings_count += 1
 
+    # 6. QA System Configuration
+    console.step("Quality Assurance")
+    try:
+        from primr.qa.integration import QAIntegration
+        from primr.qa.analyzer import QAAnalyzer
+        
+        # Test QA system initialization
+        qa_integration = QAIntegration()
+        qa_analyzer = QAAnalyzer()
+        
+        if qa_analyzer.ai_client:
+            console.ok("QA system initialized")
+            console.info(f"  QA Model: {qa_analyzer.model_name}")
+        else:
+            console.warn("QA system initialized but AI client unavailable")
+            console.info("  QA will use fallback analysis if needed")
+            warnings_count += 1
+            
+    except Exception as e:
+        console.warn(f"QA system check failed: {e}")
+        console.info("  QA analysis may not work properly")
+        warnings_count += 1
+
     # Summary
     console.blank()
     if all_passed and warnings_count == 0:
@@ -3047,6 +3165,8 @@ Examples:
   primr "Tesla" tesla.com --cloud-vendor aws
   primr doctor                              # System diagnostics
   primr --csv companies.csv --mode scrape   # Batch mode
+  primr --qa "Tesla"                        # Show detailed QA analysis
+  primr --qa-recent 10                      # Show QA summary for 10 recent reports
 
 Context Files (for deep mode):
   primr "Tesla" tesla.com --mode deep --context-folder working/Tesla
@@ -3139,6 +3259,25 @@ Utility Commands:
         "--strategy-only",
         action="store_true",
         help="Run strategies only (skip company overview, requires --context-folder)"
+    )
+    parser.add_argument(
+        "--qa",
+        type=str,
+        metavar="COMPANY",
+        help="Show detailed QA analysis for a company report"
+    )
+    parser.add_argument(
+        "--qa-recent",
+        type=int,
+        nargs='?',
+        const=5,
+        metavar="N",
+        help="Show QA summary for the N most recent reports (default: 5)"
+    )
+    parser.add_argument(
+        "--no-qa",
+        action="store_true",
+        help="Disable automatic quality assessment"
     )
 
     args = parser.parse_args()
@@ -3286,6 +3425,22 @@ Utility Commands:
                 console.error(f"Failed to generate {vendor} research")
         return
 
+    # Handle --qa flag
+    qa_company = getattr(args, 'qa', None)
+    if qa_company:
+        from primr.qa.command import QACommand
+        qa_command = QACommand()
+        exit_code = qa_command.show_detailed_analysis(qa_company)
+        sys.exit(exit_code)
+
+    # Handle --qa-recent flag
+    qa_recent = getattr(args, 'qa_recent', None)
+    if qa_recent is not None:
+        from primr.qa.command import QACommand
+        qa_command = QACommand()
+        exit_code = qa_command.show_recent_qa_summary(qa_recent)
+        sys.exit(exit_code)
+
     # Handle custom output directory
     custom_output_dir = getattr(args, 'output_dir', None)
     if custom_output_dir:
@@ -3317,12 +3472,14 @@ Utility Commands:
 
     if args.csv:
         # CSV batch mode always skips confirmation (user already committed)
+        no_qa = getattr(args, 'no_qa', False)
         process_csv(
             args.csv,
             mode=mode,
             citation_style=citation_style,
             ai_strategy=ai_strategy,
-            cloud_vendor=cloud_vendor
+            cloud_vendor=cloud_vendor,
+            no_qa=no_qa
         )
     else:
         # Both company name and website are required
@@ -3393,6 +3550,7 @@ Utility Commands:
 
         open_after = getattr(args, 'open', False)
         refresh_vendor = getattr(args, 'refresh_vendor_research', False)
+        no_qa = getattr(args, 'no_qa', False)
         result_path = perform_research(
             company_name,
             website,
@@ -3405,6 +3563,7 @@ Utility Commands:
             refresh_vendor_research=refresh_vendor,
             strategies=requested_strategies if requested_strategies else None,
             strategy_only=strategy_only,
+            no_qa=no_qa,
         )
 
         # Open the report if requested
