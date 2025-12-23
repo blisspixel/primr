@@ -16,13 +16,13 @@ This document describes all configuration options available in Primr.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `AI_RESEARCH_MODEL` | Model for research operations | `gemini-2.0-flash` |
-| `AI_REPORT_MODEL` | Model for report generation | `gemini-2.0-flash` |
+| `AI_RESEARCH_MODEL` | Model for research operations | `gemini-3-flash-preview` |
+| `AI_REPORT_MODEL` | Model for report generation | `gemini-3-flash-preview` |
 | `VERBOSE` | Enable verbose output | `false` |
 | `DEBUG` | Enable debug mode | `false` |
 
 Note: The default models can be overridden via environment variables. Primr is designed to work with the latest Gemini models. As of December 2025, the recommended models are:
-- `gemini-3-flash-preview` - Best balance of speed and intelligence
+- `gemini-3-flash-preview` - Best balance of speed and cost
 - `gemini-3-pro-preview` - Maximum reasoning capability
 
 ## Configuration Classes
@@ -100,8 +100,8 @@ Controls AI model behavior.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `research_model` | str | `gemini-2.0-flash` | Model for research |
-| `report_model` | str | `gemini-2.0-flash` | Model for reports |
+| `research_model` | str | `gemini-3-flash-preview` | Model for research |
+| `report_model` | str | `gemini-3-flash-preview` | Model for reports |
 | `max_retries` | int | 3 | Maximum retry attempts |
 | `grade_threshold` | int | 80 | Quality threshold (0-100) |
 | `default_temperature` | float | 1.0 | Model temperature (0.0-2.0) |
@@ -241,4 +241,4 @@ sections:
     depth: "2-3 paragraphs"
 ```
 
-The strategy is automatically discovered and available via `--strategy my`.
+The strategy is automatically discovered. CLI integration (`--strategy my`) is planned but not yet implemented.
