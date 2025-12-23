@@ -1030,8 +1030,16 @@ def perform_deep_research(
             # Get accurate citation count for display
             citation_count_for_display = len(result.citations)  # Default fallback
             
+            # Calculate word and page count from raw content
+            word_count = len(result.raw_content.split()) if result.raw_content else 0
+            page_count = word_count // 500  # ~500 words per page
+            
             if is_simple_deep_research:
-                console.phase_complete("Deep Research", [("Sections", str(section_count)), ("Citations", str(citation_count_for_display))])
+                console.phase_complete("Deep Research", [
+                    ("Pages", f"~{page_count}"),
+                    ("Words", f"{word_count:,}"),
+                    ("Sections", str(section_count)),
+                ])
                 console.phase_banner(2, 3, "Processing Results", "Saving and converting output", "1-2 min")
 
             # Save section results to working folder
