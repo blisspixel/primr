@@ -8,6 +8,8 @@ from typing import Dict, List, Optional, Any
 from pathlib import Path
 import json
 
+from primr.config.models import PrimrModels, ModelType
+
 logger = logging.getLogger(__name__)
 
 
@@ -27,7 +29,7 @@ class QAModelConfig:
 @dataclass
 class QASystemConfig:
     """Complete QA system configuration."""
-    default_model: str = "gemini-2.0-flash-thinking-exp"
+    default_model: str = PrimrModels.QA_MODEL
     enabled_by_default: bool = True
     save_detailed_reports: bool = True
     max_retries: int = 3
@@ -42,30 +44,32 @@ class QASystemConfig:
     
     def _get_default_models(self) -> Dict[str, QAModelConfig]:
         """Get default model configurations."""
+        from ..config.models import PrimrModels, ModelRegistry
+        
         return {
-            "gemini-2.0-flash-thinking-exp": QAModelConfig(
-                name="gemini-2.0-flash-thinking-exp",
-                display_name="Gemini 2.0 Flash Thinking (Experimental)",
+            PrimrModels.QA_MODEL: QAModelConfig(
+                name=PrimrModels.QA_MODEL,
+                display_name=ModelRegistry.GEMINI_3_FLASH.display_name,
                 provider="google",
-                cost_per_1k_tokens=0.0,  # Free tier
-                max_tokens=8192,
+                cost_per_1k_tokens=0.0005,  # $0.50 per 1M tokens
+                max_tokens=65536,
                 supports_json_mode=True,
-                recommended_for=["general", "technical", "analysis"],
+                recommended_for=["general", "fast", "analysis"],
                 available=True
             ),
-            "gemini-2.0-flash": QAModelConfig(
-                name="gemini-2.0-flash",
-                display_name="Gemini 2.0 Flash",
+            PrimrModels.REASONING_MODEL: QAModelConfig(
+                name=PrimrModels.REASONING_MODEL,
+                display_name=ModelRegistry.GEMINI_3_PRO.display_name,
                 provider="google",
-                cost_per_1k_tokens=0.0,  # Free tier
-                max_tokens=8192,
+                cost_per_1k_tokens=0.002,  # $2.00 per 1M tokens
+                max_tokens=65536,
                 supports_json_mode=True,
-                recommended_for=["general", "fast"],
+                recommended_for=["complex", "detailed", "technical"],
                 available=True
             ),
-            "gemini-1.5-pro": QAModelConfig(
-                name="gemini-1.5-pro",
-                display_name="Gemini 1.5 Pro",
+            ModelRegistry.GEMINI_2_5_PRO.name: QAModelConfig(
+                name=ModelRegistry.GEMINI_2_5_PRO.name,
+                display_name=ModelRegistry.GEMINI_2_5_PRO.display_name,
                 provider="google",
                 cost_per_1k_tokens=0.00125,
                 max_tokens=32768,
@@ -102,7 +106,7 @@ class QAConfigManager:
                     models[name] = QAModelConfig(**model_data)
                 
                 config = QASystemConfig(
-                    default_model=config_data.get('default_model', 'gemini-2.0-flash-thinking-exp'),
+                    default_model=config_data.get('default_model', PrimrModels.QA_MODEL),
                     enabled_by_default=config_data.get('enabled_by_default', True),
                     save_detailed_reports=config_data.get('save_detailed_reports', True),
                     max_retries=config_data.get('max_retries', 3),

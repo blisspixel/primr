@@ -174,6 +174,7 @@ class Console:
         self._caps = capabilities or _detect_terminal()
         self._theme = _get_theme(self._caps.should_use_color(), self._caps.should_use_unicode())
         self._term_width = self._caps.width
+        self._last_output_time: float = 0.0  # Track when last output occurred
 
     @property
     def term_width(self):
@@ -185,6 +186,7 @@ class Console:
 
     def _print(self, msg="", end="\n"):
         with self._lock:
+            self._last_output_time = time.time()
             print(msg, end=end)
             sys.stdout.flush()
 
@@ -462,8 +464,8 @@ class Console:
         Show periodic heartbeat messages during long operations.
         
         The heartbeat uses in-place updates (carriage return) to avoid
-        cluttering the output with repeated messages. It only prints
-        a new line when other output has occurred.
+        cluttering the output with repeated messages. It only shows
+        when there's been no other output for at least `interval` seconds.
         """
         if self.quiet:
             yield
@@ -475,16 +477,19 @@ class Console:
             while not stop_event.is_set():
                 stop_event.wait(interval)
                 if not stop_event.is_set():
-                    elapsed = self._elapsed(start)
-                    # Use in-place update to avoid cluttering output
-                    if self._caps.should_update_in_place():
-                        with self._lock:
-                            line = f"\r{INDENT_DETAIL}{self._theme.MUTED}{self._theme.INDICATOR_INFO} {message} ({elapsed}){self._theme.RESET}"
-                            sys.stdout.write(line.ljust(70))
-                            sys.stdout.flush()
-                    else:
-                        # Fallback for non-interactive terminals
-                        self._print(f"{INDENT_DETAIL}{self._theme.MUTED}{self._theme.INDICATOR_INFO} {message} ({elapsed}){self._theme.RESET}")
+                    # Only show heartbeat if no recent output
+                    time_since_output = time.time() - self._last_output_time
+                    if time_since_output >= interval:
+                        elapsed = self._elapsed(start)
+                        # Use in-place update to avoid cluttering output
+                        if self._caps.should_update_in_place():
+                            with self._lock:
+                                line = f"\r{INDENT_DETAIL}{self._theme.MUTED}{self._theme.INDICATOR_INFO} {message} ({elapsed}){self._theme.RESET}"
+                                sys.stdout.write(line.ljust(70))
+                                sys.stdout.flush()
+                        else:
+                            # Fallback for non-interactive terminals
+                            self._print(f"{INDENT_DETAIL}{self._theme.MUTED}{self._theme.INDICATOR_INFO} {message} ({elapsed}){self._theme.RESET}")
         
         heartbeat_thread = threading.Thread(target=show_heartbeat, daemon=True)
         heartbeat_thread.start()

@@ -123,6 +123,7 @@ from primr.config.config import (
     PROJECT_ROOT,
     WORKING_DIR,
 )
+from primr.config.models import PrimrModels
 from primr.config.sections_config import SECTION_KEY_MAP
 from primr.core.research_orchestrator import (
     ResearchMode,
@@ -537,6 +538,94 @@ def run_research(company_name: str, website: str, on_progress: Callable[[str], N
     return section_results
 
 
+def perform_scrape_only(
+    company_name: str | None,
+    website: str | None,
+    start_time: float,
+) -> str | None:
+    """
+    Scrape-only mode: Get links, scrape content, extract insights.
+    
+    This is a lightweight mode that:
+    1. Gets links from homepage (using Playwright for JS-heavy sites)
+    2. Asks LLM which links are most relevant
+    3. Scrapes content from selected pages
+    4. Extracts key insights from each page
+    5. Saves results to working folder
+    
+    No report generation, no analysis phases - just raw scraped data with insights.
+    """
+    display_name = company_name or (urlparse(website or "").netloc if website else "")
+    
+    console.phase_banner(1, 2, "Scraping", "Getting links and scraping content", "1-3 min")
+    
+    # Scrape website
+    with console.timed_operation("Scanning website"):
+        scraped_data = fetch_web_content(website, company_name, max_pages=15) if website else {}
+        pages_scraped = len(scraped_data)
+    
+    if not scraped_data:
+        console.error("No content scraped")
+        return None
+    
+    # External sources (quick)
+    with console.timed_operation("Searching external sources"):
+        external_queries = [f"{company_name} news"]
+        external_data = {}
+        for query in external_queries:
+            results = search_google(query, company_name, website)
+            if results:
+                filtered = [r for r in results[:2] if website and website.lower() not in r.get("url", "").lower()]
+                scraped = scrape_external_sources(filtered, max_sources=2)
+                external_data.update(scraped)
+    
+    all_scraped = {**scraped_data, **external_data}
+    console.phase_complete("Scraping", [("Pages", str(pages_scraped)), ("External", str(len(external_data)))])
+    
+    # Phase 2: Extract insights
+    console.phase_banner(2, 2, "Insights", "Extracting key facts from content", "1-2 min")
+    
+    folder_path = create_working_folder(company_name, website)
+    
+    with console.timed_operation("Extracting insights"):
+        summarized = summarize_scraped_content(company_name, website, all_scraped, folder_path)
+    
+    # Save raw scraped content
+    scraped_file = os.path.join(folder_path, "scraped_content.txt")
+    with open(scraped_file, "w", encoding="utf-8") as f:
+        for url, content in all_scraped.items():
+            f.write(f"\n{'='*60}\n")
+            f.write(f"URL: {url}\n")
+            f.write(f"{'='*60}\n")
+            f.write(content[:5000] + "\n")  # Truncate very long pages
+    
+    # Save insights
+    insights_file = os.path.join(folder_path, "insights.txt")
+    with open(insights_file, "w", encoding="utf-8") as f:
+        f.write(f"# {display_name} - Scraped Insights\n\n")
+        f.write(summarized)
+    
+    elapsed = time.time() - start_time
+    mins = int(elapsed // 60)
+    secs = int(elapsed % 60)
+    time_str = f"{mins}m {secs}s" if mins > 0 else f"{secs}s"
+    
+    console.phase_complete("Insights")
+    
+    # Summary
+    console.summary([
+        ("Pages scraped", str(pages_scraped)),
+        ("External sources", str(len(external_data))),
+        ("Duration", time_str),
+    ])
+    
+    console.success_box("Scrape complete", folder_path)
+    console.info(f"  - {scraped_file}")
+    console.info(f"  - {insights_file}")
+    
+    return folder_path
+
+
 def perform_research(
     company_name: str | None = None,
     website: str | None = None,
@@ -577,6 +666,10 @@ def perform_research(
         from primr.utils.cost_estimator import estimate_cost
         estimate = estimate_cost(mode, ai_strategy)
         console.info(f"Estimated: {estimate.duration_minutes}, ~${estimate.total_cost:.2f}")
+
+        # Handle scrape-only mode - just scrape and extract insights
+        if mode == "scrape-only":
+            return perform_scrape_only(company_name, website, start_time)
 
         # Check if using Deep Research, Complete, or Hybrid mode
         if mode in ("deep-research", "complete", "hybrid"):
@@ -699,12 +792,33 @@ def perform_research(
             if not no_qa and docx_path:
                 try:
                     from primr.qa.integration import QAIntegration
-                    qa_integration = QAIntegration()
+                    from primr.qa.models import QAOptions
+                    
+                    # Check if verbose mode is enabled
+                    verbose_mode = hasattr(console, 'verbose') and console.verbose
+                    
+                    qa_options = QAOptions(
+                        enabled=True,
+                        save_detailed=True,
+                        verbose_cli=verbose_mode
+                    )
+                    qa_integration = QAIntegration(qa_options)
                     
                     # Find the corresponding TXT report for QA analysis
                     txt_report_path = Path(docx_path).with_suffix('.txt')
                     if txt_report_path.exists():
                         qa_result = qa_integration.run_post_generation_qa(txt_report_path, company_name or display_name)
+                        
+                        # Show QA grade immediately after generation
+                        if qa_result and qa_result.grade > 0:
+                            console.blank()
+                            grade_color = "green" if qa_result.grade >= 80 else "yellow" if qa_result.grade >= 70 else "red"
+                            console.info(f"Quality Grade: {qa_result.grade}/100", color=grade_color)
+                            
+                            # Show detailed reasoning in verbose mode
+                            if verbose_mode and qa_result.summary:
+                                console.info(qa_result.summary)
+                            
                 except Exception as e:
                     logger.warning(f"QA analysis failed: {e}")
                     # Don't break the pipeline if QA fails
@@ -2822,7 +2936,7 @@ def _check_api_quota():
 
         # Make a minimal API call to test quota
         response = client.models.generate_content(
-            model="gemini-2.0-flash",  # Use fast model for quick check
+            model=PrimrModels.FAST_MODEL,  # Use fast model for quick check
             contents="Say 'OK' in one word."
         )
 
@@ -3075,7 +3189,7 @@ def run_doctor():
         try:
             import google.generativeai as genai
             genai.configure(api_key=gemini_key)
-            model = genai.GenerativeModel("gemini-2.0-flash")
+            model = genai.GenerativeModel(PrimrModels.FAST_MODEL)
             response = model.generate_content("Say 'ok'", generation_config={"max_output_tokens": 10})
             if response.text:
                 console.ok("Gemini API responding")
@@ -3429,8 +3543,26 @@ Utility Commands:
     qa_company = getattr(args, 'qa', None)
     if qa_company:
         from primr.qa.command import QACommand
+        from pathlib import Path
+        
         qa_command = QACommand()
-        exit_code = qa_command.show_detailed_analysis(qa_company)
+        
+        # Check if the argument is a file path by checking if it exists as a file
+        potential_path = Path(qa_company)
+        
+        if potential_path.exists() and potential_path.is_file():
+            # Treat as file path
+            exit_code = qa_command.analyze_report_file(qa_company)
+        elif (qa_company.endswith(('.docx', '.pdf')) or 
+              '\\' in qa_company or 
+              '/' in qa_company):
+            # Looks like a file path but doesn't exist
+            console.error(f"File not found: {qa_company}")
+            sys.exit(1)
+        else:
+            # Treat as company name
+            exit_code = qa_command.show_detailed_analysis(qa_company)
+        
         sys.exit(exit_code)
 
     # Handle --qa-recent flag

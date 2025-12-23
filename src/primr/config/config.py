@@ -213,8 +213,13 @@ SCRAPE_MAX_DEPTH = 2
 EXCLUDED_SITES = ["login", "captcha", "privacy-policy", "terms-of-service"]
 
 ### **AI Model Configuration** ###
-AI_RESEARCH_MODEL = os.getenv("AI_RESEARCH_MODEL", "gemini-3-pro-preview")
-AI_REPORT_MODEL = os.getenv("AI_REPORT_MODEL", "gemini-3-pro-preview")
+# Import centralized model configuration - UPDATE PrimrModels TO CHANGE MODELS GLOBALLY
+from primr.config.models import PrimrModels
+
+# Model assignments - these are backward compatible aliases
+# Use PrimrModels.FAST_MODEL or PrimrModels.REASONING_MODEL directly in new code
+AI_RESEARCH_MODEL = os.getenv("AI_RESEARCH_MODEL", PrimrModels.FAST_MODEL)  # Flash - cheap/fast
+AI_REPORT_MODEL = os.getenv("AI_REPORT_MODEL", PrimrModels.FAST_MODEL)  # Flash - cheap/fast
 
 MAX_RETRIES = 3
 GRADE_THRESHOLD_FOR_RESEARCH_REFINEMENT = 80

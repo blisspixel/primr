@@ -5,7 +5,7 @@ This module provides the MasterArchitect class that decomposes a comprehensive
 strategic report into 8-10 substantive chapters, each with detailed research
 instructions for parallel Deep Research execution.
 
-The Master Architect uses gemini-2.0-flash for fast, cost-effective planning.
+The Master Architect uses Flash model for fast, cost-effective planning.
 """
 
 import json
@@ -15,6 +15,7 @@ from typing import Any
 from google import genai
 
 from primr.config.settings import get_settings
+from primr.config.models import PrimrModels
 from primr.utils.errors import AIError
 from primr.utils.logging_config import get_logger
 
@@ -142,7 +143,7 @@ class MasterArchitect:
     """
     Decomposes strategic reports into chapters for parallel research.
     
-    The Master Architect uses gemini-2.0-flash to analyze the company context
+    The Master Architect uses Flash model to analyze the company context
     and generate a customized chapter plan. Each chapter includes detailed
     research instructions for the Deep Research agent.
     
@@ -157,7 +158,7 @@ class MasterArchitect:
     """
     
     # Model for planning (fast and cheap)
-    PLANNING_MODEL = "gemini-2.0-flash"
+    PLANNING_MODEL = PrimrModels.FAST_MODEL
     
     def __init__(self, api_key: str | None = None):
         """
@@ -179,7 +180,7 @@ class MasterArchitect:
         """
         Generate a chapter plan for comprehensive company research.
         
-        Uses gemini-2.0-flash to analyze the company context and create
+        Uses {PrimrModels.FAST_MODEL} to analyze the company context and create
         a customized 10-chapter research plan. Each chapter includes
         detailed instructions for the Deep Research agent.
         
@@ -198,7 +199,7 @@ class MasterArchitect:
         prompt = self._build_planning_prompt(company_name, context_summary)
         
         try:
-            # Call gemini-2.0-flash for planning
+            # Call fast model for planning
             response = self._client.models.generate_content(
                 model=self.PLANNING_MODEL,
                 contents=prompt,

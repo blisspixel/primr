@@ -111,8 +111,11 @@ class ResearchNodeExecutor:
         results = await executor.execute_all(chapters, "Tesla")
     """
     
-    # Deep Research agent identifier
-    AGENT_ID = "deep-research-pro-preview-12-2025"
+    # Import centralized model config
+    from primr.config.models import PrimrModels
+    
+    # Deep Research agent identifier - USE CENTRALIZED CONFIG
+    AGENT_ID = PrimrModels.DEEP_RESEARCH_AGENT
     
     # Default concurrency limit (conservative to avoid rate limits)
     # Deep Research has strict quota limits - 2 concurrent is safer

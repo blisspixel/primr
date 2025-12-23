@@ -9,7 +9,8 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 
-from primr.config.config import AI_REPORT_MODEL, AI_RESEARCH_MODEL, GEMINI_API_KEY, MAX_RETRIES
+from primr.config.config import GEMINI_API_KEY, MAX_RETRIES
+from primr.config.models import PrimrModels
 from primr.utils.chat_logger import log_chat_interaction
 
 load_dotenv()
@@ -18,13 +19,42 @@ load_dotenv()
 client = genai.Client(api_key=GEMINI_API_KEY)
 
 
-def llm(prompt, model_type="research", temperature=1.0, thinking_level="high", streaming=False):
+def _get_model_for_type(model_type: str) -> str:
+    """Get model name for a given type.
+    
+    Model types (USE THESE):
+        - "scraping": Flash - summarizing scraped content
+        - "link_selection": Flash - intelligent link prioritization (which pages to scrape)
+        - "fast": Flash - general quick tasks
+        - "section_writing": Pro - writing report sections
+        - "analysis": Pro - complex analysis
+        - "reasoning": Pro - general reasoning tasks
+    
+    Legacy aliases (backward compatible):
+        - "filtering" -> Flash (DEPRECATED - use link_selection)
+        - "research" -> Flash (DEPRECATED - confusing name)
+        - "report" -> Pro
+        - "summarization" -> Flash
+    """
+    # Flash model (cheap, fast)
+    if model_type in ("scraping", "link_selection", "filtering", "fast", "research", "summarization"):
+        return PrimrModels.FLASH_MODEL
+    # Pro model (expensive, smart)
+    elif model_type in ("section_writing", "analysis", "reasoning", "report"):
+        return PrimrModels.PRO_MODEL
+    else:
+        return PrimrModels.FLASH_MODEL
+
+
+def llm(prompt, model_type="fast", temperature=1.0, thinking_level="high", streaming=False):
     """
     Sends a prompt to the Gemini AI model and returns the response.
 
     Args:
         prompt (str): The text prompt to send to the AI.
-        model_type (str): "research" or "report" - determines which model to use.
+        model_type (str): Task type determines model:
+                         - "scraping", "link_selection", "fast" -> Flash (cheap)
+                         - "section_writing", "analysis", "reasoning" -> Pro (smart)
         temperature (float): Controls randomness. Gemini 3 recommends 1.0 (default).
         thinking_level (str): "low" or "high" - controls reasoning depth.
                              "high" = deeper reasoning, slower
@@ -34,7 +64,7 @@ def llm(prompt, model_type="research", temperature=1.0, thinking_level="high", s
     Returns:
         str: AI-generated response (cleaned text).
     """
-    model_name = AI_RESEARCH_MODEL if model_type == "research" else AI_REPORT_MODEL
+    model_name = _get_model_for_type(model_type)
     retries = 0
 
     log_chat_interaction(prompt, f"Model: {model_name}")
@@ -116,9 +146,9 @@ def llm(prompt, model_type="research", temperature=1.0, thinking_level="high", s
     raise RuntimeError(error_message)
 
 
-def llm_fast(prompt, model_type="research"):
+def llm_fast(prompt, model_type="fast"):
     """
     Fast LLM call with minimal thinking - for simple tasks like filtering links.
-    Uses thinking_level="low" for faster responses.
+    Uses Flash model with thinking_level="low" for fastest responses.
     """
     return llm(prompt, model_type=model_type, thinking_level="low")

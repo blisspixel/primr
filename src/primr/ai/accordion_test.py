@@ -611,8 +611,9 @@ Write the **{section['title']}** section now:"""
         self._api_call_count += 1
         
         try:
+            from primr.config.models import PrimrModels
             response = self._client.models.generate_content(
-                model="gemini-3-flash-preview",
+                model=PrimrModels.FLASH_MODEL,
                 contents=prompt,
             )
             
@@ -640,13 +641,16 @@ Write the **{section['title']}** section now:"""
         self._api_call_count += 1
         start_time = time.time()
         
+        # Import centralized model config
+        from primr.config.models import PrimrModels
+        
         try:
             if on_progress:
                 on_progress("Starting Deep Research...")
             
             interaction = self._client.interactions.create(
                 input=prompt,
-                agent="deep-research-pro-preview-12-2025",
+                agent=PrimrModels.DEEP_RESEARCH_AGENT,
                 background=True,
             )
             

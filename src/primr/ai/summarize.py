@@ -85,7 +85,8 @@ def summarize_with_retries(content, retries=MAX_RETRIES, min_length=200):
 
     while attempt < retries:
         try:
-            response = llm(content, model_type="summarization", streaming=False)
+            # Use Flash model for scraping summaries (cheap, fast)
+            response = llm(content, model_type="scraping", thinking_level="low", streaming=False)
             response_text = response.strip()
 
             if response_text and len(response_text) >= min_length:

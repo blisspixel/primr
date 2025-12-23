@@ -23,6 +23,7 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import sync_playwright
 
 from primr.ai.llm import llm, llm_fast
+from primr.config.models import PrimrModels
 from primr.config.config import (
     EXCLUDED_SITES,
     GEMINI_API_KEY,
@@ -681,6 +682,7 @@ def scrape_with_playwright(url, timeout=30000):
         if context: context.close()
 
 def scrape_with_playwright_aggressive(url, timeout=45000):
+    """Aggressive Playwright scraping with content expansion."""
     playwright = None
     browser = None
     context = None
@@ -704,6 +706,33 @@ def scrape_with_playwright_aggressive(url, timeout=45000):
         page.goto(url, wait_until="load", timeout=timeout)
         human_like_delay(2.0, 4.0)
         dismiss_cookie_banners(page)
+        
+        # Try to expand collapsed content (accordions, read-more, etc.)
+        expand_selectors = [
+            "[aria-expanded='false']",
+            ".accordion-header:not(.active)",
+            ".accordion-button.collapsed",
+            "[data-toggle='collapse']",
+            "[data-bs-toggle='collapse']",
+            ".expand-btn", ".show-more", ".read-more",
+            "button:has-text('Read more')",
+            "button:has-text('Show more')",
+            "button:has-text('View more')",
+            "button:has-text('Load more')",
+            ".expandable:not(.expanded)",
+            "[class*='expand']:not([class*='expanded'])",
+        ]
+        for selector in expand_selectors:
+            try:
+                elements = page.locator(selector).all()
+                for el in elements[:10]:  # Limit to 10 per selector
+                    if el.is_visible():
+                        el.click()
+                        human_like_delay(0.2, 0.4)
+            except Exception:
+                pass  # Selector not found, continue
+        
+        # Scroll through page to load lazy content
         for i in range(3):
             page.evaluate(f"window.scrollTo(0, document.body.scrollHeight * {0.3 * (i+1)})")
             human_like_delay(0.5, 1.0)
@@ -793,7 +822,7 @@ def scrape_with_vision(url, timeout=60000):
                 types.Part(inline_data=types.Blob(mime_type="application/pdf", data=pdf_bytes))
             ])
             response = client.models.generate_content(
-                model="gemini-2.5-flash",
+                model=PrimrModels.FAST_MODEL,
                 contents=content,
                 config=types.GenerateContentConfig(thinking_config=types.ThinkingConfig(thinking_budget=0))
             )
@@ -876,29 +905,44 @@ def scrape_page(url, silent=False, pbar=None, use_vision=False):
 # LINK EXTRACTION
 # ============================================================================
 def extract_links_from_homepage(base_url, company_name):
+    """Extract links from homepage, prioritizing browser for JS-heavy sites."""
     html_content = None
     method_used = None
+    
+    # For link extraction, try browser FIRST since most modern sites are JS-heavy
     methods = [
-        ("requests", lambda: get_html_requests(base_url)),
+        ("browser", lambda: get_html_playwright_for_links(base_url)),
         ("httpx", lambda: get_html_httpx(base_url)),
-        ("browser", lambda: get_html_playwright(base_url)),
+        ("requests", lambda: get_html_requests(base_url)),
     ]
+    
     for method_name, get_html in methods:
         try:
             html_content = get_html()
             if html_content and len(html_content) > 500:
                 method_used = method_name
-                break
+                # Count links to see if we got good content
+                soup = BeautifulSoup(html_content, "html.parser")
+                link_count = len(soup.find_all(["a", "area"], href=True))
+                if link_count > 5 or method_name == "browser":
+                    # Good enough content or already tried browser
+                    break
+                elif VERBOSE:
+                    out_dim(f"{method_name} found only {link_count} links, trying next method")
         except Exception as e:
             if VERBOSE:
                 out_dim(f"{method_name} failed: {str(e)[:50]}")
             html_content = None
+            
     if not method_used:
         out_err("Could not access website")
         return [base_url]
+        
     soup = BeautifulSoup(html_content, "html.parser")
     links = set()
     parsed_base = urlparse(base_url)
+    
+    # Extract links from anchor tags
     for link in soup.find_all(["a", "area"], href=True):
         href = link["href"]
         full_url = urljoin(base_url, href)
@@ -907,8 +951,20 @@ def extract_links_from_homepage(base_url, company_name):
             parsed_link.scheme in ("http", "https") and
             "#" not in parsed_link.path):
             links.add(normalize_url(full_url))
+    
+    # Also check for links in navigation elements, buttons with onclick, etc.
+    for nav in soup.find_all(["nav", "header", "footer"]):
+        for link in nav.find_all("a", href=True):
+            href = link["href"]
+            full_url = urljoin(base_url, href)
+            parsed_link = urlparse(full_url)
+            if (parsed_link.netloc == parsed_base.netloc and
+                parsed_link.scheme in ("http", "https")):
+                links.add(normalize_url(full_url))
+    
     if not links:
         return [normalize_url(base_url)]
+        
     EXCLUDED_KEYWORDS = [
         "login", "signin", "sign-in", "signup", "sign-up", "register",
         "support", "help", "faq", "contact", "contact-us",
@@ -918,23 +974,63 @@ def extract_links_from_homepage(base_url, company_name):
         "unsubscribe", "preferences",
     ]
     filtered_links = {link for link in links if not any(kw in link.lower() for kw in EXCLUDED_KEYWORDS)}
+    
+    # If we filtered too aggressively, keep some links
+    if len(filtered_links) < 3 and len(links) > 3:
+        filtered_links = links
+    
     try:
         prompts_file = Path(__file__).parent.parent / "config" / "prompts.json"
         with open(prompts_file, encoding="utf-8") as f:
             prompts = json.load(f)
-        if "filter_links_for_research" in prompts:
+        if "filter_links_for_research" in prompts and len(filtered_links) > 5:
             filter_prompt = prompts["filter_links_for_research"].format(
                 company_name=company_name, website=base_url, links="\n".join(sorted(filtered_links))
             )
-            llm_response = llm_fast(filter_prompt, model_type="research")
+            # Use link_selection model type - intelligent prioritization of which pages to scrape
+            llm_response = llm_fast(filter_prompt, model_type="link_selection")
             llm_links = {line.strip() for line in llm_response.split("\n") if line.strip() and is_valid_url_string(line.strip())}
-            if llm_links:
+            # Only use AI link selection if it returns reasonable results
+            if llm_links and len(llm_links) >= 3:
                 filtered_links = llm_links
     except Exception:
-        # AI link filtering failed - fall back to heuristic filtering
+        # AI link selection failed - fall back to heuristic filtering
         pass
+        
     filtered_links.add(normalize_url(base_url))
     return sorted(filtered_links)
+
+
+def get_html_playwright_for_links(url, retries=2):
+    """Get HTML with Playwright for link extraction - fast and simple."""
+    from playwright.sync_api import sync_playwright
+    
+    last_error = None
+    for attempt in range(retries):
+        try:
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=True)
+                page = browser.new_page()
+                try:
+                    # Use domcontentloaded - faster than networkidle and usually enough
+                    page.goto(url, wait_until="domcontentloaded", timeout=30000)
+                    # Short wait for JS to render
+                    page.wait_for_timeout(2000)
+                    html = page.content()
+                    if html and len(html) > 500:
+                        return html
+                finally:
+                    browser.close()
+        except Exception as e:
+            last_error = e
+            if attempt < retries - 1:
+                import time
+                time.sleep(1)
+                
+    if last_error:
+        raise last_error
+    return None
+
 
 def get_html_requests(url: str) -> str:
     headers: dict[str, str] = {"User-Agent": random.choice(USER_AGENTS)}

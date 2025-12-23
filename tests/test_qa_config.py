@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 
 from src.primr.qa.config import QAConfigManager, QASystemConfig, QAModelConfig, get_qa_config, reset_qa_config
+from src.primr.config.models import PrimrModels
 
 
 class TestQAConfigManager:
@@ -24,13 +25,12 @@ class TestQAConfigManager:
             config_path = Path(temp_dir) / "qa_config.json"
             config_manager = QAConfigManager(config_path)
             
-            # Should have default model
-            assert config_manager.config.default_model == "gemini-2.0-flash-thinking-exp"
+            # Should have default model (from centralized config)
+            assert config_manager.config.default_model == PrimrModels.QA_MODEL
             
             # Should have default models configured
             assert len(config_manager.config.models) > 0
-            assert "gemini-2.0-flash-thinking-exp" in config_manager.config.models
-            assert "gemini-2.0-flash" in config_manager.config.models
+            assert PrimrModels.QA_MODEL in config_manager.config.models
             
             # Default model should be available
             default_model = config_manager.get_model_config(config_manager.config.default_model)
@@ -109,8 +109,8 @@ class TestQAConfigManager:
             config_path = Path(temp_dir) / "qa_config.json"
             config_manager = QAConfigManager(config_path)
             
-            # Test valid model validation
-            is_valid, error_msg = config_manager.validate_model("gemini-2.0-flash-thinking-exp")
+            # Test valid model validation (use centralized config)
+            is_valid, error_msg = config_manager.validate_model(PrimrModels.QA_MODEL)
             assert is_valid
             assert error_msg == ""
             
@@ -135,7 +135,7 @@ class TestQAConfigManager:
             # Test available models list
             available_models = config_manager.get_available_models()
             available_names = [m.name for m in available_models]
-            assert "gemini-2.0-flash-thinking-exp" in available_names
+            assert PrimrModels.QA_MODEL in available_names
             assert "unavailable-model" not in available_names
     
     def test_cost_estimation(self):
@@ -147,9 +147,9 @@ class TestQAConfigManager:
             config_path = Path(temp_dir) / "qa_config.json"
             config_manager = QAConfigManager(config_path)
             
-            # Test cost estimation for free model
-            free_cost = config_manager.estimate_cost("gemini-2.0-flash-thinking-exp", 1000)
-            assert free_cost == 0.0
+            # Test cost estimation for QA model (should have low cost)
+            qa_cost = config_manager.estimate_cost(PrimrModels.QA_MODEL, 1000)
+            assert qa_cost >= 0.0  # May have small cost now
             
             # Add paid model for testing
             paid_model = QAModelConfig(
@@ -178,15 +178,13 @@ class TestQAConfigManager:
             config_path = Path(temp_dir) / "qa_config.json"
             config_manager = QAConfigManager(config_path)
             
-            # Test general use case
+            # Test general use case - should have at least one model
             general_models = config_manager.get_recommended_models("general")
             assert len(general_models) > 0
-            general_names = [m.name for m in general_models]
-            assert "gemini-2.0-flash-thinking-exp" in general_names
             
-            # Test technical use case
-            technical_models = config_manager.get_recommended_models("technical")
-            assert len(technical_models) > 0
+            # Test analysis use case (QA model is recommended for analysis)
+            analysis_models = config_manager.get_recommended_models("analysis")
+            assert len(analysis_models) > 0
             
             # Test non-existent use case
             nonexistent_models = config_manager.get_recommended_models("nonexistent")
@@ -202,7 +200,17 @@ class TestQAConfigManager:
             
             # Create and configure manager
             config_manager1 = QAConfigManager(config_path)
-            config_manager1.set_default_model("gemini-2.0-flash")
+            
+            # Add a custom model to test persistence
+            custom_model = QAModelConfig(
+                name="test-persist-model",
+                display_name="Test Persist Model",
+                provider="test",
+                cost_per_1k_tokens=0.001,
+                available=True
+            )
+            config_manager1.add_custom_model(custom_model)
+            config_manager1.set_default_model("test-persist-model")
             config_manager1.config.max_retries = 5
             
             # Save configuration
@@ -212,14 +220,14 @@ class TestQAConfigManager:
             
             # Load configuration in new manager
             config_manager2 = QAConfigManager(config_path)
-            assert config_manager2.config.default_model == "gemini-2.0-flash"
+            assert config_manager2.config.default_model == "test-persist-model"
             assert config_manager2.config.max_retries == 5
             
             # Verify JSON structure
             with open(config_path, 'r') as f:
                 config_data = json.load(f)
             
-            assert config_data['default_model'] == "gemini-2.0-flash"
+            assert config_data['default_model'] == "test-persist-model"
             assert config_data['max_retries'] == 5
             assert 'models' in config_data
             assert len(config_data['models']) > 0

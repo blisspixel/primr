@@ -6,11 +6,11 @@ A research tool that generates company intelligence briefs using Google's Gemini
 
 Primr runs company research using complementary engines that work together:
 
-**Scrape Mode**: Website-focused research with multi-tier web scraping (requests, httpx, Playwright, aggressive browser), section-by-section AI analysis with quality grading. Useful for deep website analysis and specific data extraction.
+**Scrape Mode**: Website scraping with intelligent link selection and insight extraction. Uses multi-tier scraping (requests, httpx, Playwright) to handle different site types. Outputs to working folder for downstream use. Fast (~2-5 min) and cheap (~$0.01).
 
-**Deep Mode**: Uses the Accordion Method - Deep Research gathers facts, then Gemini Flash writes each section with proper analysis and implications. No website scraping, relies entirely on web research.
+**Deep Mode**: Uses the Accordion Method - Deep Research gathers facts, then Gemini Flash writes each section with analysis and implications. No website scraping, relies on web research.
 
-**Full Mode** (recommended): Combines both engines:
+**Full Mode** (default): Combines both engines for the most complete picture:
 1. **Data Collection**: Website scraping + Google Search (baseline facts)
 2. **Research Dossier**: Deep Research gathers external context
 3. **Section Writing**: Gemini Flash writes sections with full context
@@ -19,15 +19,15 @@ All modes produce DOCX/PDF reports with optional AI strategy recommendations.
 
 ## Quality Assurance
 
-Primr includes an integrated Quality Assurance (QA) system that automatically evaluates report quality:
+Primr includes a QA system that evaluates report quality:
 
-**Automatic QA Analysis**: Every generated report is automatically assessed for:
+**Automatic QA Analysis**: Reports are assessed for:
 - **Citation Accuracy**: Proper attribution and source consistency
 - **Logical Consistency**: Internal coherence and reasoning quality  
 - **Completeness**: Coverage of expected sections and topics
 - **Confidence Assessment**: Reliability of claims and evidence
 
-**Clean CLI Output**: Simple grade display with actionable feedback:
+**Clean CLI Output**: Simple grade display:
 ```bash
 primr "Tesla" https://tesla.com
 # ... research process ...
@@ -35,30 +35,25 @@ primr "Tesla" https://tesla.com
 # Grade: (87/100)
 ```
 
-**Detailed Analysis**: Comprehensive QA reports saved automatically with:
-- Section-by-section scoring
-- Specific issue identification and suggestions
-- Improvement recommendations
-- Historical quality tracking
+**Detailed Analysis**: QA reports saved to `output/` with:
+- Overall assessment and confidence level
+- Strengths and areas for improvement  
+- Specific recommendations
+- Historical quality tracking via monitoring logs
 
-**QA Commands**:
-```bash
-primr --qa "Tesla"           # View detailed QA analysis
-primr --qa-recent 5          # Show QA summary for recent reports
-primr "Tesla" --no-qa        # Skip QA analysis
-```
+**QA Integration**: Quality assessment runs automatically after each report. Use `--no-qa` to skip or `--verbose` for detailed feedback.
 
-The QA system helps maintain consistent report quality and identifies areas for improvement without disrupting the research workflow.
+The QA system helps identify areas for improvement. It's not perfect - treat grades as directional, not absolute.
 
 ## Intended Use
 
-Primr outputs are designed for internal research, go-to-market preparation, and strategic sensemaking. They are not written as client-ready deliverables. The goal is to understand how a company creates value and where support could help them move faster, reduce risk, or unlock opportunities.
+Primr outputs are designed for internal research, go-to-market preparation, and strategic sensemaking. They're not client-ready deliverables - the goal is to understand how a company creates value and where support could help them move faster.
 
-**What makes Primr output useful:**
-- Coherent strategic thesis that ties the analysis together
+**What makes output useful:**
+- Coherent strategic thesis tying the analysis together
 - Hypothesis-driven framing (not declarative pronouncements)
 - Specific evidence with citations (not generic observations)
-- Framework sections (SWOT, Porter's, Value Chain) applied rigorously
+- Framework sections (SWOT, Porter's, Value Chain) applied with structure
 - "Where They're Likely to Say Yes" section connecting analysis to engagement opportunities
 
 **Calibration notes:**
@@ -108,12 +103,6 @@ primr "Tesla" https://tesla.com --cloud-vendor aws
 primr "Tesla" https://tesla.com --cloud-vendor gcp
 primr "Tesla" https://tesla.com --no-ai-strategy
 
-# Strategy modules (v1.2.6)
-primr "Tesla" https://tesla.com --strategy ai              # AI strategy only
-primr "Tesla" https://tesla.com --strategy ai,cloud,data   # Multiple strategies
-primr "Tesla" https://tesla.com --strategy-only --context-folder output/  # Run on existing research
-primr --list-strategies                                     # Show available strategies
-
 # Citation styles
 primr "Tesla" https://tesla.com --citation-style numbered  # [1] style (default)
 primr "Tesla" https://tesla.com --citation-style inline    # preserve URLs
@@ -125,14 +114,14 @@ primr --csv companies.csv
 # Options
 primr "Tesla" https://tesla.com --confirm    # Ask for confirmation first
 primr "Tesla" https://tesla.com --dry-run    # Cost estimate only
-primr "Tesla" https://tesla.com --verbose    # Detailed output
+primr "Tesla" https://tesla.com --verbose    # Detailed output (includes QA details)
 primr "Tesla" https://tesla.com --quiet      # Minimal output
+primr "Tesla" https://tesla.com --no-qa      # Skip quality assessment
 
 # Utility commands
 primr doctor            # System check
 primr --check-jobs      # Pending Deep Research jobs
 primr --check-quota     # API quota status
-primr --list-strategies # Available strategy modules
 ```
 
 ### URL Handling
@@ -169,11 +158,13 @@ All systems ready.
 
 ### Research Modes
 
-| Mode | Flag | Best For | Duration |
-|------|------|----------|----------|
-| Full | `--mode full` (default) | Most comprehensive - scraping + Accordion Method | 35-50 min |
-| Scrape | `--mode scrape` | Website deep-dives, no Deep Research API | 20-25 min |
-| Deep | `--mode deep` | Web research only - Accordion Method | 15-25 min |
+| Mode | Flag | Best For | Duration | Cost |
+|------|------|----------|----------|------|
+| Scrape | `--mode scrape` | Quick website intel, data collection | 2-5 min | ~$0.01 |
+| Deep | `--mode deep` | Web research only, Accordion Method | 8-15 min | ~$0.10-0.20 |
+| Full | `--mode full` (default) | Most comprehensive, scraping + Accordion | 25-40 min | ~$0.30-0.60 |
+
+Duration and cost vary based on website size, API response times, and content complexity. Use `--dry-run` for estimates before running.
 
 ## Project Structure
 
@@ -209,10 +200,29 @@ SEARCH_ENGINE_ID=     # Google Custom Search Engine ID
 
 ### Optional Settings
 ```
-AI_RESEARCH_MODEL=gemini-2.0-flash   # Override research model
-AI_REPORT_MODEL=gemini-2.0-flash     # Override report model
-VERBOSE=true                          # Enable debug output
+AI_FAST_MODEL=gemini-3-flash-preview     # Override Flash model (cheap, fast)
+AI_REASONING_MODEL=gemini-3-pro-preview  # Override Pro model (expensive, smart)
+VERBOSE=true                              # Enable debug output
 ```
+
+### AI Models Used
+
+Primr uses three Gemini models, centralized in `src/primr/config/models.py`:
+
+| Model | Task Type | Use Case | Pricing |
+|-------|-----------|----------|---------|
+| `gemini-3-flash-preview` | FLASH | Scraping summaries, link selection, QA checks | $0.50/$3 per 1M tokens |
+| `gemini-3-pro-preview` | PRO | Report section writing, complex analysis | $2/$12 per 1M tokens |
+| `deep-research-pro-preview-12-2025` | DEEP RESEARCH | Autonomous 12+ page research reports | Separate API |
+
+**Task-specific model assignments:**
+- `SCRAPING_MODEL` = Flash (summarizing scraped content)
+- `LINK_SELECTION_MODEL` = Flash (intelligent link prioritization, like a consultant choosing what to read)
+- `QA_MODEL` = Flash (quality checks)
+- `SECTION_WRITING_MODEL` = Pro (writing report sections with analysis)
+- `ANALYSIS_MODEL` = Pro (complex reasoning tasks)
+
+When new models release (e.g., Gemini 3.2), update `src/primr/config/models.py` once and all code uses the new models.
 
 See [docs/CONFIG.md](docs/CONFIG.md) for full configuration reference.
 
@@ -223,12 +233,17 @@ output/
 ├── {Company}_Company_Overview.txt
 ├── {Company}_Company_Overview.docx
 ├── {Company}_Company_Overview.pdf
+├── {Company}_QA_Report_{timestamp}.txt     # Quality assessment details
 └── {Company}_research_{date}.zip
 
 working/{Company}/
 ├── scraped_website_summary.txt
 ├── value_theory.txt
 └── {section}.txt
+
+logs/qa/                                    # QA monitoring logs
+├── qa_metrics.json                         # Performance metrics
+└── qa_assessments.jsonl                    # Assessment history
 ```
 
 Note: Output artifacts are analysis-first. When reusing content externally, teams should reframe conclusions, remove emotionally loaded phrasing, and retain only claims supported by citations.
@@ -263,28 +278,28 @@ pytest tests/ -v -m resilience
 
 ## Deep Research API Limitation (December 2025)
 
-Google's Gemini Deep Research Agent (`deep-research-pro-preview-12-2025`) is excellent at autonomous research but compresses output to ~8-12 pages per API call, regardless of prompt instructions. It gathers information thoroughly but writes in a dense, compressed style.
+Google's Gemini Deep Research Agent (`deep-research-pro-preview-12-2025`) does autonomous research but compresses output to ~8-12 pages per API call, regardless of prompt instructions. It gathers information but writes in a dense, compressed style.
 
-**The Accordion Method:** Primr uses a two-phase approach to produce better-written reports:
+**The Accordion Method:** Primr uses a two-phase approach to work around this:
 
-1. **Phase 1 - Research Dossier**: Deep Research gathers facts as "Lead Researcher" - thorough research, compressed output (~8-12 pages of dense facts with citations)
+1. **Phase 1 - Research Dossier**: Deep Research gathers facts as "Lead Researcher" - compressed output (~8-12 pages of dense facts with citations)
 
-2. **Phase 2 - Section Writing**: Gemini Flash takes each section and writes it out properly - with analysis, implications, and strategic connections. Quality over quantity - each section is as long as the content needs, no more.
+2. **Phase 2 - Section Writing**: Gemini Flash takes each section and writes it out - with analysis, implications, and strategic connections.
 
-The key insight: Deep Research is the **researcher** (gathers facts), Gemini Flash is the **writer** (produces prose). The result is naturally longer because it's better written - facts are explained, implications are drawn out, connections are made explicit.
+The idea: Deep Research is the **researcher** (gathers facts), Gemini Flash is the **writer** (produces prose). The result is longer because facts are explained, implications drawn out, connections made explicit.
 
 **Quality calibration:**
-- Observations use humble, exploratory language ("This suggests...", "Worth validating...")
-- Framework sections (SWOT, Porter's, Value Chain) apply structured analysis rigorously
-- Each insight lives in ONE section - no repetition across multiple analytical frameworks
+- Observations use exploratory language ("This suggests...", "Worth validating...")
+- Framework sections (SWOT, Porter's, Value Chain) apply structured analysis
+- Each insight lives in ONE section - no repetition across frameworks
 - Numeric precision matches source confidence (ranges for estimates, exact figures from filings)
 
 **Resilience:** If Deep Research fails (500 errors, rate limits), the pipeline falls back to Stage 1 context and continues with section writing.
 
 **Mode comparison:**
-- `--mode deep`: Accordion Method (web research only, no scraping)
-- `--mode scrape`: Website scraping + Gemini Flash (~15-20 pages, no Deep Research API)
-- `--mode full`: Stage 1 scraping + Accordion Method (most comprehensive)
+- `--mode scrape`: Website scraping + insight extraction (~2-5 min, ~$0.01)
+- `--mode deep`: Accordion Method, web research only (~8-15 min, ~$0.10-0.20)
+- `--mode full`: Stage 1 scraping + Accordion Method (~25-40 min, ~$0.30-0.60)
 
 ## Known Limitations
 
