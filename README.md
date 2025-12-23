@@ -17,6 +17,39 @@ Primr runs company research using complementary engines that work together:
 
 All modes produce DOCX/PDF reports with optional AI strategy recommendations.
 
+## Quality Assurance
+
+Primr includes an integrated Quality Assurance (QA) system that automatically evaluates report quality:
+
+**Automatic QA Analysis**: Every generated report is automatically assessed for:
+- **Citation Accuracy**: Proper attribution and source consistency
+- **Logical Consistency**: Internal coherence and reasoning quality  
+- **Completeness**: Coverage of expected sections and topics
+- **Confidence Assessment**: Reliability of claims and evidence
+
+**Clean CLI Output**: Simple grade display with actionable feedback:
+```bash
+primr "Tesla" https://tesla.com
+# ... research process ...
+# Assessing quality...
+# Grade: (87/100)
+```
+
+**Detailed Analysis**: Comprehensive QA reports saved automatically with:
+- Section-by-section scoring
+- Specific issue identification and suggestions
+- Improvement recommendations
+- Historical quality tracking
+
+**QA Commands**:
+```bash
+primr --qa "Tesla"           # View detailed QA analysis
+primr --qa-recent 5          # Show QA summary for recent reports
+primr "Tesla" --no-qa        # Skip QA analysis
+```
+
+The QA system helps maintain consistent report quality and identifies areas for improvement without disrupting the research workflow.
+
 ## Intended Use
 
 Primr outputs are designed for internal research, go-to-market preparation, and strategic sensemaking. They are not written as client-ready deliverables. The goal is to understand how a company creates value and where support could help them move faster, reduce risk, or unlock opportunities.
@@ -266,6 +299,8 @@ The key insight: Deep Research is the **researcher** (gathers facts), Gemini Fla
 - [ROADMAP.md](ROADMAP.md) - Development roadmap and vision
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - System architecture and design
 - [docs/API.md](docs/API.md) - Programmatic usage reference
+- [docs/QA_CONFIGURATION.md](docs/QA_CONFIGURATION.md) - QA system configuration guide
+- [docs/QA_USAGE_EXAMPLES.md](docs/QA_USAGE_EXAMPLES.md) - QA usage examples and best practices
 - [docs/CONFIG.md](docs/CONFIG.md) - Configuration reference
 - [docs/INTERNALS.md](docs/INTERNALS.md) - Prompt engineering and algorithms
 - [docs/GLOSSARY.md](docs/GLOSSARY.md) - Term definitions

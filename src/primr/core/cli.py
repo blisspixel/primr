@@ -48,6 +48,8 @@ class Command(Enum):
     BATCH = "batch"
     TEST_ACCORDION = "test-accordion"
     ANALYZE_REPORT = "analyze-report"
+    QA = "qa"
+    QA_RECENT = "qa-recent"
 
 
 # =============================================================================
@@ -77,6 +79,8 @@ class CLIConfig:
     test_accordion_topic: str | None = None
     test_accordion_pages: int = 50
     analyze_report_path: str | None = None
+    qa_company: str | None = None
+    qa_recent_count: int | None = None
 
     @property
     def has_company_info(self) -> bool:
@@ -164,6 +168,8 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         test_accordion_topic=getattr(parsed, 'test_accordion', None),
         test_accordion_pages=getattr(parsed, 'accordion_pages', 50),
         analyze_report_path=getattr(parsed, 'analyze_report', None),
+        qa_company=getattr(parsed, 'qa', None),
+        qa_recent_count=getattr(parsed, 'qa_recent', None),
     )
 
 
@@ -212,6 +218,8 @@ def main(args: list[str] | None = None) -> int:
         Command.BATCH: _handle_batch,
         Command.TEST_ACCORDION: _handle_test_accordion,
         Command.ANALYZE_REPORT: _handle_analyze_report,
+        Command.QA: _handle_qa,
+        Command.QA_RECENT: _handle_qa_recent,
         Command.RESEARCH: _handle_research,
     }
 
@@ -292,6 +300,8 @@ Examples:
   primr "Tesla" https://tesla.com
   primr "Tesla" tesla.com --mode deep
   primr doctor                              # System diagnostics
+  primr --qa "Tesla"                        # Show detailed QA analysis
+  primr --qa-recent 5                       # Show QA summary for recent reports
   
 Accordion Method Test (for development):
   primr --test-accordion "Oceanography 2026-2030"
@@ -325,6 +335,7 @@ Accordion Method Test (for development):
     )
     parser.add_argument("--ai-strategy", action="store_true", default=True, help="Generate AI recommendations")
     parser.add_argument("--no-ai-strategy", action="store_true", help="Disable AI strategy")
+    parser.add_argument("--no-qa", action="store_true", help="Disable automatic quality assessment")
     parser.add_argument(
         "--cloud-vendor",
         type=str,
@@ -367,6 +378,22 @@ Accordion Method Test (for development):
         metavar="PATH",
         help="Analyze quality of an existing report file"
     )
+    
+    # QA review
+    parser.add_argument(
+        "--qa",
+        type=str,
+        metavar="COMPANY",
+        help="Show detailed QA analysis for a company report"
+    )
+    parser.add_argument(
+        "--qa-recent",
+        type=int,
+        nargs='?',
+        const=5,
+        metavar="N",
+        help="Show QA summary for N most recent reports (default: 5)"
+    )
 
     return parser
 
@@ -378,6 +405,10 @@ def _determine_command(args: argparse.Namespace) -> Command:
         return Command.DOCTOR
 
     # Check utility flags
+    if getattr(args, 'qa_recent', None) is not None:
+        return Command.QA_RECENT
+    if getattr(args, 'qa', None):
+        return Command.QA
     if getattr(args, 'analyze_report', None):
         return Command.ANALYZE_REPORT
     if getattr(args, 'test_accordion', None):
@@ -549,6 +580,35 @@ def _handle_analyze_report(config: CLIConfig) -> int:
         return 0
     except Exception as e:
         console.error(f"Analysis failed: {e}")
+        return 1
+
+
+def _handle_qa(config: CLIConfig) -> int:
+    """Handle QA review command."""
+    if not config.qa_company:
+        console.error("Company name is required for QA review")
+        console.info("Usage: primr --qa \"Company Name\"")
+        return 1
+    
+    try:
+        from primr.qa.command import QACommand
+        qa_command = QACommand()
+        return qa_command.show_detailed_analysis(config.qa_company)
+    except Exception as e:
+        console.error(f"QA review failed: {e}")
+        return 1
+
+
+def _handle_qa_recent(config: CLIConfig) -> int:
+    """Handle QA recent summary command."""
+    count = config.qa_recent_count if config.qa_recent_count is not None else 5
+    
+    try:
+        from primr.qa.command import QACommand
+        qa_command = QACommand()
+        return qa_command.show_recent_qa_summary(count)
+    except Exception as e:
+        console.error(f"QA recent summary failed: {e}")
         return 1
 
 
