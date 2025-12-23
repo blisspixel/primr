@@ -49,7 +49,7 @@ A Gemini API feature that allows uploading documents for the Deep Research Agent
 The quality assurance process where each section is scored (0-100) by an AI grader. Sections below the threshold (default: 80) trigger additional research refinement.
 
 ### Master Architect
-The component that decomposes a comprehensive report into 10 chapters. Uses gemini-2.0-flash for fast, cost-effective planning. Each chapter includes detailed research instructions.
+The component that decomposes a comprehensive report into 10 chapters. Uses gemini-3-flash-preview for fast, cost-effective planning. Each chapter includes detailed research instructions.
 
 ### Orchestrator
 The central coordinator (`ResearchOrchestrator`) that routes research requests to the appropriate engine based on mode selection and manages the overall research flow.

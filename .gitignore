@@ -219,3 +219,5 @@ logs/
 
 # Archive (old/experimental files)
 archive/
+/docs/research
+/docs/documentation

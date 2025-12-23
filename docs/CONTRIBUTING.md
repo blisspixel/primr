@@ -112,7 +112,7 @@ Use the error types from `src/primr/utils/errors.py`:
 from primr.utils.errors import AIError, ScrapingError, ValidationError
 
 # Raise specific errors
-raise AIError("Model returned empty response", model="gemini-2.0-flash")
+raise AIError("Model returned empty response", model="gemini-3-flash-preview")
 
 # Use error context for debugging
 from primr.utils.errors import error_context

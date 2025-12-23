@@ -137,7 +137,7 @@ Three-phase "Accordion Method" architecture for comprehensive 30+ page reports. 
 │                  (Research → Outline → Write Sections)              │
 └─────────────────────────────────────────────────────────────────────┘
 
-Phase 1: Data Collection (15-25 min)
+Phase 1: Data Collection (10-20 min)
 ┌─────────────────────────────────────────────────────────────────────┐
 │                      Structured Pipeline                             │
 │         (Full website scraping + Google search + AI analysis)       │
@@ -328,7 +328,7 @@ result = await client.research(
 
 Location: `src/primr/ai/report_architect.py`
 
-Decomposes comprehensive reports into chapters using gemini-2.0-flash for fast, cost-effective planning.
+Decomposes comprehensive reports into chapters using gemini-3-flash-preview for fast, cost-effective planning.
 
 Default chapter structure (customized per company):
 1. Executive Summary & Company Snapshot
@@ -743,9 +743,9 @@ See `docs/CONFIG.md` for detailed configuration reference.
 
 | Mode | Duration | Output Size | API Calls |
 |------|----------|-------------|-----------|
-| Scrape | 20-25 min | 15-20 pages | ~20 Gemini |
-| Deep | 10-15 min | ~12 pages | 1 Deep Research |
-| Complete | 35-50 min | 30+ pages | 1 Deep Research + 10 Gemini 3 Pro |
+| Scrape | 2-5 min | 15-20 pages | ~20 Gemini |
+| Deep | 8-15 min | ~12 pages | 1 Deep Research |
+| Complete | 25-40 min | 30+ pages | 1 Deep Research + 10 Gemini 3 Pro |
 
 ### Resource Usage
 
