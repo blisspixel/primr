@@ -15,7 +15,7 @@ Primr runs company research using complementary engines that work together:
 2. **Research Dossier**: Deep Research gathers external context
 3. **Section Writing**: Gemini Flash writes sections with full context
 
-All modes produce DOCX/PDF reports with optional AI strategy recommendations.
+All modes produce TXT and DOCX reports with optional AI strategy recommendations.
 
 <p align="center">
   <img src="docs/images/primr-demo.png" alt="Primr CLI demo" width="700">
@@ -244,9 +244,8 @@ See [docs/CONFIG.md](docs/CONFIG.md) for full configuration reference.
 
 ```
 output/
-├── {Company}_Company_Overview.txt
-├── {Company}_Company_Overview.docx
-├── {Company}_Company_Overview.pdf
+├── {Company}_Strategic_Overview.txt
+├── {Company}_Strategic_Overview.docx
 ├── {Company}_QA_Report_{timestamp}.txt     # Quality assessment details
 └── {Company}_research_{date}.zip
 
@@ -320,7 +319,6 @@ The idea: Deep Research is the **researcher** (gathers facts), Gemini Flash is t
 - Deep Research API produces ~8-12 pages max per call (see above)
 - Some sites with aggressive bot protection may not be scrapable
 - API rate limits apply (Google Search, Gemini)
-- PDF generation requires Microsoft Word on Windows
 - Long operations (10-40 minutes) require patience. Progress feedback is provided but operations cannot be paused
 
 ## Documentation
