@@ -127,6 +127,7 @@ class ResearchResult:
     status: ResearchStatus = ResearchStatus.COMPLETED
     error: str | None = None
     thinking_log: ThinkingLog | None = None
+    search_queries_count: int = 0  # Actual count from groundingMetadata.webSearchQueries
 
     @property
     def success(self) -> bool:
@@ -648,20 +649,22 @@ class DeepResearchClient:
                 if status == "completed":
                     content = self._extract_content(interaction)
                     citations = self._extract_citations(interaction)
+                    search_count = self._extract_search_queries_count(interaction)
 
                     result = ResearchResult(
                         content=content,
                         citations=citations,
                         interaction_id=interaction_id,
                         duration_seconds=time.time() - start_time,
-                        status=ResearchStatus.COMPLETED
+                        status=ResearchStatus.COMPLETED,
+                        search_queries_count=search_count,
                     )
 
                     # Remove from pending jobs
                     remove_pending_job(interaction_id)
 
                     logger.info(
-                        f"Research completed in {result.duration_seconds:.0f}s"
+                        f"Research completed in {result.duration_seconds:.0f}s, {search_count} searches"
                     )
                     return result
 
@@ -1101,6 +1104,57 @@ Frame everything as hypotheses to explore, not conclusions."""
 
         return citations
 
+    def _extract_search_queries_count(self, interaction: Any) -> int:
+        """
+        Extract the count of actual search queries from groundingMetadata.
+        
+        The Gemini API exposes billable search queries in the response via
+        groundingMetadata.webSearchQueries. This is the actual count of
+        external search calls, NOT the number of "thinking steps".
+        
+        Typical reports use 10-30 searches. After Jan 5, 2026, each search
+        costs $0.035 ($35/1000 queries).
+        
+        Args:
+            interaction: The completed interaction object
+            
+        Returns:
+            Count of search queries, or 0 if not available
+        """
+        try:
+            # Check outputs for grounding metadata
+            if hasattr(interaction, 'outputs') and interaction.outputs:
+                for output in interaction.outputs:
+                    # Check for groundingMetadata on the output
+                    if hasattr(output, 'grounding_metadata'):
+                        metadata = output.grounding_metadata
+                        if hasattr(metadata, 'web_search_queries'):
+                            return len(metadata.web_search_queries)
+                    # Also check snake_case variant
+                    if hasattr(output, 'groundingMetadata'):
+                        metadata = output.groundingMetadata
+                        if hasattr(metadata, 'webSearchQueries'):
+                            return len(metadata.webSearchQueries)
+            
+            # Check candidates structure (standard Gemini response format)
+            if hasattr(interaction, 'candidates') and interaction.candidates:
+                for candidate in interaction.candidates:
+                    if hasattr(candidate, 'grounding_metadata'):
+                        metadata = candidate.grounding_metadata
+                        if hasattr(metadata, 'web_search_queries'):
+                            return len(metadata.web_search_queries)
+                    if hasattr(candidate, 'groundingMetadata'):
+                        metadata = candidate.groundingMetadata
+                        if hasattr(metadata, 'webSearchQueries'):
+                            return len(metadata.webSearchQueries)
+            
+            logger.debug("No grounding metadata found in interaction response")
+            return 0
+            
+        except Exception as e:
+            logger.debug(f"Could not extract search queries count: {e}")
+            return 0
+
     def _get_poll_interval(self, elapsed_seconds: float) -> float:
         """
         Get adaptive polling interval based on elapsed time.
@@ -1397,14 +1451,16 @@ Frame everything as hypotheses to explore, not conclusions."""
                     if interaction.status == "completed":
                         content = self._extract_content(interaction)
                         citations = self._extract_citations(interaction)
+                        search_count = self._extract_search_queries_count(interaction)
                         remove_pending_job(interaction_id)
-                        logger.info(f"Research completed during reconnection wait")
+                        logger.info(f"Research completed during reconnection wait, {search_count} searches")
                         return ResearchResult(
                             content=content,
                             citations=citations,
                             interaction_id=interaction_id,
                             duration_seconds=time.time() - start_time,
                             status=ResearchStatus.COMPLETED,
+                            search_queries_count=search_count,
                         )
                     elif interaction.status == "failed":
                         error_msg = getattr(interaction, 'error', 'Unknown error')
@@ -1468,6 +1524,7 @@ Frame everything as hypotheses to explore, not conclusions."""
                 if interaction.status == "completed":
                     content = self._extract_content(interaction)
                     citations = self._extract_citations(interaction)
+                    search_count = self._extract_search_queries_count(interaction)
                     remove_pending_job(interaction_id)
                     return ResearchResult(
                         content=content,
@@ -1475,6 +1532,7 @@ Frame everything as hypotheses to explore, not conclusions."""
                         interaction_id=interaction_id,
                         duration_seconds=time.time() - start_time,
                         status=ResearchStatus.COMPLETED,
+                        search_queries_count=search_count,
                     )
                 elif interaction.status == "failed":
                     error_msg = getattr(interaction, 'error', 'Unknown error')
@@ -1488,6 +1546,7 @@ Frame everything as hypotheses to explore, not conclusions."""
                     )
             except Exception as e:
                 logger.error(f"Final status check failed: {e}")
+        
         
         # Complete failure
         return ResearchResult(
@@ -2175,6 +2234,7 @@ class DeepResearchOrchestratorResult:
     interaction_id: str = ""
     api_calls: int = 1  # Always 1 for single-call architecture
     sections_written: int = 0  # Number of sections successfully written
+    search_queries_count: int = 0  # Actual search count from groundingMetadata
     
     @property
     def word_count(self) -> int:
@@ -2371,6 +2431,7 @@ class DeepResearchOrchestrator:
                 error=result.error,
                 interaction_id=result.interaction_id,
                 api_calls=self._api_call_count,
+                search_queries_count=result.search_queries_count,
             )
             
         except Exception as e:
@@ -2979,6 +3040,7 @@ Write the content now, following the formatting rules above.""",
         # Track written sections for context continuity
         written_sections: list[dict[str, str]] = []
         all_citations: list[dict[str, str]] = []
+        total_search_queries = 0  # Accumulate search queries from all phases
         
         try:
             # ================================================================
@@ -3034,6 +3096,7 @@ Write the content now, following the formatting rules above.""",
                 research_dossier = dossier_result.content
                 base_interaction_id = dossier_result.interaction_id
                 all_citations.extend(dossier_result.citations)
+                total_search_queries += dossier_result.search_queries_count
             
             dossier_words = len(research_dossier.split())
             if on_progress:
@@ -3193,6 +3256,7 @@ Write the content now, following the formatting rules above.""",
                 interaction_id=base_interaction_id,
                 api_calls=self._api_call_count,
                 sections_written=successful_sections,
+                search_queries_count=total_search_queries,
             )
             
         except Exception as e:
@@ -3210,6 +3274,7 @@ Write the content now, following the formatting rules above.""",
                 error=str(e),
                 api_calls=self._api_call_count,
                 sections_written=len(written_sections),
+                search_queries_count=total_search_queries,
             )
         finally:
             if store_name:

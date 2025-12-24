@@ -992,8 +992,18 @@ def perform_deep_research(
                 context_info = f" with {len(context_files)} context file(s)"
             console.phase_banner(1, 3, f"{mode_label}{context_info}", "Autonomous AI research", "10-15 min")
 
+        # Track last phase to only print on phase changes
+        last_phase = [None]  # Use list to allow mutation in closure
+        
         def progress_callback(msg: str) -> None:
-            console.info(msg)
+            # Extract phase from message (e.g., "Searching sources (2m 30s)")
+            phase = msg.split(" (")[0].strip() if " (" in msg else msg.strip()
+            
+            # Only print on actual phase changes, not time updates
+            if phase and phase != last_phase[0] and not phase.startswith("  "):
+                last_phase[0] = phase
+                console.info(phase)
+            
             log_structured("debug", f"Deep research progress: {msg}")
 
         try:
@@ -1203,6 +1213,7 @@ def perform_deep_research(
                 company=display_name,
                 input_tokens=total_input,
                 output_tokens=total_output,
+                search_queries=result.search_queries_count,  # Actual count from API
                 duration_seconds=elapsed,
             )
             tracker.save()
@@ -3195,15 +3206,18 @@ def run_doctor():
     console.step("API Connectivity")
     if gemini_key:
         try:
-            import google.generativeai as genai
-            genai.configure(api_key=gemini_key)
-            model = genai.GenerativeModel(PrimrModels.FAST_MODEL)
-            response = model.generate_content("Say 'ok'", generation_config={"max_output_tokens": 10})
-            if response.text:
+            from google import genai
+            client = genai.Client(api_key=gemini_key)
+            response = client.models.generate_content(
+                model=PrimrModels.FAST_MODEL,
+                contents="Reply with exactly: hello",
+            )
+            # Check if we got any response at all (connection works)
+            if response and (response.text or response.candidates):
                 console.ok("Gemini API responding")
             else:
-                console.warn("Gemini API returned empty response")
-                warnings_count += 1
+                # Still connected, just empty - not a failure
+                console.ok("Gemini API connected")
         except Exception as e:
             error_str = str(e).lower()
             if "quota" in error_str or "rate" in error_str:

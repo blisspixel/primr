@@ -58,7 +58,7 @@ class UsageRecord:
         # Pricing (per 1M tokens)
         INPUT_PRICE = 2.00  # $2 per 1M input tokens
         OUTPUT_PRICE = 12.00  # $12 per 1M output tokens
-        SEARCH_PRICE = 0.0  # Free until Jan 5, 2026
+        SEARCH_PRICE = 0.0  # Free until Jan 5, 2026, then $35/1000 ($0.035/query)
 
         input_cost = (input_tokens / 1_000_000) * INPUT_PRICE
         output_cost = (output_tokens / 1_000_000) * OUTPUT_PRICE
@@ -208,7 +208,7 @@ class UsageTracker:
             mode: Research mode to get averages for
 
         Returns:
-            Dict with average input_tokens, output_tokens, cost, or None
+            Dict with average input_tokens, output_tokens, search_queries, cost, or None
         """
         mode_records = [r for r in self.history if r.get("mode") == mode]
 
@@ -218,6 +218,7 @@ class UsageTracker:
         count = len(mode_records)
         avg_input = sum(r["input_tokens"] for r in mode_records) // count
         avg_output = sum(r["output_tokens"] for r in mode_records) // count
+        avg_searches = sum(r.get("search_queries", 0) for r in mode_records) // count
         avg_cost = sum(r["total_cost"] for r in mode_records) / count
         avg_duration = sum(r.get("duration_seconds", 0) for r in mode_records) / count
 
@@ -226,6 +227,7 @@ class UsageTracker:
             "sample_size": count,
             "avg_input_tokens": avg_input,
             "avg_output_tokens": avg_output,
+            "avg_search_queries": avg_searches,
             "avg_cost": avg_cost,
             "avg_duration_seconds": avg_duration,
         }
@@ -275,17 +277,27 @@ class UsageTracker:
         # Calculate totals
         total_input = sum(r.get("input_tokens", 0) for r in self.history)
         total_output = sum(r.get("output_tokens", 0) for r in self.history)
+        total_searches = sum(r.get("search_queries", 0) for r in self.history)
         total_cost = sum(r.get("total_cost", 0) for r in self.history)
         total_duration = sum(r.get("duration_seconds", 0) for r in self.history)
 
         lines.extend([
             "All-Time Totals:",
-            f"  Input Tokens:  {total_input:,}",
-            f"  Output Tokens: {total_output:,}",
-            f"  Total Cost:    ${total_cost:.2f}",
-            f"  Total Time:    {total_duration / 60:.1f} minutes",
+            f"  Input Tokens:   {total_input:,}",
+            f"  Output Tokens:  {total_output:,}",
+            f"  Search Queries: {total_searches:,}",
+            f"  Total Cost:     ${total_cost:.2f}",
+            f"  Total Time:     {total_duration / 60:.1f} minutes",
             "",
         ])
+        
+        # Show search cost projection (after Jan 5, 2026)
+        if total_searches > 0:
+            projected_search_cost = (total_searches / 1000) * 35.0  # $35/1000 queries
+            lines.extend([
+                f"  Search Cost (after Jan 5): +${projected_search_cost:.2f}",
+                "",
+            ])
 
         # Per-mode breakdown with current estimates
         modes = ["structured", "deep-research", "complete", "hybrid", "ai-strategy"]
@@ -299,8 +311,9 @@ class UsageTracker:
                 lines.extend([
                     f"  {mode}:",
                     f"    Runs: {avg['sample_size']} ({status})",
-                    f"    Avg Cost:   ${avg['avg_cost']:.2f}",
-                    f"    Avg Time:   {avg['avg_duration_seconds'] / 60:.1f} min",
+                    f"    Avg Cost:     ${avg['avg_cost']:.2f}",
+                    f"    Avg Searches: {avg['avg_search_queries']}",
+                    f"    Avg Time:     {avg['avg_duration_seconds'] / 60:.1f} min",
                     "",
                 ])
 
@@ -315,8 +328,9 @@ class UsageTracker:
             company = r.get("company", "Unknown")[:20]
             mode = r.get("mode", "?")
             cost = r.get("total_cost", 0)
+            searches = r.get("search_queries", 0)
             duration = r.get("duration_seconds", 0) / 60
-            lines.append(f"  {timestamp} | {company:<20} | {mode:<12} | ${cost:.2f} | {duration:.0f}m")
+            lines.append(f"  {timestamp} | {company:<20} | {mode:<12} | ${cost:.2f} | {searches} srch | {duration:.0f}m")
 
         lines.extend(["", "=" * 60])
 
