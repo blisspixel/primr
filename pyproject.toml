@@ -43,6 +43,7 @@ dependencies = [
     "httpx[http2]",
     "playwright",
     "docx2pdf",
+    "pyyaml",
 ]
 
 [project.optional-dependencies]

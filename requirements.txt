@@ -13,5 +13,6 @@ python-dotenv        # Managing environment variables
 httpx[http2]          # HTTP/2 client (better TLS fingerprint)
 playwright            # Stealth browser automation
 docx2pdf
+pyyaml               # YAML parsing for prompt configurations
 pytest                # Testing framework
 pytest-mock           # Mocking utilities for pytest
