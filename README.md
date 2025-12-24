@@ -21,6 +21,10 @@ All modes produce DOCX/PDF reports with optional AI strategy recommendations.
   <img src="docs/images/primr-demo.png" alt="Primr CLI demo" width="700">
 </p>
 
+**Example Output**: See sample reports in [docs/examples/](docs/examples/):
+- [Strategic Overview](docs/examples/Softchoice,%20a%20World%20Wide%20Technology%20company_Strategic_Overview_12-23-2025.docx) - Full company research report
+- [AI Strategy](docs/examples/Softchoice,%20a%20World%20Wide%20Technology%20company_AI_Strategy_12-23-2025.docx) - Cloud vendor AI recommendations
+
 ## Quality Assurance
 
 Primr includes a QA system that evaluates report quality:

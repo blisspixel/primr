@@ -331,7 +331,7 @@ class QAMonitor:
                 print(f"Average Grade: {health.get('average_quality', 0):.1f}/100")
                 
                 target_met = health.get('meets_95_percent_target', False)
-                print(f"95% Target: {'✓ Met' if target_met else '✗ Not Met'}")
+                print(f"95% Target: {'[x] Met' if target_met else '[ ] Not Met'}")
             
         except Exception as e:
             logger.error(f"Failed to print status summary: {e}")

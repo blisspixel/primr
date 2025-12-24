@@ -1353,23 +1353,22 @@ Frame everything as hypotheses to explore, not conclusions."""
                     error_code = getattr(error_obj, 'code', '') if error_obj else ''
                     error_message = getattr(error_obj, 'message', str(event)) if error_obj else str(event)
                     
-                    # Log the error with details
-                    logger.warning(f"Stream error event: code={error_code}, message={error_message}")
-                    
-                    # gateway_timeout is recoverable - don't mark complete, allow reconnection
+                    # gateway_timeout is expected and recoverable - log at debug level
                     if error_code == 'gateway_timeout':
+                        logger.debug(f"Gateway timeout (expected, will reconnect): {error_message}")
                         if on_progress:
                             on_progress(ResearchProgress(
                                 status=ResearchStatus.IN_PROGRESS,
-                                message="Gateway timeout - will reconnect..."
+                                message="Connection timeout, reconnecting..."
                             ))
                         return False, ''.join(content_parts)
                     
-                    # Other errors - still try reconnection
+                    # Other errors - log at warning level, still try reconnection
+                    logger.warning(f"Stream error: code={error_code}, message={error_message}")
                     if on_progress:
                         on_progress(ResearchProgress(
                             status=ResearchStatus.IN_PROGRESS,
-                            message=f"Stream error ({error_code}) - will retry..."
+                            message=f"Stream error ({error_code}), retrying..."
                         ))
                     return False, ''.join(content_parts)
             
