@@ -172,13 +172,14 @@ class TestUsageTracker:
             storage_path = Path(tmpdir) / "usage.json"
             tracker = UsageTracker(storage_path=storage_path)
             
-            # Add multiple records
+            # Add multiple records with search queries
             for i in range(3):
                 tracker.record_usage(
                     mode="structured",
                     company=f"Co{i}",
                     input_tokens=100_000 + i * 10_000,
                     output_tokens=50_000 + i * 5_000,
+                    search_queries=10 + i * 5,  # 10, 15, 20 -> avg 15
                 )
             tracker.save()
             
@@ -189,6 +190,7 @@ class TestUsageTracker:
             assert avg is not None
             assert avg["sample_size"] == 3
             assert avg["avg_input_tokens"] > 0
+            assert avg["avg_search_queries"] == 15  # (10+15+20)/3
 
     def test_get_average_no_data(self):
         """Get average returns None when no data."""

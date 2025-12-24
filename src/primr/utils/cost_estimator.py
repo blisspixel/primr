@@ -8,7 +8,11 @@ Pricing as of December 2025:
 - Gemini 3 Pro: $2/$12 per 1M tokens (input/output) for prompts <= 200k
 - Gemini 3 Pro: $4/$18 per 1M tokens (input/output) for prompts > 200k
 - Deep Research: Uses Gemini 3 Pro pricing + Google Search (free until Jan 5, 2026)
-- Google Search Grounding: Free until Jan 5, 2026, then $14/1000 queries
+- Google Search Grounding: Free until Jan 5, 2026, then $35/1000 queries ($0.035/query)
+
+Note: Actual search query counts are available in API response via
+groundingMetadata.webSearchQueries. Typical reports use 10-30 searches,
+not the 100+ that "thinking steps" might suggest.
 """
 
 from dataclasses import dataclass
@@ -78,7 +82,7 @@ GEMINI_3_FLASH_INPUT_PRICE = 0.10  # $0.10/1M tokens
 GEMINI_3_FLASH_OUTPUT_PRICE = 0.40  # $0.40/1M tokens
 
 # Google Search pricing (free until Jan 5, 2026)
-GOOGLE_SEARCH_PRICE_PER_1000 = 14.00  # $14 per 1000 queries after free period
+GOOGLE_SEARCH_PRICE_PER_1000 = 35.00  # $35 per 1000 queries after free period ($0.035/query)
 GOOGLE_SEARCH_FREE_UNTIL = "January 5, 2026"
 
 # Estimated token usage by mode (based on actual runs Dec 2025)
@@ -101,21 +105,21 @@ MODE_ESTIMATES = {
     "deep-research": {
         "input_tokens": 50_000,   # Prompt + context (estimated, API doesn't expose)
         "output_tokens": 15_000,  # ~14k actual from runs
-        "search_queries": 30,     # Deep Research autonomous search
+        "search_queries": 20,     # Typical: 10-30 searches (not 100+ "thinking steps")
         "duration_min": 8,
         "duration_max": 15,
     },
     "complete": {
         "input_tokens": 100_000,  # Step 1 + Step 2
         "output_tokens": 30_000,  # ~14k per step
-        "search_queries": 40,     # Both engines
+        "search_queries": 25,     # Both engines, typical 15-35
         "duration_min": 25,
         "duration_max": 40,
     },
     "hybrid": {
         "input_tokens": 100_000,  # Both engines parallel
         "output_tokens": 30_000,  # Combined output
-        "search_queries": 40,     # Both engines
+        "search_queries": 25,     # Both engines, typical 15-35
         "duration_min": 20,
         "duration_max": 30,
     },

@@ -97,6 +97,19 @@ class TestOrchestratorResult:
         
         assert isinstance(result.timestamp, datetime)
 
+    def test_result_tracks_search_queries(self):
+        """Result tracks actual search query count."""
+        result = OrchestratorResult(
+            company_name="Tesla",
+            website="https://tesla.com",
+            mode=ResearchMode.DEEP_RESEARCH,
+            section_results={"strategic_overview": "Content"},
+            success=True,
+            search_queries_count=22,  # Actual count from API
+        )
+        
+        assert result.search_queries_count == 22
+
 
 class TestResearchOrchestrator:
     """Tests for ResearchOrchestrator class."""

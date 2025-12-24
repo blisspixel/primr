@@ -6,7 +6,7 @@ A research tool that generates company intelligence briefs using Google's Gemini
 
 Primr runs company research using complementary engines that work together:
 
-**Scrape Mode**: Website scraping with intelligent link selection and insight extraction. Uses multi-tier scraping (requests, httpx, Playwright) to handle different site types. Outputs to working folder for downstream use. Fast (~2-5 min) and cheap (~$0.01).
+**Scrape Mode**: Website scraping with intelligent link selection and insight extraction. Uses multi-tier scraping (requests, httpx, Playwright) to handle different site types. Outputs to working folder for downstream use. Fast (2-5 min) and cheap (about $0.01).
 
 **Deep Mode**: Uses the Accordion Method - Deep Research gathers facts, then Gemini Flash writes each section with analysis and implications. No website scraping, relies on web research.
 
@@ -16,6 +16,10 @@ Primr runs company research using complementary engines that work together:
 3. **Section Writing**: Gemini Flash writes sections with full context
 
 All modes produce DOCX/PDF reports with optional AI strategy recommendations.
+
+<p align="center">
+  <img src="docs/images/primr-demo.png" alt="Primr CLI demo" width="700">
+</p>
 
 ## Quality Assurance
 
@@ -67,22 +71,18 @@ Reports may surface aggressive or uncomfortable hypotheses. Treat strong claims 
 ## Quick Start
 
 ```bash
-# Clone and install (private repo - requires access)
-git clone https://github.com/blisspixel/primr.git
+# Clone the repo
+git clone <repo-url>
 cd primr
-pip install -e .
 
-# Configure API keys in .env
-GEMINI_API_KEY=your_gemini_api_key
-SEARCH_API_KEY=your_google_search_api_key
-SEARCH_ENGINE_ID=your_google_cse_id
-
-# Check setup
-primr doctor
+# Run setup (installs everything, configures API keys, verifies)
+python setup_env.py
 
 # Run research
 primr "Acme Corp" https://acme.com
 ```
+
+The setup script walks you through getting the required API keys from Google.
 
 ## Usage
 
@@ -160,11 +160,11 @@ All systems ready.
 
 | Mode | Flag | Best For | Duration | Cost |
 |------|------|----------|----------|------|
-| Scrape | `--mode scrape` | Quick website intel, data collection | 2-5 min | ~$0.01 |
-| Deep | `--mode deep` | Web research only, Accordion Method | 8-15 min | ~$0.10-0.20 |
-| Full | `--mode full` (default) | Most comprehensive, scraping + Accordion | 25-40 min | ~$0.30-0.60 |
+| Scrape | `--mode scrape` | Quick website intel, data collection | 2-5 min | about $0.01 |
+| Deep | `--mode deep` | Web research only, Accordion Method | 8-15 min | about $0.80-1.00 |
+| Full | `--mode full` (default) | Most comprehensive, scraping + Accordion | 25-40 min | about $0.80-1.50 |
 
-Duration and cost vary based on website size, API response times, and content complexity. Use `--dry-run` for estimates before running.
+Duration and cost vary based on website size and content complexity. Costs assume current free search grounding (ends Jan 5, 2026). After that date, add ~$0.35-$1.05 per report for search queries. Use `--dry-run` for estimates.
 
 ## Project Structure
 
@@ -205,24 +205,34 @@ AI_REASONING_MODEL=gemini-3-pro-preview  # Override Pro model (expensive, smart)
 VERBOSE=true                              # Enable debug output
 ```
 
-### AI Models Used
+### AI Models and Pricing
 
-Primr uses three Gemini models, centralized in `src/primr/config/models.py`:
+Primr uses Gemini 3 models via Vertex AI. Model assignments are centralized in `src/primr/config/models.py`.
 
-| Model | Task Type | Use Case | Pricing |
-|-------|-----------|----------|---------|
-| `gemini-3-flash-preview` | FLASH | Scraping summaries, link selection, QA checks | $0.50/$3 per 1M tokens |
-| `gemini-3-pro-preview` | PRO | Report section writing, complex analysis | $2/$12 per 1M tokens |
-| `deep-research-pro-preview-12-2025` | DEEP RESEARCH | Autonomous 12+ page research reports | Separate API |
+**Model Pricing (December 2025)**
+
+| Model | Role | Input | Output |
+|-------|------|-------|--------|
+| `gemini-3-flash-preview` | Scraping, QA, link selection | $0.50/1M tokens | $3.00/1M tokens |
+| `gemini-3-pro-preview` | Section writing, analysis | $2.00/1M tokens | $12.00/1M tokens |
+| `deep-research-pro-preview` | Autonomous web research | $2.00/1M tokens | $12.00/1M tokens |
+
+**Why reports are cheap right now (about $0.80-1.50 each)**
+
+The Accordion Method keeps costs low:
+- Deep Research phase: about $0.70-0.80 (reading web pages + generating dossier)
+- Writer phase (Flash): about $0.10 (reading dossier + writing 50 pages)
+
+Search grounding is currently free until January 5, 2026. After that date, Google charges $35 per 1,000 search queries ($0.035/query). Typical reports trigger 10-30 searches, adding $0.35-$1.05 per report. Actual search counts are visible in the API response via `groundingMetadata.webSearchQueries` - don't confuse "thinking steps" (billed as output tokens) with "search queries" (billed separately).
 
 **Task-specific model assignments:**
 - `SCRAPING_MODEL` = Flash (summarizing scraped content)
-- `LINK_SELECTION_MODEL` = Flash (intelligent link prioritization, like a consultant choosing what to read)
+- `LINK_SELECTION_MODEL` = Flash (intelligent link prioritization)
 - `QA_MODEL` = Flash (quality checks)
-- `SECTION_WRITING_MODEL` = Pro (writing report sections with analysis)
-- `ANALYSIS_MODEL` = Pro (complex reasoning tasks)
+- `SECTION_WRITING_MODEL` = Pro (writing report sections)
+- `ANALYSIS_MODEL` = Pro (complex reasoning)
 
-When new models release (e.g., Gemini 3.2), update `src/primr/config/models.py` once and all code uses the new models.
+When new models release, update `src/primr/config/models.py` once and all code uses the new models.
 
 See [docs/CONFIG.md](docs/CONFIG.md) for full configuration reference.
 
@@ -252,7 +262,7 @@ Note: Output artifacts are analysis-first. When reusing content externally, team
 
 ```bash
 # From source (private repo - requires access)
-git clone https://github.com/blisspixel/primr.git
+git clone <repo-url>
 cd primr
 pip install -e .
 
@@ -278,11 +288,11 @@ pytest tests/ -v -m resilience
 
 ## Deep Research API Limitation (December 2025)
 
-Google's Gemini Deep Research Agent (`deep-research-pro-preview-12-2025`) does autonomous research but compresses output to ~8-12 pages per API call, regardless of prompt instructions. It gathers information but writes in a dense, compressed style.
+Google's Gemini Deep Research Agent (`deep-research-pro-preview-12-2025`) does autonomous research but compresses output to 8-12 pages per API call, regardless of prompt instructions. It gathers information but writes in a dense, compressed style.
 
 **The Accordion Method:** Primr uses a two-phase approach to work around this:
 
-1. **Phase 1 - Research Dossier**: Deep Research gathers facts as "Lead Researcher" - compressed output (~8-12 pages of dense facts with citations)
+1. **Phase 1 - Research Dossier**: Deep Research gathers facts as "Lead Researcher" - compressed output (8-12 pages of dense facts with citations)
 
 2. **Phase 2 - Section Writing**: Gemini Flash takes each section and writes it out - with analysis, implications, and strategic connections.
 
@@ -297,9 +307,9 @@ The idea: Deep Research is the **researcher** (gathers facts), Gemini Flash is t
 **Resilience:** If Deep Research fails (500 errors, rate limits), the pipeline falls back to Stage 1 context and continues with section writing.
 
 **Mode comparison:**
-- `--mode scrape`: Website scraping + insight extraction (~2-5 min, ~$0.01)
-- `--mode deep`: Accordion Method, web research only (~8-15 min, ~$0.10-0.20)
-- `--mode full`: Stage 1 scraping + Accordion Method (~25-40 min, ~$0.30-0.60)
+- `--mode scrape`: Website scraping + insight extraction (about 2-5 min, about $0.01)
+- `--mode deep`: Accordion Method, web research only (about 8-15 min, about $0.80-1.00)
+- `--mode full`: Stage 1 scraping + Accordion Method (about 25-40 min, about $0.80-1.50)
 
 ## Known Limitations
 

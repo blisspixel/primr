@@ -243,11 +243,10 @@ class TestPhaseBanner:
     """Tests for phase_banner method."""
 
     def test_phase_banner_output(self, capsys):
-        """phase_banner() should display step, total, and title."""
+        """phase_banner() should display title (step numbers are ignored for cleaner UX)."""
         c = Console()
         c.phase_banner(1, 3, "Research Phase")
         captured = capsys.readouterr()
-        assert "[1/3]" in captured.out
         assert "Research Phase" in captured.out
         assert "=" in captured.out
 
@@ -383,8 +382,8 @@ class TestPhaseBannerCompletenessProperty:
     **Feature: primr-excellence, Property 9: Phase Banner Completeness**
     **Validates: Requirements 4.1**
 
-    For any phase_banner call with step, total, and title,
-    the output SHALL contain all three elements.
+    For any phase_banner call with title,
+    the output SHALL contain the title (step numbers are ignored for cleaner UX).
     """
 
     @given(
@@ -393,8 +392,8 @@ class TestPhaseBannerCompletenessProperty:
         title=st.text(alphabet="abcdefghij", min_size=1, max_size=30),
     )
     @settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
-    def test_banner_contains_step_total_title(self, step, total, title, capsys):
-        """Phase banner should contain step, total, and title."""
+    def test_banner_contains_title(self, step, total, title, capsys):
+        """Phase banner should contain title (step numbers ignored for cleaner UX)."""
         # Ensure step <= total for valid display
         if step > total:
             step, total = total, step
@@ -403,8 +402,7 @@ class TestPhaseBannerCompletenessProperty:
         c.phase_banner(step, total, title)
         captured = capsys.readouterr()
 
-        # All three elements must be present
-        assert f"[{step}/{total}]" in captured.out
+        # Title must be present (step numbers are intentionally not displayed)
         assert title in captured.out
 
     @given(

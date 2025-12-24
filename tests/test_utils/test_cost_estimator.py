@@ -104,6 +104,9 @@ class TestEstimateCost:
         estimate = estimate_cost("deep-research", search_free=False)
         
         assert estimate.search_cost > 0.0
+        # Verify $35/1000 queries pricing ($0.035/query)
+        expected_search_cost = (estimate.estimated_search_queries / 1000) * 35.0
+        assert abs(estimate.search_cost - expected_search_cost) < 0.001
 
     def test_cost_calculation_accuracy(self):
         """Verify cost calculation is accurate."""
@@ -115,12 +118,12 @@ class TestEstimateCost:
         assert abs(estimate.input_cost - expected_input_cost) < 0.001
         assert abs(estimate.output_cost - expected_output_cost) < 0.001
 
-    def test_unknown_mode_defaults_to_structured(self):
-        """Unknown mode defaults to structured estimates."""
+    def test_unknown_mode_defaults_to_scrape_only(self):
+        """Unknown mode defaults to scrape-only estimates (safest/cheapest)."""
         estimate = estimate_cost("unknown-mode")
-        structured_estimate = estimate_cost("structured")
+        scrape_estimate = estimate_cost("scrape-only")
         
-        assert estimate.estimated_input_tokens == structured_estimate.estimated_input_tokens
+        assert estimate.estimated_input_tokens == scrape_estimate.estimated_input_tokens
 
 
 class TestGetCostSummary:

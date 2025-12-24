@@ -96,6 +96,19 @@ class TestResearchResult:
         
         assert len(result.citations) == 1
 
+    def test_result_with_search_queries_count(self):
+        """Result tracks actual search query count from API."""
+        result = ResearchResult(
+            content="Research findings...",
+            interaction_id="test-789",
+            duration_seconds=300.0,
+            status=ResearchStatus.COMPLETED,
+            search_queries_count=15,  # Actual count from groundingMetadata
+        )
+        
+        assert result.success is True
+        assert result.search_queries_count == 15
+
 
 class TestDeepResearchClient:
     """Tests for DeepResearchClient class."""

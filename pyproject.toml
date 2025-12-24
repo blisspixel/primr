@@ -55,6 +55,11 @@ dev = [
     "mypy",
     "ruff",
 ]
+api = [
+    "fastapi>=0.100.0",
+    "pydantic>=2.0.0",
+    "uvicorn",
+]
 
 [project.scripts]
 primr = "primr.core.cli:main"

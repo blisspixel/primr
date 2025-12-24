@@ -123,6 +123,7 @@ class OrchestratorResult:
     error: str | None = None
     timestamp: datetime = field(default_factory=datetime.now)
     sections_written: int = 0  # Actual number of sections written (for accordion method)
+    search_queries_count: int = 0  # Actual search count from groundingMetadata
 
 
 class ResearchOrchestrator:
@@ -343,7 +344,8 @@ class ResearchOrchestrator:
             section_results=section_results,
             raw_content=result.content,
             citations=result.citations,
-            success=True
+            success=True,
+            search_queries_count=result.search_queries_count,
         )
 
     async def _run_structured_research(
@@ -578,7 +580,8 @@ class ResearchOrchestrator:
                 raw_content=formatted.markdown,
                 citations=deep_result.citations,
                 success=True,
-                duration_seconds=total_duration
+                duration_seconds=total_duration,
+                search_queries_count=deep_result.search_queries_count,
             )
 
         except Exception as e:
@@ -828,6 +831,7 @@ class ResearchOrchestrator:
             success=True,
             duration_seconds=total_duration,
             sections_written=deep_result.sections_written,
+            search_queries_count=deep_result.search_queries_count,
         )
 
     def _merge_research_results(

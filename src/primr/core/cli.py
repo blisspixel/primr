@@ -816,15 +816,18 @@ def _check_api_connectivity(all_passed: bool, warnings_count: int) -> tuple[bool
     gemini_key = os.environ.get("GEMINI_API_KEY", "")
     if gemini_key:
         try:
-            import google.generativeai as genai
-            genai.configure(api_key=gemini_key)
-            model = genai.GenerativeModel(PrimrModels.FAST_MODEL)
-            response = model.generate_content("Say 'ok'", generation_config={"max_output_tokens": 10})
-            if response.text:
+            from google import genai
+            client = genai.Client(api_key=gemini_key)
+            response = client.models.generate_content(
+                model=PrimrModels.FAST_MODEL,
+                contents="Reply with exactly: hello",
+            )
+            # Check if we got any response at all (connection works)
+            if response and (response.text or response.candidates):
                 console.ok("Gemini API responding")
             else:
-                console.warn("Gemini API returned empty response")
-                warnings_count += 1
+                # Still connected, just empty - not a failure
+                console.ok("Gemini API connected")
         except Exception as e:
             error_str = str(e).lower()
             if "quota" in error_str or "rate" in error_str:

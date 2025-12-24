@@ -127,24 +127,29 @@ class Theme:
 
 
 class Spinner:
-    FRAMES = ["|", "/", "-", "\\"]
+    # Modern braille dots spinner (smooth animation)
+    FRAMES_UNICODE = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+    # Fallback for terminals without unicode
+    FRAMES_ASCII = ["|", "/", "-", "\\"]
 
     def __init__(self, message=""):
         self.message = message
         self._stop = threading.Event()
         self._thread = None
         self._lock = threading.Lock()
+        self._caps = _detect_terminal()
         self._theme = _get_default_theme()
+        self._frames = self.FRAMES_UNICODE if self._caps.should_use_unicode() else self.FRAMES_ASCII
 
     def _animate(self):
         idx = 0
         while not self._stop.is_set():
-            frame = self.FRAMES[idx % len(self.FRAMES)]
+            frame = self._frames[idx % len(self._frames)]
             with self._lock:
-                sys.stdout.write(f"\r{INDENT_STEP}{self._theme.MUTED}{frame}{self._theme.RESET} {self.message}")
+                sys.stdout.write(f"\r{INDENT_STEP}{self._theme.INFO}{frame}{self._theme.RESET} {self.message}")
                 sys.stdout.flush()
             idx += 1
-            time.sleep(0.1)
+            time.sleep(0.08)  # Slightly faster for smoother animation
 
     def start(self):
         self._stop.clear()
@@ -236,36 +241,30 @@ class Console:
         if self.quiet:
             return
         self._phase_start = time.time()
-        width = min(50, self._term_width - 4)
         self._print()
-        self._print(f"{INDENT_STEP}{self._theme.INFO}{'=' * width}{self._theme.RESET}")
-        self._print(f"{INDENT_STEP}{self._theme.BOLD}[{step_num}/{total_steps}] {title}{self._theme.RESET}")
+        # Modern: just bold title with a subtle underline, no heavy borders
+        self._print(f"{INDENT_STEP}{self._theme.BOLD}{self._theme.INFO}{title}{self._theme.RESET}")
         if description:
-            self._print(f"{INDENT_DETAIL}{self._theme.MUTED}{description}{self._theme.RESET}")
+            self._print(f"{INDENT_STEP}{self._theme.MUTED}{description}{self._theme.RESET}")
         if expected_duration:
-            self._print(f"{INDENT_DETAIL}{self._theme.MUTED}Expected: {expected_duration}{self._theme.RESET}")
-        self._print(f"{INDENT_STEP}{self._theme.INFO}{'=' * width}{self._theme.RESET}")
+            self._print(f"{INDENT_STEP}{self._theme.MUTED}Expected: {expected_duration}{self._theme.RESET}")
         self._print()
 
     def phase_complete(self, title, stats=None):
         if self.quiet:
             return
         elapsed = self._elapsed(self._phase_start) if self._phase_start else ""
-        self._print()
-        self._print(f"{INDENT_STEP}{self._theme.SUCCESS}{self._theme.INDICATOR_DONE} {title} COMPLETE{self._theme.RESET}")
+        # Modern: simple checkmark with title, not shouty "COMPLETE"
+        self._print(f"{INDENT_STEP}{self._theme.SUCCESS}{self._theme.INDICATOR_DONE} {title}{self._theme.RESET}", end="")
+        if elapsed:
+            self._print(f" {self._theme.MUTED}({elapsed}){self._theme.RESET}")
+        else:
+            self._print()
         
-        # Check if stats already contains a Duration entry
-        has_duration_stat = False
         if stats:
             for label, value in stats:
-                self._print(f"{INDENT_DETAIL}{self._theme.MUTED}- {label}: {value}{self._theme.RESET}")
-                if label.lower() == "duration":
-                    has_duration_stat = True
-        
-        # Only print auto-calculated duration if not already in stats
-        if elapsed and not has_duration_stat:
-            self._print(f"{INDENT_DETAIL}{self._theme.MUTED}- Duration: {elapsed}{self._theme.RESET}")
-        self._print()
+                if label.lower() != "duration":  # Skip duration, we show it inline
+                    self._print(f"{INDENT_DETAIL}{self._theme.MUTED}{label}: {value}{self._theme.RESET}")
 
     def step(self, msg):
         if self.quiet:

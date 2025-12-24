@@ -5,8 +5,8 @@ Insight extraction and synthesis from search and scraped data.
 import time
 from typing import Any
 
-import google.generativeai as genai
 from dotenv import load_dotenv
+from google import genai
 
 from primr.config.config import GEMINI_API_KEY, MAX_RETRIES
 from primr.config.models import PrimrModels
@@ -17,8 +17,7 @@ load_dotenv()
 logger = get_logger("insights")
 
 # Configure Google AI client
-genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel(PrimrModels.FAST_MODEL)  # Use Flash for insights
+_client = genai.Client(api_key=GEMINI_API_KEY)
 
 
 def generate_ai_response(prompt, retries=MAX_RETRIES, min_length=200):
@@ -28,7 +27,10 @@ def generate_ai_response(prompt, retries=MAX_RETRIES, min_length=200):
 
     while attempt < retries:
         try:
-            response = model.generate_content(prompt)
+            response = _client.models.generate_content(
+                model=PrimrModels.FAST_MODEL,
+                contents=prompt
+            )
 
             if not response or not hasattr(response, "text"):
                 raise ValueError("AI response is invalid or missing text attribute.")
