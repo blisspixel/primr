@@ -120,6 +120,7 @@ Goal: Make Primr boringly reliable.
 - Thread safety tests for console and file operations
 - Cost estimation accuracy tests
 - File Search Store lifecycle and cleanup tests
+- QA system aligned to core purpose (consultant prep, not report mechanics)
 
 **Remaining:**
 - Static analysis compliance (mypy, ruff)
@@ -128,6 +129,25 @@ Goal: Make Primr boringly reliable.
 - Refined error messages for failed research stages
 
 This phase intentionally adds no new user-facing features.
+
+v1.2.1 – QA-Driven Report Iteration (Near-Term)
+
+Goal: Use QA feedback to iteratively improve weak sections until reports hit 90+.
+
+**Workflow:**
+1. Generate report
+2. Run QA, get feedback on specific weak sections
+3. Re-run just those sections with targeted improvements
+4. Repeat until grade >= 90
+
+**Implementation:**
+- `primr refine "Company"` command to re-run weak sections
+- QA identifies specific sections needing work (not just overall grade)
+- Section-level regeneration without full pipeline re-run
+- Track iteration count and improvement delta
+
+**Why this matters:**
+The goal is consultant prep. An 85 is "usable" but a 90+ means the consultant walks in genuinely prepared. The marginal effort to go from 85 to 90 is worth it if it's automated.
 
 Medium-Term Roadmap: Make Primr Iterative
 
@@ -434,6 +454,7 @@ Version	Date	Highlights
 1.0.0	Dec 2025	Rebrand to Primr, pip installable
 1.1.0	Dec 2025	Code quality hardening
 1.2.0	Dec 2025	Test coverage hardening (146 new tests, pytest marks)
+1.2.1	Planned	QA-driven report iteration (target 90+ grades)
 1.2.5	Dec 2025	Externalized prompt architecture (YAML configs)
 1.2.6	In Progress	Extensible strategy modules (YAML ready, CLI pending)
 1.3.0	TBD	Research state and hypothesis tracking

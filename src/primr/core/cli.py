@@ -595,8 +595,6 @@ def _handle_analyze_report(config: CLIConfig) -> int:
 
 def _handle_qa(config: CLIConfig) -> int:
     """Handle QA review command."""
-    print(f"DEBUG: _handle_qa called with qa_company: '{config.qa_company}'")
-    
     if not config.qa_company:
         console.error("Company name or file path is required for QA review")
         console.info("Usage: primr --qa \"Company Name\"")
@@ -608,19 +606,9 @@ def _handle_qa(config: CLIConfig) -> int:
         from pathlib import Path
         
         qa_command = QACommand()
-        
-        print(f"DEBUG: Received argument: '{config.qa_company}'")
-        
-        # Check if the argument is a file path by checking if it exists as a file
         potential_path = Path(config.qa_company)
-        print(f"DEBUG: Path object created: {potential_path}")
-        print(f"DEBUG: Path exists: {potential_path.exists()}")
-        if potential_path.exists():
-            print(f"DEBUG: Is file: {potential_path.is_file()}")
         
         if potential_path.exists() and potential_path.is_file():
-            # Treat as file path
-            print(f"DEBUG: File exists, calling analyze_report_file with: {config.qa_company}")
             return qa_command.analyze_report_file(config.qa_company)
         elif (config.qa_company.endswith(('.docx', '.pdf')) or 
               '\\' in config.qa_company or 

@@ -182,10 +182,10 @@ Grade: {self._calculate_numerical_grade(result)}/100
 
 ASSESSMENT CRITERIA EVALUATION
 ------------------------------
-✓ Citation Accuracy: Sources properly attributed and credible
-✓ Logical Consistency: Analysis flows coherently without contradictions  
-✓ Completeness: Covers key areas needed for strategic decisions
-✓ Confidence Level: Information reliability for decision-making
+[x] Citation Accuracy: Sources properly attributed and credible
+[x] Logical Consistency: Analysis flows coherently without contradictions  
+[x] Completeness: Covers key areas needed for strategic decisions
+[x] Confidence Level: Information reliability for decision-making
 
 KEY STRENGTHS
 -------------
@@ -212,13 +212,6 @@ KEY STRENGTHS
             
             if not result.parsing_success:
                 report_content += f"\nNOTE: Analysis parsing encountered issues. Results may be incomplete.\n"
-            
-            report_content += f"\nPRIMR QUALITY STANDARDS ALIGNMENT\n"
-            report_content += f"----------------------------------\n"
-            report_content += f"• Hypothesis-driven framing: {'✓' if result.ready_for_use else '⚠'}\n"
-            report_content += f"• Strategic coherence: {'✓' if result.confidence_level in ['high', 'medium'] else '⚠'}\n"
-            report_content += f"• Citation quality: {'✓' if len(result.key_strengths) > 0 else '⚠'}\n"
-            report_content += f"• Framework rigor: {'✓' if result.ready_for_use else '⚠'}\n"
             
             # Write to file
             filepath.write_text(report_content, encoding='utf-8')

@@ -162,7 +162,7 @@ class SimpleQAAnalyzer:
         return None
     
     def _build_assessment_prompt(self, report: ReportContent) -> str:
-        """Build assessment prompt focused on internal research readiness."""
+        """Build assessment prompt focused on consultant readiness."""
         
         # Get section breakdown for better analysis
         section_summary = []
@@ -180,27 +180,42 @@ class SimpleQAAnalyzer:
         report_type = self._determine_report_type(report)
         evaluation_context = self._get_evaluation_context(report_type)
         
-        prompt = f"""You are a senior business analyst evaluating a {report_type.lower()} for internal strategic use. Your assessment determines if this report provides reliable intelligence for business decisions.
+        prompt = f"""You are evaluating whether this {report_type.lower()} achieves its core purpose: priming a consultant to deeply understand this company so they can help them be more successful.
+
+The goal is NOT a polished client deliverable. The goal is internal intelligence that helps a consultant:
+1. Understand how this company creates value and what makes them tick
+2. Identify where they're likely struggling or have unmet needs
+3. Walk into a conversation ready to be genuinely helpful
+4. Spot opportunities where support could help them move faster
 
 {evaluation_context}
 
-PRIMR QUALITY STANDARDS (CRITICAL - These define report excellence):
-- Hypothesis-driven language ("This suggests..." not "This proves...")
-- Strategic coherence with clear thesis connecting all sections
-- Appropriate precision (ranges for estimates, exact figures ONLY from filings)
-- Framework rigor (SWOT, Porter's, Value Chain properly applied)
-- No insight repetition across sections
-- Specific evidence with citations (not generic observations)
-- Actionable insights connecting analysis to engagement opportunities
+WHAT MAKES A REPORT USEFUL FOR THIS PURPOSE:
 
-CRITICAL QUALITY ISSUES TO FLAG:
-- Placeholder values ($XM, $YM, TBD) instead of ranges or "unknown"
-- Truncated or incomplete sections
-- Declarative statements without hypothesis framing
-- Generic observations without specific evidence
-- Repetitive insights across multiple sections
-- Missing citations for key claims
-- Vague recommendations without clear next steps
+Deep Understanding:
+- Clear picture of how the company makes money and creates value
+- Understanding of their strategic priorities and where they're headed
+- Insight into their competitive position and market dynamics
+- Sense of their culture, constraints, and decision-making patterns
+
+Actionable Intelligence:
+- Specific hypotheses about their challenges (not generic observations)
+- "Where They're Likely to Say Yes" - concrete engagement opportunities
+- Evidence-backed insights a consultant can reference in conversation
+- Tensions or patterns that suggest where help would be welcomed
+
+Quality Signals:
+- Hypothesis-driven framing (things to validate, not declarations)
+- Appropriate precision (ranges for estimates, exact figures only from filings)
+- No repetition across sections (each insight lives in one place)
+- Citations that let a consultant dig deeper if needed
+
+RED FLAGS:
+- Generic observations that could apply to any company
+- Missing or shallow analysis of how they actually make money
+- No clear hypotheses about where they need help
+- Placeholder values or truncated sections
+- Repetitive content across frameworks
 
 REPORT DETAILS:
 Company: {report.company_name}
@@ -276,52 +291,22 @@ ASSESSMENT GUIDELINES:
         """Get evaluation criteria based on report type."""
         
         if "AI Strategy" in report_type or "Strategic Report" in report_type:
-            return """EVALUATION FRAMEWORK FOR STRATEGY REPORTS:
+            return """FOR AI/STRATEGY REPORTS - Does this prepare a consultant to have a valuable conversation about AI/technology adoption?
 
-1. STRATEGIC VISION (30 points)
-   - Is there a clear strategic direction and future state vision?
-   - Are strategic initiatives well-defined and actionable?
-   - Does it provide a coherent roadmap for transformation?
-
-2. FEASIBILITY ASSESSMENT (25 points)
-   - Are recommendations grounded in realistic capabilities?
-   - Is the timeline and resource allocation reasonable?
-   - Are risks and dependencies clearly identified?
-
-3. BUSINESS ALIGNMENT (25 points)
-   - Does the strategy align with business objectives?
-   - Are success metrics and KPIs clearly defined?
-   - Is the value proposition compelling and measurable?
-
-4. IMPLEMENTATION GUIDANCE (20 points)
-   - Are next steps and priorities clearly outlined?
-   - Is governance and decision-making structure defined?
-   - Are change management considerations addressed?
-
-NOTE: Strategy reports are evaluated for vision clarity and implementation feasibility rather than exhaustive research depth."""
+Key questions:
+- Does it connect AI opportunities to THIS company's specific business model and challenges?
+- Are recommendations grounded in their actual capabilities and constraints?
+- Would a consultant know what to propose and why it matters to them?
+- Are there clear "door openers" - specific pain points where AI could help?"""
         
         else:
-            return """EVALUATION FRAMEWORK FOR COMPREHENSIVE ANALYSIS:
+            return """FOR COMPANY RESEARCH - Does this give a consultant genuine insight into this company?
 
-1. CITATION ACCURACY (25 points)
-   - Are claims backed by credible sources?
-   - Do citations actually support the statements made?
-   - Are estimates clearly distinguished from confirmed data?
-
-2. LOGICAL CONSISTENCY (25 points)
-   - Is the analysis internally coherent?
-   - Are conclusions supported by evidence presented?
-   - Are there contradictions or logical gaps?
-
-3. COMPLETENESS (25 points)
-   - Does it cover the key areas needed for strategic decisions?
-   - Are there obvious gaps in the analysis?
-   - Does it provide actionable insights?
-
-4. CONFIDENCE ASSESSMENT (25 points)
-   - How reliable is this information for decision-making?
-   - Are uncertainties appropriately acknowledged?
-   - Is the strategic thesis clear and well-supported?"""
+Key questions:
+- Could a consultant explain how this company makes money and what drives their success?
+- Are there specific hypotheses about challenges they're facing (not generic industry issues)?
+- Does the "Where They're Likely to Say Yes" section identify real opportunities?
+- Would reading this make a consultant more helpful in their first conversation?"""
     
     def _parse_json_response(self, response: str) -> SimpleQAResult:
         """Parse AI response into SimpleQAResult using robust JSON parser."""
