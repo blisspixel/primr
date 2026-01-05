@@ -301,12 +301,28 @@ def main_rich():
     
     console.print()
     if result.returncode == 0:
-        console.print(Panel.fit(
-            "[green bold]Ready![/green bold]\n\n"
-            "Try: [cyan]primr \"Acme Corp\" https://acme.com[/cyan]",
-            border_style="green",
-            padding=(0, 2),
-        ))
+        # Check if primr CLI is on PATH (Windows issue)
+        cli_available = shutil.which("primr") is not None
+        
+        if cli_available:
+            console.print(Panel.fit(
+                "[green bold]Ready![/green bold]\n\n"
+                "Try: [cyan]primr \"Acme Corp\" https://acme.com[/cyan]",
+                border_style="green",
+                padding=(0, 2),
+            ))
+        else:
+            # CLI not on PATH - common on Windows
+            console.print(Panel.fit(
+                "[green bold]Ready![/green bold]\n\n"
+                "The [cyan]primr[/cyan] command isn't on PATH.\n"
+                "Use one of these instead:\n\n"
+                "  [cyan]python -m primr \"Acme Corp\" https://acme.com[/cyan]\n"
+                "  [dim]or from this folder:[/dim]\n"
+                "  [cyan]primr.cmd \"Acme Corp\" https://acme.com[/cyan]",
+                border_style="green",
+                padding=(0, 2),
+            ))
     else:
         console.print("[yellow]Setup complete but doctor found issues above[/yellow]")
     console.print()
