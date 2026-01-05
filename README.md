@@ -86,8 +86,6 @@ python setup_env.py
 primr "Acme Corp" https://acme.com
 ```
 
-On Windows, if `primr` isn't recognized, use `python -m primr` instead (or run `primr.cmd` from the repo directory).
-
 The setup script walks you through getting the required API keys from Google.
 
 ## Usage
