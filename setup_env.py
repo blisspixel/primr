@@ -3,6 +3,7 @@
 Primr Setup - Interactive setup wizard
 """
 
+import os
 import shutil
 import subprocess
 import sys
@@ -21,6 +22,65 @@ except ImportError:
     RICH = False
 
 console = Console() if RICH else None
+
+
+def add_to_user_path_windows(scripts_dir: str) -> bool:
+    """Add a directory to the user's PATH on Windows (no admin required)."""
+    if sys.platform != "win32":
+        return False
+    
+    try:
+        import winreg
+        
+        # Open user environment variables
+        key = winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            r"Environment",
+            0,
+            winreg.KEY_READ | winreg.KEY_WRITE
+        )
+        
+        try:
+            current_path, _ = winreg.QueryValueEx(key, "Path")
+        except FileNotFoundError:
+            current_path = ""
+        
+        # Check if already in PATH
+        path_dirs = [p.strip().lower() for p in current_path.split(";") if p.strip()]
+        if scripts_dir.lower() in path_dirs:
+            winreg.CloseKey(key)
+            return True  # Already there
+        
+        # Add to PATH
+        new_path = f"{current_path};{scripts_dir}" if current_path else scripts_dir
+        winreg.SetValueEx(key, "Path", 0, winreg.REG_EXPAND_SZ, new_path)
+        winreg.CloseKey(key)
+        
+        # Broadcast environment change so new terminals pick it up
+        try:
+            import ctypes
+            HWND_BROADCAST = 0xFFFF
+            WM_SETTINGCHANGE = 0x1A
+            ctypes.windll.user32.SendMessageTimeoutW(
+                HWND_BROADCAST, WM_SETTINGCHANGE, 0, "Environment", 0, 1000, None
+            )
+        except Exception:
+            pass  # Best effort
+        
+        return True
+    except Exception:
+        return False
+
+
+def get_user_scripts_dir() -> str | None:
+    """Get the user's Python Scripts directory."""
+    if sys.platform == "win32":
+        # Check user site-packages location
+        import site
+        user_base = site.getuserbase()
+        if user_base:
+            return os.path.join(user_base, "Scripts")
+    return None
 
 
 def install_rich_and_restart():
@@ -312,17 +372,31 @@ def main_rich():
                 padding=(0, 2),
             ))
         else:
-            # CLI not on PATH - common on Windows
-            console.print(Panel.fit(
-                "[green bold]Ready![/green bold]\n\n"
-                "The [cyan]primr[/cyan] command isn't on PATH.\n"
-                "Use one of these instead:\n\n"
-                "  [cyan]python -m primr \"Acme Corp\" https://acme.com[/cyan]\n"
-                "  [dim]or from this folder:[/dim]\n"
-                "  [cyan]primr.cmd \"Acme Corp\" https://acme.com[/cyan]",
-                border_style="green",
-                padding=(0, 2),
-            ))
+            # CLI not on PATH - try to fix it automatically on Windows
+            scripts_dir = get_user_scripts_dir()
+            path_fixed = False
+            
+            if scripts_dir and sys.platform == "win32":
+                console.print("  [yellow]>[/yellow] Adding Python Scripts to PATH...")
+                path_fixed = add_to_user_path_windows(scripts_dir)
+                if path_fixed:
+                    console.print("  [green]✓[/green] PATH updated")
+            
+            if path_fixed:
+                console.print(Panel.fit(
+                    "[green bold]Ready![/green bold]\n\n"
+                    "[yellow]Open a new terminal[/yellow], then:\n\n"
+                    "  [cyan]primr \"Acme Corp\" https://acme.com[/cyan]",
+                    border_style="green",
+                    padding=(0, 2),
+                ))
+            else:
+                console.print(Panel.fit(
+                    "[green bold]Ready![/green bold]\n\n"
+                    "Use: [cyan]python -m primr \"Acme Corp\" https://acme.com[/cyan]",
+                    border_style="green",
+                    padding=(0, 2),
+                ))
     else:
         console.print("[yellow]Setup complete but doctor found issues above[/yellow]")
     console.print()
