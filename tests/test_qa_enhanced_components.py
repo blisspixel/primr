@@ -51,18 +51,18 @@ class TestSimpleQAAnalyzer:
         
         prompt = analyzer._build_assessment_prompt(test_report)
         
-        # Verify prompt structure
+        # Verify prompt structure - updated for consultant-focused prompt
         assert "Test Corp" in prompt
-        assert "EVALUATION FRAMEWORK" in prompt
-        assert "CITATION ACCURACY" in prompt
-        assert "LOGICAL CONSISTENCY" in prompt
-        assert "COMPLETENESS" in prompt
-        assert "CONFIDENCE ASSESSMENT" in prompt
-        assert "PRIMR QUALITY STANDARDS" in prompt
+        assert "consultant" in prompt.lower()
         assert "JSON format" in prompt
         assert "Executive Summary: 2 words" in prompt
         assert "Analysis: 2 words" in prompt
         assert "2 sources" in prompt
+        # Check for key evaluation criteria
+        assert "ready_for_use" in prompt
+        assert "confidence_level" in prompt
+        assert "key_strengths" in prompt
+        assert "areas_for_improvement" in prompt
     
     def test_successful_assessment(self):
         """Test successful assessment with valid JSON response."""

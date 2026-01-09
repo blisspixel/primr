@@ -5,39 +5,35 @@ Centralized Model Configuration for Primr
 THIS IS THE SINGLE SOURCE OF TRUTH FOR ALL AI MODELS.
 UPDATE HERE TO CHANGE MODELS GLOBALLY.
 
-AVAILABLE MODELS (December 2025):
----------------------------------
-1. gemini-3-flash-preview  - FLASH: Fast, cheap ($0.50/$3 per 1M tokens)
-2. gemini-3-pro-preview    - PRO: Complex reasoning ($2/$12 per 1M tokens)  
-3. deep-research-pro-preview-12-2025 - DEEP RESEARCH: Autonomous 12+ page reports
+AVAILABLE MODELS (January 2026):
+--------------------------------
+GEMINI 3 SERIES (Latest Flagship - GA):
+1. gemini-3-pro-preview    - PRO: Deep reasoning, 65k output, 2M context ($2/$12 per 1M)
+2. gemini-3-flash-preview  - FLASH: Speed + intelligence, 65k output, 1M context ($0.60/$2.50 per 1M)
+
+GEMINI 2.5 SERIES (Stable Workhorses):
+3. gemini-2.5-pro          - Stable production, 8k output, 2M context ($1.25/$10 per 1M)
+4. gemini-2.5-flash        - High-volume, 8k output, 1M context ($0.30/$1.25 per 1M)
+5. gemini-2.5-flash-lite   - Ultra-cheap simple tasks ($0.10/$0.40 per 1M)
+
+SPECIALIZED:
+6. deep-research-pro-preview-12-2025 - Autonomous 12+ page research reports
 
 WHEN TO USE EACH:
 -----------------
-- FLASH: Scraping summaries, link selection (which pages to scrape), QA checks
-- PRO: Report section writing, complex analysis, reasoning tasks
-- DEEP RESEARCH: Autonomous multi-step research producing 12+ page reports
+- FLASH (3): Smart chatbots, general assistance, scraping summaries, QA checks
+- PRO (3): Complex coding, reasoning, analysis, report writing (65k output!)
+- 2.5 FLASH: High-volume data processing where cost matters more than latest features
+- 2.5 FLASH-LITE: Simple classification, extraction, categorizing
 
-TASK-SPECIFIC MODEL ASSIGNMENTS:
---------------------------------
-SCRAPING_MODEL       = Flash - Summarizing scraped website content
-LINK_SELECTION_MODEL = Flash - Intelligent link prioritization (which pages to scrape)
-                              Acts like a human consultant deciding what to read
-QA_MODEL             = Flash - Quality assurance checks
-SECTION_WRITING_MODEL = Pro  - Writing report sections with analysis
-ANALYSIS_MODEL        = Pro  - Complex analysis, reasoning tasks
+KEY UPGRADE: Gemini 3 has 65k max output tokens (vs 8k for 2.5) - can write entire files!
 
-UPDATING FOR NEW MODELS:
-------------------------
-When Gemini 3.2 or 4.0 comes out:
-1. Update ModelRegistry with new model configs
-2. Update FLASH_MODEL and PRO_MODEL in PrimrModels
-3. That's it - all code uses these constants
-
-PRICING (December 2025):
-------------------------
-Flash:  $0.50 input / $3.00 output per 1M tokens
-Pro:    $2.00 input / $12.00 output per 1M tokens (<200k context)
-        $4.00 input / $18.00 output per 1M tokens (>200k context)
+PRICING (January 2026):
+-----------------------
+Gemini 3 Pro:    $2.00 input / $12.00 output per 1M tokens (includes thinking tokens)
+Gemini 3 Flash:  $0.60 input / $2.50 output per 1M tokens
+Gemini 2.5 Pro:  $1.25 input / $10.00 output per 1M tokens
+Gemini 2.5 Flash: $0.30 input / $1.25 output per 1M tokens
 """
 
 from dataclasses import dataclass
@@ -82,28 +78,29 @@ class ModelRegistry:
     """
     
     # =========================================================================
-    # GEMINI 3 FLASH - Fast, cheap, good for simple tasks
-    # USE FOR: Scraping summaries, link filtering, QA checks
-    # $0.50 input / $3.00 output per 1M tokens
+    # GEMINI 3 FLASH - Speed + Intelligence balance (GA January 2026)
+    # USE FOR: Smart chatbots, scraping summaries, link filtering, QA checks
+    # $0.60 input / $2.50 output per 1M tokens
+    # Context: 1M tokens, Output: 65k tokens
     # =========================================================================
     GEMINI_3_FLASH = ModelConfig(
         name="gemini-3-flash-preview", 
         display_name="Gemini 3 Flash",
         provider="google",
-        cost_per_1m_input_tokens=0.50,
-        cost_per_1m_output_tokens=3.00,
-        max_input_tokens=1_048_576,      # 1M tokens
-        max_output_tokens=65_536,        # 64k tokens
+        cost_per_1m_input_tokens=0.60,
+        cost_per_1m_output_tokens=2.50,
+        max_input_tokens=1_000_000,      # 1M tokens
+        max_output_tokens=65_536,        # 65k tokens (major upgrade from 2.5!)
         supports_thinking=True,
         supports_tools=True,
         supports_multimodal=True,
     )
     
     # =========================================================================
-    # GEMINI 3 PRO - Complex reasoning, expensive but smart
-    # USE FOR: Report section writing, complex analysis
-    # $2.00 input / $12.00 output per 1M tokens (<200k context)
-    # $4.00 input / $18.00 output per 1M tokens (>200k context)
+    # GEMINI 3 PRO - Deep reasoning, complex tasks (GA January 2026)
+    # USE FOR: Complex coding, reasoning, analysis, report writing
+    # $2.00 input / $12.00 output per 1M tokens (includes thinking tokens)
+    # Context: 2M tokens, Output: 65k tokens
     # =========================================================================
     GEMINI_3_PRO = ModelConfig(
         name="gemini-3-pro-preview",
@@ -111,8 +108,46 @@ class ModelRegistry:
         provider="google",
         cost_per_1m_input_tokens=2.00,
         cost_per_1m_output_tokens=12.00,
-        max_input_tokens=1_048_576,      # 1M tokens
-        max_output_tokens=65_536,        # 64k tokens
+        max_input_tokens=2_000_000,      # 2M tokens
+        max_output_tokens=65_536,        # 65k tokens (can write entire files!)
+        supports_thinking=True,          # Native Chain-of-Thought
+        supports_tools=True,
+        supports_multimodal=True,
+    )
+    
+    # =========================================================================
+    # GEMINI 2.5 PRO - Stable production workhorse
+    # USE FOR: Stable production apps where predictability > newest features
+    # $1.25 input / $10.00 output per 1M tokens
+    # Context: 2M tokens, Output: 8k tokens
+    # =========================================================================
+    GEMINI_2_5_PRO = ModelConfig(
+        name="gemini-2.5-pro",
+        display_name="Gemini 2.5 Pro",
+        provider="google",
+        cost_per_1m_input_tokens=1.25,
+        cost_per_1m_output_tokens=10.00,
+        max_input_tokens=2_000_000,      # 2M tokens
+        max_output_tokens=8_192,         # 8k tokens
+        supports_thinking=True,
+        supports_tools=True,
+        supports_multimodal=True,
+    )
+    
+    # =========================================================================
+    # GEMINI 2.5 FLASH - High-volume workhorse
+    # USE FOR: High-volume data processing, cost-sensitive applications
+    # $0.30 input / $1.25 output per 1M tokens
+    # Context: 1M tokens, Output: 8k tokens
+    # =========================================================================
+    GEMINI_2_5_FLASH = ModelConfig(
+        name="gemini-2.5-flash",
+        display_name="Gemini 2.5 Flash",
+        provider="google",
+        cost_per_1m_input_tokens=0.30,
+        cost_per_1m_output_tokens=1.25,
+        max_input_tokens=1_000_000,      # 1M tokens
+        max_output_tokens=8_192,         # 8k tokens
         supports_thinking=True,
         supports_tools=True,
         supports_multimodal=True,
@@ -208,6 +243,8 @@ class PrimrModels:
         ModelRegistry.GEMINI_3_PRO.name: ModelRegistry.GEMINI_3_PRO,
         ModelRegistry.GEMINI_3_FLASH.name: ModelRegistry.GEMINI_3_FLASH,
         ModelRegistry.GEMINI_3_PRO_IMAGE.name: ModelRegistry.GEMINI_3_PRO_IMAGE,
+        ModelRegistry.GEMINI_2_5_PRO.name: ModelRegistry.GEMINI_2_5_PRO,
+        ModelRegistry.GEMINI_2_5_FLASH.name: ModelRegistry.GEMINI_2_5_FLASH,
     }
     
     @classmethod
@@ -241,7 +278,9 @@ class PrimrModels:
             ModelRegistry.GEMINI_3_PRO.name,
             ModelRegistry.GEMINI_3_FLASH.name, 
             ModelRegistry.GEMINI_3_PRO_IMAGE.name,
-            ModelRegistry.DEEP_RESEARCH_AGENT
+            ModelRegistry.DEEP_RESEARCH_AGENT,
+            ModelRegistry.GEMINI_2_5_PRO.name,
+            ModelRegistry.GEMINI_2_5_FLASH.name,
         }
         return model_name in latest_models
 

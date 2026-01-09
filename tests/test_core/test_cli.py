@@ -113,7 +113,7 @@ class TestModeMap:
 
     def test_new_mode_names(self):
         """Test new mode names map correctly."""
-        assert MODE_MAP["scrape"] == "structured"
+        assert MODE_MAP["scrape"] == "scrape-only"
         assert MODE_MAP["deep"] == "deep-research"
         assert MODE_MAP["full"] == "complete"
         assert MODE_MAP["parallel"] == "hybrid"
@@ -124,6 +124,7 @@ class TestModeMap:
         assert MODE_MAP["deep-research"] == "deep-research"
         assert MODE_MAP["complete"] == "complete"
         assert MODE_MAP["hybrid"] == "hybrid"
+        assert MODE_MAP["scrape-only"] == "scrape-only"
 
 
 # =============================================================================
@@ -153,7 +154,7 @@ class TestParseArgs:
     def test_parse_mode_short_flag(self):
         """Test parsing mode with short flag."""
         config = parse_args(["Tesla", "tesla.com", "-m", "scrape"])
-        assert config.mode == "structured"  # Mapped from "scrape"
+        assert config.mode == "scrape-only"  # Mapped from "scrape"
 
     def test_parse_no_ai_strategy(self):
         """Test parsing --no-ai-strategy flag."""
@@ -322,4 +323,4 @@ class TestCLIProperties:
     def test_mode_mapping_exists(self, mode):
         """Property: All new mode names have mappings."""
         assert mode in MODE_MAP
-        assert MODE_MAP[mode] in ["structured", "deep-research", "complete", "hybrid"]
+        assert MODE_MAP[mode] in ["scrape-only", "deep-research", "complete", "hybrid"]

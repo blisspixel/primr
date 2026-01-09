@@ -45,8 +45,8 @@ def mock_settings():
     with patch('primr.ai.client.get_settings') as mock_get:
         mock_settings = MagicMock()
         mock_settings.api.gemini_key = "test-api-key"
-        mock_settings.ai.research_model = "test-research-model"
-        mock_settings.ai.report_model = "test-report-model"
+        mock_settings.ai.flash_model = "test-flash-model"
+        mock_settings.ai.pro_model = "test-pro-model"
         mock_settings.ai.max_retries = 3
         mock_settings.ai.model_fallbacks = {}
         mock_get.return_value = mock_settings
@@ -75,20 +75,20 @@ class TestAIClient:
         mock_genai_client.models.generate_content.assert_called_once()
     
     def test_generate_uses_research_model(self, mock_genai_client, mock_settings):
-        """Should use research model for research type."""
+        """Should use flash model for research type."""
         client = AIClient()
         client.generate("Test", model_type="research")
         
         call_args = mock_genai_client.models.generate_content.call_args
-        assert call_args.kwargs['model'] == "test-research-model"
+        assert call_args.kwargs['model'] == "test-flash-model"
     
     def test_generate_uses_report_model(self, mock_genai_client, mock_settings):
-        """Should use report model for report type."""
+        """Should use pro model for report type."""
         client = AIClient()
         client.generate("Test", model_type="report")
         
         call_args = mock_genai_client.models.generate_content.call_args
-        assert call_args.kwargs['model'] == "test-report-model"
+        assert call_args.kwargs['model'] == "test-pro-model"
     
     def test_generate_retries_on_failure(self, mock_genai_client, mock_settings):
         """Should retry on failure."""
@@ -148,7 +148,7 @@ class TestAIClientFallback:
     def test_uses_fallback_on_failure(self, mock_genai_client, mock_settings):
         """Should try fallback model when primary fails."""
         mock_settings.ai.model_fallbacks = {
-            "test-research-model": ["fallback-model"]
+            "test-flash-model": ["fallback-model"]
         }
         
         # First call fails, second succeeds
@@ -203,7 +203,7 @@ class TestBackwardCompatibility:
         llm("Test", model_type="report")
         
         call_args = mock_genai_client.models.generate_content.call_args
-        assert call_args.kwargs['model'] == "test-report-model"
+        assert call_args.kwargs['model'] == "test-pro-model"
     
     def test_llm_fast_function(self, mock_genai_client, mock_settings):
         """llm_fast() should work like before."""
@@ -228,7 +228,7 @@ class TestAIClientErrorHandling:
             with pytest.raises(AIError) as exc_info:
                 client.generate("Test")
         
-        assert exc_info.value.model == "test-research-model"
+        assert exc_info.value.model == "test-flash-model"
     
     def test_ai_error_includes_cause(self, mock_genai_client, mock_settings):
         """AIError should include original exception."""

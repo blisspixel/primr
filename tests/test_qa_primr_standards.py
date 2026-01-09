@@ -35,7 +35,7 @@ def generate_report_content():
             company_name=st.text(min_size=3, max_size=50),
             generation_date=st.just(datetime.now()),
             generation_mode=st.sampled_from(['scrape', 'deep', 'full']),
-            model_used=st.sampled_from(['gemini-2.0-flash', 'gemini-3-flash']),
+            model_used=st.sampled_from(['gemini-3-flash-preview', 'gemini-3-flash']),
             file_path=st.just(Path('test_report.txt'))
         ),
         file_path=st.just(Path('test_report.txt'))
@@ -452,7 +452,7 @@ class TestComprehensiveReportReliability:
                 company_name="Large Corp",
                 generation_date=datetime.now(),
                 generation_mode="full",
-                model_used="gemini-2.0-flash",
+                model_used="gemini-3-flash-preview",
                 file_path=Path("large_report.txt")
             ),
             file_path=Path("large_report.txt")
@@ -508,7 +508,7 @@ class TestComprehensiveReportReliability:
                 company_name="Retry Test Corp",
                 generation_date=datetime.now(),
                 generation_mode="full",
-                model_used="gemini-2.0-flash",
+                model_used="gemini-3-flash-preview",
                 file_path=Path("retry_test.txt")
             ),
             file_path=Path("retry_test.txt")
@@ -605,7 +605,7 @@ class TestComprehensiveReportReliability:
                 company_name="Evertrue LLC",
                 generation_date=datetime.now(),
                 generation_mode="full",
-                model_used="gemini-2.0-flash",
+                model_used="gemini-3-flash-preview",
                 file_path=Path("evertrue_comprehensive.txt")
             ),
             file_path=Path("evertrue_comprehensive.txt")

@@ -16,3 +16,5 @@ docx2pdf
 pyyaml               # YAML parsing for prompt configurations
 pytest                # Testing framework
 pytest-mock           # Mocking utilities for pytest
+curl_cffi            # TLS fingerprint impersonation - makes requests look like real browsers
+DrissionPage         # Driverless browser automation - bypasses WebDriver detection (WAF evasion)

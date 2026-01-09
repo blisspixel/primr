@@ -1441,10 +1441,12 @@ Frame everything as hypotheses to explore, not conclusions."""
                     message=f"Reconnecting ({reconnect_attempt}/{max_reconnect_attempts})..."
                 ))
             
-            await asyncio.sleep(delay)
-            
-            try:
-                # First, check if the interaction completed while we were waiting
+            # Check completion status periodically during the wait (every 10s for long waits)
+            wait_start = time.time()
+            while time.time() - wait_start < delay:
+                await asyncio.sleep(min(10, delay - (time.time() - wait_start)))
+                
+                # Check if completed during wait
                 try:
                     interaction = self._get_interaction(interaction_id)
                     if interaction.status == "completed":
@@ -1452,7 +1454,7 @@ Frame everything as hypotheses to explore, not conclusions."""
                         citations = self._extract_citations(interaction)
                         search_count = self._extract_search_queries_count(interaction)
                         remove_pending_job(interaction_id)
-                        logger.info(f"Research completed during reconnection wait, {search_count} searches")
+                        logger.info(f"Research completed during wait, {search_count} searches")
                         return ResearchResult(
                             content=content,
                             citations=citations,
@@ -1471,9 +1473,10 @@ Frame everything as hypotheses to explore, not conclusions."""
                             status=ResearchStatus.FAILED,
                             error=str(error_msg),
                         )
-                except Exception as poll_error:
-                    logger.debug(f"Status poll failed, will try streaming: {poll_error}")
-                
+                except Exception as e:
+                    logger.debug(f"Status check during wait failed: {e}")
+            
+            try:
                 # Resume stream using interaction.get with last_event_id
                 get_kwargs: dict[str, Any] = {
                     "id": interaction_id,

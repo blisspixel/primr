@@ -26,8 +26,8 @@ def mock_settings():
     """Mock settings for testing."""
     settings = Mock()
     settings.api.gemini_key = "test-api-key"
-    settings.ai.research_model = "gemini-2.0-flash"
-    settings.ai.report_model = "gemini-2.0-flash"
+    settings.ai.flash_model = "gemini-3-flash-preview"
+    settings.ai.pro_model = "gemini-3-pro-preview"
     settings.ai.max_retries = 3
     return settings
 
@@ -190,16 +190,15 @@ class TestAsyncAIClient:
         mock_get_settings.return_value = mock_settings
         
         client = AsyncAIClient()
-        assert client._get_model("research") == "gemini-2.0-flash"
+        assert client._get_model("research") == "gemini-3-flash-preview"
     
     @patch("primr.ai.async_client.get_settings")
     def test_get_model_report(self, mock_get_settings, mock_settings):
         """Test getting report model."""
         mock_get_settings.return_value = mock_settings
-        mock_settings.ai.report_model = "gemini-2.0-pro"
         
         client = AsyncAIClient()
-        assert client._get_model("report") == "gemini-2.0-pro"
+        assert client._get_model("report") == "gemini-3-pro-preview"
     
     @patch("primr.ai.async_client.get_settings")
     def test_get_model_unknown_defaults_to_research(self, mock_get_settings, mock_settings):
@@ -207,7 +206,7 @@ class TestAsyncAIClient:
         mock_get_settings.return_value = mock_settings
         
         client = AsyncAIClient()
-        assert client._get_model("unknown") == "gemini-2.0-flash"
+        assert client._get_model("unknown") == "gemini-3-flash-preview"
 
 
 # =============================================================================

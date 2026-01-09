@@ -1,5 +1,5 @@
 {
-  "filter_links_for_research": "I am conducting company research on {company_name} using its official website {website}. Below is a list of pages we plan to scrape. Please review and return only the URLs that are likely to provide useful information about the company. The purpose is to understand the company thoroughly as a consultant aiming to assist them. Basically, what would a human consultant click and read through.\n\nList of URLs:\n{links}\n\nReturn only the filtered list of URLs, with one URL per line.",
+  "filter_links_for_research": "You are helping a consultant prepare for a meeting with {company_name}. The goal is to deeply understand this company so the consultant can be genuinely helpful.\n\nFrom the website {website}, select the pages most likely to reveal:\n1. How the company makes money and creates value\n2. Their strategic priorities and where they're headed\n3. Leadership team and organizational structure\n4. Recent news, press releases, or announcements\n5. Financial information (investor relations, annual reports)\n6. Products/services and how they differentiate\n7. Challenges they might be facing (from ESG reports, earnings calls, etc.)\n\nPrioritize pages that would help identify:\n- Opportunities where outside support could help them move faster\n- Areas where they're likely investing or struggling\n- What success looks like for them\n\nAvoid: login pages, job listings, generic legal/privacy pages, shopping carts, user account pages.\n\nFrom this list, return the 15-25 most valuable URLs for consultant preparation:\n{links}\n\nReturn only URLs, one per line. No explanations.",
 
   "industry_category": "What is the industry category for {company_name} who has this website ({company_website})? Provide a direct and concise answer. Do NOT provide explanations or additional details. Return only the industry name.",
 
@@ -11,7 +11,7 @@
 
   "company_name": "What is the official company name for {company_name} ({company_website})? Return only the company name, without any additional text.",
 
-  "scraped_website_summary": "Research {company_name} ({company_website}). Extract and summarize relevant information about {company_name} or their industry that provides insights into their business.\n\nIMPORTANT: Do NOT use emojis, em-dashes, or filler phrases. Write in a direct, professional tone.",
+  "scraped_website_summary": "Extract key facts from this webpage for {company_name} ({company_website}).\n\nPage: {website_source}\n\nThis is part of a larger process to understand the company. Just extract what you can from THIS page:\n- Direct quotes where possible (use quotation marks)\n- Specific facts, names, numbers, dates\n- What they say about themselves, their products, services\n- Any details about leadership, customers, achievements\n\nBe concise. Only include what's actually on this page. Skip generic marketing fluff.\n\nIMPORTANT: Do NOT pad or expand. Just the facts from this page.",
 
   "company_website": "What is the official website of {company_name}? If unavailable, return 'Not Found' without additional details.",
 
