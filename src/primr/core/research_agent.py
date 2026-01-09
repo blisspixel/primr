@@ -564,8 +564,8 @@ def run_research(company_name: str, website: str, on_progress: Callable[[str], N
     progress(f"> Working folder: {folder_path}")
 
     # Scrape website - saves raw scrapes incrementally to _raw_scrapes folder
+    # fetch_web_content already shows completion message, no need to duplicate
     scraped_data = fetch_web_content(website, company_name, max_pages=50, working_folder=folder_path) if website else {}
-    progress(f"+ {len(scraped_data)} pages scraped")
 
     # External research - with LLM validation to ensure correct company
     # This prevents including content from similarly-named but unrelated companies
