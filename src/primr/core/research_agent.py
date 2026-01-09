@@ -696,193 +696,6 @@ def run_research(company_name: str, website: str, on_progress: Callable[[str], N
     return section_results
 
 
-def perform_scrape_test(
-    company_name: str | None,
-    website: str | None,
-    start_time: float,
-) -> str | None:
-    """
-    Scrape test mode: Full discovery + scraping, but NO LLM calls.
-    
-    Uses smart cascade for link discovery:
-    1. Sitemap (best source - has all indexed pages)
-    2. Homepage links (nav, footer, featured content)
-    3. Common URL guessing (only if 1+2 found < 10 pages)
-    
-    No LLM for link selection or content summarization.
-    
-    Cost: $0 (no LLM)
-    """
-    from primr.data.scraping import (
-        fetch_sitemap_links, 
-        extract_links_from_homepage,
-        guess_common_urls,
-        verify_urls_exist,
-        score_links_heuristically, 
-        normalize_url,
-        DiscoveredLink,
-    )
-    from primr.data.scrape import get_orchestrator, clear_cache
-    
-    display_name = company_name or (urlparse(website or "").netloc if website else "")
-    
-    # Clear cache to get fresh data
-    clear_cache()
-    
-    orchestrator = get_orchestrator(enable_vision=False)
-    all_links: list = []
-    seen_urls: set = set()
-    
-    def add_links(links):
-        added = 0
-        for link in links:
-            # Normalize URL to prevent duplicates with trailing slash variations
-            normalized = normalize_url(link.url)
-            if normalized not in seen_urls:
-                seen_urls.add(normalized)
-                all_links.append(link)
-                added += 1
-        return added
-    
-    # Phase 1: Link Discovery (smart cascade)
-    console.step("Discovering pages")
-    
-    # 1. Try sitemap first (best source)
-    console.info("  Checking sitemap...")
-    sitemap_links = fetch_sitemap_links(website, rate_limiter=orchestrator.rate_limiter)
-    sitemap_count = add_links(sitemap_links)
-    if sitemap_count:
-        console.ok(f"  Sitemap: {sitemap_count} pages")
-    else:
-        console.info("  Sitemap: none found")
-    
-    # 2. Extract from homepage (nav, footer, featured)
-    console.info("  Scanning homepage...")
-    homepage_links = extract_links_from_homepage(website, rate_limiter=orchestrator.rate_limiter)
-    homepage_count = add_links(homepage_links)
-    if homepage_count:
-        console.ok(f"  Homepage: {homepage_count} links")
-    else:
-        console.info("  Homepage: no internal links")
-    
-    # 3. Common URL guessing - only if we found < 10 pages
-    MIN_PAGES_BEFORE_GUESSING = 10
-    if len(all_links) < MIN_PAGES_BEFORE_GUESSING:
-        console.info("  Trying common business pages...")
-        guessed = guess_common_urls(website)
-        # Verify they exist (parallel HEAD requests)
-        verified = verify_urls_exist(guessed, rate_limiter=orchestrator.rate_limiter)
-        guess_count = add_links(verified)
-        if guess_count:
-            console.ok(f"  Found: {guess_count} common pages")
-        else:
-            console.info("  No common pages found")
-    else:
-        console.info(f"  Skipping URL guessing (already have {len(all_links)} pages)")
-    
-    # Always include homepage (use normalized URL for dedup check)
-    if normalize_url(website) not in seen_urls:
-        all_links.insert(0, DiscoveredLink(url=website, source="homepage"))
-    
-    total_discovered = len(all_links)
-    console.ok(f"  Total: {total_discovered} pages discovered")
-    
-    if total_discovered == 0:
-        console.error("No pages found to scrape")
-        return None
-    
-    # Score by relevance (leadership, products, news rank higher)
-    scored = score_links_heuristically(all_links)
-    
-    # For test mode, scrape up to 15 pages (enough to validate site access)
-    max_pages = 15
-    pages_to_scrape = [link.url for link in scored[:max_pages]]
-    
-    if total_discovered > max_pages:
-        console.info(f"  (testing top {max_pages} - use 'scrape' mode for full extraction)")
-    
-    # Phase 2: Scrape pages
-    console.blank()
-    console.step(f"Scraping {len(pages_to_scrape)} pages")
-    
-    scraped_content = {}
-    tier_stats = {}
-    scrape_start = time.time()
-    
-    import random
-    
-    for i, page_url in enumerate(pages_to_scrape):
-        path = urlparse(page_url).path or "/"
-        path_display = path[:22] + "..." if len(path) > 22 else path
-        
-        # Single-line progress: overwrites previous line
-        console.progress_with_time(i + 1, len(pages_to_scrape), path_display, scrape_start)
-        
-        # Randomized delay to avoid detection (0.2-0.8s between requests)
-        if i > 0:
-            time.sleep(random.uniform(0.2, 0.8))
-        
-        result = orchestrator.scrape_url(page_url)
-        
-        if result.success and result.extracted_text:
-            scraped_content[normalize_url(page_url)] = result.extracted_text
-            tier = result.tier or "unknown"
-            tier_stats[tier] = tier_stats.get(tier, 0) + 1
-    
-    console.progress_done()
-    
-    # Results
-    success_count = len(scraped_content)
-    total_chars = sum(len(c) for c in scraped_content.values())
-    elapsed = time.time() - start_time
-    
-    console.blank()
-    
-    if success_count == 0:
-        console.error("Could not scrape any pages")
-        console.info("Site may be blocking automated access.")
-        console.info("Try: primr \"Company\" url --mode deep")
-        return None
-    
-    tier_str = format_tier_stats(tier_stats)
-    
-    console.success_box(
-        f"Scrape test complete",
-        f"{success_count} pages • {total_chars:,} chars • {elapsed:.1f}s"
-    )
-    console.info(f"Method: {tier_str}")
-    
-    # Save results
-    folder_path = create_working_folder(company_name, website)
-    output_file = os.path.join(folder_path, "scrape_test.txt")
-    
-    with open(output_file, "w", encoding="utf-8") as f:
-        f.write(f"# Scrape Test: {display_name}\n")
-        f.write(f"# URL: {website}\n")
-        f.write(f"# Discovered: {total_discovered} pages\n")
-        f.write(f"# Scraped: {success_count} pages\n")
-        f.write(f"# Content: {total_chars:,} chars\n")
-        f.write(f"# Duration: {elapsed:.1f}s\n")
-        f.write(f"# Tiers: {tier_str}\n\n")
-        
-        for url, content in scraped_content.items():
-            f.write(f"\n{'='*60}\n")
-            f.write(f"URL: {url}\n")
-            f.write(f"Length: {len(content):,} chars\n")
-            f.write(f"{'='*60}\n")
-            preview = content[:3000]
-            f.write(preview)
-            if len(content) > 3000:
-                f.write(f"\n\n... ({len(content) - 3000:,} more chars)\n")
-    
-    console.info(f"Output: {output_file}")
-    console.info(f"Cost: $0.00 (no LLM calls)")
-    
-    return folder_path
-    
-    return folder_path
-
-
 def perform_scrape_only(
     company_name: str | None,
     website: str | None,
@@ -890,261 +703,54 @@ def perform_scrape_only(
     max_scrape_time: int | None = None,
 ) -> str | None:
     """
-    Scrape mode: Full discovery + scraping + LLM insight extraction.
+    Scrape mode: Build site corpus + extract insights.
     
-    Flow:
-    1. Discover pages (sitemap → homepage → guessing as fallback)
-    2. Scrape pages (heuristic scoring, no LLM for selection)
-    3. LLM extracts key insights from each page
-    4. Save to working folder
-    
-    Args:
-        company_name: Company name
-        website: Company website URL
-        start_time: Start time for timing
-        max_scrape_time: Max minutes for scraping phase (default: 10, env: PRIMR_MAX_SCRAPE_TIME)
+    Delegates to fetch_web_content() for all scraping work.
     
     Cost: ~$0.01-0.05 (LLM for summarization only)
     """
-    from primr.data.scraping import (
-        fetch_sitemap_links, 
-        guess_common_urls,
-        verify_urls_exist,
-        score_links_heuristically, 
-        normalize_url,
-        DiscoveredLink,
-    )
-    from primr.data.scrape import get_orchestrator, clear_cache
-    
-    # Get max scrape time from parameter, env, or default (10 minutes)
-    if max_scrape_time is None:
-        max_scrape_time = int(os.environ.get("PRIMR_MAX_SCRAPE_TIME", "10"))
-    max_scrape_seconds = max_scrape_time * 60
-    
     display_name = company_name or (urlparse(website or "").netloc if website else "")
     
-    # Clear cache to get fresh data
-    clear_cache()
-    
-    orchestrator = get_orchestrator(enable_vision=False)
-    all_links: list = []
-    seen_urls: set = set()
-    
-    def add_links(links):
-        added = 0
-        for link in links:
-            # Normalize URL to prevent duplicates with trailing slash variations
-            normalized = normalize_url(link.url)
-            if normalized not in seen_urls:
-                seen_urls.add(normalized)
-                all_links.append(link)
-                added += 1
-        return added
-    
-    # Phase 1: Link Discovery - HOMEPAGE FIRST
-    # Homepage links are current and navigable; sitemaps often have stale URLs
-    console.phase_banner(1, 3, "Discovery", "Finding pages to scrape", "30s-1 min")
-    
-    # 1. Start with homepage - use BROWSER for JS-heavy sites
-    # Most modern sites are JS-heavy, so we go straight to browser for discovery
-    console.info("Scanning homepage...")
-    from primr.data.scraping import scrape_with_playwright
-    homepage_result = scrape_with_playwright(website, timeout=20)
-    homepage_count = 0
-    if homepage_result.success and homepage_result.raw_content:
-        # Extract links from the rendered HTML
-        from primr.data.scraping.discovery import extract_links_from_html
-        homepage_links = extract_links_from_html(homepage_result.raw_content, website)
-        for link in homepage_links:
-            link.source = "homepage"
-        homepage_count = add_links(homepage_links)
-        if homepage_count:
-            console.ok(f"  Homepage: {homepage_count} links")
-        else:
-            console.info("  Homepage: no internal links")
-    else:
-        console.warn(f"  Homepage: failed to fetch ({homepage_result.error or 'unknown error'})")
-    
-    # 2. Expand section pages (news, blog, press, resources) to get actual articles
-    # These index pages link to the content the LLM needs to see
-    SECTION_PATTERNS = ['/news', '/blog', '/press', '/resources', '/insights', '/articles', '/media']
-    section_pages = [link for link in all_links if any(p in link.url.lower() for p in SECTION_PATTERNS)]
-    
-    if section_pages:
-        console.info(f"Expanding {len(section_pages)} section pages...")
-        section_link_count = 0
-        for section_link in section_pages[:5]:  # Limit to 5 sections to avoid slowdown
-            section_result = scrape_with_playwright(section_link.url, timeout=15)
-            if section_result.success and section_result.raw_content:
-                section_links = extract_links_from_html(section_result.raw_content, website)
-                for link in section_links:
-                    link.source = "section"
-                added = add_links(section_links)
-                section_link_count += added
-        if section_link_count:
-            console.ok(f"  Sections: +{section_link_count} new links")
-    
-    # 3. Common URL guessing - only if homepage gave us few links
-    MIN_LINKS_BEFORE_GUESSING = 20
-    if len(all_links) < MIN_LINKS_BEFORE_GUESSING:
-        console.info("Checking common pages...")
-        guessed = guess_common_urls(website)
-        verified = verify_urls_exist(guessed, rate_limiter=orchestrator.rate_limiter)
-        guess_count = add_links(verified)
-        if guess_count:
-            console.ok(f"  Common pages: {guess_count} found")
-    
-    # 4. Sitemap as fallback - only if we still have few links
-    MIN_LINKS_BEFORE_SITEMAP = 20
-    if len(all_links) < MIN_LINKS_BEFORE_SITEMAP:
-        console.info("Checking sitemap...")
-        sitemap_links = fetch_sitemap_links(website, rate_limiter=orchestrator.rate_limiter)
-        sitemap_count = add_links(sitemap_links)
-        if sitemap_count:
-            console.ok(f"  Sitemap: {sitemap_count} pages")
-    
-    # Always include homepage (use normalized URL for dedup check)
-    if normalize_url(website) not in seen_urls:
-        all_links.insert(0, DiscoveredLink(url=website, source="homepage"))
-    
-    total_discovered = len(all_links)
-    console.phase_complete("Discovery", [("Pages found", str(total_discovered))])
-    
-    if total_discovered == 0:
-        console.error("No pages found to scrape")
-        return None
-    
-    # Phase 2: Scrape pages - LLM selects most valuable pages
-    # Pre-score heuristically, then let LLM pick the best ones
-    scored = score_links_heuristically(all_links)
-    max_pages = 50
-    
-    # Use LLM to select the most valuable pages for research
-    console.info("Selecting most valuable pages (LLM)...")
-    pages_to_scrape = select_links_with_llm(scored, company_name, website, max_pages)
-    
-    scrape_count = len(pages_to_scrape)
-    time_estimate = "1-3 min"
-    if total_discovered > max_pages:
-        console.phase_banner(2, 3, "Scraping", f"Top {scrape_count} of {total_discovered} pages", time_estimate)
-    else:
-        console.phase_banner(2, 3, "Scraping", f"{scrape_count} pages", time_estimate)
-    
-    # Create working folder for raw scrapes
+    # Create working folder (silent)
     folder_path = create_working_folder(company_name, website)
-    raw_folder = os.path.join(folder_path, "_raw_scrapes")
-    os.makedirs(raw_folder, exist_ok=True)
     
-    scraped_content = {}
-    tier_stats = {}
-    scrape_phase_start = time.time()
+    # Build Site Corpus (shows its own progress)
+    corpus = fetch_web_content(
+        website=website,
+        company_name=company_name,
+        max_pages=50,
+        working_folder=folder_path,
+    )
     
-    import random
-    
-    for i, page_url in enumerate(pages_to_scrape):
-        # Check time limit
-        elapsed = time.time() - scrape_phase_start
-        if elapsed > max_scrape_seconds:
-            console.progress_done()
-            console.info(f"  Max scrape time ({max_scrape_time} min) reached")
-            console.info(f"  Continuing with {len(scraped_content)} pages scraped...")
-            break
-        
-        path = urlparse(page_url).path or "/"
-        path_display = path[:30] + "..." if len(path) > 30 else path
-        
-        # Show progress
-        console.progress_with_time(i + 1, scrape_count, path_display, scrape_phase_start)
-        
-        # Small delay between requests (research: 2s + random(0,3s) for protected sites)
-        # We use shorter delays and let orchestrator handle escalation
-        if i > 0:
-            delay = random.uniform(0.3, 0.8)
-            time.sleep(delay)
-        
-        # Use orchestrator - it handles tier escalation, sticky tier, circuit breaker
-        result = orchestrator.scrape_url(page_url)
-        
-        if result.success and result.extracted_text:
-            scraped_content[normalize_url(page_url)] = result.extracted_text
-            tier = result.tier or "unknown"
-            tier_stats[tier] = tier_stats.get(tier, 0) + 1
-            
-            # Save raw scrape incrementally with quality info
-            safe_name = path.replace("/", "_").strip("_") or "homepage"
-            safe_name = safe_name[:50]
-            raw_file = os.path.join(raw_folder, f"{i+1:03d}_{safe_name}.txt")
-            try:
-                with open(raw_file, "w", encoding="utf-8") as f:
-                    f.write(f"URL: {page_url}\n")
-                    f.write(f"Tier: {result.tier}\n")
-                    f.write(f"Length: {len(result.extracted_text)} chars\n")
-                    f.write(f"Words: {len(result.extracted_text.split())}\n")
-                    f.write("-" * 60 + "\n\n")
-                    f.write(result.extracted_text)
-            except Exception as e:
-                logger.debug(f"Failed to save raw scrape: {e}")
-        else:
-            # Log failure but continue - orchestrator already tried all viable tiers
-            logger.debug(f"Failed to scrape {page_url}: {result.error}")
-    
-    console.progress_done()
-    
-    pages_scraped = len(scraped_content)
-    failed_count = scrape_count - pages_scraped
+    pages_scraped = len(corpus)
+    total_chars = sum(len(c) for c in corpus.values())
     
     if pages_scraped == 0:
-        console.error("Could not scrape any pages - site is blocking access")
-        console.info("Try: primr \"Company\" url --mode deep")
+        console.fail("Could not scrape any pages - site may be blocking")
+        console.muted("Try: primr \"Company\" url --mode deep")
         return None
     
-    tier_str = format_tier_stats(tier_stats)
-    
-    # Show results
-    if failed_count > 0:
-        console.phase_complete("Scraping", [
-            ("Pages", f"{pages_scraped}/{scrape_count}"),
-            ("Method", tier_str),
-            ("Blocked", str(failed_count))
-        ])
-    else:
-        console.phase_complete("Scraping", [("Pages", str(pages_scraped)), ("Method", tier_str)])
-    
-    # Skip external sources in scrape mode - website is the primary source
-    # External research is better handled by Deep mode which validates relevance
-    all_scraped = scraped_content
-    
-    # Phase 3: Extract insights (LLM)
-    total_pages = len(all_scraped)
-    console.phase_banner(3, 3, "Insights", f"Extracting key facts from {total_pages} pages (LLM)", "1-2 min")
-    
-    folder_path = create_working_folder(company_name, website)
-    
-    insights_start = time.time()
-    
-    def on_insight_progress(current, total, url):
-        """Progress callback for insight extraction."""
-        path = urlparse(url).path or "/"
-        path_display = path[:22] + "..." if len(path) > 22 else path
-        console.progress_with_time(current, total, path_display, insights_start)
-    
-    summarized = summarize_scraped_content(
-        company_name, website, all_scraped, folder_path,
-        on_progress=on_insight_progress
-    )
-    console.progress_done()
-    
-    # Save raw scraped content
+    # Save combined corpus
     scraped_file = os.path.join(folder_path, "scraped_content.txt")
     with open(scraped_file, "w", encoding="utf-8") as f:
         f.write(f"# {display_name} - Scraped Content\n")
         f.write(f"# URL: {website}\n")
         f.write(f"# Pages: {pages_scraped}\n\n")
-        for url, content in all_scraped.items():
+        for url, content in corpus.items():
             f.write(f"\n{'='*60}\n")
             f.write(f"URL: {url}\n")
             f.write(f"{'='*60}\n")
             f.write(content[:5000] + "\n")
+    
+    # Extract Insights (LLM)
+    console.status("Extracting insights...")
+    insights_start = time.time()
+    
+    summarized = summarize_scraped_content(
+        company_name, website, corpus, folder_path
+    )
+    console.clear_line()
+    console.done("Insights extracted")
     
     # Save insights
     insights_file = os.path.join(folder_path, "insights.txt")
@@ -1152,24 +758,15 @@ def perform_scrape_only(
         f.write(f"# {display_name} - Key Insights\n\n")
         f.write(summarized)
     
-    console.phase_complete("Insights")
-    
-    # Final summary
+    # Final summary - one clean line
     elapsed = time.time() - start_time
     mins = int(elapsed // 60)
     secs = int(elapsed % 60)
     time_str = f"{mins}m {secs}s" if mins > 0 else f"{secs}s"
     
-    total_chars = sum(len(c) for c in all_scraped.values())
-    
     console.blank()
-    console.success_box(
-        f"Scrape complete",
-        f"{pages_scraped} pages • {total_chars:,} chars • {time_str}"
-    )
-    console.info(f"Output: {folder_path}")
-    console.info(f"  - scraped_content.txt")
-    console.info(f"  - insights.txt")
+    console.done(f"Complete: {pages_scraped} pages, {total_chars:,} chars ({time_str})")
+    console.muted(f"Output: {folder_path}")
     
     return folder_path
 
@@ -1207,18 +804,6 @@ def perform_research(
     # Wrap entire research flow in correlation context for tracing
     with correlation_scope("research", company=display_name, mode=mode) as ctx:
         log_structured("info", "Starting research job", company=display_name, mode=mode, ai_strategy=ai_strategy)
-
-        # Header
-        console.header(display_name, website or "")
-
-        # Show brief cost/time estimate (always, even without --confirm)
-        from primr.utils.cost_estimator import estimate_cost
-        estimate = estimate_cost(mode, ai_strategy)
-        console.info(f"Estimated: {estimate.duration_minutes}, ~${estimate.total_cost:.2f}")
-
-        # Handle scrape-test mode - just scrape, no LLM
-        if mode == "scrape-test":
-            return perform_scrape_test(company_name, website, start_time)
 
         # Handle scrape-only mode - scrape and extract insights
         if mode == "scrape-only":

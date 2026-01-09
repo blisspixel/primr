@@ -81,9 +81,8 @@ GEMINI_3_PRO_OUTPUT_PRICE_LARGE = 18.00  # prompts > 200k tokens
 GEMINI_3_FLASH_INPUT_PRICE = 0.10  # $0.10/1M tokens
 GEMINI_3_FLASH_OUTPUT_PRICE = 0.40  # $0.40/1M tokens
 
-# Google Search pricing (free until Jan 5, 2026)
-GOOGLE_SEARCH_PRICE_PER_1000 = 35.00  # $35 per 1000 queries after free period ($0.035/query)
-GOOGLE_SEARCH_FREE_UNTIL = "January 5, 2026"
+# Google Search pricing (free period ended Jan 5, 2026)
+GOOGLE_SEARCH_PRICE_PER_1000 = 35.00  # $35 per 1000 queries ($0.035/query)
 
 # Estimated token usage by mode (based on actual runs Dec 2025)
 # These are fallback defaults - actual estimates come from usage_history.json
@@ -144,7 +143,7 @@ AI_STRATEGY_OVERHEAD = {
 def estimate_cost(
     mode: str,
     include_ai_strategy: bool = False,
-    search_free: bool = True,  # Free until Jan 5, 2026
+    search_free: bool = False,  # Free period ended Jan 5, 2026
     use_historical: bool = True,  # Use historical averages when available
 ) -> CostEstimate:
     """
@@ -238,8 +237,6 @@ def estimate_cost(
         notes.append(f"Based on {hist['sample_size']} previous runs")
     if include_ai_strategy and ai_strategy_hist and ai_strategy_hist["sample_size"] >= 3:
         notes.append(f"AI Strategy based on {ai_strategy_hist['sample_size']} runs")
-    if search_free:
-        notes.append(f"Google Search FREE until {GOOGLE_SEARCH_FREE_UNTIL}")
 
     return CostEstimate(
         mode=mode,
@@ -271,26 +268,21 @@ def display_cost_estimate(
     Returns:
         True if user confirms, False to cancel
     """
-    console = get_console()
-
+    import sys
     estimate = estimate_cost(mode, include_ai_strategy)
+    
+    # Clean single line with visible text
+    print(f"\n{company_name} | {mode} | ~${estimate.total_cost:.2f} | {estimate.duration_minutes}")
+    sys.stdout.flush()
 
-    console.blank()
-    console.text("=" * 60)
-    console.text(f"COST ESTIMATE: Research for {company_name}")
-    console.text("=" * 60)
-    console.blank()
-    console.text(str(estimate))
-    console.blank()
-    console.text("=" * 60)
-    console.blank()
-
-    # Ask for confirmation
+    # Ask for confirmation with visible prompt
     try:
-        response = input("Proceed with research? [Y/n]: ").strip().lower()
+        sys.stdout.write("Proceed? [Y/n] ")
+        sys.stdout.flush()
+        response = input().strip().lower()
         return response in ("", "y", "yes")
     except (KeyboardInterrupt, EOFError):
-        console.text("\nCancelled.")
+        print("\nCancelled.")
         return False
 
 

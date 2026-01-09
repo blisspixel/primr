@@ -43,9 +43,10 @@ VALID_HTML = """
 <body>
     <main>
         <h1>Welcome to Test Company</h1>
-        <p>We are a leading provider of innovative solutions.</p>
-        <p>Our company has been serving customers for over 20 years.</p>
-        <p>We specialize in enterprise software solutions.</p>
+        <p>We are a leading provider of innovative solutions for enterprise customers around the world. Our company has been serving customers for over 20 years with dedication and excellence.</p>
+        <p>We specialize in enterprise software solutions that help businesses grow and succeed. Our products are used by thousands of companies worldwide to improve their operations and increase efficiency.</p>
+        <p>Our team of experts is committed to delivering the best possible service to our clients. We work closely with each customer to understand their unique needs and provide tailored solutions that meet their specific requirements.</p>
+        <p>Contact us today to learn more about how we can help your business achieve its goals. We look forward to hearing from you and discussing how our solutions can benefit your organization.</p>
     </main>
 </body>
 </html>
@@ -187,6 +188,7 @@ class TestOrchestratorCaching:
         orchestrator = ScrapeOrchestrator(
             cache=cache,
             rate_limiter=RateLimiter(RateLimitConfig()),
+            use_cache=True,  # Enable cache usage
         )
         
         # Pre-populate cache with raw content (orchestrator checks raw cache)

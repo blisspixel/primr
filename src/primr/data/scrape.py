@@ -24,10 +24,11 @@ from primr.data.scraping import (
     RateLimiter,
     RateLimitConfig,
     TraceLogger,
-    discover_links,
     score_links_heuristically,
     DiscoveredLink,
     normalize_url as normalize_url_new,
+    extract_links_from_html as _extract_links_from_html_new,
+    is_in_scope,
 )
 
 logger = get_logger("scrape")
@@ -69,16 +70,19 @@ CACHE_DIR.mkdir(parents=True, exist_ok=True)
 _orchestrator: Optional[ScrapeOrchestrator] = None
 
 
-def get_orchestrator(enable_vision: bool = False, use_cache: bool = False) -> ScrapeOrchestrator:
+def get_orchestrator(
+    enable_vision: bool = True, 
+    use_cache: bool = False,
+) -> ScrapeOrchestrator:
     """Get or create the global scrape orchestrator.
     
     Args:
-        enable_vision: Enable vision tier for image-heavy pages
+        enable_vision: Enable vision tier for image-heavy pages (default: True)
         use_cache: Use cached content (default: False for fresh data)
     """
     global _orchestrator
     
-    if _orchestrator is None or (_orchestrator and enable_vision):
+    if _orchestrator is None:
         _orchestrator = ScrapeOrchestrator(
             cache=ScrapeCache(cache_dir=str(CACHE_DIR)),
             rate_limiter=RateLimiter(RateLimitConfig()),
@@ -160,12 +164,19 @@ def fetch_web_content(
     working_folder: Optional[str] = None,
 ) -> dict[str, str]:
     """
-    Discover and scrape pages from a company website.
+    build_site_corpus: Discover and scrape pages from a company website.
+    
+    This is THE ONLY function that performs site-level scraping.
+    All modes that need a corpus call this function.
     
     Uses structured content extraction with:
     - Aggressive DOM pruning (removes nav/footer/CTA before extraction)
     - Boilerplate fingerprinting (learns and removes repeated lines across pages)
     - Structured blocks (preserves headings, lists, quotes)
+    
+    Scope Policy (enforced during discovery):
+    - IN-SCOPE: same domain + subdomains (scraped)
+    - OUT-OF-SCOPE: external domains (recorded to _external_links.txt, not scraped)
     
     Args:
         website: Base URL of the website
@@ -178,9 +189,8 @@ def fetch_web_content(
         Dict mapping URL -> extracted text (cleaned, boilerplate removed)
     """
     import os
-    from .scraping import BoilerplateFilter, extract_structured_content
-    
-    out_step(f"Scraping {website}")
+    from datetime import datetime
+    from .scraping import BoilerplateFilter, extract_structured_content, scrape_with_playwright
     
     # Create raw scrapes folder if working_folder provided
     raw_folder = None
@@ -188,42 +198,109 @@ def fetch_web_content(
         raw_folder = os.path.join(working_folder, "_raw_scrapes")
         os.makedirs(raw_folder, exist_ok=True)
     
-    # Discover links using new discovery module
+    domain = urlparse(website).netloc
     orchestrator = get_orchestrator(enable_vision=use_vision)
     
-    try:
-        discovered = discover_links(
-            website,
-            rate_limiter=orchestrator.rate_limiter,
-            verify_guessed=True,
+    # Step 1: Get homepage with browser (modern sites need JS rendering)
+    console.status(f"Scanning {domain}...")
+    
+    # Use playwright directly for homepage - it handles JS
+    result = scrape_with_playwright(website, timeout=15)
+    homepage_tier = "playwright"
+    
+    if not result.success or not result.raw_content:
+        # Fallback to orchestrator (tries all tiers)
+        result = orchestrator.scrape_url(website)
+        homepage_tier = result.tier if result.success else None
+    
+    if not result.success or not result.raw_content:
+        console.clear_line()
+        console.fail(f"Could not access {domain}")
+        return {}
+    
+    # Tell orchestrator what tier worked for this host (sticky tier)
+    # This prevents wasteful tier escalation on subsequent pages
+    if homepage_tier:
+        from .scraping.net import extract_host
+        host = extract_host(website)
+        host_state = orchestrator._get_host_state(host)
+        host_state.best_tier = homepage_tier
+        logger.debug(f"Set best_tier={homepage_tier} for {host} based on homepage success")
+    
+    homepage_html = result.raw_content
+    
+    # Step 2: Extract links from rendered HTML
+    all_links = _extract_links_from_html_new(homepage_html, website)
+    in_scope_links = [link for link in all_links if is_in_scope(link.url, website)]
+    
+    # Use LLM to intelligently select the most valuable pages for company research
+    # Falls back to heuristic scoring if LLM fails
+    # Import here to avoid circular import
+    from primr.core.research_agent import select_links_with_llm
+    
+    with console.spinner(f"Selecting from {len(in_scope_links)} pages"):
+        selected_urls = select_links_with_llm(
+            in_scope_links,
+            company_name=company_name,
+            website=website,
+            max_links=max_pages or 50,
         )
-    except Exception as e:
-        logger.warning(f"Link discovery failed: {e}")
-        out_warn(f"Link discovery failed, trying homepage only")
-        discovered = [DiscoveredLink(url=website, source="fallback")]
+    total_found = len(selected_urls)
     
-    if not discovered:
-        out_warn("No pages found, trying homepage only")
-        discovered = [DiscoveredLink(url=website, source="fallback")]
-    
-    # Score and sort links
-    scored_links = score_links_heuristically(discovered)
-    
-    total_found = len(scored_links)
-    out_info(f"Found {total_found} pages to scrape")
-    
-    # Apply max_pages limit if specified
-    if max_pages and max_pages < total_found:
-        pages_to_scrape = [link.url for link in scored_links[:max_pages]]
-        out_info(f"Limiting to top {max_pages} pages")
+    # Apply max_pages limit (reserve 1 slot for homepage)
+    if max_pages and max_pages < total_found + 1:
+        pages_to_scrape = selected_urls[:max_pages - 1]
+        console.found(f"{len(in_scope_links)} links {console._arrow} {max_pages} selected")
+    elif total_found == 0:
+        pages_to_scrape = []
+        console.found("1 page (homepage only)")
     else:
-        pages_to_scrape = [link.url for link in scored_links]
+        pages_to_scrape = selected_urls
+        console.found(f"{len(in_scope_links)} links {console._arrow} {total_found} selected")
     
-    # Phase 1: Scrape pages and collect raw HTML for boilerplate learning
+    # Step 3: Scrape pages (homepage first, then discovered links)
+    scrape_start = time.time()
     raw_pages = []  # List of (url, raw_html_bytes)
     scraped_results = {}  # url -> ScrapeResult
     success_count = 0
-    total = len(pages_to_scrape)
+    
+    # Add homepage as first result (we already scraped it for link discovery)
+    homepage_normalized = normalize_url(website)
+    homepage_result = ScrapeResult(
+        url=website,
+        success=True,
+        raw_content=homepage_html,
+        tier=result.tier,
+    )
+    scraped_results[homepage_normalized] = homepage_result
+    raw_pages.append((homepage_normalized, homepage_html))
+    success_count = 1
+    
+    # Save homepage raw scrape
+    if raw_folder:
+        try:
+            structured = extract_structured_content(homepage_html, website)
+            raw_file = os.path.join(raw_folder, "homepage.txt")
+            with open(raw_file, "w", encoding="utf-8") as f:
+                f.write(f"URL: {website}\n")
+                f.write(f"Tier: {result.tier}\n")
+                f.write(f"Title: {structured.title or 'N/A'}\n")
+                f.write(f"Quality: {structured.quality.score:.2f} {structured.quality.flags}\n")
+                f.write(f"Metrics: {structured.metrics.char_count} chars, ")
+                f.write(f"{structured.metrics.heading_count} headings, ")
+                f.write(f"{structured.metrics.paragraph_count} paragraphs, ")
+                f.write(f"link_density={structured.metrics.link_density:.2f}, ")
+                f.write(f"boilerplate_ratio={structured.metrics.boilerplate_ratio:.2f}\n")
+                f.write("-" * 60 + "\n\n")
+                f.write(structured.raw_text)
+        except Exception as e:
+            logger.debug(f"Failed to save homepage raw scrape: {e}")
+    
+    total = len(pages_to_scrape) + 1  # +1 for homepage already scraped
+    
+    # Show initial progress immediately
+    if pages_to_scrape:
+        console.scrape_progress(1, total, "homepage", scrape_start)
     
     for i, page_url in enumerate(pages_to_scrape):
         normalized = normalize_url(page_url)
@@ -231,7 +308,10 @@ def fetch_web_content(
             continue
         
         path = urlparse(page_url).path or "/"
-        out_progress(i + 1, total, path[:40])
+        path_display = path[:30] + "..." if len(path) > 30 else path
+        
+        # Show progress BEFORE scraping so user sees what's happening
+        console.scrape_progress(i + 2, total, path_display, scrape_start)
         
         # Small delay between requests
         time.sleep(random.uniform(0.3, 0.8))
@@ -246,9 +326,9 @@ def fetch_web_content(
             
             # Save raw scrape incrementally if working folder provided
             if raw_folder:
-                safe_name = path.replace("/", "_").strip("_") or "homepage"
+                safe_name = path.replace("/", "_").strip("_") or "page"
                 safe_name = safe_name[:50]  # Limit filename length
-                raw_file = os.path.join(raw_folder, f"{i+1:03d}_{safe_name}.txt")
+                raw_file = os.path.join(raw_folder, f"{safe_name}.txt")
                 try:
                     # Extract structured content for quality metrics
                     structured = extract_structured_content(result.raw_content, page_url)
@@ -261,7 +341,8 @@ def fetch_web_content(
                         f.write(f"Metrics: {structured.metrics.char_count} chars, ")
                         f.write(f"{structured.metrics.heading_count} headings, ")
                         f.write(f"{structured.metrics.paragraph_count} paragraphs, ")
-                        f.write(f"link_density={structured.metrics.link_density:.2f}\n")
+                        f.write(f"link_density={structured.metrics.link_density:.2f}, ")
+                        f.write(f"boilerplate_ratio={structured.metrics.boilerplate_ratio:.2f}\n")
                         f.write("-" * 60 + "\n\n")
                         f.write(structured.raw_text)
                 except Exception as e:
@@ -269,7 +350,15 @@ def fetch_web_content(
         else:
             logger.debug(f"Failed to scrape {page_url}: {result.error}")
     
-    out_progress_done()
+    console.clear_line()
+    
+    # Show scrape completion
+    scrape_elapsed = time.time() - scrape_start
+    if scrape_elapsed < 60:
+        time_str = f"{int(scrape_elapsed)}s"
+    else:
+        time_str = f"{int(scrape_elapsed // 60)}m {int(scrape_elapsed % 60)}s"
+    console.done(f"{success_count}/{total} pages scraped ({time_str})")
     
     # Phase 2: Apply boilerplate learning across all pages
     if len(raw_pages) >= 3:
@@ -306,11 +395,11 @@ def fetch_web_content(
                 scraped_content[url] = clean_text
     
     if success_count == total:
-        out_ok(f"{success_count} pages scraped")
+        console.done(f"{success_count} pages scraped")
     elif success_count > 0:
-        out_warn(f"{success_count}/{total} pages scraped")
+        console.done(f"{success_count}/{total} pages scraped")
     else:
-        out_err("Could not scrape any pages")
+        console.fail("Could not scrape any pages")
     
     return scraped_content
 

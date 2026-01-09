@@ -110,7 +110,6 @@ class CLIRunner(Protocol):
 # Mode name mapping (new -> old internal names)
 MODE_MAP = {
     "scrape": "scrape-only",  # Scrape + insights (uses LLM for summarization)
-    "scrape-test": "scrape-test",  # NEW: Just scrape, no LLM (for testing)
     "deep": "deep-research",
     "full": "complete",
     "parallel": "hybrid",
@@ -150,8 +149,8 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
     # --no-ai-strategy explicitly disables it
     if getattr(parsed, 'no_ai_strategy', False):
         ai_strategy = False
-    elif mode in ("scrape-only", "scrape-test"):
-        ai_strategy = False  # Scrape modes don't need AI strategy
+    elif mode in ("scrape-only",):
+        ai_strategy = False  # Scrape mode doesn't need AI strategy
     else:
         ai_strategy = True
 
@@ -310,11 +309,10 @@ Research Modes:
 
 Examples:
   primr "Tesla" https://tesla.com
-  primr "Tesla" tesla.com --mode deep
-  primr "Tesla" tesla.com --mode scrape       # Scrape + insights
-  primr "Tesla" tesla.com --mode scrape-test  # Just scrape, no LLM ($0)
-  primr doctor                                # System diagnostics
-  primr --qa "Tesla"                          # Show detailed QA analysis
+  primr "Acme Corp" acme.example --mode deep
+  primr "Acme Corp" acme.example --mode scrape       # Build Site Corpus + Extract Insights
+  primr doctor                                       # System diagnostics
+  primr --qa "Acme Corp"                             # Show detailed QA analysis
   primr --qa-recent 5                       # Show QA summary for recent reports
   
 Accordion Method Test (for development):
@@ -334,9 +332,9 @@ Accordion Method Test (for development):
     parser.add_argument(
         "--mode", "-m",
         type=str,
-        choices=["scrape-test", "scrape", "deep", "full", "parallel", "structured", "deep-research", "complete", "hybrid"],
+        choices=["scrape", "deep", "full", "parallel", "structured", "deep-research", "complete", "hybrid"],
         default="full",
-        help="Research mode: scrape-test (no LLM), scrape (+ insights), deep, full (default)"
+        help="Research mode: scrape (corpus + insights), deep, full (default)"
     )
     parser.add_argument("--quiet", "-q", action="store_true", help="Minimal output")
     parser.add_argument("--verbose", "-v", action="store_true", help="Detailed output")

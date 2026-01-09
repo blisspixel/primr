@@ -29,14 +29,17 @@ class TestDefaultTiers:
         assert "vision" in tier_names
     
     def test_tiers_are_in_order(self):
-        """Tiers should be ordered from lightest to heaviest."""
+        """Tiers should be ordered browser-first (2026 standard)."""
         tier_names = [t.name for t in DEFAULT_TIERS]
         
-        # requests should come before playwright
-        assert tier_names.index("requests") < tier_names.index("playwright")
+        # playwright should come before requests (browser-first for modern sites)
+        assert tier_names.index("playwright") < tier_names.index("requests")
         
-        # vision should be last
-        assert tier_names[-1] == "vision"
+        # vision should come before basic HTTP (it's for when browsers get garbage)
+        assert tier_names.index("vision") < tier_names.index("httpx")
+        
+        # requests should be last (simplest fallback)
+        assert tier_names[-1] == "requests"
     
     def test_all_tiers_are_scrape_tier(self):
         """All tiers should be ScrapeTier instances."""
