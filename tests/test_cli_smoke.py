@@ -57,23 +57,20 @@ class TestCLISmokeTests:
         assert "primr" in stdout.lower() or "usage" in stdout.lower()
         assert "company" in stdout.lower()
 
-    def test_list_strategies_shows_modules(self):
+    def test_list_recent_shows_output(self):
         """
-        WHEN `primr --list-strategies` is executed
-        THEN the system SHALL list available strategy modules
+        WHEN `primr --list-recent` is executed
+        THEN the system SHALL list recent outputs
         
         **Validates: Requirements 2.3**
         """
         result = subprocess.run(
-            [sys.executable, str(PROJECT_ROOT / "primr_cli.py"), "--list-strategies"],
+            [sys.executable, str(PROJECT_ROOT / "primr_cli.py"), "--list-recent"],
             capture_output=True,
             timeout=60,
             cwd=str(PROJECT_ROOT),
         )
-        assert result.returncode == 0, f"--list-strategies failed: {result.stderr.decode()}"
-        stdout = result.stdout.decode()
-        # Should list at least the ai_strategy module
-        assert "ai" in stdout.lower() or "strategy" in stdout.lower()
+        assert result.returncode == 0, f"--list-recent failed: {result.stderr.decode()}"
 
     def test_dry_run_shows_estimate_no_api_calls(self):
         """
@@ -123,18 +120,7 @@ class TestCLISmokeTests:
                 pytest.skip("Windows Unicode encoding issue with usage display")
         assert result.returncode == 0, f"--show-usage failed: {result.stderr.decode(errors='replace')}"
 
-    def test_list_recent_works(self):
-        """
-        WHEN `primr --list-recent` is executed
-        THEN the system SHALL complete without error
-        """
-        result = subprocess.run(
-            [sys.executable, str(PROJECT_ROOT / "primr_cli.py"), "--list-recent"],
-            capture_output=True,
-            timeout=30,
-            cwd=str(PROJECT_ROOT),
-        )
-        assert result.returncode == 0, f"--list-recent failed: {result.stderr.decode()}"
+
 
 
 # =============================================================================
@@ -180,11 +166,13 @@ invalid_flag_strategy = st.text(
     lambda x: x not in {
         "help", "version", "mode", "quiet", "verbose", "csv",
         "dry-run", "show-usage", "list-recent", "clean-temp",
-        "check-quota", "list-strategies", "check-jobs", "open",
+        "check-quota", "check-jobs", "open",
         "output-dir", "context", "context-folder", "confirm",
         "ai-strategy", "no-ai-strategy", "cloud-vendor",
         "citation-style", "refresh-vendor-research",
         "generate-vendor-research", "strategy", "strategy-only",
+        "no-qa", "qa", "qa-recent", "test-accordion", "accordion-pages",
+        "analyze-report",
     }
 )
 

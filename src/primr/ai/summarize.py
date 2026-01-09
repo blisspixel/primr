@@ -31,17 +31,30 @@ def generate_prompt(template_name, **kwargs):
     return PROMPTS[template_name].format(**kwargs)
 
 
-def summarize_scraped_content(company_name, company_website, scraped_data, folder_path):
-    """Summarizes key insights from scraped website data."""
+def summarize_scraped_content(company_name, company_website, scraped_data, folder_path, on_progress=None):
+    """Summarizes key insights from scraped website data.
+    
+    Args:
+        company_name: Name of the company
+        company_website: Company website URL
+        scraped_data: Dict mapping URL to raw text content
+        folder_path: Path to save output files
+        on_progress: Optional callback(current, total, url) for progress updates
+    """
     summary_filename = os.path.join(folder_path, "scraped_website_summary.txt")
 
     with open(summary_filename, "w", encoding="utf-8") as f:
         f.write(f"## Website Insights for {company_name}\n\n")
 
     all_summaries = []
+    total = len(scraped_data)
 
-    for website_source, raw_text in scraped_data.items():
+    for i, (website_source, raw_text) in enumerate(scraped_data.items()):
         logger.debug(f"Processing: {website_source}")
+        
+        # Report progress
+        if on_progress:
+            on_progress(i + 1, total, website_source)
 
         if not raw_text.strip():
             formatted_summary = f"### Source: {website_source}\nNo meaningful content found.\n"

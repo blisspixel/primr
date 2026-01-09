@@ -67,16 +67,6 @@ class QASystemConfig:
                 recommended_for=["complex", "detailed", "technical"],
                 available=True
             ),
-            ModelRegistry.GEMINI_2_5_PRO.name: QAModelConfig(
-                name=ModelRegistry.GEMINI_2_5_PRO.name,
-                display_name=ModelRegistry.GEMINI_2_5_PRO.display_name,
-                provider="google",
-                cost_per_1k_tokens=0.00125,
-                max_tokens=32768,
-                supports_json_mode=True,
-                recommended_for=["complex", "detailed", "technical"],
-                available=True
-            )
         }
 
 

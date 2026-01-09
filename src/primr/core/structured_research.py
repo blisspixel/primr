@@ -27,7 +27,7 @@ from primr.config.config import GRADE_THRESHOLD_FOR_RESEARCH_REFINEMENT
 from primr.config.prompts import generate_prompt
 from primr.config.sections_config import SECTION_KEY_MAP
 from primr.core.workspace import create_working_folder, save_section_output
-from primr.data.scrape import fetch_web_content, scrape_external_sources
+from primr.data.scrape import fetch_web_content, scrape_external_sources_validated
 from primr.data.search_utils import generate_search_queries, search_google
 from primr.utils.logging_config import get_logger
 
@@ -334,22 +334,48 @@ def _collect_data(
     # Scrape website
     website_pages = {}
     if website:
-        website_pages = fetch_web_content(website, company_name, max_pages=15)
+        website_pages = fetch_web_content(website, company_name, max_pages=50)
+        
+        # Warn if scraping was very limited
+        if len(website_pages) <= 2:
+            report("! Limited website access - site may have bot protection")
 
-    # External research
-    report("Searching external sources...")
-    external_queries = [f"{company_name} news", f"{company_name} revenue"]
+    # External research - with LLM validation to ensure correct company
+    # This prevents including content from similarly-named but unrelated companies
+    # (e.g., "EverTrue" fundraising software vs "EverTrue" senior living)
+    report("Searching external sources (with validation)...")
+    
+    # Include website domain in search to get more targeted results
+    domain = ""
+    if website:
+        from urllib.parse import urlparse
+        domain = urlparse(website).netloc.replace("www.", "")
+    
+    # Search with both name and domain for better targeting
+    external_queries = [
+        f'"{company_name}" "{domain}" news' if domain else f'"{company_name}" news',
+        f'"{company_name}" "{domain}"' if domain else f'"{company_name}" company',
+    ]
     external_data = {}
 
     for query in external_queries:
         results = search_google(query, company_name, website)
         if results:
             filtered = [
-                r for r in results[:2]
+                r for r in results[:5]  # Check more results since some will be rejected
                 if website and website.lower() not in r.get("url", "").lower()
             ]
-            scraped = scrape_external_sources(filtered, max_sources=2)
+            scraped = scrape_external_sources_validated(
+                filtered, 
+                company_name=company_name,
+                website=website,
+                max_sources=2
+            )
             external_data.update(scraped)
+            
+            # Stop if we have enough validated sources
+            if len(external_data) >= 3:
+                break
 
     return ScrapedData(
         website_pages=website_pages,

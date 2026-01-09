@@ -236,7 +236,7 @@ class JobManager:
 
 def create_app(
     title: str = "Company Research API",
-    version: str = "1.0.0",
+    version: str = "1.1.0",
     job_manager: JobManager | None = None,
 ) -> FastAPI:
     """

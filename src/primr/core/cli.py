@@ -83,6 +83,7 @@ class CLIConfig:
     analyze_report_path: str | None = None
     qa_company: str | None = None
     qa_recent_count: int | None = None
+    max_scrape_time: int | None = None
 
     @property
     def has_company_info(self) -> bool:
@@ -108,7 +109,8 @@ class CLIRunner(Protocol):
 
 # Mode name mapping (new -> old internal names)
 MODE_MAP = {
-    "scrape": "scrape-only",  # NEW: scrape-only mode (just scraping + insights)
+    "scrape": "scrape-only",  # Scrape + insights (uses LLM for summarization)
+    "scrape-test": "scrape-test",  # NEW: Just scrape, no LLM (for testing)
     "deep": "deep-research",
     "full": "complete",
     "parallel": "hybrid",
@@ -148,8 +150,8 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
     # --no-ai-strategy explicitly disables it
     if getattr(parsed, 'no_ai_strategy', False):
         ai_strategy = False
-    elif mode == "scrape-only":
-        ai_strategy = False  # Scrape-only doesn't need AI strategy
+    elif mode in ("scrape-only", "scrape-test"):
+        ai_strategy = False  # Scrape modes don't need AI strategy
     else:
         ai_strategy = True
 
@@ -179,6 +181,7 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         analyze_report_path=getattr(parsed, 'analyze_report', None),
         qa_company=getattr(parsed, 'qa', None),
         qa_recent_count=getattr(parsed, 'qa_recent', None),
+        max_scrape_time=getattr(parsed, 'max_scrape_time', None),
     )
 
 
@@ -308,9 +311,10 @@ Research Modes:
 Examples:
   primr "Tesla" https://tesla.com
   primr "Tesla" tesla.com --mode deep
-  primr "Tesla" tesla.com --mode scrape     # Quick scrape + insights only
-  primr doctor                              # System diagnostics
-  primr --qa "Tesla"                        # Show detailed QA analysis
+  primr "Tesla" tesla.com --mode scrape       # Scrape + insights
+  primr "Tesla" tesla.com --mode scrape-test  # Just scrape, no LLM ($0)
+  primr doctor                                # System diagnostics
+  primr --qa "Tesla"                          # Show detailed QA analysis
   primr --qa-recent 5                       # Show QA summary for recent reports
   
 Accordion Method Test (for development):
@@ -330,9 +334,9 @@ Accordion Method Test (for development):
     parser.add_argument(
         "--mode", "-m",
         type=str,
-        choices=["scrape", "deep", "full", "parallel", "structured", "deep-research", "complete", "hybrid"],
+        choices=["scrape-test", "scrape", "deep", "full", "parallel", "structured", "deep-research", "complete", "hybrid"],
         default="full",
-        help="Research mode (default: full)"
+        help="Research mode: scrape-test (no LLM), scrape (+ insights), deep, full (default)"
     )
     parser.add_argument("--quiet", "-q", action="store_true", help="Minimal output")
     parser.add_argument("--verbose", "-v", action="store_true", help="Detailed output")
@@ -366,6 +370,12 @@ Accordion Method Test (for development):
     parser.add_argument("--generate-vendor-research", type=str, choices=["azure", "aws", "gcp", "agnostic", "all"])
     parser.add_argument("--check-jobs", action="store_true", help="Check pending research jobs")
     parser.add_argument("--check-quota", action="store_true", help="Check API quota")
+    parser.add_argument(
+        "--max-scrape-time",
+        type=int,
+        default=None,
+        help="Max minutes for scraping phase (default: 10, env: PRIMR_MAX_SCRAPE_TIME)"
+    )
     
     # Accordion Method test
     parser.add_argument(
@@ -700,7 +710,8 @@ def _handle_research(config: CLIConfig) -> int:
         cloud_vendor=config.cloud_vendor,
         skip_confirm=config.skip_confirm,
         context_files=context_files if context_files else None,
-        refresh_vendor_research=config.refresh_vendor_research
+        refresh_vendor_research=config.refresh_vendor_research,
+        max_scrape_time=config.max_scrape_time,
     )
 
     # Open report if requested

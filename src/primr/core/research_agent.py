@@ -129,7 +129,7 @@ from primr.core.research_orchestrator import (
     ResearchMode,
     get_orchestrator,
 )
-from primr.data.scrape import fetch_web_content, scrape_external_sources
+from primr.data.scrape import fetch_web_content, scrape_external_sources_validated
 from primr.data.search_utils import generate_search_queries, search_google
 from primr.output.output_utils import generate_final_report
 from primr.utils.console import console
@@ -159,6 +159,100 @@ def generate_prompt(template_name, **kwargs):
     if template_name not in PROMPTS:
         raise ValueError(f"Prompt '{template_name}' not found")
     return PROMPTS[template_name].format(**kwargs)
+
+
+# User-friendly tier names for display
+TIER_DISPLAY_NAMES = {
+    "requests": "HTTP",
+    "httpx": "HTTP/2",
+    "curl_cffi": "stealth HTTP",
+    "playwright": "browser",
+    "playwright_aggressive": "browser+",
+    "drissionpage": "headless",
+    "drissionpage_stealth": "stealth browser",
+    "vision": "AI vision",
+    "cache": "cache",
+}
+
+
+def format_tier_stats(tier_stats: dict) -> str:
+    """Format tier stats for user-friendly display."""
+    # Sort by count descending
+    sorted_tiers = sorted(tier_stats.items(), key=lambda x: -x[1])
+    parts = []
+    for tier, count in sorted_tiers:
+        display_name = TIER_DISPLAY_NAMES.get(tier, tier)
+        parts.append(f"{count} {display_name}")
+    return ", ".join(parts)
+
+
+def select_links_with_llm(
+    links: list,
+    company_name: str,
+    website: str,
+    max_links: int = 50,
+) -> list[str]:
+    """
+    Use LLM to intelligently select the most valuable links for research.
+    
+    The LLM acts like a consultant deciding which pages to read to understand
+    a company - prioritizing pages about leadership, strategy, products,
+    financials, and recent news.
+    
+    Args:
+        links: List of DiscoveredLink objects (pre-scored heuristically)
+        company_name: Company name for context
+        website: Company website URL
+        max_links: Maximum links to return
+    
+    Returns:
+        List of URLs selected by the LLM
+    """
+    if not links:
+        return []
+    
+    # If we have fewer links than max, just return all of them
+    if len(links) <= max_links:
+        return [link.url for link in links]
+    
+    # Format links for the prompt - include URL and anchor text if available
+    link_list = []
+    for link in links[:200]:  # Cap at 200 to avoid token limits
+        if hasattr(link, 'anchor_text') and link.anchor_text:
+            link_list.append(f"{link.url} ({link.anchor_text})")
+        else:
+            link_list.append(link.url)
+    
+    links_text = "\n".join(link_list)
+    
+    try:
+        prompt = generate_prompt(
+            "filter_links_for_research",
+            company_name=company_name,
+            website=website,
+            links=links_text,
+        )
+        
+        # Use link_selection model type (Flash - cheap and fast)
+        response = llm(prompt, model_type="link_selection")
+        
+        # Parse response - expect one URL per line
+        selected_urls = []
+        for line in response.strip().split("\n"):
+            line = line.strip()
+            if line and line.startswith("http"):
+                selected_urls.append(line)
+        
+        # If LLM returned valid URLs, use them
+        if selected_urls:
+            logger.info(f"LLM selected {len(selected_urls)} links from {len(links)}")
+            return selected_urls[:max_links]
+        
+    except Exception as e:
+        logger.warning(f"LLM link selection failed: {e}, falling back to heuristic scoring")
+    
+    # Fallback to heuristic scoring if LLM fails
+    return [link.url for link in links[:max_links]]
 
 
 def create_working_folder(company_name, website):
@@ -454,20 +548,15 @@ def run_research(company_name: str, website: str, on_progress: Callable[[str], N
     folder_path = create_working_folder(company_name, website)
 
     # Scrape website - this has its own progress bar in fetch_web_content
-    scraped_data = fetch_web_content(website, company_name, max_pages=15) if website else {}
+    scraped_data = fetch_web_content(website, company_name, max_pages=50) if website else {}
     len(scraped_data)
 
     # External research
-    progress("Searching external sources...")
-    external_queries = [f"{company_name} news", f"{company_name} revenue"]
+    # DISABLED: External source scraping can pull in wrong companies with similar names
+    # (e.g., "EverTrue" search returns evertrueliving.org, evertruedx.com)
+    # Deep Research handles external sources with proper relevance validation
+    progress("Skipping external sources (handled by Deep Research)")
     external_data = {}
-
-    for query in external_queries:
-        results = search_google(query, company_name, website)
-        if results:
-            filtered = [r for r in results[:2] if website and website.lower() not in r.get("url", "").lower()]
-            scraped = scrape_external_sources(filtered, max_sources=2)
-            external_data.update(scraped)
 
     progress(f"+ {len(external_data)} external sources")
 
@@ -538,90 +627,460 @@ def run_research(company_name: str, website: str, on_progress: Callable[[str], N
     return section_results
 
 
-def perform_scrape_only(
+def perform_scrape_test(
     company_name: str | None,
     website: str | None,
     start_time: float,
 ) -> str | None:
     """
-    Scrape-only mode: Get links, scrape content, extract insights.
+    Scrape test mode: Full discovery + scraping, but NO LLM calls.
     
-    This is a lightweight mode that:
-    1. Gets links from homepage (using Playwright for JS-heavy sites)
-    2. Asks LLM which links are most relevant
-    3. Scrapes content from selected pages
-    4. Extracts key insights from each page
-    5. Saves results to working folder
+    Uses smart cascade for link discovery:
+    1. Sitemap (best source - has all indexed pages)
+    2. Homepage links (nav, footer, featured content)
+    3. Common URL guessing (only if 1+2 found < 10 pages)
     
-    No report generation, no analysis phases - just raw scraped data with insights.
+    No LLM for link selection or content summarization.
+    
+    Cost: $0 (no LLM)
     """
+    from primr.data.scraping import (
+        fetch_sitemap_links, 
+        extract_links_from_homepage,
+        guess_common_urls,
+        verify_urls_exist,
+        score_links_heuristically, 
+        normalize_url,
+        DiscoveredLink,
+    )
+    from primr.data.scrape import get_orchestrator, clear_cache
+    
     display_name = company_name or (urlparse(website or "").netloc if website else "")
     
-    console.phase_banner(1, 2, "Scraping", "Getting links and scraping content", "1-3 min")
+    # Clear cache to get fresh data
+    clear_cache()
     
-    # Scrape website
-    with console.timed_operation("Scanning website"):
-        scraped_data = fetch_web_content(website, company_name, max_pages=15) if website else {}
-        pages_scraped = len(scraped_data)
+    orchestrator = get_orchestrator(enable_vision=False)
+    all_links: list = []
+    seen_urls: set = set()
     
-    if not scraped_data:
-        console.error("No content scraped")
+    def add_links(links):
+        added = 0
+        for link in links:
+            # Normalize URL to prevent duplicates with trailing slash variations
+            normalized = normalize_url(link.url)
+            if normalized not in seen_urls:
+                seen_urls.add(normalized)
+                all_links.append(link)
+                added += 1
+        return added
+    
+    # Phase 1: Link Discovery (smart cascade)
+    console.step("Discovering pages")
+    
+    # 1. Try sitemap first (best source)
+    console.info("  Checking sitemap...")
+    sitemap_links = fetch_sitemap_links(website, rate_limiter=orchestrator.rate_limiter)
+    sitemap_count = add_links(sitemap_links)
+    if sitemap_count:
+        console.ok(f"  Sitemap: {sitemap_count} pages")
+    else:
+        console.info("  Sitemap: none found")
+    
+    # 2. Extract from homepage (nav, footer, featured)
+    console.info("  Scanning homepage...")
+    homepage_links = extract_links_from_homepage(website, rate_limiter=orchestrator.rate_limiter)
+    homepage_count = add_links(homepage_links)
+    if homepage_count:
+        console.ok(f"  Homepage: {homepage_count} links")
+    else:
+        console.info("  Homepage: no internal links")
+    
+    # 3. Common URL guessing - only if we found < 10 pages
+    MIN_PAGES_BEFORE_GUESSING = 10
+    if len(all_links) < MIN_PAGES_BEFORE_GUESSING:
+        console.info("  Trying common business pages...")
+        guessed = guess_common_urls(website)
+        # Verify they exist (parallel HEAD requests)
+        verified = verify_urls_exist(guessed, rate_limiter=orchestrator.rate_limiter)
+        guess_count = add_links(verified)
+        if guess_count:
+            console.ok(f"  Found: {guess_count} common pages")
+        else:
+            console.info("  No common pages found")
+    else:
+        console.info(f"  Skipping URL guessing (already have {len(all_links)} pages)")
+    
+    # Always include homepage (use normalized URL for dedup check)
+    if normalize_url(website) not in seen_urls:
+        all_links.insert(0, DiscoveredLink(url=website, source="homepage"))
+    
+    total_discovered = len(all_links)
+    console.ok(f"  Total: {total_discovered} pages discovered")
+    
+    if total_discovered == 0:
+        console.error("No pages found to scrape")
         return None
     
-    # External sources (quick)
-    with console.timed_operation("Searching external sources"):
-        external_queries = [f"{company_name} news"]
-        external_data = {}
-        for query in external_queries:
-            results = search_google(query, company_name, website)
-            if results:
-                filtered = [r for r in results[:2] if website and website.lower() not in r.get("url", "").lower()]
-                scraped = scrape_external_sources(filtered, max_sources=2)
-                external_data.update(scraped)
+    # Score by relevance (leadership, products, news rank higher)
+    scored = score_links_heuristically(all_links)
     
-    all_scraped = {**scraped_data, **external_data}
-    console.phase_complete("Scraping", [("Pages", str(pages_scraped)), ("External", str(len(external_data)))])
+    # For test mode, scrape up to 15 pages (enough to validate site access)
+    max_pages = 15
+    pages_to_scrape = [link.url for link in scored[:max_pages]]
     
-    # Phase 2: Extract insights
-    console.phase_banner(2, 2, "Insights", "Extracting key facts from content", "1-2 min")
+    if total_discovered > max_pages:
+        console.info(f"  (testing top {max_pages} - use 'scrape' mode for full extraction)")
+    
+    # Phase 2: Scrape pages
+    console.blank()
+    console.step(f"Scraping {len(pages_to_scrape)} pages")
+    
+    scraped_content = {}
+    tier_stats = {}
+    scrape_start = time.time()
+    
+    import random
+    
+    for i, page_url in enumerate(pages_to_scrape):
+        path = urlparse(page_url).path or "/"
+        path_display = path[:22] + "..." if len(path) > 22 else path
+        
+        # Single-line progress: overwrites previous line
+        console.progress_with_time(i + 1, len(pages_to_scrape), path_display, scrape_start)
+        
+        # Randomized delay to avoid detection (0.2-0.8s between requests)
+        if i > 0:
+            time.sleep(random.uniform(0.2, 0.8))
+        
+        result = orchestrator.scrape_url(page_url)
+        
+        if result.success and result.extracted_text:
+            scraped_content[normalize_url(page_url)] = result.extracted_text
+            tier = result.tier or "unknown"
+            tier_stats[tier] = tier_stats.get(tier, 0) + 1
+    
+    console.progress_done()
+    
+    # Results
+    success_count = len(scraped_content)
+    total_chars = sum(len(c) for c in scraped_content.values())
+    elapsed = time.time() - start_time
+    
+    console.blank()
+    
+    if success_count == 0:
+        console.error("Could not scrape any pages")
+        console.info("Site may be blocking automated access.")
+        console.info("Try: primr \"Company\" url --mode deep")
+        return None
+    
+    tier_str = format_tier_stats(tier_stats)
+    
+    console.success_box(
+        f"Scrape test complete",
+        f"{success_count} pages • {total_chars:,} chars • {elapsed:.1f}s"
+    )
+    console.info(f"Method: {tier_str}")
+    
+    # Save results
+    folder_path = create_working_folder(company_name, website)
+    output_file = os.path.join(folder_path, "scrape_test.txt")
+    
+    with open(output_file, "w", encoding="utf-8") as f:
+        f.write(f"# Scrape Test: {display_name}\n")
+        f.write(f"# URL: {website}\n")
+        f.write(f"# Discovered: {total_discovered} pages\n")
+        f.write(f"# Scraped: {success_count} pages\n")
+        f.write(f"# Content: {total_chars:,} chars\n")
+        f.write(f"# Duration: {elapsed:.1f}s\n")
+        f.write(f"# Tiers: {tier_str}\n\n")
+        
+        for url, content in scraped_content.items():
+            f.write(f"\n{'='*60}\n")
+            f.write(f"URL: {url}\n")
+            f.write(f"Length: {len(content):,} chars\n")
+            f.write(f"{'='*60}\n")
+            preview = content[:3000]
+            f.write(preview)
+            if len(content) > 3000:
+                f.write(f"\n\n... ({len(content) - 3000:,} more chars)\n")
+    
+    console.info(f"Output: {output_file}")
+    console.info(f"Cost: $0.00 (no LLM calls)")
+    
+    return folder_path
+    
+    return folder_path
+
+
+def perform_scrape_only(
+    company_name: str | None,
+    website: str | None,
+    start_time: float,
+    max_scrape_time: int | None = None,
+) -> str | None:
+    """
+    Scrape mode: Full discovery + scraping + LLM insight extraction.
+    
+    Flow:
+    1. Discover pages (sitemap → homepage → guessing as fallback)
+    2. Scrape pages (heuristic scoring, no LLM for selection)
+    3. LLM extracts key insights from each page
+    4. Save to working folder
+    
+    Args:
+        company_name: Company name
+        website: Company website URL
+        start_time: Start time for timing
+        max_scrape_time: Max minutes for scraping phase (default: 10, env: PRIMR_MAX_SCRAPE_TIME)
+    
+    Cost: ~$0.01-0.05 (LLM for summarization only)
+    """
+    from primr.data.scraping import (
+        fetch_sitemap_links, 
+        guess_common_urls,
+        verify_urls_exist,
+        score_links_heuristically, 
+        normalize_url,
+        DiscoveredLink,
+    )
+    from primr.data.scrape import get_orchestrator, clear_cache
+    
+    # Get max scrape time from parameter, env, or default (10 minutes)
+    if max_scrape_time is None:
+        max_scrape_time = int(os.environ.get("PRIMR_MAX_SCRAPE_TIME", "10"))
+    max_scrape_seconds = max_scrape_time * 60
+    
+    display_name = company_name or (urlparse(website or "").netloc if website else "")
+    
+    # Clear cache to get fresh data
+    clear_cache()
+    
+    orchestrator = get_orchestrator(enable_vision=False)
+    all_links: list = []
+    seen_urls: set = set()
+    
+    def add_links(links):
+        added = 0
+        for link in links:
+            # Normalize URL to prevent duplicates with trailing slash variations
+            normalized = normalize_url(link.url)
+            if normalized not in seen_urls:
+                seen_urls.add(normalized)
+                all_links.append(link)
+                added += 1
+        return added
+    
+    # Phase 1: Link Discovery - HOMEPAGE FIRST
+    # Homepage links are current and navigable; sitemaps often have stale URLs
+    console.phase_banner(1, 3, "Discovery", "Finding pages to scrape", "30s-1 min")
+    
+    # 1. Start with homepage - use BROWSER for JS-heavy sites
+    # Most modern sites are JS-heavy, so we go straight to browser for discovery
+    console.info("Scanning homepage...")
+    from primr.data.scraping import scrape_with_playwright
+    homepage_result = scrape_with_playwright(website, timeout=20)
+    homepage_count = 0
+    if homepage_result.success and homepage_result.raw_content:
+        # Extract links from the rendered HTML
+        from primr.data.scraping.discovery import extract_links_from_html
+        homepage_links = extract_links_from_html(homepage_result.raw_content, website)
+        for link in homepage_links:
+            link.source = "homepage"
+        homepage_count = add_links(homepage_links)
+        if homepage_count:
+            console.ok(f"  Homepage: {homepage_count} links")
+        else:
+            console.info("  Homepage: no internal links")
+    else:
+        console.warn(f"  Homepage: failed to fetch ({homepage_result.error or 'unknown error'})")
+    
+    # 2. Expand section pages (news, blog, press, resources) to get actual articles
+    # These index pages link to the content the LLM needs to see
+    SECTION_PATTERNS = ['/news', '/blog', '/press', '/resources', '/insights', '/articles', '/media']
+    section_pages = [link for link in all_links if any(p in link.url.lower() for p in SECTION_PATTERNS)]
+    
+    if section_pages:
+        console.info(f"Expanding {len(section_pages)} section pages...")
+        section_link_count = 0
+        for section_link in section_pages[:5]:  # Limit to 5 sections to avoid slowdown
+            section_result = scrape_with_playwright(section_link.url, timeout=15)
+            if section_result.success and section_result.raw_content:
+                section_links = extract_links_from_html(section_result.raw_content, website)
+                for link in section_links:
+                    link.source = "section"
+                added = add_links(section_links)
+                section_link_count += added
+        if section_link_count:
+            console.ok(f"  Sections: {section_link_count} articles found")
+    
+    # 3. Common URL guessing - only if homepage gave us few links
+    MIN_LINKS_BEFORE_GUESSING = 20
+    if len(all_links) < MIN_LINKS_BEFORE_GUESSING:
+        console.info("Checking common pages...")
+        guessed = guess_common_urls(website)
+        verified = verify_urls_exist(guessed, rate_limiter=orchestrator.rate_limiter)
+        guess_count = add_links(verified)
+        if guess_count:
+            console.ok(f"  Common pages: {guess_count} found")
+    
+    # 4. Sitemap as fallback - only if we still have few links
+    MIN_LINKS_BEFORE_SITEMAP = 20
+    if len(all_links) < MIN_LINKS_BEFORE_SITEMAP:
+        console.info("Checking sitemap...")
+        sitemap_links = fetch_sitemap_links(website, rate_limiter=orchestrator.rate_limiter)
+        sitemap_count = add_links(sitemap_links)
+        if sitemap_count:
+            console.ok(f"  Sitemap: {sitemap_count} pages")
+    
+    # Always include homepage (use normalized URL for dedup check)
+    if normalize_url(website) not in seen_urls:
+        all_links.insert(0, DiscoveredLink(url=website, source="homepage"))
+    
+    total_discovered = len(all_links)
+    console.phase_complete("Discovery", [("Pages found", str(total_discovered))])
+    
+    if total_discovered == 0:
+        console.error("No pages found to scrape")
+        return None
+    
+    # Phase 2: Scrape pages - LLM selects most valuable pages
+    # Pre-score heuristically, then let LLM pick the best ones
+    scored = score_links_heuristically(all_links)
+    max_pages = 50
+    
+    # Use LLM to select the most valuable pages for research
+    console.info("Selecting most valuable pages (LLM)...")
+    pages_to_scrape = select_links_with_llm(scored, company_name, website, max_pages)
+    
+    scrape_count = len(pages_to_scrape)
+    time_estimate = "1-3 min"
+    if total_discovered > max_pages:
+        console.phase_banner(2, 3, "Scraping", f"Top {scrape_count} of {total_discovered} pages", time_estimate)
+    else:
+        console.phase_banner(2, 3, "Scraping", f"{scrape_count} pages", time_estimate)
+    
+    scraped_content = {}
+    tier_stats = {}
+    scrape_phase_start = time.time()
+    
+    import random
+    
+    for i, page_url in enumerate(pages_to_scrape):
+        # Check time limit
+        elapsed = time.time() - scrape_phase_start
+        if elapsed > max_scrape_seconds:
+            console.progress_done()
+            console.info(f"  Max scrape time ({max_scrape_time} min) reached")
+            console.info(f"  Continuing with {len(scraped_content)} pages scraped...")
+            break
+        
+        path = urlparse(page_url).path or "/"
+        path_display = path[:30] + "..." if len(path) > 30 else path
+        
+        # Show progress
+        console.progress_with_time(i + 1, scrape_count, path_display, scrape_phase_start)
+        
+        # Small delay between requests (research: 2s + random(0,3s) for protected sites)
+        # We use shorter delays and let orchestrator handle escalation
+        if i > 0:
+            delay = random.uniform(0.3, 0.8)
+            time.sleep(delay)
+        
+        # Use orchestrator - it handles tier escalation, sticky tier, circuit breaker
+        result = orchestrator.scrape_url(page_url)
+        
+        if result.success and result.extracted_text:
+            scraped_content[normalize_url(page_url)] = result.extracted_text
+            tier = result.tier or "unknown"
+            tier_stats[tier] = tier_stats.get(tier, 0) + 1
+        else:
+            # Log failure but continue - orchestrator already tried all viable tiers
+            logger.debug(f"Failed to scrape {page_url}: {result.error}")
+    
+    console.progress_done()
+    
+    pages_scraped = len(scraped_content)
+    failed_count = scrape_count - pages_scraped
+    
+    if pages_scraped == 0:
+        console.error("Could not scrape any pages - site is blocking access")
+        console.info("Try: primr \"Company\" url --mode deep")
+        return None
+    
+    tier_str = format_tier_stats(tier_stats)
+    
+    # Show results
+    if failed_count > 0:
+        console.phase_complete("Scraping", [
+            ("Pages", f"{pages_scraped}/{scrape_count}"),
+            ("Method", tier_str),
+            ("Blocked", str(failed_count))
+        ])
+    else:
+        console.phase_complete("Scraping", [("Pages", str(pages_scraped)), ("Method", tier_str)])
+    
+    # Skip external sources in scrape mode - website is the primary source
+    # External research is better handled by Deep mode which validates relevance
+    all_scraped = scraped_content
+    
+    # Phase 3: Extract insights (LLM)
+    total_pages = len(all_scraped)
+    console.phase_banner(3, 3, "Insights", f"Extracting key facts from {total_pages} pages (LLM)", "1-2 min")
     
     folder_path = create_working_folder(company_name, website)
     
-    with console.timed_operation("Extracting insights"):
-        summarized = summarize_scraped_content(company_name, website, all_scraped, folder_path)
+    insights_start = time.time()
+    
+    def on_insight_progress(current, total, url):
+        """Progress callback for insight extraction."""
+        path = urlparse(url).path or "/"
+        path_display = path[:22] + "..." if len(path) > 22 else path
+        console.progress_with_time(current, total, path_display, insights_start)
+    
+    summarized = summarize_scraped_content(
+        company_name, website, all_scraped, folder_path,
+        on_progress=on_insight_progress
+    )
+    console.progress_done()
     
     # Save raw scraped content
     scraped_file = os.path.join(folder_path, "scraped_content.txt")
     with open(scraped_file, "w", encoding="utf-8") as f:
+        f.write(f"# {display_name} - Scraped Content\n")
+        f.write(f"# URL: {website}\n")
+        f.write(f"# Pages: {pages_scraped}\n\n")
         for url, content in all_scraped.items():
             f.write(f"\n{'='*60}\n")
             f.write(f"URL: {url}\n")
             f.write(f"{'='*60}\n")
-            f.write(content[:5000] + "\n")  # Truncate very long pages
+            f.write(content[:5000] + "\n")
     
     # Save insights
     insights_file = os.path.join(folder_path, "insights.txt")
     with open(insights_file, "w", encoding="utf-8") as f:
-        f.write(f"# {display_name} - Scraped Insights\n\n")
+        f.write(f"# {display_name} - Key Insights\n\n")
         f.write(summarized)
     
+    console.phase_complete("Insights")
+    
+    # Final summary
     elapsed = time.time() - start_time
     mins = int(elapsed // 60)
     secs = int(elapsed % 60)
     time_str = f"{mins}m {secs}s" if mins > 0 else f"{secs}s"
     
-    console.phase_complete("Insights")
+    total_chars = sum(len(c) for c in all_scraped.values())
     
-    # Summary
-    console.summary([
-        ("Pages scraped", str(pages_scraped)),
-        ("External sources", str(len(external_data))),
-        ("Duration", time_str),
-    ])
-    
-    console.success_box("Scrape complete", folder_path)
-    console.info(f"  - {scraped_file}")
-    console.info(f"  - {insights_file}")
+    console.blank()
+    console.success_box(
+        f"Scrape complete",
+        f"{pages_scraped} pages • {total_chars:,} chars • {time_str}"
+    )
+    console.info(f"Output: {folder_path}")
+    console.info(f"  - scraped_content.txt")
+    console.info(f"  - insights.txt")
     
     return folder_path
 
@@ -639,6 +1098,7 @@ def perform_research(
     strategies: list[str] | None = None,
     strategy_only: bool = False,
     no_qa: bool = False,
+    max_scrape_time: int | None = None,
 ) -> str | None:
     if not company_name and not website:
         console.error("No company name or website provided")
@@ -667,9 +1127,13 @@ def perform_research(
         estimate = estimate_cost(mode, ai_strategy)
         console.info(f"Estimated: {estimate.duration_minutes}, ~${estimate.total_cost:.2f}")
 
-        # Handle scrape-only mode - just scrape and extract insights
+        # Handle scrape-test mode - just scrape, no LLM
+        if mode == "scrape-test":
+            return perform_scrape_test(company_name, website, start_time)
+
+        # Handle scrape-only mode - scrape and extract insights
         if mode == "scrape-only":
-            return perform_scrape_only(company_name, website, start_time)
+            return perform_scrape_only(company_name, website, start_time, max_scrape_time)
 
         # Check if using Deep Research, Complete, or Hybrid mode
         if mode in ("deep-research", "complete", "hybrid"):
@@ -687,22 +1151,45 @@ def perform_research(
 
             # Scrape website
             with console.timed_operation("Scanning website"):
-                scraped_data = fetch_web_content(website, company_name, max_pages=15) if website else {}
+                scraped_data = fetch_web_content(website, company_name, max_pages=50) if website else {}
                 pages_scraped = len(scraped_data)
             log_structured("info", "Website scraping complete", pages=pages_scraped)
+            
+            # Warn if scraping was very limited
+            if pages_scraped <= 2 and website:
+                console.warn("Limited website access - report will rely more on web research")
 
-            # External research
-            with console.timed_operation("Searching external sources"):
-                external_queries = [f"{company_name} news", f"{company_name} revenue"]
+            # External research - with LLM validation to ensure correct company
+            # This prevents including content from similarly-named but unrelated companies
+            with console.timed_operation("Searching external sources (with validation)"):
+                # Include website domain in search to get more targeted results
+                domain = ""
+                if website:
+                    domain = urlparse(website).netloc.replace("www.", "")
+                
+                # Search with both name and domain for better targeting
+                external_queries = [
+                    f'"{company_name}" "{domain}" news' if domain else f'"{company_name}" news',
+                    f'"{company_name}" "{domain}"' if domain else f'"{company_name}" company',
+                ]
                 external_data = {}
 
                 for query in external_queries:
                     results = search_google(query, company_name, website)
                     if results:
-                        filtered = [r for r in results[:2] if website and website.lower() not in r.get("url", "").lower()]
-                        scraped = scrape_external_sources(filtered, max_sources=2)
+                        filtered = [r for r in results[:5] if website and website.lower() not in r.get("url", "").lower()]
+                        scraped = scrape_external_sources_validated(
+                            filtered,
+                            company_name=company_name,
+                            website=website,
+                            max_sources=2
+                        )
                         external_data.update(scraped)
-            log_structured("info", "External sources complete", sources=len(external_data))
+                        
+                        # Stop if we have enough validated sources
+                        if len(external_data) >= 3:
+                            break
+            log_structured("info", "External sources complete (validated)", sources=len(external_data))
 
             all_scraped = {**scraped_data, **external_data}
             console.phase_complete("Data Collection", [("Pages scraped", str(pages_scraped)), ("External sources", str(len(external_data)))])
@@ -3270,7 +3757,7 @@ def run_doctor():
 
 # Mode name mapping (new -> old internal names)
 MODE_MAP = {
-    "scrape": "structured",
+    "scrape": "scrape-only",
     "deep": "deep-research",
     "full": "complete",
     "parallel": "hybrid",
@@ -3279,450 +3766,32 @@ MODE_MAP = {
     "deep-research": "deep-research",
     "complete": "complete",
     "hybrid": "hybrid",
+    "scrape-only": "scrape-only",
 }
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        prog="primr",
-        description="Primr - AI-powered company research",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Research Modes:
-  full     Two-step pipeline: scrape then deep research (~30-40 min) [DEFAULT]
-  scrape   Website scraping + Google search, 18 sections (~20-25 min)
-  deep     Autonomous AI web research, 8 sections (~10-15 min)
-  parallel Both engines in parallel (legacy, ~25 min)
+# =============================================================================
+# CLI ENTRY POINT (delegated to cli.py)
+# =============================================================================
+# The main() function is imported from cli.py at the top of this file.
+# This avoids duplicate argument parsers and keeps CLI logic in one place.
+main = _main_new  # Re-export from cli.py
 
-Examples:
-  primr "Tesla" https://tesla.com
-  primr "Tesla" tesla.com --mode deep
-  primr "Tesla" tesla.com --mode scrape --no-ai-strategy
-  primr "Tesla" tesla.com --cloud-vendor aws
-  primr doctor                              # System diagnostics
-  primr --csv companies.csv --mode scrape   # Batch mode
-  primr --qa "Tesla"                        # Show detailed QA analysis
-  primr --qa-recent 10                      # Show QA summary for 10 recent reports
 
-Context Files (for deep mode):
-  primr "Tesla" tesla.com --mode deep --context-folder working/Tesla
-  primr "Tesla" tesla.com --mode deep --context report.pdf notes.txt
+# =============================================================================
+# LEGACY COMPATIBILITY - Helper functions used by the old main()
+# These are kept for any code that might import them directly.
+# =============================================================================
 
-Utility Commands:
-  primr doctor         System diagnostics
-  primr --show-usage   Historical usage stats
-  primr --list-recent  Recent research outputs
-  primr --dry-run      Cost estimate only
-"""
-    )
 
-    # Positional arguments (required for research, not for utility commands)
-    parser.add_argument("company", nargs="?", type=str, help="Company name (required)")
-    parser.add_argument("website", nargs="?", type=str, help="Company website URL (required)")
-
-    # Batch mode (alternative to positional args)
-    parser.add_argument("--csv", type=str, help="CSV file for batch processing")
-
-    # Research options
-    parser.add_argument(
-        "--mode", "-m",
-        type=str,
-        choices=["scrape", "deep", "full", "parallel", "structured", "deep-research", "complete", "hybrid"],
-        default="full",
-        help="Research mode (default: full)"
-    )
-    parser.add_argument("--quiet", "-q", action="store_true", help="Minimal output")
-    parser.add_argument("--verbose", "-v", action="store_true", help="Detailed output")
-    parser.add_argument(
-        "--citation-style",
-        type=str,
-        choices=["numbered", "inline", "sidecar"],
-        default="numbered",
-        help="Citation style (default: numbered)"
-    )
-    parser.add_argument(
-        "--ai-strategy",
-        action="store_true",
-        default=True,
-        help="Generate AI recommendations (default: enabled)"
-    )
-    parser.add_argument(
-        "--no-ai-strategy",
-        action="store_true",
-        help="Disable AI strategy recommendations"
-    )
-    parser.add_argument(
-        "--cloud-vendor",
-        type=str,
-        choices=["azure", "aws", "gcp", "agnostic"],
-        default="azure",
-        help="Cloud vendor for AI recommendations (default: azure)"
-    )
-    parser.add_argument("--confirm", action="store_true", help="Ask for confirmation before running")
-    parser.add_argument("--dry-run", action="store_true", help="Show cost estimate only")
-    parser.add_argument("--show-usage", action="store_true", help="Display usage statistics")
-    parser.add_argument(
-        "--context",
-        type=str,
-        nargs="+",
-        help="Context files for deep mode (.txt, .pdf, .md, .json, .csv)"
-    )
-    parser.add_argument(
-        "--context-folder",
-        type=str,
-        help="Use working folder as context (e.g., working/Tesla)"
-    )
-    parser.add_argument("--open", action="store_true", help="Open report after generation")
-    parser.add_argument("--output-dir", type=str, help="Custom output directory")
-    parser.add_argument("--list-recent", action="store_true", help="List recent outputs")
-    parser.add_argument("--clean-temp", action="store_true", help="Clean temporary files")
-    parser.add_argument("--refresh-vendor-research", action="store_true", help="Force refresh vendor research")
-    parser.add_argument(
-        "--generate-vendor-research",
-        type=str,
-        choices=["azure", "aws", "gcp", "agnostic", "all"],
-        help="Generate vendor research only"
-    )
-    parser.add_argument("--check-jobs", action="store_true", help="Check pending research jobs")
-    parser.add_argument("--check-quota", action="store_true", help="Check API quota")
-    parser.add_argument("--list-strategies", action="store_true", help="List available strategy modules")
-    parser.add_argument(
-        "--strategy",
-        type=str,
-        help="Strategy modules to generate (comma-separated, e.g., ai,cloud,data)"
-    )
-    parser.add_argument(
-        "--strategy-only",
-        action="store_true",
-        help="Run strategies only (skip company overview, requires --context-folder)"
-    )
-    parser.add_argument(
-        "--qa",
-        type=str,
-        metavar="COMPANY",
-        help="Show detailed QA analysis for a company report"
-    )
-    parser.add_argument(
-        "--qa-recent",
-        type=int,
-        nargs='?',
-        const=5,
-        metavar="N",
-        help="Show QA summary for the N most recent reports (default: 5)"
-    )
-    parser.add_argument(
-        "--no-qa",
-        action="store_true",
-        help="Disable automatic quality assessment"
-    )
-
-    args = parser.parse_args()
-
-    # Handle 'doctor' command (first positional arg)
-    if args.company and args.company.lower() == "doctor":
-        sys.exit(run_doctor())
-
-    if args.quiet:
-        from primr.utils.console import Console, set_console
-        set_console(Console(quiet=True))
-    elif args.verbose:
-        from primr.utils.console import Console, set_console
-        set_console(Console(verbose=True))
-
-    # Convert citation-style arg (with hyphen) to underscore for Python
-    citation_style = getattr(args, 'citation_style', 'numbered')
-    # AI strategy is on by default, --no-ai-strategy disables it
-    ai_strategy = not getattr(args, 'no_ai_strategy', False)
-
-    # Map new mode names to internal names
-    mode = MODE_MAP.get(args.mode, args.mode)
-    cloud_vendor = getattr(args, 'cloud_vendor', 'azure')
-    # Default is to skip confirmation (--confirm enables it)
-    skip_confirm = not getattr(args, 'confirm', False)
-    dry_run = getattr(args, 'dry_run', False)
-
-    # Handle --show-usage flag
-    if getattr(args, 'show_usage', False):
-        from primr.utils.usage_tracker import get_usage_tracker
-        tracker = get_usage_tracker()
-        print(tracker.display_usage_history())
-        return
-
-    # Handle --list-recent flag
-    if getattr(args, 'list_recent', False):
-        _list_recent_outputs()
-        return
-
-    # Handle --clean-temp flag
-    if getattr(args, 'clean_temp', False):
-        _clean_temp_files()
-        return
-
-    # Handle --check-quota flag
-    if getattr(args, 'check_quota', False):
-        _check_api_quota()
-        return
-
-    # Handle --list-strategies flag
-    if getattr(args, 'list_strategies', False):
-        _list_strategies()
-        return
-
-    # Parse and validate --strategy argument
-    strategy_arg = getattr(args, 'strategy', None)
-    strategy_only = getattr(args, 'strategy_only', False)
-    requested_strategies: list[str] = []
+def _legacy_main_removed():
+    """
+    The duplicate main() function has been removed.
     
-    if strategy_arg:
-        from primr.prompts.registry import get_registry
-        registry = get_registry()
-        available = set(registry.list_names())
-        
-        # Parse comma-separated strategies
-        requested_strategies = [s.strip().lower() for s in strategy_arg.split(',')]
-        
-        # Validate each strategy
-        invalid = [s for s in requested_strategies if s not in available]
-        if invalid:
-            console.error(f"Unknown strategy module(s): {', '.join(invalid)}")
-            console.info(f"Available strategies: {', '.join(sorted(available))}")
-            console.info("Run 'primr --list-strategies' to see all available modules")
-            return
-        
-        console.info(f"Strategies requested: {', '.join(requested_strategies)}")
-
-    # Handle --strategy-only validation
-    if strategy_only:
-        if not strategy_arg:
-            console.error("--strategy-only requires --strategy to specify which strategies to run")
-            return
-        context_folder = getattr(args, 'context_folder', None)
-        if not context_folder:
-            console.error("--strategy-only requires --context-folder with existing company research")
-            console.info("Example: primr \"Company\" url --strategy ai,cloud --strategy-only --context-folder working/Company")
-            return
-
-    # Handle --check-jobs flag
-    if getattr(args, 'check_jobs', False):
-        from primr.ai.deep_research import get_deep_research_client, get_pending_jobs
-
-        console.banner("Pending Research Jobs")
-        jobs = get_pending_jobs()
-
-        if not jobs:
-            console.info("No pending jobs found.")
-            return
-
-        console.info(f"Found {len(jobs)} pending job(s)")
-        client = get_deep_research_client()
-
-        for interaction_id, job_info in jobs.items():
-            console.step(f"Checking: {job_info.get('description', 'Unknown')[:60]}...")
-            console.info(f"  ID: {interaction_id}")
-            console.info(f"  Started: {job_info.get('started', 'Unknown')}")
-
-            result = client.check_job(interaction_id)
-            status = result.get('status', 'unknown')
-
-            if status == "completed":
-                console.ok("  Status: COMPLETED")
-                content = result.get('content', '')
-                if content:
-                    # Save the content
-                    job_type = job_info.get('type', 'research')
-                    output_file = os.path.join(OUTPUT_DIR, f"recovered_{job_type}_{interaction_id[:8]}.txt")
-                    with open(output_file, 'w', encoding='utf-8') as f:
-                        f.write(content)
-                    console.ok(f"  Saved to: {output_file}")
-            elif status == "failed":
-                console.error("  Status: FAILED")
-                console.error(f"  Error: {result.get('error', 'Unknown')}")
-            elif status == "in_progress":
-                console.info("  Status: IN PROGRESS (still running)")
-            else:
-                console.info(f"  Status: {status}")
-
-        return
-
-    generate_vendor = getattr(args, 'generate_vendor_research', None)
-    if generate_vendor:
-        console.banner("Vendor AI Research Generation")
-        if generate_vendor == "all":
-            vendors = ["azure", "aws", "gcp", "agnostic"]
-        else:
-            vendors = [generate_vendor]
-
-        for vendor in vendors:
-            console.step(f"Generating {vendor.upper()} research")
-            vendor_result = _generate_vendor_research(vendor)
-            if vendor_result:
-                console.ok(f"Saved: {vendor_result}")
-            else:
-                console.error(f"Failed to generate {vendor} research")
-        return
-
-    # Handle --qa flag
-    qa_company = getattr(args, 'qa', None)
-    if qa_company:
-        from primr.qa.command import QACommand
-        from pathlib import Path
-        
-        qa_command = QACommand()
-        
-        # Check if the argument is a file path by checking if it exists as a file
-        potential_path = Path(qa_company)
-        
-        if potential_path.exists() and potential_path.is_file():
-            # Treat as file path
-            exit_code = qa_command.analyze_report_file(qa_company)
-        elif (qa_company.endswith(('.docx', '.pdf')) or 
-              '\\' in qa_company or 
-              '/' in qa_company):
-            # Looks like a file path but doesn't exist
-            console.error(f"File not found: {qa_company}")
-            sys.exit(1)
-        else:
-            # Treat as company name
-            exit_code = qa_command.show_detailed_analysis(qa_company)
-        
-        sys.exit(exit_code)
-
-    # Handle --qa-recent flag
-    qa_recent = getattr(args, 'qa_recent', None)
-    if qa_recent is not None:
-        from primr.qa.command import QACommand
-        qa_command = QACommand()
-        exit_code = qa_command.show_recent_qa_summary(qa_recent)
-        sys.exit(exit_code)
-
-    # Handle custom output directory
-    custom_output_dir = getattr(args, 'output_dir', None)
-    if custom_output_dir:
-        from primr.config import config
-        config.OUTPUT_DIR = os.path.abspath(custom_output_dir)
-        os.makedirs(config.OUTPUT_DIR, exist_ok=True)
-        console.info(f"Output directory: {config.OUTPUT_DIR}")
-
-    # Handle dry-run mode - just show cost estimate
-    if dry_run:
-        from primr.utils.cost_estimator import estimate_cost
-
-        print("")
-        print("=" * 60)
-        print(f"COST ESTIMATE: {mode} mode")
-        if ai_strategy:
-            print("(includes AI Strategy analysis)")
-        print("=" * 60)
-        print("")
-
-        estimate = estimate_cost(mode, ai_strategy)
-        print(str(estimate))
-
-        print("")
-        print("=" * 60)
-        print("")
-        print("To run research, remove --dry-run flag")
-        return
-
-    if args.csv:
-        # CSV batch mode always skips confirmation (user already committed)
-        no_qa = getattr(args, 'no_qa', False)
-        process_csv(
-            args.csv,
-            mode=mode,
-            citation_style=citation_style,
-            ai_strategy=ai_strategy,
-            cloud_vendor=cloud_vendor,
-            no_qa=no_qa
-        )
-    else:
-        # Both company name and website are required
-        company_name = args.company
-        website = args.website
-
-        if not company_name or not website:
-            console.error("Both company name and website are required")
-            console.info("")
-            console.info("Usage: primr \"Company Name\" https://company.com")
-            console.info("")
-            console.info("Examples:")
-            console.info("  primr \"Tesla\" https://tesla.com")
-            console.info("  primr \"Microsoft\" microsoft.com --mode deep")
-            console.info("")
-            console.info("Run 'primr doctor' to check system configuration")
-            sys.exit(1)
-
-        # Validate and normalize inputs using defensive validators
-        from primr.utils.validators import (
-            InputValidationError,
-            validate_company_name,
-            validate_url,
-        )
-
-        try:
-            company_name = validate_company_name(company_name)
-        except InputValidationError as e:
-            console.error(f"Invalid company name: {e.reason}")
-            sys.exit(1)
-
-        # Normalize website URL first, then validate
-        website = ensure_valid_url(website)
-
-        try:
-            website = validate_url(website)
-        except InputValidationError as e:
-            console.error(f"Invalid website URL: {e.reason}")
-            sys.exit(1)
-
-        # Build context files list
-        context_files = list(getattr(args, 'context', None) or [])
-
-        # Handle --context-folder: consolidate working folder into single context file
-        context_folder = getattr(args, 'context_folder', None)
-        if context_folder:
-            try:
-                consolidated_file = consolidate_working_folder(context_folder)
-                context_files = [consolidated_file] + context_files
-            except Exception as e:
-                console.error(f"Failed to consolidate context folder: {e}")
-                return
-
-        # Validate context files if any provided - STRICT: abort on ANY invalid file
-        if context_files:
-            valid_files, invalid_files, warnings = validate_context_files(context_files)
-
-            for warning in warnings:
-                console.warn(warning)
-
-            if invalid_files:
-                for file_path, reason in invalid_files:
-                    console.error(f"Invalid context file: {file_path} - {reason}")
-                console.error("Aborting: Fix all context files before running")
-                return
-
-            context_files = valid_files
-
-        open_after = getattr(args, 'open', False)
-        refresh_vendor = getattr(args, 'refresh_vendor_research', False)
-        no_qa = getattr(args, 'no_qa', False)
-        result_path = perform_research(
-            company_name,
-            website,
-            mode=mode,
-            citation_style=citation_style,
-            ai_strategy=ai_strategy,
-            cloud_vendor=cloud_vendor,
-            skip_confirm=skip_confirm,
-            context_files=context_files if context_files else None,
-            refresh_vendor_research=refresh_vendor,
-            strategies=requested_strategies if requested_strategies else None,
-            strategy_only=strategy_only,
-            no_qa=no_qa,
-        )
-
-        # Open the report if requested
-        if open_after and result_path:
-            _open_file(result_path)
+    CLI logic is now centralized in cli.py. This module re-exports
+    main = _main_new from cli.py for backward compatibility.
+    """
+    raise NotImplementedError("Use main() which delegates to cli.py")
 
 
 if __name__ == "__main__":

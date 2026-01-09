@@ -56,7 +56,7 @@ Data collection (scraping, search) is separate from analysis (AI). Analysis is s
 
 ### Scrape Mode
 
-Website-focused research using a 4-tier scraping strategy with AI-powered section extraction.
+Website-focused research using an 8-tier scraping strategy with AI-powered insight extraction.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -65,36 +65,39 @@ Website-focused research using a 4-tier scraping strategy with AI-powered sectio
                                    │
                                    ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                     4-Tier Scraping Engine                           │
-│  ┌─────────┐  ┌─────────┐  ┌─────────────┐  ┌───────────────────┐  │
-│  │Requests │─▶│  httpx  │─▶│ Playwright  │─▶│Playwright Aggress.│  │
-│  │ (fast)  │  │ (HTTP/2)│  │  (stealth)  │  │   (full evasion)  │  │
-│  └─────────┘  └─────────┘  └─────────────┘  └───────────────────────┘  │
+│                     8-Tier Scraping Orchestrator                     │
+│  ┌─────────┐  ┌─────────┐  ┌───────────┐  ┌───────────────────┐    │
+│  │Requests │─▶│  httpx  │─▶│ curl_cffi │─▶│    Playwright     │    │
+│  │ (fast)  │  │ (HTTP/2)│  │(TLS spoof)│  │    (browser)      │    │
+│  └─────────┘  └─────────┘  └───────────┘  └───────────────────┘    │
+│       │                                            │                 │
+│       ▼                                            ▼                 │
+│  ┌───────────────────┐  ┌───────────────┐  ┌───────────────────┐   │
+│  │Playwright Aggress.│─▶│ DrissionPage  │─▶│DrissionPage Stealth│   │
+│  │(content expand)   │  │  (driverless) │  │ (challenge wait)  │   │
+│  └───────────────────┘  └───────────────┘  └───────────────────┘   │
+│                                                                      │
+│  Features: Sticky tier, Circuit breaker, Cookie handoff, Soft block │
 └─────────────────────────────────────────────────────────────────────┘
                                    │
                                    ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                      Link Discovery & Scoring                        │
-│              (Prioritize high-value pages: /about, /team, etc.)     │
+│                   Homepage-First Link Discovery (v1.1.0)            │
+│  1. Render homepage with Playwright (browser-first for JS sites)   │
+│  2. Expand section pages (news, blog, press) → get articles        │
+│  3. Common URL guessing only if < 20 links                         │
+│  4. Sitemap fallback only if still < 20 links                      │
+│  5. LLM selects most valuable pages for research                   │
 └─────────────────────────────────────────────────────────────────────┘
                                    │
                                    ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                     Section-by-Section Extraction                    │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐              │
-│  │   Company    │  │   Products   │  │  Leadership  │  ... (18)    │
-│  │   Overview   │  │  & Services  │  │   & Team     │              │
-│  └──────────────┘  └──────────────┘  └──────────────┘              │
-└─────────────────────────────────────────────────────────────────────┘
-                                   │
-                                   ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                        Quality Grading Loop                          │
-│         (Grade each section, trigger refinement if < 80/100)        │
+│                     LLM Insight Extraction                           │
+│              (Extract key facts from each scraped page)             │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-**When to use:** Deep website analysis, specific data extraction, when the company website is the primary source of truth.
+**When to use:** Quick website intel, data collection for downstream use. Fast (2-5 min) and cheap (~$0.01).
 
 ### Deep Mode
 
@@ -282,26 +285,38 @@ from primr.core.cli import parse_args, CLIConfig
 from primr.core.research_agent import main, run_doctor, create_working_folder
 ```
 
-### 4-Tier Scraping Engine
+### 8-Tier Scraping Engine
 
-Location: `src/primr/data/scrape.py`
+Location: `src/primr/data/scraping/orchestrator.py`
 
-A tiered fallback system for web scraping, designed to handle increasingly aggressive bot protection.
+A tiered fallback system for web scraping, designed to handle increasingly aggressive bot protection. Based on 2026 best practices for resilient scraping.
 
 | Tier | Method | Use Case | Speed |
 |------|--------|----------|-------|
 | 1 | requests | Simple sites, no JS | Fast |
 | 2 | httpx | HTTP/2 sites, better headers | Fast |
-| 3 | Playwright | JS-rendered content | Medium |
-| 4 | Playwright Aggressive | Bot-protected sites | Slow |
+| 3 | curl_cffi | TLS fingerprint impersonation | Fast |
+| 4 | Playwright | JS-rendered content | Medium |
+| 5 | Playwright Aggressive | Content expansion (accordions, lazy load) | Medium |
+| 6 | DrissionPage | Driverless browser via CDP | Slow |
+| 7 | DrissionPage Stealth | Maximum stealth with challenge waiting | Slow |
+| 8 | Vision | AI-based extraction (opt-in) | Slow |
 
-Each tier includes:
-- Randomized browser fingerprints (4 profiles: Windows Chrome, Mac Chrome, Windows Firefox, Mac Safari)
-- Stealth scripts to evade detection
-- Cookie banner dismissal
-- Soft block detection
+**Key Features:**
+- **Sticky Tier**: Once a tier works for a host, it's tried first for subsequent pages
+- **Circuit Breaker**: Skips failing tiers after 3 consecutive failures per host
+- **Cookie Handoff**: Browser-obtained cookies reused by faster HTTP tiers
+- **Soft Block Detection**: Checks content, not just HTTP status (catches "200 OK" traps)
+- **TLS Fingerprint Impersonation**: curl_cffi mimics real browser TLS signatures
+- **Driverless Browsers**: DrissionPage uses CDP directly, bypassing WebDriver detection
 
-**Soft Block Detection:** The scraper identifies when a site has blocked the request without returning an error (captchas, "please enable JavaScript", Cloudflare challenges). When detected, it escalates to the next tier.
+**Link Discovery (Homepage-First, v1.1.0):**
+1. Render homepage with Playwright (browser-first for JS-heavy sites)
+2. Extract navigation links (current and navigable)
+3. Expand section pages (news, blog, press, resources) to get actual articles
+4. Common URL guessing only if < 20 links found
+5. Sitemap only as fallback if still < 20 links (sitemaps often stale)
+6. LLM selects most valuable pages for research (leadership, products, news, investors)
 
 ### Deep Research Client
 

@@ -1,53 +1,49 @@
 """
-Integration tests for scrape.py
-All tests use mocked HTTP responses to avoid hitting real sites.
+Integration tests for the scraping architecture.
+
+These tests verify the orchestrator, wrapper, and module integration.
+All tests use mocks - no live network calls.
+
 Run with: pytest tests/test_scrape_integration.py -v
 """
 
-import sys
-from pathlib import Path
 import pytest
-from unittest.mock import patch, MagicMock, PropertyMock
-import requests
-import httpx
+from unittest.mock import MagicMock, patch
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
-# Import the module for patching, and functions for direct use
-from primr.data import scrape as scrape_module
+from primr.data.scraping import (
+    ScrapeOrchestrator,
+    ScrapeCache,
+    ScrapeResult,
+    ScrapeTier,
+    RateLimiter,
+    RateLimitConfig,
+    ErrorType,
+)
 from primr.data.scrape import (
-    scrape_with_requests,
-    scrape_with_httpx,
     scrape_page,
-    extract_links_from_homepage,
     get_cached_content,
     cache_content,
     clear_cache,
-    _SCRAPE_CACHE,
     detect_soft_block,
     extract_clean_text,
+    extract_links_from_html,
+    get_orchestrator,
 )
 from bs4 import BeautifulSoup
 
 
 # ============================================================================
-# MOCK HTML RESPONSES
+# TEST HTML FIXTURES
 # ============================================================================
-MOCK_HTML_SIMPLE = """
+
+VALID_HTML = """
 <!DOCTYPE html>
 <html>
 <head><title>Test Company</title></head>
 <body>
-    <h1>Welcome to Test Company</h1>
-    <p>We are a leading provider of innovative solutions.</p>
-    <nav>
-        <a href="/about">About Us</a>
-        <a href="/products">Products</a>
-        <a href="/services">Services</a>
-        <a href="/contact">Contact</a>
-    </nav>
     <main>
+        <h1>Welcome to Test Company</h1>
+        <p>We are a leading provider of innovative solutions.</p>
         <p>Our company has been serving customers for over 20 years.</p>
         <p>We specialize in enterprise software solutions.</p>
     </main>
@@ -55,7 +51,7 @@ MOCK_HTML_SIMPLE = """
 </html>
 """
 
-MOCK_HTML_BLOCKED = """
+BLOCKED_HTML = """
 <!DOCTYPE html>
 <html>
 <head><title>Access Denied</title></head>
@@ -66,7 +62,7 @@ MOCK_HTML_BLOCKED = """
 </html>
 """
 
-MOCK_HTML_CAPTCHA = """
+CAPTCHA_HTML = """
 <!DOCTYPE html>
 <html>
 <head><title>Security Check</title></head>
@@ -77,446 +73,284 @@ MOCK_HTML_CAPTCHA = """
 </html>
 """
 
-MOCK_HTML_WITH_LINKS = """
+HTML_WITH_LINKS = """
 <!DOCTYPE html>
 <html>
-<head><title>Company Site</title></head>
 <body>
-    <nav>
-        <a href="/">Home</a>
-        <a href="/about">About</a>
-        <a href="/products">Products</a>
-        <a href="/services">Services</a>
-        <a href="/blog">Blog</a>
-        <a href="/login">Login</a>
-        <a href="/careers">Careers</a>
-        <a href="/privacy">Privacy Policy</a>
-        <a href="https://external.com">External Link</a>
-    </nav>
-    <main>
-        <p>Welcome to our company website with lots of useful content.</p>
-    </main>
+    <a href="/about">About</a>
+    <a href="/products">Products</a>
+    <a href="https://external.com">External</a>
 </body>
 </html>
 """
 
 
 # ============================================================================
-# TIER 1: REQUESTS TESTS (MOCKED)
+# ORCHESTRATOR TESTS
 # ============================================================================
-class TestScrapeWithRequests:
-    """Tests for requests-based scraping with mocked responses."""
+
+class TestOrchestratorTierEscalation:
+    """Tests for orchestrator tier escalation behavior."""
     
-    def test_scrape_success(self):
-        """Should successfully extract text from valid HTML."""
-        mock_response = MagicMock()
-        mock_response.text = MOCK_HTML_SIMPLE
-        mock_response.raise_for_status = MagicMock()
-        
-        with patch('primr.data.scrape.requests.get', return_value=mock_response):
-            text, error = scrape_with_requests("https://test-company.com", timeout=15)
-        
-        assert error is None
-        assert text is not None
-        assert "Test Company" in text
-        assert "innovative solutions" in text
-    
-    def test_scrape_http_403(self):
-        """Should handle 403 errors gracefully."""
-        mock_response = MagicMock()
-        mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError(
-            response=MagicMock(status_code=403)
+    def test_stops_on_first_success(self, tmp_path):
+        """Should stop trying tiers after first success."""
+        # Use temp directory for cache to avoid cross-test pollution
+        cache = ScrapeCache(cache_dir=str(tmp_path / "cache1"))
+        orchestrator = ScrapeOrchestrator(
+            cache=cache,
+            rate_limiter=RateLimiter(RateLimitConfig()),
         )
         
-        with patch('primr.data.scrape.requests.get', return_value=mock_response):
-            text, error = scrape_with_requests("https://blocked-site.com", timeout=15)
+        call_order = []
         
-        assert text is None
-        assert error is not None
-        assert "403" in error or "HTTP" in error
+        def tier1_success(url, timeout=30):
+            call_order.append("tier1")
+            return ScrapeResult(
+                url=url, success=True, tier="tier1",
+                raw_content=VALID_HTML.encode('utf-8'),
+            )
+        
+        def tier2_should_not_run(url, timeout=30):
+            call_order.append("tier2")
+            return ScrapeResult(url=url, success=True, tier="tier2")
+        
+        orchestrator.tiers = [
+            ScrapeTier(name="tier1", scrape_fn=tier1_success, timeout=30),
+            ScrapeTier(name="tier2", scrape_fn=tier2_should_not_run, timeout=30),
+        ]
+        
+        result = orchestrator.scrape_url("https://example.com/page1")
+        
+        assert result.success
+        assert call_order == ["tier1"]
     
-    def test_scrape_connection_error(self):
-        """Should handle connection errors gracefully."""
-        with patch('primr.data.scrape.requests.get', side_effect=requests.exceptions.ConnectionError("Failed")):
-            text, error = scrape_with_requests("https://unreachable.com", timeout=5)
-        
-        assert text is None
-        assert error is not None
-    
-    def test_scrape_timeout(self):
-        """Should handle timeouts gracefully."""
-        with patch('primr.data.scrape.requests.get', side_effect=requests.exceptions.Timeout("Timed out")):
-            text, error = scrape_with_requests("https://slow-site.com", timeout=1)
-        
-        assert text is None
-        assert error is not None
-    
-    def test_scrape_detects_soft_block(self):
-        """Should detect soft blocks in response content."""
-        mock_response = MagicMock()
-        mock_response.text = MOCK_HTML_BLOCKED
-        mock_response.raise_for_status = MagicMock()
-        
-        with patch('primr.data.scrape.requests.get', return_value=mock_response):
-            text, error = scrape_with_requests("https://soft-blocked.com", timeout=15)
-        
-        assert text is None
-        assert error is not None
-
-
-# ============================================================================
-# TIER 2: HTTPX TESTS (MOCKED)
-# ============================================================================
-class TestScrapeWithHttpx:
-    """Tests for httpx-based scraping with mocked responses."""
-    
-    def test_scrape_success(self):
-        """Should successfully scrape with httpx."""
-        mock_response = MagicMock()
-        mock_response.text = MOCK_HTML_SIMPLE
-        mock_response.raise_for_status = MagicMock()
-        
-        mock_client = MagicMock()
-        mock_client.get.return_value = mock_response
-        mock_client.__enter__ = MagicMock(return_value=mock_client)
-        mock_client.__exit__ = MagicMock(return_value=False)
-        
-        with patch('primr.data.scrape.httpx.Client', return_value=mock_client):
-            text, error = scrape_with_httpx("https://test-company.com", timeout=15)
-        
-        assert error is None
-        assert text is not None
-        assert "Test Company" in text
-    
-    def test_scrape_http_error(self):
-        """Should handle HTTP errors gracefully."""
-        mock_response = MagicMock()
-        mock_response.status_code = 403
-        
-        mock_client = MagicMock()
-        mock_client.get.return_value = mock_response
-        mock_client.get.return_value.raise_for_status.side_effect = httpx.HTTPStatusError(
-            "Forbidden", request=MagicMock(), response=mock_response
+    def test_escalates_on_failure(self, tmp_path):
+        """Should try next tier when previous fails."""
+        cache = ScrapeCache(cache_dir=str(tmp_path / "cache2"))
+        orchestrator = ScrapeOrchestrator(
+            cache=cache,
+            rate_limiter=RateLimiter(RateLimitConfig()),
         )
-        mock_client.__enter__ = MagicMock(return_value=mock_client)
-        mock_client.__exit__ = MagicMock(return_value=False)
         
-        with patch('primr.data.scrape.httpx.Client', return_value=mock_client):
-            text, error = scrape_with_httpx("https://blocked-site.com", timeout=15)
+        call_order = []
         
-        assert text is None
-        assert error is not None
+        def tier1_fail(url, timeout=30):
+            call_order.append("tier1")
+            return ScrapeResult(url=url, success=False, tier="tier1", error="Failed")
+        
+        def tier2_success(url, timeout=30):
+            call_order.append("tier2")
+            return ScrapeResult(
+                url=url, success=True, tier="tier2",
+                raw_content=VALID_HTML.encode('utf-8'),
+            )
+        
+        orchestrator.tiers = [
+            ScrapeTier(name="tier1", scrape_fn=tier1_fail, timeout=30),
+            ScrapeTier(name="tier2", scrape_fn=tier2_success, timeout=30),
+        ]
+        
+        result = orchestrator.scrape_url("https://example.com/page2")
+        
+        assert result.success
+        assert result.tier == "tier2"
+        assert call_order == ["tier1", "tier2"]
+    
+    def test_returns_failure_when_all_tiers_fail(self, tmp_path):
+        """Should return failure when all tiers exhausted."""
+        cache = ScrapeCache(cache_dir=str(tmp_path / "cache3"))
+        orchestrator = ScrapeOrchestrator(
+            cache=cache,
+            rate_limiter=RateLimiter(RateLimitConfig()),
+        )
+        
+        def always_fail(url, timeout=30):
+            return ScrapeResult(url=url, success=False, tier="fail", error="Nope")
+        
+        orchestrator.tiers = [
+            ScrapeTier(name="tier1", scrape_fn=always_fail, timeout=30),
+            ScrapeTier(name="tier2", scrape_fn=always_fail, timeout=30),
+        ]
+        
+        result = orchestrator.scrape_url("https://example.com/page3")
+        
+        assert not result.success
+        assert result.error is not None
+
+
+class TestOrchestratorCaching:
+    """Tests for orchestrator cache behavior."""
+    
+    def test_returns_cached_content(self, tmp_path):
+        """Should return cached content without calling tiers."""
+        cache = ScrapeCache(cache_dir=str(tmp_path / "cache4"))
+        orchestrator = ScrapeOrchestrator(
+            cache=cache,
+            rate_limiter=RateLimiter(RateLimitConfig()),
+        )
+        
+        # Pre-populate cache with raw content (orchestrator checks raw cache)
+        url = "https://example.com/cached"
+        cache.set_raw(url, VALID_HTML.encode('utf-8'))
+        
+        tier_called = False
+        def should_not_run(url, timeout=30):
+            nonlocal tier_called
+            tier_called = True
+            return ScrapeResult(url=url, success=True)
+        
+        orchestrator.tiers = [ScrapeTier(name="tier1", scrape_fn=should_not_run, timeout=30)]
+        
+        result = orchestrator.scrape_url(url)
+        
+        assert result.success
+        assert result.cached
+        assert not tier_called
 
 
 # ============================================================================
-# MAIN SCRAPE_PAGE TESTS (MOCKED)
+# WRAPPER FUNCTION TESTS
 # ============================================================================
+
 class TestScrapePage:
-    """Tests for the main scrape_page orchestrator."""
+    """Tests for the scrape_page wrapper function."""
     
     def setup_method(self):
-        """Clear cache before each test."""
         clear_cache()
     
-    def test_returns_cached_content(self):
-        """Should return cached content without making requests."""
-        url = "https://cached-site.com"
-        cached_content = "This is cached content for testing"
+    def test_returns_content_and_tier_on_success(self):
+        """Should return (content, tier) tuple on success."""
+        mock_result = ScrapeResult(
+            url="https://test.com",
+            success=True,
+            tier="requests",
+            extracted_text="Test content",
+        )
         
-        cache_content(url, cached_content)
+        with patch.object(ScrapeOrchestrator, 'scrape_url', return_value=mock_result):
+            content, tier = scrape_page("https://test.com")
         
-        content, method = scrape_page(url)
-        assert content == cached_content
-        assert method == "cache"
+        assert content == "Test content"
+        assert tier == "requests"
     
-    def test_caches_successful_scrape(self):
-        """Should cache successful scrapes."""
-        url = "https://fresh-site.com"
+    def test_returns_none_and_error_on_failure(self):
+        """Should return (None, error) tuple on failure."""
+        mock_result = ScrapeResult(
+            url="https://blocked.com",
+            success=False,
+            error="All tiers exhausted",
+        )
         
-        mock_response = MagicMock()
-        mock_response.text = MOCK_HTML_SIMPLE
-        mock_response.raise_for_status = MagicMock()
+        with patch.object(ScrapeOrchestrator, 'scrape_url', return_value=mock_result):
+            content, error = scrape_page("https://blocked.com")
         
-        with patch('primr.data.scrape.requests.get', return_value=mock_response):
-            content, method = scrape_page(url)
-        
-        assert content is not None
-        assert method == "requests"
-        
-        # Verify it's cached
-        cached = get_cached_content(url)
-        assert cached == content
-    
-    def test_handles_pdf_urls(self):
-        """Should detect PDF URLs and handle them differently."""
-        url = "https://example.com/document.pdf"
-        
-        with patch.object(scrape_module, 'extract_text_from_pdf') as mock_pdf:
-            mock_pdf.return_value = "PDF content extracted successfully"
-            content, method = scrape_module.scrape_page(url)
-            mock_pdf.assert_called_once_with(url)
-            assert content == "PDF content extracted successfully"
-            assert method == "pdf"
-    
-    def test_graceful_degradation(self):
-        """Should try all tiers before giving up."""
-        with patch.object(scrape_module, 'scrape_with_requests') as mock_req, \
-             patch.object(scrape_module, 'scrape_with_httpx') as mock_httpx, \
-             patch.object(scrape_module, 'scrape_with_playwright') as mock_pw, \
-             patch.object(scrape_module, 'scrape_with_playwright_aggressive') as mock_pw_agg:
-            
-            mock_req.return_value = (None, "HTTP 403")
-            mock_httpx.return_value = (None, "HTTP 403")
-            mock_pw.return_value = (None, "Blocked")
-            mock_pw_agg.return_value = (None, "Blocked")
-            
-            content, method = scrape_module.scrape_page("https://hardened-site.com")
-            
-            mock_req.assert_called_once()
-            mock_httpx.assert_called_once()
-            mock_pw.assert_called_once()
-            mock_pw_agg.assert_called_once()
-            
-            assert content is None
-            assert method is None
-    
-    def test_stops_on_first_success(self):
-        """Should stop trying tiers after first success."""
-        with patch.object(scrape_module, 'scrape_with_requests') as mock_req, \
-             patch.object(scrape_module, 'scrape_with_httpx') as mock_httpx:
-            
-            mock_req.return_value = ("Success content from requests", None)
-            
-            content, method = scrape_module.scrape_page("https://easy-site.com")
-            
-            mock_req.assert_called_once()
-            mock_httpx.assert_not_called()
-            
-            assert content == "Success content from requests"
-            assert method == "requests"
-    
-    def test_falls_back_to_httpx(self):
-        """Should fall back to httpx when requests fails."""
-        with patch.object(scrape_module, 'scrape_with_requests') as mock_req, \
-             patch.object(scrape_module, 'scrape_with_httpx') as mock_httpx, \
-             patch.object(scrape_module, 'scrape_with_playwright') as mock_pw:
-            
-            mock_req.return_value = (None, "HTTP 403")
-            mock_httpx.return_value = ("Success from httpx", None)
-            
-            content, method = scrape_module.scrape_page("https://medium-site.com")
-            
-            mock_req.assert_called_once()
-            mock_httpx.assert_called_once()
-            mock_pw.assert_not_called()
-            
-            assert content == "Success from httpx"
-            assert method == "httpx"
-    
-    def test_falls_back_to_playwright(self):
-        """Should fall back to playwright when httpx fails."""
-        with patch.object(scrape_module, 'scrape_with_requests') as mock_req, \
-             patch.object(scrape_module, 'scrape_with_httpx') as mock_httpx, \
-             patch.object(scrape_module, 'scrape_with_playwright') as mock_pw:
-            
-            mock_req.return_value = (None, "HTTP 403")
-            mock_httpx.return_value = (None, "HTTP 403")
-            mock_pw.return_value = ("Success from browser", None)
-            
-            content, method = scrape_module.scrape_page("https://protected-site.com")
-            
-            assert content == "Success from browser"
-            assert method == "browser"
-
-
-# ============================================================================
-# LINK EXTRACTION TESTS (MOCKED)
-# ============================================================================
-class TestExtractLinksFromHomepage:
-    """Tests for link extraction with mocked responses."""
-    
-    def test_returns_base_url_on_failure(self):
-        """Should return at least the base URL if extraction fails."""
-        with patch('primr.data.scrape.get_html_requests') as mock_req, \
-             patch('primr.data.scrape.get_html_httpx') as mock_httpx, \
-             patch('primr.data.scrape.get_html_playwright') as mock_pw:
-            
-            mock_req.side_effect = Exception("Failed")
-            mock_httpx.side_effect = Exception("Failed")
-            mock_pw.side_effect = Exception("Failed")
-            
-            result = extract_links_from_homepage("https://example.com", "Example Corp")
-            
-            assert "https://example.com" in result
-    
-    def test_extracts_internal_links(self):
-        """Should extract internal links from HTML."""
-        with patch('primr.data.scrape.get_html_requests') as mock_req, \
-             patch('primr.data.scrape.llm') as mock_llm:
-            
-            mock_req.return_value = MOCK_HTML_WITH_LINKS
-            mock_llm.return_value = "https://example.com/about\nhttps://example.com/products"
-            
-            result = extract_links_from_homepage("https://example.com", "Example Corp")
-            
-            assert "https://example.com" in result
-    
-    def test_filters_excluded_keywords(self):
-        """Should filter out URLs with excluded keywords."""
-        with patch('primr.data.scrape.get_html_requests') as mock_req, \
-             patch('primr.data.scrape.llm') as mock_llm:
-            
-            mock_req.return_value = MOCK_HTML_WITH_LINKS
-            mock_llm.return_value = "https://example.com/about\nhttps://example.com/products"
-            
-            result = extract_links_from_homepage("https://example.com", "Example Corp")
-            
-            result_str = " ".join(result)
-            assert "login" not in result_str.lower()
-            assert "careers" not in result_str.lower()
-            assert "privacy" not in result_str.lower()
-    
-    def test_excludes_external_links(self):
-        """Should not include external links."""
-        with patch('primr.data.scrape.get_html_requests') as mock_req, \
-             patch('primr.data.scrape.llm') as mock_llm:
-            
-            mock_req.return_value = MOCK_HTML_WITH_LINKS
-            mock_llm.return_value = "https://example.com/about"
-            
-            result = extract_links_from_homepage("https://example.com", "Example Corp")
-            
-            assert "external.com" not in " ".join(result)
+        assert content is None
+        assert error == "All tiers exhausted"
 
 
 # ============================================================================
 # SOFT BLOCK DETECTION TESTS
 # ============================================================================
+
 class TestSoftBlockDetection:
-    """Tests for soft block detection."""
-    
-    def test_detects_captcha(self):
-        """Should detect captcha pages."""
-        soup = BeautifulSoup(MOCK_HTML_CAPTCHA, "html.parser")
-        text = extract_clean_text(soup)
-        
-        is_blocked, reason = detect_soft_block(text)
-        assert is_blocked is True
-        assert reason is not None
+    """Tests for soft block detection integration."""
     
     def test_detects_access_denied(self):
         """Should detect access denied pages."""
-        soup = BeautifulSoup(MOCK_HTML_BLOCKED, "html.parser")
-        text = extract_clean_text(soup)
-        
-        is_blocked, reason = detect_soft_block(text)
-        assert is_blocked is True
+        is_blocked, reason = detect_soft_block(BLOCKED_HTML)
+        assert is_blocked
+    
+    def test_detects_captcha(self):
+        """Should detect captcha pages."""
+        is_blocked, reason = detect_soft_block(CAPTCHA_HTML)
+        assert is_blocked
     
     def test_allows_valid_content(self):
         """Should allow valid content through."""
-        soup = BeautifulSoup(MOCK_HTML_SIMPLE, "html.parser")
-        text = extract_clean_text(soup)
-        
-        is_blocked, reason = detect_soft_block(text)
-        assert is_blocked is False
-        assert reason is None
+        is_blocked, reason = detect_soft_block(VALID_HTML)
+        assert not is_blocked
     
     def test_detects_empty_response(self):
-        """Should detect empty responses as blocked."""
+        """Should detect empty responses."""
         is_blocked, reason = detect_soft_block("")
-        assert is_blocked is True
-        
-        is_blocked, reason = detect_soft_block(None)
-        assert is_blocked is True
-    
-    def test_detects_short_content(self):
-        """Should detect suspiciously short content."""
-        is_blocked, reason = detect_soft_block("OK")
-        assert is_blocked is True
-        assert "short" in reason.lower()
+        assert is_blocked
 
 
 # ============================================================================
 # CONTENT EXTRACTION TESTS
 # ============================================================================
+
 class TestContentExtraction:
-    """Tests for HTML content extraction."""
+    """Tests for content extraction integration."""
     
-    def test_removes_scripts(self):
-        """Should remove script tags."""
-        html = "<html><body><script>alert('bad')</script><p>Good content</p></body></html>"
-        soup = BeautifulSoup(html, "html.parser")
+    def test_extracts_text_from_soup(self):
+        """Should extract clean text from BeautifulSoup."""
+        soup = BeautifulSoup(VALID_HTML, "html.parser")
         text = extract_clean_text(soup)
         
-        assert "alert" not in text
-        assert "Good content" in text
+        assert "Test Company" in text
+        assert "innovative solutions" in text
     
-    def test_removes_styles(self):
-        """Should remove style tags."""
-        html = "<html><body><style>.bad{color:red}</style><p>Good content</p></body></html>"
-        soup = BeautifulSoup(html, "html.parser")
-        text = extract_clean_text(soup)
-        
-        assert ".bad" not in text
-        assert "Good content" in text
-    
-    def test_removes_nav_footer(self):
-        """Should remove navigation and footer."""
+    def test_removes_nav_and_footer(self):
+        """Should remove navigation and footer elements."""
         html = """
         <html><body>
-            <nav>Navigation links</nav>
-            <main><p>Main content here</p></main>
-            <footer>Footer stuff</footer>
+            <nav>Nav content</nav>
+            <main>Main content</main>
+            <footer>Footer content</footer>
         </body></html>
         """
         soup = BeautifulSoup(html, "html.parser")
         text = extract_clean_text(soup)
         
-        assert "Navigation links" not in text
-        assert "Footer stuff" not in text
+        assert "Nav content" not in text
+        assert "Footer content" not in text
         assert "Main content" in text
+
+
+# ============================================================================
+# LINK EXTRACTION TESTS
+# ============================================================================
+
+class TestLinkExtraction:
+    """Tests for link extraction integration."""
     
-    def test_deduplicates_lines(self):
-        """Should remove duplicate consecutive lines."""
-        html = "<html><body><p>Same line</p><p>Same line</p><p>Different</p></body></html>"
-        soup = BeautifulSoup(html, "html.parser")
-        text = extract_clean_text(soup)
+    def test_extracts_internal_links(self):
+        """Should extract internal links."""
+        links = extract_links_from_html(HTML_WITH_LINKS, "https://example.com")
         
-        assert text.count("Same line") == 1
-        assert "Different" in text
+        assert "https://example.com/about" in links
+        assert "https://example.com/products" in links
+    
+    def test_excludes_external_links(self):
+        """Should exclude external links."""
+        links = extract_links_from_html(HTML_WITH_LINKS, "https://example.com")
+        
+        for link in links:
+            assert "external.com" not in link
 
 
 # ============================================================================
 # CACHE TESTS
 # ============================================================================
+
 class TestCaching:
-    """Tests for caching functionality."""
+    """Tests for caching integration."""
     
     def setup_method(self):
-        """Clear cache before each test."""
         clear_cache()
     
-    def test_memory_cache(self):
-        """Should cache in memory."""
-        url = "https://memory-test.com"
-        content = "Test content for memory cache"
+    def test_cache_roundtrip(self):
+        """Should store and retrieve cached content."""
+        url = "https://test.com/page"
+        content = "Test content"
         
         cache_content(url, content)
         cached = get_cached_content(url)
         
         assert cached == content
     
-    def test_cache_miss(self):
+    def test_cache_miss_returns_none(self):
         """Should return None for uncached URLs."""
         cached = get_cached_content("https://never-cached.com")
         assert cached is None
-    
-    def test_clear_cache(self):
-        """Should clear all cached content."""
-        cache_content("https://test1.com", "Content 1")
-        cache_content("https://test2.com", "Content 2")
-        
-        clear_cache()
-        
-        assert get_cached_content("https://test1.com") is None
-        assert get_cached_content("https://test2.com") is None

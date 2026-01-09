@@ -48,11 +48,19 @@ class TestQAIntegration:
             
             # Mock the analyzer to avoid actual AI calls in tests
             with patch.object(qa_integration, 'analyzer') as mock_analyzer:
-                # Mock successful analysis with proper attributes
-                mock_analysis = Mock(spec=QAAnalysis)
-                mock_analysis.overall_score = 75
-                mock_analysis.timestamp = Mock()
-                mock_analyzer.analyze_report.return_value = mock_analysis
+                # Mock successful analysis with SimpleQAResult fields
+                from src.primr.qa.simple_analyzer import SimpleQAResult
+                mock_result = SimpleQAResult(
+                    parsing_success=True,
+                    ready_for_use=True,
+                    confidence_level="high",
+                    key_strengths=["Strength 1", "Strength 2", "Strength 3"],
+                    areas_for_improvement=["Improvement 1"],
+                    recommendation="Good report"
+                )
+                mock_analyzer.assess_report.return_value = mock_result
+                mock_analyzer._determine_report_type.return_value = "Business Analysis Report"
+                mock_analyzer.model_name = "test-model"
                 
                 # Mock report loader
                 with patch.object(qa_integration, 'report_loader') as mock_loader:
@@ -61,27 +69,30 @@ class TestQAIntegration:
                     mock_report_content.content = content
                     mock_loader.load_report_from_path.return_value = mock_report_content
                     
-                    # Execute QA
-                    result = qa_integration.run_post_generation_qa(report_path, company_name)
-                    
-                    # Verify property: QA execution behavior matches enabled state
-                    if qa_enabled:
-                        # When enabled, should return QAResult
-                        assert result is not None
-                        assert isinstance(result, QAResult)
-                        assert result.grade == 75
-                        assert company_name.lower() in result.summary.lower() or "grade" in result.summary.lower()
+                    # Mock monitor to avoid file I/O issues
+                    with patch.object(qa_integration, 'monitor'):
+                        # Execute QA
+                        result = qa_integration.run_post_generation_qa(report_path, company_name)
                         
-                        # Should have called the analyzer
-                        mock_analyzer.analyze_report.assert_called_once()
-                        mock_loader.load_report_from_path.assert_called_once_with(report_path)
-                    else:
-                        # When disabled, should return None
-                        assert result is None
-                        
-                        # Should not have called the analyzer
-                        mock_analyzer.analyze_report.assert_not_called()
-                        mock_loader.load_report_from_path.assert_not_called()
+                        # Verify property: QA execution behavior matches enabled state
+                        if qa_enabled:
+                            # When enabled, should return QAResult
+                            assert result is not None
+                            assert isinstance(result, QAResult)
+                            # Grade is calculated from SimpleQAResult fields, not hardcoded
+                            assert result.grade > 0
+                            assert "grade" in result.summary.lower()
+                            
+                            # Should have called the analyzer
+                            mock_analyzer.assess_report.assert_called_once()
+                            mock_loader.load_report_from_path.assert_called_once_with(report_path)
+                        else:
+                            # When disabled, should return None
+                            assert result is None
+                            
+                            # Should not have called the analyzer
+                            mock_analyzer.assess_report.assert_not_called()
+                            mock_loader.load_report_from_path.assert_not_called()
         
         finally:
             # Cleanup temporary file
@@ -143,25 +154,33 @@ class TestQAIntegration:
                 os.unlink(report_path)
     
     @given(
-        grade=st.integers(min_value=0, max_value=100)
+        ready_for_use=st.booleans(),
+        confidence_level=st.sampled_from(["high", "medium", "low"])
     )
-    def test_cli_summary_format_property(self, grade):
+    def test_cli_summary_format_property(self, ready_for_use, confidence_level):
         """
         Property: CLI summary format is consistent
         
-        For any grade from 0-100, the CLI summary should follow the format
-        "Grade: (XX/100)" with optional warning for low scores.
+        For any QA result, the CLI summary should follow the format
+        "Grade: (XX/100)".
         """
+        from src.primr.qa.simple_analyzer import SimpleQAResult
+        
+        qa_result = SimpleQAResult(
+            parsing_success=True,
+            ready_for_use=ready_for_use,
+            confidence_level=confidence_level,
+            key_strengths=["Strength 1"],
+            areas_for_improvement=["Improvement 1"],
+            recommendation="Test recommendation"
+        )
+        
         qa_integration = QAIntegration()
-        summary = qa_integration.format_cli_summary(grade)
+        summary = qa_integration.format_cli_summary(qa_result)
         
-        # Verify format
-        assert f"({grade}/100)" in summary
+        # Verify format contains grade
         assert "Grade:" in summary
-        
-        # Verify warning for low scores
-        if grade < 70:
-            assert "Needs Attention" in summary or "warning" in summary.lower()
+        assert "/100)" in summary
     
     def test_qa_failure_handling_property(self):
         """
@@ -180,20 +199,23 @@ class TestQAIntegration:
             
             # Mock analyzer to throw exception
             with patch.object(qa_integration, 'analyzer') as mock_analyzer:
-                mock_analyzer.analyze_report.side_effect = Exception("AI service unavailable")
+                mock_analyzer.assess_report.side_effect = Exception("AI service unavailable")
+                mock_analyzer._determine_report_type.return_value = "Business Analysis Report"
+                mock_analyzer.model_name = "test-model"
                 
                 with patch.object(qa_integration, 'report_loader') as mock_loader:
                     mock_report_content = Mock()
                     mock_report_content.company_name = company_name
                     mock_loader.load_report_from_path.return_value = mock_report_content
                     
-                    # Should not crash, should return failure result
-                    result = qa_integration.run_post_generation_qa(report_path, company_name)
-                    
-                    assert result is not None
-                    assert result.grade == 0  # Failure grade
-                    assert "failed" in result.summary.lower() or result.grade == 0
-                    assert result.needs_attention is True
+                    with patch.object(qa_integration, 'monitor'):
+                        # Should not crash, should return failure result
+                        result = qa_integration.run_post_generation_qa(report_path, company_name)
+                        
+                        assert result is not None
+                        # When exception occurs, error handler returns error result with grade 0
+                        assert result.grade == 0
+                        assert result.needs_attention is True
         
         finally:
             if report_path.exists():

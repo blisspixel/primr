@@ -243,12 +243,11 @@ class TestPhaseBanner:
     """Tests for phase_banner method."""
 
     def test_phase_banner_output(self, capsys):
-        """phase_banner() should display title (step numbers are ignored for cleaner UX)."""
+        """phase_banner() should display title."""
         c = Console()
         c.phase_banner(1, 3, "Research Phase")
         captured = capsys.readouterr()
         assert "Research Phase" in captured.out
-        assert "=" in captured.out
 
     def test_phase_banner_with_description(self, capsys):
         """phase_banner() should display description if provided."""
@@ -276,12 +275,11 @@ class TestPhaseComplete:
     """Tests for phase_complete method."""
 
     def test_phase_complete_output(self, capsys):
-        """phase_complete() should display title and COMPLETE."""
+        """phase_complete() should display title with checkmark."""
         c = Console()
         c.phase_complete("Research Phase")
         captured = capsys.readouterr()
         assert "Research Phase" in captured.out
-        assert "COMPLETE" in captured.out
 
     def test_phase_complete_with_stats(self, capsys):
         """phase_complete() should display stats if provided."""

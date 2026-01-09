@@ -47,6 +47,26 @@ class _TerminalCaps:
         return cls(supports_color, supports_unicode, supports_cursor, width, is_interactive)
 
 
+def _enable_windows_ansi():
+    """Enable ANSI escape sequences on Windows (required for \\r and colors to work)."""
+    if sys.platform == 'win32':
+        try:
+            import ctypes
+            kernel32 = ctypes.windll.kernel32
+            # Enable ENABLE_VIRTUAL_TERMINAL_PROCESSING for stdout
+            STD_OUTPUT_HANDLE = -11
+            ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004
+            handle = kernel32.GetStdHandle(STD_OUTPUT_HANDLE)
+            mode = ctypes.c_ulong()
+            kernel32.GetConsoleMode(handle, ctypes.byref(mode))
+            kernel32.SetConsoleMode(handle, mode.value | ENABLE_VIRTUAL_TERMINAL_PROCESSING)
+        except Exception:
+            pass  # If it fails, continue without - some terminals handle it natively
+
+# Enable Windows ANSI support at module load
+_enable_windows_ansi()
+
+
 @lru_cache(maxsize=1)
 def _detect_terminal():
     is_tty = hasattr(sys.stdout, 'isatty') and sys.stdout.isatty()
@@ -366,22 +386,33 @@ class Console:
                 time_str = f" ({elapsed})" if elapsed else ""
                 self._print(f"{INDENT_DETAIL}{self._theme.INDICATOR_DONE} {label}{time_str}")
             return
-        bar_width = 20
-        filled = int(bar_width * current / total) if total > 0 else 0
-        bar = (self._theme.PROG_FILL * filled + self._theme.MUTED +
-               self._theme.PROG_EMPTY * (bar_width - filled) + self._theme.RESET)
-        display_label = self._truncate(label, 22) if label else ""
+        
+        # Throttle updates to max 10/sec for smoother visual display
+        now = time.time()
+        is_first = current == 1
+        is_last = current == total
+        time_since_last = now - self._last_output_time
+        
+        if not is_first and not is_last and time_since_last < 0.1:
+            return  # Skip this update, too soon
+        
+        # Simple format: "Processing 5/50: /about-us (12s)"
+        display_label = self._truncate(label, 30) if label else ""
         time_str = ""
         if start_time:
             elapsed = self._elapsed(start_time)
             if elapsed:
                 time_str = f" {self._theme.MUTED}({elapsed}){self._theme.RESET}"
-        line = f"\r{INDENT_DETAIL}[{bar}] {current}/{total}"
+        
+        line = f"{current}/{total}"
         if display_label:
             line += f" {display_label}"
         line += time_str
+        
+        padded = f"{INDENT_DETAIL}{line}".ljust(60)
         with self._lock:
-            sys.stdout.write(line.ljust(75))
+            self._last_output_time = now
+            sys.stdout.write(f"\r{padded}")
             sys.stdout.flush()
 
     def status_with_time(self, message, start_time=None):

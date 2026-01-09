@@ -1,5 +1,5 @@
 Primr – Roadmap
-Current State: v1.0.0 (December 2025)
+Current State: v1.1.2 (January 2026)
 
 Primr is a CLI-first, local research tool designed to support company intelligence research, strategic sensemaking, and AI roadmap development. It supports a structured research process while trying to stay honest about uncertainty and maintain a subject-positive posture.
 
@@ -8,7 +8,16 @@ Primr is intentionally opinionated, local-first, and analysis-driven.
 What’s Working Today
 Research Engines
 
-Scrape Mode: 4-tier web scraping (requests, httpx, Playwright, aggressive browser), section-by-section extraction, quality grading
+Scrape Mode: 8-tier web scraping with intelligent escalation:
+- HTTP tiers: requests, httpx, curl_cffi (TLS fingerprint impersonation)
+- Browser tiers: Playwright, Playwright aggressive, DrissionPage (driverless CDP), DrissionPage stealth
+- Vision tier: Screenshot + LLM extraction for image-heavy pages (opt-in)
+- Reader-mode content extraction (BeautifulSoup-based, removes boilerplate)
+- Content quality validation (catches garbage pages, triggers escalation)
+- Homepage-first link discovery (fresher than sitemaps)
+- Sticky tier optimization (reuses working tier for same host)
+- Circuit breaker pattern (skips failing tiers after 3 failures)
+- Soft block detection (catches "200 OK" traps, browser blocks)
 
 Deep Mode: Gemini Deep Research Agent with autonomous multi-step search and synthesis
 
@@ -87,21 +96,33 @@ Input validation for company name and URL
 
 Stable output directory and artifact structure
 
-v1.1.0 – Code Quality and Hardening (In Progress)
+v1.1.0 – Link Discovery and Scraping Improvements (Complete)
 
-Type guards and runtime validation
+Browser-first homepage discovery: Uses Playwright directly for homepage link extraction since most modern sites are JS-heavy
 
-Improved error handling with retries, jitter, and backoff
+Section expansion: Automatically spiders into news/blog/press/resources sections to capture article content for LLM analysis
 
-Resource cleanup and cache hygiene
+LLM link selection: Uses LLM to intelligently select the most valuable pages for consultant research (falls back to heuristic scoring)
 
-Observability primitives (correlation IDs, structured logging)
+Smart discovery skipping: Skips common URL guessing and sitemap when homepage already provides 20+ links
 
-Configuration validation and safer defaults
+Soft block detection fix: Pages with >10KB content no longer falsely flagged as WAF blocks
+
+Improved link extraction: Two-pass regex approach handles nested tags in anchor elements
 
 Citation URL resolution (redirect URLs resolved to readable final destinations)
 
-Enhanced prompt engineering for Company Overview and AI Strategy reports
+v1.1.1 – Content Extraction and Quality Validation (Complete)
+
+Reader-mode extraction: BeautifulSoup-based content extraction that removes boilerplate (nav, footer, ads, sidebars) and focuses on main content area. Produces cleaner text for LLM summarization.
+
+Content quality validation: Automatic detection of garbage content (too short, repetitive, error pages, "Browser not supported" messages). Failed quality checks trigger tier escalation.
+
+Browser block detection: Catches sites that serve "Browser not supported" or "Internet Explorer required" pages to HTTP clients, triggering escalation to browser tier.
+
+Vision tier implementation: Full implementation of screenshot + LLM extraction for image-heavy pages. Takes full-page screenshot, sends to Gemini for text extraction. Opt-in via `enable_vision=True`.
+
+Defensive tier escalation: Quality check runs after content extraction - if content is garbage, automatically tries next tier instead of returning bad data.
 
 Near-Term Roadmap
 v1.2.0 – Stability and Maintainability (In Progress)
@@ -452,7 +473,9 @@ Version	Date	Highlights
 0.4.0	Dec 2025	AI Strategy generation
 0.5.0	Dec 2025	Cost tracking, job recovery
 1.0.0	Dec 2025	Rebrand to Primr, pip installable
-1.1.0	Dec 2025	Code quality hardening
+1.1.0	Jan 2026	Browser-first discovery, LLM link selection, section expansion
+1.1.1	Jan 2026	Reader-mode extraction, content quality validation, vision tier
+1.1.2	Jan 2026	Cache disabled by default (fresh data always)
 1.2.0	Dec 2025	Test coverage hardening (146 new tests, pytest marks)
 1.2.1	Planned	QA-driven report iteration (target 90+ grades)
 1.2.5	Dec 2025	Externalized prompt architecture (YAML configs)

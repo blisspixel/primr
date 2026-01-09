@@ -88,6 +88,13 @@ GOOGLE_SEARCH_FREE_UNTIL = "January 5, 2026"
 # Estimated token usage by mode (based on actual runs Dec 2025)
 # These are fallback defaults - actual estimates come from usage_history.json
 MODE_ESTIMATES = {
+    "scrape-test": {
+        "input_tokens": 0,        # No LLM calls
+        "output_tokens": 0,       # No LLM calls
+        "search_queries": 0,      # No search
+        "duration_min": 0,        # Minutes (low estimate)
+        "duration_max": 2,        # Minutes (high estimate)
+    },
     "scrape-only": {
         "input_tokens": 20_000,   # Scraped content + insight extraction
         "output_tokens": 5_000,   # Just insights summary
