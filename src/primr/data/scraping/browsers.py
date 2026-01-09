@@ -7,8 +7,9 @@ rendering or challenge solving.
 
 import logging
 import time
+import threading
 from abc import ABC, abstractmethod
-from typing import Optional, List, Set
+from typing import Optional, List, Set, Dict
 from urllib.parse import urlparse
 
 from .config import (
@@ -28,6 +29,56 @@ from .profiles import (
 
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# Browser Pool - DISABLED due to greenlet conflicts
+# =============================================================================
+# 
+# NOTE: Browser pooling is disabled because Playwright's sync API uses greenlet
+# internally, and greenlet cannot switch between different call contexts.
+# This caused "Cannot switch to a different thread" errors.
+#
+# The performance cost of launching a fresh browser per page (~1-2s) is
+# acceptable compared to the complexity of managing greenlet contexts.
+# =============================================================================
+
+class BrowserPool:
+    """
+    DEPRECATED: Browser pool disabled due to greenlet conflicts.
+    
+    This class is kept for API compatibility but always returns None,
+    forcing callers to create fresh browser instances.
+    """
+    
+    _instance = None
+    _lock = threading.Lock()
+    
+    def __new__(cls):
+        if cls._instance is None:
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+        return cls._instance
+    
+    def get_context(self, host: str) -> Optional[tuple]:
+        """Always returns None - pool is disabled."""
+        return None
+    
+    def close_all(self) -> None:
+        """No-op - pool is disabled."""
+        pass
+
+
+# Global browser pool (disabled)
+_browser_pool = None
+
+def get_browser_pool() -> BrowserPool:
+    """Get the global browser pool (disabled - always returns fresh instances)."""
+    global _browser_pool
+    if _browser_pool is None:
+        _browser_pool = BrowserPool()
+    return _browser_pool
 
 
 # =============================================================================
@@ -245,13 +296,17 @@ class PlaywrightSession(BrowserSession):
         self,
         profile: Optional[BrowserContextProfile] = None,
         headless: bool = True,
+        reusable: bool = False,
     ):
         self._profile = profile or get_random_context_profile()
         self._headless = headless
+        self._reusable = reusable
         self._browser = None
         self._context = None
         self._page = None
         self._original_url = None
+        self._closed = False
+        self._consent_dismissed = False  # Track if we've dismissed consent for this session
         
         self._setup_browser()
     
@@ -259,15 +314,24 @@ class PlaywrightSession(BrowserSession):
         """Initialize Playwright browser."""
         try:
             from playwright.sync_api import sync_playwright
+            from .profiles import get_random_http_profile
             
             self._playwright = sync_playwright().start()
             
-            # Launch with HTTP/2 disabled to avoid ERR_HTTP2_PROTOCOL_ERROR on some sites
-            # (e.g., BusinessWire). This forces HTTP/1.1 which is more compatible.
+            # Launch with anti-detection args
             self._browser = self._playwright.chromium.launch(
                 headless=self._headless,
-                args=["--disable-http2"],
+                args=[
+                    '--disable-blink-features=AutomationControlled',
+                    '--disable-http2',
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                ],
             )
+            
+            # Get a proper Chrome user agent
+            http_profile = get_random_http_profile()
             
             # Create context with profile settings
             self._context = self._browser.new_context(
@@ -277,7 +341,7 @@ class PlaywrightSession(BrowserSession):
                 },
                 locale=self._profile.locale,
                 timezone_id=self._profile.timezone,
-                user_agent=self._profile.user_agent if hasattr(self._profile, 'user_agent') else None,
+                user_agent=http_profile.user_agent,
             )
             
             # Apply stealth patches
@@ -461,6 +525,7 @@ class PlaywrightSession(BrowserSession):
     
     def close(self) -> None:
         """Close browser."""
+        self._closed = True
         try:
             if self._page:
                 self._page.close()
@@ -678,52 +743,115 @@ def scrape_with_playwright(
     timeout: float = DEFAULT_TIMEOUT_PLAYWRIGHT,
     profile: Optional[BrowserContextProfile] = None,
     headless: bool = True,
+    reuse_browser: bool = False,  # Ignored - always creates fresh instance
 ) -> ScrapeResult:
     """
     Scrape URL using Playwright browser.
     
-    Tier 4: Full browser automation for JavaScript-heavy sites.
+    Tier 1: Full browser automation for JavaScript-heavy sites.
+    Creates a fresh browser instance for each call to avoid greenlet conflicts.
     
     Args:
         url: URL to scrape
         timeout: Timeout in seconds
         profile: Optional browser context profile
         headless: Run browser in headless mode
+        reuse_browser: Ignored (kept for API compatibility)
     
     Returns:
         ScrapeResult with raw HTML bytes
     """
+    return _scrape_with_playwright_impl(url, timeout, profile, headless)
+
+
+def _scrape_with_playwright_impl(
+    url: str,
+    timeout: float,
+    profile: Optional[BrowserContextProfile],
+    headless: bool,
+) -> ScrapeResult:
+    """Internal implementation of Playwright scraping - always creates fresh browser."""
     start_time = time.time()
     tier_name = "playwright"
-    session = None
+    host = extract_host(url)
+    playwright_instance = None
+    browser = None
+    context = None
+    page = None
     
     try:
-        session = PlaywrightSession(profile=profile, headless=headless)
+        from playwright.sync_api import sync_playwright
+        from .profiles import get_random_http_profile, get_stealth_script
+        
+        playwright_instance = sync_playwright().start()
+        
+        # Use new headless mode (headless="new") which is harder to detect
+        # Falls back to regular headless if not supported
+        launch_args = [
+            '--disable-blink-features=AutomationControlled',
+            '--disable-http2',
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-infobars',
+            '--disable-background-networking',
+            '--disable-breakpad',
+            '--disable-component-update',
+            '--disable-domain-reliability',
+            '--disable-features=AudioServiceOutOfProcess,IsolateOrigins,site-per-process',
+            '--disable-hang-monitor',
+            '--disable-ipc-flooding-protection',
+            '--disable-popup-blocking',
+            '--disable-prompt-on-repost',
+            '--disable-renderer-backgrounding',
+            '--disable-sync',
+            '--force-color-profile=srgb',
+            '--metrics-recording-only',
+            '--no-first-run',
+            '--password-store=basic',
+            '--use-mock-keychain',
+            '--export-tagged-pdf',
+        ]
+        
+        browser = playwright_instance.chromium.launch(
+            headless=headless,
+            args=launch_args,
+        )
+        
+        http_profile = get_random_http_profile()
+        ctx_profile = profile or get_random_context_profile()
+        
+        context = browser.new_context(
+            viewport={
+                "width": ctx_profile.viewport_width,
+                "height": ctx_profile.viewport_height,
+            },
+            locale=ctx_profile.locale,
+            timezone_id=ctx_profile.timezone,
+            user_agent=http_profile.user_agent,
+            # Additional context options for stealth
+            java_script_enabled=True,
+            bypass_csp=True,
+            ignore_https_errors=True,
+        )
+        
+        stealth_script = get_stealth_script()
+        if stealth_script:
+            context.add_init_script(stealth_script)
+        
+        page = context.new_page()
         
         # Navigate
         timeout_ms = int(timeout * 1000)
-        if not session.navigate(url, timeout_ms=timeout_ms):
-            elapsed_ms = (time.time() - start_time) * 1000
-            return ScrapeResult(
-                url=url,
-                success=False,
-                error_type=ErrorType.NETWORK_ERROR,
-                error="Navigation failed",
-                tier=tier_name,
-                elapsed_ms=elapsed_ms,
-                attempts=[Attempt(tier=tier_name, success=False, error="Navigation failed", elapsed_ms=elapsed_ms)],
-            )
+        page.goto(url, timeout=timeout_ms, wait_until="domcontentloaded")
         
-        # Wait for page to stabilize
-        time.sleep(1)
-        
-        # Try to dismiss consent
-        session.dismiss_consent()
+        # Wait for JS to execute - modern sites need more time
+        time.sleep(1.0)
         
         # Get HTML
-        html = session.get_page_html()
-        cookies = session.get_cookies()
-        final_url = session.get_current_url()
+        html = page.content()
+        cookies = {c["name"]: c["value"] for c in context.cookies()}
+        final_url = page.url
         
         elapsed_ms = (time.time() - start_time) * 1000
         
@@ -752,8 +880,8 @@ def scrape_with_playwright(
         
     except Exception as e:
         elapsed_ms = (time.time() - start_time) * 1000
-        
         error_str = str(e).lower()
+        
         if "timeout" in error_str:
             error_type = ErrorType.TIMEOUT
         else:
@@ -770,11 +898,19 @@ def scrape_with_playwright(
         )
         
     finally:
-        if session:
-            try:
-                session.close()
-            except Exception:
-                pass
+        # Always clean up
+        if page:
+            try: page.close()
+            except: pass
+        if context:
+            try: context.close()
+            except: pass
+        if browser:
+            try: browser.close()
+            except: pass
+        if playwright_instance:
+            try: playwright_instance.stop()
+            except: pass
 
 
 def scrape_with_playwright_aggressive(
@@ -1095,37 +1231,25 @@ def scrape_with_drissionpage_stealth(
 def scrape_with_vision(
     url: str,
     timeout: float = DEFAULT_TIMEOUT_VISION,
-    enabled: bool = False,
 ) -> ScrapeResult:
     """
     Scrape URL using vision model (screenshot + LLM extraction).
     
-    Tier 8: Vision fallback for image-heavy or heavily protected sites.
+    Tier 6: Vision fallback for image-heavy or heavily protected sites.
     Takes a screenshot and uses Gemini to extract text content.
     
-    NOTE: This tier is OPT-IN only. Set enabled=True to use.
+    This is the nuclear option - costs ~$0.01-0.02 per page but works on
+    almost anything that renders in a browser.
     
     Args:
         url: URL to scrape
         timeout: Timeout in seconds
-        enabled: Must be True to actually run (opt-in)
     
     Returns:
         ScrapeResult with extracted_text from vision, raw_content=screenshot bytes
     """
     tier_name = "vision"
     start_time = time.time()
-    
-    # Vision is opt-in only
-    if not enabled:
-        return ScrapeResult(
-            url=url,
-            success=False,
-            error_type=ErrorType.NETWORK_ERROR,
-            error="Vision tier not enabled (opt-in required)",
-            tier=tier_name,
-            attempts=[],
-        )
     
     try:
         from playwright.sync_api import sync_playwright
@@ -1135,12 +1259,40 @@ def scrape_with_vision(
         
         settings = get_settings()
         
+        # Check if we have Gemini API key
+        if not settings.api.gemini_key:
+            return ScrapeResult(
+                url=url,
+                success=False,
+                error_type=ErrorType.NETWORK_ERROR,
+                error="Vision tier requires GEMINI_API_KEY",
+                tier=tier_name,
+                attempts=[],
+            )
+        
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
+            browser = p.chromium.launch(
+                headless=True,
+                args=[
+                    '--disable-blink-features=AutomationControlled',
+                    '--disable-http2',
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                ],
+            )
+            
+            from .profiles import get_stealth_script
+            
             context = browser.new_context(
                 viewport={"width": 1280, "height": 1024},
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
             )
+            
+            # Apply stealth patches
+            stealth_script = get_stealth_script()
+            if stealth_script:
+                context.add_init_script(stealth_script)
             page = context.new_page()
             
             # Navigate and wait for content

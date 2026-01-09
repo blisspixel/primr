@@ -36,17 +36,20 @@ from .browsers import (
 
 
 # =============================================================================
-# Default Tier Order (2026 - Browser First)
+# Default Tier Order (2026 - Browser First, Vision as Safety Net)
 # =============================================================================
 
-# Modern corporate websites: JS-heavy, image-heavy, or bot-protected.
-# Order optimized for success rate on real business sites.
+# Modern corporate websites: JS-heavy, image-heavy, WAF-protected.
+# Order optimized for success rate on real business sites in 2026.
 #
-# Logic:
-# 1. Browser tiers first (handles JS rendering - 95% of modern sites)
-# 2. Stealth tiers for bot protection (Cloudflare, etc.)
-# 3. Vision for image-heavy sites where text extraction fails
-# 4. Simple HTTP as last resort (rare for corporate sites)
+# Philosophy: GET THE CONTENT. Period.
+# - Browser tiers first (handles JS rendering - 95% of modern sites)
+# - Stealth tiers for bot protection (Cloudflare, Akamai, etc.)
+# - Vision tier as safety net (costs ~$0.01-0.02 but works on almost anything)
+# - Simple HTTP as last resort (rare for corporate sites)
+#
+# The user said it best: "I DONT FUCKING CARE if it costs a few cents... 
+# WE MUST have it work"
 
 DEFAULT_TIERS: List[ScrapeTier] = [
     # Tier 1: Full browser (works on 95%+ of modern sites)
@@ -89,15 +92,17 @@ DEFAULT_TIERS: List[ScrapeTier] = [
         requires="DrissionPage",
     ),
     
-    # Tier 6: Vision AI (image-heavy sites where text extraction fails)
+    # Tier 6: Vision AI - THE NUCLEAR OPTION
+    # Screenshot + Gemini extraction. Costs ~$0.01-0.02 per page but works
+    # on almost anything that renders in a browser. Worth every penny.
     ScrapeTier(
         name="vision",
         scrape_fn=scrape_with_vision,
         timeout=DEFAULT_TIMEOUT_VISION,
-        requires=None,
+        requires=None,  # Only requires GEMINI_API_KEY which we already need
     ),
     
-    # Tier 7: HTTP/2 (simple sites fallback)
+    # Tier 7: HTTP/2 (simple sites fallback - rare in 2026)
     ScrapeTier(
         name="httpx",
         scrape_fn=scrape_with_httpx,
@@ -105,7 +110,7 @@ DEFAULT_TIERS: List[ScrapeTier] = [
         requires="httpx",
     ),
     
-    # Tier 8: Basic HTTP (last resort)
+    # Tier 8: Basic HTTP (last resort - almost never works on modern sites)
     ScrapeTier(
         name="requests",
         scrape_fn=scrape_with_requests,

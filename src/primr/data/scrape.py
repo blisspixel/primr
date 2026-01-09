@@ -87,8 +87,9 @@ def get_orchestrator(
             cache=ScrapeCache(cache_dir=str(CACHE_DIR)),
             rate_limiter=RateLimiter(RateLimitConfig()),
             enable_vision=enable_vision,
-            max_page_time=30.0,  # Max 30s per page to avoid hanging on protected sites
+            max_page_time=20.0,  # Max 20s per page - fail fast, move on
             use_cache=use_cache,
+            circuit_breaker_threshold=5,  # More lenient - sites have mixed content
         )
     
     return _orchestrator
@@ -229,13 +230,23 @@ def fetch_web_content(
     
     homepage_html = result.raw_content
     
-    # Step 2: Extract links from rendered HTML
-    all_links = _extract_links_from_html_new(homepage_html, website)
-    in_scope_links = [link for link in all_links if is_in_scope(link.url, website)]
+    # Step 2: Discover ALL links using full discovery pipeline
+    # This includes: homepage links, common URL guessing, sitemap fallback
+    from .scraping.discovery import discover_links, is_same_domain
+    
+    all_links = discover_links(
+        base_url=website,
+        homepage_html=homepage_html,
+        verify_guessed=True,  # Verify guessed URLs exist
+        min_links_before_sitemap=20,  # Check sitemap if < 20 links
+    )
+    
+    # Filter to in-scope links (same domain + subdomains)
+    in_scope_links = [link for link in all_links if is_same_domain(website, link.url)]
     
     # Use LLM to intelligently select the most valuable pages for company research
+    # The LLM decides how many pages are worth scraping - no artificial limits
     # Falls back to heuristic scoring if LLM fails
-    # Import here to avoid circular import
     from primr.core.research_agent import select_links_with_llm
     
     with console.spinner(f"Selecting from {len(in_scope_links)} pages"):
@@ -243,7 +254,7 @@ def fetch_web_content(
             in_scope_links,
             company_name=company_name,
             website=website,
-            max_links=max_pages or 50,
+            max_links=max_pages or 100,  # Let LLM decide, but cap at 100 for sanity
         )
     total_found = len(selected_urls)
     
@@ -257,6 +268,10 @@ def fetch_web_content(
     else:
         pages_to_scrape = selected_urls
         console.found(f"{len(in_scope_links)} links {console._arrow} {total_found} selected")
+    
+    # Flush stdout to ensure progress shows immediately
+    import sys
+    sys.stdout.flush()
     
     # Step 3: Scrape pages (homepage first, then discovered links)
     scrape_start = time.time()
@@ -301,6 +316,7 @@ def fetch_web_content(
     # Show initial progress immediately
     if pages_to_scrape:
         console.scrape_progress(1, total, "homepage", scrape_start)
+        logger.info(f"Starting to scrape {total} pages (homepage + {len(pages_to_scrape)} discovered)")
     
     for i, page_url in enumerate(pages_to_scrape):
         normalized = normalize_url(page_url)
@@ -312,10 +328,12 @@ def fetch_web_content(
         
         # Show progress BEFORE scraping so user sees what's happening
         console.scrape_progress(i + 2, total, path_display, scrape_start)
+        logger.debug(f"Scraping page {i + 2}/{total}: {page_url}")
         
-        # Small delay between requests
-        time.sleep(random.uniform(0.3, 0.8))
+        # Small delay between requests (reduced for speed)
+        time.sleep(random.uniform(0.2, 0.5))
         
+        page_start = time.time()
         result = orchestrator.scrape_url(page_url)
         
         if result.success and result.raw_content:

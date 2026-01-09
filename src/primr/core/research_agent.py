@@ -195,7 +195,7 @@ def select_links_with_llm(
     """
     Use LLM to intelligently select the most valuable links for research.
     
-    The LLM acts like a consultant deciding which pages to read to understand
+    The LLM acts like a business analyst deciding which pages to read to understand
     a company - prioritizing pages about leadership, strategy, products,
     financials, and recent news.
     
@@ -203,7 +203,7 @@ def select_links_with_llm(
         links: List of DiscoveredLink objects (pre-scored heuristically)
         company_name: Company name for context
         website: Company website URL
-        max_links: Maximum links to return
+        max_links: Maximum links to return (passed to LLM so it knows the constraint)
     
     Returns:
         List of URLs selected by the LLM
@@ -231,6 +231,7 @@ def select_links_with_llm(
             company_name=company_name,
             website=website,
             links=links_text,
+            max_links=max_links,  # Pass limit to prompt so LLM knows the constraint
         )
         
         # Use link_selection model type (Flash - cheap and fast)
@@ -243,10 +244,10 @@ def select_links_with_llm(
             if line and line.startswith("http"):
                 selected_urls.append(line)
         
-        # If LLM returned valid URLs, use them
+        # If LLM returned valid URLs, use them (LLM already knows the limit)
         if selected_urls:
             logger.info(f"LLM selected {len(selected_urls)} links from {len(links)}")
-            return selected_urls[:max_links]
+            return selected_urls
         
     except Exception as e:
         logger.warning(f"LLM link selection failed: {e}, falling back to heuristic scoring")

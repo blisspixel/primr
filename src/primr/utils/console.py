@@ -425,10 +425,10 @@ class Console:
             while not stop_event.is_set():
                 frame = frames[idx % len(frames)]
                 with self._lock:
-                    line = f"\r{self._cyan}{frame}{self._reset} {current_msg[0]}"
-                    # Pad to clear any previous longer text
-                    sys.stdout.write(line.ljust(line_width))
-                    sys.stdout.write("\r" + line)  # Reposition cursor
+                    # Clear line first, then write spinner
+                    clear = "\r" + " " * line_width + "\r"
+                    line = f"{self._cyan}{frame}{self._reset} {current_msg[0]}"
+                    sys.stdout.write(clear + line)
                     sys.stdout.flush()
                 idx += 1
                 time.sleep(0.08)

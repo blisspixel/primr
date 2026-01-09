@@ -1,13 +1,13 @@
 """
-Browser fingerprint profiles for stealth scraping.
+Browser fingerprint profiles for stealth scraping - 2026 standards.
 
-Separated into three concerns to reduce fingerprint mismatch risk:
-1. HttpHeaderProfile - HTTP headers that must match TLS fingerprint
-2. BrowserContextProfile - Browser context settings (viewport, locale, timezone)
-3. StealthPatch - Minimal JS patches for specific detection bypasses
+Modern WAF detection looks at:
+1. TLS fingerprint (JA3/JA4) - must match browser
+2. HTTP/2 fingerprint (AKAMAI) - header order, priorities
+3. JavaScript fingerprints - navigator properties, WebGL, Canvas
+4. Behavioral patterns - mouse movements, timing
 
-WARNING: Keep stealth patches minimal. Many properties are read-only or
-create detectable inconsistencies if patched naively.
+This module provides realistic 2026 browser profiles.
 """
 
 import random
@@ -38,54 +38,48 @@ class BrowserContextProfile:
 
 @dataclass
 class StealthPatch:
-    """
-    Minimal JS patches for specific detection bypasses.
-    
-    WARNING: Keep minimal. Many properties are read-only or create
-    detectable inconsistencies if patched naively.
-    """
+    """Legacy class for backward compatibility."""
     name: str
-    script: str  # JavaScript to inject
-    description: str  # What detection it bypasses
+    script: str
+    description: str
 
 
 # =============================================================================
-# Pre-defined HTTP Header Profiles
-# Must match curl_cffi impersonation targets
+# 2026 HTTP Header Profiles - Current Chrome/Edge versions
 # =============================================================================
 
 HTTP_PROFILES = [
     HttpHeaderProfile(
-        name="chrome_124_windows",
-        user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-        sec_ch_ua='"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+        name="chrome_131_windows",
+        user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        sec_ch_ua='"Chromium";v="131", "Google Chrome";v="131", "Not_A Brand";v="24"',
         sec_ch_ua_platform='"Windows"',
         accept_language="en-US,en;q=0.9",
     ),
     HttpHeaderProfile(
-        name="chrome_124_mac",
-        user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-        sec_ch_ua='"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+        name="chrome_131_mac",
+        user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        sec_ch_ua='"Chromium";v="131", "Google Chrome";v="131", "Not_A Brand";v="24"',
         sec_ch_ua_platform='"macOS"',
         accept_language="en-US,en;q=0.9",
     ),
     HttpHeaderProfile(
-        name="chrome_125_windows",
-        user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-        sec_ch_ua='"Chromium";v="125", "Google Chrome";v="125", "Not-A.Brand";v="99"',
+        name="chrome_130_windows",
+        user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+        sec_ch_ua='"Chromium";v="130", "Google Chrome";v="130", "Not_A Brand";v="24"',
         sec_ch_ua_platform='"Windows"',
         accept_language="en-US,en;q=0.9",
     ),
     HttpHeaderProfile(
-        name="edge_124_windows",
-        user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Edg/124.0.0.0",
-        sec_ch_ua='"Chromium";v="124", "Microsoft Edge";v="124", "Not-A.Brand";v="99"',
+        name="edge_131_windows",
+        user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0",
+        sec_ch_ua='"Chromium";v="131", "Microsoft Edge";v="131", "Not_A Brand";v="24"',
         sec_ch_ua_platform='"Windows"',
         accept_language="en-US,en;q=0.9",
     ),
     HttpHeaderProfile(
-        name="safari_17_mac",
-        user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 14_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15",
+        name="safari_18_mac",
+        user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 14_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.2 Safari/605.1.15",
         sec_ch_ua=None,  # Safari doesn't send sec-ch-ua
         sec_ch_ua_platform=None,
         accept_language="en-US,en;q=0.9",
@@ -94,7 +88,7 @@ HTTP_PROFILES = [
 
 
 # =============================================================================
-# Pre-defined Browser Context Profiles
+# Browser Context Profiles - Common screen resolutions
 # =============================================================================
 
 CONTEXT_PROFILES = [
@@ -134,19 +128,181 @@ CONTEXT_PROFILES = [
 
 
 # =============================================================================
-# Minimal Stealth Patches
-# Only add patches that are proven necessary and safe
+# Stealth Script - Comprehensive 2026 anti-detection
 # =============================================================================
 
-STEALTH_PATCHES = [
-    StealthPatch(
-        name="webdriver_false",
-        script="Object.defineProperty(navigator, 'webdriver', {get: () => false});",
-        description="Hide webdriver flag (basic detection bypass)",
-    ),
-    # NOTE: Keep this list minimal. Adding more patches increases detection risk.
-    # Most "stealth" patches create detectable inconsistencies.
-]
+STEALTH_SCRIPT = """
+// Hide webdriver flag
+Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+delete navigator.__proto__.webdriver;
+
+// Fix plugins array (headless Chrome has empty plugins)
+Object.defineProperty(navigator, 'plugins', {
+    get: () => {
+        const plugins = [
+            {name: 'Chrome PDF Plugin', filename: 'internal-pdf-viewer', description: 'Portable Document Format'},
+            {name: 'Chrome PDF Viewer', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai', description: ''},
+            {name: 'Native Client', filename: 'internal-nacl-plugin', description: ''},
+        ];
+        plugins.item = (i) => plugins[i];
+        plugins.namedItem = (name) => plugins.find(p => p.name === name);
+        plugins.refresh = () => {};
+        plugins.length = 3;
+        return plugins;
+    }
+});
+
+// Fix languages
+Object.defineProperty(navigator, 'languages', {get: () => ['en-US', 'en']});
+Object.defineProperty(navigator, 'language', {get: () => 'en-US'});
+
+// Fix permissions API
+const originalQuery = window.navigator.permissions.query;
+window.navigator.permissions.query = (parameters) => (
+    parameters.name === 'notifications' ?
+        Promise.resolve({state: Notification.permission}) :
+        originalQuery(parameters)
+);
+
+// Fix chrome object (missing in headless)
+if (!window.chrome) {
+    window.chrome = {
+        runtime: {
+            connect: function() {},
+            sendMessage: function() {},
+            onMessage: {addListener: function() {}},
+            onConnect: {addListener: function() {}},
+            PlatformOs: {MAC: 'mac', WIN: 'win', ANDROID: 'android', CROS: 'cros', LINUX: 'linux', OPENBSD: 'openbsd'},
+            PlatformArch: {ARM: 'arm', X86_32: 'x86-32', X86_64: 'x86-64'},
+            PlatformNaclArch: {ARM: 'arm', X86_32: 'x86-32', X86_64: 'x86-64'},
+            RequestUpdateCheckStatus: {THROTTLED: 'throttled', NO_UPDATE: 'no_update', UPDATE_AVAILABLE: 'update_available'},
+        },
+        loadTimes: function() {
+            return {
+                requestTime: Date.now() / 1000 - Math.random() * 10,
+                startLoadTime: Date.now() / 1000 - Math.random() * 5,
+                commitLoadTime: Date.now() / 1000 - Math.random() * 2,
+                finishDocumentLoadTime: Date.now() / 1000 - Math.random(),
+                finishLoadTime: Date.now() / 1000,
+                firstPaintTime: Date.now() / 1000 - Math.random() * 3,
+                firstPaintAfterLoadTime: 0,
+                navigationType: 'Other',
+                wasFetchedViaSpdy: false,
+                wasNpnNegotiated: true,
+                npnNegotiatedProtocol: 'h2',
+                wasAlternateProtocolAvailable: false,
+                connectionInfo: 'h2'
+            };
+        },
+        csi: function() {
+            return {
+                onloadT: Date.now(),
+                pageT: Date.now() - performance.timing.navigationStart,
+                startE: performance.timing.navigationStart,
+                tran: 15
+            };
+        },
+        app: {
+            isInstalled: false,
+            InstallState: {INSTALLED: 'installed', NOT_INSTALLED: 'not_installed'},
+            RunningState: {RUNNING: 'running', CANNOT_RUN: 'cannot_run', READY_TO_RUN: 'ready_to_run'}
+        }
+    };
+}
+
+// Fix WebGL vendor/renderer (headless shows "Google SwiftShader")
+const getParameterProxyHandler = {
+    apply: function(target, thisArg, args) {
+        const param = args[0];
+        const gl = thisArg;
+        // UNMASKED_VENDOR_WEBGL
+        if (param === 37445) {
+            return 'Google Inc. (NVIDIA)';
+        }
+        // UNMASKED_RENDERER_WEBGL
+        if (param === 37446) {
+            return 'ANGLE (NVIDIA, NVIDIA GeForce GTX 1080 Direct3D11 vs_5_0 ps_5_0, D3D11)';
+        }
+        return Reflect.apply(target, thisArg, args);
+    }
+};
+
+try {
+    const canvas = document.createElement('canvas');
+    const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+    if (gl) {
+        const originalGetParameter = gl.getParameter.bind(gl);
+        gl.getParameter = new Proxy(originalGetParameter, getParameterProxyHandler);
+    }
+} catch (e) {}
+
+// Fix connection type
+if (navigator.connection) {
+    Object.defineProperty(navigator.connection, 'rtt', {get: () => 50});
+}
+
+// Fix hardware concurrency (headless often shows 1)
+Object.defineProperty(navigator, 'hardwareConcurrency', {get: () => 8});
+
+// Fix device memory
+Object.defineProperty(navigator, 'deviceMemory', {get: () => 8});
+
+// Fix platform (ensure it's not detected as headless)
+Object.defineProperty(navigator, 'platform', {get: () => 'Win32'});
+
+// Fix vendor
+Object.defineProperty(navigator, 'vendor', {get: () => 'Google Inc.'});
+
+// Fix product
+Object.defineProperty(navigator, 'product', {get: () => 'Gecko'});
+
+// Fix productSub
+Object.defineProperty(navigator, 'productSub', {get: () => '20030107'});
+
+// Fix appVersion to match Chrome
+Object.defineProperty(navigator, 'appVersion', {
+    get: () => '5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
+});
+
+// Fix appName
+Object.defineProperty(navigator, 'appName', {get: () => 'Netscape'});
+
+// Fix mimeTypes
+Object.defineProperty(navigator, 'mimeTypes', {
+    get: () => {
+        const mimeTypes = [
+            {type: 'application/pdf', suffixes: 'pdf', description: 'Portable Document Format'},
+            {type: 'text/pdf', suffixes: 'pdf', description: 'Portable Document Format'},
+        ];
+        mimeTypes.item = (i) => mimeTypes[i];
+        mimeTypes.namedItem = (name) => mimeTypes.find(m => m.type === name);
+        mimeTypes.length = 2;
+        return mimeTypes;
+    }
+});
+
+// Fix Notification
+if (typeof Notification === 'undefined') {
+    window.Notification = {
+        permission: 'default',
+        requestPermission: () => Promise.resolve('default')
+    };
+}
+
+// Fix screen properties
+Object.defineProperty(screen, 'availWidth', {get: () => window.innerWidth});
+Object.defineProperty(screen, 'availHeight', {get: () => window.innerHeight});
+Object.defineProperty(screen, 'colorDepth', {get: () => 24});
+Object.defineProperty(screen, 'pixelDepth', {get: () => 24});
+
+// Fix outerWidth/outerHeight (headless often has these as 0)
+Object.defineProperty(window, 'outerWidth', {get: () => window.innerWidth + 16});
+Object.defineProperty(window, 'outerHeight', {get: () => window.innerHeight + 88});
+
+// Fix screenX/screenY
+Object.defineProperty(window, 'screenX', {get: () => 0});
+Object.defineProperty(window, 'screenY', {get: () => 0});
+"""
 
 
 # =============================================================================
@@ -164,8 +320,8 @@ def get_random_context_profile() -> BrowserContextProfile:
 
 
 def get_stealth_script() -> str:
-    """Get combined stealth script (minimal patches only)."""
-    return "\n".join(p.script for p in STEALTH_PATCHES)
+    """Get comprehensive stealth script for 2026 anti-detection."""
+    return STEALTH_SCRIPT
 
 
 def get_http_profile_by_name(name: str) -> Optional[HttpHeaderProfile]:
