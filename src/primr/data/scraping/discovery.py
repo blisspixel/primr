@@ -446,7 +446,7 @@ def extract_links_from_html(
 
 
 # =============================================================================
-# Heuristic Scoring
+# Heuristic Scoring (fallback when LLM unavailable)
 # =============================================================================
 
 # Keywords that indicate high-value pages for business research
@@ -527,37 +527,38 @@ def score_links_heuristically(links: List[DiscoveredLink]) -> List[DiscoveredLin
 def extract_links_from_homepage(
     base_url: str,
     rate_limiter: Optional[RateLimiter] = None,
+    homepage_html: Optional[bytes] = None,
 ) -> List[DiscoveredLink]:
     """
-    Extract links from the homepage using multiple strategies.
-    
-    Strategies (in order):
-    1. Fetch homepage HTML and extract links
-    2. Look for navigation menus
-    3. Look for footer links
+    Extract links from the homepage.
     
     Args:
         base_url: Base URL of the website
-        rate_limiter: Rate limiter for requests
+        rate_limiter: Rate limiter for requests (used if homepage_html not provided)
+        homepage_html: Pre-fetched homepage HTML (from scraper with JS rendering)
     
     Returns:
         List of DiscoveredLink objects from homepage
     """
-    rate_limiter = rate_limiter or NoOpRateLimiter()
-    host = extract_host(base_url)
+    html_content = homepage_html
     
-    # Fetch homepage
-    try:
-        rate_limiter.acquire(host)
+    # If no pre-fetched content, try raw HTTP (fast path for simple sites)
+    if html_content is None:
+        rate_limiter = rate_limiter or NoOpRateLimiter()
+        host = extract_host(base_url)
+        
         try:
-            response = make_request(base_url, timeout=30)
-            if response.status_code != 200:
-                return []
-            html_content = response.content
-        finally:
-            rate_limiter.release(host)
-    except Exception as e:
-        logger.debug(f"Failed to fetch homepage {base_url}: {e}")
+            rate_limiter.acquire(host)
+            try:
+                response = make_request(base_url, timeout=10)  # Shorter timeout
+                if response.status_code == 200:
+                    html_content = response.content
+            finally:
+                rate_limiter.release(host)
+        except Exception as e:
+            logger.debug(f"Failed to fetch homepage {base_url}: {e}")
+    
+    if not html_content:
         return []
     
     # Extract all links
@@ -578,15 +579,16 @@ def discover_links(
     base_url: str,
     sitemap_config: Optional[SitemapConfig] = None,
     rate_limiter: Optional[RateLimiter] = None,
-    verify_guessed: bool = True,
+    verify_guessed: bool = False,
     min_links_to_skip_verify: int = 15,
     min_links_before_sitemap: int = 20,
+    homepage_html: Optional[bytes] = None,
 ) -> List[DiscoveredLink]:
     """
     Discover links using all available strategies.
     
     Order (homepage-first, sitemap as fallback):
-    1. Homepage link extraction (most current, JS-rendered)
+    1. Homepage link extraction (most current, JS-rendered if homepage_html provided)
     2. Common URL guessing (if < 20 links)
     3. Sitemap parsing (only if still < 20 links - often stale)
     
@@ -596,9 +598,10 @@ def discover_links(
         base_url: Base URL of the website
         sitemap_config: Configuration for sitemap parsing
         rate_limiter: Rate limiter for requests
-        verify_guessed: Whether to verify guessed URLs exist
+        verify_guessed: Whether to verify guessed URLs exist (slow - 60+ HEAD requests)
         min_links_to_skip_verify: Skip URL verification if we already have this many links
         min_links_before_sitemap: Only check sitemap if we have fewer than this many links
+        homepage_html: Pre-fetched homepage HTML (from scraper with JS rendering)
     
     Returns:
         List of DiscoveredLink objects, scored and sorted
@@ -612,9 +615,9 @@ def discover_links(
                 seen_urls.add(link.url)
                 all_links.append(link)
     
-    # 1. Homepage links FIRST (most current, handles JS-heavy sites)
+    # 1. Homepage links FIRST (most current, handles JS-heavy sites if homepage_html provided)
     logger.debug(f"Extracting links from homepage")
-    homepage_links = extract_links_from_homepage(base_url, rate_limiter)
+    homepage_links = extract_links_from_homepage(base_url, rate_limiter, homepage_html)
     add_links(homepage_links)
     if homepage_links:
         logger.debug(f"Found {len(homepage_links)} links from homepage")

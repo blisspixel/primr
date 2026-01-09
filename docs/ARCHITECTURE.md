@@ -54,18 +54,32 @@ Data collection (scraping, search) is separate from analysis (AI). Analysis is s
 
 ## Research Modes
 
-### Scrape Mode
+### Scrape Mode (Corpus+Insights)
 
-Website-focused research using an 8-tier scraping strategy with AI-powered insight extraction.
+Website-focused research using the `build_site_corpus` workflow with AI-powered insight extraction.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                        Scrape Mode Pipeline                          │
+│                   Scrape Mode Pipeline (Corpus+Insights)             │
 └─────────────────────────────────────────────────────────────────────┘
                                    │
                                    ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                     8-Tier Scraping Orchestrator                     │
+│                     build_site_corpus (fetch_web_content)            │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │  1. discover_site_urls → (in_scope_urls, external_urls)      │   │
+│  │  2. rank_and_select_urls → selected_urls                     │   │
+│  │  3. scrape_pages (using scrape_page primitive with tiers)    │   │
+│  │  4. build_corpus → cleaned text                              │   │
+│  │  5. save_raw_scrapes, save_external_links                    │   │
+│  └─────────────────────────────────────────────────────────────┘   │
+│                                                                      │
+│  Outputs: _raw_scrapes/, scraped_content.txt, _external_links.txt   │
+└─────────────────────────────────────────────────────────────────────┘
+                                   │
+                                   ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                   scrape_page primitive (8-Tier Orchestrator)        │
 │  ┌─────────┐  ┌─────────┐  ┌───────────┐  ┌───────────────────┐    │
 │  │Requests │─▶│  httpx  │─▶│ curl_cffi │─▶│    Playwright     │    │
 │  │ (fast)  │  │ (HTTP/2)│  │(TLS spoof)│  │    (browser)      │    │
@@ -82,29 +96,10 @@ Website-focused research using an 8-tier scraping strategy with AI-powered insig
                                    │
                                    ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                   Homepage-First Link Discovery (v1.1.0)            │
-│  1. Render homepage with Playwright (browser-first for JS sites)   │
-│  2. Expand section pages (news, blog, press) → get articles        │
-│  3. Common URL guessing only if < 20 links                         │
-│  4. Sitemap fallback only if still < 20 links                      │
-│  5. LLM selects most valuable pages for research                   │
-└─────────────────────────────────────────────────────────────────────┘
-                                   │
-                                   ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                   External Source Validation (v1.2.0)               │
-│  1. Google Search for business news (press releases, funding, etc) │
-│  2. Filter low-value sites (social media, job boards, forums)      │
-│  3. Scrape and extract clean content                               │
-│  4. LLM validates article is about the TARGET company              │
-│     (uses domain as definitive identifier to avoid name collisions)│
-│  5. Return validated third-party sources for report enrichment     │
-└─────────────────────────────────────────────────────────────────────┘
-                                   │
-                                   ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                     LLM Insight Extraction                           │
-│              (Extract key facts from each scraped page)             │
+│                     extract_insights (summarize_scraped_content)     │
+│              (Extract key facts from corpus - LLM-powered)          │
+│                                                                      │
+│  Output: insights.txt                                               │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -296,21 +291,39 @@ from primr.core.cli import parse_args, CLIConfig
 from primr.core.research_agent import main, run_doctor, create_working_folder
 ```
 
-### 8-Tier Scraping Engine
+### Scraping Conceptual Model
+
+Primr distinguishes between two levels of scraping:
+
+| Level | Conceptual Name | Implementation | Input | Output |
+|-------|-----------------|----------------|-------|--------|
+| Primitive | `scrape_page` | `ScrapeOrchestrator.scrape_url()` | URL | content + tier + quality + errors |
+| Workflow | `build_site_corpus` | `fetch_web_content()` | base domain | corpus + raw scrapes + external links |
+
+**Naming Rules (enforced in docs and code):**
+- `scrape_page` always refers to ONE URL (the primitive)
+- `build_site_corpus` always refers to multi-page site workflow
+- `extract_insights` always refers to corpus → structured facts compression (implemented by `summarize_scraped_content()`)
+- `--mode scrape` is "Corpus+Insights mode" (multi-page corpus, not one page)
+- Never use "scrape" alone without clarifying page-level or site-level
+
+**Key Principle:** There is ONE site-to-corpus workflow (`build_site_corpus`). All modes that need a corpus call this function. No other function should implement a site discovery + scrape loop.
+
+### 8-Tier Scraping Engine (scrape_page primitive)
 
 Location: `src/primr/data/scraping/orchestrator.py`
 
-A tiered fallback system for web scraping, designed to handle increasingly aggressive bot protection. Based on 2026 best practices for resilient scraping.
+The `scrape_page` primitive uses a tiered fallback system for web scraping, designed for 2026 realities where most sites use JavaScript. Browser-first approach ensures reliable scraping of modern sites.
 
 | Tier | Method | Use Case | Speed |
 |------|--------|----------|-------|
-| 1 | requests | Simple sites, no JS | Fast |
-| 2 | httpx | HTTP/2 sites, better headers | Fast |
+| 1 | Playwright | JS-rendered content (default) | Medium |
+| 2 | Playwright Aggressive | Content expansion (accordions, lazy load) | Medium |
 | 3 | curl_cffi | TLS fingerprint impersonation | Fast |
-| 4 | Playwright | JS-rendered content | Medium |
-| 5 | Playwright Aggressive | Content expansion (accordions, lazy load) | Medium |
-| 6 | DrissionPage | Driverless browser via CDP | Slow |
-| 7 | DrissionPage Stealth | Maximum stealth with challenge waiting | Slow |
+| 4 | DrissionPage Stealth | Maximum stealth with challenge waiting | Slow |
+| 5 | DrissionPage | Driverless browser via CDP | Slow |
+| 6 | httpx | HTTP/2 sites, better headers | Fast |
+| 7 | requests | Simple sites, no JS (fallback) | Fast |
 | 8 | Vision | AI-based extraction (opt-in) | Slow |
 
 **Key Features:**
@@ -321,13 +334,19 @@ A tiered fallback system for web scraping, designed to handle increasingly aggre
 - **TLS Fingerprint Impersonation**: curl_cffi mimics real browser TLS signatures
 - **Driverless Browsers**: DrissionPage uses CDP directly, bypassing WebDriver detection
 
-**Link Discovery (Homepage-First, v1.1.0):**
+### Link Discovery (Homepage-First, v1.1.0)
+
+Part of the `build_site_corpus` workflow:
 1. Render homepage with Playwright (browser-first for JS-heavy sites)
 2. Extract navigation links (current and navigable)
 3. Expand section pages (news, blog, press, resources) to get actual articles
 4. Common URL guessing only if < 20 links found
 5. Sitemap only as fallback if still < 20 links (sitemaps often stale)
 6. LLM selects most valuable pages for research (leadership, products, news, investors)
+
+**Scope Policy:**
+- IN-SCOPE: same domain + subdomains (always scraped)
+- OUT-OF-SCOPE: external domains (recorded to `_external_links.txt`, not scraped in scrape mode)
 
 ### Deep Research Client
 

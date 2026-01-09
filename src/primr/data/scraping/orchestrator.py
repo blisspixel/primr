@@ -58,7 +58,7 @@ class ScrapeOrchestrator:
         rate_limiter: Optional[RateLimiter] = None,
         trace_logger: Optional[TraceLogger] = None,
         rate_config: Optional[RateLimitConfig] = None,
-        enable_vision: bool = False,
+        enable_vision: bool = True,
         circuit_breaker_threshold: int = 3,
         delay_between_tiers: tuple = (1.0, 3.0),
         max_page_time: float = 30.0,
@@ -73,7 +73,7 @@ class ScrapeOrchestrator:
             rate_limiter: Rate limiter (default: new RateLimiter)
             trace_logger: Trace logger (optional)
             rate_config: Rate limiting config
-            enable_vision: Whether to enable vision tier (opt-in)
+            enable_vision: Whether to enable vision tier (default: True - we need the content)
             circuit_breaker_threshold: Failures before skipping tier
             delay_between_tiers: Random delay range between failed tiers
             max_page_time: Max seconds to spend on a single page across all tiers
@@ -94,7 +94,7 @@ class ScrapeOrchestrator:
         
         # Circuit breaker settings
         self.circuit_breaker_threshold = circuit_breaker_threshold
-        self.delay_between_tiers = delay_between_tiers
+        self.delay_between_tiers = delay_between_tiers or (0.5, 1.5)  # Shorter delays
         self.max_page_time = max_page_time
         
         # Per-host state tracking

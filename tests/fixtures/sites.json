@@ -1,0 +1,51 @@
+{
+  "_comment": "Test fixture for site types. URLs should be configured at runtime via environment variables or test config.",
+  "_usage": "Load this file and override URLs with actual test targets before running tests.",
+  
+  "site_types": {
+    "docs_heavy": {
+      "description": "Documentation-heavy site with many pages, structured content",
+      "url_env_var": "TEST_SITE_DOCS_HEAVY",
+      "default_url": null,
+      "assertions": {
+        "min_pages": 10,
+        "min_chars": 5000,
+        "max_boilerplate_ratio": 0.4
+      }
+    },
+    "js_heavy_spa": {
+      "description": "JavaScript-heavy single page application",
+      "url_env_var": "TEST_SITE_JS_HEAVY",
+      "default_url": null,
+      "assertions": {
+        "min_pages": 5,
+        "min_chars": 2000,
+        "max_boilerplate_ratio": 0.5
+      }
+    },
+    "blog_driven": {
+      "description": "Blog-driven site with articles and posts",
+      "url_env_var": "TEST_SITE_BLOG",
+      "default_url": null,
+      "assertions": {
+        "min_pages": 8,
+        "min_chars": 4000,
+        "max_boilerplate_ratio": 0.35
+      }
+    }
+  },
+  
+  "scope_policy_tests": {
+    "in_scope_patterns": [
+      {"target": "https://example.com", "url": "https://example.com/about", "expected": true},
+      {"target": "https://example.com", "url": "https://docs.example.com/guide", "expected": true},
+      {"target": "https://example.com", "url": "https://blog.example.com/post", "expected": true},
+      {"target": "https://www.example.com", "url": "https://example.com/page", "expected": true}
+    ],
+    "out_of_scope_patterns": [
+      {"target": "https://example.com", "url": "https://linkedin.com/company/example", "expected": false},
+      {"target": "https://example.com", "url": "https://techcrunch.com/article", "expected": false},
+      {"target": "https://example.com", "url": "https://example-corp.com/page", "expected": false}
+    ]
+  }
+}

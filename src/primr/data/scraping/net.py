@@ -176,6 +176,46 @@ def is_same_domain(url1: str, url2: str) -> bool:
     return host1 == host2
 
 
+def is_in_scope(url: str, target_url: str) -> bool:
+    """
+    Check if a URL is in scope for scraping based on the target URL.
+    
+    In-scope means:
+    - Same domain as target (e.g., company.com)
+    - Subdomain of target (e.g., docs.company.com, blog.company.com)
+    
+    Out-of-scope (external):
+    - Different domain entirely (e.g., linkedin.com, techcrunch.com)
+    
+    Args:
+        url: URL to check
+        target_url: Target company website URL
+    
+    Returns:
+        True if in-scope, False if external
+    """
+    url_host = extract_host(url)
+    target_host = extract_host(target_url)
+    
+    if not url_host or not target_host:
+        return False
+    
+    # Remove www. prefix for comparison
+    url_host = url_host.replace("www.", "")
+    target_host = target_host.replace("www.", "")
+    
+    # Exact match
+    if url_host == target_host:
+        return True
+    
+    # Subdomain match: url_host ends with .target_host
+    # e.g., docs.company.com ends with .company.com
+    if url_host.endswith("." + target_host):
+        return True
+    
+    return False
+
+
 def normalize_url_for_request(url: str) -> str:
     """
     Normalize URL for making requests.

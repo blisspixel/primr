@@ -117,6 +117,7 @@ from .net import (
     head_exists,
     extract_host,
     is_same_domain,
+    is_in_scope,
     normalize_url_for_request,
 )
 
@@ -254,6 +255,7 @@ __all__ = [
     "head_exists",
     "extract_host",
     "is_same_domain",
+    "is_in_scope",
     "normalize_url_for_request",
     # HTTP clients
     "scrape_with_requests",

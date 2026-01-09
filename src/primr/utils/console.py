@@ -1,11 +1,11 @@
 """
-Premium CLI output system with visual hierarchy.
+Modern CLI output system - 2026 standards.
 
-Visual Hierarchy Levels:
-  Level 1: PHASE - Bold headers with separators
-  Level 2: STEP - Indicator + text, 2-space indent
-  Level 3: DETAIL - 4-space indent, muted
-  Level 4: RESULT - 4-space indent, highlighted
+Design principles:
+- Minimal output, maximum information density
+- No excessive indentation or visual noise
+- Clean progress updates that overwrite in place
+- Unicode symbols for modern terminals, ASCII fallback
 """
 
 import os
@@ -13,15 +13,9 @@ import shutil
 import sys
 import threading
 import time
-from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import lru_cache
-
-INDENT_PHASE = ""
-INDENT_STEP = "  "
-INDENT_DETAIL = "    "
-INDENT_RESULT = "    "
 
 
 @dataclass
@@ -32,15 +26,6 @@ class _TerminalCaps:
     width: int
     is_interactive: bool
     
-    def should_use_color(self):
-        return self.supports_color and self.is_interactive
-    
-    def should_use_unicode(self):
-        return self.supports_unicode
-    
-    def should_update_in_place(self):
-        return self.supports_cursor and self.is_interactive
-    
     @classmethod
     def for_testing(cls, supports_color=True, supports_unicode=False,
                     supports_cursor=True, width=80, is_interactive=True):
@@ -48,12 +33,11 @@ class _TerminalCaps:
 
 
 def _enable_windows_ansi():
-    """Enable ANSI escape sequences on Windows (required for \\r and colors to work)."""
+    """Enable ANSI escape sequences on Windows."""
     if sys.platform == 'win32':
         try:
             import ctypes
             kernel32 = ctypes.windll.kernel32
-            # Enable ENABLE_VIRTUAL_TERMINAL_PROCESSING for stdout
             STD_OUTPUT_HANDLE = -11
             ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004
             handle = kernel32.GetStdHandle(STD_OUTPUT_HANDLE)
@@ -61,9 +45,8 @@ def _enable_windows_ansi():
             kernel32.GetConsoleMode(handle, ctypes.byref(mode))
             kernel32.SetConsoleMode(handle, mode.value | ENABLE_VIRTUAL_TERMINAL_PROCESSING)
         except Exception:
-            pass  # If it fails, continue without - some terminals handle it natively
+            pass
 
-# Enable Windows ANSI support at module load
 _enable_windows_ansi()
 
 
@@ -84,130 +67,90 @@ def _detect_terminal():
     return _TerminalCaps(supports_color, supports_unicode, supports_cursor, max(width, 40), is_tty)
 
 
-@dataclass
-class _Theme:
-    INDICATOR_ACTIVE: str = ">"
-    INDICATOR_DONE: str = "+"
-    INDICATOR_FAIL: str = "x"
-    INDICATOR_WARN: str = "!"
-    INDICATOR_INFO: str = "."
-    PROG_FILL: str = "#"
-    PROG_EMPTY: str = "-"
-    LINE_H: str = "-"
-    SUCCESS: str = "\033[32m"
-    WARNING: str = "\033[33m"
-    ERROR: str = "\033[31m"
-    INFO: str = "\033[36m"
-    MUTED: str = "\033[2m"
-    BOLD: str = "\033[1m"
-    RESET: str = "\033[0m"
-    
-    @classmethod
-    def for_terminal(cls, supports_color, supports_unicode):
-        t = cls()
-        if not supports_color:
-            t.SUCCESS = t.WARNING = t.ERROR = t.INFO = t.MUTED = t.BOLD = t.RESET = ""
-        if supports_unicode:
-            t.INDICATOR_DONE = "\u2713"
-            t.INDICATOR_FAIL = "\u2717"
-            t.PROG_FILL = "\u2588"
-            t.PROG_EMPTY = "\u2591"
-        return t
-
-
-@lru_cache(maxsize=4)
-def _get_theme(supports_color, supports_unicode):
-    return _Theme.for_terminal(supports_color, supports_unicode)
-
-
-def _get_default_theme():
-    caps = _detect_terminal()
-    return _get_theme(caps.should_use_color(), caps.should_use_unicode())
-
-
+# Backward compatibility alias
 TerminalCapabilities = _TerminalCaps
 
 
-class Theme:
-    BRAND = property(lambda s: _get_default_theme().INFO)
-    SUCCESS = property(lambda s: _get_default_theme().SUCCESS)
-    WARNING = property(lambda s: _get_default_theme().WARNING)
-    ERROR = property(lambda s: _get_default_theme().ERROR)
-    MUTED = property(lambda s: _get_default_theme().MUTED)
-    TEXT = property(lambda s: _get_default_theme().BOLD)
-    RESET = property(lambda s: _get_default_theme().RESET)
-    LINE_H = property(lambda s: _get_default_theme().LINE_H)
-    PROG_FILL = property(lambda s: _get_default_theme().PROG_FILL)
-    PROG_EMPTY = property(lambda s: _get_default_theme().PROG_EMPTY)
-    INDICATOR_ACTIVE = property(lambda s: _get_default_theme().INDICATOR_ACTIVE)
-    INDICATOR_DONE = property(lambda s: _get_default_theme().INDICATOR_DONE)
-    INDICATOR_FAIL = property(lambda s: _get_default_theme().INDICATOR_FAIL)
-    INDICATOR_WARN = property(lambda s: _get_default_theme().INDICATOR_WARN)
-    INDICATOR_INFO = property(lambda s: _get_default_theme().INDICATOR_INFO)
-
-
-class Spinner:
-    # Modern braille dots spinner (smooth animation)
-    FRAMES_UNICODE = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
-    # Fallback for terminals without unicode
-    FRAMES_ASCII = ["|", "/", "-", "\\"]
-
-    def __init__(self, message=""):
-        self.message = message
-        self._stop = threading.Event()
-        self._thread = None
-        self._lock = threading.Lock()
-        self._caps = _detect_terminal()
-        self._theme = _get_default_theme()
-        self._frames = self.FRAMES_UNICODE if self._caps.should_use_unicode() else self.FRAMES_ASCII
-
-    def _animate(self):
-        idx = 0
-        while not self._stop.is_set():
-            frame = self._frames[idx % len(self._frames)]
-            with self._lock:
-                sys.stdout.write(f"\r{INDENT_STEP}{self._theme.INFO}{frame}{self._theme.RESET} {self.message}")
-                sys.stdout.flush()
-            idx += 1
-            time.sleep(0.08)  # Slightly faster for smoother animation
-
-    def start(self):
-        self._stop.clear()
-        self._thread = threading.Thread(target=self._animate, daemon=True)
-        self._thread.start()
-
-    def stop(self, clear=True):
-        self._stop.set()
-        if self._thread:
-            self._thread.join(timeout=0.5)
-        if clear:
-            sys.stdout.write("\r" + " " * 70 + "\r")
-            sys.stdout.flush()
-
-    def update(self, message):
-        with self._lock:
-            self.message = message
-
-
 class Console:
+    """Modern minimal CLI output."""
+    
     def __init__(self, verbose=False, quiet=False, capabilities=None):
         self.verbose = verbose
         self.quiet = quiet
         self._lock = threading.Lock()
-        self._step_start: float = 0.0
-        self._phase_start: float = 0.0
         self._caps = capabilities or _detect_terminal()
-        self._theme = _get_theme(self._caps.should_use_color(), self._caps.should_use_unicode())
-        self._term_width = self._caps.width
-        self._last_output_time: float = 0.0  # Track when last output occurred
+        self._last_output_time: float = 0.0
+        
+        # Colors
+        if self._caps.supports_color and self._caps.is_interactive:
+            self._green = "\033[32m"
+            self._yellow = "\033[33m"
+            self._red = "\033[31m"
+            self._cyan = "\033[36m"
+            self._dim = "\033[2m"
+            self._bold = "\033[1m"
+            self._reset = "\033[0m"
+        else:
+            self._green = self._yellow = self._red = self._cyan = ""
+            self._dim = self._bold = self._reset = ""
+        
+        # Symbols
+        if self._caps.supports_unicode:
+            self._check = "✓"
+            self._cross = "✗"
+            self._arrow = "→"
+            self._dot = "·"
+        else:
+            self._check = "+"
+            self._cross = "x"
+            self._arrow = "->"
+            self._dot = "."
 
     @property
     def term_width(self):
-        return self._term_width
+        return self._caps.width
 
     @property
     def theme(self):
-        return self._theme
+        """Backward compatibility - return a theme-like object."""
+        return self
+
+    # Theme properties for backward compatibility
+    @property
+    def SUCCESS(self):
+        return self._green
+    
+    @property
+    def WARNING(self):
+        return self._yellow
+    
+    @property
+    def ERROR(self):
+        return self._red
+    
+    @property
+    def INFO(self):
+        return self._cyan
+    
+    @property
+    def MUTED(self):
+        return self._dim
+    
+    @property
+    def BOLD(self):
+        return self._bold
+    
+    @property
+    def RESET(self):
+        return self._reset
+    
+    @property
+    def INDICATOR_DONE(self):
+        return self._check
+    
+    @property
+    def INDICATOR_FAIL(self):
+        return self._cross
 
     def _print(self, msg="", end="\n"):
         with self._lock:
@@ -228,312 +171,87 @@ class Console:
         else:
             return f"{int(elapsed // 3600)}h {int((elapsed % 3600) // 60)}m"
 
-    def _truncate(self, text, max_len):
-        if len(text) <= max_len:
-            return text
-        return text[:max_len-3] + "..."
-
-    def banner(self, title, version=""):
+    # =========================================================================
+    # MODERN API - Clean, minimal output
+    # =========================================================================
+    
+    def status(self, msg):
+        """Show a status message (dim, in-place if possible)."""
         if self.quiet:
             return
-        width = min(50, self._term_width - 4)
-        self._print()
-        self._print(f"{INDENT_STEP}{self._theme.INFO}{title}{self._theme.RESET}", end="")
-        if version:
-            self._print(f"  {self._theme.MUTED}{version}{self._theme.RESET}")
-        else:
-            self._print()
-        self._print(f"{INDENT_STEP}{self._theme.MUTED}{self._theme.LINE_H * width}{self._theme.RESET}")
-
-    def header(self, title, subtitle=""):
-        if self.quiet:
-            return
-        self._phase_start = time.time()
-        self._print()
-        self._print(f"{INDENT_STEP}{self._theme.BOLD}{title}{self._theme.RESET}")
-        if subtitle:
-            self._print(f"{INDENT_STEP}{self._theme.MUTED}{subtitle}{self._theme.RESET}")
-        width = min(50, self._term_width - 4)
-        self._print(f"{INDENT_STEP}{self._theme.MUTED}{self._theme.LINE_H * width}{self._theme.RESET}")
-
-
-    def phase_banner(self, step_num, total_steps, title, description="", expected_duration=""):
-        if self.quiet:
-            return
-        self._phase_start = time.time()
-        self._print()
-        # Modern: just bold title with a subtle underline, no heavy borders
-        self._print(f"{INDENT_STEP}{self._theme.BOLD}{self._theme.INFO}{title}{self._theme.RESET}")
-        if description:
-            self._print(f"{INDENT_STEP}{self._theme.MUTED}{description}{self._theme.RESET}")
-        if expected_duration:
-            self._print(f"{INDENT_STEP}{self._theme.MUTED}Expected: {expected_duration}{self._theme.RESET}")
-        self._print()
-
-    def phase_complete(self, title, stats=None):
-        if self.quiet:
-            return
-        elapsed = self._elapsed(self._phase_start) if self._phase_start else ""
-        # Modern: simple checkmark with title, not shouty "COMPLETE"
-        self._print(f"{INDENT_STEP}{self._theme.SUCCESS}{self._theme.INDICATOR_DONE} {title}{self._theme.RESET}", end="")
-        if elapsed:
-            self._print(f" {self._theme.MUTED}({elapsed}){self._theme.RESET}")
-        else:
-            self._print()
-        
-        if stats:
-            for label, value in stats:
-                if label.lower() != "duration":  # Skip duration, we show it inline
-                    self._print(f"{INDENT_DETAIL}{self._theme.MUTED}{label}: {value}{self._theme.RESET}")
-
-    def step(self, msg):
-        if self.quiet:
-            return
-        self._step_start = time.time()
-        self._print(f"\n{INDENT_STEP}{self._theme.INFO}{self._theme.INDICATOR_ACTIVE}{self._theme.RESET} {msg}")
-
-    def info(self, msg):
-        if self.quiet:
-            return
-        # Clear any in-place updates (heartbeat, spinner) before printing
-        if self._caps.should_update_in_place():
+        if self._caps.supports_cursor and self._caps.is_interactive:
             with self._lock:
-                sys.stdout.write("\r" + " " * 70 + "\r")
+                width = min(self._caps.width, 120)
+                line = f"\r{self._dim}{msg}{self._reset}"
+                sys.stdout.write(line.ljust(width))
+                sys.stdout.write("\r" + line)
                 sys.stdout.flush()
-        self._print(f"{INDENT_DETAIL}{self._theme.MUTED}{msg}{self._theme.RESET}")
-
-    def detail(self, label, value):
-        if self.quiet:
-            return
-        self._print(f"{INDENT_DETAIL}{self._theme.MUTED}{label}:{self._theme.RESET} {value}")
-
-    def warn(self, msg):
-        if self.quiet:
-            return
-        self._print(f"{INDENT_DETAIL}{self._theme.WARNING}{self._theme.INDICATOR_WARN}{self._theme.RESET} {msg}")
-
-    def ok(self, msg="", show_time=True):
-        if self.quiet:
-            return
-        time_str = ""
-        if show_time:
-            elapsed = self._elapsed(self._step_start)
-            if elapsed:
-                time_str = f" {self._theme.MUTED}({elapsed}){self._theme.RESET}"
-        display = msg if msg else "Done"
-        self._print(f"{INDENT_RESULT}{self._theme.SUCCESS}{self._theme.INDICATOR_DONE}{self._theme.RESET} {display}{time_str}")
-
-    def error(self, msg):
-        self._print(f"{INDENT_RESULT}{self._theme.ERROR}{self._theme.INDICATOR_FAIL}{self._theme.RESET} {msg}")
-
-    def result(self, label, value, highlight=False):
-        if self.quiet:
-            return
-        if highlight:
-            self._print(f"\n{INDENT_STEP}{self._theme.SUCCESS}{label}{self._theme.RESET}")
-            self._print(f"{INDENT_STEP}{value}")
         else:
-            self._print(f"{INDENT_STEP}{self._theme.MUTED}{label}:{self._theme.RESET} {value}")
+            self._print(f"{self._dim}{msg}{self._reset}")
 
-    def success_box(self, title, path):
+    def found(self, msg):
+        """Show discovery result: "Found 47 pages" """
         if self.quiet:
             return
-        self._print()
-        self._print(f"{INDENT_STEP}{self._theme.SUCCESS}{self._theme.INDICATOR_DONE} {title}{self._theme.RESET}")
-        self._print(f"{INDENT_STEP}{path}")
-        self._print()
+        self.clear_line()
+        self._print(f"{self._green}{self._check}{self._reset} {msg}")
 
-    def summary(self, stats):
+    def done(self, msg):
+        """Show completion: "✓ 47 pages scraped" """
         if self.quiet:
             return
-        self._print()
-        for label, value in stats:
-            self._print(f"{INDENT_STEP}{self._theme.MUTED}{label}:{self._theme.RESET} {value}")
+        self._print(f"{self._green}{self._check}{self._reset} {msg}")
 
+    def fail(self, msg):
+        """Show failure: "✗ Could not scrape" """
+        self._print(f"{self._red}{self._cross}{self._reset} {msg}")
 
-    def progress(self, current, total, label=""):
+    def muted(self, msg):
+        """Show muted/secondary info."""
         if self.quiet:
             return
-        if not self._caps.should_update_in_place():
-            if current == total:
-                self._print(f"{INDENT_DETAIL}{self._theme.INDICATOR_DONE} {label} ({current}/{total})")
-            return
-        bar_width = 20
-        filled = int(bar_width * current / total) if total > 0 else 0
-        bar = (self._theme.PROG_FILL * filled + self._theme.MUTED +
-               self._theme.PROG_EMPTY * (bar_width - filled) + self._theme.RESET)
-        display_label = self._truncate(label, 25) if label else ""
-        line = f"\r{INDENT_DETAIL}[{bar}] {current}/{total}"
-        if display_label:
-            line += f" {self._theme.MUTED}{display_label}{self._theme.RESET}"
-        with self._lock:
-            sys.stdout.write(line.ljust(70))
-            sys.stdout.flush()
+        self._print(f"{self._dim}{msg}{self._reset}")
 
-    def progress_done(self):
-        if self.quiet or not self._caps.should_update_in_place():
-            return
-        with self._lock:
-            sys.stdout.write("\r" + " " * 70 + "\r")
-            sys.stdout.flush()
-
-    def progress_with_time(self, current, total, label="", start_time=None):
+    def scrape_progress(self, current, total, path, start_time=None, tier=None):
+        """Show scraping progress: "Scraping 12/47 /about-us (15s)" """
         if self.quiet:
             return
-        if not self._caps.should_update_in_place():
+        if not self._caps.supports_cursor or not self._caps.is_interactive:
             if current == total:
                 elapsed = self._elapsed(start_time) if start_time else ""
                 time_str = f" ({elapsed})" if elapsed else ""
-                self._print(f"{INDENT_DETAIL}{self._theme.INDICATOR_DONE} {label}{time_str}")
+                self._print(f"{self._check} {path}{time_str}")
             return
         
-        # Throttle updates to max 10/sec for smoother visual display
-        now = time.time()
-        is_first = current == 1
-        is_last = current == total
-        time_since_last = now - self._last_output_time
-        
-        if not is_first and not is_last and time_since_last < 0.1:
-            return  # Skip this update, too soon
-        
-        # Simple format: "Processing 5/50: /about-us (12s)"
-        display_label = self._truncate(label, 30) if label else ""
         time_str = ""
         if start_time:
             elapsed = self._elapsed(start_time)
             if elapsed:
-                time_str = f" {self._theme.MUTED}({elapsed}){self._theme.RESET}"
+                time_str = f" {self._dim}({elapsed}){self._reset}"
         
-        line = f"{current}/{total}"
-        if display_label:
-            line += f" {display_label}"
-        line += time_str
+        tier_str = f" {self._dim}[{tier}]{self._reset}" if tier else ""
         
-        padded = f"{INDENT_DETAIL}{line}".ljust(60)
+        width = min(self._caps.width, 120)
+        line = f"Scraping {current}/{total} {path}{tier_str}{time_str}"
         with self._lock:
-            self._last_output_time = now
-            sys.stdout.write(f"\r{padded}")
+            self._last_output_time = time.time()
+            # Clear line first, then write
+            sys.stdout.write("\r" + " " * width + "\r")
+            sys.stdout.write(line)
             sys.stdout.flush()
 
-    def status_with_time(self, message, start_time=None):
-        if self.quiet:
-            return
-        time_str = ""
-        if start_time:
-            elapsed = self._elapsed(start_time)
-            if elapsed:
-                time_str = f" {self._theme.MUTED}({elapsed}){self._theme.RESET}"
-        if self._caps.should_update_in_place():
-            line = f"\r{INDENT_DETAIL}{self._theme.MUTED}{message}{self._theme.RESET}{time_str}"
+    def clear_line(self):
+        """Clear the current line."""
+        if self._caps.supports_cursor and self._caps.is_interactive:
             with self._lock:
-                sys.stdout.write(line.ljust(70))
+                width = min(self._caps.width, 120)
+                sys.stdout.write("\r" + " " * width + "\r")
                 sys.stdout.flush()
-        else:
-            self._print(f"{INDENT_DETAIL}{self._theme.MUTED}{message}{self._theme.RESET}{time_str}")
 
-    def status_line_done(self):
-        if self.quiet or not self._caps.should_update_in_place():
-            return
-        with self._lock:
-            sys.stdout.write("\r" + " " * 75 + "\r")
-            sys.stdout.flush()
-
-
-    @contextmanager
-    def spinner(self, message="Working"):
-        if self.quiet or not self._caps.should_update_in_place():
-            self._print(f"{INDENT_DETAIL}{self._theme.MUTED}{message}...{self._theme.RESET}")
-            yield lambda m: None
-            return
-        spin = Spinner(message)
-        spin.start()
-        try:
-            yield spin.update
-        finally:
-            spin.stop()
-
-    @contextmanager
-    def timed_operation(self, message, show_spinner=True):
-        if self.quiet:
-            yield
-            return
-        start = time.time()
-        if show_spinner and self._caps.should_update_in_place():
-            spin = Spinner(message)
-            spin.start()
-            stop_event = threading.Event()
-            def update_time():
-                while not stop_event.is_set():
-                    elapsed = self._elapsed(start)
-                    if elapsed:
-                        spin.update(f"{message} ({elapsed})")
-                    stop_event.wait(1.0)
-            time_thread = threading.Thread(target=update_time, daemon=True)
-            time_thread.start()
-            try:
-                yield
-            finally:
-                stop_event.set()
-                time_thread.join(timeout=0.5)
-                spin.stop()
-                elapsed = self._elapsed(start)
-                time_str = f" ({elapsed})" if elapsed else ""
-                self._print(f"{INDENT_RESULT}{self._theme.SUCCESS}{self._theme.INDICATOR_DONE}{self._theme.RESET} {message}{self._theme.MUTED}{time_str}{self._theme.RESET}")
-        else:
-            self._print(f"{INDENT_DETAIL}{self._theme.MUTED}{message}...{self._theme.RESET}")
-            try:
-                yield
-            finally:
-                elapsed = self._elapsed(start)
-                time_str = f" ({elapsed})" if elapsed else ""
-                self._print(f"{INDENT_RESULT}{self._theme.SUCCESS}{self._theme.INDICATOR_DONE}{self._theme.RESET} {message}{self._theme.MUTED}{time_str}{self._theme.RESET}")
-
-    @contextmanager
-    def heartbeat(self, message, interval=30.0):
-        """
-        Show periodic heartbeat messages during long operations.
-        
-        The heartbeat uses in-place updates (carriage return) to avoid
-        cluttering the output with repeated messages. It only shows
-        when there's been no other output for at least `interval` seconds.
-        """
-        if self.quiet:
-            yield
-            return
-        start = time.time()
-        stop_event = threading.Event()
-        
-        def show_heartbeat():
-            while not stop_event.is_set():
-                stop_event.wait(interval)
-                if not stop_event.is_set():
-                    # Only show heartbeat if no recent output
-                    time_since_output = time.time() - self._last_output_time
-                    if time_since_output >= interval:
-                        elapsed = self._elapsed(start)
-                        # Use in-place update to avoid cluttering output
-                        if self._caps.should_update_in_place():
-                            with self._lock:
-                                line = f"\r{INDENT_DETAIL}{self._theme.MUTED}{self._theme.INDICATOR_INFO} {message} ({elapsed}){self._theme.RESET}"
-                                sys.stdout.write(line.ljust(70))
-                                sys.stdout.flush()
-                        else:
-                            # Fallback for non-interactive terminals
-                            self._print(f"{INDENT_DETAIL}{self._theme.MUTED}{self._theme.INDICATOR_INFO} {message} ({elapsed}){self._theme.RESET}")
-        
-        heartbeat_thread = threading.Thread(target=show_heartbeat, daemon=True)
-        heartbeat_thread.start()
-        try:
-            yield
-        finally:
-            stop_event.set()
-            heartbeat_thread.join(timeout=0.5)
-            # Clear the heartbeat line
-            if self._caps.should_update_in_place():
-                with self._lock:
-                    sys.stdout.write("\r" + " " * 70 + "\r")
-                    sys.stdout.flush()
-
+    # =========================================================================
+    # BACKWARD COMPATIBILITY API - Maps to modern methods
+    # =========================================================================
+    
     def blank(self):
         if self.quiet:
             return
@@ -544,18 +262,265 @@ class Console:
             return
         self._print(msg)
 
+    def info(self, msg):
+        """Backward compat - maps to muted."""
+        self.muted(msg)
+
+    def detail(self, label, value):
+        if self.quiet:
+            return
+        self._print(f"{self._dim}{label}:{self._reset} {value}")
+
+    def warn(self, msg):
+        if self.quiet:
+            return
+        self._print(f"{self._yellow}!{self._reset} {msg}")
+
+    def ok(self, msg="", show_time=True):
+        """Backward compat - maps to done."""
+        self.done(msg if msg else "Done")
+
+    def error(self, msg):
+        """Backward compat - maps to fail."""
+        self.fail(msg)
+
+    def step(self, msg):
+        """Backward compat - show a step."""
+        if self.quiet:
+            return
+        self._print(f"\n{self._cyan}>{self._reset} {msg}")
+
+    def result(self, label, value, highlight=False):
+        if self.quiet:
+            return
+        if highlight:
+            self._print(f"\n{self._green}{label}{self._reset}")
+            self._print(f"{value}")
+        else:
+            self._print(f"{self._dim}{label}:{self._reset} {value}")
+
+    def success_box(self, title, details):
+        """Show success with details."""
+        if self.quiet:
+            return
+        self._print()
+        self._print(f"{self._green}{self._check}{self._reset} {title}")
+        self._print(f"  {self._dim}{details}{self._reset}")
+
+    def summary(self, stats):
+        if self.quiet:
+            return
+        self._print()
+        for label, value in stats:
+            self._print(f"{self._dim}{label}:{self._reset} {value}")
+
+    def banner(self, title, version=""):
+        """Minimal banner."""
+        if self.quiet:
+            return
+        self._print()
+        if version:
+            self._print(f"{self._cyan}{title}{self._reset} {self._dim}{version}{self._reset}")
+        else:
+            self._print(f"{self._cyan}{title}{self._reset}")
+
+    def header(self, title, subtitle=""):
+        """Minimal header."""
+        if self.quiet:
+            return
+        self._print()
+        self._print(f"{self._bold}{title}{self._reset}")
+        if subtitle:
+            self._print(f"{self._dim}{subtitle}{self._reset}")
+
+    def phase_banner(self, step_num, total_steps, title, description="", expected_duration=""):
+        """Minimal phase indicator."""
+        if self.quiet:
+            return
+        self._print()
+        self._print(f"{self._bold}{title}{self._reset}")
+        if description:
+            self._print(f"{self._dim}{description}{self._reset}")
+
+    def phase_complete(self, title, stats=None):
+        if self.quiet:
+            return
+        self._print(f"{self._green}{self._check}{self._reset} {title}")
+        if stats:
+            for label, value in stats:
+                if label.lower() != "duration":
+                    self._print(f"  {self._dim}{label}: {value}{self._reset}")
+
     def divider(self, char="-"):
         if self.quiet:
             return
-        width = min(50, self._term_width - 4)
-        self._print(f"{INDENT_STEP}{self._theme.MUTED}{char * width}{self._theme.RESET}")
+        width = min(40, self._caps.width - 4)
+        self._print(f"{self._dim}{char * width}{self._reset}")
 
     def debug(self, msg):
         if not self.verbose:
             return
-        self._print(f"{INDENT_DETAIL}{self._theme.MUTED}[debug] {msg}{self._theme.RESET}")
+        self._print(f"{self._dim}[debug] {msg}{self._reset}")
+
+    # =========================================================================
+    # PROGRESS METHODS - Backward compatibility
+    # =========================================================================
+
+    def progress(self, current, total, label=""):
+        """Backward compat progress bar."""
+        if self.quiet:
+            return
+        if not self._caps.supports_cursor or not self._caps.is_interactive:
+            if current == total:
+                self._print(f"{self._check} {label} ({current}/{total})")
+            return
+        
+        pct = int(100 * current / total) if total > 0 else 0
+        display_label = label[:25] + "..." if len(label) > 25 else label
+        line = f"\r{current}/{total} {display_label} ({pct}%)"
+        with self._lock:
+            sys.stdout.write(line.ljust(60))
+            sys.stdout.flush()
+
+    def progress_done(self):
+        """Clear progress line."""
+        self.clear_line()
+
+    def progress_with_time(self, current, total, label="", start_time=None):
+        """Backward compat - maps to scrape_progress."""
+        self.scrape_progress(current, total, label, start_time)
+
+    def status_with_time(self, message, start_time=None):
+        if self.quiet:
+            return
+        time_str = ""
+        if start_time:
+            elapsed = self._elapsed(start_time)
+            if elapsed:
+                time_str = f" ({elapsed})"
+        self.status(f"{message}{time_str}")
+
+    def status_line_done(self):
+        self.clear_line()
+
+    # =========================================================================
+    # CONTEXT MANAGERS
+    # =========================================================================
+
+    @contextmanager
+    def spinner(self, message="Working"):
+        """Simple spinner context manager."""
+        if self.quiet or not self._caps.supports_cursor or not self._caps.is_interactive:
+            self._print(f"{self._dim}{message}...{self._reset}")
+            yield lambda m: None
+            return
+        
+        frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"] if self._caps.supports_unicode else ["|", "/", "-", "\\"]
+        stop_event = threading.Event()
+        current_msg = [message]
+        line_width = min(self._caps.width - 2, 80)
+        
+        def animate():
+            idx = 0
+            while not stop_event.is_set():
+                frame = frames[idx % len(frames)]
+                with self._lock:
+                    line = f"\r{self._cyan}{frame}{self._reset} {current_msg[0]}"
+                    # Pad to clear any previous longer text
+                    sys.stdout.write(line.ljust(line_width))
+                    sys.stdout.write("\r" + line)  # Reposition cursor
+                    sys.stdout.flush()
+                idx += 1
+                time.sleep(0.08)
+        
+        thread = threading.Thread(target=animate, daemon=True)
+        thread.start()
+        
+        def update(msg):
+            current_msg[0] = msg
+        
+        try:
+            yield update
+        finally:
+            stop_event.set()
+            thread.join(timeout=0.5)
+            self.clear_line()
+
+    @contextmanager
+    def timed_operation(self, message, show_spinner=True):
+        """Timed operation with optional spinner."""
+        if self.quiet:
+            yield
+            return
+        
+        start = time.time()
+        if show_spinner and self._caps.supports_cursor and self._caps.is_interactive:
+            with self.spinner(message):
+                yield
+            elapsed = self._elapsed(start)
+            time_str = f" ({elapsed})" if elapsed else ""
+            self._print(f"{self._green}{self._check}{self._reset} {message}{self._dim}{time_str}{self._reset}")
+        else:
+            self._print(f"{self._dim}{message}...{self._reset}")
+            yield
+            elapsed = self._elapsed(start)
+            time_str = f" ({elapsed})" if elapsed else ""
+            self._print(f"{self._green}{self._check}{self._reset} {message}{self._dim}{time_str}{self._reset}")
+
+    @contextmanager
+    def heartbeat(self, message, interval=30.0):
+        """Periodic heartbeat for long operations."""
+        if self.quiet:
+            yield
+            return
+        
+        start = time.time()
+        stop_event = threading.Event()
+        
+        def show_heartbeat():
+            while not stop_event.is_set():
+                stop_event.wait(interval)
+                if not stop_event.is_set():
+                    time_since = time.time() - self._last_output_time
+                    if time_since >= interval:
+                        elapsed = self._elapsed(start)
+                        if self._caps.supports_cursor and self._caps.is_interactive:
+                            with self._lock:
+                                sys.stdout.write(f"\r{self._dim}. {message} ({elapsed}){self._reset}".ljust(60))
+                                sys.stdout.flush()
+                        else:
+                            self._print(f"{self._dim}. {message} ({elapsed}){self._reset}")
+        
+        thread = threading.Thread(target=show_heartbeat, daemon=True)
+        thread.start()
+        try:
+            yield
+        finally:
+            stop_event.set()
+            thread.join(timeout=0.5)
+            self.clear_line()
 
 
+# Backward compatibility - Theme class
+class Theme:
+    BRAND = property(lambda s: console._cyan)
+    SUCCESS = property(lambda s: console._green)
+    WARNING = property(lambda s: console._yellow)
+    ERROR = property(lambda s: console._red)
+    MUTED = property(lambda s: console._dim)
+    TEXT = property(lambda s: console._bold)
+    RESET = property(lambda s: console._reset)
+    LINE_H = property(lambda s: "-")
+    PROG_FILL = property(lambda s: "#")
+    PROG_EMPTY = property(lambda s: "-")
+    INDICATOR_ACTIVE = property(lambda s: ">")
+    INDICATOR_DONE = property(lambda s: console._check)
+    INDICATOR_FAIL = property(lambda s: console._cross)
+    INDICATOR_WARN = property(lambda s: "!")
+    INDICATOR_INFO = property(lambda s: ".")
+
+
+# Global console instance
 console = Console()
 
 

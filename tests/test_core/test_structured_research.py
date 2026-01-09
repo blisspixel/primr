@@ -164,7 +164,7 @@ class TestCollectDataPhase:
 
     @patch('primr.core.structured_research.fetch_web_content')
     @patch('primr.core.structured_research.search_google')
-    @patch('primr.core.structured_research.scrape_external_sources')
+    @patch('primr.core.structured_research.scrape_external_sources_validated')
     def test_collects_website_pages(self, mock_scrape, mock_search, mock_fetch):
         """Collects website pages when website provided."""
         from primr.core.structured_research import _collect_data

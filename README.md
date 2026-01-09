@@ -26,7 +26,7 @@ Primr runs company research through a single unified pipeline. Modes control how
 
 | Mode | What Runs | Time | Cost |
 |------|-----------|------|------|
-| `--mode scrape` | Build Site Corpus + Extract Insights | 5-10 min | ~$0.01-0.05 |
+| `--mode scrape` | Build Site Corpus + Extract Insights (multi-page) | 5-10 min | ~$0.01-0.05 |
 | `--mode deep` | Deep Research only (external sources; uses provided URL as research anchor; no site corpus build) | 8-15 min | ~$0.80-1.00 |
 | `--mode full` | Full pipeline (default) | 25-40 min | ~$0.80-1.50 |
 
@@ -67,7 +67,7 @@ The first argument is a display label used in output paths and headings; scrapin
 primr "Acme Corp" https://acme.example
 
 # Research modes
-primr "Acme Corp" https://acme.example --mode scrape    # Site corpus + insights (multi-page)
+primr "Acme Corp" https://acme.example --mode scrape    # Build Site Corpus + Extract Insights (multi-page)
 primr "Acme Corp" https://acme.example --mode deep      # Deep research only (no site corpus build)
 primr "Acme Corp" https://acme.example --mode full      # Full pipeline (default)
 

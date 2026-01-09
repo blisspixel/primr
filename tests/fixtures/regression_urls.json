@@ -1,0 +1,49 @@
+{
+  "_comment": "Regression test cases for scraping. URLs configured at runtime.",
+  "_usage": "Each case represents a bug that was fixed. Tests ensure the fix persists.",
+  
+  "regression_cases": {
+    "structured_content_pruning": {
+      "description": "Fix for aggressive DOM pruning removing valid content",
+      "url_env_var": "TEST_REGRESSION_PRUNING",
+      "default_url": null,
+      "assertions": {
+        "min_chars": 500,
+        "min_quality": 0.3,
+        "must_contain_text": false
+      },
+      "notes": "Ensure content extraction doesn't over-prune valid text"
+    },
+    "js_rendered_content": {
+      "description": "Fix for JS-rendered content not being captured",
+      "url_env_var": "TEST_REGRESSION_JS",
+      "default_url": null,
+      "assertions": {
+        "min_chars": 200,
+        "min_quality": 0.2,
+        "requires_browser_tier": true
+      },
+      "notes": "Ensure browser tier is used for JS-heavy pages"
+    },
+    "boilerplate_over_removal": {
+      "description": "Fix for boilerplate filter removing too much content",
+      "url_env_var": "TEST_REGRESSION_BOILERPLATE",
+      "default_url": null,
+      "assertions": {
+        "min_chars": 1000,
+        "max_boilerplate_ratio": 0.6,
+        "min_quality": 0.4
+      },
+      "notes": "Ensure boilerplate filter preserves meaningful content"
+    }
+  },
+  
+  "quality_thresholds": {
+    "escalation_triggers": {
+      "quality_score_below": 0.3,
+      "char_count_below": 200,
+      "link_density_above": 0.5,
+      "boilerplate_ratio_above": 0.6
+    }
+  }
+}

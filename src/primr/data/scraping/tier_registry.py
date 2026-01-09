@@ -36,42 +36,20 @@ from .browsers import (
 
 
 # =============================================================================
-# Default Tier Order
+# Default Tier Order (2026 - Browser First)
 # =============================================================================
 
-# Tiers are tried in order from fastest/lightest to slowest/heaviest.
-# Each tier has:
-# - name: Unique identifier
-# - scrape_fn: Function that takes (url, timeout) and returns ScrapeResult
-# - timeout: Default timeout in seconds
-# - requires: Optional dependency check (e.g., "curl_cffi" for TLS impersonation)
+# Modern corporate websites: JS-heavy, image-heavy, or bot-protected.
+# Order optimized for success rate on real business sites.
+#
+# Logic:
+# 1. Browser tiers first (handles JS rendering - 95% of modern sites)
+# 2. Stealth tiers for bot protection (Cloudflare, etc.)
+# 3. Vision for image-heavy sites where text extraction fails
+# 4. Simple HTTP as last resort (rare for corporate sites)
 
 DEFAULT_TIERS: List[ScrapeTier] = [
-    # Tier 1: Basic HTTP (fastest, works for many sites)
-    ScrapeTier(
-        name="requests",
-        scrape_fn=scrape_with_requests,
-        timeout=DEFAULT_TIMEOUT_REQUESTS,
-        requires=None,
-    ),
-    
-    # Tier 2: HTTP/2 with better headers
-    ScrapeTier(
-        name="httpx",
-        scrape_fn=scrape_with_httpx,
-        timeout=DEFAULT_TIMEOUT_HTTPX,
-        requires="httpx",
-    ),
-    
-    # Tier 3: TLS fingerprint impersonation
-    ScrapeTier(
-        name="curl_cffi",
-        scrape_fn=scrape_with_curl_cffi,
-        timeout=DEFAULT_TIMEOUT_CURL_CFFI,
-        requires="curl_cffi",
-    ),
-    
-    # Tier 4: Full browser automation
+    # Tier 1: Full browser (works on 95%+ of modern sites)
     ScrapeTier(
         name="playwright",
         scrape_fn=scrape_with_playwright,
@@ -79,7 +57,7 @@ DEFAULT_TIERS: List[ScrapeTier] = [
         requires="playwright",
     ),
     
-    # Tier 5: Browser with content expansion
+    # Tier 2: Browser with content expansion (lazy-loaded, accordions)
     ScrapeTier(
         name="playwright_aggressive",
         scrape_fn=scrape_with_playwright_aggressive,
@@ -87,15 +65,15 @@ DEFAULT_TIERS: List[ScrapeTier] = [
         requires="playwright",
     ),
     
-    # Tier 6: Driverless browser (CDP)
+    # Tier 3: TLS fingerprint impersonation (some bot detection)
     ScrapeTier(
-        name="drissionpage",
-        scrape_fn=scrape_with_drissionpage,
-        timeout=DEFAULT_TIMEOUT_DRISSION,
-        requires="DrissionPage",
+        name="curl_cffi",
+        scrape_fn=scrape_with_curl_cffi,
+        timeout=DEFAULT_TIMEOUT_CURL_CFFI,
+        requires="curl_cffi",
     ),
     
-    # Tier 7: Stealth browser with challenge waiting
+    # Tier 4: Stealth browser (Cloudflare/heavy protection)
     ScrapeTier(
         name="drissionpage_stealth",
         scrape_fn=scrape_with_drissionpage_stealth,
@@ -103,11 +81,35 @@ DEFAULT_TIERS: List[ScrapeTier] = [
         requires="DrissionPage",
     ),
     
-    # Tier 8: Vision fallback (opt-in only)
+    # Tier 5: Driverless browser (CDP fallback)
+    ScrapeTier(
+        name="drissionpage",
+        scrape_fn=scrape_with_drissionpage,
+        timeout=DEFAULT_TIMEOUT_DRISSION,
+        requires="DrissionPage",
+    ),
+    
+    # Tier 6: Vision AI (image-heavy sites where text extraction fails)
     ScrapeTier(
         name="vision",
         scrape_fn=scrape_with_vision,
         timeout=DEFAULT_TIMEOUT_VISION,
+        requires=None,
+    ),
+    
+    # Tier 7: HTTP/2 (simple sites fallback)
+    ScrapeTier(
+        name="httpx",
+        scrape_fn=scrape_with_httpx,
+        timeout=DEFAULT_TIMEOUT_HTTPX,
+        requires="httpx",
+    ),
+    
+    # Tier 8: Basic HTTP (last resort)
+    ScrapeTier(
+        name="requests",
+        scrape_fn=scrape_with_requests,
+        timeout=DEFAULT_TIMEOUT_REQUESTS,
         requires=None,
     ),
 ]
