@@ -412,13 +412,6 @@ def fetch_web_content(
             if clean_text.strip():
                 scraped_content[url] = clean_text
     
-    if success_count == total:
-        console.done(f"{success_count} pages scraped")
-    elif success_count > 0:
-        console.done(f"{success_count}/{total} pages scraped")
-    else:
-        console.fail("Could not scrape any pages")
-    
     return scraped_content
 
 
