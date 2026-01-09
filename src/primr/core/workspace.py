@@ -98,25 +98,36 @@ class FileValidationResult:
 # PUBLIC INTERFACE
 # =============================================================================
 
-def create_working_folder(company_name: str | None, website: str | None) -> str:
+def create_working_folder(company_name: str | None, website: str | None, use_run_id: bool = True) -> str:
     """
     Create working folder for research artifacts.
 
-    Creates the folder if it does not exist.
+    Creates the folder if it does not exist. When use_run_id is True (default),
+    creates a timestamped subfolder for each run to avoid mixing old/new data.
 
     Args:
         company_name: Name of the company
         website: Company website URL
+        use_run_id: If True, create timestamped subfolder (default: True)
 
     Returns:
         Path to the created folder as string (for backward compatibility)
     """
+    from datetime import datetime
+    
     if not company_name and website:
         parsed_url = urlparse(website)
         company_name = parsed_url.netloc.replace("www.", "").replace(".", "_")
 
     folder_name = company_name.replace(" ", "_") if company_name else "Unknown_Company"
-    folder_path = os.path.join(WORKING_DIR, folder_name)
+    
+    if use_run_id:
+        # Create timestamped run folder: Company_Name/2026-01-09_0845
+        run_id = datetime.now().strftime("%Y-%m-%d_%H%M")
+        folder_path = os.path.join(WORKING_DIR, folder_name, run_id)
+    else:
+        folder_path = os.path.join(WORKING_DIR, folder_name)
+    
     os.makedirs(folder_path, exist_ok=True)
     return folder_path
 
@@ -140,7 +151,8 @@ def create_working_folder_from_config(config: WorkspaceConfig) -> Path:
 def working_folder(
     company_name: str | None,
     website: str | None,
-    cleanup_on_exit: bool = False
+    cleanup_on_exit: bool = False,
+    use_run_id: bool = True
 ) -> Iterator[Path]:
     """
     Context manager for working folder operations.
@@ -151,11 +163,12 @@ def working_folder(
         company_name: Name of the company
         website: Company website URL
         cleanup_on_exit: If True, remove folder contents on exit
+        use_run_id: If True, create timestamped subfolder (default: True)
 
     Yields:
         Path to the working folder
     """
-    folder_path = Path(create_working_folder(company_name, website))
+    folder_path = Path(create_working_folder(company_name, website, use_run_id=use_run_id))
     try:
         yield folder_path
     finally:

@@ -466,7 +466,7 @@ class ScrapeOrchestrator:
         results = []
         
         for i, url in enumerate(urls[:max_pages]):
-            logger.info(f"Scraping {i+1}/{min(len(urls), max_pages)}: {url}")
+            logger.debug(f"Scraping {i+1}/{min(len(urls), max_pages)}: {url}")
             
             result = self.scrape_url(url)
             results.append(result)

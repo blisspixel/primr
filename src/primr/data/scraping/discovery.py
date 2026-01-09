@@ -93,7 +93,7 @@ def fetch_sitemap_links(
     
     for sitemap_url in sitemap_urls:
         if len(all_links) >= config.max_urls_per_sitemap:
-            logger.info(f"Reached max URLs ({config.max_urls_per_sitemap}), stopping sitemap discovery")
+            logger.debug(f"Reached max URLs ({config.max_urls_per_sitemap}), stopping sitemap discovery")
             break
         
         links = _parse_sitemap_recursive(
@@ -203,7 +203,7 @@ def _parse_sitemap_recursive(
         # Parse regular sitemap
         for url_elem in root.findall(".//sm:url", SITEMAP_NS):
             if len(links) >= max_urls:
-                logger.info(f"Reached max URLs ({max_urls}) in sitemap")
+                logger.debug(f"Reached max URLs ({max_urls}) in sitemap")
                 break
             
             loc = url_elem.find("sm:loc", SITEMAP_NS)
@@ -580,14 +580,15 @@ def discover_links(
     rate_limiter: Optional[RateLimiter] = None,
     verify_guessed: bool = True,
     min_links_to_skip_verify: int = 15,
+    min_links_before_sitemap: int = 20,
 ) -> List[DiscoveredLink]:
     """
     Discover links using all available strategies.
     
-    Combines:
-    1. Sitemap parsing
-    2. Homepage link extraction
-    3. Common URL guessing (optionally verified)
+    Order (homepage-first, sitemap as fallback):
+    1. Homepage link extraction (most current, JS-rendered)
+    2. Common URL guessing (if < 20 links)
+    3. Sitemap parsing (only if still < 20 links - often stale)
     
     Results are deduplicated and scored.
     
@@ -597,6 +598,7 @@ def discover_links(
         rate_limiter: Rate limiter for requests
         verify_guessed: Whether to verify guessed URLs exist
         min_links_to_skip_verify: Skip URL verification if we already have this many links
+        min_links_before_sitemap: Only check sitemap if we have fewer than this many links
     
     Returns:
         List of DiscoveredLink objects, scored and sorted
@@ -610,40 +612,44 @@ def discover_links(
                 seen_urls.add(link.url)
                 all_links.append(link)
     
-    # 1. Sitemap links
-    logger.info(f"Checking sitemap for {base_url}")
-    sitemap_links = fetch_sitemap_links(base_url, sitemap_config, rate_limiter)
-    add_links(sitemap_links)
-    if sitemap_links:
-        logger.info(f"Found {len(sitemap_links)} links from sitemap")
-    else:
-        logger.debug(f"No sitemap found for {base_url}")
-    
-    # 2. Homepage links
-    logger.info(f"Extracting links from homepage")
+    # 1. Homepage links FIRST (most current, handles JS-heavy sites)
+    logger.debug(f"Extracting links from homepage")
     homepage_links = extract_links_from_homepage(base_url, rate_limiter)
     add_links(homepage_links)
     if homepage_links:
-        logger.info(f"Found {len(homepage_links)} links from homepage")
+        logger.debug(f"Found {len(homepage_links)} links from homepage")
     else:
         logger.debug(f"No links extracted from homepage")
     
-    # 3. Guessed URLs - skip verification if we already have enough links
-    guessed_links = guess_common_urls(base_url)
+    # 2. Guessed URLs - only if we have few links
+    if len(all_links) < min_links_before_sitemap:
+        guessed_links = guess_common_urls(base_url)
+        
+        if verify_guessed and len(all_links) < min_links_to_skip_verify:
+            logger.debug(f"Verifying {len(guessed_links)} common URL patterns")
+            guessed_links = verify_urls_exist(guessed_links, rate_limiter)
+            logger.debug(f"Found {len(guessed_links)} verified URLs")
+        elif verify_guessed:
+            logger.debug(f"Skipping URL verification - already have {len(all_links)} links")
+            guessed_links = []  # Don't add unverified guesses
+        
+        add_links(guessed_links)
     
-    if verify_guessed and len(all_links) < min_links_to_skip_verify:
-        logger.info(f"Verifying {len(guessed_links)} common URL patterns")
-        guessed_links = verify_urls_exist(guessed_links, rate_limiter)
-        logger.info(f"Found {len(guessed_links)} verified URLs")
-    elif verify_guessed:
-        logger.info(f"Skipping URL verification - already have {len(all_links)} links")
-        guessed_links = []  # Don't add unverified guesses
-    
-    add_links(guessed_links)
+    # 3. Sitemap as FALLBACK - only if we still have few links
+    if len(all_links) < min_links_before_sitemap:
+        logger.debug(f"Checking sitemap for {base_url} (fallback)")
+        sitemap_links = fetch_sitemap_links(base_url, sitemap_config, rate_limiter)
+        add_links(sitemap_links)
+        if sitemap_links:
+            logger.debug(f"Found {len(sitemap_links)} links from sitemap")
+        else:
+            logger.debug(f"No sitemap found for {base_url}")
+    else:
+        logger.debug(f"Skipping sitemap - already have {len(all_links)} links from homepage")
     
     # Score and sort
     logger.debug(f"Scoring {len(all_links)} total links")
     scored_links = score_links_heuristically(all_links)
     
-    logger.info(f"Discovered {len(scored_links)} total links for {base_url}")
+    logger.debug(f"Discovered {len(scored_links)} total links for {base_url}")
     return scored_links

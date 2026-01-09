@@ -142,6 +142,23 @@ Goal: Make Primr boringly reliable.
 - Cost estimation accuracy tests
 - File Search Store lifecycle and cleanup tests
 - QA system aligned to core purpose (consultant prep, not report mechanics)
+- External source validation with LLM company identification
+  - Google Search for business news (press releases, funding, partnerships)
+  - Filters low-value sites (social media, job boards, support forums)
+  - LLM validates articles are about the TARGET company (uses domain as identifier)
+  - Prevents name collision issues (e.g., "EverTrue" fundraising vs "EverTrue" senior living)
+  - 26 new tests for external source pipeline
+- Structured content extraction with quality scoring (v1.2.2)
+  - Multi-pass extraction pipeline: DOM sanitization → container scoring → block extraction → boilerplate filtering
+  - Formalized output contract with metrics (char_count, link_density, boilerplate_ratio, etc.)
+  - Quality scoring (0-1) with flags for downstream decisions
+  - Container scoring algorithm picks best main content area (not just <main> tag)
+  - Link density filtering removes nav-heavy blocks generically
+  - Cross-page boilerplate fingerprinting learns and removes repeated lines
+  - Structured blocks preserve headings, lists, quotes with attribution
+  - CTA detection marks promotional content for optional exclusion
+  - Quality-based tier escalation: low scores trigger browser/vision tiers
+  - Metadata extraction: title, description, published_date, byline, language
 
 **Remaining:**
 - Static analysis compliance (mypy, ruff)

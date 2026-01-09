@@ -351,10 +351,11 @@ def _collect_data(
         from urllib.parse import urlparse
         domain = urlparse(website).netloc.replace("www.", "")
     
-    # Search with both name and domain for better targeting
+    # Search for business news and press releases about the company
+    # These queries target high-value sources for company intelligence
     external_queries = [
-        f'"{company_name}" "{domain}" news' if domain else f'"{company_name}" news',
-        f'"{company_name}" "{domain}"' if domain else f'"{company_name}" company',
+        "news OR press release OR announcement",  # Recent news coverage
+        "funding OR acquisition OR partnership",   # Business developments
     ]
     external_data = {}
 

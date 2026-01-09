@@ -157,20 +157,36 @@ def fetch_web_content(
     company_name: str,
     max_pages: Optional[int] = None,
     use_vision: bool = False,
+    working_folder: Optional[str] = None,
 ) -> dict[str, str]:
     """
     Discover and scrape pages from a company website.
+    
+    Uses structured content extraction with:
+    - Aggressive DOM pruning (removes nav/footer/CTA before extraction)
+    - Boilerplate fingerprinting (learns and removes repeated lines across pages)
+    - Structured blocks (preserves headings, lists, quotes)
     
     Args:
         website: Base URL of the website
         company_name: Company name (for logging)
         max_pages: Maximum pages to scrape (default: no limit)
         use_vision: Enable vision tier for hard-to-scrape pages
+        working_folder: If provided, save raw scrapes incrementally to this folder
     
     Returns:
-        Dict mapping URL -> extracted text
+        Dict mapping URL -> extracted text (cleaned, boilerplate removed)
     """
+    import os
+    from .scraping import BoilerplateFilter, extract_structured_content
+    
     out_step(f"Scraping {website}")
+    
+    # Create raw scrapes folder if working_folder provided
+    raw_folder = None
+    if working_folder:
+        raw_folder = os.path.join(working_folder, "_raw_scrapes")
+        os.makedirs(raw_folder, exist_ok=True)
     
     # Discover links using new discovery module
     orchestrator = get_orchestrator(enable_vision=use_vision)
@@ -203,14 +219,15 @@ def fetch_web_content(
     else:
         pages_to_scrape = [link.url for link in scored_links]
     
-    # Scrape pages
-    scraped_content = {}
+    # Phase 1: Scrape pages and collect raw HTML for boilerplate learning
+    raw_pages = []  # List of (url, raw_html_bytes)
+    scraped_results = {}  # url -> ScrapeResult
     success_count = 0
     total = len(pages_to_scrape)
     
     for i, page_url in enumerate(pages_to_scrape):
         normalized = normalize_url(page_url)
-        if normalized in scraped_content:
+        if normalized in scraped_results:
             continue
         
         path = urlparse(page_url).path or "/"
@@ -221,14 +238,72 @@ def fetch_web_content(
         
         result = orchestrator.scrape_url(page_url)
         
-        if result.success and result.extracted_text:
-            scraped_content[normalized] = result.extracted_text
+        if result.success and result.raw_content:
+            scraped_results[normalized] = result
+            raw_pages.append((normalized, result.raw_content))
             success_count += 1
             logger.debug(f"Scraped {page_url} via {result.tier}")
+            
+            # Save raw scrape incrementally if working folder provided
+            if raw_folder:
+                safe_name = path.replace("/", "_").strip("_") or "homepage"
+                safe_name = safe_name[:50]  # Limit filename length
+                raw_file = os.path.join(raw_folder, f"{i+1:03d}_{safe_name}.txt")
+                try:
+                    # Extract structured content for quality metrics
+                    structured = extract_structured_content(result.raw_content, page_url)
+                    
+                    with open(raw_file, "w", encoding="utf-8") as f:
+                        f.write(f"URL: {page_url}\n")
+                        f.write(f"Tier: {result.tier}\n")
+                        f.write(f"Title: {structured.title or 'N/A'}\n")
+                        f.write(f"Quality: {structured.quality.score:.2f} {structured.quality.flags}\n")
+                        f.write(f"Metrics: {structured.metrics.char_count} chars, ")
+                        f.write(f"{structured.metrics.heading_count} headings, ")
+                        f.write(f"{structured.metrics.paragraph_count} paragraphs, ")
+                        f.write(f"link_density={structured.metrics.link_density:.2f}\n")
+                        f.write("-" * 60 + "\n\n")
+                        f.write(structured.raw_text)
+                except Exception as e:
+                    logger.debug(f"Failed to save raw scrape: {e}")
         else:
             logger.debug(f"Failed to scrape {page_url}: {result.error}")
     
     out_progress_done()
+    
+    # Phase 2: Apply boilerplate learning across all pages
+    if len(raw_pages) >= 3:
+        # Learn boilerplate from scraped pages
+        bp_filter = BoilerplateFilter()
+        
+        for url, raw_html in raw_pages:
+            # Extract structured content (uses DOM pruning)
+            structured = extract_structured_content(raw_html, url)
+            bp_filter.add_page(structured.raw_text)
+        
+        # Compute boilerplate (lines appearing in >30% of pages)
+        bp_filter.compute_boilerplate(threshold=0.3)
+        
+        boilerplate_count = len(bp_filter.boilerplate_lines)
+        if boilerplate_count > 0:
+            logger.debug(f"Detected {boilerplate_count} boilerplate patterns")
+        
+        # Re-extract with boilerplate removal
+        scraped_content = {}
+        for url, raw_html in raw_pages:
+            structured = extract_structured_content(raw_html, url, bp_filter)
+            # Use clean_text (boilerplate removed) and exclude CTAs
+            clean_text = structured.to_plain_text(include_cta=False)
+            if clean_text.strip():
+                scraped_content[url] = clean_text
+    else:
+        # Not enough pages for boilerplate learning, use direct extraction
+        scraped_content = {}
+        for url, raw_html in raw_pages:
+            structured = extract_structured_content(raw_html, url)
+            clean_text = structured.to_plain_text(include_cta=False)
+            if clean_text.strip():
+                scraped_content[url] = clean_text
     
     if success_count == total:
         out_ok(f"{success_count} pages scraped")
@@ -290,6 +365,7 @@ def scrape_external_sources_validated(
     company_name: str,
     website: str,
     max_sources: int = 2,
+    working_folder: Optional[str] = None,
 ) -> dict[str, str]:
     """
     Scrape external sources with LLM validation to ensure they're about the right company.
@@ -298,35 +374,48 @@ def scrape_external_sources_validated(
     (e.g., "EverTrue" fundraising software vs "EverTrue" senior living).
     
     The LLM is instructed to be DEFENSIVE - assume it's wrong unless clearly right.
-    But it's also smart about mergers, subsidiaries, and name changes.
+    But it's also smart about mergers, subsidiaries, investors, and name changes.
     
     Args:
         search_results: List of search result dicts with 'url' key
         company_name: Name of the target company
         website: Target company's website (for context)
         max_sources: Maximum validated sources to return
+        working_folder: If provided, save raw scrapes to _raw_scrapes subfolder
     
     Returns:
         Dict mapping URL -> extracted text (only for validated sources)
     """
+    import os
     from primr.ai.llm import llm
     
     orchestrator = get_orchestrator()
     validated_sources = {}
     count = 0
     
+    # Create raw scrapes folder if working_folder provided
+    raw_folder = None
+    if working_folder:
+        raw_folder = os.path.join(working_folder, "_raw_scrapes")
+        os.makedirs(raw_folder, exist_ok=True)
+    
     # Extract domain from website for context
     target_domain = urlparse(website).netloc.lower().replace("www.", "") if website else ""
     
+    external_idx = 0
     for result in search_results:
         url = result.get("url")
         title = result.get("title", "")
         if not url:
             continue
         
-        # Skip if it's the company's own website
+        # Skip if it's the company's MAIN website (exact match only)
+        # We want to KEEP subdomains like investors.company.com, blog.company.com
+        # Only filter: company.com, www.company.com
         source_domain = urlparse(url).netloc.lower()
-        if target_domain and target_domain in source_domain:
+        source_domain_no_www = source_domain.replace("www.", "")
+        if target_domain and source_domain_no_www == target_domain:
+            # Exact match - this is the main site, skip it
             continue
         
         # Scrape the content
@@ -339,14 +428,32 @@ def scrape_external_sources_validated(
         if len(text) < 100:
             continue
         
+        external_idx += 1
+        
+        # Save raw scrape incrementally if working folder provided
+        if raw_folder:
+            source_domain = urlparse(url).netloc.replace("www.", "")
+            safe_name = source_domain[:30]
+            raw_file = os.path.join(raw_folder, f"ext_{external_idx:03d}_{safe_name}.txt")
+            try:
+                with open(raw_file, "w", encoding="utf-8") as f:
+                    f.write(f"URL: {url}\n")
+                    f.write(f"Title: {title}\n")
+                    f.write(f"Source: External (Google search)\n")
+                    f.write(f"Length: {len(text)} chars\n")
+                    f.write("-" * 60 + "\n\n")
+                    f.write(text)
+            except Exception as e:
+                logger.debug(f"Failed to save external raw scrape: {e}")
+        
         # Use LLM to validate this is about the RIGHT company
         # Use a small snippet to save tokens
         snippet = text[:2000]
         
-        validation_prompt = f"""You are a fact-checker. Your job is to determine if this article is about a SPECIFIC company.
+        validation_prompt = f"""You are a fact-checker. Determine if this article is about a SPECIFIC company.
 
 TARGET COMPANY:
-- Name: {company_name}
+- Full Name: {company_name}
 - Website: {website}
 - Domain: {target_domain}
 
@@ -356,28 +463,26 @@ ARTICLE TO CHECK:
 - Content snippet:
 {snippet}
 
-CRITICAL RULES - BE DEFENSIVE:
-1. ASSUME IT'S THE WRONG COMPANY unless you find clear evidence it's the right one
-2. Many companies share similar names (e.g., "EverTrue" is both a fundraising software company AND a senior living company)
-3. Look for SPECIFIC identifiers that match: website mentions, domain references, product names, leadership names, headquarters location
-4. A company might be mentioned due to: merger, acquisition, subsidiary, parent company, or former name - these ARE valid matches
-5. Generic industry news that doesn't specifically reference the target company = WRONG
-6. If the article mentions a DIFFERENT website/domain than {target_domain} = WRONG
+VALIDATION RULES:
 
-ANSWER FORMAT:
-First line: YES or NO
-Second line: Brief reason (one sentence)
+VALID (answer YES) - article must have at least one of these:
+- Mentions {target_domain} or {website}
+- Discusses products/services that {company_name} offers
+- From investors or PE firms about {company_name}
+- Press release about {company_name}'s deals, funding, or partnerships
+- Names leadership known to work at {company_name}
 
-Example good matches:
-- Article mentions {target_domain} or {website}
-- Article discusses specific products/services that match the target company
-- Article names executives known to work at the target company
-- Article about a merger/acquisition involving the target company
+INVALID (answer NO):
+- About a DIFFERENT company that happens to have a similar name
+- Mentions a different website/domain than {target_domain}
+- About a company in a completely different industry
+- Generic industry news without specific identifiers for {company_name}
 
-Example bad matches:
-- Article about a different company with a similar name
-- Article mentions a different website (e.g., evertrueliving.org instead of evertrue.com)
-- Generic industry article that doesn't specifically identify the target company"""
+KEY: The domain {target_domain} is the definitive identifier. If the article references a different domain, it's the wrong company.
+
+ANSWER:
+Line 1: YES or NO
+Line 2: Why (cite the specific identifier you found)"""
 
         try:
             response = llm(validation_prompt, model_type="research", streaming=False).strip()
@@ -388,9 +493,9 @@ Example bad matches:
             if decision.startswith("YES"):
                 validated_sources[url] = text
                 count += 1
-                logger.info(f"External source VALIDATED: {url} - {reason}")
+                logger.debug(f"External source VALIDATED: {url} - {reason}")
             else:
-                logger.info(f"External source REJECTED (wrong company): {url} - {reason}")
+                logger.debug(f"External source REJECTED (wrong company): {url} - {reason}")
                 
         except Exception as e:
             logger.warning(f"Failed to validate external source {url}: {e}")

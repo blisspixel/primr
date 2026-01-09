@@ -246,7 +246,7 @@ class TestModuleImportWithoutAPIKeys:
         )
         
         # These should all be accessible
-        assert NUM_SEARCH_RESULTS == 3
+        assert NUM_SEARCH_RESULTS == 10
         assert PARALLEL_SEARCH_LIMIT == 2
         assert MAX_RETRIES == 3
         assert OUTPUT_DIR is not None
