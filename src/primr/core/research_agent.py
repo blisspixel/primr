@@ -256,12 +256,26 @@ def select_links_with_llm(
 
 
 def create_working_folder(company_name, website):
+    """
+    Create working folder for research artifacts with timestamped run ID.
+    
+    Each run gets its own subfolder like: working/Company_Name/2026-01-09_0915/
+    This prevents mixing old and new data from different runs.
+    """
+    from datetime import datetime
+    
     if not company_name and website:
         parsed_url = urlparse(website)
         company_name = parsed_url.netloc.replace("www.", "").replace(".", "_")
+    
     folder_name = company_name.replace(" ", "_") if company_name else "Unknown_Company"
-    folder_path = os.path.join(WORKING_DIR, folder_name)
+    
+    # Create timestamped run folder: Company_Name/2026-01-09_0915
+    run_id = datetime.now().strftime("%Y-%m-%d_%H%M")
+    folder_path = os.path.join(WORKING_DIR, folder_name, run_id)
+    
     os.makedirs(folder_path, exist_ok=True)
+    logger.info(f"Created working folder: {folder_path}")
     return folder_path
 
 
@@ -546,21 +560,66 @@ def run_research(company_name: str, website: str, on_progress: Callable[[str], N
         return f"{int(seconds//60)}m {int(seconds%60)}s"
 
     folder_path = create_working_folder(company_name, website)
+    progress(f"> Working folder: {folder_path}")
 
-    # Scrape website - this has its own progress bar in fetch_web_content
-    scraped_data = fetch_web_content(website, company_name, max_pages=50) if website else {}
-    len(scraped_data)
+    # Scrape website - saves raw scrapes incrementally to _raw_scrapes folder
+    scraped_data = fetch_web_content(website, company_name, max_pages=50, working_folder=folder_path) if website else {}
+    progress(f"+ {len(scraped_data)} pages scraped")
 
-    # External research
-    # DISABLED: External source scraping can pull in wrong companies with similar names
-    # (e.g., "EverTrue" search returns evertrueliving.org, evertruedx.com)
-    # Deep Research handles external sources with proper relevance validation
-    progress("Skipping external sources (handled by Deep Research)")
+    # External research - with LLM validation to ensure correct company
+    # This prevents including content from similarly-named but unrelated companies
+    # (e.g., "EverTrue" fundraising software vs "EverTrue" senior living)
+    progress("Searching Google for external sources...")
+    
     external_data = {}
+    total_search_results = 0
+    if website:
+        from primr.data.scrape import scrape_external_sources_validated
+        from primr.data.search_utils import search_google
+        
+        domain = urlparse(website).netloc.replace("www.", "")
+        
+        # Search for business news and press releases about the company
+        external_queries = [
+            "news OR press release OR announcement",
+            "funding OR acquisition OR partnership",
+        ]
+        
+        for query in external_queries:
+            results = search_google(query, company_name, website)
+            if results:
+                total_search_results += len(results)
+                progress(f"  Found {len(results)} results for '{query[:30]}...'")
+                filtered = [r for r in results[:5] if website.lower() not in r.get("url", "").lower()]
+                progress(f"  Validating {len(filtered)} external articles...")
+                scraped = scrape_external_sources_validated(
+                    filtered,
+                    company_name=company_name,
+                    website=website,
+                    max_sources=2,
+                    working_folder=folder_path
+                )
+                external_data.update(scraped)
+                
+                if len(external_data) >= 3:
+                    break
 
-    progress(f"+ {len(external_data)} external sources")
+    progress(f"+ {len(external_data)} external sources validated (from {total_search_results} search results)")
 
     all_scraped = {**scraped_data, **external_data}
+    
+    # Save raw scraped URLs to working folder for debugging
+    urls_file = os.path.join(folder_path, "_scraped_urls.txt")
+    with open(urls_file, "w", encoding="utf-8") as f:
+        f.write(f"# Scraped URLs for {company_name}\n")
+        f.write(f"# Website: {website}\n")
+        f.write(f"# Total: {len(all_scraped)} pages\n\n")
+        f.write("## Website Pages:\n")
+        for url in scraped_data.keys():
+            f.write(f"  {url}\n")
+        f.write(f"\n## External Sources ({len(external_data)}):\n")
+        for url in external_data.keys():
+            f.write(f"  {url}\n")
 
     # Summarize content
     progress("Summarizing content...")
@@ -568,6 +627,16 @@ def run_research(company_name: str, website: str, on_progress: Callable[[str], N
     if not summarized.strip():
         summarized = "No insights extracted."
     progress("+ Content summarized")
+    
+    # Clean up raw scrapes folder now that we have the summary
+    raw_folder = os.path.join(folder_path, "_raw_scrapes")
+    if os.path.exists(raw_folder):
+        import shutil
+        try:
+            shutil.rmtree(raw_folder)
+            logger.debug(f"Cleaned up raw scrapes folder")
+        except Exception as e:
+            logger.debug(f"Failed to clean up raw scrapes: {e}")
 
     # Industry identification
     progress("Identifying industry...")
@@ -913,7 +982,7 @@ def perform_scrape_only(
                 added = add_links(section_links)
                 section_link_count += added
         if section_link_count:
-            console.ok(f"  Sections: {section_link_count} articles found")
+            console.ok(f"  Sections: +{section_link_count} new links")
     
     # 3. Common URL guessing - only if homepage gave us few links
     MIN_LINKS_BEFORE_GUESSING = 20
@@ -961,6 +1030,11 @@ def perform_scrape_only(
     else:
         console.phase_banner(2, 3, "Scraping", f"{scrape_count} pages", time_estimate)
     
+    # Create working folder for raw scrapes
+    folder_path = create_working_folder(company_name, website)
+    raw_folder = os.path.join(folder_path, "_raw_scrapes")
+    os.makedirs(raw_folder, exist_ok=True)
+    
     scraped_content = {}
     tier_stats = {}
     scrape_phase_start = time.time()
@@ -995,6 +1069,21 @@ def perform_scrape_only(
             scraped_content[normalize_url(page_url)] = result.extracted_text
             tier = result.tier or "unknown"
             tier_stats[tier] = tier_stats.get(tier, 0) + 1
+            
+            # Save raw scrape incrementally with quality info
+            safe_name = path.replace("/", "_").strip("_") or "homepage"
+            safe_name = safe_name[:50]
+            raw_file = os.path.join(raw_folder, f"{i+1:03d}_{safe_name}.txt")
+            try:
+                with open(raw_file, "w", encoding="utf-8") as f:
+                    f.write(f"URL: {page_url}\n")
+                    f.write(f"Tier: {result.tier}\n")
+                    f.write(f"Length: {len(result.extracted_text)} chars\n")
+                    f.write(f"Words: {len(result.extracted_text.split())}\n")
+                    f.write("-" * 60 + "\n\n")
+                    f.write(result.extracted_text)
+            except Exception as e:
+                logger.debug(f"Failed to save raw scrape: {e}")
         else:
             # Log failure but continue - orchestrator already tried all viable tiers
             logger.debug(f"Failed to scrape {page_url}: {result.error}")
@@ -1167,10 +1256,11 @@ def perform_research(
                 if website:
                     domain = urlparse(website).netloc.replace("www.", "")
                 
-                # Search with both name and domain for better targeting
+                # Search for business news and press releases about the company
+                # These queries target high-value sources for company intelligence
                 external_queries = [
-                    f'"{company_name}" "{domain}" news' if domain else f'"{company_name}" news',
-                    f'"{company_name}" "{domain}"' if domain else f'"{company_name}" company',
+                    "news OR press release OR announcement",  # Recent news coverage
+                    "funding OR acquisition OR partnership",   # Business developments
                 ]
                 external_data = {}
 

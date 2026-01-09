@@ -202,7 +202,7 @@ SEARCH_API_KEY = _search_api_key
 SEARCH_ENGINE_ID = _search_engine_id
 
 ### **Search & Scraping Configuration** ###
-NUM_SEARCH_RESULTS = 3
+NUM_SEARCH_RESULTS = 10
 PARALLEL_SEARCH_LIMIT = 2
 INITIAL_RETRY_DELAY = 5
 

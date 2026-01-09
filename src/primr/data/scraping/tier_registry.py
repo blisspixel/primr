@@ -47,7 +47,7 @@ from .browsers import (
 # - requires: Optional dependency check (e.g., "curl_cffi" for TLS impersonation)
 
 DEFAULT_TIERS: List[ScrapeTier] = [
-    # Tier 1: Basic HTTP (fastest, easily detected)
+    # Tier 1: Basic HTTP (fastest, works for many sites)
     ScrapeTier(
         name="requests",
         scrape_fn=scrape_with_requests,
@@ -104,12 +104,11 @@ DEFAULT_TIERS: List[ScrapeTier] = [
     ),
     
     # Tier 8: Vision fallback (opt-in only)
-    # NOTE: This tier is skipped unless explicitly enabled
     ScrapeTier(
         name="vision",
         scrape_fn=scrape_with_vision,
         timeout=DEFAULT_TIMEOUT_VISION,
-        requires=None,  # Uses Gemini API, not a local dependency
+        requires=None,
     ),
 ]
 

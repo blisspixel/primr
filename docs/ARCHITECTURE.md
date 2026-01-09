@@ -92,12 +92,23 @@ Website-focused research using an 8-tier scraping strategy with AI-powered insig
                                    │
                                    ▼
 ┌─────────────────────────────────────────────────────────────────────┐
+│                   External Source Validation (v1.2.0)               │
+│  1. Google Search for business news (press releases, funding, etc) │
+│  2. Filter low-value sites (social media, job boards, forums)      │
+│  3. Scrape and extract clean content                               │
+│  4. LLM validates article is about the TARGET company              │
+│     (uses domain as definitive identifier to avoid name collisions)│
+│  5. Return validated third-party sources for report enrichment     │
+└─────────────────────────────────────────────────────────────────────┘
+                                   │
+                                   ▼
+┌─────────────────────────────────────────────────────────────────────┐
 │                     LLM Insight Extraction                           │
 │              (Extract key facts from each scraped page)             │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-**When to use:** Quick website intel, data collection for downstream use. Fast (2-5 min) and cheap (~$0.01).
+**When to use:** Quick website intel, data collection for downstream use. Fast (5-10 min) and cheap (~$0.01-0.05).
 
 ### Deep Mode
 

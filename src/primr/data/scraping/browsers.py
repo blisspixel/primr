@@ -261,7 +261,13 @@ class PlaywrightSession(BrowserSession):
             from playwright.sync_api import sync_playwright
             
             self._playwright = sync_playwright().start()
-            self._browser = self._playwright.chromium.launch(headless=self._headless)
+            
+            # Launch with HTTP/2 disabled to avoid ERR_HTTP2_PROTOCOL_ERROR on some sites
+            # (e.g., BusinessWire). This forces HTTP/1.1 which is more compatible.
+            self._browser = self._playwright.chromium.launch(
+                headless=self._headless,
+                args=["--disable-http2"],
+            )
             
             # Create context with profile settings
             self._context = self._browser.new_context(

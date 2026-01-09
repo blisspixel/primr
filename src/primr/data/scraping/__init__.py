@@ -174,6 +174,24 @@ from .discovery import (
     discover_links,
 )
 
+# Structured content extraction
+from .structured_content import (
+    BoilerplateFilter,
+    ContentBlock,
+    StructuredContent,
+    ExtractionMetrics,
+    QualityScore,
+    extract_structured_content,
+    extract_with_boilerplate_learning,
+    get_clean_text_for_summarization,
+    should_escalate_tier,
+    prune_dom,
+    find_main_content,
+    is_cta_block,
+    compute_link_density,
+    score_container,
+)
+
 __all__ = [
     # Models
     "ErrorType",
@@ -273,4 +291,19 @@ __all__ = [
     "score_links_heuristically",
     "extract_links_from_homepage",
     "discover_links",
+    # Structured content
+    "BoilerplateFilter",
+    "ContentBlock",
+    "StructuredContent",
+    "ExtractionMetrics",
+    "QualityScore",
+    "extract_structured_content",
+    "extract_with_boilerplate_learning",
+    "get_clean_text_for_summarization",
+    "should_escalate_tier",
+    "prune_dom",
+    "find_main_content",
+    "is_cta_block",
+    "compute_link_density",
+    "score_container",
 ]

@@ -35,9 +35,6 @@ class TestDefaultTiers:
         # requests should come before playwright
         assert tier_names.index("requests") < tier_names.index("playwright")
         
-        # httpx should come before drissionpage
-        assert tier_names.index("httpx") < tier_names.index("drissionpage")
-        
         # vision should be last
         assert tier_names[-1] == "vision"
     

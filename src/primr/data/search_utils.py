@@ -3,6 +3,7 @@ Google Search API integration and AI-driven query generation.
 """
 
 import time
+from urllib.parse import urlparse
 
 import requests
 from dotenv import load_dotenv
@@ -41,10 +42,18 @@ USER_AGENTS = [
     "Mozilla/5.0 (iPhone; CPU iPhone OS 15_5 like Mac OS X) AppleWebKit/537.36 (KHTML, like Gecko) Version/15.5 Mobile/15E148 Safari/537.36",
 ]
 
-# Sites to exclude after search
+# Sites to exclude after search (low value for business research)
 EXCLUDED_SITES = [
-    "reddit.com", "quora.com", "facebook.com", "twitter.com",
-    "pinterest.com", "tiktok.com", "tumblr.com", "instagram.com"
+    # Social media
+    "reddit.com", "quora.com", "facebook.com", "twitter.com", "x.com",
+    "pinterest.com", "tiktok.com", "tumblr.com", "instagram.com",
+    "youtube.com", "linkedin.com",
+    # Job/review sites
+    "glassdoor.com", "indeed.com", "yelp.com", "tripadvisor.com",
+    # Reference (often outdated)
+    "wikipedia.org",
+    # Support/forums (not news)
+    "support.", "help.", "community.", "forum.", "answers.",
 ]
 
 
@@ -94,7 +103,10 @@ def search_google(query, company_name, website, num_results=NUM_SEARCH_RESULTS):
 
     formatted_query = f"{company_name} {query}".strip()
     if website:
-        formatted_query += f" -site:{website}"
+        # Extract domain from website URL for -site: filter
+        domain = urlparse(website).netloc.lower().replace("www.", "")
+        if domain:
+            formatted_query += f" -site:{domain}"
 
     search_url = "https://www.googleapis.com/customsearch/v1"
     params = {

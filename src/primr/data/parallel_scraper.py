@@ -196,7 +196,7 @@ class CircuitBreaker:
                 elapsed = time.time() - self._open_time[domain]
                 if elapsed >= self._reset_timeout:
                     # Try half-open
-                    logger.info(f"Circuit half-open for {domain}")
+                    logger.debug(f"Circuit half-open for {domain}")
                     return False
 
             return True
@@ -215,7 +215,7 @@ class CircuitBreaker:
                 state.failure_count = 0
                 if domain in self._open_time:
                     del self._open_time[domain]
-                logger.info(f"Circuit closed for {domain}")
+                logger.debug(f"Circuit closed for {domain}")
 
     def record_failure(self, url: str) -> None:
         """Record failed request, potentially opening circuit."""
@@ -279,7 +279,7 @@ class ParallelScraper:
         self._lock = threading.Lock()
         self._results: list[ScrapeResult] = []
 
-        logger.info(
+        logger.debug(
             f"ParallelScraper initialized: workers={max_workers}, "
             f"rate_limit={rate_limit_delay}s"
         )
@@ -374,7 +374,7 @@ class ParallelScraper:
         unique_urls = list(dict.fromkeys(urls))
         total = len(unique_urls)
 
-        logger.info(f"Starting parallel scrape of {total} URLs")
+        logger.debug(f"Starting parallel scrape of {total} URLs")
         results: list[ScrapeResult] = []
         completed = 0
 
@@ -401,7 +401,7 @@ class ParallelScraper:
 
         # Log summary
         successful = sum(1 for r in results if r.success)
-        logger.info(
+        logger.debug(
             f"Parallel scrape complete: {successful}/{total} successful"
         )
 

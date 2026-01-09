@@ -2,17 +2,39 @@
 
 A research tool that generates company intelligence briefs using Google's Gemini models. It automates the collection and analysis of company information for internal research and go-to-market preparation.
 
+Primr combines first-party website content (site corpus) with validated external sources (deep research) to produce a structured company brief.
+
 ## What It Does
 
-Primr runs company research using complementary engines:
+Primr runs company research through a single unified pipeline. Modes control how much of the pipeline runs - they are NOT separate implementations.
 
-**Scrape Mode**: Website scraping with LLM-powered link selection. Browser-first discovery handles JS-heavy sites, then the LLM picks the most valuable pages (leadership, products, news, investors). Reader-mode extraction pulls clean content, with quality validation to catch garbage pages. Vision tier fallback uses screenshots + LLM for image-heavy pages. 5-10 min, ~$0.01-0.05.
+### The Pipeline
 
-**Deep Mode**: Uses the Accordion Method - Deep Research gathers facts, then Gemini Flash writes each section with analysis. No website scraping, relies on web research. 8-15 min, ~$0.80-1.00.
+```
+[Build Site Corpus] → [Extract Insights] → [Deep Research] → [Write Report]
+         ↓                    ↓                   ↓                ↓
+    corpus files         insights.txt        dossier.txt      report.docx
+```
 
-**Full Mode** (default): Combines both for the most complete picture. 25-40 min, ~$0.80-1.50.
+**Stage outputs:**
+- **Build Site Corpus**: `_raw_scrapes/` (individual page text), `scraped_content.txt` (combined corpus), `_external_links.txt` (discovered external URLs; recorded as metadata, not scraped in scrape mode)
+- **Extract Insights**: `insights.txt` (LLM-compressed facts from corpus)
+- **Deep Research**: `dossier.txt` (LLM analysis using external sources to validate/augment)
+- **Write Report**: `report.docx` (final formatted deliverable)
 
-All modes produce TXT and DOCX reports with optional AI strategy recommendations.
+### Modes (same code, different stopping points)
+
+| Mode | What Runs | Time | Cost |
+|------|-----------|------|------|
+| `--mode scrape` | Build Site Corpus + Extract Insights | 5-10 min | ~$0.01-0.05 |
+| `--mode deep` | Deep Research only (external sources; uses provided URL as research anchor; no site corpus build) | 8-15 min | ~$0.80-1.00 |
+| `--mode full` | Full pipeline (default) | 25-40 min | ~$0.80-1.50 |
+
+### Key Point
+
+There is ONE site-to-corpus function: `fetch_web_content()` (aka `build_site_corpus`) in `src/primr/data/scrape.py`. It discovers in-scope URLs, selects pages, scrapes them with tier escalation, and saves results incrementally. All modes that build a corpus use this same function. No other function should implement a site discovery + scrape loop.
+
+Scrape mode stops after insights; full mode continues through deep research and report generation. In all modes, the provided URL is the canonical target identifier (used for domain scoping, deduping, and source attribution).
 
 <p align="center">
   <img src="docs/images/primr-demo.png" alt="Primr CLI demo" width="700">
@@ -29,27 +51,33 @@ cd primr
 python setup_env.py
 
 # Run research
-primr "Acme Corp" https://acme.com
+primr "Acme Corp" https://acme.example
 ```
 
 ## Usage
 
+```
+primr "<company_label>" <company_website_url> [options]
+```
+
+The first argument is a display label used in output paths and headings; scraping scope is determined by the website URL host. The website URL is always required. It defines the research target (canonical domain) and is used for scoping, link discovery, and as a seed for external research.
+
 ```bash
 # Basic usage
-primr "Tesla" https://tesla.com
+primr "Acme Corp" https://acme.example
 
 # Research modes
-primr "Tesla" https://tesla.com --mode scrape    # Website only
-primr "Tesla" https://tesla.com --mode deep      # Web research only
-primr "Tesla" https://tesla.com --mode full      # Both (default)
+primr "Acme Corp" https://acme.example --mode scrape    # Site corpus + insights (multi-page)
+primr "Acme Corp" https://acme.example --mode deep      # Deep research only (no site corpus build)
+primr "Acme Corp" https://acme.example --mode full      # Full pipeline (default)
 
 # AI strategy with cloud vendor
-primr "Tesla" https://tesla.com --cloud-vendor azure
+primr "Acme Corp" https://acme.example --cloud-vendor azure
 
 # Options
-primr "Tesla" https://tesla.com --dry-run    # Cost estimate only
-primr "Tesla" https://tesla.com --verbose    # Detailed output
-primr "Tesla" https://tesla.com --no-qa      # Skip quality assessment
+primr "Acme Corp" https://acme.example --dry-run    # Cost estimate only
+primr "Acme Corp" https://acme.example --verbose    # Detailed output
+primr "Acme Corp" https://acme.example --no-qa      # Skip quality assessment
 
 # Batch mode
 primr --csv companies.csv
