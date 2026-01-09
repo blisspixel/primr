@@ -320,7 +320,7 @@ def verify_urls_exist(
 
 
 # =============================================================================
-# HTML Link Extraction
+# HTML Link Extraction (2026 - handles JS-heavy SPAs)
 # =============================================================================
 
 # Patterns for links we want to extract
@@ -358,10 +358,17 @@ LINK_EXCLUDE_PATTERNS = [
     r"/checkout",
     r"/account",
     r"/search\?",
-    r"#",
-    r"javascript:",
-    r"mailto:",
-    r"tel:",
+    r"^#",  # Only exclude pure fragment links, not URLs with fragments
+    r"^javascript:",
+    r"^mailto:",
+    r"^tel:",
+    r"^data:",
+    r"^blob:",
+]
+
+# Patterns that look like internal paths (for JS extraction)
+PATH_LIKE_PATTERNS = [
+    r'^/[a-z][a-z0-9-]*(?:/[a-z0-9-]+)*/?$',  # /about, /products/cloud, etc.
 ]
 
 
@@ -371,10 +378,20 @@ def extract_links_from_html(
     same_domain_only: bool = True,
 ) -> List[DiscoveredLink]:
     """
-    Extract links from HTML content.
+    Extract links from HTML content - handles modern JS-heavy SPAs.
+    
+    2026 Reality: Most sites use Angular/Vue/React with JS-based navigation.
+    Traditional <a href> extraction misses most links. This function extracts:
+    
+    1. Traditional <a href="..."> links
+    2. Angular: ng-href, routerLink, [routerLink]
+    3. Vue: :href, :to, router-link
+    4. React: to= (React Router)
+    5. Generic: data-href, data-url, data-link attributes
+    6. Path strings in JavaScript (e.g., '/about', '/products/cloud')
     
     Args:
-        html_content: Raw HTML bytes
+        html_content: Raw HTML bytes (should be from JS-rendered page)
         base_url: Base URL for resolving relative links
         same_domain_only: Only return links on the same domain
     
@@ -389,58 +406,168 @@ def extract_links_from_html(
     links = []
     seen_urls: Set[str] = set()
     
-    # Find all anchor tags with href - more permissive pattern
-    # Matches href attribute regardless of what's inside the <a> tag
-    href_pattern = r'<a\s[^>]*href=["\']([^"\']+)["\']'
-    
-    # Also try to extract anchor text (but don't require it)
-    full_pattern = r'<a\s[^>]*href=["\']([^"\']+)["\'][^>]*>(.*?)</a>'
-    
-    # First pass: extract all hrefs
-    hrefs_found = set()
-    for match in re.finditer(href_pattern, text, re.IGNORECASE | re.DOTALL):
-        hrefs_found.add(match.group(1).strip())
-    
-    # Second pass: try to get anchor text where possible
-    href_to_text = {}
-    for match in re.finditer(full_pattern, text, re.IGNORECASE | re.DOTALL):
-        href = match.group(1).strip()
-        # Strip HTML tags from anchor text
-        anchor_text = re.sub(r'<[^>]+>', ' ', match.group(2)).strip()
-        anchor_text = re.sub(r'\s+', ' ', anchor_text)  # Normalize whitespace
-        if anchor_text and len(anchor_text) < 200:  # Reasonable length
-            href_to_text[href] = anchor_text
-    
-    for href in hrefs_found:
-        anchor_text = href_to_text.get(href, "")
+    def add_link(href: str, anchor_text: str = "", source_type: str = "html") -> None:
+        """Helper to add a link with deduplication and validation."""
+        if not href or len(href) < 2:
+            return
+        
+        href = href.strip()
         
         # Skip excluded patterns
         if any(re.search(p, href, re.IGNORECASE) for p in LINK_EXCLUDE_PATTERNS):
-            continue
+            return
         
         # Resolve relative URLs
         full_url = urljoin(base_url, href)
         
-        # Normalize URL
+        # Validate it's a proper HTTP URL
         parsed = urlparse(full_url)
+        if parsed.scheme not in ("http", "https"):
+            return
+        if not parsed.netloc:
+            return
+        
+        # Normalize URL (remove fragments, normalize path)
         normalized = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
         if parsed.query:
             normalized += f"?{parsed.query}"
         
+        # Remove trailing slash for consistency (except root)
+        if normalized.endswith("/") and parsed.path != "/":
+            normalized = normalized.rstrip("/")
+        
         # Skip if already seen
         if normalized in seen_urls:
-            continue
+            return
         seen_urls.add(normalized)
         
         # Check same domain
         if same_domain_only and not is_same_domain(base_url, full_url):
-            continue
+            return
         
         links.append(DiscoveredLink(
             url=normalized,
-            source="html",
+            source=source_type,
             anchor_text=anchor_text if anchor_text else None,
         ))
+    
+    # ==========================================================================
+    # 1. Traditional <a href="..."> links
+    # ==========================================================================
+    href_pattern = r'<a\s[^>]*href=["\']([^"\']+)["\']'
+    full_pattern = r'<a\s[^>]*href=["\']([^"\']+)["\'][^>]*>(.*?)</a>'
+    
+    # Extract hrefs
+    hrefs_found = set()
+    for match in re.finditer(href_pattern, text, re.IGNORECASE | re.DOTALL):
+        hrefs_found.add(match.group(1).strip())
+    
+    # Try to get anchor text
+    href_to_text = {}
+    for match in re.finditer(full_pattern, text, re.IGNORECASE | re.DOTALL):
+        href = match.group(1).strip()
+        anchor_text = re.sub(r'<[^>]+>', ' ', match.group(2)).strip()
+        anchor_text = re.sub(r'\s+', ' ', anchor_text)
+        if anchor_text and len(anchor_text) < 200:
+            href_to_text[href] = anchor_text
+    
+    for href in hrefs_found:
+        add_link(href, href_to_text.get(href, ""), "html")
+    
+    # ==========================================================================
+    # 2. Angular links: ng-href, routerLink, [routerLink]
+    # ==========================================================================
+    angular_patterns = [
+        r'ng-href=["\']([^"\']+)["\']',
+        r'routerLink=["\']([^"\']+)["\']',
+        r'\[routerLink\]=["\']([^"\']+)["\']',
+        r'\[routerLink\]=["\']\[([^\]]+)\]["\']',  # [routerLink]="['/path']"
+    ]
+    for pattern in angular_patterns:
+        for match in re.finditer(pattern, text, re.IGNORECASE):
+            href = match.group(1).strip()
+            # Handle array syntax: ['/path', 'subpath'] -> /path/subpath
+            if href.startswith("'") or href.startswith("/"):
+                href = href.strip("'\"")
+                add_link(href, "", "angular")
+    
+    # ==========================================================================
+    # 3. Vue links: :href, :to, router-link, nuxt-link
+    # ==========================================================================
+    vue_patterns = [
+        r':href=["\']([^"\']+)["\']',
+        r':to=["\']([^"\']+)["\']',
+        r'<router-link[^>]*to=["\']([^"\']+)["\']',
+        r'<nuxt-link[^>]*to=["\']([^"\']+)["\']',
+    ]
+    for pattern in vue_patterns:
+        for match in re.finditer(pattern, text, re.IGNORECASE):
+            href = match.group(1).strip()
+            if not href.startswith("{"):  # Skip object bindings
+                add_link(href, "", "vue")
+    
+    # ==========================================================================
+    # 4. React Router: to= attribute (on Link components)
+    # ==========================================================================
+    react_patterns = [
+        r'<Link[^>]*to=["\']([^"\']+)["\']',
+        r'<NavLink[^>]*to=["\']([^"\']+)["\']',
+    ]
+    for pattern in react_patterns:
+        for match in re.finditer(pattern, text, re.IGNORECASE):
+            add_link(match.group(1).strip(), "", "react")
+    
+    # ==========================================================================
+    # 5. Generic data attributes: data-href, data-url, data-link, data-path
+    # ==========================================================================
+    data_patterns = [
+        r'data-href=["\']([^"\']+)["\']',
+        r'data-url=["\']([^"\']+)["\']',
+        r'data-link=["\']([^"\']+)["\']',
+        r'data-path=["\']([^"\']+)["\']',
+        r'data-navigate=["\']([^"\']+)["\']',
+    ]
+    for pattern in data_patterns:
+        for match in re.finditer(pattern, text, re.IGNORECASE):
+            add_link(match.group(1).strip(), "", "data-attr")
+    
+    # ==========================================================================
+    # 6. JavaScript path strings (common in SPAs)
+    # Look for quoted strings that look like internal paths
+    # ==========================================================================
+    # Match strings like '/about', '/products/cloud', '/company/leadership'
+    # Be conservative - only match clean path patterns
+    js_path_pattern = r'["\'](/[a-zA-Z][a-zA-Z0-9-]*(?:/[a-zA-Z0-9-]+)*/?)["\']'
+    
+    for match in re.finditer(js_path_pattern, text):
+        path = match.group(1).strip()
+        # Skip if it looks like a file path or API endpoint
+        if any(ext in path.lower() for ext in ['.js', '.css', '.json', '.xml', '.svg', '.ico', '/api/', '/_', '/static/']):
+            continue
+        # Skip very short paths (likely not navigation)
+        if len(path) < 3:
+            continue
+        add_link(path, "", "js-path")
+    
+    # ==========================================================================
+    # 7. onclick/ng-click handlers with navigation (best effort)
+    # ==========================================================================
+    onclick_patterns = [
+        r'onclick=["\'][^"\']*(?:location\.href|window\.location|navigate)\s*[=\(]\s*["\']([^"\']+)["\']',
+        r'ng-click=["\'][^"\']*(?:go|navigate|route)\s*\(\s*["\']([^"\']+)["\']',
+    ]
+    for pattern in onclick_patterns:
+        for match in re.finditer(pattern, text, re.IGNORECASE):
+            add_link(match.group(1).strip(), "", "onclick")
+    
+    # ==========================================================================
+    # 8. href on non-anchor elements (buttons, divs with href)
+    # ==========================================================================
+    non_anchor_href = r'<(?!a\s)[^>]+href=["\']([^"\']+)["\']'
+    for match in re.finditer(non_anchor_href, text, re.IGNORECASE):
+        add_link(match.group(1).strip(), "", "non-anchor")
+    
+    logger.debug(f"Extracted {len(links)} links from HTML ({len(hrefs_found)} traditional, {len(links) - len(hrefs_found)} from JS/SPA patterns)")
     
     return links
 

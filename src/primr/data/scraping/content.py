@@ -25,6 +25,13 @@ BOILERPLATE_CLASSES = [
     "breadcrumb", "pagination", "search", "login", "signup", "subscribe",
 ]
 
+# Pre-compiled regex for word-boundary matching of boilerplate classes
+# This prevents false positives like "ddpa" matching "ad"
+BOILERPLATE_PATTERN = re.compile(
+    r'\b(' + '|'.join(re.escape(bp) for bp in BOILERPLATE_CLASSES) + r')\b',
+    re.IGNORECASE
+)
+
 # Tags that typically contain main content
 CONTENT_TAGS = ["article", "main", "section", "div"]
 CONTENT_CLASSES = ["content", "article", "post", "entry", "main", "body", "text"]
@@ -200,9 +207,10 @@ def extract_clean_text(
         for element in soup.find_all(True):
             classes = element.get("class", [])
             element_id = element.get("id", "")
-            all_attrs = (" ".join(classes) + " " + element_id).lower()
+            all_attrs = " ".join(classes) + " " + element_id
             
-            if any(bp in all_attrs for bp in BOILERPLATE_CLASSES):
+            # Use word-boundary matching to avoid false positives (e.g., "ddpa" matching "ad")
+            if BOILERPLATE_PATTERN.search(all_attrs):
                 element.decompose()
     
     # Get text with newlines for block elements
@@ -325,9 +333,9 @@ def extract_main_content(raw_html: bytes) -> str:
         element_id = element.get("id", "") or ""
         
         all_attrs = " ".join(classes) + " " + element_id
-        all_attrs_lower = all_attrs.lower()
         
-        if any(bp in all_attrs_lower for bp in BOILERPLATE_CLASSES):
+        # Use word-boundary matching to avoid false positives (e.g., "ddpa" matching "ad")
+        if BOILERPLATE_PATTERN.search(all_attrs):
             to_remove.append(element)
     
     # Now remove them

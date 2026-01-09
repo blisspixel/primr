@@ -222,10 +222,10 @@ class ScrapeOrchestrator:
                 logger.debug(f"Starting with best_tier {host_state.best_tier} for {host}")
                 
                 # DEFENSIVE MODE: If we have a proven working tier, limit escalation
-                # If best_tier fails, try only 1 more tier then give up on this URL
+                # If best_tier fails, try only 2 more tiers then give up on this URL
                 # Rationale: If requests worked for 39 pages, page 40 failing is likely
                 # a page problem (404, redirect, etc.), not a tier problem
-                max_tier_attempts = 2
+                max_tier_attempts = 3
                 use_fast_timeout = True  # Use shorter timeout for known-good hosts
         
         tier_attempts = 0
@@ -394,6 +394,14 @@ class ScrapeOrchestrator:
             is_quality, quality_reason = is_quality_content(extracted)
             if not is_quality:
                 logger.debug(f"Content quality failed on {tier.name}: {quality_reason}")
+                
+                # FAST FAIL: If we got HTML but content is too short (50-199 chars),
+                # the page is likely a stub/redirect, not a scraping issue.
+                # Don't waste time trying other tiers.
+                if extracted and 50 < len(extracted) < 200:
+                    logger.debug(f"Fast fail: Page has content but too short ({len(extracted)} chars)")
+                    break  # Exit tier loop, return failure
+                
                 self._record_tier_failure(host, tier.name)
                 self._random_delay()
                 continue
