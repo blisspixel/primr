@@ -364,7 +364,8 @@ class PlaywrightSession(BrowserSession):
             self._page.goto(url, timeout=timeout_ms, wait_until="domcontentloaded")
             return True
         except Exception as e:
-            logger.warning(f"Navigation failed: {e}")
+            # Debug level - navigation failures are expected, tier escalation handles them
+            logger.debug(f"Navigation timeout (expected): {e}")
             return False
     
     def wait_for_clearance(self, max_wait_seconds: int = 30) -> bool:
@@ -600,7 +601,8 @@ class DrissionPageSession(BrowserSession):
             self._page.get(url, timeout=timeout_ms / 1000)
             return True
         except Exception as e:
-            logger.warning(f"Navigation failed: {e}")
+            # Debug level - navigation failures are expected, tier escalation handles them
+            logger.debug(f"Navigation timeout (expected): {e}")
             return False
     
     def wait_for_clearance(self, max_wait_seconds: int = 30) -> bool:
