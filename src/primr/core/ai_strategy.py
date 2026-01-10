@@ -416,17 +416,21 @@ async def _execute_strategy_research(
     timeout: int,
     on_progress: Callable[[str], None] | None = None
 ) -> str | None:
-    """Execute Deep Research for AI strategy."""
-    from primr.ai.deep_research import ResearchStatus, get_deep_research_client
+    """Execute Deep Research for AI strategy with polling fallback."""
+    from primr.ai.deep_research import ResearchStatus, get_deep_research_client, save_pending_job
 
     client = get_deep_research_client()
+    interaction_id = None
 
     def progress_callback(progress):
+        nonlocal interaction_id
         if progress.message:
             if on_progress:
                 on_progress(progress.message)
-            # Only use console output here since AI strategy doesn't have a parent callback
             console.status_with_time(f"AI Strategy: {progress.message}")
+        # Capture interaction ID from progress if available
+        if hasattr(progress, 'interaction_id') and progress.interaction_id:
+            interaction_id = progress.interaction_id
 
     try:
         result = await client.research(
@@ -437,16 +441,73 @@ async def _execute_strategy_research(
             timeout=timeout
         )
 
-        if result.status != ResearchStatus.COMPLETED or not result.content:
-            error_msg = result.error if hasattr(result, 'error') and result.error else "Unknown error"
-            console.error(f"AI Strategy research failed: {error_msg}")
+        if result.status == ResearchStatus.COMPLETED and result.content:
+            return result.content
+        
+        # If we have an interaction ID, the job may still be running - poll for it
+        if result.interaction_id:
+            interaction_id = result.interaction_id
+        
+        if interaction_id:
+            console.info(f"AI Strategy: Streaming interrupted, polling for completion...")
+            console.info(f"AI Strategy: Job ID: {interaction_id}")
+            
+            # Save job for recovery
+            save_pending_job(interaction_id, "ai_strategy", prompt[:100])
+            
+            # Poll for completion (check every 2 minutes for up to 30 minutes)
+            poll_interval = 120  # 2 minutes
+            max_poll_time = 1800  # 30 minutes
+            poll_start = asyncio.get_event_loop().time()
+            
+            while (asyncio.get_event_loop().time() - poll_start) < max_poll_time:
+                await asyncio.sleep(poll_interval)
+                
+                elapsed = int(asyncio.get_event_loop().time() - poll_start)
+                console.status_with_time(f"AI Strategy: Checking status... ({elapsed}s elapsed)")
+                
+                check_result = client.check_job(interaction_id)
+                status = check_result.get('status', 'unknown')
+                
+                if status == 'completed':
+                    content = check_result.get('content', '')
+                    if content:
+                        console.ok("AI Strategy: Job completed!")
+                        return content
+                    else:
+                        console.warn("AI Strategy: Job completed but no content returned")
+                        return None
+                elif status == 'failed':
+                    error = check_result.get('error', 'Unknown error')
+                    console.error(f"AI Strategy: Job failed: {error}")
+                    return None
+                elif status == 'in_progress':
+                    # Still running, continue polling
+                    continue
+                else:
+                    logger.warning(f"Unknown job status: {status}")
+            
+            # Timed out polling - job may still complete later
+            console.warn(f"AI Strategy: Still running after {max_poll_time}s")
+            console.info(f"AI Strategy: Check later with: primr --check-jobs")
+            console.info(f"AI Strategy: Job ID: {interaction_id}")
             return None
-
-        return result.content
+        
+        # No interaction ID - true failure
+        error_msg = result.error if hasattr(result, 'error') and result.error else "Unknown error"
+        console.error(f"AI Strategy research failed: {error_msg}")
+        return None
 
     except Exception as e:
         console.error(f"AI Strategy generation failed: {e}")
         logger.exception("AI Strategy error")
+        
+        # If we captured an interaction ID, save it for later recovery
+        if interaction_id:
+            save_pending_job(interaction_id, "ai_strategy", prompt[:100])
+            console.info(f"AI Strategy: Job may still be running. Check with: primr --check-jobs")
+            console.info(f"AI Strategy: Job ID: {interaction_id}")
+        
         return None
 
 

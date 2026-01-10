@@ -74,10 +74,18 @@ primr "Acme Corp" https://acme.example --mode full      # Full pipeline (default
 # AI strategy with cloud vendor
 primr "Acme Corp" https://acme.example --cloud-vendor azure
 
+# Retry AI strategy (when main report succeeded but AI strategy failed)
+primr --ai-strategy-only "output/Acme Corp_Strategic_Overview_01-09-2026.md"
+primr --ai-strategy-only "output/report.md" --cloud-vendor aws
+
 # Options
 primr "Acme Corp" https://acme.example --dry-run    # Cost estimate only
 primr "Acme Corp" https://acme.example --verbose    # Detailed output
 primr "Acme Corp" https://acme.example --no-qa      # Skip quality assessment
+
+# Job management
+primr --check-jobs                                  # Check status of pending Deep Research jobs
+primr --clear-jobs                                  # Clear stale/old pending jobs
 
 # Batch mode
 primr --csv companies.csv
@@ -107,8 +115,31 @@ Reports surface hypotheses to validate in conversation. Treat strong claims as w
 
 - Deep Research API produces ~8-12 pages max per call (worked around with Accordion Method)
 - Some sites with aggressive WAF block all automated access - use Deep Mode for coverage
-- Deep Research occasionally hangs - if it exceeds 20 minutes, cancel and retry
+- Deep Research connections may drop during long runs - Primr automatically polls for completion
 - Vision tier uses LLM API calls for extraction (~$0.01-0.02 per page)
+
+## Understanding Scrape Results
+
+When you see output like `✓ 34/46 pages scraped`, this is normal behavior:
+
+- **46** = total pages selected for scraping (homepage + discovered links)
+- **34** = pages successfully scraped
+- **12 failed** = pages blocked by WAF, timeouts, or anti-bot protection
+
+The tiered scraper tries multiple approaches (HTTP → stealth HTTP → browser → vision) before giving up on a page. Protected sites like enterprise companies often block 20-40% of requests. This is expected - the scraper extracts what it can and moves on.
+
+Quality matters more than quantity. 34 pages from a protected site typically yields more useful content than 100 pages from a poorly-structured site.
+
+## Job Recovery
+
+Deep Research jobs run asynchronously on Google's servers. If a connection drops mid-research:
+
+1. The job continues running in the background
+2. Primr automatically polls for completion (every 2 min for up to 30 min)
+3. If polling times out, use `primr --check-jobs` to check status later
+4. Completed jobs are automatically saved to `output/recovered_*.txt`
+
+For AI Strategy specifically, use `--ai-strategy-only` to retry with an existing report as context.
 
 ## Documentation
 

@@ -44,6 +44,7 @@ class Command(Enum):
     CLEAN_TEMP = "clean-temp"
     CHECK_QUOTA = "check-quota"
     CHECK_JOBS = "check-jobs"
+    CLEAR_JOBS = "clear-jobs"
     SHOW_USAGE = "show-usage"
     DRY_RUN = "dry-run"
     GENERATE_VENDOR = "generate-vendor"
@@ -52,6 +53,7 @@ class Command(Enum):
     ANALYZE_REPORT = "analyze-report"
     QA = "qa"
     QA_RECENT = "qa-recent"
+    AI_STRATEGY_ONLY = "ai-strategy-only"
 
 
 # =============================================================================
@@ -84,6 +86,7 @@ class CLIConfig:
     qa_company: str | None = None
     qa_recent_count: int | None = None
     max_scrape_time: int | None = None
+    ai_strategy_only_path: str | None = None
 
     @property
     def has_company_info(self) -> bool:
@@ -181,6 +184,7 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         qa_company=getattr(parsed, 'qa', None),
         qa_recent_count=getattr(parsed, 'qa_recent', None),
         max_scrape_time=getattr(parsed, 'max_scrape_time', None),
+        ai_strategy_only_path=getattr(parsed, 'ai_strategy_only', None),
     )
 
 
@@ -223,6 +227,7 @@ def main(args: list[str] | None = None) -> int:
         Command.CLEAN_TEMP: _handle_clean_temp,
         Command.CHECK_QUOTA: _handle_check_quota,
         Command.CHECK_JOBS: _handle_check_jobs,
+        Command.CLEAR_JOBS: _handle_clear_jobs,
         Command.SHOW_USAGE: _handle_show_usage,
         Command.DRY_RUN: _handle_dry_run,
         Command.GENERATE_VENDOR: _handle_generate_vendor,
@@ -231,6 +236,7 @@ def main(args: list[str] | None = None) -> int:
         Command.ANALYZE_REPORT: _handle_analyze_report,
         Command.QA: _handle_qa,
         Command.QA_RECENT: _handle_qa_recent,
+        Command.AI_STRATEGY_ONLY: _handle_ai_strategy_only,
         Command.RESEARCH: _handle_research,
     }
 
@@ -313,7 +319,11 @@ Examples:
   primr "Acme Corp" acme.example --mode scrape       # Build Site Corpus + Extract Insights
   primr doctor                                       # System diagnostics
   primr --qa "Acme Corp"                             # Show detailed QA analysis
-  primr --qa-recent 5                       # Show QA summary for recent reports
+  primr --qa-recent 5                                # Show QA summary for recent reports
+  
+AI Strategy Retry (when main report succeeded but AI strategy failed):
+  primr --ai-strategy-only "output/Company_Strategic_Overview_01-09-2026.md"
+  primr --ai-strategy-only "output/report.md" --cloud-vendor aws
   
 Accordion Method Test (for development):
   primr --test-accordion "Oceanography 2026-2030"
@@ -367,6 +377,7 @@ Accordion Method Test (for development):
     parser.add_argument("--refresh-vendor-research", action="store_true", help="Force refresh vendor research")
     parser.add_argument("--generate-vendor-research", type=str, choices=["azure", "aws", "gcp", "agnostic", "all"])
     parser.add_argument("--check-jobs", action="store_true", help="Check pending research jobs")
+    parser.add_argument("--clear-jobs", action="store_true", help="Clear stale pending jobs")
     parser.add_argument("--check-quota", action="store_true", help="Check API quota")
     parser.add_argument(
         "--max-scrape-time",
@@ -412,6 +423,14 @@ Accordion Method Test (for development):
         metavar="N",
         help="Show QA summary for N most recent reports (default: 5)"
     )
+    
+    # AI Strategy retry/resume
+    parser.add_argument(
+        "--ai-strategy-only",
+        type=str,
+        metavar="REPORT_PATH",
+        help="Generate AI strategy using an existing report as context (retry failed AI strategy)"
+    )
 
     return parser
 
@@ -423,6 +442,8 @@ def _determine_command(args: argparse.Namespace) -> Command:
         return Command.DOCTOR
 
     # Check utility flags
+    if getattr(args, 'ai_strategy_only', None):
+        return Command.AI_STRATEGY_ONLY
     if getattr(args, 'qa_recent', None) is not None:
         return Command.QA_RECENT
     if getattr(args, 'qa', None):
@@ -441,6 +462,8 @@ def _determine_command(args: argparse.Namespace) -> Command:
         return Command.CHECK_QUOTA
     if getattr(args, 'check_jobs', False):
         return Command.CHECK_JOBS
+    if getattr(args, 'clear_jobs', False):
+        return Command.CLEAR_JOBS
     if getattr(args, 'dry_run', False):
         return Command.DRY_RUN
     if getattr(args, 'generate_vendor_research', None):
@@ -481,6 +504,27 @@ def _handle_check_quota(config: CLIConfig) -> int:
 def _handle_check_jobs(config: CLIConfig) -> int:
     """Handle check-jobs command."""
     check_pending_jobs()
+    return 0
+
+
+def _handle_clear_jobs(config: CLIConfig) -> int:
+    """Handle clear-jobs command - removes stale pending jobs."""
+    from primr.ai.deep_research import get_pending_jobs
+    from primr.config.config import LOGS_DIR
+    import json
+    
+    jobs = get_pending_jobs()
+    if not jobs:
+        console.info("No pending jobs to clear.")
+        return 0
+    
+    console.info(f"Clearing {len(jobs)} stale job(s)...")
+    
+    jobs_file = os.path.join(LOGS_DIR, "pending_research_jobs.json")
+    with open(jobs_file, 'w', encoding='utf-8') as f:
+        json.dump({}, f)
+    
+    console.ok(f"Cleared {len(jobs)} pending jobs")
     return 0
 
 
@@ -642,6 +686,65 @@ def _handle_qa_recent(config: CLIConfig) -> int:
         return qa_command.show_recent_qa_summary(count)
     except Exception as e:
         console.error(f"QA recent summary failed: {e}")
+        return 1
+
+
+def _handle_ai_strategy_only(config: CLIConfig) -> int:
+    """Handle AI strategy retry/resume using existing report as context."""
+    import re
+    from pathlib import Path
+    from primr.core.research_agent import _generate_ai_strategy_section
+    
+    report_path = config.ai_strategy_only_path
+    if not report_path:
+        console.error("Report path is required for --ai-strategy-only")
+        console.info("Usage: primr --ai-strategy-only \"path/to/report.md\" --cloud-vendor azure")
+        return 1
+    
+    # Validate file exists
+    path = Path(report_path)
+    if not path.exists():
+        console.error(f"Report file not found: {report_path}")
+        return 1
+    
+    # Extract company name from filename or content
+    # Filename pattern: "Company Name_Strategic_Overview_MM-DD-YYYY.md"
+    company_name = config.company_name
+    if not company_name:
+        filename = path.stem
+        # Try to extract from filename pattern
+        match = re.match(r'^(.+?)_(?:Strategic_Overview|AI_Strategy)', filename)
+        if match:
+            company_name = match.group(1).replace('_', ' ')
+        else:
+            # Fallback: use filename without extension
+            company_name = filename.replace('_', ' ')
+    
+    console.banner("AI Strategy Generation (Retry)")
+    console.info(f"Company: {company_name}")
+    console.info(f"Context: {path.name}")
+    console.info(f"Cloud Vendor: {config.cloud_vendor.upper()}")
+    console.blank()
+    
+    # Generate AI strategy using the report as context
+    result_path = _generate_ai_strategy_section(
+        company_name=company_name,
+        cloud_vendor=config.cloud_vendor,
+        company_research_path=str(path),
+        force_refresh_vendor=config.refresh_vendor_research
+    )
+    
+    if result_path:
+        console.blank()
+        console.success_box("AI Strategy generated", result_path)
+        
+        # Open if requested
+        if config.open_after:
+            open_file(result_path)
+        
+        return 0
+    else:
+        console.error("AI Strategy generation failed")
         return 1
 
 
