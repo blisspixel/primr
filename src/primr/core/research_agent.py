@@ -952,12 +952,12 @@ def perform_research(
 
             # Run QA analysis if enabled (default: enabled, --no-qa disables)
             qa_result = None
-            if not no_qa and docx_path:
+            ai_strategy_qa_result = None
+            if not no_qa:
                 try:
                     from primr.qa.integration import QAIntegration
                     from primr.qa.models import QAOptions
                     
-                    # Check if verbose mode is enabled
                     verbose_mode = hasattr(console, 'verbose') and console.verbose
                     
                     qa_options = QAOptions(
@@ -967,24 +967,23 @@ def perform_research(
                     )
                     qa_integration = QAIntegration(qa_options)
                     
-                    # Find the corresponding TXT report for QA analysis
-                    txt_report_path = Path(docx_path).with_suffix('.txt')
-                    if txt_report_path.exists():
-                        qa_result = qa_integration.run_post_generation_qa(txt_report_path, company_name or display_name)
-                        
-                        # Show QA grade immediately after generation
-                        if qa_result and qa_result.grade > 0:
-                            console.blank()
-                            grade_color = "green" if qa_result.grade >= 80 else "yellow" if qa_result.grade >= 70 else "red"
-                            console.info(f"Quality Grade: {qa_result.grade}/100", color=grade_color)
-                            
-                            # Show detailed reasoning in verbose mode
-                            if verbose_mode and qa_result.summary:
-                                console.info(qa_result.summary)
+                    # QA for main Strategic Overview report
+                    if docx_path:
+                        txt_report_path = Path(docx_path).with_suffix('.txt')
+                        if txt_report_path.exists():
+                            qa_result = qa_integration.run_post_generation_qa(txt_report_path, company_name or display_name)
+                    
+                    # QA for AI Strategy report
+                    if ai_strategy_path:
+                        ai_strategy_txt = Path(ai_strategy_path).with_suffix('.txt')
+                        if ai_strategy_txt.exists():
+                            ai_strategy_qa_result = qa_integration.run_post_generation_qa(
+                                ai_strategy_txt, 
+                                f"{company_name or display_name} (AI Strategy)"
+                            )
                             
                 except Exception as e:
                     logger.warning(f"QA analysis failed: {e}")
-                    # Don't break the pipeline if QA fails
 
             elapsed = time.time() - start_time
             mins = int(elapsed // 60)
@@ -1003,10 +1002,14 @@ def perform_research(
             if ai_strategy_path:
                 console.success_box("AI Strategy", ai_strategy_path)
 
-            # Display QA result if available
-            if qa_result:
-                console.blank()
-                console.info(qa_result.summary)
+            # Display QA grades inline
+            qa_grades = []
+            if qa_result and qa_result.grade > 0:
+                qa_grades.append(("Overview", qa_result.grade))
+            if ai_strategy_qa_result and ai_strategy_qa_result.grade > 0:
+                qa_grades.append(("AI Strategy", ai_strategy_qa_result.grade))
+            if qa_grades:
+                console.grades(qa_grades)
 
             # Get actual usage from AI client
             from primr.ai.client import get_client
@@ -1019,19 +1022,11 @@ def perform_research(
             estimate = estimate_cost(mode, ai_strategy, use_historical=False)
             estimated_cost = estimate.total_cost
 
-            # Summary stats with estimated vs actual comparison
+            # Summary stats
             summary_items = [
-                ("Pages scraped", str(pages_scraped)),
-                ("External sources", str(len(external_data))),
-                ("Sections", str(len(sections))),
                 ("Duration", time_str),
-                ("Est. Cost", f"${estimated_cost:.2f}"),
-                ("Actual Cost", f"${actual_cost:.4f}"),
+                ("Cost", f"${actual_cost:.2f}"),
             ]
-            if ai_strategy:
-                summary_items.append(("AI Strategy", "Yes"))
-            if qa_result:
-                summary_items.append(("Quality Grade", f"{qa_result.grade}/100"))
             console.summary(summary_items)
 
             # Save usage to history
