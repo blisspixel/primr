@@ -477,6 +477,47 @@ result = await client.research(
 )
 ```
 
+### Job Management
+
+Deep Research jobs run asynchronously. If a connection drops, the job continues on Google's servers.
+
+```python
+from primr.ai.deep_research import (
+    get_deep_research_client,
+    get_pending_jobs,
+    save_pending_job,
+    remove_pending_job,
+)
+
+# Check status of a specific job
+client = get_deep_research_client()
+result = client.check_job("v1_abc123...")
+print(f"Status: {result['status']}")  # in_progress, completed, failed
+if result['content']:
+    print(f"Content: {result['content'][:500]}...")
+
+# List all pending jobs
+jobs = get_pending_jobs()
+for job_id, info in jobs.items():
+    print(f"{job_id}: {info['description']} ({info['status']})")
+
+# Manually save a job for later recovery
+save_pending_job(
+    interaction_id="v1_abc123...",
+    job_type="ai_strategy",
+    description="AI Strategy for Tesla"
+)
+
+# Remove a completed job from tracking
+remove_pending_job("v1_abc123...")
+```
+
+**CLI commands for job management:**
+```bash
+primr --check-jobs   # Check status of all pending jobs
+primr --clear-jobs   # Clear stale/old pending jobs
+```
+
 ## Scraping
 
 Direct access to the scraping engine.

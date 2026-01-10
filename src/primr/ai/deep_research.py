@@ -1305,7 +1305,7 @@ Frame everything as hypotheses to explore, not conclusions."""
                     if on_progress:
                         on_progress(ResearchProgress(
                             status=ResearchStatus.IN_PROGRESS,
-                            message=f"Research started (ID: {interaction_id[:12]}...)"
+                            message=f"Research started (ID: {interaction_id})"
                         ))
                     # Save for recovery
                     save_pending_job(interaction_id, "deep_research", query[:200])
@@ -2626,7 +2626,7 @@ class DeepResearchOrchestrator:
         logger.info(f"Deep Research started: {interaction_id}")
         
         if on_progress:
-            on_progress(f"Research started (ID: {interaction_id[:8]}...)")
+            on_progress(f"Research started (ID: {interaction_id})")
         
         # Poll for completion with adaptive intervals
         return await self._poll_for_completion(

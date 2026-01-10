@@ -159,6 +159,17 @@ Goal: Make Primr boringly reliable.
   - CTA detection marks promotional content for optional exclusion
   - Quality-based tier escalation: low scores trigger browser/vision tiers
   - Metadata extraction: title, description, published_date, byline, language
+- AI Strategy retry/resume capability (v1.2.3)
+  - `primr --ai-strategy-only <report_path>` to retry failed AI strategy with existing report
+  - Automatic polling for completion when streaming connection drops (every 2 min for 30 min)
+  - Job tracking with `primr --check-jobs` and `primr --clear-jobs`
+  - Full job IDs displayed in console output for recovery
+  - Completed jobs auto-saved to output/recovered_*.txt
+- CLI UX improvements (v1.2.3)
+  - Suppressed noisy navigation timeout warnings (now debug level)
+  - Fixed duplicate "pages scraped" message
+  - Fixed boilerplate matching false positives (word-boundary regex)
+  - Added "Understanding Scrape Results" section to README
 
 **Remaining:**
 - Static analysis compliance (mypy, ruff)
@@ -477,10 +488,17 @@ primr "Tesla" https://tesla.com --mode full
 primr "Tesla" https://tesla.com --cloud-vendor azure
 primr "Tesla" https://tesla.com --no-ai-strategy
 
+# Retry AI Strategy (when main report succeeded but AI strategy failed)
+primr --ai-strategy-only "output/Tesla_Strategic_Overview_01-09-2026.md"
+primr --ai-strategy-only "output/report.md" --cloud-vendor aws
+
+# Job management
+primr --check-jobs    # Check status of pending Deep Research jobs
+primr --clear-jobs    # Clear stale/old pending jobs
+
 # Operations
 primr doctor
 primr "Tesla" https://tesla.com --dry-run
-primr --check-jobs
 
 Version History
 Version	Date	Highlights
@@ -495,6 +513,7 @@ Version	Date	Highlights
 1.1.2	Jan 2026	Cache disabled by default (fresh data always)
 1.2.0	Dec 2025	Test coverage hardening (146 new tests, pytest marks)
 1.2.1	Planned	QA-driven report iteration (target 90+ grades)
+1.2.3	Jan 2026	AI Strategy retry, job polling, CLI UX fixes
 1.2.5	Dec 2025	Externalized prompt architecture (YAML configs)
 1.2.6	In Progress	Extensible strategy modules (YAML ready, CLI pending)
 1.3.0	TBD	Research state and hypothesis tracking
