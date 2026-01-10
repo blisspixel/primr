@@ -252,6 +252,23 @@ class Console:
     # BACKWARD COMPATIBILITY API - Maps to modern methods
     # =========================================================================
     
+    def grades(self, grades: list[tuple[str, int]]):
+        """Display grades inline. Clean, minimal."""
+        if self.quiet:
+            return
+        if not grades:
+            return
+        parts = []
+        for label, score in grades:
+            if score >= 85:
+                color = self._green
+            elif score >= 70:
+                color = self._yellow
+            else:
+                color = self._red
+            parts.append(f"{label} {color}{score}{self._reset}")
+        self._print(f"{self._dim}Quality:{self._reset} {' · '.join(parts)}")
+
     def blank(self):
         if self.quiet:
             return
