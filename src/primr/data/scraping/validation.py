@@ -29,7 +29,8 @@ def _compute_content_hash(text: str) -> str:
     # Take structural sample (first 1000 chars)
     sample = normalized[:1000]
     
-    return hashlib.md5(sample.encode()).hexdigest()
+    # MD5 used for content fingerprinting, not security
+    return hashlib.md5(sample.encode(), usedforsecurity=False).hexdigest()
 
 
 def validate_content(extracted_text: str, url: str) -> ValidationResult:

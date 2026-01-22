@@ -223,6 +223,8 @@ class PromptContext:
     cloud_vendor: str = "agnostic"
     current_date: str | None = None  # Auto-populated if None
     has_stage1_context: bool = False
+    discovery_notes_path: str | None = None  # Path to discovery notes file
+    discovery_notes_content: str | None = None  # Loaded content of discovery notes
     custom_vars: dict[str, str] = field(default_factory=dict)
 
     def get_variable(self, name: str) -> str | None:
@@ -235,6 +237,8 @@ class PromptContext:
             return self.cloud_vendor
         elif name == "current_date":
             return self.current_date
+        elif name == "discovery_notes_path":
+            return self.discovery_notes_path
         else:
             return self.custom_vars.get(name)
 

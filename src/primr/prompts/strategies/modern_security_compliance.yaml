@@ -1,0 +1,567 @@
+# Modern Security & Compliance Strategy
+# This file defines the structure for modern security and compliance strategy reports.
+#
+# Purpose: CISO-level security transformation strategy for the AI era.
+# Goal: Answer "How do we secure our organization in the age of AI and Zero Trust?"
+# Audience: CISO, CIO, Board Risk Committee, Compliance Officers.
+#
+# Dependencies:
+#   - shared/epistemic_rules.yaml (epistemic standards)
+#   - shared/formatting.yaml (formatting rules)
+#   - shared/personas.yaml (security_strategist persona)
+
+meta:
+  name: "Modern Security & Compliance Strategy"
+  version: "1.0.0"
+  description: "Strategic framework for security transformation in the AI era"
+  cli_description: "Helps think through security posture modernization for AI era - explores Zero Trust architecture, AI security frameworks, and compliance as competitive advantage"
+  output_format: "markdown"
+  output_filename: "{company_name}_Security_Compliance_Strategy"
+  expected_pages: "20-30"
+
+# Override default persona for this strategy
+persona: "security_strategist"
+
+document_purpose: |
+  This document explores strategic frameworks for security transformation in the AI era.
+  Based on public information and industry patterns, it surfaces hypotheses about how this
+  company might modernize its security posture.
+  
+  CRITICAL FRAMING: This is research to prepare for conversation, not a security audit.
+  We're working from website content, public signals, and industry baselines - we don't have
+  internal visibility into their actual security architecture, controls, or threat landscape.
+  Every assessment should be framed as a hypothesis to validate in discussion.
+  
+  This is NOT a technical security audit (we lack internal access). This is strategic thinking
+  about security architecture, governance frameworks, and compliance positioning that can be
+  theorized from outside using industry best practices and strategic frameworks.
+  
+  ADOPTION PSYCHOLOGY (apply throughout):
+  
+  1. FRAME AS BUSINESS ENABLEMENT, NOT JUST PROTECTION
+     - Bad: "We need Zero Trust to prevent breaches"
+     - Good: "Zero Trust enables secure remote work, faster M&A integration, and cloud adoption"
+     - Security that enables business gets funded; security that just says "no" gets ignored
+  
+  2. QUANTIFY THE BUSINESS COST OF SECURITY DEBT
+     - "Current security posture blocks $X in cloud migration value"
+     - "Manual compliance processes consume X FTEs that could be building product"
+     - Make the status quo feel expensive, not just risky
+  
+  3. CONNECT TO EXISTING STRATEGIC PRIORITIES
+     - If they're pursuing AI: "AI requires data governance foundation"
+     - If they're growing: "Security architecture that scales with growth"
+     - If they're cost-focused: "Automation reduces security operations cost"
+  
+  4. PROVIDE MATURITY ROADMAP, NOT PERFECTION
+     - Frame as "Crawl → Walk → Run" with clear milestones
+     - Make Year 1 feel achievable (foundation + 2 quick wins)
+     - Reduces perceived complexity and cost
+  
+  5. IDENTIFY THE INTERNAL CHAMPION
+     - Usually CISO, but sometimes CIO or CTO
+     - Frame recommendations to make THEM look strategic
+     - "Your CISO could position this as enabling the AI strategy"
+  
+  6. MAKE COMPLIANCE A COMPETITIVE ADVANTAGE
+     - "SOC 2 Type II opens enterprise deals"
+     - "GDPR compliance enables European expansion"
+     - Reframe compliance from cost center to revenue enabler
+  
+  7. MATCH THEIR RISK POSTURE
+     - Risk-averse: Lead with risk containment and compliance
+     - Growth-focused: Lead with security as business enabler
+     - Use Strategic Overview to determine which framing resonates
+  
+  STRUCTURE:
+  - Present strategic security frameworks (what they might build toward)
+  - Frame each recommendation with business value (why it matters)
+  - Include stakeholder analysis (who champions what)
+  - Provide board-ready materials (how to present to board)
+  
+  The output should be: "Here are frameworks to consider AND here's how to get it funded."
+
+context_instructions: |
+  You have access to context in the File Search Store. USE IT EXTENSIVELY.
+  
+  PRIMARY SOURCE - STRATEGIC COMPANY REPORT:
+  Your File Search Store contains a comprehensive strategic analysis of this company.
+  This is your PRIMARY source. It includes:
+  - Executive Summary and company overview
+  - Products/Services and Target Customers analysis
+  - Competitive Differentiation and Financial Profile
+  - SWOT Analysis and Strategic Tensions
+  - Porter's Five Forces and Value Chain Analysis
+  - "Where They're Likely to Say Yes" - specific engagement opportunities
+  
+  READ THIS REPORT THOROUGHLY before writing. Every security framework must connect
+  to specific insights from this strategic analysis.
+  
+  CRITICAL: Frame everything as hypotheses to explore, not conclusions to implement.
+  
+  HOW TO USE CONTEXT:
+  - Search the strategic report for industry, regulatory environment, data sensitivity
+  - Identify what makes them special (preserve this in security transformation thinking)
+  - Connect security ideas to existing strategic priorities
+  - Use tensions/patterns to inform security priorities
+  - Reference specific findings: "The strategic analysis notes that..."
+  - Always acknowledge what we can't know: "Based on public signals, we hypothesize..."
+  
+  BAD: "They should implement Zero Trust"
+  GOOD: "Given their distributed workforce and cloud-first strategy [from report],
+  Zero Trust architecture could enable secure remote access while reducing VPN complexity.
+  This assumes [X] about their current security posture - worth validating in conversation."
+
+# =============================================================================
+# WRITING QUALITY STANDARDS
+# =============================================================================
+
+writing_standards: |
+  SECTION-APPROPRIATE TONE:
+  
+  For STRATEGIC ANALYSIS sections:
+  - Direct and risk-aware, but not fear-mongering
+  - "Here's the threat landscape for THIS company specifically"
+  - Acknowledge constraints while painting the vision
+  
+  For FRAMEWORK sections:
+  - Practical and specific about architecture, controls, governance
+  - "This requires X controls at Y maturity level"
+  - Be direct about organizational pain (budget, headcount, tools)
+  
+  For COMPLIANCE sections:
+  - Frame as business enabler, not just checkbox
+  - "SOC 2 Type II opens $X in enterprise pipeline"
+  - Connect compliance to revenue and market access
+  
+  For INVESTMENT sections:
+  - Present as ranges with explicit assumptions
+  - "Investment of $500K-$2M over 2 years, depending on maturity"
+  - "ROI through reduced breach risk, faster compliance, operational efficiency"
+  - Quantify cost of inaction: "Security debt costs $X per quarter"
+  
+  THROUGHOUT:
+  - Specific over generic: actual frameworks, standards, tools
+  - Connected to THIS company's situation
+  - No numbered section headings (use natural titles)
+  - Cite sources and flag uncertainty
+  - Frame as strategic choices, not vendor pitches
+
+# =============================================================================
+# DATA SOURCES
+# =============================================================================
+
+data_sources: []
+
+# =============================================================================
+# EPISTEMIC RULES
+# =============================================================================
+
+epistemic_rules:
+  confidence_labeling: |
+    REQUIRED: Label every significant claim:
+    
+    For FACTS about the company:
+    - **Confirmed**: From the strategic report with citations
+    - **Reported**: From credible sources but not verified
+    - **Estimated**: Calculated or inferred
+    - **Hypothesis**: Our interpretation to validate
+    
+    For SECURITY RECOMMENDATIONS:
+    - "Industry standard" - widely adopted, strong evidence base
+    - "Context-dependent" - success depends on company-specific factors
+    - "Emerging practice" - frontier approach, higher uncertainty
+  
+  transformation_rule: |
+    If a sentence implies inevitability or "only viable path", rewrite as scenario comparison.
+    Example: Instead of "Companies without Zero Trust will be breached", write "Organizations
+    that adopt Zero Trust may reduce breach risk and enable secure cloud adoption, while
+    traditional perimeter security faces increasing challenges in distributed environments."
+  
+  hypothesis_framing: |
+    Frame assessments as hypotheses to validate, not facts.
+    Use language like "Based on [evidence], we hypothesize..."
+  
+  numeric_precision: |
+    For investment and ROI figures:
+    - Use ranges: "$500K-$2M investment" not "$1.2M"
+    - State assumptions explicitly
+    - Acknowledge uncertainty
+    - Present multiple scenarios (best case, likely case, breach scenario)
+
+formatting:
+  paragraphs: "Write in full paragraphs for strategic sections"
+  bullets: "Use bullets only for specific recommendations or lists"
+  tone: "Strategic and direct, like a CISO presenting to the board"
+  citations: "Cite sources for all external claims"
+  tables: "Include maturity matrices, investment tables, compliance roadmaps"
+
+# =============================================================================
+# SECTIONS
+# =============================================================================
+
+sections:
+  # =============================================================================
+  # PART A: THE STRATEGIC VISION
+  # =============================================================================
+  
+  - id: executive_summary
+    name: "Executive Summary"
+    part: 1
+    purpose: "The 'so what' for the board"
+    covers:
+      - "Why security transformation is business-critical for THIS company"
+      - "The recommended security posture and investment"
+      - "The 3 most critical security decisions in next 12 months"
+    depth: "2-3 paragraphs. Concise and compelling."
+
+  - id: strategic_context
+    name: "The Strategic Context: Security in the AI Era"
+    part: 2
+    purpose: "Establish why traditional security is insufficient"
+    subsections:
+      - id: threat_landscape
+        name: "The Evolving Threat Landscape"
+        covers:
+          - "AI-powered attacks (deepfakes, automated phishing, code generation)"
+          - "Supply chain vulnerabilities"
+          - "Insider threats amplified by AI tools"
+          - "Ransomware evolution"
+      - id: architectural_shift
+        name: "The Architectural Shift"
+        covers:
+          - "From perimeter to Zero Trust"
+          - "From on-prem to cloud/hybrid"
+          - "From human-only to AI agents"
+          - "From reactive to proactive"
+      - id: compliance_complexity
+        name: "The Compliance Complexity"
+        covers:
+          - "Regulatory landscape (GDPR, CCPA, SOC 2, ISO 27001, HIPAA, etc.)"
+          - "AI-specific regulations emerging"
+          - "Industry-specific requirements"
+          - "Audit fatigue and manual burden"
+    depth: |
+      Make the case that traditional security is structurally insufficient.
+      Connect to THIS company's specific situation from strategic report.
+
+  - id: current_state_hypothesis
+    name: "Likely Current State (Hypotheses to Validate)"
+    part: 3
+    purpose: "Frame assessments as hypotheses since we lack internal visibility"
+    subsections:
+      - id: security_maturity_signals
+        name: "Security Maturity Signals"
+        covers:
+          - "Observable signals from job postings, tech stack, certifications"
+          - "Industry baseline for companies of this size/sector"
+          - "Probable gaps based on common patterns"
+      - id: compliance_posture
+        name: "Compliance Posture Indicators"
+        covers:
+          - "Public certifications (SOC 2, ISO, etc.)"
+          - "Privacy policy sophistication"
+          - "Regulatory requirements for their industry"
+      - id: common_security_debt
+        name: "Common Security Debt Patterns"
+        covers:
+          - "Legacy authentication (passwords vs SSO/MFA)"
+          - "Perimeter-based vs Zero Trust"
+          - "Manual compliance processes"
+          - "Shadow IT and tool sprawl"
+    depth: "Frame each assessment as 'Based on [evidence], we hypothesize...'"
+
+  - id: recommended_security_posture
+    name: "Recommended Security Posture"
+    part: 4
+    purpose: "Define the target state"
+    subsections:
+      - id: zero_trust_architecture
+        name: "Zero Trust Architecture"
+        covers:
+          - "Identity as the new perimeter"
+          - "Verify explicitly, use least privilege, assume breach"
+          - "Micro-segmentation and continuous verification"
+          - "Implementation roadmap (Crawl → Walk → Run)"
+      - id: ai_security_framework
+        name: "AI Security Framework"
+        covers:
+          - "Securing AI systems (model security, data poisoning, adversarial attacks)"
+          - "AI for security (threat detection, automated response)"
+          - "AI agent governance (identity, boundaries, audit)"
+          - "Responsible AI and bias mitigation"
+      - id: data_governance
+        name: "Data Governance and Privacy"
+        covers:
+          - "Data classification and discovery"
+          - "Encryption (at rest, in transit, in use)"
+          - "Data residency and sovereignty"
+          - "Privacy by design"
+      - id: identity_access_management
+        name: "Modern Identity and Access Management"
+        covers:
+          - "SSO and MFA everywhere"
+          - "Passwordless authentication"
+          - "Privileged access management"
+          - "Service principal governance for AI agents"
+      - id: security_operations
+        name: "Security Operations (SecOps)"
+        covers:
+          - "SIEM/SOAR modernization"
+          - "Threat intelligence integration"
+          - "Incident response automation"
+          - "Security metrics and KPIs"
+    depth: |
+      Specific frameworks and architectures. Connect to THIS company's needs.
+      Frame as maturity journey, not binary transformation.
+
+  - id: compliance_strategy
+    name: "Compliance as Competitive Advantage"
+    part: 5
+    purpose: "Reframe compliance from cost to enabler"
+    subsections:
+      - id: compliance_roadmap
+        name: "Compliance Roadmap"
+        covers:
+          - "Current certifications (if any)"
+          - "Recommended certifications (SOC 2, ISO 27001, etc.)"
+          - "Industry-specific requirements"
+          - "Timeline and investment"
+      - id: compliance_automation
+        name: "Compliance Automation"
+        covers:
+          - "Continuous compliance monitoring"
+          - "Automated evidence collection"
+          - "Policy as code"
+          - "Audit readiness"
+      - id: business_value
+        name: "Business Value of Compliance"
+        covers:
+          - "Enterprise sales enablement"
+          - "Market expansion (geographic, vertical)"
+          - "Risk reduction and insurance premiums"
+          - "M&A readiness"
+    depth: |
+      Quantify the business value. "SOC 2 Type II opens $X in enterprise pipeline."
+      Make compliance feel like a growth investment, not a cost center.
+
+  - id: security_priorities
+    name: "Security Priorities (Next 12-24 Months)"
+    part: 6
+    purpose: "Specific recommendations tailored to the company"
+    subsections:
+      - id: foundation_quick_wins
+        name: "Foundation + Quick Wins (0-6 Months)"
+        covers:
+          - "3-5 high-impact, low-complexity initiatives"
+          - "MFA everywhere, SSO rollout, basic SIEM"
+          - "Security awareness training"
+          - "Incident response plan"
+      - id: strategic_investments
+        name: "Strategic Investments (6-18 Months)"
+        covers:
+          - "Zero Trust architecture implementation"
+          - "Data governance platform"
+          - "AI security controls"
+          - "Compliance certification (SOC 2, ISO)"
+      - id: advanced_capabilities
+        name: "Advanced Capabilities (18-24 Months)"
+        covers:
+          - "AI-powered threat detection"
+          - "Automated incident response"
+          - "Continuous compliance"
+          - "Security product innovation"
+    depth: |
+      Specific to THIS company. Connect to strategic priorities from report.
+      Frame Year 1 as "Foundation + 2 quick wins" to reduce perceived complexity.
+
+  - id: investment_framework
+    name: "Investment Framework"
+    part: 7
+    purpose: "Financial analysis and resource allocation"
+    subsections:
+      - id: investment_required
+        name: "Investment Required"
+        covers:
+          - "Year 1: Foundation ($X-Y)"
+          - "Year 2: Strategic ($X-Y)"
+          - "Breakdown by category (tools, people, services)"
+      - id: expected_returns
+        name: "Expected Returns"
+        covers:
+          - "Risk reduction (breach probability, impact)"
+          - "Operational efficiency (automation, reduced manual work)"
+          - "Revenue enablement (compliance opens markets)"
+          - "Cost avoidance (breach costs, audit costs, insurance)"
+      - id: funding_strategy
+        name: "Funding Strategy"
+        covers:
+          - "Security budget allocation"
+          - "Business case for board"
+          - "Phased investment approach"
+          - "ROI gates and success criteria"
+    depth: |
+      Present as ranges with explicit assumptions. Include best case, likely case, and
+      breach scenario. Make the financial case compelling but honest.
+
+  - id: organizational_model
+    name: "Security Organization and Governance"
+    part: 8
+    purpose: "How to structure security function"
+    subsections:
+      - id: security_leadership
+        name: "Security Leadership Structure"
+        covers:
+          - "CISO role and reporting line"
+          - "Security team structure"
+          - "Cross-functional security champions"
+          - "Board oversight model"
+      - id: governance_framework
+        name: "Security Governance Framework"
+        covers:
+          - "Security policies and standards"
+          - "Risk assessment and management"
+          - "Change management and approvals"
+          - "Metrics and reporting"
+      - id: culture_transformation
+        name: "Security Culture Transformation"
+        covers:
+          - "From 'security says no' to 'security enables'"
+          - "Security awareness and training"
+          - "Secure development practices"
+          - "Incident response culture"
+    depth: "Practical and specific. This is where security transformation lives or dies."
+
+  - id: risk_analysis
+    name: "Risk Analysis and Mitigation"
+    part: 9
+    purpose: "Comprehensive risk assessment"
+    subsections:
+      - id: security_risks
+        name: "Security Risks"
+        covers:
+          - "Breach probability and impact"
+          - "Ransomware and business continuity"
+          - "Supply chain vulnerabilities"
+          - "Insider threats"
+      - id: transformation_risks
+        name: "Transformation Risks"
+        covers:
+          - "Implementation complexity"
+          - "User adoption and resistance"
+          - "Budget constraints"
+          - "Talent availability"
+      - id: mitigation_strategies
+        name: "Mitigation Strategies"
+        covers:
+          - "Phased approach with gates"
+          - "Pilot-first methodology"
+          - "Change management program"
+          - "External partnerships"
+    depth: "Honest about risks. Boards appreciate transparency."
+
+  # =============================================================================
+  # PART B: THE FACILITATION TOOLKIT
+  # =============================================================================
+  
+  - id: board_presentation
+    name: "FACILITATION TOOLKIT: Board Presentation Materials"
+    part: 10
+    purpose: "Ready-to-use board deck outline"
+    covers:
+      - "Slide 1: The Threat Landscape (burning platform)"
+      - "Slide 2: Current State vs Target State (maturity gap)"
+      - "Slide 3: Recommended Security Posture (Zero Trust + AI security)"
+      - "Slide 4: Investment and Returns (financial case)"
+      - "Slide 5: Compliance as Competitive Advantage (revenue enabler)"
+      - "Slide 6: Year 1 Roadmap (what happens next)"
+      - "Slide 7: Risk and Mitigation (honest assessment)"
+      - "Slide 8: The Ask (board approval and support)"
+    depth: |
+      Provide the actual slide titles and key messages. Make it easy for CISO to present.
+
+  - id: stakeholder_inception
+    name: "FACILITATION TOOLKIT: Stakeholder Inception Map"
+    part: 10
+    purpose: "Who to incept and how"
+    subsections:
+      - id: ciso_strategy
+        name: "CISO Strategy"
+        covers:
+          - "Frame as strategic leadership opportunity"
+          - "This is the transformation that positions security as business enabler"
+          - "Make them the hero of the story"
+      - id: cfo_strategy
+        name: "CFO Strategy"
+        covers:
+          - "Lead with financial case and risk mitigation"
+          - "Show ROI ranges and assumptions"
+          - "Emphasize phased investment with gates"
+      - id: board_strategy
+        name: "Board Strategy"
+        covers:
+          - "Frame as fiduciary responsibility"
+          - "What would have to be true to avoid a breach?"
+          - "Cost of inaction vs cost of action"
+      - id: business_unit_strategy
+        name: "Business Unit Leaders Strategy"
+        covers:
+          - "Frame security as business enabler"
+          - "Faster cloud adoption, secure remote work, compliance for growth"
+          - "Make them co-creators of the security vision"
+    depth: "Specific inception strategies for each stakeholder type."
+
+  - id: security_workshop
+    name: "FACILITATION TOOLKIT: Security Transformation Workshop Agenda"
+    part: 10
+    purpose: "Co-creation workshop for security strategy"
+    covers:
+      - "Phase 1: Threat Landscape Assessment (pain mining)"
+      - "Phase 2: Current State Mapping (maturity assessment)"
+      - "Phase 3: Target State Visioning (art of possible)"
+      - "Phase 4: Priority Selection (strategic choice)"
+      - "Phase 5: Roadmap Co-Creation (they hold the pen)"
+    depth: |
+      Provide the actual workshop agenda. This is where IKEA Effect happens at strategic level.
+      They co-create the security strategy, so they own it.
+
+  - id: champion_enablement
+    name: "FACILITATION TOOLKIT: CISO Enablement Materials"
+    part: 10
+    purpose: "Ghostwritten materials for CISO"
+    subsections:
+      - id: board_memo
+        name: "Board Memo Template"
+        covers:
+          - "Subject: Security Transformation Proposal"
+          - "The Strategic Imperative section"
+          - "Our Recommended Posture section"
+          - "Investment and Returns section"
+          - "The Ask section"
+      - id: all_hands_message
+        name: "All-Hands Message Template"
+        covers:
+          - "Why we're transforming security"
+          - "What stays the same (our values)"
+          - "What changes (our capabilities)"
+          - "What it means for you"
+      - id: business_case_template
+        name: "Business Case Template"
+        covers:
+          - "Executive summary"
+          - "Problem statement"
+          - "Recommended solution"
+          - "Financial analysis"
+          - "Risk assessment"
+    depth: "Actual templates they can use. Make CISO look like a strategic leader."
+
+  - id: next_steps
+    name: "Next Steps (Next 30 Days)"
+    part: 11
+    purpose: "Immediate actions"
+    covers:
+      - "Week 1: Security leadership alignment"
+      - "Week 2: Board presentation preparation"
+      - "Week 3: Board approval meeting"
+      - "Week 4: Transformation kickoff"
+    depth: "Concrete and actionable. Make the first step obvious."

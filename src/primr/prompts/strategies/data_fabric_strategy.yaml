@@ -1,0 +1,479 @@
+# Data Fabric Strategy (2026)
+# This file defines the structure for modern data platform strategy reports.
+#
+# Purpose: Data platform modernization for the agentic AI era.
+# Goal: Answer "How do we build an intelligent data estate that grounds AI agents?"
+# Audience: CDO, CTO, data leadership, executive leadership.
+#
+# Dependencies:
+#   - shared/epistemic_rules.yaml (epistemic standards)
+#   - shared/formatting.yaml (formatting rules)
+#   - shared/personas.yaml (technical_architect persona)
+
+meta:
+  name: "Data Fabric Strategy"
+  version: "1.0.0"
+  description: "Modern data platform strategy for agentic AI era - semantic layers, data fabrics, and intelligent estates"
+  cli_description: "Helps think through data platform modernization - explores data fabric architectures, semantic layers, and how to ground AI agents in trustworthy data"
+  output_format: "markdown"
+  output_filename: "{company_name}_Data_Fabric_Strategy"
+  expected_pages: "20-30"
+
+# Override default persona for this strategy
+persona: "technical_architect"
+
+document_purpose: |
+  This document explores strategic frameworks for modernizing the data layer in the AGENTIC AI era.
+  Based on public information and industry patterns, it surfaces hypotheses about how this
+  company should evolve their data architecture.
+  
+  CRITICAL 2026 CONTEXT:
+  The paradigm has shifted from "data warehousing for reporting" to "intelligent data estates for AI agents."
+  Successful data strategies in 2026 are defined by:
+  - Semantic clarity: AI agents require explicit, machine-readable business definitions (not tribal knowledge)
+  - Data fabric: Virtualized access to data where it lives (not massive ETL to central warehouse)
+  - Zero-copy architecture: Shortcuts and mirroring instead of physical data movement
+  - Ontologies: Formal models of the business that ground AI reasoning
+  - Vectorization: Unstructured data (PDFs, emails) as first-class citizens alongside structured data
+  
+  CRITICAL FRAMING: This is research to prepare for conversation, not definitive recommendations.
+  We're working from website content and public signals - we don't have internal visibility into
+  their actual data landscape, quality issues, or governance maturity. Every assessment should be
+  framed as a hypothesis to validate in discussion.
+  
+  This is technical architecture thinking grounded in business outcomes - how data enables
+  autonomous operations, not just better dashboards.
+
+context_instructions: |
+  You have access to context in the File Search Store. USE IT EXTENSIVELY.
+  
+  PRIMARY SOURCE - STRATEGIC COMPANY REPORT:
+  Your File Search Store contains a comprehensive strategic analysis of this company.
+  This is your PRIMARY source. It includes:
+  - Executive Summary and company overview
+  - Products/Services and Target Customers analysis
+  - Technology stack and systems (if mentioned)
+  - Operational complexity and scale indicators
+  - Strategic priorities and tensions
+  
+  READ THIS REPORT THOROUGHLY before writing. Every data architecture recommendation must connect
+  to specific insights from this strategic analysis.
+  
+  CRITICAL: Frame everything as hypotheses to explore, not conclusions to implement.
+  
+  HOW TO USE CONTEXT:
+  - Search for mentions of systems, data sources, analytics capabilities
+  - Identify operational complexity (multi-location, multi-product, etc.)
+  - Look for data-related pain points (reporting delays, data quality issues)
+  - Connect data strategy to business priorities (growth, compliance, efficiency)
+  - Reference specific findings: "The strategic analysis notes that..."
+  - Always acknowledge what we can't know: "Based on public signals, we hypothesize..."
+  
+  BAD: "They need a data warehouse"
+  GOOD: "Given their [specific operational complexity from report], one architecture worth exploring
+  would be a data fabric that virtualizes access to [specific systems]. This assumes [X] about
+  their current data landscape - worth validating in conversation."
+
+# =============================================================================
+# WRITING QUALITY STANDARDS
+# =============================================================================
+
+writing_standards: |
+  SECTION-APPROPRIATE TONE:
+  
+  For ARCHITECTURE sections:
+  - Technical but accessible - explain the "why" not just the "what"
+  - "Here's why this architecture matters for THIS company specifically"
+  - Connect technical choices to business outcomes
+  
+  For SEMANTIC LAYER sections:
+  - Emphasize the AI grounding problem: "Agents need explicit definitions, not tribal knowledge"
+  - Use concrete examples from their business
+  - "What does 'High-Value Customer' mean? Finance says >$100K, Sales says >50 orders"
+  
+  For GOVERNANCE sections:
+  - Practical and specific about ownership, quality, security
+  - "This requires a Data Steward for each domain"
+  - Be direct about governance pain (it's hard, but necessary)
+  
+  For IMPLEMENTATION sections:
+  - Phased approach with clear milestones
+  - "Month 1-3: Foundation. Month 4-6: Semantic layer. Month 7-9: Agent activation"
+  - Acknowledge resource constraints for SMBs
+  
+  THROUGHOUT:
+  - Specific over generic: actual examples, numbers, comparisons
+  - Connected to THIS company's situation
+  - No numbered section headings (use natural titles)
+  - Cite sources and flag uncertainty
+  - Frame as strategic choices, not vendor pitches
+
+# =============================================================================
+# DATA SOURCES
+# =============================================================================
+
+data_sources: []
+
+# =============================================================================
+# EPISTEMIC RULES
+# =============================================================================
+
+epistemic_rules:
+  confidence_labeling: |
+    REQUIRED: Label every significant claim:
+    
+    For FACTS about the company:
+    - **Confirmed**: From the strategic report with citations
+    - **Inferred**: Based on industry patterns for companies of this size/type
+    - **Hypothesis**: Our interpretation to validate
+    
+    For ARCHITECTURE RECOMMENDATIONS:
+    - "Proven pattern" - widely adopted, strong evidence base
+    - "Context-dependent" - success depends on company-specific factors
+    - "Emerging approach" - frontier pattern, higher uncertainty
+  
+  hypothesis_framing: |
+    Frame assessments as hypotheses to validate, not facts.
+    Use language like "Based on [evidence], we hypothesize..."
+  
+  numeric_precision: |
+    For cost and sizing estimates:
+    - Use ranges: "$50-150K annual platform cost" not "$87K"
+    - State assumptions explicitly
+    - Acknowledge uncertainty
+    - Present multiple scenarios (small, medium, large scale)
+
+formatting:
+  paragraphs: "Write in full paragraphs for strategic sections"
+  bullets: "Use bullets only for specific recommendations or lists"
+  tone: "Technical architect presenting to CTO/CDO - knowledgeable but not condescending"
+  citations: "Cite sources for all external claims"
+  tables: "Include comparison matrices, architecture diagrams (described), cost tables"
+
+# =============================================================================
+# SECTIONS
+# =============================================================================
+
+sections:
+  # =============================================================================
+  # PART A: THE STRATEGIC VISION
+  # =============================================================================
+  
+  - id: executive_summary
+    name: "Executive Summary"
+    part: 1
+    purpose: "The 'so what' for data leadership"
+    covers:
+      - "Why data modernization is structurally necessary for THIS company"
+      - "The recommended data architecture approach"
+      - "Investment required and expected returns"
+      - "The 3 most critical decisions in next 12 months"
+    depth: "2-3 paragraphs. Concise and compelling."
+
+  - id: paradigm_shift
+    name: "The Paradigm Shift: From Warehousing to Intelligent Estates"
+    part: 2
+    purpose: "Establish why 2026 is different"
+    covers:
+      - "The shift from 'data for dashboards' to 'data for AI agents'"
+      - "Why AI agents require semantic clarity (not tribal knowledge)"
+      - "The agentic web: AI systems as primary data consumers"
+      - "The cost of fragmentation: shadow AI, hallucinations, compliance risk"
+    depth: |
+      Make the case that this isn't just "upgrade the warehouse." The fundamental
+      consumer of data has changed from humans to agents. Agents don't tolerate ambiguity.
+
+  - id: current_state_assessment
+    name: "Current Data Landscape Assessment"
+    part: 3
+    purpose: "Understand where they are today (based on public signals)"
+    subsections:
+      - id: data_sources_inventory
+        name: "Data Sources and Systems"
+        covers:
+          - "Operational systems (CRM, ERP, etc.) - inferred from strategic report"
+          - "Analytics systems (BI tools, reporting) - if mentioned"
+          - "Data storage (cloud, on-prem, hybrid) - if mentioned"
+          - "Integration patterns (ETL, APIs, manual exports)"
+      - id: maturity_assessment
+        name: "Data Maturity Indicators"
+        covers:
+          - "Reporting capabilities (real-time vs batch, self-service vs IT-dependent)"
+          - "Data quality signals (if mentioned in strategic report)"
+          - "Governance maturity (centralized vs siloed, documented vs tribal)"
+          - "AI readiness (semantic definitions, vector stores, agent access)"
+    depth: |
+      Be humble about what we can infer from public information. Use phrases like:
+      "Based on their [operational complexity], we hypothesize they likely have..."
+      "Companies of this size typically struggle with..."
+      "Worth validating: Do they have..."
+
+  - id: target_architecture
+    name: "Target Architecture: The Intelligent Data Estate"
+    part: 4
+    purpose: "Define the recommended data platform"
+    subsections:
+      - id: data_fabric_foundation
+        name: "The Data Fabric Foundation"
+        covers:
+          - "OneLake concept: Single logical namespace across all data"
+          - "Zero-copy architecture: Shortcuts and mirroring instead of ETL"
+          - "Virtualization: Query data where it lives (AWS, Azure, on-prem)"
+          - "Medallion architecture: Bronze (raw), Silver (validated), Gold (curated)"
+      - id: semantic_layer
+        name: "The Semantic Layer: Grounding AI Agents"
+        covers:
+          - "The ontology: Formal model of the business (entities, properties, relationships)"
+          - "Why agents need this: 'High-Value Customer' must have ONE definition"
+          - "Bootstrapping from existing BI models (Power BI, Tableau)"
+          - "Graph capabilities: Reasoning with relationships (supply chain, org hierarchy)"
+      - id: vectorization
+        name: "Vectorization: Unstructured Data as First-Class Citizen"
+        covers:
+          - "Why unstructured matters: PDFs, emails, contracts contain critical knowledge"
+          - "Vector embeddings: Numerical representations of text meaning"
+          - "Hybrid search: Structured filters + semantic search"
+          - "RAG architecture: Retrieval-Augmented Generation for agents"
+      - id: real_time_layer
+        name: "Real-Time Data Layer"
+        covers:
+          - "Streaming vs batch: When real-time matters"
+          - "Event-driven architecture: React to changes as they happen"
+          - "Use cases: Inventory alerts, fraud detection, customer service"
+    depth: |
+      Be specific about why each layer matters for THIS company. Connect to their
+      business model and operations from the strategic report.
+      
+      Example: "Given their [multi-location operations], a data fabric that virtualizes
+      access to regional systems would reduce latency and egress costs."
+
+  - id: platform_comparison
+    name: "Platform Evaluation: Fabric vs Snowflake vs Databricks"
+    part: 5
+    purpose: "Compare major platforms objectively"
+    subsections:
+      - id: cost_models
+        name: "Cost Models and Predictability"
+        covers:
+          - "Microsoft Fabric: Capacity model (fixed cost, capped)"
+          - "Snowflake: Consumption model (pay-per-use, variable)"
+          - "Databricks: DBU model (granular control, complex)"
+          - "SMB considerations: Budget predictability vs elasticity"
+      - id: technical_focus
+        name: "Technical Focus and Skills"
+        covers:
+          - "Fabric: Best for Microsoft ecosystem (Office 365, Power BI, Teams)"
+          - "Snowflake: Best for SQL-centric, multi-cloud"
+          - "Databricks: Best for code-first ML engineering"
+          - "Skill availability and learning curve"
+      - id: ai_integration
+        name: "AI Integration Maturity"
+        covers:
+          - "Fabric: Native agents, Copilot, semantic layer"
+          - "Snowflake: Cortex, Snowpark"
+          - "Databricks: Mosaic AI, MLflow"
+      - id: recommendation
+        name: "Recommendation for THIS Company"
+        covers:
+          - "Which platform aligns with their ecosystem and skills"
+          - "What would have to be true for each choice"
+          - "Hybrid scenarios (e.g., Fabric for BI, Databricks for ML)"
+    depth: |
+      Present objectively but make a recommendation. Connect to their strategic report:
+      "Given their investment in [Microsoft/AWS/etc.] and their [business analyst vs
+      data scientist] team composition, [Platform X] appears most aligned."
+
+  - id: governance_framework
+    name: "Data Governance for the Agentic Era"
+    part: 6
+    purpose: "How to govern data when AI agents are primary consumers"
+    subsections:
+      - id: access_fabric
+        name: "The Access Fabric: Identity and Permissions"
+        covers:
+          - "Non-Human Identity Management: Agents as users with permissions"
+          - "Least privilege: HR Agent can't access Finance data"
+          - "Entra Agent ID or equivalent: Distinct identities for each agent"
+          - "Audit trails: Who (human or agent) accessed what data when"
+      - id: semantic_governance
+        name: "Semantic Governance: One Source of Truth"
+        covers:
+          - "Data stewardship model: Who owns each domain (Sales, Finance, HR)"
+          - "Metric definitions: 'Revenue' means exactly what?"
+          - "Change management: How to update definitions without breaking agents"
+          - "Versioning: Track changes to ontology over time"
+      - id: quality_framework
+        name: "Data Quality for AI"
+        covers:
+          - "Quality dimensions: Accuracy, completeness, timeliness, consistency"
+          - "Automated quality checks in Silver layer"
+          - "Feedback loops: Agents report data issues"
+          - "SLAs: What quality level do agents require?"
+      - id: compliance_security
+        name: "Compliance and Security"
+        covers:
+          - "Sensitivity labels: Confidential data stays confidential"
+          - "Purview AI Hub: Detect shadow AI, log prompts"
+          - "Private endpoints: Data never touches public internet"
+          - "Regulatory requirements: GDPR, HIPAA, SOC 2"
+    depth: |
+      Be practical about governance. It's hard, especially for SMBs with limited resources.
+      Provide phased approach: "Start with access controls and quality checks. Add semantic
+      governance as you deploy agents."
+
+  - id: agent_enablement
+    name: "Enabling the Agentic Workforce"
+    part: 7
+    purpose: "How agents consume the data layer"
+    subsections:
+      - id: data_agents
+        name: "Data Agents: Virtual Analysts"
+        covers:
+          - "Domain-specific agents (HR Agent, Sales Agent) vs general-purpose"
+          - "Grounding in ontology: Agents query semantic layer, not raw tables"
+          - "Natural language to SQL/DAX: How agents generate queries"
+          - "Tool use: Read-only vs write permissions"
+      - id: operations_agents
+        name: "Operations Agents: Autonomous Action"
+        covers:
+          - "Monitor → Reason → Act loop"
+          - "Example: Inventory agent detects low stock, drafts purchase order"
+          - "Human-in-the-loop: Approval workflows for high-risk actions"
+          - "Co-pilot to autopilot transition: Start with recommendations, move to automation"
+      - id: mcp_integration
+        name: "Model Context Protocol (MCP)"
+        covers:
+          - "Standardized way for agents to access data and tools"
+          - "Security: Agents authenticate via MCP, not direct database access"
+          - "Interoperability: Same data layer serves Copilot, custom agents, third-party tools"
+    depth: |
+      Connect to THIS company's use cases from strategic report. What decisions could
+      be automated? What agents would deliver highest value?
+
+  - id: implementation_roadmap
+    name: "Implementation Roadmap"
+    part: 8
+    purpose: "Phased approach with milestones"
+    subsections:
+      - id: phase_1_foundation
+        name: "Phase 1: Foundation and Consolidation (Months 1-3)"
+        covers:
+          - "Establish data fabric (OneLake or equivalent)"
+          - "Security baseline (identity, private endpoints, auditing)"
+          - "Zero-ETL ingestion: Mirror top 3 operational databases"
+          - "Migration: Lift-and-shift legacy warehouses using shortcuts"
+      - id: phase_2_semantic
+        name: "Phase 2: The Semantic Layer (Months 4-6)"
+        covers:
+          - "BI rationalization: Migrate to Direct Lake or equivalent"
+          - "Ontology bootstrap: Auto-generate from existing BI models"
+          - "Data quality loops: Implement validation in Silver layer"
+          - "Stewardship: Assign data owners for each domain"
+      - id: phase_3_agents
+        name: "Phase 3: Agent Activation (Months 7-9)"
+        covers:
+          - "Deploy first Data Agent (pilot with small group)"
+          - "Operations Agent pilot: Low-risk, high-frequency use case"
+          - "Training: Upskill analysts on semantic layer tools"
+          - "Feedback loops: Capture agent errors and data quality issues"
+      - id: phase_4_scale
+        name: "Phase 4: Scaling and Optimization (Months 10-12)"
+        covers:
+          - "Unstructured integration: Vectorize documents, link to ontology"
+          - "FinOps review: Optimize platform costs"
+          - "API layer: Expose data to custom apps via GraphQL or REST"
+          - "Expansion: Additional agents and use cases"
+    depth: |
+      Make Phase 1 feel achievable. Provide specific milestones and success criteria.
+      Acknowledge resource constraints for SMBs.
+
+  - id: investment_analysis
+    name: "Investment Analysis"
+    part: 9
+    purpose: "Financial analysis and resource requirements"
+    subsections:
+      - id: platform_costs
+        name: "Platform Costs"
+        covers:
+          - "Fabric: F-SKU sizing and annual cost ($50-150K typical for SMB)"
+          - "Snowflake: Credit consumption estimates"
+          - "Databricks: DBU consumption estimates"
+          - "Storage costs: OneLake, S3, ADLS"
+      - id: implementation_costs
+        name: "Implementation Costs"
+        covers:
+          - "Internal resources: Data engineers, analysts, stewards"
+          - "External support: Implementation partner, training"
+          - "Migration costs: ETL rewrite, data quality remediation"
+          - "Change management: Training, communication, adoption"
+      - id: expected_returns
+        name: "Expected Returns"
+        covers:
+          - "Efficiency gains: Reduced manual reporting, faster insights"
+          - "Agent productivity: Autonomous operations, 24/7 availability"
+          - "Risk reduction: Better governance, compliance, security"
+          - "Revenue enablement: Faster decisions, better customer experience"
+      - id: roi_scenarios
+        name: "ROI Scenarios"
+        covers:
+          - "Conservative: 2-3x ROI over 3 years"
+          - "Likely: 4-6x ROI over 3 years"
+          - "Aggressive: 8-10x ROI over 3 years (with full agent adoption)"
+    depth: |
+      Present as ranges with explicit assumptions. Be honest about costs and timeline.
+      SMBs need budget predictability.
+
+  - id: risk_mitigation
+    name: "Risk Analysis and Mitigation"
+    part: 10
+    purpose: "What could go wrong and how to prevent it"
+    covers:
+      - "Data quality risk: Garbage in, garbage out (agents amplify bad data)"
+      - "Governance risk: Shadow AI, compliance violations"
+      - "Adoption risk: Users don't trust agents, revert to manual processes"
+      - "Technical risk: Platform complexity, skill gaps"
+      - "Mitigation strategies: Phased approach, pilot programs, training, monitoring"
+    depth: "Honest about risks. Boards appreciate transparency."
+
+  # =============================================================================
+  # PART B: THE FACILITATION TOOLKIT
+  # =============================================================================
+  
+  - id: facilitation_toolkit
+    name: "FACILITATION TOOLKIT: Data Strategy Workshop"
+    part: 11
+    purpose: "How to facilitate data strategy discovery"
+    subsections:
+      - id: workshop_agenda
+        name: "Data Strategy Workshop Agenda"
+        covers:
+          - "Phase 1: Current State Pain Mining (what's broken?)"
+          - "Phase 2: Future State Visioning (what's possible?)"
+          - "Phase 3: Architecture Selection (fabric vs warehouse vs hybrid)"
+          - "Phase 4: Roadmap Co-Creation (they hold the pen)"
+          - "Phase 5: Commitment Building (yes ladder)"
+      - id: stakeholder_map
+        name: "Stakeholder Inception Map"
+        covers:
+          - "CDO/CTO: Frame as competitive necessity, technical debt reduction"
+          - "CFO: Lead with cost predictability, ROI scenarios"
+          - "Business leaders: Show how agents enable their teams"
+          - "Data team: Frame as career growth, modern skills"
+      - id: ghostwritten_materials
+        name: "Ghostwritten Materials"
+        covers:
+          - "Board memo template: Data modernization proposal"
+          - "Business case template: ROI analysis"
+          - "RFP template: If they need to evaluate vendors"
+    depth: "Provide actual templates they can use. Make it easy to take action."
+
+  - id: next_steps
+    name: "Next Steps (Next 30 Days)"
+    part: 12
+    purpose: "Immediate actions"
+    covers:
+      - "Week 1: Data landscape assessment (inventory systems, identify pain points)"
+      - "Week 2: Platform evaluation (Fabric vs Snowflake vs Databricks)"
+      - "Week 3: Architecture design workshop"
+      - "Week 4: Roadmap and budget proposal"
+    depth: "Concrete and actionable. Make the first step obvious."

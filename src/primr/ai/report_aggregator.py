@@ -206,7 +206,7 @@ This comprehensive strategic overview was generated using Primr's Recursive Hier
         lines = ["## Table of Contents\n"]
         
         for chapter in chapters:
-            # Clean TOC - NO status markers (✓/✗)
+            # Clean TOC - NO status markers (+/x)
             # Only include successful chapters in TOC
             if not chapter.success:
                 continue

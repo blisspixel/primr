@@ -226,6 +226,119 @@ def validate_and_normalize_url(
         return (False, url, e.reason)
 
 
+def validate_url_for_request(
+    url: str,
+    allow_private_ips: bool = False
+) -> tuple[bool, str, str | None]:
+    """
+    Validate URL for making external HTTP requests (SSRF protection).
+
+    Blocks:
+    - Internal/private IP addresses (localhost, 10.x, 192.168.x, 169.254.x, 172.16-31.x)
+    - Loopback addresses (127.x.x.x, ::1)
+    - Link-local addresses (169.254.x.x, fe80::/10)
+    - Non-HTTP schemes (file://, ftp://, etc.)
+    - Invalid URLs
+
+    Args:
+        url: URL string to validate
+        allow_private_ips: If True, allow private IP addresses (default: False)
+
+    Returns:
+        Tuple of (is_valid, normalized_url, error_message)
+        - If valid: (True, normalized_url, None)
+        - If invalid: (False, original_url, error_message)
+
+    Example:
+        >>> validate_url_for_request("https://example.com")
+        (True, 'https://example.com', None)
+        >>> validate_url_for_request("http://localhost:8080")
+        (False, 'http://localhost:8080', 'Localhost not allowed')
+        >>> validate_url_for_request("http://192.168.1.1")
+        (False, 'http://192.168.1.1', 'Private IP addresses not allowed')
+    """
+    import ipaddress
+    import socket
+
+    # First validate and normalize
+    is_valid, normalized, error = validate_and_normalize_url(url)
+    if not is_valid:
+        return (False, url, error)
+
+    # Parse normalized URL
+    try:
+        parsed = urlparse(normalized)
+    except Exception as e:
+        return (False, url, f"Invalid URL format: {e}")
+
+    # Block non-HTTP schemes
+    if parsed.scheme not in ("http", "https"):
+        return (False, url, "Only HTTP/HTTPS schemes allowed for requests")
+
+    # Extract host (remove port if present)
+    host = parsed.netloc.split(':')[0].strip('[]')  # Remove brackets for IPv6
+
+    if not host:
+        return (False, url, "URL must have a host")
+
+    # Block localhost variations (case-insensitive)
+    localhost_patterns = [
+        "localhost",
+        "127.0.0.1",
+        "0.0.0.0",
+        "::1",
+        "::",
+    ]
+
+    if host.lower() in localhost_patterns:
+        return (False, url, "Localhost not allowed")
+
+    # Check if host is an IP address
+    try:
+        ip = ipaddress.ip_address(host)
+
+        # Block loopback addresses
+        if ip.is_loopback:
+            return (False, url, "Loopback addresses not allowed")
+
+        # Block link-local addresses
+        if ip.is_link_local:
+            return (False, url, "Link-local addresses not allowed")
+
+        # Block private IPs unless explicitly allowed
+        if not allow_private_ips and ip.is_private:
+            return (False, url, "Private IP addresses not allowed")
+
+    except ValueError:
+        # Not an IP address, it's a hostname
+        # Try to resolve hostname to check if it points to private IP
+        if not allow_private_ips:
+            try:
+                # Resolve hostname to IP
+                resolved_ips = socket.getaddrinfo(host, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
+
+                for family, socktype, proto, canonname, sockaddr in resolved_ips:
+                    resolved_ip = sockaddr[0]
+
+                    try:
+                        ip = ipaddress.ip_address(resolved_ip)
+
+                        # Block if resolves to private/loopback/link-local
+                        if ip.is_private or ip.is_loopback or ip.is_link_local:
+                            return (False, url, f"Hostname resolves to private/internal IP: {resolved_ip}")
+
+                    except ValueError:
+                        # Skip if can't parse resolved IP
+                        continue
+
+            except (socket.gaierror, socket.error):
+                # DNS resolution failed - allow it (will fail later during request)
+                # This prevents blocking valid domains that are temporarily unreachable
+                pass
+
+    return (True, normalized, None)
+
+
 # =============================================================================
 # FUZZY SUGGESTION
 # =============================================================================

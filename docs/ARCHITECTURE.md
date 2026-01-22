@@ -692,6 +692,152 @@ Daily API quota exhaustion is detected and handled specially:
 | Chapter execution | Timeout | Mark chapter failed, continue |
 | Grading | API error | Skip grading, use content as-is |
 
+## Security Architecture
+
+Primr underwent comprehensive security review in January 2026. All critical vulnerabilities have been addressed.
+
+### Security Principles
+
+1. **Defense in Depth**: Multiple layers of validation and protection
+2. **Fail Secure**: Invalid inputs rejected, not processed
+3. **Least Privilege**: Minimal permissions and access
+4. **Input Validation**: All external inputs validated before use
+
+### Implemented Protections
+
+#### SSRF (Server-Side Request Forgery) Protection
+
+Location: `src/primr/utils/validators.py`
+
+All HTTP requests are validated before execution to prevent internal network access:
+
+```python
+def validate_url_for_request(url: str, allow_private_ips: bool = False) -> tuple[bool, str, str | None]:
+    """
+    Validate URL for making external HTTP requests (SSRF protection).
+    
+    Blocks:
+    - Internal/private IP addresses (localhost, 10.x, 192.168.x, 169.254.x, 172.16-31.x)
+    - Loopback addresses (127.x.x.x, ::1)
+    - Link-local addresses (169.254.x.x, fe80::/10)
+    - Non-HTTP schemes (file://, ftp://, etc.)
+    - Invalid URLs
+    - Hostnames that resolve to private IPs (DNS rebinding protection)
+    """
+```
+
+**Protected Functions** (9 total):
+- `src/primr/data/scraping/http_clients.py`: `scrape_with_requests()`, `scrape_with_httpx()`, `scrape_with_curl_cffi()`
+- `src/primr/data/scraping/net.py`: `make_request()`, `head_exists()`
+- `src/primr/data/scraping/browsers.py`: `scrape_with_playwright()`, `scrape_with_playwright_aggressive()`, `scrape_with_drissionpage()`, `scrape_with_drissionpage_stealth()`
+
+#### XXE (XML External Entity) Protection
+
+Location: `src/primr/data/scraping/discovery.py`
+
+XML parsing uses secure parser with entity expansion disabled:
+
+```python
+parser = ET.XMLParser()
+parser.entity = {}  # Disable entity expansion
+parser.parser.SetParamEntityParsing(0)  # Disable parameter entities
+root = ET.fromstring(content, parser=parser)
+```
+
+#### Path Traversal Protection
+
+Location: `src/primr/utils/validators.py`
+
+File paths validated to prevent directory traversal:
+
+```python
+def validate_file_path(path: str, base_dir: str | None = None) -> tuple[bool, str]:
+    """
+    Validate file path to prevent directory traversal attacks.
+    
+    Checks for:
+    - Parent directory references (..)
+    - Absolute paths outside base directory
+    - Invalid characters
+    """
+```
+
+#### SQL Injection Protection
+
+All database queries use parameterized statements:
+
+```python
+# Safe: Uses ? placeholders
+cursor.execute("SELECT * FROM cache WHERE url = ?", (url,))
+
+# Never: String concatenation
+# cursor.execute(f"SELECT * FROM cache WHERE url = '{url}'")  # UNSAFE
+```
+
+#### Secure Hashing
+
+MD5 usage explicitly marked as non-security:
+
+```python
+# Safe: MD5 for cache keys only, not security
+hashlib.md5(url.encode(), usedforsecurity=False).hexdigest()
+```
+
+### Security Testing
+
+Location: `tests/test_security.py`
+
+Comprehensive test suite with 22 tests covering:
+
+- **SSRF Protection** (11 tests): Localhost blocking, private IP blocking, link-local blocking, invalid schemes, malformed URLs
+- **XXE Protection** (3 tests): Safe parsing, external entity blocking, entity reference handling
+- **Path Traversal** (3 tests): Parent directory blocking, safe path validation, absolute path validation
+- **Input Validation** (4 tests): Empty strings, whitespace, None handling, URL normalization
+- **Security Headers** (1 test): Timeout configuration
+
+All tests passing. Run with:
+```bash
+python -m pytest tests/test_security.py -v
+```
+
+### Automated Security Scanning
+
+#### Bandit (Python Security Linter)
+
+Configuration: `.bandit`
+
+Results (January 2026):
+- HIGH severity: 3 issues (MD5 usage) - FIXED
+- MEDIUM severity: 5 issues (XML warnings, false positives) - ADDRESSED
+- LOW severity: 57 issues (intentional patterns) - SUPPRESSED
+
+#### Safety (Dependency Scanner)
+
+Results (January 2026):
+- Core dependencies: CLEAN ✓
+- Development dependencies: Some vulnerabilities (non-critical)
+- Production deployment: SECURE ✓
+
+### Security Best Practices
+
+1. **API Keys**: Never hardcoded, always from environment variables
+2. **Secrets**: `.env.example` provided without actual secrets
+3. **YAML Loading**: Always uses `yaml.safe_load()`, never `yaml.load()`
+4. **File Operations**: Proper encoding, no unsafe file handling
+5. **Command Execution**: No `shell=True`, no unsafe subprocess calls
+6. **Error Messages**: No system information leakage
+
+### Security Documentation
+
+Complete security audit report: `docs/SECURITY_REVIEW_2026-01-21.md`
+
+Includes:
+- Vulnerability findings and fixes
+- Security test coverage
+- Automated scanning results
+- Production readiness assessment
+- Ongoing security recommendations
+
 ## Caching Strategy
 
 ### Memory Cache (LRU)

@@ -1,0 +1,586 @@
+# Digital Customer Experience Strategy
+# This file defines the structure for digital customer experience strategy reports.
+#
+# Purpose: CMO-level customer experience transformation strategy.
+# Goal: Answer "How do we create world-class digital customer experiences?"
+# Audience: CMO, Chief Customer Officer, VP of Customer Success, Board.
+#
+# Dependencies:
+#   - shared/epistemic_rules.yaml (epistemic standards)
+#   - shared/formatting.yaml (formatting rules)
+#   - shared/personas.yaml (cx_strategist persona)
+
+meta:
+  name: "Digital Customer Experience Strategy"
+  version: "1.0.0"
+  description: "Strategic framework for customer experience transformation"
+  cli_description: "Helps think through customer experience modernization - explores journey architecture, personalization frameworks, and CX as competitive differentiator"
+  output_format: "markdown"
+  output_filename: "{company_name}_Customer_Experience_Strategy"
+  expected_pages: "20-30"
+
+# Override default persona for this strategy
+persona: "cx_strategist"
+
+document_purpose: |
+  This document explores strategic frameworks for customer experience transformation.
+  Based on public information and industry patterns, it surfaces hypotheses about how this
+  company might modernize its customer experience to meet rising expectations.
+  
+  CRITICAL FRAMING: This is research to prepare for conversation, not a CX audit.
+  We're working from website content, public reviews, and industry baselines - we don't have
+  internal visibility into their actual customer data, journey analytics, or CX capabilities.
+  Every assessment should be framed as a hypothesis to validate in discussion.
+  
+  This is NOT a tactical marketing plan (we lack internal access). This is strategic thinking
+  about CX architecture, customer journey design, and experience frameworks that can be theorized
+  from outside using industry best practices and strategic frameworks.
+  
+  ADOPTION PSYCHOLOGY (apply throughout):
+  
+  1. FRAME AS REVENUE DRIVER, NOT JUST SATISFACTION
+     - Bad: "We need better CX to improve NPS"
+     - Good: "Modern CX drives 20-30% higher customer lifetime value and reduces acquisition cost"
+     - CX that drives revenue gets funded; CX that's just "nice to have" gets deprioritized
+  
+  2. QUANTIFY THE EXPERIENCE GAP
+     - "Current experience costs $X in churn annually"
+     - "Friction in onboarding delays time-to-value by X days"
+     - Make the status quo feel expensive, not just suboptimal
+  
+  3. CONNECT TO EXISTING STRATEGIC PRIORITIES
+     - If they're pursuing growth: "CX is the growth engine"
+     - If they're defending market share: "CX is the moat"
+     - If they're expanding: "CX enables scale without proportional cost"
+  
+  4. PROVIDE JOURNEY-BASED ROADMAP
+     - Frame as "Fix the critical moments first"
+     - Make Year 1 feel achievable (3 journey improvements)
+     - Reduces perceived complexity and scope
+  
+  5. IDENTIFY THE INTERNAL CHAMPION
+     - Usually CMO or Chief Customer Officer
+     - Frame recommendations to make THEM look customer-obsessed
+     - "Your CMO could position this as the growth strategy"
+  
+  6. MAKE CX A COMPETITIVE DIFFERENTIATOR
+     - "Best-in-class CX commands 10-15% price premium"
+     - "CX leaders grow 2x faster than laggards"
+     - Reframe CX from cost center to competitive advantage
+  
+  7. MATCH THEIR CUSTOMER INTIMACY LEVEL
+     - Transactional businesses: Lead with efficiency and convenience
+     - Relationship businesses: Lead with personalization and trust
+     - Use Strategic Overview to determine which framing resonates
+  
+  STRUCTURE:
+  - Present strategic CX frameworks (what world-class might look like)
+  - Frame each recommendation with business value (why it matters)
+  - Include stakeholder analysis (who champions what)
+  - Provide board-ready materials (how to present to board)
+  
+  The output should be: "Here are frameworks to consider AND here's how to get it funded."
+
+context_instructions: |
+  You have access to context in the File Search Store. USE IT EXTENSIVELY.
+  
+  PRIMARY SOURCE - STRATEGIC COMPANY REPORT:
+  Your File Search Store contains a comprehensive strategic analysis of this company.
+  This is your PRIMARY source. It includes:
+  - Executive Summary and company overview
+  - Products/Services and Target Customers analysis
+  - Competitive Differentiation and Financial Profile
+  - SWOT Analysis and Strategic Tensions
+  - Porter's Five Forces and Value Chain Analysis
+  - "Where They're Likely to Say Yes" - specific engagement opportunities
+  
+  READ THIS REPORT THOROUGHLY before writing. Every CX framework must connect
+  to specific insights from this strategic analysis.
+  
+  CRITICAL: Frame everything as hypotheses to explore, not conclusions to implement.
+  
+  HOW TO USE CONTEXT:
+  - Search the strategic report for customer segments, value proposition, differentiation
+  - Identify what makes them special (amplify this in CX transformation thinking)
+  - Connect CX ideas to existing strategic priorities
+  - Use tensions/patterns to inform CX priorities
+  - Reference specific findings: "The strategic analysis notes that..."
+  - Always acknowledge what we can't know: "Based on public signals, we hypothesize..."
+  
+  BAD: "They should improve customer experience"
+  GOOD: "Given their focus on enterprise customers and 'white-glove service' positioning
+  [from report], one CX approach worth exploring would be high-touch onboarding with dedicated
+  success managers. This assumes [X] about their current customer success model - worth
+  validating in conversation."
+
+# =============================================================================
+# WRITING QUALITY STANDARDS
+# =============================================================================
+
+writing_standards: |
+  SECTION-APPROPRIATE TONE:
+  
+  For STRATEGIC ANALYSIS sections:
+  - Customer-centric and empathetic, but grounded in business reality
+  - "Here's what customers expect from THIS company specifically"
+  - Acknowledge constraints while painting the vision
+  
+  For FRAMEWORK sections:
+  - Practical and specific about journeys, touchpoints, metrics
+  - "This requires X capabilities at Y maturity level"
+  - Be direct about organizational pain (silos, data, tools)
+  
+  For PERSONALIZATION sections:
+  - Frame as business value, not just technology
+  - "Personalization drives X% higher conversion and Y% higher LTV"
+  - Connect personalization to revenue and retention
+  
+  For INVESTMENT sections:
+  - Present as ranges with explicit assumptions
+  - "Investment of $1-3M over 2 years, depending on scope"
+  - "ROI through higher retention, lower acquisition cost, premium pricing"
+  - Quantify cost of poor CX: "Churn costs $X per quarter"
+  
+  THROUGHOUT:
+  - Specific over generic: actual journeys, moments, metrics
+  - Connected to THIS company's situation
+  - No numbered section headings (use natural titles)
+  - Cite sources and flag uncertainty
+  - Frame as strategic choices, not vendor pitches
+
+# =============================================================================
+# DATA SOURCES
+# =============================================================================
+
+data_sources: []
+
+# =============================================================================
+# EPISTEMIC RULES
+# =============================================================================
+
+epistemic_rules:
+  confidence_labeling: |
+    REQUIRED: Label every significant claim:
+    
+    For FACTS about the company:
+    - **Confirmed**: From the strategic report with citations
+    - **Reported**: From credible sources but not verified
+    - **Estimated**: Calculated or inferred
+    - **Hypothesis**: Our interpretation to validate
+    
+    For CX RECOMMENDATIONS:
+    - "Industry best practice" - widely adopted, strong evidence base
+    - "Context-dependent" - success depends on company-specific factors
+    - "Emerging pattern" - frontier approach, higher uncertainty
+  
+  transformation_rule: |
+    If a sentence implies inevitability or "only viable path", rewrite as scenario comparison.
+    Example: Instead of "Companies without personalization will lose customers", write
+    "Organizations that deliver personalized experiences may see higher retention and LTV,
+    while generic experiences face increasing customer expectations and competitive pressure."
+  
+  hypothesis_framing: |
+    Frame assessments as hypotheses to validate, not facts.
+    Use language like "Based on [evidence], we hypothesize..."
+  
+  numeric_precision: |
+    For investment and ROI figures:
+    - Use ranges: "$1-3M investment" not "$2.1M"
+    - State assumptions explicitly
+    - Acknowledge uncertainty
+    - Present multiple scenarios (best case, likely case, status quo)
+
+formatting:
+  paragraphs: "Write in full paragraphs for strategic sections"
+  bullets: "Use bullets only for specific recommendations or lists"
+  tone: "Strategic and customer-centric, like a CMO presenting to the board"
+  citations: "Cite sources for all external claims"
+  tables: "Include journey maps, maturity matrices, investment tables"
+
+# =============================================================================
+# SECTIONS
+# =============================================================================
+
+sections:
+  # =============================================================================
+  # PART A: THE STRATEGIC VISION
+  # =============================================================================
+  
+  - id: executive_summary
+    name: "Executive Summary"
+    part: 1
+    purpose: "The 'so what' for the board"
+    covers:
+      - "Why CX transformation is business-critical for THIS company"
+      - "The recommended CX posture and investment"
+      - "The 3 most critical CX decisions in next 12 months"
+    depth: "2-3 paragraphs. Concise and compelling."
+
+  - id: strategic_context
+    name: "The Strategic Context: The CX Imperative"
+    part: 2
+    purpose: "Establish why traditional CX is insufficient"
+    subsections:
+      - id: rising_expectations
+        name: "Rising Customer Expectations"
+        covers:
+          - "Consumer experiences (Amazon, Netflix) reset B2B expectations"
+          - "Personalization as baseline, not differentiator"
+          - "Omnichannel consistency expected"
+          - "Self-service and instant gratification"
+      - id: cx_as_moat
+        name: "CX as Competitive Moat"
+        covers:
+          - "Product parity in many markets"
+          - "CX as primary differentiator"
+          - "Switching costs through experience"
+          - "Network effects of customer advocacy"
+      - id: economic_impact
+        name: "The Economic Impact of CX"
+        covers:
+          - "CX leaders grow 2x faster than laggards"
+          - "Best-in-class CX commands 10-15% price premium"
+          - "Poor CX costs 20-30% in churn"
+          - "Acquisition cost 5-7x higher than retention"
+    depth: |
+      Make the case that CX is a strategic imperative, not a nice-to-have.
+      Connect to THIS company's specific situation from strategic report.
+
+  - id: current_state_hypothesis
+    name: "Likely Current State (Hypotheses to Validate)"
+    part: 3
+    purpose: "Frame assessments as hypotheses since we lack internal visibility"
+    subsections:
+      - id: cx_maturity_signals
+        name: "CX Maturity Signals"
+        covers:
+          - "Observable signals from website, reviews, social media"
+          - "Industry baseline for companies of this size/sector"
+          - "Probable gaps based on common patterns"
+      - id: customer_journey_indicators
+        name: "Customer Journey Indicators"
+        covers:
+          - "Onboarding experience (from public trials/demos)"
+          - "Support experience (from reviews, forums)"
+          - "Self-service capabilities"
+          - "Omnichannel consistency"
+      - id: common_cx_debt
+        name: "Common CX Debt Patterns"
+        covers:
+          - "Siloed customer data (no single view)"
+          - "Manual processes (no automation)"
+          - "Generic experiences (no personalization)"
+          - "Reactive support (no proactive engagement)"
+    depth: "Frame each assessment as 'Based on [evidence], we hypothesize...'"
+
+  - id: recommended_cx_posture
+    name: "Recommended CX Posture"
+    part: 4
+    purpose: "Define the target state"
+    subsections:
+      - id: cx_vision
+        name: "CX Vision and Principles"
+        covers:
+          - "What world-class CX looks like for THIS company"
+          - "Core CX principles (e.g., effortless, personalized, proactive)"
+          - "How CX amplifies their differentiation"
+          - "CX as competitive moat"
+      - id: customer_journey_architecture
+        name: "Customer Journey Architecture"
+        covers:
+          - "End-to-end journey mapping"
+          - "Critical moments of truth"
+          - "Journey orchestration and automation"
+          - "Omnichannel consistency"
+      - id: personalization_framework
+        name: "Personalization Framework"
+        covers:
+          - "Segmentation and targeting"
+          - "Content and offer personalization"
+          - "Predictive engagement"
+          - "Privacy and consent management"
+      - id: self_service_enablement
+        name: "Self-Service Enablement"
+        covers:
+          - "Knowledge base and documentation"
+          - "AI-powered chatbots and assistants"
+          - "Community and peer support"
+          - "Proactive guidance and nudges"
+      - id: customer_data_platform
+        name: "Customer Data Platform (CDP)"
+        covers:
+          - "Unified customer profile"
+          - "Real-time data integration"
+          - "Identity resolution"
+          - "Analytics and insights"
+      - id: cx_measurement
+        name: "CX Measurement and Optimization"
+        covers:
+          - "Leading indicators (NPS, CSAT, CES)"
+          - "Lagging indicators (retention, LTV, churn)"
+          - "Journey analytics and attribution"
+          - "Continuous experimentation"
+    depth: |
+      Specific frameworks and architectures. Connect to THIS company's needs.
+      Frame as maturity journey, not binary transformation.
+
+  - id: cx_priorities
+    name: "CX Priorities (Next 12-24 Months)"
+    part: 5
+    purpose: "Specific recommendations tailored to the company"
+    subsections:
+      - id: critical_moments
+        name: "Fix the Critical Moments (0-6 Months)"
+        covers:
+          - "3-5 highest-impact journey improvements"
+          - "Onboarding, support, renewal - where friction costs most"
+          - "Quick wins with measurable ROI"
+      - id: strategic_capabilities
+        name: "Build Strategic Capabilities (6-18 Months)"
+        covers:
+          - "Customer data platform"
+          - "Personalization engine"
+          - "Journey orchestration"
+          - "AI-powered engagement"
+      - id: advanced_experiences
+        name: "Create Advanced Experiences (18-24 Months)"
+        covers:
+          - "Predictive engagement"
+          - "Proactive support"
+          - "Community and advocacy"
+          - "CX innovation lab"
+    depth: |
+      Specific to THIS company. Connect to strategic priorities from report.
+      Frame Year 1 as "Fix 3 critical moments" to reduce perceived complexity.
+
+  - id: investment_framework
+    name: "Investment Framework"
+    part: 6
+    purpose: "Financial analysis and resource allocation"
+    subsections:
+      - id: investment_required
+        name: "Investment Required"
+        covers:
+          - "Year 1: Critical Moments ($X-Y)"
+          - "Year 2: Strategic Capabilities ($X-Y)"
+          - "Breakdown by category (tools, people, services)"
+      - id: expected_returns
+        name: "Expected Returns"
+        covers:
+          - "Retention improvement (reduce churn by X%)"
+          - "LTV expansion (increase LTV by Y%)"
+          - "Acquisition efficiency (reduce CAC by Z%)"
+          - "Premium pricing (command X% premium)"
+          - "Advocacy and referrals (organic growth)"
+      - id: funding_strategy
+        name: "Funding Strategy"
+        covers:
+          - "CX budget allocation"
+          - "Business case for board"
+          - "Phased investment approach"
+          - "ROI gates and success criteria"
+    depth: |
+      Present as ranges with explicit assumptions. Include best case, likely case, and
+      status quo scenarios. Make the financial case compelling but honest.
+
+  - id: organizational_model
+    name: "CX Organization and Governance"
+    part: 7
+    purpose: "How to structure CX function"
+    subsections:
+      - id: cx_leadership
+        name: "CX Leadership Structure"
+        covers:
+          - "Chief Customer Officer or VP CX role"
+          - "CX team structure (journey owners, analytics, operations)"
+          - "Cross-functional CX council"
+          - "Board oversight model"
+      - id: cx_governance
+        name: "CX Governance Framework"
+        covers:
+          - "Journey ownership and accountability"
+          - "CX standards and guidelines"
+          - "Prioritization and roadmap"
+          - "Metrics and reporting"
+      - id: culture_transformation
+        name: "Customer-Centric Culture"
+        covers:
+          - "From product-centric to customer-centric"
+          - "Customer empathy and voice of customer"
+          - "CX training and enablement"
+          - "Incentives and recognition"
+    depth: "Practical and specific. This is where CX transformation lives or dies."
+
+  - id: technology_enablement
+    name: "Technology Enablement"
+    part: 8
+    purpose: "CX technology stack and architecture"
+    subsections:
+      - id: cx_platform_architecture
+        name: "CX Platform Architecture"
+        covers:
+          - "Customer data platform (CDP)"
+          - "Marketing automation and engagement"
+          - "Customer service and support"
+          - "Analytics and insights"
+          - "Integration and orchestration"
+      - id: ai_for_cx
+        name: "AI for Customer Experience"
+        covers:
+          - "Chatbots and virtual assistants"
+          - "Predictive analytics and recommendations"
+          - "Sentiment analysis and voice of customer"
+          - "Automated personalization"
+      - id: build_vs_buy
+        name: "Build vs Buy vs Partner"
+        covers:
+          - "Core capabilities to build"
+          - "Platforms to buy"
+          - "Services to partner"
+          - "Integration strategy"
+    depth: "Specific technology recommendations. Frame as reference architecture."
+
+  - id: risk_analysis
+    name: "Risk Analysis and Mitigation"
+    part: 9
+    purpose: "Comprehensive risk assessment"
+    subsections:
+      - id: cx_risks
+        name: "CX Transformation Risks"
+        covers:
+          - "Implementation complexity"
+          - "Data quality and integration"
+          - "Organizational resistance"
+          - "Customer disruption"
+      - id: competitive_risks
+        name: "Competitive Risks"
+        covers:
+          - "Competitors moving faster"
+          - "Customer expectations rising"
+          - "New entrants with better CX"
+          - "Switching costs eroding"
+      - id: mitigation_strategies
+        name: "Mitigation Strategies"
+        covers:
+          - "Phased approach with gates"
+          - "Pilot-first methodology"
+          - "Change management program"
+          - "Customer co-creation"
+    depth: "Honest about risks. Boards appreciate transparency."
+
+  # =============================================================================
+  # PART B: THE FACILITATION TOOLKIT
+  # =============================================================================
+  
+  - id: board_presentation
+    name: "FACILITATION TOOLKIT: Board Presentation Materials"
+    part: 10
+    purpose: "Ready-to-use board deck outline"
+    covers:
+      - "Slide 1: The CX Imperative (burning platform)"
+      - "Slide 2: Current State vs Target State (experience gap)"
+      - "Slide 3: Recommended CX Posture (vision and principles)"
+      - "Slide 4: Investment and Returns (financial case)"
+      - "Slide 5: CX as Competitive Moat (strategic advantage)"
+      - "Slide 6: Year 1 Roadmap (critical moments)"
+      - "Slide 7: Risk and Mitigation (honest assessment)"
+      - "Slide 8: The Ask (board approval and support)"
+    depth: |
+      Provide the actual slide titles and key messages. Make it easy for CMO to present.
+
+  - id: stakeholder_inception
+    name: "FACILITATION TOOLKIT: Stakeholder Inception Map"
+    part: 10
+    purpose: "Who to incept and how"
+    subsections:
+      - id: cmo_strategy
+        name: "CMO Strategy"
+        covers:
+          - "Frame as growth strategy"
+          - "This is the transformation that drives revenue"
+          - "Make them the hero of the story"
+      - id: cfo_strategy
+        name: "CFO Strategy"
+        covers:
+          - "Lead with financial case and ROI"
+          - "Show retention improvement and LTV expansion"
+          - "Emphasize phased investment with gates"
+      - id: board_strategy
+        name: "Board Strategy"
+        covers:
+          - "Frame as competitive necessity"
+          - "What would have to be true to grow 2x?"
+          - "Cost of poor CX vs cost of transformation"
+      - id: product_engineering_strategy
+        name: "Product/Engineering Strategy"
+        covers:
+          - "Frame as product differentiation"
+          - "CX as feature, not afterthought"
+          - "Make them co-creators of the experience"
+    depth: "Specific inception strategies for each stakeholder type."
+
+  - id: cx_workshop
+    name: "FACILITATION TOOLKIT: CX Transformation Workshop Agenda"
+    part: 10
+    purpose: "Co-creation workshop for CX strategy"
+    covers:
+      - "Phase 1: Customer Empathy (pain mining)"
+      - "Phase 2: Journey Mapping (current state)"
+      - "Phase 3: Experience Visioning (art of possible)"
+      - "Phase 4: Moment Selection (strategic choice)"
+      - "Phase 5: Roadmap Co-Creation (they hold the pen)"
+    depth: |
+      Provide the actual workshop agenda. This is where IKEA Effect happens at strategic level.
+      They co-create the CX strategy, so they own it.
+
+  - id: champion_enablement
+    name: "FACILITATION TOOLKIT: CMO Enablement Materials"
+    part: 10
+    purpose: "Ghostwritten materials for CMO"
+    subsections:
+      - id: board_memo
+        name: "Board Memo Template"
+        covers:
+          - "Subject: Customer Experience Transformation Proposal"
+          - "The Strategic Imperative section"
+          - "Our Recommended Posture section"
+          - "Investment and Returns section"
+          - "The Ask section"
+      - id: all_hands_message
+        name: "All-Hands Message Template"
+        covers:
+          - "Why we're transforming CX"
+          - "What stays the same (our values)"
+          - "What changes (our capabilities)"
+          - "What it means for you"
+      - id: business_case_template
+        name: "Business Case Template"
+        covers:
+          - "Executive summary"
+          - "Problem statement"
+          - "Recommended solution"
+          - "Financial analysis"
+          - "Risk assessment"
+    depth: "Actual templates they can use. Make CMO look like a strategic leader."
+
+  - id: journey_mapping_toolkit
+    name: "FACILITATION TOOLKIT: Journey Mapping Toolkit"
+    part: 10
+    purpose: "Tools for customer journey analysis"
+    covers:
+      - "Journey mapping template"
+      - "Moment of truth identification"
+      - "Pain point prioritization matrix"
+      - "Experience metrics framework"
+    depth: "Practical tools for journey analysis and prioritization."
+
+  - id: next_steps
+    name: "Next Steps (Next 30 Days)"
+    part: 11
+    purpose: "Immediate actions"
+    covers:
+      - "Week 1: CX leadership alignment"
+      - "Week 2: Board presentation preparation"
+      - "Week 3: Board approval meeting"
+      - "Week 4: Transformation kickoff"
+    depth: "Concrete and actionable. Make the first step obvious."

@@ -7,11 +7,11 @@ to verify it correctly identifies articles about the target company
 and rejects articles about different companies with similar names.
 
 Usage:
-    python test_external_source_relevance.py "Company Name" "https://website.com"
+    python tests/manual/test_external_source_relevance.py "Company Name" "https://website.com"
     
 Examples:
-    python test_external_source_relevance.py "Softchoice" "https://www.softchoice.com"
-    python test_external_source_relevance.py "EverTrue" "https://www.evertrue.com"
+    python tests/manual/test_external_source_relevance.py "Softchoice" "https://www.softchoice.com"
+    python tests/manual/test_external_source_relevance.py "EverTrue" "https://www.evertrue.com"
 """
 import sys
 sys.path.insert(0, 'src')

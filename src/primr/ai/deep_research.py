@@ -1227,16 +1227,17 @@ Frame everything as hypotheses to explore, not conclusions."""
         context_files: list[str] | None = None,
     ) -> ResearchResult:
         """
-        Execute deep research with maximum resilience using streaming + reconnection.
+        Execute deep research with maximum resilience using background job + polling.
         
-        This is the PhD-level implementation that:
-        1. Uses streaming instead of polling (more resilient)
-        2. Tracks interaction_id and last_event_id for reconnection
-        3. Automatically reconnects on network failures
-        4. Persists job state for process restart recovery
-        5. Uses exponential backoff on transient errors
+        This is the correct implementation that:
+        1. Starts a background job (runs async on Google's servers)
+        2. Saves the interaction_id for recovery
+        3. Polls for completion with exponential backoff
+        4. Handles transient errors gracefully
+        5. Allows job recovery with `primr --check-jobs`
         
-        Based on Google's recommended resilient pattern from the docs.
+        Deep Research jobs run asynchronously - if connection drops, the job
+        continues running and can be retrieved later.
         
         Args:
             query: The research query/prompt
@@ -1249,7 +1250,7 @@ Frame everything as hypotheses to explore, not conclusions."""
         Returns:
             ResearchResult with content and citations
         """
-        # Pre-flight validation (same as before)
+        # Pre-flight validation
         preflight_errors = []
         if not query or not query.strip():
             preflight_errors.append("Research query cannot be empty")
@@ -1279,255 +1280,82 @@ Frame everything as hypotheses to explore, not conclusions."""
 
         start_time = time.time()
         
-        # State tracking for reconnection
-        interaction_id: str | None = None
-        last_event_id: str | None = None
-        is_complete = False
-        final_content = ""
-        all_thoughts: list[str] = []
+        if on_progress:
+            on_progress(ResearchProgress(
+                status=ResearchStatus.IN_PROGRESS,
+                message="Starting research (background mode)..."
+            ))
         
-        # Reconnection settings
-        max_reconnect_attempts = 10
-        reconnect_attempt = 0
-        base_reconnect_delay = 2.0
-        
-        def process_stream_events(event_stream: Any) -> tuple[bool, str]:
-            """Process events from stream, return (is_complete, content)."""
-            nonlocal interaction_id, last_event_id, is_complete, final_content, all_thoughts
-            
-            content_parts: list[str] = []
-            
-            for event in event_stream:
-                # Capture interaction ID from start event
-                if event.event_type == "interaction.start":
-                    interaction_id = event.interaction.id
-                    logger.info(f"Research started: {interaction_id}")
-                    if on_progress:
-                        on_progress(ResearchProgress(
-                            status=ResearchStatus.IN_PROGRESS,
-                            message=f"Research started (ID: {interaction_id})"
-                        ))
-                    # Save for recovery
-                    save_pending_job(interaction_id, "deep_research", query[:200])
-                
-                # Track event ID for reconnection
-                if hasattr(event, 'event_id') and event.event_id:
-                    last_event_id = event.event_id
-                
-                # Handle content deltas
-                if event.event_type == "content.delta":
-                    if hasattr(event.delta, 'type'):
-                        if event.delta.type == "text":
-                            text = event.delta.text
-                            content_parts.append(text)
-                            if on_progress:
-                                # Show progress periodically
-                                elapsed = time.time() - start_time
-                                mins = int(elapsed // 60)
-                                secs = int(elapsed % 60)
-                                on_progress(ResearchProgress(
-                                    status=ResearchStatus.IN_PROGRESS,
-                                    message=f"Receiving content ({mins}m {secs}s)...",
-                                    partial_result=text[:100] if len(text) > 100 else text
-                                ))
-                        elif event.delta.type == "thought_summary":
-                            thought = event.delta.content.text
-                            all_thoughts.append(thought)
-                            if on_progress:
-                                on_progress(ResearchProgress(
-                                    status=ResearchStatus.IN_PROGRESS,
-                                    thought=thought
-                                ))
-                
-                # Handle completion
-                if event.event_type == "interaction.complete":
-                    is_complete = True
-                    final_content = ''.join(content_parts)
-                    if interaction_id:
-                        remove_pending_job(interaction_id)
-                    return True, final_content
-                
-                # Handle errors - gateway_timeout is recoverable via reconnection
-                if event.event_type == "error":
-                    error_obj = getattr(event, 'error', None)
-                    error_code = getattr(error_obj, 'code', '') if error_obj else ''
-                    error_message = getattr(error_obj, 'message', str(event)) if error_obj else str(event)
-                    
-                    # gateway_timeout is expected and recoverable - log at debug level
-                    if error_code == 'gateway_timeout':
-                        logger.debug(f"Gateway timeout (expected, will reconnect): {error_message}")
-                        if on_progress:
-                            on_progress(ResearchProgress(
-                                status=ResearchStatus.IN_PROGRESS,
-                                message="Connection timeout, reconnecting..."
-                            ))
-                        return False, ''.join(content_parts)
-                    
-                    # Other errors - log at warning level, still try reconnection
-                    logger.warning(f"Stream error: code={error_code}, message={error_message}")
-                    if on_progress:
-                        on_progress(ResearchProgress(
-                            status=ResearchStatus.IN_PROGRESS,
-                            message=f"Stream error ({error_code}), retrying..."
-                        ))
-                    return False, ''.join(content_parts)
-            
-            return is_complete, ''.join(content_parts)
-        
-        # Initial streaming request
+        # Start background job (NO streaming - job runs async on Google's servers)
         try:
+            interaction = self._start_research(prompt, file_store_name=file_store_name)
+            interaction_id = interaction.id
+            logger.info(f"Research started: {interaction_id}")
+            
+            # Save job for recovery
+            save_pending_job(
+                interaction_id=interaction_id,
+                job_type="deep_research",
+                description=query[:200]
+            )
+            
             if on_progress:
                 on_progress(ResearchProgress(
                     status=ResearchStatus.IN_PROGRESS,
-                    message="Starting research (streaming mode)..."
+                    message=f"Research started (ID: {interaction_id})"
                 ))
-            
-            # Build tools for initial request
-            tools: list[dict[str, Any]] = []
-            if file_store_name:
-                tools.append({
-                    "type": "file_search",
-                    "file_search_store_names": [file_store_name]
-                })
-            
-            create_kwargs: dict[str, Any] = {
-                "input": prompt,
-                "agent": self.AGENT_ID,
-                "background": True,
-                "stream": True,
-                "agent_config": {
-                    "type": "deep-research",
-                    "thinking_summaries": "auto"
-                }
-            }
-            if tools:
-                create_kwargs["tools"] = tools
-            
-            initial_stream = self._client.interactions.create(**create_kwargs)
-            is_complete, content = process_stream_events(initial_stream)
-            
-            if is_complete:
-                return ResearchResult(
-                    content=content,
-                    citations=self._extract_citations_from_text(content),
-                    interaction_id=interaction_id or "",
-                    duration_seconds=time.time() - start_time,
-                    status=ResearchStatus.COMPLETED,
-                )
-                
         except Exception as e:
-            logger.warning(f"Initial stream connection dropped: {e}")
-            if on_progress:
-                on_progress(ResearchProgress(
-                    status=ResearchStatus.IN_PROGRESS,
-                    message=f"Connection interrupted, will reconnect..."
-                ))
+            raise AIError(f"Failed to start research: {e}", model=self.AGENT_ID, cause=e) from e
         
-        # Reconnection loop
-        while not is_complete and interaction_id and reconnect_attempt < max_reconnect_attempts:
+        # Poll for completion with exponential backoff
+        poll_attempt = 0
+        max_poll_errors = 5
+        consecutive_errors = 0
+        base_poll_interval = 10.0  # Start with 10s
+        
+        while True:
             elapsed = time.time() - start_time
             if elapsed > timeout:
-                raise AIError(f"Research timed out after {elapsed:.0f}s", model=self.AGENT_ID)
-            
-            reconnect_attempt += 1
-            # Use longer delays for gateway_timeout - the server needs time to recover
-            delay = base_reconnect_delay * (2 ** min(reconnect_attempt - 1, 4))  # Cap exponential at 16x
-            delay = min(delay, 60)  # Cap at 60 seconds
-            
-            logger.info(f"Reconnecting (attempt {reconnect_attempt}/{max_reconnect_attempts}) in {delay:.0f}s...")
-            if on_progress:
-                on_progress(ResearchProgress(
+                logger.warning(f"Research polling timed out after {elapsed:.0f}s")
+                if on_progress:
+                    on_progress(ResearchProgress(
+                        status=ResearchStatus.IN_PROGRESS,
+                        message=f"Still running after {elapsed:.0f}s. Check later with: primr --check-jobs"
+                    ))
+                # Don't remove from pending jobs - it may still complete
+                return ResearchResult(
+                    content="",
+                    interaction_id=interaction_id,
+                    duration_seconds=elapsed,
                     status=ResearchStatus.IN_PROGRESS,
-                    message=f"Reconnecting ({reconnect_attempt}/{max_reconnect_attempts})..."
-                ))
-            
-            # Check completion status periodically during the wait (every 10s for long waits)
-            wait_start = time.time()
-            while time.time() - wait_start < delay:
-                await asyncio.sleep(min(10, delay - (time.time() - wait_start)))
-                
-                # Check if completed during wait
-                try:
-                    interaction = self._get_interaction(interaction_id)
-                    if interaction.status == "completed":
-                        content = self._extract_content(interaction)
-                        citations = self._extract_citations(interaction)
-                        search_count = self._extract_search_queries_count(interaction)
-                        remove_pending_job(interaction_id)
-                        logger.info(f"Research completed during wait, {search_count} searches")
-                        return ResearchResult(
-                            content=content,
-                            citations=citations,
-                            interaction_id=interaction_id,
-                            duration_seconds=time.time() - start_time,
-                            status=ResearchStatus.COMPLETED,
-                            search_queries_count=search_count,
-                        )
-                    elif interaction.status == "failed":
-                        error_msg = getattr(interaction, 'error', 'Unknown error')
-                        remove_pending_job(interaction_id)
-                        return ResearchResult(
-                            content="",
-                            interaction_id=interaction_id,
-                            duration_seconds=time.time() - start_time,
-                            status=ResearchStatus.FAILED,
-                            error=str(error_msg),
-                        )
-                except Exception as e:
-                    logger.debug(f"Status check during wait failed: {e}")
-            
-            try:
-                # Resume stream using interaction.get with last_event_id
-                get_kwargs: dict[str, Any] = {
-                    "id": interaction_id,
-                    "stream": True,
-                }
-                if last_event_id:
-                    get_kwargs["last_event_id"] = last_event_id
-                
-                resume_stream = self._client.interactions.get(**get_kwargs)
-                is_complete, content = process_stream_events(resume_stream)
-                
-                if is_complete:
-                    return ResearchResult(
-                        content=content,
-                        citations=self._extract_citations_from_text(content),
-                        interaction_id=interaction_id,
-                        duration_seconds=time.time() - start_time,
-                        status=ResearchStatus.COMPLETED,
-                    )
-                    
-                # Successful stream connection (even if not complete) - reduce reconnect counter
-                reconnect_attempt = max(0, reconnect_attempt - 1)
-                
-            except Exception as e:
-                error_str = str(e).lower()
-                # Check if this is a transient error that warrants retry
-                is_transient = (
-                    'gateway_timeout' in error_str or
-                    'deadline expired' in error_str or
-                    '500' in error_str or
-                    '503' in error_str or
-                    'internal' in error_str or
-                    'connection' in error_str or
-                    'timeout' in error_str
+                    error=f"Polling timed out after {elapsed:.0f}s. Job may still be running. Use 'primr --check-jobs' to check status."
                 )
-                if is_transient:
-                    logger.warning(f"Reconnection attempt {reconnect_attempt} failed (transient): {e}")
-                else:
-                    logger.error(f"Reconnection attempt {reconnect_attempt} failed (non-transient): {e}")
-                # Continue to next attempt
-        
-        # If we get here, we've exhausted reconnection attempts
-        # Try one final poll-based check
-        if interaction_id:
+            
+            # Calculate adaptive poll interval
+            poll_attempt += 1
+            if elapsed < 60:
+                poll_interval = 5.0  # First minute: poll every 5s
+            elif elapsed < 300:
+                poll_interval = 10.0  # 1-5 minutes: poll every 10s
+            else:
+                poll_interval = 20.0  # After 5 minutes: poll every 20s
+            
+            # Wait before polling
+            await asyncio.sleep(poll_interval)
+            
+            # Poll for status
             try:
                 interaction = self._get_interaction(interaction_id)
-                if interaction.status == "completed":
+                status = interaction.status
+                consecutive_errors = 0  # Reset on success
+                
+                if status == "completed":
                     content = self._extract_content(interaction)
                     citations = self._extract_citations(interaction)
                     search_count = self._extract_search_queries_count(interaction)
                     remove_pending_job(interaction_id)
+                    
+                    logger.info(f"Research completed in {time.time() - start_time:.0f}s, {search_count} searches")
                     return ResearchResult(
                         content=content,
                         citations=citations,
@@ -1536,9 +1364,11 @@ Frame everything as hypotheses to explore, not conclusions."""
                         status=ResearchStatus.COMPLETED,
                         search_queries_count=search_count,
                     )
-                elif interaction.status == "failed":
+                
+                elif status == "failed":
                     error_msg = getattr(interaction, 'error', 'Unknown error')
                     remove_pending_job(interaction_id)
+                    logger.error(f"Research failed: {error_msg}")
                     return ResearchResult(
                         content="",
                         interaction_id=interaction_id,
@@ -1546,18 +1376,42 @@ Frame everything as hypotheses to explore, not conclusions."""
                         status=ResearchStatus.FAILED,
                         error=str(error_msg),
                     )
+                
+                # Still in progress - show periodic updates
+                if on_progress and poll_attempt % 6 == 0:  # Every ~60s
+                    mins = int(elapsed // 60)
+                    secs = int(elapsed % 60)
+                    time_str = f"{mins}m {secs}s" if mins > 0 else f"{secs}s"
+                    on_progress(ResearchProgress(
+                        status=ResearchStatus.IN_PROGRESS,
+                        message=f"Research in progress ({time_str})..."
+                    ))
+                
             except Exception as e:
-                logger.error(f"Final status check failed: {e}")
-        
-        
-        # Complete failure
-        return ResearchResult(
-            content=final_content,  # Return any partial content we got
-            interaction_id=interaction_id or "",
-            duration_seconds=time.time() - start_time,
-            status=ResearchStatus.FAILED,
-            error=f"Research failed after {max_reconnect_attempts} reconnection attempts",
-        )
+                consecutive_errors += 1
+                error_str = str(e).lower()
+                is_transient = (
+                    '500' in error_str or
+                    '503' in error_str or
+                    'internal' in error_str or
+                    'connection' in error_str or
+                    'timeout' in error_str
+                )
+                
+                if is_transient and consecutive_errors < max_poll_errors:
+                    wait_time = 10 * consecutive_errors
+                    logger.warning(f"Transient polling error (attempt {consecutive_errors}/{max_poll_errors}), waiting {wait_time}s: {e}")
+                    if on_progress:
+                        on_progress(ResearchProgress(
+                            status=ResearchStatus.IN_PROGRESS,
+                            message=f"API hiccup, retrying in {wait_time}s..."
+                        ))
+                    await asyncio.sleep(wait_time)
+                    continue
+                else:
+                    # Non-transient or too many failures
+                    logger.error(f"Polling failed after {consecutive_errors} attempts: {e}")
+                    raise AIError(f"Failed to poll research status: {e}", model=self.AGENT_ID, cause=e) from e
     
     def _extract_citations_from_text(self, content: str) -> list[dict[str, str]]:
         """Extract citations from text content (for streaming results)."""

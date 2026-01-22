@@ -786,12 +786,33 @@ def perform_research(
     strategy_only: bool = False,
     no_qa: bool = False,
     max_scrape_time: int | None = None,
+    discovery_notes_path: str | None = None,
 ) -> str | None:
     if not company_name and not website:
         console.error("No company name or website provided")
         return None
 
     display_name: str = company_name or (urlparse(website or "").netloc if website else "")
+
+    # Load discovery notes if provided
+    discovery_notes_content: str | None = None
+    if discovery_notes_path:
+        try:
+            with open(discovery_notes_path, 'r', encoding='utf-8') as f:
+                discovery_notes_content = f.read().strip()
+            if discovery_notes_content:
+                logger.info(f"Loaded discovery notes from {discovery_notes_path}")
+            else:
+                logger.warning(f"Discovery notes file is empty: {discovery_notes_path}")
+                discovery_notes_content = None
+        except FileNotFoundError:
+            logger.error(f"Discovery notes file not found: {discovery_notes_path}")
+            console.error(f"Discovery notes file not found: {discovery_notes_path}")
+            return None
+        except Exception as e:
+            logger.error(f"Failed to load discovery notes: {e}")
+            console.error(f"Failed to load discovery notes: {e}")
+            return None
 
     # Show cost estimate and ask for confirmation
     if not skip_confirm:
@@ -815,7 +836,9 @@ def perform_research(
             return perform_deep_research(
                 company_name, website, mode, start_time, citation_style,
                 ai_strategy, cloud_vendor, context_files, refresh_vendor_research,
-                strategies=strategies, strategy_only=strategy_only
+                strategies=strategies, strategy_only=strategy_only,
+                discovery_notes_path=discovery_notes_path,
+                discovery_notes_content=discovery_notes_content
             )
 
         folder_path = create_working_folder(company_name, website)
@@ -945,7 +968,8 @@ def perform_research(
                     company_name or display_name,
                     cloud_vendor,
                     company_research_path=context_file,
-                    force_refresh_vendor=refresh_vendor_research
+                    force_refresh_vendor=refresh_vendor_research,
+                    discovery_notes_content=discovery_notes_content
                 )
                 if ai_strategy_path:
                     console.phase_complete("AI Strategy Analysis")
@@ -1074,6 +1098,8 @@ def perform_deep_research(
     refresh_vendor_research: bool = False,
     strategies: list[str] | None = None,
     strategy_only: bool = False,
+    discovery_notes_path: str | None = None,
+    discovery_notes_content: str | None = None,
 ) -> str | None:
     """
     Perform research using Deep Research Agent, Complete, or Hybrid mode.
@@ -1090,6 +1116,8 @@ def perform_deep_research(
         refresh_vendor_research: If True, force regenerate vendor research
         strategies: List of strategy module names to generate (e.g., ['ai', 'cloud'])
         strategy_only: If True, skip company overview and only run strategies
+        discovery_notes_path: Path to discovery notes file (for logging/tracking)
+        discovery_notes_content: Loaded content of discovery notes (freeform meeting insights)
     """
     display_name: str = company_name or (urlparse(website or "").netloc if website else "")
 
@@ -1878,7 +1906,8 @@ def _generate_strategy_section(
     company_name: str,
     cloud_vendor: str,
     company_research_path: str | None = None,
-    force_refresh_vendor: bool = False
+    force_refresh_vendor: bool = False,
+    discovery_notes_content: str | None = None
 ) -> str | None:
     """
     Generate a strategy document using Deep Research.
@@ -1887,23 +1916,42 @@ def _generate_strategy_section(
     defined in the strategies/ directory.
 
     Args:
-        strategy_name: Name of the strategy module (e.g., 'ai', 'cloud_migration', 'data')
+        strategy_name: Name of the strategy module (e.g., 'ai', 'customer_experience', 'modern_security_compliance', 'data_fabric_strategy')
         company_name: Name of the company
         cloud_vendor: Cloud vendor preference (azure, aws, gcp, agnostic)
         company_research_path: Path to company research markdown (used as context)
         force_refresh_vendor: If True, regenerate vendor research even if current
+        discovery_notes_content: Optional freeform meeting insights from discovery
 
     Returns:
         Path to the generated DOCX file, or None if generation failed
     """
-    # For now, delegate to the specific AI strategy function for 'ai'
-    # Other strategies will be implemented as the placeholder YAMLs are fleshed out
+    # Map strategy names to their YAML files and generation functions
+    strategy_map = {
+        "ai": "ai_first_transformation",
+        "customer_experience": "customer_experience",
+        "modern_security_compliance": "modern_security_compliance",
+        "data_fabric_strategy": "data_fabric_strategy",
+    }
+    
+    # Handle AI strategy separately (has vendor research)
     if strategy_name == "ai":
         return _generate_ai_strategy_section(
             company_name=company_name,
             cloud_vendor=cloud_vendor,
             company_research_path=company_research_path,
-            force_refresh_vendor=force_refresh_vendor
+            force_refresh_vendor=force_refresh_vendor,
+            discovery_notes_content=discovery_notes_content
+        )
+    
+    # Handle other fully-defined strategies
+    if strategy_name in strategy_map:
+        return _generate_generic_strategy(
+            strategy_name=strategy_name,
+            strategy_yaml=strategy_map[strategy_name],
+            company_name=company_name,
+            company_research_path=company_research_path,
+            discovery_notes_content=discovery_notes_content
         )
     
     # For placeholder strategies, show a message
@@ -1931,11 +1979,312 @@ def _generate_strategy_section(
     return None
 
 
+def _generate_generic_strategy(
+    strategy_name: str,
+    strategy_yaml: str,
+    company_name: str,
+    company_research_path: str | None = None,
+    discovery_notes_content: str | None = None
+) -> str | None:
+    """
+    Generate a strategy document using Deep Research and the strategy YAML definition.
+    
+    This is the generic implementation for CX, Security, Data Fabric, and future strategies.
+    
+    Args:
+        strategy_name: Internal strategy name (e.g., 'customer_experience')
+        strategy_yaml: YAML filename (e.g., 'customer_experience')
+        company_name: Name of the company
+        company_research_path: Path to company research markdown (used as context)
+        discovery_notes_content: Optional freeform meeting insights from discovery
+    
+    Returns:
+        Path to the generated DOCX file, or None if generation failed
+    """
+    from datetime import datetime
+    from pathlib import Path
+    import yaml
+    
+    from primr.ai.deep_research import ResearchStatus, get_deep_research_client
+    from primr.config.settings import get_settings
+    from primr.output.markdown_converter import markdown_to_docx
+    from primr.output.output_utils import OUTPUT_DIR
+    
+    # Load strategy YAML to get metadata
+    strategy_yaml_path = Path(__file__).parent.parent / "prompts" / "strategies" / f"{strategy_yaml}.yaml"
+    if not strategy_yaml_path.exists():
+        console.error(f"Strategy YAML not found: {strategy_yaml_path}")
+        return None
+    
+    with open(strategy_yaml_path, encoding="utf-8") as f:
+        strategy_config = yaml.safe_load(f)
+    
+    meta = strategy_config.get("meta", {})
+    strategy_display_name = meta.get("name", strategy_name)
+    
+    # =================================================================
+    # PRE-FLIGHT VALIDATION
+    # =================================================================
+    preflight_errors = []
+    
+    if not company_name or not company_name.strip():
+        preflight_errors.append("Company name is required for strategy generation")
+    
+    settings = get_settings()
+    if not settings.api.gemini_key:
+        preflight_errors.append("GEMINI_API_KEY not configured in .env")
+    
+    if company_research_path:
+        if not os.path.exists(company_research_path):
+            preflight_errors.append(f"Company research file not found: {company_research_path}")
+        elif os.path.getsize(company_research_path) == 0:
+            preflight_errors.append(f"Company research file is empty: {company_research_path}")
+    
+    try:
+        os.makedirs(OUTPUT_DIR, exist_ok=True)
+        test_file = os.path.join(OUTPUT_DIR, ".write_test")
+        with open(test_file, "w") as f:
+            f.write("test")
+        os.remove(test_file)
+    except Exception as e:
+        preflight_errors.append(f"Output directory not writable: {OUTPUT_DIR} ({e})")
+    
+    if preflight_errors:
+        console.error("Pre-flight validation failed:")
+        for err in preflight_errors:
+            console.error(f"  - {err}")
+        return None
+    
+    console.info("Pre-flight checks passed")
+    # =================================================================
+    
+    try:
+        # Build the strategy prompt from YAML
+        prompt = _build_strategy_prompt_from_yaml(
+            strategy_config=strategy_config,
+            company_name=company_name,
+            discovery_notes_content=discovery_notes_content
+        )
+        
+        # Prepare context files
+        context_files = []
+        if company_research_path and os.path.exists(company_research_path):
+            context_files.append(company_research_path)
+            console.info("Using Strategic Overview as context")
+        
+        # Run Deep Research
+        client = get_deep_research_client()
+        
+        def progress_callback(progress):
+            if progress.message:
+                console.info(f"{strategy_display_name}: {progress.message}")
+        
+        # Create event loop if needed
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        
+        result = loop.run_until_complete(
+            client.research(
+                query=prompt,
+                output_format=None,
+                on_progress=progress_callback,
+                context_files=context_files if context_files else None,
+                timeout=1800  # 30 min timeout
+            )
+        )
+        
+        if result.status != ResearchStatus.COMPLETED or not result.content:
+            console.error(f"{strategy_display_name} research failed")
+            return None
+        
+        # Track usage
+        output_tokens = len(result.content) // 4
+        input_tokens = 50_000  # Estimated
+        
+        from primr.utils.usage_tracker import get_usage_tracker
+        tracker = get_usage_tracker()
+        tracker.record_usage(
+            mode=f"strategy-{strategy_name}",
+            company=company_name,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            duration_seconds=result.duration_seconds,
+        )
+        
+        # Generate output files
+        date_str = datetime.now().strftime("%m-%d-%Y")
+        output_filename = meta.get("output_filename", f"{{company_name}}_{strategy_name}")
+        base_name = output_filename.format(company_name=company_name) + f"_{date_str}"
+        
+        # Save markdown
+        md_path = os.path.join(OUTPUT_DIR, f"{base_name}.md")
+        with open(md_path, "w", encoding="utf-8") as f:
+            f.write(result.content)
+        console.ok(f"{strategy_display_name} MD: {base_name}.md", show_time=False)
+        
+        # Save plain text
+        txt_path = os.path.join(OUTPUT_DIR, f"{base_name}.txt")
+        with open(txt_path, "w", encoding="utf-8") as f:
+            f.write(result.content)
+        console.ok(f"{strategy_display_name} TXT: {base_name}.txt", show_time=False)
+        
+        # Convert to DOCX
+        docx_path = os.path.join(OUTPUT_DIR, f"{base_name}.docx")
+        try:
+            subtitle = datetime.now().strftime("%B %d, %Y")
+            markdown_to_docx(
+                markdown_text=result.content,
+                output_path=Path(docx_path),
+                title=f"{strategy_display_name}: {company_name}",
+                subtitle=subtitle
+            )
+            console.ok(f"{strategy_display_name} DOCX: {base_name}.docx", show_time=False)
+        except PermissionError:
+            timestamp = datetime.now().strftime("%H%M%S")
+            docx_path = os.path.join(OUTPUT_DIR, f"{base_name}_{timestamp}.docx")
+            console.warn(f"Original file locked, saving as: {base_name}_{timestamp}.docx")
+            markdown_to_docx(
+                markdown_text=result.content,
+                output_path=Path(docx_path),
+                title=f"{strategy_display_name}: {company_name}",
+                subtitle=subtitle
+            )
+        except Exception as e:
+            console.warn(f"DOCX conversion failed: {e}")
+            docx_path = md_path
+        
+        return docx_path
+    
+    except Exception as e:
+        console.error(f"{strategy_display_name} generation failed: {e}")
+        logger.exception(f"{strategy_display_name} error")
+        return None
+
+
+def _build_strategy_prompt_from_yaml(
+    strategy_config: dict,
+    company_name: str,
+    discovery_notes_content: str | None = None
+) -> str:
+    """
+    Build a Deep Research prompt from a strategy YAML configuration.
+    
+    This reads the YAML structure and generates a comprehensive prompt that
+    instructs Deep Research to produce the strategy document.
+    
+    Args:
+        strategy_config: Parsed YAML configuration
+        company_name: Name of the company
+        discovery_notes_content: Optional freeform meeting insights
+    
+    Returns:
+        Formatted prompt string for Deep Research
+    """
+    from datetime import datetime
+    current_date = datetime.now().strftime("%B %Y")
+    
+    meta = strategy_config.get("meta", {})
+    strategy_name = meta.get("name", "Strategy Document")
+    
+    # Build the prompt
+    prompt_parts = []
+    
+    # Header
+    prompt_parts.append(f"# {strategy_name} for {company_name}")
+    prompt_parts.append(f"Date: {current_date}\n")
+    
+    # Document purpose
+    if "document_purpose" in strategy_config:
+        prompt_parts.append("## YOUR ROLE AND TASK")
+        prompt_parts.append(strategy_config["document_purpose"])
+        prompt_parts.append("")
+    
+    # Context instructions
+    if "context_instructions" in strategy_config:
+        prompt_parts.append("## HOW TO USE CONTEXT")
+        prompt_parts.append(strategy_config["context_instructions"])
+        prompt_parts.append("")
+    
+    # Writing standards
+    if "writing_standards" in strategy_config:
+        prompt_parts.append("## WRITING QUALITY STANDARDS")
+        prompt_parts.append(strategy_config["writing_standards"])
+        prompt_parts.append("")
+    
+    # Epistemic rules
+    if "epistemic_rules" in strategy_config:
+        prompt_parts.append("## EPISTEMIC RULES (CRITICAL)")
+        epistemic = strategy_config["epistemic_rules"]
+        for rule_name, rule_text in epistemic.items():
+            prompt_parts.append(f"### {rule_name.replace('_', ' ').title()}")
+            prompt_parts.append(rule_text)
+            prompt_parts.append("")
+    
+    # Discovery notes if provided
+    if discovery_notes_content:
+        prompt_parts.append("## DISCOVERY NOTES (INTERNAL INSIGHTS)")
+        prompt_parts.append("You have access to internal discovery notes from conversations with the company.")
+        prompt_parts.append("Use these to ground your recommendations in their actual situation:")
+        prompt_parts.append("")
+        prompt_parts.append(discovery_notes_content)
+        prompt_parts.append("")
+    
+    # Sections structure
+    if "sections" in strategy_config:
+        prompt_parts.append("## DOCUMENT STRUCTURE")
+        prompt_parts.append("Generate a comprehensive strategy document with the following sections:\n")
+        
+        for section in strategy_config["sections"]:
+            section_name = section.get("name", "Untitled Section")
+            section_purpose = section.get("purpose", "")
+            section_depth = section.get("depth", "")
+            
+            prompt_parts.append(f"### {section_name}")
+            if section_purpose:
+                prompt_parts.append(f"**Purpose**: {section_purpose}")
+            
+            if "covers" in section:
+                prompt_parts.append("**Covers**:")
+                for item in section["covers"]:
+                    prompt_parts.append(f"- {item}")
+            
+            if "subsections" in section:
+                for subsection in section["subsections"]:
+                    subsection_name = subsection.get("name", "")
+                    prompt_parts.append(f"\n#### {subsection_name}")
+                    if "covers" in subsection:
+                        for item in subsection["covers"]:
+                            prompt_parts.append(f"- {item}")
+            
+            if section_depth:
+                prompt_parts.append(f"\n**Depth Guidance**: {section_depth}")
+            
+            prompt_parts.append("")
+    
+    # Final instructions
+    prompt_parts.append("## FINAL INSTRUCTIONS")
+    prompt_parts.append(f"Generate a comprehensive {strategy_name} for {company_name}.")
+    prompt_parts.append("Follow ALL the rules above, especially:")
+    prompt_parts.append("- Use the Strategic Overview from File Search Store as PRIMARY source")
+    prompt_parts.append("- Frame assessments as hypotheses to validate, not facts")
+    prompt_parts.append("- Connect every recommendation to THIS company's specific situation")
+    prompt_parts.append("- Include the Facilitation Toolkit sections (board presentation, stakeholder inception, workshop design)")
+    prompt_parts.append("- Be specific, honest, and actionable")
+    prompt_parts.append("")
+    prompt_parts.append("Begin the document now.")
+    
+    return "\n".join(prompt_parts)
+
+
 def _generate_ai_strategy_section(
     company_name: str,
     cloud_vendor: str,
     company_research_path: str | None = None,
-    force_refresh_vendor: bool = False
+    force_refresh_vendor: bool = False,
+    discovery_notes_content: str | None = None
 ) -> str | None:
     """
     Generate AI strategy using Deep Research for board-level analysis.
@@ -1954,6 +2303,7 @@ def _generate_ai_strategy_section(
         cloud_vendor: Cloud vendor preference (azure, aws, gcp)
         company_research_path: Path to company research markdown (used as context)
         force_refresh_vendor: If True, regenerate vendor research even if current
+        discovery_notes_content: Optional freeform meeting insights from discovery
 
     Returns:
         Path to the generated DOCX file, or None if generation failed
@@ -2014,7 +2364,7 @@ def _generate_ai_strategy_section(
 
     try:
         # Build the AI Strategy prompt
-        prompt = _build_ai_strategy_prompt(company_name, cloud_vendor)
+        prompt = _build_ai_strategy_prompt(company_name, cloud_vendor, discovery_notes_content)
 
         # Prepare context files if we have company research
         context_files = []
@@ -2144,7 +2494,11 @@ def _generate_ai_strategy_section(
         return None
 
 
-def _build_ai_strategy_prompt(company_name: str, cloud_vendor: str) -> str:
+def _build_ai_strategy_prompt(
+    company_name: str,
+    cloud_vendor: str,
+    discovery_notes_content: str | None = None
+) -> str:
     """
     Build a Deep Research prompt for board-level AI strategy.
 
@@ -2160,6 +2514,11 @@ def _build_ai_strategy_prompt(company_name: str, cloud_vendor: str) -> str:
     - Organizational structure (AI Practice Group)
     - Explicit deprioritization (what NOT to do)
     - Failure and experimentation model
+    
+    Args:
+        company_name: Name of the company
+        cloud_vendor: Cloud vendor preference (azure, aws, gcp, agnostic)
+        discovery_notes_content: Optional freeform meeting insights from discovery
     """
     from datetime import datetime
     current_date = datetime.now().strftime("%B %Y")

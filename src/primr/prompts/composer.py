@@ -312,6 +312,21 @@ class PromptComposer:
             lines.append(persona.strip())
             lines.append("")
 
+        # Add current date context (CRITICAL for LLMs to understand temporal context)
+        current_date = context.current_date or datetime.now().strftime("%B %d, %Y")
+        current_year = datetime.now().year
+        current_month_year = datetime.now().strftime("%B %Y")
+        lines.extend([
+            "=" * 77,
+            "CURRENT DATE CONTEXT",
+            "=" * 77,
+            "",
+            f"REMINDER: It is {current_month_year}. Please use the latest insights and technologies for NOW and the NEAR FUTURE.",
+            "",
+            f"You are operating in {current_year}, not in your training data timeframe. When you see '{current_year}' or '{current_year + 1}', these are CURRENT or NEAR-FUTURE, not distant future.",
+            "",
+        ])
+
         # Add document purpose
         if config.document_purpose:
             lines.extend([
@@ -342,6 +357,22 @@ class PromptComposer:
                 "- Use the File Search Store context as authoritative for company facts",
                 "- Use web search for external market context and validation",
                 "- When internal data conflicts with web data, prefer internal data for company-specific facts",
+                "",
+            ])
+
+        # Add discovery notes if provided
+        if context.discovery_notes_content:
+            lines.extend([
+                "=" * 77,
+                "DISCOVERY INSIGHTS (FROM MEETINGS)",
+                "=" * 77,
+                "",
+                "The following insights were captured from discovery meetings with this company.",
+                "Use these as PRIMARY SOURCE for internal state, tech stack, and priorities.",
+                "",
+                "NOTES ARE FREEFORM - extract what's relevant for this strategy.",
+                "",
+                context.discovery_notes_content.strip(),
                 "",
             ])
 

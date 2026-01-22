@@ -96,10 +96,10 @@ class Console:
         
         # Symbols
         if self._caps.supports_unicode:
-            self._check = "✓"
-            self._cross = "✗"
-            self._arrow = "→"
-            self._dot = "·"
+            self._check = "+"
+            self._cross = "x"
+            self._arrow = "->"
+            self._dot = "*"
         else:
             self._check = "+"
             self._cross = "x"

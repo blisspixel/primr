@@ -78,7 +78,16 @@ def make_request(
     
     Raises:
         requests.RequestException: On network errors
+        ValueError: If URL fails SSRF validation
     """
+    from primr.utils.validators import validate_url_for_request
+    
+    # SSRF protection
+    is_valid, normalized_url, error = validate_url_for_request(url)
+    if not is_valid:
+        raise ValueError(f"Invalid URL: {error}")
+    
+    url = normalized_url
     default_headers = get_default_headers(profile)
     
     if headers:
@@ -115,6 +124,16 @@ def head_exists(
     Returns:
         True if URL exists (2xx or 3xx status), False otherwise
     """
+    from primr.utils.validators import validate_url_for_request
+    
+    # SSRF protection
+    is_valid, normalized_url, error = validate_url_for_request(url)
+    if not is_valid:
+        logger.debug(f"URL validation failed for {url}: {error}")
+        return False
+    
+    url = normalized_url
+    
     try:
         response = make_request(
             url=url,

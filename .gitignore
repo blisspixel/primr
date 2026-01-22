@@ -221,3 +221,4 @@ logs/
 archive/
 /docs/research
 /docs/documentation
+.bandit

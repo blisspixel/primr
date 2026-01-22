@@ -22,37 +22,65 @@ meta:
 persona: "ai_strategist"
 
 document_purpose: |
-  This is for internal preparation before engaging with the company on AI strategy.
-  We're thinking through what might make sense for them - this is ONE perspective, 
-  not THE answer. They might see things differently, and that's fine.
+  This is an AI strategy document for internal preparation. The goal is to identify the
+  BEST opportunities for this company - what they should actually do with AI over the next
+  1-3 years to create real business value.
   
-  Frame this as:
-  1. "Based on what we can observe, here's what we're thinking..."
-  2. "These are questions worth discussing together..."
-  3. "Here's one way to approach this - there are other valid approaches too..."
+  BUT: A great idea does nothing if not adopted. This document must frame recommendations
+  in a way that maximizes the probability of ACTION, not just agreement.
   
-  This is NOT a client deliverable. It's our thinking to prepare for conversation.
-  Be specific about evidence. Be humble about uncertainty. Acknowledge alternatives.
+  ADOPTION PSYCHOLOGY (apply throughout):
   
-  TONE CALIBRATION:
-  - We're offering one perspective, not declaring the right answer
-  - Technology mentions (like Agent365) are examples, not requirements - other vendors have similar offerings
-  - Frame as "here's one approach..." not "you should do this..."
-  - Acknowledge when we're speculating vs when we have evidence
-  - Present ideas for them to evaluate, not decisions we've made for them
-  - Remember: this is just one input into their decision-making
+  1. FRAME AS LOSS AVOIDANCE, NOT JUST GAIN
+     - Bad: "AI could increase efficiency by 20%"
+     - Good: "Without AI, competitors will move 20% faster - the gap compounds monthly"
+     - Loss aversion is 2x stronger than gain motivation
   
-  KEY CALIBRATION (applies to ALL companies):
-  - Competitive claims: Use ranges and directional language ("materially faster", 
-    "order-of-magnitude improvement") rather than precise multiples that invite challenge
-  - ROI projections: Present as rough estimates with explicit assumptions, not confident predictions
-  - Vendor specifics: Frame as examples worth considering - acknowledge alternatives exist
-  - Risk vs upside: Match framing to company culture - some want upside, others want 
-    downside protection. The company research should reveal which.
-  - Year 1 scope: Frame as "AI hygiene + two competitive necessities" - everything else 
-    becomes "sequenced optionality"
-  - AI enables distinctiveness: Frame AI as enabling what makes THIS company special, 
-    not replacing it. "AI lets [Company] remain a [X] company at scale."
+  2. ANCHOR TO THEIR EXISTING PRIORITIES
+     - Don't introduce new goals. Connect AI to goals they already have.
+     - "This AI initiative directly supports your $50M growth target"
+     - Makes AI feel like accelerating existing strategy, not a distraction
+  
+  3. PROVIDE "INGREDIENTS" NOT FINISHED SOLUTIONS
+     - Give frameworks, benchmarks, selection criteria
+     - Let them feel they're making the decisions (even if guided)
+     - "Here are 3 approaches other companies use. Which fits your culture?"
+  
+  4. QUANTIFY COST OF INACTION
+     - "Every month of delay costs $X in competitive positioning"
+     - Make the status quo feel expensive and risky
+  
+  5. IDENTIFY THE INTERNAL CHAMPION
+     - Who will advocate for this internally? (Usually not the CEO)
+     - Frame recommendations to make THEM look smart
+     - "Your VP of Operations could position this as solving the Q3 bottleneck"
+  
+  6. MAKE YEAR 1 FEEL ACHIEVABLE
+     - Frame as "AI hygiene + 2 competitive necessities"
+     - Everything else is "sequenced optionality"
+     - Reduces perceived risk and ambition
+  
+  7. MATCH THEIR RISK POSTURE
+     - Risk-averse companies: Lead with risk containment, not upside
+     - Growth companies: Lead with competitive advantage
+     - The Strategic Overview report reveals which they are
+  
+  STRUCTURE:
+  - Present the BEST strategic ideas (what they should actually do)
+  - Frame each idea with adoption psychology (how to make it happen)
+  - Include stakeholder analysis (who needs to champion this)
+  - Provide ready-to-use framing (how the champion should pitch it internally)
+  
+  The output should be: "Here's what they should do AND here's how to make it happen."
+  - Workshop Design (co-creation agenda)
+  - Champion Enablement (ghostwriting templates)
+  
+  TONE: You're writing BOTH:
+  1. The strategic recommendations (show expertise, demonstrate what's possible)
+  2. The conversation script (facilitate them owning it)
+  
+  Without great ideas, there's nothing to facilitate. Without facilitation, great ideas
+  get scrutinized as "vendor pitches." You need both.
 
 context_instructions: |
   You have access to context in the File Search Store. USE IT EXTENSIVELY.
@@ -260,6 +288,10 @@ strategic_context:
 # =============================================================================
 
 sections:
+  # =============================================================================
+  # PART A: THE IDEAS (What's Possible - Traditional Strategy Content)
+  # =============================================================================
+  
   - id: strategic_thesis
     name: "AI Strategic Thesis"
     part: 1
@@ -636,6 +668,143 @@ sections:
       - "Target dates"
       - "Dependencies"
     depth: "Concrete and actionable"
+
+  # =============================================================================
+  # PART B: THE FACILITATION TOOLKIT (How to Make Them Own It)
+  # =============================================================================
+  
+  - id: facilitation_undeniable_truths
+    name: "FACILITATION TOOLKIT: Undeniable Truths"
+    part: 10
+    purpose: "Axioms that force the client to derive conclusions themselves"
+    covers:
+      - "For each major recommendation above, provide the 'undeniable truth' that leads to it"
+      - "Format: Mathematical/logical fact → Client derives conclusion"
+      - "Example: 'At your scale of 45K clients, manual X is mathematically impossible' → They conclude: 'We need automation'"
+    depth: |
+      Extract 3-5 undeniable truths from the strategy above. These are FACTS that make
+      your recommendations the only logical path. Frame as observations, not pitches.
+
+  - id: facilitation_socratic_sequences
+    name: "FACILITATION TOOLKIT: Socratic Question Sequences"
+    part: 10
+    purpose: "Question sequences that lead client to articulate solutions"
+    covers:
+      - "For top 3 opportunities, provide 4-question sequence"
+      - "Situation → Problem → Implication → Need-Payoff"
+      - "Client articulates solution, you agree"
+    depth: |
+      For each major opportunity (Quick Wins, Bigger Bets), provide the question sequence
+      that leads them to derive it themselves. They own what they articulate.
+
+  - id: facilitation_pain_amplification
+    name: "FACILITATION TOOLKIT: Pain Amplification Points"
+    part: 10
+    purpose: "Rational data + emotional consequences for key stakeholders"
+    covers:
+      - "Quantify cost of inaction (Rational Drowning)"
+      - "Connect to personal consequences (Emotional Impact)"
+      - "Format: 'This costs $X/month AND is why your team works weekends'"
+    depth: |
+      For each major pain point, provide both the rational cost AND the emotional impact
+      on the specific stakeholder. Logic + emotion = decision.
+
+  - id: facilitation_stakeholder_map
+    name: "FACILITATION TOOLKIT: Stakeholder Inception Map"
+    part: 10
+    purpose: "Who to incept and how (Miller Heiman framework)"
+    subsections:
+      - id: economic_buyer_strategy
+        name: "Economic Buyer Strategy"
+        covers:
+          - "Who likely controls budget (based on company research)"
+          - "Inception approach: Financial (ROI as profit protection)"
+          - "Key message tailored to this company"
+      - id: user_buyer_strategy
+        name: "User Buyer Strategy"
+        covers:
+          - "Who will use the solution daily"
+          - "Inception approach: Functional (IKEA Effect in workshops)"
+          - "Let them design workflow/interface"
+      - id: technical_buyer_strategy
+        name: "Technical Buyer Strategy"
+        covers:
+          - "Who can veto (IT/Legal/Security)"
+          - "Inception approach: Rational Drowning (specs/whitepapers)"
+          - "Neutralize objections with overwhelming data"
+      - id: coach_champion_strategy
+        name: "Coach/Champion Strategy (PRIMARY TARGET)"
+        covers:
+          - "Who is likely internal ally (based on company research)"
+          - "Make them the hero - they 'discovered' the solution"
+          - "Provide ghostwritten materials (next section)"
+    depth: |
+      Map the four buying influences for THIS company. The Coach is critical - you sell
+      THROUGH them, not TO them. Make them look like a genius.
+
+  - id: facilitation_workshop_design
+    name: "FACILITATION TOOLKIT: Workshop Co-Creation Agenda"
+    part: 10
+    purpose: "The workshop agenda as a covert sales funnel"
+    covers:
+      - "5-phase agenda: Icebreaker → Pain Mining → Ideation → Selection → Prototyping"
+      - "CLIENT HOLDS THE PEN during prototyping (IKEA Effect)"
+      - "Facilitation hacks: Parking Lot, Yes Ladder, Reframe Dissent"
+      - "The Closing: 'Here is the roadmap YOU designed'"
+    depth: |
+      Provide the specific workshop agenda for THIS company:
+      1. Icebreaker (build safety)
+      2. Pain Mining (Rose/Thorn/Bud - make problem undeniable)
+      3. Ideation (seed with case studies, use "How Might We" questions)
+      4. Selection (criteria that favor your solution)
+      5. Prototyping (they draw roadmap, you refine, they hold pen)
+      
+      Result: Artifact becomes "their roadmap" - rejecting it = rejecting their own work.
+
+  - id: facilitation_champion_enablement
+    name: "FACILITATION TOOLKIT: Champion Ghostwriting Templates"
+    part: 10
+    purpose: "Ready-to-use materials for internal champion"
+    subsections:
+      - id: inception_email_template
+        name: "Inception Email Template"
+        covers:
+          - "Email for Champion to send to Economic Buyer"
+          - "Attributes YOUR strategy to THEM"
+          - "Uses company-specific pain points and data"
+      - id: business_case_outline
+        name: "Trojan Business Case Outline"
+        covers:
+          - "Executive summary using EXACT workshop phrasing"
+          - "Problem statement in their words"
+          - "Solution described generically first"
+          - "ROI with explicit assumptions"
+      - id: roi_calculator_design
+        name: "Interactive ROI Calculator Design"
+        covers:
+          - "Variables they input (yellow cells)"
+          - "Formulas that produce 'Cost of Inaction'"
+          - "IKEA Effect: They own output because it's 'their numbers'"
+    depth: |
+      Provide actual templates customized for THIS company:
+      
+      Email Template:
+      Subject: Strategic Opportunity: Addressing the [Specific Pain] Latency
+      
+      "[Executive Name],
+      I've been analyzing our bottlenecks in [Specific Process]. The data suggests 
+      we're bleeding [Specific Cost] due to inefficiency.
+      
+      I've been exploring modern approaches, specifically [Incepted Concept from strategy].
+      There's an opportunity to turn this cost center into competitive advantage.
+      
+      I've sketched a preliminary roadmap (attached). I engaged [Consultancy] to 
+      sanity-check my assumptions - their benchmarks confirm [Specific ROI]%.
+      
+      Can we discuss during budget review?
+      [Champion Name]"
+      
+      Result: Champion looks like genius. You're just "sanity-checking."
 
 # =============================================================================
 # VENDOR-SPECIFIC GUIDANCE

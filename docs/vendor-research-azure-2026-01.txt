@@ -1,297 +1,255 @@
 # Microsoft Azure AI Services and Capabilities
 
-**Prepared by:** Primr Research System  
+**Prepared by:** Primr Research System
 **Date:** January 2026
 
 ---
 
 ## Executive Summary
 
-As of January 2026, Microsoft’s AI strategy has decisively shifted from the "Copilot era" of assistive chat interfaces to the "Agentic era" of autonomous business processes. The central theme driving Azure AI is the concept of the **"Frontier Firm"**—an organization where humans and AI agents collaborate within a unified, governed ecosystem [cite: 1, 2].
+As of January 2026, Microsoft’s AI strategy has pivoted decisively from the "Copilot era" of assisted productivity to the "Agentic era" of autonomous business processes. The defining strategic shift is the unification of the AI platform under the newly rebranded **Microsoft Foundry** (formerly Azure AI Foundry), which serves as the central "factory" for building and managing AI apps and agents [cite: 1, 2].
 
-Key strategic developments include:
-*   **Unification of the AI Platform:** Azure AI Studio has been rebranded and expanded into **Microsoft Foundry**, a unified platform for building, deploying, and managing AI apps and agents [cite: 3, 4, 5].
-*   **The "IQ" Intelligence Layer:** Microsoft has introduced a semantic intelligence stack comprising **Foundry IQ** (knowledge for agents), **Fabric IQ** (business data semantics), and **Work IQ** (productivity context), designed to solve the "context grounding" problem for autonomous agents [cite: 6, 7, 8].
-*   **Control Plane for Agents:** The launch of **Agent 365** provides a centralized governance layer (control plane) for managing AI agents like employees, utilizing **Entra Agent ID** for identity and access management [cite: 9, 10].
-*   **Model Diversification:** Azure is no longer solely dependent on OpenAI. The model catalog now features Microsoft's own **MAI-1** and **Phi** families, alongside **GPT-5.1**, **Anthropic Claude** models, and **DeepSeek**, managed via an intelligent **Model Router** [cite: 11, 12, 13].
-
-For enterprise customers, the focus in 2026 is on moving beyond pilot chatbots to deploying multi-agent systems that can execute complex, long-running workflows with enterprise-grade security and observability.
+Key themes for January 2026 include:
+*   **The "IQ" Stack:** Microsoft has introduced a unified intelligence layer comprising **Work IQ** (M365 context), **Fabric IQ** (data ontology), and **Foundry IQ** (agentic retrieval), designed to ground agents in deep business context rather than just raw data [cite: 3, 4].
+*   **Agent Governance:** The launch of **Agent 365** provides a dedicated control plane for IT to manage, secure, and govern the lifecycle of autonomous agents, addressing the "shadow AI" sprawl [cite: 5, 6].
+*   **Model Choice & Reasoning:** The Azure OpenAI Service now features the **GPT-5 series** (GPT-5.1, GPT-5.2 Preview) and **o-series** reasoning models [cite: 7, 8]. Crucially, Microsoft Foundry has expanded to host third-party frontier models like **Anthropic’s Claude Opus 4.5**, positioning Azure as an open model platform [cite: 9, 10].
+*   **Unified Development:** The fragmentation between "Studio" and "Foundry" has been resolved with the consolidation into Microsoft Foundry, offering a single pane of glass for developers and IT operations [cite: 1, 11].
 
 ## Service Map
 
-The following map illustrates the organization of AI services within the Microsoft Azure stack as of January 2026. Note the significant rebranding of the development platform and the addition of the Agent Control Plane.
+The Microsoft Azure AI stack has undergone significant renaming and consolidation effective January 1, 2026.
 
-*   **AI Platform (The Factory)**
-    *   **Microsoft Foundry** (formerly Azure AI Studio): Unified development platform.
-    *   **Azure OpenAI Service**: Managed hosting for OpenAI models (GPT-5.1, GPT-4o).
-    *   **Foundry Models**: Model-as-a-Service catalog (MAI-1, Anthropic, Meta, Cohere, DeepSeek).
-    *   **Azure AI Services**: Legacy Cognitive Services (Vision, Speech, Language) now integrated into Foundry Tools.
+*   **AI Platform:** **Microsoft Foundry** (formerly Azure AI Foundry/Studio), **Foundry Tools** (formerly Azure AI Services/Cognitive Services), **Foundry Agent Service**.
+*   **Agent/Copilot:** **Agent 365** (Control Plane), **Copilot Studio** (Builder), **Semantic Kernel**, **Microsoft Agent Framework**.
+*   **Data Plane:** **Foundry IQ** (Intelligence Layer), **Fabric IQ** (Data Ontology), **Azure AI Search**, **Microsoft Fabric** (OneLake), **Azure Cosmos DB**.
+*   **App Plane:** **Azure Functions** (Serverless Agents), **Azure Container Apps** (Dynamic Sessions), **Logic Apps**, **API Management**.
+*   **Security Plane:** **Microsoft Entra ID** (Agent Identity), **Microsoft Purview** (AI Hub), **Defender for Cloud**, **Azure Key Vault**.
 
-*   **Agent & Copilot Plane (The Workforce)**
-    *   **Microsoft Copilot Studio**: Low-code agent building for M365 and Power Platform.
-    *   **Foundry Agent Service**: Pro-code agent orchestration (supports Semantic Kernel, AutoGen).
-    *   **Agent 365**: Centralized control plane for agent management and governance.
-
-*   **Intelligence & Data Plane (The Context)**
-    *   **Foundry IQ**: Managed knowledge retrieval and RAG layer for agents.
-    *   **Fabric IQ**: Semantic layer for data analytics and operational intelligence.
-    *   **Work IQ**: Context layer for Microsoft 365 graph data (email, calendar, files).
-    *   **Microsoft Fabric**: Unified data platform (OneLake).
-    *   **Azure AI Search**: Vector retrieval engine powering Foundry IQ.
-
-*   **App Plane (The Integration)**
-    *   **Azure Logic Apps**: Connectors for agent actions (now integrated with MCP).
-    *   **Azure Functions**: Serverless compute for agent skills.
-    *   **API Management**: Exposing internal APIs as agent tools.
-
-*   **Security Plane (The Guardrails)**
-    *   **Microsoft Entra Agent ID**: Identity management for non-human agents.
-    *   **Microsoft Purview for AI**: Data security, compliance, and risk management for AI.
-    *   **Microsoft Defender for Cloud**: Threat protection for AI workloads.
+**Note:** "Azure AI Foundry" was officially renamed to **Microsoft Foundry** in the January 2026 Product Terms to reflect its role as a cross-cloud platform [cite: 1, 12].
 
 ## Foundation Models and AI Services
 
-Microsoft Foundry and Azure OpenAI Service now offer a "Model-as-a-Service" (MaaS) approach, allowing developers to use inference APIs without managing underlying infrastructure.
+Microsoft Foundry provides access to a curated catalog of models through Azure OpenAI Service and the broader Model Catalog.
 
-### Available Models (As of January 2026)
+### Available Models (As of Jan 2026)
 
-| Provider | Model Family | Versions | Status | Notes |
-| :--- | :--- | :--- | :--- | :--- |
-| **OpenAI** | **GPT-5 Series** | **GPT-5.1**, GPT-5.1-codex, GPT-5.1-mini | **Limited Access / Preview** | "Reasoning" models designed for logic-heavy tasks. Requires registration [cite: 14, 15, 16]. |
-| **OpenAI** | **GPT-4 Series** | GPT-4o, GPT-4o-mini, GPT-4.1 | **GA** | Standard enterprise workhorses. GPT-4.1 features 1M token context [cite: 17]. |
-| **OpenAI** | **Reasoning** | o1, o3, o3-deep-research | **Preview** | Specialized reasoning and deep research models [cite: 18, 19]. |
-| **Microsoft** | **MAI Series** | **MAI-1-preview**, MAI-Voice-1, MAI-Image-1 | **Preview** | Microsoft's in-house foundation models. MAI-Voice-1 generates 60s audio in <1s [cite: 12, 20, 21]. |
-| **Anthropic** | **Claude 3.5/4.5** | Sonnet 4.5, Haiku 4.5, Opus 4.5 | **GA (Foundry)** | Available via Foundry Models. High capability for coding and agents [cite: 11, 22]. |
-| **DeepSeek** | **DeepSeek** | V3.1, R1 | **GA (Foundry)** | Cost-effective reasoning models [cite: 11]. |
-| **xAI** | **Grok** | Grok-3, Grok-3 Mini | **GA (Foundry)** | Focused on reasoning and learning [cite: 23, 24]. |
-
-### Key Updates (Past 6 Months)
-*   **GPT-5.1 Release:** A new series optimized for complex reasoning and coding, with specialized variants like `gpt-5.1-codex` for development tasks [cite: 14, 16].
-*   **Microsoft MAI Models:** Microsoft introduced its own "MAI" (Microsoft AI) model family, signaling a strategic diversification away from pure OpenAI dependency. **MAI-Voice-1** is notable for extreme speed in speech generation [cite: 12, 21].
-*   **Model Router:** A Generally Available feature that automatically routes queries to the most cost-effective or capable model (e.g., routing simple queries to GPT-4o-mini and complex ones to GPT-5.1), reducing costs by up to 30-40% [cite: 25, 26].
+*   **OpenAI GPT-5 Series:**
+    *   **GPT-5.2 (Preview):** The latest flagship for high-performance agentic tasks and complex reasoning [cite: 7, 8].
+    *   **GPT-5.1 (GA):** The standard enterprise workhorse, balancing speed and reasoning. Available in Global and Data Zone deployments [cite: 8].
+    *   **GPT-5 (GA):** General-purpose model designed for logic-heavy tasks [cite: 7, 13].
+    *   **GPT-5-mini / nano:** Cost-effective, low-latency models for high-volume tasks [cite: 8].
+*   **OpenAI Reasoning Models:**
+    *   **o3 / o3-mini:** Advanced reasoning models replacing the early o1 series [cite: 14, 15].
+    *   **o4-mini:** High-efficiency reasoning model [cite: 14].
+*   **Third-Party Frontier Models:**
+    *   **Anthropic:** **Claude Opus 4.5**, **Claude Sonnet 4.5**, and **Claude Haiku 4.5** are available directly within Microsoft Foundry [cite: 9, 10].
+    *   **Mistral:** **Mistral Large 2407** and specialized models like **Mistral-document-ai** [cite: 7, 16].
+    *   **DeepSeek:** **DeepSeek-V3.1** and **R1** models are available for cost-effective reasoning [cite: 7, 9].
 
 ### Customization Options
-*   **Fine-tuning:** Available for GPT-4o, GPT-4o-mini, and select Phi/MAI models.
-*   **Prompt Caching:** Now supported to reduce latency and cost for repetitive context.
-*   **Assistants API:** Supported via Foundry Agent Service for stateful threads.
+*   **Fine-tuning:** Available for GPT-5, GPT-4o, and select open models (Llama, Mistral) [cite: 17, 18].
+*   **Foundry IQ:** Provides "Agentic Retrieval" (RAG) as a managed service, handling chunking, embedding, and retrieval orchestration automatically [cite: 19, 20].
+*   **Prompt Caching:** Supported on GPT-5 and GPT-4o series to reduce latency and cost for repetitive context [cite: 8].
 
-### Pricing Overview (Indicative, Jan 2026)
-Pricing is consumption-based per 1,000 or 1,000,000 tokens.
-*   **GPT-5.1 Global Standard:**
-    *   **Input:** $1.25 per 1 million tokens [cite: 27, 28].
-    *   **Output:** $10.00 per 1 million tokens [cite: 27, 28].
-    *   *Note:* This pricing reflects aggressive commoditization of intelligence compared to previous generations.
-*   **Provisioned Throughput (PTU):** Available for guaranteed capacity; pricing varies by region and volume.
+### Pricing Model Overview (Indicative, Jan 2026)
+Pricing varies by region and deployment type (Standard vs. Provisioned).
+
+*   **GPT-5.1 Global:** ~$1.25 per 1M input tokens / $10.00 per 1M output tokens [cite: 8].
+*   **GPT-5-mini:** ~$0.25 per 1M input tokens / $2.00 per 1M output tokens [cite: 8].
+*   **GPT-5-nano:** ~$0.05 per 1M input tokens / $0.40 per 1M output tokens [cite: 8].
+*   **Cached Input:** Typically ~10% of the standard input price (e.g., $0.13 for GPT-5.1) [cite: 8].
+*   **Provisioned Throughput (PTU):** GPT-5 Global PTUs start around ~$260/month for minimal throughput units, offering predictable performance for high-scale workloads [cite: 21].
 
 ## Productivity AI and Copilots
 
 ### Enterprise Productivity Tools
-*   **Microsoft 365 Copilot:** Now includes **Agent Mode** in Word, Excel, and PowerPoint, allowing users to switch between different specialized agents (e.g., a "Data Analyst" agent in Excel vs. a "Creative Writer" agent in Word) [cite: 29, 30].
-*   **Sora 2 Integration:** Copilot Create now integrates **Sora 2** for short-form video generation within the enterprise environment [cite: 29, 30].
+*   **Microsoft 365 Copilot:** Now includes **Agent Mode** in Word, Excel, and PowerPoint, allowing users to collaborate iteratively with AI on complex artifacts rather than just generating text [cite: 22, 23].
+*   **Copilot Business SKU:** A new tier priced at **$21/user/month** for small and midsize businesses (SMBs), lowering the entry barrier from the enterprise standard [cite: 24, 25].
+*   **Work IQ:** An intelligence layer that grounds Copilot in the specific context of an employee's work graph (emails, meetings, chats), enabling "conversational memory" across sessions [cite: 22, 26].
 
 ### Integration & Licensing
-*   **Agent 365 Licensing:** A new licensing model is emerging for autonomous agents. While M365 Copilot remains ~$30/user/month, **Agent 365** introduces a control plane where agents may require their own identity and potentially a separate license or consumption capability, though exact pricing remains complex and evolving [cite: 31, 32, 33].
-*   **SMB Pricing:** A lower-cost tier for small businesses ($21/user/month) was introduced in late 2025 [cite: 2, 30].
+*   **Licensing:** M365 Copilot remains a per-user add-on. However, **Agent 365** introduces a new governance layer.
+*   **Agent 365:** A control plane for managing agents. Pricing involves a base fee (approx. $20/user/month for standalone or bundled in E5) plus consumption-based metering for agent execution [cite: 27, 28].
 
 ## Agentic AI and Automation
 
-This is the most critical growth area for 2026. Microsoft has bifurcated its agent strategy into "Low Code" (Copilot Studio) and "Pro Code" (Foundry Agent Service), unified by a single control plane (Agent 365).
-
 ### Agent Building Platforms
-1.  **Microsoft Copilot Studio:**
-    *   **Target:** Business users and makers.
-    *   **Capabilities:** Build agents for M365, Teams, and web. Now supports **Autonomous Triggers** (agents that act without a user prompt) and **Agent Builder** (lite version inside M365 Copilot) [cite: 34, 35, 36].
-2.  **Foundry Agent Service (GA):**
-    *   **Target:** Professional developers.
-    *   **Capabilities:** A managed service for orchestrating complex, multi-agent systems. It natively supports **Semantic Kernel** and **AutoGen** frameworks. It handles state management, history, and "human-in-the-loop" patterns [cite: 37, 38, 39].
+*   **Microsoft Foundry:** The unified platform for professional developers to build, test, and deploy agents. It supports the **Microsoft Agent Framework**, an open-source, model-agnostic engine for building agents [cite: 19, 29].
+*   **Copilot Studio:** The low-code environment for business users to build agents that function within M365. It now supports **autonomous triggers**, allowing agents to act without direct user prompts [cite: 30, 31].
 
 ### Orchestration & Multi-Agent Scenarios
-*   **Multi-Agent Workflows:** Foundry Agent Service supports **Agent-to-Agent (A2A)** protocols, allowing specialized agents (e.g., a "Coder" and a "Reviewer") to collaborate on tasks [cite: 23, 37].
-*   **Model Context Protocol (MCP):** Microsoft has adopted MCP (an open standard) to allow agents to connect to data sources and tools (like GitHub, Slack, Google Drive) uniformly [cite: 7, 25, 37].
+*   **Foundry Agent Service:** A managed service for hosting and orchestrating multi-agent systems. It handles state management, long-running workflows, and "human-in-the-loop" checkpoints [cite: 19, 32].
+*   **Agent 365:** Acts as the central registry and governance hub. It assigns **Agent IDs** (via Entra ID) to agents, treating them as non-human identities with specific permissions and access scopes [cite: 3, 6].
 
-### Agent 365: The Control Plane
-*   **Function:** Acts as the "HR for AI Agents." It provides a registry of all agents in the organization, manages their identities (**Entra Agent ID**), and enforces policies (e.g., "Finance Agent cannot access HR files") [cite: 9, 10].
-*   **Key Features:**
-    *   **Registry:** Inventory of all authorized and "shadow" agents.
-    *   **Observability:** Dashboards showing what agents are doing and what data they access.
-    *   **Kill Switch:** IT admins can quarantine or disable rogue agents instantly [cite: 9, 10].
+### Agents vs. Automation
+*   **Agents:** Best for dynamic, decision-heavy tasks requiring reasoning (e.g., "Research this lead and draft a personalized outreach plan").
+*   **Workflow Automation (Logic Apps/Power Automate):** Best for deterministic, linear processes (e.g., "If email arrives, save attachment to OneDrive").
 
 ## Data and Analytics AI
 
-### Fabric IQ
-**Fabric IQ** transforms Microsoft Fabric from a data platform into an intelligence platform. It introduces an **Ontology** layer that maps raw data to business concepts (e.g., defining what a "High Value Customer" is semantically, so all agents understand it consistently) [cite: 6, 40, 41, 42].
-*   **Components:** Ontology, Graph, Data Agents, Operations Agents.
-*   **Benefit:** Prevents agents from hallucinating or misinterpreting database schemas.
+### The "IQ" Stack for Data
+*   **Fabric IQ:** A semantic layer within Microsoft Fabric that applies business ontology to raw data. It allows agents to understand concepts like "Churn Rate" or "High Value Customer" consistently across the organization [cite: 4, 33].
+*   **Foundry IQ:** The default enterprise pattern for **RAG (Retrieval-Augmented Generation)**. It replaces manual vector database management with a managed "Knowledge Base" service built on Azure AI Search. It uses an LLM to plan queries, retrieve data from multiple sources (SharePoint, OneLake, Blob), and synthesize answers with citations [cite: 19, 34, 35].
 
-### Foundry IQ
-**Foundry IQ** is the managed RAG (Retrieval-Augmented Generation) layer for agents. It connects agents to knowledge bases without developers needing to build custom vector pipelines [cite: 7, 43, 44, 45].
-*   **Capabilities:** Automatic chunking, embedding, and retrieval optimization. It acts as the "brainstem" connecting agents to enterprise data [cite: 45].
-
-### Default Enterprise RAG Pattern
-The recommended pattern for January 2026 is **Foundry IQ backed by Azure AI Search**.
-*   **Why:** It abstracts the complexity of vectorization and hybrid search. It integrates with **Entra ID** to ensure agents only retrieve documents the invoking user is authorized to see (Security Trimming) [cite: 7, 45].
+### Vector Search & RAG
+*   **Azure AI Search:** Remains the underlying engine for Foundry IQ but can be used independently for custom RAG pipelines. It supports "Agentic Retrieval," where the search engine iteratively refines queries based on initial results [cite: 35, 36].
+*   **OneLake Shortcuts:** Allows data to remain in Fabric while being indexed by Foundry IQ, eliminating data duplication [cite: 37].
 
 ## AI Development Platform
 
-### Microsoft Foundry (formerly Azure AI Studio)
-*   **Status:** The primary "Factory" for building AI.
-*   **Unified SDK:** The **Azure AI Foundry SDK** unifies capabilities across models, agents, and tools [cite: 37, 46].
-*   **Evaluation:** Built-in evaluation flows (using "judge" models) are mandatory for production deployment to measure accuracy, groundedness, and safety [cite: 3, 47].
+### Microsoft Foundry (formerly Azure AI Foundry)
+*   **Unified Portal:** Consolidates model selection, agent building, evaluation, and operations (MLOps) into a single interface at `ai.azure.com` [cite: 1, 38].
+*   **VS Code Integration:** The **Microsoft Foundry extension** for VS Code allows developers to build and debug agents locally before deploying to the cloud [cite: 39].
+*   **Evaluation:** Built-in evaluation suites for testing agent performance against metrics like groundedness, coherence, and safety before deployment [cite: 40].
 
-### MLOps and Deployment
-*   **Prompt Flow:** Remains the standard for defining AI workflows and evaluating them.
-*   **Deployment:** Agents can be deployed to **Azure Container Apps** or **AKS** for serverless scaling [cite: 48, 49].
+### Model Hosting Options
+*   **Provisioned Throughput (PTU):** For production workloads requiring guaranteed latency.
+*   **Standard (Pay-as-you-go):** For development and variable workloads.
+*   **Serverless:** For open models (e.g., Mistral, Llama) where you pay per token without managing infrastructure [cite: 41].
 
 ## Security and Governance
 
-### Identity: Entra Agent ID
-A major innovation for 2026. Agents are no longer just API keys; they are identities in Entra ID (formerly Azure AD).
-*   **Capability:** Assign specific permissions to an agent (e.g., "Read-only access to SharePoint Site X").
-*   **Audit:** All agent actions are logged against this identity, separating "User actions" from "Agent actions" [cite: 9, 50].
+### Agent Governance (Agent 365)
+*   **Identity:** Agents are assigned unique identities via **Microsoft Entra ID**, allowing granular access control (RBAC) to resources [cite: 3, 6].
+*   **Control Plane:** IT admins can view all running agents, their permissions, and usage history through the Agent 365 dashboard [cite: 5, 6].
 
-### Governance: Agent 365
-*   **Shadow AI Detection:** Agent 365 can detect agents running in the environment that were not officially provisioned, allowing IT to bring them under governance [cite: 9, 10].
-
-### Content Safety
-*   **Azure AI Content Safety:** Real-time detection of jailbreaks, hallucinations, and protected material. Now integrated directly into the Model Router and Foundry Agent Service [cite: 51].
+### Data Protection
+*   **Foundry IQ Security:** Inherits document-level permissions (ACLs) from sources like SharePoint. If a user cannot see a document in SharePoint, the agent will not retrieve it for them [cite: 20, 34].
+*   **Microsoft Purview:** Extended to cover AI interactions, preventing agents from leaking sensitive data or accessing restricted content [cite: 3, 24].
 
 ## Recommendation Guidance
 
 ### Model Hosting
-*   **Use Azure OpenAI Service** when: You need the absolute highest reasoning capability (GPT-5.1) and deep integration with the Microsoft stack.
-*   **Use Foundry Models (MaaS)** when: You need specific open models (DeepSeek for cost, Claude for coding) or want to use the **Model Router** to optimize spend across vendors.
+*   **Use Azure OpenAI Service (via Foundry):** For enterprise-grade security, compliance (HIPAA, SOC2), and integration with Azure networking (Private Link).
+*   **Use Microsoft Foundry (Serverless):** For experimenting with open models (Llama, Mistral) or when specific model capabilities (e.g., Claude's coding ability) are required.
 
 ### RAG Strategy
-*   **Default:** Use **Foundry IQ**. Do not build custom Python RAG pipelines unless you have highly specialized retrieval needs. Foundry IQ handles security trimming and index updates automatically.
-*   **Data Source:** Centralize data in **Microsoft Fabric (OneLake)** and define semantics in **Fabric IQ** to ensure agents understand the data structure.
+*   **Default Pattern:** Use **Foundry IQ**. It abstracts the complexity of chunking, embedding, and retrieval orchestration. It is "Agentic RAG" out of the box [cite: 34, 35].
+*   **Custom Pattern:** Use **Azure AI Search** directly only if you need highly specialized indexing strategies or custom ranking logic that Foundry IQ does not support.
 
 ### Agents vs. Automation
-*   **Use Agents (Foundry/Copilot Studio)** when: The task requires reasoning, handling ambiguity, or dynamic planning (e.g., "Research this customer and draft a proposal").
-*   **Use Workflow Automation (Logic Apps)** when: The process is deterministic and rule-based (e.g., "If email subject contains 'Invoice', save to SharePoint").
-*   **Hybrid:** Use Agents to trigger Logic Apps for specific deterministic actions (using MCP or connectors) [cite: 38, 39].
+*   **Use Agents:** When the path to the solution is ambiguous or requires reasoning (e.g., customer support triage, complex data analysis).
+*   **Use Automation:** When the process is rule-based and repetitive (e.g., invoice processing, data movement).
 
-### Anti-Patterns to Avoid
-*   **"Pilot Purgatory":** Building chatbots without an evaluation framework. *Fix:* Use Foundry evaluation flows from Day 1.
-*   **"Shadow Agents":** Developers spinning up agents with personal API keys. *Fix:* Enforce Entra Agent ID via Agent 365.
-*   **"Dumb Retrieval":** RAG implementations that just search keywords. *Fix:* Use Fabric IQ/Ontologies to ground agents in business logic.
+### Anti-Patterns
+*   **"Pilot Purgatory":** Avoid building agents without a clear path to production governance (Agent 365).
+*   **Tool Sprawl:** Do not build custom RAG pipelines for every app; centralize knowledge in Foundry IQ.
+*   **Ignoring Evaluation:** Never deploy an agent without an automated evaluation set in Foundry to test for hallucinations.
 
 ## Notable Customer Case Studies
 
-*   **Pfizer:** Deployed over 300 agents to optimize manufacturing and supply chain operations. Used **Foundry** to scale these agents securely. *Source: Microsoft Ignite 2025 Session / Blog* [cite: 2, 52].
-*   **BASF:** Developed "AP CommsMate," an AI agent embedded in Teams for generating social media content aligned with brand voice. *Source: Microsoft Ignite 2025 Session* [cite: 52].
-*   **Lumen:** Leveraged Copilot and agents to transform employee workflows. *Source: Microsoft Ignite 2025 Session* [cite: 2, 52].
-*   **Kyndryl:** Early adopter of **Fabric IQ** to define business ontologies for their data agents. *Source: Microsoft Fabric Blog* [cite: 6].
+*   **Topsoe:** Achieved **85% AI adoption** among office employees in seven months using Azure OpenAI Service to secure internal data and boost productivity [cite: 42, 43].
+*   **Toshiba:** Deployed Microsoft 365 Copilot to **10,000 employees**, confirming time savings of **5.6 hours per month per employee** and improving decision-making speed [cite: 42, 44].
+*   **Volvo Group:** Utilized Azure AI Document Intelligence and Azure AI services to automate invoice and claims processing, saving over **10,000 manual hours** [cite: 42, 45].
+*   **Urban Company:** Implemented chatbots using Azure OpenAI Service that resolve **85-90% of customer queries** autonomously, increasing customer satisfaction by 5% [cite: 42, 46, 47].
 
 ## New in the Past 6 Months
 
-*   **Microsoft Foundry Rebrand (Nov 2025):** Azure AI Studio renamed to Microsoft Foundry; unified platform for apps and agents [cite: 3, 4].
-*   **Agent 365 (Nov 2025):** New control plane for agent governance and Entra Agent ID integration [cite: 9, 10].
-*   **Fabric IQ & Foundry IQ (Nov 2025):** Semantic intelligence layers for data and agent retrieval [cite: 6, 7].
-*   **GPT-5.1 Series (Late 2025):** New reasoning-focused models available in preview/limited access [cite: 14, 16].
-*   **MAI-1 Models (Aug/Nov 2025):** Microsoft's in-house foundation models (Voice, Text, Image) released to reduce OpenAI dependency [cite: 12, 21].
-*   **Foundry Agent Service GA (May/Nov 2025):** General Availability of the pro-code agent orchestration service [cite: 37, 39].
+*   **Microsoft Foundry Rebrand (Jan 2026):** Official renaming of Azure AI Foundry to Microsoft Foundry [cite: 1].
+*   **GPT-5.2 Preview (Dec 2025):** Release of the latest OpenAI reasoning model in Azure [cite: 7].
+*   **Claude Opus 4.5 in Foundry (Dec 2025):** Availability of Anthropic's flagship model on Azure [cite: 10].
+*   **Agent 365 (Nov 2025):** Launch of the enterprise control plane for AI agents [cite: 5, 6].
+*   **Foundry IQ & Fabric IQ (Nov 2025):** Introduction of the unified intelligence layers for knowledge and data [cite: 4, 20].
+*   **M365 Copilot Business SKU (Dec 2025):** New $21/month pricing tier for SMBs [cite: 24].
 
 ## Deprecations and Migrations (Past 12 Months)
 
-*   **Azure AI Studio:** **Deprecated/Renamed**. Replaced by **Microsoft Foundry**. Migration is automatic in the portal, but documentation and CLI references are updating to `foundry` namespaces [cite: 3, 53].
-*   **Legacy GPT Models:** Older versions of GPT-3.5-turbo and GPT-4 (e.g., `0301`, `0613`) are on aggressive retirement schedules. Customers must migrate to `gpt-4o` or `gpt-5` series. *Action:* Check "Model retirements" in Azure Health Service [cite: 19, 54].
-*   **Custom Resource Providers (CuRP):** Deprecation notice issued for 2026. Affects custom Azure Resource Manager extensions [cite: 55].
+*   **Azure AI Foundry / Azure AI Studio:** Renamed to **Microsoft Foundry**. Migration is automatic; portals and APIs redirect to the new namespace [cite: 1, 48].
+*   **Azure Custom Vision:** Flagged for retirement (Sept 2028). **Migration Path:** Move to **Azure AI Content Understanding** or standard Azure Machine Learning vision models [cite: 49].
+*   **Legacy OpenAI Models:** Older versions of GPT-3.5 and GPT-4 are being deprecated. **Migration Path:** Upgrade to **GPT-4o** or **GPT-5.1** for better performance and cost efficiency [cite: 15].
+*   **Azure AI Services (Umbrella Name):** Rebranded to **Foundry Tools** to align with the Foundry ecosystem [cite: 50].
 
 ## Sources
 
-**Services & Platform**
-*   [cite: 3] Microsoft Learn: What is Azure AI Foundry? (Nov 2025)
-*   [cite: 37] InfoQ: Azure AI Foundry Agent Service GA (May 2025)
-*   [cite: 38] Rios Engineer: Integrating with Azure AI Agent Service (Aug 2025)
-*   [cite: 39] Microsoft Tech Community: Azure AI Foundry Agent Service GA (May 2025)
-*   [cite: 56] Azure Pricing: AI Foundry
-*   [cite: 4] Prakash Infotech: Azure AI Studio Rebrand (Dec 2024)
-*   [cite: 53] Microsoft Tech Community: Behind Azure AI Foundry (Apr 2025)
+### Foundation Models & Pricing
+*   [cite: 7] Microsoft Learn: Models sold directly by Azure (Jan 2026)
+*   [cite: 8] Azure Pricing: Azure OpenAI Service (Jan 2026)
+*   [cite: 14] OpenAI Pricing Page
+*   [cite: 15] Microsoft Learn: Azure OpenAI Model Retirements
+*   [cite: 10] Visual Studio Magazine: Claude Opus 4.5 in Foundry (Dec 2025)
+*   [cite: 13] Azure AI Catalog: GPT-5 Details
 
-**Models**
-*   [cite: 17] Microsoft Learn: Azure OpenAI What's New (GPT-4.1)
-*   [cite: 11] Azure AI Model Catalog
-*   [cite: 14] Microsoft Learn: Reasoning Models (GPT-5.1)
-*   [cite: 15] Microsoft Learn: Models Sold Directly (MaaS)
-*   [cite: 12] The Tech Buzz: Microsoft Launches MAI-1 (Aug 2025)
-*   [cite: 21] Microsoft AI Blog: Two New In-House Models (Aug 2025)
-*   [cite: 16] Azure AI Catalog: GPT-5.1-codex
-*   [cite: 28] Azure Pricing: OpenAI Service
+### Platforms & Rebranding
+*   [cite: 1] Schneider: Microsoft Foundry Rebrand (Jan 2026)
+*   [cite: 2] Valorem Reply: Microsoft Foundry Evolution
+*   [cite: 48] Directions on Microsoft: Foundry Rename Report
+*   [cite: 11] Reddit/Community: Microsoft Foundry Announcement
+*   [cite: 50] YouTube: Foundry Tools vs Azure AI Services
 
-**Agent 365 & IQ Layers**
-*   [cite: 31] Monetizely: Agent 365 Pricing (Dec 2025)
-*   [cite: 9] NexusTek: Microsoft Agent 365 Control Plane (Nov 2025)
-*   [cite: 10] Microsoft Blog: Introducing Agent 365 (Nov 2025)
-*   [cite: 6] Microsoft Fabric Blog: Introducing Fabric IQ (Nov 2025)
-*   [cite: 7] Microsoft Tech Community: Foundry IQ (Nov 2025)
-*   [cite: 9] NexusTek: Agent 365 Pillars (Nov 2025)
+### Agentic AI & "IQ" Stack
+*   [cite: 5] CRN: Agent 365 & Ignite News
+*   [cite: 3] TechCabal: Agent 365 & IQ Stack
+*   [cite: 19] Microsoft Product Page: Foundry IQ
+*   [cite: 34] Graphlit: Foundry IQ Deep Dive
+*   [cite: 4] Infused Innovations: Work IQ, Fabric IQ, Foundry IQ
+*   [cite: 20] Tech Community: Foundry IQ Announcement
+*   [cite: 6] Microsoft Blog: Agent 365 Control Plane
 
-**Customer Stories & Events**
-*   [cite: 1] Microsoft News: Ignite 2025
-*   [cite: 2] TD SYNNEX: Ignite 2025 Recap (Dec 2025)
-*   [cite: 52] Microsoft Ignite Session: Customer Success Stories (Nov 2025)
-*   [cite: 57] Microsoft Business: Customer Success Stories (Feb 2025)
+### Productivity & Licensing
+*   [cite: 27] Monetizely: Agent 365 Pricing
+*   [cite: 28] Monetizely: Agent 365 vs AWS Pricing
+*   [cite: 24] Easi: M365 Copilot Business SKU
+*   [cite: 26] Microsoft: M365 Copilot Pricing
 
-**Copilot & Productivity**
-*   [cite: 29] Microsoft Blog: Copilot Updates Ignite 2025 (Nov 2025)
-*   [cite: 30] YouTube: Copilot Updates Tutorial (Nov 2025)
-*   [cite: 34] Microsoft Copilot Studio Blog: Nov 2025 Updates (Dec 2025)
+### Case Studies
+*   [cite: 42] Microsoft Cloud Blog: 1000 Stories of Success
+*   [cite: 43] Microsoft Customer Story: Topsoe
+*   [cite: 44] Microsoft Customer Story: Toshiba
+*   [cite: 46] Ekipa: Urban Company Case Study
+*   [cite: 45] iFour Technolab: Volvo Group Case Study
+
+### Deprecations
+*   [cite: 49] Skywork: Azure Custom Vision Retirement
+*   [cite: 16] Microsoft Learn: Model Lifecycle & Retirement
 
 **Sources:**
-1. [microsoft.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEuE0NZmz5i1DAFWxkNCAmwrWRphkcsipIFuzVJpwBl7AiBi0sqjdPmePxCLzYKYa3gXqQ8KdIJKMp3DRObyTNidIEKf1QBXlZ0K5aBKIct8wIRvZQDUWgqc07VLoA=)
-2. [tdsynnex.be](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQETZ0c71hm0IS5pXdIrsJd2DDjCKyfLNo1zlhI3CjGqiQa9l4Co75mBALPmT5Adm-BEYMeIfoVF4uEkg-cjjU8Lo9D8vcjNEBrbjn42Rz4TKNsqb5EubGrfFOZTXKHl6Glte1Ty-KHlYCdWsryKKk7MBdmOO3UE4LwVwkoCp0vDrSJfA_cTexYAguUB3yU=)
-3. [microsoft.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEg8i__zxe0rKwuxRUt5556xmnPGEqLiR7IcdxbLxa5wxQrx_QqMqCCfdKqjD-jTOG11aKzy4DidEkLIyQPUU6zrukACtbrWp9Oztr_f0kafE1fnag4GQqAKNYiHp2PFQlinmC3VxKzYvGuHOWw1IOIArpCWZ4ofm2VIXdU0OwHhguuoYVSQwEsmNzCCyQGAfWWUZXd4jA=)
-4. [prakashinfotech.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEjVGobCbtO2CBstWcmyiKUB60ZxE7uRmmnS9NKvkAJNO-tdOsby1-CC1VmJ5nnhQaO-KH5ISakrCm8cvqqK-Rs0qLnotMAs4sO5tBReglqMn_e_O8Q0hf31xZOpAJlwZTamF0h4Tlhpb42at01l8C90F_d1VPbyAhOUBSQ6Z-AFYDYKnU1je8d)
-5. [medium.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQETHDMGmixbqSF_sX2TsFlgdaZJVgD1qdymu76bXLmbKGg_63oYTKBbqU-3-cnuaYPFTkgL0MAtz-ELSSVUpu73bj-Af1AHOmdeTtsXV9T9P-u4A64eSOvDmAm_avfJs7yD-XbYgvaw5UX3feGWmsD5L74_C3AdtHBuO4kRocc7kGi1ANFtsMGZmM9Q9x_qTcNjS0o0oYJaq8b9i5gn69jGww==)
-6. [microsoft.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEMn2FTFWQHEziiCyr7utDTb6s_CRov0ii_qnv4jPM9aSXDe4NMRm8MWY7gCgpk9CobmYC2m0X-LSPU6QasZWKIeQHDygJAAnY9sjJsJ9falIVEQU70r3YQMqM3VHhw3oSk9duaUkeDOpscRZNagsaTKmwas-oQUIiSWf9PMEr8P7ekHcRLwzv2cdKv6oXjgMM_eQumo-IE3-YYVL4P76lA3BWtwHvIU8CCkqBf-y6TYAhOZkMBAW94qq2ezQ4qgXHdZ8OHnNgc6K4HjJHB)
-7. [microsoft.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQF06YvS38UhX3aZkdSWqTbET2V94W1rYqoxWt8Op8XkSGDVnjWOT4gEtaiMDLehDyNCV0x92iah2maEzXi-mH_aDeYke4-V0G0-wtH6b5h0uKJWIsOWxEUPjgPbvbywnRVUV_Iu7VIo8SoRdjCbv8cKIwcu7LsWiPLgvGOwnLJaRgSEoHqfoyINU1MhneKWViVuq0gWTDDExx6KYG4F0vtMYz_mvkcw4J6LB3DAMCno_pw=)
-8. [cloudwars.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEPJDaWiopKvR1W1miKo43t7BMpViWhcQSbl6z0QeQcuJqLkKOWCmvupURKpOJXxxV3G4RjyvFiqVhhMW2XRS2J10nIKLHllEeE5yC1SY2hjykthjNpFT21sdDNOKP2vMq746FOXrL0Eng2sYbA_Hz5Va0rKHVEfIjxFwK6vN8pKpUmYA0uIH8bTLdrLocxYF35Ds3kdB1YwNwmt1VCu_ZVxjCdcWi_6EaHnFQwMdhQmenPj7kGuL7u8Ton_Uc=)
-9. [nexustek.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHbutG9BX2WJ5pq5fbwKKCaPz_Axc9B2lIoT2oJOuHMJ26UjBPPuf3gvvsr0rJJMl3mJP4bUa96CoWm49kF24dklLtIW_wEW1FRhT0eejqlEU86OZbxwS6Y21hyGdPehkCBAHNdE3gLMyOdGlj69HQc2RLoZacwMXObbJCRpxFB3qPG5t3VSRkUXtx4E1HlJsZ0uF_4kYk9nuNQ__1zJA==)
-10. [microsoft.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHrqCK0Q5bb7sw7bpl6hadYCoe394cb4YjvKMXaI1g3Ct8qnIkJv5roWgDfJX8vkPptYcvc049TT01UYHZRP-dROBmR3Csiq2YbYAfnD8RqQsF1g3NdpCLepnT1_x-JUsQ6H1oflBhZfW7SzKUZ_QbJXh60oA7btnbrw10kOEx6bHoMvFWIUpuffm0IgtFyOEKJ_j9PIqqG1HF936RjeGDkMOd29xKjcdI=)
-11. [azure.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGM9-2yWT2M3T0hN8-uq7sZ1DS5ZEssvC1cjclMVAEcUru4BvL3svVnDLm1rzCDC6uuA5h7RIs_TlZpz0TLwCCLzxPmwzeW_15vY_AjvntX-LuL)
-12. [techbuzz.ai](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFz1Y1rbYnJ1cERwjSU4E4ho_nYV5nYodtQBYCahlda4XwnZ7phxkwmC-bSb1KjW486bxmXB0ypL0XiHVXtG4sbBvXOstiU5e-_zLGo5cJ6Z2TYjiFwyyGinhbJKEMAedLEQ3Vus_ZU1_eAmv5igWau7kqzXSMUuH7B-MY2JxQ5Ro3byUFKufSZuhkuoODjP9shSw==)
-13. [youtube.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFlxAoLQ-sKF1A9z-xXm6jY_LJVhWaZGClzJOjE5d9TBVYbwbFgZS9SCtcJMh9bCAuLpV1303ZrI6A73sodPg3-ozyff0DCSz82KwXf__9U7s9fItseW3JnUshT6OXGwARP)
-14. [microsoft.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHiqjRuVFHj3vjVe-xdfLG377e0g0KKJTeffIQKpPakIX8VtR_WiymjIu90Rzg-jQpKOeUgsa0Ud0mjzIkBW53W8sBj67l63unsugQrDmkHzTkpP1-Ftm7h4NS1T0AYsBdrlG5aDvQt5D9asYU6anrLIz-jv7UixZAKnkOlEeVjv7_aON4m4OUFOvvKA2BbK1PiGgJkvg==)
-15. [microsoft.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFeonZLs2Tvc1Dt9V7e-erxH_Ir6E_xpOft0V6XEiLsy7cedvltJo9zzOavZaJVxzh5uBypOAT8WCgoEaqBIQGSeBEtP8tE313HRZJS17gCwz7H8qMop2M8EfRtVYpSjs8NNRa05nOkvlfpNg8ZH8IlmxZkipjS4wHaY0bHpfJjR3NM-J_qAiVvYQxRgbP4bcJvaB0R_YnTzfS0xE7p5ofR5aDfCCTWr9Z-QBuPfxbO6QZcpg==)
-16. [azure.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQF7zr9QkHQ4iRkrTdGtKvTBS9ni-yuGcEodvs8h1kkXIB4oCH4z0ZtYTUjzAkPhSCK_5W5tvKb2iKS_Dk_Wz1k_NafJCW__tYdcuW1RXm_YufcOcj_Pr2CRElGIolyERZu_LEhZpbV5)
-17. [microsoft.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGCu-e5Na8E-HdYGH795mrSwID7UcXCbWNHODK269QkawDkuSQP_2UhP8NBgv6NJuPTOud-oAjZtaImoXR-AXA-Mh3aHZ7GvuoMBD3HFvW9u8tAeimvtEolOMyaEkdaTy2N7JPthiEtS9KdpJmKANn3dQFSeFkzW1rC0W-i0vmlbZKeWUEdoHNIfCVq0kzA)
-18. [infoq.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQH8JGm0r1FqSRVgFcwM-dAHwhFlicNJtGMUzgkp4PT_NugG0cWOBGft0-6GevhhwYHg-m8kxaBT5L0QlyAzPoogwbiuTBYGjn-tylpOuoC_FR4idPzpB3XH0k9YmfUhmLVt4vRPZJweoErvdvZYZHDA1VSl3pIDzuA=)
-19. [microsoft.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHjKkNpMGyaYXi-wsfosruOnQ0vLtrlNtkGkfgkxNEwBgHP7jMN224sKH2UmdrxQQkx81yGFl6p9FMrA5bB42BmiLXyoq1JQq2O4pOMW7R7Njg8ES3kntFCVNesITtIZSDRlnv2MKOe67hWnq8HddWqxcvw4FzdaTTuOZ3-0_JAdWXmpa4kk0im1XzbhIX1zn5UVovgo6ywkSx7wq0yBJ0=)
-20. [dig.watch](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGSbKiAQ1P5BcUHKQl8UkLTGlrNiZRv8av9KB_8XxOxYifEZ-iuNdoMuv3y9WOh-H8-_dJF9m-w_Kf4oyr1UJfQRn-wljhTrzkRp3kBJ8d_00k4VXzvxkDWPqsD_1FCF39tN6wBcSFZ0gOO27erXEBlPHI_tyl2ECGNrcvraYuMBgVd3OoW4j5kbFFGOCeu)
-21. [microsoft.ai](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGCCRhPMVoArQWEhoNFMLZ-D28DY_0jMLPBoLTxvYLuE9-GYcdEpBOfGKb2EHjI3nUoOlXGSqc7VVKQqS6aie4msp3ZXyr969WXMaAeXHpS909yw-nITOgHLctwYAyW5Lgd0KkfgnszOw==)
-22. [microsoft.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGnSMvurwZFCVKqVUycktWErizteTKu_vQab3ikhkbedIZIy05ozzUKvnCuLHmY80Zw3OHPFz_y0cX8HpuQq-o_zq6zODNGVy4z51vKri94f2o9RnYPOmBS7_O87QARfgqjf8QfF98A7eA4ODcGZ0yvznEqXNVIFejpbI8MICDVNaZvUWG-qEbEVXLR65meOcVoKhz6u5rD7ZH3AY8z7vxiP-DoJ33zyAoCXa--D2kWCISX)
-23. [medium.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHCU8CoogriYvCrPO0XL6npVEqYRMTiMkTsK9qNIs_F3fGUB7Og9LipCd6AX-sZFNA0ZInSHanDIZZPEOpvo84I7Q-lTzIvd1qOGfeAFAVXo24duC-0NAkyK1Q2FYGVnyA-ebG3ayOFjvJLyb5r_U6uVm5kYoGWgzOhGJzeFWEGWVkumB3GGaqI_FiWSFpNX3gbGpGWHFSP1CezUWxl)
-24. [berberich.dev](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQH1T77QaHK39nkqgQ51a6qNF_cC2axtJOjCUSxCPxUCbxEP6vS8SA56MzAUt5niaiDKvO-fvjWVxtoWuKvxhxiK9j62F-Bc9Sdlr0XffvEfOdXatqC1Z7Z9SJCIFfCikNKtle4zPX15NqfYxMKf0aGTKHUICT3dip-uQXVMPsNUQg==)
-25. [medium.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEn_xGEZr6wlBX5l2iBP76staHjr-Czkn5KAghcMBFqirMNhlyp984tGv0UshYm2nHRsxoIDjJvG97T6JEptGJlX1xGEWmv32nz75_0LmpDIoul1M_0t62JICYKvDXtxOVd7oAO5fgtk14fCIi9IWrsLX4waoDvaklgLOXmw4uv1qnAne4gqHWgShzDUuf6kgrQlbFQu2PPtyTQe-xI0-OF56udTiSG6g==)
-26. [itnext.io](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQF6l77OpKRbZ9EXs__0OlqRACCe0lHR9vS7UKmCkw3zX-XsJOrNviw4i2oC539cK8GQ33bpBIRMn-owgwNz97HvCPMUzDwYnIUeeky2a8ZjSopDYcvtahPaslb8jOam2Q-tjvS_SbSAa-CSBoOKZXG2jr9ajbaPUYrJgI633xPnPlCT7iX4NjzHaS02FIDUEq74CuEIZxStfFj5KZk=)
-27. [thepowerplatformcave.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEnxarLQ7Sjb3qKfoSjkXIB3ebKIo66ytp1bSpj1xg6KJShYXn_3vvS2RLeNe_8sUY18Wdx-4piAT4mnnZwWd3HW_iB5-6f-cIRXYNd-RshPYPysdbXI54JgvnGUfz9rlum0g==)
-28. [microsoft.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQH_n1eodRanNtXvahUaEk6aTizoMHYN_6KouQ6r8t_3SsN85A9bnlXt9Jha35T5ypplVpmwx3BwIQtu5fb_pfrZrmeWEguV_r2-YVo4pNtmEgH7DIU9MWn39IGeqeR2GulTI4Pev0ihj_kBYo6IuF8iqxRcca9Ud-Iquh9xQEZr9i_YLjUykX5qEC4=)
-29. [microsoft.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFcdeUuc2hVmC0saXw7obSPpGa-zBIujYGY7rON-lTkVrPDJ-EXA29Zol8tE6DrrhDauAovLFHgs0voMrYq76YwzyP1F16NNWWEBf7utaudzWsMG8Kg1fj2WJtTWlKt4P__eQUe9NE2eH69ybWvkyILPWwwQJSJC0F9lR_gNAERlCo1EJWWGH6y6C8xMaaPK1olZbK_ZERaRjFYpqhZa23kv77HmUD8AMYiGDEC4XXLtugaVwQWTmGVzqz__d8lBA==)
-30. [youtube.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHRSkj5xxPXVQZ1fBEAoYRKI9SzGzghiZZd-7FCQpT6j87v48QkIDNWKYfPva8IesnbgCRn88R99MjO7crnc0whBWDzfYgTjVTu53REo6DTSm7x7OjV3gcQ8gGVbkmMI--V)
-31. [getmonetizely.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHy5IatRN41kbzOPq6yEMfBgOmn1VGuhy8rN-ULckJqwg7Wn0CSIgQNIhBAB_Qa8_5qj0X9M-6UM6pl9_Fpf29iNbaozRSs39s61zivScJagm726_U-5XHvC8zZ9rcr1B8ZlFsZcZm_r5JWUu9qWNwF-zcbI6KKNfaqpqMQNGjSGxVDwCR349fld-LUt6UuOqxCXeR6zO--bYMEFuoVMvA6Mk4nMBEWpeFX9bn7U7cYVFlJIBip34bCyhc3)
-32. [directionsonmicrosoft.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGIhQaZxN8mga-TsZ3HVMEO5bWQ3j9cQaoW36c0PP-s-_rfKsttQWMjiC2xDODCg6_APQ93Axz1Y-jfiTILcYfRi00v6oopzr1iRSCJTNnd1CRI74wO5K_1rLu_4exkJlAreDVlggo1dXikcx7p1tX9if3UpXfJv5wV3I0_vNMk5qwGfLau0BiCfX7qbFSeXVd2FS0OrWQISsm_tB-lZIIw)
-33. [licensing.guide](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQE0eElmS9LgS0N5fM66AxuGcYYzxk8nZOW3xlwIP7S-8E-EtfVG-gEugHV91wWJOB0Sld-jPAWuIVk5hp9H16Le7vDSep_Gynf8MmA6YlD72JWPi7JrrAUrQ1qS62_DkjxYlKHqZYw528t72iliOK2aX1M=)
-34. [microsoft.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGvOaRIL_RvOYiVKnRI0YLpjG1iy6Ux_6grPvmZamWmU1k_Qvbe73oglQ8-XVCVCe6RKEFf0RuKN47EvQEGWkFEXwKrINzyFSSbukOBsFPApckcplEUnWM87WeFC37ay1yYAy3gswGPsfqXPm0JNx1F1MO3bz36Q56Tn2h4oH5mblrQGbwoEige4AsPw_Hj9VZRMm734uBwaTPRC4VCu9Cp7NZx5QNowHbvhqdXV1ZziQ==)
-35. [microsoft.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHN5rSpYjFzG5UsIIHMovIxpmoT1ew-M2hjIz4xZRaVwefp-RevuGgIKOV7HGJOJUEo2Ps58IcjIc5_3LjtQhHxEAqbfqUICZOm_sF2xq6Lj9cJKnVza-RLUp-r82hoXXNUh9qOu-rKaAcU0KihU3pnWRn3Y1wi38m-8GnJ2os38SmqsE7H3CAR5xdgWbh2pVwP7Mpjaw==)
-36. [exigotech.co](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHNLpdhMeGQMryf7U_TjNFPnU1JpePuiPB8EOBL4rV2l1RhDKpLeJxUVwTaxk1It9LKtyNaUeYiyQqYqtF_mBWT68ILL7mdED8jEihFqCNvFTZ-65EzhoM7qVhggybqq2v1mNj5BGqTIUe6cxZwgn6fWxY=)
-37. [infoq.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHtxERp4CzSPHNHTVlAK87q3SvGemtBvq_qwF6wWuxj9TbsbjJJq-20RhB9GzTq_NZtkBw5WAnPAwPdb3k_YFBGCRQYLWucwFChU4fjY8KNkaQF2CinwI7tUPfYgBFs-DZ7nSptfAE7tMHtjqTo8Se-qHpVZg==)
-38. [rios.engineer](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQF5H-FIUME5Rk_PQNafBDOKMkyo1gg1WlQ11fMo-Idyc8jRiznAz_bXQQVjXenMC_eXoWGPfbMfEswuTXCty0TrX_BkpHF9hBrsH7vlUBK3zg_C2I38VrnaILgBH5xmG8gGTDyIBLwd86k0ogY2lxOiKC77sztQ10Uy7Z5WF9vXwPCXpEPs1txdOTQSLPNdsfKXvrwkHw==)
-39. [microsoft.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHAwOVp9Oa5LdLz8axK9koQGOG1J3jlgQJPWLwitKKrmdNVpYe6OqMs6fOsAX0m_U_IgTZwHAlZjI7PnbQuUW-FI6pyYpVHTMDNEvY4QtRP-bCVZXe1tc4GsuFGrTaw6m30LZ6FWrRWIpXm-BE12e0jlKUAbAnpYqxnIGbm_ZUCBxqA14WOQYO5mj5e9CG-QUJD7MDrEDSfYDNKgs98JAcKxWTuYP14bLAVuw6rqMtr4f8f9kvu7beCV76RiqTvc5SOEvHl5l25Fg==)
-40. [infoworld.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHfLmTlt-649Y-482jCaidxNXyVWbJMIsQrhYQds7MN_JvlzD4BjIJGPSFKrVFYaM_cezkSwwowfaq29XI1ja0tq5SrZhLIxT7QfIGZpCiHchG_cpsfDZWMDMIV9c0bNq5s1R3DgNPXXpgUaA2M0EjuTZgy8Ahi8I4ub_24G30rTaUg3IOV0zt0qSsXkV3rAF_5QDKAc0U-PWuJAGHx8mkLMYYS)
-41. [data-mozart.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHCn9A-sYENCVQ0hP_D_iXVBpab37QnPYBmhF3XPlt7WRfftr_RrfEudTVDh28D_aH1RuUBrXbAWgr2boPIZ_8JIDLq3aN842dvXhEkKMKOXyW7V8lTwiWVGcxsM5sczPrqkh7CQ1I3U921t0dpTrw1iHmeKGCPtgeHiF3pZFVx)
-42. [techzine.eu](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHjP25AnVEyV-K-rLpKdvZZz7bZLOH7MQ5lnWjGdw42fmgqLdABi2kCLpEbKZ61SNK2vqY_6klUefEgJJihJ0ZQH1Rq0O0kcCLBi08NrrAFVgI4obTmHzhu16i1zOc6hEVy8Ev1ee4xitaES98fjKeH-48-aGJ1iBF0sOq1EAzeX7_zCh5zxqzN7vlLaFJf3erPm9L3yg906XnmJkprpf1bRk7Dl6_eeC7JWQOLlO4=)
-43. [empathy-technologies.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEh4o6JXCnPVk5X92r1rTkX3XcWia_KijXbvaul90VryNuq9FN9icHw2pEHU7iGAHAdgJeY8ko_xuhPFL57zbZfnu72tcoiD039BXzs0WvVrpjleJbTmq2y5DdCMpUZ-LnncB2PeNToRzor2NoECsIM8gTNKA==)
-44. [thelalitblogs.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEm0RIMhgMz2dtxcIzujyArUoteE1gDfGuU5cmIR6rchIe7beRHRj7hS3lgHNjcuawrp1B3TU8M3_eIQRoCgbOCZ6_7aMJa6_FtTZwlOqBHRe3T6X3sbjkidOIPl-j1lPiRsoQbvnTKKWcdYmNU)
-45. [itnext.io](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGRhMPRDT8TIgAwXJNe-My-Ft7qo75JDd0fnoC2rUXTFB5Jzw-zaewblSokhF15ZaPHeXMXQtOUraJZYXbId5op4yDo0bBaujdtnHpqT9qaa9YK8MbSuP5y1yXSyy2nNJRwFrmkw9Jw8HrKpnG-d9plf_N6n5RoLC7WfcG6MbVAxE_wL6TOgGTpyPf5BSYzjrsH0G82hSOpf_Qfc02XMWttiZlZKQ==)
-46. [infoworld.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEpqxPeIWZGU_kHqPkP3G19UaWvXA8h_PUlbr_Tv7MLu2t7G1Li2dV6L3aRGkZAhucmFqbVUlb4NXNvSW7LN8j-H1aWQ6ORsNuO2-jeE1RZsJxGxZfr7wES1os5b8AY0gH9w7rbbHVKYdKcUXo3tg9VMrd0JGlmOV45KrMy_rXNTsqFFD1a9IHVneoT1Ina3jAgoWb9K0VpNBYsng==)
-47. [dev.to](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEoau_EXjI-axGYCKsAOx3dm4OmM7sAJRBlbLr1uG41YFdAoIMm9TIh6fS6yZ0tDBpHNKfkUz4yg6-xi6w5aT-rnmCaOHrDyLgbI-jtGfNEJGVyiNvHuOEvEPrlke6KiwfPpVg2EEUvYRLBS4b_xJ_XsqEhNwoolig2i_3x1VF25JSDOyLwBMMWTrdVeA==)
-48. [microsoft.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGYkRmevJTwEhH0d1Y7vbe_DhDPkbmThzhOc_DP5zSc8TzZKlTLNvxYKd_K-fXtLwSFL70j074l7DMErcmsFxN4LEHHe1XZhyXxs-4fdpLo4KlDcNa0y0l0h8vyzd0DcgXIGPHCGt6H4dygAAKO64pIAB3e34eXUmgw)
-49. [microsoft.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGn9yoNypt4bJUevMNReP9z7Hl8HOuTyMj6DvzHUxIBGlEYTn2nQhWj6wPNuTdExzh44dVvV_7mwHPcxBvlWdu1wlORzU64E6nGBRnHV7rSvx2Phv3kriNZ5RrnE1r1LZ4hfV47_7z7Ffh6501Q2qZfu1LDhKspCexNKco=)
-50. [uctoday.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQH9-seGims4tP1sYmcVU4EOhC2On7PtloNoDtYAC0wiPp_GeD1WayzQfGqq_fDIDHaR3ZezZ8-sSw6SU1yfmBP8UjYkRKA8HOzWyrPvZzvM23IE4twYM6Be0D2eKvmLDRiXtvO4vbgDdfdqvujasG1CPn90hH_DDod80Mv3rKzbgMK5ge9zfiRPz3_9W6I=)
-51. [sharepointcafe.net](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHQMw1Q8hgTtxYox-A2_KTUkrZMu0jN-ZILomwVXIH0h4uKbll31K_LN8apVqvhdT1woGQAVLOAfHUQ3MCm-L4RouMoEOrFodDdH7c9k4vm-YgnoG7oVKx0Vheft8yZmATMlFH9PW7MX9nqO-1q9ghQNqo7SjjawjS4qZ-IBOPku5w3)
-52. [microsoft.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFk5-_javGON3rJihRx7NvhuXo1B-hxHziobSdCpVpybKAIw1Zef8FqaqW9JKrADZ-rKUTUnrJ2fJwznPTpVXbzJfEZI90Q_FUd3ilK9tKxmpYUOeN8H0u-s_8lCtO0rGLVhMvzdkAfmG_vImnBY3yihbrNq8qjEBRBUvypmdeBxN6WLIjZFA==)
-53. [microsoft.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFbk74dlt_dKlWbfmCbDpe7O98d2eUkzyJV3-fn_cEmI9rQdrB_yCMO8YVkxcxl_B4hN2a246ZCmsAMjEmN28FuddYfeGqi3kBu2EGBu-reKNoOdXXOcFVtb6uKz2qWETTMlZzc8IX2i_XZZJpsIyKqshS0mSIkvOMcBGBvwOEkh7VDkGsB1qRCBDIi6VKA8UmL2x4J1eP2hooDrIMm_G1IbNRw_er2BiLCYeF0Jio7mla70GYGgqXuV5g_e5pj-Gl89qb1FqKRbQ0=)
-54. [microsoft.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEUV3fRvAaa1efRyFHE7dlYseNZNb6HXg4XtNt504MwV9JUYWzKwM1uYaDDsqAGet7BsIb0Z1DI2sEtx2N64BWYR1wNtXHl5LumiyJuO8a-HkwX7QXcGDYBkLKrhe5mn0uD7k4Ublm-OQDXCOnKmrKwBoleLg15_gjQliaSWWYVpJPLzj2OwZ_J3hTgav2bacd4nbDOmEm0W7S5S-qyQizuhHIE)
-55. [microsoft.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFRGly0PbOy7K3Rli7XuayvuNJzIodHQ7giKZBz3JKsQ5Oy65oyiW2BMGYdMqK88yZJyz-il9K7BAVKLXhLSedB7-4OwpBR2ugY353GHZK6BAdZuTKM786zPrRJNi8pBrbtiP8=)
-56. [microsoft.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHdZspo9mZm-72ttMhXDYzj3qNsa5QFOPlM8xmlasMmdlFXbLndV5shStzKH4b9HWG5mvCxrrIR6Xidhl5-YDI0AK7o5zO5XLDrX_2x2ZrmboIrqPiD5V6c5WLmupvjHpWLD_RqD0djGYa8vdCi5UXKeCAm)
-57. [microsoft.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGNGbI55sVn2MBpwZYYSdAMIMKzKIhgcED_rB04fmpbC1QAyq_oh5Yae3QgkaBvkad18FiHhpVUeMCLlGpnUopEAZ6I3AjqhqUTIbB-0MpwWyywB_ICw9vHQ3CMUGx6lnzIdSQN2yhTSH0OCGIZa5-HTVDdx7v1ScJewOMP0HLxVHAo9qwHwls7YiBNP8KtVQeheZ4i1-ttsZE4C4YdZcAGgFKaxCG9twMMV3pH8C0VEE_DQsKVG_qpFpH5Fakq_ecM6Ju3gpfAS0Yf)
+1. [schneider.im](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEKF6EbXKhZubYuBRlMM9J6B9vFrI6SbBiOux-872r_RRJ-C_b50KgzsdjqaQV5mPiV-kj9gEAZW4x7u6-_8Dr7vJgy_k_KBS8dupXHWO6NUU-mkcA9wlSD8GzUgS1bFBkaX5jUM2sZRQtdwnMrSSlJSuSxoprRex32HYDe9e2j6IcREQ==)
+2. [valoremreply.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHDoMwBVgF41GtpXoCsi0AM-_yKT2K16U3N9V5FOvn2NwLCoiwTxENushBmYwPwvT62o-oLykYsbaM1BKQf6OZKi8hz6CeTlrMA_1H-Oup-a-NfV9mQdErjGVeysoN4Nb4ONFtOq39xeeBAzXpnpe1wXAPWarYNrM4Hv32YpOjcKXTvUd6TJrCb5xnDN4GPkHha-N6DkPXBJO-iUO4A9tVcqPxPRmMr9YIf)
+3. [techcabal.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHz-CCuBoj2ravjOxHodZz4eYuliRZtQjF5x8fqUNvzcznLws6XqBM0nKYp3wtftPDqtLPOEvYnfLyJykXYLxZpbEcOja5jvvHNb-Kgl5Ai8dQo9U_x-G1JUaaxJ6YkKrQdFcPbKoWgbVPXxe9gV_kXg6-aWFz3muPmjf5CsVE6BFniCofwkg==)
+4. [infusedinnovations.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFAhsgBCgmEPSF6hNIgVaH2Iz-75vqBCE-2KN37K74UAEMd9yq9JHfWOFLToWTHEqodDh4o2oQ0Ket29J9bPylEkIljoWtlC94AybkRFgDtLEziZ-NtCx737tUATEfrNvoUcejf7iFRDHC7VU1SEsTyXu7FrU_43I_iMEPUSutsqx_N-Q000p7pB8OquwlLspLosoHvb3E0U39xIDdNwBwKMVJGPqgx)
+5. [crn.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQH23GXyPkAzp3wPwspDkAzw39yZ7EwJnABb2S-CnCqDtkgvYU8He6y8OMwc9mmJJlvsgG_o3JrN5TRmSak2MlyBu0tgwYzR8UfwyaJWlT4LbbstNR8ypM1KD2-aaOA6SZ_8LjKKK0NYbsSbIxvxmjsSpL6LEG2ZHYw63OFHEG30V3X16uhQnXSrFveibXyFuw==)
+6. [microsoft.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQF83qgBQbHvXsIpT9rVmzqJnqg8elddU3pAnYn6I_RZx_jdzYVzJQSGdenQCp9uMQpbq63NdbfA3Bf93Sl5kPV9TrAXdbxCfKKrYlM27GJH5tTMgXwN4try_aJoEaCA89M3GaGxoHiEtQRwnZ4xXw9QdQQhfWt6QL-OuT58QrBimqbQI-xgcIaoM09M-gg2hMsGkOOm8X5sIJjfFQG6X_G41pkb4UGFad8=)
+7. [microsoft.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHXhYGFv8NTlP0NMAZTSSi7_P8j30F-IAz9zR3k_0D3cuiKthiEKVF3EGL4S-lra6PADaydVVtRa8K9iAR4N9BssjbhWUSc4ui8m2EnlRXSCih7hwhogeQKb2e_yAqiPTpqQ8DnqrtwVd9AgxBZfru10gx41g79z2nRTZ6XUDwY-kVXk-5iPacZvvCbG6x1QFGYbeBHd7o9QrOqdkuLJ2kYI6xf_UyAt7V-h3gLSn1VC1KRPg==)
+8. [microsoft.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGslk0alhBHgtjshHePD8zihG7P9ebb-Y05s9GdU7gnh5VeQhY0Fxswd9o6p_6RCNZ1htMLxjwGyami4VxbdvmS2SjbZ19cV9dp_XEjrr1Z8n1XyybilIQUS00trUVNw3-V6K_mwsShxExtXMDO8hZy4ttM5FQ=)
+9. [azure.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFHuJY5z8ejbInJg7R6e3w0puX_6DgaBrCvr6YizoRrhx3JWLv7qGLGfQ6cR1gBk9jVcR-AiVedeOZjJSUFqbwrc8v5s-rGWZNCUv3DVUOyMiN5)
+10. [visualstudiomagazine.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGuCiaKsc3j1uV0c-vyC_C2NDLSf3WaAA5_N1QsYJmC5HgK9B0rviZvNG53gkIGLQkA6l2QiWCQYaSC2n7C-eTXNpeOuyK3UMJgaJi8une9Ds00loyS8Zpj6x1iu6jcpHm-FIXbktLD37LrM8T6gOGtq_JplW51OuUlxcshYNz18nXNbKO4aBRONY8LEHfkkkaPme0t66thaTgyPWEpfkV2FEqrvUqc62hmOHBgudI=)
+11. [reddit.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQE1hJLGVDZ-vtE3Gp6DXj9GIs93B0kbZk09itlp48xShrRQRlVsVDZ4HElNXvUUYepmj1ygQ4Z5bkLyo94-I5qUpgDF-8aNln_TlWI_CdBIA-msYLtPZnyKAjwpChe6obCYHq47TL4nJMWhMPviQu-BHXA90IMSf6QnmhGR71LyInAXiW6pNdItiHTLddONwNsDD5hRIg==)
+12. [samexpert.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQE7ot1r3UK1m8WNLpJIBICK7Y0qli-UE-9AmhnKsm3G2sMWAc6LL6kzqXL8YMq29hqVjfHGP6gVGkTQgizJ-M05En_Nk3i8zGEV1uNkiC-N8uVJc7zle-JJN1VqQCIi8oblUodl7sOC4CosRao2comA5A==)
+13. [azure.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFY8vEdm-q2fzdIc65lwhqONfmTVhi_j0tiQNJYxsmtLlubLKYkJ6lv1xJGSogqS934x--k4E-3swNqHW1YGC14M9fuQndJenpeuMEZsUAxO_aiaI5Coi0yjO48UCjPng==)
+14. [openai.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHGIbZDqbes-0BA00P6P8g3n-HoGiz7Rt26YnWuBxXuswVixRc9-K1cMDcKQOsc-HwK2vnDomLNy4BAfcSU_dikYUqYcQig3fcKh6UaedLs4oEPyctmsaSrIWaBf4LT)
+15. [microsoft.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQG13iAu3Pq8EaNsmGWDDZKSJa4DnckoaE57-JY9ASHzBKkOoXiobl54Rxd8yb-QoRbZNbRA7mTy2nGd5FxT3IeHOlUhMUZ8XcY3wMitDNv_9bGgMSKDHgESS83O0mgxXm1R9qwLaZ0DRrr9GIqV3bdBkzffVYPm522pUiYemKRPzWWOXIg1VZI7joMRVcWcIKUdeKgEilCapxUdaOJvwkA=)
+16. [microsoft.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEAH0-4WNLMcuw0ysutTcefbFowByDsmPS_V0pnXE9x_gykfVvAymgO0JXYEQTaDzhE4pNieWbgRFU56gTiN7ycFWDQBQwLLMThIaArhwnm35PnBOVv20S9ZxInkiZDkfzyysEfA8dnVcyhlsV9HuE1KBmZ-CtgGR7firsCKiMlpJEXDHLJnQ7nnNjt2dBrgtSTqwkNdX4WhLU-3RgQ2MSmFg==)
+17. [extremetech.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFFRLXQlAPrRmo5HcwGzbC15ENl0bKQN23nd8OU8zVOS2AuECLfwSuh-CkJEg8xJgOXQlvKEW5A--V9AlDJjP9IKIBVZX035oT5L-T1vhnXV7Hpw2I0FMs4h2kcAhXVhBogwAyKq3n7cOC8hqb7f2ttitx4KtVwvK-ErIHWo_4dG135_AFVFy1eK4RU-16e2XFf)
+18. [mistral.ai](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQElAmKH19tKspSdXKgxcfFlBGBdEFetpO3i-zDK6AKGW9ZsXvFGwWHDCkgffuqUfjE-Y4DiKNzU18J8Xp8Ad2W69WiF0wlZQUELDmPaDNuRqH1-M1Jioyk0Y_sY96RBOibE-HI-DTq5)
+19. [microsoft.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQE56UhZQ_rkDVoSVCj_1IwE-QWys-vaxCgkG3qTHTwZo0KdcOap2XnxmAuIubBpY-7bEVe4-36tXDXV-FHXNRVoCBKCizL9V0p93aYKVwNEzjuRbxFRb-yJ2NIPO1jGkZbxzlje3bvukEiCjg==)
+20. [microsoft.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEcqPGFrx_lW-n9TP94_9bn_vl46W1iVQLheUqgulisNQsVt1ECLVZzgF1l6QM0zA4xc3tA1tItaSkuXWfWaQDg0KtbqzRovKadlH2ovxaqIbRXVP2p7aYzPw-pHWehrfwV04qfNhLcWua91GpHzsowofiseH3aypto7eoCBrk-Z58BItNpZavIxIMdn4kXwBVngswkYdIeE7osgzVwK50G1uoLB4nkZEm2lILk2sSzi5E=)
+21. [finout.io](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGEwFO6llPYgZcBr3nGDxQshHtygRfJ7xLtohcqZMnxuV3yDfPO6ovZDnh9c07wFX93P5yR7TqSuHm1qp2yWOm2y384uqHWS0hGZ5YkXIOfmSMg3NXgwvfy6aQPcmcACIdqKPGtUYZSMSdBDuOJ9N04l8kvCThfpHa_)
+22. [microsoft.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGkd78dnWeYrba7ZGffQuXgijNcDRDBn_drxNomwpyxyQBBxiHRSeNLRLfJ3btl6L9O0SyLK7pe-c0kdDGL0sNmMkjb05-y8GpFWs2KSN-vj6BsEtbrGGFKMFPTc3Pp-BUZI6R4-H1K1tOy)
+23. [plainconcepts.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFdncqwTFr81oYSk_LemXjNf0uFiAIy7nihvpspVsdf0hiNP4sV1unDB8kXsJctnPqM4o8qIRrZHdNvPNLo6Fj9dvLZXzPs1u67Mq16LJqCVMJbXkbuzI-JOCkPKKbY4mslRXuCeh4eCnCKVc2XuXPOj24=)
+24. [easi.net](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQH9_L3mstR1is_lHSNauGlYhxO-vhJsLQrj--M7x44nz9Gfegl-W9uXC3tjcOP1wxqluKwtw35OLWwuEjHbQiQ9PQaEtgFOP4yn_aQ-Ch2saJmWoOhZpJICAcebaYQxJTUelyoW9HOxIJ6qFhEydaMynTnhxKiG)
+25. [microsoft.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHfUPb3QvBQ-UO6YD2ep55hRcp8W2DAr8PbnJK9MYQ5xrMGaH6mMl4kbbOxFUe9UpxUH4H2AUFXBKwCYkrsD67xkq0-LuyXEsWRLzptPT62SZEBX6Qu2qMlZrSva2zNbJBEPjMOPbEiw_osNgNJpawOShZjgphfC8vFmgHYYVHNCqQW1-ETo0EHOjIOUQ==)
+26. [microsoft.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHTZ991wn51c53Y1xz-Y_Lx7FW6rbBL0OODAF-YYWsqz4GolynHXSu6gySOg8G3cD1aF8SSq8gG6ujI1Zw_Zzac2ZJY_2zG0FS_yuvg3YE9JnTjBtjVdtWPp2HWaFeyOfCLd9eAfGs8EaMBe3WTPnBljZgt)
+27. [getmonetizely.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQER-_bqaxrClBvCMd4pBJmv0NuRItv3xVTdnNgmg_hMRbDq7iMKTxe3fK7MJo5XT4ZqIU1EyhotfYA6GyDWNgPP_CVPtgJwe9ong5EKD-zyEKqImsmVmBMijTsMagCt8W2in57GpBBgB18Sf1yfkaIqZjtXBHcsK5VGiaydjFFx3xokswCbCGgmdKtbKUYFP_iJHXgHK1UsH8I8VUDI3j1XY87kFoJUjYJPIujjgTSSWEOrhgRH9EYs5kiL)
+28. [getmonetizely.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGJExkp54OBa41CNDwgpcJEDR6Nrec4IpBL68873mrRRCOsJ1_6FRkTpQz9jdsJhbQsvK-H3n06qzbzrdgEgBJEJPjciZTc2F6V7sn_C-ZuxOdAPsb-kBmUiqqIU5dXkCZND9VNjLbGleAp8ELLghEnAEgBpkbLKV8F1VdUvRbD9--70EGa7MlfoapI27IwvYf4IXFBsOP66osqriCTVkXBZH2-tn6P1GngSSG30owIwWYUP4oi-xUHS5KAxl6AiMiMR7n4)
+29. [microsoft.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFqEsW5WbNHd55dTnlv7Yd32PCxwOhmnK5vHddmU1RFxax4yquI7HDzjRZD2w4-4wLvXfcEs2CwTfCbL-INzKEY7AJnHLXBErYzECk84Emk_K67O8_qtkbNfc3zcQdmi8LNQNOGTX_tS_7WB3BSPSMeq4egKwbUoFrwnskRLNIhQbCIxlA=)
+30. [microsoft.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGOOi0BzKzFdpNB_ikM-f9rc1do9JRC0ZPdVjWE93On1uQGASxJqVnP9snV1x1e69rH29zN6X52dDlDD61z0P-Rcg5F6s0T3HOjX5ySNpe2XsMKFEHZaN-4Ro49e8eViC6cCyoggmr9giWrhjfQC6XF_JA0lVz4J1IYkDRlp_USHYDF)
+31. [hso.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHI_5KHAeTK3I7cwhbql-3FMrRgwfRngSXcaE_HYLUxcaWD3hmSJutJ9srXNA6e3nA5jLoy5pXV1958JQX6pfFW5pZCJjhNFqQ0NLoq9UkRCcT7CCdU56p9rW8L4-MYR3_vapPJ2la31tTc)
+32. [smartchoice-international.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEnqCDps-evqF7YjpAT2EkpZVSp7q6PuuwK1cown0t4FIlPLGH5t7-ytLUXU9apx2GWzsS8gzrIE_FbFcvwNZrJEYbW0g4oVgQ0__lnbp98yOqTYFH5cCtYc9BetavFtvpzXAV-uKWbdiSj3r6iZEUZ_s6PWhx1_FhQueulefRA7ZRBaOF1kfJJ0fnyPvPsWZKPNr4=)
+33. [jamesserra.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFNgXzHO_UTaEA06QJdYgLceAgimiXtB1wIRocEd2kdGePUKr0Nzbxs5JTrACPvYu16B8ckNFEDi2ysOYITBHJYrwYx9_JaRxkXfDlxnNQRAco7kmsk6JqZrva_gipTjxZV_TjjvMAQaHEkGYvAoOpvDl-WRXWtpNBHEA6mK6yoHRp0Xfjoi4lVoQ==)
+34. [graphlit.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHiLiaBhH6yp_uO2n3_KmLLm2ExSM8ULJS8fe9uDU1_ViFXZMMlm7xje6P3GoTKrNu9dJGUzFOEr8YzCR8In1gBxX9BYu3mom7f1scSP-uzziSGIF2AH-GA7oqFzUcUwG5DdjA25cg=)
+35. [medium.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEY21JYXKjjucJneRjQ-OlguO4gNv0mnwLDA2KoHKLRZXw2jPt1ZK7qbSsN2omXJCiiYk7uQd6z2nLyKsssxK37h6E2HjwxnX0gFnigedXOchmA1_rAOJ-5zKjRLs7O-gAVfSOAxYHYKxJNEUVlzGLUDfkUxKg7PwfZtTd-Jpt0tNO3kXJroSw8PcgFViAMAmDpQa9mNWKmYKTdMw5zlBog96GSOsFatljsP9EfmMZL7w==)
+36. [azure.cn](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHv_r05Ktrz0i6vmdGAzNmvcxcNBPgMfrI6HCj6eBEza_v0vjjwe17jffblxpfQlJT2x4DCNc-0eP8qcfyUMngUgE3ZuNtK4p5UThA8OtkMIwpKtoXocnr91467fLBfHYkTyzdzT43bda5y9u5CiQ==)
+37. [medium.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGnuzo2XubpupZZzh7vapvdsfCnZ8sca7pGAo_-ACn8KNL2N75ui4W2q1hmRsJ0SNlP2YxVyvKf0Q6VQedSYahkQQGf_Op8Svkr20kj_jjJT3XgBYfLLYxao5lwCnE1gxtxUNc8izMLRF1NFtoJp7oAK9tOc74-d9lT8QP_go4Jbu0HMnn4PNcAJ9r8gsR0m6md6u3M1HXs_MTleg_89I_i0jq9_JT1MdXSsuE=)
+38. [azure.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQETpKL5ABg8SxEuXmJ6mOzHqm2S08zZuYrs0mr4kcJvOJLvprcmBnXc-QgtiDnEOKzp4t8_dpEJtkA8G9x96k8An2J7raZ2tG2pBdg=)
+39. [microsoft.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGXVZlsWDc1U4CKYBJbV8Zcfj2Y8C_BfK4ZYDCWl0YJJm3FriTK4j2i2XFm6n6GgtQkE28x2NapwFEQPfJN6ena9vsiqK9I53u_e9TQZz2vvIapKQeyLKpuujuRZ7WbIbXFjQ8Era46mFdQ4wsjuUb9LUGy07LgYYw7xKqi4sepoV8zEimidDDQyGLJljTojmRFZquLDR8bZ0FzXJhikzy-5Xiemm2RFU5hTPi9whyNd8tcwEcFi6iL8PM=)
+40. [medium.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFal1mxYChUuHto09eFEgsSBXyyvChk2Le4mk_Jyszw7NePy0w2zt5fihiHwR0tUbhV8SI3UDCFhbu_akBgGRGl6TkieNlkkVh2_lcQLEZfJe9W-5b5hwMViDGZLkzZOP9iwi303vTAtdiwx6tgBXk6L96Q83lWSmAZ-t6VuJ4u0fJwLlWex14mWYVDTV2aBSZeP1S--tSP-UUSTN49ki72pTkcyLpVCtvBe3S3bYu83uQY99bAc8wSuxWOUsppDGg0)
+41. [microsoft.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEBPh2w1HJW3sNGHpF8krC3r_6O7K7zH5a3YdGW4m1aWCxtjXWLmC7z0snAp3KkrHE6fLmmo80-K_qGAFovjbUsMCO0DgcN5VdoNjY0N17xfw5rPHto6NR6SXcmgVwarlMosyPe0LcLtbJ2f2SRnd03f6JH97D6DynrANErKJ8cj3wh-s2_Vb4Hu35xiIKibxn4zFNeQYQ=)
+42. [microsoft.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGbWQa32bTKTFsxGt5vNCF0_6A8pr5FT1mzKajhUwNcuB67cx7wo0X7IjpuQtCQmtDyPeFLfOAj2DxgQ9EGueLLKL_5jgfr-SFvUl1mQQSXOWPS_y6jMs_aSGZ09BPNztbxEMyN47Rj-sNWBCqvfbWRDL9Itmtp8Gptq2PSJXPSG5bcJrp_kEeZP8WX50M5JhmouU1aJhyQT7ytwD6c-fANMwM-RaTCqXPlvwJVqjYGw0VUZSnP3yocWnlWxA5QrV2BguAbV6I=)
+43. [microsoft.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGNtlbr_bqcZSvdWkRDpQ86d_24aDatcpmXJ882_jysFy3BH1NdY2azrRDYexRquBivLfP5bq2ehuaQoMN7HSJS5e0o2roFF7s7d_h_vqxduCZcPDjd9wsmzQFLG6n0CcmYdNxE7Q8DQYv6T5T8S05BJEZ36adCgZTP6Stdt6oJRWedD_-kz2h7RhGjnjO84-Ei_fS89-owXHPP3MGfKAahbIgA4IF-9kFRl5pzE50ykMIvg6w=)
+44. [microsoft.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGjzQv7h-g7uhQ8Ui4fRp40sii-pLBO-mPhKHTdYtb9E4R3pYlQ0dhUWUCeNCEKUnk1pZ0Tu8lv5GjyLI2YZfNTYcx-Wrl1sODyiFAy8hB4CYPeGqUKBpp7rL8GZySRV9Ve8HGcfZFtR4Dcss6Md1eM-UK-ZBcpcVy02jKyZiGVzyFInjZZXpzmd95dY8ckV4p6JqcY)
+45. [ifourtechnolab.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFl8AeG6muECVWIrM9OM7YxpLG8ECBrxeQWMR6m65e7mSoMJc-ncoOFBgOUwrDljrmHoIJr6HdQAzwl6wUzboKaIiv-T82up6wfMoIsnyBS7hRI9t4h6Ylsb9gdfB7dWHo_WdkF3HMAHDJDoJb4HsK8zaLf2g==)
+46. [ekipa.ai](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHCamHQ1VbmQ0EIgfFG4yPnZHN8BK8xAA71CJiCz4x1k6h0zb4D2YCxSKo5d_IZORZrJ1pStroKXGhO8a3kxT12fm_yIvjctNU1GvBAYa3SvcBuKdmrr4_JK2mR3YkGen8kuwn_f8b6O8prPEG9MbI4-mzii_ToPhbITSE4HXPd)
+47. [synapseindia.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGJsZbwcXQ6097TAYGkEZENqNubjc2Oun6WKw3t_btQA4AjpFXAfUHVFDpUbLEcb2v6L6Vcguss_hSnI7l6cr6hsKT3LwvfJnxAHZ26wjkyDgCAywOLr-dThkyNBTB5AZC1F5SJdIn6PAEwk_LZXcLt6B6lsaAjyv6NcWcLCglU37ZQBB0SWKUiYlbrT28WlQ==)
+48. [directionsonmicrosoft.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHNu6EctA71pi0vlxEbGKqkwtM0bTVb-_y6gMmCCmDuzrOlpw-HS4oyYxp3mY_NUEdLvJQQeltYmTzQFSHoUhadx6CEKEv923Idnm42vO4tY2TlaPtECKLoWIUpstlg5TZl19o_1Iu4-sRAodrwUiz79vtUKPuu4hLC4EGm1834ZalbUprjaZhadTkr)
+49. [skywork.ai](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQG6akWfekjzB8yqZ0rdi8xE6nHpiJ6kVnlfRXKfXYR-CmYOviM8KlnMk78-GbRcvglz8OV7RA9DnTHfjC_lm64rOMh0pZ4JplgOhYfFUFqdlaNcGmj_7KjsQCBMu_RsoKtQyUogya3HVDcS0mX8AUSTGC-okWs5e80aKLOpisK7gn6gL84NZrGIVVt4XerMFw1FOU7qaLePY3G39Qp6_OcFP4FC9GN0cpJkOtp1g0_FdIXMJw==)
+50. [youtube.com](https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQE9oHNCEVL1PcFTm85HCBRyjlHLy0Il7n0GWFnGdu79Szi2esMmOCV16xuQAcWyKIVmtNl2-G0zfTdzY-0Lyb_Eg26c2Z237aPbBAaAuVYtjd6EPXlxP1j_ivp3teW465A1)
