@@ -58,27 +58,27 @@ class PreflightResult:
         lines = []
         
         if self.success:
-            lines.append("✓ Pre-flight validation passed")
+            lines.append("+ Pre-flight validation passed")
             lines.append(f"  Duration: {self.estimated_duration}")
             lines.append(f"  Est. cost: {self.estimated_cost}")
         else:
-            lines.append("✗ Pre-flight validation FAILED")
+            lines.append("x Pre-flight validation FAILED")
             lines.append("")
             lines.append("Errors (must fix before proceeding):")
             for err in self.errors:
-                lines.append(f"  ✗ {err}")
+                lines.append(f"  x {err}")
         
         if self.warnings:
             lines.append("")
             lines.append("Warnings:")
             for warn in self.warnings:
-                lines.append(f"  ⚠ {warn}")
+                lines.append(f"  ! {warn}")
         
         if verbose:
             lines.append("")
             lines.append("Check details:")
             for name, check in self.checks.items():
-                status = "✓" if check.get("passed") else "✗"
+                status = "+" if check.get("passed") else "x"
                 lines.append(f"  {status} {name}: {check.get('status', 'unknown')}")
                 if check.get("detail"):
                     lines.append(f"      {check['detail']}")
@@ -174,9 +174,9 @@ class PreflightValidator:
         )
         
         if result.success:
-            progress("✓ All checks passed")
+            progress("+ All checks passed")
         else:
-            progress(f"✗ {len(errors)} error(s) found")
+            progress(f"x {len(errors)} error(s) found")
         
         return result
     
@@ -197,7 +197,7 @@ class PreflightValidator:
             checks["gemini_api_key"] = {"passed": False, "status": "missing"}
         else:
             checks["gemini_api_key"] = {"passed": True, "status": "configured"}
-            progress("  ✓ GEMINI_API_KEY")
+            progress("  + GEMINI_API_KEY")
         
         # SEARCH_API_KEY - required for full and scrape modes
         if mode in ("full", "scrape"):
@@ -207,7 +207,7 @@ class PreflightValidator:
                 checks["search_api_key"] = {"passed": False, "status": "missing"}
             else:
                 checks["search_api_key"] = {"passed": True, "status": "configured"}
-                progress("  ✓ SEARCH_API_KEY")
+                progress("  + SEARCH_API_KEY")
             
             # SEARCH_ENGINE_ID
             search_engine_id = getattr(self._settings.api, 'search_engine_id', None) or os.environ.get('SEARCH_ENGINE_ID')
@@ -216,7 +216,7 @@ class PreflightValidator:
                 checks["search_engine_id"] = {"passed": False, "status": "missing"}
             else:
                 checks["search_engine_id"] = {"passed": True, "status": "configured"}
-                progress("  ✓ SEARCH_ENGINE_ID")
+                progress("  + SEARCH_ENGINE_ID")
     
     def _check_yaml_config(
         self,
@@ -248,7 +248,7 @@ class PreflightValidator:
                 "status": f"{section_count} sections",
                 "detail": "company_overview.yaml loaded successfully",
             }
-            progress(f"  ✓ YAML config ({section_count} sections)")
+            progress(f"  + YAML config ({section_count} sections)")
             
         except Exception as e:
             errors.append(f"YAML configuration error: {e}")

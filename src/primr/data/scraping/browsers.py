@@ -763,6 +763,22 @@ def scrape_with_playwright(
     Returns:
         ScrapeResult with raw HTML bytes
     """
+    from primr.utils.validators import validate_url_for_request
+    
+    # SSRF protection
+    is_valid, normalized_url, error = validate_url_for_request(url)
+    if not is_valid:
+        return ScrapeResult(
+            url=url,
+            success=False,
+            error_type=ErrorType.NETWORK_ERROR,
+            error=f"Invalid URL: {error}",
+            tier="playwright",
+            elapsed_ms=0,
+            attempts=[],
+        )
+    
+    url = normalized_url
     return _scrape_with_playwright_impl(url, timeout, profile, headless)
 
 
@@ -937,6 +953,22 @@ def scrape_with_playwright_aggressive(
     Returns:
         ScrapeResult with expanded HTML bytes
     """
+    from primr.utils.validators import validate_url_for_request
+    
+    # SSRF protection
+    is_valid, normalized_url, error = validate_url_for_request(url)
+    if not is_valid:
+        return ScrapeResult(
+            url=url,
+            success=False,
+            error_type=ErrorType.NETWORK_ERROR,
+            error=f"Invalid URL: {error}",
+            tier="playwright_aggressive",
+            elapsed_ms=0,
+            attempts=[],
+        )
+    
+    url = normalized_url
     start_time = time.time()
     tier_name = "playwright_aggressive"
     session = None
@@ -1040,6 +1072,22 @@ def scrape_with_drissionpage(
     Returns:
         ScrapeResult with raw HTML bytes
     """
+    from primr.utils.validators import validate_url_for_request
+    
+    # SSRF protection
+    is_valid, normalized_url, error = validate_url_for_request(url)
+    if not is_valid:
+        return ScrapeResult(
+            url=url,
+            success=False,
+            error_type=ErrorType.NETWORK_ERROR,
+            error=f"Invalid URL: {error}",
+            tier="drissionpage",
+            elapsed_ms=0,
+            attempts=[],
+        )
+    
+    url = normalized_url
     start_time = time.time()
     tier_name = "drissionpage"
     session = None
@@ -1127,22 +1175,38 @@ def scrape_with_drissionpage_stealth(
     max_challenge_wait: int = 45,
 ) -> ScrapeResult:
     """
-    Scrape URL using DrissionPage with explicit challenge detection loop.
+    Scrape URL using DrissionPage with stealth mode and challenge solving.
     
-    Tier 7: Stealth browser with challenge waiting for protected sites.
+    Tier 7: Driverless browser with anti-detection and Cloudflare bypass.
     
     Args:
         url: URL to scrape
         timeout: Timeout in seconds
         profile: Optional browser context profile
         headless: Run browser in headless mode
-        max_challenge_wait: Max seconds to wait for challenge to clear
+        max_challenge_wait: Max seconds to wait for challenge solving
     
     Returns:
         ScrapeResult with raw HTML bytes
     """
-    start_time = time.time()
+    from primr.utils.validators import validate_url_for_request
+    
+    # SSRF protection
+    is_valid, normalized_url, error = validate_url_for_request(url)
+    if not is_valid:
+        return ScrapeResult(
+            url=url,
+            success=False,
+            error_type=ErrorType.NETWORK_ERROR,
+            error=f"Invalid URL: {error}",
+            tier="drissionpage_stealth",
+            elapsed_ms=0,
+            attempts=[],
+        )
+    
+    url = normalized_url
     tier_name = "drissionpage_stealth"
+    start_time = time.time()
     session = None
     
     try:
@@ -1250,6 +1314,22 @@ def scrape_with_vision(
     Returns:
         ScrapeResult with extracted_text from vision, raw_content=screenshot bytes
     """
+    from primr.utils.validators import validate_url_for_request
+    
+    # SSRF protection
+    is_valid, normalized_url, error = validate_url_for_request(url)
+    if not is_valid:
+        return ScrapeResult(
+            url=url,
+            success=False,
+            error_type=ErrorType.NETWORK_ERROR,
+            error=f"Invalid URL: {error}",
+            tier="vision",
+            elapsed_ms=0,
+            attempts=[],
+        )
+    
+    url = normalized_url
     tier_name = "vision"
     start_time = time.time()
     

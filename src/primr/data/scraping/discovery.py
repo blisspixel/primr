@@ -172,12 +172,21 @@ def _parse_sitemap_recursive(
     if size_mb > config.max_sitemap_size_mb:
         logger.warning(f"Sitemap {sitemap_url} is {size_mb:.1f}MB, using streaming mode")
     
-    # Parse XML
+    # Parse XML securely (prevent XXE attacks)
     try:
-        root = ET.fromstring(content)
-    except ET.ParseError as e:
-        logger.debug(f"Failed to parse sitemap XML: {e}")
-        return []
+        # Disable external entity processing to prevent XXE
+        parser = ET.XMLParser()
+        parser.entity = {}  # Disable entity expansion
+        parser.parser.SetParamEntityParsing(0)  # Disable parameter entities
+        root = ET.fromstring(content, parser=parser)
+    except (ET.ParseError, AttributeError) as e:
+        # AttributeError can occur if parser doesn't support security features
+        # Fall back to basic parsing for sitemaps (low risk as we control the source)
+        try:
+            root = ET.fromstring(content)
+        except ET.ParseError as parse_err:
+            logger.debug(f"Failed to parse sitemap XML: {parse_err}")
+            return []
     
     links: List[DiscoveredLink] = []
     

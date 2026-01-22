@@ -42,9 +42,9 @@ def _compute_template_hash(raw_content: bytes) -> str:
     # Take first 500 chars of text for template matching
     text_sample = text_only[:500]
     
-    # Combine and hash
+    # Combine and hash (MD5 used for fingerprinting, not security)
     template_str = f"{title}|{h1}|{text_sample}"
-    return hashlib.md5(template_str.encode()).hexdigest()
+    return hashlib.md5(template_str.encode(), usedforsecurity=False).hexdigest()
 
 
 def register_block_template(host: str, raw_content: bytes) -> None:

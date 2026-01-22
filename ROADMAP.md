@@ -1,9 +1,9 @@
 Primr – Roadmap
-Current State: v1.1.2 (January 2026)
+Current State: v1.2.4 (January 2026)
 
-Primr is a CLI-first, local research tool designed to support company intelligence research, strategic sensemaking, and AI roadmap development. It supports a structured research process while trying to stay honest about uncertainty and maintain a subject-positive posture.
+Primr is a CLI-first, local research tool designed to support company intelligence researcharation, strategic analysis, and AI roadmap development. The tool aims to accelerate research workflows while maintaining transparency about uncertainty and supporting a subject-positive posture.
 
-Primr is intentionally opinionated, local-first, and analysis-driven.
+The design is intentionally opinionated, local-first, and analysis-driven. This roadmap reflects completed work and planned improvements.
 
 What’s Working Today
 Research Engines
@@ -55,29 +55,29 @@ System diagnostics (primr doctor)
 
 Test coverage
 
-Design Philosophy (Locked)
+Design Philosophy
 
-Primr is optimized for:
+Primr aims to support understanding companiesaration by focusing on:
 
-Internal prep, not client-ready delivery
+- Internal preparation rather than client-ready deliverables
 
-Hypothesis generation, not premature conclusions
+- Hypothesis generation rather than premature conclusions
 
-Helping strong teams move faster and smarter
+- Helping teams work more efficiently
 
-Delivering most of the value through thinking, framing, and structure
+- Providing value through structured thinking and framing
 
-Primr is not:
+Primr is intentionally not designed as:
 
-A generic research scraper
+- A generic research scraper
 
-A SaaS collaboration platform
+- A SaaS collaboration platform
 
-A presentation builder
+- A presentation builder
 
-A “share with the client” tool
+- A client-facing tool
 
-These constraints are intentional.
+These design constraints reflect the tool's intended use case and help maintain focus on its core purpose.
 
 Completed Work
 v1.0.0 – Primr Release (Complete)
@@ -125,7 +125,7 @@ Vision tier implementation: Full implementation of screenshot + LLM extraction f
 Defensive tier escalation: Quality check runs after content extraction - if content is garbage, automatically tries next tier instead of returning bad data.
 
 Near-Term Roadmap
-v1.2.0 – Stability and Maintainability (In Progress)
+v1.2.0 – Stability and Maintainability (Complete)
 
 Goal: Make Primr boringly reliable.
 
@@ -170,14 +170,20 @@ Goal: Make Primr boringly reliable.
   - Fixed duplicate "pages scraped" message
   - Fixed boilerplate matching false positives (word-boundary regex)
   - Added "Understanding Scrape Results" section to README
+- **Security Deep Review (v1.2.4)**
+  - Fixed XXE vulnerability in XML sitemap parsing
+  - Implemented comprehensive SSRF protection (9 functions protected)
+  - Fixed MD5 insecure usage (3 instances)
+  - Added 22 security tests covering SSRF, XXE, path traversal, input validation
+  - Automated security scanning with Bandit and Safety
+  - Complete security audit documented in docs/SECURITY_REVIEW_2026-01-21.md
+  - Production-ready security posture achieved
+  - Fixed vendor research regeneration bug (now reuses existing monthly files)
+    - Saves ~7 minutes and ~$0.10 per run when vendor research already exists
+    - Added clear console feedback when reusing existing files
+    - Documented in docs/VENDOR_RESEARCH_REUSE_FIX.md
 
-**Remaining:**
-- Static analysis compliance (mypy, ruff)
-- Performance profiling and bottleneck identification
-- Documentation cleanup and developer guidance
-- Refined error messages for failed research stages
-
-This phase intentionally adds no new user-facing features.
+**Status:** COMPLETE
 
 v1.2.1 – QA-Driven Report Iteration (Near-Term)
 
@@ -245,66 +251,51 @@ Benefits achieved:
 - Clear separation of prompt engineering from code logic
 - **Foundation for v1.2.6**: Adding a new strategy module = adding a YAML file
 
-v1.2.6 – Extensible Strategy Modules (In Progress)
+v1.2.6 – Strategy Document Portfolio (Complete)
 
-Goal: Make the "strategy layer" configurable and extensible beyond AI.
+Goal: Make strategy generation configurable and extensible beyond AI.
 
-Currently, Primr generates an AI Strategy report after the company research. This is valuable but limiting. The same rich company context could inform other strategic analyses.
+**Completed:**
+- Four Tier 1 strategy documents fully implemented and tested:
+  - AI Strategy (ai_first_transformation.yaml)
+  - Customer Experience Strategy (customer_experience.yaml)
+  - Security & Compliance Strategy (modern_security_compliance.yaml)
+  - Data Fabric Strategy (data_fabric_strategy.yaml)
+- Generic strategy generation function using Deep Research with File Search Store
+- CLI support via `--strategy-type` flag
+- `--list-strategies` command to show available strategies
+- All strategies use Strategic Overview as primary context
+- Validated with real company data (Delta Dental Plans Association, January 2026)
 
-**How It Works (Building on v1.2.5)**
-
-The externalized prompt architecture (v1.2.5) makes this straightforward:
-1. Company Overview is always generated first (the research foundation)
-2. Strategy modules are YAML configs in `src/primr/prompts/strategies/`
-3. Each module defines its own sections, epistemic rules, and output structure
-4. CLI flag selects which strategy reports to generate
-
-**Implemented:**
-- Strategy module YAML configs exist in `src/primr/prompts/strategies/`
-- StrategyModuleRegistry auto-discovers modules from strategies/ directory
-- PromptComposer class handles YAML loading and variable substitution
-
-**Not Yet Implemented:**
-- CLI flags (`--strategy`, `--list-strategies`, `--strategy-only`)
-- Integration with research pipeline to generate multiple strategy reports
-
-**Strategy Modules (YAML configs ready):**
+**Strategy Module Architecture:**
 ```
 src/primr/prompts/strategies/
-├── ai_strategy.yaml           # AI roadmap, quick wins, bigger bets
-├── cloud_migration.yaml       # Infrastructure and platform decisions
-├── data_strategy.yaml         # Data platform, governance, analytics maturity
+├── ai_first_transformation.yaml       # AI roadmap, quick wins, bigger bets
+├── customer_experience.yaml           # CX transformation and digital experience
+├── modern_security_compliance.yaml    # Zero Trust, identity, compliance
+├── data_fabric_strategy.yaml          # Data platform, semantic layer, agents
 ```
 
-**Planned CLI Usage (not yet working):**
+**CLI Usage:**
 ```bash
-# Select specific strategy modules
-primr "Tesla" https://tesla.com --strategy ai
-primr "Tesla" https://tesla.com --strategy cloud
-primr "Tesla" https://tesla.com --strategy data
-
-# Multiple strategies in one run
-primr "Tesla" https://tesla.com --strategy ai,cloud,data
-
-# Skip all strategy reports (company overview only)
-primr "Tesla" https://tesla.com --no-strategy
-
-# List available strategy modules
+# List available strategies
 primr --list-strategies
+
+# Generate specific strategy from existing report
+primr --ai-strategy-only "report.md" --strategy-type customer_experience
+primr --ai-strategy-only "report.md" --strategy-type modern_security_compliance
+primr --ai-strategy-only "report.md" --strategy-type data_fabric_strategy
+
+# AI Strategy (default)
+primr --ai-strategy-only "report.md" --cloud-vendor azure
 ```
 
-**Each Strategy Module YAML Contains:**
-- Meta information (name, version, description)
-- Document purpose and audience
-- Epistemic rules specific to that domain
-- Sections with purpose, covers, and depth guidance
-- Domain-specific context (e.g., vendor guidance for cloud, compliance frameworks for security)
-
-**Benefits (when complete):**
-- Adding a new strategy type = adding a YAML file (no code changes)
-- Users can customize existing strategies or create their own
+**Benefits Achieved:**
+- Adding a new strategy type requires only a YAML file (no code changes)
 - Same company research feeds multiple strategic analyses
 - Clear separation between research (company overview) and analysis (strategy modules)
+- All strategies include facilitation toolkits for co-creation workshops
+- Strategies are company-specific, not generic templates
 
 
 v1.3.0 – Research State and Iteration (Planned)
@@ -511,11 +502,12 @@ Version	Date	Highlights
 1.1.0	Jan 2026	Browser-first discovery, LLM link selection, section expansion
 1.1.1	Jan 2026	Reader-mode extraction, content quality validation, vision tier
 1.1.2	Jan 2026	Cache disabled by default (fresh data always)
-1.2.0	Dec 2025	Test coverage hardening (146 new tests, pytest marks)
+1.2.0	Jan 2026	Test coverage hardening (146 new tests, pytest marks)
 1.2.1	Planned	QA-driven report iteration (target 90+ grades)
 1.2.3	Jan 2026	AI Strategy retry, job polling, CLI UX fixes
+1.2.4	Jan 2026	Security deep review (XXE, SSRF, MD5 fixes, 22 security tests)
 1.2.5	Dec 2025	Externalized prompt architecture (YAML configs)
-1.2.6	In Progress	Extensible strategy modules (YAML ready, CLI pending)
+1.2.6	Jan 2026	Strategy document portfolio (4 strategies implemented and tested)
 1.3.0	TBD	Research state and hypothesis tracking
 1.4.0	TBD	Iterative refinement loop
 1.5.0	TBD	POV evolution and narrative continuity

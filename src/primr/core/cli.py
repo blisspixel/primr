@@ -45,6 +45,7 @@ class Command(Enum):
     CHECK_QUOTA = "check-quota"
     CHECK_JOBS = "check-jobs"
     CLEAR_JOBS = "clear-jobs"
+    LIST_STRATEGIES = "list-strategies"
     SHOW_USAGE = "show-usage"
     DRY_RUN = "dry-run"
     GENERATE_VENDOR = "generate-vendor"
@@ -87,6 +88,8 @@ class CLIConfig:
     qa_recent_count: int | None = None
     max_scrape_time: int | None = None
     ai_strategy_only_path: str | None = None
+    discovery_notes_path: str | None = None
+    strategy_type: str = "ai"  # Type of strategy to generate
 
     @property
     def has_company_info(self) -> bool:
@@ -185,6 +188,8 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         qa_recent_count=getattr(parsed, 'qa_recent', None),
         max_scrape_time=getattr(parsed, 'max_scrape_time', None),
         ai_strategy_only_path=getattr(parsed, 'ai_strategy_only', None),
+        discovery_notes_path=getattr(parsed, 'discovery_notes', None),
+        strategy_type=getattr(parsed, 'strategy_type', 'ai'),
     )
 
 
@@ -228,6 +233,7 @@ def main(args: list[str] | None = None) -> int:
         Command.CHECK_QUOTA: _handle_check_quota,
         Command.CHECK_JOBS: _handle_check_jobs,
         Command.CLEAR_JOBS: _handle_clear_jobs,
+        Command.LIST_STRATEGIES: _handle_list_strategies,
         Command.SHOW_USAGE: _handle_show_usage,
         Command.DRY_RUN: _handle_dry_run,
         Command.GENERATE_VENDOR: _handle_generate_vendor,
@@ -365,6 +371,11 @@ Accordion Method Test (for development):
         default="azure",
         help="Cloud vendor for AI recommendations"
     )
+    parser.add_argument(
+        "--discovery-notes",
+        type=str,
+        help="Path to discovery notes file (freeform meeting insights)"
+    )
     parser.add_argument("--confirm", action="store_true", help="Ask for confirmation")
     parser.add_argument("--dry-run", action="store_true", help="Show cost estimate only")
     parser.add_argument("--show-usage", action="store_true", help="Display usage statistics")
@@ -378,6 +389,7 @@ Accordion Method Test (for development):
     parser.add_argument("--generate-vendor-research", type=str, choices=["azure", "aws", "gcp", "agnostic", "all"])
     parser.add_argument("--check-jobs", action="store_true", help="Check pending research jobs")
     parser.add_argument("--clear-jobs", action="store_true", help="Clear stale pending jobs")
+    parser.add_argument("--list-strategies", action="store_true", help="List available strategy documents")
     parser.add_argument("--check-quota", action="store_true", help="Check API quota")
     parser.add_argument(
         "--max-scrape-time",
@@ -431,6 +443,15 @@ Accordion Method Test (for development):
         metavar="REPORT_PATH",
         help="Generate AI strategy using an existing report as context (retry failed AI strategy)"
     )
+    
+    # Strategy type selection
+    parser.add_argument(
+        "--strategy-type",
+        type=str,
+        choices=["ai", "customer_experience", "modern_security_compliance", "data_fabric_strategy"],
+        default="ai",
+        help="Strategy document type: 'ai' (AI transformation), 'customer_experience' (CX strategy), 'modern_security_compliance' (security/compliance), 'data_fabric_strategy' (data platform). Use with --ai-strategy-only."
+    )
 
     return parser
 
@@ -464,6 +485,8 @@ def _determine_command(args: argparse.Namespace) -> Command:
         return Command.CHECK_JOBS
     if getattr(args, 'clear_jobs', False):
         return Command.CLEAR_JOBS
+    if getattr(args, 'list_strategies', False):
+        return Command.LIST_STRATEGIES
     if getattr(args, 'dry_run', False):
         return Command.DRY_RUN
     if getattr(args, 'generate_vendor_research', None):
@@ -690,15 +713,15 @@ def _handle_qa_recent(config: CLIConfig) -> int:
 
 
 def _handle_ai_strategy_only(config: CLIConfig) -> int:
-    """Handle AI strategy retry/resume using existing report as context."""
+    """Handle strategy generation using existing report as context."""
     import re
     from pathlib import Path
-    from primr.core.research_agent import _generate_ai_strategy_section
+    from primr.core.research_agent import _generate_strategy_section
     
     report_path = config.ai_strategy_only_path
     if not report_path:
         console.error("Report path is required for --ai-strategy-only")
-        console.info("Usage: primr --ai-strategy-only \"path/to/report.md\" --cloud-vendor azure")
+        console.info("Usage: primr --ai-strategy-only \"path/to/report.md\" --strategy-type customer_experience")
         return 1
     
     # Validate file exists
@@ -707,36 +730,51 @@ def _handle_ai_strategy_only(config: CLIConfig) -> int:
         console.error(f"Report file not found: {report_path}")
         return 1
     
+    # Get strategy type (default to 'ai' if not specified)
+    strategy_type = getattr(config, 'strategy_type', 'ai')
+    
+    # Map strategy types to display names
+    strategy_names = {
+        "ai": "AI Strategy",
+        "customer_experience": "Customer Experience Strategy",
+        "modern_security_compliance": "Security & Compliance Strategy",
+        "data_fabric_strategy": "Data Fabric Strategy"
+    }
+    strategy_display = strategy_names.get(strategy_type, strategy_type)
+    
     # Extract company name from filename or content
     # Filename pattern: "Company Name_Strategic_Overview_MM-DD-YYYY.md"
     company_name = config.company_name
     if not company_name:
         filename = path.stem
         # Try to extract from filename pattern
-        match = re.match(r'^(.+?)_(?:Strategic_Overview|AI_Strategy)', filename)
+        match = re.match(r'^(.+?)_(?:Strategic_Overview|AI_Strategy|Customer_Experience|Security|Data_Fabric)', filename)
         if match:
             company_name = match.group(1).replace('_', ' ')
         else:
             # Fallback: use filename without extension
             company_name = filename.replace('_', ' ')
     
-    console.banner("AI Strategy Generation (Retry)")
+    console.banner(f"{strategy_display} Generation")
     console.info(f"Company: {company_name}")
     console.info(f"Context: {path.name}")
-    console.info(f"Cloud Vendor: {config.cloud_vendor.upper()}")
+    if strategy_type == "ai":
+        console.info(f"Cloud Vendor: {config.cloud_vendor.upper()}")
     console.blank()
     
-    # Generate AI strategy using the report as context
-    result_path = _generate_ai_strategy_section(
+    # Generate strategy using the report as context
+    result_path = _generate_strategy_section(
+        strategy_name=strategy_type,
         company_name=company_name,
         cloud_vendor=config.cloud_vendor,
         company_research_path=str(path),
-        force_refresh_vendor=config.refresh_vendor_research
+        force_refresh_vendor=config.refresh_vendor_research,
+        discovery_notes_content=None  # TODO: Add discovery notes support
     )
     
     if result_path:
         console.blank()
-        console.success_box("AI Strategy generated", result_path)
+        console.success_box(f"{strategy_display} generated", result_path)
         
         # Open if requested
         if config.open_after:
@@ -744,7 +782,7 @@ def _handle_ai_strategy_only(config: CLIConfig) -> int:
         
         return 0
     else:
-        console.error("AI Strategy generation failed")
+        console.error(f"{strategy_display} generation failed")
         return 1
 
 
@@ -813,6 +851,7 @@ def _handle_research(config: CLIConfig) -> int:
         context_files=context_files if context_files else None,
         refresh_vendor_research=config.refresh_vendor_research,
         max_scrape_time=config.max_scrape_time,
+        discovery_notes_path=config.discovery_notes_path,
     )
 
     # Open report if requested
@@ -1080,6 +1119,68 @@ def check_pending_jobs() -> None:
             console.info("  Status: IN PROGRESS (still running)")
         else:
             console.info(f"  Status: {status}")
+
+
+def _handle_list_strategies(config: CLIConfig) -> int:
+    """List available strategy documents."""
+    console.banner("Available Strategy Documents")
+    
+    console.info("Strategy documents are research tools to help you show up prepared")
+    console.info("for discovery conversations. They're NOT deliverables to hand over.")
+    console.blank()
+    
+    console.step("Tier 1: External Research (No Discovery Required)")
+    console.info("  These can be generated from public information:")
+    console.blank()
+    
+    console.ok("  AI Strategy (ai)")
+    console.info("    - Agentic AI transformation roadmap")
+    console.info("    - Cloud vendor recommendations (Azure/AWS/GCP)")
+    console.info("    - ROAI framework and superagency enablement")
+    console.info("    Usage: primr --ai-strategy-only \"report.md\" --cloud-vendor azure")
+    console.blank()
+    
+    console.ok("  Customer Experience Strategy (customer_experience)")
+    console.info("    - CX transformation and digital experience")
+    console.info("    - Journey mapping and personalization")
+    console.info("    Usage: primr --ai-strategy-only \"report.md\" --strategy-type customer_experience")
+    console.blank()
+    
+    console.ok("  Security & Compliance Strategy (modern_security_compliance)")
+    console.info("    - Zero Trust architecture and identity management")
+    console.info("    - Compliance frameworks and risk management")
+    console.info("    Usage: primr --ai-strategy-only \"report.md\" --strategy-type modern_security_compliance")
+    console.blank()
+    
+    console.ok("  Data Fabric Strategy (data_fabric_strategy)")
+    console.info("    - Semantic layers and zero-copy architecture")
+    console.info("    - Agent enablement and data mesh patterns")
+    console.info("    Usage: primr --ai-strategy-only \"report.md\" --strategy-type data_fabric_strategy")
+    console.blank()
+    
+    console.step("Tier 2: Discovery-Informed (Requires Meeting Insights)")
+    console.info("  These require discovery notes from client conversations:")
+    console.blank()
+    
+    console.warn("  Cloud Migration Strategy (cloud_migration)")
+    console.info("    - Status: Placeholder only")
+    console.info("    - Requires: Discovery notes about current infrastructure")
+    console.blank()
+    
+    console.warn("  Application Modernization (placeholder)")
+    console.info("    - Status: Not yet defined")
+    console.info("    - Requires: Discovery notes about application portfolio")
+    console.blank()
+    
+    console.step("How to Generate Strategies")
+    console.info("  1. Run full research: primr \"Company\" https://example.com --mode full")
+    console.info("  2. Generate specific strategy: primr --ai-strategy-only \"report.md\" --strategy-type customer_experience")
+    console.info("  3. With discovery notes: primr --ai-strategy-only \"report.md\" --discovery-notes \"notes.md\"")
+    console.blank()
+    
+    console.info("See docs/STRATEGY_PORTFOLIO.md for detailed information")
+    
+    return 0
 
 
 def process_csv(

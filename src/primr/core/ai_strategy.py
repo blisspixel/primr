@@ -391,7 +391,11 @@ async def _gather_context(
                 if generated:
                     vendor_paths = [generated]
             else:
-                result = await get_or_generate_vendor_research(vendor_str, on_progress=on_progress)
+                result = await get_or_generate_vendor_research(
+                    vendor_str, 
+                    force_refresh=False,  # Explicitly pass force_refresh
+                    on_progress=on_progress
+                )
                 vendor_paths = [str(p) for p in result.paths]
 
             # Add vendor research to context

@@ -1,18 +1,18 @@
 # Primr
 
-A research tool that generates company intelligence briefs using Google's Gemini models. It automates the collection and analysis of company information for internal research and go-to-market preparation.
+Primr is a research tool that generates company intelligence briefs using Google's Gemini models. It automates the collection and analysis of company information for internal research and go-to-market preparation.
 
-Primr combines first-party website content (site corpus) with validated external sources (deep research) to produce a structured company brief.
+The tool combines first-party website content (site corpus) with validated external sources (deep research) to produce structured company briefs. Primr is designed for internal use by consultants and researchers who need comprehensive company intelligence quickly.
 
 ## What It Does
 
-Primr runs company research through a single unified pipeline. Modes control how much of the pipeline runs - they are NOT separate implementations.
+Primr runs company research through a single unified pipeline. Modes control how much of the pipeline runs - they are not separate implementations.
 
 ### The Pipeline
 
 ```
-[Build Site Corpus] → [Extract Insights] → [Deep Research] → [Write Report]
-         ↓                    ↓                   ↓                ↓
+[Build Site Corpus] -> [Extract Insights] -> [Deep Research] -> [Write Report]
+         |                    |                   |                |
     corpus files         insights.txt        dossier.txt      report.docx
 ```
 
@@ -78,6 +78,14 @@ primr "Acme Corp" https://acme.example --cloud-vendor azure
 primr --ai-strategy-only "output/Acme Corp_Strategic_Overview_01-09-2026.md"
 primr --ai-strategy-only "output/report.md" --cloud-vendor aws
 
+# Generate other strategy documents
+primr --ai-strategy-only "output/report.md" --strategy-type customer_experience
+primr --ai-strategy-only "output/report.md" --strategy-type modern_security_compliance
+primr --ai-strategy-only "output/report.md" --strategy-type data_fabric_strategy
+
+# List available strategies
+primr --list-strategies
+
 # Options
 primr "Acme Corp" https://acme.example --dry-run    # Cost estimate only
 primr "Acme Corp" https://acme.example --verbose    # Detailed output
@@ -107,9 +115,48 @@ See [docs/CONFIG.md](docs/CONFIG.md) for full configuration reference.
 
 ## Intended Use
 
-Primr outputs are for internal research and go-to-market preparation - not client-ready deliverables. The goal is understanding how a company creates value and where support could help them move faster.
+Primr outputs are designed for internal research and go-to-market preparation, not as client-ready deliverables. The goal is to help consultants and researchers understand how a company creates value and identify where support could help them move faster.
 
-Reports surface hypotheses to validate in conversation. Treat strong claims as working hypotheses unless explicitly supported by cited sources.
+Reports surface hypotheses to validate in conversation. Strong claims should be treated as working hypotheses unless explicitly supported by cited sources. The tool aims to accelerate research, not replace human judgment.
+
+### Strategy Documents: Research to Enable Conversations
+
+Beyond the standard company brief, Primr can generate optional strategy frameworks to help consultants prepare for discovery conversations:
+
+- **AI Strategy** - Agentic AI transformation, organizational design, investment frameworks
+- **Customer Experience Strategy** - CX transformation, journey mapping, experience design
+- **Security & Compliance Strategy** - Security transformation, guardrails-first governance, risk frameworks
+- **Data Fabric Strategy** - Modern data platform for agentic AI, semantic layers, intelligent estates
+
+These strategy documents are research tools, not finished deliverables. They help consultants show up prepared with frameworks and hypotheses to validate in discovery conversations. Each includes facilitation toolkits (workshop agendas, stakeholder maps, ghostwritten templates) that support co-creation where clients invest effort and own the outcome.
+
+#### Usage
+
+```bash
+# List available strategies
+primr --list-strategies
+
+# Generate specific strategy from existing report
+primr --ai-strategy-only "output/Company_Strategic_Overview.md" --strategy-type customer_experience
+primr --ai-strategy-only "output/Company_Strategic_Overview.md" --strategy-type modern_security_compliance
+primr --ai-strategy-only "output/Company_Strategic_Overview.md" --strategy-type data_fabric_strategy
+
+# AI Strategy (default, or with specific vendor)
+primr --ai-strategy-only "output/Company_Strategic_Overview.md" --cloud-vendor azure
+```
+
+All strategies use the Strategic Overview as primary context and generate company-specific recommendations grounded in the research findings.
+
+## Security
+
+Primr has undergone comprehensive security review (January 2026) with all critical vulnerabilities addressed:
+
+- **XXE Protection**: Secure XML parser prevents XML External Entity attacks
+- **SSRF Protection**: URL validation blocks internal/private IP access and DNS rebinding
+- **Input Validation**: Comprehensive validation across all user inputs
+- **Secure Dependencies**: Core dependencies verified clean via automated scanning
+
+See [docs/SECURITY_REVIEW_2026-01-21.md](docs/SECURITY_REVIEW_2026-01-21.md) for complete security audit report.
 
 ## Known Limitations
 
@@ -120,15 +167,37 @@ Reports surface hypotheses to validate in conversation. Treat strong claims as w
 
 ## Understanding Scrape Results
 
-When you see output like `✓ 34/46 pages scraped`, this is normal behavior:
+When you see output like `+ 34/46 pages scraped`, this is normal behavior:
 
 - **46** = total pages selected for scraping (homepage + discovered links)
 - **34** = pages successfully scraped
 - **12 failed** = pages blocked by WAF, timeouts, or anti-bot protection
 
-The tiered scraper tries multiple approaches (HTTP → stealth HTTP → browser → vision) before giving up on a page. Protected sites like enterprise companies often block 20-40% of requests. This is expected - the scraper extracts what it can and moves on.
+The tiered scraper tries multiple approaches (HTTP, stealth HTTP, browser, vision) before giving up on a page. Protected sites like enterprise companies often block 20-40% of requests. This is expected - the scraper extracts what it can and moves on.
 
 Quality matters more than quantity. 34 pages from a protected site typically yields more useful content than 100 pages from a poorly-structured site.
+
+## Quality Assessment
+
+Primr automatically runs QA on both generated reports:
+- Strategic Overview report
+- AI Strategy report (when enabled)
+
+Grades are displayed at the end of each run:
+```
+Quality: Overview 87 · AI Strategy 89
+```
+
+Scores are color-coded: green (85+), yellow (70-84), red (<70).
+
+To run QA manually on existing reports:
+```bash
+primr --qa "Company Name"                    # QA most recent report for company
+primr --qa "output/report.docx"              # QA specific file
+primr --qa-recent 5                          # QA summary for last 5 reports
+```
+
+Use `--no-qa` to skip automatic quality assessment during generation.
 
 ## Job Recovery
 

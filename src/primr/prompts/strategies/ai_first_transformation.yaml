@@ -1,0 +1,654 @@
+# AI-First Business Transformation Strategy
+# This file defines the structure for AI-first transformation strategy reports.
+#
+# Purpose: Board-level business transformation strategy for becoming AI-native.
+# Goal: Answer "How do we fundamentally transform our business model to be AI-native?"
+# Audience: CEO, Board, C-Suite executives.
+#
+# Dependencies:
+#   - shared/epistemic_rules.yaml (epistemic standards)
+#   - shared/formatting.yaml (formatting rules)
+#   - shared/personas.yaml (business_strategist persona)
+
+meta:
+  name: "AI-First Business Transformation Strategy"
+  version: "1.0.0"
+  description: "Strategic framework for transforming into an AI-native organization"
+  cli_description: "Helps think through fundamental business model transformation to become AI-native - explores transformation archetypes, organizational design, and investment frameworks"
+  output_format: "markdown"
+  output_filename: "{company_name}_AI_First_Transformation"
+  expected_pages: "20-35"
+
+# Override default persona for this strategy
+persona: "business_strategist"
+
+document_purpose: |
+  This document explores strategic frameworks for business transformation in the AGENTIC AI era.
+  Based on public information and industry patterns, it surfaces hypotheses about how this
+  company might evolve to become AI-native.
+  
+  CRITICAL 2026 CONTEXT:
+  The frontier has shifted from Generative AI (content creation) to Agentic AI (autonomous execution).
+  Successful strategies in 2026 are defined by:
+  - Working backwards from business outcomes, not technology push
+  - Deploying bounded autonomy with guardrails-first governance
+  - Building agentic architectures (multi-agent systems, semantic layers, data fabrics)
+  - Measuring ROAI (Return on AI Investment) with new metrics: Decision Velocity, Operational Resilience
+  - Enabling superagency (employees as supervisors of AI workflows, not replaced by them)
+  
+  CRITICAL FRAMING: This is research to prepare for conversation, not definitive recommendations.
+  We're working from website content and public signals - we don't have internal visibility into
+  their actual priorities, constraints, or capabilities. Every assessment should be framed as
+  a hypothesis to validate in discussion.
+  
+  This is MBA-level strategic thinking about business model transformation, competitive positioning,
+  and organizational design - but grounded in humility about what we can't know from outside.
+  
+  ADOPTION PSYCHOLOGY (apply throughout):
+  
+  1. FRAME AS EXISTENTIAL NECESSITY
+     - This is not optional. Companies that don't transform become acquisition targets.
+     - "The question is not whether to transform, but whether you lead or follow"
+     - Make inaction feel more risky than action
+  
+  2. ANCHOR TO LEGACY AND IDENTITY
+     - Don't destroy what makes them special. AI should amplify their core strengths.
+     - "AI lets you remain a [relationship/service/quality] company at 10x scale"
+     - Transformation preserves identity, doesn't replace it
+  
+  3. MAKE CEO THE HERO
+     - This is their legacy moment. Frame as "defining the next chapter"
+     - "This is the transformation that positions [Company] for the next decade"
+     - CEO needs to own this, not delegate it
+  
+  4. BOARD-LEVEL FRAMING
+     - What would have to be true for us to 10x in 5 years?
+     - How do we avoid becoming the next Blockbuster/Kodak?
+     - What does the board need to see to approve this?
+  
+  5. PROVIDE STRATEGIC CHOICES
+     - Not a single path. Present 2-3 transformation archetypes.
+     - Let them choose their path (IKEA Effect at strategic level)
+     - "Fast follower" vs "Category leader" vs "Disruptor"
+  
+  6. MAKE YEAR 1 ACHIEVABLE
+     - Frame as "Foundation + 2 strategic bets"
+     - Everything else is sequenced optionality
+     - Reduces perceived risk while maintaining ambition
+  
+  7. QUANTIFY THE STAKES
+     - Value at stake over 5 years (best case, likely case, delayed action)
+     - Cost of inaction compounds monthly
+     - Make the status quo feel expensive
+  
+  STRUCTURE:
+  - Present strategic transformation options (what they could become)
+  - Frame each with adoption psychology (how to make it happen)
+  - Include stakeholder analysis (who champions what)
+  - Provide board-ready materials (how to present to board)
+  
+  The output should be: "Here are frameworks to consider AND here's how to facilitate the conversation."
+
+context_instructions: |
+  You have access to context in the File Search Store. USE IT EXTENSIVELY.
+  
+  PRIMARY SOURCE - STRATEGIC COMPANY REPORT:
+  Your File Search Store contains a comprehensive strategic analysis of this company.
+  This is your PRIMARY source. It includes:
+  - Executive Summary and company overview
+  - Products/Services and Target Customers analysis
+  - Competitive Differentiation and Financial Profile
+  - SWOT Analysis and Strategic Tensions
+  - Porter's Five Forces and Value Chain Analysis
+  - "Where They're Likely to Say Yes" - specific engagement opportunities
+  
+  READ THIS REPORT THOROUGHLY before writing. Every transformation framework must connect
+  to specific insights from this strategic analysis.
+  
+  CRITICAL: Frame everything as hypotheses to explore, not conclusions to implement.
+  
+  HOW TO USE CONTEXT:
+  - Search the strategic report for core identity and differentiation
+  - Identify what makes them special (preserve this in transformation thinking)
+  - Connect transformation ideas to existing strategic priorities
+  - Use tensions/patterns to inform transformation options
+  - Reference specific findings: "The strategic analysis notes that..."
+  - Always acknowledge what we can't know: "Based on public signals, we hypothesize..."
+  
+  BAD: "They should become an AI-first company"
+  GOOD: "Given their differentiation around [specific strength from report], one transformation
+  path worth exploring would amplify this through [specific approach]. This assumes [X] about
+  their internal capabilities - worth validating in conversation."
+
+# =============================================================================
+# WRITING QUALITY STANDARDS
+# =============================================================================
+
+writing_standards: |
+  SECTION-APPROPRIATE TONE:
+  
+  For STRATEGIC ANALYSIS sections:
+  - Bold and visionary, but grounded in their reality
+  - "Here's what's possible for THIS company specifically"
+  - Acknowledge constraints while painting the vision
+  
+  For TRANSFORMATION OPTIONS sections:
+  - Present as strategic choices, not prescriptions
+  - "Here are three paths. Each has different risk/reward profiles."
+  - Let them choose their transformation archetype
+  
+  For ORGANIZATIONAL DESIGN sections:
+  - Practical and specific about structure, roles, governance
+  - "This requires a Chief AI Officer reporting to CEO"
+  - Be direct about organizational pain (reporting lines, budget, authority)
+  
+  For FINANCIAL ANALYSIS sections:
+  - Present as ranges with explicit assumptions
+  - "Investment of $10-25M over 3 years, depending on path chosen"
+  - "ROI of 3-8x over 5 years, assuming [specific conditions]"
+  - Quantify cost of inaction: "Delayed transformation costs $X per quarter"
+  
+  THROUGHOUT:
+  - Specific over generic: actual examples, numbers, comparisons
+  - Connected to THIS company's situation
+  - No numbered section headings (use natural titles)
+  - Cite sources and flag uncertainty
+  - Frame as strategic choices, not vendor pitches
+
+# =============================================================================
+# DATA SOURCES
+# =============================================================================
+
+data_sources: []
+
+# =============================================================================
+# EPISTEMIC RULES
+# =============================================================================
+
+epistemic_rules:
+  confidence_labeling: |
+    REQUIRED: Label every significant claim:
+    
+    For FACTS about the company:
+    - **Confirmed**: From the strategic report with citations
+    - **Reported**: From credible sources but not verified
+    - **Estimated**: Calculated or inferred
+    - **Hypothesis**: Our interpretation to validate
+    
+    For TRANSFORMATION RECOMMENDATIONS:
+    - "Proven pattern" - widely adopted, strong evidence base
+    - "Context-dependent" - success depends on company-specific factors
+    - "Frontier approach" - emerging pattern, higher uncertainty
+  
+  transformation_rule: |
+    If a sentence implies inevitability or "only viable path", rewrite as scenario comparison.
+    Example: Instead of "Companies that don't transform will fail", write "Organizations that
+    transform early may gain compounding advantages, while delayed transformation increases
+    the cost and difficulty of catching up."
+  
+  hypothesis_framing: |
+    Frame assessments as hypotheses to validate, not facts.
+    Use language like "Based on [evidence], we hypothesize..."
+  
+  numeric_precision: |
+    For investment and ROI figures:
+    - Use ranges: "$10-25M investment" not "$17.3M"
+    - State assumptions explicitly
+    - Acknowledge uncertainty
+    - Present multiple scenarios (best case, likely case, delayed action)
+
+formatting:
+  paragraphs: "Write in full paragraphs for strategic sections"
+  bullets: "Use bullets only for specific recommendations or lists"
+  tone: "Strategic and visionary, like a McKinsey partner presenting to the board"
+  citations: "Cite sources for all external claims"
+  tables: "Include comparison matrices, investment tables, timeline tables"
+
+# =============================================================================
+# SECTIONS
+# =============================================================================
+
+sections:
+  # =============================================================================
+  # PART A: THE STRATEGIC VISION
+  # =============================================================================
+  
+  - id: executive_summary
+    name: "Executive Summary"
+    part: 1
+    purpose: "The 'so what' for the board"
+    covers:
+      - "Why transformation is structurally necessary for THIS company"
+      - "The recommended transformation path with rationale"
+      - "Investment required and expected returns"
+      - "The 3 most critical decisions in next 12 months"
+    depth: "2-3 paragraphs. Concise and compelling."
+
+  - id: strategic_context
+    name: "The Strategic Context: Why Transformation is Non-Optional"
+    part: 2
+    purpose: "Establish the burning platform"
+    subsections:
+      - id: market_forces
+        name: "Market Forces Driving Transformation"
+        covers:
+          - "Customer expectations resetting"
+          - "Competitive dynamics shifting"
+          - "Talent market changing"
+          - "Technology capabilities expanding"
+      - id: cost_of_inaction
+        name: "The Cost of Inaction"
+        covers:
+          - "Quantified value at stake over 5 years"
+          - "Competitive positioning erosion"
+          - "Talent attraction/retention impact"
+          - "Valuation multiple compression"
+    depth: |
+      Make inaction feel more expensive and risky than transformation.
+      Use specific numbers and scenarios. Reference the strategic report's findings.
+
+  - id: decision_nodes
+    name: "High-Value Decision Nodes: Working Backwards from Outcomes"
+    part: 3
+    purpose: "Identify specific business decisions to automate (not generic 'AI adoption')"
+    covers:
+      - "What is a High-Value Decision Node? (latency carries cost, data complexity exceeds human capacity, consistency is critical)"
+      - "Mapping THIS company's decision nodes from strategic report"
+      - "Example: 'Achieve self-healing logistics' not 'deploy AI in supply chain'"
+      - "Example: 'Automate compliance validation' not 'use AI for compliance'"
+      - "5-10 specific decisions that, if automated, yield highest competitive advantage"
+    depth: |
+      This is the foundation of the "Work Backwards" methodology. The 2026 shift is from
+      "technology push" (we have AI, what should we do?) to "business outcome pull" 
+      (what decision, if automated, would yield highest advantage?).
+      
+      Connect to THIS company's operations from the strategic report. Be specific about
+      which decisions matter most for their business model.
+      
+      Frame as hypotheses: "Based on their focus on [X], we hypothesize that automating
+      [specific decision] could reduce [specific cost/delay] by [range]."
+
+  - id: transformation_archetypes
+    name: "Three Transformation Archetypes"
+    part: 4
+    purpose: "Present strategic choices, not a single path"
+    subsections:
+      - id: fast_follower
+        name: "Archetype 1: Fast Follower (Adopt Proven Agentic Patterns)"
+        covers:
+          - "What it means: Deploy proven agentic AI patterns quickly"
+          - "Focus: Multi-agent systems for standard workflows (customer service, procurement, HR)"
+          - "Best for: Risk-averse, capital-constrained, or regulated companies"
+          - "Investment: $5-15M over 3 years"
+          - "ROI: 2-4x over 5 years"
+          - "Risk profile: Lower risk, lower upside"
+      - id: category_leader
+        name: "Archetype 2: Category Leader (Define Industry Best Practices)"
+        covers:
+          - "What it means: Define agentic AI best practices for your industry"
+          - "Focus: Custom multi-agent orchestration for competitive differentiation"
+          - "Best for: Market leaders with capital and talent"
+          - "Investment: $15-40M over 3 years"
+          - "ROI: 4-8x over 5 years"
+          - "Risk profile: Moderate risk, high upside"
+      - id: disruptor
+        name: "Archetype 3: Disruptor (Rebuild as Autonomous Enterprise)"
+        covers:
+          - "What it means: Rebuild business model around autonomous operations"
+          - "Focus: Self-healing systems, autonomous decision-making at scale"
+          - "Best for: Challengers or companies facing existential threat"
+          - "Investment: $40-100M+ over 3 years"
+          - "ROI: 10x+ over 5 years or failure"
+          - "Risk profile: High risk, transformational upside"
+    depth: |
+      Present all three archetypes objectively. Let them choose based on their risk appetite,
+      capital availability, and competitive position. Use the strategic report to recommend
+      which archetype fits best, but acknowledge it's their choice.
+      
+      2026 UPDATE: Frame around "agentic AI" and "autonomous operations" not generic "AI adoption".
+      The frontier is autonomous execution, not content generation.
+
+  - id: recommended_path
+    name: "Recommended Transformation Path"
+    part: 5
+    purpose: "Our recommendation with rationale"
+    covers:
+      - "Which archetype we recommend and why"
+      - "How it connects to the High-Value Decision Nodes identified"
+      - "How it preserves their core identity and strengths"
+      - "What makes them uniquely positioned for this path"
+      - "What would have to be true for this to succeed"
+    depth: |
+      Be specific about why THIS path for THIS company. Connect to strategic report findings
+      AND the decision nodes identified earlier.
+      
+      Frame as "one perspective" but make a clear recommendation. Example: "Given their 
+      differentiation around [X] and the high-value decision nodes in [Y], the Category Leader
+      archetype appears most aligned. This assumes [Z] about their capabilities - worth validating."
+
+  - id: agentic_architecture
+    name: "The Agentic Architecture: Technical Foundation"
+    part: 6
+    purpose: "What technical architecture is required (not just 'adopt AI tools')"
+    subsections:
+      - id: architecture_overview
+        name: "From Tools to Architecture"
+        covers:
+          - "Why single AI tools fail at scale (no orchestration, no context, no governance)"
+          - "The shift from 'AI features' to 'agentic fabric'"
+          - "Multi-agent systems: specialized agents collaborating, not one general-purpose bot"
+      - id: key_layers
+        name: "Critical Architecture Layers"
+        covers:
+          - "Agentic Layer: Reasoning engine, agent memory, tool registry"
+          - "Semantic Layer: Enterprise knowledge graph, business entity definitions, metric consistency"
+          - "Data Fabric: Virtualized access, real-time streaming, unified storage"
+          - "Orchestration Layer: Human-agent-system handoffs, event-driven workflows"
+      - id: bounded_autonomy
+        name: "Bounded Autonomy and Guardrails"
+        covers:
+          - "Action limits (read vs write permissions, dollar thresholds)"
+          - "Confidence thresholds (when agents escalate to humans)"
+          - "Human-in-the-Loop (HITL) for high-stakes decisions"
+          - "Non-Human Identity Management (agents as users with permissions)"
+      - id: hybrid_ai
+        name: "Hybrid AI: The Last Mile Solution"
+        covers:
+          - "The 97% → 100% reliability gap"
+          - "Probabilistic (LLM) for reasoning + Deterministic (rules) for execution"
+          - "Example: LLM understands refund request, deterministic script calculates amount"
+    depth: |
+      This is 2026-specific. The frontier is no longer "can we use AI?" but "can we orchestrate
+      autonomous agents at scale with proper governance?"
+      
+      Connect to THIS company's current IT architecture (from strategic report). What do they
+      have vs what do they need? Frame as gaps to address, not criticism.
+      
+      Be specific about bounded autonomy - boards need to see that autonomy is controlled and monitored.
+
+  - id: business_model_evolution
+    name: "Business Model Evolution"
+    part: 7
+    purpose: "How the business model changes with agentic AI"
+    subsections:
+      - id: value_proposition
+        name: "Evolving Value Proposition"
+        covers:
+          - "Current value proposition (from strategic report)"
+          - "Agentic AI-enhanced value proposition (autonomous operations, real-time adaptation)"
+          - "New capabilities enabled (self-healing systems, predictive optimization)"
+          - "What stays the same (core identity and differentiation)"
+      - id: revenue_model
+        name: "Revenue Model Implications"
+        covers:
+          - "New revenue streams enabled by autonomous operations"
+          - "Pricing model evolution (outcome-based vs time-based)"
+          - "Customer acquisition economics (AI-powered sales)"
+          - "Lifetime value expansion (proactive service)"
+      - id: cost_structure
+        name: "Cost Structure Transformation"
+        covers:
+          - "Where agentic AI reduces costs (autonomous operations, reduced manual work)"
+          - "Where it requires investment (architecture, talent, change management)"
+          - "Operating leverage opportunities (scale without proportional headcount)"
+          - "Margin expansion potential"
+    depth: "Specific to their business model. Use strategic report as baseline. Frame around autonomous operations, not just 'AI features'."
+
+  - id: competitive_positioning
+    name: "Competitive Positioning in AI Era"
+    part: 6
+    purpose: "How transformation affects competitive dynamics"
+    covers:
+      - "Current competitive position (from strategic report)"
+      - "How AI transformation changes the game"
+      - "Defensible moats in AI era"
+      - "Competitive threats to monitor"
+      - "Offensive opportunities to pursue"
+    depth: "Connect to Porter's Five Forces analysis from strategic report."
+
+  - id: organizational_design
+    name: "Organizational Design for AI-First"
+    part: 9
+    purpose: "How to structure the organization"
+    subsections:
+      - id: leadership_structure
+        name: "Leadership Structure"
+        covers:
+          - "Chief AI Officer role and reporting line"
+          - "AI Center of Excellence structure"
+          - "Cross-functional AI governance"
+          - "Board oversight model"
+      - id: superagency
+        name: "Enabling Superagency (Not Replacement)"
+        covers:
+          - "Definition: One employee commanding output capacity of entire team"
+          - "Skill shift: From 'doer' to 'supervisor' of AI workflows"
+          - "Every knowledge worker becomes a supervisor of agents"
+          - "Training focus: Not 'how to use tool' but 'how to manage outcome'"
+          - "The judgment premium: Humans define goals, agents execute"
+      - id: talent_strategy
+        name: "Talent Strategy"
+        covers:
+          - "Build vs buy vs partner decisions"
+          - "Upskilling existing workforce (supervisor skills, not prompt engineering)"
+          - "Recruiting AI talent (orchestration experts, not just ML engineers)"
+          - "Retention strategies (make AI amplify careers, not threaten them)"
+      - id: culture_transformation
+        name: "Culture Transformation"
+        covers:
+          - "From risk-averse to experimental (safe-to-fail pilots)"
+          - "From siloed to collaborative (multi-agent mirrors org structure)"
+          - "From manual to AI-augmented (superagency mindset)"
+          - "Change management approach (ADKAR framework adapted for AI)"
+    depth: |
+      Practical and specific. This is where transformation lives or dies.
+      
+      2026 UPDATE: The critical cultural shift is "superagency" - employees see AI as amplifying
+      their agency, not replacing them. Frame as empowerment: "You'll manage a team of AI agents
+      to achieve 10x output." Not threat: "AI will do your job."
+
+  - id: investment_framework
+    name: "Investment Framework"
+    part: 10
+    purpose: "Financial analysis and resource allocation"
+    subsections:
+      - id: investment_required
+        name: "Investment Required"
+        covers:
+          - "Year 1: Foundation ($X-Y)"
+          - "Year 2: Scale ($X-Y)"
+          - "Year 3: Optimization ($X-Y)"
+          - "Breakdown by category (talent, technology, change management)"
+      - id: roai_metrics
+        name: "Return on AI Investment (ROAI)"
+        covers:
+          - "Decision Velocity: Time from data arrival to decision execution"
+          - "Operational Resilience: Disruptions mitigated autonomously"
+          - "Customer Effort Score (CES): Effort removed from customer journey"
+          - "Non-P&L Metrics: R&D acceleration, QA improvement, compliance efficiency"
+          - "Traditional ROI: Revenue impact and cost reduction"
+      - id: expected_returns
+        name: "Expected Returns"
+        covers:
+          - "Revenue impact (new streams, expansion, retention)"
+          - "Cost reduction (efficiency, automation, optimization)"
+          - "Risk mitigation (compliance, security, quality)"
+          - "Valuation multiple expansion"
+      - id: funding_strategy
+        name: "Funding Strategy"
+        covers:
+          - "Internal funding vs external capital"
+          - "Phased investment approach"
+          - "ROI gates and kill criteria"
+          - "Board approval strategy"
+    depth: |
+      Present as ranges with explicit assumptions. Include best case, likely case, and
+      delayed action scenarios. Make the financial case compelling but honest.
+      
+      2026 UPDATE: Traditional ROI is insufficient for agentic AI. ROAI captures the full
+      value of autonomous systems - faster decisions, better resilience, reduced customer effort.
+      These are leading indicators that drive P&L impact over time.
+
+  - id: transformation_roadmap
+    name: "Transformation Roadmap"
+    part: 9
+    purpose: "Phased approach with milestones"
+    subsections:
+      - id: year_1_foundation
+        name: "Year 1: Foundation"
+        covers:
+          - "Organizational structure and governance"
+          - "Talent acquisition and upskilling"
+          - "Technology platform foundation"
+          - "3-5 strategic pilot initiatives"
+          - "Success metrics and gates"
+      - id: year_2_scale
+        name: "Year 2: Scale"
+        covers:
+          - "Scaling successful pilots"
+          - "Expanding AI across functions"
+          - "Building AI-native capabilities"
+          - "Organizational embedding"
+      - id: year_3_optimize
+        name: "Year 3: Optimize"
+        covers:
+          - "Full operational integration"
+          - "Continuous improvement systems"
+          - "Innovation pipeline"
+          - "Market leadership positioning"
+    depth: "Specific milestones with success criteria. Make Year 1 feel achievable."
+
+  - id: risk_analysis
+    name: "Risk Analysis and Mitigation"
+    part: 10
+    purpose: "Comprehensive risk assessment"
+    subsections:
+      - id: transformation_risks
+        name: "Transformation Risks"
+        covers:
+          - "Execution risk (complexity, dependencies)"
+          - "Organizational risk (resistance, capability gaps)"
+          - "Financial risk (investment, ROI uncertainty)"
+          - "Competitive risk (others moving faster)"
+      - id: mitigation_strategies
+        name: "Mitigation Strategies"
+        covers:
+          - "Phased approach with gates"
+          - "Pilot-first methodology"
+          - "Change management program"
+          - "External partnerships"
+    depth: "Honest about risks. Boards appreciate transparency."
+
+  - id: strategic_choices
+    name: "Explicit Strategic Choices"
+    part: 11
+    purpose: "What we're choosing NOT to do"
+    covers:
+      - "What we're deprioritizing and why"
+      - "What we're preserving (core identity)"
+      - "Revisit triggers for deprioritized items"
+    depth: "Boards love knowing what you're NOT doing. Shows strategic discipline."
+
+  # =============================================================================
+  # PART B: THE FACILITATION TOOLKIT
+  # =============================================================================
+  
+  - id: board_presentation
+    name: "FACILITATION TOOLKIT: Board Presentation Materials"
+    part: 12
+    purpose: "Ready-to-use board deck outline"
+    covers:
+      - "Slide 1: The Strategic Imperative (burning platform)"
+      - "Slide 2: Three Transformation Paths (archetypes)"
+      - "Slide 3: Our Recommendation (with rationale)"
+      - "Slide 4: Investment and Returns (financial case)"
+      - "Slide 5: Year 1 Roadmap (what happens next)"
+      - "Slide 6: Risk and Mitigation (honest assessment)"
+      - "Slide 7: The Ask (board approval and support)"
+    depth: |
+      Provide the actual slide titles and key messages. Make it easy for CEO to present.
+
+  - id: stakeholder_inception
+    name: "FACILITATION TOOLKIT: Stakeholder Inception Map"
+    part: 12
+    purpose: "Who to incept and how"
+    subsections:
+      - id: ceo_strategy
+        name: "CEO Strategy"
+        covers:
+          - "Frame as legacy moment"
+          - "This is the transformation that defines next decade"
+          - "Make them the hero of the story"
+      - id: cfo_strategy
+        name: "CFO Strategy"
+        covers:
+          - "Lead with financial case and risk mitigation"
+          - "Show ROI ranges and assumptions"
+          - "Emphasize phased investment with gates"
+      - id: board_strategy
+        name: "Board Strategy"
+        covers:
+          - "Frame as fiduciary responsibility"
+          - "What would have to be true to 10x in 5 years?"
+          - "Cost of inaction vs cost of action"
+      - id: executive_team_strategy
+        name: "Executive Team Strategy"
+        covers:
+          - "Each executive sees their function transformed"
+          - "Frame as empowerment, not threat"
+          - "Make them co-creators of the vision"
+    depth: "Specific inception strategies for each stakeholder type."
+
+  - id: transformation_workshop
+    name: "FACILITATION TOOLKIT: Transformation Workshop Agenda"
+    part: 12
+    purpose: "Co-creation workshop for executive team"
+    covers:
+      - "Phase 1: Current State Assessment (pain mining)"
+      - "Phase 2: Future State Visioning (art of possible)"
+      - "Phase 3: Archetype Selection (strategic choice)"
+      - "Phase 4: Roadmap Co-Creation (they hold the pen)"
+      - "Phase 5: Commitment Building (yes ladder)"
+    depth: |
+      Provide the actual workshop agenda. This is where IKEA Effect happens at strategic level.
+      They co-create the transformation plan, so they own it.
+
+  - id: champion_enablement
+    name: "FACILITATION TOOLKIT: CEO Enablement Materials"
+    part: 12
+    purpose: "Ghostwritten materials for CEO"
+    subsections:
+      - id: board_memo
+        name: "Board Memo Template"
+        covers:
+          - "Subject: Strategic Transformation Proposal"
+          - "The Strategic Imperative section"
+          - "Our Recommended Path section"
+          - "Investment and Returns section"
+          - "The Ask section"
+      - id: all_hands_message
+        name: "All-Hands Message Template"
+        covers:
+          - "Why we're transforming"
+          - "What stays the same (our identity)"
+          - "What changes (our capabilities)"
+          - "What it means for you"
+      - id: investor_talking_points
+        name: "Investor Talking Points"
+        covers:
+          - "Transformation narrative"
+          - "Financial implications"
+          - "Competitive positioning"
+          - "Risk mitigation"
+    depth: "Actual templates they can use. Make CEO look like a genius."
+
+  - id: next_steps
+    name: "Next Steps (Next 30 Days)"
+    part: 13
+    purpose: "Immediate actions"
+    covers:
+      - "Week 1: Executive team alignment workshop"
+      - "Week 2: Board presentation preparation"
+      - "Week 3: Board approval meeting"
+      - "Week 4: Transformation kickoff"
+    depth: "Concrete and actionable. Make the first step obvious."

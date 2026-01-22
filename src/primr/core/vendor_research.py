@@ -177,6 +177,8 @@ def get_or_generate_vendor_research_sync(
     research_path = get_vendor_research_path(vendor)
     if research_path.exists() and not force_refresh:
         result_paths.append(str(research_path))
+        console.info(f"Using existing vendor research: {research_path.name}")
+        logger.info(f"Reusing vendor research file: {research_path}")
     elif not result_paths or force_refresh:
         # Only auto-generate if we have nothing or force refresh
         generated = generate_vendor_research_sync(vendor, on_progress)
@@ -228,14 +230,19 @@ async def get_or_generate_vendor_research(
     research_path = get_vendor_research_path(vendor)
 
     if research_path.exists() and not force_refresh:
+        # Reuse existing research from this month
         files.append(VendorResearchFile(
             path=research_path,
             vendor=vendor,
             month=current_month,
             is_manual=False
         ))
+        console.info(f"Using existing vendor research: {research_path.name}")
+        logger.info(f"Reusing vendor research file: {research_path}")
     elif not files or force_refresh:
-        # Generate fresh research
+        # Generate fresh research only if:
+        # 1. No files at all (not even manual), OR
+        # 2. Force refresh requested
         result = await generate_vendor_research(vendor, on_progress)
         if result:
             files.append(VendorResearchFile(

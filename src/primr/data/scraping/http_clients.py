@@ -43,7 +43,22 @@ def scrape_with_requests(
         ScrapeResult with raw bytes on success
     """
     import requests
+    from primr.utils.validators import validate_url_for_request
     
+    # SSRF protection
+    is_valid, normalized_url, error = validate_url_for_request(url)
+    if not is_valid:
+        return ScrapeResult(
+            url=url,
+            success=False,
+            error_type=ErrorType.NETWORK_ERROR,
+            error=f"Invalid URL: {error}",
+            tier="requests",
+            elapsed_ms=0,
+            attempts=[],
+        )
+    
+    url = normalized_url
     start_time = time.time()
     tier_name = "requests"
     
@@ -166,6 +181,23 @@ def scrape_with_httpx(
     Returns:
         ScrapeResult with raw bytes on success
     """
+    from primr.utils.validators import validate_url_for_request
+    
+    # SSRF protection
+    is_valid, normalized_url, error = validate_url_for_request(url)
+    if not is_valid:
+        return ScrapeResult(
+            url=url,
+            success=False,
+            error_type=ErrorType.NETWORK_ERROR,
+            error=f"Invalid URL: {error}",
+            tier="httpx",
+            elapsed_ms=0,
+            attempts=[],
+        )
+    
+    url = normalized_url
+    
     try:
         import httpx
     except ImportError:
@@ -305,6 +337,23 @@ def scrape_with_curl_cffi(
     Returns:
         ScrapeResult with raw bytes on success
     """
+    from primr.utils.validators import validate_url_for_request
+    
+    # SSRF protection
+    is_valid, normalized_url, error = validate_url_for_request(url)
+    if not is_valid:
+        return ScrapeResult(
+            url=url,
+            success=False,
+            error_type=ErrorType.NETWORK_ERROR,
+            error=f"Invalid URL: {error}",
+            tier="curl_cffi",
+            elapsed_ms=0,
+            attempts=[],
+        )
+    
+    url = normalized_url
+    
     try:
         from curl_cffi import requests as curl_requests
     except ImportError:
