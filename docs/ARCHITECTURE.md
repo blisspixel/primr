@@ -333,6 +333,8 @@ The `scrape_page` primitive uses a tiered fallback system for web scraping, desi
 - **Soft Block Detection**: Checks content, not just HTTP status (catches "200 OK" traps)
 - **TLS Fingerprint Impersonation**: curl_cffi mimics real browser TLS signatures
 - **Driverless Browsers**: DrissionPage uses CDP directly, bypassing WebDriver detection
+- **Smart Tier Escalation** (v1.2.4+): Stops after 3 consecutive failures of same error type to avoid wasting time on impossible pages
+- **Patient Timeout**: 90s max per page allows multiple tier attempts while being reasonable (content quality > speed)
 
 ### Link Discovery (Homepage-First, v1.1.0)
 
@@ -629,9 +631,13 @@ src/primr/
 │   │   ├── formatting.yaml
 │   │   └── personas.yaml
 │   └── strategies/          # Strategy modules
+│       ├── ai_first_transformation.yaml
 │       ├── ai_strategy.yaml
 │       ├── cloud_migration.yaml
-│       └── data_strategy.yaml
+│       ├── customer_experience.yaml
+│       ├── data_fabric_strategy.yaml
+│       ├── data_strategy.yaml
+│       └── modern_security_compliance.yaml
 │
 ├── output/                  # Report generation
 │   ├── document_builder.py  # DOCX generation

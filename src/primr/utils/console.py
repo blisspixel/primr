@@ -94,12 +94,12 @@ class Console:
             self._green = self._yellow = self._red = self._cyan = ""
             self._dim = self._bold = self._reset = ""
         
-        # Symbols
+        # Symbols - modern 2026 aesthetic
         if self._caps.supports_unicode:
-            self._check = "+"
-            self._cross = "x"
-            self._arrow = "->"
-            self._dot = "*"
+            self._check = "✓"
+            self._cross = "✗"
+            self._arrow = "→"
+            self._dot = "·"
         else:
             self._check = "+"
             self._cross = "x"
@@ -213,7 +213,7 @@ class Console:
         self._print(f"{self._dim}{msg}{self._reset}")
 
     def scrape_progress(self, current, total, path, start_time=None, tier=None):
-        """Show scraping progress: "Scraping 12/47 /about-us (15s)" """
+        """Show scraping progress with clean inline updates."""
         if self.quiet:
             return
         if not self._caps.supports_cursor or not self._caps.is_interactive:
@@ -223,21 +223,22 @@ class Console:
                 self._print(f"{self._check} {path}{time_str}")
             return
         
-        time_str = ""
-        if start_time:
-            elapsed = self._elapsed(start_time)
-            if elapsed:
-                time_str = f" {self._dim}({elapsed}){self._reset}"
-        
-        tier_str = f" {self._dim}[{tier}]{self._reset}" if tier else ""
-        
+        # Interactive: clean inline progress
+        # Format: "Scraping 3/50 /investors/financial-reports (9s)"
+        # No tier shown - it's noise. Just path and timing.
         width = min(self._caps.width, 120)
-        line = f"Scraping {current}/{total} {path}{tier_str}{time_str}"
+        line = f"Scraping {current}/{total} {path}"
+        
+        # Truncate if too long, then pad to width
+        if len(line) > width:
+            line = line[:width-3] + "..."
+        line = line.ljust(width)
+        
         with self._lock:
             self._last_output_time = time.time()
-            # Clear line first, then write
-            sys.stdout.write("\r" + " " * width + "\r")
-            sys.stdout.write(line)
+            # Clear line first, then write new content
+            # This works better on Windows terminals where \r alone may not work
+            sys.stdout.write(f"\r{' ' * width}\r{line}")
             sys.stdout.flush()
 
     def clear_line(self):
@@ -245,8 +246,10 @@ class Console:
         if self._caps.supports_cursor and self._caps.is_interactive:
             with self._lock:
                 width = min(self._caps.width, 120)
-                sys.stdout.write("\r" + " " * width + "\r")
+                # Clear by writing spaces, then return to start
+                sys.stdout.write(f"\r{' ' * width}\r")
                 sys.stdout.flush()
+
 
     # =========================================================================
     # BACKWARD COMPATIBILITY API - Maps to modern methods
@@ -332,17 +335,17 @@ class Console:
             self._print(f"{self._dim}{label}:{self._reset} {value}")
 
     def banner(self, title, version=""):
-        """Minimal banner."""
+        """Modern minimal banner - 2026 design."""
         if self.quiet:
             return
         self._print()
         if version:
-            self._print(f"{self._cyan}{title}{self._reset} {self._dim}{version}{self._reset}")
+            self._print(f"{self._bold}{title}{self._reset} {self._dim}{version}{self._reset}")
         else:
-            self._print(f"{self._cyan}{title}{self._reset}")
+            self._print(f"{self._bold}{title}{self._reset}")
 
     def header(self, title, subtitle=""):
-        """Minimal header."""
+        """Modern minimal header - 2026 design."""
         if self.quiet:
             return
         self._print()
@@ -351,13 +354,15 @@ class Console:
             self._print(f"{self._dim}{subtitle}{self._reset}")
 
     def phase_banner(self, step_num, total_steps, title, description="", expected_duration=""):
-        """Minimal phase indicator."""
+        """Modern phase header - clean 2026 design."""
         if self.quiet:
             return
         self._print()
-        self._print(f"{self._bold}{title}{self._reset}")
+        # Modern minimal design - just bold title with subtle accent
+        self._print(f"{self._cyan}▸{self._reset} {self._bold}PHASE {step_num}{self._reset} {self._dim}·{self._reset} {title}")
         if description:
-            self._print(f"{self._dim}{description}{self._reset}")
+            self._print(f"  {self._dim}{description}{self._reset}")
+        self._print()
 
     def phase_complete(self, title, stats=None):
         if self.quiet:
@@ -368,11 +373,13 @@ class Console:
                 if label.lower() != "duration":
                     self._print(f"  {self._dim}{label}: {value}{self._reset}")
 
-    def divider(self, char="-"):
+    def divider(self, char="·"):
+        """Modern subtle divider - 2026 design."""
         if self.quiet:
             return
+        # Subtle centered divider
         width = min(40, self._caps.width - 4)
-        self._print(f"{self._dim}{char * width}{self._reset}")
+        self._print(f"{self._dim}{char * 3}{self._reset}")
 
     def debug(self, msg):
         if not self.verbose:
@@ -442,10 +449,18 @@ class Console:
             while not stop_event.is_set():
                 frame = frames[idx % len(frames)]
                 with self._lock:
-                    # Clear line first, then write spinner
-                    clear = "\r" + " " * line_width + "\r"
-                    line = f"{self._cyan}{frame}{self._reset} {current_msg[0]}"
-                    sys.stdout.write(clear + line)
+                    # Build line with proper padding
+                    msg_text = current_msg[0]
+                    line = f"{self._cyan}{frame}{self._reset} {msg_text}"
+                    # Truncate if needed, then pad to full width
+                    visible_len = len(frame) + 1 + len(msg_text)  # frame + space + message
+                    if visible_len > line_width:
+                        msg_text = msg_text[:line_width - len(frame) - 4] + "..."
+                        line = f"{self._cyan}{frame}{self._reset} {msg_text}"
+                    # Pad with spaces to overwrite previous content
+                    line = line + " " * max(0, line_width - visible_len)
+                    # Write with carriage return
+                    sys.stdout.write(f"\r{line}")
                     sys.stdout.flush()
                 idx += 1
                 time.sleep(0.08)

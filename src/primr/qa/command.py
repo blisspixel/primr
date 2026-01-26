@@ -20,8 +20,13 @@ logger = logging.getLogger(__name__)
 class QACommand:
     """Command-line interface for QA operations."""
     
-    def __init__(self):
-        """Initialize QA command with default options."""
+    def __init__(self, output_dir: Optional[Path] = None):
+        """
+        Initialize QA command with default options.
+        
+        Args:
+            output_dir: Override output directory for testing. If None, uses config default.
+        """
         # Check if verbose mode is enabled globally
         try:
             from primr.utils.console import console
@@ -36,6 +41,20 @@ class QACommand:
             verbose_cli=verbose_mode
         ))
         self.report_loader = ReportLoader()
+        self._output_dir = output_dir  # For test isolation
+    
+    @property
+    def output_dir(self) -> Path:
+        """Get output directory, using config default if not overridden."""
+        if self._output_dir is not None:
+            return self._output_dir
+        from primr.config.config import OUTPUT_DIR
+        return Path(OUTPUT_DIR)
+    
+    @output_dir.setter
+    def output_dir(self, value: Path) -> None:
+        """Set output directory (for testing)."""
+        self._output_dir = value
     
     def show_detailed_analysis(self, company_name: str) -> int:
         """
@@ -205,7 +224,7 @@ class QACommand:
     
     def _find_recent_report(self, company_name: str) -> Optional[str]:
         """Find the most recent report for a company."""
-        from primr.config.config import OUTPUT_DIR
+        output_dir = self.output_dir
         
         # Look for various report types
         patterns = [
@@ -216,7 +235,7 @@ class QACommand:
         
         all_files = []
         for pattern in patterns:
-            files = glob.glob(os.path.join(OUTPUT_DIR, pattern))
+            files = glob.glob(os.path.join(str(output_dir), pattern))
             all_files.extend(files)
         
         if not all_files:
@@ -228,7 +247,7 @@ class QACommand:
     
     def _find_qa_report(self, company_name: str) -> Optional[str]:
         """Find the most recent QA report for a company."""
-        from primr.config.config import OUTPUT_DIR
+        output_dir = self.output_dir
         
         # Look for QA report files
         patterns = [
@@ -239,7 +258,7 @@ class QACommand:
         
         all_files = []
         for pattern in patterns:
-            files = glob.glob(os.path.join(OUTPUT_DIR, pattern))
+            files = glob.glob(os.path.join(str(output_dir), pattern))
             all_files.extend(files)
         
         if not all_files:
@@ -251,10 +270,10 @@ class QACommand:
     
     def _list_available_companies(self) -> None:
         """List companies with available reports."""
-        from primr.config.config import OUTPUT_DIR
+        output_dir = self.output_dir
         
         # Find all report files
-        report_files = glob.glob(os.path.join(OUTPUT_DIR, "*_*.docx"))
+        report_files = glob.glob(os.path.join(str(output_dir), "*_*.docx"))
         
         if not report_files:
             print("  No reports found in output directory")

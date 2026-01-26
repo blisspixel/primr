@@ -1,2 +1,2 @@
 @echo off
-python -m primr %*
+py -3.13 -m primr %*

@@ -149,7 +149,6 @@ class TestConsoleFormatting:
         c.header("Test Header")
         captured = capsys.readouterr()
         assert "Test Header" in captured.out
-        assert "-" in captured.out
     
     def test_header_with_subtitle(self, capsys):
         """header() should print subtitle if provided."""
@@ -257,11 +256,13 @@ class TestPhaseBanner:
         assert "Doing stuff" in captured.out
 
     def test_phase_banner_with_duration(self, capsys):
-        """phase_banner() should display expected duration if provided."""
+        """phase_banner() accepts expected_duration parameter (not displayed in minimal design)."""
         c = Console()
+        # expected_duration is accepted but not displayed in the modern minimal design
         c.phase_banner(1, 2, "Phase", expected_duration="5-10 minutes")
         captured = capsys.readouterr()
-        assert "5-10 minutes" in captured.out
+        # Just verify the banner is displayed (duration is not shown in minimal design)
+        assert "Phase" in captured.out
 
     def test_phase_banner_quiet_mode(self, capsys):
         """phase_banner() should be suppressed in quiet mode."""

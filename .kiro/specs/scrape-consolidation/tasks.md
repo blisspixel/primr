@@ -132,21 +132,21 @@ Consolidate all scraping to use ONE site-to-corpus workflow (`build_site_corpus`
     - URLs configured at runtime (not hardcoded in spec)
     - _Requirements: 5.1, 5.2_
 
-- [ ] 7. Multi-site corpus testing (run BEFORE regression)
-  - [ ] 7.1 Run multi-site sanity suite from fixtures
+- [x] 7. Multi-site corpus testing (run BEFORE regression)
+  - [x] 7.1 Run multi-site sanity suite from fixtures
     - Load site configs from tests/fixtures/sites.json
     - For each site type, assert thresholds from fixture config
     - _Requirements: 7.2, 7.3_
 
-- [ ] 8. Checkpoint - Test scrape mode on fixture corpus
+- [x] 8. Checkpoint - Test scrape mode on fixture corpus
   - Run scrape mode on all site types from fixtures
   - Verify _raw_scrapes/ folder is populated with quality content
   - Verify _external_links.txt is created
   - Verify insights.txt is generated
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 9. Regression test from fixtures
-  - [ ] 9.1 Run regression cases from tests/fixtures/regression_urls.json
+- [x] 9. Regression test from fixtures
+  - [x] 9.1 Run regression cases from tests/fixtures/regression_urls.json
     - For each case, verify assertions pass
     - Verify content is actual text (not garbage/JS artifacts)
     - _Requirements: 5.1, 5.2_
@@ -173,7 +173,7 @@ Consolidate all scraping to use ONE site-to-corpus workflow (`build_site_corpus`
     - Assert only build_site_corpus (fetch_web_content) contains these patterns
     - _Requirements: 1.8, 1.9_
 
-- [ ] 13. Final checkpoint
+- [x] 13. Final checkpoint
   - Run full mode and scrape mode on same fixture site
   - Use diff helper to verify identical outputs
   - Run static analysis to verify no duplicate patterns

@@ -31,7 +31,7 @@ class TestCLISmokeTests:
         **Validates: Requirements 2.1**
         """
         result = subprocess.run(
-            [sys.executable, str(PROJECT_ROOT / "primr_cli.py"), "doctor"],
+            ["primr", "doctor"],
             capture_output=True,
             timeout=60,
             cwd=str(PROJECT_ROOT),
@@ -46,7 +46,7 @@ class TestCLISmokeTests:
         **Validates: Requirements 2.2**
         """
         result = subprocess.run(
-            [sys.executable, str(PROJECT_ROOT / "primr_cli.py"), "--help"],
+            ["primr", "--help"],
             capture_output=True,
             timeout=30,
             cwd=str(PROJECT_ROOT),
@@ -65,7 +65,7 @@ class TestCLISmokeTests:
         **Validates: Requirements 2.3**
         """
         result = subprocess.run(
-            [sys.executable, str(PROJECT_ROOT / "primr_cli.py"), "--list-recent"],
+            ["primr", "--list-recent"],
             capture_output=True,
             timeout=60,
             cwd=str(PROJECT_ROOT),
@@ -81,8 +81,7 @@ class TestCLISmokeTests:
         """
         result = subprocess.run(
             [
-                sys.executable,
-                str(PROJECT_ROOT / "primr_cli.py"),
+                "primr",
                 "TestCompany",
                 "https://example.com",
                 "--dry-run",
@@ -106,7 +105,7 @@ class TestCLISmokeTests:
         with colorama/Windows console encoding.
         """
         result = subprocess.run(
-            [sys.executable, str(PROJECT_ROOT / "primr_cli.py"), "--show-usage"],
+            ["primr", "--show-usage"],
             capture_output=True,
             timeout=30,
             cwd=str(PROJECT_ROOT),
@@ -149,7 +148,7 @@ class TestCLIInvalidArguments:
         **Validates: Requirements 2.5**
         """
         result = subprocess.run(
-            [sys.executable, str(PROJECT_ROOT / "primr_cli.py")] + invalid_args,
+            ["primr"] + invalid_args,
             capture_output=True,
             timeout=30,
             cwd=str(PROJECT_ROOT),
@@ -189,7 +188,7 @@ def test_property_invalid_flags_return_nonzero(invalid_flag: str):
     a non-zero exit code and include an error message in stderr.
     """
     result = subprocess.run(
-        [sys.executable, str(PROJECT_ROOT / "primr_cli.py"), f"--{invalid_flag}"],
+        ["primr", f"--{invalid_flag}"],
         capture_output=True,
         timeout=30,
         cwd=str(PROJECT_ROOT),

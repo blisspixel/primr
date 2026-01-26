@@ -582,7 +582,8 @@ class DeepResearchClient:
             interaction = self._start_research(prompt, file_store_name=file_store_name)
             interaction_id = interaction.id
             logger.info(f"Research started: {interaction_id}")
-
+            
+            # Note: Progress callback will show "Research started" message
             # Save job for recovery if process is interrupted
             save_pending_job(
                 interaction_id=interaction_id,
@@ -630,10 +631,11 @@ class DeepResearchClient:
                             f"Transient error during polling (attempt {consecutive_poll_errors}/{max_poll_errors}), "
                             f"waiting {wait_time}s: {e}"
                         )
-                        if on_progress:
+                        # Only show progress on first retry to reduce noise
+                        if on_progress and consecutive_poll_errors == 1:
                             on_progress(ResearchProgress(
                                 status=ResearchStatus.IN_PROGRESS,
-                                message=f"API hiccup, retrying in {wait_time}s ({consecutive_poll_errors}/{max_poll_errors})..."
+                                message=f"API delays detected, retrying..."
                             ))
                         await asyncio.sleep(wait_time)
                         continue
@@ -770,10 +772,8 @@ class DeepResearchClient:
                 # Capture interaction ID
                 if chunk.event_type == "interaction.start":
                     interaction_id = chunk.interaction.id
-                    yield ResearchProgress(
-                        status=ResearchStatus.IN_PROGRESS,
-                        message=f"Research started: {interaction_id}"
-                    )
+                    # Skip - parent callback already showed "Research started"
+                    pass
 
                 # Track event ID for reconnection
                 if hasattr(chunk, 'event_id') and chunk.event_id:
@@ -1292,6 +1292,7 @@ Frame everything as hypotheses to explore, not conclusions."""
             interaction_id = interaction.id
             logger.info(f"Research started: {interaction_id}")
             
+            # Note: Progress callback will show "Research started" message
             # Save job for recovery
             save_pending_job(
                 interaction_id=interaction_id,
@@ -1300,10 +1301,8 @@ Frame everything as hypotheses to explore, not conclusions."""
             )
             
             if on_progress:
-                on_progress(ResearchProgress(
-                    status=ResearchStatus.IN_PROGRESS,
-                    message=f"Research started (ID: {interaction_id})"
-                ))
+                # Skip - parent callback already showed "Research started"
+                pass
         except Exception as e:
             raise AIError(f"Failed to start research: {e}", model=self.AGENT_ID, cause=e) from e
         
@@ -1447,26 +1446,41 @@ class ConsultingPromptBuilder:
     
     Creates comprehensive prompts that include:
     - Consulting persona injection ("Senior Strategy Consultant")
-    - All 10 chapter specifications in a single prompt
+    - All chapter specifications in a single prompt
     - Hierarchy of truth instructions
     - Formatting and epistemic standards
     
     This ensures Deep Research generates a complete, cohesive report
     in a single API call rather than multiple parallel calls.
+    
+    Note: This class now delegates to PromptComposer for consistency.
+    The YAML-based configuration in company_overview.yaml is the source of truth.
+    This class is maintained for backward compatibility.
     """
     
-    # The 10 standard chapters for a Strategic Company Overview
+    # The standard chapters for a Strategic Company Overview
+    # Note: Actual sections are defined in company_overview.yaml
     CHAPTERS = [
         "Executive Summary",
-        "Detailed Products and Services",
-        "Unique Selling Proposition",
-        "Mission and Vision",
-        "Company History",
-        "Key Achievements",
-        "Target Audience",
-        "Financial Overview",
-        "Key Business Drivers and Strategic KPIs",
+        "Products and Services",
+        "Target Customers",
+        "Competitive Differentiation",
+        "Financial Profile",
+        "Company History and Evolution",
+        "Leadership and Organization",
+        "Industry Dynamics",
+        "Competitive Landscape",
+        "Business Model and Value Creation",
         "SWOT Analysis",
+        "Strategic Tensions",
+        "Constraints and Degrees of Freedom",
+        "Narrative Gap Analysis",
+        "Areas of Potential Fragility",
+        "Patterns Worth Exploring",
+        "Discovery Questions",
+        "Porter's Five Forces Assessment",
+        "Value Chain Analysis",
+        "Strategic Positioning Hypothesis",
     ]
     
     def __init__(self):
@@ -1481,6 +1495,9 @@ class ConsultingPromptBuilder:
         """
         Build a single prompt requesting a comprehensive strategic overview.
         
+        This method delegates to PromptComposer.compose("company_overview", context)
+        for consistency with the YAML-based prompt architecture.
+        
         Args:
             company_name: Name of the company to research
             website_url: Optional company website URL
@@ -1488,280 +1505,29 @@ class ConsultingPromptBuilder:
         Returns:
             Complete prompt string for Deep Research
         """
-        current_date = datetime.now().strftime("%B %d, %Y")
+        from primr.prompts.composer import PromptComposer
+        from primr.prompts.schema import PromptContext
         
-        website_context = f" ({website_url})" if website_url else ""
-        priority_source = f"Priority Source: Analyze {website_url} first.\n\n" if website_url else ""
+        # Create context for the composer
+        context = PromptContext(
+            company_name=company_name,
+            website_url=website_url,
+            has_stage1_context=False,  # Company overview is stage 1, no prior context
+        )
         
-        return f"""You are a senior strategy consultant preparing pre-meeting research for a client engagement.
-
-=============================================================================
-DOCUMENT PURPOSE
-=============================================================================
-
-This is INTERNAL PREP to understand {company_name} before a discovery conversation. The goal is to:
-1. Understand how they create value today
-2. Form hypotheses about where support could help them move faster, reduce risk, or unlock opportunities
-3. Surface smart questions to validate our thinking WITH them
-
-This is NOT a client deliverable. It's the thinking that makes you walk in informed and curious.
-Write with analytical depth. Surface uncomfortable hypotheses. Prioritize clarity over diplomacy.
-Treat strong claims as working hypotheses unless explicitly supported by cited sources.
-
-=============================================================================
-OUTPUT FORMAT
-=============================================================================
-
-# Strategic Company Overview: {company_name}
-
-**Prepared by:** Primr Research System  
-**Date:** {current_date}
-
-**Key Metrics:**
-- Employees: [X,XXX or ~X,XXX estimated]
-- Revenue: [$X.XB or ~$XXM estimated]
-- Founded: [YYYY]
-- Headquarters: [City, State]
-
----
-
-=============================================================================
-RESEARCH INSTRUCTIONS
-=============================================================================
-
-Research {company_name}{website_context} and produce a comprehensive strategic overview.
-
-{priority_source}DEPTH REQUIREMENT: This document must be THOROUGH. Each section needs substantive analysis with specific evidence, not surface-level summaries. Include data tables where they add clarity. A consultant should be able to read this and walk into a meeting genuinely understanding the business.
-
-EPISTEMIC RULES:
-- Distinguish facts (with citations) from inferences (labeled as such) from hypotheses (to validate)
-- Frame risks as "areas to explore" not definitive threats
-- Use language like "appears to", "worth exploring", "we'd want to validate"
-- If a sentence implies inevitability or failure, rewrite it as a scenario comparison
-
-FORMATTING:
-- Write in full paragraphs with evidence
-- Use bullets only for lists of specific items
-- Single-level bullets only
-- Cite sources at section end using [cite: X, Y, Z] format
-- Include tables for financials, competitors, timelines
-
-=============================================================================
-PART 1: FOUNDATIONAL UNDERSTANDING (Know Them)
-=============================================================================
-
-## Executive Summary
-
-The "so what" a partner reads before walking into the meeting. Include:
-- What this company does and their market position
-- Key financial metrics and growth trajectory  
-- What they appear to be good at
-- 2-3 areas where consulting support could create meaningful impact
-- The central hypothesis about how they create value (to validate with them)
-
-## Products and Services
-
-Understand what they actually sell and how they make money. Cover:
-- Complete product/service catalog organized by category
-- How each offering generates revenue (pricing models, contract structures)
-- Revenue mix across product lines (if discernible)
-- Recent launches, discontinuations, or pivots (last 2-3 years)
-- Technology or platform underpinning their offerings
-- Go-to-market and fulfillment approach
-
-## Target Customers
-
-Understand who they serve and how they reach them. Cover:
-- Primary customer segments with size/revenue estimates
-- Buyer personas and purchasing behavior
-- Geographic distribution of customer base
-- Industry verticals served (with relative importance)
-- Enterprise vs SMB vs consumer mix
-- Channel strategy and key partners
-
-## Competitive Differentiation
-
-Understand why customers choose them over alternatives. Cover:
-- Primary value proposition and core messaging
-- Specific capabilities competitors demonstrably lack
-- Evidence of differentiation (customer reviews, case studies, analyst commentary)
-- Durability of the moat - what protects it, what could erode it
-
-## Financial Profile
-
-Understand their economic reality. Cover:
-- Revenue (actual or estimated with source and confidence)
-- Revenue growth rate and multi-year trajectory
-- Profitability indicators (margins, EBITDA if available)
-- Funding history with investors, dates, amounts
-- Current valuation (if known)
-- Capital structure and debt profile
-
-Include a financial summary table.
-
-## Company History and Evolution
-
-Understand how they got here. Cover:
-- Founding story and original business model
-- Major pivots or strategic shifts (with context on why)
-- All significant acquisitions (dates, deal sizes if known, strategic rationale)
-- Key leadership transitions
-- Funding milestones
-- Geographic expansion
-
-Include a timeline table for complex histories.
-
-## Leadership and Organization
-
-Understand who runs the company and how they operate. Cover:
-- C-suite profiles with backgrounds, tenure, previous roles
-- Board composition and notable directors
-- Leadership stability (recent departures, average tenure)
-- Cultural signals from careers page, press, employee reviews
-
-=============================================================================
-PART 2: MARKET CONTEXT (Their World)
-=============================================================================
-
-## Industry Dynamics
-
-Understand the forces shaping their world. Cover:
-- Industry size, growth rate, and trajectory
-- Key trends and disruption factors
-- Regulatory environment and upcoming changes
-- Technology shifts affecting the industry
-- Consolidation or fragmentation trends
-
-## Competitive Landscape
-
-Understand who they're fighting and how they stack up. Cover:
-- Direct competitors with brief profiles
-- Market share estimates (with sources)
-- Head-to-head comparison on key dimensions
-- Where {company_name} appears to win deals (and why)
-- Where {company_name} appears to lose deals (and why)
-- Emerging competitors or disruptors to watch
-
-Include a competitor comparison table.
-
-=============================================================================
-PART 3: STRATEGIC ANALYSIS (So What)
-=============================================================================
-
-## Business Model and Value Creation
-
-Articulate how they actually make money - the logic made explicit. Cover:
-- Core value proposition: What problem, for whom, better than alternatives?
-- Revenue model and unit economics (if discernible)
-- Reinforcing mechanisms: What creates flywheel effects?
-- Key assumptions: What must remain true for this model to work?
-- Vulnerabilities: Where could the logic break down?
-
-Frame this as an initial theory to test in conversation.
-
-## SWOT Analysis
-
-Thorough analysis with 5-8 items per quadrant, each with specific evidence:
-
-**Strengths** (internal capabilities and advantages)
-**Weaknesses** (internal gaps and limitations)  
-**Opportunities** (external openings and tailwinds)
-**Threats** (external risks and headwinds)
-
-## Strategic Tensions
-
-Derived from the SWOT, identify 4-6 core tensions they must actively manage.
-
-For each tension:
-- The tension: What two valuable things are in natural conflict?
-- Evidence: What signals suggest this tension exists?
-- Current approach: How do they appear to be managing it?
-- Question to explore: What would we want to understand?
-
-## Constraints and Degrees of Freedom
-
-**Structural Constraints** (things that limit near-term change):
-- Regulatory, legacy systems, contracts, capital structure, cultural inertia
-
-**Degrees of Freedom** (where they have flexibility):
-- Decisions that appear genuinely open
-- Areas where small changes could have outsized impact
-
-=============================================================================
-PART 4: HYPOTHESES AND QUESTIONS (To Validate)
-=============================================================================
-
-## Narrative Gap Analysis
-
-Contrasts between what they say and external signals (identify 4-6).
-
-For each gap:
-- Claim: What they say (with specific quote or source)
-- Evidence: What external sources suggest
-- Question to explore: What we'd want to understand from them
-
-## Areas of Potential Fragility
-
-Areas where the business may be sensitive to shocks (identify 4-6).
-
-For each fragility:
-- The fragility: What aspect appears sensitive?
-- Evidence: What signals suggest this?
-- Question: How are they thinking about this?
-
-## Patterns Worth Exploring
-
-Interesting patterns from the research (identify 5-8).
-
-For each pattern:
-- Observation: What we found (with evidence)
-- Interpretation A: One way to read this
-- Interpretation B: Alternative reading
-- Question: What we'd want to understand
-
-## Discovery Questions
-
-The 8-10 most important questions for our first conversation. For each:
-- The question (specific and thoughtful)
-- Why we're asking (what research finding prompted this)
-- What we hope to learn
-
-=============================================================================
-PART 5: STRATEGIC FRAMEWORKS (Guiding Theories)
-=============================================================================
-
-## Porter's Five Forces Assessment
-
-Apply Porter's framework to understand industry profitability dynamics:
-- Threat of new entrants (High/Medium/Low with evidence)
-- Bargaining power of suppliers
-- Bargaining power of buyers
-- Threat of substitutes
-- Competitive rivalry
-
-## Value Chain Analysis
-
-Where in the value chain does {company_name} participate and capture margin?
-- Primary activities and where they have advantages
-- Potential for vertical integration or disintermediation
-
-## Strategic Positioning Hypothesis
-
-Based on all research, articulate an initial hypothesis about their strategic position:
-- Are they competing on cost leadership, differentiation, or focus?
-- Is their strategy coherent (do the pieces reinforce each other)?
-- Where might the strategy be under pressure?
-
-Frame explicitly as a hypothesis to validate in conversation.
-
-=============================================================================
-INTERNAL USE ONLY
-=============================================================================
-This document is for internal research and strategic sensemaking. When reusing externally, soften conclusions, foreground hypotheses, and retain only claims supported by citations.
-"""
+        # Use PromptComposer to build the prompt
+        composer = PromptComposer()
+        composed = composer.compose("company_overview", context)
+        
+        return composed.content
     
     def _get_formatting_rules(self) -> str:
-        """Get the formatting rules section."""
+        """
+        Get the formatting rules section.
+        
+        Note: This method is kept for backward compatibility.
+        The actual formatting rules are now defined in shared/formatting.yaml.
+        """
         return """FORMATTING RULES (follow these exactly):
 - Write in full, detailed paragraphs - this is a comprehensive research document, not a summary
 - Use bullets only when listing specific items (products, competitors, etc.)
@@ -1772,7 +1538,12 @@ This document is for internal research and strategic sensemaking. When reusing e
 - Every section should have substantial depth - multiple paragraphs with specific evidence"""
     
     def _get_purpose_section(self) -> str:
-        """Get the purpose section."""
+        """
+        Get the purpose section.
+        
+        Note: This method is kept for backward compatibility.
+        The actual purpose is now defined in company_overview.yaml.
+        """
         return """PURPOSE:
 Pre-meeting research to deeply understand the company before discovery. We are forming initial hypotheses from public information. The real insights come from talking with the client.
 
@@ -1784,7 +1555,12 @@ This document should:
 Subject-Positive Intent: Assume this company is rational, competent, and successful in its context. Understand how they create value and where support could help them go further."""
     
     def _get_epistemic_contract(self) -> str:
-        """Get the epistemic contract section."""
+        """
+        Get the epistemic contract section.
+        
+        Note: This method is kept for backward compatibility.
+        The actual epistemic rules are now defined in shared/epistemic_rules.yaml.
+        """
         return """EPISTEMIC CONTRACT:
 Every strategic observation must be expressed as one of:
 - A verified fact (with citation)
@@ -2479,8 +2255,9 @@ class DeepResearchOrchestrator:
         interaction_id = interaction.id
         logger.info(f"Deep Research started: {interaction_id}")
         
+        # Show single "Research started" message
         if on_progress:
-            on_progress(f"Research started (ID: {interaction_id})")
+            on_progress(f"Research started")
         
         # Poll for completion with adaptive intervals
         return await self._poll_for_completion(
@@ -2548,11 +2325,9 @@ class DeepResearchOrchestrator:
                         f"Transient error during polling (attempt {consecutive_poll_errors}/{max_poll_errors}), "
                         f"waiting {wait_time}s: {e}"
                     )
-                    if on_progress:
-                        on_progress(
-                            f"API hiccup, retrying in {wait_time}s "
-                            f"({consecutive_poll_errors}/{max_poll_errors})..."
-                        )
+                    # Only show progress on first retry to reduce noise
+                    if on_progress and consecutive_poll_errors == 1:
+                        on_progress("API delays detected, retrying...")
                     await asyncio.sleep(wait_time)
                     continue
                 else:

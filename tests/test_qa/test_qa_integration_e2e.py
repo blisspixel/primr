@@ -58,10 +58,10 @@ Sources:
             
             # Step 1: Run QA integration
             qa_options = QAOptions(enabled=True, save_detailed=True)
-            qa_integration = QAIntegration(qa_options)
+            qa_integration = QAIntegration(qa_options, output_dir=Path(temp_dir))
             
-            # Override output directory for test
-            qa_integration.analyzer.ai_client = None  # Force fallback for testing
+            # Force fallback for testing (no AI client)
+            qa_integration.analyzer.ai_client = None
             
             qa_result = qa_integration.run_post_generation_qa(report_path, company_name)
             
@@ -123,7 +123,7 @@ Sources: https://example.com/market-data""",
         ]
         
         with tempfile.TemporaryDirectory() as temp_dir:
-            qa_integration = QAIntegration(QAOptions(enabled=True, save_detailed=True))
+            qa_integration = QAIntegration(QAOptions(enabled=True, save_detailed=True), output_dir=Path(temp_dir))
             qa_integration.analyzer.ai_client = None  # Force fallback
             
             results = []
@@ -165,7 +165,7 @@ Sources: https://example.com/market-data""",
         **Validates: Requirements 1.4**
         """
         with tempfile.TemporaryDirectory() as temp_dir:
-            qa_integration = QAIntegration(QAOptions(enabled=True))
+            qa_integration = QAIntegration(QAOptions(enabled=True), output_dir=Path(temp_dir))
             
             # Test 1: Non-existent file
             non_existent_path = Path(temp_dir) / "non_existent.txt"
@@ -261,7 +261,7 @@ The company is well-positioned for continued success in the evolving analytics m
                 model="gemini-3-flash-preview"
             )
             
-            qa_integration = QAIntegration(qa_options)
+            qa_integration = QAIntegration(qa_options, output_dir=Path(temp_dir))
             qa_integration.analyzer.ai_client = None  # Force fallback for testing
             
             # This simulates the call from research_agent.py
@@ -290,7 +290,7 @@ The company is well-positioned for continued success in the evolving analytics m
         **Validates: Requirements 1.4, 4.1**
         """
         with tempfile.TemporaryDirectory() as temp_dir:
-            qa_integration = QAIntegration(QAOptions(enabled=True))
+            qa_integration = QAIntegration(QAOptions(enabled=True), output_dir=Path(temp_dir))
             qa_integration.analyzer.ai_client = None  # Force fallback for consistent testing
             
             # Test with various report sizes

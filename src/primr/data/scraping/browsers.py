@@ -403,7 +403,7 @@ class PlaywrightSession(BrowserSession):
             return False
             
         except Exception as e:
-            logger.warning(f"Error waiting for clearance: {e}")
+            logger.debug(f"Error waiting for clearance: {e}")
             return False
     
     def dismiss_consent(self) -> bool:
@@ -633,7 +633,7 @@ class DrissionPageSession(BrowserSession):
             return False
             
         except Exception as e:
-            logger.warning(f"Error waiting for clearance: {e}")
+            logger.debug(f"Error waiting for clearance: {e}")
             return False
     
     def dismiss_consent(self) -> bool:
@@ -1172,24 +1172,29 @@ def scrape_with_drissionpage_stealth(
     timeout: float = DEFAULT_TIMEOUT_DRISSION_STEALTH,
     profile: Optional[BrowserContextProfile] = None,
     headless: bool = True,
-    max_challenge_wait: int = 45,
+    max_challenge_wait: Optional[int] = None,
 ) -> ScrapeResult:
     """
     Scrape URL using DrissionPage with stealth mode and challenge solving.
     
     Tier 7: Driverless browser with anti-detection and Cloudflare bypass.
     
+    CRITICAL: DrissionPage has poor timeout handling - its get() method often
+    ignores the timeout parameter. We wrap the entire execution in a hard
+    timeout using threading to enforce the limit.
+    
     Args:
         url: URL to scrape
-        timeout: Timeout in seconds
+        timeout: Timeout in seconds (HARD LIMIT - enforced via threading)
         profile: Optional browser context profile
         headless: Run browser in headless mode
-        max_challenge_wait: Max seconds to wait for challenge solving
+        max_challenge_wait: Max seconds to wait for challenge solving (default: 70% of timeout, max 30s)
     
     Returns:
         ScrapeResult with raw HTML bytes
     """
     from primr.utils.validators import validate_url_for_request
+    import concurrent.futures
     
     # SSRF protection
     is_valid, normalized_url, error = validate_url_for_request(url)
@@ -1207,91 +1212,140 @@ def scrape_with_drissionpage_stealth(
     url = normalized_url
     tier_name = "drissionpage_stealth"
     start_time = time.time()
-    session = None
     
-    try:
-        session = DrissionPageSession(profile=profile, headless=headless)
-        
-        # Navigate
-        timeout_ms = int(timeout * 1000)
-        if not session.navigate(url, timeout_ms=timeout_ms):
+    # Calculate challenge wait time from timeout budget
+    # Use 70% of timeout for challenge wait, capped at 30s
+    # Example: 20s timeout → 14s challenge wait
+    # Example: 60s timeout → 30s challenge wait (capped)
+    if max_challenge_wait is None:
+        max_challenge_wait = min(int(timeout * 0.7), 30)
+    
+    # Define the actual scraping work as a separate function
+    def _do_scrape():
+        session = None
+        try:
+            session = DrissionPageSession(profile=profile, headless=headless)
+            
+            # Navigate with timeout budget
+            timeout_ms = int(timeout * 1000)
+            nav_start = time.time()
+            if not session.navigate(url, timeout_ms=timeout_ms):
+                elapsed_ms = (time.time() - start_time) * 1000
+                return ScrapeResult(
+                    url=url,
+                    success=False,
+                    error_type=ErrorType.NETWORK_ERROR,
+                    error="Navigation failed",
+                    tier=tier_name,
+                    elapsed_ms=elapsed_ms,
+                    attempts=[Attempt(tier=tier_name, success=False, error="Navigation failed", elapsed_ms=elapsed_ms)],
+                )
+            
+            # Calculate remaining time budget for challenge wait
+            nav_elapsed = time.time() - nav_start
+            remaining_budget = timeout - nav_elapsed
+            effective_challenge_wait = min(max_challenge_wait, int(remaining_budget))
+            
+            if effective_challenge_wait <= 0:
+                elapsed_ms = (time.time() - start_time) * 1000
+                return ScrapeResult(
+                    url=url,
+                    success=False,
+                    error_type=ErrorType.TIMEOUT,
+                    error=f"Navigation consumed full timeout budget ({nav_elapsed:.1f}s)",
+                    tier=tier_name,
+                    elapsed_ms=elapsed_ms,
+                    attempts=[Attempt(tier=tier_name, success=False, error="Timeout", error_type=ErrorType.TIMEOUT, elapsed_ms=elapsed_ms)],
+                )
+            
+            # Wait for challenge to clear with remaining budget
+            if not session.wait_for_clearance(max_wait_seconds=effective_challenge_wait):
+                elapsed_ms = (time.time() - start_time) * 1000
+                return ScrapeResult(
+                    url=url,
+                    success=False,
+                    error_type=ErrorType.CHALLENGE,
+                    error="Challenge did not clear",
+                    tier=tier_name,
+                    elapsed_ms=elapsed_ms,
+                    attempts=[Attempt(tier=tier_name, success=False, error="Challenge timeout", error_type=ErrorType.CHALLENGE, elapsed_ms=elapsed_ms)],
+                )
+            
+            # Dismiss consent
+            session.dismiss_consent()
+            
+            # Get HTML
+            html = session.get_page_html()
+            cookies = session.get_cookies()
+            final_url = session.get_current_url()
+            
             elapsed_ms = (time.time() - start_time) * 1000
+            
+            return ScrapeResult(
+                url=url,
+                success=True,
+                raw_content=html.encode("utf-8") if html else b"",
+                content_type="text/html",
+                http_status=200,
+                final_url=final_url,
+                tier=tier_name,
+                elapsed_ms=elapsed_ms,
+                cookies=cookies,
+                attempts=[Attempt(tier=tier_name, success=True, elapsed_ms=elapsed_ms, http_status=200)],
+            )
+            
+        except ImportError:
             return ScrapeResult(
                 url=url,
                 success=False,
                 error_type=ErrorType.NETWORK_ERROR,
-                error="Navigation failed",
+                error="DrissionPage not installed",
                 tier=tier_name,
-                elapsed_ms=elapsed_ms,
-                attempts=[Attempt(tier=tier_name, success=False, error="Navigation failed", elapsed_ms=elapsed_ms)],
+                attempts=[],
             )
-        
-        # Wait for challenge to clear
-        if not session.wait_for_clearance(max_wait_seconds=max_challenge_wait):
+            
+        except Exception as e:
             elapsed_ms = (time.time() - start_time) * 1000
+            error_type = ErrorType.TIMEOUT if "timeout" in str(e).lower() else ErrorType.NETWORK_ERROR
+            
             return ScrapeResult(
                 url=url,
                 success=False,
-                error_type=ErrorType.CHALLENGE,
-                error="Challenge did not clear",
+                error_type=error_type,
+                error=f"DrissionPage stealth error: {e}",
                 tier=tier_name,
                 elapsed_ms=elapsed_ms,
-                attempts=[Attempt(tier=tier_name, success=False, error="Challenge timeout", error_type=ErrorType.CHALLENGE, elapsed_ms=elapsed_ms)],
+                attempts=[Attempt(tier=tier_name, success=False, error=str(e), error_type=error_type, elapsed_ms=elapsed_ms)],
             )
-        
-        # Dismiss consent
-        session.dismiss_consent()
-        
-        # Get HTML
-        html = session.get_page_html()
-        cookies = session.get_cookies()
-        final_url = session.get_current_url()
-        
-        elapsed_ms = (time.time() - start_time) * 1000
-        
-        return ScrapeResult(
-            url=url,
-            success=True,
-            raw_content=html.encode("utf-8") if html else b"",
-            content_type="text/html",
-            http_status=200,
-            final_url=final_url,
-            tier=tier_name,
-            elapsed_ms=elapsed_ms,
-            cookies=cookies,
-            attempts=[Attempt(tier=tier_name, success=True, elapsed_ms=elapsed_ms, http_status=200)],
-        )
-        
-    except ImportError:
-        return ScrapeResult(
-            url=url,
-            success=False,
-            error_type=ErrorType.NETWORK_ERROR,
-            error="DrissionPage not installed",
-            tier=tier_name,
-            attempts=[],
-        )
-        
-    except Exception as e:
-        elapsed_ms = (time.time() - start_time) * 1000
-        error_type = ErrorType.TIMEOUT if "timeout" in str(e).lower() else ErrorType.NETWORK_ERROR
-        
-        return ScrapeResult(
-            url=url,
-            success=False,
-            error_type=error_type,
-            error=f"DrissionPage stealth error: {e}",
-            tier=tier_name,
-            elapsed_ms=elapsed_ms,
-            attempts=[Attempt(tier=tier_name, success=False, error=str(e), error_type=error_type, elapsed_ms=elapsed_ms)],
-        )
-        
-    finally:
-        if session:
-            try:
-                session.close()
-            except Exception:
-                pass
+            
+        finally:
+            if session:
+                try:
+                    session.close()
+                except Exception:
+                    pass
+    
+    # Execute with HARD timeout using ThreadPoolExecutor
+    # This ensures we don't wait forever if DrissionPage hangs
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(_do_scrape)
+        try:
+            # Add 2s buffer to timeout for cleanup
+            result = future.result(timeout=timeout + 2)
+            return result
+        except concurrent.futures.TimeoutError:
+            # Hard timeout hit - DrissionPage is hanging
+            elapsed_ms = (time.time() - start_time) * 1000
+            logger.debug(f"DrissionPage stealth HARD TIMEOUT after {elapsed_ms/1000:.1f}s for {url}")
+            return ScrapeResult(
+                url=url,
+                success=False,
+                error_type=ErrorType.TIMEOUT,
+                error=f"Hard timeout after {timeout}s (DrissionPage hung)",
+                tier=tier_name,
+                elapsed_ms=elapsed_ms,
+                attempts=[Attempt(tier=tier_name, success=False, error="Hard timeout", error_type=ErrorType.TIMEOUT, elapsed_ms=elapsed_ms)],
+            )
 
 
 def scrape_with_vision(
@@ -1449,7 +1503,7 @@ Return the extracted text in a clean, readable format with proper paragraph brea
         
     except Exception as e:
         elapsed_ms = (time.time() - start_time) * 1000
-        logger.warning(f"Vision tier failed for {url}: {e}")
+        logger.debug(f"Vision tier failed for {url}: {e}")
         return ScrapeResult(
             url=url,
             success=False,

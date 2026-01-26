@@ -1203,7 +1203,7 @@ def perform_deep_research(
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
 
-            with console.heartbeat("Deep Research in progress", interval=30.0):
+            with console.heartbeat("Deep Research in progress", interval=90.0):
                 result = loop.run_until_complete(
                     orchestrator.research(
                         company_name=company_name or display_name,

@@ -169,12 +169,18 @@ COMMON_PAGE_PATTERNS = [
 # =============================================================================
 # Timeouts (in seconds unless noted)
 # =============================================================================
+# Based on Antea scraper analysis (88.1% coverage with 60s total budget)
+# Philosophy: If a tier works, it works quickly. Long waits = tier won't work.
 
-DEFAULT_TIMEOUT_REQUESTS = 8
-DEFAULT_TIMEOUT_HTTPX = 8
-DEFAULT_TIMEOUT_CURL_CFFI = 10
-DEFAULT_TIMEOUT_DRISSION = 15
-DEFAULT_TIMEOUT_PLAYWRIGHT = 12  # Most pages load in <5s
-DEFAULT_TIMEOUT_DRISSION_STEALTH = 20
-DEFAULT_TIMEOUT_PLAYWRIGHT_AGGRESSIVE = 15
-DEFAULT_TIMEOUT_VISION = 30
+DEFAULT_TIMEOUT_REQUESTS = 10       # Simple HTTP (Antea: 10s)
+DEFAULT_TIMEOUT_HTTPX = 10          # HTTP/2 (Antea: 10s)
+DEFAULT_TIMEOUT_CURL_CFFI = 10      # TLS fingerprint (Antea: 10s)
+DEFAULT_TIMEOUT_DRISSION = 15       # Driverless browser
+DEFAULT_TIMEOUT_PLAYWRIGHT = 15     # Full browser (Antea: 20s for basic)
+DEFAULT_TIMEOUT_DRISSION_STEALTH = 20  # Stealth browser
+DEFAULT_TIMEOUT_PLAYWRIGHT_AGGRESSIVE = 15  # Interactive browser (Antea: 15s)
+DEFAULT_TIMEOUT_VISION = 30         # Vision AI (LLM extraction, needs time)
+
+# Total potential: 125s (still more generous than Antea's 60s)
+# In practice: orchestrator's max_page_time=90s allows multiple tier attempts while being reasonable
+# Philosophy: Content quality > speed. Be patient to get the content, but stop after 3 consecutive failures.

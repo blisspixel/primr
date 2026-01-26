@@ -915,11 +915,11 @@ class TestDefaultQAIntegrationProperties:
         from src.primr.qa.integration import QAIntegration
         from src.primr.qa.models import QAOptions, ReportContent, ReportMetadata
         
-        # Test with QA enabled by default (default behavior)
-        qa_options = QAOptions(enabled=True, save_detailed=True)
-        qa_integration = QAIntegration(qa_options)
-        
         with tempfile.TemporaryDirectory() as temp_dir:
+            # Test with QA enabled by default (default behavior)
+            qa_options = QAOptions(enabled=True, save_detailed=True)
+            qa_integration = QAIntegration(qa_options, output_dir=Path(temp_dir))
+            
             # Create a mock report file
             report_path = Path(temp_dir) / f"{company_name.replace(' ', '_')}_Report.txt"
             report_content = f"""# {company_name} Analysis Report
@@ -978,11 +978,11 @@ Sources:
         from src.primr.qa.integration import QAIntegration
         from src.primr.qa.models import QAOptions
         
-        # Test with QA disabled
-        qa_options = QAOptions(enabled=False)
-        qa_integration = QAIntegration(qa_options)
-        
         with tempfile.TemporaryDirectory() as temp_dir:
+            # Test with QA disabled
+            qa_options = QAOptions(enabled=False)
+            qa_integration = QAIntegration(qa_options, output_dir=Path(temp_dir))
+            
             report_path = Path(temp_dir) / "Test_Company_Report.txt"
             with open(report_path, 'w') as f:
                 f.write("Test report content")
@@ -1001,17 +1001,18 @@ Sources:
         from src.primr.qa.integration import QAIntegration
         from src.primr.qa.models import QAOptions
         
-        qa_integration = QAIntegration(QAOptions(enabled=True))
-        
-        # Test with non-existent report file
-        non_existent_path = Path("non_existent_report.txt")
-        qa_result = qa_integration.run_post_generation_qa(non_existent_path, "Test Company")
-        
-        # Should handle gracefully and return error result
-        if qa_result is not None:
-            assert qa_result.grade == 0, "Should return grade 0 for failed QA"
-            assert "QA Failed" in qa_result.summary, "Should indicate QA failure"
-            assert qa_result.needs_attention, "Failed QA should need attention"
+        with tempfile.TemporaryDirectory() as temp_dir:
+            qa_integration = QAIntegration(QAOptions(enabled=True), output_dir=Path(temp_dir))
+            
+            # Test with non-existent report file
+            non_existent_path = Path("non_existent_report.txt")
+            qa_result = qa_integration.run_post_generation_qa(non_existent_path, "Test Company")
+            
+            # Should handle gracefully and return error result
+            if qa_result is not None:
+                assert qa_result.grade == 0, "Should return grade 0 for failed QA"
+                assert "QA Failed" in qa_result.summary, "Should indicate QA failure"
+                assert qa_result.needs_attention, "Failed QA should need attention"
 
 
 class TestWorkspaceIntegrationProperties:
@@ -1326,27 +1327,27 @@ class TestErrorRecoveryProperties:
         from src.primr.qa.models import QAOptions
         from src.primr.qa.error_handler import QARetryHandler, QAErrorHandler
         
-        # Test error recovery with non-existent files
-        qa_integration = QAIntegration(QAOptions(enabled=True))
-        
-        # Property: Should handle non-existent report files gracefully
-        non_existent_path = Path("non_existent_report.txt")
-        qa_result = qa_integration.run_post_generation_qa(non_existent_path, company_name)
-        
-        # Property: Should return error result instead of crashing
-        if qa_result is not None:
-            assert isinstance(qa_result.grade, int), "Should return integer grade even on error"
-            assert qa_result.grade >= 0, "Grade should be non-negative even on error"
-            assert isinstance(qa_result.summary, str), "Should return string summary even on error"
-            assert qa_result.needs_attention, "Error results should need attention"
-            
-            # Property: Error results should indicate failure
-            if qa_result.grade == 0:
-                assert "Failed" in qa_result.summary or "Error" in qa_result.summary, \
-                    "Zero grade should indicate failure in summary"
-        
-        # Test error recovery with corrupted files
         with tempfile.TemporaryDirectory() as temp_dir:
+            # Test error recovery with non-existent files
+            qa_integration = QAIntegration(QAOptions(enabled=True), output_dir=Path(temp_dir))
+            
+            # Property: Should handle non-existent report files gracefully
+            non_existent_path = Path("non_existent_report.txt")
+            qa_result = qa_integration.run_post_generation_qa(non_existent_path, company_name)
+            
+            # Property: Should return error result instead of crashing
+            if qa_result is not None:
+                assert isinstance(qa_result.grade, int), "Should return integer grade even on error"
+                assert qa_result.grade >= 0, "Grade should be non-negative even on error"
+                assert isinstance(qa_result.summary, str), "Should return string summary even on error"
+                assert qa_result.needs_attention, "Error results should need attention"
+                
+                # Property: Error results should indicate failure
+                if qa_result.grade == 0:
+                    assert "Failed" in qa_result.summary or "Error" in qa_result.summary, \
+                        "Zero grade should indicate failure in summary"
+            
+            # Test error recovery with corrupted files
             # Create a corrupted/empty report file
             corrupted_path = Path(temp_dir) / "corrupted_report.txt"
             with open(corrupted_path, 'w', encoding='utf-8') as f:

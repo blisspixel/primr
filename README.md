@@ -212,6 +212,7 @@ For AI Strategy specifically, use `--ai-strategy-only` to retry with an existing
 
 ## Documentation
 
+- [CHANGELOG.md](CHANGELOG.md) - Version history and changes
 - [ROADMAP.md](ROADMAP.md) - Development roadmap
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - System architecture, scraping tiers, resilience features
 - [docs/API.md](docs/API.md) - Programmatic usage

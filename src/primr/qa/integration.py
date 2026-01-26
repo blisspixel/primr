@@ -19,9 +19,16 @@ logger = logging.getLogger(__name__)
 class QAIntegration:
     """Handles automatic QA integration with report generation pipeline."""
     
-    def __init__(self, qa_options: Optional[QAOptions] = None):
-        """Initialize QA integration with options."""
+    def __init__(self, qa_options: Optional[QAOptions] = None, output_dir: Optional[Path] = None):
+        """
+        Initialize QA integration with options.
+        
+        Args:
+            qa_options: QA configuration options
+            output_dir: Override output directory for testing. If None, uses config default.
+        """
         self.options = qa_options or QAOptions()
+        self._output_dir = output_dir  # For test isolation
         
         # Use centralized model if none specified
         if self.options.model is None:
@@ -33,6 +40,19 @@ class QAIntegration:
         self.error_handler = QAErrorHandler()
         self.monitor = QAMonitor()  # Add monitoring
         self.monitor = QAMonitor()  # Add monitoring
+    
+    @property
+    def output_dir(self) -> Path:
+        """Get output directory, using config default if not overridden."""
+        if self._output_dir is not None:
+            return self._output_dir
+        from ..config.config import OUTPUT_DIR
+        return Path(OUTPUT_DIR)
+    
+    @output_dir.setter
+    def output_dir(self, value: Path) -> None:
+        """Set output directory (for testing)."""
+        self._output_dir = value
     
     @safe_qa_operation("Post-generation QA")
     def run_post_generation_qa(self, report_path: Path, company_name: str) -> Optional[QAResult]:
@@ -160,7 +180,7 @@ class QAIntegration:
             from pathlib import Path
             
             # Create output directory if it doesn't exist
-            output_dir = Path("output")
+            output_dir = self.output_dir
             output_dir.mkdir(exist_ok=True)
             
             # Generate filename with timestamp
