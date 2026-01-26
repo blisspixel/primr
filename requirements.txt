@@ -1,20 +1,38 @@
+# Core AI & API
 google-genai>=1.55.0  # Google AI API client (modern SDK) - requires 1.55+ for Interactions API
-requests             # HTTP requests for web scraping
-beautifulsoup4       # Parsing and extracting web content
-fpdf                 # Generating PDFs for reports
-python-docx          # DOCX document handling
-pymupdf              # PDF text extraction
-pandas               # Handling Excel (XLSX) files
-openpyxl             # XLSX processing
-pytesseract          # OCR for extracting text from images/PDFs
-markdown             # Converting markdown reports
-colorama             # CLI colorized output for better debugging
-python-dotenv        # Managing environment variables
-httpx[http2]          # HTTP/2 client (better TLS fingerprint)
-playwright            # Stealth browser automation
-docx2pdf
-pyyaml               # YAML parsing for prompt configurations
-pytest                # Testing framework
-pytest-mock           # Mocking utilities for pytest
-curl_cffi            # TLS fingerprint impersonation - makes requests look like real browsers
-DrissionPage         # Driverless browser automation - bypasses WebDriver detection (WAF evasion)
+
+# Web Scraping & HTTP
+requests>=2.31.0      # HTTP requests for web scraping
+httpx[http2]>=0.24.0  # HTTP/2 client (better TLS fingerprint)
+curl_cffi>=0.5.0      # TLS fingerprint impersonation - makes requests look like real browsers
+beautifulsoup4>=4.12.0 # Parsing and extracting web content
+playwright>=1.40.0    # Stealth browser automation
+DrissionPage>=4.0.0   # Driverless browser automation - bypasses WebDriver detection (WAF evasion)
+
+# Document Processing
+python-docx>=0.8.11   # DOCX document handling
+pymupdf>=1.23.0       # PDF text extraction
+fpdf>=1.7.2           # Generating PDFs for reports
+docx2pdf>=0.1.8       # DOCX to PDF conversion
+markdown>=3.4.0       # Converting markdown reports
+
+# Data Processing
+pandas>=2.0.0         # Handling Excel (XLSX) files
+openpyxl>=3.1.0       # XLSX processing
+pyyaml>=6.0.0         # YAML parsing for prompt configurations
+
+# OCR & Vision
+pytesseract>=0.3.10   # OCR for extracting text from images/PDFs
+
+# CLI & Environment
+colorama>=0.4.6       # CLI colorized output for better debugging
+python-dotenv>=1.0.0  # Managing environment variables
+
+# Development & Testing
+pytest>=7.0.0         # Testing framework
+pytest-mock>=3.10.0   # Mocking utilities for pytest
+pytest-asyncio>=0.21.0 # Async testing support
+pytest-cov>=4.0.0     # Coverage reporting
+hypothesis>=6.0.0     # Property-based testing
+mypy>=1.0.0           # Static type checking
+ruff>=0.1.0           # Fast Python linter

@@ -1,5 +1,5 @@
 Primr – Roadmap
-Current State: v1.2.4 (January 2026)
+Current State: v1.3.0 (January 2026)
 
 Primr is a CLI-first, local research tool designed to support company intelligence researcharation, strategic analysis, and AI roadmap development. The tool aims to accelerate research workflows while maintaining transparency about uncertainty and supporting a subject-positive posture.
 
@@ -18,10 +18,20 @@ Scrape Mode: 8-tier web scraping with intelligent escalation:
 - Sticky tier optimization (reuses working tier for same host)
 - Circuit breaker pattern (skips failing tiers after 3 failures)
 - Soft block detection (catches "200 OK" traps, browser blocks)
+- Smart tier escalation: Stops after 3 consecutive failures (v1.2.4+)
+- Patient timeout: 90s max per page for quality content (v1.2.4+)
 
 Deep Mode: Gemini Deep Research Agent with autonomous multi-step search and synthesis
 
 Full Mode: Sequential scrape + deep research pipeline
+
+CLI/UX Enhancements (v1.2.4)
+
+Clean inline progress updates (no blank lines, single-line updates)
+
+Reduced noise: Tier failures and timeouts logged at debug level
+
+Professional console output with clear phase indicators
 
 Report Generation
 
@@ -178,14 +188,22 @@ Goal: Make Primr boringly reliable.
   - Automated security scanning with Bandit and Safety
   - Complete security audit documented in docs/SECURITY_REVIEW_2026-01-21.md
   - Production-ready security posture achieved
+- **Vendor Research Reuse Fix (v1.2.4)**
   - Fixed vendor research regeneration bug (now reuses existing monthly files)
-    - Saves ~7 minutes and ~$0.10 per run when vendor research already exists
-    - Added clear console feedback when reusing existing files
-    - Documented in docs/VENDOR_RESEARCH_REUSE_FIX.md
+  - Saves ~7 minutes and ~$0.10 per run when vendor research already exists
+  - Added clear console feedback when reusing existing files
+  - Documented in docs/VENDOR_RESEARCH_REUSE_FIX.md
+- **CLI Output Improvements (v1.2.4)**
+  - Reduced retry noise: Single "API delays detected" message instead of 10 WARNINGs
+  - Increased heartbeat interval from 30s to 90s (less frequent progress updates)
+  - Enhanced phase banners with ASCII separators for better visual hierarchy
+  - Removed duplicate "Research started" messages (appeared 3 times, now 1)
+  - Cleaner output during long-running operations (68-minute runs)
+  - Documented in docs/CLI_OUTPUT_IMPROVEMENTS.md
 
 **Status:** COMPLETE
 
-v1.2.1 – QA-Driven Report Iteration (Near-Term)
+v1.3.1 – QA-Driven Report Iteration (Near-Term)
 
 Goal: Use QA feedback to iteratively improve weak sections until reports hit 90+.
 
@@ -298,7 +316,7 @@ primr --ai-strategy-only "report.md" --cloud-vendor azure
 - Strategies are company-specific, not generic templates
 
 
-v1.3.0 – Research State and Iteration (Planned)
+v1.4.0 – Research State and Iteration (Planned)
 
 Goal: Move from “generate once” to “think over time.”
 
@@ -340,7 +358,7 @@ confirmed
 
 This mirrors how consultants actually work after discovery conversations.
 
-v1.4.0 – Refinement and Learning Loop (Planned)
+v1.5.0 – Refinement and Learning Loop (Planned)
 
 Goal: Support post-discovery learning without re-running everything from scratch.
 
@@ -372,7 +390,7 @@ to proposal-grade thinking
 
 Still local. Still internal.
 
-v1.5.0 – POV and Narrative Evolution (Planned)
+v1.6.0 – POV and Narrative Evolution (Planned)
 
 Goal: Make Primr the system of record for how thinking evolves.
 
@@ -503,14 +521,15 @@ Version	Date	Highlights
 1.1.1	Jan 2026	Reader-mode extraction, content quality validation, vision tier
 1.1.2	Jan 2026	Cache disabled by default (fresh data always)
 1.2.0	Jan 2026	Test coverage hardening (146 new tests, pytest marks)
-1.2.1	Planned	QA-driven report iteration (target 90+ grades)
+1.2.2	Jan 2026	Structured content extraction with quality scoring
 1.2.3	Jan 2026	AI Strategy retry, job polling, CLI UX fixes
 1.2.4	Jan 2026	Security deep review (XXE, SSRF, MD5 fixes, 22 security tests)
-1.2.5	Dec 2025	Externalized prompt architecture (YAML configs)
+1.2.5	Jan 2026	Externalized prompt architecture (YAML configs)
 1.2.6	Jan 2026	Strategy document portfolio (4 strategies implemented and tested)
-1.3.0	TBD	Research state and hypothesis tracking
-1.4.0	TBD	Iterative refinement loop
-1.5.0	TBD	POV evolution and narrative continuity
+1.3.0	Jan 2026	Python 3.11+ requirement, build configuration updates
+1.4.0	TBD	Research state and hypothesis tracking
+1.5.0	TBD	Iterative refinement loop
+1.6.0	TBD	POV evolution and narrative continuity
 Final Framing
 
 Primr is a tool for understanding companies. The focus is on useful output, not user growth.

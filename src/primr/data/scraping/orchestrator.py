@@ -61,7 +61,8 @@ class ScrapeOrchestrator:
         enable_vision: bool = True,
         circuit_breaker_threshold: int = 3,
         delay_between_tiers: tuple = (1.0, 3.0),
-        max_page_time: float = 30.0,
+        max_page_time: float = 90.0,  # 90s allows multiple tier attempts while being reasonable
+        max_consecutive_failures: int = 3,  # Stop after 3 consecutive failures of same type
         use_cache: bool = False,
     ):
         """
@@ -76,7 +77,8 @@ class ScrapeOrchestrator:
             enable_vision: Whether to enable vision tier (default: True - we need the content)
             circuit_breaker_threshold: Failures before skipping tier
             delay_between_tiers: Random delay range between failed tiers
-            max_page_time: Max seconds to spend on a single page across all tiers
+            max_page_time: Max seconds to spend on a single page across all tiers (90s allows multiple attempts)
+            max_consecutive_failures: Stop after N consecutive failures of same error type (prevents wasting time)
             use_cache: Whether to use cached content (default: False for fresh data)
         """
         # Use available tiers if not specified
@@ -96,6 +98,7 @@ class ScrapeOrchestrator:
         self.circuit_breaker_threshold = circuit_breaker_threshold
         self.delay_between_tiers = delay_between_tiers or (0.5, 1.5)  # Shorter delays
         self.max_page_time = max_page_time
+        self.max_consecutive_failures = max_consecutive_failures
         
         # Per-host state tracking
         self._host_states: Dict[str, HostState] = {}
@@ -209,7 +212,6 @@ class ScrapeOrchestrator:
         
         # Reorder tiers to start with best_tier if we know one works for this host
         tiers_to_try = self.tiers
-        max_tier_attempts = len(self.tiers)  # Default: try all tiers
         use_fast_timeout = False
         
         if host_state.best_tier:
@@ -221,24 +223,31 @@ class ScrapeOrchestrator:
                 tiers_to_try = [best_tier_obj] + other_tiers
                 logger.debug(f"Starting with best_tier {host_state.best_tier} for {host}")
                 
-                # DEFENSIVE MODE: If we have a proven working tier, limit escalation
-                # If best_tier fails, try only 2 more tiers then give up on this URL
-                # Rationale: If requests worked for 39 pages, page 40 failing is likely
-                # a page problem (404, redirect, etc.), not a tier problem
-                max_tier_attempts = 3
-                use_fast_timeout = True  # Use shorter timeout for known-good hosts
+                # Use shorter timeouts when we have a proven working tier
+                # If requests normally works in <1s, waiting 15s is wasteful
+                use_fast_timeout = True
         
         tier_attempts = 0
+        consecutive_failures = 0
+        last_error_type = None
+        
         for tier in tiers_to_try:
-            # Check max page time - don't spend forever on one page
+            # Check max page time - allow sufficient time for quality content
             elapsed_total = time.time() - start_time
             if elapsed_total > self.max_page_time:
-                logger.debug(f"Max page time ({self.max_page_time}s) exceeded for {url}")
+                logger.debug(
+                    f"Page timeout after {elapsed_total:.1f}s (limit: {self.max_page_time}s): {url}\n"
+                    f"  Tried {tier_attempts} tiers: {[t.name for t in tiers_to_try[:tier_attempts]]}\n"
+                    f"  Last result: {last_result.error if last_result else 'none'}"
+                )
                 break
             
-            # Defensive: stop after max attempts when we have a known working tier
-            if tier_attempts >= max_tier_attempts:
-                logger.debug(f"Defensive mode: stopping after {tier_attempts} tier attempts for {url}")
+            # SMART STOPPING: If we've had too many consecutive failures of the same type, stop
+            # This prevents wasting time when a site is down/blocking all methods
+            if consecutive_failures >= self.max_consecutive_failures:
+                logger.debug(
+                    f"Stopping after {consecutive_failures} consecutive {last_error_type} failures for {url}"
+                )
                 break
                 
             # 3a. Check circuit breaker
@@ -250,9 +259,20 @@ class ScrapeOrchestrator:
             
             # Use shorter timeout when we have a proven working tier
             # If requests normally works in <1s, waiting 15s is wasteful
-            # Also cap timeout to remaining page time
+            # BUT: Browser tiers need full timeout for JS rendering and challenge solving
+            # Only apply fast timeout to HTTP tiers (requests, httpx, curl_cffi)
             remaining_time = self.max_page_time - elapsed_total
-            effective_timeout = min(tier.timeout, 5.0) if use_fast_timeout else tier.timeout
+            
+            # Browser tiers that need full timeout for JS/challenges
+            browser_tiers = {"playwright", "playwright_aggressive", "drissionpage", "drissionpage_stealth", "vision"}
+            is_browser_tier = tier.name in browser_tiers
+            
+            # Apply fast timeout only to HTTP tiers when we have a proven working tier
+            if use_fast_timeout and not is_browser_tier:
+                effective_timeout = min(tier.timeout, 5.0)
+            else:
+                effective_timeout = tier.timeout
+            
             effective_timeout = min(effective_timeout, remaining_time)
             
             if effective_timeout <= 0:
@@ -294,12 +314,27 @@ class ScrapeOrchestrator:
                     error=str(e),
                     error_type=ErrorType.NETWORK_ERROR,
                 ))
-                self._record_tier_failure(host, tier.name)
+                host_state.record_tier_attempt(tier.name, success=False)
+                
+                # Track consecutive failures
+                if ErrorType.NETWORK_ERROR == last_error_type:
+                    consecutive_failures += 1
+                else:
+                    consecutive_failures = 1
+                    last_error_type = ErrorType.NETWORK_ERROR
+                
                 self._random_delay()
                 continue
             
             # Check if request succeeded at network level
             if not tier_result.success:
+                # Track consecutive failures
+                if tier_result.error_type == last_error_type:
+                    consecutive_failures += 1
+                else:
+                    consecutive_failures = 1
+                    last_error_type = tier_result.error_type
+                
                 # Check if it's a hard block (stop escalation)
                 if tier_result.error_type == ErrorType.HARD_BLOCK:
                     self._mark_host_blocked(host)
@@ -320,7 +355,7 @@ class ScrapeOrchestrator:
                     
                     return result
                 
-                self._record_tier_failure(host, tier.name)
+                host_state.record_tier_attempt(tier.name, success=False)
                 self._random_delay()
                 continue
             
@@ -334,6 +369,7 @@ class ScrapeOrchestrator:
             )
             
             if is_blocked:
+                logger.debug(f"Soft block detected on {tier.name} for {url}: {block_reason}")
                 # Check if it's a hard block
                 if "hard" in (block_reason or "").lower() or tier_result.error_type == ErrorType.HARD_BLOCK:
                     # 3i. Hard block - stop escalation
@@ -357,20 +393,24 @@ class ScrapeOrchestrator:
                 
                 # 3h. Soft block - record failure, try next tier
                 logger.debug(f"Soft block on {tier.name}: {block_reason}")
-                self._record_tier_failure(host, tier.name)
+                host_state.record_tier_attempt(tier.name, success=False)
                 self._random_delay()
                 continue
             
             # 3f. Check success signal
             if not check_success_signal(tier_result.raw_content, tier_result.http_status):
-                logger.debug(f"Success signal failed on {tier.name}")
-                self._record_tier_failure(host, tier.name)
+                logger.debug(f"Success signal failed on {tier.name} for {url}")
+                host_state.record_tier_attempt(tier.name, success=False)
                 self._random_delay()
                 continue
             
             # 3g. Success! Cache and return
             # Record this tier as best for this host (sticky tier optimization)
             host_state.best_tier = tier.name
+            host_state.record_tier_attempt(tier.name, success=True)
+            
+            # Reset consecutive failures on success
+            consecutive_failures = 0
             
             # Store cookies if browser tier provided them (for cookie handoff)
             if tier_result.cookies:
@@ -393,7 +433,7 @@ class ScrapeOrchestrator:
             # Check content quality - if garbage, try next tier
             is_quality, quality_reason = is_quality_content(extracted)
             if not is_quality:
-                logger.debug(f"Content quality failed on {tier.name}: {quality_reason}")
+                logger.debug(f"Content quality failed on {tier.name} for {url}: {quality_reason}")
                 
                 # FAST FAIL: If we got HTML but content is too short (50-199 chars),
                 # the page is likely a stub/redirect, not a scraping issue.
@@ -402,7 +442,7 @@ class ScrapeOrchestrator:
                     logger.debug(f"Fast fail: Page has content but too short ({len(extracted)} chars)")
                     break  # Exit tier loop, return failure
                 
-                self._record_tier_failure(host, tier.name)
+                host_state.record_tier_attempt(tier.name, success=False)
                 self._random_delay()
                 continue
             

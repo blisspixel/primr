@@ -87,7 +87,7 @@ def get_orchestrator(
             cache=ScrapeCache(cache_dir=str(CACHE_DIR)),
             rate_limiter=RateLimiter(RateLimitConfig()),
             enable_vision=enable_vision,
-            max_page_time=20.0,  # Max 20s per page - fail fast, move on
+            max_page_time=45.0,  # Allow time for quality content - we want the data
             use_cache=use_cache,
             circuit_breaker_threshold=5,  # More lenient - sites have mixed content
         )
@@ -326,15 +326,25 @@ def fetch_web_content(
         path = urlparse(page_url).path or "/"
         path_display = path[:30] + "..." if len(path) > 30 else path
         
-        # Show progress BEFORE scraping so user sees what's happening
-        console.scrape_progress(i + 2, total, path_display, scrape_start)
         logger.debug(f"Scraping page {i + 2}/{total}: {page_url}")
         
         # Small delay between requests (reduced for speed)
-        time.sleep(random.uniform(0.2, 0.5))
+        time.sleep(random.uniform(0.1, 0.2))
         
         page_start = time.time()
         result = orchestrator.scrape_url(page_url)
+        page_elapsed = time.time() - page_start
+        
+        # Show progress AFTER scraping with timing - single line update
+        elapsed_str = f"{int(page_elapsed)}s" if page_elapsed >= 1 else ""
+        if elapsed_str:
+            console.scrape_progress(i + 2, total, f"{path_display} ({elapsed_str})", scrape_start, tier=result.tier if result.success else None)
+        else:
+            console.scrape_progress(i + 2, total, path_display, scrape_start, tier=result.tier if result.success else None)
+        
+        # Only log actual failures (not slow-but-successful pages)
+        if not result.success:
+            logger.debug(f"Failed {page_url}: {result.error}")
         
         if result.success and result.raw_content:
             scraped_results[normalized] = result

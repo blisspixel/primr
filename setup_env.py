@@ -24,6 +24,80 @@ except ImportError:
 console = Console() if RICH else None
 
 
+def find_best_python():
+    """Find the best Python interpreter (3.11+) on the system."""
+    # Check current interpreter first
+    v = sys.version_info
+    if v.major >= 3 and v.minor >= 11:
+        return sys.executable
+    
+    # On Windows, try py launcher
+    if sys.platform == "win32":
+        try:
+            # Check what versions are available
+            result = subprocess.run(
+                ["py", "-0"],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            
+            # Parse output to find 3.11+
+            for line in result.stdout.split("\n"):
+                if "-3." in line:
+                    # Extract version like "-3.13-64"
+                    parts = line.strip().split()
+                    for part in parts:
+                        if part.startswith("-3."):
+                            version_str = part.replace("-", "").split("-")[0]
+                            try:
+                                minor = int(version_str.split(".")[1])
+                                if minor >= 11:
+                                    # Found a good version, get its path
+                                    py_result = subprocess.run(
+                                        ["py", part, "-c", "import sys; print(sys.executable)"],
+                                        capture_output=True,
+                                        text=True,
+                                        timeout=5
+                                    )
+                                    if py_result.returncode == 0:
+                                        return py_result.stdout.strip()
+                            except (ValueError, IndexError):
+                                continue
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            pass
+    
+    # Try common names
+    for cmd in ["python3.13", "python3.12", "python3.11", "python3"]:
+        try:
+            result = subprocess.run(
+                [cmd, "--version"],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                # Check version
+                version_line = result.stdout or result.stderr
+                if "Python 3." in version_line:
+                    version_str = version_line.split()[1]
+                    minor = int(version_str.split(".")[1])
+                    if minor >= 11:
+                        # Get full path
+                        path_result = subprocess.run(
+                            [cmd, "-c", "import sys; print(sys.executable)"],
+                            capture_output=True,
+                            text=True,
+                            timeout=5
+                        )
+                        if path_result.returncode == 0:
+                            return path_result.stdout.strip()
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            continue
+    
+    return None
+
+
 def add_to_user_path_windows(scripts_dir: str) -> bool:
     """Add a directory to the user's PATH on Windows (no admin required)."""
     if sys.platform != "win32":
@@ -138,21 +212,25 @@ def run_with_status(cmd, status_msg):
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
+            bufsize=1,  # Line buffered
         )
         
         for line in process.stdout:
             line = line.strip()
-            output_lines.append(line)
-            if line and len(line) < 60:
-                progress.update(task, description=f"{status_msg} [dim]{line}[/dim]")
+            if line:
+                output_lines.append(line)
+                # Only show short, meaningful status updates
+                if len(line) < 50 and any(x in line.lower() for x in ["installing", "downloading", "building", "collecting"]):
+                    progress.update(task, description=f"{status_msg} [dim]{line[:40]}[/dim]")
         
         process.wait()
     
     if process.returncode != 0:
         # Show relevant error lines
-        for line in output_lines:
+        console.print()
+        for line in output_lines[-10:]:  # Last 10 lines only
             if line and any(x in line.lower() for x in ["error", "failed", "cannot", "not found", "denied"]):
-                console.print(f"    [dim]{line[:70]}[/dim]")
+                console.print(f"    [dim]{line[:80]}[/dim]")
     
     return process.returncode == 0, output_lines
 
@@ -162,9 +240,9 @@ def install_primr():
     # Clean first to avoid stale artifacts
     clean_build_artifacts()
     
-    # Try normal install
+    # Try normal install (suppress most output)
     success, output = run_with_status(
-        [sys.executable, "-m", "pip", "install", "-e", "."],
+        [sys.executable, "-m", "pip", "install", "-e", ".", "-q"],
         "Installing primr"
     )
     
@@ -178,9 +256,9 @@ def install_primr():
         clean_build_artifacts()
         time.sleep(2)  # Extra delay for sync drives
         
-        # Retry with --user flag
+        # Retry with --user flag (suppress most output)
         success, output = run_with_status(
-            [sys.executable, "-m", "pip", "install", "-e", ".", "--user"],
+            [sys.executable, "-m", "pip", "install", "-e", ".", "--user", "-q"],
             "Installing (user mode)"
         )
         
@@ -193,7 +271,7 @@ def install_primr():
         time.sleep(1)
         
         success, _ = run_with_status(
-            [sys.executable, "-m", "pip", "install", ".", "--user"],
+            [sys.executable, "-m", "pip", "install", ".", "--user", "-q"],
             "Installing (non-editable)"
         )
         
@@ -273,9 +351,41 @@ def main_rich():
     
     # Python check
     v = sys.version_info
-    if v.major < 3 or (v.major == 3 and v.minor < 10):
-        console.print(f"  [red]✗[/red] Python {v.major}.{v.minor} [dim](need 3.10+)[/dim]")
-        sys.exit(1)
+    current_python = sys.executable
+    
+    if v.major < 3 or (v.major == 3 and v.minor < 11):
+        console.print(f"  [red]✗[/red] Python {v.major}.{v.minor} [dim]({current_python})[/dim]")
+        
+        # Try to find a better Python
+        console.print()
+        console.print("  [yellow]Looking for Python 3.11+...[/yellow]")
+        better_python = find_best_python()
+        
+        if better_python:
+            console.print(f"  [green]✓[/green] Found Python 3.11+ at: [cyan]{better_python}[/cyan]")
+            console.print()
+            console.print("  [yellow]Restarting with correct Python...[/yellow]")
+            console.print()
+            
+            # Restart with the better Python
+            os.execv(better_python, [better_python] + sys.argv)
+        else:
+            console.print()
+            console.print("  [yellow]Python 3.11 or newer is required[/yellow]")
+            console.print()
+            console.print("  [cyan]Download from:[/cyan] https://www.python.org/downloads/")
+            console.print()
+            console.print("  [dim]Or use a version manager:[/dim]")
+            console.print("  [dim]• Windows: winget install Python.Python.3.13[/dim]")
+            console.print("  [dim]• macOS: brew install python@3.13[/dim]")
+            console.print("  [dim]• Linux: pyenv install 3.13[/dim]")
+            console.print()
+            console.print("  [dim]After installing, try:[/dim]")
+            console.print("  [cyan]• Windows: py -3.13 setup_env.py[/cyan]")
+            console.print("  [cyan]• macOS/Linux: python3.13 setup_env.py[/cyan]")
+            console.print()
+            sys.exit(1)
+    
     console.print(f"  [green]✓[/green] Python {v.major}.{v.minor}")
     
     # Install primr
@@ -347,17 +457,39 @@ def main_rich():
     console.rule(style="dim")
     console.print()
     
-    with console.status("Verifying setup..."):
-        result = subprocess.run(
-            [sys.executable, "-m", "primr", "doctor"],
-            capture_output=True, text=True
-        )
+    # Run doctor with fully captured output (only once!)
+    try:
+        with console.status("Verifying setup...", spinner="dots"):
+            result = subprocess.run(
+                [sys.executable, "-m", "primr", "doctor"],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                env=os.environ.copy(),
+                stdin=subprocess.DEVNULL  # Prevent any input prompts
+            )
+    except subprocess.TimeoutExpired:
+        console.print("  [red]✗[/red] Verification timed out")
+        sys.exit(1)
+    except Exception as e:
+        console.print(f"  [red]✗[/red] Verification failed: {e}")
+        sys.exit(1)
     
-    # Show doctor output
-    if result.stdout:
-        console.print(result.stdout)
-    if result.stderr:
-        console.print(result.stderr)
+    # Show doctor output (only once, clean)
+    if result.returncode == 0:
+        # Parse and show just the summary
+        lines = result.stdout.strip().split("\n") if result.stdout else []
+        for line in lines:
+            line = line.strip()
+            if line and not line.startswith("Primr Doctor"):
+                console.print(f"  {line}")
+    else:
+        # Show errors
+        if result.stderr:
+            console.print("  [red]Errors:[/red]")
+            for line in result.stderr.strip().split("\n"):
+                if line.strip():
+                    console.print(f"    {line}")
     
     console.print()
     if result.returncode == 0:
@@ -400,6 +532,7 @@ def main_rich():
     else:
         console.print("[yellow]Setup complete but doctor found issues above[/yellow]")
     console.print()
+    sys.exit(0)
 
 
 def main_basic():
@@ -407,8 +540,18 @@ def main_basic():
     print("\nPrimr Setup\n")
     
     v = sys.version_info
-    if v.major < 3 or (v.major == 3 and v.minor < 10):
-        print(f"  x Python {v.major}.{v.minor} (need 3.10+)")
+    if v.major < 3 or (v.major == 3 and v.minor < 11):
+        print(f"  x Python {v.major}.{v.minor} (need 3.11+)")
+        print()
+        print("  Python 3.11 or newer is required")
+        print()
+        print("  Download from: https://www.python.org/downloads/")
+        print()
+        print("  Or use a version manager:")
+        print("  • Windows: winget install Python.Python.3.13")
+        print("  • macOS: brew install python@3.13")
+        print("  • Linux: pyenv install 3.13")
+        print()
         sys.exit(1)
     print(f"  + Python {v.major}.{v.minor}")
     
@@ -429,10 +572,20 @@ def main_basic():
 
 
 if __name__ == "__main__":
-    if not RICH:
-        try:
-            install_rich_and_restart()
-        except Exception:
-            main_basic()
-    else:
-        main_rich()
+    try:
+        if not RICH:
+            try:
+                install_rich_and_restart()
+            except Exception:
+                main_basic()
+        else:
+            main_rich()
+    except KeyboardInterrupt:
+        console.print("\n\n  [yellow]Setup cancelled[/yellow]\n") if RICH else print("\n\nSetup cancelled\n")
+        sys.exit(130)  # Standard exit code for Ctrl+C
+    except Exception as e:
+        if RICH:
+            console.print(f"\n  [red]✗[/red] Unexpected error: {e}\n")
+        else:
+            print(f"\nError: {e}\n")
+        sys.exit(1)

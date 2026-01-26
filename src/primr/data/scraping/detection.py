@@ -180,8 +180,9 @@ def detect_soft_block(
             return True, "JavaScript-only page (content not rendered)"
     
     # 6. Repetitive content check
+    # Only apply to small pages - large pages with repeated nav/footer are fine
     lines = [line.strip() for line in text.split("\n") if line.strip()]
-    if len(lines) > 10:
+    if len(lines) > 10 and content_length < 50000:  # Only check pages < 50KB
         unique_lines = set(lines)
         unique_ratio = len(unique_lines) / len(lines)
         if unique_ratio < MIN_UNIQUE_LINE_RATIO:

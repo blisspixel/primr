@@ -138,7 +138,8 @@ class TestPreflightValidator:
         )
         
         summary = result.summary()
-        assert "✓ Pre-flight validation passed" in summary
+        # Note: summary() uses ASCII '+' for cross-platform compatibility
+        assert "+ Pre-flight validation passed" in summary
         assert "35-50 minutes" in summary
 
     def test_preflight_result_summary_failure(self):
@@ -155,7 +156,8 @@ class TestPreflightValidator:
         )
         
         summary = result.summary()
-        assert "✗ Pre-flight validation FAILED" in summary
+        # Note: summary() uses ASCII 'x' for cross-platform compatibility
+        assert "x Pre-flight validation FAILED" in summary
         assert "GEMINI_API_KEY not configured" in summary
         assert "Website may be slow" in summary
 

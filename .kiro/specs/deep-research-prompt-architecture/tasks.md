@@ -119,16 +119,16 @@
     - **Property 7: Section Spec Rendering**
     - **Validates: Requirements 6.2, 6.3, 6.4**
 
-- [ ] 7. Refactor ConsultingPromptBuilder to use PromptComposer
-  - [ ] 7.1 Update ConsultingPromptBuilder.build_comprehensive_prompt()
+- [x] 7. Refactor ConsultingPromptBuilder to use PromptComposer
+  - [x] 7.1 Update ConsultingPromptBuilder.build_comprehensive_prompt()
     - Delegate to PromptComposer.compose("company_overview", context)
     - Remove hardcoded prompt string
     - _Requirements: 1.3_
-  - [ ] 7.2 Update build_company_overview_prompt() in loader.py
+  - [x] 7.2 Update build_company_overview_prompt() in loader.py
     - Use PromptComposer internally
     - Maintain backward compatibility with existing API
     - _Requirements: 1.1, 1.4_
-  - [ ] 7.3 Write property test for YAML loading round-trip
+  - [x] 7.3 Write property test for YAML loading round-trip
     - **Property 1: YAML Loading Round-Trip**
     - **Validates: Requirements 1.1**
 

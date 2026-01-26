@@ -9,7 +9,7 @@ from primr.data.scraping.profiles import (
     StealthPatch,
     HTTP_PROFILES,
     CONTEXT_PROFILES,
-    STEALTH_PATCHES,
+    STEALTH_SCRIPT,
     get_random_http_profile,
     get_random_context_profile,
     get_stealth_script,
@@ -113,29 +113,27 @@ class TestBrowserContextProfiles:
 
 
 class TestStealthPatches:
-    """Tests for stealth patches."""
+    """Tests for stealth script."""
     
-    def test_patches_are_minimal(self):
-        """Stealth patches should be minimal (< 5 patches)."""
-        assert len(STEALTH_PATCHES) < 5, \
-            f"Too many stealth patches ({len(STEALTH_PATCHES)}). Keep minimal to avoid detection."
+    def test_stealth_script_exists(self):
+        """Stealth script should be defined."""
+        assert STEALTH_SCRIPT, "STEALTH_SCRIPT is empty"
+        assert len(STEALTH_SCRIPT) > 100, "STEALTH_SCRIPT is too short"
     
-    def test_all_patches_have_required_fields(self):
-        """All patches must have name, script, and description."""
-        for patch in STEALTH_PATCHES:
-            assert patch.name, "Patch missing name"
-            assert patch.script, "Patch missing script"
-            assert patch.description, "Patch missing description"
+    def test_stealth_script_is_valid_javascript(self):
+        """Stealth script should look like valid JavaScript."""
+        # Basic sanity checks
+        assert ";" in STEALTH_SCRIPT or "=>" in STEALTH_SCRIPT, \
+            "STEALTH_SCRIPT doesn't look like JavaScript"
+        # Should have key anti-detection features
+        assert "webdriver" in STEALTH_SCRIPT.lower(), \
+            "STEALTH_SCRIPT missing webdriver detection"
     
-    def test_patches_are_valid_javascript(self):
-        """Patch scripts should look like valid JavaScript."""
-        for patch in STEALTH_PATCHES:
-            # Basic sanity checks
-            assert ";" in patch.script or "=>" in patch.script, \
-                f"Patch {patch.name} doesn't look like JavaScript"
-            # Should not have obvious syntax errors
-            assert patch.script.count("(") == patch.script.count(")"), \
-                f"Patch {patch.name} has unbalanced parentheses"
+    def test_get_stealth_script_returns_script(self):
+        """get_stealth_script() returns the stealth script."""
+        script = get_stealth_script()
+        assert script == STEALTH_SCRIPT
+        assert len(script) > 100
 
 
 class TestProfileFunctions:
@@ -161,9 +159,9 @@ class TestProfileFunctions:
     
     def test_get_http_profile_by_name_found(self):
         """get_http_profile_by_name returns profile when found."""
-        profile = get_http_profile_by_name("chrome_124_windows")
+        profile = get_http_profile_by_name("chrome_131_windows")
         assert profile is not None
-        assert profile.name == "chrome_124_windows"
+        assert profile.name == "chrome_131_windows"
     
     def test_get_http_profile_by_name_not_found(self):
         """get_http_profile_by_name returns None when not found."""

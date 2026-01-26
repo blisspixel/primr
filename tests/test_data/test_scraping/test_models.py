@@ -145,15 +145,19 @@ class TestHostState:
         assert state.tier_failures["httpx"] == 1
     
     def test_should_skip_tier_below_threshold(self):
-        """should_skip_tier returns False below threshold."""
+        """should_skip_tier returns False below threshold attempts."""
         state = HostState(host="example.com")
+        state.tier_attempts["requests"] = 2
         state.tier_failures["requests"] = 2
         
+        # Below threshold attempts, should not skip
         assert state.should_skip_tier("requests", threshold=3) is False
     
     def test_should_skip_tier_at_threshold(self):
-        """should_skip_tier returns True at threshold."""
+        """should_skip_tier returns True at threshold with 100% failure rate."""
         state = HostState(host="example.com")
+        # Need both attempts and failures at threshold for skip
+        state.tier_attempts["requests"] = 3
         state.tier_failures["requests"] = 3
         
         assert state.should_skip_tier("requests", threshold=3) is True

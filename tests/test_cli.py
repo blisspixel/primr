@@ -22,9 +22,11 @@ RESEARCH_MODES = ["scrape", "deep", "full", "parallel", "structured", "deep-rese
 
 
 def test_cli_entry_point_exists():
-    """Verify primr_cli.py exists in project root (or primr command is installed)."""
-    entry_point = PROJECT_ROOT / "primr_cli.py"
-    assert entry_point.exists(), "primr_cli.py not found in project root"
+    """Verify primr command is installed via package entry point."""
+    # The CLI is now installed via pyproject.toml entry point
+    # Check that the main function exists
+    from primr.core.research_agent import main
+    assert callable(main), "main() function should be callable"
 
 
 def test_cli_parser_accepts_expected_args():

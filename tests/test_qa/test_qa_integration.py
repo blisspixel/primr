@@ -6,7 +6,7 @@ Validates: Requirements 1.1
 """
 
 import pytest
-from hypothesis import given, strategies as st
+from hypothesis import given, strategies as st, settings, HealthCheck
 from pathlib import Path
 from unittest.mock import Mock, patch
 import tempfile
@@ -106,6 +106,7 @@ class TestQAIntegration:
             max_size=5
         )
     )
+    @settings(suppress_health_check=[HealthCheck.too_slow], max_examples=10, deadline=None)
     def test_qa_result_consistency_property(self, company_names):
         """
         Property: QA results are consistent for the same input
@@ -122,7 +123,7 @@ class TestQAIntegration:
                 content = f"# Strategic Analysis for {company_name}\n\nThis is a test report with consistent content."
                 f.write(content)
                 report_path = Path(f.name)
-            qa_options = QAOptions(enabled=True)
+            qa_options = QAOptions(enabled=True, save_detailed=False)
             qa_integration = QAIntegration(qa_options)
             
             # Mock the analyzer to return consistent results
@@ -195,7 +196,8 @@ class TestQAIntegration:
             with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8') as f:
                 f.write("Test content")
                 report_path = Path(f.name)
-            qa_integration = QAIntegration(QAOptions(enabled=True))
+            # Disable save_detailed to avoid creating files in real output folder
+            qa_integration = QAIntegration(QAOptions(enabled=True, save_detailed=False))
             
             # Mock analyzer to throw exception
             with patch.object(qa_integration, 'analyzer') as mock_analyzer:

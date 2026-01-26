@@ -468,28 +468,28 @@ class TestTraceLogging:
 class TestVisionTier:
     """Tests for vision tier handling."""
     
-    def test_vision_excluded_by_default(self):
-        """Vision tier should be excluded by default."""
+    def test_vision_included_by_default(self):
+        """Vision tier should be included by default (enable_vision=True)."""
         with tempfile.TemporaryDirectory() as tmpdir:
             orchestrator = ScrapeOrchestrator(
                 cache=ScrapeCache(cache_dir=tmpdir),
                 rate_limiter=NoOpRateLimiter(),
-            )
-        
-        tier_names = [t.name for t in orchestrator.tiers]
-        assert "vision" not in tier_names
-    
-    def test_vision_included_when_enabled(self):
-        """Vision tier should be included when enabled."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            orchestrator = ScrapeOrchestrator(
-                cache=ScrapeCache(cache_dir=tmpdir),
-                rate_limiter=NoOpRateLimiter(),
-                enable_vision=True,
             )
         
         tier_names = [t.name for t in orchestrator.tiers]
         assert "vision" in tier_names
+    
+    def test_vision_excluded_when_disabled(self):
+        """Vision tier should be excluded when enable_vision=False."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            orchestrator = ScrapeOrchestrator(
+                cache=ScrapeCache(cache_dir=tmpdir),
+                rate_limiter=NoOpRateLimiter(),
+                enable_vision=False,
+            )
+        
+        tier_names = [t.name for t in orchestrator.tiers]
+        assert "vision" not in tier_names
 
 
 class TestScrapeUrls:
