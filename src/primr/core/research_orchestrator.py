@@ -638,52 +638,12 @@ class ResearchOrchestrator:
 
         return "\n\n".join(summary_parts) if summary_parts else "Limited context available."
 
-    async def _upload_to_file_search_store(
-        self,
-        context_file: str,
-        additional_files: list | None,
-        company_name: str,
-    ) -> str:
-        """
-        Upload context files to a File Search Store.
-
-        Args:
-            context_file: Path to the main context file
-            additional_files: Optional additional files to upload
-            company_name: Company name for store naming
-
-        Returns:
-            File Search Store name
-        """
-        import time as time_module
-
-        # Collect all files to upload
-        files_to_upload = [context_file]
-        if additional_files:
-            files_to_upload.extend(additional_files)
-
-        # Use the deep research client's upload method
-        store_name = self.deep_research_client._upload_context_files(files_to_upload)
-        logger.info(f"Created File Search Store: {store_name}")
-
-        return store_name
-
-    async def _delete_file_search_store(self, store_name: str) -> None:
-        """
-        Delete a File Search Store after use.
-
-        Args:
-            store_name: Name of the store to delete
-        """
-        try:
-            self.deep_research_client._client.file_search_stores.delete(
-                name=store_name
-            )
-            logger.debug(f"Deleted File Search Store: {store_name}")
-        except Exception as e:
-            # This is expected if the store has files - not actionable by user
-            # Log at debug level to avoid cluttering output
-            logger.debug(f"Could not delete File Search Store {store_name}: {e}")
+    # NOTE: _upload_to_file_search_store and _delete_file_search_store were removed
+    # as dead code. File Search Store management is now handled by:
+    # - DeepResearchClient._upload_context_files() for uploads
+    # - DeepResearchClient._cleanup_file_store() for cleanup
+    # - FileSearchStoreManager for the orchestrator patterns
+    # All cleanup is done via try/finally blocks to prevent billing leaks.
 
     def _prepare_step1_context(
         self,
