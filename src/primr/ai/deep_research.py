@@ -734,6 +734,11 @@ class DeepResearchClient:
                 model=self.AGENT_ID,
                 cause=e
             ) from e
+        finally:
+            # CRITICAL: Always cleanup File Search Store to prevent billing leaks
+            # Per Gemini docs: "There is no TTL for embeddings and files; they persist until manually deleted"
+            if file_store_name:
+                self._cleanup_file_store(file_store_name)
 
     async def research_stream(
         self,
@@ -923,11 +928,52 @@ Provide strategic analysis including:
 
 Frame everything as hypotheses to explore, not conclusions."""
 
+    def _cleanup_file_store(self, store_name: str) -> None:
+        """
+        Clean up a File Search Store by deleting documents then the store.
+        
+        CRITICAL: Per Gemini docs, "There is no TTL for embeddings and files;
+        they persist until manually deleted." We MUST delete documents first,
+        then the store, or we leak money.
+        
+        Args:
+            store_name: Name of the store to delete
+        """
+        # Step 1: Delete all documents inside the store first
+        try:
+            docs = list(self._client.file_search_stores.documents.list(parent=store_name))
+            for doc in docs:
+                try:
+                    # Try with config for force delete (deletes chunks too)
+                    self._client.file_search_stores.documents.delete(
+                        name=doc.name,
+                        config={"force": True}
+                    )
+                except TypeError:
+                    # SDK doesn't support config, try without
+                    self._client.file_search_stores.documents.delete(name=doc.name)
+            if docs:
+                logger.debug(f"Deleted {len(docs)} document(s) from {store_name}")
+        except Exception as e:
+            logger.warning(f"Could not delete documents from {store_name}: {e}")
+        
+        # Step 2: Now delete the empty store
+        try:
+            self._client.file_search_stores.delete(name=store_name)
+            logger.debug(f"Cleaned up File Search Store: {store_name}")
+        except Exception as e:
+            error_str = str(e).lower()
+            if 'failed_precondition' in error_str or 'non-empty' in error_str:
+                logger.error(f"CLEANUP FAILED: Store {store_name} still not empty after doc deletion!")
+            else:
+                logger.warning(f"Could not delete File Search Store {store_name}: {e}")
+
     def _upload_context_files(self, file_paths: list[str]) -> str:
         """
         Upload files to a File Search store for context.
 
         FAILS HARD on any error - do not proceed to expensive API call if upload fails.
+        CLEANS UP on failure - if upload fails after store creation, we delete the store.
 
         Args:
             file_paths: List of file paths to upload (PDFs, docs, etc.)
@@ -966,12 +1012,13 @@ Frame everything as hypotheses to explore, not conclusions."""
             '.pdf': 'application/pdf',
         }
 
+        store_name: str = ""
         try:
             # Create a file search store
             store = self._client.file_search_stores.create(
                 config={"display_name": f"research_context_{int(time.time())}"}
             )
-            store_name: str = store.name or ""
+            store_name = store.name or ""
             if not store_name:
                 raise AIError("Failed to create file store - no name returned", model=self.AGENT_ID)
             logger.info(f"Created file store: {store_name}")
@@ -996,6 +1043,10 @@ Frame everything as hypotheses to explore, not conclusions."""
                     logger.info(f"Uploaded: {file_path}")
                 except Exception as upload_err:
                     # FAIL HARD - don't continue with broken uploads
+                    # But first, clean up the store we created!
+                    if store_name:
+                        logger.warning(f"Upload failed, cleaning up store {store_name}")
+                        self._cleanup_file_store(store_name)
                     raise AIError(
                         f"Failed to upload {file_path}: {upload_err}",
                         model=self.AGENT_ID,
@@ -1006,8 +1057,12 @@ Frame everything as hypotheses to explore, not conclusions."""
             return store_name
 
         except AIError:
-            raise  # Re-raise our errors
+            raise  # Re-raise our errors (cleanup already done if needed)
         except Exception as e:
+            # Clean up on any other error
+            if store_name:
+                logger.warning(f"Error occurred, cleaning up store {store_name}")
+                self._cleanup_file_store(store_name)
             raise AIError(
                 f"Failed to create file store: {e}",
                 model=self.AGENT_ID,
@@ -1287,6 +1342,7 @@ Frame everything as hypotheses to explore, not conclusions."""
             ))
         
         # Start background job (NO streaming - job runs async on Google's servers)
+        interaction_id = None
         try:
             interaction = self._start_research(prompt, file_store_name=file_store_name)
             interaction_id = interaction.id
@@ -1304,6 +1360,9 @@ Frame everything as hypotheses to explore, not conclusions."""
                 # Skip - parent callback already showed "Research started"
                 pass
         except Exception as e:
+            # Clean up store if we created one but failed to start research
+            if file_store_name:
+                self._cleanup_file_store(file_store_name)
             raise AIError(f"Failed to start research: {e}", model=self.AGENT_ID, cause=e) from e
         
         # Poll for completion with exponential backoff
@@ -1312,105 +1371,113 @@ Frame everything as hypotheses to explore, not conclusions."""
         consecutive_errors = 0
         base_poll_interval = 10.0  # Start with 10s
         
-        while True:
-            elapsed = time.time() - start_time
-            if elapsed > timeout:
-                logger.warning(f"Research polling timed out after {elapsed:.0f}s")
-                if on_progress:
-                    on_progress(ResearchProgress(
-                        status=ResearchStatus.IN_PROGRESS,
-                        message=f"Still running after {elapsed:.0f}s. Check later with: primr --check-jobs"
-                    ))
-                # Don't remove from pending jobs - it may still complete
-                return ResearchResult(
-                    content="",
-                    interaction_id=interaction_id,
-                    duration_seconds=elapsed,
-                    status=ResearchStatus.IN_PROGRESS,
-                    error=f"Polling timed out after {elapsed:.0f}s. Job may still be running. Use 'primr --check-jobs' to check status."
-                )
-            
-            # Calculate adaptive poll interval
-            poll_attempt += 1
-            if elapsed < 60:
-                poll_interval = 5.0  # First minute: poll every 5s
-            elif elapsed < 300:
-                poll_interval = 10.0  # 1-5 minutes: poll every 10s
-            else:
-                poll_interval = 20.0  # After 5 minutes: poll every 20s
-            
-            # Wait before polling
-            await asyncio.sleep(poll_interval)
-            
-            # Poll for status
-            try:
-                interaction = self._get_interaction(interaction_id)
-                status = interaction.status
-                consecutive_errors = 0  # Reset on success
-                
-                if status == "completed":
-                    content = self._extract_content(interaction)
-                    citations = self._extract_citations(interaction)
-                    search_count = self._extract_search_queries_count(interaction)
-                    remove_pending_job(interaction_id)
-                    
-                    logger.info(f"Research completed in {time.time() - start_time:.0f}s, {search_count} searches")
-                    return ResearchResult(
-                        content=content,
-                        citations=citations,
-                        interaction_id=interaction_id,
-                        duration_seconds=time.time() - start_time,
-                        status=ResearchStatus.COMPLETED,
-                        search_queries_count=search_count,
-                    )
-                
-                elif status == "failed":
-                    error_msg = getattr(interaction, 'error', 'Unknown error')
-                    remove_pending_job(interaction_id)
-                    logger.error(f"Research failed: {error_msg}")
-                    return ResearchResult(
-                        content="",
-                        interaction_id=interaction_id,
-                        duration_seconds=time.time() - start_time,
-                        status=ResearchStatus.FAILED,
-                        error=str(error_msg),
-                    )
-                
-                # Still in progress - show periodic updates
-                if on_progress and poll_attempt % 6 == 0:  # Every ~60s
-                    mins = int(elapsed // 60)
-                    secs = int(elapsed % 60)
-                    time_str = f"{mins}m {secs}s" if mins > 0 else f"{secs}s"
-                    on_progress(ResearchProgress(
-                        status=ResearchStatus.IN_PROGRESS,
-                        message=f"Research in progress ({time_str})..."
-                    ))
-                
-            except Exception as e:
-                consecutive_errors += 1
-                error_str = str(e).lower()
-                is_transient = (
-                    '500' in error_str or
-                    '503' in error_str or
-                    'internal' in error_str or
-                    'connection' in error_str or
-                    'timeout' in error_str
-                )
-                
-                if is_transient and consecutive_errors < max_poll_errors:
-                    wait_time = 10 * consecutive_errors
-                    logger.warning(f"Transient polling error (attempt {consecutive_errors}/{max_poll_errors}), waiting {wait_time}s: {e}")
+        try:
+            while True:
+                elapsed = time.time() - start_time
+                if elapsed > timeout:
+                    logger.warning(f"Research polling timed out after {elapsed:.0f}s")
                     if on_progress:
                         on_progress(ResearchProgress(
                             status=ResearchStatus.IN_PROGRESS,
-                            message=f"API hiccup, retrying in {wait_time}s..."
+                            message=f"Still running after {elapsed:.0f}s. Check later with: primr --check-jobs"
                         ))
-                    await asyncio.sleep(wait_time)
-                    continue
+                    # Don't remove from pending jobs - it may still complete
+                    # NOTE: We still clean up the file store since the research job
+                    # has already started and has its own copy of the context
+                    return ResearchResult(
+                        content="",
+                        interaction_id=interaction_id,
+                        duration_seconds=elapsed,
+                        status=ResearchStatus.IN_PROGRESS,
+                        error=f"Polling timed out after {elapsed:.0f}s. Job may still be running. Use 'primr --check-jobs' to check status."
+                    )
+                
+                # Calculate adaptive poll interval
+                poll_attempt += 1
+                if elapsed < 60:
+                    poll_interval = 5.0  # First minute: poll every 5s
+                elif elapsed < 300:
+                    poll_interval = 10.0  # 1-5 minutes: poll every 10s
                 else:
-                    # Non-transient or too many failures
-                    logger.error(f"Polling failed after {consecutive_errors} attempts: {e}")
-                    raise AIError(f"Failed to poll research status: {e}", model=self.AGENT_ID, cause=e) from e
+                    poll_interval = 20.0  # After 5 minutes: poll every 20s
+                
+                # Wait before polling
+                await asyncio.sleep(poll_interval)
+                
+                # Poll for status
+                try:
+                    interaction = self._get_interaction(interaction_id)
+                    status = interaction.status
+                    consecutive_errors = 0  # Reset on success
+                    
+                    if status == "completed":
+                        content = self._extract_content(interaction)
+                        citations = self._extract_citations(interaction)
+                        search_count = self._extract_search_queries_count(interaction)
+                        remove_pending_job(interaction_id)
+                        
+                        logger.info(f"Research completed in {time.time() - start_time:.0f}s, {search_count} searches")
+                        return ResearchResult(
+                            content=content,
+                            citations=citations,
+                            interaction_id=interaction_id,
+                            duration_seconds=time.time() - start_time,
+                            status=ResearchStatus.COMPLETED,
+                            search_queries_count=search_count,
+                        )
+                    
+                    elif status == "failed":
+                        error_msg = getattr(interaction, 'error', 'Unknown error')
+                        remove_pending_job(interaction_id)
+                        logger.error(f"Research failed: {error_msg}")
+                        return ResearchResult(
+                            content="",
+                            interaction_id=interaction_id,
+                            duration_seconds=time.time() - start_time,
+                            status=ResearchStatus.FAILED,
+                            error=str(error_msg),
+                        )
+                    
+                    # Still in progress - show periodic updates
+                    if on_progress and poll_attempt % 6 == 0:  # Every ~60s
+                        mins = int(elapsed // 60)
+                        secs = int(elapsed % 60)
+                        time_str = f"{mins}m {secs}s" if mins > 0 else f"{secs}s"
+                        on_progress(ResearchProgress(
+                            status=ResearchStatus.IN_PROGRESS,
+                            message=f"Research in progress ({time_str})..."
+                        ))
+                    
+                except Exception as e:
+                    consecutive_errors += 1
+                    error_str = str(e).lower()
+                    is_transient = (
+                        '500' in error_str or
+                        '503' in error_str or
+                        'internal' in error_str or
+                        'connection' in error_str or
+                        'timeout' in error_str
+                    )
+                    
+                    if is_transient and consecutive_errors < max_poll_errors:
+                        wait_time = 10 * consecutive_errors
+                        logger.warning(f"Transient polling error (attempt {consecutive_errors}/{max_poll_errors}), waiting {wait_time}s: {e}")
+                        if on_progress:
+                            on_progress(ResearchProgress(
+                                status=ResearchStatus.IN_PROGRESS,
+                                message=f"API hiccup, retrying in {wait_time}s..."
+                            ))
+                        await asyncio.sleep(wait_time)
+                        continue
+                    else:
+                        # Non-transient or too many failures
+                        logger.error(f"Polling failed after {consecutive_errors} attempts: {e}")
+                        raise AIError(f"Failed to poll research status: {e}", model=self.AGENT_ID, cause=e) from e
+        finally:
+            # CRITICAL: Always cleanup File Search Store to prevent billing leaks
+            # Per Gemini docs: "There is no TTL for embeddings and files; they persist until manually deleted"
+            if file_store_name:
+                self._cleanup_file_store(file_store_name)
     
     def _extract_citations_from_text(self, content: str) -> list[dict[str, str]]:
         """Extract citations from text content (for streaming results)."""
@@ -3874,30 +3941,47 @@ class FileSearchStoreManager:
     
     def delete_store(self, store_name: str) -> None:
         """
-        Delete a File Search Store.
+        Delete a File Search Store and all its contents.
         
         Should be called after Deep Research completes (success or failure)
         to clean up temporary context and ensure data governance.
         
-        Note: Non-empty stores cannot be deleted directly. The API will return
-        FAILED_PRECONDITION. This is expected behavior - the store will be
-        cleaned up automatically by Google's retention policies.
+        IMPORTANT: Per Gemini docs, "There is no TTL for embeddings and files;
+        they persist until manually deleted." We MUST delete documents first,
+        then the store.
         
         Args:
             store_name: Store name to delete
         """
+        # Step 1: Delete all documents inside the store first
+        try:
+            docs = list(self._client.file_search_stores.documents.list(parent=store_name))
+            for doc in docs:
+                try:
+                    # Try with config for force delete (deletes chunks too)
+                    self._client.file_search_stores.documents.delete(
+                        name=doc.name,
+                        config={"force": True}
+                    )
+                except TypeError:
+                    # SDK doesn't support config, try without
+                    self._client.file_search_stores.documents.delete(name=doc.name)
+            if docs:
+                logger.debug(f"Deleted {len(docs)} document(s) from {store_name}")
+        except Exception as e:
+            logger.warning(f"Could not delete documents from {store_name}: {e}")
+        
+        # Step 2: Now delete the empty store
         try:
             self._client.file_search_stores.delete(name=store_name)
             logger.info(f"Deleted File Search Store: {store_name}")
         except Exception as e:
             error_str = str(e).lower()
-            # Non-empty stores can't be deleted - this is expected and not a problem
-            # Google will clean them up automatically via retention policies
             if 'failed_precondition' in error_str or 'non-empty' in error_str:
-                logger.debug(f"File Search Store {store_name} not empty, will be cleaned up by retention policy")
+                # This shouldn't happen after deleting docs, but log it loudly
+                logger.error(f"CLEANUP FAILED: Store {store_name} still not empty after doc deletion!")
             else:
-                # Log other errors at debug level - cleanup failures shouldn't clutter output
-                logger.debug(f"Could not delete File Search Store {store_name}: {e}")
+                logger.warning(f"Could not delete File Search Store {store_name}: {e}")
 
 
 # Singleton instance for FileSearchStoreManager

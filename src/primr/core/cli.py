@@ -290,6 +290,10 @@ def run_doctor() -> int:
     console.step("API Connectivity")
     all_passed, warnings_count = _check_api_connectivity(all_passed, warnings_count)
 
+    # 6. Gemini Resource Cleanup Check
+    console.step("Gemini Resources")
+    all_passed, warnings_count = _check_gemini_resources(all_passed, warnings_count)
+
     # Summary
     console.blank()
     if all_passed and warnings_count == 0:
@@ -298,6 +302,8 @@ def run_doctor() -> int:
         console.success_box(f"Ready with {warnings_count} warning(s)", "Primr can run, but some features may be limited")
     else:
         console.error("Some checks failed - fix issues above before running research")
+
+    return 0 if all_passed else 1
 
     return 0 if all_passed else 1
 
@@ -982,6 +988,59 @@ def _check_api_connectivity(all_passed: bool, warnings_count: int) -> tuple[bool
         console.warn("Skipping API test (no key configured)")
         warnings_count += 1
 
+    return all_passed, warnings_count
+
+
+def _check_gemini_resources(all_passed: bool, warnings_count: int) -> tuple[bool, int]:
+    """Check for orphaned Gemini resources that could be incurring costs.
+    
+    Checks for:
+    - Explicit context caches ($1-4.50/M tokens/hour storage)
+    - File search stores (persist until manually deleted)
+    """
+    gemini_key = os.environ.get("GEMINI_API_KEY", "")
+    if not gemini_key:
+        console.warn("Skipping Gemini resource check (no API key)")
+        warnings_count += 1
+        return all_passed, warnings_count
+    
+    try:
+        from google import genai
+        client = genai.Client(api_key=gemini_key)
+        
+        # Check for explicit caches
+        try:
+            caches = list(client.caches.list())
+            if caches:
+                console.warn(f"Found {len(caches)} orphaned cache(s) - costing money!")
+                console.info("  Run: python scripts/check_gemini_resources.py --delete-caches")
+                warnings_count += 1
+            else:
+                console.ok("No orphaned caches")
+        except Exception as e:
+            # Don't fail the whole check if cache listing fails
+            logger.debug(f"Could not list caches: {e}")
+        
+        # Check for file search stores
+        try:
+            stores = list(client.file_search_stores.list())
+            if stores:
+                console.warn(f"Found {len(stores)} orphaned file search store(s)")
+                console.info("  Run: python scripts/check_gemini_resources.py --delete-stores --force-empty")
+                warnings_count += 1
+            else:
+                console.ok("No orphaned file search stores")
+        except Exception as e:
+            # Don't fail the whole check if store listing fails
+            logger.debug(f"Could not list file search stores: {e}")
+        
+    except ImportError:
+        console.warn("google-genai not installed, skipping resource check")
+        warnings_count += 1
+    except Exception as e:
+        console.warn(f"Gemini resource check failed: {e}")
+        warnings_count += 1
+    
     return all_passed, warnings_count
 
 
