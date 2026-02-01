@@ -175,17 +175,26 @@ class ScrapingError(ResearchError):
         self,
         message: str,
         url: str = "",
+        status_code: int | None = None,
+        tier: str = "",
         cause: Exception | None = None,
         guidance: str | None = None
     ):
         super().__init__(message, cause, guidance)
         self.url = url
+        self.status_code = status_code
+        self.tier = tier
 
     def debug_message(self) -> str:
         base = super().debug_message()
+        parts = [base]
         if self.url:
-            return f"{base}\n  URL: {self.url}"
-        return base
+            parts.append(f"  URL: {self.url}")
+        if self.status_code:
+            parts.append(f"  HTTP Status: {self.status_code}")
+        if self.tier:
+            parts.append(f"  Scraping Tier: {self.tier}")
+        return "\n".join(parts)
 
 
 class AIError(ResearchError):
@@ -240,17 +249,22 @@ class SearchError(ResearchError):
         self,
         message: str,
         query: str = "",
+        status_code: int | None = None,
         cause: Exception | None = None,
         guidance: str | None = None
     ):
         super().__init__(message, cause, guidance)
         self.query = query
+        self.status_code = status_code
 
     def debug_message(self) -> str:
         base = super().debug_message()
+        parts = [base]
         if self.query:
-            return f"{base}\n  Query: {self.query}"
-        return base
+            parts.append(f"  Query: {self.query}")
+        if self.status_code:
+            parts.append(f"  HTTP Status: {self.status_code}")
+        return "\n".join(parts)
 
 
 class OutputError(ResearchError):

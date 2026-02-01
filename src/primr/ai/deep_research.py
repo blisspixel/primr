@@ -155,9 +155,16 @@ def _get_jobs_file_path() -> str:
     return os.path.join(LOGS_DIR, "pending_research_jobs.json")
 
 
+# File lock for job tracking (prevents concurrent write corruption)
+import threading
+_jobs_file_lock = threading.Lock()
+
+
 def save_pending_job(interaction_id: str, job_type: str, description: str) -> None:
     """
     Save a pending research job for later recovery.
+
+    Thread-safe: Uses file locking to prevent concurrent write corruption.
 
     Args:
         interaction_id: The Gemini interaction ID
@@ -166,64 +173,114 @@ def save_pending_job(interaction_id: str, job_type: str, description: str) -> No
     """
     jobs_file = _get_jobs_file_path()
 
-    # Load existing jobs
-    jobs = {}
-    if os.path.exists(jobs_file):
+    with _jobs_file_lock:
+        # Load existing jobs
+        jobs = {}
+        if os.path.exists(jobs_file):
+            try:
+                with open(jobs_file, encoding='utf-8') as f:
+                    content = f.read().strip()
+                    if content:
+                        jobs = json.loads(content)
+                        # Validate structure
+                        if not isinstance(jobs, dict):
+                            logger.warning(f"Jobs file corrupted (not a dict), resetting")
+                            jobs = {}
+            except (OSError, json.JSONDecodeError) as e:
+                logger.warning(f"Failed to load jobs file, resetting: {e}")
+                jobs = {}
+
+        # Add new job
+        jobs[interaction_id] = {
+            "type": job_type,
+            "description": description,
+            "started": datetime.now().isoformat(),
+            "status": "pending"
+        }
+
+        # Save atomically (write to temp, then rename)
+        os.makedirs(os.path.dirname(jobs_file), exist_ok=True)
+        temp_file = jobs_file + ".tmp"
         try:
-            with open(jobs_file, encoding='utf-8') as f:
-                jobs = json.load(f)
-        except (OSError, json.JSONDecodeError):
-            jobs = {}
-
-    # Add new job
-    jobs[interaction_id] = {
-        "type": job_type,
-        "description": description,
-        "started": datetime.now().isoformat(),
-        "status": "pending"
-    }
-
-    # Save
-    os.makedirs(os.path.dirname(jobs_file), exist_ok=True)
-    with open(jobs_file, 'w', encoding='utf-8') as f:
-        json.dump(jobs, f, indent=2)
+            with open(temp_file, 'w', encoding='utf-8') as f:
+                json.dump(jobs, f, indent=2)
+            # Atomic rename (on POSIX) or replace (on Windows)
+            if os.path.exists(jobs_file):
+                os.replace(temp_file, jobs_file)
+            else:
+                os.rename(temp_file, jobs_file)
+        except OSError as e:
+            logger.error(f"Failed to save jobs file: {e}")
+            # Clean up temp file if it exists
+            if os.path.exists(temp_file):
+                try:
+                    os.remove(temp_file)
+                except OSError:
+                    pass
+            raise
 
     logger.info(f"Saved pending job: {interaction_id} ({job_type})")
 
 
 def remove_pending_job(interaction_id: str) -> None:
-    """Remove a job from the pending list (after completion or failure)."""
+    """
+    Remove a job from the pending list (after completion or failure).
+    
+    Thread-safe: Uses file locking to prevent concurrent write corruption.
+    """
     jobs_file = _get_jobs_file_path()
 
-    if not os.path.exists(jobs_file):
-        return
+    with _jobs_file_lock:
+        if not os.path.exists(jobs_file):
+            return
 
-    try:
-        with open(jobs_file, encoding='utf-8') as f:
-            jobs = json.load(f)
+        try:
+            with open(jobs_file, encoding='utf-8') as f:
+                content = f.read().strip()
+                if not content:
+                    return
+                jobs = json.loads(content)
+                if not isinstance(jobs, dict):
+                    logger.warning(f"Jobs file corrupted, cannot remove job")
+                    return
 
-        if interaction_id in jobs:
-            del jobs[interaction_id]
-            with open(jobs_file, 'w', encoding='utf-8') as f:
-                json.dump(jobs, f, indent=2)
-            logger.info(f"Removed completed job: {interaction_id}")
-    except (OSError, json.JSONDecodeError) as e:
-        logger.warning(f"Failed to remove job {interaction_id}: {e}")
+            if interaction_id in jobs:
+                del jobs[interaction_id]
+                # Save atomically
+                temp_file = jobs_file + ".tmp"
+                with open(temp_file, 'w', encoding='utf-8') as f:
+                    json.dump(jobs, f, indent=2)
+                os.replace(temp_file, jobs_file)
+                logger.info(f"Removed completed job: {interaction_id}")
+        except (OSError, json.JSONDecodeError) as e:
+            logger.warning(f"Failed to remove job {interaction_id}: {e}")
 
 
 def get_pending_jobs() -> dict[str, dict[str, Any]]:
-    """Get all pending research jobs."""
+    """
+    Get all pending research jobs.
+    
+    Thread-safe: Uses file locking for consistent reads.
+    """
     jobs_file = _get_jobs_file_path()
 
-    if not os.path.exists(jobs_file):
-        return {}
+    with _jobs_file_lock:
+        if not os.path.exists(jobs_file):
+            return {}
 
-    try:
-        with open(jobs_file, encoding='utf-8') as f:
-            result: dict[str, dict[str, Any]] = json.load(f)
-            return result
-    except (OSError, json.JSONDecodeError):
-        return {}
+        try:
+            with open(jobs_file, encoding='utf-8') as f:
+                content = f.read().strip()
+                if not content:
+                    return {}
+                result = json.loads(content)
+                if not isinstance(result, dict):
+                    logger.warning(f"Jobs file corrupted (not a dict)")
+                    return {}
+                return result
+        except (OSError, json.JSONDecodeError) as e:
+            logger.warning(f"Failed to read jobs file: {e}")
+            return {}
 
 
 # =============================================================================

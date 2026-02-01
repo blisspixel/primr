@@ -1,5 +1,5 @@
 Primr – Roadmap
-Current State: v1.3.0 (January 2026)
+Current State: v1.3.1 (January 2026)
 
 Primr is a CLI-first, local research tool designed to support company intelligence researcharation, strategic analysis, and AI roadmap development. The tool aims to accelerate research workflows while maintaining transparency about uncertainty and supporting a subject-positive posture.
 
@@ -24,6 +24,16 @@ Scrape Mode: 8-tier web scraping with intelligent escalation:
 Deep Mode: Gemini Deep Research Agent with autonomous multi-step search and synthesis
 
 Full Mode: Sequential scrape + deep research pipeline
+
+Resource Management (v1.3.1)
+
+Automatic cleanup of Gemini File Search Stores after each run
+
+`primr doctor` checks for orphaned resources that could incur costs
+
+Manual cleanup script: `scripts/check_gemini_resources.py`
+
+Proper two-step store deletion (documents first, then store)
 
 CLI/UX Enhancements (v1.2.4)
 
@@ -527,6 +537,7 @@ Version	Date	Highlights
 1.2.5	Jan 2026	Externalized prompt architecture (YAML configs)
 1.2.6	Jan 2026	Strategy document portfolio (4 strategies implemented and tested)
 1.3.0	Jan 2026	Python 3.11+ requirement, build configuration updates
+1.3.1	Jan 2026	File Search Store billing leak fix, resource management, fd leak fixes
 1.4.0	TBD	Research state and hypothesis tracking
 1.5.0	TBD	Iterative refinement loop
 1.6.0	TBD	POV evolution and narrative continuity

@@ -150,21 +150,21 @@ class CompanyMonitor:
         """Initialize the monitor."""
         self._db_path = db_path or ":memory:"
         self._lock = threading.RLock()
-        self._persistent_conn: sqlite3.Connection | None = None
-        if self._db_path == ":memory:":
-            self._persistent_conn = sqlite3.connect(":memory:", check_same_thread=False)
-            self._persistent_conn.row_factory = sqlite3.Row
+        # Always use persistent connection to avoid connection leaks
+        self._persistent_conn = sqlite3.connect(self._db_path, check_same_thread=False)
+        self._persistent_conn.row_factory = sqlite3.Row
         self._init_db()
         self._alert_handlers: list[Callable[[Alert], None]] = []
 
-
     def _get_connection(self) -> sqlite3.Connection:
         """Get database connection."""
+        return self._persistent_conn
+    
+    def close(self) -> None:
+        """Close the database connection."""
         if self._persistent_conn is not None:
-            return self._persistent_conn
-        conn = sqlite3.connect(self._db_path, check_same_thread=False)
-        conn.row_factory = sqlite3.Row
-        return conn
+            self._persistent_conn.close()
+            self._persistent_conn = None
 
     def _execute(self, query: str, params: tuple = ()) -> sqlite3.Cursor:
         """Execute query."""

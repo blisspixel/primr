@@ -97,6 +97,7 @@ class AIClient:
 
         Raises:
             AIError: If all retries fail
+            ValueError: If temperature is out of bounds
 
         Example:
             response = client.generate(
@@ -105,6 +106,14 @@ class AIClient:
                 thinking_level="high"
             )
         """
+        # Validate inputs
+        if not prompt or not prompt.strip():
+            raise ValueError("prompt cannot be empty")
+        if not 0.0 <= temperature <= 2.0:
+            raise ValueError(f"temperature must be between 0.0 and 2.0, got {temperature}")
+        if thinking_level not in ("low", "high"):
+            raise ValueError(f"thinking_level must be 'low' or 'high', got {thinking_level}")
+        
         model = self._get_model(model_type)
         retries = max_retries or self._settings.max_retries
 
@@ -145,16 +154,31 @@ class AIClient:
                 error_str = str(e).lower()
 
                 # Check for quota exhaustion (daily limit hit) - STOP IMMEDIATELY
-                is_quota_exhausted = (
-                    "resource_exhausted" in error_str and
-                    ("per_day" in error_str or "quota" in error_str and "exceeded" in error_str)
-                )
+                # Multiple patterns to catch various API error formats
+                quota_patterns = [
+                    "resource_exhausted" in error_str and "per_day" in error_str,
+                    "resource_exhausted" in error_str and "quota" in error_str,
+                    "quota exceeded" in error_str,
+                    "daily limit" in error_str,
+                    "rate limit exceeded" in error_str and "daily" in error_str,
+                    "requests per day" in error_str,
+                ]
+                is_quota_exhausted = any(quota_patterns)
 
                 if is_quota_exhausted:
                     logger.error("Daily API quota exhausted - stopping immediately")
                     raise AIError(
                         "Daily API quota exhausted. Wait until quota resets or upgrade your plan. "
-                        "Check status with: python company_research.py --check-quota",
+                        "Check status with: primr --check-quota",
+                        model=model,
+                        cause=e
+                    ) from e
+
+                # Check for invalid API key
+                if "invalid" in error_str and ("api" in error_str or "key" in error_str):
+                    logger.error("Invalid API key - stopping immediately")
+                    raise AIError(
+                        "Invalid API key. Check your GEMINI_API_KEY in .env file.",
                         model=model,
                         cause=e
                     ) from e
@@ -327,14 +351,32 @@ class AIClient:
             Validated response text
 
         Raises:
-            AIError: If response text is invalid
+            AIError: If response text is invalid or empty
         """
         try:
+            # Check response exists
+            if response is None:
+                raise AIError("API returned None response")
+            
             # Check response has text attribute
             if not hasattr(response, 'text'):
                 raise AIError("API response missing 'text' attribute")
 
             text = response.text
+            
+            # Handle None text
+            if text is None:
+                # Check if there are candidates with content
+                if hasattr(response, 'candidates') and response.candidates:
+                    for candidate in response.candidates:
+                        if hasattr(candidate, 'content') and candidate.content:
+                            if hasattr(candidate.content, 'parts') and candidate.content.parts:
+                                for part in candidate.content.parts:
+                                    if hasattr(part, 'text') and part.text:
+                                        text = part.text
+                                        break
+                if text is None:
+                    raise AIError("API response text is None and no candidates found")
 
             # Validate text is a string
             if not is_valid_type(text, str):
@@ -342,7 +384,13 @@ class AIClient:
                     f"API response text is not a string: {type(text).__name__}"
                 )
 
-            return str(text).strip()
+            result = str(text).strip()
+            
+            # Check for empty response
+            if not result:
+                raise AIError("API returned empty response text")
+            
+            return result
 
         except AIError:
             raise

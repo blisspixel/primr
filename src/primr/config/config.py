@@ -152,7 +152,7 @@ def validate_config(include_optional: bool = False) -> ConfigValidationResult:
     if not _search_engine_id:
         warnings.append("SEARCH_ENGINE_ID not set (optional, for Google Search)")
 
-    # Check directories are writable
+    # Check directories are writable (actually test writing)
     for dir_name, dir_path in [
         ("OUTPUT_DIR", OUTPUT_DIR),
         ("WORKING_DIR", WORKING_DIR),
@@ -164,8 +164,15 @@ def validate_config(include_optional: bool = False) -> ConfigValidationResult:
                 path.mkdir(parents=True, exist_ok=True)
             except OSError as e:
                 errors.append(f"{dir_name} cannot be created: {e}")
-        elif not os.access(path, os.W_OK):
-            errors.append(f"{dir_name} is not writable: {path}")
+                continue
+        
+        # Actually test write permission by creating a temp file
+        test_file = path / ".primr_write_test"
+        try:
+            test_file.write_text("test")
+            test_file.unlink()
+        except OSError as e:
+            errors.append(f"{dir_name} is not writable: {path} - {e}")
 
     return ConfigValidationResult(
         valid=len(errors) == 0,

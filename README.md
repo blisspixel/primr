@@ -210,6 +210,25 @@ Deep Research jobs run asynchronously on Google's servers. If a connection drops
 
 For AI Strategy specifically, use `--ai-strategy-only` to retry with an existing report as context.
 
+## Resource Management
+
+Primr uses Gemini File Search Stores to provide context during Deep Research. These resources are automatically cleaned up after each run, but if a process is interrupted (crash, power loss, etc.), orphaned resources may remain.
+
+To check for and clean up orphaned resources:
+
+```bash
+# Check system health including orphaned resources
+primr doctor
+
+# Manually inspect Gemini resources
+python scripts/check_gemini_resources.py
+
+# Clean up orphaned stores (if any found)
+python scripts/check_gemini_resources.py --delete-stores --force-empty
+```
+
+The `primr doctor` command will warn you if orphaned resources are detected. Run the cleanup script periodically if you experience interrupted runs.
+
 ## Documentation
 
 - [CHANGELOG.md](CHANGELOG.md) - Version history and changes
