@@ -916,19 +916,19 @@ def _scrape_with_playwright_impl(
         )
         
     finally:
-        # Always clean up
+        # Always clean up - log errors but don't let them propagate
         if page:
             try: page.close()
-            except: pass
+            except Exception as e: logger.debug(f"Error closing page: {e}")
         if context:
             try: context.close()
-            except: pass
+            except Exception as e: logger.debug(f"Error closing context: {e}")
         if browser:
             try: browser.close()
-            except: pass
+            except Exception as e: logger.debug(f"Error closing browser: {e}")
         if playwright_instance:
             try: playwright_instance.stop()
-            except: pass
+            except Exception as e: logger.debug(f"Error stopping playwright: {e}")
 
 
 def scrape_with_playwright_aggressive(

@@ -372,11 +372,13 @@ def consolidate_working_folder(folder_path: str) -> str:
             logger.warning(f"Failed to read {txt_file}: {e}")
 
     # Write to temp file
+    # NOTE: We must close the fd from mkstemp before opening the file by path
     content = '\n'.join(lines)
     fd, filepath = tempfile.mkstemp(
         suffix='.txt',
         prefix=f'{company_name.replace(" ", "_")}_context_'
     )
+    os.close(fd)  # Close the fd - we'll open by path
 
     with open(filepath, 'w', encoding='utf-8') as f:
         f.write(content)

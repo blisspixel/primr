@@ -42,6 +42,41 @@ from primr.utils.observability import Metrics, emit_metrics, operation_context
 logger = get_logger("core.orchestrator")
 
 
+def _cleanup_file_with_retry(filepath: str, max_retries: int = 3, delay: float = 0.5) -> bool:
+    """
+    Attempt to delete a file with retries.
+    
+    On Windows, files can be locked by antivirus or other processes.
+    Retrying with a small delay often succeeds.
+    
+    Args:
+        filepath: Path to file to delete
+        max_retries: Maximum number of attempts
+        delay: Delay between retries in seconds
+        
+    Returns:
+        True if file was deleted, False otherwise
+    """
+    import time
+    
+    for attempt in range(max_retries):
+        try:
+            if os.path.exists(filepath):
+                os.remove(filepath)
+                logger.debug(f"Cleaned up temp file: {filepath}")
+                return True
+            return True  # File doesn't exist, consider it cleaned
+        except OSError as e:
+            if attempt < max_retries - 1:
+                logger.debug(f"Cleanup attempt {attempt + 1} failed for {filepath}: {e}, retrying...")
+                time.sleep(delay)
+            else:
+                # Final attempt failed - log as WARNING so it's visible
+                logger.warning(f"Failed to clean up temp file after {max_retries} attempts: {filepath} - {e}")
+                return False
+    return False
+
+
 @contextmanager
 def temp_context_file(company_name: str, content: str) -> Generator[str, None, None]:
     """
@@ -69,18 +104,14 @@ def temp_context_file(company_name: str, content: str) -> Generator[str, None, N
 
         yield filepath
     finally:
-        # Guaranteed cleanup
+        # Guaranteed cleanup with retry
         if fd is not None:
             try:
                 os.close(fd)
             except OSError:
                 pass
         if filepath is not None:
-            try:
-                os.remove(filepath)
-                logger.debug(f"Cleaned up temp file: {filepath}")
-            except OSError as e:
-                logger.debug(f"Failed to clean up temp file {filepath}: {e}")
+            _cleanup_file_with_retry(filepath)
 
 
 class ResearchMode(Enum):
@@ -692,10 +723,12 @@ class ResearchOrchestrator:
         content = '\n'.join(lines)
 
         # Create temp file with .txt extension (universally recognized MIME type)
+        # NOTE: We must close the fd from mkstemp before opening the file by path
         fd, filepath = tempfile.mkstemp(
             suffix='.txt',
             prefix=f'{company_name.replace(" ", "_")}_step1_'
         )
+        os.close(fd)  # Close the fd - we'll open by path
 
         with open(filepath, 'w', encoding='utf-8') as f:
             f.write(content)

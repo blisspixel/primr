@@ -792,6 +792,95 @@ def _handle_ai_strategy_only(config: CLIConfig) -> int:
         return 1
 
 
+def _run_preflight_checks(mode: str) -> tuple[bool, list[str]]:
+    """
+    Run preflight checks before starting research pipeline.
+    
+    Validates critical dependencies upfront to fail fast rather than
+    failing 30 minutes into a long pipeline.
+    
+    Returns:
+        (success, errors) - True if all checks pass, list of error messages if not
+    """
+    errors = []
+    
+    # 1. Check GEMINI_API_KEY (required for all modes)
+    gemini_key = os.environ.get("GEMINI_API_KEY", "")
+    if not gemini_key or len(gemini_key) < 10:
+        errors.append("GEMINI_API_KEY not configured. Get your key at: https://ai.google.dev/")
+    
+    # 2. Check Playwright browsers (required for scrape and full modes)
+    if mode in ("scrape-only", "complete", "hybrid", "structured"):
+        try:
+            from playwright.sync_api import sync_playwright
+            pw = sync_playwright().start()
+            try:
+                # Try to launch browser - this will fail if browsers aren't installed
+                browser = pw.chromium.launch(headless=True)
+                browser.close()
+            finally:
+                pw.stop()
+        except Exception as e:
+            error_msg = str(e)
+            if "Executable doesn't exist" in error_msg or "playwright install" in error_msg.lower():
+                errors.append("Playwright browsers not installed. Run: playwright install chromium")
+            else:
+                errors.append(f"Playwright check failed: {error_msg}")
+    
+    # 3. Quick API connectivity check (validates key is valid)
+    if gemini_key and len(gemini_key) >= 10:
+        try:
+            from google import genai
+            client = genai.Client(api_key=gemini_key)
+            # Minimal test - just check we can connect
+            response = client.models.generate_content(
+                model=PrimrModels.FAST_MODEL,
+                contents="Reply with: ok",
+            )
+        except Exception as e:
+            error_str = str(e).lower()
+            if "quota" in error_str or "rate" in error_str:
+                errors.append("Gemini API quota exceeded - wait and retry later")
+            elif "invalid" in error_str or "api key" in error_str:
+                errors.append("Gemini API key is invalid - check your .env file")
+            else:
+                errors.append(f"Gemini API connection failed: {e}")
+    
+    # 4. Check Google Custom Search API (required for external sources)
+    search_key = os.environ.get("SEARCH_API_KEY", "")
+    search_engine_id = os.environ.get("SEARCH_ENGINE_ID", "")
+    
+    if not search_key or len(search_key) < 10:
+        errors.append("SEARCH_API_KEY not configured. Get your key at: https://console.cloud.google.com/apis/credentials")
+    elif not search_engine_id or len(search_engine_id) < 10:
+        errors.append("SEARCH_ENGINE_ID not configured or invalid. Get it at: https://programmablesearchengine.google.com/controlpanel/all")
+    else:
+        # Actually test the Search API with a simple query
+        try:
+            import requests
+            test_url = "https://www.googleapis.com/customsearch/v1"
+            params = {
+                "q": "test",
+                "key": search_key,
+                "cx": search_engine_id,
+                "num": 1
+            }
+            response = requests.get(test_url, params=params, timeout=10)
+            if response.status_code == 400:
+                error_detail = response.json().get("error", {}).get("message", "Bad Request")
+                errors.append(f"Google Search API config invalid: {error_detail}")
+            elif response.status_code == 403:
+                errors.append("Google Search API key invalid or quota exceeded")
+            elif response.status_code != 200:
+                errors.append(f"Google Search API error: HTTP {response.status_code}")
+        except requests.exceptions.Timeout:
+            errors.append("Google Search API timeout - check your internet connection")
+        except Exception as e:
+            errors.append(f"Google Search API check failed: {e}")
+    
+    return (len(errors) == 0, errors)
+
+
 def _handle_research(config: CLIConfig) -> int:
     """Handle research command."""
     from primr.core.research_agent import perform_research
@@ -821,6 +910,17 @@ def _handle_research(config: CLIConfig) -> int:
     except InputValidationError as e:
         console.error(f"Invalid website URL: {e.reason}")
         return 1
+
+    # Run preflight checks before starting the pipeline
+    console.step("Preflight checks")
+    preflight_ok, preflight_errors = _run_preflight_checks(config.mode)
+    if not preflight_ok:
+        for error in preflight_errors:
+            console.error(error)
+        console.blank()
+        console.info("Run 'primr doctor' for detailed diagnostics")
+        return 1
+    console.ok("All systems ready")
 
     # Build context files list
     context_files = list(config.context_files)
@@ -872,7 +972,10 @@ def _handle_research(config: CLIConfig) -> int:
 # =============================================================================
 
 def _check_api_keys(all_passed: bool, warnings_count: int) -> tuple[bool, int]:
-    """Check API key configuration."""
+    """Check API key configuration and actually test connectivity."""
+    import requests
+    
+    # Check Gemini API key
     gemini_key = os.environ.get("GEMINI_API_KEY", "")
     if gemini_key and len(gemini_key) >= 10:
         if gemini_key.startswith("AI"):
@@ -886,19 +989,48 @@ def _check_api_keys(all_passed: bool, warnings_count: int) -> tuple[bool, int]:
         console.info("  Get your key at: https://ai.google.dev/")
         all_passed = False
 
+    # Check and TEST Google Search API
     search_key = os.environ.get("SEARCH_API_KEY", "")
-    if search_key and len(search_key) >= 10:
-        console.ok("SEARCH_API_KEY configured")
+    search_engine_id = os.environ.get("SEARCH_ENGINE_ID", "")
+    
+    if not search_key or len(search_key) < 10:
+        console.error("SEARCH_API_KEY not set or invalid")
+        console.info("  Get your key at: https://console.cloud.google.com/apis/credentials")
+        all_passed = False
+    elif not search_engine_id or len(search_engine_id) < 10:
+        console.error("SEARCH_ENGINE_ID not set or invalid (too short)")
+        console.info("  Get it at: https://programmablesearchengine.google.com/controlpanel/all")
+        all_passed = False
     else:
-        console.warn("SEARCH_API_KEY not set (optional, for Google Search)")
-        warnings_count += 1
-
-    search_engine = os.environ.get("SEARCH_ENGINE_ID", "")
-    if search_engine:
-        console.ok("SEARCH_ENGINE_ID configured")
-    else:
-        console.warn("SEARCH_ENGINE_ID not set (optional, for Google Search)")
-        warnings_count += 1
+        # Actually test the Search API
+        try:
+            test_url = "https://www.googleapis.com/customsearch/v1"
+            params = {
+                "q": "test",
+                "key": search_key,
+                "cx": search_engine_id,
+                "num": 1
+            }
+            response = requests.get(test_url, params=params, timeout=10)
+            if response.status_code == 200:
+                console.ok("Google Search API working")
+            elif response.status_code == 400:
+                error_detail = response.json().get("error", {}).get("message", "Bad Request")
+                console.error(f"Google Search API config invalid: {error_detail}")
+                console.info("  Check SEARCH_ENGINE_ID at: https://programmablesearchengine.google.com/controlpanel/all")
+                all_passed = False
+            elif response.status_code == 403:
+                console.error("Google Search API key invalid or quota exceeded")
+                all_passed = False
+            else:
+                console.error(f"Google Search API error: HTTP {response.status_code}")
+                all_passed = False
+        except requests.exceptions.Timeout:
+            console.error("Google Search API timeout")
+            all_passed = False
+        except Exception as e:
+            console.error(f"Google Search API check failed: {e}")
+            all_passed = False
 
     return all_passed, warnings_count
 

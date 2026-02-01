@@ -553,6 +553,7 @@ class TestPersistence:
             manager1 = TenantManager(db_path)
             tenant = manager1.create_tenant("Persistent", TenantTier.PROFESSIONAL)
             tenant_id = tenant.tenant_id
+            manager1.close()  # Close before creating second manager
             
             # Retrieve with second manager
             manager2 = TenantManager(db_path)
@@ -561,6 +562,7 @@ class TestPersistence:
             assert retrieved is not None
             assert retrieved.name == "Persistent"
             assert retrieved.tier == TenantTier.PROFESSIONAL
+            manager2.close()  # Close before cleanup
         finally:
             os.unlink(db_path)
     
@@ -573,10 +575,12 @@ class TestPersistence:
             manager1 = TenantManager(db_path)
             tenant = manager1.create_tenant("Test")
             manager1.record_usage(tenant.tenant_id, "research", "requests", 1)
+            manager1.close()  # Close before creating second manager
             
             manager2 = TenantManager(db_path)
             summary = manager2.get_usage_summary(tenant.tenant_id)
             
             assert summary.total_requests == 1
+            manager2.close()  # Close before cleanup
         finally:
             os.unlink(db_path)

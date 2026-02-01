@@ -189,6 +189,28 @@ class ScrapingConfig:
         "403 forbidden", "401 unauthorized", "blocked"
     ])
 
+    def validate(self) -> None:
+        """
+        Validate scraping configuration values.
+        
+        Raises:
+            ValueError: If any configuration value is invalid
+        """
+        if self.max_retries < 0:
+            raise ValueError(f"max_retries must be non-negative, got {self.max_retries}")
+        if self.timeout <= 0:
+            raise ValueError(f"timeout must be positive, got {self.timeout}")
+        if self.timeout > 300:
+            raise ValueError(f"timeout too high (max 300s), got {self.timeout}")
+        if self.max_depth < 0:
+            raise ValueError(f"max_depth must be non-negative, got {self.max_depth}")
+        if self.cache_ttl_hours < 0:
+            raise ValueError(f"cache_ttl_hours must be non-negative, got {self.cache_ttl_hours}")
+        if self.min_content_length < 0:
+            raise ValueError(f"min_content_length must be non-negative, got {self.min_content_length}")
+        if self.min_html_length < 0:
+            raise ValueError(f"min_html_length must be non-negative, got {self.min_html_length}")
+
 
 @dataclass
 class AIConfig:
@@ -232,6 +254,36 @@ class AIConfig:
 
     # No fallback models - fail immediately if model unavailable
     model_fallbacks: dict[str, list[str]] = field(default_factory=dict)
+
+    def validate(self) -> None:
+        """
+        Validate AI configuration values.
+        
+        Raises:
+            ValueError: If any configuration value is invalid
+        """
+        # Validate retries
+        if self.max_retries < 0:
+            raise ValueError(f"max_retries must be non-negative, got {self.max_retries}")
+        if self.max_retries > 10:
+            raise ValueError(f"max_retries too high (max 10), got {self.max_retries}")
+        
+        # Validate temperature
+        if not 0.0 <= self.default_temperature <= 2.0:
+            raise ValueError(f"default_temperature must be 0.0-2.0, got {self.default_temperature}")
+        
+        # Validate thinking level
+        if self.default_thinking_level not in ("low", "high"):
+            raise ValueError(f"default_thinking_level must be 'low' or 'high', got {self.default_thinking_level}")
+        
+        # Validate grade threshold
+        if not 0 <= self.grade_threshold <= 100:
+            raise ValueError(f"grade_threshold must be 0-100, got {self.grade_threshold}")
+        
+        # Validate model names are non-empty
+        for model_name in [self.flash_model, self.pro_model, self.fast_model, self.reasoning_model]:
+            if not model_name or not model_name.strip():
+                raise ValueError("Model names cannot be empty")
 
 
 @dataclass

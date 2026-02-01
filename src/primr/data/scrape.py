@@ -598,16 +598,18 @@ Line 2: Why (cite the specific identifier you found)"""
             response = llm(validation_prompt, model_type="research", streaming=False).strip()
             lines = response.split('\n', 1)
             decision = lines[0].strip().upper()
-            reason = lines[1].strip() if len(lines) > 1 else ""
+            reason = lines[1].strip() if len(lines) > 1 else "No reason provided"
             
             if decision.startswith("YES"):
                 validated_sources[url] = text
                 count += 1
-                logger.debug(f"External source VALIDATED: {url} - {reason}")
+                logger.info(f"External source VALIDATED: {url[:60]}... - {reason[:80]}")
             else:
-                logger.debug(f"External source REJECTED (wrong company): {url} - {reason}")
+                # Log rejections at INFO level so users can see why sources were skipped
+                logger.info(f"External source REJECTED (wrong company): {url[:60]}... - {reason[:80]}")
                 
         except Exception as e:
+            # Log validation failures at WARNING level - these are unexpected
             logger.warning(f"Failed to validate external source {url}: {e}")
             # Skip on validation failure - better to miss a source than include wrong company
             continue

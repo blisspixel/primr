@@ -204,20 +204,20 @@ class TenantManager:
         self._tenant_cache: dict[str, Tenant] = {}
         self._cache_ttl = 300  # 5 minutes
         self._cache_timestamps: dict[str, float] = {}
-        # For in-memory databases, keep a persistent connection
-        self._persistent_conn: sqlite3.Connection | None = None
-        if self._db_path == ":memory:":
-            self._persistent_conn = sqlite3.connect(":memory:", check_same_thread=False)
-            self._persistent_conn.row_factory = sqlite3.Row
+        # Always use persistent connection to avoid connection leaks
+        self._persistent_conn = sqlite3.connect(self._db_path, check_same_thread=False)
+        self._persistent_conn.row_factory = sqlite3.Row
         self._init_db()
 
     def _get_connection(self) -> sqlite3.Connection:
         """Get a database connection."""
+        return self._persistent_conn
+    
+    def close(self) -> None:
+        """Close the database connection."""
         if self._persistent_conn is not None:
-            return self._persistent_conn
-        conn = sqlite3.connect(self._db_path, check_same_thread=False)
-        conn.row_factory = sqlite3.Row
-        return conn
+            self._persistent_conn.close()
+            self._persistent_conn = None
 
     def _execute(self, query: str, params: tuple = ()) -> sqlite3.Cursor:
         """Execute a query and return cursor."""

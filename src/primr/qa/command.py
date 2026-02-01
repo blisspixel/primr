@@ -31,7 +31,7 @@ class QACommand:
         try:
             from primr.utils.console import console
             verbose_mode = hasattr(console, 'verbose') and console.verbose
-        except:
+        except Exception:
             verbose_mode = False
             
         self.qa_integration = QAIntegration(QAOptions(
