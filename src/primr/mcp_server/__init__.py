@@ -1,0 +1,68 @@
+"""
+Primr MCP Server Module.
+
+This module provides Model Context Protocol (MCP) server capabilities for Primr,
+enabling AI agents to drive company research programmatically.
+
+Key components:
+- server: MCPServer instance and configuration
+- types: MCP-specific type definitions
+- tools: Tool handler implementations
+- resources: Resource handler implementations
+- prompts: Prompt template definitions
+- security: Security middleware (path validation, rate limiting)
+- auth: HTTP authentication (token verification)
+- job_store: Job state management with persistence
+- logging_config: Stderr logging configuration for stdio mode
+"""
+
+from primr.mcp_server.server import PrimrMCPServer, create_mcp_server
+from primr.mcp_server.types import (
+    ResearchMode,
+    CloudVendor,
+    StrategyType,
+    JobStatus,
+    ResearchStage,
+    ResearchStatus,
+    JobAcceptedResult,
+    EstimateResult,
+    DoctorResult,
+    LatestOutput,
+    ArtifactInfo,
+    ArtifactsResponse,
+    ConfigState,
+    ToolResult,
+    JobInfo,
+    QAResult,
+    MCPErrorCode,
+)
+from primr.mcp_server.auth import (
+    AuthConfig,
+    AuthContext,
+    PrimrTokenVerifier,
+)
+
+__all__ = [
+    "PrimrMCPServer",
+    "create_mcp_server",
+    "ResearchMode",
+    "CloudVendor",
+    "StrategyType",
+    "JobStatus",
+    "ResearchStage",
+    "ResearchStatus",
+    "JobAcceptedResult",
+    "EstimateResult",
+    "DoctorResult",
+    "LatestOutput",
+    "ArtifactInfo",
+    "ArtifactsResponse",
+    "ConfigState",
+    "ToolResult",
+    "JobInfo",
+    "QAResult",
+    "MCPErrorCode",
+    "AuthConfig",
+    "AuthContext",
+    "PrimrTokenVerifier",
+]

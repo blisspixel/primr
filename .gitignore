@@ -222,3 +222,4 @@ archive/
 /docs/research
 /docs/documentation
 .bandit
+/.kiro
