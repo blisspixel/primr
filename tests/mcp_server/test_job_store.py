@@ -7,7 +7,7 @@ Task 2: JobStore and concurrency model
 
 import json
 import tempfile
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -20,6 +20,11 @@ from primr.mcp_server.job_store import (
 from primr.mcp_server.types import JobStatus, ResearchStage
 
 
+def _utcnow() -> datetime:
+    """Get current UTC time as timezone-aware datetime."""
+    return datetime.now(timezone.utc)
+
+
 class TestResearchJobState:
     """Tests for ResearchJobState dataclass."""
     
@@ -29,7 +34,7 @@ class TestResearchJobState:
             job_id="test-123",
             company_name="Acme Corp",
             mode="full",
-            start_time=datetime.now(),
+            start_time=_utcnow(),
         )
         
         assert job.job_id == "test-123"
@@ -44,7 +49,7 @@ class TestResearchJobState:
             job_id="test-123",
             company_name="Acme Corp",
             mode="full",
-            start_time=datetime.now(),
+            start_time=_utcnow(),
         )
         
         old_time = job.last_heartbeat_time
@@ -59,7 +64,7 @@ class TestResearchJobState:
             job_id="test-123",
             company_name="Acme Corp",
             mode="full",
-            start_time=datetime.now(),
+            start_time=_utcnow(),
         )
         
         job.heartbeat(progress=50)
@@ -72,7 +77,7 @@ class TestResearchJobState:
             job_id="test-123",
             company_name="Acme Corp",
             mode="full",
-            start_time=datetime.now(),
+            start_time=_utcnow(),
         )
         
         job.heartbeat(progress=150)
@@ -91,7 +96,7 @@ class TestStageProgression:
             job_id="test-123",
             company_name="Acme Corp",
             mode="full",
-            start_time=datetime.now(),
+            start_time=_utcnow(),
         )
         
         assert job.advance_stage(ResearchStage.ACCEPTED)
@@ -106,7 +111,7 @@ class TestStageProgression:
             job_id="test-123",
             company_name="Acme Corp",
             mode="full",
-            start_time=datetime.now(),
+            start_time=_utcnow(),
             current_stage=ResearchStage.SCRAPING,
         )
         
@@ -120,7 +125,7 @@ class TestStageProgression:
             job_id="test-123",
             company_name="Acme Corp",
             mode="full",
-            start_time=datetime.now(),
+            start_time=_utcnow(),
             current_stage=ResearchStage.SCRAPING,
         )
         
@@ -134,7 +139,7 @@ class TestStageProgression:
             job_id="test-123",
             company_name="Acme Corp",
             mode="full",
-            start_time=datetime.now(),
+            start_time=_utcnow(),
             current_stage=ResearchStage.DEEP_RESEARCH,
         )
         
@@ -148,7 +153,7 @@ class TestStageProgression:
             job_id="test-123",
             company_name="Acme Corp",
             mode="full",
-            start_time=datetime.now(),
+            start_time=_utcnow(),
         )
         
         job.advance_stage(ResearchStage.COMPLETED)
@@ -166,7 +171,7 @@ class TestStageProgression:
             job_id="test-123",
             company_name="Acme Corp",
             mode="full",
-            start_time=datetime.now(),
+            start_time=_utcnow(),
             stage_progress_percent=75,
         )
         
@@ -184,7 +189,7 @@ class TestStatusStageConsistency:
             job_id="test-123",
             company_name="Acme Corp",
             mode="full",
-            start_time=datetime.now(),
+            start_time=_utcnow(),
             current_stage=ResearchStage.IDLE,
         )
         
@@ -204,7 +209,7 @@ class TestStatusStageConsistency:
                 job_id="test-123",
                 company_name="Acme Corp",
                 mode="full",
-                start_time=datetime.now(),
+                start_time=_utcnow(),
                 current_stage=stage,
             )
             
@@ -216,7 +221,7 @@ class TestStatusStageConsistency:
             job_id="test-123",
             company_name="Acme Corp",
             mode="full",
-            start_time=datetime.now(),
+            start_time=_utcnow(),
             current_stage=ResearchStage.COMPLETED,
         )
         
@@ -228,7 +233,7 @@ class TestStatusStageConsistency:
             job_id="test-123",
             company_name="Acme Corp",
             mode="full",
-            start_time=datetime.now(),
+            start_time=_utcnow(),
             current_stage=ResearchStage.FAILED,
         )
         
@@ -240,7 +245,7 @@ class TestStatusStageConsistency:
             job_id="test-123",
             company_name="Acme Corp",
             mode="full",
-            start_time=datetime.now(),
+            start_time=_utcnow(),
             current_stage=ResearchStage.CANCELLED,
         )
         
@@ -256,8 +261,8 @@ class TestStuckDetection:
             job_id="test-123",
             company_name="Acme Corp",
             mode="full",
-            start_time=datetime.now(),
-            last_heartbeat_time=datetime.now(),
+            start_time=_utcnow(),
+            last_heartbeat_time=_utcnow(),
         )
         
         assert not job.is_possibly_stuck()
@@ -268,8 +273,8 @@ class TestStuckDetection:
             job_id="test-123",
             company_name="Acme Corp",
             mode="full",
-            start_time=datetime.now(),
-            last_heartbeat_time=datetime.now() - timedelta(seconds=150),
+            start_time=_utcnow(),
+            last_heartbeat_time=_utcnow() - timedelta(seconds=150),
         )
         
         assert job.is_possibly_stuck(threshold_seconds=120)
@@ -280,7 +285,7 @@ class TestStuckDetection:
             job_id="test-123",
             company_name="Acme Corp",
             mode="full",
-            start_time=datetime.now(),
+            start_time=_utcnow(),
             last_heartbeat_time=None,
         )
         

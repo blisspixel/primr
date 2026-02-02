@@ -54,6 +54,112 @@ python setup_env.py
 primr "Acme Corp" https://acme.example
 ```
 
+## MCP Server (AI Agent Integration)
+
+Primr includes a Model Context Protocol (MCP) server that enables AI agents like Claude Desktop to drive company research programmatically.
+
+### Quick Start
+
+```bash
+# Run with stdio transport (for Claude Desktop)
+primr-mcp --stdio
+
+# Run with HTTP transport
+primr-mcp --http --port 8000
+```
+
+### Claude Desktop Integration
+
+Add to your `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "primr": {
+      "command": "primr-mcp",
+      "args": ["--stdio"]
+    }
+  }
+}
+```
+
+### Available Tools
+
+| Tool | Description |
+|------|-------------|
+| `estimate_run` | Get cost/time estimates before running research |
+| `research_company` | Start async research job (returns job_id immediately) |
+| `generate_strategy` | Generate strategy documents from existing reports |
+| `check_jobs` | Check status of research jobs |
+| `run_qa` | Run quality assessment on reports |
+| `doctor` | Check system health |
+| `cancel_job` | Cancel an active research job |
+| `clear_jobs` | Clear stale jobs |
+
+### Resources
+
+| Resource | Description |
+|----------|-------------|
+| `primr://research/status` | Current job status with progress |
+| `primr://output/latest` | Most recent research output |
+| `primr://output/artifacts` | Pipeline stage artifacts |
+| `primr://config` | Current configuration (no secrets) |
+| `primr://strategies/available` | Available strategy types with metadata |
+| `primr://output/by_job/{job_id}` | Job-scoped artifact retrieval |
+| `primr://output/manifest/latest` | Run manifest for audit trail |
+
+### Features
+
+- Async job model with background execution
+- JWT authentication for HTTP mode
+- Per-tool rate limiting
+- Graceful shutdown with job recovery
+- Journal persistence for crash recovery
+
+See [docs/API.md](docs/API.md) for full MCP server documentation.
+
+## Open Claw Integration
+
+Primr integrates with [Open Claw](https://openclaw.dev), a local-first agentic AI runtime, enabling autonomous research workflows with approval gates for cost-incurring operations.
+
+### Features
+
+- **Skills**: Pre-built skills for research, strategy generation, and QA
+- **Workflows**: Lobster workflow for orchestrated research with approval gates
+- **Adapters**: TypeScript adapters for status monitoring
+- **Sandbox**: Docker container for secure execution
+
+### Quick Start
+
+```bash
+# Copy configuration to Open Claw
+cp -r openclaw/* ~/.openclaw/
+
+# Verify installation
+primr doctor
+```
+
+### Example Workflow
+
+```
+User: "Research Acme Corp at https://acme.com"
+
+Agent: Getting estimate...
+       Mode: full
+       Estimated cost: $0.75
+       Estimated time: 30 minutes
+       
+       Reply "approve ABC123" to proceed.
+
+User: "approve ABC123"
+
+Agent: Research started. Monitoring progress...
+       [30 minutes later]
+       Research complete! Report saved to output/acme_corp/report.md
+```
+
+See [docs/OPENCLAW.md](docs/OPENCLAW.md) for full integration guide.
+
 ## Usage
 
 ```

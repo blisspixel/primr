@@ -27,24 +27,24 @@ HEARTBEAT_INTERVAL = 30
 class PipelineRunner:
     """
     Runs research pipelines in the background.
-    
+
     Wires MCP job state to actual Primr core modules:
     - research_orchestrator for research execution
     - ai_strategy for strategy generation
     - qa.analyzer for quality assessment
-    
+
     Provides heartbeat updates during long-running operations.
     """
-    
+
     def __init__(self, mcp_server: "PrimrMCPServer"):
         """
         Initialize the pipeline runner.
-        
+
         Args:
             mcp_server: The MCP server instance for job store access
         """
         self.mcp_server = mcp_server
-        self._running_task: Optional[asyncio.Task] = None
+        self._running_task: asyncio.Task | None = None
         self._cancel_requested = False
 
     async def run_research(
@@ -52,15 +52,15 @@ class PipelineRunner:
         job: ResearchJobState,
         company_url: str,
         mode: str,
-        cloud_vendor: Optional[str] = None,
+        cloud_vendor: str | None = None,
         skip_qa: bool = False,
     ) -> None:
         """
         Run the research pipeline for a job.
-        
+
         This is the main entry point for background research execution.
         Updates job state as the pipeline progresses.
-        
+
         Args:
             job: The job state to update
             company_url: Company website URL
@@ -69,18 +69,18 @@ class PipelineRunner:
             skip_qa: Whether to skip QA
         """
         self._cancel_requested = False
-        
+
         try:
             # Map MCP mode to orchestrator mode
             from primr.core.research_orchestrator import ResearchMode, ResearchOrchestrator
-            
+
             mode_map = {
                 "scrape": ResearchMode.STRUCTURED,
                 "deep": ResearchMode.DEEP_RESEARCH,
                 "full": ResearchMode.COMPLETE,
             }
             research_mode = mode_map.get(mode, ResearchMode.COMPLETE)
-            
+
             # Create progress callback that updates job state
             def on_progress(message: str) -> None:
                 if self._cancel_requested:
@@ -88,21 +88,21 @@ class PipelineRunner:
                 job.heartbeat()
                 self.mcp_server.job_store.update(job)
                 logger.debug(f"Progress: {message}")
-            
+
             # Stage 1: Scraping (for scrape and full modes)
             if mode in ("scrape", "full"):
                 job.advance_stage(ResearchStage.SCRAPING)
                 self.mcp_server.job_store.update(job)
                 on_progress("Starting website scraping...")
-            
+
             # Run the research orchestrator
             orchestrator = ResearchOrchestrator()
-            
+
             # Start heartbeat task
             heartbeat_task = asyncio.create_task(
                 self._heartbeat_loop(job, HEARTBEAT_INTERVAL)
             )
-            
+
             try:
                 result = await orchestrator.research(
                     company_name=job.company_name,
@@ -116,45 +116,49 @@ class PipelineRunner:
                     await heartbeat_task
                 except asyncio.CancelledError:
                     pass
-            
+
             if not result.success:
                 job.advance_stage(ResearchStage.FAILED)
                 job.error_type = "research_failed"
                 job.error_message = result.error or "Research failed"
                 self.mcp_server.job_store.update(job)
                 return
-            
+
             # Stage: Writing
             job.advance_stage(ResearchStage.WRITING)
             self.mcp_server.job_store.update(job)
             on_progress("Writing report...")
-            
+
             # Save the report
             output_path = await self._save_report(job.company_name, result)
             job.output_paths = [output_path]
-            
+
             # Stage: QA (unless skipped)
             if not skip_qa:
                 job.advance_stage(ResearchStage.QA)
                 self.mcp_server.job_store.update(job)
                 on_progress("Running quality assessment...")
-                
+
                 qa_result = await self._run_qa(output_path)
                 if qa_result:
                     job.qa_score = qa_result.get("overall_score")
-            
+
             # Complete
             job.advance_stage(ResearchStage.COMPLETED)
             self.mcp_server.job_store.update(job)
-            logger.info(f"Research job {job.job_id} completed successfully")
             
+            # Generate run manifest for audit trail (FR-7.1)
+            await self._generate_run_manifest(job, company_url, mode)
+            
+            logger.info(f"Research job {job.job_id} completed successfully")
+
         except asyncio.CancelledError:
             job.advance_stage(ResearchStage.CANCELLED)
             job.error_type = "user_cancelled"
             job.error_message = "Job was cancelled"
             self.mcp_server.job_store.update(job)
             logger.info(f"Research job {job.job_id} was cancelled")
-            
+
         except Exception as e:
             logger.error(f"Research job {job.job_id} failed: {e}")
             job.advance_stage(ResearchStage.FAILED)
@@ -169,7 +173,7 @@ class PipelineRunner:
     ) -> None:
         """
         Send periodic heartbeats during long operations.
-        
+
         Requirements: 2.12, 19.1-19.3
         """
         while True:
@@ -177,7 +181,7 @@ class PipelineRunner:
             job.heartbeat()
             self.mcp_server.job_store.update(job)
             logger.debug(f"Heartbeat for job {job.job_id}")
-    
+
     async def _save_report(
         self,
         company_name: str,
@@ -185,56 +189,56 @@ class PipelineRunner:
     ) -> str:
         """
         Save the research result to a file.
-        
+
         Returns the output path.
         """
         import os
         from datetime import datetime
-        
+
         from primr.config.config import OUTPUT_DIR
-        
+
         # Create output directory if needed
         os.makedirs(OUTPUT_DIR, exist_ok=True)
-        
+
         # Generate filename
         safe_name = company_name.replace(" ", "_").replace("/", "_")
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"{safe_name}_{timestamp}.md"
         output_path = os.path.join(OUTPUT_DIR, filename)
-        
+
         # Write content
         content = result.raw_content or "\n\n".join(
             f"## {k}\n\n{v}" for k, v in result.section_results.items()
         )
-        
+
         with open(output_path, "w", encoding="utf-8") as f:
             f.write(content)
-        
+
         logger.info(f"Report saved to {output_path}")
         return output_path
-    
-    async def _run_qa(self, report_path: str) -> Optional[dict]:
+
+    async def _run_qa(self, report_path: str) -> dict | None:
         """
         Run QA analysis on a report.
-        
+
         Returns QA results dict or None on failure.
         """
         try:
             from primr.qa.analyzer import QAAnalyzer
             from primr.qa.report_loader import ReportLoader
-            
+
             # Load report
             loader = ReportLoader()
             report = loader.load(report_path)
-            
+
             if not report:
                 logger.warning(f"Could not load report for QA: {report_path}")
                 return None
-            
+
             # Run analysis
             analyzer = QAAnalyzer()
             analysis = analyzer.analyze_report(report)
-            
+
             return {
                 "overall_score": analysis.overall_score,
                 "category_scores": {
@@ -245,11 +249,78 @@ class PipelineRunner:
                 },
                 "issues_count": len(analysis.issues),
             }
-            
+
         except Exception as e:
             logger.warning(f"QA analysis failed: {e}")
             return None
-    
+
+    async def _generate_run_manifest(
+        self,
+        job: ResearchJobState,
+        company_url: str,
+        mode: str,
+    ) -> None:
+        """
+        Generate run_manifest.json for audit trail.
+
+        Requirements: FR-7.1, FR-7.2
+        """
+        import json
+        import os
+        from pathlib import Path
+
+        from primr.config.config import OUTPUT_DIR
+
+        # Determine output directory for this job
+        if job.output_paths:
+            output_dir = Path(job.output_paths[0]).parent
+        else:
+            safe_name = job.company_name.replace(" ", "_").replace("/", "_").lower()
+            output_dir = Path(OUTPUT_DIR) / safe_name
+
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        # Calculate actual execution time
+        actual_time_minutes = None
+        if job.start_time and job.completion_time:
+            delta = job.completion_time - job.start_time
+            actual_time_minutes = int(delta.total_seconds() / 60)
+
+        # Build manifest per FR-7.2 schema
+        manifest = {
+            "schema_version": "1.0",
+            "job_id": job.job_id,
+            "company_name": job.company_name,
+            "company_url": company_url,
+            "mode": mode,
+            "estimate": {
+                "cost_usd": None,  # Would need to track from estimate_run
+                "time_minutes": None,
+                "estimated_at": None,
+            },
+            "approval": {
+                "token": None,  # Would need to track from workflow
+                "approved_at": None,
+                "approved_by": job.owner_client_id or "stdio",
+                "bound_to_estimate": False,
+            },
+            "execution": {
+                "started_at": job.start_time.isoformat() if job.start_time else None,
+                "completed_at": job.completion_time.isoformat() if job.completion_time else None,
+                "status": job.get_status().value,
+                "actual_cost_usd": None,  # Would need usage tracking
+                "actual_time_minutes": actual_time_minutes,
+            },
+            "artifacts": job.output_paths or [],
+        }
+
+        # Write manifest
+        manifest_path = output_dir / "run_manifest.json"
+        with open(manifest_path, "w", encoding="utf-8") as f:
+            json.dump(manifest, f, indent=2)
+
+        logger.info(f"Run manifest saved to {manifest_path}")
+
     def request_cancel(self) -> None:
         """Request cancellation of the running job."""
         self._cancel_requested = True
@@ -260,40 +331,40 @@ class PipelineRunner:
 async def run_strategy_generation(
     report_path: str,
     strategy_type: str,
-    cloud_vendor: Optional[str] = None,
-    on_progress: Optional[Callable[[str], None]] = None,
+    cloud_vendor: str | None = None,
+    on_progress: Callable[[str], None] | None = None,
 ) -> dict:
     """
     Run strategy generation on an existing report.
-    
+
     Args:
         report_path: Path to the research report
         strategy_type: Type of strategy to generate
         cloud_vendor: Optional cloud vendor preference
         on_progress: Optional progress callback
-    
+
     Returns:
         Dict with output_path, strategy_type, and qa_score
     """
     from primr.core.ai_strategy import CloudVendor, generate_ai_strategy
-    
+
     # Extract company name from report
     import os
     company_name = os.path.basename(report_path).split("_")[0].replace("_", " ")
-    
+
     # Map strategy type
     vendor = CloudVendor.from_string(cloud_vendor) if cloud_vendor else CloudVendor.AGNOSTIC
-    
+
     result = await generate_ai_strategy(
         company_name=company_name,
         cloud_vendor=vendor,
         company_research_path=report_path,
         on_progress=on_progress,
     )
-    
+
     if result.error:
         raise RuntimeError(result.error)
-    
+
     return {
         "output_path": result.md_path or result.docx_path or result.txt_path,
         "strategy_type": strategy_type,
@@ -304,27 +375,27 @@ async def run_strategy_generation(
 async def run_qa_analysis(report_path: str) -> dict:
     """
     Run QA analysis on a report.
-    
+
     Args:
         report_path: Path to the report file
-    
+
     Returns:
         Dict with QA results
     """
     from primr.qa.analyzer import QAAnalyzer
     from primr.qa.report_loader import ReportLoader
-    
+
     # Load report
     loader = ReportLoader()
     report = loader.load(report_path)
-    
+
     if not report:
         raise RuntimeError(f"Could not load report: {report_path}")
-    
+
     # Run analysis
     analyzer = QAAnalyzer()
     analysis = analyzer.analyze_report(report)
-    
+
     return {
         "overall_score": analysis.overall_score,
         "category_scores": {
@@ -342,31 +413,31 @@ async def run_qa_analysis(report_path: str) -> dict:
 def get_doctor_status() -> dict:
     """
     Get system health status.
-    
+
     Returns:
         Dict with health status information
     """
     import os
-    
+
     from primr.config.config import OUTPUT_DIR
-    
+
     warnings = []
-    
+
     # Check API keys
     api_keys_configured = bool(
-        os.environ.get("GOOGLE_API_KEY") or 
+        os.environ.get("GOOGLE_API_KEY") or
         os.environ.get("GEMINI_API_KEY")
     )
     if not api_keys_configured:
         warnings.append("No API key configured (GOOGLE_API_KEY or GEMINI_API_KEY)")
-    
+
     # Check output directory
     if not os.path.exists(OUTPUT_DIR):
         warnings.append(f"Output directory does not exist: {OUTPUT_DIR}")
-    
+
     # Check for orphaned stores (placeholder - would check Gemini file stores)
     orphaned_stores_count = 0
-    
+
     # Check config validity
     config_valid = True
     try:
@@ -378,7 +449,7 @@ def get_doctor_status() -> dict:
     except Exception as e:
         config_valid = False
         warnings.append(f"Configuration error: {e}")
-    
+
     return {
         "orphaned_stores_count": orphaned_stores_count,
         "config_valid": config_valid,

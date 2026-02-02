@@ -14,7 +14,7 @@ from mcp.types import Prompt, PromptArgument, PromptMessage, TextContent
 
 def register_prompts(server: Server) -> None:
     """Register all Primr prompt templates with the MCP server."""
-    
+
     @server.list_prompts()
     async def list_prompts() -> list[Prompt]:
         """List available prompts."""
@@ -42,7 +42,7 @@ def register_prompts(server: Server) -> None:
                 ],
             ),
         ]
-    
+
     @server.get_prompt()
     async def get_prompt(name: str, arguments: dict | None = None) -> list[PromptMessage]:
         """Get a prompt by name."""
@@ -50,18 +50,18 @@ def register_prompts(server: Server) -> None:
             return _get_research_workflow_prompt(arguments or {})
         elif name == "strategy_selection":
             return _get_strategy_selection_prompt(arguments or {})
-        
+
         raise ValueError(f"Unknown prompt: {name}")
 
 
 def _get_research_workflow_prompt(arguments: dict) -> list[PromptMessage]:
     """
     Get research workflow prompt.
-    
+
     Requirements: 9.1-9.5
     """
     company_name = arguments.get("company_name", "the target company")
-    
+
     content = f"""# Company Research Workflow
 
 ## Step 1: Gather Requirements
@@ -113,7 +113,7 @@ If strategy documents are needed:
 - **job_in_progress**: Wait for completion or call `cancel_job`
 - **rate_limit_exceeded**: Wait for `retry_after_seconds` then retry
 """
-    
+
     return [
         PromptMessage(
             role="user",
@@ -125,12 +125,12 @@ If strategy documents are needed:
 def _get_strategy_selection_prompt(arguments: dict) -> list[PromptMessage]:
     """
     Get strategy selection prompt.
-    
+
     Requirements: 10.1-10.4
     """
     context = arguments.get("context", "")
     context_note = f"\n\nContext provided: {context}" if context else ""
-    
+
     content = f"""# Strategy Document Selection Guide{context_note}
 
 ## Available Strategy Types
@@ -182,7 +182,7 @@ generate_strategy(
 - AI strategy requires cloud_vendor; others don't
 - Check QA score after generation to ensure quality
 """
-    
+
     return [
         PromptMessage(
             role="user",

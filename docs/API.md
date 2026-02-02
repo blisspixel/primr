@@ -994,3 +994,478 @@ reset_client()
 reset_cache()
 reset_settings()
 ```
+
+## MCP Server
+
+Primr includes a Model Context Protocol (MCP) server that enables AI agents to drive company research programmatically. The MCP server exposes Primr's functionality through a standardized protocol that AI assistants like Claude Desktop can use.
+
+### Quick Start
+
+```bash
+# Run with stdio transport (for Claude Desktop)
+primr-mcp --stdio
+
+# Run with HTTP transport
+primr-mcp --http --port 8000
+
+# Development mode (no auth)
+primr-mcp --http --port 8000 --no-auth --allow-plaintext
+```
+
+### Claude Desktop Integration
+
+Add to your `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "primr": {
+      "command": "primr-mcp",
+      "args": ["--stdio"]
+    }
+  }
+}
+```
+
+### Programmatic Usage
+
+```python
+import asyncio
+from primr.mcp_server import create_mcp_server
+
+async def main():
+    # Create server with stdio transport
+    server = create_mcp_server(transport="stdio")
+    await server.run()
+
+    # Or with HTTP transport
+    server = create_mcp_server(
+        transport="streamable-http",
+        port=8000,
+        host="127.0.0.1",
+        require_auth=True,
+    )
+    await server.run()
+
+asyncio.run(main())
+```
+
+### Tools
+
+The MCP server exposes 8 tools for research operations:
+
+#### estimate_run
+
+Get cost and time estimates before running research.
+
+```json
+{
+  "name": "estimate_run",
+  "arguments": {
+    "company_url": "https://tesla.com",
+    "mode": "full"
+  }
+}
+```
+
+Response:
+```json
+{
+  "estimated_cost_usd": 0.75,
+  "estimated_time_minutes": 30,
+  "planned_pages": 20,
+  "mode": "full"
+}
+```
+
+#### research_company
+
+Initiate company research (async - returns job_id immediately).
+
+```json
+{
+  "name": "research_company",
+  "arguments": {
+    "company_name": "Tesla",
+    "company_url": "https://tesla.com",
+    "mode": "full",
+    "cloud_vendor": "azure",
+    "skip_qa": false
+  }
+}
+```
+
+Response:
+```json
+{
+  "job_id": "job_abc123",
+  "accepted": true,
+  "status_uri": "primr://research/status"
+}
+```
+
+#### generate_strategy
+
+Generate strategy document from existing report.
+
+```json
+{
+  "name": "generate_strategy",
+  "arguments": {
+    "report_path": "output/Tesla_Strategic_Overview.md",
+    "strategy_type": "customer_experience",
+    "cloud_vendor": "azure"
+  }
+}
+```
+
+Strategy types: `ai_strategy`, `customer_experience`, `modern_security_compliance`, `data_fabric_strategy`
+
+#### check_jobs
+
+Check status of research jobs.
+
+```json
+{
+  "name": "check_jobs",
+  "arguments": {
+    "job_id": "job_abc123"
+  }
+}
+```
+
+Response:
+```json
+{
+  "jobs": [
+    {
+      "job_id": "job_abc123",
+      "status": "in_progress",
+      "company_name": "Tesla",
+      "output_path": null
+    }
+  ]
+}
+```
+
+#### run_qa
+
+Run quality assessment on a report.
+
+```json
+{
+  "name": "run_qa",
+  "arguments": {
+    "report_path": "output/Tesla_Strategic_Overview.md"
+  }
+}
+```
+
+#### doctor
+
+Check system health and configuration.
+
+```json
+{
+  "name": "doctor",
+  "arguments": {}
+}
+```
+
+#### clear_jobs
+
+Clear stale pending jobs.
+
+```json
+{
+  "name": "clear_jobs",
+  "arguments": {
+    "older_than_hours": 24
+  }
+}
+```
+
+#### cancel_job
+
+Cancel an active research job.
+
+```json
+{
+  "name": "cancel_job",
+  "arguments": {
+    "job_id": "job_abc123"
+  }
+}
+```
+
+### Resources
+
+The MCP server exposes 4 read-only resources:
+
+#### primr://research/status
+
+Current research job status with progress information.
+
+```json
+{
+  "status": "in_progress",
+  "job_id": "job_abc123",
+  "company_name": "Tesla",
+  "mode": "full",
+  "current_stage": "deep_research",
+  "stage_progress_percent": 45,
+  "stage_expected_minutes": 15,
+  "possibly_stuck": false
+}
+```
+
+#### primr://output/latest
+
+Most recent research output. Add `?full_content=true` for complete content.
+
+```json
+{
+  "report_path": "output/Tesla_Strategic_Overview.md",
+  "company_name": "Tesla",
+  "generation_timestamp": "2026-02-02T10:30:00",
+  "report_type": "markdown",
+  "content_preview": "# Tesla Strategic Overview..."
+}
+```
+
+#### primr://output/artifacts
+
+Pipeline stage artifacts (scraped_content, insights, dossier, reports).
+
+```json
+{
+  "job_id": "job_abc123",
+  "job_status": "completed",
+  "artifacts": [
+    {
+      "artifact_type": "scraped_content",
+      "file_path": "output/tesla/scraped_content.txt",
+      "size_bytes": 125000,
+      "preview": "Tesla, Inc. designs...",
+      "content_hash": "sha256:abc123..."
+    }
+  ]
+}
+```
+
+#### primr://config
+
+Current configuration (no secrets exposed).
+
+```json
+{
+  "available_modes": ["scrape", "deep", "full"],
+  "available_strategies": {
+    "ai_strategy": "AI/ML transformation roadmap",
+    "customer_experience": "CX improvement plan",
+    "modern_security_compliance": "Security posture assessment",
+    "data_fabric_strategy": "Data platform modernization"
+  },
+  "configured_vendors": ["azure", "aws", "gcp"]
+}
+```
+
+#### primr://strategies/available
+
+List of available strategy types with metadata for Open Claw integration.
+
+```json
+{
+  "schema_version": "1.0",
+  "strategies": [
+    {
+      "id": "ai_strategy",
+      "name": "AI Strategy",
+      "description": "AI/ML transformation roadmap with quick wins and bigger bets",
+      "requires_cloud_vendor": true,
+      "estimated_time_minutes": 15,
+      "estimated_cost_usd": 0.30
+    },
+    {
+      "id": "customer_experience",
+      "name": "Customer Experience Strategy",
+      "description": "CX transformation and digital experience improvement plan",
+      "requires_cloud_vendor": false,
+      "estimated_time_minutes": 12,
+      "estimated_cost_usd": 0.25
+    },
+    {
+      "id": "modern_security_compliance",
+      "name": "Security & Compliance Strategy",
+      "description": "Zero Trust architecture and compliance posture assessment",
+      "requires_cloud_vendor": false,
+      "estimated_time_minutes": 12,
+      "estimated_cost_usd": 0.25
+    },
+    {
+      "id": "data_fabric_strategy",
+      "name": "Data Fabric Strategy",
+      "description": "Modern data platform for agentic AI and semantic layers",
+      "requires_cloud_vendor": false,
+      "estimated_time_minutes": 12,
+      "estimated_cost_usd": 0.25
+    }
+  ]
+}
+```
+
+#### primr://output/by_job/{job_id}
+
+Job-scoped artifact retrieval for provenance tracking. Ensures the returned report corresponds to a specific approved job.
+
+```json
+{
+  "job_id": "abc123",
+  "report_path": "output/acme_corp/report.md",
+  "company_name": "Acme Corp",
+  "generation_timestamp": "2026-02-15T10:31:00Z",
+  "report_type": "markdown",
+  "content_preview": "# Acme Corp Strategic Overview...",
+  "manifest_path": "output/acme_corp/run_manifest.json"
+}
+```
+
+#### primr://output/manifest/latest
+
+Run manifest for the most recent completed job. Provides audit trail for compliance and debugging.
+
+```json
+{
+  "schema_version": "1.0",
+  "job_id": "abc123",
+  "company_name": "Acme Corp",
+  "company_url": "https://acme.example",
+  "mode": "full",
+  "estimate": {
+    "cost_usd": 0.75,
+    "time_minutes": 30,
+    "estimated_at": "2026-02-15T10:00:00Z"
+  },
+  "approval": {
+    "token": "ABC123",
+    "approved_at": "2026-02-15T10:01:00Z",
+    "approved_by": "stdio",
+    "bound_to_estimate": true
+  },
+  "execution": {
+    "started_at": "2026-02-15T10:01:05Z",
+    "completed_at": "2026-02-15T10:31:00Z",
+    "status": "completed",
+    "actual_cost_usd": 0.72,
+    "actual_time_minutes": 30
+  },
+  "artifacts": [
+    "output/acme_corp/report.md",
+    "output/acme_corp/scraped_content.txt",
+    "output/acme_corp/insights.txt"
+  ]
+}
+```
+
+### Prompt Templates
+
+Two prompt templates are available for guided workflows:
+
+#### research_workflow
+
+Guides through the complete research process.
+
+#### strategy_selection
+
+Helps select appropriate strategy types based on company context.
+
+### Security
+
+The MCP server includes comprehensive security features:
+
+#### Path Validation
+
+All file paths are validated to prevent path traversal attacks:
+- Paths must be relative to workspace root
+- Symlinks are resolved and checked
+- `..` sequences are blocked
+
+#### URL Validation
+
+URLs are validated to prevent SSRF attacks:
+- Only HTTP/HTTPS schemes allowed
+- Private/internal IPs blocked (10.x, 172.16-31.x, 192.168.x, 127.x)
+- DNS rebinding protection
+
+#### Rate Limiting
+
+Per-tool rate limits prevent abuse:
+- `estimate_run`: 30 requests/minute
+- `research_company`: 2 requests/minute
+- Other tools: 10 requests/minute
+
+#### Authentication (HTTP mode)
+
+JWT authentication for HTTP transport:
+- Tokens verified via JWKS endpoint or shared secret
+- Admin policy: `role=admin` claim or `MCP_ADMIN_TOKENS` env var
+- Client ID extracted for rate limiting and job ownership
+
+```python
+# Configure auth via environment
+MCP_JWT_SECRET=your-secret-key
+MCP_ADMIN_TOKENS=token1,token2
+```
+
+### Job Store
+
+The MCP server uses a single-job model with journal persistence:
+
+```python
+from primr.mcp_server.job_store import SingleJobStore
+
+store = SingleJobStore(journal_path="logs/mcp_journal.json")
+
+# Create a job
+job = store.create(company_name="Tesla", mode="full", owner_client_id="client1")
+
+# Update progress
+job.advance_stage(ResearchStage.DEEP_RESEARCH)
+job.heartbeat(progress=50)
+store.update(job)
+
+# Check for stuck jobs
+if job.is_possibly_stuck():
+    print("Job may be stuck - no heartbeat in 5+ minutes")
+
+# Get active job
+active = store.get_active()
+
+# Get latest completed job
+terminal = store.get_latest_terminal()
+```
+
+### Graceful Shutdown
+
+The server handles shutdown gracefully:
+1. Waits up to 5 seconds for current work to complete
+2. Force-cancels remaining tasks after timeout
+3. Marks in-progress jobs as failed with `error_type="server_shutdown"`
+4. Flushes journal to disk
+5. Total shutdown timeout: 10 seconds
+
+### Error Codes
+
+Standard error codes returned by tools:
+
+| Code | Description |
+|------|-------------|
+| `INVALID_URL` | URL format invalid |
+| `SSRF_BLOCKED` | URL blocked for security |
+| `URL_UNREACHABLE` | URL could not be reached |
+| `PATH_TRAVERSAL_BLOCKED` | Path traversal attempt blocked |
+| `REPORT_NOT_FOUND` | Report file not found |
+| `JOB_NOT_FOUND` | Job ID not found |
+| `JOB_IN_PROGRESS` | Another job already running |
+| `RATE_LIMIT_EXCEEDED` | Rate limit exceeded |
+| `CANCEL_NOT_AUTHORIZED` | Not authorized to cancel job |

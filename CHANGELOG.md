@@ -5,6 +5,39 @@ All notable changes to Primr will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.1] - 2026-02-02
+
+### Added
+- **Open Claw Integration** - Full integration with Open Claw agentic runtime
+  - 3 skills: primr-research, primr-strategy, primr-qa
+  - Lobster workflow for orchestrated research with approval gates
+  - TypeScript adapter for status monitoring
+  - Docker sandbox configuration (Dockerfile.primr)
+  - exec-approvals.json for cost-incurring operation gates
+- **New MCP Resources for Open Claw**:
+  - `primr://strategies/available` - List available strategy types with metadata (id, name, description, estimated cost/time)
+  - `primr://output/by_job/{job_id}` - Job-scoped artifact retrieval for provenance tracking
+  - `primr://output/manifest/latest` - Run manifest for audit trail
+- **Run Manifest Generation** - Each completed job generates a run_manifest.json with:
+  - Job metadata (id, company, mode)
+  - Estimate vs actual cost/time comparison
+  - Approval token and timestamp
+  - List of generated artifacts
+- **job_id in primr://output/latest** - Response now includes job_id for artifact provenance verification
+- **163 new tests** for Open Claw integration covering:
+  - Configuration validation (openclaw.json, exec-approvals.json)
+  - SKILL.md compliance with AgentSkills spec
+  - Workflow structure validation
+  - TypeScript adapter compilation
+  - Dockerfile security configuration
+  - New MCP resources (strategies, job-scoped output, manifest)
+  - Integration harness for workflow simulation
+
+### Documentation
+- Added docs/OPENCLAW.md - Complete Open Claw integration guide
+- Updated README.md with Open Claw section
+- Updated docs/API.md with new MCP resources
+
 ## [1.3.2] - 2026-01-30
 
 ### Added

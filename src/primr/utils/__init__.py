@@ -20,6 +20,11 @@ from primr.utils.errors import (
     retry_on_failure,
     safe_call,
 )
+from primr.utils.retry import (
+    RetryAttempt,
+    RetryPolicy,
+    RetryPolicyManager,
+)
 from primr.utils.files import (
     ensure_parent_exists,
     get_cache_key,
@@ -100,6 +105,10 @@ __all__ = [
     "calculate_backoff_delay",
     "error_context",
     "async_safe_callback",
+    # Retry Policy Manager
+    "RetryPolicy",
+    "RetryAttempt",
+    "RetryPolicyManager",
     # Logging
     "setup_logging",
     "get_logger",

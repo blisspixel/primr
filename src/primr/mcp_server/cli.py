@@ -39,7 +39,7 @@ Authentication (HTTP mode):
   Or use JWT tokens with 'sub' claim for client_id and 'role=admin' for admin access.
 """,
     )
-    
+
     # Transport options
     transport_group = parser.add_mutually_exclusive_group()
     transport_group.add_argument(
@@ -53,7 +53,7 @@ Authentication (HTTP mode):
         action="store_true",
         help="Use streamable HTTP transport",
     )
-    
+
     # HTTP options
     parser.add_argument(
         "--port",
@@ -77,7 +77,7 @@ Authentication (HTTP mode):
         action="store_true",
         help="Disable authentication (for local development only)",
     )
-    
+
     # Logging options
     parser.add_argument(
         "--log-level",
@@ -85,7 +85,7 @@ Authentication (HTTP mode):
         default="INFO",
         help="Logging level (default: INFO)",
     )
-    
+
     # Other options
     parser.add_argument(
         "--journal-path",
@@ -93,12 +93,12 @@ Authentication (HTTP mode):
         default=None,
         help="Path to job journal file (default: output/.mcp_job_journal.json)",
     )
-    
+
     args = parser.parse_args()
-    
+
     # Determine transport
     transport = "streamable-http" if args.http else "stdio"
-    
+
     # Create and run server
     server = create_mcp_server(
         transport=transport,
@@ -109,7 +109,7 @@ Authentication (HTTP mode):
         allow_plaintext=args.allow_plaintext,
         require_auth=not args.no_auth,
     )
-    
+
     try:
         asyncio.run(server.run())
     except KeyboardInterrupt:

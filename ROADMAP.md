@@ -1,5 +1,5 @@
 Primr – Roadmap
-Current State: v1.3.1 (January 2026)
+Current State: v1.4.0 (February 2026)
 
 Primr is a CLI-first, local research tool designed to support company intelligence researcharation, strategic analysis, and AI roadmap development. The tool aims to accelerate research workflows while maintaining transparency about uncertainty and supporting a subject-positive posture.
 
@@ -213,7 +213,121 @@ Goal: Make Primr boringly reliable.
 
 **Status:** COMPLETE
 
-v1.3.1 – QA-Driven Report Iteration (Near-Term)
+v1.4.0 – MCP Server for AI Agent Integration (Complete)
+
+Goal: Enable AI agents like Claude Desktop to drive Primr research programmatically.
+
+**Completed:**
+- Full Model Context Protocol (MCP) server implementation
+- Two transport modes: stdio (for Claude Desktop) and streamable HTTP
+- 8 tools: estimate_run, research_company, generate_strategy, check_jobs, run_qa, doctor, clear_jobs, cancel_job
+- 4 resources: primr://research/status, primr://output/latest, primr://output/artifacts, primr://config
+- 2 prompt templates: research_workflow, strategy_selection
+- SingleJobStore with journal persistence for crash recovery
+- Security middleware: PathValidator (path traversal protection), URLValidator (SSRF protection), RateLimiter (per-tool limits)
+- JWT authentication for HTTP mode with admin policy support
+- Graceful shutdown with 5s/10s timeouts, marks in-progress jobs as failed
+- Heartbeat monitoring for stuck job detection
+- 193 tests covering all functionality
+
+**Architecture:**
+```
+src/primr/mcp_server/
+├── __init__.py           # Public API
+├── server.py             # Main server, transport setup
+├── tools.py              # 8 tool handlers
+├── resources.py          # 4 resource handlers
+├── prompts.py            # 2 prompt templates
+├── job_store.py          # SingleJobStore with journal
+├── security.py           # PathValidator, URLValidator, RateLimiter
+├── auth.py               # JWT authentication
+├── pipeline_runner.py    # Wiring to Primr core modules
+├── cli.py                # primr-mcp command
+├── logging_config.py     # Transport-specific logging
+└── types.py              # Type definitions
+```
+
+**CLI Usage:**
+```bash
+# Run with stdio transport (for Claude Desktop)
+primr-mcp --stdio
+
+# Run with HTTP transport
+primr-mcp --http --port 8000
+
+# Development mode (no auth)
+primr-mcp --http --port 8000 --no-auth --allow-plaintext
+```
+
+**Claude Desktop Integration:**
+```json
+{
+  "mcpServers": {
+    "primr": {
+      "command": "primr-mcp",
+      "args": ["--stdio"]
+    }
+  }
+}
+```
+
+**Benefits Achieved:**
+- AI agents can autonomously research companies and generate strategies
+- Async job model prevents blocking during long research runs
+- Security-first design with path traversal, SSRF, and rate limit protection
+- Journal persistence enables crash recovery without data loss
+- Clean separation between MCP protocol and Primr core functionality
+
+v1.4.1 – Open Claw Integration (Complete)
+
+Goal: Enable Primr to run as a skill within Open Claw's agentic runtime with approval gates for cost-incurring operations.
+
+**Completed:**
+- Full Open Claw integration with skills, workflows, and adapters
+- 3 skills: primr-research, primr-strategy, primr-qa
+- Lobster workflow for orchestrated research with approval gates
+- TypeScript adapter for status monitoring
+- Docker sandbox configuration for secure execution
+- 3 new MCP resources for Open Claw integration:
+  - `primr://strategies/available` - List available strategy types with metadata
+  - `primr://output/by_job/{job_id}` - Job-scoped artifact retrieval
+  - `primr://output/manifest/latest` - Run manifest for audit trail
+- Run manifest generation for audit trail and provenance tracking
+- Comprehensive test suite (163 tests passing)
+
+**Architecture:**
+```
+openclaw/
+├── skills/
+│   ├── primr-research/
+│   │   ├── SKILL.md
+│   │   └── scripts/research-status.ts
+│   ├── primr-strategy/
+│   │   └── SKILL.md
+│   └── primr-qa/
+│       └── SKILL.md
+├── workflows/
+│   └── research-pipeline.yaml
+├── openclaw.json
+├── exec-approvals.json
+└── Dockerfile.primr
+```
+
+**Key Features:**
+- Approval gates prevent cost-incurring operations without explicit user consent
+- Token-bound approvals ensure estimates match execution
+- Run manifests provide complete audit trail for each research job
+- Skills expose Primr capabilities to Open Claw's Pi agent
+- Lobster workflow orchestrates multi-step research with polling
+
+**Benefits Achieved:**
+- Autonomous research workflows with human-in-the-loop approval
+- Cost transparency before execution
+- Audit trail for compliance and debugging
+- Secure sandboxed execution via Docker
+- Seamless integration with Open Claw's agentic runtime
+
+v1.5.0 – QA-Driven Report Iteration (Near-Term)
 
 Goal: Use QA feedback to iteratively improve weak sections until reports hit 90+.
 
@@ -326,7 +440,7 @@ primr --ai-strategy-only "report.md" --cloud-vendor azure
 - Strategies are company-specific, not generic templates
 
 
-v1.4.0 – Research State and Iteration (Planned)
+v1.5.0 – Research State and Iteration (Planned)
 
 Goal: Move from “generate once” to “think over time.”
 
@@ -368,7 +482,7 @@ confirmed
 
 This mirrors how consultants actually work after discovery conversations.
 
-v1.5.0 – Refinement and Learning Loop (Planned)
+v1.6.0 – Refinement and Learning Loop (Planned)
 
 Goal: Support post-discovery learning without re-running everything from scratch.
 
@@ -400,7 +514,7 @@ to proposal-grade thinking
 
 Still local. Still internal.
 
-v1.6.0 – POV and Narrative Evolution (Planned)
+v1.7.0 – POV and Narrative Evolution (Planned)
 
 Goal: Make Primr the system of record for how thinking evolves.
 
@@ -519,6 +633,11 @@ primr --clear-jobs    # Clear stale/old pending jobs
 primr doctor
 primr "Tesla" https://tesla.com --dry-run
 
+# MCP Server (AI agent integration)
+primr-mcp --stdio                              # For Claude Desktop
+primr-mcp --http --port 8000                   # HTTP transport
+primr-mcp --http --port 8000 --no-auth         # Development mode
+
 Version History
 Version	Date	Highlights
 0.1.0	Nov 2025	Core research pipeline
@@ -538,9 +657,12 @@ Version	Date	Highlights
 1.2.6	Jan 2026	Strategy document portfolio (4 strategies implemented and tested)
 1.3.0	Jan 2026	Python 3.11+ requirement, build configuration updates
 1.3.1	Jan 2026	File Search Store billing leak fix, resource management, fd leak fixes
-1.4.0	TBD	Research state and hypothesis tracking
-1.5.0	TBD	Iterative refinement loop
-1.6.0	TBD	POV evolution and narrative continuity
+1.4.0	Feb 2026	MCP Server for AI agent integration (8 tools, 4 resources, 2 prompts)
+1.4.1	Feb 2026	Open Claw integration (skills, workflows, adapters, 3 new resources)
+1.5.0	TBD	QA-driven report iteration
+1.6.0	TBD	Research state and hypothesis tracking
+1.7.0	TBD	Iterative refinement loop
+1.8.0	TBD	POV evolution and narrative continuity
 Final Framing
 
 Primr is a tool for understanding companies. The focus is on useful output, not user growth.

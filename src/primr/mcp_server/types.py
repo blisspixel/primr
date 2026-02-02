@@ -45,8 +45,8 @@ class JobStatus(str, Enum):
 class ResearchStage(str, Enum):
     """
     Monotonic stage enum - cannot regress once advanced.
-    
-    Stage progression: IDLE -> ACCEPTED -> SCRAPING -> EXTRACTING -> 
+
+    Stage progression: IDLE -> ACCEPTED -> SCRAPING -> EXTRACTING ->
                        DEEP_RESEARCH -> WRITING -> QA -> COMPLETED
     Terminal states: COMPLETED, FAILED, CANCELLED
     """
@@ -66,34 +66,34 @@ class ResearchStage(str, Enum):
 class ResearchStatus:
     """
     Current research job status returned by primr://research/status resource.
-    
+
     Field requirements by status:
     - IN_PROGRESS: job_id, company_name, mode, start_time, current_stage required
     - COMPLETED: completion_time, output_paths required
     - FAILED: error_type, error_message required
     """
     status: JobStatus
-    job_id: Optional[str] = None
-    company_name: Optional[str] = None
-    mode: Optional[ResearchMode] = None
-    start_time: Optional[datetime] = None
-    current_stage: Optional[ResearchStage] = None
-    stage_progress_percent: Optional[int] = None  # 0-100 within current stage
-    stage_started_at: Optional[datetime] = None  # When current stage began
-    last_heartbeat_time: Optional[datetime] = None  # Last progress update
-    stage_expected_minutes: Optional[int] = None  # Best-effort heuristic
+    job_id: str | None = None
+    company_name: str | None = None
+    mode: ResearchMode | None = None
+    start_time: datetime | None = None
+    current_stage: ResearchStage | None = None
+    stage_progress_percent: int | None = None  # 0-100 within current stage
+    stage_started_at: datetime | None = None  # When current stage began
+    last_heartbeat_time: datetime | None = None  # Last progress update
+    stage_expected_minutes: int | None = None  # Best-effort heuristic
     possibly_stuck: bool = False  # True if heartbeat stale > 120s
-    completion_time: Optional[datetime] = None
-    output_paths: Optional[list[str]] = None
-    error_type: Optional[str] = None
-    error_message: Optional[str] = None
+    completion_time: datetime | None = None
+    output_paths: list[str] | None = None
+    error_type: str | None = None
+    error_message: str | None = None
 
 
 @dataclass
 class JobAcceptedResult:
     """
     Returned immediately when research_company is called.
-    
+
     This is the ONLY result type for research_company (async model).
     Clients monitor progress via primr://research/status resource.
     """
@@ -107,7 +107,7 @@ class EstimateResult:
     """Returned by estimate_run tool - cost/time estimates without execution."""
     estimated_cost_usd: float
     estimated_time_minutes: int
-    planned_pages: Optional[int] = None
+    planned_pages: int | None = None
     mode: ResearchMode = ResearchMode.FULL
 
 
@@ -123,12 +123,12 @@ class DoctorResult:
 @dataclass
 class LatestOutput:
     """Response for primr://output/latest resource."""
-    report_path: Optional[str] = None
-    company_name: Optional[str] = None
-    generation_timestamp: Optional[datetime] = None
-    report_type: Optional[str] = None
-    content_preview: Optional[str] = None  # First 2000 characters
-    full_content: Optional[str] = None  # Complete report when requested
+    report_path: str | None = None
+    company_name: str | None = None
+    generation_timestamp: datetime | None = None
+    report_type: str | None = None
+    content_preview: str | None = None  # First 2000 characters
+    full_content: str | None = None  # Complete report when requested
 
 
 @dataclass
@@ -138,14 +138,14 @@ class ArtifactInfo:
     file_path: str
     size_bytes: int
     preview: str  # First 500 characters
-    content_hash: Optional[str] = None  # SHA256, optional
+    content_hash: str | None = None  # SHA256, optional
 
 
 @dataclass
 class ArtifactsResponse:
     """Response for primr://output/artifacts resource."""
-    job_id: Optional[str] = None
-    job_status: Optional[JobStatus] = None
+    job_id: str | None = None
+    job_status: JobStatus | None = None
     artifacts: list[ArtifactInfo] = field(default_factory=list)
 
 
@@ -153,7 +153,7 @@ class ArtifactsResponse:
 class ConfigState:
     """
     Response for primr://config resource.
-    
+
     Built from allowlist schema - never includes sensitive values.
     """
     available_modes: list[str] = field(default_factory=list)
@@ -165,15 +165,15 @@ class ConfigState:
 class ToolResult:
     """
     Result for synchronous tools (generate_strategy, run_qa, doctor, etc.).
-    
+
     NOTE: research_company returns JobAcceptedResult (async model) - NOT ToolResult.
     """
     success: bool
-    output_path: Optional[str] = None
-    duration_seconds: Optional[float] = None
-    qa_score: Optional[int] = None
-    error_type: Optional[str] = None
-    error_message: Optional[str] = None
+    output_path: str | None = None
+    duration_seconds: float | None = None
+    qa_score: int | None = None
+    error_type: str | None = None
+    error_message: str | None = None
 
 
 @dataclass
@@ -181,11 +181,11 @@ class JobInfo:
     """Job information returned by check_jobs tool."""
     job_id: str
     status: JobStatus
-    company_name: Optional[str] = None
-    output_path: Optional[str] = None
-    estimated_completion_time: Optional[datetime] = None
-    error_type: Optional[str] = None
-    error_message: Optional[str] = None
+    company_name: str | None = None
+    output_path: str | None = None
+    estimated_completion_time: datetime | None = None
+    error_type: str | None = None
+    error_message: str | None = None
 
 
 @dataclass
@@ -199,7 +199,7 @@ class QAResult:
 class MCPErrorCode(IntEnum):
     """
     Standard JSON-RPC and MCP-specific error codes.
-    
+
     All codes are unique - no collisions.
     """
     # JSON-RPC standard errors
@@ -208,7 +208,7 @@ class MCPErrorCode(IntEnum):
     METHOD_NOT_FOUND = -32601
     INVALID_PARAMS = -32602
     INTERNAL_ERROR = -32603
-    
+
     # MCP-specific errors (unique codes)
     RATE_LIMIT_EXCEEDED = -32001
     PATH_TRAVERSAL_BLOCKED = -32002
