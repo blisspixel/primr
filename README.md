@@ -264,6 +264,21 @@ Primr has undergone comprehensive security review (January 2026) with all critic
 
 See [docs/SECURITY_REVIEW_2026-01-21.md](docs/SECURITY_REVIEW_2026-01-21.md) for complete security audit report.
 
+## Code Quality
+
+Primr maintains publication-ready code quality with comprehensive infrastructure:
+
+- **Typed Error Hierarchy**: Structured exceptions with automatic retry policies and correlation tracking
+- **Circuit Breaker**: Per-host failure tracking with configurable thresholds and monitoring
+- **OpenTelemetry**: Distributed tracing for pipeline phases with configurable exporters
+- **Pydantic Validation**: Strict configuration validation with schema versioning and migration tooling
+- **State Machines**: Formal specifications for tier escalation and job lifecycle
+- **Property-Based Testing**: 282 property tests validating universal correctness properties
+- **Performance Benchmarking**: Regression detection with historical comparison
+- **Memory Profiling**: Leak detection and threshold-based warnings
+
+See [CONCURRENCY.md](CONCURRENCY.md) for threading model documentation and [docs/STATE_MACHINES.md](docs/STATE_MACHINES.md) for formal state machine specifications.
+
 ## Known Limitations
 
 - Deep Research API produces ~8-12 pages max per call (worked around with Accordion Method)
