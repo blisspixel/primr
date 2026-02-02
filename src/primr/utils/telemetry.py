@@ -539,6 +539,80 @@ class TelemetrySystem:
             event_attrs["correlation_id"] = self._get_correlation_id()
             span.add_event(name, attributes=event_attrs)
     
+    def record_cost(
+        self,
+        model: str,
+        input_tokens: int,
+        output_tokens: int,
+        operation: str | None = None,
+        cost_tracker: "CostTracker | None" = None
+    ) -> float:
+        """
+        Record token usage and calculate cost, attaching attributes to the current span.
+        
+        This method calculates the cost based on the model pricing and token counts,
+        then attaches cost-related attributes to the current span for observability.
+        It also emits a cost event with the correlation_id for aggregation.
+        
+        Args:
+            model: The AI model name (e.g., "gemini-1.5-pro")
+            input_tokens: Number of input tokens used
+            output_tokens: Number of output tokens generated
+            operation: Optional operation name for categorization
+            cost_tracker: Optional CostTracker instance. If None, uses default pricing.
+            
+        Returns:
+            The calculated cost in USD.
+            
+        Example:
+            with telemetry.span("ai_generation", phase="generation") as span:
+                response = await call_ai_api()
+                cost = telemetry.record_cost(
+                    model="gemini-1.5-pro",
+                    input_tokens=1000,
+                    output_tokens=500,
+                    operation="generate_report"
+                )
+                print(f"API call cost: ${cost:.6f}")
+        
+        **Validates: Requirements 5.1, 5.3, 5.4, 5.5**
+        """
+        # Use provided cost tracker or create a default one
+        tracker = cost_tracker or CostTracker()
+        
+        # Calculate cost
+        cost = tracker.calculate_cost(model, input_tokens, output_tokens)
+        
+        # Get correlation_id for metrics
+        correlation_id = self._get_correlation_id()
+        
+        # Attach cost attributes to current span
+        span = self.get_current_span()
+        if span is not None and not isinstance(span, NullSpan):
+            span.set_attributes({
+                "ai.model": model,
+                "ai.input_tokens": input_tokens,
+                "ai.output_tokens": output_tokens,
+                "ai.cost_usd": cost,
+            })
+            if operation:
+                span.set_attribute("ai.operation", operation)
+        
+        # Emit cost event with correlation_id for aggregation
+        self.record_event(
+            "ai_cost_recorded",
+            {
+                "ai.model": model,
+                "ai.input_tokens": input_tokens,
+                "ai.output_tokens": output_tokens,
+                "ai.cost_usd": cost,
+                "ai.operation": operation or "unknown",
+                "correlation_id": correlation_id,
+            }
+        )
+        
+        return cost
+    
     def get_current_span(self) -> NullSpan | Any:
         """
         Get the current active span.
@@ -666,3 +740,123 @@ def is_otel_available() -> bool:
         True if OpenTelemetry packages are installed.
     """
     return _OTEL_AVAILABLE
+
+
+# =============================================================================
+# COST TRACKER
+# =============================================================================
+
+@dataclass
+class CostTracker:
+    """
+    Tracks and calculates AI API costs based on token usage.
+    
+    The CostTracker maintains pricing tables for different AI models and
+    calculates costs based on input/output token counts. It integrates
+    with the TelemetrySystem to attach cost attributes to spans.
+    
+    Attributes:
+        pricing: Dictionary mapping model names to (input_price, output_price)
+                 tuples, where prices are per 1 million tokens.
+    
+    Example:
+        tracker = CostTracker()
+        cost = tracker.calculate_cost("gemini-1.5-pro", input_tokens=1000, output_tokens=500)
+        print(f"Cost: ${cost:.6f}")
+        
+        # With custom pricing
+        custom_pricing = {
+            "custom-model": (2.0, 8.0),  # $2/1M input, $8/1M output
+        }
+        tracker = CostTracker(pricing=custom_pricing)
+    
+    **Validates: Requirements 5.2, 5.6**
+    """
+    
+    # Default pricing per 1M tokens (input_price, output_price)
+    pricing: dict[str, tuple[float, float]] = field(default_factory=lambda: {
+        "gemini-1.5-pro": (1.25, 5.00),
+        "gemini-1.5-flash": (0.075, 0.30),
+        "gemini-2.0-flash": (0.10, 0.40),
+    })
+    
+    def calculate_cost(
+        self,
+        model: str,
+        input_tokens: int,
+        output_tokens: int
+    ) -> float:
+        """
+        Calculate the cost for token usage based on model pricing.
+        
+        The cost is calculated using the formula:
+        cost = (input_tokens / 1_000_000) * input_price + (output_tokens / 1_000_000) * output_price
+        
+        Args:
+            model: The AI model name (must be in pricing table)
+            input_tokens: Number of input tokens used
+            output_tokens: Number of output tokens generated
+            
+        Returns:
+            The calculated cost in USD. Returns 0.0 if the model is not
+            in the pricing table.
+            
+        Example:
+            tracker = CostTracker()
+            # 1000 input tokens + 500 output tokens with gemini-1.5-pro
+            # Cost = (1000/1M) * 1.25 + (500/1M) * 5.00 = 0.00125 + 0.0025 = 0.00375
+            cost = tracker.calculate_cost("gemini-1.5-pro", 1000, 500)
+        
+        **Validates: Requirements 5.2**
+        """
+        if model not in self.pricing:
+            return 0.0
+        
+        input_price, output_price = self.pricing[model]
+        input_cost = (input_tokens / 1_000_000) * input_price
+        output_cost = (output_tokens / 1_000_000) * output_price
+        return input_cost + output_cost
+    
+    def get_supported_models(self) -> list[str]:
+        """
+        Get the list of models with pricing information.
+        
+        Returns:
+            List of model names that have pricing configured.
+        """
+        return list(self.pricing.keys())
+    
+    def add_model_pricing(
+        self,
+        model: str,
+        input_price: float,
+        output_price: float
+    ) -> None:
+        """
+        Add or update pricing for a model.
+        
+        Args:
+            model: The model name
+            input_price: Price per 1M input tokens in USD
+            output_price: Price per 1M output tokens in USD
+            
+        Example:
+            tracker = CostTracker()
+            tracker.add_model_pricing("gpt-4", 30.0, 60.0)
+        
+        **Validates: Requirements 5.6**
+        """
+        self.pricing[model] = (input_price, output_price)
+    
+    def get_model_pricing(self, model: str) -> tuple[float, float] | None:
+        """
+        Get the pricing for a specific model.
+        
+        Args:
+            model: The model name
+            
+        Returns:
+            Tuple of (input_price, output_price) per 1M tokens, or None
+            if the model is not in the pricing table.
+        """
+        return self.pricing.get(model)
