@@ -35,7 +35,7 @@ from mcp.types import (
 def create_spike_server() -> Server:
     """Create a minimal MCP server for protocol validation."""
     server = Server("primr-spike")
-    
+
     @server.list_tools()
     async def list_tools() -> list[Tool]:
         """List available tools."""
@@ -55,7 +55,7 @@ def create_spike_server() -> Server:
                 },
             )
         ]
-    
+
     @server.call_tool()
     async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle tool calls."""
@@ -66,9 +66,9 @@ def create_spike_server() -> Server:
             if message:
                 response += f" - echo: {message}"
             return [TextContent(type="text", text=response)]
-        
+
         raise ValueError(f"Unknown tool: {name}")
-    
+
     @server.list_resources()
     async def list_resources() -> list[Resource]:
         """List available resources."""
@@ -80,7 +80,7 @@ def create_spike_server() -> Server:
                 mimeType="text/plain",
             )
         ]
-    
+
     @server.read_resource()
     async def read_resource(uri: str) -> list[ReadResourceContents]:
         """Read a resource by URI."""
@@ -93,16 +93,16 @@ def create_spike_server() -> Server:
                     mime_type="text/plain",
                 )
             ]
-        
+
         raise ValueError(f"Unknown resource: {uri}")
-    
+
     return server
 
 
 async def run_stdio() -> None:
     """Run the spike server with stdio transport."""
     server = create_spike_server()
-    
+
     # Redirect all logging to stderr to preserve stdout for JSON-RPC
     import logging
     logging.basicConfig(
@@ -110,7 +110,7 @@ async def run_stdio() -> None:
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         stream=sys.stderr,
     )
-    
+
     async with stdio_server() as (read_stream, write_stream):
         await server.run(
             read_stream,
@@ -122,7 +122,7 @@ async def run_stdio() -> None:
 def main() -> None:
     """Entry point for the spike server."""
     import argparse
-    
+
     parser = argparse.ArgumentParser(description="Primr MCP Protocol Spike")
     parser.add_argument(
         "--stdio",
@@ -141,9 +141,9 @@ def main() -> None:
         default=8000,
         help="HTTP port (default: 8000)",
     )
-    
+
     args = parser.parse_args()
-    
+
     if args.http:
         print("HTTP transport not yet implemented in spike", file=sys.stderr)
         sys.exit(1)

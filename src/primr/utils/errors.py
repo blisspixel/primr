@@ -3,17 +3,23 @@ Custom exceptions and error handling utilities.
 
 This module provides:
 - Custom exception hierarchy for the application
+- Typed error hierarchy with automatic recovery classification
 - Decorators for safe function calls with logging
 - Error context management
 - Retry configuration with exponential backoff and jitter
 """
 
+from __future__ import annotations
+
 import functools
+import json
 import logging
 import random
+from abc import ABC
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any, TypeVar
 
 logger = logging.getLogger(__name__)
@@ -101,7 +107,369 @@ def calculate_backoff_delay(attempt: int, config: RetryConfig) -> float:
 
 
 # =============================================================================
-# EXCEPTION HIERARCHY
+# CORRELATION ID HELPER
+# =============================================================================
+
+def _get_correlation_id() -> str:
+    """
+    Get the current correlation ID from context or generate a new one.
+    
+    This is a local helper to avoid circular imports with observability module.
+    It attempts to get the correlation ID from the thread-local context,
+    falling back to generating a new UUID if no context exists.
+    
+    Returns:
+        8-character correlation ID string
+    """
+    import threading
+    import uuid
+    
+    # Try to get from thread-local context (set by observability module)
+    _context_var = getattr(threading, '_primr_context', None)
+    if _context_var is None:
+        # Create thread-local storage if it doesn't exist
+        threading._primr_context = threading.local()
+        _context_var = threading._primr_context
+    
+    ctx = getattr(_context_var, 'context', None)
+    if ctx is not None and hasattr(ctx, 'correlation_id'):
+        return ctx.correlation_id
+    
+    # Try to import from observability module (preferred)
+    try:
+        from primr.utils.observability import get_correlation_id
+        return get_correlation_id()
+    except ImportError:
+        pass
+    
+    # Fallback: generate new correlation ID
+    return str(uuid.uuid4())[:8]
+
+
+# =============================================================================
+# TYPED ERROR HIERARCHY (PhD-Level Excellence)
+# =============================================================================
+
+@dataclass
+class PrimrError(Exception, ABC):
+    """
+    Base exception for all Primr errors with automatic context capture.
+    
+    This is the foundation of the typed error hierarchy that enables
+    automatic retry policies and informed recovery decisions based on
+    error classification.
+    
+    Attributes:
+        message: Human-readable error description
+        category: Error category for classification (e.g., "transient", "permanent")
+        recoverable: Whether this error can be retried
+        retry_after: Suggested delay before retry in seconds (None if not applicable)
+        correlation_id: Unique ID for tracing related operations (auto-captured)
+        timestamp: When the error occurred
+        cause: The underlying exception that caused this error
+        context: Additional context data for debugging
+    
+    Example:
+        try:
+            result = api_call()
+        except PrimrError as e:
+            if e.recoverable:
+                await asyncio.sleep(e.retry_after or 1.0)
+                result = api_call()  # Retry
+            else:
+                raise  # Don't retry permanent errors
+    """
+    
+    message: str
+    category: str = "general"
+    recoverable: bool = False
+    retry_after: float | None = None
+    correlation_id: str = field(default_factory=_get_correlation_id)
+    timestamp: datetime = field(default_factory=datetime.now)
+    cause: Exception | None = None
+    context: dict[str, Any] = field(default_factory=dict)
+    
+    def __post_init__(self) -> None:
+        """Initialize the exception with the message."""
+        super().__init__(self.message)
+    
+    def __str__(self) -> str:
+        """Return the error message."""
+        return self.message
+    
+    def __repr__(self) -> str:
+        """Return a detailed representation of the error."""
+        return (
+            f"{type(self).__name__}("
+            f"message={self.message!r}, "
+            f"category={self.category!r}, "
+            f"recoverable={self.recoverable}, "
+            f"correlation_id={self.correlation_id!r})"
+        )
+    
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Serialize to JSON-compatible dictionary.
+        
+        Returns:
+            Dictionary containing all error attributes suitable for JSON serialization.
+            The dictionary includes: type, message, category, recoverable, retry_after,
+            correlation_id, timestamp, and context.
+        
+        Example:
+            error = RateLimitError("Rate limit exceeded", retry_after_seconds=60)
+            data = error.to_dict()
+            json_str = json.dumps(data)  # Safe to serialize
+        """
+        result: dict[str, Any] = {
+            "type": type(self).__name__,
+            "message": self.message,
+            "category": self.category,
+            "recoverable": self.recoverable,
+            "retry_after": self.retry_after,
+            "correlation_id": self.correlation_id,
+            "timestamp": self.timestamp.isoformat(),
+            "context": self.context,
+        }
+        if self.cause is not None:
+            result["cause"] = {
+                "type": type(self.cause).__name__,
+                "message": str(self.cause),
+            }
+        return result
+
+
+@dataclass
+class TransientError(PrimrError):
+    """
+    Base class for errors that may succeed on retry.
+    
+    Transient errors represent temporary failures that are likely to
+    resolve themselves, such as network timeouts, rate limits, or
+    temporary service unavailability.
+    
+    Attributes:
+        recoverable: Always True for transient errors
+        category: Always "transient" for base transient errors
+    
+    Example:
+        try:
+            result = fetch_data()
+        except TransientError as e:
+            # Safe to retry
+            await asyncio.sleep(e.retry_after or 1.0)
+            result = fetch_data()
+    """
+    
+    recoverable: bool = True
+    category: str = "transient"
+
+
+@dataclass
+class PermanentError(PrimrError):
+    """
+    Base class for errors that will never succeed on retry.
+    
+    Permanent errors represent failures that cannot be resolved by
+    retrying, such as invalid input, authentication failures, or
+    missing resources.
+    
+    Attributes:
+        recoverable: Always False for permanent errors
+        category: Always "permanent" for base permanent errors
+    
+    Example:
+        try:
+            result = validate_input(data)
+        except PermanentError as e:
+            # Do NOT retry - fix the input instead
+            raise UserInputError(str(e))
+    """
+    
+    recoverable: bool = False
+    category: str = "permanent"
+
+
+@dataclass
+class TypedRateLimitError(TransientError):
+    """
+    API rate limit exceeded (Typed Error Hierarchy).
+    
+    Raised when an API call fails due to rate limiting. The retry_after_seconds
+    attribute indicates how long to wait before retrying.
+    
+    Note: Named TypedRateLimitError to avoid conflict with existing
+    RateLimitError class. Use this for new code requiring the typed
+    error hierarchy.
+    
+    Attributes:
+        retry_after_seconds: Seconds to wait before retrying (default: 60.0)
+        category: Always "rate_limit"
+    
+    Example:
+        try:
+            response = api.call()
+        except TypedRateLimitError as e:
+            await asyncio.sleep(e.retry_after_seconds)
+            response = api.call()
+    """
+    
+    category: str = "rate_limit"
+    retry_after_seconds: float = 60.0
+    
+    def __post_init__(self) -> None:
+        """Set retry_after from retry_after_seconds."""
+        super().__post_init__()
+        self.retry_after = self.retry_after_seconds
+
+
+@dataclass
+class QuotaError(TransientError):
+    """
+    API quota exhausted.
+    
+    Raised when an API quota is exhausted. The quota_reset_time attribute
+    indicates when the quota will be reset.
+    
+    Attributes:
+        quota_reset_time: When the quota will be reset (optional)
+        category: Always "quota"
+    
+    Example:
+        try:
+            response = api.call()
+        except QuotaError as e:
+            if e.quota_reset_time:
+                wait_time = (e.quota_reset_time - datetime.now()).total_seconds()
+                await asyncio.sleep(max(0, wait_time))
+            response = api.call()
+    """
+    
+    category: str = "quota"
+    quota_reset_time: datetime | None = None
+    
+    def __post_init__(self) -> None:
+        """Calculate retry_after from quota_reset_time."""
+        super().__post_init__()
+        if self.quota_reset_time is not None:
+            delta = (self.quota_reset_time - datetime.now()).total_seconds()
+            self.retry_after = max(0.0, delta)
+
+
+@dataclass
+class TypedNetworkError(TransientError):
+    """
+    Network connectivity issues (Typed Error Hierarchy).
+    
+    Raised when a network operation fails due to connectivity issues,
+    such as connection refused, DNS resolution failure, or timeout.
+    
+    Attributes:
+        host: The host that was being connected to
+        port: The port that was being connected to (optional)
+        category: Always "network"
+    
+    Example:
+        try:
+            response = fetch_url(url)
+        except TypedNetworkError as e:
+            logger.warning(f"Network error connecting to {e.host}:{e.port}")
+            await asyncio.sleep(1.0)
+            response = fetch_url(url)
+    """
+    
+    category: str = "network"
+    host: str = ""
+    port: int | None = None
+
+
+@dataclass
+class PrimrValidationError(PermanentError):
+    """
+    Input validation failed.
+    
+    Raised when input validation fails. The field_errors attribute
+    contains a mapping of field names to lists of error messages.
+    
+    Note: Named PrimrValidationError to avoid conflict with existing
+    ValidationError class. Use this for new code requiring the typed
+    error hierarchy.
+    
+    Attributes:
+        field_errors: Mapping of field names to error messages
+        category: Always "validation"
+    
+    Example:
+        errors = validate_form(data)
+        if errors:
+            raise PrimrValidationError(
+                "Validation failed",
+                field_errors=errors
+            )
+    """
+    
+    category: str = "validation"
+    field_errors: dict[str, list[str]] = field(default_factory=dict)
+
+
+@dataclass
+class AuthenticationError(PermanentError):
+    """
+    Authentication failed.
+    
+    Raised when authentication fails, such as invalid credentials,
+    expired tokens, or missing API keys.
+    
+    Attributes:
+        auth_method: The authentication method that failed (e.g., "api_key", "oauth")
+        category: Always "authentication"
+    
+    Example:
+        if not api_key:
+            raise AuthenticationError(
+                "API key not provided",
+                auth_method="api_key"
+            )
+    """
+    
+    category: str = "authentication"
+    auth_method: str = ""
+
+
+@dataclass
+class PrimrConfigurationError(PermanentError):
+    """
+    Configuration is invalid or missing.
+    
+    Raised when configuration validation fails or required configuration
+    is missing.
+    
+    Note: Named PrimrConfigurationError to avoid conflict with existing
+    ConfigurationError class. Use this for new code requiring the typed
+    error hierarchy.
+    
+    Attributes:
+        config_path: Path to the configuration file (if applicable)
+        missing_keys: List of missing configuration keys
+        category: Always "configuration"
+    
+    Example:
+        missing = check_required_config(config)
+        if missing:
+            raise PrimrConfigurationError(
+                "Missing required configuration",
+                config_path="config.yaml",
+                missing_keys=missing
+            )
+    """
+    
+    category: str = "configuration"
+    config_path: str = ""
+    missing_keys: list[str] = field(default_factory=list)
+
+
+# =============================================================================
+# LEGACY EXCEPTION HIERARCHY (Backward Compatible)
 # =============================================================================
 
 class ResearchError(Exception):

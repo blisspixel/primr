@@ -1,0 +1,78 @@
+{
+  "$schema": "https://openclaw.dev/schemas/openclaw.json",
+  "version": "1.0",
+  "plugins": {
+    "entries": {
+      "xiaowan": {
+        "enabled": true,
+        "config": {
+          "servers": [
+            {
+              "name": "primr",
+              "transport": "stdio",
+              "command": "primr-mcp",
+              "args": ["--stdio"],
+              "env": {
+                "GEMINI_API_KEY": "${GEMINI_API_KEY}",
+                "SEARCH_API_KEY": "${SEARCH_API_KEY}",
+                "SEARCH_ENGINE_ID": "${SEARCH_ENGINE_ID}"
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "skills": {
+    "entries": {
+      "primr-research": {
+        "path": "./skills/primr-research",
+        "enabled": true,
+        "env": {
+          "PRIMR_OUTPUT_DIR": "${PRIMR_OUTPUT_DIR:-./output}"
+        }
+      },
+      "primr-strategy": {
+        "path": "./skills/primr-strategy",
+        "enabled": true
+      },
+      "primr-qa": {
+        "path": "./skills/primr-qa",
+        "enabled": true
+      }
+    }
+  },
+  "workflows": {
+    "entries": {
+      "research-pipeline": {
+        "path": "./workflows/research-pipeline.yaml",
+        "enabled": true
+      }
+    }
+  },
+  "sandbox": {
+    "mode": "docker",
+    "docker": {
+      "dockerfile": "./Dockerfile.primr",
+      "image": "primr-openclaw:latest",
+      "network": "host",
+      "volumes": [
+        {
+          "host": "${PRIMR_OUTPUT_DIR:-./output}",
+          "container": "/workspace/output",
+          "mode": "rw"
+        },
+        {
+          "host": "./docs",
+          "container": "/workspace/docs",
+          "mode": "ro"
+        }
+      ],
+      "env": {
+        "GEMINI_API_KEY": "${GEMINI_API_KEY}",
+        "SEARCH_API_KEY": "${SEARCH_API_KEY}",
+        "SEARCH_ENGINE_ID": "${SEARCH_ENGINE_ID}"
+      }
+    }
+  }
+}
