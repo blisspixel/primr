@@ -659,7 +659,16 @@ src/primr/
 └── utils/                   # Utilities
     ├── console.py           # Console output
     ├── logging_config.py    # Logging setup
-    ├── errors.py            # Error types and retry logic
+    ├── errors.py            # Typed error hierarchy with retry policies
+    ├── retry.py             # RetryPolicyManager with exponential backoff
+    ├── circuit_breaker.py   # Circuit breaker with monitoring
+    ├── telemetry.py         # OpenTelemetry integration
+    ├── cost_tracker.py      # Cost attribution per operation
+    ├── validation.py        # Pydantic configuration validation
+    ├── migration.py         # Configuration migration tooling
+    ├── state_machine.py     # Generic state machine with transitions
+    ├── benchmarks.py        # Performance benchmarking suite
+    ├── memory_profiler.py   # Memory profiling and leak detection
     ├── files.py             # File operations
     ├── formatting.py        # Text formatting
     ├── validators.py        # Input validation

@@ -1,5 +1,5 @@
 Primr – Roadmap
-Current State: v1.4.0 (February 2026)
+Current State: v1.5.0 (February 2026)
 
 Primr is a CLI-first, local research tool designed to support company intelligence researcharation, strategic analysis, and AI roadmap development. The tool aims to accelerate research workflows while maintaining transparency about uncertainty and supporting a subject-positive posture.
 
@@ -327,7 +327,50 @@ openclaw/
 - Secure sandboxed execution via Docker
 - Seamless integration with Open Claw's agentic runtime
 
-v1.5.0 – QA-Driven Report Iteration (Near-Term)
+v1.5.0 – PhD-Level Code Quality (Complete)
+
+Goal: Elevate codebase from A- (88/100) to A+ (publication-ready) quality through systematic improvements to error handling, observability, configuration validation, and formal specifications.
+
+**Completed:**
+- **Typed Error Hierarchy** - Comprehensive exception hierarchy with `PrimrError` base class, `TransientError`/`PermanentError` categories, and specific types (RateLimitError, QuotaError, NetworkError, ValidationError, AuthenticationError, ConfigurationError) with automatic correlation ID capture and JSON serialization
+- **Retry Policy Manager** - Automatic retry policies based on error type hierarchy with exponential backoff, jitter, retry history tracking, and metrics emission
+- **Circuit Breaker with Monitoring** - Per-host/operation circuit breaker with state tracking (CLOSED/OPEN/HALF_OPEN), configurable thresholds, state change events, and monitoring interface
+- **OpenTelemetry Integration** - Distributed tracing with TracerProvider, span creation for pipeline phases, async context propagation, and configurable exporters (console, OTLP, Jaeger)
+- **Cost Attribution** - Token usage tracking with cost calculation per model, aggregation by operation/phase, and span attribute attachment
+- **Pydantic Configuration Validation** - Strict validation for all YAML configurations with detailed error messages, schema versioning, and JSON Schema export
+- **Configuration Migration Tooling** - Version detection, sequential migration application, backup/restore, and dry-run mode
+- **Concurrency Model Documentation** - CONCURRENCY.md documenting operation classification, thread pool sizing, shared state, async/sync boundaries, and deadlock prevention
+- **State Machine Specifications** - Formal state machines for tier escalation and job lifecycle with transition validation, invariant assertions, event emission, and Mermaid diagrams in docs/STATE_MACHINES.md
+- **Performance Benchmarking Suite** - Benchmark infrastructure with result storage, regression detection, and configurable thresholds
+- **Memory Profiling** - Allocation tracking, unbounded growth detection, component-level reporting, threshold warnings, and pytest integration
+- **MCP API Versioning** - Semantic versioning for tool schemas with deprecation warnings and migration guides
+- **282 Property-Based Tests** - Comprehensive property tests validating universal correctness properties across all new modules
+
+**New Modules:**
+```
+src/primr/utils/
+├── errors.py              # Typed error hierarchy with retry policies
+├── retry.py               # RetryPolicyManager with exponential backoff
+├── circuit_breaker.py     # Circuit breaker with monitoring
+├── telemetry.py           # OpenTelemetry integration
+├── cost_tracker.py        # Cost attribution per operation
+├── validation.py          # Pydantic configuration validation
+├── migration.py           # Configuration migration tooling
+├── state_machine.py       # Generic state machine with transitions
+├── benchmarks.py          # Performance benchmarking suite
+├── memory_profiler.py     # Memory profiling and leak detection
+
+src/primr/mcp_server/
+├── versioning.py          # MCP API versioning with deprecation support
+```
+
+**Documentation:**
+- CONCURRENCY.md - Threading model and deadlock prevention
+- docs/STATE_MACHINES.md - Formal state machine specifications with Mermaid diagrams
+
+**Status:** COMPLETE
+
+v1.6.0 – QA-Driven Report Iteration (Near-Term)
 
 Goal: Use QA feedback to iteratively improve weak sections until reports hit 90+.
 
@@ -347,6 +390,98 @@ Goal: Use QA feedback to iteratively improve weak sections until reports hit 90+
 The goal is consultant prep. An 85 is "usable" but a 90+ means the consultant walks in genuinely prepared. The marginal effort to go from 85 to 90 is worth it if it's automated.
 
 Medium-Term Roadmap: Make Primr Iterative
+
+v1.7.0 – Research State and Iteration (Planned)
+
+Goal: Move prompts from hardcoded Python strings to structured, versionable configuration files.
+
+Implemented Structure:
+```
+src/primr/prompts/
+├── __init__.py                # Public API
+├── loader.py                  # YAML loading and prompt building
+├── company_overview.yaml      # Company research prompt (20 sections)
+└── ai_strategy.yaml           # AI strategy prompt (vendor-specific)
+```
+
+Each prompt YAML file contains:
+- Meta information (name, version, description)
+- Document purpose and epistemic rules
+- Formatting guidelines
+- Sections organized by part (Foundational, Market Context, Strategic Analysis, etc.)
+- Each section has: id, name, part, purpose, covers (bullet points), depth guidance
+- Vendor-specific guidance (Azure, AWS, GCP, Agnostic) for AI strategy
+
+Usage:
+```python
+from primr.prompts import (
+    load_prompt_config,
+    build_company_overview_prompt,
+    build_ai_strategy_prompt,
+    get_available_prompts,
+)
+
+# List available prompts
+prompts = get_available_prompts()  # ['ai_strategy', 'company_overview']
+
+# Build prompts from YAML
+prompt = build_company_overview_prompt("Acme Corp", website_url="https://acme.com")
+prompt = build_ai_strategy_prompt("Acme Corp", cloud_vendor="azure")
+```
+
+Benefits achieved:
+- Prompts are now reviewable YAML artifacts (not buried in Python)
+- Version control shows prompt evolution clearly
+- Easier to iterate on section structure and guidance
+- Clear separation of prompt engineering from code logic
+- **Foundation for v1.2.6**: Adding a new strategy module = adding a YAML file
+
+v1.2.6 – Strategy Document Portfolio (Complete)
+
+Goal: Make strategy generation configurable and extensible beyond AI.
+
+**Completed:**
+- Four Tier 1 strategy documents fully implemented and tested:
+  - AI Strategy (ai_first_transformation.yaml)
+  - Customer Experience Strategy (customer_experience.yaml)
+  - Security & Compliance Strategy (modern_security_compliance.yaml)
+  - Data Fabric Strategy (data_fabric_strategy.yaml)
+- Generic strategy generation function using Deep Research with File Search Store
+- CLI support via `--strategy-type` flag
+- `--list-strategies` command to show available strategies
+- All strategies use Strategic Overview as primary context
+- Validated with real company data (Delta Dental Plans Association, January 2026)
+
+**Strategy Module Architecture:**
+```
+src/primr/prompts/strategies/
+├── ai_first_transformation.yaml       # AI roadmap, quick wins, bigger bets
+├── customer_experience.yaml           # CX transformation and digital experience
+├── modern_security_compliance.yaml    # Zero Trust, identity, compliance
+├── data_fabric_strategy.yaml          # Data platform, semantic layer, agents
+```
+
+**CLI Usage:**
+```bash
+# List available strategies
+primr --list-strategies
+
+# Generate specific strategy from existing report
+primr --ai-strategy-only "report.md" --strategy-type customer_experience
+primr --ai-strategy-only "report.md" --strategy-type modern_security_compliance
+primr --ai-strategy-only "report.md" --strategy-type data_fabric_strategy
+
+# AI Strategy (default)
+primr --ai-strategy-only "report.md" --cloud-vendor azure
+```
+
+**Benefits Achieved:**
+- Adding a new strategy type requires only a YAML file (no code changes)
+- Same company research feeds multiple strategic analyses
+- Clear separation between research (company overview) and analysis (strategy modules)
+- All strategies include facilitation toolkits for co-creation workshops
+- Strategies are company-specific, not generic templates
+
 
 v1.2.5 – Externalized Prompt Architecture (Complete)
 
@@ -439,8 +574,7 @@ primr --ai-strategy-only "report.md" --cloud-vendor azure
 - All strategies include facilitation toolkits for co-creation workshops
 - Strategies are company-specific, not generic templates
 
-
-v1.5.0 – Research State and Iteration (Planned)
+v1.8.0 – Research State and Iteration (Planned)
 
 Goal: Move from “generate once” to “think over time.”
 
@@ -482,7 +616,7 @@ confirmed
 
 This mirrors how consultants actually work after discovery conversations.
 
-v1.6.0 – Refinement and Learning Loop (Planned)
+v1.8.0 – Refinement and Learning Loop (Planned)
 
 Goal: Support post-discovery learning without re-running everything from scratch.
 
@@ -514,7 +648,7 @@ to proposal-grade thinking
 
 Still local. Still internal.
 
-v1.7.0 – POV and Narrative Evolution (Planned)
+v1.9.0 – POV and Narrative Evolution (Planned)
 
 Goal: Make Primr the system of record for how thinking evolves.
 
@@ -659,10 +793,11 @@ Version	Date	Highlights
 1.3.1	Jan 2026	File Search Store billing leak fix, resource management, fd leak fixes
 1.4.0	Feb 2026	MCP Server for AI agent integration (8 tools, 4 resources, 2 prompts)
 1.4.1	Feb 2026	Open Claw integration (skills, workflows, adapters, 3 new resources)
-1.5.0	TBD	QA-driven report iteration
-1.6.0	TBD	Research state and hypothesis tracking
-1.7.0	TBD	Iterative refinement loop
-1.8.0	TBD	POV evolution and narrative continuity
+1.5.0	Feb 2026	PhD-Level Code Quality (error hierarchy, telemetry, state machines, 282 property tests)
+1.6.0	TBD	QA-driven report iteration
+1.7.0	TBD	Research state and hypothesis tracking
+1.8.0	TBD	Iterative refinement loop
+1.9.0	TBD	POV evolution and narrative continuity
 Final Framing
 
 Primr is a tool for understanding companies. The focus is on useful output, not user growth.

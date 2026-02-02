@@ -192,3 +192,225 @@ class MigrationTool:
             current = migration.to_version
         
         return path
+
+    def migrate(
+        self,
+        config: dict[str, Any],
+        to_version: SchemaVersion | None = None,
+    ) -> tuple[dict[str, Any], list[str]]:
+        """
+        Migrate a configuration dictionary to a target version.
+        
+        Args:
+            config: Configuration dictionary to migrate
+            to_version: Target schema version (defaults to CURRENT_SCHEMA_VERSION)
+            
+        Returns:
+            Tuple of (migrated_config, list_of_applied_step_descriptions)
+        """
+        if to_version is None:
+            to_version = CURRENT_SCHEMA_VERSION
+        
+        from_version = self.detect_version(config)
+        migrations = self.get_migration_path(from_version, to_version)
+        
+        result = config.copy()
+        applied = []
+        
+        for migration in migrations:
+            result = migration.transform(result)
+            applied.append(migration.description)
+        
+        return result, applied
+    
+    def migrate_file(
+        self,
+        config_path: Path,
+        to_version: SchemaVersion | None = None,
+        dry_run: bool = False,
+    ) -> MigrationResult:
+        """
+        Migrate a configuration file to a target version.
+        
+        Creates a backup before modification and restores on failure.
+        
+        Args:
+            config_path: Path to the YAML configuration file
+            to_version: Target schema version (defaults to CURRENT_SCHEMA_VERSION)
+            dry_run: If True, preview changes without modifying files
+            
+        Returns:
+            MigrationResult with details of the operation
+        """
+        if to_version is None:
+            to_version = CURRENT_SCHEMA_VERSION
+        
+        config_path = Path(config_path)
+        
+        # Load original config
+        with open(config_path, "r", encoding="utf-8") as f:
+            original_config = yaml.safe_load(f)
+        
+        original_version = self.detect_version(original_config)
+        
+        # Check if migration is needed
+        if original_version == to_version:
+            return MigrationResult(
+                success=True,
+                original_version=original_version,
+                final_version=to_version,
+                steps_applied=[],
+                dry_run=dry_run,
+            )
+        
+        # Perform migration
+        try:
+            migrated_config, steps = self.migrate(original_config, to_version)
+        except Exception as e:
+            return MigrationResult(
+                success=False,
+                original_version=original_version,
+                final_version=original_version,
+                error=str(e),
+                dry_run=dry_run,
+            )
+        
+        # Validate migrated config
+        try:
+            self._validator.validate_prompt_config(migrated_config)
+        except Exception as e:
+            return MigrationResult(
+                success=False,
+                original_version=original_version,
+                final_version=original_version,
+                error=f"Migrated config failed validation: {e}",
+                dry_run=dry_run,
+            )
+        
+        # Dry run - return preview without modifying files
+        if dry_run:
+            return MigrationResult(
+                success=True,
+                original_version=original_version,
+                final_version=to_version,
+                steps_applied=steps,
+                dry_run=True,
+                preview=migrated_config,
+            )
+        
+        # Create backup
+        backup_path = self._create_backup(config_path)
+        
+        # Write migrated config
+        try:
+            with open(config_path, "w", encoding="utf-8") as f:
+                yaml.dump(migrated_config, f, default_flow_style=False, sort_keys=False)
+            
+            return MigrationResult(
+                success=True,
+                original_version=original_version,
+                final_version=to_version,
+                backup_path=backup_path,
+                steps_applied=steps,
+            )
+        except Exception as e:
+            # Restore from backup on failure
+            self._restore_backup(config_path, backup_path)
+            return MigrationResult(
+                success=False,
+                original_version=original_version,
+                final_version=original_version,
+                backup_path=backup_path,
+                error=f"Failed to write migrated config: {e}",
+            )
+    
+    def _create_backup(self, config_path: Path) -> Path:
+        """Create a backup of the configuration file."""
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_path = config_path.with_suffix(f".{timestamp}.backup.yaml")
+        shutil.copy2(config_path, backup_path)
+        return backup_path
+    
+    def _restore_backup(self, config_path: Path, backup_path: Path) -> None:
+        """Restore configuration from backup."""
+        shutil.copy2(backup_path, config_path)
+    
+    # =========================================================================
+    # MIGRATION TRANSFORMATIONS
+    # =========================================================================
+    
+    @staticmethod
+    def _migrate_1_0_to_1_1(config: dict[str, Any]) -> dict[str, Any]:
+        """
+        Migrate from schema version 1.0 to 1.1.
+        
+        Changes:
+        - Add output_format field to meta (default: "markdown")
+        - Update schema_version to 1.1
+        """
+        result = config.copy()
+        result["meta"] = config.get("meta", {}).copy()
+        
+        # Add output_format if not present
+        if "output_format" not in result["meta"]:
+            result["meta"]["output_format"] = "markdown"
+        
+        # Update schema version
+        result["meta"]["schema_version"] = "1.1"
+        
+        return result
+    
+    @staticmethod
+    def _migrate_1_1_to_2_0(config: dict[str, Any]) -> dict[str, Any]:
+        """
+        Migrate from schema version 1.1 to 2.0.
+        
+        Changes:
+        - Add position field to sections (default: "middle")
+        - Ensure subsections field exists on all sections
+        - Update schema_version to 2.0
+        """
+        result = config.copy()
+        result["meta"] = config.get("meta", {}).copy()
+        
+        # Update sections
+        if "sections" in result:
+            result["sections"] = [
+                MigrationTool._migrate_section_1_1_to_2_0(section)
+                for section in result["sections"]
+            ]
+        
+        # Update schema version
+        result["meta"]["schema_version"] = "2.0"
+        
+        return result
+    
+    @staticmethod
+    def _migrate_section_1_1_to_2_0(section: dict[str, Any]) -> dict[str, Any]:
+        """Migrate a single section from 1.1 to 2.0 format."""
+        result = section.copy()
+        
+        # Add position if not present
+        if "position" not in result:
+            result["position"] = "middle"
+        
+        # Ensure subsections exists
+        if "subsections" not in result:
+            result["subsections"] = []
+        else:
+            # Recursively migrate subsections
+            result["subsections"] = [
+                MigrationTool._migrate_section_1_1_to_2_0(sub)
+                for sub in result["subsections"]
+            ]
+        
+        return result
+
+
+# Re-export for convenience
+__all__ = [
+    "MigrationStep",
+    "MigrationResult",
+    "MigrationError",
+    "MigrationTool",
+]
