@@ -1,0 +1,387 @@
+"""
+Pipeline runner for MCP server.
+
+This module provides background task execution for research jobs,
+wiring MCP tools to actual Primr core modules.
+
+Requirements: 15.2, 19.1-19.4
+"""
+
+import asyncio
+import logging
+import time
+from typing import TYPE_CHECKING, Callable, Optional
+
+from primr.mcp_server.job_store import ResearchJobState
+from primr.mcp_server.types import ResearchStage
+
+if TYPE_CHECKING:
+    from primr.mcp_server.server import PrimrMCPServer
+
+logger = logging.getLogger(__name__)
+
+# Heartbeat interval in seconds
+HEARTBEAT_INTERVAL = 30
+
+
+class PipelineRunner:
+    """
+    Runs research pipelines in the background.
+    
+    Wires MCP job state to actual Primr core modules:
+    - research_orchestrator for research execution
+    - ai_strategy for strategy generation
+    - qa.analyzer for quality assessment
+    
+    Provides heartbeat updates during long-running operations.
+    """
+    
+    def __init__(self, mcp_server: "PrimrMCPServer"):
+        """
+        Initialize the pipeline runner.
+        
+        Args:
+            mcp_server: The MCP server instance for job store access
+        """
+        self.mcp_server = mcp_server
+        self._running_task: Optional[asyncio.Task] = None
+        self._cancel_requested = False
+
+    async def run_research(
+        self,
+        job: ResearchJobState,
+        company_url: str,
+        mode: str,
+        cloud_vendor: Optional[str] = None,
+        skip_qa: bool = False,
+    ) -> None:
+        """
+        Run the research pipeline for a job.
+        
+        This is the main entry point for background research execution.
+        Updates job state as the pipeline progresses.
+        
+        Args:
+            job: The job state to update
+            company_url: Company website URL
+            mode: Research mode (scrape, deep, full)
+            cloud_vendor: Optional cloud vendor for strategy
+            skip_qa: Whether to skip QA
+        """
+        self._cancel_requested = False
+        
+        try:
+            # Map MCP mode to orchestrator mode
+            from primr.core.research_orchestrator import ResearchMode, ResearchOrchestrator
+            
+            mode_map = {
+                "scrape": ResearchMode.STRUCTURED,
+                "deep": ResearchMode.DEEP_RESEARCH,
+                "full": ResearchMode.COMPLETE,
+            }
+            research_mode = mode_map.get(mode, ResearchMode.COMPLETE)
+            
+            # Create progress callback that updates job state
+            def on_progress(message: str) -> None:
+                if self._cancel_requested:
+                    raise asyncio.CancelledError("Job cancelled by user")
+                job.heartbeat()
+                self.mcp_server.job_store.update(job)
+                logger.debug(f"Progress: {message}")
+            
+            # Stage 1: Scraping (for scrape and full modes)
+            if mode in ("scrape", "full"):
+                job.advance_stage(ResearchStage.SCRAPING)
+                self.mcp_server.job_store.update(job)
+                on_progress("Starting website scraping...")
+            
+            # Run the research orchestrator
+            orchestrator = ResearchOrchestrator()
+            
+            # Start heartbeat task
+            heartbeat_task = asyncio.create_task(
+                self._heartbeat_loop(job, HEARTBEAT_INTERVAL)
+            )
+            
+            try:
+                result = await orchestrator.research(
+                    company_name=job.company_name,
+                    website=company_url,
+                    mode=research_mode,
+                    on_progress=on_progress,
+                )
+            finally:
+                heartbeat_task.cancel()
+                try:
+                    await heartbeat_task
+                except asyncio.CancelledError:
+                    pass
+            
+            if not result.success:
+                job.advance_stage(ResearchStage.FAILED)
+                job.error_type = "research_failed"
+                job.error_message = result.error or "Research failed"
+                self.mcp_server.job_store.update(job)
+                return
+            
+            # Stage: Writing
+            job.advance_stage(ResearchStage.WRITING)
+            self.mcp_server.job_store.update(job)
+            on_progress("Writing report...")
+            
+            # Save the report
+            output_path = await self._save_report(job.company_name, result)
+            job.output_paths = [output_path]
+            
+            # Stage: QA (unless skipped)
+            if not skip_qa:
+                job.advance_stage(ResearchStage.QA)
+                self.mcp_server.job_store.update(job)
+                on_progress("Running quality assessment...")
+                
+                qa_result = await self._run_qa(output_path)
+                if qa_result:
+                    job.qa_score = qa_result.get("overall_score")
+            
+            # Complete
+            job.advance_stage(ResearchStage.COMPLETED)
+            self.mcp_server.job_store.update(job)
+            logger.info(f"Research job {job.job_id} completed successfully")
+            
+        except asyncio.CancelledError:
+            job.advance_stage(ResearchStage.CANCELLED)
+            job.error_type = "user_cancelled"
+            job.error_message = "Job was cancelled"
+            self.mcp_server.job_store.update(job)
+            logger.info(f"Research job {job.job_id} was cancelled")
+            
+        except Exception as e:
+            logger.error(f"Research job {job.job_id} failed: {e}")
+            job.advance_stage(ResearchStage.FAILED)
+            job.error_type = "pipeline_error"
+            job.error_message = str(e)
+            self.mcp_server.job_store.update(job)
+
+    async def _heartbeat_loop(
+        self,
+        job: ResearchJobState,
+        interval: float,
+    ) -> None:
+        """
+        Send periodic heartbeats during long operations.
+        
+        Requirements: 2.12, 19.1-19.3
+        """
+        while True:
+            await asyncio.sleep(interval)
+            job.heartbeat()
+            self.mcp_server.job_store.update(job)
+            logger.debug(f"Heartbeat for job {job.job_id}")
+    
+    async def _save_report(
+        self,
+        company_name: str,
+        result,
+    ) -> str:
+        """
+        Save the research result to a file.
+        
+        Returns the output path.
+        """
+        import os
+        from datetime import datetime
+        
+        from primr.config.config import OUTPUT_DIR
+        
+        # Create output directory if needed
+        os.makedirs(OUTPUT_DIR, exist_ok=True)
+        
+        # Generate filename
+        safe_name = company_name.replace(" ", "_").replace("/", "_")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"{safe_name}_{timestamp}.md"
+        output_path = os.path.join(OUTPUT_DIR, filename)
+        
+        # Write content
+        content = result.raw_content or "\n\n".join(
+            f"## {k}\n\n{v}" for k, v in result.section_results.items()
+        )
+        
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        
+        logger.info(f"Report saved to {output_path}")
+        return output_path
+    
+    async def _run_qa(self, report_path: str) -> Optional[dict]:
+        """
+        Run QA analysis on a report.
+        
+        Returns QA results dict or None on failure.
+        """
+        try:
+            from primr.qa.analyzer import QAAnalyzer
+            from primr.qa.report_loader import ReportLoader
+            
+            # Load report
+            loader = ReportLoader()
+            report = loader.load(report_path)
+            
+            if not report:
+                logger.warning(f"Could not load report for QA: {report_path}")
+                return None
+            
+            # Run analysis
+            analyzer = QAAnalyzer()
+            analysis = analyzer.analyze_report(report)
+            
+            return {
+                "overall_score": analysis.overall_score,
+                "category_scores": {
+                    "completeness": analysis.completeness_score,
+                    "accuracy": analysis.accuracy_score,
+                    "clarity": analysis.clarity_score,
+                    "actionability": analysis.actionability_score,
+                },
+                "issues_count": len(analysis.issues),
+            }
+            
+        except Exception as e:
+            logger.warning(f"QA analysis failed: {e}")
+            return None
+    
+    def request_cancel(self) -> None:
+        """Request cancellation of the running job."""
+        self._cancel_requested = True
+        if self._running_task:
+            self._running_task.cancel()
+
+
+async def run_strategy_generation(
+    report_path: str,
+    strategy_type: str,
+    cloud_vendor: Optional[str] = None,
+    on_progress: Optional[Callable[[str], None]] = None,
+) -> dict:
+    """
+    Run strategy generation on an existing report.
+    
+    Args:
+        report_path: Path to the research report
+        strategy_type: Type of strategy to generate
+        cloud_vendor: Optional cloud vendor preference
+        on_progress: Optional progress callback
+    
+    Returns:
+        Dict with output_path, strategy_type, and qa_score
+    """
+    from primr.core.ai_strategy import CloudVendor, generate_ai_strategy
+    
+    # Extract company name from report
+    import os
+    company_name = os.path.basename(report_path).split("_")[0].replace("_", " ")
+    
+    # Map strategy type
+    vendor = CloudVendor.from_string(cloud_vendor) if cloud_vendor else CloudVendor.AGNOSTIC
+    
+    result = await generate_ai_strategy(
+        company_name=company_name,
+        cloud_vendor=vendor,
+        company_research_path=report_path,
+        on_progress=on_progress,
+    )
+    
+    if result.error:
+        raise RuntimeError(result.error)
+    
+    return {
+        "output_path": result.md_path or result.docx_path or result.txt_path,
+        "strategy_type": strategy_type,
+        "qa_score": None,  # Strategy doesn't have QA yet
+    }
+
+
+async def run_qa_analysis(report_path: str) -> dict:
+    """
+    Run QA analysis on a report.
+    
+    Args:
+        report_path: Path to the report file
+    
+    Returns:
+        Dict with QA results
+    """
+    from primr.qa.analyzer import QAAnalyzer
+    from primr.qa.report_loader import ReportLoader
+    
+    # Load report
+    loader = ReportLoader()
+    report = loader.load(report_path)
+    
+    if not report:
+        raise RuntimeError(f"Could not load report: {report_path}")
+    
+    # Run analysis
+    analyzer = QAAnalyzer()
+    analysis = analyzer.analyze_report(report)
+    
+    return {
+        "overall_score": analysis.overall_score,
+        "category_scores": {
+            "completeness": analysis.completeness_score,
+            "accuracy": analysis.accuracy_score,
+            "clarity": analysis.clarity_score,
+            "actionability": analysis.actionability_score,
+        },
+        "improvement_suggestions": [
+            issue.description for issue in analysis.issues[:5]
+        ] if analysis.issues else [],
+    }
+
+
+def get_doctor_status() -> dict:
+    """
+    Get system health status.
+    
+    Returns:
+        Dict with health status information
+    """
+    import os
+    
+    from primr.config.config import OUTPUT_DIR
+    
+    warnings = []
+    
+    # Check API keys
+    api_keys_configured = bool(
+        os.environ.get("GOOGLE_API_KEY") or 
+        os.environ.get("GEMINI_API_KEY")
+    )
+    if not api_keys_configured:
+        warnings.append("No API key configured (GOOGLE_API_KEY or GEMINI_API_KEY)")
+    
+    # Check output directory
+    if not os.path.exists(OUTPUT_DIR):
+        warnings.append(f"Output directory does not exist: {OUTPUT_DIR}")
+    
+    # Check for orphaned stores (placeholder - would check Gemini file stores)
+    orphaned_stores_count = 0
+    
+    # Check config validity
+    config_valid = True
+    try:
+        from primr.config.config import get_config
+        config = get_config()
+        if not config:
+            config_valid = False
+            warnings.append("Configuration could not be loaded")
+    except Exception as e:
+        config_valid = False
+        warnings.append(f"Configuration error: {e}")
+    
+    return {
+        "orphaned_stores_count": orphaned_stores_count,
+        "config_valid": config_valid,
+        "api_keys_configured": api_keys_configured,
+        "warnings": warnings,
+    }

@@ -49,6 +49,9 @@ dependencies = [
     "pyyaml",
     "curl_cffi",
     "DrissionPage",
+    "mcp>=1.0.0",
+    "starlette>=0.27.0",
+    "uvicorn>=0.20.0",
 ]
 
 [project.optional-dependencies]
@@ -72,6 +75,7 @@ security = [
 
 [project.scripts]
 primr = "primr.core.cli:main"
+primr-mcp = "primr.mcp_server.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/blisspixel/primr"

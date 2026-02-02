@@ -1,0 +1,230 @@
+"""
+Tests for resource handlers.
+
+Task 7: Resource handlers
+"""
+
+import json
+import tempfile
+from pathlib import Path
+
+import pytest
+from mcp.types import ListResourcesRequest, ReadResourceRequest, ReadResourceRequestParams
+
+from primr.mcp_server.server import create_mcp_server
+from primr.mcp_server.types import JobStatus, ResearchStage
+
+
+class TestResourceListing:
+    """Tests for resource listing."""
+    
+    @pytest.fixture
+    def server(self):
+        """Create a server with temp journal."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            journal_path = str(Path(tmpdir) / "test_journal.json")
+            yield create_mcp_server(journal_path=journal_path)
+    
+    @pytest.mark.asyncio
+    async def test_list_resources(self, server):
+        """All resources are listed."""
+        handler = server.server.request_handlers[ListResourcesRequest]
+        result = await handler(ListResourcesRequest(method="resources/list"))
+        
+        resources = result.root.resources
+        uris = [str(r.uri) for r in resources]
+        
+        assert "primr://research/status" in uris
+        assert "primr://output/latest" in uris
+        assert "primr://output/artifacts" in uris
+        assert "primr://config" in uris
+
+
+class TestResearchStatusResource:
+    """Tests for primr://research/status resource."""
+    
+    @pytest.fixture
+    def server(self):
+        """Create a server with temp journal."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            journal_path = str(Path(tmpdir) / "test_journal.json")
+            yield create_mcp_server(journal_path=journal_path)
+    
+    @pytest.mark.asyncio
+    async def test_status_idle_when_no_job(self, server):
+        """Status is idle when no job exists."""
+        handler = server.server.request_handlers[ReadResourceRequest]
+        result = await handler(
+            ReadResourceRequest(
+                method="resources/read",
+                params=ReadResourceRequestParams(uri="primr://research/status"),
+            )
+        )
+        
+        content = result.root.contents[0]
+        data = json.loads(content.text)
+        
+        assert data["status"] == "idle"
+        assert data["job_id"] is None
+    
+    @pytest.mark.asyncio
+    async def test_status_in_progress_with_job(self, server):
+        """Status is in_progress when job is active."""
+        # Create a job
+        job = server.job_store.create("Acme Corp", "full")
+        
+        handler = server.server.request_handlers[ReadResourceRequest]
+        result = await handler(
+            ReadResourceRequest(
+                method="resources/read",
+                params=ReadResourceRequestParams(uri="primr://research/status"),
+            )
+        )
+        
+        content = result.root.contents[0]
+        data = json.loads(content.text)
+        
+        assert data["status"] == "in_progress"
+        assert data["job_id"] == job.job_id
+        assert data["company_name"] == "Acme Corp"
+        assert data["current_stage"] == "accepted"
+    
+    @pytest.mark.asyncio
+    async def test_status_completed_with_terminal_job(self, server):
+        """Status shows completed job details."""
+        # Create and complete a job
+        job = server.job_store.create("Acme Corp", "full")
+        job.advance_stage(ResearchStage.COMPLETED)
+        job.output_paths = ["output/report.md"]
+        server.job_store.update(job)
+        
+        handler = server.server.request_handlers[ReadResourceRequest]
+        result = await handler(
+            ReadResourceRequest(
+                method="resources/read",
+                params=ReadResourceRequestParams(uri="primr://research/status"),
+            )
+        )
+        
+        content = result.root.contents[0]
+        data = json.loads(content.text)
+        
+        assert data["status"] == "completed"
+        assert data["completion_time"] is not None
+        assert data["output_paths"] == ["output/report.md"]
+    
+    @pytest.mark.asyncio
+    async def test_status_failed_with_error(self, server):
+        """Status shows error details for failed job."""
+        # Create and fail a job
+        job = server.job_store.create("Acme Corp", "full")
+        job.advance_stage(ResearchStage.FAILED)
+        job.error_type = "test_error"
+        job.error_message = "Test error message"
+        server.job_store.update(job)
+        
+        handler = server.server.request_handlers[ReadResourceRequest]
+        result = await handler(
+            ReadResourceRequest(
+                method="resources/read",
+                params=ReadResourceRequestParams(uri="primr://research/status"),
+            )
+        )
+        
+        content = result.root.contents[0]
+        data = json.loads(content.text)
+        
+        assert data["status"] == "failed"
+        assert data["error_type"] == "test_error"
+        assert data["error_message"] == "Test error message"
+
+
+class TestConfigResource:
+    """Tests for primr://config resource."""
+    
+    @pytest.fixture
+    def server(self):
+        """Create a server with temp journal."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            journal_path = str(Path(tmpdir) / "test_journal.json")
+            yield create_mcp_server(journal_path=journal_path)
+    
+    @pytest.mark.asyncio
+    async def test_config_returns_modes(self, server):
+        """Config includes available modes."""
+        handler = server.server.request_handlers[ReadResourceRequest]
+        result = await handler(
+            ReadResourceRequest(
+                method="resources/read",
+                params=ReadResourceRequestParams(uri="primr://config"),
+            )
+        )
+        
+        content = result.root.contents[0]
+        data = json.loads(content.text)
+        
+        assert "scrape" in data["available_modes"]
+        assert "deep" in data["available_modes"]
+        assert "full" in data["available_modes"]
+    
+    @pytest.mark.asyncio
+    async def test_config_returns_strategies(self, server):
+        """Config includes available strategies."""
+        handler = server.server.request_handlers[ReadResourceRequest]
+        result = await handler(
+            ReadResourceRequest(
+                method="resources/read",
+                params=ReadResourceRequestParams(uri="primr://config"),
+            )
+        )
+        
+        content = result.root.contents[0]
+        data = json.loads(content.text)
+        
+        assert "ai_strategy" in data["available_strategies"]
+        assert "customer_experience" in data["available_strategies"]
+    
+    @pytest.mark.asyncio
+    async def test_config_no_sensitive_data(self, server):
+        """Config does not include sensitive data."""
+        handler = server.server.request_handlers[ReadResourceRequest]
+        result = await handler(
+            ReadResourceRequest(
+                method="resources/read",
+                params=ReadResourceRequestParams(uri="primr://config"),
+            )
+        )
+        
+        content = result.root.contents[0]
+        text = content.text.lower()
+        
+        # Should not contain API key patterns
+        assert "sk-" not in text
+        assert "akia" not in text
+        assert "-----begin" not in text
+        assert "api_key" not in text
+        assert "secret" not in text
+
+
+class TestUnknownResource:
+    """Tests for unknown resource handling."""
+    
+    @pytest.fixture
+    def server(self):
+        """Create a server with temp journal."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            journal_path = str(Path(tmpdir) / "test_journal.json")
+            yield create_mcp_server(journal_path=journal_path)
+    
+    @pytest.mark.asyncio
+    async def test_unknown_resource_raises(self, server):
+        """Unknown resource raises ValueError."""
+        handler = server.server.request_handlers[ReadResourceRequest]
+        
+        with pytest.raises(ValueError, match="Unknown resource"):
+            await handler(
+                ReadResourceRequest(
+                    method="resources/read",
+                    params=ReadResourceRequestParams(uri="primr://unknown"),
+                )
+            )

@@ -1,0 +1,224 @@
+"""
+MCP-specific type definitions for Primr.
+
+This module contains all dataclasses and enums used by the MCP server,
+including job state, tool results, and resource responses.
+"""
+
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import Enum, IntEnum
+from typing import Optional
+
+
+class ResearchMode(str, Enum):
+    """Research pipeline execution modes."""
+    SCRAPE = "scrape"
+    DEEP = "deep"
+    FULL = "full"
+
+
+class CloudVendor(str, Enum):
+    """Supported cloud vendors for AI strategy generation."""
+    AZURE = "azure"
+    AWS = "aws"
+    GCP = "gcp"
+
+
+class StrategyType(str, Enum):
+    """Available strategy document types."""
+    AI_STRATEGY = "ai_strategy"
+    CUSTOMER_EXPERIENCE = "customer_experience"
+    MODERN_SECURITY_COMPLIANCE = "modern_security_compliance"
+    DATA_FABRIC_STRATEGY = "data_fabric_strategy"
+
+
+class JobStatus(str, Enum):
+    """High-level job status."""
+    IDLE = "idle"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+class ResearchStage(str, Enum):
+    """
+    Monotonic stage enum - cannot regress once advanced.
+    
+    Stage progression: IDLE -> ACCEPTED -> SCRAPING -> EXTRACTING -> 
+                       DEEP_RESEARCH -> WRITING -> QA -> COMPLETED
+    Terminal states: COMPLETED, FAILED, CANCELLED
+    """
+    IDLE = "idle"
+    ACCEPTED = "accepted"
+    SCRAPING = "scraping"
+    EXTRACTING = "extracting"
+    DEEP_RESEARCH = "deep_research"
+    WRITING = "writing"
+    QA = "qa"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+@dataclass
+class ResearchStatus:
+    """
+    Current research job status returned by primr://research/status resource.
+    
+    Field requirements by status:
+    - IN_PROGRESS: job_id, company_name, mode, start_time, current_stage required
+    - COMPLETED: completion_time, output_paths required
+    - FAILED: error_type, error_message required
+    """
+    status: JobStatus
+    job_id: Optional[str] = None
+    company_name: Optional[str] = None
+    mode: Optional[ResearchMode] = None
+    start_time: Optional[datetime] = None
+    current_stage: Optional[ResearchStage] = None
+    stage_progress_percent: Optional[int] = None  # 0-100 within current stage
+    stage_started_at: Optional[datetime] = None  # When current stage began
+    last_heartbeat_time: Optional[datetime] = None  # Last progress update
+    stage_expected_minutes: Optional[int] = None  # Best-effort heuristic
+    possibly_stuck: bool = False  # True if heartbeat stale > 120s
+    completion_time: Optional[datetime] = None
+    output_paths: Optional[list[str]] = None
+    error_type: Optional[str] = None
+    error_message: Optional[str] = None
+
+
+@dataclass
+class JobAcceptedResult:
+    """
+    Returned immediately when research_company is called.
+    
+    This is the ONLY result type for research_company (async model).
+    Clients monitor progress via primr://research/status resource.
+    """
+    job_id: str
+    accepted: bool
+    status_uri: str = "primr://research/status"
+
+
+@dataclass
+class EstimateResult:
+    """Returned by estimate_run tool - cost/time estimates without execution."""
+    estimated_cost_usd: float
+    estimated_time_minutes: int
+    planned_pages: Optional[int] = None
+    mode: ResearchMode = ResearchMode.FULL
+
+
+@dataclass
+class DoctorResult:
+    """Returned by doctor tool - system health status."""
+    orphaned_stores_count: int
+    config_valid: bool
+    api_keys_configured: bool
+    warnings: list[str] = field(default_factory=list)
+
+
+@dataclass
+class LatestOutput:
+    """Response for primr://output/latest resource."""
+    report_path: Optional[str] = None
+    company_name: Optional[str] = None
+    generation_timestamp: Optional[datetime] = None
+    report_type: Optional[str] = None
+    content_preview: Optional[str] = None  # First 2000 characters
+    full_content: Optional[str] = None  # Complete report when requested
+
+
+@dataclass
+class ArtifactInfo:
+    """Single artifact in the pipeline artifacts resource."""
+    artifact_type: str  # e.g., "scraped_content", "insights", "dossier", "report"
+    file_path: str
+    size_bytes: int
+    preview: str  # First 500 characters
+    content_hash: Optional[str] = None  # SHA256, optional
+
+
+@dataclass
+class ArtifactsResponse:
+    """Response for primr://output/artifacts resource."""
+    job_id: Optional[str] = None
+    job_status: Optional[JobStatus] = None
+    artifacts: list[ArtifactInfo] = field(default_factory=list)
+
+
+@dataclass
+class ConfigState:
+    """
+    Response for primr://config resource.
+    
+    Built from allowlist schema - never includes sensitive values.
+    """
+    available_modes: list[str] = field(default_factory=list)
+    available_strategies: dict[str, str] = field(default_factory=dict)
+    configured_vendors: list[str] = field(default_factory=list)
+
+
+@dataclass
+class ToolResult:
+    """
+    Result for synchronous tools (generate_strategy, run_qa, doctor, etc.).
+    
+    NOTE: research_company returns JobAcceptedResult (async model) - NOT ToolResult.
+    """
+    success: bool
+    output_path: Optional[str] = None
+    duration_seconds: Optional[float] = None
+    qa_score: Optional[int] = None
+    error_type: Optional[str] = None
+    error_message: Optional[str] = None
+
+
+@dataclass
+class JobInfo:
+    """Job information returned by check_jobs tool."""
+    job_id: str
+    status: JobStatus
+    company_name: Optional[str] = None
+    output_path: Optional[str] = None
+    estimated_completion_time: Optional[datetime] = None
+    error_type: Optional[str] = None
+    error_message: Optional[str] = None
+
+
+@dataclass
+class QAResult:
+    """Result from run_qa tool."""
+    overall_score: int
+    category_scores: dict[str, int] = field(default_factory=dict)
+    improvement_suggestions: list[str] = field(default_factory=list)
+
+
+class MCPErrorCode(IntEnum):
+    """
+    Standard JSON-RPC and MCP-specific error codes.
+    
+    All codes are unique - no collisions.
+    """
+    # JSON-RPC standard errors
+    PARSE_ERROR = -32700
+    INVALID_REQUEST = -32600
+    METHOD_NOT_FOUND = -32601
+    INVALID_PARAMS = -32602
+    INTERNAL_ERROR = -32603
+    
+    # MCP-specific errors (unique codes)
+    RATE_LIMIT_EXCEEDED = -32001
+    PATH_TRAVERSAL_BLOCKED = -32002
+    JOB_IN_PROGRESS = -32003
+    RESOURCE_NOT_FOUND = -32004
+    INVALID_URL = -32005
+    REPORT_NOT_FOUND = -32006
+    AUTHENTICATION_FAILED = -32007
+    SSRF_BLOCKED = -32008
+    JOB_NOT_FOUND = -32009
+    JOB_CANCELLED = -32010
+    URL_UNREACHABLE = -32011
+    CANCEL_NOT_AUTHORIZED = -32012
