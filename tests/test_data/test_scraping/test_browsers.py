@@ -358,6 +358,10 @@ class TestScrapeResultStructure:
         """Browser results should include cookies dict (may be empty for simple sites)."""
         result = scrape_with_playwright("https://example.com")
         
+        # Skip if Playwright browsers aren't installed
+        if not result.success and "Executable doesn't exist" in (result.error or ""):
+            pytest.skip("Playwright browsers not installed")
+        
         # Cookies should be a dict (may be empty for sites that don't set cookies)
         assert result.cookies is not None
         assert isinstance(result.cookies, dict)
@@ -365,6 +369,10 @@ class TestScrapeResultStructure:
     def test_result_has_attempts(self):
         """Results should include attempt records."""
         result = scrape_with_playwright("https://example.com")
+        
+        # Skip if Playwright browsers aren't installed
+        if not result.success and "Executable doesn't exist" in (result.error or ""):
+            pytest.skip("Playwright browsers not installed")
         
         assert len(result.attempts) >= 1
         assert result.attempts[0].tier == "playwright"

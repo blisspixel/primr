@@ -25,8 +25,10 @@ class TestJobIdInLatestResponse:
         job.output_paths = [str(tmp_path / "report.md")]
         job_store.update(job)
         
-        # Create test report
-        report_path = tmp_path / "report.md"
+        # Create test report in a real output directory
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+        report_path = output_dir / "report.md"
         report_path.write_text("# Test Report")
         
         # Create mock mcp_server
@@ -36,14 +38,14 @@ class TestJobIdInLatestResponse:
         # Import and call the resource handler
         from primr.mcp_server.resources import _read_latest_output
         
-        with patch("primr.mcp_server.resources.Path") as mock_path:
-            # Mock the output directory to use our tmp_path
-            mock_output = MagicMock()
-            mock_output.exists.return_value = True
-            mock_output.glob.return_value = [report_path]
-            mock_path.return_value = mock_output
-            
+        # Change to tmp_path so Path("output") resolves correctly
+        import os
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(tmp_path)
             result = _read_latest_output(mock_server, "primr://output/latest")
+        finally:
+            os.chdir(original_cwd)
         
         assert len(result) == 1
         data = json.loads(result[0].content)
@@ -62,13 +64,14 @@ class TestJobIdInLatestResponse:
         
         from primr.mcp_server.resources import _read_latest_output
         
-        # Mock to return no reports (simpler test)
-        with patch("primr.mcp_server.resources.Path") as mock_path:
-            mock_output = MagicMock()
-            mock_output.exists.return_value = False
-            mock_path.return_value = mock_output
-            
+        # Change to tmp_path so Path("output") resolves correctly
+        import os
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(tmp_path)
             result = _read_latest_output(mock_server, "primr://output/latest")
+        finally:
+            os.chdir(original_cwd)
         
         data = json.loads(result[0].content)
         assert data["job_id"] == expected_job_id

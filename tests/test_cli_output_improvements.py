@@ -7,12 +7,19 @@ Verifies:
 - Console methods work correctly
 """
 import io
+import re
 import sys
 from unittest.mock import patch
 
 import pytest
 
 from primr.utils.console import Console
+
+
+def strip_ansi(text: str) -> str:
+    """Remove ANSI escape codes from text."""
+    ansi_escape = re.compile(r'\x1b\[[0-9;]*m')
+    return ansi_escape.sub('', text)
 
 
 class TestPhaseBarners:
@@ -76,8 +83,9 @@ class TestConsoleMessages:
         console.done("Task complete")
         
         captured = capsys.readouterr()
+        output = strip_ansi(captured.out)
         # Modern design uses ✓ (Unicode) or + (ASCII fallback)
-        assert ("✓ Task complete" in captured.out or "+ Task complete" in captured.out)
+        assert ("✓ Task complete" in output or "+ Task complete" in output)
 
     def test_status_message_format(self, capsys):
         """Status messages should be dimmed."""
@@ -94,7 +102,8 @@ class TestConsoleMessages:
         console.warn("Something to note")
         
         captured = capsys.readouterr()
-        assert "! Something to note" in captured.out
+        output = strip_ansi(captured.out)
+        assert "! Something to note" in output
 
 
 class TestPhaseComplete:
@@ -106,8 +115,9 @@ class TestPhaseComplete:
         console.phase_complete("Data Collection")
         
         captured = capsys.readouterr()
+        output = strip_ansi(captured.out)
         # Modern design uses ✓ (Unicode) or + (ASCII fallback)
-        assert ("✓ Data Collection" in captured.out or "+ Data Collection" in captured.out)
+        assert ("✓ Data Collection" in output or "+ Data Collection" in output)
 
     def test_phase_complete_with_stats(self, capsys):
         """Phase complete should show stats."""
@@ -118,7 +128,7 @@ class TestPhaseComplete:
         ])
         
         captured = capsys.readouterr()
-        output = captured.out
+        output = strip_ansi(captured.out)
         # Modern design uses ✓ (Unicode) or + (ASCII fallback)
         assert ("✓ Analysis" in output or "+ Analysis" in output)
         assert "Pages: 15" in output
