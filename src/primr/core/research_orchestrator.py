@@ -29,7 +29,6 @@ from enum import Enum
 
 from primr.ai.deep_research import (
     DeepResearchClient,
-    DeepResearchOrchestrator,
     ReportFormatter,
     ResearchProgress,
     get_deep_research_orchestrator,
@@ -45,20 +44,20 @@ logger = get_logger("core.orchestrator")
 def _cleanup_file_with_retry(filepath: str, max_retries: int = 3, delay: float = 0.5) -> bool:
     """
     Attempt to delete a file with retries.
-    
+
     On Windows, files can be locked by antivirus or other processes.
     Retrying with a small delay often succeeds.
-    
+
     Args:
         filepath: Path to file to delete
         max_retries: Maximum number of attempts
         delay: Delay between retries in seconds
-        
+
     Returns:
         True if file was deleted, False otherwise
     """
     import time
-    
+
     for attempt in range(max_retries):
         try:
             if os.path.exists(filepath):
@@ -497,7 +496,7 @@ class ResearchOrchestrator:
                         company_name, structured_result.section_results
                     )
                     # Read the context file content
-                    with open(step1_context_file, 'r', encoding='utf-8') as f:
+                    with open(step1_context_file, encoding='utf-8') as f:
                         stage1_context = f.read()
                     logger.info(f"Stage 1 context prepared: {len(stage1_context)} chars")
                 except Exception as e:
@@ -519,7 +518,7 @@ class ResearchOrchestrator:
 
             # Use the new comprehensive report generation with sequential elaboration
             orchestrator = get_deep_research_orchestrator()
-            
+
             def progress_wrapper(msg: str) -> None:
                 # Only call on_progress - avoid duplicate console output
                 # The parent callback handles console display
@@ -539,11 +538,11 @@ class ResearchOrchestrator:
             if not deep_result.success:
                 logger.error(f"Deep Research failed: {deep_result.error}")
                 console.error(f"Deep Research failed: {deep_result.error}")
-                
+
                 # Suggest scrape mode if quota exhausted
                 if deep_result.error and "quota" in deep_result.error.lower():
                     console.warn("Tip: Try --mode scrape to generate report without Deep Research API")
-                
+
                 return OrchestratorResult(
                     company_name=company_name,
                     website=website,
@@ -750,28 +749,28 @@ class ResearchOrchestrator:
         This uses the same Accordion Method as --mode full, but WITHOUT Stage 1 scraping:
         - Phase 1: Deep Research gathers research dossier (raw facts)
         - Phase 2: Gemini Flash writes each section with context continuity
-        
+
         This produces 30+ page reports with substantive long-form content,
         not the terse bullet-point output from raw Deep Research.
-        
+
         Context files (if provided) are uploaded to File Search Store to inform the research.
         """
         import time as time_module
-        
+
         start_time = time_module.time()
-        
+
         if on_progress:
             on_progress("Using Accordion Method for comprehensive report...")
             on_progress("  Phase 1: Deep Research gathers facts")
             on_progress("  Phase 2: Section-by-section writing with Gemini Flash")
-        
+
         # Use the Accordion Method orchestrator (same as --mode full, but no Stage 1)
         orchestrator = get_deep_research_orchestrator()
-        
+
         def progress_wrapper(msg: str) -> None:
             if on_progress:
                 on_progress(msg)
-        
+
         # Generate comprehensive report using Accordion Method
         # Pass None for stage1_context since we're skipping Stage 1
         deep_result = await orchestrator.generate_comprehensive_report(
@@ -781,9 +780,9 @@ class ResearchOrchestrator:
             on_progress=progress_wrapper,
             target_pages=30,  # Target 30+ pages
         )
-        
+
         total_duration = time_module.time() - start_time
-        
+
         if not deep_result.success:
             logger.warning(f"Deep research failed: {deep_result.error}")
             return OrchestratorResult(

@@ -21,7 +21,7 @@ client = genai.Client(api_key=GEMINI_API_KEY)
 
 def _get_model_for_type(model_type: str) -> str:
     """Get model name for a given type.
-    
+
     Model types (USE THESE):
         - "scraping": Flash - summarizing scraped content
         - "link_selection": Flash - intelligent link prioritization (which pages to scrape)
@@ -29,7 +29,7 @@ def _get_model_for_type(model_type: str) -> str:
         - "section_writing": Pro - writing report sections
         - "analysis": Pro - complex analysis
         - "reasoning": Pro - general reasoning tasks
-    
+
     Legacy aliases (backward compatible):
         - "filtering" -> Flash (DEPRECATED - use link_selection)
         - "research" -> Flash (DEPRECATED - confusing name)

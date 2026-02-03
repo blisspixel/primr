@@ -22,7 +22,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator, ValidationError
+from pydantic import BaseModel, Field, ValidationError, field_validator
 
 
 class SchemaVersion(str, Enum):
@@ -47,7 +47,7 @@ class SectionPosition(str, Enum):
 class SectionSpecModel(BaseModel):
     """
     Pydantic model for section specification.
-    
+
     Validates the structure of individual sections in a prompt configuration.
     """
     id: str = Field(..., min_length=1, description="Unique section identifier")
@@ -65,12 +65,12 @@ class SectionSpecModel(BaseModel):
 class PromptMetaModel(BaseModel):
     """
     Pydantic model for prompt metadata.
-    
+
     Validates the meta section of a prompt configuration.
     """
     name: str = Field(..., min_length=1, description="Prompt name")
     version: str = Field(
-        ..., 
+        ...,
         pattern=r"^\d+\.\d+\.\d+$",
         description="Semantic version (e.g., 1.0.0)"
     )
@@ -85,7 +85,7 @@ class PromptMetaModel(BaseModel):
 class PromptConfigModel(BaseModel):
     """
     Pydantic model for complete prompt configuration.
-    
+
     Validates the entire structure of a prompt YAML configuration file.
     """
     meta: PromptMetaModel
@@ -93,7 +93,7 @@ class PromptConfigModel(BaseModel):
     sections: list[SectionSpecModel] = Field(..., min_length=1, description="Report sections")
     epistemic_rules: dict[str, str] = Field(default_factory=dict)
     formatting: dict[str, str] = Field(default_factory=dict)
-    
+
     # Optional fields for strategy prompts
     key_metrics: dict[str, str] = Field(default_factory=dict)
     accordion_method: dict[str, Any] = Field(default_factory=dict)
@@ -127,7 +127,7 @@ def _collect_all_section_ids(sections: list[SectionSpecModel]) -> list[str]:
 class SchemaVersionError(Exception):
     """
     Raised when schema version is unsupported.
-    
+
     Provides migration guidance in the error message.
     """
     def __init__(self, message: str, current_version: str, unsupported_version: str | None = None):
@@ -135,7 +135,7 @@ class SchemaVersionError(Exception):
         self.current_version = current_version
         self.unsupported_version = unsupported_version
         self.supported_versions = [v.value for v in SchemaVersion]
-    
+
     def __str__(self) -> str:
         base_msg = super().__str__()
         migration_hint = (
@@ -150,80 +150,80 @@ class SchemaVersionError(Exception):
 class ConfigValidator:
     """
     Validates YAML configurations against Pydantic models.
-    
+
     Provides detailed error messages with field paths and expected types.
     """
-    
+
     def validate_prompt_config(self, config: dict[str, Any]) -> PromptConfigModel:
         """
         Validate a prompt configuration dictionary.
-        
+
         Args:
             config: Dictionary loaded from YAML configuration file
-            
+
         Returns:
             Validated PromptConfigModel instance
-            
+
         Raises:
             ValidationError: If validation fails, with detailed error messages
         """
         return PromptConfigModel.model_validate(config)
-    
+
     def check_schema_version(self, config: dict[str, Any]) -> tuple[SchemaVersion, bool]:
         """
         Check schema version and compatibility.
-        
+
         Args:
             config: Dictionary loaded from YAML configuration file
-            
+
         Returns:
             Tuple of (detected_version, is_current_version)
-            
+
         Raises:
             SchemaVersionError: If schema version is unsupported
         """
         version_str = config.get("meta", {}).get("schema_version", "1.0")
-        
+
         try:
             version = SchemaVersion(version_str)
             is_current = version == CURRENT_SCHEMA_VERSION
             return version, is_current
-        except ValueError:
+        except ValueError as e:
             raise SchemaVersionError(
                 f"Unknown schema version: {version_str}. "
                 f"Supported versions: {[v.value for v in SchemaVersion]}",
                 current_version=CURRENT_SCHEMA_VERSION.value,
                 unsupported_version=version_str,
-            )
-    
+            ) from e
+
     def export_json_schema(self) -> dict[str, Any]:
         """
         Export JSON Schema for external tooling and IDE support.
-        
+
         Returns:
             JSON Schema dictionary for PromptConfigModel
         """
         return PromptConfigModel.model_json_schema()
-    
+
     def validate_with_version_check(self, config: dict[str, Any]) -> PromptConfigModel:
         """
         Validate configuration with schema version checking.
-        
+
         This method first checks the schema version, then validates the config.
-        
+
         Args:
             config: Dictionary loaded from YAML configuration file
-            
+
         Returns:
             Validated PromptConfigModel instance
-            
+
         Raises:
             SchemaVersionError: If schema version is unsupported
             ValidationError: If validation fails
         """
         # Check schema version first
         self.check_schema_version(config)
-        
+
         # Then validate the full config
         return self.validate_prompt_config(config)
 

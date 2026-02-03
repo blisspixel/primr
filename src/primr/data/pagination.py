@@ -380,7 +380,7 @@ class PaginationDetector:
         # Check if path pagination links exist
         if re.search(r'/page/\d+', html, re.I):
             page_links = self.extract_page_links(html, current_url)
-            path_links = [l for l in page_links if '/page/' in l]
+            path_links = [link for link in page_links if '/page/' in link]
 
             if path_links:
                 return PaginationInfo(

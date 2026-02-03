@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.5.0 (February 2026)
+Current State: v1.5.1 (February 2026)
 
 Primr is a CLI-first, local research tool for company intelligence and strategic analysis. It aims to accelerate research workflows while being transparent about uncertainty.
 
@@ -127,6 +127,15 @@ These design constraints reflect the tool's intended use case and help maintain 
 - 282 property-based tests
 - Documentation: CONCURRENCY.md, docs/STATE_MACHINES.md, docs/MIGRATION.md
 
+### v1.5.1 - Code Quality Fixes (Complete)
+
+- Fixed dead code and unreachable statements
+- Fixed Python 3.10 compatibility in MCP server
+- Fixed exception chaining across modules
+- Fixed ambiguous variable names and duplicate definitions
+- Full ruff compliance (all checks pass)
+- 1526 tests passing
+
 ## Near-Term Roadmap
 
 ### v1.6.0 - QA-Driven Report Iteration (Planned)
@@ -250,6 +259,7 @@ primr-mcp --http --port 8000
 | 1.4.0 | Feb 2026 | MCP Server for AI agent integration |
 | 1.4.1 | Feb 2026 | Open Claw integration |
 | 1.5.0 | Feb 2026 | Code quality improvements |
+| 1.5.1 | Feb 2026 | Code quality fixes, ruff compliance |
 | 1.6.0 | TBD | QA-driven report iteration |
 
 ## Final Note

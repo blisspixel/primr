@@ -25,10 +25,11 @@ Example:
             print(f"{error.field}: {error.message}")
 """
 
-from dataclasses import dataclass, field, fields as dataclass_fields, is_dataclass
+from collections.abc import Callable
+from dataclasses import dataclass, field, is_dataclass
+from dataclasses import fields as dataclass_fields
 from typing import (
     Any,
-    Callable,
     Generic,
     TypeVar,
     Union,
@@ -393,16 +394,16 @@ def validate_dataclass(instance: Any, cls: type[T]) -> T:
         # Fall back to field annotations if get_type_hints fails
         pass
 
-    for field in dataclass_fields(cls):
-        field_value = getattr(instance, field.name)
-        field_type = type_hints.get(field.name, field.type)
+    for dc_field in dataclass_fields(cls):
+        field_value = getattr(instance, dc_field.name)
+        field_type = type_hints.get(dc_field.name, dc_field.type)
 
         # Skip if type is a string (forward reference we can't resolve)
         if isinstance(field_type, str):
             continue
 
         try:
-            validate_type(field_value, field_type, field.name)
+            validate_type(field_value, field_type, dc_field.name)
         except TypeValidationError as e:
             raise TypeValidationError(
                 expected=e.expected,
@@ -653,7 +654,7 @@ def validate_in_range(
         >>> validate_in_range(-1, 0, 10).is_valid
         False
     """
-    if not isinstance(value, (int, float)):
+    if not isinstance(value, int | float):
         return ValidationResult.err(
             field=field_name,
             expected="number",
@@ -841,7 +842,7 @@ def validate_config(
     for key, (min_val, max_val) in schema.ranges.items():
         if key in validated_config:
             value = validated_config[key]
-            if isinstance(value, (int, float)):
+            if isinstance(value, int | float):
                 if min_val is not None and value < min_val:
                     result.add_error(
                         field=field_path(key),

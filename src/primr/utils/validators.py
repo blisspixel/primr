@@ -317,7 +317,7 @@ def validate_url_for_request(
                 # Resolve hostname to IP
                 resolved_ips = socket.getaddrinfo(host, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
 
-                for family, socktype, proto, canonname, sockaddr in resolved_ips:
+                for _family, _socktype, _proto, _canonname, sockaddr in resolved_ips:
                     resolved_ip = sockaddr[0]
 
                     try:
@@ -331,7 +331,7 @@ def validate_url_for_request(
                         # Skip if can't parse resolved IP
                         continue
 
-            except (socket.gaierror, socket.error):
+            except (OSError, socket.gaierror):
                 # DNS resolution failed - allow it (will fail later during request)
                 # This prevents blocking valid domains that are temporarily unreachable
                 pass

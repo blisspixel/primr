@@ -11,13 +11,11 @@ import ipaddress
 import logging
 import os
 import re
-import urllib.parse
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from threading import Lock
-from typing import Optional
 
 
 def _utcnow() -> datetime:
@@ -350,7 +348,7 @@ class URLValidator:
                 hostname, parsed.port or (443 if parsed.scheme == "https" else 80)
             )
             resolved_ips = set()
-            for family, type_, proto, canonname, sockaddr in ip_addresses:
+            for _family, _type, _proto, _canonname, sockaddr in ip_addresses:
                 ip = sockaddr[0]
                 resolved_ips.add(ip)
         except socket.gaierror:

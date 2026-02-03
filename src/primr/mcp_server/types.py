@@ -8,7 +8,6 @@ including job state, tool results, and resource responses.
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum, IntEnum
-from typing import Optional
 
 
 class ResearchMode(str, Enum):

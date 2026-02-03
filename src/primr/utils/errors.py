@@ -12,7 +12,6 @@ This module provides:
 from __future__ import annotations
 
 import functools
-import json
 import logging
 import random
 from abc import ABC
@@ -113,35 +112,35 @@ def calculate_backoff_delay(attempt: int, config: RetryConfig) -> float:
 def _get_correlation_id() -> str:
     """
     Get the current correlation ID from context or generate a new one.
-    
+
     This is a local helper to avoid circular imports with observability module.
     It attempts to get the correlation ID from the thread-local context,
     falling back to generating a new UUID if no context exists.
-    
+
     Returns:
         8-character correlation ID string
     """
     import threading
     import uuid
-    
+
     # Try to get from thread-local context (set by observability module)
     _context_var = getattr(threading, '_primr_context', None)
     if _context_var is None:
         # Create thread-local storage if it doesn't exist
         threading._primr_context = threading.local()
         _context_var = threading._primr_context
-    
+
     ctx = getattr(_context_var, 'context', None)
     if ctx is not None and hasattr(ctx, 'correlation_id'):
         return ctx.correlation_id
-    
+
     # Try to import from observability module (preferred)
     try:
         from primr.utils.observability import get_correlation_id
         return get_correlation_id()
     except ImportError:
         pass
-    
+
     # Fallback: generate new correlation ID
     return str(uuid.uuid4())[:8]
 
@@ -154,11 +153,11 @@ def _get_correlation_id() -> str:
 class PrimrError(Exception, ABC):
     """
     Base exception for all Primr errors with automatic context capture.
-    
+
     This is the foundation of the typed error hierarchy that enables
     automatic retry policies and informed recovery decisions based on
     error classification.
-    
+
     Attributes:
         message: Human-readable error description
         category: Error category for classification (e.g., "transient", "permanent")
@@ -169,7 +168,7 @@ class PrimrError(Exception, ABC):
         cause: The underlying exception that caused this error
         context: Additional context data for debugging
         guidance: User-friendly guidance for resolving the error
-    
+
     Example:
         try:
             result = api_call()
@@ -180,7 +179,7 @@ class PrimrError(Exception, ABC):
             else:
                 raise  # Don't retry permanent errors
     """
-    
+
     message: str
     category: str = "general"
     recoverable: bool = False
@@ -190,14 +189,14 @@ class PrimrError(Exception, ABC):
     cause: Exception | None = None
     context: dict[str, Any] = field(default_factory=dict)
     guidance: str = ""
-    
+
     def __post_init__(self) -> None:
         """Initialize the exception with the message."""
         super().__init__(self.message)
         # Set default guidance based on category if not provided
         if not self.guidance:
             self.guidance = self._default_guidance()
-    
+
     def _default_guidance(self) -> str:
         """Get default guidance based on error category."""
         guidance_map = {
@@ -213,13 +212,13 @@ class PrimrError(Exception, ABC):
             "quota": "API quota exhausted. Wait for quota reset.",
         }
         return guidance_map.get(self.category, "")
-    
+
     def __str__(self) -> str:
         """Return the error message."""
         if self.cause:
             return f"{self.message} (caused by: {self.cause})"
         return self.message
-    
+
     def __repr__(self) -> str:
         """Return a detailed representation of the error."""
         return (
@@ -229,11 +228,11 @@ class PrimrError(Exception, ABC):
             f"recoverable={self.recoverable}, "
             f"correlation_id={self.correlation_id!r})"
         )
-    
+
     def user_message(self) -> str:
         """
         Get user-friendly error message without stack traces.
-        
+
         Returns:
             Clean message suitable for display to users
         """
@@ -241,11 +240,11 @@ class PrimrError(Exception, ABC):
         if self.guidance:
             msg += f"\n    {self.guidance}"
         return msg
-    
+
     def debug_message(self) -> str:
         """
         Get detailed error message for debugging.
-        
+
         Returns:
             Detailed message including cause chain and context
         """
@@ -260,20 +259,20 @@ class PrimrError(Exception, ABC):
             if value:
                 parts.append(f"  {attr.replace('_', ' ').title()}: {value}")
         return "\n".join(parts)
-    
+
     def _debug_attributes(self) -> list[str]:
         """Return list of additional attributes to include in debug message."""
         return []
-    
+
     def to_dict(self) -> dict[str, Any]:
         """
         Serialize to JSON-compatible dictionary.
-        
+
         Returns:
             Dictionary containing all error attributes suitable for JSON serialization.
             The dictionary includes: type, message, category, recoverable, retry_after,
             correlation_id, timestamp, and context.
-        
+
         Example:
             error = RateLimitError("Rate limit exceeded", retry_after_seconds=60)
             data = error.to_dict()
@@ -301,15 +300,15 @@ class PrimrError(Exception, ABC):
 class TransientError(PrimrError):
     """
     Base class for errors that may succeed on retry.
-    
+
     Transient errors represent temporary failures that are likely to
     resolve themselves, such as network timeouts, rate limits, or
     temporary service unavailability.
-    
+
     Attributes:
         recoverable: Always True for transient errors
         category: Always "transient" for base transient errors
-    
+
     Example:
         try:
             result = fetch_data()
@@ -318,7 +317,7 @@ class TransientError(PrimrError):
             await asyncio.sleep(e.retry_after or 1.0)
             result = fetch_data()
     """
-    
+
     recoverable: bool = True
     category: str = "transient"
 
@@ -327,15 +326,15 @@ class TransientError(PrimrError):
 class PermanentError(PrimrError):
     """
     Base class for errors that will never succeed on retry.
-    
+
     Permanent errors represent failures that cannot be resolved by
     retrying, such as invalid input, authentication failures, or
     missing resources.
-    
+
     Attributes:
         recoverable: Always False for permanent errors
         category: Always "permanent" for base permanent errors
-    
+
     Example:
         try:
             result = validate_input(data)
@@ -343,7 +342,7 @@ class PermanentError(PrimrError):
             # Do NOT retry - fix the input instead
             raise UserInputError(str(e))
     """
-    
+
     recoverable: bool = False
     category: str = "permanent"
 
@@ -352,15 +351,15 @@ class PermanentError(PrimrError):
 class TypedRateLimitError(TransientError):
     """
     API rate limit exceeded (Typed Error Hierarchy).
-    
+
     Raised when an API call fails due to rate limiting. The retry_after_seconds
     attribute indicates how long to wait before retrying.
-    
+
     Attributes:
         message: Error message (default: "API rate limit exceeded")
         retry_after_seconds: Seconds to wait before retrying (default: 60.0)
         category: Always "rate_limit"
-    
+
     Example:
         try:
             response = api.call()
@@ -368,11 +367,11 @@ class TypedRateLimitError(TransientError):
             await asyncio.sleep(e.retry_after_seconds)
             response = api.call()
     """
-    
+
     message: str = "API rate limit exceeded"
     category: str = "rate_limit"
     retry_after_seconds: float = 60.0
-    
+
     def __post_init__(self) -> None:
         """Set retry_after from retry_after_seconds and update guidance."""
         super().__post_init__()
@@ -387,14 +386,14 @@ class TypedRateLimitError(TransientError):
 class QuotaError(TransientError):
     """
     API quota exhausted.
-    
+
     Raised when an API quota is exhausted. The quota_reset_time attribute
     indicates when the quota will be reset.
-    
+
     Attributes:
         quota_reset_time: When the quota will be reset (optional)
         category: Always "quota"
-    
+
     Example:
         try:
             response = api.call()
@@ -404,10 +403,10 @@ class QuotaError(TransientError):
                 await asyncio.sleep(max(0, wait_time))
             response = api.call()
     """
-    
+
     category: str = "quota"
     quota_reset_time: datetime | None = None
-    
+
     def __post_init__(self) -> None:
         """Calculate retry_after from quota_reset_time."""
         super().__post_init__()
@@ -420,15 +419,15 @@ class QuotaError(TransientError):
 class TypedNetworkError(TransientError):
     """
     Network connectivity issues (Typed Error Hierarchy).
-    
+
     Raised when a network operation fails due to connectivity issues,
     such as connection refused, DNS resolution failure, or timeout.
-    
+
     Attributes:
         host: The host that was being connected to
         port: The port that was being connected to (optional)
         category: Always "network"
-    
+
     Example:
         try:
             response = fetch_url(url)
@@ -437,7 +436,7 @@ class TypedNetworkError(TransientError):
             await asyncio.sleep(1.0)
             response = fetch_url(url)
     """
-    
+
     category: str = "network"
     host: str = ""
     port: int | None = None
@@ -447,18 +446,18 @@ class TypedNetworkError(TransientError):
 class PrimrValidationError(PermanentError):
     """
     Input validation failed.
-    
+
     Raised when input validation fails. The field_errors attribute
     contains a mapping of field names to lists of error messages.
-    
+
     Note: Named PrimrValidationError to avoid conflict with existing
     ValidationError class. Use this for new code requiring the typed
     error hierarchy.
-    
+
     Attributes:
         field_errors: Mapping of field names to error messages
         category: Always "validation"
-    
+
     Example:
         errors = validate_form(data)
         if errors:
@@ -467,7 +466,7 @@ class PrimrValidationError(PermanentError):
                 field_errors=errors
             )
     """
-    
+
     category: str = "validation"
     field_errors: dict[str, list[str]] = field(default_factory=dict)
 
@@ -476,14 +475,14 @@ class PrimrValidationError(PermanentError):
 class AuthenticationError(PermanentError):
     """
     Authentication failed.
-    
+
     Raised when authentication fails, such as invalid credentials,
     expired tokens, or missing API keys.
-    
+
     Attributes:
         auth_method: The authentication method that failed (e.g., "api_key", "oauth")
         category: Always "authentication"
-    
+
     Example:
         if not api_key:
             raise AuthenticationError(
@@ -491,7 +490,7 @@ class AuthenticationError(PermanentError):
                 auth_method="api_key"
             )
     """
-    
+
     category: str = "authentication"
     auth_method: str = ""
 
@@ -500,19 +499,19 @@ class AuthenticationError(PermanentError):
 class PrimrConfigurationError(PermanentError):
     """
     Configuration is invalid or missing.
-    
+
     Raised when configuration validation fails or required configuration
     is missing.
-    
+
     Note: Named PrimrConfigurationError to avoid conflict with existing
     ConfigurationError class. Use this for new code requiring the typed
     error hierarchy.
-    
+
     Attributes:
         config_path: Path to the configuration file (if applicable)
         missing_keys: List of missing configuration keys
         category: Always "configuration"
-    
+
     Example:
         missing = check_required_config(config)
         if missing:
@@ -522,7 +521,7 @@ class PrimrConfigurationError(PermanentError):
                 missing_keys=missing
             )
     """
-    
+
     category: str = "configuration"
     config_path: str = ""
     missing_keys: list[str] = field(default_factory=list)
@@ -532,15 +531,15 @@ class PrimrConfigurationError(PermanentError):
 class PrimrAIError(TransientError):
     """
     AI/LLM operation failed.
-    
+
     Raised when an AI API call fails. This is typically a transient error
     that can be retried.
-    
+
     Attributes:
         model: The model that was being used
         operation: The operation that failed (e.g., "generate", "embed")
         category: Always "ai"
-    
+
     Example:
         try:
             response = client.generate(prompt)
@@ -549,11 +548,11 @@ class PrimrAIError(TransientError):
             if e.recoverable:
                 response = client.generate(prompt)  # Retry
     """
-    
+
     category: str = "ai"
     model: str = ""
     operation: str = ""
-    
+
     def _debug_attributes(self) -> list[str]:
         return ["model", "operation"]
 
@@ -562,16 +561,16 @@ class PrimrAIError(TransientError):
 class PrimrScrapingError(TransientError):
     """
     Web scraping operation failed.
-    
+
     Raised when a scraping operation fails. Includes context about
     the URL, HTTP status, and scraping tier that was attempted.
-    
+
     Attributes:
         url: The URL that was being scraped
         status_code: HTTP status code (if available)
         tier: The scraping tier that failed
         category: Always "scraping"
-    
+
     Example:
         try:
             content = scrape_page(url)
@@ -580,12 +579,12 @@ class PrimrScrapingError(TransientError):
             if e.recoverable:
                 content = scrape_page(url, escalate=True)
     """
-    
+
     category: str = "scraping"
     url: str = ""
     status_code: int | None = None
     tier: str = ""
-    
+
     def _debug_attributes(self) -> list[str]:
         return ["url", "status_code", "tier"]
 
@@ -594,26 +593,26 @@ class PrimrScrapingError(TransientError):
 class PrimrSearchError(TransientError):
     """
     Search operation failed.
-    
+
     Raised when a search API call fails. Includes context about
     the query and HTTP status.
-    
+
     Attributes:
         query: The search query that failed
         status_code: HTTP status code (if available)
         category: Always "search"
-    
+
     Example:
         try:
             results = search(query)
         except PrimrSearchError as e:
             logger.warning(f"Search failed for '{e.query}': {e.message}")
     """
-    
+
     category: str = "search"
     query: str = ""
     status_code: int | None = None
-    
+
     def _debug_attributes(self) -> list[str]:
         return ["query", "status_code"]
 
@@ -622,22 +621,22 @@ class PrimrSearchError(TransientError):
 class PrimrOutputError(PermanentError):
     """
     Report/output generation failed.
-    
+
     Raised when report generation fails, such as file write errors
     or formatting failures.
-    
+
     Attributes:
         output_path: Path where output was being written
         output_format: Format being generated (e.g., "docx", "pdf")
         category: Always "output"
-    
+
     Example:
         try:
             write_report(content, path)
         except PrimrOutputError as e:
             logger.error(f"Failed to write {e.output_format} to {e.output_path}")
     """
-    
+
     category: str = "output"
     output_path: str = ""
     output_format: str = ""
@@ -667,10 +666,10 @@ ResearchError = PrimrError
 class RateLimitError(TypedRateLimitError):
     """
     Backward-compatible wrapper for TypedRateLimitError.
-    
+
     Accepts the old `retry_after` parameter and maps it to `retry_after_seconds`.
     """
-    
+
     def __init__(
         self,
         message: str = "API rate limit exceeded",

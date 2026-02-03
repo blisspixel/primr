@@ -16,22 +16,21 @@ Usage:
         validate_config,
         export_schema,
     )
-    
+
     # Load and validate configuration
     config = load_config()
-    
+
     # Or validate explicitly
     errors = validate_config()
     if errors:
         print("Configuration errors:", errors)
-    
+
     # Export JSON Schema for documentation
     schema = export_schema()
 """
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 from dataclasses import dataclass, field
@@ -53,12 +52,12 @@ load_dotenv()
 @dataclass
 class ConfigError:
     """A single configuration error."""
-    
+
     field: str
     message: str
     value: Any = None
     suggestion: str | None = None
-    
+
     def __str__(self) -> str:
         msg = f"{self.field}: {self.message}"
         if self.value is not None:
@@ -71,15 +70,15 @@ class ConfigError:
 @dataclass
 class ConfigValidationResult:
     """Result of configuration validation."""
-    
+
     valid: bool
     errors: list[ConfigError] = field(default_factory=list)
     warnings: list[ConfigError] = field(default_factory=list)
-    
+
     def __str__(self) -> str:
         if self.valid and not self.warnings:
             return "Configuration valid"
-        
+
         parts = []
         if self.errors:
             parts.append(f"Errors ({len(self.errors)}):")
@@ -99,7 +98,7 @@ class ConfigValidationResult:
 @dataclass
 class APIKeysConfig:
     """API keys configuration with lazy validation."""
-    
+
     gemini_api_key: str | None = field(
         default_factory=lambda: os.getenv("GEMINI_API_KEY")
     )
@@ -109,11 +108,11 @@ class APIKeysConfig:
     search_engine_id: str | None = field(
         default_factory=lambda: os.getenv("SEARCH_ENGINE_ID")
     )
-    
+
     def validate(self) -> list[ConfigError]:
         """Validate API keys are present."""
         errors = []
-        
+
         if not self.gemini_api_key:
             errors.append(ConfigError(
                 field="GEMINI_API_KEY",
@@ -127,44 +126,44 @@ class APIKeysConfig:
                 value=f"{self.gemini_api_key[:4]}...",
                 suggestion="Check that the full API key is provided"
             ))
-        
+
         return errors
-    
+
     def get_warnings(self) -> list[ConfigError]:
         """Get warnings for optional but recommended keys."""
         warnings = []
-        
+
         if not self.search_api_key:
             warnings.append(ConfigError(
                 field="SEARCH_API_KEY",
                 message="Optional key not set (Google Search disabled)",
                 suggestion="Add SEARCH_API_KEY for external source validation"
             ))
-        
+
         if not self.search_engine_id:
             warnings.append(ConfigError(
                 field="SEARCH_ENGINE_ID",
                 message="Optional key not set (Google Search disabled)",
                 suggestion="Add SEARCH_ENGINE_ID for external source validation"
             ))
-        
+
         return warnings
 
 
 @dataclass
 class TimeoutsConfig:
     """Timeout configuration with validation."""
-    
+
     connect_timeout: float = 10.0
     read_timeout: float = 30.0
     total_timeout: float = 60.0
     scrape_timeout: float = 45.0
     ai_timeout: float = 120.0
-    
+
     def validate(self) -> list[ConfigError]:
         """Validate timeout values."""
         errors = []
-        
+
         for name, value in [
             ("connect_timeout", self.connect_timeout),
             ("read_timeout", self.read_timeout),
@@ -185,31 +184,31 @@ class TimeoutsConfig:
                     value=value,
                     suggestion="Use a timeout <= 600 seconds"
                 ))
-        
+
         if self.total_timeout < self.connect_timeout:
             errors.append(ConfigError(
                 field="total_timeout",
                 message="Must be >= connect_timeout",
                 value=self.total_timeout
             ))
-        
+
         return errors
 
 
 @dataclass
 class RetryConfig:
     """Retry configuration with validation."""
-    
+
     max_retries: int = 3
     base_delay: float = 1.0
     max_delay: float = 60.0
     exponential_base: float = 2.0
     jitter_factor: float = 0.1
-    
+
     def validate(self) -> list[ConfigError]:
         """Validate retry configuration."""
         errors = []
-        
+
         if self.max_retries < 0:
             errors.append(ConfigError(
                 field="max_retries",
@@ -223,52 +222,52 @@ class RetryConfig:
                 value=self.max_retries,
                 suggestion="Use max_retries <= 10 to avoid excessive delays"
             ))
-        
+
         if self.base_delay <= 0:
             errors.append(ConfigError(
                 field="base_delay",
                 message="Must be positive",
                 value=self.base_delay
             ))
-        
+
         if self.max_delay <= 0:
             errors.append(ConfigError(
                 field="max_delay",
                 message="Must be positive",
                 value=self.max_delay
             ))
-        
+
         if self.exponential_base <= 1:
             errors.append(ConfigError(
                 field="exponential_base",
                 message="Must be > 1",
                 value=self.exponential_base
             ))
-        
+
         if not 0 <= self.jitter_factor <= 1:
             errors.append(ConfigError(
                 field="jitter_factor",
                 message="Must be between 0 and 1",
                 value=self.jitter_factor
             ))
-        
+
         return errors
 
 
 @dataclass
 class ScrapingConfig:
     """Scraping configuration with validation."""
-    
+
     max_pages: int = 100
     max_depth: int = 2
     min_content_length: int = 100
     enable_vision: bool = True
     circuit_breaker_threshold: int = 5
-    
+
     def validate(self) -> list[ConfigError]:
         """Validate scraping configuration."""
         errors = []
-        
+
         if self.max_pages <= 0:
             errors.append(ConfigError(
                 field="max_pages",
@@ -282,99 +281,99 @@ class ScrapingConfig:
                 value=self.max_pages,
                 suggestion="Large page counts increase cost and time significantly"
             ))
-        
+
         if self.max_depth < 0:
             errors.append(ConfigError(
                 field="max_depth",
                 message="Must be non-negative",
                 value=self.max_depth
             ))
-        
+
         if self.min_content_length < 0:
             errors.append(ConfigError(
                 field="min_content_length",
                 message="Must be non-negative",
                 value=self.min_content_length
             ))
-        
+
         if self.circuit_breaker_threshold < 1:
             errors.append(ConfigError(
                 field="circuit_breaker_threshold",
                 message="Must be at least 1",
                 value=self.circuit_breaker_threshold
             ))
-        
+
         return errors
 
 
 @dataclass
 class AIConfig:
     """AI model configuration with validation."""
-    
+
     fast_model: str = "gemini-2.0-flash"
     reasoning_model: str = "gemini-2.5-pro-preview-06-05"
     temperature: float = 1.0
     thinking_level: Literal["low", "high"] = "high"
     grade_threshold: int = 80
-    
+
     def validate(self) -> list[ConfigError]:
         """Validate AI configuration."""
         errors = []
-        
+
         if not self.fast_model or not self.fast_model.strip():
             errors.append(ConfigError(
                 field="fast_model",
                 message="Model name cannot be empty"
             ))
-        
+
         if not self.reasoning_model or not self.reasoning_model.strip():
             errors.append(ConfigError(
                 field="reasoning_model",
                 message="Model name cannot be empty"
             ))
-        
+
         if not 0.0 <= self.temperature <= 2.0:
             errors.append(ConfigError(
                 field="temperature",
                 message="Must be between 0.0 and 2.0",
                 value=self.temperature
             ))
-        
+
         if self.thinking_level not in ("low", "high"):
             errors.append(ConfigError(
                 field="thinking_level",
                 message="Must be 'low' or 'high'",
                 value=self.thinking_level
             ))
-        
+
         if not 0 <= self.grade_threshold <= 100:
             errors.append(ConfigError(
                 field="grade_threshold",
                 message="Must be between 0 and 100",
                 value=self.grade_threshold
             ))
-        
+
         return errors
 
 
 @dataclass
 class PathsConfig:
     """Path configuration with validation."""
-    
+
     project_root: Path = field(default_factory=Path.cwd)
     output_dir: Path = field(init=False)
     working_dir: Path = field(init=False)
     logs_dir: Path = field(init=False)
-    
+
     def __post_init__(self):
         self.output_dir = self.project_root / "output"
         self.working_dir = self.project_root / "working"
         self.logs_dir = self.project_root / "logs"
-    
+
     def validate(self) -> list[ConfigError]:
         """Validate paths are writable."""
         errors = []
-        
+
         for name, path in [
             ("output_dir", self.output_dir),
             ("working_dir", self.working_dir),
@@ -390,7 +389,7 @@ class PathsConfig:
                     value=str(path)
                 ))
                 continue
-            
+
             # Test write permission
             test_file = path / ".primr_write_test"
             try:
@@ -402,7 +401,7 @@ class PathsConfig:
                     message=f"Directory not writable: {e}",
                     value=str(path)
                 ))
-        
+
         return errors
 
 
@@ -414,9 +413,9 @@ class PathsConfig:
 class PrimrConfig:
     """
     Main Primr configuration container.
-    
+
     Aggregates all configuration sections and provides unified validation.
-    
+
     Example:
         config = PrimrConfig()
         result = config.validate()
@@ -424,47 +423,47 @@ class PrimrConfig:
             print(result)
             sys.exit(1)
     """
-    
+
     api_keys: APIKeysConfig = field(default_factory=APIKeysConfig)
     timeouts: TimeoutsConfig = field(default_factory=TimeoutsConfig)
     retry: RetryConfig = field(default_factory=RetryConfig)
     scraping: ScrapingConfig = field(default_factory=ScrapingConfig)
     ai: AIConfig = field(default_factory=AIConfig)
     paths: PathsConfig = field(default_factory=PathsConfig)
-    
+
     # Schema version for migration support
     schema_version: str = "1.0.0"
-    
+
     def validate(self, include_api_keys: bool = True) -> ConfigValidationResult:
         """
         Validate all configuration.
-        
+
         Args:
             include_api_keys: If True, validate API keys are present
-            
+
         Returns:
             ConfigValidationResult with errors and warnings
         """
         errors: list[ConfigError] = []
         warnings: list[ConfigError] = []
-        
+
         # Validate each section
         if include_api_keys:
             errors.extend(self.api_keys.validate())
             warnings.extend(self.api_keys.get_warnings())
-        
+
         errors.extend(self.timeouts.validate())
         errors.extend(self.retry.validate())
         errors.extend(self.scraping.validate())
         errors.extend(self.ai.validate())
         errors.extend(self.paths.validate())
-        
+
         return ConfigValidationResult(
             valid=len(errors) == 0,
             errors=errors,
             warnings=warnings
         )
-    
+
     def to_dict(self) -> dict[str, Any]:
         """Export configuration as dictionary (excluding secrets)."""
         return {
@@ -520,29 +519,29 @@ _config: PrimrConfig | None = None
 def load_config(project_root: Path | None = None) -> PrimrConfig:
     """
     Load and cache configuration.
-    
+
     Args:
         project_root: Override project root path
-        
+
     Returns:
         PrimrConfig instance
     """
     global _config
-    
+
     if _config is None or project_root is not None:
         paths = PathsConfig(project_root=project_root) if project_root else PathsConfig()
         _config = PrimrConfig(paths=paths)
-    
+
     return _config
 
 
 def validate_config(include_api_keys: bool = True) -> ConfigValidationResult:
     """
     Validate current configuration.
-    
+
     Args:
         include_api_keys: If True, validate API keys are present
-        
+
     Returns:
         ConfigValidationResult with errors and warnings
     """
@@ -553,22 +552,22 @@ def validate_config(include_api_keys: bool = True) -> ConfigValidationResult:
 def require_valid_config(include_api_keys: bool = True) -> PrimrConfig:
     """
     Require valid configuration, raising if invalid.
-    
+
     Args:
         include_api_keys: If True, validate API keys are present
-        
+
     Returns:
         Valid PrimrConfig instance
-        
+
     Raises:
         ValueError: If configuration is invalid
     """
     config = load_config()
     result = config.validate(include_api_keys=include_api_keys)
-    
+
     if not result.valid:
         raise ValueError(f"Configuration validation failed:\n{result}")
-    
+
     return config
 
 
@@ -581,7 +580,7 @@ def reset_config() -> None:
 def export_schema() -> dict[str, Any]:
     """
     Export configuration schema as JSON Schema.
-    
+
     Returns:
         JSON Schema dictionary
     """

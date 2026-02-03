@@ -290,7 +290,7 @@ class AsyncAIClient:
 
     def _get_model(self, model_type: str) -> str:
         """Get the model name for a given type.
-        
+
         Model types (USE THESE):
             - "scraping": Flash - summarizing scraped content
             - "link_selection": Flash - intelligent link prioritization (which pages to scrape)
@@ -298,7 +298,7 @@ class AsyncAIClient:
             - "section_writing": Pro - writing report sections
             - "analysis": Pro - complex analysis
             - "reasoning": Pro - general reasoning tasks
-        
+
         Legacy aliases (backward compatible):
             - "filtering" -> Flash (DEPRECATED - use link_selection)
             - "research" -> Flash (DEPRECATED - confusing name)

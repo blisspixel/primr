@@ -9,8 +9,8 @@ Requirements: 15.2, 19.1-19.4
 
 import asyncio
 import logging
-import time
-from typing import TYPE_CHECKING, Callable, Optional
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 from primr.mcp_server.job_store import ResearchJobState
 from primr.mcp_server.types import ResearchStage
@@ -146,10 +146,10 @@ class PipelineRunner:
             # Complete
             job.advance_stage(ResearchStage.COMPLETED)
             self.mcp_server.job_store.update(job)
-            
+
             # Generate run manifest for audit trail (FR-7.1)
             await self._generate_run_manifest(job, company_url, mode)
-            
+
             logger.info(f"Research job {job.job_id} completed successfully")
 
         except asyncio.CancelledError:
@@ -266,7 +266,6 @@ class PipelineRunner:
         Requirements: FR-7.1, FR-7.2
         """
         import json
-        import os
         from pathlib import Path
 
         from primr.config.config import OUTPUT_DIR
@@ -346,10 +345,10 @@ async def run_strategy_generation(
     Returns:
         Dict with output_path, strategy_type, and qa_score
     """
-    from primr.core.ai_strategy import CloudVendor, generate_ai_strategy
-
     # Extract company name from report
     import os
+
+    from primr.core.ai_strategy import CloudVendor, generate_ai_strategy
     company_name = os.path.basename(report_path).split("_")[0].replace("_", " ")
 
     # Map strategy type

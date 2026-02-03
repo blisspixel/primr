@@ -18,14 +18,11 @@ Usage:
     # Check if current month's research exists
     is_current = is_vendor_research_current("azure")
 """
-import asyncio
-import os
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Protocol
-
-from typing import Callable
 
 from primr.config.config import PROJECT_ROOT
 from primr.utils.console import console
@@ -297,7 +294,6 @@ async def generate_vendor_research(
         Path to generated research file, or None if failed
     """
     from primr.ai.deep_research import ResearchStatus, get_deep_research_client
-    from primr.config.settings import get_settings
 
     # Pre-flight validation
     preflight_errors = _validate_vendor_research_preflight(vendor)
@@ -426,7 +422,7 @@ OUTPUT FORMAT (Start the document with this exact header)
 
 # {meta['name']} AI Services and Capabilities
 
-**Prepared by:** Primr Research System  
+**Prepared by:** Primr Research System
 **Date:** {current_date}
 
 ---
@@ -442,8 +438,8 @@ You MUST use live web search to find the latest information.
 Do NOT rely on potentially outdated training data.
 
 RESEARCH GOAL:
-Many companies are interested in adopting AI in {current_date}. For {meta['name']}, 
-I need a comprehensive overview of the latest AI services, capabilities, and best 
+Many companies are interested in adopting AI in {current_date}. For {meta['name']},
+I need a comprehensive overview of the latest AI services, capabilities, and best
 practices that we should keep in mind when advising enterprise customers on AI strategy.
 
 Search for the latest updates from {meta['conference']} and recent announcements.

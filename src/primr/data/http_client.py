@@ -183,11 +183,11 @@ class HTTPClient:
         url = url.strip()
         if not url.startswith(('http://', 'https://')):
             raise ValueError(f"URL must start with http:// or https://, got: {url[:50]}")
-        
+
         # Validate timeout if provided
-        if timeout is not None and (not isinstance(timeout, (int, float)) or timeout <= 0):
+        if timeout is not None and (not isinstance(timeout, int | float) or timeout <= 0):
             raise ValueError(f"timeout must be a positive number, got: {timeout}")
-        
+
         start_time = time.time()
 
         try:

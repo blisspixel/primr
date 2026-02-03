@@ -14,9 +14,8 @@ from typing import Any
 
 from google import genai
 
-from primr.config.settings import get_settings
 from primr.config.models import PrimrModels
-from primr.utils.errors import AIError
+from primr.config.settings import get_settings
 from primr.utils.logging_config import get_logger
 
 logger = get_logger("ai.report_architect")
@@ -25,12 +24,12 @@ logger = get_logger("ai.report_architect")
 @dataclass
 class ChapterPlan:
     """A single chapter in the research plan."""
-    
+
     chapter_number: int
     title: str
     research_prompt: str
     expected_pages: int = 5
-    
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
@@ -44,15 +43,15 @@ class ChapterPlan:
 @dataclass
 class ReportPlan:
     """Complete plan for a multi-chapter research report."""
-    
+
     company_name: str
     chapters: list[ChapterPlan] = field(default_factory=list)
     total_expected_pages: int = 0
-    
+
     def __post_init__(self) -> None:
         """Calculate total expected pages."""
         self.total_expected_pages = sum(ch.expected_pages for ch in self.chapters)
-    
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
@@ -66,7 +65,7 @@ class ReportPlan:
 DEFAULT_CHAPTERS = [
     {
         "title": "Executive Summary & Company Snapshot",
-        "research_prompt": """Write a comprehensive executive summary for {company_name}. 
+        "research_prompt": """Write a comprehensive executive summary for {company_name}.
 Include: company overview, founding story, headquarters, employee count, revenue if available.
 Synthesize the most critical findings a decision-maker needs in 60 seconds.
 Use the File Search context for baseline company facts. Add market context from web search."""
@@ -142,11 +141,11 @@ Frame as hypotheses to explore, not conclusions. What do we most want to underst
 class MasterArchitect:
     """
     Decomposes strategic reports into chapters for parallel research.
-    
+
     The Master Architect uses Flash model to analyze the company context
     and generate a customized chapter plan. Each chapter includes detailed
     research instructions for the Deep Research agent.
-    
+
     Example:
         architect = MasterArchitect()
         plan = await architect.generate_chapter_plan(
@@ -156,14 +155,14 @@ class MasterArchitect:
         for chapter in plan.chapters:
             print(f"{chapter.chapter_number}. {chapter.title}")
     """
-    
+
     # Model for planning (fast and cheap)
     PLANNING_MODEL = PrimrModels.FAST_MODEL
-    
+
     def __init__(self, api_key: str | None = None):
         """
         Initialize the Master Architect.
-        
+
         Args:
             api_key: Optional API key override. Uses settings if not provided.
         """
@@ -179,25 +178,25 @@ class MasterArchitect:
     ) -> ReportPlan:
         """
         Generate a chapter plan for comprehensive company research.
-        
+
         Uses {PrimrModels.FAST_MODEL} to analyze the company context and create
         a customized 10-chapter research plan. Each chapter includes
         detailed instructions for the Deep Research agent.
-        
+
         Args:
             company_name: Name of the company to research
             context_summary: Summary of scraped data and initial findings
-            
+
         Returns:
             ReportPlan with 8-10 chapters
-            
+
         Raises:
             AIError: If planning fails after retries
         """
         logger.info(f"Generating chapter plan for {company_name}")
-        
+
         prompt = self._build_planning_prompt(company_name, context_summary)
-        
+
         try:
             # Call fast model for planning
             response = self._client.models.generate_content(
@@ -208,40 +207,40 @@ class MasterArchitect:
                     "temperature": 0.3,  # Lower temperature for consistent structure
                 }
             )
-            
+
             # Parse the JSON response
             response_text = response.text or ""
             chapters = self._parse_chapter_response(response_text, company_name)
-            
+
             plan = ReportPlan(
                 company_name=company_name,
                 chapters=chapters,
             )
-            
+
             logger.info(
                 f"Generated plan with {len(chapters)} chapters, "
                 f"~{plan.total_expected_pages} expected pages"
             )
             return plan
-            
+
         except Exception as e:
             logger.warning(f"Chapter planning failed: {e}, using default structure")
             return self._get_default_plan(company_name)
-    
+
     def _build_planning_prompt(
         self,
         company_name: str,
         context_summary: str,
     ) -> str:
         """Build the prompt for chapter planning."""
-        return f"""You are a Principal Strategic Architect. We are commissioning a comprehensive 
+        return f"""You are a Principal Strategic Architect. We are commissioning a comprehensive
 strategic advisory report on {company_name}.
 
 Context Summary (from initial research):
 {context_summary[:4000]}  # Truncate to avoid token limits
 
 Task: Deconstruct this topic into exactly 10 substantive chapters.
-Each chapter must be distinct, exhaustive, and capable of standing alone 
+Each chapter must be distinct, exhaustive, and capable of standing alone
 as a 5-6 page deep dive.
 
 Output a JSON object with this exact structure:
@@ -258,7 +257,7 @@ Output a JSON object with this exact structure:
 
 Required chapters (adapt titles and prompts based on the company context):
 1. Executive Summary & Company Snapshot
-2. Products, Services & Value Proposition  
+2. Products, Services & Value Proposition
 3. Leadership, Culture & Organization
 4. Financial Position & Business Model
 5. Target Markets & Customer Segments
@@ -277,7 +276,7 @@ For each chapter's research_prompt:
 - Request citations for all claims
 
 Output ONLY the JSON object, no other text."""
-    
+
     def _parse_chapter_response(
         self,
         response_text: str,
@@ -287,7 +286,7 @@ Output ONLY the JSON object, no other text."""
         try:
             # Try to parse as JSON
             data = json.loads(response_text)
-            
+
             chapters: list[ChapterPlan] = []
             for ch in data.get("chapters", []):
                 chapter = ChapterPlan(
@@ -297,20 +296,20 @@ Output ONLY the JSON object, no other text."""
                     expected_pages=ch.get("expected_pages", 5),
                 )
                 chapters.append(chapter)
-            
+
             # Validate we have enough chapters
             if len(chapters) < 8:
                 logger.warning(
                     f"Only {len(chapters)} chapters parsed, using defaults"
                 )
                 return self._get_default_chapters(company_name)
-            
+
             return chapters
-            
+
         except json.JSONDecodeError as e:
             logger.warning(f"Failed to parse chapter JSON: {e}")
             return self._get_default_chapters(company_name)
-    
+
     def _get_default_chapters(self, company_name: str) -> list[ChapterPlan]:
         """Get default chapter structure when API fails."""
         chapters = []
@@ -324,14 +323,14 @@ Output ONLY the JSON object, no other text."""
                 expected_pages=5,
             ))
         return chapters
-    
+
     def _get_default_plan(self, company_name: str) -> ReportPlan:
         """Get default report plan when API fails."""
         return ReportPlan(
             company_name=company_name,
             chapters=self._get_default_chapters(company_name),
         )
-    
+
     def get_chapter_titles(self) -> list[str]:
         """Get the list of default chapter titles."""
         return [ch["title"] for ch in DEFAULT_CHAPTERS]

@@ -14,10 +14,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from primr.config.models import PrimrModels
-
 from dotenv import load_dotenv
 
+from primr.config.models import PrimrModels
 from primr.utils.errors import ConfigurationError
 
 # Load environment variables
@@ -192,7 +191,7 @@ class ScrapingConfig:
     def validate(self) -> None:
         """
         Validate scraping configuration values.
-        
+
         Raises:
             ValueError: If any configuration value is invalid
         """
@@ -216,7 +215,7 @@ class ScrapingConfig:
 class AIConfig:
     """
     AI model configuration.
-    
+
     Model assignments (update PrimrModels to change globally):
         - flash_model: Fast tasks (summarization, filtering) - cheap
         - pro_model: Complex tasks (report generation, reasoning) - expensive
@@ -230,7 +229,7 @@ class AIConfig:
     pro_model: str = field(
         default_factory=lambda: os.getenv("AI_REASONING_MODEL", PrimrModels.PRO_MODEL)
     )
-    
+
     # Task-specific aliases (for backward compatibility)
     fast_model: str = field(
         default_factory=lambda: os.getenv("AI_FAST_MODEL", PrimrModels.FAST_MODEL)
@@ -238,7 +237,7 @@ class AIConfig:
     reasoning_model: str = field(
         default_factory=lambda: os.getenv("AI_REASONING_MODEL", PrimrModels.REASONING_MODEL)
     )
-    
+
     # Legacy aliases (backward compatible)
     research_model: str = field(
         default_factory=lambda: os.getenv("AI_RESEARCH_MODEL", PrimrModels.FAST_MODEL)
@@ -258,7 +257,7 @@ class AIConfig:
     def validate(self) -> None:
         """
         Validate AI configuration values.
-        
+
         Raises:
             ValueError: If any configuration value is invalid
         """
@@ -267,19 +266,19 @@ class AIConfig:
             raise ValueError(f"max_retries must be non-negative, got {self.max_retries}")
         if self.max_retries > 10:
             raise ValueError(f"max_retries too high (max 10), got {self.max_retries}")
-        
+
         # Validate temperature
         if not 0.0 <= self.default_temperature <= 2.0:
             raise ValueError(f"default_temperature must be 0.0-2.0, got {self.default_temperature}")
-        
+
         # Validate thinking level
         if self.default_thinking_level not in ("low", "high"):
             raise ValueError(f"default_thinking_level must be 'low' or 'high', got {self.default_thinking_level}")
-        
+
         # Validate grade threshold
         if not 0 <= self.grade_threshold <= 100:
             raise ValueError(f"grade_threshold must be 0-100, got {self.grade_threshold}")
-        
+
         # Validate model names are non-empty
         for model_name in [self.flash_model, self.pro_model, self.fast_model, self.reasoning_model]:
             if not model_name or not model_name.strip():

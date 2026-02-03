@@ -24,13 +24,12 @@ Usage:
     # Consolidate for context
     context_file = consolidate_working_folder(folder)
 """
-import glob
 import os
 import tempfile
+from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterator
 from urllib.parse import urlparse
 
 from primr.config.config import WORKING_DIR
@@ -114,20 +113,20 @@ def create_working_folder(company_name: str | None, website: str | None, use_run
         Path to the created folder as string (for backward compatibility)
     """
     from datetime import datetime
-    
+
     if not company_name and website:
         parsed_url = urlparse(website)
         company_name = parsed_url.netloc.replace("www.", "").replace(".", "_")
 
     folder_name = company_name.replace(" ", "_") if company_name else "Unknown_Company"
-    
+
     if use_run_id:
         # Create timestamped run folder: Company_Name/2026-01-09_0845
         run_id = datetime.now().strftime("%Y-%m-%d_%H%M")
         folder_path = os.path.join(WORKING_DIR, folder_name, run_id)
     else:
         folder_path = os.path.join(WORKING_DIR, folder_name)
-    
+
     os.makedirs(folder_path, exist_ok=True)
     return folder_path
 
@@ -195,7 +194,7 @@ def consolidate_working_folder(folder_path: str | Path) -> str:
     Consolidate research files from a working folder into a single context file.
 
     Prioritizes the strategic report (deep_research_output.md) as the primary source,
-    then includes key supporting files. Avoids redundancy by not including all 20+ 
+    then includes key supporting files. Avoids redundancy by not including all 20+
     section files when the strategic report already synthesizes them.
 
     Args:
@@ -214,15 +213,15 @@ def consolidate_working_folder(folder_path: str | Path) -> str:
 
     deep_research_file = folder_path / "deep_research_output.md"
     has_deep_research = deep_research_file.exists()
-    
+
     # Key supporting files (raw data not fully captured in strategic report)
     key_files = ["scraped_website_summary.txt", "financial_overview.txt", "industry_insights.txt"]
     txt_files = [folder_path / f for f in key_files if (folder_path / f).exists()]
-    
+
     # If no strategic report, fall back to all .txt files
     if not has_deep_research:
         txt_files = list(folder_path.glob("*.txt"))
-    
+
     if not txt_files and not has_deep_research:
         raise ValueError(f"No research files found in {folder_path}")
 

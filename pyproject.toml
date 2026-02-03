@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "primr"
-version = "1.5.0"
+version = "1.5.1"
 description = "Company intelligence research tool using Google Gemini - generates structured briefs from website content and external sources"
 readme = "README.md"
 license = {text = "MIT"}
@@ -100,7 +100,13 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "C4"]
-ignore = ["E501"]
+ignore = [
+    "E501",   # Line too long
+    "E402",   # Module level import not at top (intentional lazy imports)
+    "UP017",  # Allow timezone.utc for broader compatibility
+    "N802",   # Function name should be lowercase (intentional for color constants)
+    "N806",   # Variable in function should be lowercase (intentional for constants)
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

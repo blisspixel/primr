@@ -290,7 +290,7 @@ class UsageTracker:
             f"  Total Time:     {total_duration / 60:.1f} minutes",
             "",
         ])
-        
+
         # Show search cost projection (after Jan 5, 2026)
         if total_searches > 0:
             projected_search_cost = (total_searches / 1000) * 35.0  # $35/1000 queries

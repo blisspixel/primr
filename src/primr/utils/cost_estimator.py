@@ -18,8 +18,6 @@ not the 100+ that "thinking steps" might suggest.
 from dataclasses import dataclass
 from enum import Enum
 
-from primr.utils.console import get_console
-
 
 class ResearchModeType(Enum):
     """Research modes for cost estimation."""
@@ -270,7 +268,7 @@ def display_cost_estimate(
     """
     import sys
     estimate = estimate_cost(mode, include_ai_strategy)
-    
+
     # Clean single line with visible text
     print(f"\n{company_name} | {mode} | ~${estimate.total_cost:.2f} | {estimate.duration_minutes}")
     sys.stdout.flush()

@@ -30,34 +30,29 @@ from primr.utils.config_validation import (
 from primr.utils.console import Console, console, get_console, set_console
 from primr.utils.errors import (
     AIError,
+    AuthenticationError,
     ConfigurationError,
     ErrorContext,
     OutputError,
+    PermanentError,
+    PrimrConfigurationError,
+    # Typed error hierarchy (preferred for new code)
+    PrimrError,
+    PrimrValidationError,
+    QuotaError,
     ResearchError,
     RetryConfig,
     ScrapingError,
     SearchError,
+    TransientError,
+    TypedNetworkError,
+    TypedRateLimitError,
     ValidationError,
     async_safe_callback,
     calculate_backoff_delay,
     error_context,
     retry_on_failure,
     safe_call,
-    # Typed error hierarchy (preferred for new code)
-    PrimrError,
-    TransientError,
-    PermanentError,
-    TypedRateLimitError,
-    QuotaError,
-    TypedNetworkError,
-    PrimrValidationError,
-    AuthenticationError,
-    PrimrConfigurationError,
-)
-from primr.utils.retry import (
-    RetryAttempt,
-    RetryPolicy,
-    RetryPolicyManager,
 )
 from primr.utils.files import (
     ensure_parent_exists,
@@ -100,6 +95,11 @@ from primr.utils.resources import (
     managed_http_client,
     managed_temp_dir,
     managed_temp_file,
+)
+from primr.utils.retry import (
+    RetryAttempt,
+    RetryPolicy,
+    RetryPolicyManager,
 )
 from primr.utils.type_guards import (
     TypeValidationError,

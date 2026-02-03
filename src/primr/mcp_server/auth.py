@@ -11,7 +11,6 @@ import logging
 import os
 import time
 from dataclasses import dataclass, field
-from typing import Optional
 
 from mcp.server.auth.provider import AccessToken
 
@@ -96,7 +95,7 @@ class PrimrTokenVerifier:
             return jwt_result
 
         # Invalid token
-        logger.warning(f"Token verification failed")
+        logger.warning("Token verification failed")
         return None
 
     def _verify_jwt(self, token: str) -> AccessToken | None:
@@ -269,7 +268,7 @@ def create_auth_middleware(verifier: PrimrTokenVerifier):
 
     Requirements: 13.2, 13.3, 13.6, 13.7
     """
-    from mcp.server.auth.middleware.bearer_auth import RequireAuthMiddleware, BearerAuthBackend
+    from mcp.server.auth.middleware.bearer_auth import BearerAuthBackend, RequireAuthMiddleware
 
     backend = BearerAuthBackend(verifier)
     return RequireAuthMiddleware(backend)

@@ -1,6 +1,6 @@
 # Primr Documentation Index
 
-Quick reference to all Primr documentation.
+Quick reference to all Primr documentation. Current version: 1.5.1
 
 ## Getting Started
 

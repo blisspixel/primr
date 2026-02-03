@@ -46,6 +46,26 @@ from primr.ai.deep_research import (
     research_company,
     reset_deep_research_client,
 )
+from primr.ai.grading_agent import grade_report
+from primr.ai.insight_engine import InsightEngine
+from primr.ai.insights import (
+    InsightAnalyzer,
+    InsightReport,
+    Opportunity,
+    OpportunityType,
+    Recommendation,
+    RecommendationType,
+    Risk,
+    RiskCategory,
+    RiskLevel,
+    assess_risks,
+    generate_insights,
+    generate_recommendations,
+    get_insight_analyzer,
+    identify_opportunities,
+    reset_insight_analyzer,
+)
+from primr.ai.quality_grader import QualityGrader
 
 # Recursive Hierarchical Research Architecture
 from primr.ai.report_aggregator import (
@@ -68,26 +88,6 @@ from primr.ai.research_executor import (
     get_research_executor,
     reset_research_executor,
 )
-from primr.ai.grading_agent import grade_report
-from primr.ai.insight_engine import InsightEngine
-from primr.ai.insights import (
-    InsightAnalyzer,
-    InsightReport,
-    Opportunity,
-    OpportunityType,
-    Recommendation,
-    RecommendationType,
-    Risk,
-    RiskCategory,
-    RiskLevel,
-    assess_risks,
-    generate_insights,
-    generate_recommendations,
-    get_insight_analyzer,
-    identify_opportunities,
-    reset_insight_analyzer,
-)
-from primr.ai.quality_grader import QualityGrader
 from primr.ai.result_normalizer import (
     Citation,
     NormalizedSection,

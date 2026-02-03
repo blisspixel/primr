@@ -30,7 +30,7 @@ from primr.prompts.schema import (
     PromptContext,
     SectionSpec,
 )
-from primr.prompts.shared_loader import SharedComponentLoader, load_shared_components
+from primr.prompts.shared_loader import SharedComponentLoader
 from primr.utils.logging_config import get_logger
 
 logger = get_logger("prompts.composer")
@@ -444,7 +444,7 @@ class PromptComposer:
         lines.append("EPISTEMIC RULES:")
         epistemic_rules = dict(shared.epistemic_rules)
         epistemic_rules.update(config.epistemic_rules_override)
-        for rule_name, rule_text in epistemic_rules.items():
+        for _rule_name, rule_text in epistemic_rules.items():
             lines.append(f"- {rule_text.strip()}")
         lines.append("")
 
@@ -452,14 +452,14 @@ class PromptComposer:
         lines.append("FORMATTING:")
         formatting_rules = dict(shared.formatting_rules)
         formatting_rules.update(config.formatting_override)
-        for rule_name, rule_text in formatting_rules.items():
+        for _rule_name, rule_text in formatting_rules.items():
             lines.append(f"- {rule_text.strip()}")
         lines.append("")
 
         # Add heuristics if present
         if config.heuristics:
             lines.append("HEURISTICS AND RULES OF THUMB:")
-            for name, text in config.heuristics.items():
+            for _name, text in config.heuristics.items():
                 lines.append(f"- {text.strip()}")
             lines.append("")
 

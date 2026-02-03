@@ -20,7 +20,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Any, Generic, Protocol, TypedDict, TypeVar, Union, runtime_checkable
+from typing import Any, Generic, Protocol, TypedDict, TypeVar, runtime_checkable
 
 # =============================================================================
 # TYPE ALIASES
@@ -28,7 +28,7 @@ from typing import Any, Generic, Protocol, TypedDict, TypeVar, Union, runtime_ch
 
 # URL and path types
 URL = str
-FilePath = Union[str, Path]
+FilePath = str | Path
 
 # Content types
 HTMLContent = str

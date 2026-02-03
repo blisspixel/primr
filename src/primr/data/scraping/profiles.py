@@ -12,7 +12,6 @@ This module provides realistic 2026 browser profiles.
 
 import random
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
@@ -20,8 +19,8 @@ class HttpHeaderProfile:
     """HTTP headers that must match TLS fingerprint."""
     name: str
     user_agent: str
-    sec_ch_ua: Optional[str]
-    sec_ch_ua_platform: Optional[str]
+    sec_ch_ua: str | None
+    sec_ch_ua_platform: str | None
     accept_language: str
 
 
@@ -324,7 +323,7 @@ def get_stealth_script() -> str:
     return STEALTH_SCRIPT
 
 
-def get_http_profile_by_name(name: str) -> Optional[HttpHeaderProfile]:
+def get_http_profile_by_name(name: str) -> HttpHeaderProfile | None:
     """Get a specific HTTP profile by name."""
     for profile in HTTP_PROFILES:
         if profile.name == name:
@@ -332,7 +331,7 @@ def get_http_profile_by_name(name: str) -> Optional[HttpHeaderProfile]:
     return None
 
 
-def get_context_profile_by_name(name: str) -> Optional[BrowserContextProfile]:
+def get_context_profile_by_name(name: str) -> BrowserContextProfile | None:
     """Get a specific context profile by name."""
     for profile in CONTEXT_PROFILES:
         if profile.name == name:
