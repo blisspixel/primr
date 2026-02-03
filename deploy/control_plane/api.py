@@ -57,6 +57,10 @@ from deploy.control_plane.rate_limiter import (
     RateLimitResult,
     RateLimitExceededError,
 )
+from deploy.control_plane.metrics import (
+    ControlPlaneMetrics,
+    get_metrics,
+)
 from deploy.storage import ArtifactStore, LocalStore
 
 
@@ -297,6 +301,9 @@ async def submit_job(
     # Check rate limit first
     rate_result = rate_limiter.check(api_key_hash)
     if not rate_result.allowed:
+        # Record rate limit hit
+        metrics = get_metrics()
+        metrics.record_rate_limit_hit(api_key_hash)
         raise HTTPException(
             status_code=429,
             detail={
@@ -419,6 +426,10 @@ async def submit_job(
             attempt=1,
         )
         queue.enqueue(message)
+    
+    # Record metrics
+    metrics = get_metrics()
+    metrics.record_job_submitted(request.mode, deployment)
     
     return SubmitResponse(
         job_id=job_id,
@@ -572,6 +583,29 @@ async def get_results(
         manifest=manifest.to_dict(),
         artifacts=artifacts,
     )
+
+
+@app.get("/metrics")
+async def get_metrics_endpoint() -> JSONResponse:
+    """
+    Get control plane metrics.
+    
+    Returns metrics in JSON format for monitoring systems.
+    """
+    metrics = get_metrics()
+    return JSONResponse(content=json.loads(metrics.to_json()))
+
+
+@app.get("/metrics/prometheus")
+async def get_prometheus_metrics() -> str:
+    """
+    Get control plane metrics in Prometheus format.
+    
+    Returns metrics in Prometheus text format.
+    """
+    from fastapi.responses import PlainTextResponse
+    metrics = get_metrics()
+    return PlainTextResponse(content=metrics.to_prometheus(), media_type="text/plain")
 
 
 # =============================================================================

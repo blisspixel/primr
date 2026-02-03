@@ -46,6 +46,14 @@ from typing import Any, Protocol, TYPE_CHECKING
 if TYPE_CHECKING:
     from deploy.storage import ArtifactStore
 
+# Import observability utilities
+from deploy.observability import (
+    redact_sensitive,
+    redact_dict,
+    Tracer,
+    MetricsCollector,
+)
+
 # Version for manifest
 RUNNER_VERSION = "1.0.0"
 
@@ -274,7 +282,7 @@ def format_timestamp(dt: datetime) -> str:
 
 
 class StructuredLogger:
-    """Logger that writes structured JSON logs to a file."""
+    """Logger that writes structured JSON logs to a file with redaction."""
     
     def __init__(self, log_file: Path) -> None:
         self.log_file = log_file
@@ -283,12 +291,22 @@ class StructuredLogger:
         log_file.parent.mkdir(parents=True, exist_ok=True)
     
     def log(self, level: str, event: str, **kwargs: Any) -> None:
-        """Write a structured log entry."""
+        """Write a structured log entry with sensitive data redacted."""
+        # Redact sensitive data from kwargs
+        redacted_kwargs = {}
+        for key, value in kwargs.items():
+            if isinstance(value, dict):
+                redacted_kwargs[key] = redact_dict(value)
+            elif isinstance(value, str):
+                redacted_kwargs[key] = redact_sensitive(value)
+            else:
+                redacted_kwargs[key] = value
+        
         entry = {
             "ts": format_timestamp(utc_now()),
             "level": level,
             "event": event,
-            **kwargs,
+            **redacted_kwargs,
         }
         with self._lock:
             with open(self.log_file, "a", encoding="utf-8") as f:
@@ -654,6 +672,19 @@ def main() -> int:
     struct_logger = StructuredLogger(log_file)
     struct_logger.info("runner_starting", job_id=job_spec.job_id, version=RUNNER_VERSION)
     
+    # Setup tracing (optional - enabled via OTEL_EXPORTER_* env vars)
+    tracer = Tracer(
+        service_name="primr-runner",
+        job_id=job_spec.job_id,
+        deployment=job_spec.deployment,
+    )
+    
+    # Setup metrics collector
+    metrics = MetricsCollector(
+        job_id=job_spec.job_id,
+        deployment=job_spec.deployment,
+    )
+    
     # Setup event writer with store integration
     events_file = output_dir / "events.jsonl"
     event_writer = EventWriter(
@@ -679,28 +710,38 @@ def main() -> int:
     heartbeat_writer.start()
     
     try:
-        # Run primr
-        exit_code, error = run_primr(job_spec, output_dir, event_writer, struct_logger)
+        # Run primr with tracing
+        with tracer.span("primr_execution", {"mode": job_spec.mode}) as span:
+            exit_code, error = run_primr(job_spec, output_dir, event_writer, struct_logger)
+            
+            # Check for cancellation
+            if _state.cancel_requested:
+                exit_code = EXIT_CANCELLED
+                error = "user_cancelled"
+            
+            # Determine status
+            if exit_code == EXIT_SUCCESS:
+                status = "SUCCEEDED"
+                tracer.set_success(span)
+            elif exit_code == EXIT_CANCELLED:
+                status = "CANCELLED"
+            else:
+                status = "FAILED"
+                if span:
+                    span.set_attribute("error.message", error or "unknown")
         
-        # Check for cancellation
-        if _state.cancel_requested:
-            exit_code = EXIT_CANCELLED
-            error = "user_cancelled"
-        
-        # Determine status
-        if exit_code == EXIT_SUCCESS:
-            status = "SUCCEEDED"
-        elif exit_code == EXIT_CANCELLED:
-            status = "CANCELLED"
-        else:
-            status = "FAILED"
+        # Record metrics
+        completed_at = utc_now()
+        if _state.started_at:
+            duration = (completed_at - _state.started_at).total_seconds()
+            metrics.record_duration("job_execution", duration, {"status": status, "mode": job_spec.mode})
+        metrics.record_count("job_completed", labels={"status": status, "mode": job_spec.mode})
         
         # Upload artifacts to store if not local
         if not isinstance(store, LocalStore):
             _upload_artifacts_to_store(output_dir, store, job_spec.job_id, struct_logger)
         
         # Build manifest
-        completed_at = utc_now()
         manifest = build_manifest(
             job_spec=job_spec,
             output_dir=output_dir,

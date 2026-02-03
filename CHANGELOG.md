@@ -5,6 +5,47 @@ All notable changes to Primr will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2026-02-03
+
+### Added
+- **Serverless Cloud Deployment** - Full job-based ephemeral execution for AWS, Azure, and GCP
+  - Job runner contract with manifest-as-commit pattern
+  - Artifact storage abstraction (S3, Blob Storage, GCS)
+  - Control plane API (submit, status, cancel, results)
+  - Event-driven queue boundary (SQS FIFO, Service Bus, Pub/Sub)
+  - State reconciliation for stuck/orphaned jobs
+  - Comprehensive SSRF protection (RFC1918, metadata IPs, DNS rebinding)
+  - Per-API-key rate limiting and quota enforcement
+  - OpenTelemetry tracing with job_id correlation
+  - Structured JSON logging with sensitive data redaction
+
+- **AWS (Primary - Production Ready)**
+  - Lambda control plane + Fargate job runner
+  - ECR lifecycle policy (keep last 10 images)
+  - S3 lifecycle rules (IA transition after 30 days, version cleanup)
+  - SQS dead-letter queue for failed messages
+  - Step Functions with least-privilege IAM roles
+  - X-Ray tracing on reconciler Lambda
+  - CloudWatch alarms (Lambda errors, DynamoDB throttling, DLQ, queue age)
+
+- **Azure (Reference Implementation)**
+  - Container Apps control plane + Container Apps Jobs runner
+  - Cosmos DB autoscale (400-4000 RU/s)
+  - Managed identity with RBAC roles
+  - Application Insights for monitoring and tracing
+
+- **GCP (Reference Implementation)**
+  - Cloud Run control plane + Cloud Run Jobs runner
+  - Dedicated service account (not default App Engine SA)
+  - Least-privilege IAM roles
+  - Firestore composite indexes for efficient reconciler queries
+  - Cloud Scheduler with dedicated service account for OIDC auth
+
+### Documentation
+- docs/CLOUD_DEPLOYMENT.md - Serverless deployment guide
+- Updated README.md with cloud deployment section
+- Updated ROADMAP.md with v1.6.0 completion
+
 ## [1.5.1] - 2026-02-02
 
 ### Added

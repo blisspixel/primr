@@ -157,6 +157,7 @@ class JobRecord:
     artifact_location: str = ""  # e.g., s3://bucket/deployment/job_id/
     error_message: str | None = None
     ttl: int = 0  # Unix timestamp for auto-expiry
+    no_runner_manifest: bool = False  # True if runner couldn't write manifest
     
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
@@ -176,6 +177,7 @@ class JobRecord:
             "artifact_location": self.artifact_location,
             "error_message": self.error_message,
             "ttl": self.ttl,
+            "no_runner_manifest": self.no_runner_manifest,
         }
     
     @classmethod
@@ -197,6 +199,7 @@ class JobRecord:
             artifact_location=data.get("artifact_location", ""),
             error_message=data.get("error_message"),
             ttl=data.get("ttl", 0),
+            no_runner_manifest=data.get("no_runner_manifest", False),
         )
 
 

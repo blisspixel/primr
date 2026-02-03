@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.5.1 (February 2026)
+Current State: v1.7.0 (February 2026)
 
 Primr is a CLI-first, local research tool for company intelligence and strategic analysis. It aims to accelerate research workflows while being transparent about uncertainty.
 
@@ -50,6 +50,13 @@ The design is intentionally opinionated and local-first. This roadmap reflects c
 - Usage tracking and job recovery
 - System diagnostics (primr doctor)
 - Test coverage
+
+### Cloud Deployment (v1.6.0)
+
+- Serverless job execution on AWS, Azure, GCP
+- Job-based ephemeral containers (scale to zero)
+- Event-driven queue boundary
+- Production-grade observability and monitoring
 
 ## Design Philosophy
 
@@ -136,9 +143,112 @@ These design constraints reflect the tool's intended use case and help maintain 
 - Full ruff compliance (all checks pass)
 - 1526 tests passing
 
+### v1.6.0 - Serverless Cloud Deployment (Complete)
+
+Goal: Enable scalable cloud deployment with job-based ephemeral execution.
+
+**Core Infrastructure:**
+- Job runner contract with manifest-as-commit pattern
+- Artifact storage abstraction (S3, Blob, GCS)
+- Control plane API (submit, status, cancel, results)
+- Event-driven queue boundary (SQS FIFO, Service Bus, Pub/Sub)
+- State reconciliation for stuck/orphaned jobs
+
+**AWS (Primary - Production Ready):**
+- Lambda control plane + Fargate job runner
+- ECR lifecycle policy (keep last 10 images)
+- S3 lifecycle rules (IA transition, version cleanup)
+- SQS dead-letter queue for failed messages
+- Step Functions with least-privilege IAM roles
+- X-Ray tracing on reconciler Lambda
+- CloudWatch alarms: Lambda errors, DynamoDB throttling, DLQ messages, queue age
+
+**Azure (Reference Implementation):**
+- Container Apps control plane + Container Apps Jobs runner
+- Cosmos DB autoscale (400-4000 RU/s)
+- Managed identity with RBAC roles (Cosmos DB, Storage, Key Vault)
+- Application Insights for monitoring and tracing
+
+**GCP (Reference Implementation):**
+- Cloud Run control plane + Cloud Run Jobs runner
+- Dedicated service account (not default App Engine SA)
+- Least-privilege IAM roles (Firestore user, GCS viewer, Run invoker)
+- Firestore composite indexes for efficient reconciler queries
+- Cloud Scheduler with dedicated service account for OIDC auth
+
+**Security:**
+- Comprehensive SSRF protection (RFC1918, metadata IPs, DNS rebinding)
+- Per-API-key rate limiting and quota enforcement
+- Secrets management via cloud secret managers (runner only)
+- Control plane requires NO LLM keys
+
+**Observability:**
+- OpenTelemetry tracing with job_id correlation
+- Structured JSON logging with sensitive data redaction
+- Metrics: job duration, queue depth, success/failure rates
+
+### v1.7.0 - Agentic Architecture (Complete)
+
+Goal: Enable AI agents to drive research workflows with persistent memory and governance.
+
+**Research Memory:**
+- Hypothesis tracking with confidence levels (low, medium, high, validated)
+- YAML persistence with file-per-company storage
+- Expiration filtering and topic-based queries
+- Cross-session learning and hypothesis evolution
+
+**Roadmap API:**
+- Programmatic access to ROADMAP.md for agent planning
+- Version queries, dependency graphs, status filtering
+- Cache invalidation based on file modification time
+- JSON serialization for MCP integration
+
+**Hook System:**
+- Pre/post execution hooks for governance
+- CostGuardHook: Budget enforcement with tracking
+- SSRFGuardHook: URL validation using security module
+- QAGateHook: Quality threshold enforcement
+- Configurable error handling (log, raise, skip)
+
+**Subagent Architecture:**
+- Context-isolated subagents for pipeline stages
+- ScraperSubagent: Delegates to fetch_web_content
+- AnalystSubagent: Insight synthesis and hypothesis generation
+- WriterSubagent: Report generation with citations
+- QASubagent: Quality assessment and feedback
+
+**Research Orchestrator:**
+- Coordinates subagent lifecycle (scrape → analyze → write → qa)
+- Context derivation between stages
+- Hook integration for governance
+- Partial result recovery on failure
+
+**MCP Server Extensions:**
+- `query_roadmap` tool for version/feature queries
+- `get_hypotheses` and `save_hypothesis` tools
+- `primr://roadmap`, `primr://memory/{company}`, `primr://context` resources
+
+**Skills Directory:**
+- `company-research`: Full pipeline workflow
+- `scrape-strategy`: Tier selection heuristics
+- `hypothesis-tracking`: Confidence management
+- `qa-iteration`: Section refinement workflow
+
+**CLAUDE.md Context Map:**
+- Quick-start section for common agent tasks
+- Architecture pointers and verification commands
+- Negative constraints (what agents should NOT do)
+- Token budget under 2000 tokens
+
+**Property Tests:**
+- 112 property-based tests validating correctness
+- Hypothesis round-trip, expiration filtering, query filtering
+- Hook execution order, blocking behavior, error handling
+- Orchestrator lifecycle, context isolation, failure handling
+
 ## Near-Term Roadmap
 
-### v1.6.0 - QA-Driven Report Iteration (Planned)
+### v1.8.0 - QA-Driven Report Iteration (Planned)
 
 Goal: Use QA feedback to iteratively improve weak sections until reports hit 90+.
 
@@ -155,16 +265,7 @@ Implementation:
 
 ## Medium-Term Roadmap
 
-### v1.7.0 - Research State and Iteration (Planned)
-
-Goal: Move from "generate once" to "think over time."
-
-- Lightweight local research state file (YAML or JSON)
-- Track hypotheses, assumptions, confidence levels, open questions
-- Persist state across runs for the same company
-- Explicit hypothesis tracking (untested, validated, invalidated, confirmed)
-
-### v1.8.0 - Refinement and Learning Loop (Planned)
+### v1.9.0 - Refinement and Learning Loop (Planned)
 
 Goal: Support post-discovery learning without re-running everything from scratch.
 
@@ -172,7 +273,7 @@ Goal: Support post-discovery learning without re-running everything from scratch
 - Re-synthesize insights with updated confidence and revised hypotheses
 - Outputs evolve from pre-meeting prep to post-discovery POV
 
-### v1.9.0 - POV and Narrative Evolution (Planned)
+### v1.10.0 - POV and Narrative Evolution (Planned)
 
 Goal: Make Primr the system of record for how thinking evolves.
 
@@ -180,27 +281,21 @@ Goal: Make Primr the system of record for how thinking evolves.
 - Explicit "what changed and why" sections
 - Optional narrative framing outputs for internal deck creation
 
-## Scale Readiness (Intentional, Not Yet Implemented)
+## Scale Readiness (Implemented in v1.6.0)
 
-Primr is currently optimized for individual and small-team use, running locally with user-provided API keys. This is intentional so the focus remains on output quality and usefulness in real consulting workflows.
+Primr now supports serverless cloud deployment for organizational adoption:
 
-If organizational adoption increases, the expected evolution would be:
+- **Execution model**: Job-based ephemeral containers (Fargate/Container Apps/Cloud Run Jobs)
+- **Interface model**: REST API control plane + CLI preserved for local use
+- **Reliability**: Event-driven queues, dead-letter handling, state reconciliation
+- **Cost control**: Scale-to-zero, per-API-key quotas, cost estimation on submit
+- **Governance**: Centralized secrets management, audit logging, manifest trail
 
-- **Execution model**: Transition from local to centralized, container-based job execution
-- **Interface model**: Preserve CLI as primary interface
-- **Reliability and cost control**: Shared caching, retries, scheduling
-- **Governance**: Centralized prompt versions and configuration defaults
-
-This evolution would be driven by demonstrated usage and clear internal demand, not speculative scaling.
+See [docs/CLOUD_DEPLOYMENT.md](docs/CLOUD_DEPLOYMENT.md) for deployment guide.
 
 ## Explicitly Deferred (By Design)
 
 These are conscious non-goals for now:
-
-**Centralized Execution Infrastructure**
-- Docker, Cloud Run, Container Apps
-- Async job queues
-- Multi-tenant execution
 
 **Web Interface**
 - Browser-based submission
@@ -239,6 +334,10 @@ primr "Tesla" https://tesla.com --dry-run
 # MCP Server
 primr-mcp --stdio
 primr-mcp --http --port 8000
+
+# Cloud Deployment
+cd deploy/aws && ./deploy.sh -d prod deploy
+cd deploy/aws && ./deploy.sh -d prod destroy
 ```
 
 ## Version History
@@ -260,7 +359,8 @@ primr-mcp --http --port 8000
 | 1.4.1 | Feb 2026 | Open Claw integration |
 | 1.5.0 | Feb 2026 | Code quality improvements |
 | 1.5.1 | Feb 2026 | Security hardening, API key rotation |
-| 1.6.0 | TBD | QA-driven report iteration |
+| 1.6.0 | Feb 2026 | Serverless cloud deployment (AWS/Azure/GCP) |
+| 1.7.0 | Feb 2026 | Agentic architecture (memory, hooks, orchestrator) |
 
 ## Final Note
 

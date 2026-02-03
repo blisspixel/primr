@@ -97,6 +97,9 @@ Add to your `claude_desktop_config.json`:
 | `doctor` | Check system health |
 | `cancel_job` | Cancel an active research job |
 | `clear_jobs` | Clear stale jobs |
+| `query_roadmap` | Query roadmap versions and features |
+| `get_hypotheses` | Get hypotheses for a company from research memory |
+| `save_hypothesis` | Save a hypothesis to research memory |
 
 ### Resources
 
@@ -109,6 +112,9 @@ Add to your `claude_desktop_config.json`:
 | `primr://strategies/available` | Available strategy types with metadata |
 | `primr://output/by_job/{job_id}` | Job-scoped artifact retrieval |
 | `primr://output/manifest/latest` | Run manifest for audit trail |
+| `primr://roadmap` | Current roadmap with versions and features |
+| `primr://memory/{company}` | Research memory for a company |
+| `primr://context` | CLAUDE.md context map for agents |
 
 ### Features
 
@@ -280,8 +286,9 @@ Primr includes infrastructure for reliability and maintainability:
 - OpenTelemetry integration for distributed tracing
 - Configuration validation with schema versioning
 - State machines for tier escalation and job lifecycle
-- Property-based testing (282 tests)
+- Property-based testing (394 tests)
 - Unified async/sync boundary handling
+- Agentic architecture with research memory and hypothesis tracking
 
 See [CONCURRENCY.md](CONCURRENCY.md) for threading model documentation and [docs/STATE_MACHINES.md](docs/STATE_MACHINES.md) for state machine specifications.
 
@@ -356,6 +363,83 @@ python scripts/check_gemini_resources.py --delete-stores --force-empty
 
 The `primr doctor` command will warn you if orphaned resources are detected. Run the cleanup script periodically if you experience interrupted runs.
 
+## Cloud Deployment
+
+Primr supports serverless cloud deployment for scalable job execution. Deploy to AWS, Azure, or GCP with a single command.
+
+```bash
+# AWS (primary, production-ready)
+cd deploy/aws && ./deploy.sh -d prod deploy
+
+# Azure (reference implementation)
+cd deploy/azure && ./deploy.sh -d prod deploy
+
+# GCP (reference implementation)
+cd deploy/gcp && ./deploy.sh -d prod deploy
+```
+
+Features:
+- Job-based ephemeral execution (scales to zero when idle)
+- Event-driven queue boundary (SQS/Service Bus/Pub/Sub)
+- Manifest-as-commit pattern for artifact consistency
+- Graceful cancellation with SIGTERM handling
+- Production-grade observability (X-Ray/App Insights/Cloud Trace)
+- CloudWatch alarms, dead-letter queues, autoscaling
+
+See [docs/CLOUD_DEPLOYMENT.md](docs/CLOUD_DEPLOYMENT.md) for full deployment guide.
+
+## Agentic Architecture
+
+Primr v1.7.0 introduces an agentic architecture that enables AI agents to drive research workflows with persistent memory and governance.
+
+### Research Memory
+
+Track hypotheses across research sessions:
+
+```bash
+# View hypotheses for a company
+primr memory "Acme Corp"
+
+# Show all companies with research memory
+primr memory --list
+```
+
+Hypotheses have confidence levels (low, medium, high, validated) and can be updated as new evidence emerges.
+
+### Orchestrated Research
+
+The orchestrator coordinates specialized subagents through the research pipeline:
+
+```bash
+# Run orchestrated research (experimental)
+primr orchestrate "Acme Corp" https://acme.com
+
+# With hook governance
+primr orchestrate "Acme Corp" https://acme.com --max-cost 5.0
+```
+
+Pipeline stages: scrape → analyze → write → qa
+
+### Skills Directory
+
+Pre-built workflows for common research patterns:
+
+- `company-research`: Full pipeline with memory integration
+- `scrape-strategy`: Tier selection and error handling
+- `hypothesis-tracking`: Confidence level management
+- `qa-iteration`: Section refinement workflow
+
+See `skills/` directory for workflow definitions.
+
+### For AI Agents
+
+The `CLAUDE.md` file provides a context map for AI agents working with Primr:
+
+- Quick-start commands for common tasks
+- Architecture pointers to key modules
+- Verification commands for testing changes
+- Negative constraints (what NOT to do)
+
 ## Documentation
 
 Full documentation index: [docs/INDEX.md](docs/INDEX.md)
@@ -366,6 +450,7 @@ Key documents:
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - System architecture, scraping tiers, resilience features
 - [docs/API.md](docs/API.md) - Programmatic usage, MCP server reference
 - [docs/CONFIG.md](docs/CONFIG.md) - Configuration reference
+- [docs/CLOUD_DEPLOYMENT.md](docs/CLOUD_DEPLOYMENT.md) - Serverless cloud deployment guide
 - [docs/MIGRATION.md](docs/MIGRATION.md) - Error hierarchy migration guide
 - [CONCURRENCY.md](CONCURRENCY.md) - Threading model and async patterns
 

@@ -1,6 +1,6 @@
 # Primr Documentation Index
 
-Quick reference to all Primr documentation. Current version: 1.5.1
+Quick reference to all Primr documentation. Current version: 1.6.0
 
 ## Getting Started
 
@@ -24,6 +24,12 @@ Quick reference to all Primr documentation. Current version: 1.5.1
 |----------|-------------|
 | [API](API.md) | Programmatic usage, MCP server, tool reference |
 | [OPENCLAW](OPENCLAW.md) | Open Claw integration, skills, workflows |
+
+## Cloud Deployment
+
+| Document | Description |
+|----------|-------------|
+| [CLOUD_DEPLOYMENT](CLOUD_DEPLOYMENT.md) | Serverless deployment guide (AWS, Azure, GCP) |
 
 ## Operations & Maintenance
 
