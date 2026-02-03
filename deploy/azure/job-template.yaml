@@ -1,0 +1,38 @@
+# Container Apps Job configuration for Primr runner
+# Resource limits and timeout configuration (up to 120 min)
+# Key Vault references for LLM keys
+# Requirements: 6.3, 6.8
+
+properties:
+  configuration:
+    triggerType: Manual
+    replicaTimeout: 7200
+    replicaRetryLimit: 0
+    registries:
+      - server: "{acr}.azurecr.io"
+        identity: system
+    secrets:
+      - name: openai-api-key
+        keyVaultUrl: "https://{keyvault}.vault.azure.net/secrets/OPENAI-API-KEY"
+        identity: system
+      - name: anthropic-api-key
+        keyVaultUrl: "https://{keyvault}.vault.azure.net/secrets/ANTHROPIC-API-KEY"
+        identity: system
+  template:
+    containers:
+      - name: runner
+        image: "{acr}.azurecr.io/primr-runner:{deployment}"
+        resources:
+          cpu: 2
+          memory: 4Gi
+        env:
+          - name: DEPLOYMENT
+            value: "{deployment}"
+          - name: ARTIFACT_STORE_URL
+            value: "https://{storage}.blob.core.windows.net/artifacts"
+          - name: OPENAI_API_KEY
+            secretRef: openai-api-key
+          - name: ANTHROPIC_API_KEY
+            secretRef: anthropic-api-key
+identity:
+  type: SystemAssigned

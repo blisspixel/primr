@@ -1,0 +1,40 @@
+# Container App configuration for Primr control plane API
+# Scale-to-zero configuration with managed identity
+# Requirements: 6.1, 6.6, 6.7
+
+properties:
+  managedEnvironmentId: /subscriptions/{subscription}/resourceGroups/{rg}/providers/Microsoft.App/managedEnvironments/{env}
+  configuration:
+    ingress:
+      external: true
+      targetPort: 8000
+      transport: http
+      allowInsecure: false
+    registries:
+      - server: "{acr}.azurecr.io"
+        identity: system
+    secrets: []
+  template:
+    containers:
+      - name: api
+        image: "{acr}.azurecr.io/primr-api:{deployment}"
+        resources:
+          cpu: 0.5
+          memory: 1Gi
+        env:
+          - name: DEPLOYMENT
+            value: "{deployment}"
+          - name: AZURE_STORAGE_CONNECTION_STRING
+            secretRef: storage-connection
+          - name: COSMOS_CONNECTION_STRING
+            secretRef: cosmos-connection
+    scale:
+      minReplicas: 0
+      maxReplicas: 10
+      rules:
+        - name: http-rule
+          http:
+            metadata:
+              concurrentRequests: "100"
+identity:
+  type: SystemAssigned
