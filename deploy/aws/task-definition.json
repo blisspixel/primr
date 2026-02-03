@@ -1,0 +1,55 @@
+{
+  "family": "primr-runner",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "2048",
+  "memory": "4096",
+  "executionRoleArn": "",
+  "taskRoleArn": "",
+  "containerDefinitions": [
+    {
+      "name": "runner",
+      "image": "",
+      "essential": true,
+      "environment": [],
+      "secrets": [
+        {
+          "name": "OPENAI_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT:secret:PREFIX-OPENAI_API_KEY"
+        },
+        {
+          "name": "ANTHROPIC_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT:secret:PREFIX-ANTHROPIC_API_KEY"
+        },
+        {
+          "name": "GOOGLE_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT:secret:PREFIX-GOOGLE_API_KEY"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/primr-runner",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "runner",
+          "awslogs-create-group": "true"
+        }
+      },
+      "healthCheck": {
+        "command": ["CMD-SHELL", "python -c 'import primr' || exit 1"],
+        "interval": 60,
+        "timeout": 10,
+        "retries": 3,
+        "startPeriod": 30
+      },
+      "stopTimeout": 120,
+      "linuxParameters": {
+        "initProcessEnabled": true
+      }
+    }
+  ],
+  "tags": [
+    {"key": "Application", "value": "primr"},
+    {"key": "Component", "value": "runner"}
+  ]
+}

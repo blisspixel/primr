@@ -1,0 +1,291 @@
+# Primr Cloud Deployment Guide
+
+This guide covers deploying Primr to cloud providers for serverless job execution.
+
+## Architecture Overview
+
+Primr cloud deployment uses a job-based ephemeral execution model:
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│  Control Plane  │────▶│   Job Queue     │────▶│   Job Runner    │
+│   (API + Auth)  │     │  (SQS/SB/PS)    │     │   (Fargate/CA)  │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+        │                                               │
+        │                                               ▼
+        │                                       ┌─────────────────┐
+        └──────────────────────────────────────▶│ Artifact Store  │
+                                                │  (S3/Blob/GCS)  │
+                                                └─────────────────┘
+```
+
+### Components
+
+- **Control Plane**: Stateless API for job submission, status, and results
+  - Requires NO LLM keys - only JWT, job store, queue, presign credentials
+  - Scales to zero when idle
+  
+- **Job Queue**: Event-driven boundary between control plane and runners
+  - FIFO with content-based deduplication
+  - Visibility timeout for long-running jobs
+  
+- **Job Runner**: Ephemeral container executing Primr research
+  - Receives job spec via environment variable
+  - Writes artifacts to object storage
+  - Writes manifest LAST (commit pattern)
+  - Handles SIGTERM for graceful cancellation
+  
+- **Artifact Store**: Object storage for job outputs
+  - Presigned URLs for secure retrieval
+  - Manifest-as-commit pattern for consistency
+
+## Quick Start
+
+### AWS (Primary)
+
+```bash
+cd deploy/aws
+
+# Deploy infrastructure
+./deploy.sh -d prod deploy
+
+# Set LLM API keys (runner only)
+echo "sk-..." | ./deploy.sh secrets set OPENAI_API_KEY -
+
+# Validate deployment
+./deploy.sh validate
+```
+
+### Azure (Reference)
+
+```bash
+cd deploy/azure
+
+# Deploy infrastructure
+./deploy.sh -d prod deploy
+
+# Set LLM API keys
+echo "sk-..." | ./deploy.sh secrets set OPENAI-API-KEY -
+
+# Validate deployment
+./deploy.sh validate
+```
+
+### GCP (Reference)
+
+```bash
+cd deploy/gcp
+
+# Deploy infrastructure
+./deploy.sh -d prod -p my-project deploy
+
+# Set LLM API keys
+echo "sk-..." | ./deploy.sh secrets set OPENAI_API_KEY -
+
+# Validate deployment
+./deploy.sh validate
+```
+
+## Configuration
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PRIMR_DEPLOYMENT` | Deployment name (dev/staging/prod) | `dev` |
+| `PRIMR_REGION` | Cloud region | Provider default |
+| `PRIMR_PREFIX` | Resource name prefix | `primr` |
+
+### Deployment Names
+
+Deployment names create isolated environments:
+- `dev` - Development testing
+- `staging` - Pre-production validation
+- `prod` - Production workloads
+
+Each deployment gets separate:
+- Job queue
+- Job state table
+- Artifact bucket prefix
+- Secrets namespace
+
+## API Reference
+
+### Submit Job
+
+```bash
+curl -X POST https://api.example.com/submit \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "company_name": "Acme Corp",
+    "company_url": "https://acme.example",
+    "mode": "full",
+    "idempotency_key": "unique-request-id",
+    "approve": true
+  }'
+```
+
+Response:
+```json
+{
+  "job_id": "abc123def456",
+  "status": "QUEUED",
+  "estimate": {"cost_usd": 0.50, "duration_minutes": 15},
+  "is_existing": false
+}
+```
+
+### Check Status
+
+```bash
+curl https://api.example.com/status/abc123def456 \
+  -H "Authorization: Bearer $API_KEY"
+```
+
+### Get Results
+
+```bash
+curl https://api.example.com/results/abc123def456 \
+  -H "Authorization: Bearer $API_KEY"
+```
+
+Returns manifest and presigned URLs for artifacts.
+
+### Cancel Job
+
+```bash
+curl -X POST https://api.example.com/cancel/abc123def456 \
+  -H "Authorization: Bearer $API_KEY"
+```
+
+## Cost Estimation
+
+### AWS (Typical Usage)
+
+| Component | Cost/Month (100 jobs) |
+|-----------|----------------------|
+| Fargate (2 vCPU, 4GB, 15min avg) | ~$15 |
+| S3 (10GB artifacts) | ~$0.25 |
+| DynamoDB (on-demand) | ~$1 |
+| SQS | ~$0.01 |
+| **Total** | **~$16** |
+
+### Cost Optimization Tips
+
+1. Use Fargate Spot for non-urgent jobs (up to 70% savings)
+2. Set S3 lifecycle policies for artifact cleanup
+3. Use DynamoDB TTL for automatic job record expiry
+4. Right-size container resources based on job mode
+
+## Security
+
+### Secrets Management
+
+LLM API keys are stored in cloud secret managers:
+- AWS: Secrets Manager
+- Azure: Key Vault
+- GCP: Secret Manager
+
+**Important**: Only the job runner needs LLM keys. The control plane requires NO LLM keys.
+
+### Network Security
+
+Recommended VPC configuration:
+- Control plane in public subnet with WAF
+- Job runners in private subnet
+- NAT gateway for outbound internet access
+- VPC endpoints for AWS services
+
+### SSRF Protection
+
+The runner includes comprehensive SSRF protection:
+- Blocks private IP ranges (RFC1918, link-local, loopback)
+- Blocks cloud metadata endpoints (169.254.169.254)
+- Validates all DNS resolutions
+- Re-validates on HTTP redirects
+
+## Troubleshooting
+
+### Common Issues
+
+**Job stuck in QUEUED**
+- Check queue visibility timeout
+- Verify Step Functions/orchestrator is running
+- Check CloudWatch/logs for errors
+
+**Job fails immediately**
+- Check secrets are set correctly
+- Verify container image exists in registry
+- Check task role permissions
+
+**No manifest after job completes**
+- Check S3/storage permissions
+- Look for runner logs in CloudWatch
+- Verify artifact store URL is correct
+
+### Log Access
+
+**AWS**
+```bash
+aws logs tail /ecs/primr-runner --follow
+```
+
+**Azure**
+```bash
+az containerapp logs show -n primr-runner -g primr-rg
+```
+
+**GCP**
+```bash
+gcloud logging read "resource.type=cloud_run_job"
+```
+
+## Lifecycle Management
+
+### Job Record TTL
+
+Job records automatically expire after 30 days. Adjust in task definition:
+```python
+ttl=int(time.time()) + 30 * 24 * 3600  # 30 days
+```
+
+### Artifact Retention
+
+Configure S3 lifecycle policy for artifact cleanup:
+```json
+{
+  "Rules": [{
+    "ID": "cleanup-old-artifacts",
+    "Status": "Enabled",
+    "Filter": {"Prefix": ""},
+    "Expiration": {"Days": 90}
+  }]
+}
+```
+
+### Infrastructure Teardown
+
+```bash
+# AWS
+./deploy/aws/deploy.sh -d prod destroy
+
+# Azure
+./deploy/azure/deploy.sh -d prod destroy
+
+# GCP
+./deploy/gcp/deploy.sh -d prod destroy
+```
+
+## Provider Comparison
+
+| Feature | AWS | Azure | GCP |
+|---------|-----|-------|-----|
+| Control Plane | Lambda | Container Apps | Cloud Run |
+| Job Queue | SQS FIFO | Service Bus | Pub/Sub |
+| Job Runner | Fargate | Container Apps Jobs | Cloud Run Jobs |
+| Artifacts | S3 | Blob Storage | GCS |
+| Job State | DynamoDB | Cosmos DB | Firestore |
+| Secrets | Secrets Manager | Key Vault | Secret Manager |
+| Max Timeout | 120 min | 120 min | 120 min |
+| Scale to Zero | Yes | Yes | Yes |

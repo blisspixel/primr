@@ -1,0 +1,45 @@
+# Cloud Run Job configuration for Primr runner
+# Resource limits and timeout configuration (up to 120 min)
+# Secret references for LLM keys
+# Requirements: 7.3, 7.8
+
+apiVersion: run.googleapis.com/v1
+kind: Job
+metadata:
+  name: primr-runner
+  labels:
+    app: primr
+    component: runner
+spec:
+  template:
+    metadata:
+      annotations:
+        run.googleapis.com/execution-environment: gen2
+    spec:
+      serviceAccountName: primr-runner@{project}.iam.gserviceaccount.com
+      taskCount: 1
+      template:
+        spec:
+          maxRetries: 0
+          timeoutSeconds: 7200
+          containers:
+            - image: "{region}-docker.pkg.dev/{project}/{repo}/primr-runner:{deployment}"
+              resources:
+                limits:
+                  cpu: "2"
+                  memory: 4Gi
+              env:
+                - name: DEPLOYMENT
+                  value: "{deployment}"
+                - name: ARTIFACT_STORE_URL
+                  value: "gs://{bucket}"
+                - name: OPENAI_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: primr-OPENAI_API_KEY
+                      key: latest
+                - name: ANTHROPIC_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: primr-ANTHROPIC_API_KEY
+                      key: latest

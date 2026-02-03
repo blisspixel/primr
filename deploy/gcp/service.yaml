@@ -1,0 +1,39 @@
+# Cloud Run service configuration for Primr control plane API
+# Scale-to-zero configuration with service account binding
+# Requirements: 7.1, 7.7
+
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: primr-api
+  labels:
+    app: primr
+    component: api
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "10"
+        run.googleapis.com/cpu-throttling: "false"
+    spec:
+      serviceAccountName: primr-api@{project}.iam.gserviceaccount.com
+      containerConcurrency: 100
+      timeoutSeconds: 300
+      containers:
+        - image: "{region}-docker.pkg.dev/{project}/{repo}/primr-api:{deployment}"
+          ports:
+            - containerPort: 8000
+          resources:
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          env:
+            - name: DEPLOYMENT
+              value: "{deployment}"
+            - name: GCP_PROJECT
+              value: "{project}"
+            - name: FIRESTORE_DATABASE
+              value: "(default)"
+            - name: GCS_BUCKET
+              value: "{bucket}"

@@ -1,0 +1,107 @@
+{
+  "Comment": "Primr Job Orchestrator - Executes research jobs on Fargate",
+  "StartAt": "UpdateJobRunning",
+  "States": {
+    "UpdateJobRunning": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::dynamodb:updateItem",
+      "Parameters": {
+        "TableName.$": "$.table_name",
+        "Key": {"job_id": {"S.$": "$.job_id"}},
+        "UpdateExpression": "SET #s = :status, #t.started_at = :started",
+        "ExpressionAttributeNames": {"#s": "status", "#t": "timing"},
+        "ExpressionAttributeValues": {
+          ":status": {"S": "RUNNING"},
+          ":started": {"S.$": "$$.State.EnteredTime"}
+        }
+      },
+      "ResultPath": "$.db_result",
+      "Next": "RunFargateTask"
+    },
+    "RunFargateTask": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::ecs:runTask.sync",
+      "Parameters": {
+        "LaunchType": "FARGATE",
+        "Cluster.$": "$.cluster_arn",
+        "TaskDefinition.$": "$.task_definition",
+        "NetworkConfiguration": {
+          "AwsvpcConfiguration": {
+            "Subnets.$": "$.subnets",
+            "SecurityGroups.$": "$.security_groups",
+            "AssignPublicIp": "ENABLED"
+          }
+        },
+        "Overrides": {
+          "ContainerOverrides": [{
+            "Name": "runner",
+            "Environment": [{"Name": "JOB_SPEC", "Value.$": "States.JsonToString($.job_spec)"}]
+          }]
+        }
+      },
+      "ResultPath": "$.task_result",
+      "TimeoutSeconds": 7200,
+      "Catch": [
+        {"ErrorEquals": ["States.Timeout"], "ResultPath": "$.error", "Next": "UpdateJobTimeout"},
+        {"ErrorEquals": ["States.ALL"], "ResultPath": "$.error", "Next": "UpdateJobFailed"}
+      ],
+      "Next": "CheckExitCode"
+    },
+    "CheckExitCode": {
+      "Type": "Choice",
+      "Choices": [
+        {"Variable": "$.task_result.Tasks[0].Containers[0].ExitCode", "NumericEquals": 0, "Next": "UpdateJobSucceeded"},
+        {"Variable": "$.task_result.Tasks[0].Containers[0].ExitCode", "NumericEquals": 130, "Next": "UpdateJobCancelled"}
+      ],
+      "Default": "UpdateJobFailed"
+    },
+    "UpdateJobSucceeded": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::dynamodb:updateItem",
+      "Parameters": {
+        "TableName.$": "$.table_name",
+        "Key": {"job_id": {"S.$": "$.job_id"}},
+        "UpdateExpression": "SET #s = :status, #t.completed_at = :completed",
+        "ExpressionAttributeNames": {"#s": "status", "#t": "timing"},
+        "ExpressionAttributeValues": {":status": {"S": "SUCCEEDED"}, ":completed": {"S.$": "$$.State.EnteredTime"}}
+      },
+      "End": true
+    },
+    "UpdateJobFailed": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::dynamodb:updateItem",
+      "Parameters": {
+        "TableName.$": "$.table_name",
+        "Key": {"job_id": {"S.$": "$.job_id"}},
+        "UpdateExpression": "SET #s = :status, #t.completed_at = :completed, error_message = :err",
+        "ExpressionAttributeNames": {"#s": "status", "#t": "timing"},
+        "ExpressionAttributeValues": {":status": {"S": "FAILED"}, ":completed": {"S.$": "$$.State.EnteredTime"}, ":err": {"S.$": "States.Format('Task failed: {}', $.error.Cause)"}}
+      },
+      "End": true
+    },
+    "UpdateJobCancelled": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::dynamodb:updateItem",
+      "Parameters": {
+        "TableName.$": "$.table_name",
+        "Key": {"job_id": {"S.$": "$.job_id"}},
+        "UpdateExpression": "SET #s = :status, #t.completed_at = :completed",
+        "ExpressionAttributeNames": {"#s": "status", "#t": "timing"},
+        "ExpressionAttributeValues": {":status": {"S": "CANCELLED"}, ":completed": {"S.$": "$$.State.EnteredTime"}}
+      },
+      "End": true
+    },
+    "UpdateJobTimeout": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::dynamodb:updateItem",
+      "Parameters": {
+        "TableName.$": "$.table_name",
+        "Key": {"job_id": {"S.$": "$.job_id"}},
+        "UpdateExpression": "SET #s = :status, #t.completed_at = :completed, error_message = :err",
+        "ExpressionAttributeNames": {"#s": "status", "#t": "timing"},
+        "ExpressionAttributeValues": {":status": {"S": "FAILED"}, ":completed": {"S.$": "$$.State.EnteredTime"}, ":err": {"S": "Job timed out after 2 hours"}}
+      },
+      "End": true
+    }
+  }
+}
