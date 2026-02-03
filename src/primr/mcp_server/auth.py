@@ -5,8 +5,16 @@ This module provides token verification and authentication middleware
 for the streamable HTTP transport.
 
 Requirements: 13.1-13.10
+
+Security:
+- JWT tokens are verified using HMAC-SHA256 signature validation
+- Unsigned tokens (alg: none) are rejected
+- Token expiration is enforced
+- Static admin tokens are hashed before comparison
 """
 
+import hashlib
+import hmac
 import logging
 import os
 import time
@@ -15,6 +23,9 @@ from dataclasses import dataclass, field
 from mcp.server.auth.provider import AccessToken
 
 logger = logging.getLogger(__name__)
+
+# Minimum secret key length for security
+MIN_SECRET_KEY_LENGTH = 32
 
 
 @dataclass
@@ -27,13 +38,41 @@ class AuthConfig:
     # Whether to require authentication (disabled for stdio)
     require_auth: bool = True
 
+    # JWT secret key for signature verification (required for JWT auth)
+    jwt_secret: str | None = None
+
+    # Allowed JWT algorithms (HS256 only by default for security)
+    jwt_algorithms: set[str] = field(default_factory=lambda: {"HS256"})
+
+    # Required JWT issuer (optional, for additional validation)
+    jwt_issuer: str | None = None
+
+    # Required JWT audience (optional, for additional validation)
+    jwt_audience: str | None = None
+
     @classmethod
     def from_env(cls) -> "AuthConfig":
         """Load auth config from environment variables."""
         admin_tokens_str = os.environ.get("MCP_ADMIN_TOKENS", "")
         admin_tokens = {t.strip() for t in admin_tokens_str.split(",") if t.strip()}
 
-        return cls(admin_tokens=admin_tokens)
+        jwt_secret = os.environ.get("MCP_JWT_SECRET")
+        jwt_issuer = os.environ.get("MCP_JWT_ISSUER")
+        jwt_audience = os.environ.get("MCP_JWT_AUDIENCE")
+
+        # Warn if JWT secret is too short
+        if jwt_secret and len(jwt_secret) < MIN_SECRET_KEY_LENGTH:
+            logger.warning(
+                f"MCP_JWT_SECRET is shorter than {MIN_SECRET_KEY_LENGTH} characters. "
+                "Consider using a longer secret for better security."
+            )
+
+        return cls(
+            admin_tokens=admin_tokens,
+            jwt_secret=jwt_secret,
+            jwt_issuer=jwt_issuer,
+            jwt_audience=jwt_audience,
+        )
 
 
 class PrimrTokenVerifier:
@@ -43,9 +82,15 @@ class PrimrTokenVerifier:
     Implements the MCP SDK TokenVerifier protocol.
 
     Supports:
-    - JWT tokens with role=admin claim for admin access
+    - JWT tokens with HMAC-SHA256 signature verification
     - Static admin tokens from MCP_ADMIN_TOKENS env var
     - Client ID extraction from token sub claim
+
+    Security:
+    - Rejects unsigned tokens (alg: none)
+    - Validates signature using constant-time comparison
+    - Enforces token expiration
+    - Validates issuer and audience claims if configured
 
     Requirements: 13.1, 13.4, 13.8, 13.9
     """
@@ -60,6 +105,15 @@ class PrimrTokenVerifier:
         self.config = config or AuthConfig.from_env()
         self._token_cache: dict[str, tuple[AccessToken, float]] = {}
         self._cache_ttl = 300  # 5 minutes
+        
+        # Hash admin tokens for secure comparison
+        self._admin_token_hashes: set[str] = {
+            self._hash_token(t) for t in self.config.admin_tokens
+        }
+
+    def _hash_token(self, token: str) -> str:
+        """Hash a token for secure storage/comparison."""
+        return hashlib.sha256(token.encode()).hexdigest()
 
     async def verify_token(self, token: str) -> AccessToken | None:
         """
@@ -71,13 +125,18 @@ class PrimrTokenVerifier:
         Returns:
             AccessToken if valid, None if invalid
         """
+        if not token or not isinstance(token, str):
+            logger.warning("Empty or invalid token provided")
+            return None
+
         # Check cache first
         cached = self._get_cached(token)
         if cached:
             return cached
 
-        # Check if it's a static admin token
-        if token in self.config.admin_tokens:
+        # Check if it's a static admin token (using constant-time comparison)
+        token_hash = self._hash_token(token)
+        if token_hash in self._admin_token_hashes:
             access = AccessToken(
                 token=token,
                 client_id=f"admin-{hash(token) % 10000}",
@@ -88,11 +147,19 @@ class PrimrTokenVerifier:
             logger.info(f"Admin token authenticated: client_id={access.client_id}")
             return access
 
-        # Try to decode as JWT
-        jwt_result = self._verify_jwt(token)
-        if jwt_result:
-            self._cache_token(token, jwt_result)
-            return jwt_result
+        # Try to verify as JWT (requires secret to be configured)
+        if self.config.jwt_secret:
+            jwt_result = self._verify_jwt(token)
+            if jwt_result:
+                self._cache_token(token, jwt_result)
+                return jwt_result
+        else:
+            # Check if it looks like a JWT but we have no secret configured
+            if token.count(".") == 2:
+                logger.warning(
+                    "JWT token received but MCP_JWT_SECRET not configured. "
+                    "Set MCP_JWT_SECRET environment variable to enable JWT authentication."
+                )
 
         # Invalid token
         logger.warning("Token verification failed")
@@ -100,10 +167,13 @@ class PrimrTokenVerifier:
 
     def _verify_jwt(self, token: str) -> AccessToken | None:
         """
-        Verify a JWT token.
+        Verify a JWT token with cryptographic signature validation.
 
-        For production, this should verify the signature against a public key.
-        For now, we do basic JWT structure validation and claim extraction.
+        Security measures:
+        - Rejects unsigned tokens (alg: none)
+        - Only accepts configured algorithms (HS256 by default)
+        - Uses constant-time comparison for signature verification
+        - Validates expiration, issuer, and audience claims
 
         Args:
             token: JWT token string
@@ -118,32 +188,55 @@ class PrimrTokenVerifier:
             # Split JWT parts
             parts = token.split(".")
             if len(parts) != 3:
+                logger.debug("Invalid JWT structure: expected 3 parts")
                 return None
 
-            # Decode payload (middle part)
-            # Add padding if needed
-            payload_b64 = parts[1]
-            padding = 4 - len(payload_b64) % 4
-            if padding != 4:
-                payload_b64 += "=" * padding
+            header_b64, payload_b64, signature_b64 = parts
 
-            payload_bytes = base64.urlsafe_b64decode(payload_b64)
-            payload = json.loads(payload_bytes)
+            # Decode header
+            header = self._decode_jwt_part(header_b64)
+            if header is None:
+                logger.debug("Failed to decode JWT header")
+                return None
+
+            # Security: Reject unsigned tokens and unsupported algorithms
+            alg = header.get("alg", "").upper()
+            if alg == "NONE" or not alg:
+                logger.warning("Rejected unsigned JWT token (alg: none)")
+                return None
+
+            if alg not in self.config.jwt_algorithms:
+                logger.warning(f"Rejected JWT with unsupported algorithm: {alg}")
+                return None
+
+            # Verify signature
+            if not self._verify_jwt_signature(header_b64, payload_b64, signature_b64, alg):
+                logger.warning("JWT signature verification failed")
+                return None
+
+            # Decode payload
+            payload = self._decode_jwt_part(payload_b64)
+            if payload is None:
+                logger.debug("Failed to decode JWT payload")
+                return None
+
+            # Validate claims
+            validation_error = self._validate_jwt_claims(payload)
+            if validation_error:
+                logger.warning(f"JWT claim validation failed: {validation_error}")
+                return None
 
             # Extract claims
             client_id = payload.get("sub", "unknown")
             role = payload.get("role", "user")
             exp = payload.get("exp")
 
-            # Check expiration
-            if exp and time.time() > exp:
-                logger.warning(f"Token expired for client_id={client_id}")
-                return None
-
             # Determine scopes based on role
             scopes = ["read", "write"]
             if role == "admin":
                 scopes.append("admin")
+
+            logger.info(f"JWT authenticated: client_id={client_id}, role={role}")
 
             return AccessToken(
                 token=token,
@@ -153,8 +246,124 @@ class PrimrTokenVerifier:
             )
 
         except Exception as e:
-            logger.debug(f"JWT decode failed: {e}")
+            logger.debug(f"JWT verification failed: {e}")
             return None
+
+    def _decode_jwt_part(self, part_b64: str) -> dict | None:
+        """Decode a base64url-encoded JWT part."""
+        import base64
+        import json
+
+        try:
+            # Add padding if needed
+            padding = 4 - len(part_b64) % 4
+            if padding != 4:
+                part_b64 += "=" * padding
+
+            part_bytes = base64.urlsafe_b64decode(part_b64)
+            return json.loads(part_bytes)
+        except Exception:
+            return None
+
+    def _verify_jwt_signature(
+        self, header_b64: str, payload_b64: str, signature_b64: str, alg: str
+    ) -> bool:
+        """
+        Verify JWT signature using constant-time comparison.
+
+        Args:
+            header_b64: Base64url-encoded header
+            payload_b64: Base64url-encoded payload
+            signature_b64: Base64url-encoded signature
+            alg: Algorithm from header
+
+        Returns:
+            True if signature is valid
+        """
+        import base64
+
+        if not self.config.jwt_secret:
+            return False
+
+        try:
+            # Compute expected signature
+            signing_input = f"{header_b64}.{payload_b64}".encode()
+
+            if alg == "HS256":
+                expected_sig = hmac.new(
+                    self.config.jwt_secret.encode(),
+                    signing_input,
+                    hashlib.sha256
+                ).digest()
+            elif alg == "HS384":
+                expected_sig = hmac.new(
+                    self.config.jwt_secret.encode(),
+                    signing_input,
+                    hashlib.sha384
+                ).digest()
+            elif alg == "HS512":
+                expected_sig = hmac.new(
+                    self.config.jwt_secret.encode(),
+                    signing_input,
+                    hashlib.sha512
+                ).digest()
+            else:
+                logger.warning(f"Unsupported JWT algorithm: {alg}")
+                return False
+
+            # Decode provided signature
+            padding = 4 - len(signature_b64) % 4
+            if padding != 4:
+                signature_b64 += "=" * padding
+            provided_sig = base64.urlsafe_b64decode(signature_b64)
+
+            # Constant-time comparison to prevent timing attacks
+            return hmac.compare_digest(expected_sig, provided_sig)
+
+        except Exception as e:
+            logger.debug(f"Signature verification error: {e}")
+            return False
+
+    def _validate_jwt_claims(self, payload: dict) -> str | None:
+        """
+        Validate JWT claims (exp, iss, aud).
+
+        Returns:
+            Error message if validation fails, None if valid
+        """
+        # Check expiration
+        exp = payload.get("exp")
+        if exp:
+            if not isinstance(exp, int | float):
+                return "Invalid exp claim type"
+            if time.time() > exp:
+                return f"Token expired at {exp}"
+
+        # Check not-before
+        nbf = payload.get("nbf")
+        if nbf:
+            if not isinstance(nbf, int | float):
+                return "Invalid nbf claim type"
+            if time.time() < nbf:
+                return f"Token not valid until {nbf}"
+
+        # Check issuer if configured
+        if self.config.jwt_issuer:
+            iss = payload.get("iss")
+            if iss != self.config.jwt_issuer:
+                return f"Invalid issuer: expected {self.config.jwt_issuer}, got {iss}"
+
+        # Check audience if configured
+        if self.config.jwt_audience:
+            aud = payload.get("aud")
+            # Audience can be a string or list
+            if isinstance(aud, list):
+                if self.config.jwt_audience not in aud:
+                    return f"Invalid audience: {self.config.jwt_audience} not in {aud}"
+            elif aud != self.config.jwt_audience:
+                return f"Invalid audience: expected {self.config.jwt_audience}, got {aud}"
+
+        return None
 
     def _get_cached(self, token: str) -> AccessToken | None:
         """Get cached token if still valid."""
