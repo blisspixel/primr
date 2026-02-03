@@ -286,7 +286,7 @@ Primr includes infrastructure for reliability and maintainability:
 - OpenTelemetry integration for distributed tracing
 - Configuration validation with schema versioning
 - State machines for tier escalation and job lifecycle
-- Property-based testing (394 tests)
+- Property-based testing (4000+ test cases)
 - Unified async/sync boundary handling
 - Agentic architecture with research memory and hypothesis tracking
 

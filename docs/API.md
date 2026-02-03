@@ -1469,3 +1469,415 @@ Standard error codes returned by tools:
 | `JOB_IN_PROGRESS` | Another job already running |
 | `RATE_LIMIT_EXCEEDED` | Rate limit exceeded |
 | `CANCEL_NOT_AUTHORIZED` | Not authorized to cancel job |
+
+## Agentic Architecture (v1.7.0)
+
+Primr v1.7.0 introduces an agentic architecture that enables AI agents to drive research workflows with persistent memory, hypothesis tracking, and governance hooks.
+
+### Research Memory
+
+Track hypotheses across research sessions with confidence levels.
+
+```python
+from primr.agentic.memory import ResearchMemory, Hypothesis, ConfidenceLevel
+from pathlib import Path
+
+# Initialize memory
+memory = ResearchMemory(storage_path=Path("./logs/research_memory"))
+
+# Save a hypothesis
+hypothesis = Hypothesis(
+    id="h_001",
+    company="Acme Corp",
+    statement="Acme is expanding into AI-powered logistics",
+    confidence=ConfidenceLevel.MEDIUM,
+    evidence="CEO mentioned AI initiatives in Q3 earnings call",
+    source="https://acme.example/investor-relations",
+    topic="strategy",
+)
+memory.save_hypothesis(hypothesis)
+
+# Retrieve hypotheses
+hypotheses = memory.get_hypotheses("Acme Corp")
+for h in hypotheses:
+    print(f"[{h.confidence.value}] {h.statement}")
+
+# Update confidence as evidence emerges
+hypothesis.confidence = ConfidenceLevel.HIGH
+hypothesis.evidence += "; Confirmed by press release 2026-01-15"
+memory.save_hypothesis(hypothesis)
+
+# List all companies with memory
+companies = memory.list_companies()
+```
+
+#### Confidence Levels
+
+| Level | Description |
+|-------|-------------|
+| `LOW` | Initial hypothesis, needs validation |
+| `MEDIUM` | Some supporting evidence found |
+| `HIGH` | Strong evidence from multiple sources |
+| `VALIDATED` | Confirmed through direct sources |
+
+### Roadmap API
+
+Query the development roadmap programmatically.
+
+```python
+from primr.agentic.roadmap_api import RoadmapAPI
+from primr.agentic.models import VersionStatus
+
+api = RoadmapAPI()
+
+# Get current version
+current = api.get_current_version()
+print(f"Current: v{current.number} - {current.title}")
+
+# Get next planned version
+next_ver = api.get_next_version()
+
+# List versions by status
+completed = api.list_by_status(VersionStatus.COMPLETED)
+planned = api.list_by_status(VersionStatus.PLANNED)
+
+# Get specific version details
+v170 = api.get_version("1.7.0")
+for feature in v170.features:
+    print(f"  - {feature.name}: {feature.description}")
+
+# Search features
+results = api.search_features("memory")
+for version, feature in results:
+    print(f"v{version.number}: {feature.name}")
+```
+
+### Hook System
+
+Register governance hooks for cost control and security.
+
+```python
+from primr.agentic.hooks import (
+    HookSystem,
+    CostGuardHook,
+    SSRFGuardHook,
+    HookContext,
+    HookResult,
+)
+
+# Create hook system
+hooks = HookSystem()
+
+# Register cost guard (blocks operations exceeding budget)
+hooks.register(CostGuardHook(max_cost_usd=5.0))
+
+# Register SSRF guard (blocks internal URLs)
+hooks.register(SSRFGuardHook())
+
+# Execute hooks before an operation
+context = HookContext(
+    operation="scrape",
+    target_url="https://acme.example",
+    estimated_cost=0.50,
+)
+result = await hooks.execute_pre_hooks(context)
+
+if result.blocked:
+    print(f"Operation blocked: {result.reason}")
+else:
+    # Proceed with operation
+    pass
+```
+
+#### Custom Hooks
+
+```python
+from primr.agentic.hooks import Hook, HookContext, HookResult
+
+class AuditHook(Hook):
+    """Log all operations for audit trail."""
+    
+    name = "audit"
+    
+    async def pre_execute(self, context: HookContext) -> HookResult:
+        logger.info(f"Operation: {context.operation} on {context.target_url}")
+        return HookResult(blocked=False)
+    
+    async def post_execute(self, context: HookContext, result: Any) -> None:
+        logger.info(f"Completed: {context.operation}, success={result.success}")
+
+hooks.register(AuditHook())
+```
+
+### Subagent Architecture
+
+Specialized subagents for different research tasks.
+
+```python
+from primr.agentic.subagents import (
+    ScraperSubagent,
+    AnalystSubagent,
+    WriterSubagent,
+    QASubagent,
+)
+from primr.agentic.subagents.base import SubagentContext, SubagentResult
+
+# Create subagent
+scraper = ScraperSubagent()
+
+# Execute with context
+context = SubagentContext(
+    company_name="Acme Corp",
+    company_url="https://acme.example",
+    working_dir=Path("./working/acme"),
+)
+result: SubagentResult = await scraper.execute(context)
+
+if result.success:
+    print(f"Scraped {result.artifacts['page_count']} pages")
+else:
+    print(f"Failed: {result.error}")
+```
+
+#### Available Subagents
+
+| Subagent | Purpose |
+|----------|---------|
+| `ScraperSubagent` | Website scraping with tier escalation |
+| `AnalystSubagent` | Deep research and hypothesis generation |
+| `WriterSubagent` | Report generation from research data |
+| `QASubagent` | Quality assessment and scoring |
+
+### Research Orchestrator
+
+Coordinate subagents through the research pipeline.
+
+```python
+from primr.agentic.orchestrator import (
+    ResearchOrchestrator,
+    OrchestratorConfig,
+    OrchestratorResult,
+)
+from primr.agentic.memory import ResearchMemory
+from primr.agentic.hooks import HookSystem, CostGuardHook
+
+# Configure orchestrator
+config = OrchestratorConfig(
+    output_dir=Path("./output"),
+    fail_fast=False,  # Continue on non-critical failures
+)
+
+# Initialize with memory and hooks
+memory = ResearchMemory(storage_path=Path("./logs/research_memory"))
+hooks = HookSystem()
+hooks.register(CostGuardHook(max_cost_usd=10.0))
+
+orchestrator = ResearchOrchestrator(
+    config=config,
+    memory=memory,
+    hook_system=hooks,
+)
+
+# Run orchestrated research
+result: OrchestratorResult = await orchestrator.research(
+    company_name="Acme Corp",
+    company_url="https://acme.example",
+    mode="full",
+)
+
+if result.is_success:
+    print(f"Report: {result.report_path}")
+    print(f"Hypotheses: {len(result.hypotheses)}")
+    print(f"Stages: {result.completed_stages}")
+else:
+    print(f"Errors: {result.errors}")
+```
+
+### MCP Agentic Tools
+
+Additional MCP tools for agentic workflows.
+
+#### query_roadmap
+
+Query roadmap versions and features.
+
+```json
+{
+  "name": "query_roadmap",
+  "arguments": {
+    "version": "1.7.0"
+  }
+}
+```
+
+Response:
+```json
+{
+  "version": "1.7.0",
+  "status": "completed",
+  "title": "Agentic Architecture",
+  "features": [
+    {"name": "Research Memory", "description": "Persistent hypothesis tracking"},
+    {"name": "Hook System", "description": "Governance and cost control"},
+    {"name": "Subagent Architecture", "description": "Specialized research agents"}
+  ]
+}
+```
+
+#### get_hypotheses
+
+Retrieve hypotheses for a company from research memory.
+
+```json
+{
+  "name": "get_hypotheses",
+  "arguments": {
+    "company": "Acme Corp",
+    "min_confidence": "medium"
+  }
+}
+```
+
+Response:
+```json
+{
+  "company": "Acme Corp",
+  "hypotheses": [
+    {
+      "id": "h_001",
+      "statement": "Acme is expanding into AI-powered logistics",
+      "confidence": "high",
+      "evidence": "CEO mentioned AI initiatives in Q3 earnings call",
+      "topic": "strategy"
+    }
+  ],
+  "count": 1
+}
+```
+
+#### save_hypothesis
+
+Save a hypothesis to research memory.
+
+```json
+{
+  "name": "save_hypothesis",
+  "arguments": {
+    "company": "Acme Corp",
+    "statement": "Acme plans to acquire a logistics startup",
+    "confidence": "low",
+    "evidence": "Rumored in industry newsletter",
+    "topic": "m&a"
+  }
+}
+```
+
+### MCP Agentic Resources
+
+Additional MCP resources for agentic workflows.
+
+#### primr://roadmap
+
+Current roadmap with versions and features.
+
+```json
+{
+  "current_version": "1.7.0",
+  "next_version": "1.8.0",
+  "versions": [
+    {
+      "number": "1.7.0",
+      "status": "completed",
+      "title": "Agentic Architecture",
+      "feature_count": 6
+    },
+    {
+      "number": "1.8.0",
+      "status": "planned",
+      "title": "QA-Driven Research",
+      "feature_count": 4
+    }
+  ]
+}
+```
+
+#### primr://memory/{company}
+
+Research memory for a specific company.
+
+```json
+{
+  "company": "Acme Corp",
+  "hypothesis_count": 5,
+  "hypotheses": [
+    {
+      "id": "h_001",
+      "statement": "Acme is expanding into AI-powered logistics",
+      "confidence": "high",
+      "topic": "strategy",
+      "created_at": "2026-01-15T10:30:00Z"
+    }
+  ],
+  "confidence_distribution": {
+    "low": 1,
+    "medium": 2,
+    "high": 2,
+    "validated": 0
+  }
+}
+```
+
+#### primr://context
+
+CLAUDE.md context map for AI agents.
+
+```json
+{
+  "quick_start": {
+    "research": "primr \"Company\" https://company.com",
+    "doctor": "primr doctor",
+    "memory": "primr memory \"Company\""
+  },
+  "architecture": {
+    "entry_point": "src/primr/core/cli.py",
+    "orchestrator": "src/primr/core/research_orchestrator.py",
+    "agentic": "src/primr/agentic/"
+  },
+  "verification": {
+    "tests": "python -m pytest tests/ -v",
+    "types": "python -m mypy src/primr/",
+    "lint": "python -m ruff check src/primr/"
+  }
+}
+```
+
+### CLI Commands
+
+New CLI commands for agentic workflows:
+
+```bash
+# Research memory
+primr memory "Acme Corp"              # View hypotheses for a company
+primr --memory-list                   # List all companies with memory
+
+# Orchestrated research
+primr orchestrate "Acme Corp" https://acme.com
+primr --orchestrate --max-cost 5.0    # With cost budget
+
+# Roadmap
+primr roadmap                         # Show roadmap overview
+primr --roadmap-version v1.7.0        # Show version details
+```
+
+### Skills Directory
+
+Pre-built workflow definitions in `skills/`:
+
+| Skill | Description |
+|-------|-------------|
+| `company-research` | Full pipeline with memory integration |
+| `scrape-strategy` | Tier selection and error handling |
+| `hypothesis-tracking` | Confidence level management |
+| `qa-iteration` | Section refinement workflow |
+
+Each skill includes a `SKILL.md` with workflow steps, decision points, and example usage.
