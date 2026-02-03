@@ -39,3 +39,12 @@ def pytest_configure(config):
         message="unclosed event loop",
         category=ResourceWarning
     )
+    
+    # Suppress legacy error deprecation warnings during test runs
+    # These are intentionally used in tests to verify backward compatibility
+    warnings.filterwarnings(
+        "ignore",
+        message=".*is deprecated and will be removed in v2.0.*",
+        category=DeprecationWarning,
+        module="primr.utils.errors"
+    )

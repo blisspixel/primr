@@ -116,16 +116,17 @@ except RateLimitError as e:
 
 ## Deprecation Timeline
 
-- **v1.5.0**: Legacy errors deprecated (warnings disabled by default)
-- **v1.6.0**: Deprecation warnings enabled by default
-- **v2.0.0**: Legacy errors removed
+- **v1.5.0**: Typed error hierarchy introduced, legacy errors deprecated, warnings enabled by default
+- **v2.0.0**: Legacy errors will be removed
 
-To enable deprecation warnings now for testing:
+To suppress deprecation warnings during migration:
 
 ```python
-from primr.utils.errors import _EMIT_DEPRECATION_WARNINGS
-# Set to True in your test configuration
+import primr.utils.errors
+primr.utils.errors._EMIT_DEPRECATION_WARNINGS = False
 ```
+
+Or set in your test configuration / conftest.py.
 
 ## Benefits of Migration
 

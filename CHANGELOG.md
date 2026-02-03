@@ -8,104 +8,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.5.0] - 2026-02-02
 
 ### Added
-- **PhD-Level Code Quality** - Comprehensive improvements to achieve publication-ready quality
-  - Typed error hierarchy with `PrimrError` base class, `TransientError`/`PermanentError` categories
-  - Specific error types: RateLimitError, QuotaError, NetworkError, ValidationError, AuthenticationError, ConfigurationError
-  - Automatic correlation ID capture and JSON serialization for all errors
-- **Retry Policy Manager** - Automatic retry policies based on error type hierarchy
-  - Exponential backoff with configurable jitter
-  - Retry history tracking attached to final errors
-  - Metrics emission for retry attempts
-- **Circuit Breaker with Monitoring** - Per-host/operation circuit breaker
-  - State tracking (CLOSED/OPEN/HALF_OPEN) with configurable thresholds
-  - State change event emission with listener support
-  - Monitoring interface for observability
-- **OpenTelemetry Integration** - Distributed tracing for pipeline phases
-  - TracerProvider initialization with configurable exporters (console, OTLP, Jaeger)
-  - Span creation with correlation_id, operation name, and phase attributes
-  - Async context propagation across boundaries
-- **Cost Attribution** - Token usage tracking with cost calculation
-  - Per-model pricing tables
-  - Aggregation by operation, phase, and model
-  - Span attribute attachment for observability
-- **Pydantic Configuration Validation** - Strict validation for YAML configurations
-  - Detailed error messages with field paths and expected types
-  - Schema versioning with migration guidance
-  - JSON Schema export for external tooling
-- **Configuration Migration Tooling** - Safe schema upgrades
-  - Version detection and sequential migration application
-  - Backup/restore functionality
-  - Dry-run mode for previewing changes
-- **State Machine Specifications** - Formal state machines for tier escalation and job lifecycle
-  - Transition validation with guards and invariants
-  - State change event emission
-  - State persistence for crash recovery
-  - Mermaid diagrams in docs/STATE_MACHINES.md
-- **Performance Benchmarking Suite** - Benchmark infrastructure
-  - Result storage with historical comparison
-  - Regression detection with configurable thresholds
-- **Memory Profiling** - Memory tracking for long-running operations
-  - Allocation tracking and unbounded growth detection
-  - Component-level reporting
-  - Threshold-based warnings
-  - pytest integration for memory regression tests
-- **MCP API Versioning** - Semantic versioning for tool schemas
-  - Deprecation warnings with minimum 2 minor versions notice
-  - Migration guides for breaking changes
-- **282 Property-Based Tests** - Comprehensive property tests using Hypothesis
-  - Tests for error hierarchy, retry policies, circuit breaker, telemetry, cost tracking
-  - Tests for configuration validation, migration, state machines
-  - Tests for benchmarking, memory profiling, MCP versioning, backward compatibility
+- Typed error hierarchy with automatic retry classification
+- Circuit breaker with per-host failure tracking and monitoring
+- OpenTelemetry integration for distributed tracing
+- Configuration validation with early startup checks
+- State machine specifications for tier escalation and job lifecycle
+- Unified async/sync boundary handling via `async_utils` module
+- 282 property-based tests using Hypothesis
 
 ### Documentation
-- CONCURRENCY.md - Threading model documentation with operation classification, thread pool sizing, shared state, async/sync boundaries, and deadlock prevention
-- docs/STATE_MACHINES.md - Formal state machine specifications with Mermaid diagrams
-
-### New Modules
-- `src/primr/utils/errors.py` - Typed error hierarchy
-- `src/primr/utils/retry.py` - RetryPolicyManager
-- `src/primr/utils/circuit_breaker.py` - Circuit breaker with monitoring
-- `src/primr/utils/telemetry.py` - OpenTelemetry integration
-- `src/primr/utils/cost_tracker.py` - Cost attribution
-- `src/primr/utils/validation.py` - Pydantic configuration validation
-- `src/primr/utils/migration.py` - Configuration migration tooling
-- `src/primr/utils/state_machine.py` - Generic state machine
-- `src/primr/utils/benchmarks.py` - Performance benchmarking suite
-- `src/primr/utils/memory_profiler.py` - Memory profiling
-- `src/primr/mcp_server/versioning.py` - MCP API versioning
+- CONCURRENCY.md - Threading model documentation
+- docs/STATE_MACHINES.md - State machine specifications
+- docs/MIGRATION.md - Error migration guide
 
 ## [1.4.1] - 2026-02-02
 
 ### Added
-- **Open Claw Integration** - Full integration with Open Claw agentic runtime
-  - 3 skills: primr-research, primr-strategy, primr-qa
-  - Lobster workflow for orchestrated research with approval gates
-  - TypeScript adapter for status monitoring
-  - Docker sandbox configuration (Dockerfile.primr)
-  - exec-approvals.json for cost-incurring operation gates
-- **New MCP Resources for Open Claw**:
-  - `primr://strategies/available` - List available strategy types with metadata (id, name, description, estimated cost/time)
-  - `primr://output/by_job/{job_id}` - Job-scoped artifact retrieval for provenance tracking
-  - `primr://output/manifest/latest` - Run manifest for audit trail
-- **Run Manifest Generation** - Each completed job generates a run_manifest.json with:
-  - Job metadata (id, company, mode)
-  - Estimate vs actual cost/time comparison
-  - Approval token and timestamp
-  - List of generated artifacts
-- **job_id in primr://output/latest** - Response now includes job_id for artifact provenance verification
-- **163 new tests** for Open Claw integration covering:
-  - Configuration validation (openclaw.json, exec-approvals.json)
-  - SKILL.md compliance with AgentSkills spec
-  - Workflow structure validation
-  - TypeScript adapter compilation
-  - Dockerfile security configuration
-  - New MCP resources (strategies, job-scoped output, manifest)
-  - Integration harness for workflow simulation
+- Open Claw integration with skills, workflows, and adapters
+- 3 skills: primr-research, primr-strategy, primr-qa
+- Lobster workflow for orchestrated research with approval gates
+- New MCP resources for Open Claw integration
+- Run manifest generation for audit trail
+- 163 new tests for Open Claw integration
 
 ### Documentation
-- Added docs/OPENCLAW.md - Complete Open Claw integration guide
-- Updated README.md with Open Claw section
-- Updated docs/API.md with new MCP resources
+- docs/OPENCLAW.md - Open Claw integration guide
 
 ## [1.3.2] - 2026-01-30
 

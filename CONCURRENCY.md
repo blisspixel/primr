@@ -2,9 +2,6 @@
 
 This document describes the threading and concurrency model used in Primr, including operation classification, thread pool sizing, shared state management, and deadlock prevention strategies.
 
-**Feature: phd-level-excellence**
-**Validates: Requirements 8.1-8.6**
-
 ## Overview
 
 Primr uses a hybrid concurrency model combining:
