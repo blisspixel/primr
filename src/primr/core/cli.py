@@ -205,8 +205,24 @@ def main(args: list[str] | None = None) -> int:
     """
     from pathlib import Path
     from primr.utils.logging_config import setup_logging
+    from primr.utils.config_validation import validate_config
     
     config = parse_args(args)
+    
+    # Validate configuration early (skip API key check for utility commands)
+    utility_commands = {
+        Command.DOCTOR, Command.LIST_RECENT, Command.CLEAN_TEMP,
+        Command.CHECK_JOBS, Command.CLEAR_JOBS, Command.LIST_STRATEGIES,
+        Command.SHOW_USAGE,
+    }
+    include_api_keys = config.command not in utility_commands
+    
+    validation_result = validate_config(include_api_keys=include_api_keys)
+    if not validation_result.valid:
+        console.error("Configuration validation failed:")
+        for err in validation_result.errors:
+            console.error(f"  - {err}")
+        return 1
 
     # Setup logging to proper directory (not root!)
     log_level = "DEBUG" if config.verbose else "INFO"
