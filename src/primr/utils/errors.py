@@ -472,8 +472,32 @@ class PrimrConfigurationError(PermanentError):
 # LEGACY EXCEPTION HIERARCHY (Backward Compatible)
 # =============================================================================
 
+# Deprecation tracking - set to True to emit warnings
+_EMIT_DEPRECATION_WARNINGS = False
+
+
+def _deprecation_warning(cls_name: str, new_cls_name: str) -> None:
+    """Emit deprecation warning for legacy error classes."""
+    if _EMIT_DEPRECATION_WARNINGS:
+        import warnings
+        warnings.warn(
+            f"{cls_name} is deprecated, use {new_cls_name} from the typed error "
+            f"hierarchy instead. Set primr.utils.errors._EMIT_DEPRECATION_WARNINGS = True "
+            f"to see these warnings.",
+            DeprecationWarning,
+            stacklevel=4
+        )
+
+
 class ResearchError(Exception):
-    """Base exception for all research-related errors."""
+    """
+    Base exception for all research-related errors.
+    
+    .. deprecated::
+        Use :class:`PrimrError` and its subclasses for new code.
+        The typed error hierarchy provides automatic retry classification
+        and better integration with the retry policy manager.
+    """
 
     # Error category for classification
     category: str = "general"
@@ -488,6 +512,7 @@ class ResearchError(Exception):
         cause: Exception | None = None,
         guidance: str | None = None
     ):
+        _deprecation_warning("ResearchError", "PrimrError")
         super().__init__(message)
         self.cause = cause
         self.message = message
@@ -527,14 +552,28 @@ class ResearchError(Exception):
 
 
 class ConfigurationError(ResearchError):
-    """Raised when configuration is invalid or missing."""
+    """
+    Raised when configuration is invalid or missing.
+    
+    .. deprecated::
+        Use :class:`PrimrConfigurationError` for new code.
+    """
     category = "configuration"
     recoverable = False
     guidance = "Check your .env file and environment variables"
+    
+    def __init__(self, *args, **kwargs):
+        _deprecation_warning("ConfigurationError", "PrimrConfigurationError")
+        super().__init__(*args, **kwargs)
 
 
 class ScrapingError(ResearchError):
-    """Raised when web scraping fails."""
+    """
+    Raised when web scraping fails.
+    
+    .. deprecated::
+        Use :class:`TransientError` with category="scraping" for new code.
+    """
     category = "scraping"
     recoverable = True
     guidance = "The website may be blocking automated access. Try again later."
@@ -548,6 +587,7 @@ class ScrapingError(ResearchError):
         cause: Exception | None = None,
         guidance: str | None = None
     ):
+        _deprecation_warning("ScrapingError", "TransientError")
         super().__init__(message, cause, guidance)
         self.url = url
         self.status_code = status_code
@@ -566,7 +606,12 @@ class ScrapingError(ResearchError):
 
 
 class AIError(ResearchError):
-    """Raised when AI operations fail."""
+    """
+    Raised when AI operations fail.
+    
+    .. deprecated::
+        Use :class:`TransientError` with category="ai" for new code.
+    """
     category = "ai"
     recoverable = True
     guidance = "Check API quota and try again"
@@ -578,6 +623,7 @@ class AIError(ResearchError):
         cause: Exception | None = None,
         guidance: str | None = None
     ):
+        _deprecation_warning("AIError", "TransientError")
         super().__init__(message, cause, guidance)
         self.model = model
 
@@ -589,7 +635,12 @@ class AIError(ResearchError):
 
 
 class RateLimitError(AIError):
-    """Raised when API rate limit is exceeded."""
+    """
+    Raised when API rate limit is exceeded.
+    
+    .. deprecated::
+        Use :class:`TypedRateLimitError` for new code.
+    """
     category = "rate_limit"
     recoverable = True
     guidance = "Rate limit exceeded. Wait a moment and try again."
@@ -600,6 +651,7 @@ class RateLimitError(AIError):
         retry_after: float | None = None,
         cause: Exception | None = None
     ):
+        _deprecation_warning("RateLimitError", "TypedRateLimitError")
         guidance = "Rate limit exceeded."
         if retry_after:
             guidance += f" Try again in {retry_after:.0f} seconds."
@@ -608,7 +660,12 @@ class RateLimitError(AIError):
 
 
 class SearchError(ResearchError):
-    """Raised when search operations fail."""
+    """
+    Raised when search operations fail.
+    
+    .. deprecated::
+        Use :class:`TransientError` with category="search" for new code.
+    """
     category = "search"
     recoverable = True
     guidance = "Search API may be unavailable. Check your API key and quota."
@@ -621,6 +678,7 @@ class SearchError(ResearchError):
         cause: Exception | None = None,
         guidance: str | None = None
     ):
+        _deprecation_warning("SearchError", "TransientError")
         super().__init__(message, cause, guidance)
         self.query = query
         self.status_code = status_code
@@ -636,17 +694,35 @@ class SearchError(ResearchError):
 
 
 class OutputError(ResearchError):
-    """Raised when report generation fails."""
+    """
+    Raised when report generation fails.
+    
+    .. deprecated::
+        Use :class:`PermanentError` with category="output" for new code.
+    """
     category = "output"
     recoverable = False
     guidance = "Check disk space and file permissions"
+    
+    def __init__(self, *args, **kwargs):
+        _deprecation_warning("OutputError", "PermanentError")
+        super().__init__(*args, **kwargs)
 
 
 class ValidationError(ResearchError):
-    """Raised when input validation fails."""
+    """
+    Raised when input validation fails.
+    
+    .. deprecated::
+        Use :class:`PrimrValidationError` for new code.
+    """
     category = "validation"
     recoverable = False
     guidance = "Check your input and try again"
+    
+    def __init__(self, *args, **kwargs):
+        _deprecation_warning("ValidationError", "PrimrValidationError")
+        super().__init__(*args, **kwargs)
 
 
 # =============================================================================
