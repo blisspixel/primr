@@ -16,30 +16,30 @@ Key components:
 - logging_config: Stderr logging configuration for stdio mode
 """
 
-from primr.mcp_server.server import PrimrMCPServer, create_mcp_server
-from primr.mcp_server.types import (
-    ResearchMode,
-    CloudVendor,
-    StrategyType,
-    JobStatus,
-    ResearchStage,
-    ResearchStatus,
-    JobAcceptedResult,
-    EstimateResult,
-    DoctorResult,
-    LatestOutput,
-    ArtifactInfo,
-    ArtifactsResponse,
-    ConfigState,
-    ToolResult,
-    JobInfo,
-    QAResult,
-    MCPErrorCode,
-)
 from primr.mcp_server.auth import (
     AuthConfig,
     AuthContext,
     PrimrTokenVerifier,
+)
+from primr.mcp_server.server import PrimrMCPServer, create_mcp_server
+from primr.mcp_server.types import (
+    ArtifactInfo,
+    ArtifactsResponse,
+    CloudVendor,
+    ConfigState,
+    DoctorResult,
+    EstimateResult,
+    JobAcceptedResult,
+    JobInfo,
+    JobStatus,
+    LatestOutput,
+    MCPErrorCode,
+    QAResult,
+    ResearchMode,
+    ResearchStage,
+    ResearchStatus,
+    StrategyType,
+    ToolResult,
 )
 
 __all__ = [

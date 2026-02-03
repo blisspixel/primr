@@ -19,13 +19,12 @@ Usage:
 import argparse
 import os
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import Protocol
 
-from primr.config.models import PrimrModels
-
 from primr.config.config import LOGS_DIR, OUTPUT_DIR, WORKING_DIR
+from primr.config.models import PrimrModels
 from primr.utils.console import console
 from primr.utils.logging_config import get_logger
 
@@ -204,11 +203,12 @@ def main(args: list[str] | None = None) -> int:
         Exit code (0 for success, non-zero for failure)
     """
     from pathlib import Path
-    from primr.utils.logging_config import setup_logging
+
     from primr.utils.config_validation import validate_config
-    
+    from primr.utils.logging_config import setup_logging
+
     config = parse_args(args)
-    
+
     # Validate configuration early (skip API key check for utility commands)
     utility_commands = {
         Command.DOCTOR, Command.LIST_RECENT, Command.CLEAN_TEMP,
@@ -216,7 +216,7 @@ def main(args: list[str] | None = None) -> int:
         Command.SHOW_USAGE,
     }
     include_api_keys = config.command not in utility_commands
-    
+
     validation_result = validate_config(include_api_keys=include_api_keys)
     if not validation_result.valid:
         console.error("Configuration validation failed:")
@@ -273,7 +273,6 @@ def run_doctor() -> int:
     Returns:
         Exit code (0 if all checks pass, 1 otherwise)
     """
-    from primr.utils.type_guards import ConfigSchema, validate_config
 
     console.banner("Primr Doctor")
     console.blank()
@@ -348,11 +347,11 @@ Examples:
   primr doctor                                       # System diagnostics
   primr --qa "Acme Corp"                             # Show detailed QA analysis
   primr --qa-recent 5                                # Show QA summary for recent reports
-  
+
 AI Strategy Retry (when main report succeeded but AI strategy failed):
   primr --ai-strategy-only "output/Company_Strategic_Overview_01-09-2026.md"
   primr --ai-strategy-only "output/report.md" --cloud-vendor aws
-  
+
 Accordion Method Test (for development):
   primr --test-accordion "Oceanography 2026-2030"
   primr --test-accordion "Topic" --accordion-pages 30
@@ -419,7 +418,7 @@ Accordion Method Test (for development):
         default=None,
         help="Max minutes for scraping phase (default: 10, env: PRIMR_MAX_SCRAPE_TIME)"
     )
-    
+
     # Accordion Method test
     parser.add_argument(
         "--test-accordion",
@@ -433,7 +432,7 @@ Accordion Method Test (for development):
         default=50,
         help="Target pages for Accordion test (default: 50)"
     )
-    
+
     # Report analysis
     parser.add_argument(
         "--analyze-report",
@@ -441,7 +440,7 @@ Accordion Method Test (for development):
         metavar="PATH",
         help="Analyze quality of an existing report file"
     )
-    
+
     # QA review
     parser.add_argument(
         "--qa",
@@ -457,7 +456,7 @@ Accordion Method Test (for development):
         metavar="N",
         help="Show QA summary for N most recent reports (default: 5)"
     )
-    
+
     # AI Strategy retry/resume
     parser.add_argument(
         "--ai-strategy-only",
@@ -465,7 +464,7 @@ Accordion Method Test (for development):
         metavar="REPORT_PATH",
         help="Generate AI strategy using an existing report as context (retry failed AI strategy)"
     )
-    
+
     # Strategy type selection
     parser.add_argument(
         "--strategy-type",
@@ -554,21 +553,22 @@ def _handle_check_jobs(config: CLIConfig) -> int:
 
 def _handle_clear_jobs(config: CLIConfig) -> int:
     """Handle clear-jobs command - removes stale pending jobs."""
+    import json
+
     from primr.ai.deep_research import get_pending_jobs
     from primr.config.config import LOGS_DIR
-    import json
-    
+
     jobs = get_pending_jobs()
     if not jobs:
         console.info("No pending jobs to clear.")
         return 0
-    
+
     console.info(f"Clearing {len(jobs)} stale job(s)...")
-    
+
     jobs_file = os.path.join(LOGS_DIR, "pending_research_jobs.json")
     with open(jobs_file, 'w', encoding='utf-8') as f:
         json.dump({}, f)
-    
+
     console.ok(f"Cleared {len(jobs)} pending jobs")
     return 0
 
@@ -644,22 +644,22 @@ def _handle_batch(config: CLIConfig) -> int:
 def _handle_test_accordion(config: CLIConfig) -> int:
     """Handle test-accordion command."""
     from primr.ai.accordion_test import run_accordion_test
-    
+
     if not config.test_accordion_topic:
         console.error("No topic specified for Accordion test")
         console.info("Usage: primr --test-accordion \"Oceanography 2026-2030\"")
         return 1
-    
+
     console.banner("Accordion Method Test")
     console.info(f"Topic: {config.test_accordion_topic}")
     console.info(f"Target: {config.test_accordion_pages} pages")
     console.blank()
-    
+
     result = run_accordion_test(
         topic=config.test_accordion_topic,
         target_pages=config.test_accordion_pages,
     )
-    
+
     if result.success:
         console.blank()
         console.success_box(
@@ -678,7 +678,7 @@ def _handle_analyze_report(config: CLIConfig) -> int:
     if not config.analyze_report_path:
         console.error("Report path is required for analysis")
         return 1
-    
+
     try:
         from report_analyzer import ReportAnalyzer
         analyzer = ReportAnalyzer(config.analyze_report_path)
@@ -697,18 +697,19 @@ def _handle_qa(config: CLIConfig) -> int:
         console.info("Usage: primr --qa \"Company Name\"")
         console.info("   or: primr --qa \"path/to/report.docx\"")
         return 1
-    
+
     try:
-        from primr.qa.command import QACommand
         from pathlib import Path
-        
+
+        from primr.qa.command import QACommand
+
         qa_command = QACommand()
         potential_path = Path(config.qa_company)
-        
+
         if potential_path.exists() and potential_path.is_file():
             return qa_command.analyze_report_file(config.qa_company)
-        elif (config.qa_company.endswith(('.docx', '.pdf')) or 
-              '\\' in config.qa_company or 
+        elif (config.qa_company.endswith(('.docx', '.pdf')) or
+              '\\' in config.qa_company or
               '/' in config.qa_company):
             # Looks like a file path but doesn't exist
             console.error(f"File not found: {config.qa_company}")
@@ -724,7 +725,7 @@ def _handle_qa(config: CLIConfig) -> int:
 def _handle_qa_recent(config: CLIConfig) -> int:
     """Handle QA recent summary command."""
     count = config.qa_recent_count if config.qa_recent_count is not None else 5
-    
+
     try:
         from primr.qa.command import QACommand
         qa_command = QACommand()
@@ -738,23 +739,24 @@ def _handle_ai_strategy_only(config: CLIConfig) -> int:
     """Handle strategy generation using existing report as context."""
     import re
     from pathlib import Path
+
     from primr.core.research_agent import _generate_strategy_section
-    
+
     report_path = config.ai_strategy_only_path
     if not report_path:
         console.error("Report path is required for --ai-strategy-only")
         console.info("Usage: primr --ai-strategy-only \"path/to/report.md\" --strategy-type customer_experience")
         return 1
-    
+
     # Validate file exists
     path = Path(report_path)
     if not path.exists():
         console.error(f"Report file not found: {report_path}")
         return 1
-    
+
     # Get strategy type (default to 'ai' if not specified)
     strategy_type = getattr(config, 'strategy_type', 'ai')
-    
+
     # Map strategy types to display names
     strategy_names = {
         "ai": "AI Strategy",
@@ -763,7 +765,7 @@ def _handle_ai_strategy_only(config: CLIConfig) -> int:
         "data_fabric_strategy": "Data Fabric Strategy"
     }
     strategy_display = strategy_names.get(strategy_type, strategy_type)
-    
+
     # Extract company name from filename or content
     # Filename pattern: "Company Name_Strategic_Overview_MM-DD-YYYY.md"
     company_name = config.company_name
@@ -776,14 +778,14 @@ def _handle_ai_strategy_only(config: CLIConfig) -> int:
         else:
             # Fallback: use filename without extension
             company_name = filename.replace('_', ' ')
-    
+
     console.banner(f"{strategy_display} Generation")
     console.info(f"Company: {company_name}")
     console.info(f"Context: {path.name}")
     if strategy_type == "ai":
         console.info(f"Cloud Vendor: {config.cloud_vendor.upper()}")
     console.blank()
-    
+
     # Generate strategy using the report as context
     result_path = _generate_strategy_section(
         strategy_name=strategy_type,
@@ -793,15 +795,15 @@ def _handle_ai_strategy_only(config: CLIConfig) -> int:
         force_refresh_vendor=config.refresh_vendor_research,
         discovery_notes_content=None  # TODO: Add discovery notes support
     )
-    
+
     if result_path:
         console.blank()
         console.success_box(f"{strategy_display} generated", result_path)
-        
+
         # Open if requested
         if config.open_after:
             open_file(result_path)
-        
+
         return 0
     else:
         console.error(f"{strategy_display} generation failed")
@@ -811,20 +813,20 @@ def _handle_ai_strategy_only(config: CLIConfig) -> int:
 def _run_preflight_checks(mode: str) -> tuple[bool, list[str]]:
     """
     Run preflight checks before starting research pipeline.
-    
+
     Validates critical dependencies upfront to fail fast rather than
     failing 30 minutes into a long pipeline.
-    
+
     Returns:
         (success, errors) - True if all checks pass, list of error messages if not
     """
     errors = []
-    
+
     # 1. Check GEMINI_API_KEY (required for all modes)
     gemini_key = os.environ.get("GEMINI_API_KEY", "")
     if not gemini_key or len(gemini_key) < 10:
         errors.append("GEMINI_API_KEY not configured. Get your key at: https://ai.google.dev/")
-    
+
     # 2. Check Playwright browsers (required for scrape and full modes)
     if mode in ("scrape-only", "complete", "hybrid", "structured"):
         try:
@@ -842,7 +844,7 @@ def _run_preflight_checks(mode: str) -> tuple[bool, list[str]]:
                 errors.append("Playwright browsers not installed. Run: playwright install chromium")
             else:
                 errors.append(f"Playwright check failed: {error_msg}")
-    
+
     # 3. Quick API connectivity check (validates key is valid)
     if gemini_key and len(gemini_key) >= 10:
         try:
@@ -861,11 +863,11 @@ def _run_preflight_checks(mode: str) -> tuple[bool, list[str]]:
                 errors.append("Gemini API key is invalid - check your .env file")
             else:
                 errors.append(f"Gemini API connection failed: {e}")
-    
+
     # 4. Check Google Custom Search API (required for external sources)
     search_key = os.environ.get("SEARCH_API_KEY", "")
     search_engine_id = os.environ.get("SEARCH_ENGINE_ID", "")
-    
+
     if not search_key or len(search_key) < 10:
         errors.append("SEARCH_API_KEY not configured. Get your key at: https://console.cloud.google.com/apis/credentials")
     elif not search_engine_id or len(search_engine_id) < 10:
@@ -893,7 +895,7 @@ def _run_preflight_checks(mode: str) -> tuple[bool, list[str]]:
             errors.append("Google Search API timeout - check your internet connection")
         except Exception as e:
             errors.append(f"Google Search API check failed: {e}")
-    
+
     return (len(errors) == 0, errors)
 
 
@@ -990,7 +992,7 @@ def _handle_research(config: CLIConfig) -> int:
 def _check_api_keys(all_passed: bool, warnings_count: int) -> tuple[bool, int]:
     """Check API key configuration and actually test connectivity."""
     import requests
-    
+
     # Check Gemini API key
     gemini_key = os.environ.get("GEMINI_API_KEY", "")
     if gemini_key and len(gemini_key) >= 10:
@@ -1008,7 +1010,7 @@ def _check_api_keys(all_passed: bool, warnings_count: int) -> tuple[bool, int]:
     # Check and TEST Google Search API
     search_key = os.environ.get("SEARCH_API_KEY", "")
     search_engine_id = os.environ.get("SEARCH_ENGINE_ID", "")
-    
+
     if not search_key or len(search_key) < 10:
         console.error("SEARCH_API_KEY not set or invalid")
         console.info("  Get your key at: https://console.cloud.google.com/apis/credentials")
@@ -1141,7 +1143,7 @@ def _check_api_connectivity(all_passed: bool, warnings_count: int) -> tuple[bool
 
 def _check_gemini_resources(all_passed: bool, warnings_count: int) -> tuple[bool, int]:
     """Check for orphaned Gemini resources that could be incurring costs.
-    
+
     Checks for:
     - Explicit context caches ($1-4.50/M tokens/hour storage)
     - File search stores (persist until manually deleted)
@@ -1151,11 +1153,11 @@ def _check_gemini_resources(all_passed: bool, warnings_count: int) -> tuple[bool
         console.warn("Skipping Gemini resource check (no API key)")
         warnings_count += 1
         return all_passed, warnings_count
-    
+
     try:
         from google import genai
         client = genai.Client(api_key=gemini_key)
-        
+
         # Check for explicit caches
         try:
             caches = list(client.caches.list())
@@ -1168,7 +1170,7 @@ def _check_gemini_resources(all_passed: bool, warnings_count: int) -> tuple[bool
         except Exception as e:
             # Don't fail the whole check if cache listing fails
             logger.debug(f"Could not list caches: {e}")
-        
+
         # Check for file search stores
         try:
             stores = list(client.file_search_stores.list())
@@ -1181,14 +1183,14 @@ def _check_gemini_resources(all_passed: bool, warnings_count: int) -> tuple[bool
         except Exception as e:
             # Don't fail the whole check if store listing fails
             logger.debug(f"Could not list file search stores: {e}")
-        
+
     except ImportError:
         console.warn("google-genai not installed, skipping resource check")
         warnings_count += 1
     except Exception as e:
         console.warn(f"Gemini resource check failed: {e}")
         warnings_count += 1
-    
+
     return all_passed, warnings_count
 
 
@@ -1252,6 +1254,7 @@ def clean_temp_files() -> None:
 def check_api_quota() -> None:
     """Check if Gemini API quota is available."""
     from google import genai
+
     from primr.config.settings import get_settings
 
     settings = get_settings()
@@ -1331,62 +1334,62 @@ def check_pending_jobs() -> None:
 def _handle_list_strategies(config: CLIConfig) -> int:
     """List available strategy documents."""
     console.banner("Available Strategy Documents")
-    
+
     console.info("Strategy documents are research tools to help you show up prepared")
     console.info("for discovery conversations. They're NOT deliverables to hand over.")
     console.blank()
-    
+
     console.step("Tier 1: External Research (No Discovery Required)")
     console.info("  These can be generated from public information:")
     console.blank()
-    
+
     console.ok("  AI Strategy (ai)")
     console.info("    - Agentic AI transformation roadmap")
     console.info("    - Cloud vendor recommendations (Azure/AWS/GCP)")
     console.info("    - ROAI framework and superagency enablement")
     console.info("    Usage: primr --ai-strategy-only \"report.md\" --cloud-vendor azure")
     console.blank()
-    
+
     console.ok("  Customer Experience Strategy (customer_experience)")
     console.info("    - CX transformation and digital experience")
     console.info("    - Journey mapping and personalization")
     console.info("    Usage: primr --ai-strategy-only \"report.md\" --strategy-type customer_experience")
     console.blank()
-    
+
     console.ok("  Security & Compliance Strategy (modern_security_compliance)")
     console.info("    - Zero Trust architecture and identity management")
     console.info("    - Compliance frameworks and risk management")
     console.info("    Usage: primr --ai-strategy-only \"report.md\" --strategy-type modern_security_compliance")
     console.blank()
-    
+
     console.ok("  Data Fabric Strategy (data_fabric_strategy)")
     console.info("    - Semantic layers and zero-copy architecture")
     console.info("    - Agent enablement and data mesh patterns")
     console.info("    Usage: primr --ai-strategy-only \"report.md\" --strategy-type data_fabric_strategy")
     console.blank()
-    
+
     console.step("Tier 2: Discovery-Informed (Requires Meeting Insights)")
     console.info("  These require discovery notes from client conversations:")
     console.blank()
-    
+
     console.warn("  Cloud Migration Strategy (cloud_migration)")
     console.info("    - Status: Placeholder only")
     console.info("    - Requires: Discovery notes about current infrastructure")
     console.blank()
-    
+
     console.warn("  Application Modernization (placeholder)")
     console.info("    - Status: Not yet defined")
     console.info("    - Requires: Discovery notes about application portfolio")
     console.blank()
-    
+
     console.step("How to Generate Strategies")
     console.info("  1. Run full research: primr \"Company\" https://example.com --mode full")
     console.info("  2. Generate specific strategy: primr --ai-strategy-only \"report.md\" --strategy-type customer_experience")
     console.info("  3. With discovery notes: primr --ai-strategy-only \"report.md\" --discovery-notes \"notes.md\"")
     console.blank()
-    
+
     console.info("See docs/STRATEGY_PORTFOLIO.md for detailed information")
-    
+
     return 0
 
 
@@ -1399,6 +1402,7 @@ def process_csv(
 ) -> None:
     """Process a CSV file for batch research."""
     import csv
+
     from primr.core.research_agent import perform_research
 
     console.header("Batch Processing", file_path)

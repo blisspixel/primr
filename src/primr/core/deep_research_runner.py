@@ -18,17 +18,17 @@ Usage:
     if preflight.is_valid:
         result = await perform_deep_research(config)
 """
-import asyncio
 import os
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Protocol
+from typing import Any, Protocol
 from urllib.parse import urlparse
 
-from primr.config.config import OUTPUT_DIR, WORKING_DIR
+from primr.config.config import OUTPUT_DIR
 from primr.core.workspace import create_working_folder, save_section_output
 from primr.utils.console import console
 from primr.utils.logging_config import get_logger

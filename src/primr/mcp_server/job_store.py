@@ -14,9 +14,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import Lock
-from typing import Optional
 
-from primr.mcp_server.types import JobStatus, ResearchMode, ResearchStage
+from primr.mcp_server.types import JobStatus, ResearchStage
 
 
 def _utcnow() -> datetime:
@@ -343,7 +342,7 @@ class SingleJobStore(JobStore):
         """
         if self._journal_path.exists():
             try:
-                with open(self._journal_path, "r") as f:
+                with open(self._journal_path) as f:
                     data = json.load(f)
                 self._job = ResearchJobState.from_journal_dict(data)
             except (json.JSONDecodeError, KeyError, ValueError):

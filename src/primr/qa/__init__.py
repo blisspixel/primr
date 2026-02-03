@@ -6,19 +6,19 @@ including citation checking, logical consistency analysis, completeness assessme
 and overall quality scoring.
 """
 
-from .models import QAOptions, QAResult, QAAnalysis, ClassifiedIssue, IssueType, Severity
-from .integration import QAIntegration
 from .analyzer import QAAnalyzer
 from .command import QACommand
+from .integration import QAIntegration
+from .models import ClassifiedIssue, IssueType, QAAnalysis, QAOptions, QAResult, Severity
 
 __all__ = [
     "QAOptions",
-    "QAResult", 
+    "QAResult",
     "QAAnalysis",
     "ClassifiedIssue",
     "IssueType",
     "Severity",
     "QAIntegration",
-    "QAAnalyzer", 
+    "QAAnalyzer",
     "QACommand",
 ]

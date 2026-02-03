@@ -22,11 +22,12 @@ Usage:
 """
 import asyncio
 import os
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Callable, Protocol
+from typing import Protocol
 
 from primr.config.config import OUTPUT_DIR, PROJECT_ROOT
 from primr.utils.console import console
@@ -299,7 +300,7 @@ def build_ai_strategy_prompt(company_name: str, cloud_vendor: CloudVendor) -> st
         Complete prompt string for Deep Research
     """
     from primr.prompts import build_ai_strategy_prompt as build_from_yaml
-    
+
     return build_from_yaml(
         company_name=company_name,
         cloud_vendor=cloud_vendor.value,
@@ -359,17 +360,17 @@ async def _gather_context(
     # Get data sources from strategy YAML configuration
     registry = get_registry()
     vendor_str = config.cloud_vendor.value
-    
+
     # Get context files for the AI strategy, filtered by vendor
     yaml_context_files = registry.get_context_files("ai", vendor=vendor_str)
-    
+
     for path in yaml_context_files:
         if path.exists():
             path_str = str(path)
             if path_str not in context_files:
                 context_files.append(path_str)
                 vendor_paths.append(path_str)
-    
+
     if yaml_context_files:
         console.info(f"Using {len(yaml_context_files)} vendor research file(s) from strategy config")
 
@@ -379,7 +380,7 @@ async def _gather_context(
             generate_vendor_research,
             get_or_generate_vendor_research,
         )
-        
+
         if config.cloud_vendor != CloudVendor.AGNOSTIC:
             if config.force_refresh_vendor:
                 console.info(f"Force refreshing {vendor_str.upper()} vendor research...")
@@ -388,7 +389,7 @@ async def _gather_context(
                     vendor_paths = [generated]
             else:
                 result = await get_or_generate_vendor_research(
-                    vendor_str, 
+                    vendor_str,
                     force_refresh=False,  # Explicitly pass force_refresh
                     on_progress=on_progress
                 )
@@ -420,7 +421,7 @@ async def _poll_for_completion(
     """Poll for job completion after streaming interruption."""
     from primr.ai.deep_research import save_pending_job
 
-    console.info(f"AI Strategy: Streaming interrupted, polling for completion...")
+    console.info("AI Strategy: Streaming interrupted, polling for completion...")
     console.info(f"AI Strategy: Job ID: {interaction_id}")
     save_pending_job(interaction_id, "ai_strategy", prompt[:100])
 
@@ -448,7 +449,7 @@ async def _poll_for_completion(
             logger.warning(f"Unknown job status: {status}")
 
     console.warn(f"AI Strategy: Still running after {max_poll_time}s")
-    console.info(f"AI Strategy: Check later with: primr --check-jobs")
+    console.info("AI Strategy: Check later with: primr --check-jobs")
     return None
 
 
@@ -502,30 +503,31 @@ async def _execute_strategy_research(
         logger.exception("AI Strategy error")
         if interaction_id:
             save_pending_job(interaction_id, "ai_strategy", prompt[:100])
-            console.info(f"AI Strategy: Job may still be running. Check with: primr --check-jobs")
+            console.info("AI Strategy: Job may still be running. Check with: primr --check-jobs")
         return None
 
 
 def _process_citations(content: str) -> str:
     """
     Process citations in AI strategy content.
-    
+
     - Converts [cite: X, Y, Z] to clean [1] [2] [3] format
     - Resolves Google redirect URLs to final destinations
     """
     import re
     from urllib.parse import urlparse
+
     from primr.ai.deep_research import resolve_citation_urls_sync
-    
+
     # Convert inline [cite: X, Y, Z] references to clean [1] [2] [3] format
     def replace_cite_ref(match: re.Match) -> str:
         nums_str = match.group(1)
         nums = [n.strip() for n in nums_str.split(',')]
         refs = [f"[{num}]" for num in nums]
         return ' '.join(refs)
-    
+
     content = re.sub(r'\[cite:\s*([\d,\s]+)\]', replace_cite_ref, content)
-    
+
     # Extract citations from Sources section
     citations: list[dict[str, str]] = []
     sources_match = re.search(r'\*\*Sources:\*\*\s*([\s\S]*?)$', content)
@@ -538,13 +540,13 @@ def _process_citations(content: str) -> str:
                 'title': match.group(2),
                 'url': match.group(3)
             })
-    
+
     # Resolve redirect URLs
     if citations:
         logger.info(f"Resolving {len(citations)} AI strategy citation URLs...")
         citations = resolve_citation_urls_sync(citations)
         logger.info("AI strategy citation URLs resolved")
-        
+
         # Rebuild Sources section with resolved URLs
         if sources_match:
             sources_header = "**Sources:**\n"
@@ -553,7 +555,7 @@ def _process_citations(content: str) -> str:
                 num = citation.get('number', '')
                 url = citation.get('url', '')
                 title = citation.get('title', '')
-                
+
                 if url:
                     parsed = urlparse(url)
                     domain = parsed.netloc.replace('www.', '')
@@ -565,10 +567,10 @@ def _process_citations(content: str) -> str:
                     cleaned_lines.append(f"{num}. [{display_text}]({url})")
                 elif title:
                     cleaned_lines.append(f"{num}. {title}")
-            
+
             new_sources = sources_header + '\n'.join(cleaned_lines)
             content = content[:sources_match.start()] + new_sources
-    
+
     return content
 
 

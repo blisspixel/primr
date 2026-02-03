@@ -6,12 +6,12 @@ making prompts reviewable, versionable, and customizable.
 
 Usage:
     from primr.prompts import PromptComposer, PromptContext
-    
+
     # Compose a prompt
     composer = PromptComposer()
     context = PromptContext(company_name="Acme Corp", website_url="https://acme.com")
     prompt = composer.compose("company_overview", context)
-    
+
     # List available strategies
     from primr.prompts import get_registry
     registry = get_registry()
@@ -24,21 +24,6 @@ from primr.prompts.composer import (
     ComposedPrompt,
     PromptComposer,
     get_composer,
-)
-from primr.prompts.schema import (
-    DataSource,
-    PromptConfig,
-    PromptContext,
-    SectionSpec,
-    SharedComponents,
-    StrategyModule,
-)
-
-# Registry
-from primr.prompts.registry import (
-    StrategyModuleRegistry,
-    get_registry,
-    list_strategies,
 )
 
 # Exceptions
@@ -56,6 +41,21 @@ from primr.prompts.loader import (
     build_company_overview_prompt,
     get_available_prompts,
     load_prompt_config,
+)
+
+# Registry
+from primr.prompts.registry import (
+    StrategyModuleRegistry,
+    get_registry,
+    list_strategies,
+)
+from primr.prompts.schema import (
+    DataSource,
+    PromptConfig,
+    PromptContext,
+    SectionSpec,
+    SharedComponents,
+    StrategyModule,
 )
 
 __all__ = [

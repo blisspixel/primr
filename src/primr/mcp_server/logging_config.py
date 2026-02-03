@@ -10,8 +10,9 @@ Requirements: 14.1, 14.2, 14.4
 import logging
 import sys
 import warnings
+from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Iterator, TextIO
+from typing import TextIO
 
 
 class StdioSafeHandler(logging.Handler):

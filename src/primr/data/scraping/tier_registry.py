@@ -6,34 +6,32 @@ config.py loads early (constants only), tier_registry.py loads late
 (after all tier modules are defined).
 """
 
-from typing import List, Callable, Optional
 
-from .models import ScrapeTier, ScrapeResult
+from .browsers import (
+    scrape_with_drissionpage,
+    scrape_with_drissionpage_stealth,
+    scrape_with_playwright,
+    scrape_with_playwright_aggressive,
+    scrape_with_vision,
+)
 from .config import (
-    DEFAULT_TIMEOUT_REQUESTS,
-    DEFAULT_TIMEOUT_HTTPX,
     DEFAULT_TIMEOUT_CURL_CFFI,
-    DEFAULT_TIMEOUT_PLAYWRIGHT,
-    DEFAULT_TIMEOUT_PLAYWRIGHT_AGGRESSIVE,
     DEFAULT_TIMEOUT_DRISSION,
     DEFAULT_TIMEOUT_DRISSION_STEALTH,
+    DEFAULT_TIMEOUT_HTTPX,
+    DEFAULT_TIMEOUT_PLAYWRIGHT,
+    DEFAULT_TIMEOUT_PLAYWRIGHT_AGGRESSIVE,
+    DEFAULT_TIMEOUT_REQUESTS,
     DEFAULT_TIMEOUT_VISION,
 )
 
 # Import tier functions
 from .http_clients import (
-    scrape_with_requests,
-    scrape_with_httpx,
     scrape_with_curl_cffi,
+    scrape_with_httpx,
+    scrape_with_requests,
 )
-from .browsers import (
-    scrape_with_playwright,
-    scrape_with_playwright_aggressive,
-    scrape_with_drissionpage,
-    scrape_with_drissionpage_stealth,
-    scrape_with_vision,
-)
-
+from .models import ScrapeTier
 
 # =============================================================================
 # Default Tier Order (2026 - Browser First, Vision as Safety Net)
@@ -48,10 +46,10 @@ from .browsers import (
 # - Vision tier as safety net (costs ~$0.01-0.02 but works on almost anything)
 # - Simple HTTP as last resort (rare for corporate sites)
 #
-# The user said it best: "I DONT FUCKING CARE if it costs a few cents... 
+# The user said it best: "I DONT FUCKING CARE if it costs a few cents...
 # WE MUST have it work"
 
-DEFAULT_TIERS: List[ScrapeTier] = [
+DEFAULT_TIERS: list[ScrapeTier] = [
     # Tier 1: Full browser (works on 95%+ of modern sites)
     ScrapeTier(
         name="playwright",
@@ -59,7 +57,7 @@ DEFAULT_TIERS: List[ScrapeTier] = [
         timeout=DEFAULT_TIMEOUT_PLAYWRIGHT,
         requires="playwright",
     ),
-    
+
     # Tier 2: Browser with content expansion (lazy-loaded, accordions)
     ScrapeTier(
         name="playwright_aggressive",
@@ -67,7 +65,7 @@ DEFAULT_TIERS: List[ScrapeTier] = [
         timeout=DEFAULT_TIMEOUT_PLAYWRIGHT_AGGRESSIVE,
         requires="playwright",
     ),
-    
+
     # Tier 3: TLS fingerprint impersonation (some bot detection)
     ScrapeTier(
         name="curl_cffi",
@@ -75,7 +73,7 @@ DEFAULT_TIERS: List[ScrapeTier] = [
         timeout=DEFAULT_TIMEOUT_CURL_CFFI,
         requires="curl_cffi",
     ),
-    
+
     # Tier 4: Stealth browser (Cloudflare/heavy protection)
     ScrapeTier(
         name="drissionpage_stealth",
@@ -83,7 +81,7 @@ DEFAULT_TIERS: List[ScrapeTier] = [
         timeout=DEFAULT_TIMEOUT_DRISSION_STEALTH,
         requires="DrissionPage",
     ),
-    
+
     # Tier 5: Driverless browser (CDP fallback)
     ScrapeTier(
         name="drissionpage",
@@ -91,7 +89,7 @@ DEFAULT_TIERS: List[ScrapeTier] = [
         timeout=DEFAULT_TIMEOUT_DRISSION,
         requires="DrissionPage",
     ),
-    
+
     # Tier 6: Vision AI - THE NUCLEAR OPTION
     # Screenshot + Gemini extraction. Costs ~$0.01-0.02 per page but works
     # on almost anything that renders in a browser. Worth every penny.
@@ -101,7 +99,7 @@ DEFAULT_TIERS: List[ScrapeTier] = [
         timeout=DEFAULT_TIMEOUT_VISION,
         requires=None,  # Only requires GEMINI_API_KEY which we already need
     ),
-    
+
     # Tier 7: HTTP/2 (simple sites fallback - rare in 2026)
     ScrapeTier(
         name="httpx",
@@ -109,7 +107,7 @@ DEFAULT_TIERS: List[ScrapeTier] = [
         timeout=DEFAULT_TIMEOUT_HTTPX,
         requires="httpx",
     ),
-    
+
     # Tier 8: Basic HTTP (last resort - almost never works on modern sites)
     ScrapeTier(
         name="requests",
@@ -120,7 +118,7 @@ DEFAULT_TIERS: List[ScrapeTier] = [
 ]
 
 
-def get_tier_by_name(name: str) -> Optional[ScrapeTier]:
+def get_tier_by_name(name: str) -> ScrapeTier | None:
     """Get a tier by name."""
     for tier in DEFAULT_TIERS:
         if tier.name == name:
@@ -128,42 +126,42 @@ def get_tier_by_name(name: str) -> Optional[ScrapeTier]:
     return None
 
 
-def get_available_tiers() -> List[ScrapeTier]:
+def get_available_tiers() -> list[ScrapeTier]:
     """
     Get list of tiers that have their dependencies installed.
-    
+
     Checks each tier's 'requires' field and filters out unavailable tiers.
     """
     available = []
-    
+
     for tier in DEFAULT_TIERS:
         if tier.requires is None:
             available.append(tier)
             continue
-        
+
         # Check if dependency is installed
         try:
             if tier.requires == "httpx":
-                import httpx
+                import httpx  # noqa: F401
             elif tier.requires == "curl_cffi":
-                from curl_cffi import requests
+                from curl_cffi import requests  # noqa: F401
             elif tier.requires == "playwright":
-                from playwright.sync_api import sync_playwright
+                from playwright.sync_api import sync_playwright  # noqa: F401
             elif tier.requires == "DrissionPage":
-                from DrissionPage import ChromiumPage
-            
+                from DrissionPage import ChromiumPage  # noqa: F401
+
             available.append(tier)
         except ImportError:
             pass
-    
+
     return available
 
 
-def get_tier_names() -> List[str]:
+def get_tier_names() -> list[str]:
     """Get list of all tier names."""
     return [tier.name for tier in DEFAULT_TIERS]
 
 
-def get_available_tier_names() -> List[str]:
+def get_available_tier_names() -> list[str]:
     """Get list of available tier names (dependencies installed)."""
     return [tier.name for tier in get_available_tiers()]

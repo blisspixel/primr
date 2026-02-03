@@ -15,10 +15,10 @@ Usage:
     # Research a single section
     content = research_section("Industry", context)
 """
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Iterator, Protocol
+from typing import Protocol
 
 from primr.ai.grading_agent import grade_report
 from primr.ai.llm import llm
@@ -335,7 +335,7 @@ def _collect_data(
     website_pages = {}
     if website:
         website_pages = fetch_web_content(website, company_name, max_pages=50)
-        
+
         # Warn if scraping was very limited
         if len(website_pages) <= 2:
             report("! Limited website access - site may have bot protection")
@@ -344,13 +344,12 @@ def _collect_data(
     # This prevents including content from similarly-named but unrelated companies
     # (e.g., "EverTrue" fundraising software vs "EverTrue" senior living)
     report("Searching external sources (with validation)...")
-    
+
     # Include website domain in search to get more targeted results
-    domain = ""
     if website:
         from urllib.parse import urlparse
-        domain = urlparse(website).netloc.replace("www.", "")
-    
+        urlparse(website).netloc.replace("www.", "")
+
     # Search for business news and press releases about the company
     # These queries target high-value sources for company intelligence
     external_queries = [
@@ -367,13 +366,13 @@ def _collect_data(
                 if website and website.lower() not in r.get("url", "").lower()
             ]
             scraped = scrape_external_sources_validated(
-                filtered, 
+                filtered,
                 company_name=company_name,
                 website=website,
                 max_sources=2
             )
             external_data.update(scraped)
-            
+
             # Stop if we have enough validated sources
             if len(external_data) >= 3:
                 break

@@ -15,10 +15,10 @@ The module provides:
 Usage:
     # From sync code, call async function
     result = run_sync(async_function())
-    
+
     # From async code, call blocking sync function
     result = await run_async(blocking_function, arg1, arg2)
-    
+
     # Wrap a sync function for async use
     async_fn = ensure_async(sync_function)
     result = await async_fn(arg1, arg2)
@@ -29,9 +29,10 @@ from __future__ import annotations
 import asyncio
 import functools
 import logging
+from collections.abc import Awaitable, Callable
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
-from typing import Any, Awaitable, Callable, ParamSpec, TypeVar
+from typing import ParamSpec, TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -57,9 +58,9 @@ def _get_default_executor() -> ThreadPoolExecutor:
 def configure_executor(max_workers: int = 4) -> None:
     """
     Configure the default executor for async operations.
-    
+
     Call this at application startup if you need different settings.
-    
+
     Args:
         max_workers: Maximum number of worker threads
     """
@@ -74,9 +75,9 @@ def configure_executor(max_workers: int = 4) -> None:
 def shutdown_executor(wait: bool = True) -> None:
     """
     Shutdown the default executor.
-    
+
     Call this at application shutdown for clean resource cleanup.
-    
+
     Args:
         wait: If True, wait for pending tasks to complete
     """
@@ -93,23 +94,23 @@ def shutdown_executor(wait: bool = True) -> None:
 def run_sync(coro: Awaitable[T]) -> T:
     """
     Run an async coroutine from synchronous code.
-    
+
     This function safely handles event loop detection and creation,
     avoiding the common pitfall of nested event loops.
-    
+
     Args:
         coro: The coroutine to run
-        
+
     Returns:
         The result of the coroutine
-        
+
     Raises:
         RuntimeError: If called from within an async context (use await instead)
-        
+
     Example:
         async def fetch_data():
             return await api.get("/data")
-        
+
         # From sync code:
         result = run_sync(fetch_data())
     """
@@ -124,7 +125,7 @@ def run_sync(coro: Awaitable[T]) -> T:
     except RuntimeError as e:
         if "no running event loop" not in str(e).lower():
             raise
-    
+
     # Not in async context - safe to create/use event loop
     try:
         loop = asyncio.get_event_loop()
@@ -134,23 +135,23 @@ def run_sync(coro: Awaitable[T]) -> T:
     except RuntimeError:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-    
+
     return loop.run_until_complete(coro)
 
 
 def run_sync_new_loop(coro: Awaitable[T]) -> T:
     """
     Run an async coroutine in a fresh event loop.
-    
+
     Use this when you need isolation from any existing event loop,
     such as in tests or when running in a thread.
-    
+
     Args:
         coro: The coroutine to run
-        
+
     Returns:
         The result of the coroutine
-        
+
     Example:
         result = run_sync_new_loop(async_operation())
     """
@@ -172,18 +173,18 @@ async def run_async(
 ) -> T:
     """
     Run a blocking sync function from async code without blocking the event loop.
-    
+
     The function is executed in a thread pool executor, allowing the event
     loop to continue processing other tasks.
-    
+
     Args:
         func: The sync function to run
         *args: Positional arguments for the function
         **kwargs: Keyword arguments for the function
-        
+
     Returns:
         The result of the function
-        
+
     Example:
         async def process():
             # This won't block the event loop
@@ -192,7 +193,7 @@ async def run_async(
     """
     loop = asyncio.get_running_loop()
     executor = _get_default_executor()
-    
+
     # functools.partial handles kwargs
     if kwargs:
         func_with_args = functools.partial(func, *args, **kwargs)
@@ -209,19 +210,19 @@ async def run_async_with_timeout(
 ) -> T:
     """
     Run a blocking sync function with a timeout.
-    
+
     Args:
         func: The sync function to run
         timeout: Maximum time to wait in seconds
         *args: Positional arguments for the function
         **kwargs: Keyword arguments for the function
-        
+
     Returns:
         The result of the function
-        
+
     Raises:
         asyncio.TimeoutError: If the function doesn't complete within timeout
-        
+
     Example:
         try:
             result = await run_async_with_timeout(slow_operation, 30.0, arg1)
@@ -241,22 +242,22 @@ async def run_async_with_timeout(
 def ensure_async(func: Callable[P, T]) -> Callable[P, Awaitable[T]]:
     """
     Wrap a sync function to make it async-compatible.
-    
+
     The wrapped function will run in a thread pool when awaited,
     preventing it from blocking the event loop.
-    
+
     Args:
         func: The sync function to wrap
-        
+
     Returns:
         An async wrapper function
-        
+
     Example:
         @ensure_async
         def blocking_operation(x: int) -> int:
             time.sleep(1)
             return x * 2
-        
+
         # Now can be awaited
         result = await blocking_operation(5)
     """
@@ -269,22 +270,22 @@ def ensure_async(func: Callable[P, T]) -> Callable[P, Awaitable[T]]:
 def ensure_sync(func: Callable[P, Awaitable[T]]) -> Callable[P, T]:
     """
     Wrap an async function to make it sync-compatible.
-    
+
     The wrapped function will run the coroutine in an event loop
     when called from sync code.
-    
+
     Args:
         func: The async function to wrap
-        
+
     Returns:
         A sync wrapper function
-        
+
     Example:
         @ensure_sync
         async def async_operation(x: int) -> int:
             await asyncio.sleep(0.1)
             return x * 2
-        
+
         # Now can be called from sync code
         result = async_operation(5)
     """
@@ -302,16 +303,16 @@ def ensure_sync(func: Callable[P, Awaitable[T]]) -> Callable[P, T]:
 def sync_context():
     """
     Context manager for sync code that may call async functions.
-    
+
     Ensures proper event loop setup and cleanup.
-    
+
     Example:
         with sync_context():
             result = run_sync(async_operation())
     """
     loop = None
     created_loop = False
-    
+
     try:
         try:
             loop = asyncio.get_event_loop()
@@ -321,9 +322,9 @@ def sync_context():
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             created_loop = True
-        
+
         yield loop
-        
+
     finally:
         if created_loop and loop is not None:
             loop.close()
@@ -332,42 +333,42 @@ def sync_context():
 class AsyncBridge:
     """
     Bridge for managing async/sync transitions in a class context.
-    
+
     Useful when a class needs to support both sync and async interfaces.
-    
+
     Example:
         class DataFetcher:
             def __init__(self):
                 self._bridge = AsyncBridge()
-            
+
             async def fetch_async(self, url: str) -> str:
                 return await self._do_fetch(url)
-            
+
             def fetch_sync(self, url: str) -> str:
                 return self._bridge.run(self._do_fetch(url))
     """
-    
+
     def __init__(self, executor: ThreadPoolExecutor | None = None):
         """
         Initialize the bridge.
-        
+
         Args:
             executor: Optional custom executor for blocking operations
         """
         self._executor = executor
-    
+
     def run(self, coro: Awaitable[T]) -> T:
         """
         Run a coroutine from sync context.
-        
+
         Args:
             coro: The coroutine to run
-            
+
         Returns:
             The result of the coroutine
         """
         return run_sync(coro)
-    
+
     async def run_blocking(
         self,
         func: Callable[P, T],
@@ -376,18 +377,18 @@ class AsyncBridge:
     ) -> T:
         """
         Run a blocking function from async context.
-        
+
         Args:
             func: The blocking function
             *args: Positional arguments
             **kwargs: Keyword arguments
-            
+
         Returns:
             The result of the function
         """
         loop = asyncio.get_running_loop()
         executor = self._executor or _get_default_executor()
-        
+
         if kwargs:
             func_with_args = functools.partial(func, *args, **kwargs)
             return await loop.run_in_executor(executor, func_with_args)
@@ -402,10 +403,10 @@ class AsyncBridge:
 def is_async_context() -> bool:
     """
     Check if currently running in an async context.
-    
+
     Returns:
         True if there's a running event loop, False otherwise
-        
+
     Example:
         if is_async_context():
             result = await async_operation()
@@ -425,16 +426,16 @@ async def gather_with_concurrency(
 ) -> list[T]:
     """
     Run coroutines with a concurrency limit.
-    
+
     Like asyncio.gather but limits how many coroutines run simultaneously.
-    
+
     Args:
         limit: Maximum concurrent coroutines
         *coros: Coroutines to run
-        
+
     Returns:
         List of results in the same order as input coroutines
-        
+
     Example:
         results = await gather_with_concurrency(
             3,  # Max 3 concurrent
@@ -446,11 +447,11 @@ async def gather_with_concurrency(
         )
     """
     semaphore = asyncio.Semaphore(limit)
-    
+
     async def limited_coro(coro: Awaitable[T]) -> T:
         async with semaphore:
             return await coro
-    
+
     return await asyncio.gather(*(limited_coro(c) for c in coros))
 
 

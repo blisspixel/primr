@@ -49,11 +49,11 @@ class PromptConfig:
     formatting: dict[str, str]
     sections: list[SectionConfig]
     raw_config: dict[str, Any]  # Full YAML for custom access
-    
+
     @property
     def name(self) -> str:
         return self.meta.get("name", "Unknown")
-    
+
     @property
     def version(self) -> str:
         return self.meta.get("version", "0.0.0")
@@ -62,13 +62,13 @@ class PromptConfig:
 def load_prompt_config(prompt_name: str) -> PromptConfig:
     """
     Load a prompt configuration from YAML.
-    
+
     Args:
         prompt_name: Name of the prompt (e.g., "company_overview", "ai_strategy")
-        
+
     Returns:
         PromptConfig with all configuration loaded
-        
+
     Raises:
         PromptConfigNotFoundError: If the YAML file doesn't exist
         PromptConfigValidationError: If the YAML is invalid
@@ -79,7 +79,7 @@ def load_prompt_config(prompt_name: str) -> PromptConfig:
     )
 
     yaml_path = PROMPTS_DIR / f"{prompt_name}.yaml"
-    
+
     if not yaml_path.exists():
         available = get_available_prompts()
         raise PromptConfigNotFoundError(
@@ -87,7 +87,7 @@ def load_prompt_config(prompt_name: str) -> PromptConfig:
             searched_paths=[str(yaml_path)],
             available_prompts=available,
         )
-    
+
     try:
         with open(yaml_path, encoding="utf-8") as f:
             raw_config = yaml.safe_load(f)
@@ -96,19 +96,19 @@ def load_prompt_config(prompt_name: str) -> PromptConfig:
             config_path=str(yaml_path),
             errors=[f"YAML parse error: {e}"],
         ) from e
-    
+
     if not raw_config:
         raise PromptConfigValidationError(
             config_path=str(yaml_path),
             errors=["Empty or invalid YAML file"],
         )
-    
+
     # Parse sections
     sections = []
     for section_data in raw_config.get("sections", []):
         section = _parse_section(section_data)
         sections.append(section)
-    
+
     return PromptConfig(
         meta=raw_config.get("meta", {}),
         document_purpose=raw_config.get("document_purpose", ""),
@@ -124,7 +124,7 @@ def _parse_section(data: dict[str, Any]) -> SectionConfig:
     subsections = []
     for sub_data in data.get("subsections", []):
         subsections.append(_parse_section(sub_data))
-    
+
     return SectionConfig(
         id=data.get("id", ""),
         name=data.get("name", ""),
@@ -151,23 +151,23 @@ def build_company_overview_prompt(
 ) -> str:
     """
     Build a company overview prompt from YAML configuration.
-    
+
     This function delegates to PromptComposer.compose() internally,
     maintaining backward compatibility with the existing API.
-    
+
     Args:
         company_name: Name of the company to research
         query: Optional custom query (ignored - kept for backward compatibility)
         website_url: Optional company website URL
-        
+
     Returns:
         Complete prompt string for Deep Research
     """
     from primr.prompts.composer import PromptComposer
     from primr.prompts.schema import PromptContext
-    
+
     current_date = datetime.now().strftime("%B %Y")
-    
+
     # Create context for the composer
     context = PromptContext(
         company_name=company_name,
@@ -175,11 +175,11 @@ def build_company_overview_prompt(
         current_date=current_date,
         has_stage1_context=False,  # Company overview is stage 1, no prior context
     )
-    
+
     # Use PromptComposer to build the prompt
     composer = PromptComposer()
     composed = composer.compose("company_overview", context)
-    
+
     return composed.content
 
 
@@ -190,24 +190,24 @@ def build_ai_strategy_prompt(
 ) -> str:
     """
     Build an AI strategy prompt from YAML configuration.
-    
+
     This function delegates to PromptComposer.compose_strategy() internally,
     maintaining backward compatibility with the existing API.
-    
+
     Args:
         company_name: Name of the company
         cloud_vendor: Cloud vendor preference (azure, aws, gcp, agnostic)
         current_date: Optional date string (defaults to current date)
-        
+
     Returns:
         Complete prompt string for Deep Research
     """
     from primr.prompts.composer import PromptComposer
     from primr.prompts.schema import PromptContext
-    
+
     if not current_date:
         current_date = datetime.now().strftime("%B %Y")
-    
+
     # Create context for the composer
     context = PromptContext(
         company_name=company_name,
@@ -215,9 +215,9 @@ def build_ai_strategy_prompt(
         current_date=current_date,
         has_stage1_context=True,  # AI strategy always uses company overview as context
     )
-    
+
     # Use PromptComposer to build the prompt
     composer = PromptComposer()
     composed = composer.compose_strategy("ai_strategy", context)
-    
+
     return composed.content

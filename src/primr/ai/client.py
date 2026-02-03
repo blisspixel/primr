@@ -113,7 +113,7 @@ class AIClient:
             raise ValueError(f"temperature must be between 0.0 and 2.0, got {temperature}")
         if thinking_level not in ("low", "high"):
             raise ValueError(f"thinking_level must be 'low' or 'high', got {thinking_level}")
-        
+
         model = self._get_model(model_type)
         retries = max_retries or self._settings.max_retries
 
@@ -265,7 +265,7 @@ class AIClient:
 
     def _get_model(self, model_type: str) -> str:
         """Get the model name for a given type.
-        
+
         Model types (USE THESE):
             - "scraping": Flash - summarizing scraped content
             - "link_selection": Flash - intelligent link prioritization (which pages to scrape)
@@ -273,7 +273,7 @@ class AIClient:
             - "section_writing": Pro - writing report sections
             - "analysis": Pro - complex analysis
             - "reasoning": Pro - general reasoning tasks
-        
+
         Legacy aliases (backward compatible):
             - "filtering" -> Flash (DEPRECATED - use link_selection)
             - "research" -> Flash (DEPRECATED - confusing name)
@@ -357,13 +357,13 @@ class AIClient:
             # Check response exists
             if response is None:
                 raise AIError("API returned None response")
-            
+
             # Check response has text attribute
             if not hasattr(response, 'text'):
                 raise AIError("API response missing 'text' attribute")
 
             text = response.text
-            
+
             # Handle None text
             if text is None:
                 # Check if there are candidates with content
@@ -385,11 +385,11 @@ class AIClient:
                 )
 
             result = str(text).strip()
-            
+
             # Check for empty response
             if not result:
                 raise AIError("API returned empty response text")
-            
+
             return result
 
         except AIError:

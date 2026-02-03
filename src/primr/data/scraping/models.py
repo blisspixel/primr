@@ -4,10 +4,10 @@ Core data models for the scraping module.
 All models are defined here for consistency and to avoid circular imports.
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Callable, Optional
 
 
 class ErrorType(Enum):
@@ -35,19 +35,19 @@ class Attempt:
     """Single tier attempt record (typed, not dict)."""
     tier: str
     success: bool
-    error: Optional[str] = None
-    error_type: Optional[ErrorType] = None
-    elapsed_ms: Optional[float] = None
-    http_status: Optional[int] = None
-    blocked_reason: Optional[str] = None
+    error: str | None = None
+    error_type: ErrorType | None = None
+    elapsed_ms: float | None = None
+    http_status: int | None = None
+    blocked_reason: str | None = None
 
 
 @dataclass
 class ValidationResult:
     """Result of content validation (separate from soft block detection)."""
     valid: bool
-    reason: Optional[str] = None
-    content_density: Optional[float] = None
+    reason: str | None = None
+    content_density: float | None = None
     is_duplicate_template: bool = False
 
 
@@ -55,50 +55,50 @@ class ValidationResult:
 class HostState:
     """Per-host trust state for optimizing tier selection."""
     host: str
-    cookies: Optional[dict] = None           # Clearance cookies (cf_clearance, etc.)
-    last_clearance_ts: Optional[datetime] = None
-    best_tier: Optional[str] = None          # Tier that worked best for this host
+    cookies: dict | None = None           # Clearance cookies (cf_clearance, etc.)
+    last_clearance_ts: datetime | None = None
+    best_tier: str | None = None          # Tier that worked best for this host
     hard_blocked: bool = False
-    
+
     # Per-tier success/failure tracking for circuit breaker
     tier_attempts: dict = field(default_factory=dict)  # tier_name -> total attempts
     tier_failures: dict = field(default_factory=dict)  # tier_name -> failure count
-    
+
     def has_fresh_clearance(self, max_age_minutes: int = 10) -> bool:
         """Check if clearance cookies are still fresh."""
         if not self.cookies or not self.last_clearance_ts:
             return False
         age = (datetime.now() - self.last_clearance_ts).total_seconds() / 60
         return age < max_age_minutes
-    
+
     def record_tier_attempt(self, tier_name: str, success: bool) -> None:
         """Record an attempt for a specific tier."""
         self.tier_attempts[tier_name] = self.tier_attempts.get(tier_name, 0) + 1
         if not success:
             self.tier_failures[tier_name] = self.tier_failures.get(tier_name, 0) + 1
-    
+
     def record_tier_failure(self, tier_name: str) -> None:
         """Record a failure for a specific tier (legacy method)."""
         self.record_tier_attempt(tier_name, success=False)
-    
+
     def should_skip_tier(self, tier_name: str, threshold: int = 3) -> bool:
         """
         Check if tier should be skipped based on failure history.
-        
+
         Circuit breaker logic:
         - Skip if tier has NEVER worked (100% failure rate) after threshold attempts
         - Don't skip if tier has ANY successes (even 20% success rate is worth trying)
-        
+
         Rationale: README says 20-40% failure is expected for protected sites.
         We should only skip tiers that are COMPLETELY broken for this host.
         """
         attempts = self.tier_attempts.get(tier_name, 0)
         failures = self.tier_failures.get(tier_name, 0)
-        
+
         # Not enough data yet - keep trying
         if attempts < threshold:
             return False
-        
+
         # Skip only if tier has NEVER worked (100% failure rate)
         return failures >= attempts
 
@@ -108,28 +108,28 @@ class ScrapeResult:
     """Standardized result from every tier and orchestrator."""
     url: str
     success: bool
-    raw_content: Optional[bytes] = None      # Raw HTML/PDF bytes (None for vision)
-    extracted_text: Optional[str] = None     # Clean text (filled by content.py or vision)
-    tier: Optional[str] = None               # Which tier succeeded
+    raw_content: bytes | None = None      # Raw HTML/PDF bytes (None for vision)
+    extracted_text: str | None = None     # Clean text (filled by content.py or vision)
+    tier: str | None = None               # Which tier succeeded
     cached: bool = False
-    
+
     # Metadata for debugging and detection
-    http_status: Optional[int] = None
-    content_type: Optional[str] = None       # "html", "pdf", "vision_text"
-    final_url: Optional[str] = None          # After redirects
-    elapsed_ms: Optional[float] = None
-    
+    http_status: int | None = None
+    content_type: str | None = None       # "html", "pdf", "vision_text"
+    final_url: str | None = None          # After redirects
+    elapsed_ms: float | None = None
+
     # Session info for cookie handoff (browser tiers populate this)
-    cookies: Optional[dict] = None           # Clearance cookies for handoff to curl_cffi
-    
+    cookies: dict | None = None           # Clearance cookies for handoff to curl_cffi
+
     # Error info
-    error: Optional[str] = None
-    error_type: Optional[ErrorType] = None
-    blocked_reason: Optional[str] = None
-    
+    error: str | None = None
+    error_type: ErrorType | None = None
+    blocked_reason: str | None = None
+
     # Content validation (filled after extraction, separate from soft block)
-    validation: Optional[ValidationResult] = None
-    
+    validation: ValidationResult | None = None
+
     # Tier attempt history (typed records)
     attempts: list = field(default_factory=list)  # list[Attempt]
 
@@ -140,4 +140,4 @@ class ScrapeTier:
     name: str
     scrape_fn: Callable[[str, int], ScrapeResult]
     timeout: int
-    requires: Optional[str] = None  # Optional dependency check
+    requires: str | None = None  # Optional dependency check

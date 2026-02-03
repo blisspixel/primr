@@ -7,7 +7,6 @@ DEFAULT_TIERS is defined in tier_registry.py to avoid circular imports.
 
 from dataclasses import dataclass
 
-
 # =============================================================================
 # Rate Limiting Configuration
 # =============================================================================
@@ -55,37 +54,37 @@ WAF_SIGNATURES = [
     ("ray id:", "Cloudflare block"),
     ("cf-browser-verification", "Cloudflare verification"),
     ("cf_clearance", "Cloudflare clearance"),
-    
+
     # Akamai
     ("akamai", "Akamai bot protection"),
     ("ak_bmsc", "Akamai cookie"),
     ("bm_sz", "Akamai cookie"),
-    
+
     # Imperva/Incapsula
     ("incapsula", "Incapsula WAF"),
     ("imperva", "Imperva WAF"),
     ("visid_incap", "Incapsula cookie"),
-    
+
     # DataDome
     ("datadome", "DataDome protection"),
     ("dd_cookie_test", "DataDome cookie"),
-    
+
     # PerimeterX
     ("perimeterx", "PerimeterX protection"),
     ("px-captcha", "PerimeterX captcha"),
     ("_pxhd", "PerimeterX cookie"),
-    
+
     # Kasada
     ("kasada", "Kasada protection"),
     ("x-kpsdk", "Kasada header"),
-    
+
     # Distil Networks
     ("distil", "Distil Networks"),
     ("d_id", "Distil cookie"),
-    
+
     # WireWall (seen on torexgold)
     ("wirewall", "WireWall bot protection"),
-    
+
     # Generic indicators
     ("captcha", "CAPTCHA required"),
     ("access denied", "Access denied"),
@@ -113,54 +112,54 @@ COMMON_PAGE_PATTERNS = [
     # About
     "/about", "/about-us", "/about-us/", "/company", "/who-we-are",
     "/our-story", "/our-company", "/corporate", "/overview",
-    
+
     # Leadership & Team
     "/leadership", "/team", "/management", "/board", "/executives",
     "/board-of-directors", "/leadership-team", "/our-team", "/people",
     "/management-team", "/executive-team", "/founders",
-    
+
     # Investors & Financials
     "/investors", "/investor-relations", "/financials", "/ir",
     "/investor", "/shareholders", "/annual-report", "/sec-filings",
     "/quarterly-results", "/earnings", "/stock",
-    
+
     # Products & Services
     "/products", "/services", "/solutions", "/offerings", "/platform",
     "/what-we-do", "/capabilities", "/technology", "/features",
-    
+
     # Industries & Markets
     "/industries", "/markets", "/sectors", "/verticals", "/segments",
-    
+
     # Customers & Case Studies
     "/customers", "/clients", "/case-studies", "/success-stories",
     "/testimonials", "/references", "/portfolio",
-    
+
     # Partners
     "/partners", "/partnerships", "/alliances", "/ecosystem",
     "/channel-partners", "/technology-partners",
-    
+
     # News & Press
     "/news", "/press", "/newsroom", "/press-releases", "/media",
     "/announcements", "/blog", "/insights", "/resources",
-    
+
     # Careers
     "/careers", "/jobs", "/join-us", "/work-with-us", "/opportunities",
     "/employment", "/hiring", "/open-positions",
-    
+
     # Contact
     "/contact", "/contact-us", "/get-in-touch", "/locations", "/offices",
-    
+
     # ESG & Sustainability
     "/sustainability", "/esg", "/corporate-responsibility", "/csr",
     "/environmental", "/social-responsibility", "/impact",
-    
+
     # Legal & Compliance
     "/privacy", "/privacy-policy", "/terms", "/terms-of-service",
     "/legal", "/compliance", "/security",
-    
+
     # Support
     "/support", "/help", "/faq", "/documentation", "/docs",
-    
+
     # Pricing
     "/pricing", "/plans", "/packages",
 ]

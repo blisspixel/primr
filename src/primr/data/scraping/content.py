@@ -6,10 +6,8 @@ Uses BeautifulSoup for robust HTML parsing and reader-mode extraction.
 """
 
 import re
-from typing import Optional
 
 from bs4 import BeautifulSoup, NavigableString
-
 
 # Tags to remove in both modes
 NOISE_TAGS_ALWAYS = ["script", "style", "noscript", "meta", "link", "svg", "canvas", "iframe"]
@@ -64,55 +62,55 @@ GARBAGE_PATTERNS = [
 def is_quality_content(text: str, min_length: int = MIN_CONTENT_LENGTH) -> tuple[bool, str]:
     """
     Check if extracted text is quality content vs garbage.
-    
+
     Returns:
         (is_quality, reason) - True if content is good, False with reason if garbage
     """
     if not text:
         return False, "Empty content"
-    
+
     text_lower = text.lower()
-    
+
     # Check for garbage patterns
     for pattern in GARBAGE_PATTERNS:
         if pattern in text_lower:
             return False, f"Garbage pattern: {pattern}"
-    
+
     # Check minimum length
     if len(text) < min_length:
         return False, f"Too short ({len(text)} chars < {min_length})"
-    
+
     # Check word count
     words = text.split()
     if len(words) < MIN_WORD_COUNT:
         return False, f"Too few words ({len(words)} < {MIN_WORD_COUNT})"
-    
+
     # Check for sentences (rough heuristic)
     sentences = len([s for s in text.split('.') if len(s.strip()) > 10])
     if sentences < MIN_SENTENCE_COUNT:
         return False, f"Too few sentences ({sentences} < {MIN_SENTENCE_COUNT})"
-    
+
     # Check for repetitive content (same line repeated)
-    lines = [l.strip() for l in text.split('\n') if l.strip()]
+    lines = [line.strip() for line in text.split('\n') if line.strip()]
     if lines:
         unique_lines = set(lines)
         if len(unique_lines) < len(lines) * 0.5:  # Less than 50% unique
             return False, f"Repetitive content ({len(unique_lines)}/{len(lines)} unique)"
-    
+
     return True, "OK"
 
 
 def detect_content_type(
     raw_content: bytes,
-    content_type_header: Optional[str] = None,
+    content_type_header: str | None = None,
 ) -> str:
     """
     Detect content type from bytes and/or header.
-    
+
     Args:
         raw_content: Raw bytes to analyze
         content_type_header: Content-Type header if available
-    
+
     Returns:
         Content type string: "html", "pdf", "json", "xml", "text", "unknown"
     """
@@ -129,17 +127,17 @@ def detect_content_type(
             return "xml"
         elif "text" in header_lower:
             return "text"
-    
+
     # Check magic bytes
     if raw_content:
         # PDF magic bytes
         if raw_content[:4] == b"%PDF":
             return "pdf"
-        
+
         # Try to decode and check content
         try:
             text = raw_content[:1000].decode("utf-8", errors="ignore").lower()
-            
+
             if "<!doctype html" in text or "<html" in text:
                 return "html"
             elif text.strip().startswith("{") or text.strip().startswith("["):
@@ -148,7 +146,7 @@ def detect_content_type(
                 return "xml"
         except Exception:
             pass
-    
+
     return "unknown"
 
 
@@ -158,75 +156,75 @@ def extract_clean_text(
 ) -> str:
     """
     Extract clean text from raw HTML bytes using BeautifulSoup.
-    
+
     Args:
         raw_html: Raw HTML bytes from tier
         mode: "conservative" (keep more) or "aggressive" (strip more)
-    
+
     Conservative mode:
     - Removes only obvious noise tags (script, style, noscript, meta)
     - Keeps content in unconventional divs
     - Better for sites with non-standard layouts
-    
+
     Aggressive mode:
     - Removes header/footer/nav/aside
     - Focuses on main content area
     - Better for standard layouts
-    
+
     Both modes:
     - Deduplicate consecutive identical lines
     - Preserve paragraph structure with newlines
-    
+
     Returns:
         Clean text string
     """
     if not raw_html:
         return ""
-    
+
     # Decode bytes
     try:
         html = raw_html.decode("utf-8", errors="ignore")
     except Exception:
         return ""
-    
+
     soup = BeautifulSoup(html, "html.parser")
-    
+
     # Determine which tags to remove
     if mode == "aggressive":
         noise_tags = NOISE_TAGS_ALWAYS + NOISE_TAGS_AGGRESSIVE
     else:
         noise_tags = NOISE_TAGS_ALWAYS
-    
+
     # Remove noise tags
     for tag in noise_tags:
         for element in soup.find_all(tag):
             element.decompose()
-    
+
     # In aggressive mode, also remove boilerplate by class/id
     if mode == "aggressive":
         for element in soup.find_all(True):
             classes = element.get("class", [])
             element_id = element.get("id", "")
             all_attrs = " ".join(classes) + " " + element_id
-            
+
             # Use word-boundary matching to avoid false positives (e.g., "ddpa" matching "ad")
             if BOILERPLATE_PATTERN.search(all_attrs):
                 element.decompose()
-    
+
     # Get text with newlines for block elements
     text = soup.get_text(separator="\n", strip=True)
-    
+
     # Clean up whitespace and deduplicate
     lines = []
     prev_line = None
-    
+
     for line in text.split("\n"):
         line = re.sub(r"\s+", " ", line).strip()
-        
+
         if line and line != prev_line:  # Deduplicate consecutive identical lines
             lines.append(line)
             prev_line = line
-    
+
     return "\n".join(lines)
 
 
@@ -248,24 +246,24 @@ def _decode_html_entities(text: str) -> str:
         "&hellip;": "…",
         "&bull;": "•",
     }
-    
+
     for entity, char in entities.items():
         text = text.replace(entity, char)
-    
+
     # Handle numeric entities
     text = re.sub(r"&#(\d+);", lambda m: chr(int(m.group(1))), text)
     text = re.sub(r"&#x([0-9a-fA-F]+);", lambda m: chr(int(m.group(1), 16)), text)
-    
+
     return text
 
 
-def extract_text_from_pdf(pdf_bytes: bytes) -> Optional[str]:
+def extract_text_from_pdf(pdf_bytes: bytes) -> str | None:
     """
     Extract text from PDF bytes using PyMuPDF.
-    
+
     Args:
         pdf_bytes: Raw PDF bytes
-    
+
     Returns:
         Extracted text or None if extraction fails
     """
@@ -273,23 +271,23 @@ def extract_text_from_pdf(pdf_bytes: bytes) -> Optional[str]:
         import fitz  # PyMuPDF
     except ImportError:
         return None
-    
+
     if not pdf_bytes:
         return None
-    
+
     try:
         # Open PDF from bytes
         doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-        
+
         text_parts = []
         for page in doc:
             text_parts.append(page.get_text("text"))
-        
+
         doc.close()
-        
+
         text = "\n".join(text_parts).strip()
         return text if text else None
-        
+
     except Exception:
         return None
 
@@ -297,33 +295,33 @@ def extract_text_from_pdf(pdf_bytes: bytes) -> Optional[str]:
 def extract_main_content(raw_html: bytes) -> str:
     """
     Extract main content using reader-mode style extraction.
-    
+
     Uses BeautifulSoup to:
     1. Remove noise elements (nav, footer, ads, etc.)
     2. Find main content container (article, main, content div)
     3. Extract clean text preserving structure
-    
+
     Args:
         raw_html: Raw HTML bytes
-    
+
     Returns:
         Extracted main content text
     """
     if not raw_html:
         return ""
-    
+
     try:
         html = raw_html.decode("utf-8", errors="ignore")
     except Exception:
         return ""
-    
+
     soup = BeautifulSoup(html, "html.parser")
-    
+
     # Remove noise elements
     for tag in NOISE_TAGS_ALWAYS:
         for element in soup.find_all(tag):
             element.decompose()
-    
+
     # Collect elements to remove (don't modify during iteration)
     to_remove = []
     for element in soup.find_all(True):
@@ -331,26 +329,26 @@ def extract_main_content(raw_html: bytes) -> str:
             continue
         classes = element.get("class", []) or []
         element_id = element.get("id", "") or ""
-        
+
         all_attrs = " ".join(classes) + " " + element_id
-        
+
         # Use word-boundary matching to avoid false positives (e.g., "ddpa" matching "ad")
         if BOILERPLATE_PATTERN.search(all_attrs):
             to_remove.append(element)
-    
+
     # Now remove them
     for element in to_remove:
         try:
             element.decompose()
         except Exception:
             pass
-    
+
     # Try to find main content container
     main_content = None
-    
+
     # Priority 1: <main> or <article> tags
     main_content = soup.find("main") or soup.find("article")
-    
+
     # Priority 2: div with content-related class/id
     if not main_content:
         for tag in CONTENT_TAGS:
@@ -360,21 +358,21 @@ def extract_main_content(raw_html: bytes) -> str:
                 classes = " ".join(element.get("class", []) or [])
                 element_id = element.get("id", "") or ""
                 attrs = (classes + " " + element_id).lower()
-                
+
                 if any(cc in attrs for cc in CONTENT_CLASSES):
                     main_content = element
                     break
             if main_content:
                 break
-    
+
     # Priority 3: Find the div with the most text content
     if not main_content:
         main_content = _find_content_rich_element(soup)
-    
+
     # Fall back to body
     if not main_content:
         main_content = soup.find("body") or soup
-    
+
     # Extract text with structure
     return _extract_text_with_structure(main_content)
 
@@ -383,17 +381,17 @@ def _find_content_rich_element(soup: BeautifulSoup):
     """Find the element with the most meaningful text content."""
     best_element = None
     best_score = 0
-    
+
     for element in soup.find_all(["div", "section", "article", "main"]):
         # Skip small elements
         text = element.get_text(strip=True)
         if len(text) < 200:
             continue
-        
+
         # Score based on text length and paragraph count
         paragraphs = element.find_all("p")
         score = len(text) + (len(paragraphs) * 100)
-        
+
         # Penalize elements with too many links (likely nav)
         links = element.find_all("a")
         if links:
@@ -401,11 +399,11 @@ def _find_content_rich_element(soup: BeautifulSoup):
             link_ratio = link_text / max(len(text), 1)
             if link_ratio > 0.5:  # More than 50% links = probably nav
                 score *= 0.3
-        
+
         if score > best_score:
             best_score = score
             best_element = element
-    
+
     return best_element
 
 
@@ -413,9 +411,9 @@ def _extract_text_with_structure(element) -> str:
     """Extract text from element preserving paragraph structure."""
     if not element:
         return ""
-    
+
     lines = []
-    
+
     for child in element.descendants:
         if isinstance(child, NavigableString):
             text = str(child).strip()
@@ -429,77 +427,77 @@ def _extract_text_with_structure(element) -> str:
                     lines[-1] = lines[-1] + " " + text
                 else:
                     lines.append(text)
-    
+
     # Clean up and deduplicate
     cleaned = []
     prev_line = None
-    
+
     for line in lines:
         line = re.sub(r"\s+", " ", line).strip()
         if line and line != prev_line and len(line) > 2:
             cleaned.append(line)
             prev_line = line
-    
+
     return "\n".join(cleaned)
 
 
-def get_page_title(raw_html: bytes) -> Optional[str]:
+def get_page_title(raw_html: bytes) -> str | None:
     """
     Extract page title from HTML.
-    
+
     Args:
         raw_html: Raw HTML bytes
-    
+
     Returns:
         Page title or None
     """
     if not raw_html:
         return None
-    
+
     try:
         html = raw_html.decode("utf-8", errors="ignore")
     except Exception:
         return None
-    
+
     match = re.search(r"<title[^>]*>(.*?)</title>", html, flags=re.DOTALL | re.IGNORECASE)
     if match:
         title = match.group(1).strip()
         # Clean up whitespace
         title = re.sub(r"\s+", " ", title)
         return _decode_html_entities(title)
-    
+
     return None
 
 
-def get_meta_description(raw_html: bytes) -> Optional[str]:
+def get_meta_description(raw_html: bytes) -> str | None:
     """
     Extract meta description from HTML.
-    
+
     Args:
         raw_html: Raw HTML bytes
-    
+
     Returns:
         Meta description or None
     """
     if not raw_html:
         return None
-    
+
     try:
         html = raw_html.decode("utf-8", errors="ignore")
     except Exception:
         return None
-    
+
     # Try different meta description patterns
     patterns = [
         r'<meta[^>]*name="description"[^>]*content="([^"]*)"',
         r"<meta[^>]*name='description'[^>]*content='([^']*)'",
         r'<meta[^>]*content="([^"]*)"[^>]*name="description"',
     ]
-    
+
     for pattern in patterns:
         match = re.search(pattern, html, flags=re.IGNORECASE)
         if match:
             desc = match.group(1).strip()
             return _decode_html_entities(desc)
-    
+
     return None

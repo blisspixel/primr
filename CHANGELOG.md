@@ -5,6 +5,24 @@ All notable changes to Primr will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.1] - 2026-02-02
+
+### Fixed
+- Removed dead code in deep_research.py (unreachable code after return statement)
+- Fixed Python 3.10 compatibility in MCP server modules (datetime.UTC -> timezone.utc)
+- Added missing COMMON_PAGE_PATTERNS re-export in scrape.py
+- Updated test_scrape.py and test_link_discovery.py to use correct imports
+- Fixed exception chaining (B904) in deep_research.py, browsers.py, migration.py, validation.py, report_analyzer.py
+- Fixed ambiguous variable names (E741) in content_extractor.py, pagination.py, content.py
+- Fixed multiple statements on one line (E701) in browsers.py
+- Removed duplicate method definitions (F811) in qa/integration.py
+- Fixed import shadowed by loop variable (F402) in type_guards.py
+- Updated Union type annotation to use | syntax (UP007) in types.py
+- Added noqa comments for intentional unused imports in tier_registry.py
+
+### Changed
+- Updated ruff configuration to ignore intentional patterns (E402, N802, N806, UP017)
+
 ## [1.5.0] - 2026-02-02
 
 ### Added

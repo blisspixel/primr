@@ -27,7 +27,6 @@ from primr.mcp_server.types import (
     JobStatus,
     LatestOutput,
     ResearchMode,
-    ResearchStage,
     ResearchStatus,
     StrategyType,
 )
@@ -460,12 +459,12 @@ def _read_output_by_job(mcp_server: "PrimrMCPServer", uri: str) -> list[ReadReso
     match = re.match(r"primr://output/by_job/([^/?]+)", uri)
     if not match:
         raise ValueError(f"Invalid job ID in URI: {uri}")
-    
+
     requested_job_id = match.group(1)
 
     # Look up job in store
     job = mcp_server.job_store.get_by_id(requested_job_id)
-    
+
     if job is None:
         # Return 404-like response
         data = {
@@ -501,7 +500,7 @@ def _read_output_by_job(mcp_server: "PrimrMCPServer", uri: str) -> list[ReadReso
         if "report" in path.lower():
             report_path = path
             break
-    
+
     if not report_path and job.output_paths:
         report_path = job.output_paths[0]
 

@@ -156,7 +156,6 @@ def _get_jobs_file_path() -> str:
 
 
 # File lock for job tracking (prevents concurrent write corruption)
-import threading
 _jobs_file_lock = threading.Lock()
 
 
@@ -184,7 +183,7 @@ def save_pending_job(interaction_id: str, job_type: str, description: str) -> No
                         jobs = json.loads(content)
                         # Validate structure
                         if not isinstance(jobs, dict):
-                            logger.warning(f"Jobs file corrupted (not a dict), resetting")
+                            logger.warning("Jobs file corrupted (not a dict), resetting")
                             jobs = {}
             except (OSError, json.JSONDecodeError) as e:
                 logger.warning(f"Failed to load jobs file, resetting: {e}")
@@ -225,7 +224,7 @@ def save_pending_job(interaction_id: str, job_type: str, description: str) -> No
 def remove_pending_job(interaction_id: str) -> None:
     """
     Remove a job from the pending list (after completion or failure).
-    
+
     Thread-safe: Uses file locking to prevent concurrent write corruption.
     """
     jobs_file = _get_jobs_file_path()
@@ -241,7 +240,7 @@ def remove_pending_job(interaction_id: str) -> None:
                     return
                 jobs = json.loads(content)
                 if not isinstance(jobs, dict):
-                    logger.warning(f"Jobs file corrupted, cannot remove job")
+                    logger.warning("Jobs file corrupted, cannot remove job")
                     return
 
             if interaction_id in jobs:
@@ -259,7 +258,7 @@ def remove_pending_job(interaction_id: str) -> None:
 def get_pending_jobs() -> dict[str, dict[str, Any]]:
     """
     Get all pending research jobs.
-    
+
     Thread-safe: Uses file locking for consistent reads.
     """
     jobs_file = _get_jobs_file_path()
@@ -275,7 +274,7 @@ def get_pending_jobs() -> dict[str, dict[str, Any]]:
                     return {}
                 result = json.loads(content)
                 if not isinstance(result, dict):
-                    logger.warning(f"Jobs file corrupted (not a dict)")
+                    logger.warning("Jobs file corrupted (not a dict)")
                     return {}
                 return result
         except (OSError, json.JSONDecodeError) as e:
@@ -290,26 +289,26 @@ def get_pending_jobs() -> dict[str, dict[str, Any]]:
 async def resolve_redirect_url(url: str, timeout: float = 10.0, retries: int = 2) -> str:
     """
     Resolve a Google grounding redirect URL to its final destination.
-    
+
     The Deep Research API returns URLs like:
     https://vertexaisearch.cloud.google.com/grounding-api-redirect/...
-    
+
     This function follows the redirect chain to get the actual source URL.
-    
+
     Args:
         url: The redirect URL to resolve
         timeout: Maximum time to wait for resolution (seconds)
         retries: Number of retry attempts on failure
-        
+
     Returns:
         The final destination URL, or the original URL if resolution fails
     """
     import httpx
-    
+
     # Only resolve Google grounding redirect URLs
     if "vertexaisearch.cloud.google.com/grounding-api-redirect" not in url:
         return url
-    
+
     for attempt in range(retries + 1):
         try:
             async with httpx.AsyncClient(follow_redirects=True, timeout=timeout) as client:
@@ -319,7 +318,7 @@ async def resolve_redirect_url(url: str, timeout: float = 10.0, retries: int = 2
                 final_url = str(response.url)
                 logger.debug(f"Resolved URL: {url[:50]}... -> {final_url[:80]}...")
                 return final_url
-        except asyncio.TimeoutError:
+        except TimeoutError:
             if attempt < retries:
                 logger.debug(f"URL resolution timeout (attempt {attempt + 1}), retrying...")
                 await asyncio.sleep(0.5)
@@ -334,26 +333,26 @@ async def resolve_redirect_url(url: str, timeout: float = 10.0, retries: int = 2
                 continue
             logger.warning(f"URL resolution failed after {retries + 1} attempts: {e}")
             return _extract_domain_from_redirect(url)
-    
+
     return url
 
 
 def _extract_domain_from_redirect(redirect_url: str) -> str:
     """
     Extract a readable domain hint from a Google redirect URL.
-    
+
     When URL resolution fails, we try to extract any domain hints from the
     redirect URL itself. This is better than showing the ugly redirect URL.
-    
+
     Args:
         redirect_url: The Google grounding redirect URL
-        
+
     Returns:
         A cleaner URL or the original if extraction fails
     """
     import base64
     import re
-    
+
     # The redirect URL often contains base64-encoded data with the target URL
     # Try to extract it
     try:
@@ -376,7 +375,7 @@ def _extract_domain_from_redirect(redirect_url: str) -> str:
                 pass
     except Exception:
         pass
-    
+
     # Return original if we can't extract anything useful
     return redirect_url
 
@@ -384,47 +383,47 @@ def _extract_domain_from_redirect(redirect_url: str) -> str:
 async def resolve_citation_urls(citations: list[dict[str, str]]) -> list[dict[str, str]]:
     """
     Resolve all citation URLs in parallel.
-    
+
     Args:
         citations: List of citation dicts with 'url' keys
-        
+
     Returns:
         Updated citations with resolved URLs
     """
     if not citations:
         return citations
-    
+
     # Create tasks for all URL resolutions
     tasks = [resolve_redirect_url(c.get('url', '')) for c in citations]
-    
+
     # Run all resolutions in parallel
     resolved_urls = await asyncio.gather(*tasks)
-    
+
     # Update citations with resolved URLs
-    for citation, resolved_url in zip(citations, resolved_urls):
+    for citation, resolved_url in zip(citations, resolved_urls, strict=False):
         if resolved_url:
             citation['url'] = resolved_url
-    
+
     return citations
 
 
 def resolve_citation_urls_sync(citations: list[dict[str, str]]) -> list[dict[str, str]]:
     """
     Synchronous wrapper for resolve_citation_urls.
-    
+
     Uses asyncio.run() or gets the existing event loop.
     """
     if not citations:
         return citations
-    
+
     try:
         # Try to get existing event loop
-        loop = asyncio.get_running_loop()
+        asyncio.get_running_loop()
         # If we're already in an async context, create a task
         import concurrent.futures
         with concurrent.futures.ThreadPoolExecutor() as executor:
             future = executor.submit(
-                asyncio.run, 
+                asyncio.run,
                 resolve_citation_urls(citations)
             )
             return future.result(timeout=30)
@@ -462,7 +461,7 @@ class DeepResearchClient:
             output_format="executive_summary"
         )
     """
-    
+
     # Import centralized model config
     from primr.config.models import PrimrModels
 
@@ -508,7 +507,7 @@ class DeepResearchClient:
 
         This method uses streaming with reconnection by default (more resilient),
         with fallback to polling if streaming fails.
-        
+
         Research tasks typically take 5-20 minutes.
 
         Args:
@@ -547,11 +546,11 @@ class DeepResearchClient:
                         message="Streaming failed, switching to polling mode..."
                     ))
                 # Fall through to polling mode
-        
+
         # =================================================================
         # POLLING MODE (fallback)
         # =================================================================
-        
+
         # PRE-FLIGHT VALIDATION - Check EVERYTHING before expensive API call
         preflight_errors = []
 
@@ -639,7 +638,7 @@ class DeepResearchClient:
             interaction = self._start_research(prompt, file_store_name=file_store_name)
             interaction_id = interaction.id
             logger.info(f"Research started: {interaction_id}")
-            
+
             # Note: Progress callback will show "Research started" message
             # Save job for recovery if process is interrupted
             save_pending_job(
@@ -657,7 +656,7 @@ class DeepResearchClient:
             # Poll for completion with retry for transient errors
             consecutive_poll_errors = 0
             max_poll_errors = 5  # Allow up to 5 consecutive poll failures
-            
+
             while True:
                 elapsed = time.time() - start_time
                 if elapsed > timeout:
@@ -680,7 +679,7 @@ class DeepResearchClient:
                         "connection" in error_str or
                         "timeout" in error_str
                     )
-                    
+
                     if is_transient and consecutive_poll_errors < max_poll_errors:
                         consecutive_poll_errors += 1
                         wait_time = 10 * consecutive_poll_errors  # 10s, 20s, 30s, etc.
@@ -692,7 +691,7 @@ class DeepResearchClient:
                         if on_progress and consecutive_poll_errors == 1:
                             on_progress(ResearchProgress(
                                 status=ResearchStatus.IN_PROGRESS,
-                                message=f"API delays detected, retrying..."
+                                message="API delays detected, retrying..."
                             ))
                         await asyncio.sleep(wait_time)
                         continue
@@ -701,8 +700,8 @@ class DeepResearchClient:
                         raise AIError(
                             f"Deep research polling failed: {e}",
                             model=self.AGENT_ID
-                        )
-                
+                        ) from e
+
                 status = interaction.status
 
                 if status == "completed":
@@ -828,12 +827,10 @@ class DeepResearchClient:
             # Start streaming research
             stream = self._start_research_stream(prompt)
 
-            interaction_id = None
 
             for chunk in stream:
                 # Capture interaction ID
                 if chunk.event_type == "interaction.start":
-                    interaction_id = chunk.interaction.id
                     # Skip - parent callback already showed "Research started"
                     pass
 
@@ -923,16 +920,17 @@ Cite all sources.
 
         Structure: Foundational sections first (know them), then strategic analysis (so what),
         then frameworks and hypotheses at the end.
-        
+
         Uses externalized YAML configuration from src/primr/prompts/company_overview.yaml
         """
         import re
+
         from primr.prompts import build_company_overview_prompt
 
         # Extract company name from query for header
         company_match = re.search(r'Research\s+(.+?)(?:\s*\(|$)', query)
         company_name = company_match.group(1).strip() if company_match else "Company"
-        
+
         # Extract website URL if present in query
         url_match = re.search(r'\((https?://[^\)]+)\)', query)
         website_url = url_match.group(1) if url_match else None
@@ -949,13 +947,14 @@ Cite all sources.
 
         This adds strategic depth on top of the factual foundation from Step 1.
         The context files contain company overview, products, basic info.
-        
+
         Prompt is loaded from strategic_layer.yaml via PromptComposer.
         """
         from datetime import datetime
+
         from primr.prompts.composer import PromptComposer
         from primr.prompts.schema import PromptContext
-        
+
         try:
             composer = PromptComposer()
             context = PromptContext(
@@ -963,10 +962,10 @@ Cite all sources.
                 current_date=datetime.now().strftime("%B %d, %Y"),
             )
             composed = composer.compose("strategic_layer", context)
-            
+
             # Insert the query into the prompt
             return composed.content.replace("{query}", query)
-            
+
         except Exception as e:
             logger.warning(f"Failed to load strategic_layer from YAML: {e}, using fallback")
             # Fallback to minimal prompt
@@ -976,7 +975,7 @@ Cite all sources.
 
 Provide strategic analysis including:
 - Narrative Gap Analysis
-- Competitive Deep-Dive  
+- Competitive Deep-Dive
 - Industry Dynamics
 - Strategic Assessment (SWOT)
 - Risk Analysis
@@ -988,11 +987,11 @@ Frame everything as hypotheses to explore, not conclusions."""
     def _cleanup_file_store(self, store_name: str) -> None:
         """
         Clean up a File Search Store by deleting documents then the store.
-        
+
         CRITICAL: Per Gemini docs, "There is no TTL for embeddings and files;
         they persist until manually deleted." We MUST delete documents first,
         then the store, or we leak money.
-        
+
         Args:
             store_name: Name of the store to delete
         """
@@ -1013,7 +1012,7 @@ Frame everything as hypotheses to explore, not conclusions."""
                 logger.debug(f"Deleted {len(docs)} document(s) from {store_name}")
         except Exception as e:
             logger.warning(f"Could not delete documents from {store_name}: {e}")
-        
+
         # Step 2: Now delete the empty store
         try:
             self._client.file_search_stores.delete(name=store_name)
@@ -1165,7 +1164,7 @@ Frame everything as hypotheses to explore, not conclusions."""
 
     def _extract_content(self, interaction: Any) -> str:
         """Extract the text content from a completed interaction.
-        
+
         The Deep Research API may return multiple output parts.
         We concatenate all text outputs to ensure we capture the full response.
         """
@@ -1219,17 +1218,17 @@ Frame everything as hypotheses to explore, not conclusions."""
     def _extract_search_queries_count(self, interaction: Any) -> int:
         """
         Extract the count of actual search queries from groundingMetadata.
-        
+
         The Gemini API exposes billable search queries in the response via
         groundingMetadata.webSearchQueries. This is the actual count of
         external search calls, NOT the number of "thinking steps".
-        
+
         Typical reports use 10-30 searches. After Jan 5, 2026, each search
         costs $0.035 ($35/1000 queries).
-        
+
         Args:
             interaction: The completed interaction object
-            
+
         Returns:
             Count of search queries, or 0 if not available
         """
@@ -1247,7 +1246,7 @@ Frame everything as hypotheses to explore, not conclusions."""
                         metadata = output.groundingMetadata
                         if hasattr(metadata, 'webSearchQueries'):
                             return len(metadata.webSearchQueries)
-            
+
             # Check candidates structure (standard Gemini response format)
             if hasattr(interaction, 'candidates') and interaction.candidates:
                 for candidate in interaction.candidates:
@@ -1259,10 +1258,10 @@ Frame everything as hypotheses to explore, not conclusions."""
                         metadata = candidate.groundingMetadata
                         if hasattr(metadata, 'webSearchQueries'):
                             return len(metadata.webSearchQueries)
-            
+
             logger.debug("No grounding metadata found in interaction response")
             return 0
-            
+
         except Exception as e:
             logger.debug(f"Could not extract search queries count: {e}")
             return 0
@@ -1340,17 +1339,17 @@ Frame everything as hypotheses to explore, not conclusions."""
     ) -> ResearchResult:
         """
         Execute deep research with maximum resilience using background job + polling.
-        
+
         This is the correct implementation that:
         1. Starts a background job (runs async on Google's servers)
         2. Saves the interaction_id for recovery
         3. Polls for completion with exponential backoff
         4. Handles transient errors gracefully
         5. Allows job recovery with `primr --check-jobs`
-        
+
         Deep Research jobs run asynchronously - if connection drops, the job
         continues running and can be retrieved later.
-        
+
         Args:
             query: The research query/prompt
             output_format: Optional format hint
@@ -1358,7 +1357,7 @@ Frame everything as hypotheses to explore, not conclusions."""
             on_progress: Optional callback for progress updates
             priority_urls: Optional list of URLs to prioritize
             context_files: Optional list of file paths to upload as context
-            
+
         Returns:
             ResearchResult with content and citations
         """
@@ -1391,20 +1390,20 @@ Frame everything as hypotheses to explore, not conclusions."""
             prompt += url_context
 
         start_time = time.time()
-        
+
         if on_progress:
             on_progress(ResearchProgress(
                 status=ResearchStatus.IN_PROGRESS,
                 message="Starting research (background mode)..."
             ))
-        
+
         # Start background job (NO streaming - job runs async on Google's servers)
         interaction_id = None
         try:
             interaction = self._start_research(prompt, file_store_name=file_store_name)
             interaction_id = interaction.id
             logger.info(f"Research started: {interaction_id}")
-            
+
             # Note: Progress callback will show "Research started" message
             # Save job for recovery
             save_pending_job(
@@ -1412,7 +1411,7 @@ Frame everything as hypotheses to explore, not conclusions."""
                 job_type="deep_research",
                 description=query[:200]
             )
-            
+
             if on_progress:
                 # Skip - parent callback already showed "Research started"
                 pass
@@ -1421,13 +1420,12 @@ Frame everything as hypotheses to explore, not conclusions."""
             if file_store_name:
                 self._cleanup_file_store(file_store_name)
             raise AIError(f"Failed to start research: {e}", model=self.AGENT_ID, cause=e) from e
-        
+
         # Poll for completion with exponential backoff
         poll_attempt = 0
         max_poll_errors = 5
         consecutive_errors = 0
-        base_poll_interval = 10.0  # Start with 10s
-        
+
         try:
             while True:
                 elapsed = time.time() - start_time
@@ -1448,7 +1446,7 @@ Frame everything as hypotheses to explore, not conclusions."""
                         status=ResearchStatus.IN_PROGRESS,
                         error=f"Polling timed out after {elapsed:.0f}s. Job may still be running. Use 'primr --check-jobs' to check status."
                     )
-                
+
                 # Calculate adaptive poll interval
                 poll_attempt += 1
                 if elapsed < 60:
@@ -1457,22 +1455,22 @@ Frame everything as hypotheses to explore, not conclusions."""
                     poll_interval = 10.0  # 1-5 minutes: poll every 10s
                 else:
                     poll_interval = 20.0  # After 5 minutes: poll every 20s
-                
+
                 # Wait before polling
                 await asyncio.sleep(poll_interval)
-                
+
                 # Poll for status
                 try:
                     interaction = self._get_interaction(interaction_id)
                     status = interaction.status
                     consecutive_errors = 0  # Reset on success
-                    
+
                     if status == "completed":
                         content = self._extract_content(interaction)
                         citations = self._extract_citations(interaction)
                         search_count = self._extract_search_queries_count(interaction)
                         remove_pending_job(interaction_id)
-                        
+
                         logger.info(f"Research completed in {time.time() - start_time:.0f}s, {search_count} searches")
                         return ResearchResult(
                             content=content,
@@ -1482,7 +1480,7 @@ Frame everything as hypotheses to explore, not conclusions."""
                             status=ResearchStatus.COMPLETED,
                             search_queries_count=search_count,
                         )
-                    
+
                     elif status == "failed":
                         error_msg = getattr(interaction, 'error', 'Unknown error')
                         remove_pending_job(interaction_id)
@@ -1494,7 +1492,7 @@ Frame everything as hypotheses to explore, not conclusions."""
                             status=ResearchStatus.FAILED,
                             error=str(error_msg),
                         )
-                    
+
                     # Still in progress - show periodic updates
                     if on_progress and poll_attempt % 6 == 0:  # Every ~60s
                         mins = int(elapsed // 60)
@@ -1504,7 +1502,7 @@ Frame everything as hypotheses to explore, not conclusions."""
                             status=ResearchStatus.IN_PROGRESS,
                             message=f"Research in progress ({time_str})..."
                         ))
-                    
+
                 except Exception as e:
                     consecutive_errors += 1
                     error_str = str(e).lower()
@@ -1515,7 +1513,7 @@ Frame everything as hypotheses to explore, not conclusions."""
                         'connection' in error_str or
                         'timeout' in error_str
                     )
-                    
+
                     if is_transient and consecutive_errors < max_poll_errors:
                         wait_time = 10 * consecutive_errors
                         logger.warning(f"Transient polling error (attempt {consecutive_errors}/{max_poll_errors}), waiting {wait_time}s: {e}")
@@ -1535,15 +1533,15 @@ Frame everything as hypotheses to explore, not conclusions."""
             # Per Gemini docs: "There is no TTL for embeddings and files; they persist until manually deleted"
             if file_store_name:
                 self._cleanup_file_store(file_store_name)
-    
+
     def _extract_citations_from_text(self, content: str) -> list[dict[str, str]]:
         """Extract citations from text content (for streaming results)."""
         import re
         citations: list[dict[str, str]] = []
-        
+
         if not content:
             return citations
-        
+
         # Look for Sources section
         sources_match = re.search(r'\*\*Sources:\*\*\s*([\s\S]*?)$', content)
         if sources_match:
@@ -1555,7 +1553,7 @@ Frame everything as hypotheses to explore, not conclusions."""
                     'title': match.group(2),
                     'url': match.group(3)
                 })
-        
+
         return citations
 
 
@@ -1567,21 +1565,21 @@ Frame everything as hypotheses to explore, not conclusions."""
 class ConsultingPromptBuilder:
     """
     Builds consulting-grade prompts for Deep Research.
-    
+
     Creates comprehensive prompts that include:
     - Consulting persona injection ("Senior Strategy Consultant")
     - All chapter specifications in a single prompt
     - Hierarchy of truth instructions
     - Formatting and epistemic standards
-    
+
     This ensures Deep Research generates a complete, cohesive report
     in a single API call rather than multiple parallel calls.
-    
+
     Note: This class now delegates to PromptComposer for consistency.
     The YAML-based configuration in company_overview.yaml is the source of truth.
     This class is maintained for backward compatibility.
     """
-    
+
     # The standard chapters for a Strategic Company Overview
     # Note: Actual sections are defined in company_overview.yaml
     CHAPTERS = [
@@ -1606,11 +1604,11 @@ class ConsultingPromptBuilder:
         "Value Chain Analysis",
         "Strategic Positioning Hypothesis",
     ]
-    
+
     def __init__(self):
         """Initialize the ConsultingPromptBuilder."""
         pass
-    
+
     def build_comprehensive_prompt(
         self,
         company_name: str,
@@ -1618,37 +1616,37 @@ class ConsultingPromptBuilder:
     ) -> str:
         """
         Build a single prompt requesting a comprehensive strategic overview.
-        
+
         This method delegates to PromptComposer.compose("company_overview", context)
         for consistency with the YAML-based prompt architecture.
-        
+
         Args:
             company_name: Name of the company to research
             website_url: Optional company website URL
-            
+
         Returns:
             Complete prompt string for Deep Research
         """
         from primr.prompts.composer import PromptComposer
         from primr.prompts.schema import PromptContext
-        
+
         # Create context for the composer
         context = PromptContext(
             company_name=company_name,
             website_url=website_url,
             has_stage1_context=False,  # Company overview is stage 1, no prior context
         )
-        
+
         # Use PromptComposer to build the prompt
         composer = PromptComposer()
         composed = composer.compose("company_overview", context)
-        
+
         return composed.content
-    
+
     def _get_formatting_rules(self) -> str:
         """
         Get the formatting rules section.
-        
+
         Note: This method is kept for backward compatibility.
         The actual formatting rules are now defined in shared/formatting.yaml.
         """
@@ -1660,11 +1658,11 @@ class ConsultingPromptBuilder:
 - Cite sources at the end of each major section using [cite: X, Y, Z] format
 - Include data tables where they add clarity (financials, competitors, timeline)
 - Every section should have substantial depth - multiple paragraphs with specific evidence"""
-    
+
     def _get_purpose_section(self) -> str:
         """
         Get the purpose section.
-        
+
         Note: This method is kept for backward compatibility.
         The actual purpose is now defined in company_overview.yaml.
         """
@@ -1677,11 +1675,11 @@ This document should:
 - Demonstrate homework without pretending we know their business better than they do
 
 Subject-Positive Intent: Assume this company is rational, competent, and successful in its context. Understand how they create value and where support could help them go further."""
-    
+
     def _get_epistemic_contract(self) -> str:
         """
         Get the epistemic contract section.
-        
+
         Note: This method is kept for backward compatibility.
         The actual epistemic rules are now defined in shared/epistemic_rules.yaml.
         """
@@ -1698,7 +1696,7 @@ If a sentence implies inevitability, failure, or urgency, rewrite it as a questi
 Example: Instead of "X faces an existential threat from Y", write "One area worth exploring is whether Y could pressure X's margins over time"
 
 TONE: Walk in informed and curious, not informed and arrogant. Use language like "appears to", "worth exploring", "we'd want to validate". Frame risks as areas where support could unlock value, not as evidence of mismanagement."""
-    
+
     def _get_tone_guidelines(self) -> str:
         """Get the tone and epistemic humility guidelines."""
         return """TONE AND EPISTEMIC HUMILITY (critical):
@@ -1712,7 +1710,7 @@ TONE: Walk in informed and curious, not informed and arrogant. Use language like
 - For any strategic observation, frame it as "something to discuss" not "something we've concluded"
 - Frame risks, gaps, or pressures in terms of where support could unlock value, not as evidence of mismanagement
 - Do not imply leadership blind spots or strategic naivety unless directly supported by credible evidence"""
-    
+
     def _get_key_metrics_format(self) -> str:
         """Get the key metrics format section."""
         return """KEY METRICS FORMAT (use these exact formats so we can extract them):
@@ -1722,7 +1720,7 @@ TONE: Walk in informed and curious, not informed and arrogant. Use language like
 - Headquarters: City, State
 
 Build this as a consultant-grade overview using publicly available sources (company site, press releases, earnings calls, news, trusted databases). If financials aren't public, use estimates and label them clearly."""
-    
+
     def _get_chapter_specifications(self, company_name: str) -> str:
         """Get the complete chapter specifications."""
         return f"""
@@ -1936,21 +1934,21 @@ The 8-10 most important questions to explore with them. Write 3-4 paragraphs int
 - What we hope to learn (how the answer would inform our thinking)
 
 Frame as genuine curiosity, not gotcha questions."""
-    
+
     def _get_downstream_note(self) -> str:
         """Get the downstream translation note."""
         return """=============================================================================
 DOWNSTREAM TRANSLATION NOTE
 =============================================================================
 This output is intended to inform internal thinking and deck creation. When reused externally, conclusions should be softened, hypotheses foregrounded, and language reframed for diplomacy."""
-    
+
     def contains_all_chapters(self, prompt: str) -> bool:
         """
         Check if a prompt contains specifications for all 10 chapters.
-        
+
         Args:
             prompt: The prompt text to check
-            
+
         Returns:
             True if all chapters are present
         """
@@ -1958,14 +1956,14 @@ This output is intended to inform internal thinking and deck creation. When reus
             if chapter not in prompt:
                 return False
         return True
-    
+
     def contains_consulting_persona(self, prompt: str) -> bool:
         """
         Check if a prompt contains the consulting persona.
-        
+
         Args:
             prompt: The prompt text to check
-            
+
         Returns:
             True if consulting persona is present
         """
@@ -1980,7 +1978,7 @@ This output is intended to inform internal thinking and deck creation. When reus
 @dataclass
 class DeepResearchOrchestratorResult:
     """Result from DeepResearchOrchestrator report generation."""
-    
+
     company_name: str
     content: str
     citations: list[dict[str, str]]
@@ -1991,7 +1989,7 @@ class DeepResearchOrchestratorResult:
     api_calls: int = 1  # Always 1 for single-call architecture
     sections_written: int = 0  # Number of sections successfully written
     search_queries_count: int = 0  # Actual search count from groundingMetadata
-    
+
     @property
     def word_count(self) -> int:
         """Approximate word count of the content."""
@@ -2001,12 +1999,12 @@ class DeepResearchOrchestratorResult:
 class DeepResearchOrchestrator:
     """
     Orchestrates a single Deep Research API call for complete report generation.
-    
+
     This is the core component of the cohesive report architecture. Instead of
     making 10 parallel API calls (which fail with 429 quota errors), this
     orchestrator makes a single comprehensive call that generates the entire
     report in one invocation.
-    
+
     Key features:
     - Pre-flight validation before expensive operations
     - Single API call per report (not parallel chapters)
@@ -2015,16 +2013,16 @@ class DeepResearchOrchestrator:
     - 60-minute timeout
     - Automatic File Search Store cleanup
     - Fallback to Stage 1 context if Deep Research fails
-    
+
     Usage:
         orchestrator = DeepResearchOrchestrator()
-        
+
         # Validate before starting (recommended)
         validation = await orchestrator.validate_prerequisites()
         if not validation["success"]:
             print(f"Pre-flight failed: {validation['errors']}")
             return
-        
+
         result = await orchestrator.generate_report(
             company_name="Acme Corp",
             website_url="https://acme.com",
@@ -2032,20 +2030,20 @@ class DeepResearchOrchestrator:
             on_progress=lambda msg: print(msg)
         )
     """
-    
+
     # Import centralized model config
     from primr.config.models import PrimrModels
-    
+
     AGENT_ID = PrimrModels.DEEP_RESEARCH_AGENT
     SECTION_MODEL = PrimrModels.FLASH_MODEL  # For section writing (cheap, fast)
     MAX_RETRIES = 5
     BASE_RETRY_DELAY = 60.0  # 1 minute base delay for exponential backoff
     TIMEOUT_SECONDS = 3600  # 60 minutes
-    
+
     def __init__(self, api_key: str | None = None):
         """
         Initialize the DeepResearchOrchestrator.
-        
+
         Args:
             api_key: Optional API key override. Uses settings if not provided.
         """
@@ -2056,7 +2054,7 @@ class DeepResearchOrchestrator:
         self._store_manager = FileSearchStoreManager(api_key=api_key)
         self._api_call_count = 0
         logger.debug("DeepResearchOrchestrator initialized")
-    
+
     async def validate_prerequisites(
         self,
         company_name: str | None = None,
@@ -2066,28 +2064,28 @@ class DeepResearchOrchestrator:
     ) -> dict:
         """
         Run pre-flight validation before starting expensive operations.
-        
+
         This is a convenience wrapper around PreflightValidator.
         For more control, use PreflightValidator directly.
-        
+
         Args:
             company_name: Target company name (unused, kept for compatibility)
             website_url: Target website URL
             mode: Research mode - "full", "deep", or "scrape"
             on_progress: Optional progress callback
-            
+
         Returns:
             dict with success, errors, warnings, details
         """
         from primr.ai.preflight import PreflightValidator
-        
+
         validator = PreflightValidator()
         result = await validator.validate(
             mode=mode,
             website_url=website_url,
             on_progress=on_progress,
         )
-        
+
         # Convert to dict for backward compatibility
         return {
             "success": result.success,
@@ -2097,21 +2095,7 @@ class DeepResearchOrchestrator:
             "estimated_duration": result.estimated_duration,
             "estimated_cost": result.estimated_cost,
         }
-        success = len(errors) == 0
-        
-        if on_progress:
-            if success:
-                on_progress("  ✓ Pre-flight validation passed")
-            else:
-                on_progress(f"  ✗ Pre-flight validation failed: {len(errors)} errors")
-        
-        return {
-            "success": success,
-            "errors": errors,
-            "warnings": warnings,
-            "details": details,
-        }
-    
+
     async def generate_report(
         self,
         company_name: str,
@@ -2121,29 +2105,29 @@ class DeepResearchOrchestrator:
     ) -> DeepResearchOrchestratorResult:
         """
         Generate a complete strategic report using Deep Research.
-        
+
         Makes a single Deep Research API call with comprehensive prompt
         and optional Stage 1 context. Handles retries with exponential
         backoff and ensures cleanup of temporary resources.
-        
+
         Args:
             company_name: Target company name
             website_url: Optional company website URL
             stage1_context: Optional structured research from Stage 1
             on_progress: Optional progress callback
-            
+
         Returns:
             DeepResearchOrchestratorResult with complete report or error
         """
         start_time = time.time()
         store_name: str | None = None
         self._api_call_count = 0
-        
+
         try:
             # Build the comprehensive prompt using PromptComposer
             from primr.prompts.composer import PromptComposer
             from primr.prompts.schema import PromptContext
-            
+
             composer = PromptComposer()
             context = PromptContext(
                 company_name=company_name,
@@ -2152,10 +2136,10 @@ class DeepResearchOrchestrator:
             )
             composed = composer.compose("company_overview", context)
             prompt = composed.content
-            
+
             if on_progress:
                 on_progress("Building comprehensive research prompt...")
-            
+
             # Upload Stage 1 context if provided
             if stage1_context:
                 if on_progress:
@@ -2167,17 +2151,17 @@ class DeepResearchOrchestrator:
                     filename="stage1_research.txt",
                     mime_type="text/plain"
                 )
-            
+
             # Execute with retry
             if on_progress:
                 on_progress("Starting Deep Research (single comprehensive call)...")
-            
+
             result = await self._execute_with_retry(
                 prompt=prompt,
                 store_name=store_name,
                 on_progress=on_progress,
             )
-            
+
             return DeepResearchOrchestratorResult(
                 company_name=company_name,
                 content=result.content,
@@ -2189,7 +2173,7 @@ class DeepResearchOrchestrator:
                 api_calls=self._api_call_count,
                 search_queries_count=result.search_queries_count,
             )
-            
+
         except Exception as e:
             logger.error(f"DeepResearchOrchestrator error: {e}")
             return DeepResearchOrchestratorResult(
@@ -2207,7 +2191,7 @@ class DeepResearchOrchestrator:
                 if on_progress:
                     on_progress("Cleaning up File Search Store...")
                 self._store_manager.delete_store(store_name)
-    
+
     async def _execute_with_retry(
         self,
         prompt: str,
@@ -2216,23 +2200,23 @@ class DeepResearchOrchestrator:
     ) -> ResearchResult:
         """
         Execute Deep Research with exponential backoff retry.
-        
+
         Handles retryable errors:
         - 429: Quota/rate limit errors
         - 500: Internal server errors (transient)
         - 503: Service unavailable
         - Connection errors
-        
+
         Args:
             prompt: The research prompt
             store_name: Optional File Search Store name
             on_progress: Optional progress callback
-            
+
         Returns:
             ResearchResult from the API
         """
         last_error: Exception | None = None
-        
+
         for attempt in range(self.MAX_RETRIES):
             try:
                 self._api_call_count += 1
@@ -2244,11 +2228,11 @@ class DeepResearchOrchestrator:
             except AIError as e:
                 last_error = e
                 error_str = str(e).lower()
-                
+
                 # Check if it's a retryable error
                 is_retryable = (
-                    "429" in error_str or 
-                    "quota" in error_str or 
+                    "429" in error_str or
+                    "quota" in error_str or
                     "rate" in error_str or
                     "500" in error_str or
                     "internal server error" in error_str or
@@ -2257,10 +2241,10 @@ class DeepResearchOrchestrator:
                     "connection" in error_str or
                     "timeout" in error_str
                 )
-                
+
                 if is_retryable and attempt < self.MAX_RETRIES - 1:
                     delay = self._calculate_backoff_delay(attempt)
-                    
+
                     # Categorize the error for logging
                     if "429" in error_str or "quota" in error_str or "rate" in error_str:
                         error_type = "Rate limit"
@@ -2270,7 +2254,7 @@ class DeepResearchOrchestrator:
                         error_type = "Service unavailable (503)"
                     else:
                         error_type = "Connection error"
-                    
+
                     logger.warning(
                         f"{error_type}, waiting {delay:.0f}s "
                         f"(attempt {attempt + 1}/{self.MAX_RETRIES})"
@@ -2282,7 +2266,7 @@ class DeepResearchOrchestrator:
                         )
                     await asyncio.sleep(delay)
                     continue
-                
+
                 # Non-retryable error or max retries reached
                 if attempt >= self.MAX_RETRIES - 1:
                     logger.error(f"Max retries ({self.MAX_RETRIES}) exhausted: {e}")
@@ -2291,14 +2275,14 @@ class DeepResearchOrchestrator:
                 # Catch any other exceptions and check if retryable
                 last_error = e
                 error_str = str(e).lower()
-                
+
                 is_retryable = (
                     "500" in error_str or
                     "internal server error" in error_str or
                     "connection" in error_str or
                     "timeout" in error_str
                 )
-                
+
                 if is_retryable and attempt < self.MAX_RETRIES - 1:
                     delay = self._calculate_backoff_delay(attempt)
                     logger.warning(
@@ -2312,9 +2296,9 @@ class DeepResearchOrchestrator:
                         )
                     await asyncio.sleep(delay)
                     continue
-                
+
                 raise
-        
+
         # All retries exhausted
         error_msg = (
             f"Deep Research failed after {self.MAX_RETRIES} attempts. "
@@ -2326,21 +2310,21 @@ class DeepResearchOrchestrator:
             status=ResearchStatus.FAILED,
             error=error_msg,
         )
-    
+
     def _calculate_backoff_delay(self, attempt: int) -> float:
         """
         Calculate exponential backoff delay.
-        
+
         delay = base_delay * 2^attempt
-        
+
         Args:
             attempt: Current attempt number (0-indexed)
-            
+
         Returns:
             Delay in seconds
         """
         return self.BASE_RETRY_DELAY * (2 ** attempt)
-    
+
     async def _execute_single(
         self,
         prompt: str,
@@ -2349,12 +2333,12 @@ class DeepResearchOrchestrator:
     ) -> ResearchResult:
         """
         Execute a single Deep Research API call.
-        
+
         Args:
             prompt: The research prompt
             store_name: Optional File Search Store name
             on_progress: Optional progress callback
-            
+
         Returns:
             ResearchResult from the API
         """
@@ -2365,7 +2349,7 @@ class DeepResearchOrchestrator:
                 "type": "file_search",
                 "file_search_store_names": [store_name]
             })
-        
+
         # Start the research
         create_kwargs: dict[str, Any] = {
             "input": prompt,
@@ -2374,21 +2358,21 @@ class DeepResearchOrchestrator:
         }
         if tools:
             create_kwargs["tools"] = tools
-        
+
         interaction = self._client.interactions.create(**create_kwargs)
         interaction_id = interaction.id
         logger.info(f"Deep Research started: {interaction_id}")
-        
+
         # Show single "Research started" message
         if on_progress:
-            on_progress(f"Research started")
-        
+            on_progress("Research started")
+
         # Poll for completion with adaptive intervals
         return await self._poll_for_completion(
             interaction_id=interaction_id,
             on_progress=on_progress,
         )
-    
+
     async def _poll_for_completion(
         self,
         interaction_id: str,
@@ -2396,17 +2380,17 @@ class DeepResearchOrchestrator:
     ) -> ResearchResult:
         """
         Poll for research completion with adaptive intervals and timeout.
-        
+
         Polling intervals: 5s → 10s → 20s → 30s based on elapsed time.
         Handles transient 500/503 errors during polling with retry.
-        
+
         Args:
             interaction_id: The interaction ID to poll
             on_progress: Optional progress callback
-            
+
         Returns:
             ResearchResult when complete
-            
+
         Raises:
             AIError: If research fails or times out
         """
@@ -2415,10 +2399,10 @@ class DeepResearchOrchestrator:
         last_progress_time = 0.0
         consecutive_poll_errors = 0
         max_poll_errors = 5  # Allow up to 5 consecutive poll failures
-        
+
         while True:
             elapsed = time.time() - start_time
-            
+
             # Check timeout
             if elapsed > self.TIMEOUT_SECONDS:
                 raise AIError(
@@ -2426,7 +2410,7 @@ class DeepResearchOrchestrator:
                     f"ID: {interaction_id}",
                     model=self.AGENT_ID
                 )
-            
+
             # Get status with retry for transient errors
             try:
                 interaction = self._client.interactions.get(interaction_id)
@@ -2441,7 +2425,7 @@ class DeepResearchOrchestrator:
                     "connection" in error_str or
                     "timeout" in error_str
                 )
-                
+
                 if is_transient and consecutive_poll_errors < max_poll_errors:
                     consecutive_poll_errors += 1
                     wait_time = 10 * consecutive_poll_errors  # 10s, 20s, 30s, etc.
@@ -2459,18 +2443,18 @@ class DeepResearchOrchestrator:
                     raise AIError(
                         f"Deep Research polling failed: {e}",
                         model=self.AGENT_ID
-                    )
-            
+                    ) from e
+
             status = interaction.status
-            
+
             if status == "completed":
                 # Extract content
                 content = ""
                 if hasattr(interaction, 'outputs') and interaction.outputs:
                     content = str(interaction.outputs[-1].text)
-                
+
                 logger.info(f"Deep Research completed in {elapsed:.0f}s")
-                
+
                 return ResearchResult(
                     content=content,
                     citations=[],  # TODO: Extract citations
@@ -2478,14 +2462,14 @@ class DeepResearchOrchestrator:
                     duration_seconds=elapsed,
                     status=ResearchStatus.COMPLETED,
                 )
-            
+
             elif status == "failed":
                 error_msg = getattr(interaction, 'error', 'Unknown error')
                 raise AIError(
                     f"Deep Research failed: {error_msg}",
                     model=self.AGENT_ID
                 )
-            
+
             # Still in progress - show phase changes and periodic updates
             if on_progress:
                 phase = self._get_phase_name(elapsed)
@@ -2506,11 +2490,11 @@ class DeepResearchOrchestrator:
                         on_progress(f". {phase} ({time_str})")
                     else:
                         on_progress(f"{phase} ({time_str})")
-            
+
             # Adaptive polling interval
             interval = self._get_poll_interval(elapsed)
             await asyncio.sleep(interval)
-    
+
     def _get_phase_name(self, elapsed_seconds: float) -> str:
         """Get the current phase name based on elapsed time."""
         if elapsed_seconds < 60:
@@ -2523,11 +2507,11 @@ class DeepResearchOrchestrator:
             return "Generating report"
         else:
             return "Finalizing"
-    
+
     def _get_poll_interval(self, elapsed_seconds: float) -> float:
         """
         Get adaptive polling interval based on elapsed time.
-        
+
         5s → 10s → 20s → 30s
         """
         if elapsed_seconds < 60:
@@ -2550,17 +2534,17 @@ class DeepResearchOrchestrator:
     #
     # This avoids "Middle Muddle" and hallucination spirals that occur when
     # asking for 50 pages at once.
-    
+
     # Sections and prompts are loaded dynamically from company_overview.yaml
     # This allows the report structure to be modified without code changes
     _sections_cache: list[dict] | None = None
     _accordion_prompts_cache: dict | None = None
-    
+
     @classmethod
     def _load_accordion_prompts(cls) -> dict:
         """
         Load Accordion Method prompts from company_overview.yaml.
-        
+
         Returns dict with:
         - research_dossier_prompt: Template for Phase 1 (gathering raw facts)
         - section_writing_prompt: Template for Phase 2 (writing sections)
@@ -2568,28 +2552,28 @@ class DeepResearchOrchestrator:
         """
         if cls._accordion_prompts_cache is not None:
             return cls._accordion_prompts_cache
-        
+
         from primr.prompts.composer import PromptComposer
-        
+
         try:
             composer = PromptComposer()
             config = composer._load_config("company_overview")
-            
+
             accordion = config.raw_config.get("accordion_method", {})
-            
+
             cls._accordion_prompts_cache = {
                 "research_dossier_prompt": accordion.get("research_dossier_prompt", ""),
                 "section_writing_prompt": accordion.get("section_writing_prompt", ""),
                 "position_guidance": accordion.get("position_guidance", {}),
             }
-            
+
             logger.info("Loaded Accordion Method prompts from company_overview.yaml")
             return cls._accordion_prompts_cache
-            
+
         except Exception as e:
             logger.warning(f"Failed to load accordion prompts from YAML: {e}")
             return cls._get_default_accordion_prompts()
-    
+
     @classmethod
     def _get_default_accordion_prompts(cls) -> dict:
         """Fallback default accordion prompts if YAML loading fails."""
@@ -2605,7 +2589,7 @@ The section title **{section_title}** will be added as a heading automatically b
 
 DO NOT write:
 - "## {section_title}"
-- "### {section_title}"  
+- "### {section_title}"
 - Any heading that repeats or closely matches "{section_title}"
 
 INSTEAD, start immediately with:
@@ -2640,15 +2624,15 @@ Write the content now, following the formatting rules above.""",
                 "closing": "This is the CLOSING section. Tie together all previous analysis.",
             },
         }
-    
+
     @classmethod
     def _load_sections_from_yaml(cls) -> list[dict]:
         """
         Load report sections from company_overview.yaml.
-        
+
         Converts SectionSpec objects to the dict format needed for section writing.
         Sections are cached after first load.
-        
+
         The YAML defines:
         - id: unique section identifier
         - name: display title
@@ -2660,13 +2644,13 @@ Write the content now, following the formatting rules above.""",
         """
         if cls._sections_cache is not None:
             return cls._sections_cache
-        
+
         from primr.prompts.composer import PromptComposer
-        
+
         try:
             composer = PromptComposer()
             config = composer._load_config("company_overview")
-            
+
             sections = []
             for section in config.sections:
                 # Build instructions from purpose, covers, and depth
@@ -2679,10 +2663,10 @@ Write the content now, following the formatting rules above.""",
                         instructions_parts.append(f"- {item}")
                 if section.depth:
                     instructions_parts.append(f"\n{section.depth}")
-                
+
                 # Get position from YAML (defaults to 'middle' if not specified)
                 position = getattr(section, 'position', 'middle') or 'middle'
-                
+
                 sections.append({
                     "id": section.id,
                     "title": section.name,
@@ -2690,15 +2674,15 @@ Write the content now, following the formatting rules above.""",
                     "part": section.part,
                     "position": position,
                 })
-            
+
             cls._sections_cache = sections
             logger.info(f"Loaded {len(sections)} sections from company_overview.yaml")
             return sections
-            
+
         except Exception as e:
             logger.warning(f"Failed to load sections from YAML: {e}, using defaults")
             return cls._get_default_sections()
-    
+
     @classmethod
     def _get_default_sections(cls) -> list[dict]:
         """Fallback default sections if YAML loading fails."""
@@ -2739,16 +2723,16 @@ Write the content now, following the formatting rules above.""",
                 "position": "closing",
             },
         ]
-    
+
     @property
     def REPORT_SECTIONS(self) -> list[dict]:
         """Get report sections (loaded from YAML)."""
         return self._load_sections_from_yaml()
-    
+
     # Delay between section writes (seconds)
     SECTION_WRITE_DELAY = 10
     SECTION_WRITE_DELAY_AFTER_ERROR = 30
-    
+
     async def generate_comprehensive_report(
         self,
         company_name: str,
@@ -2759,31 +2743,31 @@ Write the content now, following the formatting rules above.""",
     ) -> DeepResearchOrchestratorResult:
         """
         Generate a comprehensive 30+ page report using the Accordion Method.
-        
+
         Architecture (from docs/more deep research guidance.txt):
-        
+
         Phase 1: Research Dossier
             - Use Deep Research as Lead Researcher to gather facts
             - NOT to write the final report
             - Output: Raw research with citations
-        
-        Phase 2: Section-by-Section Writing  
+
+        Phase 2: Section-by-Section Writing
             - Write each section using previous_interaction_id
             - Pass context from previous sections for consistency
             - One API call per section (not parallel)
-        
+
         This avoids:
         - "Middle Muddle" (pages 10-40 becoming vague)
         - Hallucination spirals (errors compounding)
         - 429 quota errors (sequential, not parallel)
-        
+
         Args:
             company_name: Target company name
             website_url: Optional company website URL
             stage1_context: Optional structured research from Stage 1
             on_progress: Optional progress callback
             target_pages: Target page count (default 30)
-            
+
         Returns:
             DeepResearchOrchestratorResult with comprehensive report
         """
@@ -2791,12 +2775,12 @@ Write the content now, following the formatting rules above.""",
         store_name: str | None = None
         self._api_call_count = 0
         current_delay = self.SECTION_WRITE_DELAY
-        
+
         # Track written sections for context continuity
         written_sections: list[dict[str, str]] = []
         all_citations: list[dict[str, str]] = []
         total_search_queries = 0  # Accumulate search queries from all phases
-        
+
         try:
             # ================================================================
             # PHASE 1: Research Dossier (Deep Research as Lead Researcher)
@@ -2804,10 +2788,10 @@ Write the content now, following the formatting rules above.""",
             if on_progress:
                 on_progress("Phase 1: Gathering research dossier...")
                 on_progress("  Deep Research will compile facts, NOT write the final report")
-            
+
             # Build research dossier prompt - asking for RAW FACTS, not polished prose
             dossier_prompt = self._build_research_dossier_prompt(company_name, website_url)
-            
+
             # Upload Stage 1 context if provided
             if stage1_context:
                 if on_progress:
@@ -2819,14 +2803,14 @@ Write the content now, following the formatting rules above.""",
                     filename="stage1_research.txt",
                     mime_type="text/plain"
                 )
-            
+
             # Execute Deep Research for dossier
             dossier_result = await self._execute_with_retry(
                 prompt=dossier_prompt,
                 store_name=store_name,
                 on_progress=on_progress,
             )
-            
+
             # FALLBACK: If Deep Research fails but we have Stage 1 context, use that
             if not dossier_result.success:
                 if stage1_context:
@@ -2852,22 +2836,22 @@ Write the content now, following the formatting rules above.""",
                 base_interaction_id = dossier_result.interaction_id
                 all_citations.extend(dossier_result.citations)
                 total_search_queries += dossier_result.search_queries_count
-            
+
             dossier_words = len(research_dossier.split())
             if on_progress:
                 on_progress(f"Phase 1 complete: Research dossier gathered ({dossier_words:,} words)")
-            
+
             # ================================================================
             # PHASE 2: Section-by-Section Writing
             # ================================================================
             if on_progress:
                 on_progress(f"Phase 2: Writing {len(self.REPORT_SECTIONS)} sections...")
                 on_progress("  Each section maintains context from previous sections")
-            
+
             successful_sections = 0
             failed_sections = 0
             consecutive_failures = 0
-            
+
             for i, section in enumerate(self.REPORT_SECTIONS):
                 # Stop if too many consecutive failures
                 if consecutive_failures >= 3:
@@ -2875,18 +2859,18 @@ Write the content now, following the formatting rules above.""",
                         on_progress(f"Stopping: {consecutive_failures} consecutive failures")
                         on_progress("  API quota may be exhausted. Returning partial report.")
                     break
-                
+
                 section_num = i + 1
                 total_sections = len(self.REPORT_SECTIONS)
-                
+
                 if on_progress:
                     on_progress(f"Writing: {section['title']} ({section_num}/{total_sections})...")
-                
+
                 # Add delay between sections (except first)
                 if i > 0:
                     # Brief delay between sections (no verbose output)
                     await asyncio.sleep(current_delay)
-                
+
                 # Build section prompt with full context (Stage 1 + dossier + previous sections)
                 section_prompt = self._build_section_prompt(
                     section=section,
@@ -2897,26 +2881,26 @@ Write the content now, following the formatting rules above.""",
                     section_index=i,
                     total_sections=total_sections,
                 )
-                
+
                 # Write section using direct Gemini Pro generation
                 # This is the proven approach from AccordionTestRunner:
                 # - Pass dossier + previous sections in the prompt
                 # - Use generate_content() directly (not interactions API)
                 max_retries = 3
                 section_success = False
-                
+
                 for retry in range(max_retries):
                     try:
                         result = await self._execute_direct_generation(
                             prompt=section_prompt,
                             on_progress=None,  # Don't spam progress for retries
                         )
-                        
+
                         if result.success and result.content:
                             words = len(result.content.split())
                             # Accept any substantive content (at least 100 words)
                             min_words = 100
-                            
+
                             if words >= min_words:
                                 written_sections.append({
                                     'id': section['id'],
@@ -2928,10 +2912,10 @@ Write the content now, following the formatting rules above.""",
                                 successful_sections += 1
                                 consecutive_failures = 0
                                 section_success = True
-                                
+
                                 # Reduce delay on success
                                 current_delay = max(8, current_delay - 2)
-                                
+
                                 if on_progress:
                                     on_progress(f"  {section['title']}: {words:,} words")
                                 break
@@ -2943,46 +2927,46 @@ Write the content now, following the formatting rules above.""",
                         else:
                             error_msg = result.error or "No content"
                             logger.warning(f"Section failed: {error_msg}")
-                            
+
                             # Check for rate limiting
                             if "429" in str(error_msg) or "quota" in str(error_msg).lower():
                                 current_delay = min(60, current_delay + 15)
                                 if on_progress:
                                     on_progress(f"  Rate limited. Delay now {current_delay}s")
-                            
+
                             if retry < max_retries - 1:
                                 wait = self.SECTION_WRITE_DELAY_AFTER_ERROR
                                 if on_progress:
                                     on_progress(f"  Retrying in {wait}s...")
                                 await asyncio.sleep(wait)
                                 continue
-                                
+
                     except Exception as e:
                         logger.warning(f"Section error: {e}")
                         if retry < max_retries - 1:
                             await asyncio.sleep(self.SECTION_WRITE_DELAY_AFTER_ERROR)
                             continue
-                
+
                 if not section_success:
                     failed_sections += 1
                     consecutive_failures += 1
                     current_delay = min(60, current_delay + 10)
                     if on_progress:
                         on_progress(f"  Skipped after {max_retries} attempts")
-            
+
             if on_progress:
                 on_progress(f"Phase 2 complete: {successful_sections} sections written, {failed_sections} skipped")
-            
+
             # ================================================================
             # PHASE 3: Assemble Final Report
             # ================================================================
             if on_progress:
                 on_progress("Phase 3: Assembling final report...")
-            
+
             # Extract metadata from Stage 1 context (if available)
             industry = self._extract_industry_from_context(stage1_context)
             full_company_name = self._extract_full_company_name(stage1_context)
-            
+
             final_content = self._assemble_report(
                 company_name=company_name,
                 website_url=website_url,
@@ -2990,17 +2974,17 @@ Write the content now, following the formatting rules above.""",
                 industry=industry,
                 full_company_name=full_company_name,
             )
-            
+
             final_words = len(final_content.split())
             final_pages = final_words // 500
-            
+
             if on_progress:
                 on_progress(f"Report complete: ~{final_pages} pages ({final_words:,} words)")
                 on_progress(f"API calls: {self._api_call_count} (1 research + {successful_sections} sections)")
-            
+
             # Success if we got at least half the sections
             success = successful_sections >= len(self.REPORT_SECTIONS) // 2
-            
+
             return DeepResearchOrchestratorResult(
                 company_name=company_name,
                 content=final_content,
@@ -3013,7 +2997,7 @@ Write the content now, following the formatting rules above.""",
                 sections_written=successful_sections,
                 search_queries_count=total_search_queries,
             )
-            
+
         except Exception as e:
             logger.error(f"Report generation error: {e}")
             # Return partial report if we have sections
@@ -3036,31 +3020,31 @@ Write the content now, following the formatting rules above.""",
                 if on_progress:
                     on_progress("Cleaning up...")
                 self._store_manager.delete_store(store_name)
-    
+
     def _build_research_dossier_prompt(self, company_name: str, website_url: str | None) -> str:
         """
         Build prompt for Phase 1: Research Dossier.
-        
+
         This asks Deep Research to gather RAW FACTS, not write polished prose.
         The dossier becomes the source material for section-by-section writing.
-        
+
         Prompt is loaded from company_overview.yaml accordion_method.research_dossier_prompt
         """
         website_context = f" (website: {website_url})" if website_url else ""
-        
+
         # Load prompt template from YAML
         accordion_prompts = self._load_accordion_prompts()
         prompt_template = accordion_prompts.get("research_dossier_prompt", "")
-        
+
         if not prompt_template:
             # Fallback if YAML loading fails
             prompt_template = self._get_default_accordion_prompts()["research_dossier_prompt"]
-        
+
         return prompt_template.format(
             company_name=company_name,
             website_context=website_context,
         )
-    
+
     def _build_section_prompt(
         self,
         section: dict,
@@ -3073,14 +3057,14 @@ Write the content now, following the formatting rules above.""",
     ) -> str:
         """
         Build prompt for writing a single section with full context continuity.
-        
+
         Prompt template is loaded from company_overview.yaml accordion_method.section_writing_prompt
         Position guidance is loaded from accordion_method.position_guidance
         """
         # Load prompts from YAML
         accordion_prompts = self._load_accordion_prompts()
         position_guidance_templates = accordion_prompts.get("position_guidance", {})
-        
+
         # Build previous section context (summaries, not full text)
         prev_context = "This is the first section."
         if previous_sections:
@@ -3090,18 +3074,18 @@ Write the content now, following the formatting rules above.""",
                 summary = ' '.join(prev['content'].split()[:200])
                 prev_summaries.append(f"**{prev['title']}** (excerpt): {summary}...")
             prev_context = "\n\n".join(prev_summaries)
-        
+
         # Position guidance for narrative flow - use position from YAML
         position = section.get('position', 'middle')
         position_guidance = position_guidance_templates.get(position, "")
-        
+
         # Format position guidance with section numbers if needed
         if position == 'middle' and '{section_number}' in position_guidance:
             position_guidance = position_guidance.format(
                 section_number=section_index + 1,
                 total_sections=total_sections,
             )
-        
+
         # Include Stage 1 context if available (ground truth from website)
         stage1_section = ""
         if stage1_context:
@@ -3115,10 +3099,10 @@ Prioritize this data when it conflicts with external research.
 
 ---
 """
-        
+
         # Get section writing prompt template from YAML
         prompt_template = accordion_prompts.get("section_writing_prompt", "")
-        
+
         if prompt_template:
             # Use YAML template with variable substitution
             return prompt_template.format(
@@ -3149,16 +3133,16 @@ Instructions:
 ## NARRATIVE GUIDANCE
 {position_guidance}
 
-Write the content for the **{section['title']}** section now. Do NOT repeat the section 
-title as a heading - it will be added automatically. Do NOT start with a heading that 
-matches or closely resembles the section title. Start directly with the content or 
+Write the content for the **{section['title']}** section now. Do NOT repeat the section
+title as a heading - it will be added automatically. Do NOT start with a heading that
+matches or closely resembles the section title. Start directly with the content or
 use a descriptive subtitle if needed."""
-    
+
     def _extract_industry_from_context(self, stage1_context: str | None) -> str | None:
         """Extract Industry from Stage 1 context if present."""
         if not stage1_context:
             return None
-        
+
         import re
         # Look for "## Industry" section in the context
         match = re.search(r'##\s*Industry\s*\n+(.+?)(?=\n##|\n---|\Z)', stage1_context, re.IGNORECASE | re.DOTALL)
@@ -3169,12 +3153,12 @@ use a descriptive subtitle if needed."""
             if industry and len(industry) < 200:  # Sanity check
                 return industry
         return None
-    
+
     def _extract_full_company_name(self, stage1_context: str | None) -> str | None:
         """Extract full legal company name from Stage 1 context if present."""
         if not stage1_context:
             return None
-        
+
         import re
         # Look for "## Company Name" section in the context
         match = re.search(r'##\s*Company\s*Name\s*\n+(.+?)(?=\n##|\n---|\Z)', stage1_context, re.IGNORECASE | re.DOTALL)
@@ -3185,7 +3169,7 @@ use a descriptive subtitle if needed."""
             if full_name and len(full_name) < 200:  # Sanity check
                 return full_name
         return None
-    
+
     def _assemble_report(
         self,
         company_name: str,
@@ -3196,10 +3180,10 @@ use a descriptive subtitle if needed."""
     ) -> str:
         """
         Assemble written sections into final report.
-        
+
         Format: Clean, modern header with metadata, then sections.
         No table of contents (clutters the document).
-        
+
         Args:
             company_name: User-provided name (used in title)
             website_url: Company website
@@ -3208,12 +3192,12 @@ use a descriptive subtitle if needed."""
             full_company_name: Full legal name from Stage 1 (e.g., "Bank of Hawaii Corporation")
         """
         from datetime import datetime
-        
+
         current_date = datetime.now().strftime("%B %Y")
-        
+
         # Use full legal name if available, otherwise user-provided name
         display_name = full_company_name or company_name
-        
+
         # Clean header - modern format, not 90s Word template
         lines = [
             f"# Strategic Company Overview: {company_name}",  # Title uses user input
@@ -3223,21 +3207,21 @@ use a descriptive subtitle if needed."""
             f"**Company Name:** {display_name}",  # Metadata uses full legal name
             "",
         ]
-        
+
         # Website
         if website_url:
             lines.extend([
                 f"**Website:** {website_url}",
                 "",
             ])
-        
+
         # Industry (from Stage 1 analysis)
         if industry:
             lines.extend([
                 f"**Industry:** {industry}",
                 "",
             ])
-        
+
         # Sections - clean flow, no horizontal rules between every section
         for i, section in enumerate(sections):
             lines.append(f"## {section['title']}")
@@ -3248,9 +3232,9 @@ use a descriptive subtitle if needed."""
             if i > 0 and (i + 1) % 5 == 0 and i < len(sections) - 1:
                 lines.append("---")
                 lines.append("")
-        
+
         return "\n".join(lines)
-    
+
     async def _execute_followup(
         self,
         previous_interaction_id: str,
@@ -3259,31 +3243,31 @@ use a descriptive subtitle if needed."""
     ) -> ResearchResult:
         """
         Execute a follow-up interaction using previous_interaction_id.
-        
+
         This uses the Gemini 3 Pro model (not Deep Research agent) for
         follow-up elaboration, which is faster and doesn't hit the same
         rate limits as the Deep Research agent.
-        
+
         Per the Gemini docs:
-        "You can continue the conversation after the agent returns the final 
-        report by using the previous_interaction_id. This lets you ask for 
-        clarification, summarization or elaboration on specific sections of 
+        "You can continue the conversation after the agent returns the final
+        report by using the previous_interaction_id. This lets you ask for
+        clarification, summarization or elaboration on specific sections of
         the research without restarting the entire task."
-        
+
         Args:
             previous_interaction_id: ID from the initial Deep Research call
             prompt: The elaboration prompt
             on_progress: Optional progress callback
-            
+
         Returns:
             ResearchResult with elaborated content
         """
         self._api_call_count += 1
         start_time = time.time()
-        
+
         try:
             logger.debug(f"Follow-up call with previous_interaction_id: {previous_interaction_id[:20]}...")
-            
+
             # Use Pro model for follow-up (faster, no Deep Research rate limits)
             # The previous_interaction_id provides context from the original research
             from primr.config.models import PrimrModels
@@ -3292,7 +3276,7 @@ use a descriptive subtitle if needed."""
                 model=PrimrModels.PRO_MODEL,
                 previous_interaction_id=previous_interaction_id,
             )
-            
+
             # Extract content - handle multiple output formats
             content = ""
             if hasattr(interaction, 'outputs') and interaction.outputs:
@@ -3302,12 +3286,12 @@ use a descriptive subtitle if needed."""
                     if hasattr(output, 'text') and output.text:
                         text_parts.append(str(output.text))
                 content = '\n'.join(text_parts)
-            
+
             duration = time.time() - start_time
             word_count = len(content.split()) if content else 0
-            
+
             logger.info(f"Follow-up completed: {word_count} words in {duration:.1f}s")
-            
+
             if not content:
                 logger.warning("Follow-up returned empty content")
                 return ResearchResult(
@@ -3316,7 +3300,7 @@ use a descriptive subtitle if needed."""
                     status=ResearchStatus.FAILED,
                     error="Empty response from follow-up call",
                 )
-            
+
             return ResearchResult(
                 content=content,
                 citations=[],
@@ -3324,11 +3308,11 @@ use a descriptive subtitle if needed."""
                 duration_seconds=duration,
                 status=ResearchStatus.COMPLETED,
             )
-            
+
         except Exception as e:
             error_str = str(e).lower()
             duration = time.time() - start_time
-            
+
             # Check for specific error types
             if "429" in error_str or "quota" in error_str or "rate" in error_str:
                 logger.warning(f"Follow-up rate limited: {e}")
@@ -3365,31 +3349,31 @@ use a descriptive subtitle if needed."""
     ) -> ResearchResult:
         """
         Execute direct Gemini Pro generation (no interaction context).
-        
+
         This is used as a fallback when Deep Research fails and we don't have
         a previous_interaction_id. Uses the same approach as the validated
         AccordionTestRunner: direct generate_content() calls.
-        
+
         Args:
             prompt: The generation prompt
             on_progress: Optional progress callback
-            
+
         Returns:
             ResearchResult with generated content
         """
         self._api_call_count += 1
         start_time = time.time()
-        
+
         try:
             logger.debug("Direct Flash generation (fallback mode)...")
-            
+
             # Use Flash model for direct generation (fast, intelligent)
             from primr.config.models import PrimrModels
             response = self._client.models.generate_content(
                 model=PrimrModels.FLASH_MODEL,
                 contents=prompt,
             )
-            
+
             # Extract content
             content = ""
             if hasattr(response, 'text') and response.text:
@@ -3400,12 +3384,12 @@ use a descriptive subtitle if needed."""
                     if hasattr(part, 'text') and part.text:
                         text_parts.append(part.text)
                 content = '\n'.join(text_parts).strip()
-            
+
             duration = time.time() - start_time
             word_count = len(content.split()) if content else 0
-            
+
             logger.info(f"Direct generation completed: {word_count} words in {duration:.1f}s")
-            
+
             if not content:
                 logger.warning("Direct generation returned empty content")
                 return ResearchResult(
@@ -3414,7 +3398,7 @@ use a descriptive subtitle if needed."""
                     status=ResearchStatus.FAILED,
                     error="Empty response from direct generation",
                 )
-            
+
             return ResearchResult(
                 content=content,
                 citations=[],
@@ -3422,11 +3406,11 @@ use a descriptive subtitle if needed."""
                 duration_seconds=duration,
                 status=ResearchStatus.COMPLETED,
             )
-            
+
         except Exception as e:
             error_str = str(e).lower()
             duration = time.time() - start_time
-            
+
             # Check for rate limiting
             if "429" in error_str or "quota" in error_str or "rate" in error_str:
                 logger.warning(f"Direct generation rate limited: {e}")
@@ -3470,14 +3454,14 @@ def get_deep_research_orchestrator() -> DeepResearchOrchestrator:
 @dataclass
 class FormattedReport:
     """Formatted report ready for output."""
-    
+
     markdown: str
     table_of_contents: str
     chapters: list[str]
     citations: list[dict[str, str]]
     company_name: str
     word_count: int
-    
+
     @property
     def estimated_pages(self) -> int:
         """Estimate page count (assuming ~500 words per page)."""
@@ -3487,17 +3471,17 @@ class FormattedReport:
 class ReportFormatter:
     """
     Formats Deep Research output into clean report deliverables.
-    
+
     Key responsibilities:
     - Generate clean Table of Contents (no ✓/✗ markers)
     - Apply consistent citation formatting
     - Remove any debug artifacts
     - Ensure no memo-style headers remain
-    
+
     This formatter is designed for the single-call architecture where
     Deep Research generates a complete report in one invocation.
     """
-    
+
     # Patterns that should NOT appear in output
     PROHIBITED_PATTERNS = [
         r"RESEARCH REQUEST:",
@@ -3511,7 +3495,7 @@ class ReportFormatter:
         r"\[ERROR\]",
         r"Traceback \(most recent call last\)",
     ]
-    
+
     # Standard chapters for TOC generation
     STANDARD_CHAPTERS = [
         "Executive Summary",
@@ -3532,12 +3516,12 @@ class ReportFormatter:
         "Patterns and Questions",
         "Questions for Our First Conversation",
     ]
-    
+
     def __init__(self):
         """Initialize the ReportFormatter."""
         import re
         self._prohibited_re = [re.compile(p, re.MULTILINE) for p in self.PROHIBITED_PATTERNS]
-    
+
     def format_report(
         self,
         raw_content: str,
@@ -3546,43 +3530,42 @@ class ReportFormatter:
     ) -> FormattedReport:
         """
         Format raw Deep Research output into clean Markdown.
-        
+
         Args:
             raw_content: Raw content from Deep Research
             company_name: Company name for header
             citation_style: Citation formatting style
-            
+
         Returns:
             FormattedReport with clean content
         """
-        import re
-        
+
         # Clean the content
         content = self._remove_prohibited_patterns(raw_content)
         content = self._ensure_clean_header(content, company_name)
-        
+
         # Extract chapters
         chapters = self._extract_chapters(content)
-        
+
         # Generate clean TOC
         toc = self._generate_clean_toc(chapters)
-        
+
         # Extract citations
         citations = self._extract_citations(content)
-        
+
         # Resolve redirect URLs to final destinations (for trust/readability)
         if citations:
             logger.info(f"Resolving {len(citations)} citation URLs...")
             citations = resolve_citation_urls_sync(citations)
             logger.info("Citation URLs resolved")
-        
+
         # Apply citation formatting (with resolved URLs)
         if citation_style == "numbered":
             content = self._format_numbered_citations(content, citations)
-        
+
         # Calculate word count
         word_count = len(content.split())
-        
+
         return FormattedReport(
             markdown=content,
             table_of_contents=toc,
@@ -3591,25 +3574,25 @@ class ReportFormatter:
             company_name=company_name,
             word_count=word_count,
         )
-    
+
     def _remove_prohibited_patterns(self, content: str) -> str:
         """Remove prohibited patterns from content."""
         for pattern in self._prohibited_re:
             content = pattern.sub("", content)
         return content
-    
+
     def _ensure_clean_header(self, content: str, company_name: str) -> str:
         """Ensure the document has a clean professional header."""
         import re
-        
+
         # Check if content already has a clean header
         if content.strip().startswith(f"# Strategic Company Overview: {company_name}"):
             return content
-        if content.strip().startswith(f"# Strategic Company Overview"):
+        if content.strip().startswith("# Strategic Company Overview"):
             return content
         if content.strip().startswith(f"# AI Strategy: {company_name}"):
             return content
-        
+
         # If no clean header, check for memo-style and replace
         memo_patterns = [
             r"^RESEARCH REQUEST:.*?\n",
@@ -3618,16 +3601,16 @@ class ReportFormatter:
             r"^FROM:.*?\n",
             r"^SUBJECT:.*?\n",
         ]
-        
+
         for pattern in memo_patterns:
             content = re.sub(pattern, "", content, flags=re.MULTILINE)
-        
+
         return content.strip()
-    
+
     def _extract_chapters(self, content: str) -> list[str]:
         """Extract chapter titles from content."""
         import re
-        
+
         chapters = []
         # Match ## headers (level 2)
         pattern = r"^##\s+(.+?)$"
@@ -3637,36 +3620,36 @@ class ReportFormatter:
             title = re.sub(r"^\d+[\.\)]\s*", "", title)
             if title and title not in chapters:
                 chapters.append(title)
-        
+
         return chapters
-    
+
     def _generate_clean_toc(self, chapters: list[str]) -> str:
         """Generate a clean Table of Contents without status markers."""
         import re
-        
+
         lines = ["## Table of Contents\n"]
-        
+
         for i, chapter in enumerate(chapters, 1):
             # Create anchor link
             anchor = chapter.lower().replace(" ", "-").replace("&", "and")
             anchor = re.sub(r'[^a-z0-9-]', '', anchor)
-            
+
             # Clean TOC entry - NO status markers
             lines.append(f"{i}. [{chapter}](#{anchor})")
-        
+
         return "\n".join(lines)
-    
+
     def _extract_citations(self, content: str) -> list[dict[str, str]]:
         """Extract ALL citations from content (from all Sources sections)."""
         import re
-        
+
         citations: list[dict[str, str]] = []
         seen_urls: set[str] = set()  # Deduplicate by URL
-        
+
         # Find ALL Sources sections throughout the document
         # Each section may have its own **Sources:** block
         sources_pattern = r'\*\*Sources:\*\*\s*((?:\d+\.\s*\[[^\]]+\]\([^)]+\)\s*)+)'
-        
+
         for sources_match in re.finditer(sources_pattern, content):
             sources_text = sources_match.group(1)
             # Extract numbered citations: 1. [text](url)
@@ -3680,9 +3663,9 @@ class ReportFormatter:
                         'title': match.group(2),
                         'url': url
                     })
-        
+
         return citations
-    
+
     def _format_numbered_citations(
         self,
         content: str,
@@ -3691,41 +3674,41 @@ class ReportFormatter:
         """Apply numbered citation formatting with clickable links and resolved URLs."""
         import re
         from urllib.parse import urlparse
-        
+
         if not citations:
             return content
-        
+
         # Build a mapping of citation numbers to their info (with resolved URLs)
-        citation_map = {c.get('number', str(i+1)): c for i, c in enumerate(citations)}
-        
+        {c.get('number', str(i+1)): c for i, c in enumerate(citations)}
+
         # Convert inline [cite: X, Y, Z] references to clean [1] [2] [3] format
         def replace_cite_ref(match: re.Match) -> str:
             nums_str = match.group(1)
             nums = [n.strip() for n in nums_str.split(',')]
             refs = [f"[{num}]" for num in nums]
             return ' '.join(refs)
-        
+
         content = re.sub(r'\[cite:\s*([\d,\s]+)\]', replace_cite_ref, content)
-        
+
         # REMOVE all inline **Sources:** blocks - we'll add ONE consolidated section at the end
         # This makes the document much more readable
         # Pattern 1: **Sources:** followed by numbered markdown links
         sources_pattern = r'\n*\*\*Sources:\*\*\s*(?:\d+\.\s*\[[^\]]+\]\([^)]+\)\s*)+'
         content = re.sub(sources_pattern, '', content)
-        
+
         # Pattern 2: **Sources:** followed by just [1] [2] [3] style refs
         sources_refs_pattern = r'\n*\*\*Sources:\*\*\s*(?:\[\d+\]\s*)+'
         content = re.sub(sources_refs_pattern, '', content)
-        
+
         # Remove standalone lines that are just citation references like "[1] [2] [3]"
         content = re.sub(r'\n\s*(?:\[\d+\]\s*)+\s*\n', '\n\n', content)
-        
+
         # Clean up multiple blank lines
         content = re.sub(r'\n{3,}', '\n\n', content)
-        
+
         # Move KEY METRICS to after Executive Summary (if it exists at the end)
         content = self._relocate_key_metrics(content)
-        
+
         # Build consolidated References section at the very end
         if citations:
             # Deduplicate and renumber citations
@@ -3734,13 +3717,13 @@ class ReportFormatter:
                 url = citation.get('url', '')
                 if url and url not in seen_urls:
                     seen_urls[url] = citation
-            
+
             # Build clean references list
             ref_lines = ["\n\n---\n\n## References\n"]
             for i, citation in enumerate(seen_urls.values(), 1):
                 url = citation.get('url', '')
                 title = citation.get('title', '')
-                
+
                 if url:
                     # Check if URL is still an unresolved redirect
                     if 'vertexaisearch.cloud.google.com/grounding-api-redirect' in url:
@@ -3758,29 +3741,29 @@ class ReportFormatter:
                         ref_lines.append(f"{i}. [{display_text}]({url})")
                 elif title:
                     ref_lines.append(f"{i}. {title}")
-            
+
             content = content.rstrip() + '\n'.join(ref_lines)
-        
+
         return content
-    
+
     def _relocate_key_metrics(self, content: str) -> str:
         """Move KEY METRICS section to after Executive Summary for better readability."""
         import re
-        
+
         # Find KEY METRICS block (usually at the end)
         # Pattern: **KEY METRICS:** followed by bullet points until next section or end
         metrics_pattern = r'\n*\*\*KEY METRICS:\*\*\s*((?:[-*]\s*[^\n]+\n?)+)'
         metrics_match = re.search(metrics_pattern, content, re.IGNORECASE)
-        
+
         if not metrics_match:
             return content
-        
+
         # Extract the metrics block
         metrics_block = metrics_match.group(0).strip()
-        
+
         # Remove it from original location
         content = re.sub(metrics_pattern, '', content, flags=re.IGNORECASE)
-        
+
         # Find the end of Executive Summary section
         # Look for the next ## header after Executive Summary
         exec_summary_end = re.search(
@@ -3788,7 +3771,7 @@ class ReportFormatter:
             content,
             re.DOTALL | re.IGNORECASE
         )
-        
+
         if exec_summary_end:
             # Insert metrics after Executive Summary, before next section
             insert_pos = exec_summary_end.end(1)
@@ -3797,13 +3780,13 @@ class ReportFormatter:
                 '\n\n' + metrics_block + '\n' +
                 content[insert_pos:]
             )
-        
+
         return content
-    
+
     def has_failure_markers(self, content: str) -> bool:
         """Check if content contains failure markers."""
         return "✗" in content or "✓" in content
-    
+
     def has_memo_headers(self, content: str) -> bool:
         """Check if content contains memo-style headers."""
         import re
@@ -3817,7 +3800,7 @@ class ReportFormatter:
             if re.search(pattern, content, re.MULTILINE):
                 return True
         return False
-    
+
     def has_debug_artifacts(self, content: str) -> bool:
         """Check if content contains debug artifacts."""
         debug_patterns = [
@@ -3830,7 +3813,7 @@ class ReportFormatter:
             if pattern in content:
                 return True
         return False
-    
+
     def count_chapters(self, content: str) -> int:
         """Count the number of chapters in content."""
         return len(self._extract_chapters(content))
@@ -3844,11 +3827,11 @@ class ReportFormatter:
 class FileSearchStoreManager:
     """
     Manages File Search Store lifecycle for Deep Research context.
-    
+
     Handles creation, upload, and cleanup of temporary stores used to provide
     context to Deep Research API calls. Ensures proper cleanup to avoid
     orphaned stores and data governance issues.
-    
+
     Usage:
         manager = FileSearchStoreManager()
         store_name = manager.create_store("company_research")
@@ -3856,11 +3839,11 @@ class FileSearchStoreManager:
         # ... use store in Deep Research ...
         manager.delete_store(store_name)  # Always cleanup!
     """
-    
+
     def __init__(self, api_key: str | None = None):
         """
         Initialize the FileSearchStoreManager.
-        
+
         Args:
             api_key: Optional API key override. Uses settings if not provided.
         """
@@ -3868,17 +3851,17 @@ class FileSearchStoreManager:
         self._api_key = api_key or settings.api.gemini_key
         self._client = genai.Client(api_key=self._api_key)
         logger.debug("FileSearchStoreManager initialized")
-    
+
     def create_store(self, display_name: str) -> str:
         """
         Create a new File Search Store.
-        
+
         Args:
             display_name: Human-readable name for the store
-            
+
         Returns:
             Store name (ID) for use in subsequent operations
-            
+
         Raises:
             AIError: If store creation fails
         """
@@ -3902,7 +3885,7 @@ class FileSearchStoreManager:
                 model="file_search_store",
                 cause=e
             ) from e
-    
+
     def upload_context(
         self,
         store_name: str,
@@ -3912,25 +3895,25 @@ class FileSearchStoreManager:
     ) -> None:
         """
         Upload text content to a File Search Store.
-        
+
         Args:
             store_name: Store name from create_store()
             content: Text content to upload
             filename: Name for the uploaded file
             mime_type: MIME type of the content
-            
+
         Raises:
             AIError: If upload fails
         """
-        import tempfile
         import os
-        
+        import tempfile
+
         # Write content to temp file for upload
         fd, temp_path = tempfile.mkstemp(suffix=f"_{filename}")
         try:
             with os.fdopen(fd, 'w', encoding='utf-8') as f:
                 f.write(content)
-            
+
             self._client.file_search_stores.upload_to_file_search_store(
                 file=temp_path,
                 file_search_store_name=store_name,
@@ -3949,26 +3932,26 @@ class FileSearchStoreManager:
                 os.unlink(temp_path)
             except OSError:
                 pass
-    
+
     def upload_file(self, store_name: str, file_path: str) -> None:
         """
         Upload a file to a File Search Store.
-        
+
         Args:
             store_name: Store name from create_store()
             file_path: Path to file to upload
-            
+
         Raises:
             AIError: If upload fails
         """
         import os
-        
+
         if not os.path.exists(file_path):
             raise AIError(
                 f"File not found: {file_path}",
                 model="file_search_store"
             )
-        
+
         # MIME type mapping
         mime_types = {
             '.md': 'text/markdown',
@@ -3977,11 +3960,11 @@ class FileSearchStoreManager:
             '.csv': 'text/csv',
             '.pdf': 'application/pdf',
         }
-        
+
         ext = os.path.splitext(file_path)[1].lower()
         mime_type = mime_types.get(ext)
         config = {"mime_type": mime_type} if mime_type else None
-        
+
         try:
             self._client.file_search_stores.upload_to_file_search_store(
                 file=file_path,
@@ -3995,18 +3978,18 @@ class FileSearchStoreManager:
                 model="file_search_store",
                 cause=e
             ) from e
-    
+
     def delete_store(self, store_name: str) -> None:
         """
         Delete a File Search Store and all its contents.
-        
+
         Should be called after Deep Research completes (success or failure)
         to clean up temporary context and ensure data governance.
-        
+
         IMPORTANT: Per Gemini docs, "There is no TTL for embeddings and files;
         they persist until manually deleted." We MUST delete documents first,
         then the store.
-        
+
         Args:
             store_name: Store name to delete
         """
@@ -4027,7 +4010,7 @@ class FileSearchStoreManager:
                 logger.debug(f"Deleted {len(docs)} document(s) from {store_name}")
         except Exception as e:
             logger.warning(f"Could not delete documents from {store_name}: {e}")
-        
+
         # Step 2: Now delete the empty store
         try:
             self._client.file_search_stores.delete(name=store_name)

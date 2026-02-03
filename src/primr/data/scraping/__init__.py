@@ -29,76 +29,37 @@ Discovery functions:
 """
 
 # Core models (always available)
-from .models import (
-    ErrorType,
-    BlockType,
-    Attempt,
-    ValidationResult,
-    HostState,
-    ScrapeResult,
-    ScrapeTier,
-)
-
-# Configuration
-from .config import (
-    RateLimitConfig,
-    SitemapConfig,
-    COMMON_PAGE_PATTERNS,
-    WAF_SIGNATURES,
-    MIN_CONTENT_LENGTH_BYTES,
-    MIN_UNIQUE_LINE_RATIO,
-)
-
-# Profiles
-from .profiles import (
-    HttpHeaderProfile,
-    BrowserContextProfile,
-    StealthPatch,
-    get_random_http_profile,
-    get_random_context_profile,
-    get_stealth_script,
+# Browser automation
+from .browsers import (
+    BROWSER_TIERS,
+    CLICK_DENYLIST,
+    CONSENT_DISMISS_PATTERNS,
+    EXPAND_PATTERNS,
+    BrowserSession,
+    FakeBrowserSession,
+    scrape_with_drissionpage,
+    scrape_with_drissionpage_stealth,
+    scrape_with_playwright,
+    scrape_with_playwright_aggressive,
+    scrape_with_vision,
 )
 
 # Cache
 from .cache import (
-    normalize_url,
-    url_to_cache_key,
     LRUCache,
     ScrapeCache,
+    normalize_url,
+    url_to_cache_key,
 )
 
-# Trace logging
-from .trace import (
-    TRACE_SCHEMA_VERSION,
-    TraceHeader,
-    TraceEntry,
-    TraceLogger,
-    read_trace_file,
-)
-
-# Rate limiting
-from .rate_limiter import (
-    RateLimiter,
-    NoOpRateLimiter,
-)
-
-# Detection
-from .detection import (
-    detect_soft_block,
-    detect_challenge_page,
-    detect_consent_wall,
-    check_success_signal,
-    register_block_template,
-    clear_block_templates,
-)
-
-# Validation
-from .validation import (
-    validate_content,
-    validate_content_density,
-    detect_duplicate_template,
-    is_nav_only_page,
-    estimate_content_quality,
+# Configuration
+from .config import (
+    COMMON_PAGE_PATTERNS,
+    MIN_CONTENT_LENGTH_BYTES,
+    MIN_UNIQUE_LINE_RATIO,
+    WAF_SIGNATURES,
+    RateLimitConfig,
+    SitemapConfig,
 )
 
 # Content extraction
@@ -106,56 +67,58 @@ from .content import (
     detect_content_type,
     extract_clean_text,
     extract_main_content,
-    get_page_title,
     get_meta_description,
+    get_page_title,
 )
 
-# Network helpers
-from .net import (
-    get_default_headers,
-    make_request,
-    head_exists,
-    extract_host,
-    is_same_domain,
-    is_in_scope,
-    normalize_url_for_request,
+# Detection
+from .detection import (
+    check_success_signal,
+    clear_block_templates,
+    detect_challenge_page,
+    detect_consent_wall,
+    detect_soft_block,
+    register_block_template,
+)
+
+# Discovery
+from .discovery import (
+    DiscoveredLink,
+    discover_links,
+    extract_links_from_homepage,
+    extract_links_from_html,
+    fetch_sitemap_links,
+    guess_common_urls,
+    score_links_heuristically,
+    verify_urls_exist,
 )
 
 # HTTP clients
 from .http_clients import (
-    scrape_with_requests,
-    scrape_with_httpx,
-    scrape_with_curl_cffi,
     HTTP_TIERS,
+    scrape_with_curl_cffi,
+    scrape_with_httpx,
+    scrape_with_requests,
+)
+from .models import (
+    Attempt,
+    BlockType,
+    ErrorType,
+    HostState,
+    ScrapeResult,
+    ScrapeTier,
+    ValidationResult,
 )
 
-# Vertical slice (minimal orchestrator for testing)
-from .vertical_slice import (
-    scrape_single_url,
-)
-
-# Browser automation
-from .browsers import (
-    BrowserSession,
-    FakeBrowserSession,
-    EXPAND_PATTERNS,
-    CLICK_DENYLIST,
-    CONSENT_DISMISS_PATTERNS,
-    scrape_with_playwright,
-    scrape_with_playwright_aggressive,
-    scrape_with_drissionpage,
-    scrape_with_drissionpage_stealth,
-    scrape_with_vision,
-    BROWSER_TIERS,
-)
-
-# Tier registry
-from .tier_registry import (
-    DEFAULT_TIERS,
-    get_tier_by_name,
-    get_available_tiers,
-    get_tier_names,
-    get_available_tier_names,
+# Network helpers
+from .net import (
+    extract_host,
+    get_default_headers,
+    head_exists,
+    is_in_scope,
+    is_same_domain,
+    make_request,
+    normalize_url_for_request,
 )
 
 # Orchestrator
@@ -163,40 +126,76 @@ from .orchestrator import (
     ScrapeOrchestrator,
 )
 
-# Discovery
-from .discovery import (
-    DiscoveredLink,
-    fetch_sitemap_links,
-    guess_common_urls,
-    verify_urls_exist,
-    extract_links_from_html,
-    score_links_heuristically,
-    extract_links_from_homepage,
-    discover_links,
+# Profiles
+from .profiles import (
+    BrowserContextProfile,
+    HttpHeaderProfile,
+    StealthPatch,
+    get_random_context_profile,
+    get_random_http_profile,
+    get_stealth_script,
+)
+
+# Rate limiting
+from .rate_limiter import (
+    NoOpRateLimiter,
+    RateLimiter,
 )
 
 # Structured content extraction
 from .structured_content import (
     BoilerplateFilter,
     ContentBlock,
-    StructuredContent,
     ExtractionMetrics,
     QualityScore,
+    StructuredContent,
+    compute_link_density,
     extract_structured_content,
     extract_with_boilerplate_learning,
-    get_clean_text_for_summarization,
-    should_escalate_tier,
-    prune_dom,
     find_main_content,
+    get_clean_text_for_summarization,
     is_cta_block,
-    compute_link_density,
+    prune_dom,
     score_container,
+    should_escalate_tier,
+)
+
+# Tier registry
+from .tier_registry import (
+    DEFAULT_TIERS,
+    get_available_tier_names,
+    get_available_tiers,
+    get_tier_by_name,
+    get_tier_names,
+)
+
+# Trace logging
+from .trace import (
+    TRACE_SCHEMA_VERSION,
+    TraceEntry,
+    TraceHeader,
+    TraceLogger,
+    read_trace_file,
+)
+
+# Validation
+from .validation import (
+    detect_duplicate_template,
+    estimate_content_quality,
+    is_nav_only_page,
+    validate_content,
+    validate_content_density,
+)
+
+# Vertical slice (minimal orchestrator for testing)
+from .vertical_slice import (
+    scrape_single_url,
 )
 
 __all__ = [
     # Models
     "ErrorType",
-    "BlockType", 
+    "BlockType",
     "Attempt",
     "ValidationResult",
     "HostState",

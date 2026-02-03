@@ -25,7 +25,7 @@ class _TerminalCaps:
     supports_cursor: bool
     width: int
     is_interactive: bool
-    
+
     @classmethod
     def for_testing(cls, supports_color=True, supports_unicode=False,
                     supports_cursor=True, width=80, is_interactive=True):
@@ -73,14 +73,14 @@ TerminalCapabilities = _TerminalCaps
 
 class Console:
     """Modern minimal CLI output."""
-    
+
     def __init__(self, verbose=False, quiet=False, capabilities=None):
         self.verbose = verbose
         self.quiet = quiet
         self._lock = threading.Lock()
         self._caps = capabilities or _detect_terminal()
         self._last_output_time: float = 0.0
-        
+
         # Colors
         if self._caps.supports_color and self._caps.is_interactive:
             self._green = "\033[32m"
@@ -93,7 +93,7 @@ class Console:
         else:
             self._green = self._yellow = self._red = self._cyan = ""
             self._dim = self._bold = self._reset = ""
-        
+
         # Symbols - modern 2026 aesthetic
         if self._caps.supports_unicode:
             self._check = "✓"
@@ -119,35 +119,35 @@ class Console:
     @property
     def SUCCESS(self):
         return self._green
-    
+
     @property
     def WARNING(self):
         return self._yellow
-    
+
     @property
     def ERROR(self):
         return self._red
-    
+
     @property
     def INFO(self):
         return self._cyan
-    
+
     @property
     def MUTED(self):
         return self._dim
-    
+
     @property
     def BOLD(self):
         return self._bold
-    
+
     @property
     def RESET(self):
         return self._reset
-    
+
     @property
     def INDICATOR_DONE(self):
         return self._check
-    
+
     @property
     def INDICATOR_FAIL(self):
         return self._cross
@@ -174,7 +174,7 @@ class Console:
     # =========================================================================
     # MODERN API - Clean, minimal output
     # =========================================================================
-    
+
     def status(self, msg):
         """Show a status message (dim, in-place if possible)."""
         if self.quiet:
@@ -222,18 +222,18 @@ class Console:
                 time_str = f" ({elapsed})" if elapsed else ""
                 self._print(f"{self._check} {path}{time_str}")
             return
-        
+
         # Interactive: clean inline progress
         # Format: "Scraping 3/50 /investors/financial-reports (9s)"
         # No tier shown - it's noise. Just path and timing.
         width = min(self._caps.width, 120)
         line = f"Scraping {current}/{total} {path}"
-        
+
         # Truncate if too long, then pad to width
         if len(line) > width:
             line = line[:width-3] + "..."
         line = line.ljust(width)
-        
+
         with self._lock:
             self._last_output_time = time.time()
             # Clear line first, then write new content
@@ -254,7 +254,7 @@ class Console:
     # =========================================================================
     # BACKWARD COMPATIBILITY API - Maps to modern methods
     # =========================================================================
-    
+
     def grades(self, grades: list[tuple[str, int]]):
         """Display grades inline. Clean, minimal."""
         if self.quiet:
@@ -378,7 +378,7 @@ class Console:
         if self.quiet:
             return
         # Subtle centered divider
-        width = min(40, self._caps.width - 4)
+        min(40, self._caps.width - 4)
         self._print(f"{self._dim}{char * 3}{self._reset}")
 
     def debug(self, msg):
@@ -398,7 +398,7 @@ class Console:
             if current == total:
                 self._print(f"{self._check} {label} ({current}/{total})")
             return
-        
+
         pct = int(100 * current / total) if total > 0 else 0
         display_label = label[:25] + "..." if len(label) > 25 else label
         line = f"\r{current}/{total} {display_label} ({pct}%)"
@@ -438,12 +438,12 @@ class Console:
             self._print(f"{self._dim}{message}...{self._reset}")
             yield lambda m: None
             return
-        
+
         frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"] if self._caps.supports_unicode else ["|", "/", "-", "\\"]
         stop_event = threading.Event()
         current_msg = [message]
         line_width = min(self._caps.width - 2, 80)
-        
+
         def animate():
             idx = 0
             while not stop_event.is_set():
@@ -464,13 +464,13 @@ class Console:
                     sys.stdout.flush()
                 idx += 1
                 time.sleep(0.08)
-        
+
         thread = threading.Thread(target=animate, daemon=True)
         thread.start()
-        
+
         def update(msg):
             current_msg[0] = msg
-        
+
         try:
             yield update
         finally:
@@ -484,7 +484,7 @@ class Console:
         if self.quiet:
             yield
             return
-        
+
         start = time.time()
         if show_spinner and self._caps.supports_cursor and self._caps.is_interactive:
             with self.spinner(message):
@@ -505,10 +505,10 @@ class Console:
         if self.quiet:
             yield
             return
-        
+
         start = time.time()
         stop_event = threading.Event()
-        
+
         def show_heartbeat():
             while not stop_event.is_set():
                 stop_event.wait(interval)
@@ -522,7 +522,7 @@ class Console:
                                 sys.stdout.flush()
                         else:
                             self._print(f"{self._dim}. {message} ({elapsed}){self._reset}")
-        
+
         thread = threading.Thread(target=show_heartbeat, daemon=True)
         thread.start()
         try:

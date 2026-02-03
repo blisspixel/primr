@@ -165,7 +165,7 @@ def validate_config(include_optional: bool = False) -> ConfigValidationResult:
             except OSError as e:
                 errors.append(f"{dir_name} cannot be created: {e}")
                 continue
-        
+
         # Actually test write permission by creating a temp file
         test_file = path / ".primr_write_test"
         try:

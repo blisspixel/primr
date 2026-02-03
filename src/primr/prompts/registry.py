@@ -8,22 +8,20 @@ strategic analysis (AI, cloud, data, security, etc.).
 Usage:
     registry = StrategyModuleRegistry()
     strategies = registry.discover()
-    
+
     # Get a specific strategy
     ai_strategy = registry.get("ai")
-    
+
     # Get context files for a strategy
     context_files = registry.get_context_files("ai", vendor="azure")
 """
 
 from pathlib import Path
-from typing import Any
 
 import yaml
 
 from primr.prompts.exceptions import (
     PromptConfigValidationError,
-    StrategyModuleNotFoundError,
 )
 from primr.prompts.schema import DataSource, StrategyModule
 from primr.utils.logging_config import get_logger
@@ -46,11 +44,11 @@ class StrategyModuleRegistry:
 
     Example:
         registry = StrategyModuleRegistry()
-        
+
         # List all strategies
         for name in registry.list_names():
             print(name)
-        
+
         # Get context files for AI strategy with Azure vendor
         files = registry.get_context_files("ai", vendor="azure")
     """

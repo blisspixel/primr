@@ -234,23 +234,24 @@ Tie back to the executive summary's thesis."""
 class AccordionTestRunner:
     """
     Standalone test runner for Accordion Method validation.
-    
+
     Architecture:
     - Phase 1: Deep Research gathers facts (Lead Researcher role)
     - Phase 2: Gemini Pro writes each section (Writer role)
     - Phase 3: Assembly into cohesive report
-    
+
     This produces ~30+ pages of quality content in ~20 minutes.
     """
-    
+
     SECTION_DELAY = 10  # seconds between Gemini Pro calls
     SECTION_DELAY_AFTER_ERROR = 30
-    
+
     def __init__(self):
         """Initialize the test runner."""
-        from primr.config.settings import get_settings
         from google import genai
-        
+
+        from primr.config.settings import get_settings
+
         settings = get_settings()
         self._api_key = settings.api.gemini_key
         self._client = genai.Client(api_key=self._api_key)
@@ -263,7 +264,7 @@ class AccordionTestRunner:
     ) -> AccordionTestResult:
         """
         Run standalone Accordion Method test.
-        
+
         Architecture:
         - Phase 1: Deep Research (dossier) - gathers facts
         - Phase 2: Gemini Pro (sections) - writes detailed content
@@ -271,15 +272,15 @@ class AccordionTestRunner:
         """
         start_time = time.time()
         self._api_call_count = 0
-        
+
         written_sections: list[dict] = []
         section_details: list[dict] = []
-        
+
         if on_progress:
             on_progress(f"Starting Accordion Method: {config.topic}")
             on_progress(f"Architecture: 1 Deep Research + {len(RESEARCH_SECTIONS)} Gemini Pro")
             on_progress("")
-        
+
         try:
             # ================================================================
             # PHASE 1: Research Dossier (Deep Research as Lead Researcher)
@@ -288,13 +289,13 @@ class AccordionTestRunner:
                 on_progress("=" * 60)
                 on_progress("PHASE 1: Research Dossier (Deep Research)")
                 on_progress("=" * 60)
-            
+
             dossier_prompt = self._build_dossier_prompt(config.topic)
             dossier_result = await self._execute_deep_research(
                 prompt=dossier_prompt,
                 on_progress=on_progress,
             )
-            
+
             if not dossier_result["success"]:
                 return AccordionTestResult(
                     content="",
@@ -307,10 +308,10 @@ class AccordionTestRunner:
                     success=False,
                     error=f"Research dossier failed: {dossier_result.get('error', 'Unknown')}",
                 )
-            
+
             research_dossier = dossier_result["content"]
             dossier_words = len(research_dossier.split())
-            
+
             if on_progress:
                 on_progress(f"Phase 1 complete: {dossier_words:,} words of research")
                 on_progress("")
@@ -324,26 +325,26 @@ class AccordionTestRunner:
                 on_progress("=" * 60)
                 on_progress("Each section maintains context from previous sections")
                 on_progress("")
-            
+
             consecutive_failures = 0
-            
+
             for i, section in enumerate(RESEARCH_SECTIONS):
                 if consecutive_failures >= config.max_consecutive_failures:
                     if on_progress:
                         on_progress(f"STOPPING: {consecutive_failures} consecutive failures")
                     break
-                
+
                 section_num = i + 1
                 if on_progress:
                     on_progress(f"[{section_num}/{len(RESEARCH_SECTIONS)}] Writing: {section['title']}...")
-                
+
                 # Delay between calls (except first)
                 if i > 0:
                     delay = config.section_delay_seconds
                     if on_progress:
                         on_progress(f"Waiting {delay}s before next section...")
                     await asyncio.sleep(delay)
-                
+
                 # Build section prompt with context continuity
                 section_prompt = self._build_section_prompt(
                     section=section,
@@ -353,11 +354,11 @@ class AccordionTestRunner:
                     section_index=i,
                     total_sections=len(RESEARCH_SECTIONS),
                 )
-                
+
                 # Write section with Gemini Pro
                 section_start = time.time()
                 result = await self._write_section_gemini(section_prompt)
-                
+
                 if result["success"] and result["content"]:
                     words = len(result["content"].split())
                     written_sections.append({
@@ -374,7 +375,7 @@ class AccordionTestRunner:
                         "duration": time.time() - section_start,
                     })
                     consecutive_failures = 0
-                    
+
                     if on_progress:
                         on_progress(f"✓ Written: {words:,} words")
                 else:
@@ -388,7 +389,7 @@ class AccordionTestRunner:
                     })
                     if on_progress:
                         on_progress(f"✗ Failed: {result.get('error', 'Unknown')}")
-            
+
             if on_progress:
                 on_progress("")
                 on_progress(f"Phase 2 complete: {len(written_sections)} sections written")
@@ -401,23 +402,23 @@ class AccordionTestRunner:
                 on_progress("=" * 60)
                 on_progress("PHASE 3: Assembling Report")
                 on_progress("=" * 60)
-            
+
             final_content = self._assemble_report(config.topic, written_sections)
             final_words = len(final_content.split())
             final_pages = final_words / 500
-            
+
             # Save output
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             safe_topic = "".join(c if c.isalnum() or c in " -_" else "_" for c in config.topic[:50])
             output_filename = f"accordion_test_{safe_topic}_{timestamp}.md"
             output_path = os.path.join(OUTPUT_DIR, output_filename)
-            
+
             os.makedirs(OUTPUT_DIR, exist_ok=True)
             with open(output_path, "w", encoding="utf-8") as f:
                 f.write(final_content)
-            
+
             duration = time.time() - start_time
-            
+
             if on_progress:
                 on_progress("")
                 on_progress("=" * 60)
@@ -430,12 +431,12 @@ class AccordionTestRunner:
                 on_progress(f"API calls: {self._api_call_count}")
                 on_progress(f"Output: {output_path}")
                 on_progress("")
-                
+
                 if final_pages >= config.target_pages:
                     on_progress(f"✓ Target met: {final_pages:.1f} pages (target: {config.target_pages})")
                 else:
                     on_progress(f"Note: {final_pages:.1f} pages (target: {config.target_pages})")
-            
+
             return AccordionTestResult(
                 content=final_content,
                 word_count=final_words,
@@ -447,11 +448,11 @@ class AccordionTestRunner:
                 success=len(written_sections) >= len(RESEARCH_SECTIONS) // 2,
                 section_details=section_details,
             )
-            
+
         except Exception as e:
             logger.error(f"Accordion test error: {e}")
             partial = self._assemble_report(config.topic, written_sections) if written_sections else ""
-            
+
             return AccordionTestResult(
                 content=partial,
                 word_count=len(partial.split()) if partial else 0,
@@ -538,7 +539,7 @@ This is RAW RESEARCH MATERIAL - prioritize facts over prose."""
     ) -> str:
         """
         Build prompt for section writing with context continuity.
-        
+
         Key insight: The report should feel like ONE cohesive document,
         not 11 separate sections stapled together.
         """
@@ -553,7 +554,7 @@ This is RAW RESEARCH MATERIAL - prioritize facts over prose."""
                 summary = " ".join(prev["content"].split()[:200])
                 summaries.append(f"**{prev['title']}** (summary): {summary}...")
             prev_context = "\n\n".join(summaries)
-        
+
         # Position context for narrative flow
         position_guidance = ""
         if section_index == 0:
@@ -566,7 +567,7 @@ Reference key insights from earlier sections. Provide closure."""
             position_guidance = f"""This is section {section_index + 1} of {total_sections}.
 Build naturally on the previous sections. Reference earlier points where relevant.
 Set up themes that later sections will develop."""
-        
+
         return f"""You are writing a section of a comprehensive research report on:
 
 **{topic}**
@@ -609,21 +610,21 @@ Write the **{section['title']}** section now:"""
     async def _write_section_gemini(self, prompt: str) -> dict:
         """Write a section using Gemini 3 Flash."""
         self._api_call_count += 1
-        
+
         try:
             from primr.config.models import PrimrModels
             response = self._client.models.generate_content(
                 model=PrimrModels.FLASH_MODEL,
                 contents=prompt,
             )
-            
+
             content = response.text if hasattr(response, 'text') else str(response)
-            
+
             return {
                 "success": True,
                 "content": content.strip(),
             }
-            
+
         except Exception as e:
             logger.error(f"Gemini Pro error: {e}")
             return {
@@ -640,55 +641,55 @@ Write the **{section['title']}** section now:"""
         """Execute Deep Research API call for the dossier."""
         self._api_call_count += 1
         start_time = time.time()
-        
+
         # Import centralized model config
         from primr.config.models import PrimrModels
-        
+
         try:
             if on_progress:
                 on_progress("Starting Deep Research...")
-            
+
             interaction = self._client.interactions.create(
                 input=prompt,
                 agent=PrimrModels.DEEP_RESEARCH_AGENT,
                 background=True,
             )
-            
+
             interaction_id = interaction.id
             if on_progress:
                 on_progress(f"Research started: {interaction_id[:20]}...")
-            
+
             # Poll for completion
             poll_count = 0
             while True:
                 elapsed = time.time() - start_time
-                
+
                 if elapsed > 1800:  # 30 min timeout
                     return {
                         "success": False,
                         "error": "Research timed out after 30 minutes",
                         "content": "",
                     }
-                
+
                 interaction = self._client.interactions.get(interaction_id)
                 status = interaction.status
-                
+
                 if status == "completed":
                     content = ""
                     if hasattr(interaction, "outputs") and interaction.outputs:
                         for output in interaction.outputs:
                             if hasattr(output, "text") and output.text:
                                 content += str(output.text) + "\n"
-                    
+
                     words = len(content.split())
                     if on_progress:
                         on_progress(f"Research complete: {words:,} words in {elapsed/60:.1f} min")
-                    
+
                     return {
                         "success": True,
                         "content": content.strip(),
                     }
-                
+
                 elif status == "failed":
                     error = getattr(interaction, "error", "Unknown error")
                     return {
@@ -696,15 +697,15 @@ Write the **{section['title']}** section now:"""
                         "error": str(error),
                         "content": "",
                     }
-                
+
                 poll_count += 1
                 if on_progress and poll_count % 3 == 0:
                     mins = int(elapsed // 60)
                     secs = int(elapsed % 60)
                     on_progress(f". Still researching ({mins}m {secs}s)...")
-                
+
                 await asyncio.sleep(10)
-                
+
         except Exception as e:
             logger.error(f"Deep Research error: {e}")
             return {
@@ -716,18 +717,18 @@ Write the **{section['title']}** section now:"""
     def _assemble_report(self, topic: str, sections: list[dict]) -> str:
         """
         Assemble sections into cohesive final report.
-        
+
         Format: Clean, modern header - no table of contents.
         """
         current_date = datetime.now().strftime("%B %Y")
-        
+
         lines = [
             f"# Research Report: {topic}",
             "",
             f"*{current_date}*",
             "",
         ]
-        
+
         # Sections - clean flow
         for i, section in enumerate(sections):
             lines.extend([
@@ -740,7 +741,7 @@ Write the **{section['title']}** section now:"""
             if i > 0 and (i + 1) % 5 == 0 and i < len(sections) - 1:
                 lines.append("---")
                 lines.append("")
-        
+
         return "\n".join(lines)
 
 
@@ -755,12 +756,12 @@ async def run_accordion_test_async(
 ) -> AccordionTestResult:
     """Run the Accordion Method test asynchronously."""
     from primr.utils.console import console
-    
+
     runner = AccordionTestRunner()
-    
+
     def progress_callback(msg: str) -> None:
         console.info(msg)
-    
+
     return await runner.run_test(
         AccordionTestConfig(
             topic=topic,
@@ -778,12 +779,12 @@ def run_accordion_test(
 ) -> AccordionTestResult:
     """
     Run the Accordion Method test synchronously.
-    
+
     Args:
         topic: Research topic
         target_pages: Target page count (default 30)
         section_delay: Delay between Gemini Pro calls in seconds
-        
+
     Returns:
         AccordionTestResult
     """

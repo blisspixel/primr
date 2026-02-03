@@ -33,7 +33,7 @@ def generate_prompt(template_name, **kwargs):
 
 def summarize_scraped_content(company_name, company_website, scraped_data, folder_path, on_progress=None):
     """Summarizes key insights from scraped website data.
-    
+
     Args:
         company_name: Name of the company
         company_website: Company website URL
@@ -51,7 +51,7 @@ def summarize_scraped_content(company_name, company_website, scraped_data, folde
 
     for i, (website_source, raw_text) in enumerate(scraped_data.items()):
         logger.debug(f"Processing: {website_source}")
-        
+
         # Report progress
         if on_progress:
             on_progress(i + 1, total, website_source)

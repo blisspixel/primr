@@ -462,8 +462,8 @@ class ContentExtractor:
             'metadata': self.extract_metadata(html),
             'headings': self.extract_headings(html),
             'tables': [t.to_dict() for t in self.extract_tables(html)],
-            'lists': [{'items': l.items, 'type': l.list_type, 'title': l.title}
-                     for l in self.extract_lists(html)],
+            'lists': [{'items': lst.items, 'type': lst.list_type, 'title': lst.title}
+                     for lst in self.extract_lists(html)],
             'financial_figures': [
                 {'value': f.value, 'unit': f.unit, 'scale': f.scale, 'raw': f.raw_text}
                 for f in self.extract_financial_figures(text)

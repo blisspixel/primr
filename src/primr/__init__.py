@@ -9,7 +9,7 @@ This package provides tools for automated company research including:
 - REST API for research requests (optional, requires fastapi)
 """
 
-__version__ = "1.5.0"
+__version__ = "1.5.1"
 __author__ = "Nick Seal"
 
 # Import core subpackages (api is lazy-loaded since it requires fastapi)

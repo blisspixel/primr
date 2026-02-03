@@ -7,10 +7,10 @@ personas) from YAML files in the shared/ directory.
 Usage:
     loader = SharedComponentLoader()
     components = loader.load()
-    
+
     # Get a specific persona
     persona = components.get_persona("senior_consultant")
-    
+
     # Get all epistemic rules
     rules = components.epistemic_rules
 """
@@ -39,7 +39,7 @@ class SharedComponentLoader:
     Example:
         loader = SharedComponentLoader()
         components = loader.load()
-        
+
         # Access epistemic rules
         for name, rule in components.epistemic_rules.items():
             print(f"{name}: {rule}")

@@ -6,16 +6,15 @@ rendering or challenge solving.
 """
 
 import logging
-import time
 import threading
+import time
 from abc import ABC, abstractmethod
-from typing import Optional, List, Set, Dict
 from urllib.parse import urlparse
 
 from .config import (
-    DEFAULT_TIMEOUT_PLAYWRIGHT,
     DEFAULT_TIMEOUT_DRISSION,
     DEFAULT_TIMEOUT_DRISSION_STEALTH,
+    DEFAULT_TIMEOUT_PLAYWRIGHT,
     DEFAULT_TIMEOUT_PLAYWRIGHT_AGGRESSIVE,
     DEFAULT_TIMEOUT_VISION,
 )
@@ -27,14 +26,13 @@ from .profiles import (
     get_stealth_script,
 )
 
-
 logger = logging.getLogger(__name__)
 
 
 # =============================================================================
 # Browser Pool - DISABLED due to greenlet conflicts
 # =============================================================================
-# 
+#
 # NOTE: Browser pooling is disabled because Playwright's sync API uses greenlet
 # internally, and greenlet cannot switch between different call contexts.
 # This caused "Cannot switch to a different thread" errors.
@@ -46,25 +44,25 @@ logger = logging.getLogger(__name__)
 class BrowserPool:
     """
     DEPRECATED: Browser pool disabled due to greenlet conflicts.
-    
+
     This class is kept for API compatibility but always returns None,
     forcing callers to create fresh browser instances.
     """
-    
+
     _instance = None
     _lock = threading.Lock()
-    
+
     def __new__(cls):
         if cls._instance is None:
             with cls._lock:
                 if cls._instance is None:
                     cls._instance = super().__new__(cls)
         return cls._instance
-    
-    def get_context(self, host: str) -> Optional[tuple]:
+
+    def get_context(self, host: str) -> tuple | None:
         """Always returns None - pool is disabled."""
         return None
-    
+
     def close_all(self) -> None:
         """No-op - pool is disabled."""
         pass
@@ -155,75 +153,75 @@ CONSENT_DISMISS_PATTERNS = [
 class BrowserSession(ABC):
     """
     Abstract browser session interface.
-    
+
     Provides unified interface for Playwright and DrissionPage.
     Enables testing with fake implementations.
     """
-    
+
     @abstractmethod
     def navigate(self, url: str, timeout_ms: int = 30000) -> bool:
         """Navigate to URL. Returns True on success."""
         pass
-    
+
     @abstractmethod
     def wait_for_clearance(self, max_wait_seconds: int = 30) -> bool:
         """Wait for challenge to clear. Returns True if cleared."""
         pass
-    
+
     @abstractmethod
     def dismiss_consent(self) -> bool:
         """Try to dismiss cookie consent banner. Returns True if dismissed."""
         pass
-    
+
     @abstractmethod
     def expand_content(self, max_clicks: int = 20) -> int:
         """
         Click "read more" type elements to expand content.
-        
+
         Args:
             max_clicks: Maximum number of clicks (budget)
-        
+
         Returns:
             Number of successful expansions
         """
         pass
-    
+
     @abstractmethod
     def get_page_html(self) -> str:
         """Get current page HTML."""
         pass
-    
+
     @abstractmethod
     def get_cookies(self) -> dict:
         """Get cookies as dict."""
         pass
-    
+
     @abstractmethod
     def get_current_url(self) -> str:
         """Get current URL (after redirects)."""
         pass
-    
+
     @abstractmethod
     def close(self) -> None:
         """Close the browser session."""
         pass
-    
+
     def _is_safe_to_click(self, element_text: str) -> bool:
         """Check if element is safe to click."""
         text_lower = element_text.lower().strip()
-        
+
         # Check denylist first
         for denied in CLICK_DENYLIST:
             if denied in text_lower:
                 return False
-        
+
         # Check if matches expand pattern
         for pattern in EXPAND_PATTERNS:
             if pattern in text_lower:
                 return True
-        
+
         return False
-    
+
     def _url_domain_unchanged(self, original_url: str, current_url: str) -> bool:
         """Check if we're still on the same domain."""
         original_host = urlparse(original_url).netloc.lower()
@@ -237,11 +235,11 @@ class BrowserSession(ABC):
 
 class FakeBrowserSession(BrowserSession):
     """Fake browser session for testing."""
-    
+
     def __init__(
         self,
         html: str = "<html><body>Test</body></html>",
-        cookies: Optional[dict] = None,
+        cookies: dict | None = None,
         challenge_clears: bool = True,
         consent_dismisses: bool = True,
     ):
@@ -253,33 +251,33 @@ class FakeBrowserSession(BrowserSession):
         self._navigate_count = 0
         self._expand_count = 0
         self._closed = False
-    
+
     def navigate(self, url: str, timeout_ms: int = 30000) -> bool:
         self._current_url = url
         self._navigate_count += 1
         return True
-    
+
     def wait_for_clearance(self, max_wait_seconds: int = 30) -> bool:
         return self._challenge_clears
-    
+
     def dismiss_consent(self) -> bool:
         return self._consent_dismisses
-    
+
     def expand_content(self, max_clicks: int = 20) -> int:
         # Simulate some expansions
         expansions = min(3, max_clicks)
         self._expand_count += expansions
         return expansions
-    
+
     def get_page_html(self) -> str:
         return self.html
-    
+
     def get_cookies(self) -> dict:
         return self._cookies
-    
+
     def get_current_url(self) -> str:
         return self._current_url
-    
+
     def close(self) -> None:
         self._closed = True
 
@@ -291,10 +289,10 @@ class FakeBrowserSession(BrowserSession):
 
 class PlaywrightSession(BrowserSession):
     """Browser session using Playwright."""
-    
+
     def __init__(
         self,
-        profile: Optional[BrowserContextProfile] = None,
+        profile: BrowserContextProfile | None = None,
         headless: bool = True,
         reusable: bool = False,
     ):
@@ -307,17 +305,18 @@ class PlaywrightSession(BrowserSession):
         self._original_url = None
         self._closed = False
         self._consent_dismissed = False  # Track if we've dismissed consent for this session
-        
+
         self._setup_browser()
-    
+
     def _setup_browser(self) -> None:
         """Initialize Playwright browser."""
         try:
             from playwright.sync_api import sync_playwright
+
             from .profiles import get_random_http_profile
-            
+
             self._playwright = sync_playwright().start()
-            
+
             # Launch with anti-detection args
             self._browser = self._playwright.chromium.launch(
                 headless=self._headless,
@@ -329,10 +328,10 @@ class PlaywrightSession(BrowserSession):
                     '--disable-dev-shm-usage',
                 ],
             )
-            
+
             # Get a proper Chrome user agent
             http_profile = get_random_http_profile()
-            
+
             # Create context with profile settings
             self._context = self._browser.new_context(
                 viewport={
@@ -343,20 +342,20 @@ class PlaywrightSession(BrowserSession):
                 timezone_id=self._profile.timezone,
                 user_agent=http_profile.user_agent,
             )
-            
+
             # Apply stealth patches
             stealth_script = get_stealth_script()
             if stealth_script:
                 self._context.add_init_script(stealth_script)
-            
+
             self._page = self._context.new_page()
-            
-        except ImportError:
-            raise ImportError("playwright not installed")
+
+        except ImportError as e:
+            raise ImportError("playwright not installed") from e
         except Exception as e:
             logger.error(f"Failed to setup Playwright: {e}")
             raise
-    
+
     def navigate(self, url: str, timeout_ms: int = 30000) -> bool:
         """Navigate to URL."""
         try:
@@ -367,7 +366,7 @@ class PlaywrightSession(BrowserSession):
             # Debug level - navigation failures are expected, tier escalation handles them
             logger.debug(f"Navigation timeout (expected): {e}")
             return False
-    
+
     def wait_for_clearance(self, max_wait_seconds: int = 30) -> bool:
         """Wait for Cloudflare/challenge to clear."""
         try:
@@ -378,7 +377,7 @@ class PlaywrightSession(BrowserSession):
                 ".cf-browser-verification",
                 "[data-ray]",
             ]
-            
+
             start = time.time()
             while time.time() - start < max_wait_seconds:
                 # Check if any challenge element is visible
@@ -391,21 +390,21 @@ class PlaywrightSession(BrowserSession):
                             break
                     except Exception:
                         pass
-                
+
                 if not challenge_visible:
                     # Also check page title
                     title = self._page.title().lower()
                     if "just a moment" not in title and "checking" not in title:
                         return True
-                
+
                 time.sleep(1)
-            
+
             return False
-            
+
         except Exception as e:
             logger.debug(f"Error waiting for clearance: {e}")
             return False
-    
+
     def dismiss_consent(self) -> bool:
         """Try to dismiss cookie consent banner."""
         try:
@@ -419,7 +418,7 @@ class PlaywrightSession(BrowserSession):
                         return True
                 except Exception:
                     pass
-                
+
                 # Try link with text
                 try:
                     link = self._page.get_by_role("link", name=pattern)
@@ -429,24 +428,24 @@ class PlaywrightSession(BrowserSession):
                         return True
                 except Exception:
                     pass
-            
+
             return False
-            
+
         except Exception as e:
             logger.debug(f"Consent dismiss failed: {e}")
             return False
-    
+
     def expand_content(self, max_clicks: int = 20) -> int:
         """Click expand buttons to reveal more content."""
         expansions = 0
-        
+
         try:
             initial_text_length = len(self._page.inner_text("body"))
-            
+
             for _ in range(max_clicks):
                 # Find clickable elements with expand patterns
                 clicked = False
-                
+
                 for pattern in EXPAND_PATTERNS:
                     try:
                         # Try buttons
@@ -456,12 +455,12 @@ class PlaywrightSession(BrowserSession):
                             if btn.is_visible() and self._is_safe_to_click(pattern):
                                 btn.click(timeout=2000)
                                 time.sleep(0.5)
-                                
+
                                 # Check if still on same domain
                                 if not self._url_domain_unchanged(self._original_url, self._page.url):
                                     self._page.go_back()
                                     continue
-                                
+
                                 # Check if text increased
                                 new_length = len(self._page.inner_text("body"))
                                 if new_length > initial_text_length:
@@ -471,7 +470,7 @@ class PlaywrightSession(BrowserSession):
                                     break
                     except Exception:
                         pass
-                    
+
                     try:
                         # Try links
                         links = self._page.get_by_role("link", name=pattern)
@@ -480,11 +479,11 @@ class PlaywrightSession(BrowserSession):
                             if link.is_visible() and self._is_safe_to_click(pattern):
                                 link.click(timeout=2000)
                                 time.sleep(0.5)
-                                
+
                                 if not self._url_domain_unchanged(self._original_url, self._page.url):
                                     self._page.go_back()
                                     continue
-                                
+
                                 new_length = len(self._page.inner_text("body"))
                                 if new_length > initial_text_length:
                                     expansions += 1
@@ -493,22 +492,22 @@ class PlaywrightSession(BrowserSession):
                                     break
                     except Exception:
                         pass
-                
+
                 if not clicked:
                     break  # No more expandable elements
-            
+
         except Exception as e:
             logger.debug(f"Content expansion error: {e}")
-        
+
         return expansions
-    
+
     def get_page_html(self) -> str:
         """Get current page HTML."""
         try:
             return self._page.content()
         except Exception:
             return ""
-    
+
     def get_cookies(self) -> dict:
         """Get cookies as dict."""
         try:
@@ -516,14 +515,14 @@ class PlaywrightSession(BrowserSession):
             return {c["name"]: c["value"] for c in cookies}
         except Exception:
             return {}
-    
+
     def get_current_url(self) -> str:
         """Get current URL."""
         try:
             return self._page.url
         except Exception:
             return self._original_url or ""
-    
+
     def close(self) -> None:
         """Close browser."""
         self._closed = True
@@ -547,39 +546,39 @@ class PlaywrightSession(BrowserSession):
 
 class DrissionPageSession(BrowserSession):
     """Browser session using DrissionPage (CDP-based, driverless)."""
-    
+
     def __init__(
         self,
-        profile: Optional[BrowserContextProfile] = None,
+        profile: BrowserContextProfile | None = None,
         headless: bool = True,
     ):
         self._profile = profile or get_random_context_profile()
         self._headless = headless
         self._page = None
         self._original_url = None
-        
+
         self._setup_browser()
-    
+
     def _setup_browser(self) -> None:
         """Initialize DrissionPage browser."""
         try:
-            from DrissionPage import ChromiumPage, ChromiumOptions
-            
+            from DrissionPage import ChromiumOptions, ChromiumPage
+
             options = ChromiumOptions()
             if self._headless:
                 options.headless()
-            
+
             # Set viewport
             options.set_argument(
                 f"--window-size={self._profile.viewport_width},{self._profile.viewport_height}"
             )
-            
+
             # Set timezone
             if self._profile.timezone:
                 options.set_argument(f"--timezone={self._profile.timezone}")
-            
+
             self._page = ChromiumPage(options)
-            
+
             # Apply stealth patches via CDP
             stealth_script = get_stealth_script()
             if stealth_script:
@@ -587,13 +586,13 @@ class DrissionPageSession(BrowserSession):
                     self._page.run_cdp("Page.addScriptToEvaluateOnNewDocument", source=stealth_script)
                 except Exception:
                     pass
-            
-        except ImportError:
-            raise ImportError("DrissionPage not installed")
+
+        except ImportError as e:
+            raise ImportError("DrissionPage not installed") from e
         except Exception as e:
             logger.error(f"Failed to setup DrissionPage: {e}")
             raise
-    
+
     def navigate(self, url: str, timeout_ms: int = 30000) -> bool:
         """Navigate to URL."""
         try:
@@ -604,17 +603,17 @@ class DrissionPageSession(BrowserSession):
             # Debug level - navigation failures are expected, tier escalation handles them
             logger.debug(f"Navigation timeout (expected): {e}")
             return False
-    
+
     def wait_for_clearance(self, max_wait_seconds: int = 30) -> bool:
         """Wait for challenge to clear with explicit detection loop."""
         try:
             start = time.time()
-            
+
             while time.time() - start < max_wait_seconds:
                 # Check page content for challenge indicators
                 html = self._page.html.lower() if self._page.html else ""
                 title = self._page.title.lower() if self._page.title else ""
-                
+
                 challenge_indicators = [
                     "just a moment",
                     "checking your browser",
@@ -622,20 +621,20 @@ class DrissionPageSession(BrowserSession):
                     "cf-browser-verification",
                     "challenge-running",
                 ]
-                
+
                 is_challenge = any(ind in html or ind in title for ind in challenge_indicators)
-                
+
                 if not is_challenge:
                     return True
-                
+
                 time.sleep(1)
-            
+
             return False
-            
+
         except Exception as e:
             logger.debug(f"Error waiting for clearance: {e}")
             return False
-    
+
     def dismiss_consent(self) -> bool:
         """Try to dismiss cookie consent banner."""
         try:
@@ -650,39 +649,39 @@ class DrissionPageSession(BrowserSession):
                             return True
                 except Exception:
                     pass
-            
+
             return False
-            
+
         except Exception as e:
             logger.debug(f"Consent dismiss failed: {e}")
             return False
-    
+
     def expand_content(self, max_clicks: int = 20) -> int:
         """Click expand buttons to reveal more content."""
         expansions = 0
-        
+
         try:
             initial_text_length = len(self._page.html or "")
-            
+
             for _ in range(max_clicks):
                 clicked = False
-                
+
                 for pattern in EXPAND_PATTERNS:
                     if not self._is_safe_to_click(pattern):
                         continue
-                    
+
                     try:
                         elements = self._page.eles(f"xpath://*[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), '{pattern}')]")
                         for elem in elements[:2]:
                             if elem.is_displayed():
                                 elem.click()
                                 time.sleep(0.5)
-                                
+
                                 # Check domain
                                 if not self._url_domain_unchanged(self._original_url, self._page.url):
                                     self._page.back()
                                     continue
-                                
+
                                 # Check text increase
                                 new_length = len(self._page.html or "")
                                 if new_length > initial_text_length:
@@ -692,25 +691,25 @@ class DrissionPageSession(BrowserSession):
                                     break
                     except Exception:
                         pass
-                    
+
                     if clicked:
                         break
-                
+
                 if not clicked:
                     break
-            
+
         except Exception as e:
             logger.debug(f"Content expansion error: {e}")
-        
+
         return expansions
-    
+
     def get_page_html(self) -> str:
         """Get current page HTML."""
         try:
             return self._page.html or ""
         except Exception:
             return ""
-    
+
     def get_cookies(self) -> dict:
         """Get cookies as dict."""
         try:
@@ -718,14 +717,14 @@ class DrissionPageSession(BrowserSession):
             return {c["name"]: c["value"] for c in cookies}
         except Exception:
             return {}
-    
+
     def get_current_url(self) -> str:
         """Get current URL."""
         try:
             return self._page.url or self._original_url or ""
         except Exception:
             return self._original_url or ""
-    
+
     def close(self) -> None:
         """Close browser."""
         try:
@@ -743,28 +742,28 @@ class DrissionPageSession(BrowserSession):
 def scrape_with_playwright(
     url: str,
     timeout: float = DEFAULT_TIMEOUT_PLAYWRIGHT,
-    profile: Optional[BrowserContextProfile] = None,
+    profile: BrowserContextProfile | None = None,
     headless: bool = True,
     reuse_browser: bool = False,  # Ignored - always creates fresh instance
 ) -> ScrapeResult:
     """
     Scrape URL using Playwright browser.
-    
+
     Tier 1: Full browser automation for JavaScript-heavy sites.
     Creates a fresh browser instance for each call to avoid greenlet conflicts.
-    
+
     Args:
         url: URL to scrape
         timeout: Timeout in seconds
         profile: Optional browser context profile
         headless: Run browser in headless mode
         reuse_browser: Ignored (kept for API compatibility)
-    
+
     Returns:
         ScrapeResult with raw HTML bytes
     """
     from primr.utils.validators import validate_url_for_request
-    
+
     # SSRF protection
     is_valid, normalized_url, error = validate_url_for_request(url)
     if not is_valid:
@@ -777,7 +776,7 @@ def scrape_with_playwright(
             elapsed_ms=0,
             attempts=[],
         )
-    
+
     url = normalized_url
     return _scrape_with_playwright_impl(url, timeout, profile, headless)
 
@@ -785,24 +784,25 @@ def scrape_with_playwright(
 def _scrape_with_playwright_impl(
     url: str,
     timeout: float,
-    profile: Optional[BrowserContextProfile],
+    profile: BrowserContextProfile | None,
     headless: bool,
 ) -> ScrapeResult:
     """Internal implementation of Playwright scraping - always creates fresh browser."""
     start_time = time.time()
     tier_name = "playwright"
-    host = extract_host(url)
+    extract_host(url)
     playwright_instance = None
     browser = None
     context = None
     page = None
-    
+
     try:
         from playwright.sync_api import sync_playwright
+
         from .profiles import get_random_http_profile, get_stealth_script
-        
+
         playwright_instance = sync_playwright().start()
-        
+
         # Use new headless mode (headless="new") which is harder to detect
         # Falls back to regular headless if not supported
         launch_args = [
@@ -830,15 +830,15 @@ def _scrape_with_playwright_impl(
             '--use-mock-keychain',
             '--export-tagged-pdf',
         ]
-        
+
         browser = playwright_instance.chromium.launch(
             headless=headless,
             args=launch_args,
         )
-        
+
         http_profile = get_random_http_profile()
         ctx_profile = profile or get_random_context_profile()
-        
+
         context = browser.new_context(
             viewport={
                 "width": ctx_profile.viewport_width,
@@ -852,27 +852,27 @@ def _scrape_with_playwright_impl(
             bypass_csp=True,
             ignore_https_errors=True,
         )
-        
+
         stealth_script = get_stealth_script()
         if stealth_script:
             context.add_init_script(stealth_script)
-        
+
         page = context.new_page()
-        
+
         # Navigate
         timeout_ms = int(timeout * 1000)
         page.goto(url, timeout=timeout_ms, wait_until="domcontentloaded")
-        
+
         # Wait for JS to execute - modern sites need more time
         time.sleep(1.0)
-        
+
         # Get HTML
         html = page.content()
         cookies = {c["name"]: c["value"] for c in context.cookies()}
         final_url = page.url
-        
+
         elapsed_ms = (time.time() - start_time) * 1000
-        
+
         return ScrapeResult(
             url=url,
             success=True,
@@ -885,7 +885,7 @@ def _scrape_with_playwright_impl(
             cookies=cookies,
             attempts=[Attempt(tier=tier_name, success=True, elapsed_ms=elapsed_ms, http_status=200)],
         )
-        
+
     except ImportError:
         return ScrapeResult(
             url=url,
@@ -895,16 +895,16 @@ def _scrape_with_playwright_impl(
             tier=tier_name,
             attempts=[],
         )
-        
+
     except Exception as e:
         elapsed_ms = (time.time() - start_time) * 1000
         error_str = str(e).lower()
-        
+
         if "timeout" in error_str:
             error_type = ErrorType.TIMEOUT
         else:
             error_type = ErrorType.NETWORK_ERROR
-        
+
         return ScrapeResult(
             url=url,
             success=False,
@@ -914,47 +914,55 @@ def _scrape_with_playwright_impl(
             elapsed_ms=elapsed_ms,
             attempts=[Attempt(tier=tier_name, success=False, error=str(e), error_type=error_type, elapsed_ms=elapsed_ms)],
         )
-        
+
     finally:
         # Always clean up - log errors but don't let them propagate
         if page:
-            try: page.close()
-            except Exception as e: logger.debug(f"Error closing page: {e}")
+            try:
+                page.close()
+            except Exception as e:
+                logger.debug(f"Error closing page: {e}")
         if context:
-            try: context.close()
-            except Exception as e: logger.debug(f"Error closing context: {e}")
+            try:
+                context.close()
+            except Exception as e:
+                logger.debug(f"Error closing context: {e}")
         if browser:
-            try: browser.close()
-            except Exception as e: logger.debug(f"Error closing browser: {e}")
+            try:
+                browser.close()
+            except Exception as e:
+                logger.debug(f"Error closing browser: {e}")
         if playwright_instance:
-            try: playwright_instance.stop()
-            except Exception as e: logger.debug(f"Error stopping playwright: {e}")
+            try:
+                playwright_instance.stop()
+            except Exception as e:
+                logger.debug(f"Error stopping playwright: {e}")
 
 
 def scrape_with_playwright_aggressive(
     url: str,
     timeout: float = DEFAULT_TIMEOUT_PLAYWRIGHT_AGGRESSIVE,
-    profile: Optional[BrowserContextProfile] = None,
+    profile: BrowserContextProfile | None = None,
     headless: bool = True,
     max_expand_clicks: int = 20,
 ) -> ScrapeResult:
     """
     Scrape URL using Playwright with content expansion.
-    
+
     Tier 5: Aggressive browser automation that clicks "read more" buttons.
-    
+
     Args:
         url: URL to scrape
         timeout: Timeout in seconds
         profile: Optional browser context profile
         headless: Run browser in headless mode
         max_expand_clicks: Maximum expand button clicks
-    
+
     Returns:
         ScrapeResult with expanded HTML bytes
     """
     from primr.utils.validators import validate_url_for_request
-    
+
     # SSRF protection
     is_valid, normalized_url, error = validate_url_for_request(url)
     if not is_valid:
@@ -967,15 +975,15 @@ def scrape_with_playwright_aggressive(
             elapsed_ms=0,
             attempts=[],
         )
-    
+
     url = normalized_url
     start_time = time.time()
     tier_name = "playwright_aggressive"
     session = None
-    
+
     try:
         session = PlaywrightSession(profile=profile, headless=headless)
-        
+
         # Navigate
         timeout_ms = int(timeout * 1000)
         if not session.navigate(url, timeout_ms=timeout_ms):
@@ -989,24 +997,24 @@ def scrape_with_playwright_aggressive(
                 elapsed_ms=elapsed_ms,
                 attempts=[Attempt(tier=tier_name, success=False, error="Navigation failed", elapsed_ms=elapsed_ms)],
             )
-        
+
         # Wait for page to stabilize
         time.sleep(1)
-        
+
         # Dismiss consent
         session.dismiss_consent()
-        
+
         # Expand content
         expansions = session.expand_content(max_clicks=max_expand_clicks)
         logger.debug(f"Expanded {expansions} elements")
-        
+
         # Get HTML
         html = session.get_page_html()
         cookies = session.get_cookies()
         final_url = session.get_current_url()
-        
+
         elapsed_ms = (time.time() - start_time) * 1000
-        
+
         return ScrapeResult(
             url=url,
             success=True,
@@ -1019,7 +1027,7 @@ def scrape_with_playwright_aggressive(
             cookies=cookies,
             attempts=[Attempt(tier=tier_name, success=True, elapsed_ms=elapsed_ms, http_status=200)],
         )
-        
+
     except ImportError:
         return ScrapeResult(
             url=url,
@@ -1029,11 +1037,11 @@ def scrape_with_playwright_aggressive(
             tier=tier_name,
             attempts=[],
         )
-        
+
     except Exception as e:
         elapsed_ms = (time.time() - start_time) * 1000
         error_type = ErrorType.TIMEOUT if "timeout" in str(e).lower() else ErrorType.NETWORK_ERROR
-        
+
         return ScrapeResult(
             url=url,
             success=False,
@@ -1043,7 +1051,7 @@ def scrape_with_playwright_aggressive(
             elapsed_ms=elapsed_ms,
             attempts=[Attempt(tier=tier_name, success=False, error=str(e), error_type=error_type, elapsed_ms=elapsed_ms)],
         )
-        
+
     finally:
         if session:
             try:
@@ -1055,25 +1063,25 @@ def scrape_with_playwright_aggressive(
 def scrape_with_drissionpage(
     url: str,
     timeout: float = DEFAULT_TIMEOUT_DRISSION,
-    profile: Optional[BrowserContextProfile] = None,
+    profile: BrowserContextProfile | None = None,
     headless: bool = True,
 ) -> ScrapeResult:
     """
     Scrape URL using DrissionPage (CDP-based, driverless).
-    
+
     Tier 6: Driverless browser automation using Chrome DevTools Protocol.
-    
+
     Args:
         url: URL to scrape
         timeout: Timeout in seconds
         profile: Optional browser context profile
         headless: Run browser in headless mode
-    
+
     Returns:
         ScrapeResult with raw HTML bytes
     """
     from primr.utils.validators import validate_url_for_request
-    
+
     # SSRF protection
     is_valid, normalized_url, error = validate_url_for_request(url)
     if not is_valid:
@@ -1086,15 +1094,15 @@ def scrape_with_drissionpage(
             elapsed_ms=0,
             attempts=[],
         )
-    
+
     url = normalized_url
     start_time = time.time()
     tier_name = "drissionpage"
     session = None
-    
+
     try:
         session = DrissionPageSession(profile=profile, headless=headless)
-        
+
         # Navigate
         timeout_ms = int(timeout * 1000)
         if not session.navigate(url, timeout_ms=timeout_ms):
@@ -1108,20 +1116,20 @@ def scrape_with_drissionpage(
                 elapsed_ms=elapsed_ms,
                 attempts=[Attempt(tier=tier_name, success=False, error="Navigation failed", elapsed_ms=elapsed_ms)],
             )
-        
+
         # Wait for page
         time.sleep(1)
-        
+
         # Dismiss consent
         session.dismiss_consent()
-        
+
         # Get HTML
         html = session.get_page_html()
         cookies = session.get_cookies()
         final_url = session.get_current_url()
-        
+
         elapsed_ms = (time.time() - start_time) * 1000
-        
+
         return ScrapeResult(
             url=url,
             success=True,
@@ -1134,7 +1142,7 @@ def scrape_with_drissionpage(
             cookies=cookies,
             attempts=[Attempt(tier=tier_name, success=True, elapsed_ms=elapsed_ms, http_status=200)],
         )
-        
+
     except ImportError:
         return ScrapeResult(
             url=url,
@@ -1144,11 +1152,11 @@ def scrape_with_drissionpage(
             tier=tier_name,
             attempts=[],
         )
-        
+
     except Exception as e:
         elapsed_ms = (time.time() - start_time) * 1000
         error_type = ErrorType.TIMEOUT if "timeout" in str(e).lower() else ErrorType.NETWORK_ERROR
-        
+
         return ScrapeResult(
             url=url,
             success=False,
@@ -1158,7 +1166,7 @@ def scrape_with_drissionpage(
             elapsed_ms=elapsed_ms,
             attempts=[Attempt(tier=tier_name, success=False, error=str(e), error_type=error_type, elapsed_ms=elapsed_ms)],
         )
-        
+
     finally:
         if session:
             try:
@@ -1170,32 +1178,33 @@ def scrape_with_drissionpage(
 def scrape_with_drissionpage_stealth(
     url: str,
     timeout: float = DEFAULT_TIMEOUT_DRISSION_STEALTH,
-    profile: Optional[BrowserContextProfile] = None,
+    profile: BrowserContextProfile | None = None,
     headless: bool = True,
-    max_challenge_wait: Optional[int] = None,
+    max_challenge_wait: int | None = None,
 ) -> ScrapeResult:
     """
     Scrape URL using DrissionPage with stealth mode and challenge solving.
-    
+
     Tier 7: Driverless browser with anti-detection and Cloudflare bypass.
-    
+
     CRITICAL: DrissionPage has poor timeout handling - its get() method often
     ignores the timeout parameter. We wrap the entire execution in a hard
     timeout using threading to enforce the limit.
-    
+
     Args:
         url: URL to scrape
         timeout: Timeout in seconds (HARD LIMIT - enforced via threading)
         profile: Optional browser context profile
         headless: Run browser in headless mode
         max_challenge_wait: Max seconds to wait for challenge solving (default: 70% of timeout, max 30s)
-    
+
     Returns:
         ScrapeResult with raw HTML bytes
     """
-    from primr.utils.validators import validate_url_for_request
     import concurrent.futures
-    
+
+    from primr.utils.validators import validate_url_for_request
+
     # SSRF protection
     is_valid, normalized_url, error = validate_url_for_request(url)
     if not is_valid:
@@ -1208,24 +1217,24 @@ def scrape_with_drissionpage_stealth(
             elapsed_ms=0,
             attempts=[],
         )
-    
+
     url = normalized_url
     tier_name = "drissionpage_stealth"
     start_time = time.time()
-    
+
     # Calculate challenge wait time from timeout budget
     # Use 70% of timeout for challenge wait, capped at 30s
     # Example: 20s timeout → 14s challenge wait
     # Example: 60s timeout → 30s challenge wait (capped)
     if max_challenge_wait is None:
         max_challenge_wait = min(int(timeout * 0.7), 30)
-    
+
     # Define the actual scraping work as a separate function
     def _do_scrape():
         session = None
         try:
             session = DrissionPageSession(profile=profile, headless=headless)
-            
+
             # Navigate with timeout budget
             timeout_ms = int(timeout * 1000)
             nav_start = time.time()
@@ -1240,12 +1249,12 @@ def scrape_with_drissionpage_stealth(
                     elapsed_ms=elapsed_ms,
                     attempts=[Attempt(tier=tier_name, success=False, error="Navigation failed", elapsed_ms=elapsed_ms)],
                 )
-            
+
             # Calculate remaining time budget for challenge wait
             nav_elapsed = time.time() - nav_start
             remaining_budget = timeout - nav_elapsed
             effective_challenge_wait = min(max_challenge_wait, int(remaining_budget))
-            
+
             if effective_challenge_wait <= 0:
                 elapsed_ms = (time.time() - start_time) * 1000
                 return ScrapeResult(
@@ -1257,7 +1266,7 @@ def scrape_with_drissionpage_stealth(
                     elapsed_ms=elapsed_ms,
                     attempts=[Attempt(tier=tier_name, success=False, error="Timeout", error_type=ErrorType.TIMEOUT, elapsed_ms=elapsed_ms)],
                 )
-            
+
             # Wait for challenge to clear with remaining budget
             if not session.wait_for_clearance(max_wait_seconds=effective_challenge_wait):
                 elapsed_ms = (time.time() - start_time) * 1000
@@ -1270,17 +1279,17 @@ def scrape_with_drissionpage_stealth(
                     elapsed_ms=elapsed_ms,
                     attempts=[Attempt(tier=tier_name, success=False, error="Challenge timeout", error_type=ErrorType.CHALLENGE, elapsed_ms=elapsed_ms)],
                 )
-            
+
             # Dismiss consent
             session.dismiss_consent()
-            
+
             # Get HTML
             html = session.get_page_html()
             cookies = session.get_cookies()
             final_url = session.get_current_url()
-            
+
             elapsed_ms = (time.time() - start_time) * 1000
-            
+
             return ScrapeResult(
                 url=url,
                 success=True,
@@ -1293,7 +1302,7 @@ def scrape_with_drissionpage_stealth(
                 cookies=cookies,
                 attempts=[Attempt(tier=tier_name, success=True, elapsed_ms=elapsed_ms, http_status=200)],
             )
-            
+
         except ImportError:
             return ScrapeResult(
                 url=url,
@@ -1303,11 +1312,11 @@ def scrape_with_drissionpage_stealth(
                 tier=tier_name,
                 attempts=[],
             )
-            
+
         except Exception as e:
             elapsed_ms = (time.time() - start_time) * 1000
             error_type = ErrorType.TIMEOUT if "timeout" in str(e).lower() else ErrorType.NETWORK_ERROR
-            
+
             return ScrapeResult(
                 url=url,
                 success=False,
@@ -1317,14 +1326,14 @@ def scrape_with_drissionpage_stealth(
                 elapsed_ms=elapsed_ms,
                 attempts=[Attempt(tier=tier_name, success=False, error=str(e), error_type=error_type, elapsed_ms=elapsed_ms)],
             )
-            
+
         finally:
             if session:
                 try:
                     session.close()
                 except Exception:
                     pass
-    
+
     # Execute with HARD timeout using ThreadPoolExecutor
     # This ensures we don't wait forever if DrissionPage hangs
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
@@ -1354,22 +1363,22 @@ def scrape_with_vision(
 ) -> ScrapeResult:
     """
     Scrape URL using vision model (screenshot + LLM extraction).
-    
+
     Tier 6: Vision fallback for image-heavy or heavily protected sites.
     Takes a screenshot and uses Gemini to extract text content.
-    
+
     This is the nuclear option - costs ~$0.01-0.02 per page but works on
     almost anything that renders in a browser.
-    
+
     Args:
         url: URL to scrape
         timeout: Timeout in seconds
-    
+
     Returns:
         ScrapeResult with extracted_text from vision, raw_content=screenshot bytes
     """
     from primr.utils.validators import validate_url_for_request
-    
+
     # SSRF protection
     is_valid, normalized_url, error = validate_url_for_request(url)
     if not is_valid:
@@ -1382,19 +1391,21 @@ def scrape_with_vision(
             elapsed_ms=0,
             attempts=[],
         )
-    
+
     url = normalized_url
     tier_name = "vision"
     start_time = time.time()
-    
+
     try:
-        from playwright.sync_api import sync_playwright
         import base64
+
         from google import genai
+        from playwright.sync_api import sync_playwright
+
         from primr.config.settings import get_settings
-        
+
         settings = get_settings()
-        
+
         # Check if we have Gemini API key
         if not settings.api.gemini_key:
             return ScrapeResult(
@@ -1405,7 +1416,7 @@ def scrape_with_vision(
                 tier=tier_name,
                 attempts=[],
             )
-        
+
         with sync_playwright() as p:
             browser = p.chromium.launch(
                 headless=True,
@@ -1417,39 +1428,39 @@ def scrape_with_vision(
                     '--disable-dev-shm-usage',
                 ],
             )
-            
+
             from .profiles import get_stealth_script
-            
+
             context = browser.new_context(
                 viewport={"width": 1280, "height": 1024},
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
             )
-            
+
             # Apply stealth patches
             stealth_script = get_stealth_script()
             if stealth_script:
                 context.add_init_script(stealth_script)
             page = context.new_page()
-            
+
             # Navigate and wait for content
             page.goto(url, timeout=int(timeout * 1000), wait_until="networkidle")
             page.wait_for_timeout(2000)  # Extra wait for JS rendering
-            
+
             # Scroll to load lazy content
             page.evaluate("window.scrollTo(0, document.body.scrollHeight / 2)")
             page.wait_for_timeout(1000)
-            
+
             # Take full page screenshot
             screenshot_bytes = page.screenshot(full_page=True, type="png")
-            
+
             browser.close()
-        
+
         # Use Gemini to extract text from screenshot
         client = genai.Client(api_key=settings.api.gemini_key)
-        
+
         # Encode screenshot as base64
         screenshot_b64 = base64.b64encode(screenshot_bytes).decode("utf-8")
-        
+
         prompt = """Extract all readable text content from this webpage screenshot.
 Focus on:
 - Main headings and titles
@@ -1473,10 +1484,10 @@ Return the extracted text in a clean, readable format with proper paragraph brea
                 {"inline_data": {"mime_type": "image/png", "data": screenshot_b64}}
             ]
         )
-        
+
         extracted_text = response.text.strip() if response.text else ""
         elapsed_ms = (time.time() - start_time) * 1000
-        
+
         if not extracted_text or len(extracted_text) < 100:
             return ScrapeResult(
                 url=url,
@@ -1488,7 +1499,7 @@ Return the extracted text in a clean, readable format with proper paragraph brea
                 elapsed_ms=elapsed_ms,
                 attempts=[Attempt(tier=tier_name, success=False, error="Insufficient content", elapsed_ms=elapsed_ms)],
             )
-        
+
         return ScrapeResult(
             url=url,
             success=True,
@@ -1500,7 +1511,7 @@ Return the extracted text in a clean, readable format with proper paragraph brea
             elapsed_ms=elapsed_ms,
             attempts=[Attempt(tier=tier_name, success=True, elapsed_ms=elapsed_ms)],
         )
-        
+
     except Exception as e:
         elapsed_ms = (time.time() - start_time) * 1000
         logger.debug(f"Vision tier failed for {url}: {e}")

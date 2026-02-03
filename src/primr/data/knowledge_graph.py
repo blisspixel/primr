@@ -161,7 +161,7 @@ class KnowledgeGraph:
     def _get_connection(self) -> sqlite3.Connection:
         """Get database connection."""
         return self._persistent_conn
-    
+
     def close(self) -> None:
         """Close the database connection."""
         if self._persistent_conn is not None:

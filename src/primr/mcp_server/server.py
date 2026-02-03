@@ -11,7 +11,7 @@ import asyncio
 import logging
 import signal
 import sys
-from typing import Literal, Optional
+from typing import Literal
 
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
@@ -93,9 +93,9 @@ class PrimrMCPServer:
 
     def _register_handlers(self) -> None:
         """Register all tool, resource, and prompt handlers."""
+        from primr.mcp_server.prompts import register_prompts
         from primr.mcp_server.resources import register_resources
         from primr.mcp_server.tools import register_tools
-        from primr.mcp_server.prompts import register_prompts
 
         register_resources(self.server, self)
         register_tools(self.server, self)
@@ -220,11 +220,10 @@ class PrimrMCPServer:
 
         Requirements: 1.2, 1.7, 1.8, 13.1-13.10
         """
+        import uvicorn
+        from mcp.server.streamable_http import StreamableHTTPServerTransport
         from starlette.applications import Starlette
         from starlette.routing import Mount
-        import uvicorn
-
-        from mcp.server.streamable_http import StreamableHTTPServerTransport
 
         configure_http_logging(self.log_level)
         self._setup_signal_handlers()

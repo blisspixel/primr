@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional
 
 
 class IssueType(Enum):
@@ -42,7 +41,7 @@ class ClassifiedIssue:
     section: str
     description: str
     location: str  # Line reference or section identifier
-    suggestion: Optional[str] = None  # Recommended fix
+    suggestion: str | None = None  # Recommended fix
 
 
 @dataclass
@@ -50,32 +49,32 @@ class CitationCheckResult:
     """Results of citation accuracy checking."""
     total_citations: int
     valid_citations: int
-    broken_links: List[str]
-    unsupported_claims: List[str]
+    broken_links: list[str]
+    unsupported_claims: list[str]
     score: int  # 0-100
 
 
 @dataclass
 class LogicCheckResult:
     """Results of logical consistency checking."""
-    contradictions_found: List[str]
-    unsupported_leaps: List[str]
+    contradictions_found: list[str]
+    unsupported_leaps: list[str]
     score: int  # 0-100
 
 
 @dataclass
 class CompletenessCheckResult:
     """Results of completeness assessment."""
-    expected_sections: List[str]
-    missing_sections: List[str]
-    weak_sections: List[str]
+    expected_sections: list[str]
+    missing_sections: list[str]
+    weak_sections: list[str]
     score: int  # 0-100
 
 
 @dataclass
 class ConfidenceAssessment:
     """Confidence assessment for different parts of the report."""
-    section_confidence: Dict[str, int]  # section -> confidence score (0-100)
+    section_confidence: dict[str, int]  # section -> confidence score (0-100)
     overall_confidence: int
 
 
@@ -94,8 +93,8 @@ class ReportContent:
     """Loaded report content for analysis."""
     company_name: str
     content: str
-    sections: Dict[str, str]  # section_name -> content
-    citations: List[str]
+    sections: dict[str, str]  # section_name -> content
+    citations: list[str]
     metadata: ReportMetadata
     file_path: Path
 
@@ -104,8 +103,8 @@ class ReportContent:
 class QAAnalysis:
     """Complete QA analysis results."""
     overall_score: int  # 0-100
-    section_scores: Dict[str, int]
-    issues: List[ClassifiedIssue]
+    section_scores: dict[str, int]
+    issues: list[ClassifiedIssue]
     citation_check: CitationCheckResult
     logic_check: LogicCheckResult
     completeness_check: CompletenessCheckResult
@@ -119,9 +118,9 @@ class QAResult:
     """QA execution result for CLI display."""
     grade: int  # 0-100 overall score
     summary: str  # Clean CLI summary
-    detailed_analysis: Optional[QAAnalysis]  # Full analysis for workspace storage
+    detailed_analysis: QAAnalysis | None  # Full analysis for workspace storage
     needs_attention: bool  # True if grade < 70
-    error_message: Optional[str] = None  # Error message if QA failed
+    error_message: str | None = None  # Error message if QA failed
 
 
 @dataclass
@@ -131,5 +130,5 @@ class QAReport:
     analysis: QAAnalysis
     summary: str
     detailed_findings: str
-    recommendations: List[str]
+    recommendations: list[str]
     generated_at: datetime
