@@ -5,6 +5,8 @@ Task 12: HTTP authentication
 """
 
 import base64
+import hashlib
+import hmac
 import json
 import os
 import time
@@ -20,6 +22,39 @@ from primr.mcp_server.auth import (
 )
 
 
+# Test secret for JWT signing
+TEST_JWT_SECRET = "test-secret-key-for-jwt-signing-minimum-32-chars"
+
+
+def create_signed_jwt(payload: dict, secret: str = TEST_JWT_SECRET, alg: str = "HS256") -> str:
+    """Create a properly signed JWT for testing."""
+    header = {"alg": alg, "typ": "JWT"}
+    header_b64 = base64.urlsafe_b64encode(json.dumps(header).encode()).decode().rstrip("=")
+    payload_b64 = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip("=")
+    
+    signing_input = f"{header_b64}.{payload_b64}".encode()
+    
+    if alg == "HS256":
+        signature = hmac.new(secret.encode(), signing_input, hashlib.sha256).digest()
+    elif alg == "HS384":
+        signature = hmac.new(secret.encode(), signing_input, hashlib.sha384).digest()
+    elif alg == "HS512":
+        signature = hmac.new(secret.encode(), signing_input, hashlib.sha512).digest()
+    else:
+        signature = b"fake-signature"
+    
+    signature_b64 = base64.urlsafe_b64encode(signature).decode().rstrip("=")
+    return f"{header_b64}.{payload_b64}.{signature_b64}"
+
+
+def create_unsigned_jwt(payload: dict) -> str:
+    """Create an unsigned JWT (alg: none) for testing rejection."""
+    header = {"alg": "none", "typ": "JWT"}
+    header_b64 = base64.urlsafe_b64encode(json.dumps(header).encode()).decode().rstrip("=")
+    payload_b64 = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip("=")
+    return f"{header_b64}.{payload_b64}."
+
+
 class TestAuthConfig:
     """Tests for AuthConfig."""
     
@@ -28,6 +63,7 @@ class TestAuthConfig:
         config = AuthConfig()
         assert config.admin_tokens == set()
         assert config.require_auth is True
+        assert config.jwt_secret is None
     
     def test_from_env_with_admin_tokens(self, monkeypatch):
         """Config loads admin tokens from environment."""
@@ -53,14 +89,42 @@ class TestAuthConfig:
         
         assert config.admin_tokens == {"token1", "token2"}
 
+    def test_from_env_with_jwt_secret(self, monkeypatch):
+        """Config loads JWT secret from environment."""
+        monkeypatch.setenv("MCP_JWT_SECRET", TEST_JWT_SECRET)
+        
+        config = AuthConfig.from_env()
+        
+        assert config.jwt_secret == TEST_JWT_SECRET
+
+    def test_from_env_with_jwt_issuer_audience(self, monkeypatch):
+        """Config loads JWT issuer and audience from environment."""
+        monkeypatch.setenv("MCP_JWT_SECRET", TEST_JWT_SECRET)
+        monkeypatch.setenv("MCP_JWT_ISSUER", "test-issuer")
+        monkeypatch.setenv("MCP_JWT_AUDIENCE", "test-audience")
+        
+        config = AuthConfig.from_env()
+        
+        assert config.jwt_issuer == "test-issuer"
+        assert config.jwt_audience == "test-audience"
+
 
 class TestPrimrTokenVerifier:
     """Tests for PrimrTokenVerifier."""
     
     @pytest.fixture
     def verifier(self):
-        """Create a verifier with test admin tokens."""
-        config = AuthConfig(admin_tokens={"test-admin-token", "another-admin"})
+        """Create a verifier with test admin tokens and JWT secret."""
+        config = AuthConfig(
+            admin_tokens={"test-admin-token", "another-admin"},
+            jwt_secret=TEST_JWT_SECRET,
+        )
+        return PrimrTokenVerifier(config)
+
+    @pytest.fixture
+    def verifier_no_jwt(self):
+        """Create a verifier without JWT secret (admin tokens only)."""
+        config = AuthConfig(admin_tokens={"test-admin-token"})
         return PrimrTokenVerifier(config)
     
     @pytest.mark.asyncio
@@ -80,18 +144,14 @@ class TestPrimrTokenVerifier:
         assert result is None
     
     @pytest.mark.asyncio
-    async def test_verify_jwt_token(self, verifier):
-        """Valid JWT tokens are verified."""
-        # Create a simple JWT (header.payload.signature)
-        header = base64.urlsafe_b64encode(json.dumps({"alg": "none"}).encode()).decode().rstrip("=")
-        payload = base64.urlsafe_b64encode(json.dumps({
+    async def test_verify_signed_jwt_token(self, verifier):
+        """Valid signed JWT tokens are verified."""
+        token = create_signed_jwt({
             "sub": "user-123",
             "role": "user",
-            "exp": int(time.time()) + 3600,  # 1 hour from now
-        }).encode()).decode().rstrip("=")
-        signature = "fake-signature"
+            "exp": int(time.time()) + 3600,
+        })
         
-        token = f"{header}.{payload}.{signature}"
         result = await verifier.verify_token(token)
         
         assert result is not None
@@ -101,15 +161,12 @@ class TestPrimrTokenVerifier:
     @pytest.mark.asyncio
     async def test_verify_jwt_admin_role(self, verifier):
         """JWT with admin role gets admin scope."""
-        header = base64.urlsafe_b64encode(json.dumps({"alg": "none"}).encode()).decode().rstrip("=")
-        payload = base64.urlsafe_b64encode(json.dumps({
+        token = create_signed_jwt({
             "sub": "admin-user",
             "role": "admin",
             "exp": int(time.time()) + 3600,
-        }).encode()).decode().rstrip("=")
-        signature = "fake-signature"
+        })
         
-        token = f"{header}.{payload}.{signature}"
         result = await verifier.verify_token(token)
         
         assert result is not None
@@ -119,17 +176,143 @@ class TestPrimrTokenVerifier:
     @pytest.mark.asyncio
     async def test_verify_expired_jwt(self, verifier):
         """Expired JWT tokens are rejected."""
-        header = base64.urlsafe_b64encode(json.dumps({"alg": "none"}).encode()).decode().rstrip("=")
-        payload = base64.urlsafe_b64encode(json.dumps({
+        token = create_signed_jwt({
             "sub": "user-123",
             "exp": int(time.time()) - 3600,  # 1 hour ago
-        }).encode()).decode().rstrip("=")
-        signature = "fake-signature"
+        })
         
-        token = f"{header}.{payload}.{signature}"
         result = await verifier.verify_token(token)
         
         assert result is None
+
+    @pytest.mark.asyncio
+    async def test_reject_unsigned_jwt(self, verifier):
+        """Unsigned JWT tokens (alg: none) are rejected."""
+        token = create_unsigned_jwt({
+            "sub": "attacker",
+            "role": "admin",
+            "exp": int(time.time()) + 3600,
+        })
+        
+        result = await verifier.verify_token(token)
+        
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_reject_jwt_with_wrong_signature(self, verifier):
+        """JWT with wrong signature is rejected."""
+        # Create JWT signed with wrong secret
+        token = create_signed_jwt(
+            {"sub": "user", "exp": int(time.time()) + 3600},
+            secret="wrong-secret-key-that-is-long-enough"
+        )
+        
+        result = await verifier.verify_token(token)
+        
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_reject_jwt_without_secret_configured(self, verifier_no_jwt):
+        """JWT tokens are rejected when no secret is configured."""
+        token = create_signed_jwt({
+            "sub": "user-123",
+            "exp": int(time.time()) + 3600,
+        })
+        
+        result = await verifier_no_jwt.verify_token(token)
+        
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_reject_unsupported_algorithm(self, verifier):
+        """JWT with unsupported algorithm is rejected."""
+        # Create JWT with RS256 (not in allowed algorithms)
+        header = {"alg": "RS256", "typ": "JWT"}
+        header_b64 = base64.urlsafe_b64encode(json.dumps(header).encode()).decode().rstrip("=")
+        payload_b64 = base64.urlsafe_b64encode(json.dumps({
+            "sub": "user",
+            "exp": int(time.time()) + 3600,
+        }).encode()).decode().rstrip("=")
+        token = f"{header_b64}.{payload_b64}.fake-signature"
+        
+        result = await verifier.verify_token(token)
+        
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_validate_jwt_issuer(self):
+        """JWT issuer claim is validated when configured."""
+        config = AuthConfig(
+            jwt_secret=TEST_JWT_SECRET,
+            jwt_issuer="expected-issuer",
+        )
+        verifier = PrimrTokenVerifier(config)
+        
+        # Token with wrong issuer
+        wrong_issuer_token = create_signed_jwt({
+            "sub": "user",
+            "iss": "wrong-issuer",
+            "exp": int(time.time()) + 3600,
+        })
+        result = await verifier.verify_token(wrong_issuer_token)
+        assert result is None
+        
+        # Token with correct issuer
+        correct_issuer_token = create_signed_jwt({
+            "sub": "user",
+            "iss": "expected-issuer",
+            "exp": int(time.time()) + 3600,
+        })
+        result = await verifier.verify_token(correct_issuer_token)
+        assert result is not None
+
+    @pytest.mark.asyncio
+    async def test_validate_jwt_audience(self):
+        """JWT audience claim is validated when configured."""
+        config = AuthConfig(
+            jwt_secret=TEST_JWT_SECRET,
+            jwt_audience="expected-audience",
+        )
+        verifier = PrimrTokenVerifier(config)
+        
+        # Token with wrong audience
+        wrong_aud_token = create_signed_jwt({
+            "sub": "user",
+            "aud": "wrong-audience",
+            "exp": int(time.time()) + 3600,
+        })
+        result = await verifier.verify_token(wrong_aud_token)
+        assert result is None
+        
+        # Token with correct audience
+        correct_aud_token = create_signed_jwt({
+            "sub": "user",
+            "aud": "expected-audience",
+            "exp": int(time.time()) + 3600,
+        })
+        result = await verifier.verify_token(correct_aud_token)
+        assert result is not None
+
+    @pytest.mark.asyncio
+    async def test_validate_jwt_nbf_claim(self, verifier):
+        """JWT not-before claim is validated."""
+        # Token not valid yet
+        future_token = create_signed_jwt({
+            "sub": "user",
+            "nbf": int(time.time()) + 3600,  # Valid 1 hour from now
+            "exp": int(time.time()) + 7200,
+        })
+        result = await verifier.verify_token(future_token)
+        assert result is None
+        
+        # Token already valid
+        valid_token = create_signed_jwt({
+            "sub": "user",
+            "nbf": int(time.time()) - 60,  # Valid since 1 minute ago
+            "exp": int(time.time()) + 3600,
+        })
+        result = await verifier.verify_token(valid_token)
+        assert result is not None
     
     @pytest.mark.asyncio
     async def test_token_caching(self, verifier):
@@ -169,6 +352,19 @@ class TestPrimrTokenVerifier:
         
         assert verifier.is_admin(admin_token) is True
         assert verifier.is_admin(user_token) is False
+
+    @pytest.mark.asyncio
+    async def test_empty_token_rejected(self, verifier):
+        """Empty tokens are rejected."""
+        assert await verifier.verify_token("") is None
+        assert await verifier.verify_token(None) is None
+
+    @pytest.mark.asyncio
+    async def test_malformed_jwt_rejected(self, verifier):
+        """Malformed JWTs are rejected."""
+        assert await verifier.verify_token("not.a.valid.jwt.token") is None
+        assert await verifier.verify_token("only-one-part") is None
+        assert await verifier.verify_token("two.parts") is None
 
 
 class TestAuthContext:
@@ -285,8 +481,11 @@ class TestAuthenticationEnforcement:
     
     @pytest.fixture
     def verifier(self):
-        """Create a verifier with test admin tokens."""
-        config = AuthConfig(admin_tokens={"valid-admin-token"})
+        """Create a verifier with test admin tokens and JWT secret."""
+        config = AuthConfig(
+            admin_tokens={"valid-admin-token"},
+            jwt_secret=TEST_JWT_SECRET,
+        )
         return PrimrTokenVerifier(config)
     
     @pytest.mark.asyncio
@@ -304,13 +503,10 @@ class TestAuthenticationEnforcement:
     @pytest.mark.asyncio
     async def test_expired_token_rejected(self, verifier):
         """Expired tokens are rejected."""
-        # Create expired JWT
-        header = base64.urlsafe_b64encode(json.dumps({"alg": "none"}).encode()).decode().rstrip("=")
-        payload = base64.urlsafe_b64encode(json.dumps({
+        token = create_signed_jwt({
             "sub": "user",
             "exp": int(time.time()) - 1,  # Expired
-        }).encode()).decode().rstrip("=")
-        token = f"{header}.{payload}.sig"
+        })
         
         result = await verifier.verify_token(token)
         assert result is None
@@ -318,14 +514,36 @@ class TestAuthenticationEnforcement:
     @pytest.mark.asyncio
     async def test_client_id_extracted(self, verifier):
         """Client ID is extracted from token."""
-        header = base64.urlsafe_b64encode(json.dumps({"alg": "none"}).encode()).decode().rstrip("=")
-        payload = base64.urlsafe_b64encode(json.dumps({
+        token = create_signed_jwt({
             "sub": "client-abc-123",
             "exp": int(time.time()) + 3600,
-        }).encode()).decode().rstrip("=")
-        token = f"{header}.{payload}.sig"
+        })
         
         result = await verifier.verify_token(token)
         
         assert result is not None
         assert result.client_id == "client-abc-123"
+
+    @pytest.mark.asyncio
+    async def test_unsigned_token_rejected(self, verifier):
+        """Unsigned tokens are rejected even with valid claims."""
+        token = create_unsigned_jwt({
+            "sub": "attacker",
+            "role": "admin",
+            "exp": int(time.time()) + 3600,
+        })
+        
+        result = await verifier.verify_token(token)
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_forged_signature_rejected(self, verifier):
+        """Tokens with forged signatures are rejected."""
+        # Create a token signed with wrong key
+        token = create_signed_jwt(
+            {"sub": "attacker", "role": "admin", "exp": int(time.time()) + 3600},
+            secret="attacker-controlled-secret-key-long"
+        )
+        
+        result = await verifier.verify_token(token)
+        assert result is None

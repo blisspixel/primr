@@ -238,6 +238,7 @@ def create_app(
     title: str = "Company Research API",
     version: str = "1.1.0",
     job_manager: JobManager | None = None,
+    allowed_origins: list[str] | None = None,
 ) -> FastAPI:
     """
     Create the FastAPI application.
@@ -246,23 +247,41 @@ def create_app(
         title: API title
         version: API version
         job_manager: Optional custom job manager
+        allowed_origins: List of allowed CORS origins (default: localhost only)
 
     Returns:
         FastAPI application
     """
+    import os
+
     app = FastAPI(
         title=title,
         version=version,
         description="REST API for automated company research",
     )
 
-    # Add CORS middleware
+    # Configure CORS with secure defaults
+    # In production, set PRIMR_CORS_ORIGINS environment variable
+    if allowed_origins is None:
+        cors_env = os.environ.get("PRIMR_CORS_ORIGINS", "")
+        if cors_env:
+            allowed_origins = [o.strip() for o in cors_env.split(",") if o.strip()]
+        else:
+            # Secure default: only localhost for development
+            allowed_origins = [
+                "http://localhost:3000",
+                "http://localhost:8080",
+                "http://127.0.0.1:3000",
+                "http://127.0.0.1:8080",
+            ]
+
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=allowed_origins,
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "DELETE"],  # Only methods we actually use
+        allow_headers=["X-API-Key", "Content-Type", "Authorization"],
+        max_age=600,  # Cache preflight for 10 minutes
     )
 
     # Store job manager in app state
