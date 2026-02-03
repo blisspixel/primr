@@ -30,7 +30,8 @@ Quick reference to all Primr documentation. Current version: 1.5.1
 | Document | Description |
 |----------|-------------|
 | [MIGRATION](MIGRATION.md) | Error hierarchy migration guide |
-| [SECURITY_REVIEW](SECURITY_REVIEW_2026-01-21.md) | Security audit findings and mitigations |
+| [SECURITY_REVIEW](SECURITY_REVIEW_2026-02-02.md) | Security audit findings and mitigations |
+| [SECURITY_OPS](SECURITY_OPS.md) | Operational security: key rotation, audit logs, testing |
 | [CHANGELOG](../CHANGELOG.md) | Version history and changes |
 | [ROADMAP](../ROADMAP.md) | Development roadmap and planned features |
 

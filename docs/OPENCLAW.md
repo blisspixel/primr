@@ -220,9 +220,9 @@ The QA system provides:
 - Improvement suggestions
 
 Score interpretation:
-- 🟢 85+ : Excellent quality
-- 🟡 70-84: Good, minor improvements needed
-- 🔴 <70: Needs significant revision
+- 85+: Excellent quality
+- 70-84: Good, minor improvements needed
+- Below 70: Needs significant revision
 
 ## Memory Subsystem Integration
 

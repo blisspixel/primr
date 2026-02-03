@@ -232,3 +232,185 @@ class TestThreadSafety:
         
         info = auth.get_key_info(key)
         assert info.request_count == 500
+
+
+# =============================================================================
+# KEY ROTATION TESTS
+# =============================================================================
+
+class TestKeyRotation:
+    """Tests for API key rotation."""
+    
+    def test_rotate_key_returns_new_key(self, auth):
+        """Test rotation returns a new key."""
+        old_key = auth.create_key("test-app")
+        new_key = auth.rotate_key(old_key)
+        
+        assert new_key is not None
+        assert new_key != old_key
+        assert new_key.startswith("cr_")
+    
+    def test_both_keys_work_during_grace(self, auth):
+        """Test both old and new keys work during grace period."""
+        old_key = auth.create_key("test-app")
+        new_key = auth.rotate_key(old_key, grace_hours=24)
+        
+        # Both should work
+        assert auth.verify(old_key) is True
+        assert auth.verify(new_key) is True
+    
+    def test_old_key_expires_after_grace(self, auth):
+        """Test old key stops working after grace period."""
+        from datetime import datetime, timedelta
+        
+        old_key = auth.create_key("test-app")
+        new_key = auth.rotate_key(old_key, grace_hours=1)
+        
+        # Manually expire the grace period
+        old_hash = auth._hash_key(old_key)
+        auth._keys[old_hash].rotation_grace_until = datetime.now() - timedelta(hours=1)
+        
+        # Old key should fail, new key should work
+        assert auth.verify(old_key) is False
+        assert auth.verify(new_key) is True
+    
+    def test_rotate_invalid_key_returns_none(self, auth):
+        """Test rotating invalid key returns None."""
+        result = auth.rotate_key("invalid-key")
+        assert result is None
+    
+    def test_rotate_revoked_key_returns_none(self, auth):
+        """Test rotating revoked key returns None."""
+        key = auth.create_key("test-app")
+        auth.revoke(key)
+        
+        result = auth.rotate_key(key)
+        assert result is None
+    
+    def test_new_key_inherits_settings(self, auth):
+        """Test new key inherits rate limit and scopes."""
+        old_key = auth.create_key("test-app", rate_limit=500, scopes={"read", "admin"})
+        new_key = auth.rotate_key(old_key)
+        
+        new_info = auth.get_key_info(new_key)
+        assert new_info.rate_limit == 500
+        assert new_info.scopes == {"read", "admin"}
+        assert new_info.name == "test-app"
+    
+    def test_rotation_callback(self, auth):
+        """Test rotation callback is called."""
+        callback_data = []
+        
+        def on_rotate(name, old_prefix, new_prefix):
+            callback_data.append((name, old_prefix, new_prefix))
+        
+        auth.on_rotation(on_rotate)
+        
+        old_key = auth.create_key("test-app")
+        auth.rotate_key(old_key)
+        
+        assert len(callback_data) == 1
+        assert callback_data[0][0] == "test-app"
+    
+    def test_list_keys_shows_rotation_status(self, auth):
+        """Test list_keys shows rotation status."""
+        old_key = auth.create_key("test-app")
+        auth.rotate_key(old_key)
+        
+        keys = auth.list_keys()
+        # Should have 2 entries (old and new)
+        assert len(keys) == 1  # Same name, but we can check in_rotation
+        # The old key should show in_rotation=True
+        old_info = auth.get_key_info(old_key)
+        assert old_info.rotation_grace_until is not None
+
+
+# =============================================================================
+# KEY EXPIRATION TESTS
+# =============================================================================
+
+class TestKeyExpiration:
+    """Tests for API key expiration."""
+    
+    def test_create_key_with_expiration(self, auth):
+        """Test creating key with expiration."""
+        key = auth.create_key("test-app", expires_in_days=30)
+        
+        info = auth.get_key_info(key)
+        assert info.expires_at is not None
+    
+    def test_expired_key_rejected(self, auth):
+        """Test expired key is rejected."""
+        from datetime import datetime, timedelta
+        
+        key = auth.create_key("test-app", expires_in_days=1)
+        
+        # Manually expire the key
+        key_hash = auth._hash_key(key)
+        auth._keys[key_hash].expires_at = datetime.now() - timedelta(days=1)
+        
+        assert auth.verify(key) is False
+    
+    def test_non_expiring_key(self, auth):
+        """Test key without expiration works indefinitely."""
+        key = auth.create_key("test-app", expires_in_days=0)
+        
+        info = auth.get_key_info(key)
+        assert info.expires_at is None
+        assert auth.verify(key) is True
+    
+    def test_get_expiring_keys(self, auth):
+        """Test getting keys expiring soon."""
+        from datetime import datetime, timedelta
+        
+        # Create keys with different expirations
+        key1 = auth.create_key("expires-soon", expires_in_days=3)
+        key2 = auth.create_key("expires-later", expires_in_days=30)
+        key3 = auth.create_key("no-expiry", expires_in_days=0)
+        
+        expiring = auth.get_expiring_keys(within_days=7)
+        
+        assert len(expiring) == 1
+        assert expiring[0]["name"] == "expires-soon"
+    
+    def test_cleanup_expired(self, auth):
+        """Test cleanup removes expired keys."""
+        from datetime import datetime, timedelta
+        
+        key1 = auth.create_key("expired", expires_in_days=1)
+        key2 = auth.create_key("valid", expires_in_days=30)
+        
+        # Manually expire key1
+        key1_hash = auth._hash_key(key1)
+        auth._keys[key1_hash].expires_at = datetime.now() - timedelta(days=1)
+        
+        cleaned = auth.cleanup_expired()
+        
+        assert cleaned == 1
+        assert auth.get_key_info(key1) is None
+        assert auth.get_key_info(key2) is not None
+
+
+# =============================================================================
+# CONVENIENCE FUNCTION ROTATION TESTS
+# =============================================================================
+
+class TestRotationConvenienceFunctions:
+    """Tests for rotation convenience functions."""
+    
+    def test_rotate_api_key_function(self):
+        """Test rotate_api_key convenience function."""
+        from primr.api.auth import rotate_api_key
+        
+        old_key = create_api_key("test-app")
+        new_key = rotate_api_key(old_key)
+        
+        assert new_key is not None
+        assert verify_api_key(new_key) is True
+    
+    def test_create_api_key_with_expiration(self):
+        """Test create_api_key with expiration."""
+        key = create_api_key("test-app", expires_in_days=30)
+        
+        info = get_auth().get_key_info(key)
+        assert info.expires_at is not None

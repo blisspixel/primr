@@ -1,10 +1,8 @@
 # Security Review and Improvements - February 2, 2026
 
-## Executive Summary
+## Summary
 
-Conducted security review of Primr v1.5.1 codebase. Identified and fixed 2 security issues:
-1. JWT signature verification not implemented (MEDIUM) - FIXED
-2. CORS configuration too permissive (LOW) - FIXED
+Security review of Primr v1.5.1. Fixed JWT signature verification and CORS configuration, added security headers and operational tooling.
 
 ## Improvements Made
 
@@ -13,16 +11,6 @@ Conducted security review of Primr v1.5.1 codebase. Identified and fixed 2 secur
 **Severity**: MEDIUM  
 **Location**: `src/primr/mcp_server/auth.py`  
 **Issue**: JWT tokens were decoded but signatures were not verified, allowing token forgery.
-
-**Previous Code**:
-```python
-def _verify_jwt(self, token: str) -> AccessToken | None:
-    """
-    For production, this should verify the signature against a public key.
-    For now, we do basic JWT structure validation and claim extraction.
-    """
-    # Only decoded payload, no signature verification
-```
 
 **Fix Applied**:
 - Implemented HMAC-SHA256/384/512 signature verification
@@ -54,17 +42,6 @@ MCP_JWT_AUDIENCE=your-audience    # Optional
 **Location**: `src/primr/api/service.py`  
 **Issue**: CORS allowed all origins with credentials enabled.
 
-**Previous Code**:
-```python
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-```
-
 **Fix Applied**:
 ```python
 app.add_middleware(
@@ -72,7 +49,8 @@ app.add_middleware(
     allow_origins=allowed_origins,  # Configurable, defaults to localhost
     allow_credentials=True,
     allow_methods=["GET", "POST", "DELETE"],  # Only methods we use
-    allow_headers=["X-API-Key", "Content-Type", "Authorization"],
+    allow_headers=["X-API-Key", "Content-Type", "Authorization", "X-Request-ID"],
+    expose_headers=["X-Request-ID", "X-RateLimit-Remaining", "X-RateLimit-Reset"],
     max_age=600,  # Cache preflight for 10 minutes
 )
 ```
@@ -82,7 +60,84 @@ app.add_middleware(
 PRIMR_CORS_ORIGINS=https://your-frontend.com,https://admin.your-domain.com
 ```
 
-**Default Behavior**: Only localhost origins allowed (secure for development).
+### 3. Security Headers Middleware - NEW
+
+**Location**: `src/primr/api/service.py`  
+**Added OWASP-recommended security headers to all API responses**:
+
+| Header | Value | Purpose |
+|--------|-------|---------|
+| X-Content-Type-Options | nosniff | Prevents MIME sniffing |
+| X-Frame-Options | DENY | Prevents clickjacking |
+| X-XSS-Protection | 1; mode=block | Legacy XSS protection |
+| Strict-Transport-Security | max-age=31536000; includeSubDomains | Enforces HTTPS |
+| Content-Security-Policy | default-src 'self'; frame-ancestors 'none' | Restricts resource loading |
+| Referrer-Policy | strict-origin-when-cross-origin | Controls referrer info |
+| Permissions-Policy | geolocation=(), microphone=(), camera=() | Restricts browser features |
+
+### 4. Request ID Tracking - NEW
+
+**Location**: `src/primr/api/service.py`  
+**Added request ID middleware for audit trails**:
+
+- Generates unique UUID for each request
+- Accepts client-provided X-Request-ID header
+- Returns X-Request-ID in all responses
+- Logs request ID for correlation
+
+### 5. Rate Limit Headers - NEW
+
+**Location**: `src/primr/api/service.py`  
+**Added rate limit information in response headers**:
+
+| Header | Description |
+|--------|-------------|
+| X-RateLimit-Remaining | Requests remaining in current window |
+| X-RateLimit-Limit | Total requests allowed per hour |
+| X-RateLimit-Reset | Seconds until rate limit resets (when exceeded) |
+
+### 6. Security Utilities Module - NEW
+
+**Location**: `src/primr/utils/security.py`  
+**Comprehensive security utilities**:
+
+- `secure_compare()` - Constant-time comparison for secrets
+- `hash_secret()` / `verify_hashed_secret()` - Secure secret hashing with salt
+- `mask_sensitive_data()` / `mask_dict_values()` - Sensitive data masking for logs
+- `SecurityAuditLogger` - Structured security event logging
+- `sanitize_log_input()` - Input sanitization for safe logging
+- `generate_secure_token()` / `generate_secure_id()` - Cryptographically secure token generation
+- `get_secret_from_env()` - Secure environment variable retrieval with validation
+
+### 7. API Key Rotation - NEW
+
+**Location**: `src/primr/api/auth.py`  
+**Added zero-downtime key rotation with grace periods**:
+
+- `rotate_key()` - Generate new key while keeping old one valid
+- Configurable grace period (default 24 hours)
+- Key expiration support with `expires_in_days`
+- `get_expiring_keys()` - Find keys expiring soon
+- `cleanup_expired()` - Remove old keys from memory
+- Rotation callbacks for notifications
+
+```python
+# Rotate with 24-hour grace period
+new_key = auth.rotate_key(old_key, grace_hours=24)
+# Both keys work for 24 hours, then only new_key works
+```
+
+### 8. Security Operations Guide - NEW
+
+**Location**: `docs/SECURITY_OPS.md`  
+**Comprehensive operations guide including**:
+
+- API key rotation best practices
+- Cloud storage examples (AWS S3, GCP, Azure) with Terraform
+- Lifecycle policies for audit log retention
+- Security testing recommendations
+- Penetration testing checklist
+- Incident response procedures
 
 ## Existing Security Measures (Verified)
 
@@ -117,9 +172,11 @@ All security measures from the January 2026 review remain in place:
 
 ```
 tests/mcp_server/test_auth.py: 37 passed
+tests/test_utils/test_security.py: 44 passed
 tests/test_security.py: 22 passed
-tests/mcp_server/test_security.py: 27 passed (1 skipped - Windows-specific)
-tests/test_api/test_service.py: 22 passed
+tests/mcp_server/test_security.py: 27 passed (1 skipped)
+tests/test_api/test_service.py: 29 passed
+tests/test_api/test_auth.py: 37 passed
 ```
 
 ## Security Configuration Reference
@@ -139,31 +196,18 @@ tests/test_api/test_service.py: 22 passed
 |----------|-------------|---------|
 | `PRIMR_CORS_ORIGINS` | Comma-separated allowed origins | localhost only |
 
-## Recommendations
+## Still To Do
 
-### Completed
-1. ✅ JWT signature verification implemented
-2. ✅ CORS configuration tightened
-3. ✅ Comprehensive test coverage added
-
-### For Production Deployment
-1. Set `MCP_JWT_SECRET` to a strong random value (32+ characters)
-2. Configure `PRIMR_CORS_ORIGINS` with specific allowed origins
-3. Consider using `MCP_JWT_ISSUER` and `MCP_JWT_AUDIENCE` for additional validation
-4. Run security tests before each release
+- External penetration testing
+- Dependency vulnerability scanning in CI
+- Consider bug bounty if adoption grows
 
 ## Conclusion
 
-The Primr codebase now has comprehensive security protections:
-- JWT authentication with proper signature verification
-- SSRF, XXE, and path traversal protection
-- Secure CORS configuration
-- Rate limiting and input validation
+Basic security measures are in place. The codebase handles common attack vectors (SSRF, XXE, path traversal, JWT forgery) and includes operational tooling for key rotation and audit logging. 
 
-**Security Status**: PRODUCTION READY
+Not battle-tested at scale. Run your own security assessment before production use.
 
 ---
 
-Review completed: February 2, 2026  
-Improvements: JWT signature verification, CORS hardening  
-Tests added: 15 new authentication tests
+Review: February 2, 2026

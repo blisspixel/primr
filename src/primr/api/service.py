@@ -6,6 +6,8 @@ This module provides:
 - Job management and status tracking
 - Webhook notifications
 - Health checks
+- Security headers middleware
+- Request ID tracking for audit trails
 """
 
 import asyncio
@@ -16,15 +18,95 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
-from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException
+from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from primr.api.auth import verify_api_key
-from primr.api.rate_limit import check_rate_limit
+from primr.api.rate_limit import check_rate_limit, get_rate_limiter
 from primr.utils.logging_config import get_logger
 
 logger = get_logger("api.service")
+
+
+# =============================================================================
+# SECURITY MIDDLEWARE
+# =============================================================================
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """
+    Middleware to add security headers to all responses.
+    
+    Adds headers recommended by OWASP:
+    - X-Content-Type-Options: Prevents MIME sniffing
+    - X-Frame-Options: Prevents clickjacking
+    - X-XSS-Protection: Legacy XSS protection
+    - Strict-Transport-Security: Enforces HTTPS
+    - Content-Security-Policy: Restricts resource loading
+    - Referrer-Policy: Controls referrer information
+    - Permissions-Policy: Restricts browser features
+    """
+    
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        
+        # Prevent MIME type sniffing
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        
+        # Prevent clickjacking
+        response.headers["X-Frame-Options"] = "DENY"
+        
+        # Legacy XSS protection (for older browsers)
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        
+        # Enforce HTTPS (1 year, include subdomains)
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        
+        # Content Security Policy - restrict to self
+        response.headers["Content-Security-Policy"] = "default-src 'self'; frame-ancestors 'none'"
+        
+        # Control referrer information
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        
+        # Restrict browser features
+        response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+        
+        # Remove server identification header if present
+        if "server" in response.headers:
+            del response.headers["server"]
+        
+        return response
+
+
+class RequestIdMiddleware(BaseHTTPMiddleware):
+    """
+    Middleware to add request ID for tracing and audit logging.
+    
+    Generates a unique ID for each request and includes it in:
+    - Response header (X-Request-ID)
+    - Request state (for logging)
+    """
+    
+    async def dispatch(self, request: Request, call_next):
+        # Use provided request ID or generate new one
+        request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+        
+        # Store in request state for access in handlers
+        request.state.request_id = request_id
+        
+        # Log the request with ID
+        logger.debug(
+            f"Request {request_id}: {request.method} {request.url.path}",
+            extra={"request_id": request_id}
+        )
+        
+        response = await call_next(request)
+        
+        # Add request ID to response
+        response.headers["X-Request-ID"] = request_id
+        
+        return response
 
 
 class ResearchStatus(str, Enum):
@@ -280,26 +362,48 @@ def create_app(
         allow_origins=allowed_origins,
         allow_credentials=True,
         allow_methods=["GET", "POST", "DELETE"],  # Only methods we actually use
-        allow_headers=["X-API-Key", "Content-Type", "Authorization"],
+        allow_headers=["X-API-Key", "Content-Type", "Authorization", "X-Request-ID"],
+        expose_headers=["X-Request-ID", "X-RateLimit-Remaining", "X-RateLimit-Reset"],
         max_age=600,  # Cache preflight for 10 minutes
     )
+    
+    # Add security headers middleware
+    app.add_middleware(SecurityHeadersMiddleware)
+    
+    # Add request ID middleware for tracing
+    app.add_middleware(RequestIdMiddleware)
 
     # Store job manager in app state
     app.state.job_manager = job_manager or JobManager()
     app.state.start_time = datetime.now()
 
-    # Dependency for API key verification
-    async def verify_key(x_api_key: str = Header(..., alias="X-API-Key")) -> str:
+    # Dependency for API key verification with rate limit headers
+    async def verify_key(
+        request: Request,
+        response: Response,
+        x_api_key: str = Header(..., alias="X-API-Key"),
+    ) -> str:
         if not verify_api_key(x_api_key):
             raise HTTPException(status_code=401, detail="Invalid API key")
 
         # Check rate limit
         allowed, retry_after = check_rate_limit(x_api_key)
+        
+        # Add rate limit headers to response
+        limiter = get_rate_limiter()
+        remaining = limiter.get_remaining(x_api_key)
+        response.headers["X-RateLimit-Remaining"] = str(remaining)
+        response.headers["X-RateLimit-Limit"] = str(limiter._config.requests_per_hour)
+        
         if not allowed:
+            response.headers["X-RateLimit-Reset"] = str(int(retry_after))
             raise HTTPException(
                 status_code=429,
                 detail="Rate limit exceeded",
-                headers={"Retry-After": str(int(retry_after))},
+                headers={
+                    "Retry-After": str(int(retry_after)),
+                    "X-RateLimit-Remaining": "0",
+                },
             )
 
         return x_api_key
