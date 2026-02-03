@@ -472,8 +472,9 @@ class PrimrConfigurationError(PermanentError):
 # LEGACY EXCEPTION HIERARCHY (Backward Compatible)
 # =============================================================================
 
-# Deprecation tracking - set to True to emit warnings
-_EMIT_DEPRECATION_WARNINGS = False
+# Deprecation tracking - enabled by default to guide migration
+# Set to False to suppress warnings during migration period
+_EMIT_DEPRECATION_WARNINGS = True
 
 
 def _deprecation_warning(cls_name: str, new_cls_name: str) -> None:
@@ -481,9 +482,10 @@ def _deprecation_warning(cls_name: str, new_cls_name: str) -> None:
     if _EMIT_DEPRECATION_WARNINGS:
         import warnings
         warnings.warn(
-            f"{cls_name} is deprecated, use {new_cls_name} from the typed error "
-            f"hierarchy instead. Set primr.utils.errors._EMIT_DEPRECATION_WARNINGS = True "
-            f"to see these warnings.",
+            f"{cls_name} is deprecated and will be removed in v2.0. "
+            f"Use {new_cls_name} from the typed error hierarchy instead. "
+            f"See MIGRATION.md for guidance. "
+            f"Suppress with: primr.utils.errors._EMIT_DEPRECATION_WARNINGS = False",
             DeprecationWarning,
             stacklevel=4
         )

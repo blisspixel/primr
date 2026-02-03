@@ -157,7 +157,7 @@ User: "approve ABC123"
 
 Agent: Research started. Monitoring progress...
        [30 minutes later]
-       Research complete! Report saved to output/acme_corp/report.md
+       Research complete. Report saved to output/acme_corp/report.md
 ```
 
 See [docs/OPENCLAW.md](docs/OPENCLAW.md) for full integration guide.
@@ -353,12 +353,16 @@ The `primr doctor` command will warn you if orphaned resources are detected. Run
 
 ## Documentation
 
+Full documentation index: [docs/INDEX.md](docs/INDEX.md)
+
+Key documents:
 - [CHANGELOG.md](CHANGELOG.md) - Version history and changes
 - [ROADMAP.md](ROADMAP.md) - Development roadmap
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - System architecture, scraping tiers, resilience features
-- [docs/API.md](docs/API.md) - Programmatic usage
+- [docs/API.md](docs/API.md) - Programmatic usage, MCP server reference
 - [docs/CONFIG.md](docs/CONFIG.md) - Configuration reference
-- [docs/INTERNALS.md](docs/INTERNALS.md) - Prompt engineering and algorithms
+- [docs/MIGRATION.md](docs/MIGRATION.md) - Error hierarchy migration guide
+- [CONCURRENCY.md](CONCURRENCY.md) - Threading model and async patterns
 
 ## License
 

@@ -1,9 +1,6 @@
 # State Machine Specifications
 
-This document provides formal state machine specifications for Primr's tier escalation and job lifecycle management.
-
-**Feature: phd-level-excellence**
-**Validates: Requirements 9.1-9.6, 10.1-10.6**
+This document provides state machine specifications for Primr's tier escalation and job lifecycle management.
 
 ## Overview
 
