@@ -54,6 +54,10 @@ class Command(Enum):
     QA = "qa"
     QA_RECENT = "qa-recent"
     AI_STRATEGY_ONLY = "ai-strategy-only"
+    # Agentic architecture commands
+    MEMORY = "memory"
+    ORCHESTRATE = "orchestrate"
+    ROADMAP = "roadmap"
 
 
 # =============================================================================
@@ -89,6 +93,11 @@ class CLIConfig:
     ai_strategy_only_path: str | None = None
     discovery_notes_path: str | None = None
     strategy_type: str = "ai"  # Type of strategy to generate
+    # Agentic architecture options
+    memory_company: str | None = None
+    memory_list: bool = False
+    orchestrate_max_cost: float | None = None
+    roadmap_version: str | None = None
 
     @property
     def has_company_info(self) -> bool:
@@ -189,6 +198,11 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         ai_strategy_only_path=getattr(parsed, 'ai_strategy_only', None),
         discovery_notes_path=getattr(parsed, 'discovery_notes', None),
         strategy_type=getattr(parsed, 'strategy_type', 'ai'),
+        # Agentic architecture options
+        memory_company=getattr(parsed, 'memory', None),
+        memory_list=getattr(parsed, 'memory_list', False),
+        orchestrate_max_cost=getattr(parsed, 'max_cost', None),
+        roadmap_version=getattr(parsed, 'roadmap_version', None),
     )
 
 
@@ -260,6 +274,10 @@ def main(args: list[str] | None = None) -> int:
         Command.QA_RECENT: _handle_qa_recent,
         Command.AI_STRATEGY_ONLY: _handle_ai_strategy_only,
         Command.RESEARCH: _handle_research,
+        # Agentic architecture handlers
+        Command.MEMORY: _handle_memory,
+        Command.ORCHESTRATE: _handle_orchestrate,
+        Command.ROADMAP: _handle_roadmap,
     }
 
     handler = handlers.get(config.command, _handle_research)
@@ -351,6 +369,14 @@ Examples:
 AI Strategy Retry (when main report succeeded but AI strategy failed):
   primr --ai-strategy-only "output/Company_Strategic_Overview_01-09-2026.md"
   primr --ai-strategy-only "output/report.md" --cloud-vendor aws
+
+Agentic Architecture (v1.7.0):
+  primr memory "Acme Corp"                           # View hypotheses for a company
+  primr --memory-list                                # List all companies with memory
+  primr orchestrate "Acme Corp" https://acme.com    # Run orchestrated research
+  primr --orchestrate --max-cost 5.0                 # With cost budget
+  primr roadmap                                      # Show roadmap overview
+  primr --roadmap-version v1.7.0                     # Show version details
 
 Accordion Method Test (for development):
   primr --test-accordion "Oceanography 2026-2030"
@@ -474,6 +500,40 @@ Accordion Method Test (for development):
         help="Strategy document type: 'ai' (AI transformation), 'customer_experience' (CX strategy), 'modern_security_compliance' (security/compliance), 'data_fabric_strategy' (data platform). Use with --ai-strategy-only."
     )
 
+    # Agentic architecture commands
+    parser.add_argument(
+        "--memory",
+        type=str,
+        metavar="COMPANY",
+        help="View research memory (hypotheses) for a company"
+    )
+    parser.add_argument(
+        "--memory-list",
+        action="store_true",
+        help="List all companies with research memory"
+    )
+    parser.add_argument(
+        "--orchestrate",
+        action="store_true",
+        help="Run orchestrated research with subagent coordination (experimental)"
+    )
+    parser.add_argument(
+        "--max-cost",
+        type=float,
+        help="Maximum cost budget for orchestrated research (USD)"
+    )
+    parser.add_argument(
+        "--roadmap",
+        action="store_true",
+        help="Show roadmap information"
+    )
+    parser.add_argument(
+        "--roadmap-version",
+        type=str,
+        metavar="VERSION",
+        help="Show details for a specific roadmap version (e.g., 'v1.7.0')"
+    )
+
     return parser
 
 
@@ -482,6 +542,30 @@ def _determine_command(args: argparse.Namespace) -> Command:
     # Check for 'doctor' as first positional arg
     if args.company and args.company.lower() == "doctor":
         return Command.DOCTOR
+
+    # Check for 'memory' as first positional arg
+    if args.company and args.company.lower() == "memory":
+        return Command.MEMORY
+
+    # Check for 'orchestrate' as first positional arg
+    if args.company and args.company.lower() == "orchestrate":
+        return Command.ORCHESTRATE
+
+    # Check for 'roadmap' as first positional arg
+    if args.company and args.company.lower() == "roadmap":
+        return Command.ROADMAP
+
+    # Check agentic architecture flags
+    if getattr(args, 'memory', None):
+        return Command.MEMORY
+    if getattr(args, 'memory_list', False):
+        return Command.MEMORY
+    if getattr(args, 'orchestrate', False):
+        return Command.ORCHESTRATE
+    if getattr(args, 'roadmap', False):
+        return Command.ROADMAP
+    if getattr(args, 'roadmap_version', None):
+        return Command.ROADMAP
 
     # Check utility flags
     if getattr(args, 'ai_strategy_only', None):
@@ -808,6 +892,252 @@ def _handle_ai_strategy_only(config: CLIConfig) -> int:
     else:
         console.error(f"{strategy_display} generation failed")
         return 1
+
+
+# =============================================================================
+# AGENTIC ARCHITECTURE HANDLERS
+# =============================================================================
+
+def _handle_memory(config: CLIConfig) -> int:
+    """Handle research memory commands."""
+    from pathlib import Path
+
+    from primr.agentic.memory import ResearchMemory
+
+    # Default memory path
+    memory_path = Path("./logs/research_memory")
+
+    try:
+        memory = ResearchMemory(storage_path=memory_path)
+    except Exception as e:
+        console.error(f"Failed to initialize research memory: {e}")
+        return 1
+
+    # List all companies
+    if config.memory_list:
+        console.banner("Research Memory")
+        companies = memory.list_companies()
+        if not companies:
+            console.info("No research memory found.")
+            console.info("Run research to start tracking hypotheses.")
+            return 0
+
+        console.info(f"Found {len(companies)} company/companies with research memory:")
+        console.blank()
+        for company in sorted(companies):
+            hypotheses = memory.get_hypotheses(company)
+            console.ok(f"  {company}: {len(hypotheses)} hypothesis/hypotheses")
+        return 0
+
+    # Show hypotheses for a specific company
+    company = config.memory_company
+    if not company:
+        # Check if company was passed as positional arg (website position when 'memory' is company)
+        if config.website:
+            company = config.website
+        elif config.company_name and config.company_name.lower() != "memory":
+            company = config.company_name
+        else:
+            console.error("Company name required")
+            console.info("Usage: primr memory \"Company Name\"")
+            console.info("   or: primr --memory \"Company Name\"")
+            console.info("   or: primr --memory-list")
+            return 1
+
+    console.banner(f"Research Memory: {company}")
+
+    hypotheses = memory.get_hypotheses(company)
+    if not hypotheses:
+        console.info(f"No hypotheses found for {company}")
+        console.info("Run research to generate hypotheses.")
+        return 0
+
+    console.info(f"Found {len(hypotheses)} hypothesis/hypotheses:")
+    console.blank()
+
+    # Group by confidence level
+    by_confidence = {}
+    for h in hypotheses:
+        level = h.confidence.value
+        if level not in by_confidence:
+            by_confidence[level] = []
+        by_confidence[level].append(h)
+
+    # Display in order: validated, high, medium, low
+    order = ["validated", "high", "medium", "low"]
+    for level in order:
+        if level in by_confidence:
+            console.step(f"{level.upper()} confidence ({len(by_confidence[level])})")
+            for h in by_confidence[level]:
+                console.info(f"  • {h.statement}")
+                if h.evidence:
+                    console.info(f"    Evidence: {h.evidence[:100]}...")
+                if h.topic:
+                    console.info(f"    Topic: {h.topic}")
+            console.blank()
+
+    return 0
+
+
+def _handle_orchestrate(config: CLIConfig) -> int:
+    """Handle orchestrated research command."""
+    import asyncio
+    from pathlib import Path
+
+    from primr.agentic.hooks import CostGuardHook, HookSystem, SSRFGuardHook
+    from primr.agentic.memory import ResearchMemory
+    from primr.agentic.orchestrator import OrchestratorConfig, ResearchOrchestrator
+
+    # Validate inputs - handle both "orchestrate Company URL" and "--orchestrate Company URL"
+    company_name = config.company_name
+    website = config.website
+
+    # If 'orchestrate' was used as positional, shift args
+    if company_name and company_name.lower() == "orchestrate":
+        company_name = website  # website position has company name
+        website = None  # Need to get from somewhere else
+
+    if not company_name or not website:
+        console.error("Company name and website required")
+        console.info("Usage: primr orchestrate \"Company Name\" https://company.com")
+        console.info("   or: primr \"Company Name\" https://company.com --orchestrate")
+        return 1
+
+    website = _ensure_valid_url(website)
+
+    console.banner("Orchestrated Research (Experimental)")
+    console.info(f"Company: {company_name}")
+    console.info(f"Website: {website}")
+    if config.orchestrate_max_cost:
+        console.info(f"Max Cost: ${config.orchestrate_max_cost:.2f}")
+    console.blank()
+
+    # Initialize components
+    memory_path = Path("./logs/research_memory")
+    output_path = Path("./output")
+
+    memory = ResearchMemory(storage_path=memory_path)
+    hooks = HookSystem()
+
+    # Register hooks
+    if config.orchestrate_max_cost:
+        hooks.register(CostGuardHook(max_cost_usd=config.orchestrate_max_cost))
+    hooks.register(SSRFGuardHook())
+
+    orchestrator_config = OrchestratorConfig(
+        output_dir=output_path,
+        fail_fast=False,
+    )
+
+    orchestrator = ResearchOrchestrator(
+        config=orchestrator_config,
+        memory=memory,
+        hook_system=hooks,
+    )
+
+    console.step("Running orchestrated pipeline...")
+
+    try:
+        result = asyncio.run(orchestrator.research(
+            company_name=company_name,
+            company_url=website,
+            mode="full",
+        ))
+
+        console.blank()
+
+        if result.is_success:
+            console.success_box(
+                "Research completed",
+                f"Duration: {result.duration_seconds:.1f}s"
+            )
+            if result.report_path:
+                console.info(f"Report: {result.report_path}")
+            console.info(f"Hypotheses: {len(result.hypotheses)}")
+            console.info(f"Stages: {', '.join(result.completed_stages)}")
+            return 0
+        else:
+            console.error("Research failed")
+            for error in result.errors:
+                console.error(f"  • {error}")
+            if result.completed_stages:
+                console.info(f"Completed stages: {', '.join(result.completed_stages)}")
+            return 1
+
+    except Exception as e:
+        console.error(f"Orchestration failed: {e}")
+        return 1
+
+
+def _handle_roadmap(config: CLIConfig) -> int:
+    """Handle roadmap query command."""
+    from primr.agentic.roadmap_api import RoadmapAPI
+
+    try:
+        api = RoadmapAPI()
+    except Exception as e:
+        console.error(f"Failed to load roadmap: {e}")
+        return 1
+
+    # Show specific version
+    if config.roadmap_version:
+        version_str = config.roadmap_version
+        if not version_str.startswith("v"):
+            version_str = f"v{version_str}"
+
+        version = api.get_version(version_str)
+        if not version:
+            console.error(f"Version {version_str} not found")
+            console.info("Available versions:")
+            for v in api.list_by_status("complete")[:5]:
+                console.info(f"  • {v.version}")
+            return 1
+
+        console.banner(f"Roadmap: {version.version}")
+        console.info(f"Status: {version.status.value}")
+        if version.goal:
+            console.info(f"Goal: {version.goal}")
+        console.blank()
+
+        if version.features:
+            console.step(f"Features ({len(version.features)})")
+            for feature in version.features:
+                console.info(f"  • {feature.name}")
+                if feature.description:
+                    console.info(f"    {feature.description[:80]}...")
+        return 0
+
+    # Show roadmap overview
+    console.banner("Primr Roadmap")
+
+    current = api.get_current_version()
+    if current:
+        console.info(f"Current Version: {current.version}")
+    next_ver = api.get_next_version()
+    if next_ver:
+        console.info(f"Next Version: {next_ver.version}")
+    console.blank()
+
+    # Show completed versions
+    completed = api.list_by_status("complete")
+    if completed:
+        console.step(f"Completed ({len(completed)})")
+        for v in completed[-5:]:  # Show last 5
+            console.ok(f"  {v.version}: {v.goal or 'No description'}")
+        if len(completed) > 5:
+            console.info(f"  ... and {len(completed) - 5} more")
+        console.blank()
+
+    # Show planned versions
+    planned = api.list_by_status("planned")
+    if planned:
+        console.step(f"Planned ({len(planned)})")
+        for v in planned[:3]:  # Show next 3
+            console.info(f"  {v.version}: {v.goal or 'No description'}")
+        console.blank()
+
+    console.info("Use --roadmap-version VERSION for details")
+    return 0
 
 
 def _run_preflight_checks(mode: str) -> tuple[bool, list[str]]:

@@ -76,7 +76,25 @@ create_ecr_repo() {
             --region "$AWS_REGION" \
             --image-scanning-configuration scanOnPush=true \
             --encryption-configuration encryptionType=AES256
-        log_success "ECR repository created"
+        
+        # Add lifecycle policy to limit image count (keep last 10 images)
+        aws ecr put-lifecycle-policy \
+            --repository-name "$ECR_REPO_NAME" \
+            --region "$AWS_REGION" \
+            --lifecycle-policy-text '{
+                "rules": [{
+                    "rulePriority": 1,
+                    "description": "Keep last 10 images",
+                    "selection": {
+                        "tagStatus": "any",
+                        "countType": "imageCountMoreThan",
+                        "countNumber": 10
+                    },
+                    "action": {"type": "expire"}
+                }]
+            }'
+        
+        log_success "ECR repository created with lifecycle policy"
     fi
 }
 
@@ -136,7 +154,30 @@ create_s3_bucket() {
             --public-access-block-configuration \
                 "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
         
-        log_success "S3 bucket created with encryption and versioning"
+        # Add lifecycle rule to clean up old artifacts (30 days for non-current versions, 90 days for current)
+        aws s3api put-bucket-lifecycle-configuration \
+            --bucket "$S3_BUCKET_NAME" \
+            --lifecycle-configuration '{
+                "Rules": [
+                    {
+                        "ID": "CleanupOldArtifacts",
+                        "Status": "Enabled",
+                        "Filter": {"Prefix": ""},
+                        "NoncurrentVersionExpiration": {"NoncurrentDays": 30},
+                        "AbortIncompleteMultipartUpload": {"DaysAfterInitiation": 7}
+                    },
+                    {
+                        "ID": "TransitionToIA",
+                        "Status": "Enabled",
+                        "Filter": {"Prefix": ""},
+                        "Transitions": [
+                            {"Days": 30, "StorageClass": "STANDARD_IA"}
+                        ]
+                    }
+                ]
+            }'
+        
+        log_success "S3 bucket created with encryption, versioning, and lifecycle rules"
     fi
 }
 
@@ -188,17 +229,40 @@ create_sqs_queue() {
     if [[ -n "$queue_url" ]]; then
         log_info "SQS queue already exists: $queue_url"
     else
-        # Load queue configuration
+        # Create dead-letter queue first
+        local dlq_name="${SQS_QUEUE_NAME%.fifo}-dlq.fifo"
+        local dlq_url
+        dlq_url=$(aws sqs create-queue \
+            --queue-name "$dlq_name" \
+            --region "$AWS_REGION" \
+            --attributes '{
+                "FifoQueue": "true",
+                "ContentBasedDeduplication": "true",
+                "MessageRetentionPeriod": "1209600"
+            }' \
+            --tags Deployment="$PRIMR_DEPLOYMENT" \
+            --query QueueUrl --output text)
+        
+        local dlq_arn
+        dlq_arn=$(aws sqs get-queue-attributes --queue-url "$dlq_url" --region "$AWS_REGION" \
+            --attribute-names QueueArn --query "Attributes.QueueArn" --output text)
+        
+        log_substep "Dead-letter queue created: $dlq_name"
+        
+        # Load queue configuration and add DLQ
         local queue_config="$SCRIPT_DIR/sqs-queue.json"
+        local queue_attrs
+        queue_attrs=$(cat "$queue_config" | jq --arg dlq_arn "$dlq_arn" \
+            '. + {"RedrivePolicy": "{\"deadLetterTargetArn\":\"" + $dlq_arn + "\",\"maxReceiveCount\":\"3\"}"}')
         
         queue_url=$(aws sqs create-queue \
             --queue-name "$SQS_QUEUE_NAME" \
             --region "$AWS_REGION" \
-            --attributes file://"$queue_config" \
+            --attributes "$queue_attrs" \
             --tags Deployment="$PRIMR_DEPLOYMENT" \
             --query QueueUrl --output text)
         
-        log_success "SQS FIFO queue created: $queue_url"
+        log_success "SQS FIFO queue created with DLQ: $queue_url"
     fi
     
     echo "$queue_url"
@@ -419,7 +483,13 @@ get_or_create_step_functions_role() {
             }]
         }'
     
-    # Add permissions for ECS, DynamoDB, SQS
+    # Get role ARNs for PassRole (least privilege)
+    local exec_role_arn
+    exec_role_arn=$(get_or_create_execution_role)
+    local task_role_arn
+    task_role_arn=$(get_or_create_task_role)
+    
+    # Add permissions for ECS, DynamoDB - scoped to specific resources
     aws iam put-role-policy \
         --role-name "$role_name" \
         --policy-name "StepFunctionsPolicy" \
@@ -428,13 +498,28 @@ get_or_create_step_functions_role() {
             \"Statement\": [
                 {
                     \"Effect\": \"Allow\",
-                    \"Action\": [\"ecs:RunTask\", \"ecs:StopTask\", \"ecs:DescribeTasks\"],
-                    \"Resource\": \"*\"
+                    \"Action\": [\"ecs:RunTask\"],
+                    \"Resource\": \"arn:aws:ecs:$AWS_REGION:$AWS_ACCOUNT_ID:task-definition/$ECS_TASK_FAMILY:*\",
+                    \"Condition\": {
+                        \"ArnEquals\": {
+                            \"ecs:cluster\": \"arn:aws:ecs:$AWS_REGION:$AWS_ACCOUNT_ID:cluster/$ECS_CLUSTER_NAME\"
+                        }
+                    }
+                },
+                {
+                    \"Effect\": \"Allow\",
+                    \"Action\": [\"ecs:StopTask\", \"ecs:DescribeTasks\"],
+                    \"Resource\": \"arn:aws:ecs:$AWS_REGION:$AWS_ACCOUNT_ID:task/*\",
+                    \"Condition\": {
+                        \"ArnEquals\": {
+                            \"ecs:cluster\": \"arn:aws:ecs:$AWS_REGION:$AWS_ACCOUNT_ID:cluster/$ECS_CLUSTER_NAME\"
+                        }
+                    }
                 },
                 {
                     \"Effect\": \"Allow\",
                     \"Action\": [\"iam:PassRole\"],
-                    \"Resource\": \"*\"
+                    \"Resource\": [\"$exec_role_arn\", \"$task_role_arn\"]
                 },
                 {
                     \"Effect\": \"Allow\",
@@ -444,12 +529,371 @@ get_or_create_step_functions_role() {
                 {
                     \"Effect\": \"Allow\",
                     \"Action\": [\"events:PutTargets\", \"events:PutRule\", \"events:DescribeRule\"],
-                    \"Resource\": \"*\"
+                    \"Resource\": \"arn:aws:events:$AWS_REGION:$AWS_ACCOUNT_ID:rule/StepFunctions*\"
                 }
             ]
         }"
     
     aws iam get-role --role-name "$role_name" --query Role.Arn --output text
+}
+
+# =============================================================================
+# RECONCILER (LAMBDA + EVENTBRIDGE)
+# =============================================================================
+
+RECONCILER_FUNCTION_NAME="$(resource_name "reconciler")"
+EVENTBRIDGE_RULE_NAME="$(resource_name "reconciler-schedule")"
+
+get_or_create_reconciler_role() {
+    local role_name="$(resource_name "reconciler-lambda")"
+    
+    if aws iam get-role --role-name "$role_name" &>/dev/null; then
+        aws iam get-role --role-name "$role_name" --query Role.Arn --output text
+        return
+    fi
+    
+    log_substep "Creating reconciler Lambda role: $role_name"
+    
+    # Create role with Lambda trust policy
+    aws iam create-role \
+        --role-name "$role_name" \
+        --assume-role-policy-document '{
+            "Version": "2012-10-17",
+            "Statement": [{
+                "Effect": "Allow",
+                "Principal": {"Service": "lambda.amazonaws.com"},
+                "Action": "sts:AssumeRole"
+            }]
+        }'
+    
+    # Attach basic Lambda execution policy (CloudWatch Logs)
+    aws iam attach-role-policy \
+        --role-name "$role_name" \
+        --policy-arn "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+    
+    # Attach X-Ray write access for tracing
+    aws iam attach-role-policy \
+        --role-name "$role_name" \
+        --policy-arn "arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess"
+    
+    # Add DynamoDB access for job store
+    aws iam put-role-policy \
+        --role-name "$role_name" \
+        --policy-name "DynamoDBAccess" \
+        --policy-document "{
+            \"Version\": \"2012-10-17\",
+            \"Statement\": [{
+                \"Effect\": \"Allow\",
+                \"Action\": [
+                    \"dynamodb:Query\",
+                    \"dynamodb:GetItem\",
+                    \"dynamodb:UpdateItem\",
+                    \"dynamodb:Scan\"
+                ],
+                \"Resource\": [
+                    \"arn:aws:dynamodb:$AWS_REGION:$AWS_ACCOUNT_ID:table/$DYNAMODB_TABLE_NAME\",
+                    \"arn:aws:dynamodb:$AWS_REGION:$AWS_ACCOUNT_ID:table/$DYNAMODB_TABLE_NAME/index/*\"
+                ]
+            }]
+        }"
+    
+    # Add S3 access for manifest checks
+    aws iam put-role-policy \
+        --role-name "$role_name" \
+        --policy-name "S3ManifestAccess" \
+        --policy-document "{
+            \"Version\": \"2012-10-17\",
+            \"Statement\": [{
+                \"Effect\": \"Allow\",
+                \"Action\": [\"s3:GetObject\", \"s3:ListBucket\"],
+                \"Resource\": [
+                    \"arn:aws:s3:::$S3_BUCKET_NAME\",
+                    \"arn:aws:s3:::$S3_BUCKET_NAME/*\"
+                ]
+            }]
+        }"
+    
+    # Wait for role to propagate
+    sleep 10
+    
+    aws iam get-role --role-name "$role_name" --query Role.Arn --output text
+}
+
+create_reconciler_lambda() {
+    log_step "Creating reconciler Lambda function: $RECONCILER_FUNCTION_NAME"
+    
+    # Check if function exists
+    if aws lambda get-function --function-name "$RECONCILER_FUNCTION_NAME" --region "$AWS_REGION" &>/dev/null; then
+        log_info "Reconciler Lambda already exists, updating..."
+        update_reconciler_lambda
+        return
+    fi
+    
+    # Get role ARN
+    local role_arn
+    role_arn=$(get_or_create_reconciler_role)
+    
+    # Create inline Python code for the Lambda handler
+    # This wraps the reconciler module
+    local handler_code='
+import json
+import os
+import boto3
+from deploy.control_plane.reconciler import Reconciler, ReconciliationConfig
+from deploy.control_plane.job_store import DynamoDBStore
+from deploy.storage import S3Store
+
+def handler(event, context):
+    """Lambda handler for reconciliation."""
+    # Get configuration from environment
+    table_name = os.environ.get("DYNAMODB_TABLE_NAME")
+    bucket_name = os.environ.get("S3_BUCKET_NAME")
+    deployment = os.environ.get("DEPLOYMENT", "prod")
+    region = os.environ.get("AWS_REGION", "us-east-1")
+    
+    # Create stores
+    job_store = DynamoDBStore(table_name=table_name, region=region)
+    artifact_store = S3Store(bucket=bucket_name, deployment=deployment, region=region)
+    
+    # Create reconciler with config
+    config = ReconciliationConfig(
+        max_duration_seconds=7200,  # 2 hours
+        cancellation_grace_seconds=300,  # 5 minutes
+        heartbeat_stale_seconds=600,  # 10 minutes
+    )
+    reconciler = Reconciler(job_store, artifact_store, config)
+    
+    # Run reconciliation
+    result = reconciler.reconcile()
+    
+    return {
+        "statusCode": 200,
+        "body": json.dumps(result.to_dict())
+    }
+'
+    
+    # Create a deployment package
+    local temp_dir
+    temp_dir=$(mktemp -d)
+    
+    # Copy the deploy module
+    cp -r "$SCRIPT_DIR/../" "$temp_dir/deploy"
+    
+    # Create handler file
+    echo "$handler_code" > "$temp_dir/lambda_handler.py"
+    
+    # Create zip
+    local zip_file="$temp_dir/reconciler.zip"
+    (cd "$temp_dir" && zip -r "$zip_file" . -x "*.pyc" -x "__pycache__/*")
+    
+    # Create Lambda function with X-Ray tracing enabled
+    aws lambda create-function \
+        --function-name "$RECONCILER_FUNCTION_NAME" \
+        --region "$AWS_REGION" \
+        --runtime python3.10 \
+        --role "$role_arn" \
+        --handler "lambda_handler.handler" \
+        --zip-file "fileb://$zip_file" \
+        --timeout 300 \
+        --memory-size 256 \
+        --tracing-config Mode=Active \
+        --environment "Variables={DYNAMODB_TABLE_NAME=$DYNAMODB_TABLE_NAME,S3_BUCKET_NAME=$S3_BUCKET_NAME,DEPLOYMENT=$PRIMR_DEPLOYMENT,AWS_REGION=$AWS_REGION}" \
+        --tags Deployment="$PRIMR_DEPLOYMENT"
+    
+    # Clean up
+    rm -rf "$temp_dir"
+    
+    log_success "Reconciler Lambda created with X-Ray tracing"
+}
+
+update_reconciler_lambda() {
+    log_substep "Updating reconciler Lambda code"
+    
+    # Create a deployment package (same as create)
+    local temp_dir
+    temp_dir=$(mktemp -d)
+    
+    local handler_code='
+import json
+import os
+import boto3
+from deploy.control_plane.reconciler import Reconciler, ReconciliationConfig
+from deploy.control_plane.job_store import DynamoDBStore
+from deploy.storage import S3Store
+
+def handler(event, context):
+    """Lambda handler for reconciliation."""
+    table_name = os.environ.get("DYNAMODB_TABLE_NAME")
+    bucket_name = os.environ.get("S3_BUCKET_NAME")
+    deployment = os.environ.get("DEPLOYMENT", "prod")
+    region = os.environ.get("AWS_REGION", "us-east-1")
+    
+    job_store = DynamoDBStore(table_name=table_name, region=region)
+    artifact_store = S3Store(bucket=bucket_name, deployment=deployment, region=region)
+    
+    config = ReconciliationConfig(
+        max_duration_seconds=7200,
+        cancellation_grace_seconds=300,
+        heartbeat_stale_seconds=600,
+    )
+    reconciler = Reconciler(job_store, artifact_store, config)
+    result = reconciler.reconcile()
+    
+    return {
+        "statusCode": 200,
+        "body": json.dumps(result.to_dict())
+    }
+'
+    
+    cp -r "$SCRIPT_DIR/../" "$temp_dir/deploy"
+    echo "$handler_code" > "$temp_dir/lambda_handler.py"
+    
+    local zip_file="$temp_dir/reconciler.zip"
+    (cd "$temp_dir" && zip -r "$zip_file" . -x "*.pyc" -x "__pycache__/*")
+    
+    aws lambda update-function-code \
+        --function-name "$RECONCILER_FUNCTION_NAME" \
+        --region "$AWS_REGION" \
+        --zip-file "fileb://$zip_file"
+    
+    rm -rf "$temp_dir"
+    
+    log_success "Reconciler Lambda updated"
+}
+
+create_eventbridge_rule() {
+    log_step "Creating EventBridge scheduled rule: $EVENTBRIDGE_RULE_NAME"
+    
+    # Check if rule exists
+    if aws events describe-rule --name "$EVENTBRIDGE_RULE_NAME" --region "$AWS_REGION" &>/dev/null; then
+        log_info "EventBridge rule already exists"
+        return
+    fi
+    
+    # Create rule that runs every 5 minutes
+    aws events put-rule \
+        --name "$EVENTBRIDGE_RULE_NAME" \
+        --region "$AWS_REGION" \
+        --schedule-expression "rate(5 minutes)" \
+        --state ENABLED \
+        --description "Triggers reconciler Lambda every 5 minutes" \
+        --tags Key=Deployment,Value="$PRIMR_DEPLOYMENT"
+    
+    # Get Lambda ARN
+    local lambda_arn
+    lambda_arn=$(aws lambda get-function --function-name "$RECONCILER_FUNCTION_NAME" --region "$AWS_REGION" \
+        --query Configuration.FunctionArn --output text)
+    
+    # Add Lambda as target
+    aws events put-targets \
+        --rule "$EVENTBRIDGE_RULE_NAME" \
+        --region "$AWS_REGION" \
+        --targets "Id=reconciler-target,Arn=$lambda_arn"
+    
+    # Add permission for EventBridge to invoke Lambda
+    aws lambda add-permission \
+        --function-name "$RECONCILER_FUNCTION_NAME" \
+        --region "$AWS_REGION" \
+        --statement-id "eventbridge-invoke" \
+        --action "lambda:InvokeFunction" \
+        --principal "events.amazonaws.com" \
+        --source-arn "arn:aws:events:$AWS_REGION:$AWS_ACCOUNT_ID:rule/$EVENTBRIDGE_RULE_NAME" \
+        2>/dev/null || true  # Ignore if permission already exists
+    
+    log_success "EventBridge rule created (runs every 5 minutes)"
+}
+
+# =============================================================================
+# CLOUDWATCH ALARMS
+# =============================================================================
+
+create_cloudwatch_alarms() {
+    log_step "Creating CloudWatch alarms for monitoring"
+    
+    local alarm_prefix="$(resource_name "alarm")"
+    
+    # Alarm: Reconciler Lambda errors
+    if ! aws cloudwatch describe-alarms --alarm-names "${alarm_prefix}-reconciler-errors" --region "$AWS_REGION" \
+        --query "MetricAlarms[0].AlarmName" --output text 2>/dev/null | grep -q "${alarm_prefix}"; then
+        aws cloudwatch put-metric-alarm \
+            --alarm-name "${alarm_prefix}-reconciler-errors" \
+            --region "$AWS_REGION" \
+            --alarm-description "Reconciler Lambda function errors" \
+            --metric-name Errors \
+            --namespace AWS/Lambda \
+            --statistic Sum \
+            --period 300 \
+            --threshold 1 \
+            --comparison-operator GreaterThanOrEqualToThreshold \
+            --evaluation-periods 2 \
+            --dimensions Name=FunctionName,Value="$RECONCILER_FUNCTION_NAME" \
+            --treat-missing-data notBreaching \
+            --tags Key=Deployment,Value="$PRIMR_DEPLOYMENT"
+        log_substep "Created reconciler error alarm"
+    fi
+    
+    # Alarm: DynamoDB throttling
+    if ! aws cloudwatch describe-alarms --alarm-names "${alarm_prefix}-dynamodb-throttle" --region "$AWS_REGION" \
+        --query "MetricAlarms[0].AlarmName" --output text 2>/dev/null | grep -q "${alarm_prefix}"; then
+        aws cloudwatch put-metric-alarm \
+            --alarm-name "${alarm_prefix}-dynamodb-throttle" \
+            --region "$AWS_REGION" \
+            --alarm-description "DynamoDB read/write throttling" \
+            --metric-name ThrottledRequests \
+            --namespace AWS/DynamoDB \
+            --statistic Sum \
+            --period 300 \
+            --threshold 5 \
+            --comparison-operator GreaterThanOrEqualToThreshold \
+            --evaluation-periods 2 \
+            --dimensions Name=TableName,Value="$DYNAMODB_TABLE_NAME" \
+            --treat-missing-data notBreaching \
+            --tags Key=Deployment,Value="$PRIMR_DEPLOYMENT"
+        log_substep "Created DynamoDB throttle alarm"
+    fi
+    
+    # Alarm: SQS DLQ messages (failed jobs)
+    local dlq_name="${SQS_QUEUE_NAME%.fifo}-dlq.fifo"
+    if ! aws cloudwatch describe-alarms --alarm-names "${alarm_prefix}-dlq-messages" --region "$AWS_REGION" \
+        --query "MetricAlarms[0].AlarmName" --output text 2>/dev/null | grep -q "${alarm_prefix}"; then
+        aws cloudwatch put-metric-alarm \
+            --alarm-name "${alarm_prefix}-dlq-messages" \
+            --region "$AWS_REGION" \
+            --alarm-description "Messages in dead-letter queue (failed jobs)" \
+            --metric-name ApproximateNumberOfMessagesVisible \
+            --namespace AWS/SQS \
+            --statistic Average \
+            --period 300 \
+            --threshold 1 \
+            --comparison-operator GreaterThanOrEqualToThreshold \
+            --evaluation-periods 1 \
+            --dimensions Name=QueueName,Value="$dlq_name" \
+            --treat-missing-data notBreaching \
+            --tags Key=Deployment,Value="$PRIMR_DEPLOYMENT"
+        log_substep "Created DLQ message alarm"
+    fi
+    
+    # Alarm: SQS queue age (jobs waiting too long)
+    if ! aws cloudwatch describe-alarms --alarm-names "${alarm_prefix}-queue-age" --region "$AWS_REGION" \
+        --query "MetricAlarms[0].AlarmName" --output text 2>/dev/null | grep -q "${alarm_prefix}"; then
+        aws cloudwatch put-metric-alarm \
+            --alarm-name "${alarm_prefix}-queue-age" \
+            --region "$AWS_REGION" \
+            --alarm-description "Jobs waiting in queue too long (>30 min)" \
+            --metric-name ApproximateAgeOfOldestMessage \
+            --namespace AWS/SQS \
+            --statistic Maximum \
+            --period 300 \
+            --threshold 1800 \
+            --comparison-operator GreaterThanOrEqualToThreshold \
+            --evaluation-periods 2 \
+            --dimensions Name=QueueName,Value="$SQS_QUEUE_NAME" \
+            --treat-missing-data notBreaching \
+            --tags Key=Deployment,Value="$PRIMR_DEPLOYMENT"
+        log_substep "Created queue age alarm"
+    fi
+    
+    log_success "CloudWatch alarms created"
 }
 
 # =============================================================================
@@ -541,6 +985,13 @@ cmd_deploy() {
     create_task_definition
     create_step_function
     
+    # Create reconciler (Lambda + EventBridge)
+    create_reconciler_lambda
+    create_eventbridge_rule
+    
+    # Create monitoring alarms
+    create_cloudwatch_alarms
+    
     log_success "Deployment complete!"
     log_info ""
     log_info "Next steps:"
@@ -553,18 +1004,47 @@ cmd_deploy() {
 # =============================================================================
 
 cmd_destroy() {
+    local force="${1:-}"
+    
     log_step "Destroying Primr AWS deployment"
     log_warn "This will delete all resources for deployment: $PRIMR_DEPLOYMENT"
     
-    read -p "Are you sure? (yes/no): " confirm
-    if [[ "$confirm" != "yes" ]]; then
-        log_info "Aborted"
-        return 1
+    if [[ "$force" != "--force" ]]; then
+        read -p "Are you sure? (yes/no): " confirm
+        if [[ "$confirm" != "yes" ]]; then
+            log_info "Aborted"
+            return 1
+        fi
     fi
     
     check_prerequisites
     
     # Delete in reverse order of dependencies
+    
+    # CloudWatch alarms
+    local alarm_prefix="$(resource_name "alarm")"
+    local alarms
+    alarms=$(aws cloudwatch describe-alarms --alarm-name-prefix "$alarm_prefix" --region "$AWS_REGION" \
+        --query "MetricAlarms[].AlarmName" --output text 2>/dev/null || echo "")
+    if [[ -n "$alarms" ]]; then
+        log_substep "Deleting CloudWatch alarms"
+        for alarm in $alarms; do
+            aws cloudwatch delete-alarms --alarm-names "$alarm" --region "$AWS_REGION" 2>/dev/null || true
+        done
+    fi
+    
+    # EventBridge rule (must remove targets first)
+    if aws events describe-rule --name "$EVENTBRIDGE_RULE_NAME" --region "$AWS_REGION" &>/dev/null; then
+        log_substep "Deleting EventBridge rule"
+        aws events remove-targets --rule "$EVENTBRIDGE_RULE_NAME" --region "$AWS_REGION" --ids "reconciler-target" 2>/dev/null || true
+        aws events delete-rule --name "$EVENTBRIDGE_RULE_NAME" --region "$AWS_REGION"
+    fi
+    
+    # Reconciler Lambda
+    if aws lambda get-function --function-name "$RECONCILER_FUNCTION_NAME" --region "$AWS_REGION" &>/dev/null; then
+        log_substep "Deleting reconciler Lambda"
+        aws lambda delete-function --function-name "$RECONCILER_FUNCTION_NAME" --region "$AWS_REGION"
+    fi
     
     # Step Functions
     local state_machine_arn
@@ -609,7 +1089,38 @@ cmd_destroy() {
         aws ecr delete-repository --repository-name "$ECR_REPO_NAME" --region "$AWS_REGION" --force
     fi
     
-    log_success "Destroy complete"
+    # IAM roles (delete policies first, then roles)
+    local roles=(
+        "$(resource_name "ecs-execution")"
+        "$(resource_name "ecs-task")"
+        "$(resource_name "stepfunctions")"
+        "$(resource_name "reconciler-lambda")"
+    )
+    
+    for role_name in "${roles[@]}"; do
+        if aws iam get-role --role-name "$role_name" &>/dev/null; then
+            log_substep "Deleting IAM role: $role_name"
+            
+            # Detach managed policies
+            local policies
+            policies=$(aws iam list-attached-role-policies --role-name "$role_name" --query "AttachedPolicies[].PolicyArn" --output text 2>/dev/null || echo "")
+            for policy_arn in $policies; do
+                aws iam detach-role-policy --role-name "$role_name" --policy-arn "$policy_arn" 2>/dev/null || true
+            done
+            
+            # Delete inline policies
+            local inline_policies
+            inline_policies=$(aws iam list-role-policies --role-name "$role_name" --query "PolicyNames[]" --output text 2>/dev/null || echo "")
+            for policy_name in $inline_policies; do
+                aws iam delete-role-policy --role-name "$role_name" --policy-name "$policy_name" 2>/dev/null || true
+            done
+            
+            # Delete the role
+            aws iam delete-role --role-name "$role_name" 2>/dev/null || true
+        fi
+    done
+    
+    log_success "Destroy complete - all resources cleaned up"
 }
 
 # =============================================================================
@@ -661,6 +1172,22 @@ cmd_validate() {
         log_substep "ECS cluster: OK"
     else
         log_error "ECS cluster not found"
+        ((errors++))
+    fi
+    
+    # Check Reconciler Lambda
+    if aws lambda get-function --function-name "$RECONCILER_FUNCTION_NAME" --region "$AWS_REGION" &>/dev/null; then
+        log_substep "Reconciler Lambda: OK"
+    else
+        log_error "Reconciler Lambda not found"
+        ((errors++))
+    fi
+    
+    # Check EventBridge rule
+    if aws events describe-rule --name "$EVENTBRIDGE_RULE_NAME" --region "$AWS_REGION" &>/dev/null; then
+        log_substep "EventBridge rule: OK"
+    else
+        log_error "EventBridge rule not found"
         ((errors++))
     fi
     
@@ -723,7 +1250,7 @@ usage() {
     
     echo "Commands:"
     print_usage_command "deploy" "Deploy all AWS resources"
-    print_usage_command "destroy" "Tear down all AWS resources"
+    print_usage_command "destroy [--force]" "Tear down all AWS resources (--force skips confirmation)"
     print_usage_command "validate" "Validate deployed resources"
     print_usage_command "secrets" "Manage secrets (set, get, list, delete)"
     echo ""
@@ -804,7 +1331,7 @@ main() {
             cmd_deploy
             ;;
         destroy)
-            cmd_destroy
+            cmd_destroy "${1:-}"
             ;;
         validate)
             cmd_validate

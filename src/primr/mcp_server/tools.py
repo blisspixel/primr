@@ -11,6 +11,11 @@ This module provides executable tools for research operations:
 - clear_jobs - Clear stale jobs
 - cancel_job - Cancel active job
 
+Agentic tools (from agentic_tools.py):
+- query_roadmap - Query roadmap for version status, blockers, features
+- get_hypotheses - Retrieve hypotheses for a company
+- save_hypothesis - Save or update a hypothesis
+
 Requirements: 5.1-5.13, 6.1-6.7, 7.1-7.6, 8.1-8.6, 18.1-18.12
 """
 
@@ -21,6 +26,7 @@ from typing import TYPE_CHECKING, Any
 from mcp.server import Server
 from mcp.types import TextContent, Tool
 
+from primr.mcp_server.agentic_tools import handle_agentic_tool, register_agentic_tools
 from primr.mcp_server.job_store import JobInProgressError
 from primr.mcp_server.types import (
     MCPErrorCode,
@@ -36,10 +42,13 @@ logger = logging.getLogger(__name__)
 def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
     """Register all Primr tools with the MCP server."""
 
+    # Get agentic tools
+    agentic_tools = register_agentic_tools(server, mcp_server)
+
     @server.list_tools()
     async def list_tools() -> list[Tool]:
         """List available tools."""
-        return [
+        base_tools = [
             Tool(
                 name="estimate_run",
                 description="Estimate cost and time for a research run without executing",
@@ -185,6 +194,8 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
                 },
             ),
         ]
+        # Include agentic tools
+        return base_tools + agentic_tools
 
     @server.call_tool()
     async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
@@ -210,6 +221,11 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
                 }),
 
             )]
+
+        # Try agentic tools first
+        agentic_result = await handle_agentic_tool(name, arguments, mcp_server)
+        if agentic_result is not None:
+            return agentic_result
 
         # Dispatch to handler
         if name == "estimate_run":

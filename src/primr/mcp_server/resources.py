@@ -7,6 +7,11 @@ This module provides read-only resources for state inspection:
 - primr://output/artifacts - Pipeline stage artifacts
 - primr://config - Configuration state
 
+Agentic resources (from agentic_resources.py):
+- primr://roadmap - Roadmap data as JSON
+- primr://memory/{company} - Company research memory
+- primr://context - Current context map summary
+
 Requirements: 2.1-2.13, 3.1-3.6, 3A.1-3A.8, 4.1-4.7
 """
 
@@ -20,6 +25,7 @@ from mcp.server import Server
 from mcp.server.lowlevel.helper_types import ReadResourceContents
 from mcp.types import Resource
 
+from primr.mcp_server.agentic_resources import get_agentic_resources, read_agentic_resource
 from primr.mcp_server.types import (
     ArtifactInfo,
     ArtifactsResponse,
@@ -47,10 +53,13 @@ ARTIFACT_FILES = {
 def register_resources(server: Server, mcp_server: "PrimrMCPServer") -> None:
     """Register all Primr resources with the MCP server."""
 
+    # Get agentic resources
+    agentic_resources = get_agentic_resources()
+
     @server.list_resources()
     async def list_resources() -> list[Resource]:
         """List available resources."""
-        return [
+        base_resources = [
             Resource(
                 uri="primr://research/status",
                 name="Research Status",
@@ -94,11 +103,18 @@ def register_resources(server: Server, mcp_server: "PrimrMCPServer") -> None:
                 mimeType="application/json",
             ),
         ]
+        # Include agentic resources
+        return base_resources + agentic_resources
 
     @server.read_resource()
     async def read_resource(uri: str) -> list[ReadResourceContents]:
         """Read a resource by URI."""
         uri_str = str(uri)
+
+        # Try agentic resources first
+        agentic_result = read_agentic_resource(uri_str, mcp_server)
+        if agentic_result is not None:
+            return agentic_result
 
         if uri_str == "primr://research/status" or uri_str.startswith("primr://research/status"):
             return _read_research_status(mcp_server)

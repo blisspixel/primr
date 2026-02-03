@@ -228,18 +228,56 @@ The runner includes comprehensive SSRF protection:
 
 **AWS**
 ```bash
+# Tail runner logs
 aws logs tail /ecs/primr-runner --follow
+
+# Search for specific job
+aws logs filter-log-events \
+  --log-group-name /ecs/primr-runner \
+  --filter-pattern '{ $.job_id = "abc123" }'
+
+# View control plane logs
+aws logs tail /aws/lambda/primr-control-plane --follow
 ```
 
 **Azure**
 ```bash
+# View runner logs
 az containerapp logs show -n primr-runner -g primr-rg
+
+# Query Log Analytics
+az monitor log-analytics query \
+  --workspace primr-workspace \
+  --analytics-query "ContainerAppConsoleLogs | where ContainerName == 'runner'"
 ```
 
 **GCP**
 ```bash
-gcloud logging read "resource.type=cloud_run_job"
+# View runner logs
+gcloud logging read "resource.type=cloud_run_job AND resource.labels.job_name=primr-runner"
+
+# Filter by job ID
+gcloud logging read 'jsonPayload.job_id="abc123"'
+
+# View control plane logs
+gcloud logging read "resource.type=cloud_run_revision AND resource.labels.service_name=primr-control-plane"
 ```
+
+### Metrics Access
+
+The control plane exposes metrics at `/metrics` (JSON) and `/metrics/prometheus` (Prometheus format).
+
+**AWS CloudWatch Metrics**
+- Custom metrics are published to the `Primr` namespace
+- View in CloudWatch console or query via CLI
+
+**Azure Monitor**
+- Metrics available in Azure Monitor
+- Create dashboards in Azure Portal
+
+**GCP Cloud Monitoring**
+- Metrics available in Cloud Monitoring
+- Create dashboards in GCP Console
 
 ## Lifecycle Management
 
@@ -289,3 +327,63 @@ Configure S3 lifecycle policy for artifact cleanup:
 | Secrets | Secrets Manager | Key Vault | Secret Manager |
 | Max Timeout | 120 min | 120 min | 120 min |
 | Scale to Zero | Yes | Yes | Yes |
+
+## Production Hardening
+
+Each provider deployment includes production-grade features beyond the basic architecture.
+
+### AWS Production Features
+
+**Resource Lifecycle:**
+- ECR lifecycle policy keeps last 10 images, auto-deletes older ones
+- S3 lifecycle rules transition artifacts to Infrequent Access after 30 days
+- S3 versioning with non-current version cleanup after 7 days
+
+**Reliability:**
+- SQS dead-letter queue captures failed messages after 3 retries
+- Step Functions role scoped to specific resources (least-privilege IAM)
+- DynamoDB on-demand capacity with auto-scaling
+
+**Observability:**
+- X-Ray tracing enabled on reconciler Lambda
+- CloudWatch alarms for:
+  - Lambda error rate > 5%
+  - DynamoDB throttled requests
+  - Dead-letter queue message count > 0
+  - Queue message age > 15 minutes
+
+### Azure Production Features
+
+**Resource Scaling:**
+- Cosmos DB autoscale: 400-4000 RU/s (adjusts to load automatically)
+- Container Apps scale-to-zero with min/max replica configuration
+
+**Security:**
+- Managed identity for all service-to-service authentication
+- RBAC roles: Cosmos DB Data Contributor, Storage Blob Data Contributor, Key Vault Secrets User
+- No connection strings in environment variables
+
+**Observability:**
+- Application Insights for distributed tracing
+- Log Analytics workspace for centralized logging
+- Custom metrics for job duration and success rates
+
+### GCP Production Features
+
+**Security:**
+- Dedicated service account for Cloud Function (not default App Engine SA)
+- Least-privilege IAM roles:
+  - `roles/datastore.user` for Firestore access
+  - `roles/storage.objectViewer` for GCS artifact retrieval
+  - `roles/run.invoker` for Cloud Run invocation
+- Cloud Scheduler uses dedicated service account with OIDC authentication
+
+**Performance:**
+- Firestore composite indexes for efficient reconciler queries:
+  - `(status, updated_at)` for timeout detection
+  - `(status, deployment)` for environment-scoped queries
+
+**Observability:**
+- Cloud Trace integration
+- Cloud Logging with structured JSON
+- Cloud Monitoring dashboards
