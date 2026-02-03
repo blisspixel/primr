@@ -101,6 +101,18 @@ from primr.utils.retry import (
     RetryPolicy,
     RetryPolicyManager,
 )
+from primr.utils.security import (
+    SecurityAuditLogger,
+    generate_secure_id,
+    generate_secure_token,
+    get_secret_from_env,
+    hash_secret,
+    mask_dict_values,
+    mask_sensitive_data,
+    sanitize_log_input,
+    secure_compare,
+    verify_hashed_secret,
+)
 from primr.utils.type_guards import (
     TypeValidationError,
     is_valid_type,
@@ -219,6 +231,17 @@ __all__ = [
     "Metrics",
     "emit_metrics",
     "tracked_operation",
+    # Security
+    "secure_compare",
+    "hash_secret",
+    "verify_hashed_secret",
+    "mask_sensitive_data",
+    "mask_dict_values",
+    "SecurityAuditLogger",
+    "sanitize_log_input",
+    "generate_secure_token",
+    "generate_secure_id",
+    "get_secret_from_env",
     # Validators
     "InputValidationError",
     "validate_url",

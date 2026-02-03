@@ -257,14 +257,19 @@ All strategies use the Strategic Overview as primary context and generate compan
 
 ## Security
 
-Primr underwent security review in January 2026. Key protections include:
+Security review conducted February 2026. Protections include:
 
-- XXE protection via secure XML parsing
+- JWT authentication with signature verification
 - SSRF protection via URL validation
-- Input validation across user inputs
-- Dependency scanning via Bandit and Safety
+- XXE protection via secure XML parsing
+- Path traversal protection
+- Security headers (HSTS, CSP, X-Frame-Options)
+- API key rotation support
+- Rate limiting
 
-See [docs/SECURITY_REVIEW_2026-01-21.md](docs/SECURITY_REVIEW_2026-01-21.md) for the security audit report.
+See [docs/SECURITY_REVIEW_2026-02-02.md](docs/SECURITY_REVIEW_2026-02-02.md) for details and [docs/SECURITY_OPS.md](docs/SECURITY_OPS.md) for operational guidance.
+
+Not externally audited. Run your own assessment before production use.
 
 ## Code Quality
 

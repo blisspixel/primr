@@ -42,11 +42,11 @@ Primr's QA system evaluates reports against consultant preparation criteria:
 
 ### Score Interpretation
 
-| Score Range | Color | Meaning |
-|-------------|-------|---------|
-| 85+ | 🟢 Green | Excellent - ready for use |
-| 70-84 | 🟡 Yellow | Acceptable - may need refinement |
-| <70 | 🔴 Red | Needs work - review weak sections |
+| Score Range | Meaning |
+|-------------|---------|
+| 85+ | Excellent - ready for use |
+| 70-84 | Acceptable - may need refinement |
+| Below 70 | Needs work - review weak sections |
 
 ## Operational Capabilities
 

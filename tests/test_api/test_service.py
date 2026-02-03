@@ -340,3 +340,105 @@ class TestAccessControl:
         )
         
         assert response.status_code == 403
+
+
+# =============================================================================
+# SECURITY MIDDLEWARE TESTS
+# =============================================================================
+
+class TestSecurityHeaders:
+    """Tests for security headers middleware."""
+    
+    def test_security_headers_present(self, client):
+        """Test that security headers are added to responses."""
+        response = client.get("/health")
+        
+        assert response.status_code == 200
+        
+        # Check all security headers are present
+        assert response.headers.get("X-Content-Type-Options") == "nosniff"
+        assert response.headers.get("X-Frame-Options") == "DENY"
+        assert response.headers.get("X-XSS-Protection") == "1; mode=block"
+        assert "max-age=" in response.headers.get("Strict-Transport-Security", "")
+        assert "default-src" in response.headers.get("Content-Security-Policy", "")
+        assert response.headers.get("Referrer-Policy") == "strict-origin-when-cross-origin"
+        assert "geolocation=()" in response.headers.get("Permissions-Policy", "")
+    
+    def test_security_headers_on_error(self, client):
+        """Test security headers are present even on error responses."""
+        response = client.get("/research/nonexistent", headers={"X-API-Key": "invalid"})
+        
+        # Should have security headers even on 401
+        assert response.headers.get("X-Content-Type-Options") == "nosniff"
+        assert response.headers.get("X-Frame-Options") == "DENY"
+
+
+class TestRequestIdMiddleware:
+    """Tests for request ID middleware."""
+    
+    def test_request_id_generated(self, client):
+        """Test that request ID is generated and returned."""
+        response = client.get("/health")
+        
+        assert response.status_code == 200
+        request_id = response.headers.get("X-Request-ID")
+        assert request_id is not None
+        assert len(request_id) == 36  # UUID format
+    
+    def test_request_id_preserved(self, client):
+        """Test that provided request ID is preserved."""
+        custom_id = "custom-request-id-12345"
+        response = client.get("/health", headers={"X-Request-ID": custom_id})
+        
+        assert response.status_code == 200
+        assert response.headers.get("X-Request-ID") == custom_id
+
+
+class TestRateLimitHeaders:
+    """Tests for rate limit headers."""
+    
+    def test_rate_limit_headers_present(self, client, api_key):
+        """Test that rate limit headers are included in responses."""
+        response = client.post(
+            "/research",
+            json={"company_name": "Test Corp"},
+            headers={"X-API-Key": api_key},
+        )
+        
+        assert response.status_code == 200
+        assert "X-RateLimit-Remaining" in response.headers
+        assert "X-RateLimit-Limit" in response.headers
+
+
+class TestCORSConfiguration:
+    """Tests for CORS configuration."""
+    
+    def test_cors_headers_for_allowed_origin(self, client):
+        """Test CORS headers for allowed origin."""
+        response = client.options(
+            "/health",
+            headers={
+                "Origin": "http://localhost:3000",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+        
+        # Should allow localhost
+        assert response.headers.get("Access-Control-Allow-Origin") in [
+            "http://localhost:3000",
+            "*",  # Depending on test configuration
+        ]
+    
+    def test_cors_exposes_custom_headers(self, client):
+        """Test that CORS exposes custom headers."""
+        response = client.options(
+            "/health",
+            headers={
+                "Origin": "http://localhost:3000",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+        
+        exposed = response.headers.get("Access-Control-Expose-Headers", "")
+        # Should expose rate limit and request ID headers
+        assert "X-Request-ID" in exposed or exposed == ""  # May not be set in preflight

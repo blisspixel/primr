@@ -7,21 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.5.1] - 2026-02-02
 
+### Added
+- JWT signature verification (HMAC-SHA256/384/512)
+- Security headers middleware
+- Request ID tracking
+- Rate limit headers
+- API key rotation with grace periods
+- API key expiration support
+- Security utilities module
+- Security operations guide
+
 ### Fixed
-- Removed dead code in deep_research.py (unreachable code after return statement)
-- Fixed Python 3.10 compatibility in MCP server modules (datetime.UTC -> timezone.utc)
+- Removed dead code in deep_research.py
+- Fixed Python 3.10 compatibility in MCP server modules
 - Added missing COMMON_PAGE_PATTERNS re-export in scrape.py
-- Updated test_scrape.py and test_link_discovery.py to use correct imports
-- Fixed exception chaining (B904) in deep_research.py, browsers.py, migration.py, validation.py, report_analyzer.py
-- Fixed ambiguous variable names (E741) in content_extractor.py, pagination.py, content.py
-- Fixed multiple statements on one line (E701) in browsers.py
-- Removed duplicate method definitions (F811) in qa/integration.py
-- Fixed import shadowed by loop variable (F402) in type_guards.py
-- Updated Union type annotation to use | syntax (UP007) in types.py
-- Added noqa comments for intentional unused imports in tier_registry.py
+- Fixed exception chaining in multiple modules
+- Fixed ambiguous variable names
+- Fixed multiple statements on one line in browsers.py
+- Removed duplicate method definitions in qa/integration.py
+- Fixed import shadowed by loop variable in type_guards.py
 
 ### Changed
-- Updated ruff configuration to ignore intentional patterns (E402, N802, N806, UP017)
+- CORS now restricts origins, methods, and headers
+- JWT tokens require valid signatures
+- Admin tokens hashed before comparison
+
+### Documentation
+- docs/SECURITY_REVIEW_2026-02-02.md
+- docs/SECURITY_OPS.md
 
 ## [1.5.0] - 2026-02-02
 

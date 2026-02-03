@@ -259,7 +259,7 @@ primr-mcp --http --port 8000
 | 1.4.0 | Feb 2026 | MCP Server for AI agent integration |
 | 1.4.1 | Feb 2026 | Open Claw integration |
 | 1.5.0 | Feb 2026 | Code quality improvements |
-| 1.5.1 | Feb 2026 | Code quality fixes, ruff compliance |
+| 1.5.1 | Feb 2026 | Security hardening, API key rotation |
 | 1.6.0 | TBD | QA-driven report iteration |
 
 ## Final Note
