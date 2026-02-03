@@ -589,3 +589,22 @@ class ResearchMemory:
             return True
 
         return False
+
+    def list_companies(self) -> list[str]:
+        """
+        List all companies with research memory.
+
+        Returns:
+            List of company names with stored memory
+        """
+        companies = []
+        for path in self._storage_path.glob("*.yaml"):
+            try:
+                with open(path, encoding="utf-8") as f:
+                    data = yaml.safe_load(f)
+                    if data and "company_name" in data:
+                        companies.append(data["company_name"])
+            except (yaml.YAMLError, OSError):
+                # Skip invalid files
+                continue
+        return companies

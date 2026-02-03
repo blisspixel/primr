@@ -1085,18 +1085,21 @@ def _handle_roadmap(config: CLIConfig) -> int:
         if not version_str.startswith("v"):
             version_str = f"v{version_str}"
 
-        version = api.get_version(version_str)
+        # Remove 'v' prefix for lookup since Version uses number without 'v'
+        version_num = version_str[1:] if version_str.startswith("v") else version_str
+        version = api.get_version(version_num)
         if not version:
             console.error(f"Version {version_str} not found")
             console.info("Available versions:")
-            for v in api.list_by_status("complete")[:5]:
-                console.info(f"  • {v.version}")
+            from primr.agentic.models import VersionStatus
+            for v in api.list_by_status(VersionStatus.COMPLETED)[:5]:
+                console.info(f"  • v{v.number}")
             return 1
 
-        console.banner(f"Roadmap: {version.version}")
+        console.banner(f"Roadmap: v{version.number}")
         console.info(f"Status: {version.status.value}")
-        if version.goal:
-            console.info(f"Goal: {version.goal}")
+        if version.title:
+            console.info(f"Title: {version.title}")
         console.blank()
 
         if version.features:
@@ -1112,28 +1115,29 @@ def _handle_roadmap(config: CLIConfig) -> int:
 
     current = api.get_current_version()
     if current:
-        console.info(f"Current Version: {current.version}")
+        console.info(f"Current Version: v{current.number}")
     next_ver = api.get_next_version()
     if next_ver:
-        console.info(f"Next Version: {next_ver.version}")
+        console.info(f"Next Version: v{next_ver.number}")
     console.blank()
 
     # Show completed versions
-    completed = api.list_by_status("complete")
+    from primr.agentic.models import VersionStatus
+    completed = api.list_by_status(VersionStatus.COMPLETED)
     if completed:
         console.step(f"Completed ({len(completed)})")
         for v in completed[-5:]:  # Show last 5
-            console.ok(f"  {v.version}: {v.goal or 'No description'}")
+            console.ok(f"  v{v.number}: {v.title or 'No description'}")
         if len(completed) > 5:
             console.info(f"  ... and {len(completed) - 5} more")
         console.blank()
 
     # Show planned versions
-    planned = api.list_by_status("planned")
+    planned = api.list_by_status(VersionStatus.PLANNED)
     if planned:
         console.step(f"Planned ({len(planned)})")
         for v in planned[:3]:  # Show next 3
-            console.info(f"  {v.version}: {v.goal or 'No description'}")
+            console.info(f"  v{v.number}: {v.title or 'No description'}")
         console.blank()
 
     console.info("Use --roadmap-version VERSION for details")
