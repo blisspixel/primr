@@ -1,136 +1,149 @@
 # Error Migration Guide
 
-This document describes the migration from legacy error classes to the typed error hierarchy introduced in v1.5.0.
+This document describes the typed error hierarchy in Primr v1.5.0.
 
 ## Overview
 
-Primr v1.5.0 introduces a unified typed error hierarchy that provides:
-- Automatic retry classification via `is_retryable` property
-- Structured error context with `ErrorContext` dataclass
-- Clear categorization (network, API, validation, resource, internal)
+Primr v1.5.0 uses a unified typed error hierarchy that provides:
+- Automatic retry classification via `recoverable` property
+- Structured error context with correlation IDs
+- Clear categorization (ai, scraping, search, configuration, validation, etc.)
+- Backward-compatible aliases for existing code
 
-## Migration Table
+## Error Classes
 
-| Legacy Error | New Typed Error | Category |
-|-------------|-----------------|----------|
-| `ResearchError` | `PrimrError` | Base class |
-| `RateLimitError` | `TypedRateLimitError` | API |
-| `APIError` | `TypedAPIError` | API |
-| `NetworkError` | `TypedNetworkError` | Network |
-| `TimeoutError` | `TypedTimeoutError` | Network |
-| `ValidationError` | `TypedValidationError` | Validation |
-| `ConfigurationError` | `TypedConfigurationError` | Validation |
-| `ResourceError` | `TypedResourceError` | Resource |
-| `ContentError` | `TypedContentError` | Resource |
-| `InternalError` | `TypedInternalError` | Internal |
+| Error Class | Category | Recoverable | Use Case |
+|-------------|----------|-------------|----------|
+| `PrimrError` | general | No | Base class for all errors |
+| `TransientError` | transient | Yes | Base for retryable errors |
+| `PermanentError` | permanent | No | Base for non-retryable errors |
+| `AIError` | ai | Yes | AI/LLM operation failures |
+| `ScrapingError` | scraping | Yes | Web scraping failures |
+| `SearchError` | search | Yes | Search API failures |
+| `RateLimitError` | rate_limit | Yes | API rate limit exceeded |
+| `ConfigurationError` | configuration | No | Invalid/missing configuration |
+| `ValidationError` | validation | No | Input validation failures |
+| `OutputError` | output | No | Report generation failures |
+| `NetworkError` | network | Yes | Network connectivity issues |
 
-## Code Examples
+## Usage Examples
 
-### Before (Legacy)
+### Basic Error Handling
 
 ```python
-from primr.utils.errors import RateLimitError, APIError
+from primr.utils.errors import AIError, ScrapingError, ConfigurationError
 
 try:
     result = await api_call()
-except RateLimitError as e:
-    # Manual retry logic
-    if should_retry(e):
-        await asyncio.sleep(e.retry_after or 60)
+except AIError as e:
+    if e.recoverable:
+        # Safe to retry
+        await asyncio.sleep(e.retry_after or 1.0)
         result = await api_call()
-except APIError as e:
-    logger.error(f"API failed: {e}")
-    raise
+    else:
+        raise
+except ConfigurationError as e:
+    # Not recoverable - fix configuration
+    print(f"Configuration error: {e.message}")
+    print(f"Guidance: {e.guidance}")
 ```
 
-### After (Typed Hierarchy)
+### Error with Context
 
 ```python
-from primr.utils.errors import TypedRateLimitError, TypedAPIError
+from primr.utils.errors import ScrapingError
 
-try:
-    result = await api_call()
-except TypedRateLimitError as e:
-    # Automatic retry classification
-    if e.is_retryable:
-        await asyncio.sleep(e.retry_after or 60)
-        result = await api_call()
-except TypedAPIError as e:
-    # Structured context available
-    logger.error(f"API failed: {e.message}", extra={
-        "status_code": e.status_code,
-        "context": e.context.to_dict() if e.context else None
-    })
-    raise
-```
-
-### Using ErrorContext
-
-```python
-from primr.utils.errors import TypedNetworkError, ErrorContext
-
-# Create error with rich context
-error = TypedNetworkError(
-    message="Connection refused",
-    context=ErrorContext(
-        operation="fetch_page",
-        url="https://example.com",
-        attempt=3,
-        max_attempts=5,
-        metadata={"timeout": 30}
-    )
+# Create error with context
+error = ScrapingError(
+    message="Failed to scrape page",
+    url="https://example.com",
+    status_code=403,
+    tier="playwright",
+    cause=original_exception
 )
 
-# Access context
-print(error.context.operation)  # "fetch_page"
-print(error.is_retryable)       # True (network errors are retryable)
+# Access attributes
+print(error.url)           # "https://example.com"
+print(error.status_code)   # 403
+print(error.recoverable)   # True
+print(error.category)      # "scraping"
+
+# User-friendly output
+print(error.user_message())   # Message + guidance
+print(error.debug_message())  # Full details including cause
 ```
 
-## Gradual Migration Strategy
+### Rate Limit Handling
 
-1. **Phase 1**: Import both old and new errors, catch new errors first
-2. **Phase 2**: Update error raising to use typed errors
-3. **Phase 3**: Remove legacy error imports
+```python
+from primr.utils.errors import RateLimitError
 
-### Phase 1 Example
+try:
+    response = api.call()
+except RateLimitError as e:
+    # retry_after is automatically set
+    await asyncio.sleep(e.retry_after)
+    response = api.call()
+```
+
+## Error Formatting Utilities
 
 ```python
 from primr.utils.errors import (
-    # New typed errors (preferred)
-    TypedRateLimitError,
-    TypedAPIError,
-    # Legacy errors (for compatibility)
-    RateLimitError,
-    APIError,
+    format_error_for_user,
+    get_error_guidance,
+    is_recoverable_error,
 )
 
-try:
-    result = await api_call()
-except TypedRateLimitError as e:
-    # Handle new typed error
-    handle_rate_limit(e)
-except RateLimitError as e:
-    # Fallback for legacy code paths
-    handle_rate_limit_legacy(e)
+# Format for display
+user_msg = format_error_for_user(error, verbose=False)
+debug_msg = format_error_for_user(error, verbose=True)
+
+# Get guidance
+guidance = get_error_guidance(error)
+
+# Check recoverability
+if is_recoverable_error(error):
+    # Safe to retry
+    pass
 ```
 
-## Deprecation Timeline
+## Typed Error Hierarchy
 
-- **v1.5.0**: Typed error hierarchy introduced, legacy errors deprecated, warnings enabled by default
-- **v2.0.0**: Legacy errors will be removed
+All errors inherit from `PrimrError`, which provides:
 
-To suppress deprecation warnings during migration:
+- `message`: Human-readable error description
+- `category`: Error category for classification
+- `recoverable`: Whether the error can be retried
+- `retry_after`: Suggested delay before retry (seconds)
+- `correlation_id`: Unique ID for tracing
+- `timestamp`: When the error occurred
+- `cause`: The underlying exception
+- `context`: Additional context data
+- `guidance`: User-friendly resolution guidance
+
+Methods:
+- `user_message()`: Clean message for users (no stack traces)
+- `debug_message()`: Detailed message for debugging
+- `to_dict()`: JSON-serializable dictionary
+
+## Backward Compatibility
+
+The following aliases are provided for backward compatibility:
 
 ```python
-import primr.utils.errors
-primr.utils.errors._EMIT_DEPRECATION_WARNINGS = False
+# These all work and point to the typed error classes
+from primr.utils.errors import (
+    ResearchError,      # -> PrimrError
+    AIError,            # -> PrimrAIError
+    ScrapingError,      # -> PrimrScrapingError
+    SearchError,        # -> PrimrSearchError
+    ConfigurationError, # -> PrimrConfigurationError
+    ValidationError,    # -> PrimrValidationError
+    OutputError,        # -> PrimrOutputError
+    RateLimitError,     # -> TypedRateLimitError (with wrapper)
+    NetworkError,       # -> TypedNetworkError
+)
 ```
 
-Or set in your test configuration / conftest.py.
-
-## Benefits of Migration
-
-1. **Automatic Retry Logic**: `is_retryable` property eliminates manual classification
-2. **Structured Context**: `ErrorContext` provides consistent error metadata
-3. **Type Safety**: Better IDE support and static analysis
-4. **Observability**: Errors integrate with telemetry via `to_dict()`
+Existing code using these names will continue to work without changes.
