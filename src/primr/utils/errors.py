@@ -168,6 +168,7 @@ class PrimrError(Exception, ABC):
         timestamp: When the error occurred
         cause: The underlying exception that caused this error
         context: Additional context data for debugging
+        guidance: User-friendly guidance for resolving the error
     
     Example:
         try:
@@ -188,13 +189,35 @@ class PrimrError(Exception, ABC):
     timestamp: datetime = field(default_factory=datetime.now)
     cause: Exception | None = None
     context: dict[str, Any] = field(default_factory=dict)
+    guidance: str = ""
     
     def __post_init__(self) -> None:
         """Initialize the exception with the message."""
         super().__init__(self.message)
+        # Set default guidance based on category if not provided
+        if not self.guidance:
+            self.guidance = self._default_guidance()
+    
+    def _default_guidance(self) -> str:
+        """Get default guidance based on error category."""
+        guidance_map = {
+            "configuration": "Check your .env file and environment variables",
+            "scraping": "The website may be blocking automated access. Try again later.",
+            "ai": "Check API quota and try again",
+            "rate_limit": "Rate limit exceeded. Wait a moment and try again.",
+            "search": "Search API may be unavailable. Check your API key and quota.",
+            "output": "Check disk space and file permissions",
+            "validation": "Check your input and try again",
+            "network": "Check your internet connection",
+            "authentication": "Check your API keys and credentials",
+            "quota": "API quota exhausted. Wait for quota reset.",
+        }
+        return guidance_map.get(self.category, "")
     
     def __str__(self) -> str:
         """Return the error message."""
+        if self.cause:
+            return f"{self.message} (caused by: {self.cause})"
         return self.message
     
     def __repr__(self) -> str:
@@ -206,6 +229,41 @@ class PrimrError(Exception, ABC):
             f"recoverable={self.recoverable}, "
             f"correlation_id={self.correlation_id!r})"
         )
+    
+    def user_message(self) -> str:
+        """
+        Get user-friendly error message without stack traces.
+        
+        Returns:
+            Clean message suitable for display to users
+        """
+        msg = self.message
+        if self.guidance:
+            msg += f"\n    {self.guidance}"
+        return msg
+    
+    def debug_message(self) -> str:
+        """
+        Get detailed error message for debugging.
+        
+        Returns:
+            Detailed message including cause chain and context
+        """
+        parts = [f"[{self.category}] {self.message}"]
+        if self.cause:
+            parts.append(f"  Caused by: {type(self.cause).__name__}: {self.cause}")
+        if self.guidance:
+            parts.append(f"  Guidance: {self.guidance}")
+        # Add any extra attributes from subclasses
+        for attr in self._debug_attributes():
+            value = getattr(self, attr, None)
+            if value:
+                parts.append(f"  {attr.replace('_', ' ').title()}: {value}")
+        return "\n".join(parts)
+    
+    def _debug_attributes(self) -> list[str]:
+        """Return list of additional attributes to include in debug message."""
+        return []
     
     def to_dict(self) -> dict[str, Any]:
         """
@@ -298,11 +356,8 @@ class TypedRateLimitError(TransientError):
     Raised when an API call fails due to rate limiting. The retry_after_seconds
     attribute indicates how long to wait before retrying.
     
-    Note: Named TypedRateLimitError to avoid conflict with existing
-    RateLimitError class. Use this for new code requiring the typed
-    error hierarchy.
-    
     Attributes:
+        message: Error message (default: "API rate limit exceeded")
         retry_after_seconds: Seconds to wait before retrying (default: 60.0)
         category: Always "rate_limit"
     
@@ -314,13 +369,18 @@ class TypedRateLimitError(TransientError):
             response = api.call()
     """
     
+    message: str = "API rate limit exceeded"
     category: str = "rate_limit"
     retry_after_seconds: float = 60.0
     
     def __post_init__(self) -> None:
-        """Set retry_after from retry_after_seconds."""
+        """Set retry_after from retry_after_seconds and update guidance."""
         super().__post_init__()
         self.retry_after = self.retry_after_seconds
+        # Update guidance to include retry time
+        if self.retry_after_seconds:
+            self.guidance = f"Rate limit exceeded. Try again in {self.retry_after_seconds:.0f} seconds."
+
 
 
 @dataclass
@@ -468,263 +528,173 @@ class PrimrConfigurationError(PermanentError):
     missing_keys: list[str] = field(default_factory=list)
 
 
+@dataclass
+class PrimrAIError(TransientError):
+    """
+    AI/LLM operation failed.
+    
+    Raised when an AI API call fails. This is typically a transient error
+    that can be retried.
+    
+    Attributes:
+        model: The model that was being used
+        operation: The operation that failed (e.g., "generate", "embed")
+        category: Always "ai"
+    
+    Example:
+        try:
+            response = client.generate(prompt)
+        except PrimrAIError as e:
+            logger.warning(f"AI call failed with {e.model}: {e.message}")
+            if e.recoverable:
+                response = client.generate(prompt)  # Retry
+    """
+    
+    category: str = "ai"
+    model: str = ""
+    operation: str = ""
+    
+    def _debug_attributes(self) -> list[str]:
+        return ["model", "operation"]
+
+
+@dataclass
+class PrimrScrapingError(TransientError):
+    """
+    Web scraping operation failed.
+    
+    Raised when a scraping operation fails. Includes context about
+    the URL, HTTP status, and scraping tier that was attempted.
+    
+    Attributes:
+        url: The URL that was being scraped
+        status_code: HTTP status code (if available)
+        tier: The scraping tier that failed
+        category: Always "scraping"
+    
+    Example:
+        try:
+            content = scrape_page(url)
+        except PrimrScrapingError as e:
+            logger.warning(f"Scrape failed for {e.url} (tier: {e.tier})")
+            if e.recoverable:
+                content = scrape_page(url, escalate=True)
+    """
+    
+    category: str = "scraping"
+    url: str = ""
+    status_code: int | None = None
+    tier: str = ""
+    
+    def _debug_attributes(self) -> list[str]:
+        return ["url", "status_code", "tier"]
+
+
+@dataclass
+class PrimrSearchError(TransientError):
+    """
+    Search operation failed.
+    
+    Raised when a search API call fails. Includes context about
+    the query and HTTP status.
+    
+    Attributes:
+        query: The search query that failed
+        status_code: HTTP status code (if available)
+        category: Always "search"
+    
+    Example:
+        try:
+            results = search(query)
+        except PrimrSearchError as e:
+            logger.warning(f"Search failed for '{e.query}': {e.message}")
+    """
+    
+    category: str = "search"
+    query: str = ""
+    status_code: int | None = None
+    
+    def _debug_attributes(self) -> list[str]:
+        return ["query", "status_code"]
+
+
+@dataclass
+class PrimrOutputError(PermanentError):
+    """
+    Report/output generation failed.
+    
+    Raised when report generation fails, such as file write errors
+    or formatting failures.
+    
+    Attributes:
+        output_path: Path where output was being written
+        output_format: Format being generated (e.g., "docx", "pdf")
+        category: Always "output"
+    
+    Example:
+        try:
+            write_report(content, path)
+        except PrimrOutputError as e:
+            logger.error(f"Failed to write {e.output_format} to {e.output_path}")
+    """
+    
+    category: str = "output"
+    output_path: str = ""
+    output_format: str = ""
+
+
 # =============================================================================
-# LEGACY EXCEPTION HIERARCHY (Backward Compatible)
+# BACKWARD-COMPATIBLE ALIASES
 # =============================================================================
+# These aliases allow existing code to continue working while migrating.
+# They point to the new typed error classes.
 
-# Deprecation tracking - enabled by default to guide migration
-# Set to False to suppress warnings during migration period
-_EMIT_DEPRECATION_WARNINGS = True
+# Primary aliases - use these names in new code
+AIError = PrimrAIError
+ScrapingError = PrimrScrapingError
+SearchError = PrimrSearchError
+ConfigurationError = PrimrConfigurationError
+ValidationError = PrimrValidationError
+OutputError = PrimrOutputError
+NetworkError = TypedNetworkError
 
-
-def _deprecation_warning(cls_name: str, new_cls_name: str) -> None:
-    """Emit deprecation warning for legacy error classes."""
-    if _EMIT_DEPRECATION_WARNINGS:
-        import warnings
-        warnings.warn(
-            f"{cls_name} is deprecated and will be removed in v2.0. "
-            f"Use {new_cls_name} from the typed error hierarchy instead. "
-            f"See MIGRATION.md for guidance. "
-            f"Suppress with: primr.utils.errors._EMIT_DEPRECATION_WARNINGS = False",
-            DeprecationWarning,
-            stacklevel=4
-        )
+# Base class alias
+ResearchError = PrimrError
 
 
-class ResearchError(Exception):
+# RateLimitError wrapper for backward compatibility
+# The old API used retry_after, the new API uses retry_after_seconds
+class RateLimitError(TypedRateLimitError):
     """
-    Base exception for all research-related errors.
+    Backward-compatible wrapper for TypedRateLimitError.
     
-    .. deprecated::
-        Use :class:`PrimrError` and its subclasses for new code.
-        The typed error hierarchy provides automatic retry classification
-        and better integration with the retry policy manager.
+    Accepts the old `retry_after` parameter and maps it to `retry_after_seconds`.
     """
-
-    # Error category for classification
-    category: str = "general"
-    # Whether this error is recoverable (can be retried)
-    recoverable: bool = False
-    # User-friendly guidance for resolving the error
-    guidance: str = ""
-
-    def __init__(
-        self,
-        message: str,
-        cause: Exception | None = None,
-        guidance: str | None = None
-    ):
-        _deprecation_warning("ResearchError", "PrimrError")
-        super().__init__(message)
-        self.cause = cause
-        self.message = message
-        if guidance:
-            self.guidance = guidance
-
-    def __str__(self) -> str:
-        if self.cause:
-            return f"{self.message} (caused by: {self.cause})"
-        return self.message
-
-    def user_message(self) -> str:
-        """
-        Get user-friendly error message without stack traces.
-
-        Returns:
-            Clean message suitable for display to users
-        """
-        msg = self.message
-        if self.guidance:
-            msg += f"\n    {self.guidance}"
-        return msg
-
-    def debug_message(self) -> str:
-        """
-        Get detailed error message for debugging.
-
-        Returns:
-            Detailed message including cause chain
-        """
-        parts = [f"[{self.category}] {self.message}"]
-        if self.cause:
-            parts.append(f"  Caused by: {type(self.cause).__name__}: {self.cause}")
-        if self.guidance:
-            parts.append(f"  Guidance: {self.guidance}")
-        return "\n".join(parts)
-
-
-class ConfigurationError(ResearchError):
-    """
-    Raised when configuration is invalid or missing.
     
-    .. deprecated::
-        Use :class:`PrimrConfigurationError` for new code.
-    """
-    category = "configuration"
-    recoverable = False
-    guidance = "Check your .env file and environment variables"
-    
-    def __init__(self, *args, **kwargs):
-        _deprecation_warning("ConfigurationError", "PrimrConfigurationError")
-        super().__init__(*args, **kwargs)
-
-
-class ScrapingError(ResearchError):
-    """
-    Raised when web scraping fails.
-    
-    .. deprecated::
-        Use :class:`TransientError` with category="scraping" for new code.
-    """
-    category = "scraping"
-    recoverable = True
-    guidance = "The website may be blocking automated access. Try again later."
-
-    def __init__(
-        self,
-        message: str,
-        url: str = "",
-        status_code: int | None = None,
-        tier: str = "",
-        cause: Exception | None = None,
-        guidance: str | None = None
-    ):
-        _deprecation_warning("ScrapingError", "TransientError")
-        super().__init__(message, cause, guidance)
-        self.url = url
-        self.status_code = status_code
-        self.tier = tier
-
-    def debug_message(self) -> str:
-        base = super().debug_message()
-        parts = [base]
-        if self.url:
-            parts.append(f"  URL: {self.url}")
-        if self.status_code:
-            parts.append(f"  HTTP Status: {self.status_code}")
-        if self.tier:
-            parts.append(f"  Scraping Tier: {self.tier}")
-        return "\n".join(parts)
-
-
-class AIError(ResearchError):
-    """
-    Raised when AI operations fail.
-    
-    .. deprecated::
-        Use :class:`TransientError` with category="ai" for new code.
-    """
-    category = "ai"
-    recoverable = True
-    guidance = "Check API quota and try again"
-
-    def __init__(
-        self,
-        message: str,
-        model: str = "",
-        cause: Exception | None = None,
-        guidance: str | None = None
-    ):
-        _deprecation_warning("AIError", "TransientError")
-        super().__init__(message, cause, guidance)
-        self.model = model
-
-    def debug_message(self) -> str:
-        base = super().debug_message()
-        if self.model:
-            return f"{base}\n  Model: {self.model}"
-        return base
-
-
-class RateLimitError(AIError):
-    """
-    Raised when API rate limit is exceeded.
-    
-    .. deprecated::
-        Use :class:`TypedRateLimitError` for new code.
-    """
-    category = "rate_limit"
-    recoverable = True
-    guidance = "Rate limit exceeded. Wait a moment and try again."
-
     def __init__(
         self,
         message: str = "API rate limit exceeded",
         retry_after: float | None = None,
-        cause: Exception | None = None
-    ):
-        _deprecation_warning("RateLimitError", "TypedRateLimitError")
-        guidance = "Rate limit exceeded."
-        if retry_after:
-            guidance += f" Try again in {retry_after:.0f} seconds."
-        super().__init__(message, cause=cause, guidance=guidance)
-        self.retry_after = retry_after
-
-
-class SearchError(ResearchError):
-    """
-    Raised when search operations fail.
-    
-    .. deprecated::
-        Use :class:`TransientError` with category="search" for new code.
-    """
-    category = "search"
-    recoverable = True
-    guidance = "Search API may be unavailable. Check your API key and quota."
-
-    def __init__(
-        self,
-        message: str,
-        query: str = "",
-        status_code: int | None = None,
         cause: Exception | None = None,
-        guidance: str | None = None
+        **kwargs
     ):
-        _deprecation_warning("SearchError", "TransientError")
-        super().__init__(message, cause, guidance)
-        self.query = query
-        self.status_code = status_code
-
-    def debug_message(self) -> str:
-        base = super().debug_message()
-        parts = [base]
-        if self.query:
-            parts.append(f"  Query: {self.query}")
-        if self.status_code:
-            parts.append(f"  HTTP Status: {self.status_code}")
-        return "\n".join(parts)
+        # Map old parameter name to new
+        super().__init__(
+            message=message,
+            retry_after_seconds=retry_after or 60.0,
+            cause=cause,
+            **kwargs
+        )
 
 
-class OutputError(ResearchError):
-    """
-    Raised when report generation fails.
-    
-    .. deprecated::
-        Use :class:`PermanentError` with category="output" for new code.
-    """
-    category = "output"
-    recoverable = False
-    guidance = "Check disk space and file permissions"
-    
-    def __init__(self, *args, **kwargs):
-        _deprecation_warning("OutputError", "PermanentError")
-        super().__init__(*args, **kwargs)
+# =============================================================================
+# LEGACY EXCEPTION HIERARCHY (Deprecated - Remove in v2.0)
+# =============================================================================
+# The classes below are kept only for backward compatibility with code
+# that catches these specific exception types. New code should use the
+# typed error hierarchy above.
 
-
-class ValidationError(ResearchError):
-    """
-    Raised when input validation fails.
-    
-    .. deprecated::
-        Use :class:`PrimrValidationError` for new code.
-    """
-    category = "validation"
-    recoverable = False
-    guidance = "Check your input and try again"
-    
-    def __init__(self, *args, **kwargs):
-        _deprecation_warning("ValidationError", "PrimrValidationError")
-        super().__init__(*args, **kwargs)
+# Legacy classes removed - aliases above provide backward compatibility
 
 
 # =============================================================================
@@ -742,12 +712,12 @@ def format_error_for_user(error: Exception, verbose: bool = False) -> str:
     Returns:
         Formatted error string suitable for console output
     """
-    if isinstance(error, ResearchError):
+    if isinstance(error, PrimrError):
         if verbose:
             return error.debug_message()
         return error.user_message()
 
-    # For non-ResearchError exceptions, provide generic formatting
+    # For non-PrimrError exceptions, provide generic formatting
     error_type = type(error).__name__
     message = str(error)
 
@@ -766,8 +736,23 @@ def get_error_guidance(error: Exception) -> str | None:
     Returns:
         Guidance string or None if no guidance available
     """
-    if isinstance(error, ResearchError) and error.guidance:
-        return error.guidance
+    # For typed errors, return the guidance attribute if set
+    if isinstance(error, PrimrError):
+        if error.guidance:
+            return error.guidance
+        # Fall back to category-based guidance
+        guidance_map = {
+            "configuration": "Check your .env file and environment variables",
+            "scraping": "The website may be blocking automated access. Try again later.",
+            "ai": "Check API quota and try again",
+            "rate_limit": "Rate limit exceeded. Wait a moment and try again.",
+            "search": "Search API may be unavailable. Check your API key and quota.",
+            "output": "Check disk space and file permissions",
+            "validation": "Check your input and try again",
+            "network": "Check your internet connection",
+            "authentication": "Check your API keys and credentials",
+        }
+        return guidance_map.get(error.category)
 
     # Common error type guidance
     error_type = type(error).__name__
@@ -791,7 +776,7 @@ def is_recoverable_error(error: Exception) -> bool:
     Returns:
         True if the error is recoverable
     """
-    if isinstance(error, ResearchError):
+    if isinstance(error, PrimrError):
         return error.recoverable
 
     # Common recoverable error types

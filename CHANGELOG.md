@@ -16,10 +16,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Unified async/sync boundary handling via `async_utils` module
 - 282 property-based tests using Hypothesis
 
+### Changed
+- Migrated all error classes to typed error hierarchy
+- Legacy error names (AIError, ScrapingError, etc.) now alias to typed classes
+- All errors now have `user_message()`, `debug_message()`, and `guidance` attributes
+- Error formatting utilities updated to use typed hierarchy
+
 ### Documentation
 - CONCURRENCY.md - Threading model documentation
 - docs/STATE_MACHINES.md - State machine specifications
-- docs/MIGRATION.md - Error migration guide
+- docs/MIGRATION.md - Error hierarchy documentation
+- docs/INDEX.md - Unified documentation index
 
 ## [1.4.1] - 2026-02-02
 
