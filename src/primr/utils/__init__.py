@@ -2,7 +2,31 @@
 Utils module - Logging, console output, and utility functions.
 """
 
+from primr.utils.async_utils import (
+    AsyncBridge,
+    configure_executor,
+    ensure_async,
+    ensure_sync,
+    gather_with_concurrency,
+    is_async_context,
+    run_async,
+    run_async_with_timeout,
+    run_sync,
+    run_sync_new_loop,
+    shutdown_executor,
+    sync_context,
+)
 from primr.utils.chat_logger import log_chat_interaction
+from primr.utils.config_validation import (
+    ConfigError,
+    ConfigValidationResult,
+    PrimrConfig,
+    export_schema,
+    load_config,
+    require_valid_config,
+    reset_config,
+    validate_config,
+)
 from primr.utils.console import Console, console, get_console, set_console
 from primr.utils.errors import (
     AIError,
@@ -19,6 +43,16 @@ from primr.utils.errors import (
     error_context,
     retry_on_failure,
     safe_call,
+    # Typed error hierarchy (preferred for new code)
+    PrimrError,
+    TransientError,
+    PermanentError,
+    TypedRateLimitError,
+    QuotaError,
+    TypedNetworkError,
+    PrimrValidationError,
+    AuthenticationError,
+    PrimrConfigurationError,
 )
 from primr.utils.retry import (
     RetryAttempt,
@@ -85,12 +119,34 @@ from primr.utils.validators import (
 )
 
 __all__ = [
+    # Async utilities
+    "run_sync",
+    "run_sync_new_loop",
+    "run_async",
+    "run_async_with_timeout",
+    "ensure_async",
+    "ensure_sync",
+    "sync_context",
+    "AsyncBridge",
+    "is_async_context",
+    "gather_with_concurrency",
+    "configure_executor",
+    "shutdown_executor",
+    # Configuration validation
+    "ConfigError",
+    "ConfigValidationResult",
+    "PrimrConfig",
+    "load_config",
+    "validate_config",
+    "require_valid_config",
+    "reset_config",
+    "export_schema",
     # Console
     "Console",
     "console",
     "get_console",
     "set_console",
-    # Errors
+    # Legacy errors (deprecated - use typed hierarchy)
     "ResearchError",
     "ConfigurationError",
     "ScrapingError",
@@ -105,6 +161,16 @@ __all__ = [
     "calculate_backoff_delay",
     "error_context",
     "async_safe_callback",
+    # Typed error hierarchy (preferred for new code)
+    "PrimrError",
+    "TransientError",
+    "PermanentError",
+    "TypedRateLimitError",
+    "QuotaError",
+    "TypedNetworkError",
+    "PrimrValidationError",
+    "AuthenticationError",
+    "PrimrConfigurationError",
     # Retry Policy Manager
     "RetryPolicy",
     "RetryAttempt",
