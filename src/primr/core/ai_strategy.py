@@ -404,7 +404,7 @@ async def _gather_context(
                 console.info(f"Using {len(vendor_paths)} {vendor_str.upper()} research doc(s) as context")
 
         # Always include agnostic research as additional context
-        agnostic_path = Path(PROJECT_ROOT) / "docs" / f"vendor-research-agnostic-{datetime.now().strftime('%Y-%m')}.txt"
+        agnostic_path = Path(PROJECT_ROOT) / "vendor-research" / f"vendor-research-agnostic-{datetime.now().strftime('%Y-%m')}.txt"
         if agnostic_path.exists() and str(agnostic_path) not in context_files:
             context_files.append(str(agnostic_path))
 

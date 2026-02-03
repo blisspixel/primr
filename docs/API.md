@@ -939,7 +939,7 @@ print(strategy.description)
 # Get context files for a strategy (for File Search Store)
 files = registry.get_context_files("ai", vendor="azure")
 for f in files:
-    print(f)  # docs/vendor-research-azure-2025-12.txt
+    print(f)  # vendor-research/vendor-research-azure-2025-12.txt
 ```
 
 ### Legacy Prompt Builders

@@ -638,7 +638,7 @@ Strategy modules extend the base schema with:
 # Data sources for File Search Store
 data_sources:
   - name: "vendor_research_azure"
-    path: "docs/vendor-research-azure-2025-12.txt"
+    path: "vendor-research/vendor-research-azure-2025-12.txt"
     description: "Latest Azure AI services"
     vendor: "azure"
     required: false

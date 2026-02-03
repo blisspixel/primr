@@ -123,4 +123,4 @@ Files: ['C:\\Users\\nicks\\OneDrive\\primr\\docs\\vendor-research-azure-2026-01.
 
 - `src/primr/core/vendor_research.py` - Vendor research generation and caching
 - `src/primr/core/ai_strategy.py` - AI strategy generation (uses vendor research)
-- `docs/vendor-research-*.txt` - Generated vendor research files
+- `vendor-research/vendor-research-*.txt` - Generated vendor research files (gitignored)
