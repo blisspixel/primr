@@ -89,6 +89,8 @@ def get_vendor_research_path(vendor: str, month: str | None = None) -> Path:
     Get path for vendor research file.
 
     Uses current month if month not specified.
+    Files are stored in vendor-research/ (gitignored) to keep generated
+    content separate from versioned documentation.
 
     Args:
         vendor: Cloud vendor (azure, aws, gcp, agnostic)
@@ -100,7 +102,7 @@ def get_vendor_research_path(vendor: str, month: str | None = None) -> Path:
     if month is None:
         month = datetime.now().strftime("%Y-%m")
     filename = f"vendor-research-{vendor.lower()}-{month}.txt"
-    return Path(PROJECT_ROOT) / "docs" / filename
+    return Path(PROJECT_ROOT) / "vendor-research" / filename
 
 
 def get_manual_research_path(vendor: str) -> Path | None:

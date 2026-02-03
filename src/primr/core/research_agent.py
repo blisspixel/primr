@@ -1494,7 +1494,7 @@ def _get_vendor_research_path(cloud_vendor: str) -> str:
 
     current_month = datetime.now().strftime("%Y-%m")
     filename = f"vendor-research-{cloud_vendor.lower()}-{current_month}.txt"
-    return os.path.join(PROJECT_ROOT, "docs", filename)
+    return os.path.join(PROJECT_ROOT, "vendor-research", filename)
 
 
 def _is_vendor_research_current(cloud_vendor: str) -> bool:

@@ -176,22 +176,22 @@ writing_standards: |
 
 data_sources:
   - name: "vendor_research_azure"
-    path: "docs/vendor-research-azure-2025-12.txt"
+    path: "vendor-research/vendor-research-azure-2025-12.txt"
     description: "Latest Azure AI services and capabilities from Microsoft Ignite 2024/2025"
     vendor: "azure"
     required: false
   - name: "vendor_research_aws"
-    path: "docs/vendor-research-aws-2025-12.txt"
+    path: "vendor-research/vendor-research-aws-2025-12.txt"
     description: "Latest AWS AI services and capabilities from re:Invent 2024"
     vendor: "aws"
     required: false
   - name: "vendor_research_gcp"
-    path: "docs/vendor-research-gcp-2025-12.txt"
+    path: "vendor-research/vendor-research-gcp-2025-12.txt"
     description: "Latest GCP AI services and capabilities from Google Cloud Next 2024"
     vendor: "gcp"
     required: false
   - name: "vendor_research_agnostic"
-    path: "docs/vendor-research-agnostic-2025-12.txt"
+    path: "vendor-research/vendor-research-agnostic-2025-12.txt"
     description: "Cloud-agnostic AI guidance and multi-cloud comparison"
     vendor: "agnostic"
     required: false
