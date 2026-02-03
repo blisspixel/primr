@@ -4,6 +4,80 @@ This module provides shared utilities used across all other modules.
 
 ## Components
 
+### Async Utilities (`async_utils.py`) - NEW
+
+Unified async/sync boundary handling:
+
+```python
+from primr.utils.async_utils import (
+    run_sync,
+    run_async,
+    ensure_async,
+    ensure_sync,
+    AsyncBridge,
+    gather_with_concurrency,
+)
+
+# Run async code from sync context
+result = run_sync(async_function())
+
+# Run blocking code from async context without blocking event loop
+result = await run_async(blocking_function, arg1, arg2)
+
+# Wrap sync function for async use
+@ensure_async
+def blocking_io():
+    return read_file()
+
+result = await blocking_io()
+
+# Wrap async function for sync use
+@ensure_sync
+async def async_operation():
+    return await fetch_data()
+
+result = async_operation()  # Can call from sync code
+
+# Limit concurrent async operations
+results = await gather_with_concurrency(
+    3,  # Max 3 concurrent
+    fetch(url1),
+    fetch(url2),
+    fetch(url3),
+    fetch(url4),
+)
+```
+
+### Configuration Validation (`config_validation.py`) - NEW
+
+Unified configuration validation with clear error messages:
+
+```python
+from primr.utils.config_validation import (
+    PrimrConfig,
+    load_config,
+    validate_config,
+    require_valid_config,
+    export_schema,
+)
+
+# Load and validate configuration
+config = load_config()
+result = config.validate()
+
+if not result.valid:
+    for error in result.errors:
+        print(f"{error.field}: {error.message}")
+        if error.suggestion:
+            print(f"  Suggestion: {error.suggestion}")
+
+# Fail fast at startup
+config = require_valid_config()  # Raises if invalid
+
+# Export JSON Schema for documentation
+schema = export_schema()
+```
+
 ### Console Output (`console.py`)
 
 Unified console output with consistent formatting:
@@ -40,15 +114,36 @@ Custom error types and retry utilities:
 
 ```python
 from primr.utils.errors import (
+    # Typed error hierarchy (preferred for new code)
+    PrimrError,
+    TransientError,
+    PermanentError,
+    TypedRateLimitError,
+    QuotaError,
+    
+    # Legacy errors (still supported)
     AIError,
     ScrapingError,
     ValidationError,
+    
+    # Utilities
     retry_on_failure,
     safe_call,
     error_context
 )
 
-# Custom errors with context
+# Typed errors with automatic retry classification
+raise TypedRateLimitError(
+    message="Rate limit exceeded",
+    retry_after_seconds=60.0
+)
+
+# Check if error is retryable
+if isinstance(error, TransientError) and error.recoverable:
+    await asyncio.sleep(error.retry_after or 1.0)
+    retry()
+
+# Legacy errors (deprecated but still work)
 raise AIError("Model failed", model="gemini-2.0-flash", cause=original_error)
 
 # Retry decorator
@@ -213,9 +308,21 @@ log_chat_interaction(
 
 ### Consistent Error Handling
 
-All errors inherit from base types:
+The codebase uses a typed error hierarchy for automatic retry classification:
 
 ```python
+# Typed hierarchy (preferred for new code)
+class PrimrError(Exception, ABC): pass      # Base with correlation_id, retry_after
+class TransientError(PrimrError): pass      # Recoverable errors (retry)
+class PermanentError(PrimrError): pass      # Non-recoverable errors (don't retry)
+class TypedRateLimitError(TransientError): pass
+class QuotaError(TransientError): pass
+class TypedNetworkError(TransientError): pass
+class PrimrValidationError(PermanentError): pass
+class AuthenticationError(PermanentError): pass
+class PrimrConfigurationError(PermanentError): pass
+
+# Legacy hierarchy (deprecated, use typed hierarchy for new code)
 class ResearchError(Exception): pass
 class AIError(ResearchError): pass
 class ScrapingError(ResearchError): pass

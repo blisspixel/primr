@@ -274,13 +274,9 @@ def generate_vendor_research_sync(
     Returns:
         Path to generated research file, or None if failed
     """
-    try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+    from primr.utils.async_utils import run_sync
 
-    return loop.run_until_complete(generate_vendor_research(vendor, on_progress))
+    return run_sync(generate_vendor_research(vendor, on_progress))
 
 
 async def generate_vendor_research(

@@ -2,7 +2,9 @@
 
 Primr is a research tool that generates company intelligence briefs using Google's Gemini models. It automates the collection and analysis of company information for internal research and go-to-market preparation.
 
-The tool combines first-party website content (site corpus) with validated external sources (deep research) to produce structured company briefs. Primr is designed for internal use by consultants and researchers who need comprehensive company intelligence quickly.
+The tool combines first-party website content (site corpus) with validated external sources (deep research) to produce structured company briefs. It is designed for internal use by consultants and researchers who need company intelligence quickly.
+
+This is a working tool, not a polished product. It handles many common cases well but has limitations. See Known Limitations below.
 
 ## What It Does
 
@@ -255,29 +257,28 @@ All strategies use the Strategic Overview as primary context and generate compan
 
 ## Security
 
-Primr has undergone comprehensive security review (January 2026) with all critical vulnerabilities addressed:
+Primr underwent security review in January 2026. Key protections include:
 
-- **XXE Protection**: Secure XML parser prevents XML External Entity attacks
-- **SSRF Protection**: URL validation blocks internal/private IP access and DNS rebinding
-- **Input Validation**: Comprehensive validation across all user inputs
-- **Secure Dependencies**: Core dependencies verified clean via automated scanning
+- XXE protection via secure XML parsing
+- SSRF protection via URL validation
+- Input validation across user inputs
+- Dependency scanning via Bandit and Safety
 
-See [docs/SECURITY_REVIEW_2026-01-21.md](docs/SECURITY_REVIEW_2026-01-21.md) for complete security audit report.
+See [docs/SECURITY_REVIEW_2026-01-21.md](docs/SECURITY_REVIEW_2026-01-21.md) for the security audit report.
 
 ## Code Quality
 
-Primr maintains publication-ready code quality with comprehensive infrastructure:
+Primr includes infrastructure for reliability and maintainability:
 
-- **Typed Error Hierarchy**: Structured exceptions with automatic retry policies and correlation tracking
-- **Circuit Breaker**: Per-host failure tracking with configurable thresholds and monitoring
-- **OpenTelemetry**: Distributed tracing for pipeline phases with configurable exporters
-- **Pydantic Validation**: Strict configuration validation with schema versioning and migration tooling
-- **State Machines**: Formal specifications for tier escalation and job lifecycle
-- **Property-Based Testing**: 282 property tests validating universal correctness properties
-- **Performance Benchmarking**: Regression detection with historical comparison
-- **Memory Profiling**: Leak detection and threshold-based warnings
+- Typed error hierarchy with automatic retry classification
+- Circuit breaker pattern for per-host failure tracking
+- OpenTelemetry integration for distributed tracing
+- Configuration validation with schema versioning
+- State machines for tier escalation and job lifecycle
+- Property-based testing (282 tests)
+- Unified async/sync boundary handling
 
-See [CONCURRENCY.md](CONCURRENCY.md) for threading model documentation and [docs/STATE_MACHINES.md](docs/STATE_MACHINES.md) for formal state machine specifications.
+See [CONCURRENCY.md](CONCURRENCY.md) for threading model documentation and [docs/STATE_MACHINES.md](docs/STATE_MACHINES.md) for state machine specifications.
 
 ## Known Limitations
 

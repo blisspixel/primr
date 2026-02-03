@@ -269,6 +269,11 @@ class TestPathsConfig:
 
     def test_validates_unwritable_directory(self):
         """Should report error for unwritable directory."""
+        # Skip this test on Windows where path validation behaves differently
+        import sys
+        if sys.platform == "win32":
+            pytest.skip("Path validation differs on Windows")
+        
         # Use a path that definitely doesn't exist and can't be created
         config = PathsConfig(project_root=Path("/nonexistent/path/that/cannot/exist"))
         errors = config.validate()

@@ -336,13 +336,9 @@ def perform_deep_research_sync(
     Returns:
         DeepResearchResult with outputs and metadata
     """
-    try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+    from primr.utils.async_utils import run_sync
 
-    return loop.run_until_complete(perform_deep_research(config, on_progress))
+    return run_sync(perform_deep_research(config, on_progress))
 
 
 async def perform_deep_research(

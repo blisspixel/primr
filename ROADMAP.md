@@ -327,46 +327,37 @@ openclaw/
 - Secure sandboxed execution via Docker
 - Seamless integration with Open Claw's agentic runtime
 
-v1.5.0 – PhD-Level Code Quality (Complete)
+v1.5.0 – Code Quality Improvements (Complete)
 
-Goal: Elevate codebase from A- (88/100) to A+ (publication-ready) quality through systematic improvements to error handling, observability, configuration validation, and formal specifications.
+Goal: Improve codebase reliability and maintainability through systematic improvements to error handling, observability, and configuration validation.
 
 **Completed:**
-- **Typed Error Hierarchy** - Comprehensive exception hierarchy with `PrimrError` base class, `TransientError`/`PermanentError` categories, and specific types (RateLimitError, QuotaError, NetworkError, ValidationError, AuthenticationError, ConfigurationError) with automatic correlation ID capture and JSON serialization
-- **Retry Policy Manager** - Automatic retry policies based on error type hierarchy with exponential backoff, jitter, retry history tracking, and metrics emission
-- **Circuit Breaker with Monitoring** - Per-host/operation circuit breaker with state tracking (CLOSED/OPEN/HALF_OPEN), configurable thresholds, state change events, and monitoring interface
-- **OpenTelemetry Integration** - Distributed tracing with TracerProvider, span creation for pipeline phases, async context propagation, and configurable exporters (console, OTLP, Jaeger)
-- **Cost Attribution** - Token usage tracking with cost calculation per model, aggregation by operation/phase, and span attribute attachment
-- **Pydantic Configuration Validation** - Strict validation for all YAML configurations with detailed error messages, schema versioning, and JSON Schema export
-- **Configuration Migration Tooling** - Version detection, sequential migration application, backup/restore, and dry-run mode
-- **Concurrency Model Documentation** - CONCURRENCY.md documenting operation classification, thread pool sizing, shared state, async/sync boundaries, and deadlock prevention
-- **State Machine Specifications** - Formal state machines for tier escalation and job lifecycle with transition validation, invariant assertions, event emission, and Mermaid diagrams in docs/STATE_MACHINES.md
-- **Performance Benchmarking Suite** - Benchmark infrastructure with result storage, regression detection, and configurable thresholds
-- **Memory Profiling** - Allocation tracking, unbounded growth detection, component-level reporting, threshold warnings, and pytest integration
-- **MCP API Versioning** - Semantic versioning for tool schemas with deprecation warnings and migration guides
-- **282 Property-Based Tests** - Comprehensive property tests validating universal correctness properties across all new modules
+- Typed error hierarchy with automatic retry classification
+- Circuit breaker with per-host failure tracking
+- OpenTelemetry integration for distributed tracing
+- Configuration validation with early startup checks
+- State machine specifications for tier escalation and job lifecycle
+- Unified async/sync boundary handling
+- 282 property-based tests
 
 **New Modules:**
 ```
 src/primr/utils/
-├── errors.py              # Typed error hierarchy with retry policies
-├── retry.py               # RetryPolicyManager with exponential backoff
+├── errors.py              # Typed error hierarchy
 ├── circuit_breaker.py     # Circuit breaker with monitoring
 ├── telemetry.py           # OpenTelemetry integration
-├── cost_tracker.py        # Cost attribution per operation
-├── validation.py          # Pydantic configuration validation
-├── migration.py           # Configuration migration tooling
-├── state_machine.py       # Generic state machine with transitions
-├── benchmarks.py          # Performance benchmarking suite
-├── memory_profiler.py     # Memory profiling and leak detection
+├── config_validation.py   # Configuration validation
+├── async_utils.py         # Unified async/sync utilities
+├── state_machine.py       # Generic state machine
 
 src/primr/mcp_server/
-├── versioning.py          # MCP API versioning with deprecation support
+├── versioning.py          # MCP API versioning
 ```
 
 **Documentation:**
-- CONCURRENCY.md - Threading model and deadlock prevention
-- docs/STATE_MACHINES.md - Formal state machine specifications with Mermaid diagrams
+- CONCURRENCY.md - Threading model documentation
+- docs/STATE_MACHINES.md - State machine specifications
+- docs/MIGRATION.md - Error migration guide
 
 **Status:** COMPLETE
 
