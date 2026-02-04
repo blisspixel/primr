@@ -44,6 +44,7 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -51,6 +52,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from primr.agentic.errors import OrchestratorError, SubagentError
+
+# Type alias for user input callback (v1.11.0)
+# Signature: (prompt: str, options: list[str] | None) -> Awaitable[str]
+UserInputCallback = Callable[[str, list[str] | None], Awaitable[str]]
 from primr.agentic.subagents import (
     AnalystSubagent,
     QASubagent,
@@ -80,6 +85,8 @@ class OrchestratorState(Enum):
     State transitions:
         IDLE -> SCRAPING -> ANALYZING -> WRITING -> QA -> COMPLETED
         Any state -> FAILED (on error)
+        Any active state -> PAUSED (v1.11.0 interactive mode)
+        PAUSED -> previous state (on resume)
 
     Attributes:
         IDLE: Orchestrator created but not started
@@ -89,6 +96,7 @@ class OrchestratorState(Enum):
         QA: Executing QA subagent
         COMPLETED: All stages completed successfully
         FAILED: One or more stages failed
+        PAUSED: Execution paused, awaiting user input (v1.11.0)
     """
 
     IDLE = "idle"
@@ -98,6 +106,7 @@ class OrchestratorState(Enum):
     QA = "qa"
     COMPLETED = "completed"
     FAILED = "failed"
+    PAUSED = "paused"
 
 
 # =============================================================================
@@ -115,12 +124,26 @@ class OrchestratorConfig:
         output_dir: Base directory for output (default: ./output)
         qa_min_score: Minimum QA score to pass (default: 70)
         hypothesis_expiry_days: Days until hypotheses expire (default: 90)
+        enable_interactive: Enable interactive mode with pause/resume (v1.11.0)
+        user_input_callback: Callback to request user input (v1.11.0)
+        pause_on_error: Pause and ask user on recoverable errors (v1.11.0)
+        pause_between_stages: Pause between stages for user confirmation (v1.11.0)
 
     Example:
         config = OrchestratorConfig(
             fail_fast=True,
             max_retries=3,
             qa_min_score=80,
+        )
+
+        # v1.11.0 Interactive mode example
+        async def get_user_input(prompt: str, options: list[str] | None) -> str:
+            return input(prompt)
+
+        interactive_config = OrchestratorConfig(
+            enable_interactive=True,
+            user_input_callback=get_user_input,
+            pause_on_error=True,
         )
     """
 
@@ -129,11 +152,23 @@ class OrchestratorConfig:
     output_dir: Path = field(default_factory=lambda: Path("./output"))
     qa_min_score: int = 70
     hypothesis_expiry_days: int = 90
+    # v1.11.0 Interactive mode settings
+    enable_interactive: bool = False
+    user_input_callback: UserInputCallback | None = None
+    pause_on_error: bool = False
+    pause_between_stages: bool = False
 
     def __post_init__(self) -> None:
-        """Ensure output_dir is a Path."""
+        """Ensure output_dir is a Path and validate interactive settings."""
         if isinstance(self.output_dir, str):
             self.output_dir = Path(self.output_dir)
+        # Validate interactive mode requirements
+        if self.enable_interactive and self.user_input_callback is None:
+            logger.warning(
+                "Interactive mode enabled but no user_input_callback provided. "
+                "Interactive features will be disabled."
+            )
+            self.enable_interactive = False
 
 
 # =============================================================================
@@ -154,6 +189,8 @@ class OrchestratorResult:
         started_at: When execution started
         completed_at: When execution completed
         duration_seconds: Total execution time
+        paused_at_stage: Stage where execution was paused (v1.11.0)
+        user_decisions: Record of user decisions during interactive mode (v1.11.0)
 
     Example:
         result = await orchestrator.research(company, url)
@@ -174,6 +211,9 @@ class OrchestratorResult:
     started_at: datetime = field(default_factory=datetime.now)
     completed_at: datetime | None = None
     duration_seconds: float = 0.0
+    # v1.11.0 Interactive mode
+    paused_at_stage: str | None = None
+    user_decisions: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def is_success(self) -> bool:
@@ -184,6 +224,11 @@ class OrchestratorResult:
     def is_failure(self) -> bool:
         """Check if orchestration failed."""
         return self.state == OrchestratorState.FAILED
+
+    @property
+    def is_paused(self) -> bool:
+        """Check if orchestration is paused (v1.11.0)."""
+        return self.state == OrchestratorState.PAUSED
 
     @property
     def completed_stages(self) -> list[str]:
@@ -213,6 +258,8 @@ class OrchestratorResult:
             "started_at": self.started_at.isoformat(),
             "completed_at": self.completed_at.isoformat() if self.completed_at else None,
             "duration_seconds": self.duration_seconds,
+            "paused_at_stage": self.paused_at_stage,
+            "user_decisions": self.user_decisions,
         }
 
 
@@ -269,6 +316,10 @@ class ResearchOrchestrator:
         self._memory = memory
         self._hooks = hook_system
         self._state = OrchestratorState.IDLE
+        # v1.11.0 Interactive mode state
+        self._paused_at_stage: str | None = None
+        self._previous_state: OrchestratorState | None = None
+        self._user_decisions: list[dict[str, Any]] = []
 
     @property
     def state(self) -> OrchestratorState:
@@ -279,6 +330,195 @@ class ResearchOrchestrator:
     def config(self) -> OrchestratorConfig:
         """Get orchestrator configuration."""
         return self._config
+
+    @property
+    def is_interactive(self) -> bool:
+        """Check if interactive mode is enabled (v1.11.0)."""
+        return self._config.enable_interactive
+
+    @property
+    def user_decisions(self) -> list[dict[str, Any]]:
+        """Get record of user decisions (v1.11.0)."""
+        return list(self._user_decisions)
+
+    async def _request_user_input(
+        self,
+        prompt: str,
+        options: list[str] | None = None,
+        context: str | None = None,
+    ) -> str:
+        """
+        Request input from user via callback (v1.11.0).
+
+        Args:
+            prompt: Question or prompt for the user
+            options: Optional list of valid options
+            context: Optional context information
+
+        Returns:
+            User's response string
+
+        Raises:
+            OrchestratorError: If interactive mode not available
+        """
+        if not self._config.enable_interactive or not self._config.user_input_callback:
+            raise OrchestratorError(
+                message="Interactive mode not available",
+                state=self._state.value,
+                completed_stages=[],
+            )
+
+        full_prompt = prompt
+        if context:
+            full_prompt = f"{context}\n\n{prompt}"
+
+        response = await self._config.user_input_callback(full_prompt, options)
+
+        # Record the decision
+        self._user_decisions.append({
+            "prompt": prompt,
+            "options": options,
+            "response": response,
+            "timestamp": datetime.now().isoformat(),
+            "stage": self._state.value,
+        })
+
+        return response
+
+    async def _handle_stage_transition(
+        self,
+        from_stage: str,
+        to_stage: str,
+    ) -> bool:
+        """
+        Handle transition between stages with optional pause (v1.11.0).
+
+        Args:
+            from_stage: Stage just completed
+            to_stage: Stage about to start
+
+        Returns:
+            True to continue, False to abort
+        """
+        if not self._config.pause_between_stages:
+            return True
+
+        if not self._config.enable_interactive:
+            return True
+
+        try:
+            response = await self._request_user_input(
+                prompt=f"Continue to {to_stage} stage?",
+                options=["continue", "skip", "abort"],
+                context=f"Completed: {from_stage}",
+            )
+
+            response = response.lower().strip()
+            if response == "abort":
+                return False
+            # "continue" or "skip" both proceed
+
+        except Exception as e:
+            logger.warning(f"User input failed during stage transition: {e}")
+            # Default to continue on error
+
+        return True
+
+    async def _handle_error_recovery(
+        self,
+        stage_name: str,
+        error: Exception,
+        retry_count: int,
+    ) -> str:
+        """
+        Handle error with optional user input (v1.11.0).
+
+        Args:
+            stage_name: Stage where error occurred
+            error: The exception that was raised
+            retry_count: Current retry attempt number
+
+        Returns:
+            Recovery action: "retry", "skip", or "abort"
+        """
+        # First, run error recovery hooks if available
+        if self._hooks:
+            from primr.agentic.hooks import HookContext, HookResult, HookType
+
+            recovery_context = HookContext(
+                hook_type=HookType.ERROR_RECOVERY,
+                stage_name=stage_name,
+                arguments={
+                    "error_type": type(error).__name__,
+                    "error_message": str(error),
+                    "retry_count": retry_count,
+                },
+                user_input_callback=self._config.user_input_callback,
+            )
+            response = await self._hooks.run_error_recovery_hooks(
+                stage_name, error, recovery_context
+            )
+
+            if response.result == HookResult.ALLOW:
+                return "retry"
+            elif response.result == HookResult.WARN:
+                return "skip"
+            # BLOCK falls through to user input or default
+
+        # Ask user if interactive and pause_on_error is enabled
+        if self._config.pause_on_error and self._config.enable_interactive:
+            try:
+                response = await self._request_user_input(
+                    prompt=f"Error in {stage_name}: {error}\n\nHow should we proceed?",
+                    options=["retry", "skip", "abort"],
+                    context=f"Retry attempt: {retry_count}/{self._config.max_retries}",
+                )
+                return response.lower().strip()
+            except Exception as e:
+                logger.warning(f"User input failed during error recovery: {e}")
+
+        # Default behavior: abort on fail_fast, otherwise skip
+        return "abort" if self._config.fail_fast else "skip"
+
+    def pause(self) -> bool:
+        """
+        Pause orchestrator execution (v1.11.0).
+
+        Can only pause from an active state.
+
+        Returns:
+            True if paused successfully, False otherwise
+        """
+        active_states = {
+            OrchestratorState.SCRAPING,
+            OrchestratorState.ANALYZING,
+            OrchestratorState.WRITING,
+            OrchestratorState.QA,
+        }
+
+        if self._state in active_states:
+            self._previous_state = self._state
+            self._paused_at_stage = self._state.value
+            self._state = OrchestratorState.PAUSED
+            logger.info(f"Orchestrator paused at stage: {self._paused_at_stage}")
+            return True
+
+        return False
+
+    def resume(self) -> bool:
+        """
+        Resume orchestrator execution from paused state (v1.11.0).
+
+        Returns:
+            True if resumed successfully, False otherwise
+        """
+        if self._state == OrchestratorState.PAUSED and self._previous_state:
+            self._state = self._previous_state
+            logger.info(f"Orchestrator resumed to state: {self._state.value}")
+            self._previous_state = None
+            return True
+
+        return False
 
     async def research(
         self,
@@ -464,6 +704,8 @@ class ResearchOrchestrator:
                 started_at=started_at,
                 completed_at=completed_at,
                 duration_seconds=duration,
+                paused_at_stage=self._paused_at_stage,
+                user_decisions=list(self._user_decisions),
             )
 
         except SubagentError as e:
@@ -480,6 +722,8 @@ class ResearchOrchestrator:
                 started_at=started_at,
                 completed_at=datetime.now(),
                 duration_seconds=duration,
+                paused_at_stage=self._paused_at_stage,
+                user_decisions=list(self._user_decisions),
             )
 
         except Exception as e:
@@ -589,3 +833,7 @@ class ResearchOrchestrator:
     def reset(self) -> None:
         """Reset orchestrator to IDLE state."""
         self._state = OrchestratorState.IDLE
+        # v1.11.0: Reset interactive mode state
+        self._paused_at_stage = None
+        self._previous_state = None
+        self._user_decisions = []

@@ -263,7 +263,7 @@ Implementation:
 - QA identifies specific sections needing work
 - Section-level regeneration without full pipeline re-run
 
-### v1.8.1 - Content Sanitization Layer (Planned)
+### v1.8.1 - Content Sanitization Layer (Complete)
 
 Goal: Protect against prompt injection from scraped web content.
 
@@ -277,14 +277,19 @@ Implementation:
 - Three modes: BLOCK (reject content), STRIP (remove patterns), WARN (log only)
 - Integration at summarization layer before LLM calls
 - `ContentSanitizationHook` for agentic pipeline governance
+- 75 comprehensive tests including property-based tests
 
-Detection patterns:
+Detection patterns (20+):
 - Instruction override attempts ("ignore previous instructions")
 - System prompt markers (SYSTEM:, [SYSTEM], <system>)
 - Role manipulation ("you are now", "act as", "pretend to be")
 - Output format manipulation ("output only", "respond exclusively")
 - Jailbreak patterns (DAN mode, bypass mode)
 - Hidden HTML comment instructions
+- Prompt leaking attempts ("show me your system prompt")
+- Conversation injection (User:, Human:)
+- Context manipulation ("from now on")
+- Debug mode attempts ("developer mode enabled")
 
 ## Medium-Term Roadmap
 
@@ -296,10 +301,11 @@ Goal: Support post-discovery learning without re-running everything from scratch
 - Re-synthesize insights with updated confidence and revised hypotheses
 - Outputs evolve from pre-meeting prep to post-discovery POV
 
-**MCP Progress Subscriptions:**
+**MCP Progress Subscriptions (Complete):**
 - `wait_for_status_change(job_id, timeout)` tool for real-time progress updates
 - Replaces polling-based `check_jobs` pattern for better UX
 - Asyncio.Event-based state change notification in job store
+- 5 async tests validating notification behavior
 
 ### v1.10.0 - POV and Narrative Evolution (Planned)
 
@@ -309,20 +315,30 @@ Goal: Make Primr the system of record for how thinking evolves.
 - Explicit "what changed and why" sections
 - Optional narrative framing outputs for internal deck creation
 
-### v1.11.0 - Interactive Research Mode (Planned)
+### v1.11.0 - Interactive Research Mode (Complete)
 
 Goal: Enable human-in-the-loop decisions during research.
 
-- User input callback interface in OrchestratorConfig
-- ERROR_RECOVERY hook type for handling failures gracefully
-- Mutable hook contexts for runtime decisions
-- Pause/resume capability at pipeline stage boundaries
+**Orchestrator Enhancements:**
+- `OrchestratorState.PAUSED` state for pipeline pause/resume
+- `user_input_callback` in OrchestratorConfig for user interaction
+- `enable_interactive`, `pause_on_error`, `pause_between_stages` config options
+- `pause()` and `resume()` methods on orchestrator
+- `_request_user_input()`, `_handle_stage_transition()`, `_handle_error_recovery()` methods
+- `user_decisions` tracking in OrchestratorResult
+
+**Hook System Enhancements:**
+- `HookType.ERROR_RECOVERY` for error handling hooks
+- `run_error_recovery_hooks()` method in HookSystem
+- `InteractiveErrorRecoveryHook` for user-driven error recovery
+- `mutable_data` and `user_input_callback` fields in HookContext
 
 Use cases:
 - Approve high-cost operations before execution
 - Choose between research directions at decision points
 - Provide domain expertise when AI is uncertain
 - Review and edit hypotheses mid-pipeline
+- Handle recoverable errors with user guidance
 
 ### v2.0.0 - Public Release (Planned)
 

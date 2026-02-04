@@ -28,6 +28,14 @@ from primr.utils.config_validation import (
     validate_config,
 )
 from primr.utils.console import Console, console, get_console, set_console
+from primr.utils.content_sanitizer import (
+    ContentSanitizer,
+    IssueType,
+    SanitizationIssue,
+    SanitizationMode,
+    SanitizationResult,
+    sanitize_for_llm,
+)
 from primr.utils.errors import (
     AIError,
     AuthenticationError,
@@ -231,6 +239,13 @@ __all__ = [
     "Metrics",
     "emit_metrics",
     "tracked_operation",
+    # Content Sanitization (LLM prompt injection protection)
+    "ContentSanitizer",
+    "SanitizationMode",
+    "SanitizationResult",
+    "SanitizationIssue",
+    "IssueType",
+    "sanitize_for_llm",
     # Security
     "secure_compare",
     "hash_secret",

@@ -32,6 +32,7 @@ from primr.agentic.errors import (
     SubagentError,
 )
 from primr.agentic.hooks import (
+    ContentSanitizationHook,
     CostGuardHook,
     Hook,
     HookContext,
@@ -39,6 +40,7 @@ from primr.agentic.hooks import (
     HookResult,
     HookSystem,
     HookType,
+    InteractiveErrorRecoveryHook,
     MemoryPersistenceHook,
     QAGateHook,
     SSRFGuardHook,
@@ -92,6 +94,7 @@ __all__ = [
     "RoadmapParseError",
     "SubagentError",
     # Hooks
+    "ContentSanitizationHook",
     "CostGuardHook",
     "Hook",
     "HookContext",
@@ -99,6 +102,7 @@ __all__ = [
     "HookResult",
     "HookSystem",
     "HookType",
+    "InteractiveErrorRecoveryHook",
     "MemoryPersistenceHook",
     "QAGateHook",
     "SSRFGuardHook",

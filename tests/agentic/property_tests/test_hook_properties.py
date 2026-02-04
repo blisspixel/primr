@@ -582,3 +582,157 @@ def test_content_sanitization_clean_content_always_allowed(mode: str, clean_text
     # Clean content should never be blocked
     if mode == "block":
         assert response.result in (HookResult.ALLOW, HookResult.WARN)
+
+
+# =============================================================================
+# INTERACTIVE ERROR RECOVERY HOOK TESTS (v1.11.0)
+# =============================================================================
+
+def test_error_recovery_hook_type():
+    """HookType.ERROR_RECOVERY is available."""
+    assert HookType.ERROR_RECOVERY.value == "error_recovery"
+
+
+def test_error_recovery_hooks_in_hook_system():
+    """HookSystem supports ERROR_RECOVERY hooks."""
+    hooks = HookSystem()
+    assert HookType.ERROR_RECOVERY in hooks._hooks
+
+
+def test_interactive_error_recovery_auto_retry_transient():
+    """InteractiveErrorRecoveryHook auto-retries transient errors."""
+    from primr.agentic.hooks import InteractiveErrorRecoveryHook
+
+    hook = InteractiveErrorRecoveryHook()
+    context = HookContext(
+        hook_type=HookType.ERROR_RECOVERY,
+        arguments={
+            "error_type": "TimeoutError",
+            "error_message": "Connection timed out",
+            "retry_count": 1,
+        },
+    )
+
+    response = asyncio.run(hook.execute(context))
+    assert response.result == HookResult.ALLOW
+    assert "retry" in response.message.lower()
+
+
+def test_interactive_error_recovery_blocks_permanent_error():
+    """InteractiveErrorRecoveryHook blocks non-retryable errors."""
+    from primr.agentic.hooks import InteractiveErrorRecoveryHook
+
+    hook = InteractiveErrorRecoveryHook()
+    context = HookContext(
+        hook_type=HookType.ERROR_RECOVERY,
+        arguments={
+            "error_type": "ValidationError",
+            "error_message": "Invalid input",
+            "retry_count": 0,
+        },
+    )
+
+    response = asyncio.run(hook.execute(context))
+    assert response.result == HookResult.BLOCK
+
+
+def test_interactive_error_recovery_max_retries():
+    """InteractiveErrorRecoveryHook stops retrying after max attempts."""
+    from primr.agentic.hooks import InteractiveErrorRecoveryHook
+
+    hook = InteractiveErrorRecoveryHook()
+    context = HookContext(
+        hook_type=HookType.ERROR_RECOVERY,
+        arguments={
+            "error_type": "TimeoutError",
+            "error_message": "Connection timed out",
+            "retry_count": 5,  # Exceeds max of 3
+        },
+    )
+
+    response = asyncio.run(hook.execute(context))
+    assert response.result == HookResult.BLOCK
+
+
+def test_interactive_error_recovery_with_callback():
+    """InteractiveErrorRecoveryHook uses user callback when available."""
+    from primr.agentic.hooks import InteractiveErrorRecoveryHook
+
+    async def mock_callback(prompt: str, options: list[str] | None) -> str:
+        return "skip"
+
+    hook = InteractiveErrorRecoveryHook()
+    context = HookContext(
+        hook_type=HookType.ERROR_RECOVERY,
+        arguments={
+            "error_type": "TimeoutError",
+            "error_message": "Timed out",
+            "retry_count": 0,
+        },
+        user_input_callback=mock_callback,
+    )
+
+    response = asyncio.run(hook.execute(context))
+    assert response.result == HookResult.WARN  # Skip = WARN
+    assert "skip" in response.message.lower()
+
+
+def test_interactive_error_recovery_custom_retryable_errors():
+    """InteractiveErrorRecoveryHook accepts custom retryable error types."""
+    from primr.agentic.hooks import InteractiveErrorRecoveryHook
+
+    hook = InteractiveErrorRecoveryHook(retryable_errors={"CustomError"})
+
+    # Custom error should be retryable
+    context1 = HookContext(
+        hook_type=HookType.ERROR_RECOVERY,
+        arguments={"error_type": "CustomError", "retry_count": 0},
+    )
+    response1 = asyncio.run(hook.execute(context1))
+    assert response1.result == HookResult.ALLOW
+
+    # Default transient error should NOT be retryable
+    context2 = HookContext(
+        hook_type=HookType.ERROR_RECOVERY,
+        arguments={"error_type": "TimeoutError", "retry_count": 0},
+    )
+    response2 = asyncio.run(hook.execute(context2))
+    assert response2.result == HookResult.BLOCK
+
+
+def test_run_error_recovery_hooks():
+    """HookSystem.run_error_recovery_hooks executes error recovery hooks."""
+    from primr.agentic.hooks import InteractiveErrorRecoveryHook
+
+    hooks = HookSystem()
+    hooks.register(InteractiveErrorRecoveryHook())
+
+    response = asyncio.run(hooks.run_error_recovery_hooks(
+        stage="test_stage",
+        error=TimeoutError("Test timeout"),
+    ))
+
+    # Should allow retry for transient error
+    assert response.result == HookResult.ALLOW
+
+
+def test_hook_context_mutable_data():
+    """HookContext has mutable_data field for hooks to pass data back."""
+    context = HookContext(hook_type=HookType.PRE_TOOL_USE)
+
+    assert context.mutable_data == {}
+    context.mutable_data["key"] = "value"
+    assert context.mutable_data["key"] == "value"
+
+
+def test_hook_context_user_input_callback():
+    """HookContext accepts user_input_callback field."""
+    async def callback(prompt: str, options: list[str] | None) -> str:
+        return "test"
+
+    context = HookContext(
+        hook_type=HookType.ERROR_RECOVERY,
+        user_input_callback=callback,
+    )
+
+    assert context.user_input_callback is callback

@@ -193,6 +193,27 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
                     "required": ["job_id"],
                 },
             ),
+            Tool(
+                name="wait_for_status_change",
+                description="Wait for a job status to change (blocks until change or timeout)",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "job_id": {
+                            "type": "string",
+                            "description": "The job ID to monitor",
+                        },
+                        "timeout_seconds": {
+                            "type": "number",
+                            "default": 60,
+                            "minimum": 1,
+                            "maximum": 300,
+                            "description": "Maximum seconds to wait (default: 60, max: 300)",
+                        },
+                    },
+                    "required": ["job_id"],
+                },
+            ),
         ]
         # Include agentic tools
         return base_tools + agentic_tools
@@ -244,6 +265,8 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
             return await _handle_clear_jobs(mcp_server, arguments)
         elif name == "cancel_job":
             return await _handle_cancel_job(mcp_server, arguments, client_id)
+        elif name == "wait_for_status_change":
+            return await _handle_wait_for_status_change(mcp_server, arguments)
 
         raise ValueError(f"Unknown tool: {name}")
 
@@ -704,4 +727,91 @@ async def _handle_cancel_job(
             "status": "cancelled",
             "message": "Job cancelled. Any partial artifacts have been preserved.",
         }),
+    )]
+
+
+async def _handle_wait_for_status_change(
+    mcp_server: "PrimrMCPServer",
+    arguments: dict[str, Any],
+) -> list[TextContent]:
+    """
+    Handle wait_for_status_change tool.
+
+    Blocks until job status changes or timeout occurs.
+    More efficient than polling check_jobs.
+
+    Requirements: MCP Progress Subscriptions (v1.9.0)
+    """
+    import json
+
+    job_id = arguments.get("job_id")
+    timeout_seconds = min(arguments.get("timeout_seconds", 60), 300)  # Cap at 5 minutes
+
+    # Get current job state
+    job = mcp_server.job_store.get(job_id)
+    if not job:
+        return [TextContent(
+            type="text",
+            text=json.dumps({
+                "error": True,
+                "error_type": "job_not_found",
+                "error_code": MCPErrorCode.JOB_NOT_FOUND,
+                "message": f"Job not found: {job_id}",
+            }),
+        )]
+
+    current_status = job.get_status()
+
+    # If already terminal, return immediately
+    if job.is_terminal():
+        return [TextContent(
+            type="text",
+            text=json.dumps({
+                "job_id": job_id,
+                "status": current_status.value,
+                "changed": False,
+                "message": "Job is already in terminal state",
+                "output_path": job.output_paths[0] if job.output_paths else None,
+            }),
+        )]
+
+    # Wait for status change
+    changed, new_status = await mcp_server.job_store.wait_for_status_change(
+        job_id=job_id,
+        current_status=current_status,
+        timeout_seconds=timeout_seconds,
+    )
+
+    # Get updated job info
+    job = mcp_server.job_store.get(job_id)
+    if job is None:
+        return [TextContent(
+            type="text",
+            text=json.dumps({
+                "error": True,
+                "error_type": "job_not_found",
+                "message": "Job disappeared while waiting",
+            }),
+        )]
+
+    result = {
+        "job_id": job_id,
+        "status": job.get_status().value,
+        "previous_status": current_status.value,
+        "changed": changed,
+        "current_stage": job.current_stage.value,
+        "stage_progress_percent": job.stage_progress_percent,
+    }
+
+    if job.is_terminal():
+        result["output_path"] = job.output_paths[0] if job.output_paths else None
+        if job.error_message:
+            result["error_message"] = job.error_message
+
+    if not changed:
+        result["message"] = f"Timeout after {timeout_seconds}s, status unchanged"
+
+    return [TextContent(
+        type="text",
+        text=json.dumps(result),
     )]
