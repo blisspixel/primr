@@ -136,6 +136,7 @@ class ScrapeOrchestrator:
         Scrape a single URL using tiered approach.
 
         Flow:
+        0. SSRF validation (block private IPs, metadata endpoints)
         1. Check cache
         2. Check if host is hard-blocked
         3. Try each tier in order
@@ -157,6 +158,21 @@ class ScrapeOrchestrator:
         Returns:
             ScrapeResult with all fields populated
         """
+        # 0. SSRF validation - block private IPs, cloud metadata endpoints
+        from primr.utils.security import is_safe_url
+
+        is_safe, ssrf_error = is_safe_url(url)
+        if not is_safe:
+            logger.warning(f"SSRF blocked: {url} - {ssrf_error}")
+            return ScrapeResult(
+                url=url,
+                success=False,
+                error_type=ErrorType.HARD_BLOCK,
+                error=f"URL blocked by SSRF protection: {ssrf_error}",
+                tier=None,
+                attempts=[],
+            )
+
         host = extract_host(url)
         start_time = time.time()
         all_attempts: list[Attempt] = []

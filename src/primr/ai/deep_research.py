@@ -304,6 +304,7 @@ async def resolve_redirect_url(url: str, timeout: float = 10.0, retries: int = 2
         The final destination URL, or the original URL if resolution fails
     """
     import httpx
+    from primr.utils.security import validate_final_url_after_redirect
 
     # Only resolve Google grounding redirect URLs
     if "vertexaisearch.cloud.google.com/grounding-api-redirect" not in url:
@@ -316,6 +317,13 @@ async def resolve_redirect_url(url: str, timeout: float = 10.0, retries: int = 2
                 response = await client.head(url)
                 # Return the final URL after all redirects
                 final_url = str(response.url)
+                
+                # SSRF protection: validate final URL after redirects
+                is_safe, redirect_error = validate_final_url_after_redirect(final_url)
+                if not is_safe:
+                    logger.warning(f"Redirect to unsafe URL blocked: {final_url} - {redirect_error}")
+                    return url  # Return original URL instead of unsafe redirect target
+                
                 logger.debug(f"Resolved URL: {url[:50]}... -> {final_url[:80]}...")
                 return final_url
         except TimeoutError:

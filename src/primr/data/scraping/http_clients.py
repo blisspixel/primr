@@ -77,6 +77,28 @@ def scrape_with_requests(
 
         elapsed_ms = (time.time() - start_time) * 1000
 
+        # SSRF protection: validate final URL after redirects
+        final_url = str(response.url)
+        from primr.utils.security import validate_final_url_after_redirect
+        is_safe, redirect_error = validate_final_url_after_redirect(final_url)
+        if not is_safe:
+            attempt = Attempt(
+                tier=tier_name,
+                success=False,
+                error_type=ErrorType.NETWORK_ERROR,
+                error=f"Redirect to unsafe URL blocked: {redirect_error}",
+                elapsed_ms=elapsed_ms,
+            )
+            return ScrapeResult(
+                url=url,
+                success=False,
+                error_type=ErrorType.NETWORK_ERROR,
+                error=f"SSRF protection: redirect to {final_url} blocked - {redirect_error}",
+                tier=tier_name,
+                elapsed_ms=elapsed_ms,
+                attempts=[attempt],
+            )
+
         attempt = Attempt(
             tier=tier_name,
             success=True,
@@ -90,7 +112,7 @@ def scrape_with_requests(
             raw_content=response.content,
             content_type=response.headers.get("Content-Type", ""),
             http_status=response.status_code,
-            final_url=str(response.url),
+            final_url=final_url,
             tier=tier_name,
             elapsed_ms=elapsed_ms,
             attempts=[attempt],
@@ -231,6 +253,28 @@ def scrape_with_httpx(
 
         elapsed_ms = (time.time() - start_time) * 1000
 
+        # SSRF protection: validate final URL after redirects
+        final_url = str(response.url)
+        from primr.utils.security import validate_final_url_after_redirect
+        is_safe, redirect_error = validate_final_url_after_redirect(final_url)
+        if not is_safe:
+            attempt = Attempt(
+                tier=tier_name,
+                success=False,
+                error_type=ErrorType.NETWORK_ERROR,
+                error=f"Redirect to unsafe URL blocked: {redirect_error}",
+                elapsed_ms=elapsed_ms,
+            )
+            return ScrapeResult(
+                url=url,
+                success=False,
+                error_type=ErrorType.NETWORK_ERROR,
+                error=f"SSRF protection: redirect to {final_url} blocked - {redirect_error}",
+                tier=tier_name,
+                elapsed_ms=elapsed_ms,
+                attempts=[attempt],
+            )
+
         attempt = Attempt(
             tier=tier_name,
             success=True,
@@ -244,7 +288,7 @@ def scrape_with_httpx(
             raw_content=response.content,
             content_type=response.headers.get("Content-Type", ""),
             http_status=response.status_code,
-            final_url=str(response.url),
+            final_url=final_url,
             tier=tier_name,
             elapsed_ms=elapsed_ms,
             attempts=[attempt],
@@ -388,6 +432,28 @@ def scrape_with_curl_cffi(
 
         elapsed_ms = (time.time() - start_time) * 1000
 
+        # SSRF protection: validate final URL after redirects
+        final_url = str(response.url)
+        from primr.utils.security import validate_final_url_after_redirect
+        is_safe, redirect_error = validate_final_url_after_redirect(final_url)
+        if not is_safe:
+            attempt = Attempt(
+                tier=tier_name,
+                success=False,
+                error_type=ErrorType.NETWORK_ERROR,
+                error=f"Redirect to unsafe URL blocked: {redirect_error}",
+                elapsed_ms=elapsed_ms,
+            )
+            return ScrapeResult(
+                url=url,
+                success=False,
+                error_type=ErrorType.NETWORK_ERROR,
+                error=f"SSRF protection: redirect to {final_url} blocked - {redirect_error}",
+                tier=tier_name,
+                elapsed_ms=elapsed_ms,
+                attempts=[attempt],
+            )
+
         attempt = Attempt(
             tier=tier_name,
             success=True,
@@ -401,7 +467,7 @@ def scrape_with_curl_cffi(
             raw_content=response.content,
             content_type=response.headers.get("Content-Type", ""),
             http_status=response.status_code,
-            final_url=str(response.url),
+            final_url=final_url,
             tier=tier_name,
             elapsed_ms=elapsed_ms,
             attempts=[attempt],

@@ -6,6 +6,7 @@ This module provides:
 - Input sanitization helpers
 - Security audit logging
 - Sensitive data masking for logs
+- URL validation for SSRF protection
 
 Security best practices:
 - Use constant-time comparison for secrets to prevent timing attacks
@@ -127,6 +128,14 @@ SENSITIVE_PATTERNS = [
     (re.compile(r'\b(AIza[a-zA-Z0-9_-]{35})\b'), '[GOOGLE_API_KEY]'),
     (re.compile(r'\b(sk-[a-zA-Z0-9]{48})\b'), '[OPENAI_API_KEY]'),
     (re.compile(r'\b(ghp_[a-zA-Z0-9]{36})\b'), '[GITHUB_TOKEN]'),
+    # Additional patterns for common API keys
+    (re.compile(r'\b(gho_[a-zA-Z0-9]{36})\b'), '[GITHUB_OAUTH_TOKEN]'),
+    (re.compile(r'\b(github_pat_[a-zA-Z0-9_]{22,})\b'), '[GITHUB_PAT]'),
+    (re.compile(r'\b(xox[baprs]-[a-zA-Z0-9-]+)\b'), '[SLACK_TOKEN]'),
+    (re.compile(r'\b(sk-ant-[a-zA-Z0-9-]+)\b'), '[ANTHROPIC_API_KEY]'),
+    (re.compile(r'\b(AKIA[A-Z0-9]{16})\b'), '[AWS_ACCESS_KEY]'),
+    # JWT tokens (header.payload.signature format)
+    (re.compile(r'\beyJ[a-zA-Z0-9_-]*\.eyJ[a-zA-Z0-9_-]*\.[a-zA-Z0-9_-]+\b'), '[JWT_TOKEN]'),
 ]
 
 
@@ -457,3 +466,175 @@ def audit_security_event(event_type: str, component: str = "general"):
 
         return wrapper
     return decorator
+
+
+# =============================================================================
+# URL VALIDATION FOR SSRF PROTECTION
+# =============================================================================
+
+# Private/reserved IP ranges that should be blocked
+_PRIVATE_IP_RANGES = [
+    "10.0.0.0/8",
+    "172.16.0.0/12",
+    "192.168.0.0/16",
+    "127.0.0.0/8",
+    "169.254.0.0/16",
+    "0.0.0.0/8",
+    "100.64.0.0/10",
+    "192.0.0.0/24",
+    "::1/128",
+    "fc00::/7",
+    "fe80::/10",
+]
+
+# Cloud metadata endpoints
+_METADATA_HOSTS = frozenset({
+    "169.254.169.254",
+    "169.254.170.2",
+    "metadata.google.internal",
+    "metadata.goog",
+})
+
+
+def is_safe_url(url: str) -> tuple[bool, str | None]:
+    """
+    Check if a URL is safe to fetch (SSRF protection).
+
+    Validates:
+    - Scheme is HTTP or HTTPS
+    - Host is not a private/reserved IP
+    - Host is not a cloud metadata endpoint
+    - DNS resolution doesn't point to private IPs
+
+    Args:
+        url: URL to validate
+
+    Returns:
+        Tuple of (is_safe, error_message)
+
+    Example:
+        safe, error = is_safe_url("https://example.com")
+        if not safe:
+            raise ValueError(f"Unsafe URL: {error}")
+    """
+    import ipaddress
+    import socket
+    from urllib.parse import urlparse
+
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return False, "Failed to parse URL"
+
+    # Check scheme
+    if parsed.scheme.lower() not in ("http", "https"):
+        return False, f"Invalid scheme: {parsed.scheme}. Only HTTP/HTTPS allowed."
+
+    # Check for empty host
+    if not parsed.hostname:
+        return False, "URL has no hostname"
+
+    hostname = parsed.hostname.lower()
+
+    # Check metadata endpoints by hostname
+    if hostname in _METADATA_HOSTS:
+        return False, "Cloud metadata endpoints are blocked"
+
+    # Resolve hostname to IP
+    try:
+        ip_addresses = socket.getaddrinfo(
+            hostname, parsed.port or (443 if parsed.scheme == "https" else 80)
+        )
+        resolved_ips: set[str] = set()
+        for _family, _type, _proto, _canonname, sockaddr in ip_addresses:
+            resolved_ips.add(str(sockaddr[0]))
+    except socket.gaierror:
+        return False, "DNS resolution failed"
+
+    # Check each resolved IP
+    for ip_str in resolved_ips:
+        # Check metadata IP
+        if ip_str in _METADATA_HOSTS:
+            return False, "Cloud metadata endpoints are blocked"
+
+        try:
+            ip = ipaddress.ip_address(ip_str)
+
+            # Check private/reserved ranges
+            for network_str in _PRIVATE_IP_RANGES:
+                network = ipaddress.ip_network(network_str)
+                if ip in network:
+                    return False, "Private/reserved IP addresses are blocked"
+        except ValueError:
+            continue
+
+    return True, None
+
+
+def validate_redirect_url(url: str, allowed_hosts: set[str] | None = None) -> bool:
+    """
+    Validate a redirect URL to prevent open redirect vulnerabilities.
+
+    Args:
+        url: URL to validate
+        allowed_hosts: Set of allowed hostnames (None = same-origin only)
+
+    Returns:
+        True if URL is safe for redirect
+
+    Example:
+        if validate_redirect_url(next_url, {"example.com", "app.example.com"}):
+            return redirect(next_url)
+    """
+    from urllib.parse import urlparse
+
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return False
+
+    # Relative URLs are always safe
+    if not parsed.scheme and not parsed.netloc:
+        # But check for protocol-relative URLs (//evil.com)
+        if url.startswith("//"):
+            return False
+        return True
+
+    # Check scheme
+    if parsed.scheme.lower() not in ("http", "https"):
+        return False
+
+    # If allowed_hosts specified, check against it
+    if allowed_hosts is not None:
+        hostname = parsed.hostname
+        if hostname is None:
+            return False
+        return hostname.lower() in {h.lower() for h in allowed_hosts}
+
+    # No allowed_hosts = reject all absolute URLs
+    return False
+
+
+def validate_final_url_after_redirect(final_url: str) -> tuple[bool, str | None]:
+    """
+    Validate the final URL after following redirects (SSRF protection).
+
+    This should be called after a request completes to ensure the final
+    destination URL (after all redirects) is not an internal/private address.
+
+    A malicious server could redirect from a safe URL to an internal IP,
+    bypassing initial SSRF validation. This function catches that attack.
+
+    Args:
+        final_url: The final URL after all redirects completed
+
+    Returns:
+        Tuple of (is_safe, error_message)
+
+    Example:
+        response = requests.get(url, allow_redirects=True)
+        safe, error = validate_final_url_after_redirect(str(response.url))
+        if not safe:
+            raise ValueError(f"Redirect to unsafe URL blocked: {error}")
+    """
+    return is_safe_url(final_url)

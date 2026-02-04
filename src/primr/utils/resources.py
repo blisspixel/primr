@@ -149,6 +149,12 @@ def managed_http_client(
     Creates an httpx client with configured limits and ensures proper
     cleanup on exit.
 
+    SECURITY WARNING: This returns a raw httpx client. Callers MUST validate
+    URLs using `primr.utils.validators.validate_url_for_request()` before
+    making requests, and validate final URLs after redirects using
+    `primr.utils.security.validate_final_url_after_redirect()` to prevent
+    SSRF attacks.
+
     Args:
         timeout: Request timeout in seconds
         max_connections: Maximum concurrent connections
@@ -158,8 +164,21 @@ def managed_http_client(
         Configured httpx.Client instance
 
     Example:
+        from primr.utils.validators import validate_url_for_request
+        from primr.utils.security import validate_final_url_after_redirect
+
         with managed_http_client(timeout=10.0) as client:
-            response = client.get("https://example.com")
+            # Validate URL before request
+            is_valid, url, error = validate_url_for_request(url)
+            if not is_valid:
+                raise ValueError(f"Invalid URL: {error}")
+
+            response = client.get(url)
+
+            # Validate final URL after redirects
+            is_safe, error = validate_final_url_after_redirect(str(response.url))
+            if not is_safe:
+                raise ValueError(f"Unsafe redirect: {error}")
     """
     import httpx
 

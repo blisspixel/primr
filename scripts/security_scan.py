@@ -136,6 +136,11 @@ def check_hardcoded_secrets() -> tuple[bool, list[str]]:
         (r'AIza[a-zA-Z0-9_-]{35}', "Google API key pattern"),
         (r'sk-[a-zA-Z0-9]{48}', "OpenAI API key pattern"),
         (r'ghp_[a-zA-Z0-9]{36}', "GitHub token pattern"),
+        (r'gho_[a-zA-Z0-9]{36}', "GitHub OAuth token pattern"),
+        (r'github_pat_[a-zA-Z0-9_]{22,}', "GitHub PAT pattern"),
+        (r'xox[baprs]-[a-zA-Z0-9-]+', "Slack token pattern"),
+        (r'sk-ant-[a-zA-Z0-9-]+', "Anthropic API key pattern"),
+        (r'AKIA[A-Z0-9]{16}', "AWS access key pattern"),
     ]
 
     issues = []
@@ -191,6 +196,9 @@ def check_unsafe_patterns() -> tuple[bool, list[str]]:
         (r'yaml\.load\s*\([^)]*\)', "Unsafe yaml.load (use safe_load)"),
         (r'__import__\s*\(', "Dynamic import"),
         (r'os\.system\s*\(', "Use of os.system"),
+        (r'random\.(choice|randint|random)\s*\(.*(?:token|secret|key|password)', "Insecure random for secrets"),
+        # Only flag MD5/SHA1 if NOT marked as usedforsecurity=False
+        (r'hashlib\.(md5|sha1)\s*\([^)]*\)(?!.*usedforsecurity\s*=\s*False)', "Weak hash algorithm (use sha256+ or add usedforsecurity=False)"),
     ]
 
     issues = []
@@ -255,6 +263,50 @@ def check_yaml_safety() -> tuple[bool, list[str]]:
     return True, []
 
 
+def check_file_encoding() -> tuple[bool, list[str]]:
+    """Check for file operations missing explicit encoding."""
+    print_header("Checking File Encoding")
+
+    issues = []
+    src_path = Path("src/primr")
+
+    # Pattern for open() calls without encoding (text mode)
+    open_pattern = re.compile(r'open\s*\([^)]*\)')
+
+    for py_file in src_path.rglob("*.py"):
+        try:
+            content = py_file.read_text(encoding="utf-8")
+
+            for i, line in enumerate(content.split("\n"), 1):
+                if line.strip().startswith("#"):
+                    continue
+
+                # Check for open() calls
+                if "open(" in line:
+                    # Skip binary mode
+                    if "'rb'" in line or '"rb"' in line or "'wb'" in line or '"wb"' in line:
+                        continue
+                    # Check for encoding
+                    if "encoding" not in line and "encoding=" not in line:
+                        # Could be a false positive, but worth flagging
+                        issues.append(f"{py_file}:{i}: open() without encoding")
+
+        except Exception:
+            pass
+
+    if issues:
+        print_warn(f"Found {len(issues)} file operations without explicit encoding:")
+        for issue in issues[:5]:
+            print(f"  {issue}")
+        if len(issues) > 5:
+            print(f"  ... and {len(issues) - 5} more")
+        # Don't fail, just warn
+        return True, issues
+
+    print_ok("All file operations have explicit encoding")
+    return True, []
+
+
 def main() -> int:
     """Run all security checks."""
     parser = argparse.ArgumentParser(description="Security scanning for Primr")
@@ -274,6 +326,7 @@ def main() -> int:
         ("Hardcoded Secrets", check_hardcoded_secrets),
         ("Unsafe Patterns", check_unsafe_patterns),
         ("YAML Safety", check_yaml_safety),
+        ("File Encoding", check_file_encoding),
     ]
 
     # Safety check is optional (may have false positives)

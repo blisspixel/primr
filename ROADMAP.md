@@ -281,6 +281,16 @@ Goal: Make Primr the system of record for how thinking evolves.
 - Explicit "what changed and why" sections
 - Optional narrative framing outputs for internal deck creation
 
+### v2.0.0 - Public Release (Planned)
+
+Goal: Make Primr available to the broader community via PyPI.
+
+- PyPI publication (`pip install primr`)
+- Public GitHub repository
+- GitHub Actions CI/CD for automated testing
+- Contribution workflow for external contributors
+- Documentation site
+
 ## Scale Readiness (Implemented in v1.6.0)
 
 Primr now supports serverless cloud deployment for organizational adoption:

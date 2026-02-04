@@ -371,6 +371,7 @@ class PreflightValidator:
         """Check target website is reachable."""
         try:
             import httpx
+            from primr.utils.security import validate_final_url_after_redirect
 
             # Normalize URL
             if not website_url.startswith(('http://', 'https://')):
@@ -378,6 +379,18 @@ class PreflightValidator:
 
             async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
                 response = await client.head(website_url)
+                
+                # SSRF protection: validate final URL after redirects
+                final_url = str(response.url)
+                is_safe, redirect_error = validate_final_url_after_redirect(final_url)
+                if not is_safe:
+                    errors.append(f"Website redirects to unsafe URL: {redirect_error}")
+                    checks["website"] = {
+                        "passed": False,
+                        "status": "unsafe_redirect",
+                        "detail": f"Redirects to blocked address: {final_url}",
+                    }
+                    return
 
                 if response.status_code < 400:
                     checks["website"] = {
