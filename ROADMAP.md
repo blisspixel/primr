@@ -375,3 +375,15 @@ cd deploy/aws && ./deploy.sh -d prod destroy
 ## Final Note
 
 Primr is a tool for understanding companies. The focus is on useful output, not user growth.
+
+## Disclaimer
+
+**Legal Compliance**: Users are responsible for ensuring their use of Primr complies with applicable laws, website terms of service, and robots.txt directives. Web scraping may be restricted or prohibited by certain websites. The authors do not endorse or encourage scraping sites that prohibit it.
+
+**Accuracy**: Primr uses AI models that may produce inaccurate, incomplete, or hallucinated information. All outputs should be treated as hypotheses requiring human verification, not facts. Do not make business decisions based solely on Primr outputs without independent validation.
+
+**Costs**: Primr makes API calls to third-party services (Gemini, Google Search) that incur real monetary charges. Cost estimates are approximate. Users are responsible for monitoring their own API usage and costs.
+
+**No Warranty**: This software is provided "as is" without warranty of any kind. The authors are not liable for any damages, costs, or legal issues arising from use of this software.
+
+**Intended Use**: Primr is designed for legitimate internal research and due diligence purposes. It is not intended for competitive intelligence gathering that violates laws or ethical standards, mass surveillance, or any malicious purpose.
