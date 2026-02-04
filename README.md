@@ -219,13 +219,20 @@ primr doctor
 ## Configuration
 
 Required API keys in `.env`:
-```
-GEMINI_API_KEY=       # Google AI API key
+```bash
+GEMINI_API_KEY=       # Google AI API key (https://aistudio.google.com/apikey)
 SEARCH_API_KEY=       # Google Custom Search API key
 SEARCH_ENGINE_ID=     # Google Custom Search Engine ID
 ```
 
-See [docs/CONFIG.md](docs/CONFIG.md) for full configuration reference.
+Quick setup:
+```bash
+cp .env.example .env   # Copy template
+# Edit .env with your keys
+primr doctor           # Verify configuration
+```
+
+See [docs/API_KEYS.md](docs/API_KEYS.md) for step-by-step key setup and [docs/CONFIG.md](docs/CONFIG.md) for full configuration reference.
 
 ## Intended Use
 
