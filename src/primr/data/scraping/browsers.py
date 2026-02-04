@@ -871,6 +871,21 @@ def _scrape_with_playwright_impl(
         cookies = {c["name"]: c["value"] for c in context.cookies()}
         final_url = page.url
 
+        # SSRF protection: Validate final URL after redirects
+        from primr.utils.security import validate_final_url_after_redirect
+        is_safe, ssrf_error = validate_final_url_after_redirect(final_url)
+        if not is_safe:
+            elapsed_ms = (time.time() - start_time) * 1000
+            return ScrapeResult(
+                url=url,
+                success=False,
+                error_type=ErrorType.NETWORK_ERROR,
+                error=f"Redirect SSRF blocked: {ssrf_error}",
+                tier=tier_name,
+                elapsed_ms=elapsed_ms,
+                attempts=[Attempt(tier=tier_name, success=False, error=f"Redirect SSRF: {ssrf_error}", elapsed_ms=elapsed_ms)],
+            )
+
         elapsed_ms = (time.time() - start_time) * 1000
 
         return ScrapeResult(
@@ -1013,6 +1028,21 @@ def scrape_with_playwright_aggressive(
         cookies = session.get_cookies()
         final_url = session.get_current_url()
 
+        # SSRF protection: Validate final URL after redirects
+        from primr.utils.security import validate_final_url_after_redirect
+        is_safe, ssrf_error = validate_final_url_after_redirect(final_url)
+        if not is_safe:
+            elapsed_ms = (time.time() - start_time) * 1000
+            return ScrapeResult(
+                url=url,
+                success=False,
+                error_type=ErrorType.NETWORK_ERROR,
+                error=f"Redirect SSRF blocked: {ssrf_error}",
+                tier=tier_name,
+                elapsed_ms=elapsed_ms,
+                attempts=[Attempt(tier=tier_name, success=False, error=f"Redirect SSRF: {ssrf_error}", elapsed_ms=elapsed_ms)],
+            )
+
         elapsed_ms = (time.time() - start_time) * 1000
 
         return ScrapeResult(
@@ -1127,6 +1157,21 @@ def scrape_with_drissionpage(
         html = session.get_page_html()
         cookies = session.get_cookies()
         final_url = session.get_current_url()
+
+        # SSRF protection: Validate final URL after redirects
+        from primr.utils.security import validate_final_url_after_redirect
+        is_safe, ssrf_error = validate_final_url_after_redirect(final_url)
+        if not is_safe:
+            elapsed_ms = (time.time() - start_time) * 1000
+            return ScrapeResult(
+                url=url,
+                success=False,
+                error_type=ErrorType.NETWORK_ERROR,
+                error=f"Redirect SSRF blocked: {ssrf_error}",
+                tier=tier_name,
+                elapsed_ms=elapsed_ms,
+                attempts=[Attempt(tier=tier_name, success=False, error=f"Redirect SSRF: {ssrf_error}", elapsed_ms=elapsed_ms)],
+            )
 
         elapsed_ms = (time.time() - start_time) * 1000
 
@@ -1288,6 +1333,21 @@ def scrape_with_drissionpage_stealth(
             cookies = session.get_cookies()
             final_url = session.get_current_url()
 
+            # SSRF protection: Validate final URL after redirects
+            from primr.utils.security import validate_final_url_after_redirect
+            is_safe, ssrf_error = validate_final_url_after_redirect(final_url)
+            if not is_safe:
+                elapsed_ms = (time.time() - start_time) * 1000
+                return ScrapeResult(
+                    url=url,
+                    success=False,
+                    error_type=ErrorType.NETWORK_ERROR,
+                    error=f"Redirect SSRF blocked: {ssrf_error}",
+                    tier=tier_name,
+                    elapsed_ms=elapsed_ms,
+                    attempts=[Attempt(tier=tier_name, success=False, error=f"Redirect SSRF: {ssrf_error}", elapsed_ms=elapsed_ms)],
+                )
+
             elapsed_ms = (time.time() - start_time) * 1000
 
             return ScrapeResult(
@@ -1445,6 +1505,23 @@ def scrape_with_vision(
             # Navigate and wait for content
             page.goto(url, timeout=int(timeout * 1000), wait_until="networkidle")
             page.wait_for_timeout(2000)  # Extra wait for JS rendering
+
+            # SSRF protection: Validate final URL after redirects
+            final_url = page.url
+            from primr.utils.security import validate_final_url_after_redirect
+            is_safe, ssrf_error = validate_final_url_after_redirect(final_url)
+            if not is_safe:
+                browser.close()
+                elapsed_ms = (time.time() - start_time) * 1000
+                return ScrapeResult(
+                    url=url,
+                    success=False,
+                    error_type=ErrorType.NETWORK_ERROR,
+                    error=f"Redirect SSRF blocked: {ssrf_error}",
+                    tier=tier_name,
+                    elapsed_ms=elapsed_ms,
+                    attempts=[Attempt(tier=tier_name, success=False, error=f"Redirect SSRF: {ssrf_error}", elapsed_ms=elapsed_ms)],
+                )
 
             # Scroll to load lazy content
             page.evaluate("window.scrollTo(0, document.body.scrollHeight / 2)")
