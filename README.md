@@ -1,20 +1,22 @@
 # Primr
 
-**Turn any company URL into a strategic intelligence brief.**
+**Turn a company URL into a cited, analyst-grade intelligence brief.**
 
-Primr combines battle-tested web scraping with Gemini's autonomous Deep Research to generate the kind of company intelligence that used to take analysts hours. Point it at a website, get a structured brief with citations.
+Primr aggressively extracts primary-source data from company websites, escalates when sites resist scraping, and synthesizes external research into structured briefs that can be consumed by humans *or* autonomous agents.
 
-## Why This Exists
-
-Company research is tedious. You visit the website, click around, Google the company, read articles, synthesize it all, write it up. Repeat for every prospect, every deal, every meeting.
-
-Primr does that entire workflow autonomously:
+Runs as a CLI, an MCP server, an OpenClaw integration, and a Claude Skill.
 
 ```
 primr "Acme Corp" https://acme.example
 ```
 
-30 minutes later: a structured brief with competitive positioning, technology stack, strategic initiatives, and external validation—all cited.
+30 minutes later: competitive positioning, technology stack, strategic initiatives, and external validation—all cited.
+
+## Why This Exists
+
+Company research is tedious. You visit the website, click around, Google the company, read articles, synthesize it all, write it up. Repeat for every prospect, every deal, every meeting.
+
+Primr does that entire workflow autonomously.
 
 ## What Makes It Different
 
@@ -24,7 +26,7 @@ primr "Acme Corp" https://acme.example
 
 **The economics are absurd.** A junior analyst doing this manually? Hours. A research service? Hundreds of dollars. Primr? ~$1-2 and 30 minutes.
 
-**It's composable.** MCP server, OpenClaw integration, and Claude Skills included. AI agents can call Primr, track hypotheses across sessions, and build on prior research.
+**It's agent-native.** MCP server, OpenClaw integration, and Claude Skills included. AI agents can call Primr, track hypotheses across sessions, and build on prior research.
 
 ## Modes
 
