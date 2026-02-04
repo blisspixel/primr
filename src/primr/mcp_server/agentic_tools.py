@@ -26,10 +26,10 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def register_agentic_tools(server: Server, mcp_server: "PrimrMCPServer") -> list[Tool]:
+def register_agentic_tools(server: Server, mcp_server: PrimrMCPServer) -> list[Tool]:
     """
     Register agentic architecture tools with the MCP server.
-    
+
     Returns the list of tools for inclusion in list_tools().
     """
     return [
@@ -120,11 +120,11 @@ def register_agentic_tools(server: Server, mcp_server: "PrimrMCPServer") -> list
 async def handle_agentic_tool(
     name: str,
     arguments: dict[str, Any],
-    mcp_server: "PrimrMCPServer",
+    mcp_server: PrimrMCPServer,
 ) -> list[TextContent] | None:
     """
     Handle agentic tool calls.
-    
+
     Returns None if the tool is not an agentic tool.
     """
     if name == "query_roadmap":
@@ -133,7 +133,7 @@ async def handle_agentic_tool(
         return await _handle_get_hypotheses(arguments, mcp_server)
     elif name == "save_hypothesis":
         return await _handle_save_hypothesis(arguments, mcp_server)
-    
+
     return None
 
 
@@ -142,30 +142,30 @@ async def _handle_query_roadmap(
 ) -> list[TextContent]:
     """
     Handle query_roadmap tool.
-    
+
     Requirements: 7.4
     """
     from primr.agentic.roadmap_api import RoadmapAPI, VersionStatus
-    
+
     query = arguments.get("query", "")
     version = arguments.get("version")
-    
+
     try:
         api = RoadmapAPI()
-        
+
         # If specific version requested
         if version:
             # Normalize version (remove 'v' prefix if present)
             version_num = version.lstrip("v")
             v = api.get_version(version_num)
-            
+
             if v:
                 features_info = [
                     {"name": f.name, "status": f.status.value}
                     for f in v.features
                 ]
                 blockers = api.get_blockers(version_num)
-                
+
                 return [TextContent(
                     type="text",
                     text=json.dumps({
@@ -186,10 +186,10 @@ async def _handle_query_roadmap(
                         "message": f"Version {version} not found in roadmap",
                     }),
                 )]
-        
+
         # Handle natural language queries
         query_lower = query.lower()
-        
+
         # Blockers query
         if "blocking" in query_lower or "blocker" in query_lower:
             # Extract version from query
@@ -204,7 +204,7 @@ async def _handle_query_roadmap(
                         "blockers": blockers,
                     }),
                 )]
-        
+
         # Status query
         if "in progress" in query_lower or "current" in query_lower:
             versions = api.list_by_status(VersionStatus.IN_PROGRESS)
@@ -218,7 +218,7 @@ async def _handle_query_roadmap(
                     ],
                 }),
             )]
-        
+
         if "planned" in query_lower or "upcoming" in query_lower:
             versions = api.list_by_status(VersionStatus.PLANNED)
             return [TextContent(
@@ -231,7 +231,7 @@ async def _handle_query_roadmap(
                     ],
                 }),
             )]
-        
+
         if "completed" in query_lower or "done" in query_lower:
             versions = api.list_by_status(VersionStatus.COMPLETED)
             return [TextContent(
@@ -244,13 +244,13 @@ async def _handle_query_roadmap(
                     ],
                 }),
             )]
-        
+
         # Default: return full roadmap summary
         return [TextContent(
             type="text",
             text=api.to_json(),
         )]
-        
+
     except FileNotFoundError:
         return [TextContent(
             type="text",
@@ -274,29 +274,29 @@ async def _handle_query_roadmap(
 
 async def _handle_get_hypotheses(
     arguments: dict[str, Any],
-    mcp_server: "PrimrMCPServer",
+    mcp_server: PrimrMCPServer,
 ) -> list[TextContent]:
     """
     Handle get_hypotheses tool.
-    
+
     Requirements: 7.5
     """
     from primr.agentic.memory import ResearchMemory
     from primr.agentic.models import ConfidenceLevel
-    
+
     company = arguments.get("company")
     confidence_str = arguments.get("confidence")
     topic = arguments.get("topic")
     include_expired = arguments.get("include_expired", False)
-    
+
     try:
         # Get memory storage path from config or use default
         memory_path = getattr(mcp_server, '_memory_path', None)
         if memory_path is None:
             memory_path = Path("logs/research_memory")
-        
+
         memory = ResearchMemory(storage_path=memory_path)
-        
+
         # Convert confidence string to enum if provided
         confidence = None
         if confidence_str:
@@ -311,7 +311,7 @@ async def _handle_get_hypotheses(
                         "message": f"Invalid confidence level: {confidence_str}",
                     }),
                 )]
-        
+
         # Get hypotheses
         hypotheses = memory.get_hypotheses(
             company,
@@ -319,7 +319,7 @@ async def _handle_get_hypotheses(
             topic=topic,
             include_expired=include_expired,
         )
-        
+
         return [TextContent(
             type="text",
             text=json.dumps({
@@ -328,7 +328,7 @@ async def _handle_get_hypotheses(
                 "hypotheses": [h.to_dict() for h in hypotheses],
             }),
         )]
-        
+
     except Exception as e:
         logger.exception("Get hypotheses failed")
         return [TextContent(
@@ -343,31 +343,31 @@ async def _handle_get_hypotheses(
 
 async def _handle_save_hypothesis(
     arguments: dict[str, Any],
-    mcp_server: "PrimrMCPServer",
+    mcp_server: PrimrMCPServer,
 ) -> list[TextContent]:
     """
     Handle save_hypothesis tool.
-    
+
     Requirements: 7.6
     """
     from primr.agentic.memory import ResearchMemory
     from primr.agentic.models import ConfidenceLevel, Hypothesis
-    
+
     company = arguments.get("company")
     hypothesis_id = arguments.get("hypothesis_id")
     claim = arguments.get("claim")
     confidence_str = arguments.get("confidence", "untested")
     evidence = arguments.get("evidence")
     topic = arguments.get("topic", "")
-    
+
     try:
         # Get memory storage path from config or use default
         memory_path = getattr(mcp_server, '_memory_path', None)
         if memory_path is None:
             memory_path = Path("logs/research_memory")
-        
+
         memory = ResearchMemory(storage_path=memory_path)
-        
+
         # Convert confidence string to enum
         try:
             confidence = ConfidenceLevel(confidence_str)
@@ -380,11 +380,11 @@ async def _handle_save_hypothesis(
                     "message": f"Invalid confidence level: {confidence_str}",
                 }),
             )]
-        
+
         # Check if hypothesis exists
         existing = memory.get_hypotheses(company, include_expired=True)
         existing_ids = {h.id for h in existing}
-        
+
         if hypothesis_id in existing_ids:
             # Update existing hypothesis
             if evidence:
@@ -424,7 +424,7 @@ async def _handle_save_hypothesis(
                         "message": "Claim is required for new hypotheses",
                     }),
                 )]
-            
+
             new_hypothesis = Hypothesis(
                 id=hypothesis_id,
                 claim=claim,
@@ -432,9 +432,9 @@ async def _handle_save_hypothesis(
                 evidence=[evidence] if evidence else [],
                 topic=topic,
             )
-            
+
             memory.save_hypotheses(company, [new_hypothesis])
-            
+
             return [TextContent(
                 type="text",
                 text=json.dumps({
@@ -444,7 +444,7 @@ async def _handle_save_hypothesis(
                     "confidence": confidence.value,
                 }),
             )]
-        
+
     except Exception as e:
         logger.exception("Save hypothesis failed")
         return [TextContent(

@@ -19,8 +19,9 @@ import logging
 import os
 import re
 import secrets
+from collections.abc import Callable
 from functools import wraps
-from typing import Any, Callable, TypeVar
+from typing import Any, TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +79,7 @@ def hash_secret(secret: str, salt: str | None = None) -> str:
     if salt is None:
         salt = secrets.token_hex(16)
 
-    salted = f"{salt}{secret}".encode('utf-8')
+    salted = f"{salt}{secret}".encode()
     hash_value = hashlib.sha256(salted).hexdigest()
 
     return f"{salt}${hash_value}"
@@ -104,7 +105,7 @@ def verify_hashed_secret(secret: str, hashed: str) -> bool:
     except ValueError:
         return False
 
-    salted = f"{salt}{secret}".encode('utf-8')
+    salted = f"{salt}{secret}".encode()
     actual_hash = hashlib.sha256(salted).hexdigest()
 
     return secure_compare(actual_hash, expected_hash)

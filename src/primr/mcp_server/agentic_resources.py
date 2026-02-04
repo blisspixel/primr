@@ -53,44 +53,44 @@ def get_agentic_resources() -> list[Resource]:
 
 def read_agentic_resource(
     uri: str,
-    mcp_server: "PrimrMCPServer",
+    mcp_server: PrimrMCPServer,
 ) -> list[ReadResourceContents] | None:
     """
     Read an agentic resource by URI.
-    
+
     Returns None if the URI is not an agentic resource.
     """
     uri_str = str(uri)
-    
+
     if uri_str == "primr://roadmap" or uri_str.startswith("primr://roadmap"):
         return _read_roadmap()
     elif uri_str.startswith("primr://memory/"):
         return _read_memory(uri_str, mcp_server)
     elif uri_str == "primr://context" or uri_str.startswith("primr://context"):
         return _read_context()
-    
+
     return None
 
 
 def _read_roadmap() -> list[ReadResourceContents]:
     """
     Read roadmap data as JSON.
-    
+
     Requirements: 7.1
     """
     from primr.agentic.roadmap_api import RoadmapAPI
-    
+
     try:
         api = RoadmapAPI()
         roadmap_json = api.to_json()
-        
+
         return [
             ReadResourceContents(
                 content=roadmap_json,
                 mime_type="application/json",
             )
         ]
-        
+
     except FileNotFoundError:
         data = {
             "error": "roadmap_not_found",
@@ -116,16 +116,16 @@ def _read_roadmap() -> list[ReadResourceContents]:
         ]
 
 
-def _read_memory(uri: str, mcp_server: "PrimrMCPServer") -> list[ReadResourceContents]:
+def _read_memory(uri: str, mcp_server: PrimrMCPServer) -> list[ReadResourceContents]:
     """
     Read company research memory.
-    
+
     Requirements: 7.2
     """
     import re
-    
+
     from primr.agentic.memory import ResearchMemory
-    
+
     # Extract company name from URI
     # URI format: primr://memory/{company}
     match = re.match(r"primr://memory/([^/?]+)", uri)
@@ -140,28 +140,28 @@ def _read_memory(uri: str, mcp_server: "PrimrMCPServer") -> list[ReadResourceCon
                 mime_type="application/json",
             )
         ]
-    
+
     company = match.group(1)
     # URL decode the company name
     from urllib.parse import unquote
     company = unquote(company)
-    
+
     try:
         # Get memory storage path from config or use default
         memory_path = getattr(mcp_server, '_memory_path', None)
         if memory_path is None:
             memory_path = Path("logs/research_memory")
-        
+
         memory = ResearchMemory(storage_path=memory_path)
         memory_json = memory.to_json(company)
-        
+
         return [
             ReadResourceContents(
                 content=memory_json,
                 mime_type="application/json",
             )
         ]
-        
+
     except Exception as e:
         logger.exception(f"Failed to read memory for {company}")
         data = {
@@ -180,12 +180,12 @@ def _read_memory(uri: str, mcp_server: "PrimrMCPServer") -> list[ReadResourceCon
 def _read_context() -> list[ReadResourceContents]:
     """
     Read context map summary.
-    
+
     Requirements: 7.3
     """
     # Check if CLAUDE.md exists
     claude_md_path = Path("CLAUDE.md")
-    
+
     if not claude_md_path.exists():
         data = {
             "error": "context_not_found",
@@ -198,27 +198,27 @@ def _read_context() -> list[ReadResourceContents]:
                 mime_type="application/json",
             )
         ]
-    
+
     try:
         content = claude_md_path.read_text(encoding="utf-8")
-        
+
         # Extract key sections for summary
         summary = _extract_context_summary(content)
-        
+
         data = {
             "context_map_path": str(claude_md_path),
             "summary": summary,
             "full_content_available": True,
             "quick_start": _extract_quick_start(content),
         }
-        
+
         return [
             ReadResourceContents(
                 content=json.dumps(data, indent=2),
                 mime_type="application/json",
             )
         ]
-        
+
     except Exception as e:
         logger.exception("Failed to read context map")
         data = {
@@ -238,19 +238,19 @@ def _extract_context_summary(content: str) -> dict:
     Extract a summary of the context map sections.
     """
     import re
-    
+
     sections = []
-    
+
     # Find all ## headers
     for match in re.finditer(r'^## (.+)$', content, re.MULTILINE):
         sections.append(match.group(1))
-    
+
     # Count key elements
     has_quick_start = "Quick Start" in content
     has_negative_constraints = "NEVER" in content or "Negative Constraints" in content
     has_verification = "Verification" in content
     has_progressive_disclosure = "<details>" in content
-    
+
     return {
         "sections": sections,
         "has_quick_start": has_quick_start,
@@ -265,14 +265,14 @@ def _extract_quick_start(content: str) -> str | None:
     Extract the Quick Start section content.
     """
     import re
-    
+
     # Find Quick Start section
     match = re.search(
         r'## Quick Start.*?\n(.*?)(?=\n---|\n## [^#])',
         content,
         re.DOTALL | re.IGNORECASE
     )
-    
+
     if match:
         # Return just the content, not the header
         quick_start = match.group(1).strip()
@@ -280,5 +280,5 @@ def _extract_quick_start(content: str) -> str | None:
         if len(quick_start) > 1000:
             quick_start = quick_start[:1000] + "..."
         return quick_start
-    
+
     return None
