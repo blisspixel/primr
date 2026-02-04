@@ -347,9 +347,9 @@ class URLValidator:
             ip_addresses = socket.getaddrinfo(
                 hostname, parsed.port or (443 if parsed.scheme == "https" else 80)
             )
-            resolved_ips = set()
+            resolved_ips: set[str] = set()
             for _family, _type, _proto, _canonname, sockaddr in ip_addresses:
-                ip = sockaddr[0]
+                ip = str(sockaddr[0])  # Ensure string type
                 resolved_ips.add(ip)
         except socket.gaierror:
             return URLValidationResult(

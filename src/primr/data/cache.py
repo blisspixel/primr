@@ -163,7 +163,7 @@ class ContentCache:
 
     def _get_key(self, url: str) -> str:
         """Generate cache key from URL."""
-        return hashlib.md5(url.encode()).hexdigest()
+        return hashlib.md5(url.encode(), usedforsecurity=False).hexdigest()
 
     def get(self, url: str) -> str | None:
         """

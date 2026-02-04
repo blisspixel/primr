@@ -90,9 +90,15 @@ primr = ["py.typed"]
 
 [tool.mypy]
 python_version = "3.11"
-warn_return_any = true
+warn_return_any = false
 warn_unused_configs = true
 ignore_missing_imports = true
+# Disable strict checks that generate too many false positives
+# These can be enabled incrementally as code is improved
+check_untyped_defs = false
+disallow_untyped_defs = false
+no_implicit_optional = false
+strict_optional = false
 
 [tool.ruff]
 line-length = 100

@@ -42,16 +42,16 @@ Example:
     analysis_result = await analyst.execute()
 """
 
+from primr.agentic.subagents.analyst import AnalysisResult, AnalystSubagent
 from primr.agentic.subagents.base import (
     Subagent,
     SubagentContext,
     SubagentResult,
     SubagentStatus,
 )
-from primr.agentic.subagents.scraper import ScraperSubagent, ScrapeResult
-from primr.agentic.subagents.analyst import AnalystSubagent, AnalysisResult
-from primr.agentic.subagents.writer import WriterSubagent, WriterResult
-from primr.agentic.subagents.qa import QASubagent, QAResult
+from primr.agentic.subagents.qa import QAResult, QASubagent
+from primr.agentic.subagents.scraper import ScrapeResult, ScraperSubagent
+from primr.agentic.subagents.writer import WriterResult, WriterSubagent
 
 __all__ = [
     # Base

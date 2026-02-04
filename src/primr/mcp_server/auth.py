@@ -105,7 +105,7 @@ class PrimrTokenVerifier:
         self.config = config or AuthConfig.from_env()
         self._token_cache: dict[str, tuple[AccessToken, float]] = {}
         self._cache_ttl = 300  # 5 minutes
-        
+
         # Hash admin tokens for secure comparison
         self._admin_token_hashes: set[str] = {
             self._hash_token(t) for t in self.config.admin_tokens
@@ -181,8 +181,6 @@ class PrimrTokenVerifier:
         Returns:
             AccessToken if valid JWT, None otherwise
         """
-        import base64
-        import json
 
         try:
             # Split JWT parts

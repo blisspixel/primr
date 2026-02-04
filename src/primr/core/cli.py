@@ -764,7 +764,7 @@ def _handle_analyze_report(config: CLIConfig) -> int:
         return 1
 
     try:
-        from report_analyzer import ReportAnalyzer
+        from report_analyzer import ReportAnalyzer  # type: ignore[import-not-found]
         analyzer = ReportAnalyzer(config.analyze_report_path)
         report = analyzer.generate_report()
         print(report)
@@ -956,7 +956,7 @@ def _handle_memory(config: CLIConfig) -> int:
     console.blank()
 
     # Group by confidence level
-    by_confidence = {}
+    by_confidence: dict[str, list] = {}
     for h in hypotheses:
         level = h.confidence.value
         if level not in by_confidence:
@@ -1185,7 +1185,7 @@ def _run_preflight_checks(mode: str) -> tuple[bool, list[str]]:
             from google import genai
             client = genai.Client(api_key=gemini_key)
             # Minimal test - just check we can connect
-            response = client.models.generate_content(
+            _ = client.models.generate_content(
                 model=PrimrModels.FAST_MODEL,
                 contents="Reply with: ok",
             )
@@ -1211,20 +1211,20 @@ def _run_preflight_checks(mode: str) -> tuple[bool, list[str]]:
         try:
             import requests
             test_url = "https://www.googleapis.com/customsearch/v1"
-            params = {
+            params: dict[str, str | int] = {
                 "q": "test",
                 "key": search_key,
                 "cx": search_engine_id,
                 "num": 1
             }
-            response = requests.get(test_url, params=params, timeout=10)
-            if response.status_code == 400:
-                error_detail = response.json().get("error", {}).get("message", "Bad Request")
+            search_response = requests.get(test_url, params=params, timeout=10)
+            if search_response.status_code == 400:
+                error_detail = search_response.json().get("error", {}).get("message", "Bad Request")
                 errors.append(f"Google Search API config invalid: {error_detail}")
-            elif response.status_code == 403:
+            elif search_response.status_code == 403:
                 errors.append("Google Search API key invalid or quota exceeded")
-            elif response.status_code != 200:
-                errors.append(f"Google Search API error: HTTP {response.status_code}")
+            elif search_response.status_code != 200:
+                errors.append(f"Google Search API error: HTTP {search_response.status_code}")
         except requests.exceptions.Timeout:
             errors.append("Google Search API timeout - check your internet connection")
         except Exception as e:
@@ -1288,14 +1288,15 @@ def _handle_research(config: CLIConfig) -> int:
 
     # Validate context files
     if context_files:
-        valid_files, invalid_files, warnings = validate_context_files(context_files)
-        for warning in warnings:
+        # Cast to satisfy mypy - list[str] is compatible with list[str | Path]
+        validation_result = validate_context_files(list(context_files))  # type: ignore[arg-type]
+        for warning in validation_result.warnings:
             console.warn(warning)
-        if invalid_files:
-            for file_path, reason in invalid_files:
+        if validation_result.invalid_files:
+            for file_path, reason in validation_result.invalid_files:
                 console.error(f"Invalid context file: {file_path} - {reason}")
             return 1
-        context_files = valid_files
+        context_files = [str(p) for p in validation_result.valid_files]
 
     # Run research
     result_path = perform_research(
@@ -1357,7 +1358,7 @@ def _check_api_keys(all_passed: bool, warnings_count: int) -> tuple[bool, int]:
         # Actually test the Search API
         try:
             test_url = "https://www.googleapis.com/customsearch/v1"
-            params = {
+            params: dict[str, str | int] = {
                 "q": "test",
                 "key": search_key,
                 "cx": search_engine_id,

@@ -37,7 +37,7 @@ logger = get_logger("api.service")
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """
     Middleware to add security headers to all responses.
-    
+
     Adds headers recommended by OWASP:
     - X-Content-Type-Options: Prevents MIME sniffing
     - X-Frame-Options: Prevents clickjacking
@@ -47,65 +47,65 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     - Referrer-Policy: Controls referrer information
     - Permissions-Policy: Restricts browser features
     """
-    
+
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
-        
+
         # Prevent MIME type sniffing
         response.headers["X-Content-Type-Options"] = "nosniff"
-        
+
         # Prevent clickjacking
         response.headers["X-Frame-Options"] = "DENY"
-        
+
         # Legacy XSS protection (for older browsers)
         response.headers["X-XSS-Protection"] = "1; mode=block"
-        
+
         # Enforce HTTPS (1 year, include subdomains)
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-        
+
         # Content Security Policy - restrict to self
         response.headers["Content-Security-Policy"] = "default-src 'self'; frame-ancestors 'none'"
-        
+
         # Control referrer information
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-        
+
         # Restrict browser features
         response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
-        
+
         # Remove server identification header if present
         if "server" in response.headers:
             del response.headers["server"]
-        
+
         return response
 
 
 class RequestIdMiddleware(BaseHTTPMiddleware):
     """
     Middleware to add request ID for tracing and audit logging.
-    
+
     Generates a unique ID for each request and includes it in:
     - Response header (X-Request-ID)
     - Request state (for logging)
     """
-    
+
     async def dispatch(self, request: Request, call_next):
         # Use provided request ID or generate new one
         request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
-        
+
         # Store in request state for access in handlers
         request.state.request_id = request_id
-        
+
         # Log the request with ID
         logger.debug(
             f"Request {request_id}: {request.method} {request.url.path}",
             extra={"request_id": request_id}
         )
-        
+
         response = await call_next(request)
-        
+
         # Add request ID to response
         response.headers["X-Request-ID"] = request_id
-        
+
         return response
 
 
@@ -366,10 +366,10 @@ def create_app(
         expose_headers=["X-Request-ID", "X-RateLimit-Remaining", "X-RateLimit-Reset"],
         max_age=600,  # Cache preflight for 10 minutes
     )
-    
+
     # Add security headers middleware
     app.add_middleware(SecurityHeadersMiddleware)
-    
+
     # Add request ID middleware for tracing
     app.add_middleware(RequestIdMiddleware)
 
@@ -388,13 +388,13 @@ def create_app(
 
         # Check rate limit
         allowed, retry_after = check_rate_limit(x_api_key)
-        
+
         # Add rate limit headers to response
         limiter = get_rate_limiter()
         remaining = limiter.get_remaining(x_api_key)
         response.headers["X-RateLimit-Remaining"] = str(remaining)
         response.headers["X-RateLimit-Limit"] = str(limiter._config.requests_per_hour)
-        
+
         if not allowed:
             response.headers["X-RateLimit-Reset"] = str(int(retry_after))
             raise HTTPException(

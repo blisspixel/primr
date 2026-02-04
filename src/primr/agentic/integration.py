@@ -19,9 +19,10 @@ Requirements: 8.2, 8.4, 8.5
 from __future__ import annotations
 
 import logging
+from collections.abc import AsyncGenerator, Generator
 from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, AsyncGenerator, Generator
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from primr.agentic.orchestrator import OrchestratorState

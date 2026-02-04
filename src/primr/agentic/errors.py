@@ -30,7 +30,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from primr.utils.errors import PrimrError, TransientError, PermanentError
+from primr.utils.errors import PermanentError, PrimrError, TransientError
 
 
 @dataclass

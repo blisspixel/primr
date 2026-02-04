@@ -12,9 +12,9 @@ This module provides:
 import hashlib
 import secrets
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Callable
 
 from primr.utils.logging_config import get_logger
 
@@ -39,7 +39,7 @@ class APIKeyInfo:
     is_active: bool = True
     rate_limit: int = 100  # Requests per hour
     scopes: set[str] = field(default_factory=lambda: {"read", "write"})
-    
+
     # Rotation support
     expires_at: datetime | None = None  # Key expiration time
     rotated_from: str | None = None  # Hash of previous key (for rotation tracking)
@@ -62,7 +62,7 @@ class APIKeyAuth:
 
         if auth.verify(key):
             print("Valid key")
-        
+
         # Rotate key (old key works during grace period)
         new_key = auth.rotate_key(key, grace_hours=24)
     """
@@ -96,7 +96,7 @@ class APIKeyAuth:
         # Generate a secure random key
         key = f"cr_{secrets.token_urlsafe(32)}"
         key_hash = self._hash_key(key)
-        
+
         expires_at = None
         if expires_in_days > 0:
             expires_at = datetime.now() + timedelta(days=expires_in_days)
@@ -134,7 +134,7 @@ class APIKeyAuth:
         Example:
             # Rotate with 24-hour grace period
             new_key = auth.rotate_key(old_key, grace_hours=24)
-            
+
             # Update your application to use new_key
             # Old key continues working for 24 hours
         """
