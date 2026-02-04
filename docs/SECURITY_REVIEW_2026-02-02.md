@@ -147,6 +147,7 @@ All security measures from the January 2026 review remain in place:
 - URL validation at all 9 HTTP entry points
 - **NEW**: Orchestrator-level SSRF validation (defense in depth)
 - **NEW**: Redirect SSRF bypass protection - validates final URL after redirects complete
+- **NEW**: Browser scraper redirect SSRF protection - all 5 browser tiers now validate final URLs
 - Blocks localhost, private IPs, link-local addresses
 - DNS resolution check prevents hostname-based bypasses
 - Cloud metadata endpoints blocked (169.254.169.254, metadata.google.internal, etc.)
@@ -161,6 +162,38 @@ A malicious server could redirect from a safe URL (e.g., `https://evil.com`) to 
 - `HTTPClient.get()` in http_client.py validates initial URL and final URL after redirects
 - `resolve_redirect_url()` in deep_research.py validates final URL
 - `_check_website()` in preflight.py validates final URL
+- **NEW**: `_scrape_with_playwright_impl()` validates final URL after page load
+- **NEW**: `scrape_with_playwright_aggressive()` validates final URL after page load
+- **NEW**: `scrape_with_drissionpage()` validates final URL after page load
+- **NEW**: `scrape_with_drissionpage_stealth()` validates final URL after page load
+- **NEW**: `scrape_with_vision()` validates final URL after page load
+
+### Input Sanitization - NEW
+
+**Location**: `src/primr/utils/security.py`  
+**Added input sanitization functions to prevent injection attacks**:
+
+- `sanitize_company_name()` - Validates and sanitizes company names
+  - Rejects log injection (newlines, carriage returns, null bytes, ANSI escapes)
+  - Rejects XSS attempts (`<script>`, `javascript:`, event handlers)
+  - Rejects template injection (`{{}}`, `${}`, `<%%>`)
+  - Enforces maximum length (200 chars)
+- `sanitize_url_input()` - Validates URLs with SSRF protection
+- `sanitize_webhook_url()` - Validates webhook URLs (HTTPS required by default)
+
+### API Input Validation - NEW
+
+**Location**: `src/primr/api/service.py`  
+**Added input validation to REST API endpoints**:
+
+- `ResearchRequest` model now has field length limits:
+  - `company_name`: min 1, max 200 characters
+  - `company_url`: max 2048 characters
+  - `webhook_url`: max 2048 characters
+- `/research` POST endpoint validates all inputs:
+  - Company name sanitized against injection attacks
+  - Company URL validated for SSRF
+  - Webhook URL validated for SSRF and requires HTTPS
 
 ### XXE Protection - VERIFIED
 - Secure XML parser with entity expansion disabled
@@ -186,7 +219,7 @@ A malicious server could redirect from a safe URL (e.g., `https://evil.com`) to 
 ```
 tests/mcp_server/test_auth.py: 37 passed
 tests/test_utils/test_security.py: 44 passed
-tests/test_security.py: 33 passed (including 4 orchestrator SSRF tests + 4 redirect SSRF tests + 3 HTTPClient SSRF tests)
+tests/test_security.py: 51 passed (including 4 orchestrator SSRF tests + 4 redirect SSRF tests + 3 HTTPClient SSRF tests + 5 browser redirect SSRF tests + 18 input sanitization tests)
 tests/mcp_server/test_security.py: 27 passed (1 skipped)
 tests/test_api/test_service.py: 29 passed
 tests/test_api/test_auth.py: 37 passed

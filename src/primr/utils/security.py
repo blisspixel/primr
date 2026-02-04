@@ -638,3 +638,183 @@ def validate_final_url_after_redirect(final_url: str) -> tuple[bool, str | None]
             raise ValueError(f"Redirect to unsafe URL blocked: {error}")
     """
     return is_safe_url(final_url)
+
+
+# =============================================================================
+# API INPUT SANITIZATION
+# =============================================================================
+
+# Characters that could be used for injection attacks
+_DANGEROUS_CHARS = frozenset({
+    '\x00',  # Null byte
+    '\r',    # Carriage return (log injection)
+    '\n',    # Newline (log injection)
+    '\x1b',  # Escape (ANSI injection)
+})
+
+# Patterns that could indicate injection attempts
+_INJECTION_PATTERNS = [
+    re.compile(r'<script', re.I),  # XSS
+    re.compile(r'javascript:', re.I),  # XSS
+    re.compile(r'on\w+\s*=', re.I),  # Event handlers
+    re.compile(r'\{\{.*\}\}'),  # Template injection
+    re.compile(r'\$\{.*\}'),  # Template injection
+    re.compile(r'<%.*%>'),  # Server-side template injection
+]
+
+
+def sanitize_company_name(name: str, max_length: int = 200) -> tuple[str, str | None]:
+    """
+    Sanitize a company name for safe processing.
+
+    Validates and sanitizes company names to prevent:
+    - Log injection attacks
+    - XSS attacks
+    - Template injection
+    - Excessively long inputs
+
+    Args:
+        name: Company name to sanitize
+        max_length: Maximum allowed length
+
+    Returns:
+        Tuple of (sanitized_name, error_message)
+        If error_message is not None, the input was rejected.
+
+    Example:
+        safe_name, error = sanitize_company_name(user_input)
+        if error:
+            raise ValueError(f"Invalid company name: {error}")
+    """
+    if not name or not isinstance(name, str):
+        return "", "Company name is required"
+
+    # Strip whitespace
+    name = name.strip()
+
+    if not name:
+        return "", "Company name cannot be empty"
+
+    # Check length
+    if len(name) > max_length:
+        return "", f"Company name exceeds maximum length of {max_length} characters"
+
+    # Check for dangerous characters (log injection)
+    for char in _DANGEROUS_CHARS:
+        if char in name:
+            return "", "Company name contains invalid characters"
+
+    # Check for injection patterns
+    for pattern in _INJECTION_PATTERNS:
+        if pattern.search(name):
+            return "", "Company name contains potentially dangerous content"
+
+    # Remove any remaining control characters
+    sanitized = re.sub(r'[\x00-\x1f\x7f]', '', name)
+
+    return sanitized, None
+
+
+def sanitize_url_input(url: str, max_length: int = 2048) -> tuple[str, str | None]:
+    """
+    Sanitize a URL input for safe processing.
+
+    Validates and sanitizes URLs to prevent:
+    - SSRF attacks
+    - Log injection
+    - Excessively long inputs
+
+    Args:
+        url: URL to sanitize
+        max_length: Maximum allowed length
+
+    Returns:
+        Tuple of (sanitized_url, error_message)
+        If error_message is not None, the input was rejected.
+
+    Example:
+        safe_url, error = sanitize_url_input(user_input)
+        if error:
+            raise ValueError(f"Invalid URL: {error}")
+    """
+    if not url or not isinstance(url, str):
+        return "", "URL is required"
+
+    # Strip whitespace
+    url = url.strip()
+
+    if not url:
+        return "", "URL cannot be empty"
+
+    # Check length
+    if len(url) > max_length:
+        return "", f"URL exceeds maximum length of {max_length} characters"
+
+    # Check for dangerous characters (log injection)
+    for char in _DANGEROUS_CHARS:
+        if char in url:
+            return "", "URL contains invalid characters"
+
+    # Validate URL structure and SSRF protection
+    is_safe, error = is_safe_url(url)
+    if not is_safe:
+        return "", error
+
+    return url, None
+
+
+def sanitize_webhook_url(url: str, allowed_schemes: set[str] | None = None) -> tuple[str, str | None]:
+    """
+    Sanitize a webhook URL for safe callback.
+
+    Validates webhook URLs with stricter requirements:
+    - Must be HTTPS (by default)
+    - Must not point to internal addresses
+    - Must not be a cloud metadata endpoint
+
+    Args:
+        url: Webhook URL to sanitize
+        allowed_schemes: Allowed URL schemes (default: {"https"})
+
+    Returns:
+        Tuple of (sanitized_url, error_message)
+        If error_message is not None, the input was rejected.
+
+    Example:
+        safe_url, error = sanitize_webhook_url(user_input)
+        if error:
+            raise ValueError(f"Invalid webhook URL: {error}")
+    """
+    if allowed_schemes is None:
+        allowed_schemes = {"https"}
+
+    if not url or not isinstance(url, str):
+        return "", "Webhook URL is required"
+
+    url = url.strip()
+
+    if not url:
+        return "", "Webhook URL cannot be empty"
+
+    # Check for dangerous characters
+    for char in _DANGEROUS_CHARS:
+        if char in url:
+            return "", "Webhook URL contains invalid characters"
+
+    from urllib.parse import urlparse
+
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return "", "Invalid webhook URL format"
+
+    # Check scheme
+    if parsed.scheme.lower() not in allowed_schemes:
+        return "", f"Webhook URL must use {' or '.join(allowed_schemes)}"
+
+    # SSRF protection
+    is_safe, error = is_safe_url(url)
+    if not is_safe:
+        return "", f"Webhook URL blocked: {error}"
+
+    return url, None

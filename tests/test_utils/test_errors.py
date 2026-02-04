@@ -111,7 +111,7 @@ class TestSafeCallDecorator:
         def failing_func():
             raise ValueError("test error")
         
-        with patch('primr.utils.errors.logger') as mock_logger:
+        with patch('primr.utils.errors.decorators.logger') as mock_logger:
             result = failing_func()
             assert result is None
             mock_logger.warning.assert_called_once()
@@ -219,7 +219,7 @@ class TestErrorContext:
     
     def test_logs_on_exception(self):
         """Should log error with context on exception."""
-        with patch('primr.utils.errors.logger') as mock_logger:
+        with patch('primr.utils.errors.decorators.logger') as mock_logger:
             try:
                 with ErrorContext("test operation", key="value"):
                     raise ValueError("test error")
@@ -233,7 +233,7 @@ class TestErrorContext:
     
     def test_no_log_on_success(self):
         """Should not log when no exception occurs."""
-        with patch('primr.utils.errors.logger') as mock_logger:
+        with patch('primr.utils.errors.decorators.logger') as mock_logger:
             with ErrorContext("test operation"):
                 pass  # No exception
             
@@ -353,7 +353,7 @@ class TestErrorContextFunction:
     
     def test_logs_on_exception(self):
         """Should log error with context on exception."""
-        with patch('primr.utils.errors.logger') as mock_logger:
+        with patch('primr.utils.errors.decorators.logger') as mock_logger:
             try:
                 with error_context("test operation", key="value"):
                     raise ValueError("test error")
@@ -367,7 +367,7 @@ class TestErrorContextFunction:
     
     def test_no_log_on_success(self):
         """Should not log when no exception occurs."""
-        with patch('primr.utils.errors.logger') as mock_logger:
+        with patch('primr.utils.errors.decorators.logger') as mock_logger:
             with error_context("test operation"):
                 pass
             mock_logger.error.assert_not_called()
@@ -380,7 +380,7 @@ class TestErrorContextFunction:
     
     def test_handles_no_metadata(self):
         """Should work without metadata."""
-        with patch('primr.utils.errors.logger') as mock_logger:
+        with patch('primr.utils.errors.decorators.logger') as mock_logger:
             try:
                 with error_context("simple operation"):
                     raise ValueError("error")
@@ -414,7 +414,7 @@ class TestAsyncSafeCallback:
             raise ValueError("callback failed")
         
         safe = async_safe_callback(failing_callback)
-        with patch('primr.utils.errors.logger') as mock_logger:
+        with patch('primr.utils.errors.decorators.logger') as mock_logger:
             result = safe()
             assert result is None
             mock_logger.warning.assert_called_once()

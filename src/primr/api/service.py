@@ -122,11 +122,11 @@ class ResearchStatus(str, Enum):
 class ResearchRequest(BaseModel):
     """Request to start a research job."""
 
-    company_name: str = Field(..., description="Name of the company to research")
-    company_url: str | None = Field(None, description="Company website URL")
+    company_name: str = Field(..., description="Name of the company to research", min_length=1, max_length=200)
+    company_url: str | None = Field(None, description="Company website URL", max_length=2048)
     sections: list[str] | None = Field(None, description="Specific sections to include")
     output_format: str = Field("markdown", description="Output format: markdown, html, text")
-    webhook_url: str | None = Field(None, description="URL for completion notification")
+    webhook_url: str | None = Field(None, description="URL for completion notification", max_length=2048)
     priority: int = Field(5, ge=1, le=10, description="Priority 1-10 (10 highest)")
 
 
@@ -431,6 +431,34 @@ def create_app(
 
         Returns immediately with job ID. Use /research/{job_id} to check status.
         """
+        from primr.utils.security import (
+            sanitize_company_name,
+            sanitize_url_input,
+            sanitize_webhook_url,
+        )
+
+        # Sanitize company name
+        safe_name, error = sanitize_company_name(request.company_name)
+        if error:
+            raise HTTPException(status_code=400, detail=f"Invalid company name: {error}")
+
+        # Sanitize company URL if provided
+        if request.company_url:
+            safe_url, error = sanitize_url_input(request.company_url)
+            if error:
+                raise HTTPException(status_code=400, detail=f"Invalid company URL: {error}")
+            request.company_url = safe_url
+
+        # Sanitize webhook URL if provided
+        if request.webhook_url:
+            safe_webhook, error = sanitize_webhook_url(request.webhook_url)
+            if error:
+                raise HTTPException(status_code=400, detail=f"Invalid webhook URL: {error}")
+            request.webhook_url = safe_webhook
+
+        # Update request with sanitized name
+        request.company_name = safe_name
+
         job_id = app.state.job_manager.create_job(request, api_key)
         job = app.state.job_manager.get_job(job_id)
 
