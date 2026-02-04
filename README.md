@@ -1,6 +1,6 @@
 # Primr
 
-**Turn any company URL into a strategic intelligence brief for $0.35.**
+**Turn any company URL into a strategic intelligence brief.**
 
 Primr combines battle-tested web scraping with Gemini's autonomous Deep Research to generate the kind of company intelligence that used to take analysts hours. Point it at a website, get a structured brief with citations.
 
@@ -22,7 +22,7 @@ primr "Acme Corp" https://acme.example
 
 **The research is autonomous.** Gemini Deep Research isn't a summarizer—it's an agent that plans searches, follows leads across sources, and synthesizes findings. It researches like a human would, just faster.
 
-**The economics are absurd.** A junior analyst doing this manually? Hours. A research service? Hundreds of dollars. Primr? ~$0.35 and 30 minutes.
+**The economics are absurd.** A junior analyst doing this manually? Hours. A research service? Hundreds of dollars. Primr? ~$1-2 and 30 minutes.
 
 **It's composable.** MCP server, OpenClaw integration, and Claude Skills included. AI agents can call Primr, track hypotheses across sessions, and build on prior research.
 
@@ -30,9 +30,11 @@ primr "Acme Corp" https://acme.example
 
 | Mode | What it does | Time | Cost |
 |------|--------------|------|------|
-| `scrape` | Crawls site, extracts insights | ~5 min | ~$0.02 |
-| `deep` | Gemini Deep Research on external sources | ~10 min | ~$0.20 |
-| `full` | Both combined into comprehensive brief | ~30 min | ~$0.35 |
+| `scrape` | Crawls site, extracts insights | ~5 min | ~$0.10 |
+| `deep` | Gemini Deep Research on external sources | ~10 min | ~$1.00 |
+| `full` | Both combined into comprehensive brief | ~30 min | ~$1.50 |
+
+Costs include Google Search grounding ($0.035/query). Use `--dry-run` for accurate estimates based on your usage history.
 
 ## Quick Start
 
@@ -129,11 +131,16 @@ Scale to zero serverless deployment on AWS, Azure, or GCP. Job-based ephemeral c
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design, scraping tiers |
 | [API.md](docs/API.md) | MCP server, programmatic usage |
 | [CLOUD_DEPLOYMENT.md](docs/CLOUD_DEPLOYMENT.md) | Serverless deployment |
+| [SECURITY_OPS.md](docs/SECURITY_OPS.md) | Security operations guide |
 | [ROADMAP.md](ROADMAP.md) | What's next |
 
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Security
+
+See [SECURITY.md](SECURITY.md) for vulnerability reporting.
 
 ## Disclaimer
 

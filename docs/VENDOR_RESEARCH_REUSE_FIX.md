@@ -72,7 +72,7 @@ After the fix, running the vendor research check shows:
 ```
 Using existing vendor research: vendor-research-azure-2026-01.txt
 Generated: False
-Files: ['C:\\Users\\nicks\\OneDrive\\primr\\docs\\vendor-research-azure-2026-01.txt']
+Files: ['docs/vendor-research-azure-2026-01.txt']
 ```
 
 ## Benefits
@@ -116,7 +116,7 @@ Expected output when file exists:
 ```
 Using existing vendor research: vendor-research-azure-2026-01.txt
 Generated: False
-Files: ['C:\\Users\\nicks\\OneDrive\\primr\\docs\\vendor-research-azure-2026-01.txt']
+Files: ['docs/vendor-research-azure-2026-01.txt']
 ```
 
 ## Related Files
