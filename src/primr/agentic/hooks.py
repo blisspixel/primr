@@ -757,8 +757,8 @@ class ContentSanitizationHook(Hook):
         try:
             from primr.utils.content_sanitizer import (
                 ContentSanitizer,
-                SanitizationMode,
                 IssueType,
+                SanitizationMode,
             )
 
             # Map string mode to enum
