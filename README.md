@@ -61,9 +61,9 @@ primr "Company" https://company.com --dry-run       # Cost estimate first
 
 ## Under the Hood
 
-**8-Tier Scraping Engine**
-- HTTP tiers: requests → httpx → curl_cffi (TLS fingerprint impersonation)
+**8-Tier Scraping Engine** (browser-first for modern JS-heavy sites)
 - Browser tiers: Playwright → aggressive mode → DrissionPage (driverless CDP)
+- HTTP tiers: curl_cffi (TLS fingerprint impersonation) → httpx → requests
 - Vision tier: Screenshot + LLM extraction for the really stubborn pages
 - Auto-escalation, sticky tier optimization, circuit breakers, soft block detection
 

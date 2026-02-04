@@ -10,9 +10,9 @@ The design is intentionally opinionated and local-first. This roadmap reflects c
 
 ### Research Engines
 
-**Scrape Mode**: 8-tier web scraping with intelligent escalation:
-- HTTP tiers: requests, httpx, curl_cffi (TLS fingerprint impersonation)
-- Browser tiers: Playwright, Playwright aggressive, DrissionPage (driverless CDP), DrissionPage stealth
+**Scrape Mode**: 8-tier web scraping with intelligent escalation (browser-first):
+- Browser tiers: Playwright, Playwright aggressive, DrissionPage stealth, DrissionPage (driverless CDP)
+- HTTP tiers: curl_cffi (TLS fingerprint impersonation), httpx, requests
 - Vision tier: Screenshot + LLM extraction for image-heavy pages (opt-in)
 - Reader-mode content extraction (BeautifulSoup-based, removes boilerplate)
 - Content quality validation (catches garbage pages, triggers escalation)

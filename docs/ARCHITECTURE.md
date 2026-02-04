@@ -24,7 +24,7 @@ Primr is designed around a core insight: good company research requires both bre
     ┌─────────────┐        ┌─────────────┐        ┌─────────────┐
     │   Scrape    │        │    Deep     │        │   Complete  │
     │    Mode     │        │    Mode     │        │    Mode     │
-    │  (20-25m)   │        │  (10-15m)   │        │  (30-40m)   │
+    │  (5-10m)    │        │  (10-15m)   │        │  (30-40m)   │
     └─────────────┘        └─────────────┘        └─────────────┘
            │                       │                       │
            ▼                       ▼                       ▼
@@ -80,16 +80,16 @@ Website-focused research using the `build_site_corpus` workflow with AI-powered 
                                    ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │                   scrape_page primitive (8-Tier Orchestrator)        │
-│  ┌─────────┐  ┌─────────┐  ┌───────────┐  ┌───────────────────┐    │
-│  │Requests │─▶│  httpx  │─▶│ curl_cffi │─▶│    Playwright     │    │
-│  │ (fast)  │  │ (HTTP/2)│  │(TLS spoof)│  │    (browser)      │    │
-│  └─────────┘  └─────────┘  └───────────┘  └───────────────────┘    │
-│       │                                            │                 │
-│       ▼                                            ▼                 │
-│  ┌───────────────────┐  ┌───────────────┐  ┌───────────────────┐   │
-│  │Playwright Aggress.│─▶│ DrissionPage  │─▶│DrissionPage Stealth│   │
-│  │(content expand)   │  │  (driverless) │  │ (challenge wait)  │   │
-│  └───────────────────┘  └───────────────┘  └───────────────────┘   │
+│  ┌───────────────┐  ┌───────────────────┐  ┌───────────┐            │
+│  │  Playwright   │─▶│Playwright Aggress.│─▶│ curl_cffi │            │
+│  │   (browser)   │  │ (content expand)  │  │(TLS spoof)│            │
+│  └───────────────┘  └───────────────────┘  └───────────┘            │
+│         │                                        │                   │
+│         ▼                                        ▼                   │
+│  ┌───────────────────┐  ┌───────────────┐  ┌─────────┐  ┌─────────┐ │
+│  │DrissionPage Stealt│─▶│ DrissionPage  │─▶│  httpx  │─▶│Requests │ │
+│  │ (challenge wait)  │  │  (driverless) │  │ (HTTP/2)│  │ (fast)  │ │
+│  └───────────────────┘  └───────────────┘  └─────────┘  └─────────┘ │
 │                                                                      │
 │  Features: Sticky tier, Circuit breaker, Cookie handoff, Soft block │
 └─────────────────────────────────────────────────────────────────────┘
