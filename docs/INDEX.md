@@ -1,66 +1,42 @@
-# Primr Documentation Index
+# Primr Documentation
 
-Quick reference to all Primr documentation. Current version: 1.6.0
+Current version: 1.7.0
 
 ## Getting Started
 
 | Document | Description |
 |----------|-------------|
-| [README](../README.md) | Installation, quick start, basic usage |
-| [CONFIG](CONFIG.md) | Configuration reference, environment variables |
+| [API_KEYS](API_KEYS.md) | API key setup, security, troubleshooting |
+| [CONFIG](CONFIG.md) | Configuration reference |
 
-## Architecture & Design
-
-| Document | Description |
-|----------|-------------|
-| [ARCHITECTURE](ARCHITECTURE.md) | System design, data flow, module structure |
-| [STATE_MACHINES](STATE_MACHINES.md) | Tier escalation and job lifecycle state machines |
-| [CONCURRENCY](../CONCURRENCY.md) | Threading model, async/sync boundaries, deadlock prevention |
-| [INTERNALS](INTERNALS.md) | Prompt engineering, algorithms, implementation details |
-
-## API & Integration
+## Usage
 
 | Document | Description |
 |----------|-------------|
-| [API](API.md) | Programmatic usage, MCP server, tool reference |
-| [OPENCLAW](OPENCLAW.md) | Open Claw integration, skills, workflows |
+| [API](API.md) | MCP server, programmatic usage |
+| [OPENCLAW](OPENCLAW.md) | Open Claw integration |
+| [STRATEGY_PORTFOLIO](STRATEGY_PORTFOLIO.md) | Strategy document types |
 
-## Cloud Deployment
-
-| Document | Description |
-|----------|-------------|
-| [CLOUD_DEPLOYMENT](CLOUD_DEPLOYMENT.md) | Serverless deployment guide (AWS, Azure, GCP) |
-
-## Operations & Maintenance
+## Architecture
 
 | Document | Description |
 |----------|-------------|
-| [MIGRATION](MIGRATION.md) | Error hierarchy migration guide |
-| [SECURITY_REVIEW](SECURITY_REVIEW_2026-02-02.md) | Security audit findings and mitigations |
-| [SECURITY_OPS](SECURITY_OPS.md) | Operational security: key rotation, audit logs, testing |
-| [CHANGELOG](../CHANGELOG.md) | Version history and changes |
-| [ROADMAP](../ROADMAP.md) | Development roadmap and planned features |
+| [ARCHITECTURE](ARCHITECTURE.md) | System design, scraping tiers |
+| [STATE_MACHINES](STATE_MACHINES.md) | Tier escalation, job lifecycle |
+| [CONCURRENCY](../CONCURRENCY.md) | Threading model |
 
-## Strategy Documents
+## Deployment
 
 | Document | Description |
 |----------|-------------|
-| [STRATEGY_PORTFOLIO](STRATEGY_PORTFOLIO.md) | Available strategy types and usage |
+| [CLOUD_DEPLOYMENT](CLOUD_DEPLOYMENT.md) | AWS, Azure, GCP serverless |
+| [SECURITY_OPS](SECURITY_OPS.md) | Key rotation, audit logs |
 
-## By Topic
+## Reference
 
-### Scraping & Data Collection
-- [ARCHITECTURE](ARCHITECTURE.md) → "8-Tier Scraping Engine" section
-- [SCRAPING_IMPROVEMENTS](SCRAPING_IMPROVEMENTS_2026-01-23.md) → Recent enhancements
-
-### Error Handling
-- [MIGRATION](MIGRATION.md) → Typed error hierarchy
-- Source: `src/primr/utils/errors.py`
-
-### Testing
-- Source: `tests/` directory
-- Property tests: `tests/property_tests/`
-
-### Configuration
-- [CONFIG](CONFIG.md) → Full reference
-- Source: `src/primr/utils/config_validation.py`
+| Document | Description |
+|----------|-------------|
+| [ROADMAP](../ROADMAP.md) | Development roadmap |
+| [CHANGELOG](../CHANGELOG.md) | Version history |
+| [MIGRATION](MIGRATION.md) | Error hierarchy migration |
+| [SECURITY_REVIEW](SECURITY_REVIEW_2026-02-02.md) | Security audit |
