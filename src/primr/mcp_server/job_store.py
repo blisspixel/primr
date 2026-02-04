@@ -342,7 +342,7 @@ class SingleJobStore(JobStore):
         """
         if self._journal_path.exists():
             try:
-                with open(self._journal_path) as f:
+                with open(self._journal_path, encoding="utf-8") as f:
                     data = json.load(f)
                 self._job = ResearchJobState.from_journal_dict(data)
             except (json.JSONDecodeError, KeyError, ValueError):
@@ -362,7 +362,7 @@ class SingleJobStore(JobStore):
 
         self._journal_path.parent.mkdir(parents=True, exist_ok=True)
         temp_path = self._journal_path.with_suffix(".tmp")
-        with open(temp_path, "w") as f:
+        with open(temp_path, "w", encoding="utf-8") as f:
             json.dump(self._job.to_journal_dict(), f, indent=2)
         temp_path.replace(self._journal_path)  # Atomic rename
 

@@ -86,7 +86,7 @@ logger = logging.getLogger("runner")
 @dataclass
 class JobSpec:
     """Job specification parsed from environment or file."""
-    
+
     job_id: str
     deployment: str
     execution_id: str
@@ -96,7 +96,7 @@ class JobSpec:
     mode: str  # scrape, deep, full
     options: dict[str, Any] = field(default_factory=dict)
     timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS
-    
+
     def __post_init__(self) -> None:
         """Validate job spec fields."""
         if not self.job_id:
@@ -114,7 +114,7 @@ class JobSpec:
         # Clamp timeout to max
         if self.timeout_seconds > MAX_TIMEOUT_SECONDS:
             self.timeout_seconds = MAX_TIMEOUT_SECONDS
-    
+
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "JobSpec":
         """Create JobSpec from dictionary."""
@@ -129,7 +129,7 @@ class JobSpec:
             options=data.get("options", {}),
             timeout_seconds=data.get("timeout_seconds", DEFAULT_TIMEOUT_SECONDS),
         )
-    
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
@@ -168,7 +168,7 @@ def parse_job_spec() -> JobSpec:
             return JobSpec.from_dict(data)
         except json.JSONDecodeError as e:
             raise ValueError(f"Invalid JSON in JOB_SPEC env var: {e}") from e
-    
+
     # Try file
     spec_file = Path("/job/spec.json")
     if spec_file.exists():
@@ -178,7 +178,7 @@ def parse_job_spec() -> JobSpec:
             return JobSpec.from_dict(data)
         except json.JSONDecodeError as e:
             raise ValueError(f"Invalid JSON in {spec_file}: {e}") from e
-    
+
     raise ValueError("No job spec found. Set JOB_SPEC env var or provide /job/spec.json")
 
 
@@ -189,7 +189,7 @@ def get_expected_artifacts(mode: str) -> list[str]:
 
 class RunnerState:
     """Thread-safe state for the runner."""
-    
+
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._cancel_requested = False
@@ -197,52 +197,52 @@ class RunnerState:
         self._percent = 0
         self._started_at: datetime | None = None
         self._process: subprocess.Popen | None = None
-    
+
     @property
     def cancel_requested(self) -> bool:
         with self._lock:
             return self._cancel_requested
-    
+
     @cancel_requested.setter
     def cancel_requested(self, value: bool) -> None:
         with self._lock:
             self._cancel_requested = value
-    
+
     @property
     def current_stage(self) -> str:
         with self._lock:
             return self._current_stage
-    
+
     @current_stage.setter
     def current_stage(self, value: str) -> None:
         with self._lock:
             self._current_stage = value
-    
+
     @property
     def percent(self) -> int:
         with self._lock:
             return self._percent
-    
+
     @percent.setter
     def percent(self, value: int) -> None:
         with self._lock:
             self._percent = value
-    
+
     @property
     def started_at(self) -> datetime | None:
         with self._lock:
             return self._started_at
-    
+
     @started_at.setter
     def started_at(self, value: datetime | None) -> None:
         with self._lock:
             self._started_at = value
-    
+
     @property
     def process(self) -> subprocess.Popen | None:
         with self._lock:
             return self._process
-    
+
     @process.setter
     def process(self, value: subprocess.Popen | None) -> None:
         with self._lock:
@@ -257,7 +257,7 @@ def handle_sigterm(signum: int, frame: Any) -> None:
     """Handle SIGTERM signal for graceful cancellation."""
     _state.cancel_requested = True
     logger.info({"event": "cancellation_requested", "signal": signum})
-    
+
     # Try to terminate the subprocess if running
     proc = _state.process
     if proc and proc.poll() is None:
@@ -267,8 +267,11 @@ def handle_sigterm(signum: int, frame: Any) -> None:
 
 def setup_signal_handlers() -> None:
     """Setup signal handlers for graceful shutdown."""
-    signal.signal(signal.SIGTERM, handle_sigterm)
+    # SIGINT works on all platforms
     signal.signal(signal.SIGINT, handle_sigterm)
+    # SIGTERM only exists on Unix-like systems
+    if sys.platform != "win32":
+        signal.signal(signal.SIGTERM, handle_sigterm)
 
 
 def utc_now() -> datetime:
@@ -283,13 +286,13 @@ def format_timestamp(dt: datetime) -> str:
 
 class StructuredLogger:
     """Logger that writes structured JSON logs to a file with redaction."""
-    
+
     def __init__(self, log_file: Path) -> None:
         self.log_file = log_file
         self._lock = threading.Lock()
         # Ensure parent directory exists
         log_file.parent.mkdir(parents=True, exist_ok=True)
-    
+
     def log(self, level: str, event: str, **kwargs: Any) -> None:
         """Write a structured log entry with sensitive data redacted."""
         # Redact sensitive data from kwargs
@@ -301,7 +304,7 @@ class StructuredLogger:
                 redacted_kwargs[key] = redact_sensitive(value)
             else:
                 redacted_kwargs[key] = value
-        
+
         entry = {
             "ts": format_timestamp(utc_now()),
             "level": level,
@@ -311,20 +314,20 @@ class StructuredLogger:
         with self._lock:
             with open(self.log_file, "a", encoding="utf-8") as f:
                 f.write(json.dumps(entry) + "\n")
-    
+
     def info(self, event: str, **kwargs: Any) -> None:
         self.log("info", event, **kwargs)
-    
+
     def warning(self, event: str, **kwargs: Any) -> None:
         self.log("warning", event, **kwargs)
-    
+
     def error(self, event: str, **kwargs: Any) -> None:
         self.log("error", event, **kwargs)
 
 
 class EventWriter:
     """Writer for progress events to events.jsonl."""
-    
+
     def __init__(
         self,
         events_file: Path | None = None,
@@ -345,11 +348,11 @@ class EventWriter:
         self.store = store
         self.job_id = job_id
         self._lock = threading.Lock()
-        
+
         # Ensure parent directory exists for local file
         if events_file:
             events_file.parent.mkdir(parents=True, exist_ok=True)
-    
+
     def write_event(self, stage: str, percent: int, message: str) -> None:
         """Write a progress event."""
         entry = {
@@ -358,7 +361,7 @@ class EventWriter:
             "percent": percent,
             "message": message,
         }
-        
+
         if self.store and self.job_id:
             # Write to artifact store
             try:
@@ -374,7 +377,7 @@ class EventWriter:
 
 class HeartbeatWriter:
     """Writer for heartbeat updates."""
-    
+
     def __init__(
         self,
         heartbeat_file: Path | None,
@@ -397,11 +400,11 @@ class HeartbeatWriter:
         self._lock = threading.Lock()
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
-        
+
         # Ensure parent directory exists for local file
         if heartbeat_file:
             heartbeat_file.parent.mkdir(parents=True, exist_ok=True)
-    
+
     def _write_heartbeat(self) -> None:
         """Write current heartbeat to file or store."""
         heartbeat = {
@@ -412,21 +415,21 @@ class HeartbeatWriter:
             "stage": _state.current_stage,
             "percent": _state.percent,
         }
-        
+
         if self.store:
             # Write to artifact store
             try:
                 self.store.update_heartbeat(self.job_spec.job_id, heartbeat)
             except Exception as e:
                 logger.warning({"event": "heartbeat_store_write_failed", "error": str(e)})
-        
+
         if self.heartbeat_file:
             # Write atomically via temp file (for local mode or as backup)
             with self._lock:
                 temp_file = self.heartbeat_file.with_suffix(".tmp")
                 temp_file.write_text(json.dumps(heartbeat, indent=2))
                 temp_file.rename(self.heartbeat_file)
-    
+
     def _heartbeat_loop(self) -> None:
         """Background thread that writes heartbeat every 5 minutes."""
         while not self._stop_event.wait(HEARTBEAT_INTERVAL_SECONDS):
@@ -435,7 +438,7 @@ class HeartbeatWriter:
                 logger.info({"event": "heartbeat_written"})
             except Exception as e:
                 logger.error({"event": "heartbeat_write_failed", "error": str(e)})
-    
+
     def start(self) -> None:
         """Start the heartbeat background thread."""
         # Write initial heartbeat immediately
@@ -443,7 +446,7 @@ class HeartbeatWriter:
         # Start background thread
         self._thread = threading.Thread(target=self._heartbeat_loop, daemon=True)
         self._thread.start()
-    
+
     def stop(self) -> None:
         """Stop the heartbeat background thread."""
         self._stop_event.set()
@@ -474,7 +477,7 @@ def build_primr_command(job_spec: JobSpec, output_dir: Path) -> list[str]:
         "--output-dir", str(output_dir),
         "--skip-confirm",  # Non-interactive
     ]
-    
+
     # Map job mode to primr mode
     mode_map = {
         "scrape": "scrape-only",
@@ -483,14 +486,14 @@ def build_primr_command(job_spec: JobSpec, output_dir: Path) -> list[str]:
     }
     primr_mode = mode_map.get(job_spec.mode, "complete")
     cmd.extend(["--mode", primr_mode])
-    
+
     # Add options
     options = job_spec.options
     if options.get("cloud_vendor"):
         cmd.extend(["--cloud-vendor", options["cloud_vendor"]])
     if options.get("no_qa"):
         cmd.append("--no-qa")
-    
+
     return cmd
 
 
@@ -515,10 +518,10 @@ def run_primr(
     cmd = build_primr_command(job_spec, output_dir)
     struct_logger.info("primr_starting", command=" ".join(cmd))
     event_writer.write_event("starting", 0, f"Starting primr in {job_spec.mode} mode")
-    
+
     _state.current_stage = "running"
     _state.percent = 5
-    
+
     try:
         proc = subprocess.Popen(
             cmd,
@@ -528,7 +531,7 @@ def run_primr(
             bufsize=1,
         )
         _state.process = proc
-        
+
         # Read output line by line
         output_lines: list[str] = []
         if proc.stdout:
@@ -536,7 +539,7 @@ def run_primr(
                 line = line.rstrip()
                 output_lines.append(line)
                 struct_logger.info("primr_output", line=line)
-                
+
                 # Update progress based on output patterns
                 if "scraping" in line.lower() or "scanning" in line.lower():
                     _state.current_stage = "scrape"
@@ -554,18 +557,18 @@ def run_primr(
                     _state.current_stage = "report"
                     _state.percent = 90
                     event_writer.write_event("report", 90, "Generating report")
-                
+
                 # Check for cancellation
                 if _state.cancel_requested:
                     struct_logger.info("cancellation_acknowledged")
                     proc.terminate()
                     proc.wait(timeout=10)
                     return EXIT_CANCELLED, "user_cancelled"
-        
+
         # Wait for completion
         exit_code = proc.wait()
         _state.process = None
-        
+
         if exit_code == 0:
             _state.current_stage = "complete"
             _state.percent = 100
@@ -576,7 +579,7 @@ def run_primr(
             error_msg = f"primr exited with code {exit_code}"
             struct_logger.error("primr_failed", exit_code=exit_code, output="\n".join(output_lines[-20:]))
             return EXIT_FAILURE, error_msg
-            
+
     except subprocess.TimeoutExpired:
         struct_logger.error("primr_timeout")
         if _state.process:
@@ -619,24 +622,24 @@ def main() -> int:
     # Import manifest and storage modules
     from deploy.manifest import JobManifest, build_manifest, ManifestAlreadyExistsError
     from deploy.storage import create_store, LocalStore
-    
+
     # Setup logging
     logging.basicConfig(
         level=logging.INFO,
         format='{"ts": "%(asctime)s", "level": "%(levelname)s", "message": %(message)s}',
         datefmt="%Y-%m-%dT%H:%M:%SZ",
     )
-    
+
     # Setup signal handlers
     setup_signal_handlers()
-    
+
     # Parse job spec
     try:
         job_spec = parse_job_spec()
     except ValueError as e:
         logger.error({"event": "invalid_job_spec", "error": str(e)})
         return EXIT_INVALID_SPEC
-    
+
     logger.info({
         "event": "job_starting",
         "job_id": job_spec.job_id,
@@ -644,47 +647,47 @@ def main() -> int:
         "mode": job_spec.mode,
         "attempt": job_spec.attempt,
     })
-    
+
     # Setup artifact store
     artifact_store_url = os.environ.get("ARTIFACT_STORE_URL", "")
     if not artifact_store_url:
         logger.error({"event": "missing_artifact_store_url"})
         return EXIT_FAILURE
-    
+
     # Create artifact store
     try:
         store = create_store(artifact_store_url, job_spec.deployment)
     except ValueError as e:
         logger.error({"event": "invalid_artifact_store_url", "error": str(e)})
         return EXIT_FAILURE
-    
+
     # For local stores, we also need a local output directory for primr
     # For cloud stores, we use a temp directory and upload artifacts after
     if isinstance(store, LocalStore):
         output_dir = Path(artifact_store_url) / job_spec.deployment / job_spec.job_id
     else:
         output_dir = Path(tempfile.mkdtemp(prefix=f"primr_{job_spec.job_id}_"))
-    
+
     output_dir.mkdir(parents=True, exist_ok=True)
-    
+
     # Setup structured logger (always local for now)
     log_file = output_dir / "_logs" / "runner.jsonl"
     struct_logger = StructuredLogger(log_file)
     struct_logger.info("runner_starting", job_id=job_spec.job_id, version=RUNNER_VERSION)
-    
+
     # Setup tracing (optional - enabled via OTEL_EXPORTER_* env vars)
     tracer = Tracer(
         service_name="primr-runner",
         job_id=job_spec.job_id,
         deployment=job_spec.deployment,
     )
-    
+
     # Setup metrics collector
     metrics = MetricsCollector(
         job_id=job_spec.job_id,
         deployment=job_spec.deployment,
     )
-    
+
     # Setup event writer with store integration
     events_file = output_dir / "events.jsonl"
     event_writer = EventWriter(
@@ -693,7 +696,7 @@ def main() -> int:
         job_id=job_spec.job_id,
     )
     event_writer.write_event("initializing", 0, "Job runner initializing")
-    
+
     # Setup heartbeat writer with store integration
     heartbeat_file = output_dir / "_heartbeat.json"
     heartbeat_writer = HeartbeatWriter(
@@ -701,24 +704,24 @@ def main() -> int:
         job_spec=job_spec,
         store=store,
     )
-    
+
     # Record start time
     _state.started_at = utc_now()
     submitted_at = _state.started_at  # For manifest
-    
+
     # Start heartbeat (updates every 5 minutes)
     heartbeat_writer.start()
-    
+
     try:
         # Run primr with tracing
         with tracer.span("primr_execution", {"mode": job_spec.mode}) as span:
             exit_code, error = run_primr(job_spec, output_dir, event_writer, struct_logger)
-            
+
             # Check for cancellation
             if _state.cancel_requested:
                 exit_code = EXIT_CANCELLED
                 error = "user_cancelled"
-            
+
             # Determine status
             if exit_code == EXIT_SUCCESS:
                 status = "SUCCEEDED"
@@ -729,18 +732,18 @@ def main() -> int:
                 status = "FAILED"
                 if span:
                     span.set_attribute("error.message", error or "unknown")
-        
+
         # Record metrics
         completed_at = utc_now()
         if _state.started_at:
             duration = (completed_at - _state.started_at).total_seconds()
             metrics.record_duration("job_execution", duration, {"status": status, "mode": job_spec.mode})
         metrics.record_count("job_completed", labels={"status": status, "mode": job_spec.mode})
-        
+
         # Upload artifacts to store if not local
         if not isinstance(store, LocalStore):
             _upload_artifacts_to_store(output_dir, store, job_spec.job_id, struct_logger)
-        
+
         # Build manifest
         manifest = build_manifest(
             job_spec=job_spec,
@@ -751,7 +754,7 @@ def main() -> int:
             started_at=_state.started_at,
             completed_at=completed_at,
         )
-        
+
         # Write manifest LAST with conditional check (manifest-as-commit pattern)
         try:
             store.put_manifest(job_spec.job_id, manifest)
@@ -765,17 +768,17 @@ def main() -> int:
                 if existing.status == "SUCCEEDED":
                     return EXIT_SUCCESS
             written = False
-        
+
         if not written:
             struct_logger.warning("late_writer_failure")
             return EXIT_FAILURE
-        
+
         struct_logger.info("job_completed", status=status, exit_code=exit_code)
         return map_exit_code(exit_code, error)
-        
+
     except Exception as e:
         struct_logger.error("runner_exception", error=str(e))
-        
+
         # Try to write FAILED manifest
         try:
             manifest = build_manifest(
@@ -790,13 +793,13 @@ def main() -> int:
             store.put_manifest(job_spec.job_id, manifest)
         except Exception:
             pass
-        
+
         return EXIT_FAILURE
-        
+
     finally:
         # Stop heartbeat
         heartbeat_writer.stop()
-        
+
         # Handle SIGTERM - always write CANCELLED manifest
         if _state.cancel_requested:
             try:
@@ -816,7 +819,7 @@ def main() -> int:
                 pass
             except Exception as e:
                 struct_logger.error("cancelled_manifest_write_failed", error=str(e))
-        
+
         # Clean up temp directory for cloud stores
         if not isinstance(store, LocalStore):
             try:
@@ -842,7 +845,7 @@ def _upload_artifacts_to_store(
         if file_path.is_file():
             rel_path = file_path.relative_to(output_dir)
             key = f"{job_id}/{rel_path}"
-            
+
             # Determine content type
             suffix = file_path.suffix.lower()
             content_types = {
@@ -853,7 +856,7 @@ def _upload_artifacts_to_store(
                 ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             }
             content_type = content_types.get(suffix, "application/octet-stream")
-            
+
             try:
                 store.put(key, file_path.read_bytes(), content_type)
                 struct_logger.info("artifact_uploaded", key=key)
