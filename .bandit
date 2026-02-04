@@ -1,0 +1,16 @@
+exclude_dirs:
+  - /tests/
+  - /.hypothesis/
+  - /.pytest_cache/
+  - /.mypy_cache/
+  - /.ruff_cache/
+  - /build/
+  - /dist/
+
+skips:
+  - B110  # try_except_pass - Used intentionally for cleanup
+  - B311  # random - Used for delays/jitter, not cryptography
+  - B404  # subprocess import - Safe usage
+  - B603  # subprocess call - Safe, controlled input
+  - B607  # partial path - soffice is known tool
+  - B104  # bind all interfaces - False positive in SSRF list

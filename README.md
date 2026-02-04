@@ -42,7 +42,7 @@ Scrape mode stops after insights; full mode continues through deep research and 
   <img src="docs/images/primr-demo.png" alt="Primr CLI demo" width="700">
 </p>
 
-**Example Output**: See sample reports in [docs/examples/](docs/examples/)
+**Example Output**: Run `primr "Acme Corp" https://acme.example --dry-run` to see cost estimates before generating reports.
 
 ## Quick Start
 
