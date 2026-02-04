@@ -10,7 +10,7 @@ Company research tool using Gemini models. Generates intelligence briefs from we
 ### Critical Constraints
 - **Single-job model**: ONE research job at a time. Check `primr --check-jobs` before starting new research.
 - **Async execution**: `research_company` returns immediately with `job_id`. Poll `check_jobs` for completion.
-- **Cost awareness**: ALWAYS run `estimate_run` before `research_company`. Typical costs: scrape ~$0.05, deep ~$1.00, full ~$1.50.
+- **Cost awareness**: ALWAYS run `estimate_run` before `research_company`. Typical costs: scrape ~$0.10, deep ~$1.00, full ~$1.50.
 
 ### Common Tasks
 
@@ -18,7 +18,7 @@ Company research tool using Gemini models. Generates intelligence briefs from we
 # Estimate before running (REQUIRED)
 primr "Company" https://example.com --dry-run
 
-# Quick website intel (5-10 min, ~$0.05)
+# Quick website intel (5-10 min, ~$0.10)
 primr "Company" https://example.com --mode scrape
 
 # Deep external research (10-15 min, ~$1.00)
@@ -246,4 +246,4 @@ Unit tests validate specific examples and edge cases.
 
 ---
 
-*Last updated: 2026-02-03 | Primr v1.6.0 | Agentic Architecture v1.0*
+*Last updated: 2026-02-03 | Primr v1.7.0 | Agentic Architecture v1.0*

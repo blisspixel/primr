@@ -170,9 +170,11 @@ primr --dry-run "Company Name" https://company.com
 
 | Mode | Gemini | Search | Total |
 |------|--------|--------|-------|
-| scrape | ~$0.01 | ~$0.01 | ~$0.02 |
-| deep | ~$0.20 | $0 (built-in) | ~$0.20 |
-| full | ~$0.30 | ~$0.02 | ~$0.35 |
+| scrape | ~$0.01 | ~$0.07 | ~$0.10 |
+| deep | ~$0.28 | ~$0.70 | ~$1.00 |
+| full | ~$0.56 | ~$0.90 | ~$1.50 |
+
+Search costs $0.035/query (Google Search grounding). Use `primr --dry-run` for estimates based on your actual usage history.
 
 ### Set Billing Alerts
 
