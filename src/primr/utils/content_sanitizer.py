@@ -1,0 +1,455 @@
+"""
+Content sanitization for LLM prompt injection protection.
+
+This module provides sanitization of scraped web content before it's passed
+to LLM prompts. It detects and handles:
+- Control characters (null bytes, escape sequences)
+- Unicode normalization issues (homoglyphs, RTL overrides, zero-width chars)
+- Prompt injection patterns (IGNORE INSTRUCTIONS, SYSTEM:, etc.)
+
+Security best practices:
+- Always sanitize external content before including in LLM prompts
+- Log detected issues for security monitoring
+- Use STRIP mode for production, BLOCK mode for high-security contexts
+
+Example:
+    from primr.utils.content_sanitizer import sanitize_for_llm
+
+    text = "Some scraped content..."
+    result = sanitize_for_llm(text)
+    if result.issues:
+        logger.warning(f"Sanitization detected {len(result.issues)} issues")
+    prompt = generate_prompt(...) + "\\n\\n" + result.sanitized
+"""
+
+from __future__ import annotations
+
+import logging
+import re
+import unicodedata
+from dataclasses import dataclass, field
+from enum import Enum
+
+logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# ENUMS AND DATA CLASSES
+# =============================================================================
+
+
+class SanitizationMode(Enum):
+    """How to handle detected issues."""
+
+    BLOCK = "block"  # Reject content entirely
+    STRIP = "strip"  # Remove patterns, continue processing
+    WARN = "warn"  # Log only, don't modify content
+
+
+class IssueType(Enum):
+    """Types of sanitization issues detected."""
+
+    CONTROL_CHAR = "control_character"
+    UNICODE_NORMALIZATION = "unicode_normalization"
+    PROMPT_INJECTION = "prompt_injection"
+    EXCESSIVE_LENGTH = "excessive_length"
+
+
+@dataclass
+class SanitizationIssue:
+    """Details about a detected sanitization issue."""
+
+    issue_type: IssueType
+    description: str
+    position: int | None = None
+    pattern_matched: str | None = None
+
+
+@dataclass
+class SanitizationResult:
+    """Result of content sanitization."""
+
+    sanitized: str
+    issues: list[SanitizationIssue] = field(default_factory=list)
+    was_modified: bool = False
+    blocked: bool = False
+
+    @property
+    def is_safe(self) -> bool:
+        """Returns True if no issues were detected."""
+        return len(self.issues) == 0
+
+
+# =============================================================================
+# DETECTION PATTERNS
+# =============================================================================
+
+# Control characters to remove (except tab, newline, carriage return)
+_CONTROL_CHAR_PATTERN = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+
+# Zero-width and invisible Unicode characters
+_INVISIBLE_UNICODE = frozenset(
+    {
+        "\u200b",  # Zero-width space
+        "\u200c",  # Zero-width non-joiner
+        "\u200d",  # Zero-width joiner
+        "\u2060",  # Word joiner
+        "\u2061",  # Function application
+        "\u2062",  # Invisible times
+        "\u2063",  # Invisible separator
+        "\u2064",  # Invisible plus
+        "\ufeff",  # BOM / zero-width no-break space
+    }
+)
+
+# RTL override characters that can visually hide content
+_RTL_OVERRIDE_CHARS = frozenset(
+    {
+        "\u202a",  # Left-to-right embedding
+        "\u202b",  # Right-to-left embedding
+        "\u202c",  # Pop directional formatting
+        "\u202d",  # Left-to-right override
+        "\u202e",  # Right-to-left override
+        "\u2066",  # Left-to-right isolate
+        "\u2067",  # Right-to-left isolate
+        "\u2068",  # First strong isolate
+        "\u2069",  # Pop directional isolate
+    }
+)
+
+# Prompt injection detection patterns
+# These patterns are case-insensitive and designed to catch common injection attempts
+_INJECTION_PATTERNS = [
+    # Direct instruction override attempts
+    (
+        re.compile(
+            r"(?:^|\s)(?:ignore|disregard|forget)\s+(?:all\s+)?(?:previous|prior|above|earlier)\s+(?:instructions?|commands?|prompts?|context)",
+            re.IGNORECASE,
+        ),
+        "Instruction override attempt",
+    ),
+    (
+        re.compile(
+            r"(?:^|\s)(?:new|updated|real|actual)\s+(?:instructions?|commands?|system\s+prompt)",
+            re.IGNORECASE,
+        ),
+        "New instruction injection",
+    ),
+    # System prompt manipulation
+    (
+        re.compile(r"(?:^|\s)SYSTEM\s*:\s*", re.IGNORECASE),
+        "System prompt marker",
+    ),
+    (
+        re.compile(r"(?:^|\s)\[SYSTEM\]", re.IGNORECASE),
+        "System prompt bracket marker",
+    ),
+    (
+        re.compile(r"<\/?system(?:\s[^>]*)?>", re.IGNORECASE),
+        "System XML tag",
+    ),
+    # Role manipulation
+    (
+        re.compile(r"(?:^|\s)(?:you\s+are\s+now|act\s+as|pretend\s+to\s+be|roleplay\s+as)\s+", re.IGNORECASE),
+        "Role manipulation attempt",
+    ),
+    (
+        re.compile(r"(?:^|\s)(?:assistant|AI|Claude|GPT)\s*:\s*", re.IGNORECASE),
+        "Role label injection",
+    ),
+    # Output format manipulation
+    (
+        re.compile(
+            r"(?:^|\s)(?:output|respond|reply|answer)\s+(?:only|exclusively|just)\s+(?:with|in|using)",
+            re.IGNORECASE,
+        ),
+        "Output format manipulation",
+    ),
+    # Delimiter escape attempts
+    (
+        re.compile(r"```(?:system|admin|root|sudo)", re.IGNORECASE),
+        "Code block privilege escalation",
+    ),
+    (
+        re.compile(r"<\/?(?:admin|root|sudo|privileged)(?:\s[^>]*)?>", re.IGNORECASE),
+        "Privilege escalation XML tag",
+    ),
+    # Jailbreak patterns
+    (
+        re.compile(r"(?:^|\s)(?:DAN|jailbreak|bypass|override)\s+mode", re.IGNORECASE),
+        "Jailbreak mode attempt",
+    ),
+    # Hidden instruction patterns
+    (
+        re.compile(r"<!--.*(?:instruction|system|ignore).*-->", re.IGNORECASE | re.DOTALL),
+        "Hidden HTML comment instruction",
+    ),
+]
+
+# Maximum content length (prevents resource exhaustion)
+_MAX_CONTENT_LENGTH = 500_000  # ~500KB
+
+
+# =============================================================================
+# SANITIZATION FUNCTIONS
+# =============================================================================
+
+
+def _detect_control_chars(text: str) -> list[SanitizationIssue]:
+    """Detect control characters in text."""
+    issues = []
+    for match in _CONTROL_CHAR_PATTERN.finditer(text):
+        issues.append(
+            SanitizationIssue(
+                issue_type=IssueType.CONTROL_CHAR,
+                description=f"Control character found: U+{ord(match.group()):04X}",
+                position=match.start(),
+                pattern_matched=repr(match.group()),
+            )
+        )
+    return issues
+
+
+def _detect_unicode_issues(text: str) -> list[SanitizationIssue]:
+    """Detect problematic Unicode characters."""
+    issues = []
+
+    # Check for invisible characters
+    for i, char in enumerate(text):
+        if char in _INVISIBLE_UNICODE:
+            issues.append(
+                SanitizationIssue(
+                    issue_type=IssueType.UNICODE_NORMALIZATION,
+                    description=f"Invisible Unicode character: U+{ord(char):04X}",
+                    position=i,
+                    pattern_matched=f"U+{ord(char):04X}",
+                )
+            )
+        elif char in _RTL_OVERRIDE_CHARS:
+            issues.append(
+                SanitizationIssue(
+                    issue_type=IssueType.UNICODE_NORMALIZATION,
+                    description=f"RTL override character: U+{ord(char):04X}",
+                    position=i,
+                    pattern_matched=f"U+{ord(char):04X}",
+                )
+            )
+
+    return issues
+
+
+def _detect_injection_patterns(text: str) -> list[SanitizationIssue]:
+    """Detect prompt injection patterns."""
+    issues = []
+
+    for pattern, description in _INJECTION_PATTERNS:
+        for match in pattern.finditer(text):
+            issues.append(
+                SanitizationIssue(
+                    issue_type=IssueType.PROMPT_INJECTION,
+                    description=description,
+                    position=match.start(),
+                    pattern_matched=match.group()[:50],  # Truncate for logging
+                )
+            )
+
+    return issues
+
+
+def _strip_control_chars(text: str) -> str:
+    """Remove control characters from text."""
+    return _CONTROL_CHAR_PATTERN.sub("", text)
+
+
+def _strip_unicode_issues(text: str) -> str:
+    """Remove problematic Unicode characters and normalize."""
+    # Remove invisible characters
+    result = "".join(c for c in text if c not in _INVISIBLE_UNICODE)
+    # Remove RTL override characters
+    result = "".join(c for c in result if c not in _RTL_OVERRIDE_CHARS)
+    # Normalize to NFC form (composed characters)
+    result = unicodedata.normalize("NFC", result)
+    return result
+
+
+def _strip_injection_patterns(text: str) -> str:
+    """Remove or neutralize injection patterns."""
+    result = text
+
+    for pattern, _description in _INJECTION_PATTERNS:
+        # Replace matches with a neutralized version
+        result = pattern.sub("[CONTENT REMOVED]", result)
+
+    return result
+
+
+# =============================================================================
+# PUBLIC API
+# =============================================================================
+
+
+class ContentSanitizer:
+    """
+    Sanitizes content for safe inclusion in LLM prompts.
+
+    Example:
+        sanitizer = ContentSanitizer(mode=SanitizationMode.STRIP)
+        result = sanitizer.sanitize(scraped_content)
+        if result.issues:
+            logger.warning(f"Found {len(result.issues)} issues")
+        safe_content = result.sanitized
+    """
+
+    def __init__(
+        self,
+        mode: SanitizationMode = SanitizationMode.STRIP,
+        max_length: int = _MAX_CONTENT_LENGTH,
+        check_control_chars: bool = True,
+        check_unicode: bool = True,
+        check_injection: bool = True,
+    ):
+        """
+        Initialize sanitizer.
+
+        Args:
+            mode: How to handle detected issues
+            max_length: Maximum content length (0 = no limit)
+            check_control_chars: Whether to check for control characters
+            check_unicode: Whether to check for Unicode issues
+            check_injection: Whether to check for injection patterns
+        """
+        self.mode = mode
+        self.max_length = max_length
+        self.check_control_chars = check_control_chars
+        self.check_unicode = check_unicode
+        self.check_injection = check_injection
+
+    def sanitize(self, content: str) -> SanitizationResult:
+        """
+        Sanitize content for safe LLM prompt inclusion.
+
+        Args:
+            content: Raw content to sanitize
+
+        Returns:
+            SanitizationResult with sanitized content and detected issues
+        """
+        if not content:
+            return SanitizationResult(sanitized="", issues=[], was_modified=False)
+
+        all_issues: list[SanitizationIssue] = []
+        sanitized = content
+        was_modified = False
+
+        # Check length
+        if self.max_length > 0 and len(content) > self.max_length:
+            all_issues.append(
+                SanitizationIssue(
+                    issue_type=IssueType.EXCESSIVE_LENGTH,
+                    description=f"Content exceeds maximum length ({len(content)} > {self.max_length})",
+                )
+            )
+            if self.mode == SanitizationMode.BLOCK:
+                return SanitizationResult(
+                    sanitized="",
+                    issues=all_issues,
+                    was_modified=True,
+                    blocked=True,
+                )
+            elif self.mode == SanitizationMode.STRIP:
+                sanitized = sanitized[: self.max_length]
+                was_modified = True
+
+        # Check control characters
+        if self.check_control_chars:
+            issues = _detect_control_chars(sanitized)
+            if issues:
+                all_issues.extend(issues)
+                if self.mode == SanitizationMode.BLOCK:
+                    return SanitizationResult(
+                        sanitized="",
+                        issues=all_issues,
+                        was_modified=True,
+                        blocked=True,
+                    )
+                elif self.mode == SanitizationMode.STRIP:
+                    sanitized = _strip_control_chars(sanitized)
+                    was_modified = True
+
+        # Check Unicode issues
+        if self.check_unicode:
+            issues = _detect_unicode_issues(sanitized)
+            if issues:
+                all_issues.extend(issues)
+                if self.mode == SanitizationMode.BLOCK:
+                    return SanitizationResult(
+                        sanitized="",
+                        issues=all_issues,
+                        was_modified=True,
+                        blocked=True,
+                    )
+                elif self.mode == SanitizationMode.STRIP:
+                    sanitized = _strip_unicode_issues(sanitized)
+                    was_modified = True
+
+        # Check injection patterns
+        if self.check_injection:
+            issues = _detect_injection_patterns(sanitized)
+            if issues:
+                all_issues.extend(issues)
+                if self.mode == SanitizationMode.BLOCK:
+                    return SanitizationResult(
+                        sanitized="",
+                        issues=all_issues,
+                        was_modified=True,
+                        blocked=True,
+                    )
+                elif self.mode == SanitizationMode.STRIP:
+                    sanitized = _strip_injection_patterns(sanitized)
+                    was_modified = True
+
+        return SanitizationResult(
+            sanitized=sanitized,
+            issues=all_issues,
+            was_modified=was_modified,
+            blocked=False,
+        )
+
+
+def sanitize_for_llm(
+    content: str,
+    mode: SanitizationMode = SanitizationMode.STRIP,
+) -> tuple[str, list[SanitizationIssue]]:
+    """
+    Convenience function to sanitize content for LLM prompts.
+
+    This is the main entry point for content sanitization. Use this
+    before including any scraped/external content in LLM prompts.
+
+    Args:
+        content: Raw content to sanitize
+        mode: How to handle detected issues (default: STRIP)
+
+    Returns:
+        Tuple of (sanitized_content, list_of_issues)
+
+    Example:
+        sanitized, issues = sanitize_for_llm(scraped_text)
+        if issues:
+            logger.warning(f"Content sanitization found {len(issues)} issues")
+        prompt = base_prompt + "\\n\\n" + sanitized
+    """
+    sanitizer = ContentSanitizer(mode=mode)
+    result = sanitizer.sanitize(content)
+
+    if result.issues:
+        # Log a summary of issues
+        injection_count = sum(
+            1 for i in result.issues if i.issue_type == IssueType.PROMPT_INJECTION
+        )
+        if injection_count > 0:
+            logger.warning(
+                f"Content sanitization: {injection_count} potential prompt injection patterns detected"
+            )
+
+    return result.sanitized, result.issues

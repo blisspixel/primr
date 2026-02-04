@@ -19,6 +19,7 @@ Built-in Hooks:
     - SSRFGuardHook: URL security validation
     - QAGateHook: Quality threshold enforcement
     - MemoryPersistenceHook: Research state persistence
+    - ContentSanitizationHook: Prompt injection protection
 
 Example:
     from primr.agentic.hooks import HookSystem, CostGuardHook, SSRFGuardHook
@@ -699,3 +700,108 @@ class MemoryPersistenceHook(Hook):
                 logger.error(f"Failed to persist hypotheses: {e}")
 
         return HookResponse(result=HookResult.ALLOW)
+
+
+class ContentSanitizationHook(Hook):
+    """
+    PreToolUse hook that sanitizes content against prompt injection.
+
+    Validates and sanitizes content before it's passed to LLM prompts,
+    protecting against prompt injection attacks from scraped web content.
+
+    Attributes:
+        mode: How to handle detected issues (BLOCK, STRIP, WARN)
+
+    Example:
+        hook = ContentSanitizationHook(mode="strip")
+        hooks.register(hook)
+    """
+
+    def __init__(
+        self,
+        mode: str = "strip",
+        priority: int = 15,
+    ):
+        """
+        Initialize content sanitization hook.
+
+        Args:
+            mode: Sanitization mode ("block", "strip", "warn")
+            priority: Execution priority (default 15 = runs early, after SSRF)
+        """
+        super().__init__(priority=priority, name="ContentSanitization")
+        self._mode = mode.lower()
+
+    @property
+    def hook_type(self) -> HookType:
+        return HookType.PRE_TOOL_USE
+
+    @property
+    def mode(self) -> str:
+        """Get the sanitization mode."""
+        return self._mode
+
+    async def execute(self, context: HookContext) -> HookResponse:
+        """Sanitize content in arguments against prompt injection."""
+        # Extract content from various argument names
+        content = (
+            context.arguments.get("content")
+            or context.arguments.get("text")
+            or context.arguments.get("raw_text")
+            or context.arguments.get("scraped_content")
+        )
+
+        if not content or not isinstance(content, str):
+            return HookResponse(result=HookResult.ALLOW)
+
+        try:
+            from primr.utils.content_sanitizer import (
+                ContentSanitizer,
+                SanitizationMode,
+                IssueType,
+            )
+
+            # Map string mode to enum
+            mode_map = {
+                "block": SanitizationMode.BLOCK,
+                "strip": SanitizationMode.STRIP,
+                "warn": SanitizationMode.WARN,
+            }
+            sanitization_mode = mode_map.get(self._mode, SanitizationMode.STRIP)
+
+            sanitizer = ContentSanitizer(mode=sanitization_mode)
+            result = sanitizer.sanitize(content)
+
+            # Count injection issues specifically
+            injection_count = sum(
+                1 for i in result.issues if i.issue_type == IssueType.PROMPT_INJECTION
+            )
+
+            if result.blocked:
+                return HookResponse(
+                    result=HookResult.BLOCK,
+                    message=f"Content blocked: {len(result.issues)} sanitization issues detected ({injection_count} prompt injection patterns)",
+                )
+
+            if result.issues:
+                if sanitization_mode == SanitizationMode.WARN:
+                    return HookResponse(
+                        result=HookResult.WARN,
+                        message=f"Content warning: {len(result.issues)} issues detected ({injection_count} prompt injection patterns)",
+                    )
+                else:
+                    # STRIP mode - modify the arguments
+                    return HookResponse(
+                        result=HookResult.WARN,
+                        message=f"Content sanitized: {len(result.issues)} issues removed ({injection_count} prompt injection patterns)",
+                        modified_args={"content": result.sanitized},
+                    )
+
+            return HookResponse(result=HookResult.ALLOW)
+
+        except ImportError:
+            logger.warning("Content sanitizer module not available")
+            return HookResponse(
+                result=HookResult.WARN,
+                message="Content sanitization skipped: module not available",
+            )
