@@ -372,5 +372,170 @@ class TestSecurityHeaders:
         assert "timeout" in sig.parameters or "max_wait" in sig.parameters
 
 
+class TestRedirectSSRFProtection:
+    """Test SSRF protection against redirect-based bypass attacks."""
+
+    def test_validate_final_url_after_redirect_blocks_private_ip(self):
+        """Test that validate_final_url_after_redirect blocks private IPs."""
+        from primr.utils.security import validate_final_url_after_redirect
+        
+        test_cases = [
+            "http://192.168.1.1/admin",
+            "http://10.0.0.1/internal",
+            "http://172.16.0.1/internal",
+            "http://127.0.0.1/localhost",
+        ]
+        
+        for url in test_cases:
+            is_safe, error = validate_final_url_after_redirect(url)
+            assert not is_safe, f"Should block private IP in final URL: {url}"
+            assert error is not None, f"Should have error message for: {url}"
+
+    def test_validate_final_url_after_redirect_blocks_metadata(self):
+        """Test that validate_final_url_after_redirect blocks cloud metadata endpoints."""
+        from primr.utils.security import validate_final_url_after_redirect
+        
+        # AWS/GCP/Azure metadata endpoint
+        is_safe, error = validate_final_url_after_redirect("http://169.254.169.254/latest/meta-data/")
+        assert not is_safe, "Should block metadata endpoint in final URL"
+        assert error is not None
+
+    def test_validate_final_url_after_redirect_allows_public(self):
+        """Test that validate_final_url_after_redirect allows public URLs."""
+        from primr.utils.security import validate_final_url_after_redirect
+        
+        test_cases = [
+            "https://example.com",
+            "https://www.google.com",
+            "https://api.github.com/users",
+        ]
+        
+        for url in test_cases:
+            is_safe, error = validate_final_url_after_redirect(url)
+            assert is_safe, f"Should allow public URL: {url}, error: {error}"
+            assert error is None, f"Should not have error for valid URL: {url}"
+
+    def test_security_module_exports_redirect_validator(self):
+        """Test that the security module exports validate_final_url_after_redirect."""
+        from primr.utils.security import validate_final_url_after_redirect
+        
+        # Verify function exists and is callable
+        assert callable(validate_final_url_after_redirect)
+        
+        # Verify it returns a tuple
+        result = validate_final_url_after_redirect("https://example.com")
+        assert isinstance(result, tuple)
+        assert len(result) == 2
+
+
+class TestOrchestratorSSRFProtection:
+    """Test SSRF protection at the orchestrator level."""
+
+    def test_orchestrator_blocks_localhost(self):
+        """Test that ScrapeOrchestrator blocks localhost URLs."""
+        from primr.data.scraping.orchestrator import ScrapeOrchestrator
+        from primr.data.scraping.models import ErrorType
+        
+        orchestrator = ScrapeOrchestrator()
+        result = orchestrator.scrape_url("http://localhost:8080/admin")
+        
+        assert not result.success, "Should fail for localhost URL"
+        assert result.error_type == ErrorType.HARD_BLOCK, "Should be HARD_BLOCK"
+        assert "SSRF" in result.error or "blocked" in result.error.lower(), \
+            f"Error should mention SSRF blocking: {result.error}"
+
+    def test_orchestrator_blocks_private_ip(self):
+        """Test that ScrapeOrchestrator blocks private IP addresses."""
+        from primr.data.scraping.orchestrator import ScrapeOrchestrator
+        from primr.data.scraping.models import ErrorType
+        
+        orchestrator = ScrapeOrchestrator()
+        
+        test_cases = [
+            "http://192.168.1.1/admin",
+            "http://10.0.0.1/internal",
+            "http://172.16.0.1/internal",
+        ]
+        
+        for url in test_cases:
+            result = orchestrator.scrape_url(url)
+            assert not result.success, f"Should fail for private IP: {url}"
+            assert result.error_type == ErrorType.HARD_BLOCK, f"Should be HARD_BLOCK for: {url}"
+
+    def test_orchestrator_blocks_metadata_endpoint(self):
+        """Test that ScrapeOrchestrator blocks cloud metadata endpoints."""
+        from primr.data.scraping.orchestrator import ScrapeOrchestrator
+        from primr.data.scraping.models import ErrorType
+        
+        orchestrator = ScrapeOrchestrator()
+        
+        # AWS/GCP/Azure metadata endpoint
+        result = orchestrator.scrape_url("http://169.254.169.254/latest/meta-data/")
+        
+        assert not result.success, "Should fail for metadata endpoint"
+        assert result.error_type == ErrorType.HARD_BLOCK, "Should be HARD_BLOCK"
+
+    def test_orchestrator_blocks_loopback(self):
+        """Test that ScrapeOrchestrator blocks loopback addresses."""
+        from primr.data.scraping.orchestrator import ScrapeOrchestrator
+        from primr.data.scraping.models import ErrorType
+        
+        orchestrator = ScrapeOrchestrator()
+        result = orchestrator.scrape_url("http://127.0.0.1/admin")
+        
+        assert not result.success, "Should fail for loopback address"
+        assert result.error_type == ErrorType.HARD_BLOCK, "Should be HARD_BLOCK"
+
+
+class TestHTTPClientSSRFProtection:
+    """Test SSRF protection in the HTTPClient class."""
+
+    def test_http_client_blocks_localhost(self):
+        """Test that HTTPClient blocks localhost URLs."""
+        from primr.data.http_client import HTTPClient
+        
+        client = HTTPClient()
+        
+        with pytest.raises(ValueError) as exc_info:
+            client.get("http://localhost:8080/admin")
+        
+        error_msg = str(exc_info.value).lower()
+        assert "ssrf" in error_msg or "not allowed" in error_msg or "localhost" in error_msg, \
+            f"Error should mention SSRF blocking: {exc_info.value}"
+
+    def test_http_client_blocks_private_ip(self):
+        """Test that HTTPClient blocks private IP addresses."""
+        from primr.data.http_client import HTTPClient
+        
+        client = HTTPClient()
+        
+        test_cases = [
+            "http://192.168.1.1/admin",
+            "http://10.0.0.1/internal",
+            "http://172.16.0.1/internal",
+        ]
+        
+        for url in test_cases:
+            with pytest.raises(ValueError) as exc_info:
+                client.get(url)
+            
+            error_msg = str(exc_info.value).lower()
+            assert "ssrf" in error_msg or "not allowed" in error_msg or "private" in error_msg, \
+                f"Error should mention SSRF blocking for {url}: {exc_info.value}"
+
+    def test_http_client_blocks_metadata_endpoint(self):
+        """Test that HTTPClient blocks cloud metadata endpoints."""
+        from primr.data.http_client import HTTPClient
+        
+        client = HTTPClient()
+        
+        with pytest.raises(ValueError) as exc_info:
+            client.get("http://169.254.169.254/latest/meta-data/")
+        
+        error_msg = str(exc_info.value).lower()
+        assert "ssrf" in error_msg or "not allowed" in error_msg or "metadata" in error_msg or "link-local" in error_msg, \
+            f"Error should mention SSRF blocking: {exc_info.value}"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

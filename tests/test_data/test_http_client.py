@@ -127,6 +127,7 @@ class TestHTTPClient:
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.text = "Hello World"
+        mock_response.url = "https://example.com"  # Set final URL for SSRF check
         mock_get.return_value = mock_response
         
         with HTTPClient() as client:
@@ -140,6 +141,7 @@ class TestHTTPClient:
         """Test GET request with custom headers."""
         mock_response = Mock()
         mock_response.status_code = 200
+        mock_response.url = "https://example.com"  # Set final URL for SSRF check
         mock_get.return_value = mock_response
         
         with HTTPClient() as client:
@@ -156,6 +158,7 @@ class TestHTTPClient:
         """Test GET request with custom timeout."""
         mock_response = Mock()
         mock_response.status_code = 200
+        mock_response.url = "https://example.com"  # Set final URL for SSRF check
         mock_get.return_value = mock_response
         
         with HTTPClient() as client:
@@ -181,6 +184,7 @@ class TestHTTPClient:
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.text = "Page content"
+        mock_response.url = "https://example.com"  # Set final URL for SSRF check
         mock_response.raise_for_status = Mock()
         mock_get.return_value = mock_response
         
@@ -199,7 +203,7 @@ class TestHTTPClient:
             
             assert text is None
     
-    @patch('requests.Session.get')
+    @patch('primr.data.http_client.HTTPClient.get')
     def test_get_json_success(self, mock_get):
         """Test get_json returns parsed JSON."""
         mock_response = Mock()
@@ -223,7 +227,7 @@ class TestHTTPClient:
         mock_get.return_value = mock_response
         
         with HTTPClient() as client:
-            data = client.get_json("https://api.example.com")
+            data = client.get_json("https://example.com")  # Use example.com which resolves
             
             assert data is None
     
@@ -262,6 +266,7 @@ class TestHTTPClientStats:
         """Test that statistics are tracked."""
         mock_response = Mock()
         mock_response.status_code = 200
+        mock_response.url = "https://example.com"  # Set final URL for SSRF check
         mock_get.return_value = mock_response
         
         with HTTPClient() as client:
@@ -280,6 +285,7 @@ class TestHTTPClientStats:
         """Test statistics with failures."""
         mock_response = Mock()
         mock_response.status_code = 200
+        mock_response.url = "https://example.com"  # Set final URL for SSRF check
         
         # First call succeeds, second fails
         mock_get.side_effect = [
@@ -306,6 +312,7 @@ class TestHTTPClientStats:
         """Test resetting statistics."""
         mock_response = Mock()
         mock_response.status_code = 200
+        mock_response.url = "https://example.com"  # Set final URL for SSRF check
         mock_get.return_value = mock_response
         
         with HTTPClient() as client:

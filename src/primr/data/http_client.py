@@ -175,14 +175,22 @@ class HTTPClient:
 
         Raises:
             ScrapingError: If request fails after retries
-            ValueError: If URL is invalid
+            ValueError: If URL is invalid or fails SSRF validation
         """
+        from primr.utils.validators import validate_url_for_request
+
         # Validate URL format
         if not url or not isinstance(url, str):
             raise ValueError("URL must be a non-empty string")
         url = url.strip()
         if not url.startswith(('http://', 'https://')):
             raise ValueError(f"URL must start with http:// or https://, got: {url[:50]}")
+
+        # SSRF protection
+        is_valid, normalized_url, error = validate_url_for_request(url)
+        if not is_valid:
+            raise ValueError(f"SSRF protection: {error}")
+        url = normalized_url
 
         # Validate timeout if provided
         if timeout is not None and (not isinstance(timeout, int | float) or timeout <= 0):
@@ -204,6 +212,14 @@ class HTTPClient:
                 verify=self._config.verify_ssl,
                 **kwargs
             )
+
+            # SSRF protection: validate final URL after redirects
+            if allow_redirects:
+                from primr.utils.security import validate_final_url_after_redirect
+                final_url = str(response.url)
+                is_safe, redirect_error = validate_final_url_after_redirect(final_url)
+                if not is_safe:
+                    raise ValueError(f"SSRF protection: redirect to {final_url} blocked - {redirect_error}")
 
             duration = time.time() - start_time
             self._record_request(True, duration)

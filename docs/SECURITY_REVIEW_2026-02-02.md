@@ -143,11 +143,24 @@ new_key = auth.rotate_key(old_key, grace_hours=24)
 
 All security measures from the January 2026 review remain in place:
 
-### SSRF Protection - VERIFIED
+### SSRF Protection - VERIFIED & ENHANCED
 - URL validation at all 9 HTTP entry points
+- **NEW**: Orchestrator-level SSRF validation (defense in depth)
+- **NEW**: Redirect SSRF bypass protection - validates final URL after redirects complete
 - Blocks localhost, private IPs, link-local addresses
 - DNS resolution check prevents hostname-based bypasses
-- Cloud metadata endpoints blocked
+- Cloud metadata endpoints blocked (169.254.169.254, metadata.google.internal, etc.)
+- Protection applied before any network request is made
+- Protection applied after redirects to catch redirect-based SSRF attacks
+
+**Redirect SSRF Protection Details**:
+A malicious server could redirect from a safe URL (e.g., `https://evil.com`) to an internal IP (e.g., `http://169.254.169.254/`), bypassing initial SSRF validation. This attack vector is now blocked:
+- `validate_final_url_after_redirect()` function added to security module
+- All HTTP clients (requests, httpx, curl_cffi) validate final URL after redirects
+- `make_request()` in net.py validates final URL
+- `HTTPClient.get()` in http_client.py validates initial URL and final URL after redirects
+- `resolve_redirect_url()` in deep_research.py validates final URL
+- `_check_website()` in preflight.py validates final URL
 
 ### XXE Protection - VERIFIED
 - Secure XML parser with entity expansion disabled
@@ -173,7 +186,7 @@ All security measures from the January 2026 review remain in place:
 ```
 tests/mcp_server/test_auth.py: 37 passed
 tests/test_utils/test_security.py: 44 passed
-tests/test_security.py: 22 passed
+tests/test_security.py: 33 passed (including 4 orchestrator SSRF tests + 4 redirect SSRF tests + 3 HTTPClient SSRF tests)
 tests/mcp_server/test_security.py: 27 passed (1 skipped)
 tests/test_api/test_service.py: 29 passed
 tests/test_api/test_auth.py: 37 passed
