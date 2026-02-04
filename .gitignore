@@ -215,11 +215,74 @@ vendor-research/
 
 # Logs and caches
 logs/
+*.log
+
+# Scrape cache
+scrape_cache/
+*.cache
+*.db
 
 # Archive (old/experimental files)
 archive/
-/docs/archive
-/docs/research
-/docs/documentation
-.bandit
-/.kiro
+docs/archive/
+docs/research/
+docs/documentation/
+
+# Kiro IDE settings
+.kiro/
+
+# Temporary test files
+test.json
+*.tmp
+*.temp
+
+# Local development scripts (platform-specific)
+primr.cmd
+primr.sh
+run_*.cmd
+run_*.sh
+
+# IDE and editor settings (beyond .vscode already ignored)
+.idea/
+*.swp
+*.swo
+*~
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Research memory (contains company-specific data)
+research_memory/
+
+# MCP server state
+mcp_journal.json
+pending_research_jobs.json
+
+# Example outputs with real company data
+docs/examples/*.docx
+docs/examples/*.pdf
+docs/examples/*.md
+
+# Security scan results
+security_scan_*.json
+bandit_report.json
+# Note: .bandit config file IS tracked (useful for security scanning)
+
+# Local environment overrides
+.env.local
+.env.*.local
+
+# Hypothesis test database (can be large)
+.hypothesis/
+
+# Coverage reports
+htmlcov/
+.coverage
+coverage.xml
+
+# Build artifacts
+*.egg-info/
+dist/
+build/
