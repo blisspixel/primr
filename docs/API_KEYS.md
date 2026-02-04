@@ -1,190 +1,198 @@
 # API Key Setup Guide
 
-This guide walks you through obtaining and configuring the API keys required to run Primr.
+This guide covers obtaining, configuring, and securing the API keys required for Primr.
 
-## Required Keys
+## Required Credentials
 
-Primr requires three credentials:
-
-| Key | Purpose | Where to Get |
-|-----|---------|--------------|
+| Credential | Purpose | Console |
+|------------|---------|---------|
 | `GEMINI_API_KEY` | Google AI for research & analysis | [Google AI Studio](https://aistudio.google.com/apikey) |
-| `SEARCH_API_KEY` | Google Custom Search for web queries | [Google Cloud Console](https://console.cloud.google.com/apis/credentials) |
-| `SEARCH_ENGINE_ID` | Custom Search Engine configuration | [Programmable Search Engine](https://programmablesearchengine.google.com/) |
+| `SEARCH_API_KEY` | Google Custom Search API | [Google Cloud Console](https://console.cloud.google.com/apis/credentials) |
+| `SEARCH_ENGINE_ID` | Custom Search Engine config | [Programmable Search Engine](https://programmablesearchengine.google.com/) |
 
 ## Step-by-Step Setup
 
-### 1. Gemini API Key (Required)
+### 1. Gemini API Key
 
 1. Go to [Google AI Studio](https://aistudio.google.com/apikey)
 2. Sign in with your Google account
 3. Click "Create API Key"
-4. Copy the key (starts with `AIza...`)
+4. **Immediately copy the key** - you won't see it again
+5. Store securely (see [Secure Storage](#secure-storage) below)
 
-**Cost**: Free tier includes 60 requests/minute. See [pricing](https://ai.google.dev/pricing).
+**Pricing**: Free tier includes 60 requests/minute. See [pricing](https://ai.google.dev/pricing).
 
-### 2. Google Custom Search API Key (Required)
+### 2. Google Custom Search API Key
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project or select existing
-3. Enable the "Custom Search API":
-   - Go to APIs & Services → Library
-   - Search for "Custom Search API"
-   - Click Enable
+2. Create a new project (recommended: separate project for Primr)
+3. Enable the Custom Search API:
+   - APIs & Services → Library → Search "Custom Search API" → Enable
 4. Create credentials:
-   - Go to APIs & Services → Credentials
-   - Click "Create Credentials" → "API Key"
-   - Copy the key
+   - APIs & Services → Credentials → Create Credentials → API Key
+5. **Restrict the key immediately** (see [Key Restrictions](#key-restrictions))
 
-**Cost**: 100 free queries/day, then $5 per 1000 queries. See [pricing](https://developers.google.com/custom-search/v1/overview#pricing).
+**Pricing**: 100 free queries/day, then $5/1000 queries.
 
-### 3. Search Engine ID (Required)
+### 3. Search Engine ID
 
 1. Go to [Programmable Search Engine](https://programmablesearchengine.google.com/)
 2. Click "Add" to create a new search engine
-3. Configure:
-   - **Sites to search**: Select "Search the entire web"
-   - **Name**: "Primr Research" (or any name)
-4. Click "Create"
-5. Go to "Control Panel" for your new engine
-6. Copy the "Search engine ID" (format: `abc123...`)
+3. Select "Search the entire web"
+4. Name it (e.g., "Primr Research")
+5. Copy the Search Engine ID from Control Panel
 
-## Configuration
+This is a configuration ID, not a secret - but still don't share publicly.
 
-### Option 1: Environment File (Recommended)
+## Secure Storage
 
-Create a `.env` file in your project root:
+### Development: Environment File
 
 ```bash
-# Copy from .env.example
 cp .env.example .env
-
-# Edit with your keys
-GEMINI_API_KEY=AIza...your-key-here
-SEARCH_API_KEY=AIza...your-key-here
-SEARCH_ENGINE_ID=abc123...your-id-here
+chmod 600 .env  # Restrict file permissions (Linux/macOS)
 ```
 
-### Option 2: Environment Variables
+Edit `.env` with your keys. The file is gitignored by default.
 
+**⚠️ Never use environment variables directly in shell** - they persist in shell history:
 ```bash
-# Linux/macOS
-export GEMINI_API_KEY="AIza...your-key-here"
-export SEARCH_API_KEY="AIza...your-key-here"
-export SEARCH_ENGINE_ID="abc123...your-id-here"
+# BAD - logged in shell history
+export GEMINI_API_KEY="your-key"
 
-# Windows (PowerShell)
-$env:GEMINI_API_KEY="AIza...your-key-here"
-$env:SEARCH_API_KEY="AIza...your-key-here"
-$env:SEARCH_ENGINE_ID="abc123...your-id-here"
+# GOOD - use .env file or prompt
+read -s GEMINI_API_KEY  # Prompts without echo
 ```
+
+### Production: Secrets Manager
+
+For production deployments, use a secrets manager instead of `.env` files:
+
+| Platform | Service | Documentation |
+|----------|---------|---------------|
+| AWS | Secrets Manager | [docs](https://docs.aws.amazon.com/secretsmanager/) |
+| GCP | Secret Manager | [docs](https://cloud.google.com/secret-manager) |
+| Azure | Key Vault | [docs](https://docs.microsoft.com/azure/key-vault/) |
+| Self-hosted | HashiCorp Vault | [docs](https://www.vaultproject.io/) |
+
+See [CLOUD_DEPLOYMENT.md](CLOUD_DEPLOYMENT.md) for integration examples.
+
+## Key Restrictions
+
+**Always restrict API keys** - an unrestricted key is a liability.
+
+### Google Cloud Console Restrictions
+
+1. Go to APIs & Services → Credentials
+2. Click on your API key
+3. Under "API restrictions": Select "Restrict key" → Custom Search API only
+4. Under "Application restrictions":
+   - **Servers**: Restrict by IP address
+   - **Web apps**: Restrict by HTTP referrer
+   - **Local dev**: Can leave unrestricted, but use a separate dev key
+
+### Gemini API Key Restrictions
+
+Currently limited options, but:
+- Use separate keys for dev/staging/prod
+- Monitor usage in AI Studio dashboard
+- Set up billing alerts
 
 ## Verify Setup
-
-Run the doctor command to verify all keys are configured correctly:
 
 ```bash
 primr doctor
 ```
 
-Expected output for a healthy setup:
-```
-Primr Doctor
-
-> Environment
-+ Python 3.10+
-
-> API Configuration
-+ GEMINI_API_KEY configured (valid format)
-+ Google Search API working
-
-> Dependencies
-+ Playwright browsers available
-
-> File System
-+ Output directory writable
-+ Working directory writable
-+ Cache directory ready
-
-> API Connectivity
-+ Gemini API responding
-
-✓ All checks passed - Primr is ready to use
-```
+Healthy output shows all checks passing. If keys are invalid or expired, doctor will identify which one.
 
 ## Troubleshooting
 
-### "API key expired"
-
-Google API keys can expire or be revoked. To fix:
-
-1. Go to [Google Cloud Console → Credentials](https://console.cloud.google.com/apis/credentials)
-2. Find the expired key
-3. Either regenerate it or create a new one
-4. Update your `.env` file
-
-### "Quota exceeded"
-
-**Gemini API**: Wait for quota reset (usually 1 minute) or upgrade your plan.
-
-**Custom Search API**: Free tier is 100 queries/day. Options:
-- Wait until tomorrow
-- Enable billing for more queries ($5/1000)
-- Use `--mode deep` which uses Gemini's built-in search instead
-
-### "Invalid API key"
-
-1. Verify the key is copied correctly (no extra spaces)
-2. Check the key hasn't been deleted in Google Cloud Console
-3. Ensure the Custom Search API is enabled for your project
-
-### "Search Engine ID not found"
-
-1. Go to [Programmable Search Engine](https://programmablesearchengine.google.com/)
-2. Verify your search engine exists
-3. Copy the ID from the Control Panel (not the name)
+| Error | Cause | Fix |
+|-------|-------|-----|
+| "API key expired" | Key revoked or project deleted | Create new key in Cloud Console |
+| "Quota exceeded" | Hit rate/daily limit | Wait for reset, or use `--mode deep` (uses Gemini search) |
+| "Invalid API key" | Typo, extra whitespace, or wrong key | Re-copy from console, check for spaces |
+| "API not enabled" | Custom Search API not enabled | Enable in Cloud Console → APIs & Services |
+| "Forbidden" | Key restrictions blocking request | Check IP/referrer restrictions |
 
 ## Key Rotation
 
-For production deployments, rotate keys periodically:
+### Google API Keys
+
+Google API keys don't expire automatically, but rotate them:
+- Every 90 days for production
+- Immediately if potentially exposed
+- When team members leave
+
+**Rotation process:**
+1. Create new key in Cloud Console
+2. Update `.env` or secrets manager
+3. Verify with `primr doctor`
+4. Delete old key in Cloud Console
+
+### MCP Server Keys (if using HTTP mode)
+
+For the MCP server's own authentication (separate from Google keys):
 
 ```python
 from primr.api.auth import create_api_key, rotate_api_key
 
-# Create a new key with 90-day expiration
-key = create_api_key("production-app", expires_in_days=90)
+# Create key with expiration
+key = create_api_key("client-name", expires_in_days=90)
 
-# Rotate with 24-hour grace period (both keys work during transition)
+# Rotate with grace period
 new_key = rotate_api_key(old_key, grace_hours=24)
 ```
 
-See [SECURITY_OPS.md](SECURITY_OPS.md) for full operational guidance.
+## If a Key is Compromised
 
-## Cost Estimation
+**Act immediately:**
 
-Before running research, estimate costs:
+1. **Revoke the key** in Google Cloud Console (don't just rotate)
+2. **Check usage logs** for unauthorized activity:
+   - Cloud Console → APIs & Services → Metrics
+3. **Create new key** with restrictions
+4. **Audit access** - who had the key, how was it exposed?
+5. **Review billing** for unexpected charges
+
+If you see unauthorized usage, contact Google Cloud support.
+
+## Cost Control
+
+### Estimate Before Running
 
 ```bash
 primr --dry-run "Company Name" https://company.com
 ```
 
-Typical costs per research run:
-- **Scrape mode**: ~$0.01-0.05 (minimal AI usage)
-- **Deep mode**: ~$0.10-0.30 (Gemini Deep Research)
-- **Full mode**: ~$0.15-0.50 (scrape + deep + AI strategy)
+### Typical Costs
 
-## Security Best Practices
+| Mode | Gemini | Search | Total |
+|------|--------|--------|-------|
+| scrape | ~$0.01 | ~$0.01 | ~$0.02 |
+| deep | ~$0.20 | $0 (built-in) | ~$0.20 |
+| full | ~$0.30 | ~$0.02 | ~$0.35 |
 
-1. **Never commit `.env` to git** - it's in `.gitignore` by default
-2. **Use separate keys for dev/prod** - easier to rotate and audit
-3. **Set API key restrictions** in Google Cloud Console:
-   - Restrict by IP address for servers
-   - Restrict by HTTP referrer for web apps
-4. **Monitor usage** in Google Cloud Console for unexpected spikes
-5. **Rotate keys** every 90 days for production systems
+### Set Billing Alerts
+
+In Google Cloud Console:
+1. Billing → Budgets & alerts
+2. Create budget with email alerts at 50%, 90%, 100%
+
+## Security Checklist
+
+- [ ] Keys stored in `.env` file (not shell history)
+- [ ] `.env` has restricted permissions (`chmod 600`)
+- [ ] `.env` is in `.gitignore`
+- [ ] API keys restricted to Custom Search API only
+- [ ] Separate keys for dev/staging/prod
+- [ ] Billing alerts configured
+- [ ] Key rotation scheduled (90 days)
+- [ ] Team knows incident response process
 
 ## Related Documentation
 
 - [CONFIG.md](CONFIG.md) - Full configuration reference
 - [SECURITY_OPS.md](SECURITY_OPS.md) - Security operations guide
-- [CLOUD_DEPLOYMENT.md](CLOUD_DEPLOYMENT.md) - Cloud deployment with secrets management
+- [CLOUD_DEPLOYMENT.md](CLOUD_DEPLOYMENT.md) - Production deployment with secrets management
