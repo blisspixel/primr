@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 
 from primr.ai.llm import llm
 from primr.config.config import MAX_RETRIES
+from primr.utils.content_sanitizer import sanitize_for_llm
 from primr.utils.formatting import deduplicate_content, get_deduplication_stats
 from primr.utils.logging_config import get_logger
 
@@ -68,6 +69,13 @@ def summarize_scraped_content(company_name, company_website, scraped_data, folde
                     f"({stats['line_reduction_percent']}% reduction)"
                 )
 
+            # Sanitize content for LLM prompt injection protection
+            sanitized_text, sanitization_issues = sanitize_for_llm(deduped_text)
+            if sanitization_issues:
+                logger.warning(
+                    f"Content sanitization: {len(sanitization_issues)} issues detected in {website_source}"
+                )
+
             summary_prompt = generate_prompt(
                 "scraped_website_summary",
                 company_name=company_name,
@@ -75,7 +83,7 @@ def summarize_scraped_content(company_name, company_website, scraped_data, folde
                 website_source=website_source
             )
 
-            summarized_text = summarize_with_retries(summary_prompt + "\n\n" + deduped_text)
+            summarized_text = summarize_with_retries(summary_prompt + "\n\n" + sanitized_text)
 
             if not summarized_text.strip():
                 formatted_summary = f"### Source: {website_source}\nNo meaningful content found.\n"

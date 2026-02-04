@@ -263,6 +263,29 @@ Implementation:
 - QA identifies specific sections needing work
 - Section-level regeneration without full pipeline re-run
 
+### v1.8.1 - Content Sanitization Layer (Planned)
+
+Goal: Protect against prompt injection from scraped web content.
+
+**Security Critical**: Required before v2.0.0 public release.
+
+Problem: Scraped content flows directly into LLM prompts without sanitization. A malicious website could embed injection patterns like "IGNORE PREVIOUS INSTRUCTIONS" in their HTML.
+
+Implementation:
+- `ContentSanitizer` class in `src/primr/utils/content_sanitizer.py`
+- Detection of control characters, Unicode normalization issues, and prompt injection patterns
+- Three modes: BLOCK (reject content), STRIP (remove patterns), WARN (log only)
+- Integration at summarization layer before LLM calls
+- `ContentSanitizationHook` for agentic pipeline governance
+
+Detection patterns:
+- Instruction override attempts ("ignore previous instructions")
+- System prompt markers (SYSTEM:, [SYSTEM], <system>)
+- Role manipulation ("you are now", "act as", "pretend to be")
+- Output format manipulation ("output only", "respond exclusively")
+- Jailbreak patterns (DAN mode, bypass mode)
+- Hidden HTML comment instructions
+
 ## Medium-Term Roadmap
 
 ### v1.9.0 - Refinement and Learning Loop (Planned)
@@ -273,6 +296,11 @@ Goal: Support post-discovery learning without re-running everything from scratch
 - Re-synthesize insights with updated confidence and revised hypotheses
 - Outputs evolve from pre-meeting prep to post-discovery POV
 
+**MCP Progress Subscriptions:**
+- `wait_for_status_change(job_id, timeout)` tool for real-time progress updates
+- Replaces polling-based `check_jobs` pattern for better UX
+- Asyncio.Event-based state change notification in job store
+
 ### v1.10.0 - POV and Narrative Evolution (Planned)
 
 Goal: Make Primr the system of record for how thinking evolves.
@@ -281,10 +309,29 @@ Goal: Make Primr the system of record for how thinking evolves.
 - Explicit "what changed and why" sections
 - Optional narrative framing outputs for internal deck creation
 
+### v1.11.0 - Interactive Research Mode (Planned)
+
+Goal: Enable human-in-the-loop decisions during research.
+
+- User input callback interface in OrchestratorConfig
+- ERROR_RECOVERY hook type for handling failures gracefully
+- Mutable hook contexts for runtime decisions
+- Pause/resume capability at pipeline stage boundaries
+
+Use cases:
+- Approve high-cost operations before execution
+- Choose between research directions at decision points
+- Provide domain expertise when AI is uncertain
+- Review and edit hypotheses mid-pipeline
+
 ### v2.0.0 - Public Release (Planned)
 
 Goal: Make Primr available to the broader community via PyPI.
 
+**Prerequisites:**
+- v1.8.1 Content Sanitization Layer (security critical)
+
+**Scope:**
 - PyPI publication (`pip install primr`)
 - Public GitHub repository
 - GitHub Actions CI/CD for automated testing
