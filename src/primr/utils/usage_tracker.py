@@ -119,7 +119,7 @@ class UsageTracker:
         """Load usage history from file."""
         try:
             if self.storage_path.exists():
-                with open(self.storage_path) as f:
+                with open(self.storage_path, encoding="utf-8") as f:
                     self.history = json.load(f)
                 logger.debug(f"Loaded {len(self.history)} usage records")
         except Exception as e:
@@ -171,7 +171,7 @@ class UsageTracker:
             self.storage_path.parent.mkdir(parents=True, exist_ok=True)
 
             # Save to file
-            with open(self.storage_path, 'w') as f:
+            with open(self.storage_path, 'w', encoding="utf-8") as f:
                 json.dump(self.history, f, indent=2)
 
             logger.info(f"Saved {len(self.session.records)} usage records")

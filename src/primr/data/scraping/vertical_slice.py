@@ -198,7 +198,7 @@ def run_vertical_slice_test(
         trace_path = trace_logger.get_path()
         if os.path.exists(trace_path):
             print(f"  Trace file written: {trace_path}")
-            with open(trace_path) as f:
+            with open(trace_path, encoding="utf-8") as f:
                 lines = f.readlines()
             print(f"  Trace entries: {len(lines)}")
         else:

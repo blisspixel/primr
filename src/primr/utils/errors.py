@@ -27,6 +27,34 @@ T = TypeVar('T')
 
 
 # =============================================================================
+# SHARED CONSTANTS
+# =============================================================================
+
+# Centralized guidance messages for error categories (used by both PrimrError and utilities)
+_CATEGORY_GUIDANCE: dict[str, str] = {
+    "configuration": "Check your .env file and environment variables",
+    "scraping": "The website may be blocking automated access. Try again later.",
+    "ai": "Check API quota and try again",
+    "rate_limit": "Rate limit exceeded. Wait a moment and try again.",
+    "search": "Search API may be unavailable. Check your API key and quota.",
+    "output": "Check disk space and file permissions",
+    "validation": "Check your input and try again",
+    "network": "Check your internet connection",
+    "authentication": "Check your API keys and credentials",
+    "quota": "API quota exhausted. Wait for quota reset.",
+}
+
+# Guidance for common Python exception types
+_EXCEPTION_TYPE_GUIDANCE: dict[str, str] = {
+    "ConnectionError": "Check your internet connection",
+    "TimeoutError": "The operation timed out. Try again or increase timeout.",
+    "FileNotFoundError": "The specified file does not exist",
+    "PermissionError": "Permission denied. Check file/folder permissions.",
+    "JSONDecodeError": "Invalid JSON data received",
+}
+
+
+# =============================================================================
 # RETRY CONFIGURATION
 # =============================================================================
 
@@ -199,19 +227,7 @@ class PrimrError(Exception, ABC):
 
     def _default_guidance(self) -> str:
         """Get default guidance based on error category."""
-        guidance_map = {
-            "configuration": "Check your .env file and environment variables",
-            "scraping": "The website may be blocking automated access. Try again later.",
-            "ai": "Check API quota and try again",
-            "rate_limit": "Rate limit exceeded. Wait a moment and try again.",
-            "search": "Search API may be unavailable. Check your API key and quota.",
-            "output": "Check disk space and file permissions",
-            "validation": "Check your input and try again",
-            "network": "Check your internet connection",
-            "authentication": "Check your API keys and credentials",
-            "quota": "API quota exhausted. Wait for quota reset.",
-        }
-        return guidance_map.get(self.category, "")
+        return _CATEGORY_GUIDANCE.get(self.category, "")
 
     def __str__(self) -> str:
         """Return the error message."""
@@ -378,7 +394,9 @@ class TypedRateLimitError(TransientError):
         self.retry_after = self.retry_after_seconds
         # Update guidance to include retry time
         if self.retry_after_seconds:
-            self.guidance = f"Rate limit exceeded. Try again in {self.retry_after_seconds:.0f} seconds."
+            self.guidance = (
+                f"Rate limit exceeded. Try again in {self.retry_after_seconds:.0f} seconds."
+            )
 
 
 
@@ -740,29 +758,10 @@ def get_error_guidance(error: Exception) -> str | None:
         if error.guidance:
             return error.guidance
         # Fall back to category-based guidance
-        guidance_map = {
-            "configuration": "Check your .env file and environment variables",
-            "scraping": "The website may be blocking automated access. Try again later.",
-            "ai": "Check API quota and try again",
-            "rate_limit": "Rate limit exceeded. Wait a moment and try again.",
-            "search": "Search API may be unavailable. Check your API key and quota.",
-            "output": "Check disk space and file permissions",
-            "validation": "Check your input and try again",
-            "network": "Check your internet connection",
-            "authentication": "Check your API keys and credentials",
-        }
-        return guidance_map.get(error.category)
+        return _CATEGORY_GUIDANCE.get(error.category)
 
     # Common error type guidance
-    error_type = type(error).__name__
-    guidance_map = {
-        "ConnectionError": "Check your internet connection",
-        "TimeoutError": "The operation timed out. Try again or increase timeout.",
-        "FileNotFoundError": "The specified file does not exist",
-        "PermissionError": "Permission denied. Check file/folder permissions.",
-        "JSONDecodeError": "Invalid JSON data received",
-    }
-    return guidance_map.get(error_type)
+    return _EXCEPTION_TYPE_GUIDANCE.get(type(error).__name__)
 
 
 def is_recoverable_error(error: Exception) -> bool:

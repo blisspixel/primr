@@ -3,7 +3,6 @@ Chat logging utility for AI interactions.
 """
 
 import json
-import os
 from datetime import datetime
 from pathlib import Path
 
@@ -13,14 +12,14 @@ from colorama import Fore, Style
 from primr.config.config import PROJECT_ROOT
 
 # Directory for storing chat logs
-CHAT_LOG_DIR = str(Path(PROJECT_ROOT) / "logs" / "chat_history")
-os.makedirs(CHAT_LOG_DIR, exist_ok=True)
+CHAT_LOG_DIR = Path(PROJECT_ROOT) / "logs" / "chat_history"
+CHAT_LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def get_log_file_path():
+def get_log_file_path() -> Path:
     """Generates a log file path based on the current session timestamp."""
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    return os.path.join(CHAT_LOG_DIR, f"chat_log_{timestamp}.json")
+    return CHAT_LOG_DIR / f"chat_log_{timestamp}.json"
 
 
 def log_chat_interaction(prompt, response, session_id="general"):
@@ -30,11 +29,11 @@ def log_chat_interaction(prompt, response, session_id="general"):
     - session_id: Identifies logs per company research session.
     - Stores conversations in JSON format for structured review.
     """
-    log_file_path = os.path.join(CHAT_LOG_DIR, f"{session_id}.json")
+    log_file_path = CHAT_LOG_DIR / f"{session_id}.json"
 
     # Load existing logs if the file exists
     chat_history = []
-    if os.path.exists(log_file_path):
+    if log_file_path.exists():
         try:
             with open(log_file_path, encoding="utf-8") as f:
                 chat_history = json.load(f)
@@ -58,9 +57,9 @@ def log_chat_interaction(prompt, response, session_id="general"):
 
 def read_chat_logs(session_id="general"):
     """Reads and returns chat logs for a given session."""
-    log_file_path = os.path.join(CHAT_LOG_DIR, f"{session_id}.json")
+    log_file_path = CHAT_LOG_DIR / f"{session_id}.json"
 
-    if not os.path.exists(log_file_path):
+    if not log_file_path.exists():
         print(Fore.YELLOW + f"[WARNING] No logs found for session: {session_id}" + Style.RESET_ALL)
         return []
 

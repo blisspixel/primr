@@ -12,6 +12,7 @@ Usage:
     # Automatically uses the best tier for example.com
 """
 
+import functools
 import json
 import threading
 import time
@@ -316,11 +317,12 @@ class DomainLearner:
             for profile in self._profiles.values():
                 tier_usage[profile.preferred_tier] += 1
 
+            success_rate = total_successes / total_attempts if total_attempts > 0 else 0.0
             return {
                 "total_domains": total_domains,
                 "total_attempts": total_attempts,
                 "total_successes": total_successes,
-                "overall_success_rate": total_successes / total_attempts if total_attempts > 0 else 0.0,
+                "overall_success_rate": success_rate,
                 "tier_preferences": dict(tier_usage),
             }
 
@@ -473,41 +475,22 @@ class AdaptiveScraper:
 # SINGLETON ACCESS
 # =============================================================================
 
-_learner: DomainLearner | None = None
-_scraper: AdaptiveScraper | None = None
-_learner_lock = threading.Lock()
-_scraper_lock = threading.Lock()
-
-
+@functools.lru_cache(maxsize=1)
 def get_domain_learner() -> DomainLearner:
-    """Get the global domain learner instance."""
-    global _learner
-    if _learner is None:
-        with _learner_lock:
-            if _learner is None:
-                _learner = DomainLearner()
-    return _learner
+    """Get the global domain learner instance (cached singleton)."""
+    return DomainLearner()
 
 
+@functools.lru_cache(maxsize=1)
 def get_adaptive_scraper() -> AdaptiveScraper:
-    """Get the global adaptive scraper instance."""
-    global _scraper
-    if _scraper is None:
-        # Get learner first (outside scraper lock to avoid deadlock)
-        learner = get_domain_learner()
-        with _scraper_lock:
-            if _scraper is None:
-                _scraper = AdaptiveScraper(learner=learner)
-    return _scraper
+    """Get the global adaptive scraper instance (cached singleton)."""
+    return AdaptiveScraper(learner=get_domain_learner())
 
 
 def reset_adaptive_scraper() -> None:
     """Reset the global instances (useful for testing)."""
-    global _learner, _scraper
-    with _learner_lock:
-        _learner = None
-    with _scraper_lock:
-        _scraper = None
+    get_domain_learner.cache_clear()
+    get_adaptive_scraper.cache_clear()
 
 
 def adaptive_scrape(url: str, **kwargs: Any) -> tuple[str | None, str]:

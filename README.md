@@ -54,6 +54,7 @@ SEARCH_ENGINE_ID=     # Programmable Search Engine ID
 
 ## Features
 
+- **Cross-platform**: Works on Windows, macOS, and Linux
 - **8-tier web scraping** with intelligent escalation (HTTP → browser → vision)
 - **Gemini Deep Research** for autonomous multi-step external research
 - **AI Strategy generation** with cloud vendor recommendations
