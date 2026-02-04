@@ -20,13 +20,12 @@ Primr does that entire workflow autonomously.
 
 ## What Makes It Different
 
-**The scraping actually works.** 8 tiers that auto-escalate from simple HTTP to browser automation to screenshot+vision extraction. Beats Cloudflare, detects soft blocks, learns which approach works per host. This isn't `requests.get()`.
+- **Scraping that escalates**: 8 tiers from HTTP to browser automation to screenshot+vision extraction, with soft-block detection and per-host optimization. Handles many bot defenses and falls back gracefully when needed.
+- **Autonomous external research**: Gemini Deep Research plans queries, follows leads, cross-validates sources, and synthesizes findings into a structured brief.
+- **Cost controls built in**: `--dry-run` estimates, usage tracking, and governance hooks for budget limits.
+- **Agent-native interfaces**: CLI, MCP server, OpenClaw integration, and Claude Skills—all first-class.
 
-**The research is autonomous.** Gemini Deep Research isn't a summarizer—it's an agent that plans searches, follows leads across sources, and synthesizes findings. It researches like a human would, just faster.
-
-**The economics are absurd.** A junior analyst doing this manually? Hours. A research service? Hundreds of dollars. Primr? ~$1-2 and 30 minutes.
-
-**It's agent-native.** MCP server, OpenClaw integration, and Claude Skills included. AI agents can call Primr, track hypotheses across sessions, and build on prior research.
+Manual research takes hours. Primr typically runs in ~30 minutes and costs ~$1–2 in API usage (varies by depth and site behavior).
 
 ## Modes
 
