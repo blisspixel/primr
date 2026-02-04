@@ -60,6 +60,7 @@ class HookType(Enum):
     PRE_TOOL_USE = "pre_tool_use"
     POST_TOOL_USE = "post_tool_use"
     SESSION_START = "session_start"
+    ERROR_RECOVERY = "error_recovery"  # v1.11.0: Interactive error handling
 
 
 class HookResult(Enum):
@@ -86,6 +87,8 @@ class HookContext:
         arguments: Arguments passed to the tool/stage
         result: Result from tool execution (for post hooks)
         company_name: Company being researched (if applicable)
+        mutable_data: Mutable dict for hooks to pass data back (v1.11.0)
+        user_input_callback: Optional callback to request user input (v1.11.0)
     """
 
     hook_type: HookType
@@ -94,6 +97,8 @@ class HookContext:
     arguments: dict[str, Any] = field(default_factory=dict)
     result: Any = None
     company_name: str | None = None
+    mutable_data: dict[str, Any] = field(default_factory=dict)
+    user_input_callback: Any = None  # Callable[[str, list[str]], Awaitable[str]] | None
 
 
 @dataclass
@@ -154,7 +159,6 @@ class Hook(ABC):
     @abstractmethod
     def hook_type(self) -> HookType:
         """Return the type of this hook."""
-        pass
 
     @abstractmethod
     async def execute(self, context: HookContext) -> HookResponse:
@@ -167,7 +171,6 @@ class Hook(ABC):
         Returns:
             HookResponse indicating result
         """
-        pass
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(priority={self.priority})"
@@ -221,6 +224,7 @@ class HookSystem:
             HookType.PRE_TOOL_USE: [],
             HookType.POST_TOOL_USE: [],
             HookType.SESSION_START: [],
+            HookType.ERROR_RECOVERY: [],
         }
         self._on_error = on_error
 
@@ -366,6 +370,58 @@ class HookSystem:
                 self._handle_error(hook, e)
 
         return HookResponse(result=HookResult.ALLOW)
+
+    async def run_error_recovery_hooks(
+        self,
+        stage: str,
+        error: Exception,
+        context: HookContext | None = None,
+    ) -> HookResponse:
+        """
+        Run all error recovery hooks (v1.11.0 Interactive Mode).
+
+        Error recovery hooks can decide whether to retry, skip, or abort
+        based on the error type. They can also request user input.
+
+        Args:
+            stage: Name of the pipeline stage where error occurred
+            error: The exception that was raised
+            context: Optional pre-built context
+
+        Returns:
+            HookResponse with recovery action (ALLOW=retry, WARN=skip, BLOCK=abort)
+        """
+        if context is None:
+            context = HookContext(
+                hook_type=HookType.ERROR_RECOVERY,
+                stage_name=stage,
+                arguments={
+                    "error_type": type(error).__name__,
+                    "error_message": str(error),
+                },
+            )
+
+        for hook in self._hooks[HookType.ERROR_RECOVERY]:
+            try:
+                response = await hook.execute(context)
+                if response.result == HookResult.BLOCK:
+                    logger.warning(
+                        f"Hook {hook.name} aborted recovery for stage {stage}: {response.message}"
+                    )
+                    return response
+                elif response.result == HookResult.ALLOW:
+                    logger.info(
+                        f"Hook {hook.name} allowing retry for stage {stage}: {response.message}"
+                    )
+                    return response
+            except Exception as e:
+                self._handle_error(hook, e)
+
+        # Default: no recovery, propagate error
+        return HookResponse(
+            result=HookResult.BLOCK,
+            message="No error recovery hook handled the error",
+        )
 
     def _handle_error(self, hook: Hook, error: Exception) -> None:
         """
@@ -700,6 +756,101 @@ class MemoryPersistenceHook(Hook):
                 logger.error(f"Failed to persist hypotheses: {e}")
 
         return HookResponse(result=HookResult.ALLOW)
+
+
+class InteractiveErrorRecoveryHook(Hook):
+    """
+    ErrorRecovery hook that requests user input on errors (v1.11.0).
+
+    This hook demonstrates interactive error recovery where the user
+    can decide how to handle recoverable errors during research.
+
+    Attributes:
+        retryable_errors: Set of error types that can be retried
+
+    Example:
+        hook = InteractiveErrorRecoveryHook()
+        hooks.register(hook)
+
+        # When an error occurs, user will be prompted to decide action
+    """
+
+    def __init__(
+        self,
+        retryable_errors: set[str] | None = None,
+        priority: int = 50,
+    ):
+        """
+        Initialize interactive error recovery hook.
+
+        Args:
+            retryable_errors: Set of error type names that can be retried
+            priority: Execution priority
+        """
+        super().__init__(priority=priority, name="InteractiveErrorRecovery")
+        self._retryable_errors = retryable_errors or {
+            "TimeoutError",
+            "ConnectionError",
+            "RateLimitError",
+            "TransientError",
+        }
+
+    @property
+    def hook_type(self) -> HookType:
+        return HookType.ERROR_RECOVERY
+
+    async def execute(self, context: HookContext) -> HookResponse:
+        """Handle error with optional user input."""
+        error_type = context.arguments.get("error_type", "")
+        error_message = context.arguments.get("error_message", "")
+        retry_count = context.arguments.get("retry_count", 0)
+
+        # Check if error is retryable
+        is_retryable = error_type in self._retryable_errors
+
+        # If user input callback is available, ask user
+        if context.user_input_callback and is_retryable:
+            try:
+                prompt = (
+                    f"Recoverable error: {error_type}\n"
+                    f"Message: {error_message}\n"
+                    f"Retry attempt: {retry_count}\n\n"
+                    "How would you like to proceed?"
+                )
+                options = ["retry", "skip", "abort"]
+                response = await context.user_input_callback(prompt, options)
+                response = response.lower().strip()
+
+                if response == "retry":
+                    return HookResponse(
+                        result=HookResult.ALLOW,
+                        message="User requested retry",
+                    )
+                elif response == "skip":
+                    return HookResponse(
+                        result=HookResult.WARN,
+                        message="User requested skip",
+                    )
+                else:
+                    return HookResponse(
+                        result=HookResult.BLOCK,
+                        message="User requested abort",
+                    )
+            except Exception as e:
+                logger.warning(f"User input failed: {e}")
+
+        # Auto-retry for known transient errors (up to 3 times)
+        if is_retryable and retry_count < 3:
+            return HookResponse(
+                result=HookResult.ALLOW,
+                message=f"Auto-retrying {error_type}",
+            )
+
+        # Default: no recovery
+        return HookResponse(
+            result=HookResult.BLOCK,
+            message=f"Cannot recover from {error_type}",
+        )
 
 
 class ContentSanitizationHook(Hook):

@@ -496,3 +496,223 @@ def test_orchestrator_working_dir_creation():
         assert dir1.parent == config.output_dir
         assert dir2.parent == config.output_dir
 
+
+# =============================================================================
+# v1.11.0 INTERACTIVE MODE TESTS
+# =============================================================================
+
+def test_orchestrator_state_paused_exists():
+    """OrchestratorState.PAUSED is available (v1.11.0)."""
+    assert OrchestratorState.PAUSED.value == "paused"
+
+
+def test_orchestrator_config_interactive_defaults():
+    """OrchestratorConfig interactive mode defaults (v1.11.0)."""
+    config = OrchestratorConfig()
+
+    assert config.enable_interactive is False
+    assert config.user_input_callback is None
+    assert config.pause_on_error is False
+    assert config.pause_between_stages is False
+
+
+def test_orchestrator_config_interactive_validation():
+    """OrchestratorConfig validates interactive mode settings (v1.11.0)."""
+    # Should auto-disable interactive if no callback provided
+    config = OrchestratorConfig(enable_interactive=True)
+    assert config.enable_interactive is False
+
+
+def test_orchestrator_config_interactive_with_callback():
+    """OrchestratorConfig accepts user_input_callback (v1.11.0)."""
+    async def callback(prompt: str, options: list[str] | None) -> str:
+        return "continue"
+
+    config = OrchestratorConfig(
+        enable_interactive=True,
+        user_input_callback=callback,
+    )
+
+    assert config.enable_interactive is True
+    assert config.user_input_callback is callback
+
+
+def test_orchestrator_result_paused_state():
+    """OrchestratorResult.is_paused returns True for PAUSED state (v1.11.0)."""
+    result = OrchestratorResult(state=OrchestratorState.PAUSED)
+
+    assert result.is_paused is True
+    assert result.is_success is False
+    assert result.is_failure is False
+
+
+def test_orchestrator_result_user_decisions():
+    """OrchestratorResult includes user_decisions (v1.11.0)."""
+    result = OrchestratorResult(
+        state=OrchestratorState.COMPLETED,
+        user_decisions=[{"prompt": "Continue?", "response": "yes"}],
+    )
+
+    assert len(result.user_decisions) == 1
+    assert result.user_decisions[0]["response"] == "yes"
+
+
+def test_orchestrator_result_paused_at_stage():
+    """OrchestratorResult includes paused_at_stage (v1.11.0)."""
+    result = OrchestratorResult(
+        state=OrchestratorState.PAUSED,
+        paused_at_stage="analyzing",
+    )
+
+    assert result.paused_at_stage == "analyzing"
+
+
+def test_orchestrator_result_serialization_with_interactive():
+    """OrchestratorResult.to_dict includes interactive fields (v1.11.0)."""
+    result = OrchestratorResult(
+        state=OrchestratorState.PAUSED,
+        paused_at_stage="writing",
+        user_decisions=[{"prompt": "Continue?", "response": "yes"}],
+    )
+
+    data = result.to_dict()
+
+    assert data["paused_at_stage"] == "writing"
+    assert data["user_decisions"] == [{"prompt": "Continue?", "response": "yes"}]
+
+
+def test_orchestrator_is_interactive_property():
+    """Orchestrator.is_interactive property works correctly (v1.11.0)."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Non-interactive
+        config1 = OrchestratorConfig(output_dir=Path(tmpdir))
+        orchestrator1 = ResearchOrchestrator(config=config1)
+        assert orchestrator1.is_interactive is False
+
+        # Interactive
+        async def callback(prompt: str, options: list[str] | None) -> str:
+            return "continue"
+
+        config2 = OrchestratorConfig(
+            output_dir=Path(tmpdir),
+            enable_interactive=True,
+            user_input_callback=callback,
+        )
+        orchestrator2 = ResearchOrchestrator(config=config2)
+        assert orchestrator2.is_interactive is True
+
+
+def test_orchestrator_pause_resume():
+    """Orchestrator can pause and resume (v1.11.0)."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        config = OrchestratorConfig(output_dir=Path(tmpdir))
+        orchestrator = ResearchOrchestrator(config=config)
+
+        # Cannot pause from IDLE
+        assert orchestrator.pause() is False
+
+        # Manually set to active state for testing
+        orchestrator._state = OrchestratorState.ANALYZING
+
+        # Can pause from active state
+        assert orchestrator.pause() is True
+        assert orchestrator.state == OrchestratorState.PAUSED
+        assert orchestrator._paused_at_stage == "analyzing"
+
+        # Can resume
+        assert orchestrator.resume() is True
+        assert orchestrator.state == OrchestratorState.ANALYZING
+
+        # Cannot resume when not paused
+        assert orchestrator.resume() is False
+
+
+def test_orchestrator_user_decisions_tracking():
+    """Orchestrator tracks user_decisions (v1.11.0)."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        async def callback(prompt: str, options: list[str] | None) -> str:
+            return "continue"
+
+        config = OrchestratorConfig(
+            output_dir=Path(tmpdir),
+            enable_interactive=True,
+            user_input_callback=callback,
+        )
+        orchestrator = ResearchOrchestrator(config=config)
+
+        # Initially empty
+        assert orchestrator.user_decisions == []
+
+        # Request user input
+        orchestrator._state = OrchestratorState.ANALYZING
+        response = asyncio.run(orchestrator._request_user_input("Test?", ["yes", "no"]))
+
+        assert response == "continue"
+        assert len(orchestrator.user_decisions) == 1
+        assert orchestrator.user_decisions[0]["prompt"] == "Test?"
+
+
+def test_orchestrator_reset_clears_interactive_state():
+    """Orchestrator.reset() clears interactive state (v1.11.0)."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        config = OrchestratorConfig(output_dir=Path(tmpdir))
+        orchestrator = ResearchOrchestrator(config=config)
+
+        # Set some interactive state
+        orchestrator._state = OrchestratorState.PAUSED
+        orchestrator._paused_at_stage = "analyzing"
+        orchestrator._user_decisions = [{"test": "data"}]
+
+        # Reset
+        orchestrator.reset()
+
+        assert orchestrator.state == OrchestratorState.IDLE
+        assert orchestrator._paused_at_stage is None
+        assert orchestrator._user_decisions == []
+
+
+@given(
+    state=st.sampled_from([
+        OrchestratorState.IDLE,
+        OrchestratorState.COMPLETED,
+        OrchestratorState.FAILED,
+        OrchestratorState.PAUSED,
+    ]),
+)
+@settings(max_examples=10, deadline=None)
+def test_orchestrator_pause_only_from_active_states(state: OrchestratorState):
+    """Orchestrator can only pause from active states (v1.11.0)."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        config = OrchestratorConfig(output_dir=Path(tmpdir))
+        orchestrator = ResearchOrchestrator(config=config)
+        orchestrator._state = state
+
+        result = orchestrator.pause()
+
+        # Non-active states cannot be paused
+        assert result is False
+        assert orchestrator.state == state  # State unchanged
+
+
+@given(
+    state=st.sampled_from([
+        OrchestratorState.SCRAPING,
+        OrchestratorState.ANALYZING,
+        OrchestratorState.WRITING,
+        OrchestratorState.QA,
+    ]),
+)
+@settings(max_examples=10, deadline=None)
+def test_orchestrator_pause_from_active_states(state: OrchestratorState):
+    """Orchestrator pauses from active states (v1.11.0)."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        config = OrchestratorConfig(output_dir=Path(tmpdir))
+        orchestrator = ResearchOrchestrator(config=config)
+        orchestrator._state = state
+
+        result = orchestrator.pause()
+
+        assert result is True
+        assert orchestrator.state == OrchestratorState.PAUSED
+        assert orchestrator._paused_at_stage == state.value
+

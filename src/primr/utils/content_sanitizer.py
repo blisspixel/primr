@@ -184,6 +184,44 @@ _INJECTION_PATTERNS = [
         re.compile(r"<!--.*(?:instruction|system|ignore).*-->", re.IGNORECASE | re.DOTALL),
         "Hidden HTML comment instruction",
     ),
+    # Prompt leaking attempts
+    (
+        re.compile(
+            r"(?:^|\s)(?:show|reveal|display|print|output|repeat)\s+(?:me\s+)?(?:your|the|my)?\s*(?:system\s+)?(?:prompt|instructions?|rules)",
+            re.IGNORECASE,
+        ),
+        "Prompt leaking attempt",
+    ),
+    # Conversation injection (multi-turn)
+    (
+        re.compile(r"(?:^|\s)(?:user|human)\s*:\s*", re.IGNORECASE),
+        "Conversation injection (user turn)",
+    ),
+    # Base64 encoded content markers (often used to hide payloads)
+    (
+        re.compile(r"(?:^|\s)(?:decode|base64|eval|execute)\s*\(", re.IGNORECASE),
+        "Encoded content execution attempt",
+    ),
+    # Markdown/formatting tricks
+    (
+        re.compile(r"\[(?:hidden|invisible|secret)\]", re.IGNORECASE),
+        "Hidden markdown content",
+    ),
+    # End of text/conversation markers
+    (
+        re.compile(r"(?:^|\s)(?:END\s+OF\s+(?:TEXT|PROMPT|CONTEXT)|<\/conversation>|<\/chat>)", re.IGNORECASE),
+        "Premature end marker",
+    ),
+    # Developer/debug mode attempts
+    (
+        re.compile(r"(?:^|\s)(?:developer|debug|test|maintenance)\s+mode", re.IGNORECASE),
+        "Debug mode attempt",
+    ),
+    # Token/context manipulation
+    (
+        re.compile(r"(?:^|\s)(?:from\s+now\s+on|henceforth|going\s+forward)", re.IGNORECASE),
+        "Context manipulation attempt",
+    ),
 ]
 
 # Maximum content length (prevents resource exhaustion)

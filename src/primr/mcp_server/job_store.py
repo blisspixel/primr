@@ -7,6 +7,7 @@ including persistence to a JSON journal for restart safety.
 Requirements: 2.2, 5.8, 5.9, 19.1-19.6, 20.2
 """
 
+import asyncio
 import json
 import uuid
 from abc import ABC, abstractmethod
@@ -315,6 +316,26 @@ class JobStore(ABC):
         """
         pass
 
+    @abstractmethod
+    async def wait_for_status_change(
+        self,
+        job_id: str,
+        current_status: JobStatus,
+        timeout_seconds: float = 60.0,
+    ) -> tuple[bool, JobStatus | None]:
+        """
+        Wait for job status to change from current_status.
+
+        Args:
+            job_id: The job ID to monitor
+            current_status: The current status to wait for change from
+            timeout_seconds: Maximum time to wait
+
+        Returns:
+            Tuple of (changed, new_status). If changed is False, timeout occurred.
+        """
+        pass
+
 
 class SingleJobStore(JobStore):
     """
@@ -332,6 +353,7 @@ class SingleJobStore(JobStore):
         self._job: ResearchJobState | None = None
         self._lock = Lock()
         self._journal_path = Path(journal_path or self.DEFAULT_JOURNAL_PATH)
+        self._status_change_event: asyncio.Event | None = None
         self._load_journal()
 
     def _load_journal(self) -> None:
@@ -425,6 +447,8 @@ class SingleJobStore(JobStore):
             if self._job and self._job.job_id == job.job_id:
                 self._job = job
                 self._save_journal()
+                # Notify waiters of state change
+                self._notify_status_change()
 
     def mark_shutdown(self) -> None:
         """
@@ -446,3 +470,66 @@ class SingleJobStore(JobStore):
             self._job = None
             if self._journal_path.exists():
                 self._journal_path.unlink()
+
+    def _notify_status_change(self) -> None:
+        """Notify waiters that status has changed."""
+        if self._status_change_event is not None:
+            self._status_change_event.set()
+
+    def _get_or_create_event(self) -> asyncio.Event:
+        """Get or create the status change event."""
+        if self._status_change_event is None:
+            try:
+                self._status_change_event = asyncio.Event()
+            except RuntimeError:
+                # No running event loop, create one for sync context
+                self._status_change_event = asyncio.Event()
+        return self._status_change_event
+
+    async def wait_for_status_change(
+        self,
+        job_id: str,
+        current_status: JobStatus,
+        timeout_seconds: float = 60.0,
+    ) -> tuple[bool, JobStatus | None]:
+        """
+        Wait for job status to change from current_status.
+
+        Uses asyncio.Event for efficient notification-based waiting
+        instead of polling.
+
+        Args:
+            job_id: The job ID to monitor
+            current_status: The current status to wait for change from
+            timeout_seconds: Maximum time to wait
+
+        Returns:
+            Tuple of (changed, new_status). If changed is False, timeout occurred.
+        """
+        event = self._get_or_create_event()
+        event.clear()
+
+        deadline = asyncio.get_event_loop().time() + timeout_seconds
+
+        while True:
+            # Check current status
+            job = self.get(job_id)
+            if job is None:
+                return (False, None)
+
+            new_status = job.get_status()
+            if new_status != current_status:
+                return (True, new_status)
+
+            # Calculate remaining time
+            remaining = deadline - asyncio.get_event_loop().time()
+            if remaining <= 0:
+                return (False, current_status)
+
+            # Wait for notification or timeout
+            try:
+                await asyncio.wait_for(event.wait(), timeout=min(remaining, 5.0))
+                event.clear()  # Reset for next wait
+            except (TimeoutError, asyncio.TimeoutError):
+                # Check again after timeout (handles both sync and async timeout errors)
+                pass
