@@ -1,471 +1,93 @@
 # Primr
 
-Primr is a research tool that generates company intelligence briefs using Google's Gemini models. It automates the collection and analysis of company information for internal research and go-to-market preparation.
+AI-powered company research tool. Generates intelligence briefs by combining website scraping with Gemini's Deep Research for validated external sources.
 
-The tool combines first-party website content (site corpus) with validated external sources (deep research) to produce structured company briefs. It is designed for internal use by consultants and researchers who need company intelligence quickly.
-
-This is a working tool, not a polished product. It handles many common cases well but has limitations. See Known Limitations below.
+Built for consultants and researchers who need company intelligence fast.
 
 ## What It Does
 
-Primr runs company research through a single unified pipeline. Modes control how much of the pipeline runs - they are not separate implementations.
-
-### The Pipeline
-
 ```
-[Build Site Corpus] -> [Extract Insights] -> [Deep Research] -> [Write Report]
-         |                    |                   |                |
-    corpus files         insights.txt        dossier.txt      report.docx
+Website → Site Corpus → Deep Research → Structured Report
 ```
 
-**Stage outputs:**
-- **Build Site Corpus**: `_raw_scrapes/` (individual page text), `scraped_content.txt` (combined corpus), `_external_links.txt` (discovered external URLs; recorded as metadata, not scraped in scrape mode)
-- **Extract Insights**: `insights.txt` (LLM-compressed facts from corpus)
-- **Deep Research**: `dossier.txt` (LLM analysis using external sources to validate/augment)
-- **Write Report**: `report.docx` (final formatted deliverable)
-
-### Modes (same code, different stopping points)
-
-| Mode | What Runs | Time | Cost |
-|------|-----------|------|------|
-| `--mode scrape` | Build Site Corpus + Extract Insights (multi-page) | 5-10 min | ~$0.01-0.05 |
-| `--mode deep` | Deep Research only (external sources; uses provided URL as research anchor; no site corpus build) | 8-15 min | ~$0.80-1.00 |
-| `--mode full` | Full pipeline (default) | 25-40 min | ~$0.80-1.50 |
-
-### Key Point
-
-There is ONE site-to-corpus function: `fetch_web_content()` (aka `build_site_corpus`) in `src/primr/data/scrape.py`. It discovers in-scope URLs, selects pages, scrapes them with tier escalation, and saves results incrementally. All modes that build a corpus use this same function. No other function should implement a site discovery + scrape loop.
-
-Scrape mode stops after insights; full mode continues through deep research and report generation. In all modes, the provided URL is the canonical target identifier (used for domain scoping, deduping, and source attribution).
-
-<p align="center">
-  <img src="docs/images/primr-demo.png" alt="Primr CLI demo" width="700">
-</p>
-
-**Example Output**: Run `primr "Acme Corp" https://acme.example --dry-run` to see cost estimates before generating reports.
-
-## Requirements
-
-- Python 3.11 or higher
-- Google API keys (see [API Key Setup](docs/API_KEYS.md))
-- ~500MB disk space for Playwright browsers
+- **Scrape mode**: Build site corpus + extract insights (~5 min, ~$0.02)
+- **Deep mode**: Gemini Deep Research with external sources (~10 min, ~$0.20)  
+- **Full mode**: Both combined into comprehensive brief (~30 min, ~$0.35)
 
 ## Quick Start
 
 ```bash
-# Clone and setup (requires Python 3.11+)
+# Requires Python 3.11+
 git clone https://github.com/blisspixel/primr.git
 cd primr
-python setup_env.py
+python setup_env.py    # Installs deps, sets up .env
+
+# Configure API keys (see docs/API_KEYS.md)
+primr doctor           # Verify setup
 
 # Run research
 primr "Acme Corp" https://acme.example
 ```
 
-## MCP Server (AI Agent Integration)
-
-Primr includes a Model Context Protocol (MCP) server that enables AI agents like Claude Desktop to drive company research programmatically.
-
-### Quick Start
-
-```bash
-# Run with stdio transport (for Claude Desktop)
-primr-mcp --stdio
-
-# Run with HTTP transport
-primr-mcp --http --port 8000
-```
-
-### Claude Desktop Integration
-
-Add to your `claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "primr": {
-      "command": "primr-mcp",
-      "args": ["--stdio"]
-    }
-  }
-}
-```
-
-### Available Tools
-
-| Tool | Description |
-|------|-------------|
-| `estimate_run` | Get cost/time estimates before running research |
-| `research_company` | Start async research job (returns job_id immediately) |
-| `generate_strategy` | Generate strategy documents from existing reports |
-| `check_jobs` | Check status of research jobs |
-| `run_qa` | Run quality assessment on reports |
-| `doctor` | Check system health |
-| `cancel_job` | Cancel an active research job |
-| `clear_jobs` | Clear stale jobs |
-| `query_roadmap` | Query roadmap versions and features |
-| `get_hypotheses` | Get hypotheses for a company from research memory |
-| `save_hypothesis` | Save a hypothesis to research memory |
-
-### Resources
-
-| Resource | Description |
-|----------|-------------|
-| `primr://research/status` | Current job status with progress |
-| `primr://output/latest` | Most recent research output |
-| `primr://output/artifacts` | Pipeline stage artifacts |
-| `primr://config` | Current configuration (no secrets) |
-| `primr://strategies/available` | Available strategy types with metadata |
-| `primr://output/by_job/{job_id}` | Job-scoped artifact retrieval |
-| `primr://output/manifest/latest` | Run manifest for audit trail |
-| `primr://roadmap` | Current roadmap with versions and features |
-| `primr://memory/{company}` | Research memory for a company |
-| `primr://context` | CLAUDE.md context map for agents |
-
-### Features
-
-- Async job model with background execution
-- JWT authentication for HTTP mode
-- Per-tool rate limiting
-- Graceful shutdown with job recovery
-- Journal persistence for crash recovery
-
-See [docs/API.md](docs/API.md) for full MCP server documentation.
-
-## Open Claw Integration
-
-Primr integrates with [Open Claw](https://openclaw.dev), a local-first agentic AI runtime, enabling autonomous research workflows with approval gates for cost-incurring operations.
-
-### Features
-
-- **Skills**: Pre-built skills for research, strategy generation, and QA
-- **Workflows**: Lobster workflow for orchestrated research with approval gates
-- **Adapters**: TypeScript adapters for status monitoring
-- **Sandbox**: Docker container for secure execution
-
-### Quick Start
-
-```bash
-# Copy configuration to Open Claw
-cp -r openclaw/* ~/.openclaw/
-
-# Verify installation
-primr doctor
-```
-
-### Example Workflow
-
-```
-User: "Research Acme Corp at https://acme.com"
-
-Agent: Getting estimate...
-       Mode: full
-       Estimated cost: $0.75
-       Estimated time: 30 minutes
-       
-       Reply "approve ABC123" to proceed.
-
-User: "approve ABC123"
-
-Agent: Research started. Monitoring progress...
-       [30 minutes later]
-       Research complete. Report saved to output/acme_corp/report.md
-```
-
-See [docs/OPENCLAW.md](docs/OPENCLAW.md) for full integration guide.
-
 ## Usage
 
-```
-primr "<company_label>" <company_website_url> [options]
-```
-
-The first argument is a display label used in output paths and headings; scraping scope is determined by the website URL host. The website URL is always required. It defines the research target (canonical domain) and is used for scoping, link discovery, and as a seed for external research.
-
 ```bash
-# Basic usage
-primr "Acme Corp" https://acme.example
+primr "Company" https://company.com              # Full research (default)
+primr "Company" https://company.com --mode scrape   # Site corpus only
+primr "Company" https://company.com --mode deep     # External research only
+primr "Company" https://company.com --dry-run       # Cost estimate
 
-# Research modes
-primr "Acme Corp" https://acme.example --mode scrape    # Build Site Corpus + Extract Insights (multi-page)
-primr "Acme Corp" https://acme.example --mode deep      # Deep research only (no site corpus build)
-primr "Acme Corp" https://acme.example --mode full      # Full pipeline (default)
-
-# AI strategy with cloud vendor
-primr "Acme Corp" https://acme.example --cloud-vendor azure
-
-# Retry AI strategy (when main report succeeded but AI strategy failed)
-primr --ai-strategy-only "output/Acme Corp_Strategic_Overview_01-09-2026.md"
-primr --ai-strategy-only "output/report.md" --cloud-vendor aws
-
-# Generate other strategy documents
-primr --ai-strategy-only "output/report.md" --strategy-type customer_experience
-primr --ai-strategy-only "output/report.md" --strategy-type modern_security_compliance
-primr --ai-strategy-only "output/report.md" --strategy-type data_fabric_strategy
-
-# List available strategies
-primr --list-strategies
-
-# Options
-primr "Acme Corp" https://acme.example --dry-run    # Cost estimate only
-primr "Acme Corp" https://acme.example --verbose    # Detailed output
-primr "Acme Corp" https://acme.example --no-qa      # Skip quality assessment
-
-# Job management
-primr --check-jobs                                  # Check status of pending Deep Research jobs
-primr --clear-jobs                                  # Clear stale/old pending jobs
-
-# Batch mode
-primr --csv companies.csv
-
-# System check
-primr doctor
+primr doctor                                     # System diagnostics
+primr --check-jobs                               # Check pending jobs
 ```
 
 ## Configuration
 
-Required API keys in `.env`:
-```bash
-GEMINI_API_KEY=       # Google AI API key (https://aistudio.google.com/apikey)
-SEARCH_API_KEY=       # Google Custom Search API key
-SEARCH_ENGINE_ID=     # Google Custom Search Engine ID
+Required in `.env`:
+```
+GEMINI_API_KEY=       # https://aistudio.google.com/apikey
+SEARCH_API_KEY=       # Google Custom Search API
+SEARCH_ENGINE_ID=     # Programmable Search Engine ID
 ```
 
-Quick setup:
-```bash
-cp .env.example .env   # Copy template
-# Edit .env with your keys
-primr doctor           # Verify configuration
-```
-
-See [docs/API_KEYS.md](docs/API_KEYS.md) for step-by-step key setup and [docs/CONFIG.md](docs/CONFIG.md) for full configuration reference.
-
-## Intended Use
-
-Primr outputs are designed for internal research and go-to-market preparation, not as client-ready deliverables. The goal is to help consultants and researchers understand how a company creates value and identify where support could help them move faster.
-
-Reports surface hypotheses to validate in conversation. Strong claims should be treated as working hypotheses unless explicitly supported by cited sources. The tool aims to accelerate research, not replace human judgment.
-
-### Strategy Documents: Research to Enable Conversations
-
-Beyond the standard company brief, Primr can generate optional strategy frameworks to help consultants prepare for discovery conversations:
-
-- **AI Strategy** - Agentic AI transformation, organizational design, investment frameworks
-- **Customer Experience Strategy** - CX transformation, journey mapping, experience design
-- **Security & Compliance Strategy** - Security transformation, guardrails-first governance, risk frameworks
-- **Data Fabric Strategy** - Modern data platform for agentic AI, semantic layers, intelligent estates
-
-These strategy documents are research tools, not finished deliverables. They help consultants show up prepared with frameworks and hypotheses to validate in discovery conversations. Each includes facilitation toolkits (workshop agendas, stakeholder maps, ghostwritten templates) that support co-creation where clients invest effort and own the outcome.
-
-#### Usage
-
-```bash
-# List available strategies
-primr --list-strategies
-
-# Generate specific strategy from existing report
-primr --ai-strategy-only "output/Company_Strategic_Overview.md" --strategy-type customer_experience
-primr --ai-strategy-only "output/Company_Strategic_Overview.md" --strategy-type modern_security_compliance
-primr --ai-strategy-only "output/Company_Strategic_Overview.md" --strategy-type data_fabric_strategy
-
-# AI Strategy (default, or with specific vendor)
-primr --ai-strategy-only "output/Company_Strategic_Overview.md" --cloud-vendor azure
-```
-
-All strategies use the Strategic Overview as primary context and generate company-specific recommendations grounded in the research findings.
-
-## Security
-
-Security review conducted February 2026. Protections include:
-
-- JWT authentication with signature verification
-- SSRF protection via URL validation
-- XXE protection via secure XML parsing
-- Path traversal protection
-- Security headers (HSTS, CSP, X-Frame-Options)
-- API key rotation support
-- Rate limiting
-
-See [docs/SECURITY_REVIEW_2026-02-02.md](docs/SECURITY_REVIEW_2026-02-02.md) for details and [docs/SECURITY_OPS.md](docs/SECURITY_OPS.md) for operational guidance.
-
-Not externally audited. Run your own assessment before production use.
-
-## Code Quality
-
-Primr includes infrastructure for reliability and maintainability:
-
-- Typed error hierarchy with automatic retry classification
-- Circuit breaker pattern for per-host failure tracking
-- OpenTelemetry integration for distributed tracing
-- Configuration validation with schema versioning
-- State machines for tier escalation and job lifecycle
-- Property-based testing (4000+ test cases)
-- Unified async/sync boundary handling
-- Agentic architecture with research memory and hypothesis tracking
-
-See [CONCURRENCY.md](CONCURRENCY.md) for threading model documentation and [docs/STATE_MACHINES.md](docs/STATE_MACHINES.md) for state machine specifications.
-
-## Known Limitations
-
-- Deep Research API produces ~8-12 pages max per call (worked around with Accordion Method)
-- Some sites with aggressive WAF block all automated access - use Deep Mode for coverage
-- Deep Research connections may drop during long runs - Primr automatically polls for completion
-- Vision tier uses LLM API calls for extraction (~$0.01-0.02 per page)
-
-## Understanding Scrape Results
-
-When you see output like `+ 34/46 pages scraped`, this is normal behavior:
-
-- **46** = total pages selected for scraping (homepage + discovered links)
-- **34** = pages successfully scraped
-- **12 failed** = pages blocked by WAF, timeouts, or anti-bot protection
-
-The tiered scraper tries multiple approaches (HTTP, stealth HTTP, browser, vision) before giving up on a page. Protected sites like enterprise companies often block 20-40% of requests. This is expected - the scraper extracts what it can and moves on.
-
-Quality matters more than quantity. 34 pages from a protected site typically yields more useful content than 100 pages from a poorly-structured site.
-
-## Quality Assessment
-
-Primr automatically runs QA on both generated reports:
-- Strategic Overview report
-- AI Strategy report (when enabled)
-
-Grades are displayed at the end of each run:
-```
-Quality: Overview 87 · AI Strategy 89
-```
-
-Scores are color-coded: green (85+), yellow (70-84), red (<70).
-
-To run QA manually on existing reports:
-```bash
-primr --qa "Company Name"                    # QA most recent report for company
-primr --qa "output/report.docx"              # QA specific file
-primr --qa-recent 5                          # QA summary for last 5 reports
-```
-
-Use `--no-qa` to skip automatic quality assessment during generation.
-
-## Job Recovery
-
-Deep Research jobs run asynchronously on Google's servers. If a connection drops mid-research:
-
-1. The job continues running in the background
-2. Primr automatically polls for completion (every 2 min for up to 30 min)
-3. If polling times out, use `primr --check-jobs` to check status later
-4. Completed jobs are automatically saved to `output/recovered_*.txt`
-
-For AI Strategy specifically, use `--ai-strategy-only` to retry with an existing report as context.
-
-## Resource Management
-
-Primr uses Gemini File Search Stores to provide context during Deep Research. These resources are automatically cleaned up after each run, but if a process is interrupted (crash, power loss, etc.), orphaned resources may remain.
-
-To check for and clean up orphaned resources:
-
-```bash
-# Check system health including orphaned resources
-primr doctor
-
-# Manually inspect Gemini resources
-python scripts/check_gemini_resources.py
-
-# Clean up orphaned stores (if any found)
-python scripts/check_gemini_resources.py --delete-stores --force-empty
-```
-
-The `primr doctor` command will warn you if orphaned resources are detected. Run the cleanup script periodically if you experience interrupted runs.
-
-## Cloud Deployment
-
-Primr supports serverless cloud deployment for scalable job execution. Deploy to AWS, Azure, or GCP with a single command.
-
-```bash
-# AWS (primary, production-ready)
-cd deploy/aws && ./deploy.sh -d prod deploy
-
-# Azure (reference implementation)
-cd deploy/azure && ./deploy.sh -d prod deploy
-
-# GCP (reference implementation)
-cd deploy/gcp && ./deploy.sh -d prod deploy
-```
-
-Features:
-- Job-based ephemeral execution (scales to zero when idle)
-- Event-driven queue boundary (SQS/Service Bus/Pub/Sub)
-- Manifest-as-commit pattern for artifact consistency
-- Graceful cancellation with SIGTERM handling
-- Production-grade observability (X-Ray/App Insights/Cloud Trace)
-- CloudWatch alarms, dead-letter queues, autoscaling
-
-See [docs/CLOUD_DEPLOYMENT.md](docs/CLOUD_DEPLOYMENT.md) for full deployment guide.
-
-## Agentic Architecture
-
-Primr v1.7.0 introduces an agentic architecture that enables AI agents to drive research workflows with persistent memory and governance.
-
-### Research Memory
-
-Track hypotheses across research sessions:
-
-```bash
-# View hypotheses for a company
-primr memory "Acme Corp"
-
-# Show all companies with research memory
-primr memory --list
-```
-
-Hypotheses have confidence levels (low, medium, high, validated) and can be updated as new evidence emerges.
-
-### Orchestrated Research
-
-The orchestrator coordinates specialized subagents through the research pipeline:
-
-```bash
-# Run orchestrated research (experimental)
-primr orchestrate "Acme Corp" https://acme.com
-
-# With hook governance
-primr orchestrate "Acme Corp" https://acme.com --max-cost 5.0
-```
-
-Pipeline stages: scrape → analyze → write → qa
-
-### Skills Directory
-
-Pre-built workflows for common research patterns:
-
-- `company-research`: Full pipeline with memory integration
-- `scrape-strategy`: Tier selection and error handling
-- `hypothesis-tracking`: Confidence level management
-- `qa-iteration`: Section refinement workflow
-
-See `skills/` directory for workflow definitions.
-
-### For AI Agents
-
-The `CLAUDE.md` file provides a context map for AI agents working with Primr:
-
-- Quick-start commands for common tasks
-- Architecture pointers to key modules
-- Verification commands for testing changes
-- Negative constraints (what NOT to do)
+→ [Full setup guide](docs/API_KEYS.md)
+
+## Features
+
+- **8-tier web scraping** with intelligent escalation (HTTP → browser → vision)
+- **Gemini Deep Research** for autonomous multi-step external research
+- **AI Strategy generation** with cloud vendor recommendations
+- **MCP Server** for AI agent integration (Claude Desktop, etc.)
+- **Quality assessment** with automatic grading
+- **Cloud deployment** ready (AWS/Azure/GCP serverless)
 
 ## Documentation
 
-Full documentation index: [docs/INDEX.md](docs/INDEX.md)
+| Document | Description |
+|----------|-------------|
+| [API_KEYS.md](docs/API_KEYS.md) | API key setup and security |
+| [CONFIG.md](docs/CONFIG.md) | Full configuration reference |
+| [API.md](docs/API.md) | MCP server and programmatic usage |
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design and scraping tiers |
+| [CLOUD_DEPLOYMENT.md](docs/CLOUD_DEPLOYMENT.md) | Serverless deployment guide |
+| [SECURITY_OPS.md](docs/SECURITY_OPS.md) | Security operations |
+| [ROADMAP.md](ROADMAP.md) | Development roadmap |
+| [CHANGELOG.md](CHANGELOG.md) | Version history |
 
-Key documents:
-- [CHANGELOG.md](CHANGELOG.md) - Version history and changes
-- [ROADMAP.md](ROADMAP.md) - Development roadmap
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - System architecture, scraping tiers, resilience features
-- [docs/API.md](docs/API.md) - Programmatic usage, MCP server reference
-- [docs/CONFIG.md](docs/CONFIG.md) - Configuration reference
-- [docs/CLOUD_DEPLOYMENT.md](docs/CLOUD_DEPLOYMENT.md) - Serverless cloud deployment guide
-- [docs/MIGRATION.md](docs/MIGRATION.md) - Error hierarchy migration guide
-- [CONCURRENCY.md](CONCURRENCY.md) - Threading model and async patterns
+## MCP Server
+
+For AI agent integration:
+
+```bash
+primr-mcp --stdio              # Claude Desktop
+primr-mcp --http --port 8000   # HTTP mode
+```
+
+→ [MCP documentation](docs/API.md)
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## License
 
