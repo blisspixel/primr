@@ -4,7 +4,7 @@ This guide covers integrating Primr with [Open Claw](https://openclaw.dev), a lo
 
 ## Prerequisites
 
-- Python 3.10+
+- Python 3.11+
 - Primr installed (`pip install primr`)
 - Open Claw runtime installed
 - API keys configured (GEMINI_API_KEY, SEARCH_API_KEY, SEARCH_ENGINE_ID)

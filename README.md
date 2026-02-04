@@ -44,11 +44,17 @@ Scrape mode stops after insights; full mode continues through deep research and 
 
 **Example Output**: Run `primr "Acme Corp" https://acme.example --dry-run` to see cost estimates before generating reports.
 
+## Requirements
+
+- Python 3.11 or higher
+- Google API keys (see [API Key Setup](docs/API_KEYS.md))
+- ~500MB disk space for Playwright browsers
+
 ## Quick Start
 
 ```bash
-# Clone and setup
-git clone <repo-url>
+# Clone and setup (requires Python 3.11+)
+git clone https://github.com/blisspixel/primr.git
 cd primr
 python setup_env.py
 
