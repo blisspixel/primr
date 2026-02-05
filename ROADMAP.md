@@ -246,40 +246,19 @@ Goal: Enable AI agents to drive research workflows with persistent memory and go
 - Hook execution order, blocking behavior, error handling
 - Orchestrator lifecycle, context isolation, failure handling
 
-## Near-Term Roadmap
-
-### v1.8.0 - QA-Driven Report Iteration (Planned)
-
-Goal: Use QA feedback to iteratively improve weak sections until reports hit 90+.
-
-Workflow:
-1. Generate report
-2. Run QA, get feedback on specific weak sections
-3. Re-run just those sections with targeted improvements
-4. Repeat until grade >= 90
-
-Implementation:
-- `primr refine "Company"` command to re-run weak sections
-- QA identifies specific sections needing work
-- Section-level regeneration without full pipeline re-run
-
 ### v1.8.1 - Content Sanitization Layer (Complete)
 
 Goal: Protect against prompt injection from scraped web content.
 
 **Security Critical**: Required before v2.0.0 public release.
 
-Problem: Scraped content flows directly into LLM prompts without sanitization. A malicious website could embed injection patterns like "IGNORE PREVIOUS INSTRUCTIONS" in their HTML.
-
-Implementation:
+**Content Sanitizer:**
 - `ContentSanitizer` class in `src/primr/utils/content_sanitizer.py`
-- Detection of control characters, Unicode normalization issues, and prompt injection patterns
-- Three modes: BLOCK (reject content), STRIP (remove patterns), WARN (log only)
-- Integration at summarization layer before LLM calls
-- `ContentSanitizationHook` for agentic pipeline governance
-- 75 comprehensive tests including property-based tests
+- Three modes: BLOCK (reject), STRIP (remove patterns), WARN (log only)
+- Detection of control characters, Unicode normalization issues
+- 20+ prompt injection detection patterns
 
-Detection patterns (20+):
+**Detection Patterns:**
 - Instruction override attempts ("ignore previous instructions")
 - System prompt markers (SYSTEM:, [SYSTEM], <system>)
 - Role manipulation ("you are now", "act as", "pretend to be")
@@ -289,31 +268,11 @@ Detection patterns (20+):
 - Prompt leaking attempts ("show me your system prompt")
 - Conversation injection (User:, Human:)
 - Context manipulation ("from now on")
-- Debug mode attempts ("developer mode enabled")
 
-## Medium-Term Roadmap
-
-### v1.9.0 - Refinement and Learning Loop (Planned)
-
-Goal: Support post-discovery learning without re-running everything from scratch.
-
-- `primr refine` command accepting discovery notes, meeting summaries, client feedback
-- Re-synthesize insights with updated confidence and revised hypotheses
-- Outputs evolve from pre-meeting prep to post-discovery POV
-
-**MCP Progress Subscriptions (Complete):**
-- `wait_for_status_change(job_id, timeout)` tool for real-time progress updates
-- Replaces polling-based `check_jobs` pattern for better UX
-- Asyncio.Event-based state change notification in job store
-- 5 async tests validating notification behavior
-
-### v1.10.0 - POV and Narrative Evolution (Planned)
-
-Goal: Make Primr the system of record for how thinking evolves.
-
-- Versioned research artifacts
-- Explicit "what changed and why" sections
-- Optional narrative framing outputs for internal deck creation
+**Integration:**
+- Integrated at summarization layer before LLM calls
+- `ContentSanitizationHook` for agentic pipeline governance
+- 75 comprehensive tests including property-based tests
 
 ### v1.11.0 - Interactive Research Mode (Complete)
 
@@ -333,19 +292,59 @@ Goal: Enable human-in-the-loop decisions during research.
 - `InteractiveErrorRecoveryHook` for user-driven error recovery
 - `mutable_data` and `user_input_callback` fields in HookContext
 
-Use cases:
+**MCP Progress Subscriptions:**
+- `wait_for_status_change(job_id, timeout)` tool for real-time progress updates
+- Replaces polling-based `check_jobs` pattern for better UX
+- Asyncio.Event-based state change notification in job store
+
+**Use Cases:**
 - Approve high-cost operations before execution
 - Choose between research directions at decision points
 - Provide domain expertise when AI is uncertain
 - Review and edit hypotheses mid-pipeline
 - Handle recoverable errors with user guidance
 
+## Near-Term Roadmap
+
+### v1.8.0 - QA-Driven Report Iteration (Planned)
+
+Goal: Use QA feedback to iteratively improve weak sections until reports hit 90+.
+
+Workflow:
+1. Generate report
+2. Run QA, get feedback on specific weak sections
+3. Re-run just those sections with targeted improvements
+4. Repeat until grade >= 90
+
+Implementation:
+- `primr refine "Company"` command to re-run weak sections
+- QA identifies specific sections needing work
+- Section-level regeneration without full pipeline re-run
+
+## Medium-Term Roadmap
+
+### v1.9.0 - Refinement and Learning Loop (Planned)
+
+Goal: Support post-discovery learning without re-running everything from scratch.
+
+- `primr refine` command accepting discovery notes, meeting summaries, client feedback
+- Re-synthesize insights with updated confidence and revised hypotheses
+- Outputs evolve from pre-meeting prep to post-discovery POV
+
+### v1.10.0 - POV and Narrative Evolution (Planned)
+
+Goal: Make Primr the system of record for how thinking evolves.
+
+- Versioned research artifacts
+- Explicit "what changed and why" sections
+- Optional narrative framing outputs for internal deck creation
+
 ### v2.0.0 - Public Release (Planned)
 
 Goal: Make Primr available to the broader community via PyPI.
 
 **Prerequisites:**
-- v1.8.1 Content Sanitization Layer (security critical)
+- ✅ v1.8.1 Content Sanitization Layer (complete - security requirement satisfied)
 
 **Scope:**
 - PyPI publication (`pip install primr`)
@@ -434,6 +433,8 @@ cd deploy/aws && ./deploy.sh -d prod destroy
 | 1.5.1 | Feb 2026 | Security hardening, API key rotation |
 | 1.6.0 | Feb 2026 | Serverless cloud deployment (AWS/Azure/GCP) |
 | 1.7.0 | Feb 2026 | Agentic architecture (memory, hooks, orchestrator) |
+| 1.8.1 | Feb 2026 | Content sanitization for prompt injection protection |
+| 1.11.0 | Feb 2026 | Interactive research mode (pause/resume, user callbacks) |
 
 ## Final Note
 
