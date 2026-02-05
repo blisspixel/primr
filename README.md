@@ -143,6 +143,12 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 See [SECURITY.md](SECURITY.md) for vulnerability reporting.
 
+## About This Project
+
+Primr is a nights-and-weekends passion project. It's not backed by a company, a team, or a funding round — just one person who thinks AI-assisted research workflows are going to be a big deal over the next few years and wants to build deeply in the space.
+
+At minimum, it's a way to learn. At best, it's genuinely useful. Either way, it's provided as-is by a solo developer, not a commercial product with a support team behind it.
+
 ## Disclaimer
 
 Primr is a research tool. You are responsible for:
