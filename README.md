@@ -2,7 +2,7 @@
 
 **Turn a company URL into a cited, analyst-grade intelligence brief.**
 
-Primr aggressively extracts primary-source data from company websites, escalates when sites resist scraping, and synthesizes external research into structured briefs that can be consumed by humans *or* autonomous agents.
+Primr extracts primary-source data from company websites using a multi-tier approach that adapts to different site architectures, then synthesizes external research into structured briefs that can be consumed by humans *or* autonomous agents.
 
 Runs as a CLI, an MCP server, an OpenClaw integration, and a Claude Skill.
 
@@ -20,7 +20,7 @@ Primr does that entire workflow autonomously.
 
 ## What Makes It Different
 
-- **Scraping that escalates**: 8 tiers from HTTP to browser automation to screenshot+vision extraction, with soft-block detection and per-host optimization. Handles many bot defenses and falls back gracefully when needed.
+- **Adaptive scraping**: 8 retrieval methods from simple HTTP to browser rendering to screenshot+vision extraction, with per-host optimization. Tries the simplest approach first and falls back to more capable methods as needed.
 - **Autonomous external research**: Gemini Deep Research plans queries, follows leads, cross-validates sources, and synthesizes findings into a structured brief.
 - **Cost controls built in**: `--dry-run` estimates, usage tracking, and governance hooks for budget limits.
 - **Agent-native interfaces**: CLI, MCP server, OpenClaw integration, and Claude Skills—all first-class.
@@ -50,22 +50,22 @@ primr "Tesla" https://tesla.com  # Run your first research
 
 Requires Python 3.11+ and a Gemini API key.
 
-## Usage
-
 ```bash
-primr "Company" https://company.com                 # Full research (default)
+# More usage
 primr "Company" https://company.com --mode scrape   # Site corpus only
 primr "Company" https://company.com --mode deep     # External research only
 primr "Company" https://company.com --dry-run       # Cost estimate first
 ```
 
+<!-- TODO: Add sample output screenshot here -->
+
 ## Under the Hood
 
-**8-Tier Scraping Engine** (browser-first for modern JS-heavy sites)
-- Browser tiers: Playwright → aggressive mode → DrissionPage (driverless CDP)
-- HTTP tiers: curl_cffi (TLS fingerprint impersonation) → httpx → requests
-- Vision tier: Screenshot + LLM extraction for the really stubborn pages
-- Auto-escalation, sticky tier optimization, circuit breakers, soft block detection
+**8-Tier Retrieval Engine** (browser-first for modern JS-heavy sites)
+- Browser tiers: Playwright → expanded rendering → DrissionPage (driverless CDP)
+- HTTP tiers: curl_cffi → httpx → requests
+- Vision tier: Screenshot + LLM extraction for image-heavy or non-standard layouts
+- Automatic fallback, per-host optimization, circuit breakers
 
 **Gemini Deep Research**
 - Autonomous multi-step search and synthesis
@@ -99,14 +99,19 @@ primr-mcp --stdio              # stdio transport
 primr-mcp --http --port 8000   # HTTP with JWT auth
 ```
 
-**OpenClaw** — Drop-in integration with skills and workflows:
+<details>
+<summary><strong>OpenClaw</strong> — Drop-in integration with skills and workflows</summary>
+
 ```bash
 # openclaw/openclaw.json already configured
 # Skills: primr-research, primr-strategy, primr-qa
 # Sandboxed Docker execution included
 ```
+</details>
 
-**Claude Skills** — Anthropic's Agent Skills format:
+<details>
+<summary><strong>Claude Skills</strong> — Anthropic's Agent Skills format</summary>
+
 ```
 skills/
 ├── company-research/SKILL.md   # Full pipeline with memory
@@ -115,50 +120,57 @@ skills/
 └── scrape-strategy/SKILL.md    # Tier selection heuristics
 ```
 
-The skills include hypothesis persistence, cost governance hooks, and QA gates. Agents can pick up where they left off across sessions.
+Skills include hypothesis persistence, cost governance hooks, and QA gates. Agents can pick up where they left off across sessions.
+</details>
+
+<details>
+<summary><strong>Cloud Deployment</strong> — Serverless on AWS, Azure, or GCP</summary>
+
+Scale-to-zero ephemeral containers, event-driven queues, production observability. See [deployment guide](docs/CLOUD_DEPLOYMENT.md).
+</details>
 
 → [MCP docs](docs/API.md) · [OpenClaw config](openclaw/openclaw.json)
 
-## Cloud Deployment
+## Development
 
-Scale to zero serverless deployment on AWS, Azure, or GCP. Job-based ephemeral containers, event-driven queues, production observability. → [Deployment guide](docs/CLOUD_DEPLOYMENT.md)
+```bash
+python -m pytest tests/ -x --tb=short   # Run tests
+ruff check src/                          # Lint
+mypy src/primr --ignore-missing-imports  # Type check
+```
+
+1,500+ tests including property-based testing (Hypothesis), full ruff and mypy compliance, OpenTelemetry tracing, and typed error hierarchy with automatic retry classification.
 
 ## Documentation
 
 | Doc | What's in it |
 |-----|--------------|
-| [API_KEYS.md](docs/API_KEYS.md) | API key setup |
-| [CONFIG.md](docs/CONFIG.md) | Full configuration reference |
-| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design, scraping tiers |
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design, data flow, scraping tiers |
 | [API.md](docs/API.md) | MCP server, programmatic usage |
+| [CONFIG.md](docs/CONFIG.md) | Full configuration reference |
+| [API_KEYS.md](docs/API_KEYS.md) | API key setup |
 | [CLOUD_DEPLOYMENT.md](docs/CLOUD_DEPLOYMENT.md) | Serverless deployment |
 | [SECURITY_OPS.md](docs/SECURITY_OPS.md) | Security operations guide |
-| [ROADMAP.md](ROADMAP.md) | What's next |
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md).
-
-## Security
-
-See [SECURITY.md](SECURITY.md) for vulnerability reporting.
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution guidelines |
+| [SECURITY.md](SECURITY.md) | Vulnerability reporting |
+| [ROADMAP.md](ROADMAP.md) | What's planned |
 
 ## About This Project
 
-Primr is a nights-and-weekends passion project. It's not backed by a company, a team, or a funding round — just one person who thinks AI-assisted research workflows are going to be a big deal over the next few years and wants to build deeply in the space.
+Primr is a nights-and-weekends project by a solo developer. I think AI-assisted research workflows are going to be transformative over the next few years, and this is my way of building deeply in the space — learning by shipping something real.
 
-At minimum, it's a way to learn. At best, it's genuinely useful. Either way, it's provided as-is by a solo developer, not a commercial product with a support team behind it.
+It's not backed by a company or a team. It's an independent project built for personal use.
 
 ## Disclaimer
 
 Primr is a research tool. You are responsible for:
 
-- **Compliance**: Respecting robots.txt, terms of service, and applicable laws when scraping websites. Some sites prohibit automated access.
+- **Web content**: Primr retrieves publicly available web content, similar to a browser or search engine crawler. It does not bypass authentication, access paywalled content, or exploit vulnerabilities. However, some websites restrict automated access in their terms of service — it is your responsibility to check before running Primr against any site.
 - **Accuracy**: AI-generated content may contain errors, hallucinations, or outdated information. Verify findings before acting on them.
 - **Costs**: API calls to Gemini and other services incur real charges. Use `--dry-run` to estimate costs before running.
-- **Use case**: This tool is intended for legitimate research purposes. Don't use it for anything sketchy.
+- **Use case**: This tool is intended for legitimate research purposes such as due diligence and meeting preparation. Do not use it to violate any website's terms of service or any applicable law.
 
-The authors are not liable for how you use this software or the accuracy of its outputs.
+This software is provided as-is by a solo developer. The author is not liable for how you use this software, the accuracy of its outputs, or any consequences of its use.
 
 ## License
 
