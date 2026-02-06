@@ -136,6 +136,7 @@ ignore = [
     "E501",   # Line too long
     "E402",   # Module level import not at top (intentional lazy imports)
     "UP017",  # Allow timezone.utc for broader compatibility
+    "UP042",  # Prefer StrEnum - requires larger refactor
     "N802",   # Function name should be lowercase (intentional for color constants)
     "N806",   # Variable in function should be lowercase (intentional for constants)
     "SIM108", # Use ternary operator - sometimes less readable
@@ -145,6 +146,7 @@ ignore = [
     "PT011",  # pytest.raises too broad - acceptable for some tests
     "RUF001", # Ambiguous unicode - intentional in regex for real-world matching
     "RUF012", # ClassVar for class attrs - verbose, doesn't affect correctness
+    "RUF059", # Unused unpacked variable - sometimes clearer to show structure
 ]
 
 [tool.ruff.lint.isort]
