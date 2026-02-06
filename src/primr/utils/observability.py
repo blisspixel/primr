@@ -15,12 +15,12 @@ Example:
     )
 
     with correlation_scope("research") as ctx:
-        log_structured("info", "Starting research", company="Tesla")
+        log_structured("info", "Starting research", company="Acme Corp")
         result = perform_research()
 
     summary = JobSummary(
         correlation_id=ctx.correlation_id,
-        company="Tesla",
+        company="Acme Corp",
         mode="deep",
         duration_seconds=120.5,
         api_calls=15,
@@ -206,8 +206,8 @@ def correlation_scope(
         CorrelationContext with correlation ID and timing info
 
     Example:
-        with correlation_scope("research", company="Tesla") as ctx:
-            log_structured("info", "Starting", company="Tesla")
+        with correlation_scope("research", company="Acme Corp") as ctx:
+            log_structured("info", "Starting", company="Acme Corp")
             perform_research()
             log_structured("info", "Done", duration=ctx.duration_seconds)
     """

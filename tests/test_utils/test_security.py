@@ -145,10 +145,10 @@ class TestMaskSensitiveData:
 
     def test_preserve_non_sensitive(self):
         """Non-sensitive data is preserved."""
-        text = "mode=full, company=Tesla"
+        text = "mode=full, company=Acme Corp"
         result = mask_sensitive_data(text)
         assert "mode=full" in result
-        assert "company=Tesla" in result
+        assert "company=Acme Corp" in result
 
     def test_empty_string(self):
         """Empty string returns empty."""

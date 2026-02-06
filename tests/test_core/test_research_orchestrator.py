@@ -61,21 +61,21 @@ class TestOrchestratorResult:
     def test_successful_result(self):
         """Create successful result."""
         result = OrchestratorResult(
-            company_name="Tesla",
-            website="https://tesla.com",
+            company_name="Acme Corp",
+            website="https://acme.example",
             mode=ResearchMode.STRUCTURED,
             section_results={"company_overview": "Content"},
             success=True
         )
-        
+
         assert result.success is True
-        assert result.company_name == "Tesla"
+        assert result.company_name == "Acme Corp"
         assert "company_overview" in result.section_results
 
     def test_failed_result(self):
         """Create failed result with error."""
         result = OrchestratorResult(
-            company_name="Tesla",
+            company_name="Acme Corp",
             website=None,
             mode=ResearchMode.DEEP_RESEARCH,
             section_results={},
@@ -100,8 +100,8 @@ class TestOrchestratorResult:
     def test_result_tracks_search_queries(self):
         """Result tracks actual search query count."""
         result = OrchestratorResult(
-            company_name="Tesla",
-            website="https://tesla.com",
+            company_name="Acme Corp",
+            website="https://acme.example",
             mode=ResearchMode.DEEP_RESEARCH,
             section_results={"strategic_overview": "Content"},
             success=True,

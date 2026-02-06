@@ -631,8 +631,8 @@ def validate_company_name(
         InputValidationError: If name is invalid
 
     Example:
-        >>> validate_company_name("Tesla, Inc.")
-        'Tesla, Inc.'
+        >>> validate_company_name("Acme Corp, Inc.")
+        'Acme Corp, Inc.'
         >>> validate_company_name("")  # raises InputValidationError
     """
     if not name or not isinstance(name, str):
@@ -693,8 +693,8 @@ def sanitize_for_filename(
         Safe filename string
 
     Example:
-        >>> sanitize_for_filename("Tesla: The Company")
-        'Tesla_ The Company'
+        >>> sanitize_for_filename("Acme Corp: The Company")
+        'Acme Corp_ The Company'
         >>> sanitize_for_filename("file/with\\slashes")
         'file_with_slashes'
     """

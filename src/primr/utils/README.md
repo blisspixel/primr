@@ -155,7 +155,7 @@ def flaky_operation():
 result = safe_call(risky_function, default_value="fallback")
 
 # Error context for debugging
-with error_context("processing company", company="Tesla"):
+with error_context("processing company", company="Acme Corp"):
     process(data)
 ```
 
@@ -214,7 +214,7 @@ from primr.utils.validators import (
 )
 
 url = validate_url("example.com")  # "https://example.com"
-name = validate_company_name("  Tesla  ")  # "Tesla"
+name = validate_company_name("  Acme Corp  ")  # "Acme Corp"
 data = safe_json_parse(json_string, default={})
 ```
 
@@ -272,7 +272,7 @@ from primr.utils.observability import (
 )
 
 # Track operation
-with operation_context("research", company="Tesla"):
+with operation_context("research", company="Acme Corp"):
     # Operations are tracked with correlation ID
     pass
 

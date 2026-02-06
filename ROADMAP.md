@@ -389,19 +389,19 @@ These are conscious non-goals for now:
 
 ```bash
 # Basic usage
-primr "Tesla" https://tesla.com
+primr "Acme Corp" https://acme.example
 
 # Research modes
-primr "Tesla" https://tesla.com --mode scrape
-primr "Tesla" https://tesla.com --mode deep
-primr "Tesla" https://tesla.com --mode full
+primr "Acme Corp" https://acme.example --mode scrape
+primr "Acme Corp" https://acme.example --mode deep
+primr "Acme Corp" https://acme.example --mode full
 
 # AI Strategy
-primr "Tesla" https://tesla.com --cloud-vendor azure
-primr "Tesla" https://tesla.com --no-ai-strategy
+primr "Acme Corp" https://acme.example --cloud-vendor azure
+primr "Acme Corp" https://acme.example --no-ai-strategy
 
 # Retry AI Strategy
-primr --ai-strategy-only "output/Tesla_Strategic_Overview.md"
+primr --ai-strategy-only "output/Acme_Corp_Strategic_Overview.md"
 
 # Job management
 primr --check-jobs
@@ -409,7 +409,7 @@ primr --clear-jobs
 
 # Operations
 primr doctor
-primr "Tesla" https://tesla.com --dry-run
+primr "Acme Corp" https://acme.example --dry-run
 
 # MCP Server
 primr-mcp --stdio

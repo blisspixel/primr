@@ -13,10 +13,10 @@ The Deep Research Agent:
 
 Usage:
     client = DeepResearchClient()
-    result = await client.research("Research Tesla's competitive position")
+    result = await client.research("Research Acme Corp's competitive position")
 
     # Or with streaming progress
-    async for update in client.research_stream("Research Tesla"):
+    async for update in client.research_stream("Research Acme Corp"):
         print(update)
 """
 
@@ -459,13 +459,13 @@ class DeepResearchClient:
 
         # Simple research
         result = await client.research(
-            "Research the competitive landscape of EV batteries"
+            "Research the competitive landscape of industrial widgets"
         )
         print(result.content)
 
         # With custom format
         result = await client.research(
-            "Research Tesla",
+            "Research Acme Corp",
             output_format="executive_summary"
         )
     """
@@ -823,7 +823,7 @@ class DeepResearchClient:
             ResearchProgress updates
 
         Example:
-            async for progress in client.research_stream("Research Tesla"):
+            async for progress in client.research_stream("Research Acme Corp"):
                 if progress.thought:
                     print(f"Thinking: {progress.thought}")
                 if progress.partial_result:

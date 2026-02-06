@@ -125,13 +125,13 @@ class TestPromptRegistry:
         registry = get_registry()
         result = registry.render(
             "industry",
-            company_name="Tesla",
-            company_website="tesla.com",
-            scraped_insights="Electric vehicles"
+            company_name="Acme Corp",
+            company_website="acme.example",
+            scraped_insights="Industrial products"
         )
 
-        assert "Tesla" in result
-        assert "tesla.com" in result
+        assert "Acme Corp" in result
+        assert "acme.example" in result
 
 
 class TestPublicInterface:
@@ -143,12 +143,12 @@ class TestPublicInterface:
 
         result = generate_prompt(
             "company_name",
-            company_name="Tesla",
-            company_website="tesla.com"
+            company_name="Acme Corp",
+            company_website="acme.example"
         )
 
-        assert "Tesla" in result
-        assert "tesla.com" in result
+        assert "Acme Corp" in result
+        assert "acme.example" in result
 
     def test_generate_prompt_raises_on_missing_vars(self):
         """generate_prompt() raises PromptError on missing variables."""

@@ -26,44 +26,44 @@ class TestCitationProcessor:
     def test_basic_link_transformation(self):
         """Transform a simple markdown link to numbered reference."""
         processor = CitationProcessor()
-        content = "According to [Tesla](https://tesla.com), the Model 3 is popular."
-        
+        content = "According to [Acme Corp](https://acme.example), the product is popular."
+
         result = processor.process_content(content)
-        
-        assert "Tesla [1]" in result.transformed_content
-        assert "https://tesla.com" not in result.transformed_content
+
+        assert "Acme Corp [1]" in result.transformed_content
+        assert "https://acme.example" not in result.transformed_content
         assert len(result.citations) == 1
         assert result.citations[0].reference_number == 1
     
     def test_multiple_links(self):
         """Transform multiple different links."""
         processor = CitationProcessor()
-        content = "See [Apple](https://apple.com) and [Google](https://google.com)."
-        
+        content = "See [Globex Inc](https://globex.example) and [Initech Co](https://initech.example)."
+
         result = processor.process_content(content)
-        
-        assert "Apple [1]" in result.transformed_content
-        assert "Google [2]" in result.transformed_content
+
+        assert "Globex Inc [1]" in result.transformed_content
+        assert "Initech Co [2]" in result.transformed_content
         assert len(result.citations) == 2
     
     def test_duplicate_url_reuses_reference(self):
         """Same URL should get same reference number."""
         processor = CitationProcessor()
-        content = "[Tesla](https://tesla.com) is great. [Tesla again](https://tesla.com) is still great."
-        
+        content = "[Acme Corp](https://acme.example) is great. [Acme Corp again](https://acme.example) is still great."
+
         result = processor.process_content(content)
-        
-        assert "Tesla [1]" in result.transformed_content
-        assert "Tesla again [1]" in result.transformed_content
+
+        assert "Acme Corp [1]" in result.transformed_content
+        assert "Acme Corp again [1]" in result.transformed_content
         assert len(result.citations) == 1  # Only one unique URL
     
     def test_inline_style_preserves_urls(self):
         """INLINE style should preserve original markdown links."""
         processor = CitationProcessor(style=CitationStyle.INLINE)
-        content = "See [Tesla](https://tesla.com) for details."
-        
+        content = "See [Acme Corp](https://acme.example) for details."
+
         result = processor.process_content(content)
-        
+
         assert result.transformed_content == content
         assert len(result.citations) == 0
     
@@ -103,32 +103,32 @@ class TestCitationProcessor:
     def test_generate_sources_appendix(self):
         """Generate formatted sources appendix."""
         processor = CitationProcessor()
-        processor.process_content("[Tesla](https://tesla.com) and [Apple](https://apple.com).")
-        
+        processor.process_content("[Acme Corp](https://acme.example) and [Globex Inc](https://globex.example).")
+
         appendix = processor.generate_sources_appendix()
-        
+
         assert "## Sources" in appendix
         assert "[1]" in appendix
         assert "[2]" in appendix
-        assert "tesla.com" in appendix
-        assert "apple.com" in appendix
+        assert "acme.example" in appendix
+        assert "globex.example" in appendix
     
     def test_generate_sidecar_file(self):
         """Generate sidecar sources file."""
         processor = CitationProcessor()
-        processor.process_content("[Tesla](https://tesla.com).")
-        
+        processor.process_content("[Acme Corp](https://acme.example).")
+
         filename, content = processor.generate_sidecar_file("Acme Corp")
-        
+
         assert filename == "Acme_Corp_sources.md"
         assert "# Sources for Acme Corp Research" in content
         assert "[1]" in content
-        assert "tesla.com" in content
+        assert "acme.example" in content
     
     def test_reset_clears_state(self):
         """Reset should clear all citations."""
         processor = CitationProcessor()
-        processor.process_content("[Tesla](https://tesla.com).")
+        processor.process_content("[Acme Corp](https://acme.example).")
         assert processor.citation_count == 1
         
         processor.reset()
@@ -154,18 +154,18 @@ class TestConvenienceFunction:
     def test_process_citations_numbered(self):
         """Convenience function with numbered style."""
         result = process_citations(
-            "[Tesla](https://tesla.com) is great.",
+            "[Acme Corp](https://acme.example) is great.",
             style=CitationStyle.NUMBERED
         )
-        
-        assert "Tesla [1]" in result.transformed_content
+
+        assert "Acme Corp [1]" in result.transformed_content
         assert len(result.citations) == 1
-    
+
     def test_process_citations_inline(self):
         """Convenience function with inline style."""
-        content = "[Tesla](https://tesla.com) is great."
+        content = "[Acme Corp](https://acme.example) is great."
         result = process_citations(content, style=CitationStyle.INLINE)
-        
+
         assert result.transformed_content == content
         assert len(result.citations) == 0
 

@@ -8,7 +8,7 @@ Usage:
     composer = PromptComposer()
     prompt = composer.compose(
         "company_overview",
-        PromptContext(company_name="Tesla", website_url="https://tesla.com")
+        PromptContext(company_name="Acme Corp", website_url="https://acme.example")
     )
 """
 
@@ -54,7 +54,7 @@ class PromptComposer:
         composer = PromptComposer()
         prompt = composer.compose(
             "company_overview",
-            PromptContext(company_name="Tesla", website_url="https://tesla.com")
+            PromptContext(company_name="Acme Corp", website_url="https://acme.example")
         )
         print(prompt.content)
     """

@@ -61,11 +61,11 @@ class TestWorkspaceConfig:
 
         config = WorkspaceConfig(
             base_dir=Path("/tmp/working"),
-            company_name="Tesla",
+            company_name="Acme Corp",
             website=None
         )
 
-        assert config.folder_path == Path("/tmp/working/Tesla")
+        assert config.folder_path == Path("/tmp/working/Acme_Corp")
 
 
 class TestCreateWorkingFolder:

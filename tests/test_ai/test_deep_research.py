@@ -121,17 +121,17 @@ class TestDeepResearchClient:
     def test_build_prompt_default(self):
         """Build prompt without format returns query."""
         client = DeepResearchClient.__new__(DeepResearchClient)
-        prompt = client._build_prompt("Research Tesla", None)
-        assert prompt == "Research Tesla"
+        prompt = client._build_prompt("Research Acme Corp", None)
+        assert prompt == "Research Acme Corp"
 
     def test_build_prompt_company_profile(self):
         """Build prompt with company_profile format extracts company name."""
         client = DeepResearchClient.__new__(DeepResearchClient)
-        prompt = client._build_prompt("Research Tesla", "company_profile")
-        
+        prompt = client._build_prompt("Research Acme Corp", "company_profile")
+
         # The company_profile format extracts company name from query
         # and builds a structured prompt from YAML configuration
-        assert "Tesla" in prompt
+        assert "Acme Corp" in prompt
         # Check for key sections from the YAML-based prompt
         assert "Executive Summary" in prompt or "strategy consultant" in prompt
         assert "Products" in prompt or "services" in prompt.lower()
@@ -141,18 +141,18 @@ class TestDeepResearchClient:
     def test_build_prompt_executive_summary(self):
         """Build prompt with executive_summary format."""
         client = DeepResearchClient.__new__(DeepResearchClient)
-        prompt = client._build_prompt("Research Tesla", "executive_summary")
-        
-        assert "Research Tesla" in prompt
+        prompt = client._build_prompt("Research Acme Corp", "executive_summary")
+
+        assert "Research Acme Corp" in prompt
         assert "Key Findings" in prompt
         assert "Recommendations" in prompt
 
     def test_build_prompt_competitive_analysis(self):
         """Build prompt with competitive_analysis format."""
         client = DeepResearchClient.__new__(DeepResearchClient)
-        prompt = client._build_prompt("Research Tesla", "competitive_analysis")
-        
-        assert "Research Tesla" in prompt
+        prompt = client._build_prompt("Research Acme Corp", "competitive_analysis")
+
+        assert "Research Acme Corp" in prompt
         assert "Market Overview" in prompt
         assert "Key Players" in prompt
 
@@ -471,7 +471,7 @@ class TestResearchWithContextFiles:
         
         with pytest.raises(AIError, match="Context file not found"):
             await client.research(
-                "Research Tesla",
+                "Research Acme Corp",
                 context_files=["/path/to/internal_doc.pdf"]
             )
 
@@ -482,9 +482,9 @@ class TestResearchWithContextFiles:
         client._api_key = "test-key"
         client._client = Mock()
         client.AGENT_ID = "deep-research-pro-preview-12-2025"
-        
+
         with pytest.raises(AIError, match="Context file not found"):
             await client.research(
-                "Research Tesla",
+                "Research Acme Corp",
                 context_files=["/nonexistent/file.pdf"]
             )
