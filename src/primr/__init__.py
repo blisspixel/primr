@@ -13,16 +13,17 @@ __version__ = "1.5.1"
 __author__ = "Nick Seal"
 
 # Import core subpackages (api is lazy-loaded since it requires fastapi)
-from primr import ai, config, core, data, output, types, utils
+# Use relative imports for mypy compatibility
+from . import ai, config, core, data, output, types, utils
 
 # Main entry point
-from primr.core.research_agent import perform_research
+from .core.research_agent import perform_research
 
 
 def __getattr__(name: str):
     """Lazy-load optional modules like api (requires fastapi)."""
     if name == "api":
-        from primr import api
+        from . import api
         return api
     raise AttributeError(f"module 'primr' has no attribute {name!r}")
 
