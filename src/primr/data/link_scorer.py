@@ -200,7 +200,7 @@ class LinkScorer:
             parsed = urlparse(link.url)
             path = parsed.path.lower()
             domain = parsed.netloc.lower()
-        except Exception:
+        except ValueError:
             return ScoredLink(url=link.url, text=link.text, score=0.0, reasons=["Invalid URL"])
 
         # Check for skip extensions
@@ -362,7 +362,7 @@ class LinkScorer:
             path = parsed.path.rstrip('/')
             normalized = f"{parsed.scheme}://{parsed.netloc}{path}"
             return normalized.lower()
-        except Exception:
+        except ValueError:
             return url.lower()
 
     def filter_same_domain(
@@ -382,7 +382,7 @@ class LinkScorer:
         """
         try:
             base_domain = urlparse(base_url).netloc.lower()
-        except Exception:
+        except ValueError:
             return links
 
         return [

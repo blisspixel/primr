@@ -304,7 +304,7 @@ Document:
             return smoothed
 
         except Exception as e:
-            logger.warning(f"Transition smoothing failed: {e}, using original")
+            logger.warning(f"Transition smoothing failed: {e}, using original", exc_info=True)
             return content
 
 

@@ -23,7 +23,7 @@ def _compute_template_hash(raw_content: bytes) -> str:
     """
     try:
         text = raw_content.decode("utf-8", errors="ignore").lower()
-    except Exception:
+    except (UnicodeDecodeError, AttributeError):
         return ""
 
     # Extract structural elements
@@ -98,7 +98,7 @@ def detect_soft_block(
     try:
         text = raw_content.decode("utf-8", errors="ignore")
         text_lower = text.lower()
-    except Exception:
+    except (UnicodeDecodeError, AttributeError):
         return True, "Failed to decode content"
 
     # 1. HTTP status check
@@ -222,7 +222,7 @@ def detect_challenge_page(raw_content: bytes) -> tuple[bool, BlockType | None]:
 
     try:
         text_lower = raw_content.decode("utf-8", errors="ignore").lower()
-    except Exception:
+    except (UnicodeDecodeError, AttributeError):
         return False, None
 
     # Challenge indicators (solvable)
@@ -265,7 +265,7 @@ def detect_consent_wall(raw_content: bytes) -> bool:
 
     try:
         text_lower = raw_content.decode("utf-8", errors="ignore").lower()
-    except Exception:
+    except (UnicodeDecodeError, AttributeError):
         return False
 
     consent_indicators = [
@@ -321,7 +321,7 @@ def check_success_signal(
     try:
         text = raw_content.decode("utf-8", errors="ignore")
         text_lower = text.lower()
-    except Exception:
+    except (UnicodeDecodeError, AttributeError):
         return False
 
     # Check 1: Content length

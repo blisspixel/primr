@@ -125,7 +125,7 @@ class ResearchNodeExecutor:
     POLL_INTERVAL_SLOW = 20.0    # 300s+
 
     # Timeout per chapter (15 minutes)
-    CHAPTER_TIMEOUT = 900
+    CHAPTER_TIMEOUT = 15 * 60
 
     def __init__(
         self,
