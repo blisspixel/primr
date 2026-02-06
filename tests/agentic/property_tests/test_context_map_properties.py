@@ -264,10 +264,11 @@ def test_token_counter_consistency(extra_content: str):
     assert count1 == count2, "Token counter should be deterministic"
     assert count1 >= 0, "Token count should be non-negative"
     
-    # Rough proportionality check
-    if len(extra_content) > 0:
+    # Rough proportionality check (only for non-whitespace content)
+    stripped = extra_content.strip()
+    if len(stripped) > 0:
         # Should be at least 1 token per 10 characters (very conservative)
-        assert count1 >= len(extra_content) / 10
+        assert count1 >= len(stripped) / 10
 
 
 def test_quick_start_extraction_robustness():

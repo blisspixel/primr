@@ -3686,9 +3686,6 @@ class ReportFormatter:
         if not citations:
             return content
 
-        # Build a mapping of citation numbers to their info (with resolved URLs)
-        {c.get('number', str(i+1)): c for i, c in enumerate(citations)}
-
         # Convert inline [cite: X, Y, Z] references to clean [1] [2] [3] format
         def replace_cite_ref(match: re.Match) -> str:
             nums_str = match.group(1)

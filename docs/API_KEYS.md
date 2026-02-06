@@ -55,7 +55,7 @@ chmod 600 .env  # Restrict file permissions (Linux/macOS)
 
 Edit `.env` with your keys. The file is gitignored by default.
 
-**⚠️ Never use environment variables directly in shell** - they persist in shell history:
+**Never use environment variables directly in shell** - they persist in shell history:
 ```bash
 # BAD - logged in shell history
 export GEMINI_API_KEY="your-key"
