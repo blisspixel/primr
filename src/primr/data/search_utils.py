@@ -30,10 +30,10 @@ _search_circuit = CircuitBreaker(
     reset_timeout=60
 )
 
-# Ensure API keys are set
-if not SEARCH_API_KEY or not SEARCH_ENGINE_ID:
-    logger.error("Missing API Key or Search Engine ID! Check .env file.")
-    exit(1)
+# Check for API keys (warning only - don't exit at import time)
+_search_api_available = bool(SEARCH_API_KEY and SEARCH_ENGINE_ID)
+if not _search_api_available:
+    logger.warning("Missing SEARCH_API_KEY or SEARCH_ENGINE_ID - search functionality disabled")
 
 # User-Agent Rotation
 USER_AGENTS = [
@@ -95,6 +95,10 @@ We need more information on: {section_name}.
 
 def search_google(query, company_name, website, num_results=NUM_SEARCH_RESULTS):
     """Performs a structured Google search using the Custom Search API."""
+    # Check if search API is available
+    if not _search_api_available:
+        logger.error("Search API not available - missing SEARCH_API_KEY or SEARCH_ENGINE_ID")
+        return []
 
     # Check circuit breaker before making request
     if not _search_circuit.can_execute():
