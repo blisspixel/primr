@@ -16,7 +16,16 @@ __author__ = "Nick Seal"
 # The circular import issues have been fixed by lazy-initializing:
 # - Gemini client in ai/llm.py
 # - Search API check in data/search_utils.py
-from . import agentic, ai, config, core, data, output, types, utils
+from . import (  # type: ignore[attr-defined]
+    agentic,
+    ai,
+    config,
+    core,
+    data,
+    output,
+    types,
+    utils,
+)
 
 
 def __getattr__(name: str):
