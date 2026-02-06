@@ -15,8 +15,16 @@ from primr.utils.chat_logger import log_chat_interaction
 
 load_dotenv()
 
-# Initialize the client
-client = genai.Client(api_key=GEMINI_API_KEY)
+# Lazy-initialized client (created on first use to allow import without API key)
+_client: genai.Client | None = None
+
+
+def _get_client() -> genai.Client:
+    """Get or create the Gemini client."""
+    global _client
+    if _client is None:
+        _client = genai.Client(api_key=GEMINI_API_KEY)
+    return _client
 
 
 def _get_model_for_type(model_type: str) -> str:
@@ -80,14 +88,14 @@ def llm(prompt, model_type="fast", temperature=1.0, thinking_level="high", strea
             ai_response = ""
 
             if not streaming:
-                response = client.models.generate_content(
+                response = _get_client().models.generate_content(
                     model=model_name,
                     contents=prompt,
                     config=types.GenerateContentConfig(**config_params)
                 )
                 ai_response = (response.text or "").strip()
             else:
-                stream_response = client.models.generate_content_stream(
+                stream_response = _get_client().models.generate_content_stream(
                     model=model_name,
                     contents=prompt,
                     config=types.GenerateContentConfig(**config_params)
