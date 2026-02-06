@@ -287,3 +287,4 @@ coverage.xml
 dist/
 build/
 /.claude
+nul
