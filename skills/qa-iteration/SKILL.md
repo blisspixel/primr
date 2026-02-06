@@ -8,7 +8,7 @@ tools:
   - research_company
 
 resources:
-  - references/scoring.md
+  - file://references/scoring
 
 metadata:
   openclaw:

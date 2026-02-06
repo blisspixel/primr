@@ -11,7 +11,7 @@ tools:
   - save_hypothesis
 
 resources:
-  - references/modes.md
+  - file://references/modes
 
 metadata:
   openclaw:

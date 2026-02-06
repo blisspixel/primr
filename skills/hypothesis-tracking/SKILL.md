@@ -8,7 +8,7 @@ tools:
   - save_hypothesis
 
 resources:
-  - references/confidence-levels.md
+  - file://references/confidence_levels
 
 metadata:
   openclaw:
