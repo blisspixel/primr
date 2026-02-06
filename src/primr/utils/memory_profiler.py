@@ -13,11 +13,13 @@ import logging
 import sys
 import tracemalloc
 from collections import defaultdict
-from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
 

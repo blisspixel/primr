@@ -465,9 +465,7 @@ class CompetitiveAnalyzer:
         threat = ThreatLevel.MEDIUM
         if position == MarketPosition.LEADER:
             threat = ThreatLevel.HIGH
-        elif position == MarketPosition.EMERGING:
-            threat = ThreatLevel.LOW
-        elif competitor_type == CompetitorType.INDIRECT:
+        elif position == MarketPosition.EMERGING or competitor_type == CompetitorType.INDIRECT:
             threat = ThreatLevel.LOW
 
         return Competitor(

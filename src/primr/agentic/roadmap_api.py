@@ -201,7 +201,7 @@ class RoadmapAPI:
                 continue
 
             # Check for feature items
-            if current_version and (stripped.startswith("-") or stripped.startswith("*")):
+            if current_version and (stripped.startswith(("-", "*"))):
                 feature = self._parse_feature(stripped, current_section)
                 if feature:
                     current_version.features.append(feature)

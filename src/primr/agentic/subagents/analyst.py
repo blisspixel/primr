@@ -39,7 +39,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from primr.agentic.errors import SubagentError
 from primr.agentic.models import ConfidenceLevel, Hypothesis
@@ -49,9 +49,6 @@ from primr.agentic.subagents.base import (
     SubagentResult,
     SubagentStatus,
 )
-
-if TYPE_CHECKING:
-    pass
 
 logger = logging.getLogger(__name__)
 

@@ -158,10 +158,7 @@ class Tenant:
 
         # If allowed_domains is set, check whitelist
         if self.config.allowed_domains:
-            for allowed in self.config.allowed_domains:
-                if domain.endswith(allowed.lower()):
-                    return True
-            return False
+            return any(domain.endswith(allowed.lower()) for allowed in self.config.allowed_domains)
 
         return True
 

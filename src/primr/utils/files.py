@@ -13,7 +13,7 @@ import os
 import re
 import tempfile
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from pathlib import Path
 
 from primr.utils.errors import ValidationError
@@ -54,15 +54,11 @@ def secure_temp_file(suffix: str = "", prefix: str = "research_") -> Iterator[Pa
         yield path
     finally:
         if fd is not None:
-            try:
+            with suppress(OSError):
                 os.close(fd)
-            except OSError:
-                pass
         if path is not None:
-            try:
+            with suppress(OSError, PermissionError):
                 path.unlink(missing_ok=True)
-            except (OSError, PermissionError):
-                pass
 
 
 @contextmanager
@@ -84,10 +80,8 @@ def secure_temp_dir(prefix: str = "research_") -> Iterator[Path]:
         yield path
     finally:
         if path is not None:
-            try:
+            with suppress(OSError, PermissionError):
                 shutil.rmtree(path, ignore_errors=True)
-            except (OSError, PermissionError):
-                pass
 
 
 # =============================================================================

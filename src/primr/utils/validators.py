@@ -156,9 +156,7 @@ def normalize_url(url: str) -> str:
     # Check for scheme (case-insensitive)
     url_lower = url.lower()
     has_scheme = (
-        url_lower.startswith("http://")
-        or url_lower.startswith("https://")
-        or url_lower.startswith("ftp://")
+        url_lower.startswith(("http://", "https://", "ftp://"))
     )
 
     # Add scheme if missing

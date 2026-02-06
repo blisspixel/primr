@@ -59,29 +59,29 @@ from primr.prompts.schema import (
 )
 
 __all__ = [
+    "ComposedPrompt",
+    "DataSource",
+    "DataSourceNotFoundError",
     # Core classes
     "PromptComposer",
-    "PromptContext",
-    "ComposedPrompt",
     "PromptConfig",
-    "SectionSpec",
-    "SharedComponents",
-    "DataSource",
-    "StrategyModule",
-    # Registry
-    "StrategyModuleRegistry",
-    "get_registry",
-    "list_strategies",
-    "get_composer",
     # Exceptions
     "PromptConfigError",
     "PromptConfigNotFoundError",
     "PromptConfigValidationError",
+    "PromptContext",
+    "SectionSpec",
+    "SharedComponents",
+    "StrategyModule",
     "StrategyModuleNotFoundError",
-    "DataSourceNotFoundError",
+    # Registry
+    "StrategyModuleRegistry",
+    "build_ai_strategy_prompt",
+    "build_company_overview_prompt",
+    "get_available_prompts",
+    "get_composer",
+    "get_registry",
+    "list_strategies",
     # Backward compatibility
     "load_prompt_config",
-    "build_company_overview_prompt",
-    "build_ai_strategy_prompt",
-    "get_available_prompts",
 ]

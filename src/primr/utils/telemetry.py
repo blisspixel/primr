@@ -34,11 +34,13 @@ from __future__ import annotations
 import contextvars
 import logging
 import traceback
-from collections.abc import AsyncGenerator, Generator
 from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator, Generator
 
 logger = logging.getLogger(__name__)
 
@@ -142,15 +144,12 @@ class NullSpan:
 
     def set_attribute(self, key: str, value: Any) -> None:
         """No-op: Set an attribute on the span."""
-        pass
 
     def set_attributes(self, attributes: dict[str, Any]) -> None:
         """No-op: Set multiple attributes on the span."""
-        pass
 
     def add_event(self, name: str, attributes: dict[str, Any] | None = None) -> None:
         """No-op: Add an event to the span."""
-        pass
 
     def record_exception(
         self,
@@ -160,11 +159,9 @@ class NullSpan:
         escaped: bool = False
     ) -> None:
         """No-op: Record an exception on the span."""
-        pass
 
     def set_status(self, status: Any, description: str | None = None) -> None:
         """No-op: Set the status of the span."""
-        pass
 
     def is_recording(self) -> bool:
         """Return False since this is a null span."""

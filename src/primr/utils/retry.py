@@ -19,15 +19,17 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, ParamSpec, TypeVar
+from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar
 
 from primr.utils.errors import (
     PrimrError,
     QuotaError,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
 
@@ -148,7 +150,6 @@ class TelemetryProtocol:
         tags: dict[str, str] | None = None
     ) -> None:
         """Emit a metric with optional tags."""
-        pass
 
 
 # =============================================================================

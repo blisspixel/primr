@@ -29,7 +29,6 @@ from typing import Any
 
 from primr.utils.errors.base import CATEGORY_GUIDANCE, get_correlation_id
 
-
 # =============================================================================
 # BASE ERROR CLASS
 # =============================================================================

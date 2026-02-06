@@ -493,7 +493,7 @@ def extract_links_from_html(
         for match in re.finditer(pattern, text, re.IGNORECASE):
             href = match.group(1).strip()
             # Handle array syntax: ['/path', 'subpath'] -> /path/subpath
-            if href.startswith("'") or href.startswith("/"):
+            if href.startswith(("'", "/")):
                 href = href.strip("'\"")
                 add_link(href, "", "angular")
 

@@ -22,7 +22,7 @@ class StdioSafeHandler(logging.Handler):
     Used in stdio mode to prevent log output from corrupting JSON-RPC framing.
     """
 
-    def __init__(self, stream: TextIO = None):
+    def __init__(self, stream: TextIO | None = None):
         super().__init__()
         self.stream = stream or sys.stderr
 
@@ -76,7 +76,7 @@ def configure_stdio_logging(level: str = "INFO") -> None:
         logger.setLevel(numeric_level)
 
 
-def configure_http_logging(level: str = "INFO", log_file: str = None) -> None:
+def configure_http_logging(level: str = "INFO", log_file: str | None = None) -> None:
     """
     Configure logging for HTTP mode.
 

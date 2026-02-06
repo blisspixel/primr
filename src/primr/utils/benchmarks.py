@@ -20,11 +20,13 @@ import json
 import logging
 import statistics
 import time
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
 
@@ -626,10 +628,10 @@ def create_primr_benchmark_suite(storage_path: Path | str = "benchmarks") -> Ben
 
 __all__ = [
     "BenchmarkResult",
-    "RegressionWarning",
     "BenchmarkRunner",
     "BenchmarkStore",
-    "RegressionDetector",
     "BenchmarkSuite",
+    "RegressionDetector",
+    "RegressionWarning",
     "create_primr_benchmark_suite",
 ]

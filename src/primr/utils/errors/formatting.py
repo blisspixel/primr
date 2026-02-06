@@ -7,12 +7,7 @@ and extracting guidance from exceptions.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from primr.utils.errors.base import CATEGORY_GUIDANCE, EXCEPTION_TYPE_GUIDANCE
-
-if TYPE_CHECKING:
-    from primr.utils.errors.typed import PrimrError
 
 
 def format_error_for_user(error: Exception, verbose: bool = False) -> str:

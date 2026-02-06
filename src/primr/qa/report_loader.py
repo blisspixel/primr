@@ -262,20 +262,10 @@ class ReportLoader:
             elif (line_stripped.isupper() and
                   len(line_stripped) > 3 and
                   len(line_stripped) < 100 and
-                  not line_stripped.startswith('HTTP')):  # Avoid URLs
-                is_header = True
-                header_text = line_stripped
-
-            # Numbered headers (1. 2. etc.)
-            elif re.match(r'^\d+\.\s+[A-Z]', line_stripped):
-                is_header = True
-                header_text = line_stripped
-
-            # Title case headers (longer than 10 chars, starts with capital)
-            elif (len(line_stripped) > 10 and
+                  not line_stripped.startswith('HTTP')) or re.match(r'^\d+\.\s+[A-Z]', line_stripped) or (len(line_stripped) > 10 and
                   line_stripped[0].isupper() and
                   not line_stripped.endswith('.') and  # Not a sentence
-                  sum(1 for c in line_stripped if c.isupper()) >= 2):  # Multiple caps
+                  sum(1 for c in line_stripped if c.isupper()) >= 2):  # Avoid URLs
                 is_header = True
                 header_text = line_stripped
 

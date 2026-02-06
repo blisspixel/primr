@@ -202,9 +202,7 @@ def detect_soft_block(
             return False, None
 
         # Check if it's HTML (not JSON/API response)
-        if content_type and "html" in content_type.lower():
-            return True, f"Content too short ({content_length} bytes)"
-        elif "<html" in text_lower or "<!doctype" in text_lower:
+        if (content_type and "html" in content_type.lower()) or "<html" in text_lower or "<!doctype" in text_lower:
             return True, f"Content too short ({content_length} bytes)"
 
     return False, None

@@ -11,11 +11,13 @@ import json
 import sqlite3
 import threading
 import time
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 class ChangeType(Enum):

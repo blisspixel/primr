@@ -359,10 +359,7 @@ class APIKeyAuth:
         with self._lock:
             for key_hash, info in self._keys.items():
                 # Remove if expired
-                if info.expires_at and now > info.expires_at:
-                    to_remove.append(key_hash)
-                # Remove if rotation grace period expired
-                elif info.rotation_grace_until and now > info.rotation_grace_until:
+                if (info.expires_at and now > info.expires_at) or (info.rotation_grace_until and now > info.rotation_grace_until):
                     to_remove.append(key_hash)
 
             for key_hash in to_remove:

@@ -57,27 +57,27 @@ from primr.core.deep_research_runner import (
 # =============================================================================
 
 __all__ = [
-    # Main entry points
-    "perform_research",
-    "main",
-    "run_doctor",
-    # Structured research
-    "run_research",
-    "research_section",
-    "generate_initial_overview",
-    # Workspace management
-    "create_working_folder",
-    "consolidate_working_folder",
-    "save_section_output",
-    "validate_context_files",
-    # Utility
-    "process_csv",
-    "ensure_valid_url",
-    "get_user_input",
     # Re-exported types
     "CloudVendor",
     "DeepResearchConfig",
     "DeepResearchMode",
+    "consolidate_working_folder",
+    # Workspace management
+    "create_working_folder",
+    "ensure_valid_url",
+    "generate_initial_overview",
+    "get_user_input",
+    "main",
+    # Main entry points
+    "perform_research",
+    # Utility
+    "process_csv",
+    "research_section",
+    "run_doctor",
+    # Structured research
+    "run_research",
+    "save_section_output",
+    "validate_context_files",
 ]
 
 import asyncio
@@ -600,10 +600,10 @@ def run_research(company_name: str, website: str, on_progress: Callable[[str], N
         f.write(f"# Website: {website}\n")
         f.write(f"# Total: {len(all_scraped)} pages\n\n")
         f.write("## Website Pages:\n")
-        for url in scraped_data.keys():
+        for url in scraped_data:
             f.write(f"  {url}\n")
         f.write(f"\n## External Sources ({len(external_data)}):\n")
-        for url in external_data.keys():
+        for url in external_data:
             f.write(f"  {url}\n")
 
     # Summarize content

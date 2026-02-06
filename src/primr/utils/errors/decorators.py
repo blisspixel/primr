@@ -13,9 +13,11 @@ from __future__ import annotations
 
 import functools
 import logging
-from collections.abc import Callable, Generator
 from contextlib import contextmanager
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, Literal, TypeVar
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Generator
 
 logger = logging.getLogger(__name__)
 
@@ -132,7 +134,7 @@ class ErrorContext:
         self.operation = operation
         self.context = context
 
-    def __enter__(self) -> "ErrorContext":
+    def __enter__(self) -> ErrorContext:
         return self
 
     def __exit__(
@@ -140,7 +142,7 @@ class ErrorContext:
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: Any,
-    ) -> bool:
+    ) -> Literal[False]:
         if exc_val is not None:
             context_str = ", ".join(f"{k}={v}" for k, v in self.context.items())
             logger.error(f"Error during {self.operation} ({context_str}): {exc_val}")

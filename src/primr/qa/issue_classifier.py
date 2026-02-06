@@ -130,7 +130,7 @@ class IssueClassifier:
         severity_penalty = severity_impact * 20  # Up to 20 point penalty
 
         final_score = max(0, min(100, base_score - severity_penalty))
-        return int(round(final_score))
+        return round(final_score)
 
     def _calculate_issues_score(self, issues: list[ClassifiedIssue]) -> int:
         """

@@ -145,6 +145,7 @@ class ResearchResult:
 # JOB TRACKING - Save/load interaction IDs for recovery
 # =============================================================================
 
+import contextlib
 import json
 import os
 
@@ -212,10 +213,8 @@ def save_pending_job(interaction_id: str, job_type: str, description: str) -> No
             logger.error(f"Failed to save jobs file: {e}")
             # Clean up temp file if it exists
             if os.path.exists(temp_file):
-                try:
+                with contextlib.suppress(OSError):
                     os.remove(temp_file)
-                except OSError:
-                    pass
             raise
 
     logger.info(f"Saved pending job: {interaction_id} ({job_type})")
@@ -304,6 +303,7 @@ async def resolve_redirect_url(url: str, timeout: float = 10.0, retries: int = 2
         The final destination URL, or the original URL if resolution fails
     """
     import httpx
+
     from primr.utils.security import validate_final_url_after_redirect
 
     # Only resolve Google grounding redirect URLs
@@ -317,13 +317,13 @@ async def resolve_redirect_url(url: str, timeout: float = 10.0, retries: int = 2
                 response = await client.head(url)
                 # Return the final URL after all redirects
                 final_url = str(response.url)
-                
+
                 # SSRF protection: validate final URL after redirects
                 is_safe, redirect_error = validate_final_url_after_redirect(final_url)
                 if not is_safe:
                     logger.warning(f"Redirect to unsafe URL blocked: {final_url} - {redirect_error}")
                     return url  # Return original URL instead of unsafe redirect target
-                
+
                 logger.debug(f"Resolved URL: {url[:50]}... -> {final_url[:80]}...")
                 return final_url
         except TimeoutError:
@@ -1615,7 +1615,6 @@ class ConsultingPromptBuilder:
 
     def __init__(self):
         """Initialize the ConsultingPromptBuilder."""
-        pass
 
     def build_comprehensive_prompt(
         self,
@@ -1960,10 +1959,7 @@ This output is intended to inform internal thinking and deck creation. When reus
         Returns:
             True if all chapters are present
         """
-        for chapter in self.CHAPTERS:
-            if chapter not in prompt:
-                return False
-        return True
+        return all(chapter in prompt for chapter in self.CHAPTERS)
 
     def contains_consulting_persona(self, prompt: str) -> bool:
         """
@@ -3801,10 +3797,7 @@ class ReportFormatter:
             r"^FROM:\s*",
             r"^SUBJECT:\s*",
         ]
-        for pattern in memo_patterns:
-            if re.search(pattern, content, re.MULTILINE):
-                return True
-        return False
+        return any(re.search(pattern, content, re.MULTILINE) for pattern in memo_patterns)
 
     def has_debug_artifacts(self, content: str) -> bool:
         """Check if content contains debug artifacts."""
@@ -3814,10 +3807,7 @@ class ReportFormatter:
             "Traceback (most recent call last)",
             "Exception:",
         ]
-        for pattern in debug_patterns:
-            if pattern in content:
-                return True
-        return False
+        return any(pattern in content for pattern in debug_patterns)
 
     def count_chapters(self, content: str) -> int:
         """Count the number of chapters in content."""
@@ -3933,10 +3923,8 @@ class FileSearchStoreManager:
             ) from e
         finally:
             # Clean up temp file
-            try:
+            with contextlib.suppress(OSError):
                 os.unlink(temp_path)
-            except OSError:
-                pass
 
     def upload_file(self, store_name: str, file_path: str) -> None:
         """

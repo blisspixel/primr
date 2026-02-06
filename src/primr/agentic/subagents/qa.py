@@ -36,7 +36,6 @@ import logging
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from primr.agentic.errors import SubagentError
 from primr.agentic.subagents.base import (
@@ -45,9 +44,6 @@ from primr.agentic.subagents.base import (
     SubagentResult,
     SubagentStatus,
 )
-
-if TYPE_CHECKING:
-    pass
 
 logger = logging.getLogger(__name__)
 

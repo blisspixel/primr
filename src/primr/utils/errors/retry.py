@@ -8,10 +8,12 @@ with configurable backoff behavior.
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from primr.utils.errors.base import RetryConfig, calculate_backoff_delay
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
 

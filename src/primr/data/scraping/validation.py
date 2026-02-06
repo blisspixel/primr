@@ -184,10 +184,7 @@ def is_nav_only_page(extracted_text: str) -> bool:
 
     # Check if most lines are very short (typical of nav)
     short_lines = sum(1 for line in lines if len(line) < 30)
-    if short_lines / len(lines) > 0.8:
-        return True
-
-    return False
+    return short_lines / len(lines) > 0.8
 
 
 def estimate_content_quality(extracted_text: str) -> dict:

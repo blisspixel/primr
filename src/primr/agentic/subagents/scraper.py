@@ -33,7 +33,6 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from primr.agentic.errors import SubagentError
@@ -45,7 +44,7 @@ from primr.agentic.subagents.base import (
 )
 
 if TYPE_CHECKING:
-    pass
+    from pathlib import Path
 
 logger = logging.getLogger(__name__)
 

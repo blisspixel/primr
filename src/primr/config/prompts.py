@@ -28,7 +28,6 @@ from typing import Any
 
 class PromptError(Exception):
     """Raised when prompt generation fails."""
-    pass
 
 
 @dataclass(frozen=True)

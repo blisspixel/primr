@@ -17,10 +17,11 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from mcp.server import Server
 from mcp.types import TextContent, Tool
 
 if TYPE_CHECKING:
+    from mcp.server import Server
+
     from primr.mcp_server.server import PrimrMCPServer
 
 logger = logging.getLogger(__name__)

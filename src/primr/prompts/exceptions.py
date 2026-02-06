@@ -9,7 +9,6 @@ loading or validation fails, helping users diagnose and fix issues.
 class PromptConfigError(Exception):
     """Base exception for prompt configuration errors."""
 
-    pass
 
 
 class PromptConfigNotFoundError(PromptConfigError):

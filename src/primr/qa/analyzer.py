@@ -194,7 +194,7 @@ Provide only the JSON response, no additional text."""
     def _identify_report_type(self, report: ReportContent) -> str:
         """Identify the type of report based on content and sections."""
         content_lower = report.content.lower()
-        [s.lower() for s in report.sections.keys()]
+        [s.lower() for s in report.sections]
 
         # Check for AI strategy indicators
         if any(term in content_lower for term in ['ai strategy', 'artificial intelligence', 'machine learning', 'automation roadmap']):

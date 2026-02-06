@@ -22,7 +22,7 @@ import asyncio
 import os
 import tempfile
 from collections.abc import Callable, Generator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -105,10 +105,8 @@ def temp_context_file(company_name: str, content: str) -> Generator[str, None, N
     finally:
         # Guaranteed cleanup with retry
         if fd is not None:
-            try:
+            with suppress(OSError):
                 os.close(fd)
-            except OSError:
-                pass
         if filepath is not None:
             _cleanup_file_with_retry(filepath)
 

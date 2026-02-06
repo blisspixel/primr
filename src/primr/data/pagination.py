@@ -241,9 +241,7 @@ class PaginationDetector:
             is_pagination = False
 
             # Check for page numbers in URL
-            if re.search(r'[?&](page|p|pg)=\d+', href, re.I):
-                is_pagination = True
-            elif re.search(r'/page/\d+', href, re.I):
+            if re.search(r'[?&](page|p|pg)=\d+', href, re.I) or re.search(r'/page/\d+', href, re.I):
                 is_pagination = True
 
             # Check for pagination classes/attributes
@@ -404,10 +402,7 @@ class PaginationDetector:
 
     def _detect_load_more(self, html_lower: str) -> bool:
         """Detect load more button patterns."""
-        for pattern in self.LOAD_MORE_PATTERNS:
-            if re.search(pattern, html_lower, re.I):
-                return True
-        return False
+        return any(re.search(pattern, html_lower, re.I) for pattern in self.LOAD_MORE_PATTERNS)
 
     def _find_next_link(self, html: str, base_url: str) -> str | None:
         """Find the next page link."""
