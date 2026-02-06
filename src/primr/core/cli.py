@@ -1769,7 +1769,7 @@ def open_file(filepath: str) -> None:
 
     try:
         if platform.system() == 'Windows':
-            os.startfile(filepath)
+            os.startfile(filepath)  # type: ignore[attr-defined]  # Windows-only
         elif platform.system() == 'Darwin':
             subprocess.run(['open', filepath], check=True)
         else:
