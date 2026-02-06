@@ -13,29 +13,25 @@ __version__ = "1.5.1"
 __author__ = "Nick Seal"
 
 # Subpackages are available via direct import:
-#   import primr.core
+#   from primr.core import something
 #   from primr.output.something import Thing
 #
-# We intentionally don't import subpackages here to avoid circular import
-# issues during test collection when the full import graph gets traversed.
+# We use lazy loading to avoid circular import issues.
 
 
 def __getattr__(name: str):
-    """Lazy-load submodules on attribute access (e.g., primr.core)."""
+    """Lazy-load submodules."""
     import importlib
 
-    submodules = ("agentic", "ai", "api", "config", "core", "data", "output", "types", "utils")
+    submodules = {"agentic", "ai", "api", "config", "core", "data", "output", "types", "utils"}
     if name in submodules:
         return importlib.import_module(f".{name}", __name__)
-
     if name == "perform_research":
         from .core.research_agent import perform_research
         return perform_research
-
     raise AttributeError(f"module 'primr' has no attribute {name!r}")
 
 
-# For IDE support and dir()
 __all__ = [
     "__version__",
     "agentic",

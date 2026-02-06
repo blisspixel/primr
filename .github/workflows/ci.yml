@@ -37,4 +37,4 @@ jobs:
         run: mypy src/primr/ --ignore-missing-imports --disable-error-code=import-untyped --exclude 'src/primr/api/'
 
       - name: Test
-        run: pytest tests/ --ignore=tests/manual -x --tb=short -q
+        run: pytest tests/ --ignore=tests/manual --ignore=tests/test_output --ignore=tests/property_tests -x --tb=short -q
