@@ -12,20 +12,42 @@ This package provides tools for automated company research including:
 __version__ = "1.5.1"
 __author__ = "Nick Seal"
 
-# Import subpackages - these must be real imports for submodule access to work
-# (e.g., from primr.output.something import ...)
-from . import agentic, ai, config, core, data, output, types, utils  # type: ignore[attr-defined]
+# Don't import submodules at package level to avoid circular imports
+# Users should import directly: from primr.core import something
+# Or use: import primr.core
 
 
 def __getattr__(name: str):
-    """Lazy-load optional modules."""
-    if name == "api":
-        from . import api
-        return api
+    """Lazy-load submodules on attribute access."""
+    import importlib
+
+    # Standard submodules
+    if name in ("agentic", "ai", "api", "config", "core", "data", "output", "types", "utils"):
+        return importlib.import_module(f".{name}", __name__)
+
+    # Special exports
     if name == "perform_research":
         from .core.research_agent import perform_research
         return perform_research
+
     raise AttributeError(f"module 'primr' has no attribute {name!r}")
+
+
+def __dir__():
+    """List available submodules."""
+    return [
+        "__version__",
+        "agentic",
+        "ai",
+        "api",
+        "config",
+        "core",
+        "data",
+        "output",
+        "perform_research",
+        "types",
+        "utils",
+    ]
 
 
 __all__ = [
