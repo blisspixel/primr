@@ -1,6 +1,17 @@
 ---
 name: company-research
+version: "1.0.0"
 description: "Run company research using Primr. Use when the user asks to research, analyze, or investigate a company, or provides a company URL."
+
+tools:
+  - estimate_run
+  - research_company
+  - check_jobs
+  - get_hypotheses
+  - save_hypothesis
+
+resources:
+  - references/modes.md
 
 metadata:
   openclaw:
