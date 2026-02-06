@@ -424,47 +424,42 @@ def is_scraped_page(value: Any) -> bool:
 __all__ = [
     # Type aliases
     'URL',
-    'FilePath',
-    'HTMLContent',
-    'TextContent',
-    'JSONContent',
-    'ProgressCallback',
-    'ErrorCallback',
-
+    # Protocols
+    'AIClientProtocol',
     # Enums
     'AIModelType',
-    'ThinkingLevel',
-    'ScrapeTier',
-    'OutputFormat',
+    'AIRequestConfig',
+    'CacheMetadata',
+    'CacheProtocol',
+    'CompanyInfo',
+    'ConsoleProtocol',
+    'ErrorCallback',
+    'FilePath',
+    'GradeResult',
+    'HTMLContent',
+    'JSONContent',
+    'LinkInfo',
     'LogLevel',
-
+    'LoggerProtocol',
+    'OutputFormat',
+    'ProgressCallback',
+    'ReportSection',
+    'ResearchContext',
+    # Generic types
+    'Result',
+    'ScrapeConfig',
+    'ScrapeTier',
+    'ScrapedContent',
+    'ScrapedPage',
+    'ScraperProtocol',
+    'SearchProtocol',
     # TypedDicts
     'SearchResult',
     'SearchResultWithScore',
-    'ScrapedPage',
-    'ScrapedContent',
-    'LinkInfo',
-    'CacheMetadata',
-    'GradeResult',
-    'ReportSection',
-    'CompanyInfo',
-    'ResearchContext',
-    'AIRequestConfig',
-    'ScrapeConfig',
-
-    # Protocols
-    'AIClientProtocol',
-    'ScraperProtocol',
-    'SearchProtocol',
-    'CacheProtocol',
-    'LoggerProtocol',
-    'ConsoleProtocol',
-
-    # Generic types
-    'Result',
-
+    'TextContent',
+    'ThinkingLevel',
+    'is_scraped_page',
+    'is_search_result',
     # Type guards
     'is_valid_url',
-    'is_search_result',
-    'is_scraped_page',
 ]

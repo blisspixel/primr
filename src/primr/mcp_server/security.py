@@ -21,6 +21,7 @@ from threading import Lock
 def _utcnow() -> datetime:
     """Get current UTC time as timezone-aware datetime."""
     return datetime.now(timezone.utc)
+import contextlib
 from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
@@ -106,7 +107,7 @@ class PathValidator:
     Requirements: 11.1-11.10
     """
 
-    def __init__(self, allowed_roots: list[str] = None):
+    def __init__(self, allowed_roots: list[str] | None = None):
         """
         Initialize path validator.
 
@@ -118,7 +119,7 @@ class PathValidator:
 
         self.allowed_roots = [Path(root).resolve() for root in allowed_roots]
 
-    def validate(self, path: str, client_id: str = None) -> PathValidationResult:
+    def validate(self, path: str, client_id: str | None = None) -> PathValidationResult:
         """
         Validate a path is within allowed directories.
 
@@ -243,7 +244,7 @@ class PathValidator:
             },
         )
 
-    def resolve_safe(self, path: str, client_id: str = None) -> Path | None:
+    def resolve_safe(self, path: str, client_id: str | None = None) -> Path | None:
         """
         Resolve path to absolute, returning None if invalid.
 
@@ -290,7 +291,7 @@ class URLValidator:
         self.connect_timeout = connect_timeout
         self.read_timeout = read_timeout
 
-    def validate(self, url: str, client_id: str = None) -> URLValidationResult:
+    def validate(self, url: str, client_id: str | None = None) -> URLValidationResult:
         """
         Validate URL is safe to fetch.
 
@@ -472,10 +473,8 @@ class RateLimiter:
         for tool_name in limits:
             env_var = f"MCP_RATE_LIMIT_{tool_name.upper()}"
             if env_var in os.environ:
-                try:
+                with contextlib.suppress(ValueError):
                     limits[tool_name] = int(os.environ[env_var])
-                except ValueError:
-                    pass
 
         return limits
 
@@ -546,7 +545,7 @@ class RateLimiter:
             self.record(client_id, tool_name)
         return result
 
-    def reset(self, client_id: str = None) -> None:
+    def reset(self, client_id: str | None = None) -> None:
         """Reset rate limit state (for testing)."""
         with self._lock:
             if client_id:

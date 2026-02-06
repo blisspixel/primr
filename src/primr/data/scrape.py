@@ -115,7 +115,7 @@ def is_valid_url_string(s: str) -> bool:
         return False
 
 
-def validate_url(url: str, base_url: str = None) -> str | None:
+def validate_url(url: str, base_url: str | None = None) -> str | None:
     """Validate and normalize a URL."""
     if not isinstance(url, str) or len(url) < 5:
         return None
@@ -793,7 +793,6 @@ def clear_cache(max_age_hours: float | None = None) -> None:
 def cleanup_browser():
     """Clean up browser resources."""
     # The new architecture handles cleanup automatically
-    pass
 
 
 # Register cleanup (no-op for now, new arch handles it)
@@ -828,25 +827,25 @@ def is_excluded_site(url: str) -> bool:
 # Re-export COMMON_PAGE_PATTERNS
 __all__ = [
     "COMMON_PAGE_PATTERNS",
-    "USER_AGENTS",
     "SOFT_BLOCK_INDICATORS",
-    "validate_url",
-    "is_valid_url_string",
-    "is_excluded_site",
+    "USER_AGENTS",
+    "cache_content",
+    "clear_cache",
     "detect_soft_block",
     "detect_waf_block",
     "extract_clean_text",
-    "get_cached_content",
-    "cache_content",
-    "clear_cache",
-    "scrape_page",
-    "fetch_web_content",
-    "fetch_sitemap_links",
-    "guess_common_urls",
-    "verify_urls_exist",
-    "extract_links_from_html",
     "extract_links_from_homepage",
+    "extract_links_from_html",
+    "fetch_sitemap_links",
+    "fetch_web_content",
+    "get_cached_content",
+    "guess_common_urls",
+    "is_excluded_site",
+    "is_valid_url_string",
     "normalize_url",
+    "scrape_page",
+    "validate_url",
+    "verify_urls_exist",
 ]
 
 

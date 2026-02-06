@@ -565,7 +565,7 @@ class KnowledgeGraph:
                 if next_id not in visited:
                     next_entity = self.get_entity(next_id)
                     if next_entity:
-                        queue.append((next_id, path + [(next_entity, rel)]))
+                        queue.append((next_id, [*path, (next_entity, rel)]))
 
         return []
 

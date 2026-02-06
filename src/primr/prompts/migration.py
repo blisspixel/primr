@@ -16,11 +16,10 @@ Components:
 from __future__ import annotations
 
 import shutil
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
@@ -30,6 +29,9 @@ from primr.prompts.validation import (
     SchemaVersion,
     SchemaVersionError,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 @dataclass
@@ -410,8 +412,8 @@ class MigrationTool:
 
 # Re-export for convenience
 __all__ = [
-    "MigrationStep",
-    "MigrationResult",
     "MigrationError",
+    "MigrationResult",
+    "MigrationStep",
     "MigrationTool",
 ]

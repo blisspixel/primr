@@ -66,7 +66,7 @@ class QAAssessmentLog:
 class QAMonitor:
     """Monitor QA system performance and collect metrics."""
 
-    def __init__(self, log_dir: Path = None):
+    def __init__(self, log_dir: Path | None = None):
         """Initialize QA monitor with logging directory."""
         self.log_dir = log_dir or Path("logs/qa")
         self.log_dir.mkdir(parents=True, exist_ok=True)

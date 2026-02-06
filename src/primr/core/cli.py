@@ -1281,7 +1281,7 @@ def _handle_research(config: CLIConfig) -> int:
     if config.context_folder:
         try:
             consolidated_file = consolidate_working_folder(config.context_folder)
-            context_files = [consolidated_file] + context_files
+            context_files = [consolidated_file, *context_files]
         except Exception as e:
             console.error(f"Failed to consolidate context folder: {e}")
             return 1

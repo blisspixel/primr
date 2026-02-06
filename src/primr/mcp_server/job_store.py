@@ -87,7 +87,7 @@ class ResearchJobState:
         ResearchStage.QA: 3,
     }, repr=False)
 
-    def heartbeat(self, progress: int = None) -> None:
+    def heartbeat(self, progress: int | None = None) -> None:
         """
         Update heartbeat timestamp and optionally progress.
 
@@ -264,7 +264,7 @@ class JobStore(ABC):
         self,
         company_name: str,
         mode: str,
-        owner_client_id: str = None,
+        owner_client_id: str | None = None,
     ) -> ResearchJobState:
         """
         Create a new job.
@@ -280,32 +280,26 @@ class JobStore(ABC):
         Raises:
             JobInProgressError: If a job is already in progress (single-job model)
         """
-        pass
 
     @abstractmethod
     def get(self, job_id: str) -> ResearchJobState | None:
         """Get job by ID."""
-        pass
 
     @abstractmethod
     def get_by_id(self, job_id: str) -> ResearchJobState | None:
         """Get job by ID (alias for get)."""
-        pass
 
     @abstractmethod
     def get_active(self) -> ResearchJobState | None:
         """Get currently active job, if any."""
-        pass
 
     @abstractmethod
     def get_latest_terminal(self) -> ResearchJobState | None:
         """Get most recent terminal job by completion_time."""
-        pass
 
     @abstractmethod
     def update(self, job: ResearchJobState) -> None:
         """Update job state."""
-        pass
 
     @abstractmethod
     def mark_shutdown(self) -> None:
@@ -314,7 +308,6 @@ class JobStore(ABC):
 
         Requirements: 20.2
         """
-        pass
 
     @abstractmethod
     async def wait_for_status_change(
@@ -334,7 +327,6 @@ class JobStore(ABC):
         Returns:
             Tuple of (changed, new_status). If changed is False, timeout occurred.
         """
-        pass
 
 
 class SingleJobStore(JobStore):
@@ -349,7 +341,7 @@ class SingleJobStore(JobStore):
 
     DEFAULT_JOURNAL_PATH = "output/.mcp_job_journal.json"
 
-    def __init__(self, journal_path: str = None):
+    def __init__(self, journal_path: str | None = None):
         self._job: ResearchJobState | None = None
         self._lock = Lock()
         self._journal_path = Path(journal_path or self.DEFAULT_JOURNAL_PATH)
@@ -392,7 +384,7 @@ class SingleJobStore(JobStore):
         self,
         company_name: str,
         mode: str,
-        owner_client_id: str = None,
+        owner_client_id: str | None = None,
     ) -> ResearchJobState:
         """
         Create a new job.
@@ -530,6 +522,6 @@ class SingleJobStore(JobStore):
             try:
                 await asyncio.wait_for(event.wait(), timeout=min(remaining, 5.0))
                 event.clear()  # Reset for next wait
-            except (TimeoutError, asyncio.TimeoutError):
+            except TimeoutError:
                 # Check again after timeout (handles both sync and async timeout errors)
                 pass

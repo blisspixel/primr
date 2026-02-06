@@ -230,13 +230,13 @@ class ConfigValidator:
 
 # Re-export ValidationError for convenience
 __all__ = [
-    "SchemaVersion",
     "CURRENT_SCHEMA_VERSION",
+    "ConfigValidator",
+    "PromptConfigModel",
+    "PromptMetaModel",
+    "SchemaVersion",
+    "SchemaVersionError",
     "SectionPosition",
     "SectionSpecModel",
-    "PromptMetaModel",
-    "PromptConfigModel",
-    "SchemaVersionError",
-    "ConfigValidator",
     "ValidationError",
 ]

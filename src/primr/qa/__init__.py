@@ -12,13 +12,13 @@ from .integration import QAIntegration
 from .models import ClassifiedIssue, IssueType, QAAnalysis, QAOptions, QAResult, Severity
 
 __all__ = [
-    "QAOptions",
-    "QAResult",
-    "QAAnalysis",
     "ClassifiedIssue",
     "IssueType",
-    "Severity",
-    "QAIntegration",
+    "QAAnalysis",
     "QAAnalyzer",
     "QACommand",
+    "QAIntegration",
+    "QAOptions",
+    "QAResult",
+    "Severity",
 ]

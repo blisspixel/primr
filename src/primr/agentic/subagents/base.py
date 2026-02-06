@@ -313,7 +313,6 @@ class Subagent(ABC, Generic[T]):
         Raises:
             SubagentError: If execution fails catastrophically
         """
-        pass
 
     @abstractmethod
     def get_required_tools(self) -> list[str]:
@@ -326,7 +325,6 @@ class Subagent(ABC, Generic[T]):
         Returns:
             List of MCP tool names (empty if using internal pipeline)
         """
-        pass
 
     def __repr__(self) -> str:
         return (

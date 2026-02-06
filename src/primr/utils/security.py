@@ -596,9 +596,7 @@ def validate_redirect_url(url: str, allowed_hosts: set[str] | None = None) -> bo
     # Relative URLs are always safe
     if not parsed.scheme and not parsed.netloc:
         # But check for protocol-relative URLs (//evil.com)
-        if url.startswith("//"):
-            return False
-        return True
+        return not url.startswith("//")
 
     # Check scheme
     if parsed.scheme.lower() not in ("http", "https"):

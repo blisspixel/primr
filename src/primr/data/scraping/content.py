@@ -5,6 +5,7 @@ Operates on raw bytes from tiers (not pre-parsed content).
 Uses BeautifulSoup for robust HTML parsing and reader-mode extraction.
 """
 
+import contextlib
 import re
 
 from bs4 import BeautifulSoup, NavigableString
@@ -338,10 +339,8 @@ def extract_main_content(raw_html: bytes) -> str:
 
     # Now remove them
     for element in to_remove:
-        try:
+        with contextlib.suppress(Exception):
             element.decompose()
-        except Exception:
-            pass
 
     # Try to find main content container
     main_content = None

@@ -5,6 +5,7 @@ Provides browser-based scraping tiers for sites that require JavaScript
 rendering or challenge solving.
 """
 
+import contextlib
 import logging
 import threading
 import time
@@ -65,7 +66,6 @@ class BrowserPool:
 
     def close_all(self) -> None:
         """No-op - pool is disabled."""
-        pass
 
 
 # Global browser pool (disabled)
@@ -161,17 +161,14 @@ class BrowserSession(ABC):
     @abstractmethod
     def navigate(self, url: str, timeout_ms: int = 30000) -> bool:
         """Navigate to URL. Returns True on success."""
-        pass
 
     @abstractmethod
     def wait_for_clearance(self, max_wait_seconds: int = 30) -> bool:
         """Wait for challenge to clear. Returns True if cleared."""
-        pass
 
     @abstractmethod
     def dismiss_consent(self) -> bool:
         """Try to dismiss cookie consent banner. Returns True if dismissed."""
-        pass
 
     @abstractmethod
     def expand_content(self, max_clicks: int = 20) -> int:
@@ -184,27 +181,22 @@ class BrowserSession(ABC):
         Returns:
             Number of successful expansions
         """
-        pass
 
     @abstractmethod
     def get_page_html(self) -> str:
         """Get current page HTML."""
-        pass
 
     @abstractmethod
     def get_cookies(self) -> dict:
         """Get cookies as dict."""
-        pass
 
     @abstractmethod
     def get_current_url(self) -> str:
         """Get current URL (after redirects)."""
-        pass
 
     @abstractmethod
     def close(self) -> None:
         """Close the browser session."""
-        pass
 
     def _is_safe_to_click(self, element_text: str) -> bool:
         """Check if element is safe to click."""
@@ -216,11 +208,7 @@ class BrowserSession(ABC):
                 return False
 
         # Check if matches expand pattern
-        for pattern in EXPAND_PATTERNS:
-            if pattern in text_lower:
-                return True
-
-        return False
+        return any(pattern in text_lower for pattern in EXPAND_PATTERNS)
 
     def _url_domain_unchanged(self, original_url: str, current_url: str) -> bool:
         """Check if we're still on the same domain."""
@@ -582,10 +570,8 @@ class DrissionPageSession(BrowserSession):
             # Apply stealth patches via CDP
             stealth_script = get_stealth_script()
             if stealth_script:
-                try:
+                with contextlib.suppress(Exception):
                     self._page.run_cdp("Page.addScriptToEvaluateOnNewDocument", source=stealth_script)
-                except Exception:
-                    pass
 
         except ImportError as e:
             raise ImportError("DrissionPage not installed") from e
@@ -1084,10 +1070,8 @@ def scrape_with_playwright_aggressive(
 
     finally:
         if session:
-            try:
+            with contextlib.suppress(Exception):
                 session.close()
-            except Exception:
-                pass
 
 
 def scrape_with_drissionpage(
@@ -1214,10 +1198,8 @@ def scrape_with_drissionpage(
 
     finally:
         if session:
-            try:
+            with contextlib.suppress(Exception):
                 session.close()
-            except Exception:
-                pass
 
 
 def scrape_with_drissionpage_stealth(
@@ -1389,10 +1371,8 @@ def scrape_with_drissionpage_stealth(
 
         finally:
             if session:
-                try:
+                with contextlib.suppress(Exception):
                     session.close()
-                except Exception:
-                    pass
 
     # Execute with HARD timeout using ThreadPoolExecutor
     # This ensures we don't wait forever if DrissionPage hangs

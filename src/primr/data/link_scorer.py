@@ -13,6 +13,7 @@ Usage:
     best_links = scorer.get_top_links(scored_links, limit=10)
 """
 
+import contextlib
 import re
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -294,10 +295,8 @@ class LinkScorer:
         """
         base_domain = None
         if base_url:
-            try:
+            with contextlib.suppress(Exception):
                 base_domain = urlparse(base_url).netloc.lower()
-            except Exception:
-                pass
 
         scored = []
         for link in links:

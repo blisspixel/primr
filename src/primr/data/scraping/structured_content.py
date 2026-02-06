@@ -45,6 +45,7 @@ Multi-pass Pipeline:
 5. Quality Scoring - Compute metrics and flags
 """
 
+import contextlib
 import re
 from collections import Counter
 from dataclasses import dataclass, field
@@ -370,10 +371,8 @@ def prune_dom(soup: BeautifulSoup) -> BeautifulSoup:
 
     # Now remove them
     for element in to_remove:
-        try:
+        with contextlib.suppress(Exception):
             element.decompose()
-        except Exception:
-            pass
 
     return soup
 
@@ -505,10 +504,7 @@ def is_cta_block(text: str, link_density: float = 0.0) -> bool:
         return True
 
     # Short text with very high link density
-    if len(text) < 50 and link_density > 0.8:
-        return True
-
-    return False
+    return bool(len(text) < 50 and link_density > 0.8)
 
 
 # =============================================================================

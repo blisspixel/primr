@@ -13,27 +13,22 @@ logger = logging.getLogger(__name__)
 
 class QAError(Exception):
     """Base exception for QA system errors."""
-    pass
 
 
 class QAModelError(QAError):
     """Error related to AI model access or configuration."""
-    pass
 
 
 class QAAnalysisError(QAError):
     """Error during QA analysis process."""
-    pass
 
 
 class QAFileError(QAError):
     """Error related to file operations in QA system."""
-    pass
 
 
 class QARateLimitError(QAError):
     """Error due to API rate limiting."""
-    pass
 
 
 class QARetryHandler:
@@ -153,7 +148,7 @@ class QAErrorHandler:
         if "timeout" in str(error).lower():
             return f"Request to model '{model_name}' timed out. Please try again."
 
-        return f"Model error with '{model_name}': {str(error)}"
+        return f"Model error with '{model_name}': {error!s}"
 
     @staticmethod
     def handle_file_error(error: Exception, file_path: str) -> str:
@@ -176,7 +171,7 @@ class QAErrorHandler:
         if "encoding" in str(error).lower():
             return f"File encoding error for: {file_path}. Please ensure the file is in UTF-8 format."
 
-        return f"File error with '{file_path}': {str(error)}"
+        return f"File error with '{file_path}': {error!s}"
 
     @staticmethod
     def handle_analysis_error(error: Exception, company_name: str) -> str:
@@ -196,7 +191,7 @@ class QAErrorHandler:
         if "timeout" in str(error).lower():
             return f"QA analysis timed out for {company_name}. Please try again."
 
-        return f"QA analysis failed for {company_name}: {str(error)}"
+        return f"QA analysis failed for {company_name}: {error!s}"
 
     @staticmethod
     def create_fallback_error_message(operation: str, error: Exception) -> str:
@@ -210,7 +205,7 @@ class QAErrorHandler:
         Returns:
             User-friendly error message
         """
-        return f"{operation} failed: {str(error)}. Please check your configuration and try again."
+        return f"{operation} failed: {error!s}. Please check your configuration and try again."
 
 
 def safe_qa_operation(operation_name: str = "QA operation"):
@@ -237,7 +232,7 @@ def safe_qa_operation(operation_name: str = "QA operation"):
             except Exception as e:
                 logger.error(f"{operation_name} - Unexpected error: {e}")
                 # Convert to QA-specific error
-                raise QAError(f"{operation_name} failed: {str(e)}") from e
+                raise QAError(f"{operation_name} failed: {e!s}") from e
 
         return wrapper
     return decorator

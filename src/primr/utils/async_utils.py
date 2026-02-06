@@ -29,10 +29,12 @@ from __future__ import annotations
 import asyncio
 import functools
 import logging
-from collections.abc import Awaitable, Callable
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
-from typing import ParamSpec, TypeVar
+from typing import TYPE_CHECKING, ParamSpec, TypeVar
+
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
 
 logger = logging.getLogger(__name__)
 
@@ -460,22 +462,22 @@ async def gather_with_concurrency(
 # =============================================================================
 
 __all__ = [
-    # Sync -> Async
-    "run_sync",
-    "run_sync_new_loop",
-    # Async -> Sync
-    "run_async",
-    "run_async_with_timeout",
+    "AsyncBridge",
+    # Configuration
+    "configure_executor",
     # Wrappers
     "ensure_async",
     "ensure_sync",
-    # Context managers
-    "sync_context",
-    "AsyncBridge",
+    "gather_with_concurrency",
     # Utilities
     "is_async_context",
-    "gather_with_concurrency",
-    # Configuration
-    "configure_executor",
+    # Async -> Sync
+    "run_async",
+    "run_async_with_timeout",
+    # Sync -> Async
+    "run_sync",
+    "run_sync_new_loop",
     "shutdown_executor",
+    # Context managers
+    "sync_context",
 ]

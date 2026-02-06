@@ -645,22 +645,22 @@ def export_schema() -> dict[str, Any]:
 # =============================================================================
 
 __all__ = [
+    "AIConfig",
+    # Config sections
+    "APIKeysConfig",
     # Error types
     "ConfigError",
     "ConfigValidationResult",
-    # Config sections
-    "APIKeysConfig",
-    "TimeoutsConfig",
-    "RetryConfig",
-    "ScrapingConfig",
-    "AIConfig",
     "PathsConfig",
     # Main config
     "PrimrConfig",
+    "RetryConfig",
+    "ScrapingConfig",
+    "TimeoutsConfig",
+    "export_schema",
     # Functions
     "load_config",
-    "validate_config",
     "require_valid_config",
     "reset_config",
-    "export_schema",
+    "validate_config",
 ]

@@ -233,7 +233,7 @@ class ScrapeOrchestrator:
             if best_tier_obj:
                 # Start with best tier, then fall back to others if needed
                 other_tiers = [t for t in self.tiers if t.name != host_state.best_tier]
-                tiers_to_try = [best_tier_obj] + other_tiers
+                tiers_to_try = [best_tier_obj, *other_tiers]
                 logger.debug(f"Starting with best_tier {host_state.best_tier} for {host}")
 
                 # Use shorter timeouts when we have a proven working tier
@@ -330,7 +330,7 @@ class ScrapeOrchestrator:
                 host_state.record_tier_attempt(tier.name, success=False)
 
                 # Track consecutive failures
-                if ErrorType.NETWORK_ERROR == last_error_type:
+                if last_error_type == ErrorType.NETWORK_ERROR:
                     consecutive_failures += 1
                 else:
                     consecutive_failures = 1

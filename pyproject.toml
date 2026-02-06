@@ -139,7 +139,12 @@ ignore = [
     "N802",   # Function name should be lowercase (intentional for color constants)
     "N806",   # Variable in function should be lowercase (intentional for constants)
     "SIM108", # Use ternary operator - sometimes less readable
+    "SIM102", # Nested ifs - sometimes more readable than combined condition
+    "SIM105", # contextlib.suppress - explicit try/except sometimes clearer
+    "SIM116", # dict instead of if-else - style preference
     "PT011",  # pytest.raises too broad - acceptable for some tests
+    "RUF001", # Ambiguous unicode - intentional in regex for real-world matching
+    "RUF012", # ClassVar for class attrs - verbose, doesn't affect correctness
 ]
 
 [tool.ruff.lint.isort]

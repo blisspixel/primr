@@ -23,7 +23,7 @@ import tempfile
 import threading
 import time
 from collections.abc import Generator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TypeVar
@@ -85,10 +85,8 @@ def managed_temp_file(
     finally:
         # Close file descriptor if still open
         if fd is not None:
-            try:
+            with suppress(OSError):
                 os.close(fd)
-            except OSError:
-                pass
 
         # Delete the file
         if path is not None and path.exists():

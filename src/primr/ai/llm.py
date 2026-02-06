@@ -111,7 +111,7 @@ def llm(prompt, model_type="fast", temperature=1.0, thinking_level="high", strea
             # Matches: per_day, per_model_per_day, PerDay, etc.
             is_quota_exhausted = (
                 "resource_exhausted" in error_str and
-                ("per_day" in error_str or "quota" in error_str and "exceeded" in error_str)
+                ("per_day" in error_str or ("quota" in error_str and "exceeded" in error_str))
             )
 
             if is_quota_exhausted:

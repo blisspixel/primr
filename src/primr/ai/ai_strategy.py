@@ -159,7 +159,6 @@ class AIStrategyAnalyzer:
 
     def __init__(self):
         """Initialize the AI Strategy Analyzer."""
-        pass
 
     def _extract_context_signals(self, context: str) -> dict[str, bool]:
         """

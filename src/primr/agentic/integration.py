@@ -19,12 +19,13 @@ Requirements: 8.2, 8.4, 8.5
 from __future__ import annotations
 
 import logging
-from collections.abc import AsyncGenerator, Generator
 from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator, Generator
+
     from primr.agentic.orchestrator import OrchestratorState
     from primr.agentic.subagents import SubagentResult
 
@@ -330,15 +331,12 @@ class _NullSpan:
 
     def set_attribute(self, key: str, value: Any) -> None:
         """No-op."""
-        pass
 
     def set_attributes(self, attributes: dict[str, Any]) -> None:
         """No-op."""
-        pass
 
     def add_event(self, name: str, attributes: dict[str, Any] | None = None) -> None:
         """No-op."""
-        pass
 
 
 # =============================================================================
@@ -561,8 +559,8 @@ class AgenticIntegration:
 # =============================================================================
 
 __all__ = [
+    "AgenticIntegration",
+    "CircuitBreakerIntegration",
     "OrchestratorStateMachineAdapter",
     "TelemetryIntegration",
-    "CircuitBreakerIntegration",
-    "AgenticIntegration",
 ]

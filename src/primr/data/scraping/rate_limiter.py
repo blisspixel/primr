@@ -184,16 +184,12 @@ class NoOpRateLimiter:
 
     def acquire(self, host: str) -> None:
         """No-op acquire."""
-        pass
 
     def release(self, host: str) -> None:
         """No-op release."""
-        pass
 
     def backoff(self, host: str) -> None:
         """No-op backoff."""
-        pass
 
     def reset_backoff(self, host: str) -> None:
         """No-op reset."""
-        pass

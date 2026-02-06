@@ -8,6 +8,7 @@ Requirements: 15.2, 19.1-19.4
 """
 
 import asyncio
+import contextlib
 import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING
@@ -112,10 +113,8 @@ class PipelineRunner:
                 )
             finally:
                 heartbeat_task.cancel()
-                try:
+                with contextlib.suppress(asyncio.CancelledError):
                     await heartbeat_task
-                except asyncio.CancelledError:
-                    pass
 
             if not result.success:
                 job.advance_stage(ResearchStage.FAILED)

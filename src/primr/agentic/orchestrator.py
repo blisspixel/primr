@@ -468,12 +468,12 @@ class ResearchOrchestrator:
         # Ask user if interactive and pause_on_error is enabled
         if self._config.pause_on_error and self._config.enable_interactive:
             try:
-                response = await self._request_user_input(
+                user_choice = await self._request_user_input(
                     prompt=f"Error in {stage_name}: {error}\n\nHow should we proceed?",
                     options=["retry", "skip", "abort"],
                     context=f"Retry attempt: {retry_count}/{self._config.max_retries}",
                 )
-                return response.lower().strip()
+                return user_choice.lower().strip()
             except Exception as e:
                 logger.warning(f"User input failed during error recovery: {e}")
 
@@ -718,7 +718,7 @@ class ResearchOrchestrator:
                 state=self._state,
                 hypotheses=all_hypotheses,
                 stage_results=stage_results,
-                errors=errors + [str(e)],
+                errors=[*errors, str(e)],
                 started_at=started_at,
                 completed_at=datetime.now(),
                 duration_seconds=duration,

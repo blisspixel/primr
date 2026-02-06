@@ -28,14 +28,14 @@ def __getattr__(name: str):
 
 
 __all__ = [
+    "__version__",
     "ai",
     "api",
     "config",
     "core",
     "data",
     "output",
-    "utils",
-    "types",
     "perform_research",
-    "__version__",
+    "types",
+    "utils",
 ]

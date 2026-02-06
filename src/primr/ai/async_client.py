@@ -177,7 +177,7 @@ class AsyncAIClient:
                     # Check for quota exhaustion (daily limit hit) - STOP IMMEDIATELY
                     is_quota_exhausted = (
                         "resource_exhausted" in error_str and
-                        ("per_day" in error_str or "quota" in error_str and "exceeded" in error_str)
+                        ("per_day" in error_str or ("quota" in error_str and "exceeded" in error_str))
                     )
 
                     if is_quota_exhausted:

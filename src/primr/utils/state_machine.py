@@ -20,12 +20,14 @@ Components:
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 # =============================================================================
 # EXCEPTIONS
@@ -184,15 +186,12 @@ class StateMachine:
             return False
 
         transition = self._transitions[key]
-        if transition.guard and not transition.guard(**context):
-            return False
-
-        return True
+        return not (transition.guard and not transition.guard(**context))
 
     def get_available_triggers(self) -> list[str]:
         """Get list of valid triggers from current state."""
         return [
-            trigger for (state, trigger) in self._transitions.keys()
+            trigger for (state, trigger) in self._transitions
             if state == self._state
         ]
 
@@ -230,14 +229,13 @@ class StateMachine:
         new_state = transition.to_state
 
         # Check invariant for new state
-        if new_state in self._invariants:
-            if not self._invariants[new_state](**context):
-                raise InvalidTransitionError(
-                    old_state,
-                    new_state,
-                    trigger,
-                    f"Invariant failed for state {new_state.value}",
-                )
+        if new_state in self._invariants and not self._invariants[new_state](**context):
+            raise InvalidTransitionError(
+                old_state,
+                new_state,
+                trigger,
+                f"Invariant failed for state {new_state.value}",
+            )
 
         # Perform transition
         self._state = new_state
@@ -508,20 +506,20 @@ def create_job_state_machine(job_id: str) -> JobStateMachine:
 # =============================================================================
 
 __all__ = [
+    "JOB_TRANSITIONS",
+    "TIER_TRANSITIONS",
     # Exceptions
     "InvalidTransitionError",
-    # Data classes
-    "Transition",
+    # Job lifecycle
+    "JobState",
+    "JobStateMachine",
     "StateChangeEvent",
     # Generic state machine
     "StateMachine",
     # Tier escalation
     "TierState",
-    "TIER_TRANSITIONS",
-    "create_tier_state_machine",
-    # Job lifecycle
-    "JobState",
-    "JOB_TRANSITIONS",
-    "JobStateMachine",
+    # Data classes
+    "Transition",
     "create_job_state_machine",
+    "create_tier_state_machine",
 ]

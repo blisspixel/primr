@@ -512,9 +512,7 @@ class FactValidator:
     def _create_conflict(self, fact1: Fact, fact2: Fact) -> FactConflict:
         """Create a conflict between two facts."""
         # Determine severity based on fact type and difference
-        if fact1.fact_type in (FactType.CEO, FactType.REVENUE, FactType.EMPLOYEE_COUNT):
-            severity = "major"
-        elif fact1.fact_type in (FactType.FOUNDING_DATE, FactType.HEADQUARTERS):
+        if fact1.fact_type in (FactType.CEO, FactType.REVENUE, FactType.EMPLOYEE_COUNT) or fact1.fact_type in (FactType.FOUNDING_DATE, FactType.HEADQUARTERS):
             severity = "major"
         else:
             severity = "minor"

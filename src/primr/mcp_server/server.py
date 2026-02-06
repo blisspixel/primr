@@ -8,6 +8,7 @@ Requirements: 1.1-1.10, 15.1-15.5, 16.1-16.10, 20.1-20.5
 """
 
 import asyncio
+import contextlib
 import logging
 import signal
 import sys
@@ -42,7 +43,7 @@ class PrimrMCPServer:
         port: int = 8000,
         host: str = "127.0.0.1",
         log_level: str = "INFO",
-        journal_path: str = None,
+        journal_path: str | None = None,
         allow_plaintext: bool = False,
         require_auth: bool = True,
     ):
@@ -206,10 +207,8 @@ class PrimrMCPServer:
             # Cancel pending tasks
             for task in pending:
                 task.cancel()
-                try:
+                with contextlib.suppress(asyncio.CancelledError):
                     await task
-                except asyncio.CancelledError:
-                    pass
 
             # Perform graceful shutdown
             await self._graceful_shutdown()
@@ -305,7 +304,7 @@ def create_mcp_server(
     port: int = 8000,
     host: str = "127.0.0.1",
     log_level: str = "INFO",
-    journal_path: str = None,
+    journal_path: str | None = None,
     allow_plaintext: bool = False,
     require_auth: bool = True,
     skip_background_tasks: bool = False,

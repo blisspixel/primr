@@ -235,10 +235,7 @@ def is_in_scope(url: str, target_url: str) -> bool:
 
     # Subdomain match: url_host ends with .target_host
     # e.g., docs.company.com ends with .company.com
-    if url_host.endswith("." + target_host):
-        return True
-
-    return False
+    return bool(url_host.endswith("." + target_host))
 
 
 def normalize_url_for_request(url: str) -> str:
