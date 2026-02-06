@@ -1,6 +1,14 @@
 ---
 name: hypothesis-tracking
+version: "1.0.0"
 description: "Track and manage research hypotheses with confidence levels. Use when the user asks about prior research, wants to validate claims, or queries what is known about a company."
+
+tools:
+  - get_hypotheses
+  - save_hypothesis
+
+resources:
+  - references/confidence-levels.md
 
 metadata:
   openclaw:

@@ -1,6 +1,15 @@
 ---
 name: scrape-strategy
+version: "1.0.0"
 description: "Web scraping strategy and troubleshooting. Use when scraping fails, site protection is encountered, or the user asks about scraping tier behavior."
+
+tools:
+  - estimate_run
+  - research_company
+  - check_jobs
+
+resources:
+  - references/tiers.md
 
 metadata:
   openclaw:
