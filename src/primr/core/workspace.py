@@ -16,10 +16,10 @@ Usage:
     )
 
     # Create a working folder
-    folder = create_working_folder("Tesla", "https://tesla.com")
+    folder = create_working_folder("Acme Corp", "https://acme.example")
 
     # Save section content
-    save_section_output(folder, "industry", "Electric vehicles and clean energy")
+    save_section_output(folder, "industry", "Industrial products and manufacturing")
 
     # Consolidate for context
     context_file = consolidate_working_folder(folder)

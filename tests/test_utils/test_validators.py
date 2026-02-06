@@ -135,13 +135,13 @@ class TestValidateCompanyName:
     
     def test_accepts_valid_name(self):
         """Should accept valid company name."""
-        result = validate_company_name("Tesla, Inc.")
-        assert result == "Tesla, Inc."
-    
+        result = validate_company_name("Acme Corp, Inc.")
+        assert result == "Acme Corp, Inc."
+
     def test_strips_whitespace(self):
         """Should strip leading/trailing whitespace."""
-        result = validate_company_name("  Tesla  ")
-        assert result == "Tesla"
+        result = validate_company_name("  Acme Corp  ")
+        assert result == "Acme Corp"
     
     def test_rejects_empty_name(self):
         """Should reject empty name."""

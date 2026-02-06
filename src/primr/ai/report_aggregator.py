@@ -61,7 +61,7 @@ class ReportAggregator:
 
     Example:
         aggregator = ReportAggregator()
-        report = await aggregator.aggregate(chapter_results, "Tesla")
+        report = await aggregator.aggregate(chapter_results, "Acme Corp")
         print(report.to_markdown())
     """
 

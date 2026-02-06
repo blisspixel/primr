@@ -746,10 +746,10 @@ class TestFilePersistenceProperties:
         
         # Test with company names that need file system normalization
         test_companies = [
-            "AT&T Corporation",
-            "Johnson & Johnson", 
-            "Procter & Gamble",
-            "Ben & Jerry's"
+            "Acme & Associates",
+            "Stark & Banner",
+            "Wayne & Kent",
+            "Wonka's Treats"
         ]
         
         analysis = QAAnalysis(
@@ -896,8 +896,8 @@ class TestDefaultQAIntegrationProperties:
     """Property-based tests for default QA integration."""
     
     @given(st.sampled_from([
-        "Bank of Hawaii", "Tesla Inc", "Microsoft Corporation", "Apple Inc",
-        "Amazon Web Services", "Google LLC", "Meta Platforms", "Walmart Inc"
+        "Acme Corp", "Globex Industries", "Initech Solutions", "Umbrella Holdings",
+        "Soylent Labs", "Wonka Enterprises", "Stark Solutions", "Weyland Group"
     ]))
     @settings(suppress_health_check=[HealthCheck.too_slow], max_examples=5, deadline=None)
     def test_default_qa_execution_property(self, company_name: str):
@@ -1019,7 +1019,7 @@ class TestWorkspaceIntegrationProperties:
     """Property-based tests for workspace integration."""
     
     @given(st.sampled_from([
-        "Bank of Hawaii", "Tesla Inc", "Microsoft Corporation", "Apple Inc"
+        "Acme Corp", "Globex Industries", "Initech Solutions", "Umbrella Holdings"
     ]))
     @settings(suppress_health_check=[HealthCheck.too_slow], max_examples=3, deadline=None)
     def test_workspace_integration_property(self, company_name: str):
@@ -1309,7 +1309,7 @@ class TestErrorRecoveryProperties:
     """Property-based tests for error recovery."""
     
     @given(st.sampled_from([
-        "Bank of Hawaii", "Tesla Inc", "Microsoft Corporation", "Apple Inc"
+        "Acme Corp", "Globex Industries", "Initech Solutions", "Umbrella Holdings"
     ]))
     @settings(suppress_health_check=[HealthCheck.too_slow], max_examples=3, deadline=None)
     def test_error_recovery_property(self, company_name: str):

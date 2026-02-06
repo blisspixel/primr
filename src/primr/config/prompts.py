@@ -10,7 +10,7 @@ Usage:
     from primr.config.prompts import generate_prompt, list_prompts
 
     # Generate a prompt with variables
-    prompt = generate_prompt("industry", company_name="Tesla", company_website="tesla.com")
+    prompt = generate_prompt("industry", company_name="Acme Corp", company_website="acme.example")
 
     # List available prompts
     available = list_prompts()

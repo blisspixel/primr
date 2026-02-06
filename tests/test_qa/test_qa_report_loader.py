@@ -23,10 +23,10 @@ class TestReportLoader:
         company_name=st.one_of(
             # Realistic company names
             st.sampled_from([
-                "Bank of Hawaii", "Tesla Inc", "Microsoft Corporation", "Apple Inc",
-                "Amazon Web Services", "Google LLC", "Meta Platforms", "Netflix Inc",
-                "Salesforce Inc", "Oracle Corporation", "IBM Corporation", "Intel Corp",
-                "NVIDIA Corporation", "Adobe Systems", "Cisco Systems", "VMware Inc"
+                "Acme Corp", "Globex Industries", "Initech Solutions", "Umbrella Holdings",
+                "Soylent Labs", "Wonka Enterprises", "Stark Solutions", "Weyland Group",
+                "Cyberdyne Systems", "Oscorp Research", "Tyrell Corp", "Massive Dynamic",
+                "Abstergo Industries", "Vought International", "LexCorp Holdings", "Dharma Initiative"
             ]),
             # Simple generated names
             st.text(min_size=5, max_size=25, alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz ').filter(
@@ -74,7 +74,7 @@ class TestReportLoader:
             assert result is not None
             assert isinstance(result, ReportContent)
             # Note: The system normalizes company names for file system compatibility
-            # Spaces become underscores, so "Bank of Hawaii" becomes "Bank_of_Hawaii"
+            # Spaces become underscores, so "Acme Corp" becomes "Acme_Corp"
             # This is expected behavior
             expected_name = clean_company_name.replace('_', ' ')
             assert result.company_name == expected_name or result.company_name == clean_company_name
@@ -84,8 +84,8 @@ class TestReportLoader:
     @given(
         company_names=st.lists(
             st.sampled_from([
-                "Bank of Hawaii", "Tesla Inc", "Microsoft Corporation", "Apple Inc",
-                "Amazon Web Services", "Google LLC", "Meta Platforms", "Netflix Inc"
+                "Acme Corp", "Globex Industries", "Initech Solutions", "Umbrella Holdings",
+                "Soylent Labs", "Wonka Enterprises", "Stark Solutions", "Weyland Group"
             ]),
             min_size=1,
             max_size=3
@@ -204,8 +204,8 @@ class TestReportLoader:
     
     @given(
         company_name=st.sampled_from([
-            "Bank of Hawaii", "Tesla Inc", "Microsoft Corporation", "Apple Inc",
-            "Amazon Web Services", "Google LLC", "Meta Platforms", "Netflix Inc"
+            "Acme Corp", "Globex Industries", "Initech Solutions", "Umbrella Holdings",
+            "Soylent Labs", "Wonka Enterprises", "Stark Solutions", "Weyland Group"
         ])
     )
     @settings(suppress_health_check=[HealthCheck.too_slow], max_examples=10, deadline=None)

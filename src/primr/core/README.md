@@ -18,8 +18,8 @@ from primr.core.research_orchestrator import (
 
 orchestrator = ResearchOrchestrator()
 result = await orchestrator.research(
-    "Tesla",
-    "https://tesla.com",
+    "Acme Corp",
+    "https://acme.example",
     mode=ResearchMode.COMPLETE
 )
 ```
@@ -40,10 +40,10 @@ The main research pipeline for Scrape Mode:
 from primr.core.research_agent import run_research, perform_research
 
 # Synchronous API
-sections = run_research("Tesla", "https://tesla.com")
+sections = run_research("Acme Corp", "https://acme.example")
 
 # CLI entry point
-perform_research("Tesla", "https://tesla.com", mode="full")
+perform_research("Acme Corp", "https://acme.example", mode="full")
 ```
 
 ### Report Models (`report_models.py`)
@@ -90,8 +90,8 @@ def on_progress(message: str):
     print(f"Progress: {message}")
 
 result = await orchestrator.research(
-    "Tesla",
-    "https://tesla.com",
+    "Acme Corp",
+    "https://acme.example",
     on_progress=on_progress
 )
 ```
@@ -125,7 +125,7 @@ self._emit_research_metrics(
 The CLI is defined in `research_agent.py`:
 
 ```bash
-primr "Tesla" https://tesla.com --mode full
+primr "Acme Corp" https://acme.example --mode full
 primr doctor
 primr --check-jobs
 ```

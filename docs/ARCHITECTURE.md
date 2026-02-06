@@ -243,8 +243,8 @@ The central coordinator that routes research requests to the appropriate engine 
 ```python
 orchestrator = ResearchOrchestrator()
 result = await orchestrator.research(
-    "Tesla",
-    "https://tesla.com",
+    "Acme Corp",
+    "https://acme.example",
     mode=ResearchMode.COMPLETE
 )
 ```
@@ -258,7 +258,7 @@ The `src/primr/core/` directory contains the research orchestration logic, decom
 | `research_agent.py` | Main entry point with backward-compatible re-exports |
 | `workspace.py` | Working folder creation, file consolidation, section output |
 | `structured_research.py` | Website scraping pipeline, section-by-section analysis |
-| `vendor_research.py` | Cloud vendor AI capabilities research (AWS, Azure, GCP) |
+| `vendor_research.py` | Cloud vendor AI capabilities research (major providers) |
 | `ai_strategy.py` | AI strategy generation with cloud vendor context |
 | `deep_research_runner.py` | Deep Research execution with preflight validation |
 | `cli.py` | Command-line interface, argument parsing, utility commands |
@@ -365,9 +365,9 @@ Key features:
 ```python
 client = DeepResearchClient()
 result = await client.research(
-    "Research Tesla's competitive position",
+    "Research Acme Corp's competitive position",
     output_format="company_profile",
-    priority_urls=["https://tesla.com"]
+    priority_urls=["https://acme.example"]
 )
 ```
 

@@ -106,7 +106,7 @@ class ResearchNodeExecutor:
             file_search_store="stores/abc123",
             max_concurrent=3
         )
-        results = await executor.execute_all(chapters, "Tesla")
+        results = await executor.execute_all(chapters, "Acme Corp")
     """
 
     # Import centralized model config
