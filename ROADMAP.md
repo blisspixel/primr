@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.7.0 (February 2026)
+Current State: v1.11.0 (February 2026)
 
 Primr is a CLI-first, local research tool for company intelligence and strategic analysis. It aims to accelerate research workflows while being transparent about uncertainty.
 
@@ -344,7 +344,7 @@ Goal: Make Primr the system of record for how thinking evolves.
 Goal: Make Primr available to the broader community via PyPI.
 
 **Prerequisites:**
-- ✅ v1.8.1 Content Sanitization Layer (complete - security requirement satisfied)
+- v1.8.1 Content Sanitization Layer (complete - security requirement satisfied)
 
 **Scope:**
 - PyPI publication (`pip install primr`)
@@ -364,6 +364,14 @@ Primr now supports serverless cloud deployment for organizational adoption:
 - **Governance**: Centralized secrets management, audit logging, manifest trail
 
 See [docs/CLOUD_DEPLOYMENT.md](docs/CLOUD_DEPLOYMENT.md) for deployment guide.
+
+## TODO: README Assets
+
+These require running the tool and capturing output manually:
+
+- [ ] Record a terminal GIF of a real research run (asciinema or vhs) for the top of the README
+- [ ] Screenshot a DOCX report to show the formatted output
+- [ ] Update `docs/images/primr-demo.png` with a current screenshot (existing one is from an older version)
 
 ## Explicitly Deferred (By Design)
 

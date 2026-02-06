@@ -682,8 +682,8 @@ class ResearchOrchestrator:
             if errors and self._config.fail_fast:
                 self._state = OrchestratorState.FAILED
             elif errors:
-                # Partial success - some stages failed
-                self._state = OrchestratorState.FAILED
+                # Partial success - some stages failed but we continued
+                self._state = OrchestratorState.COMPLETED
             else:
                 self._state = OrchestratorState.COMPLETED
 

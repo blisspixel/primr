@@ -58,7 +58,12 @@ _search_engine_id: str | None = os.getenv("SEARCH_ENGINE_ID")
 
 
 class ConfigurationError(Exception):
-    """Raised when required configuration is missing or invalid."""
+    """Raised when required configuration is missing or invalid.
+
+    Note: This is a separate class from primr.utils.errors.ConfigurationError
+    due to circular import constraints (config <- utils <- config). Code that
+    catches ConfigurationError should import from whichever module raised it.
+    """
 
     def __init__(self, message: str, guidance: str | None = None):
         super().__init__(message)

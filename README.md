@@ -57,7 +57,58 @@ primr "Company" https://company.com --mode deep     # External research only
 primr "Company" https://company.com --dry-run       # Cost estimate first
 ```
 
-<!-- TODO: Add sample output screenshot here -->
+### What a run looks like
+
+```
+▸ PHASE 1 · Data Collection
+  Website scraping + external sources
+
+  Scraping 23/47 /about/leadership (15s)
+
+✓ Data Collection
+  Pages scraped: 47
+  External sources: 12
+
+▸ PHASE 2 · Analysis
+  Processing and synthesizing content
+
+✓ Analysis
+
+▸ PHASE 3 · Deep Research
+  Gemini Deep Research running autonomously
+
+✓ Deep Research
+
+▸ PHASE 4 · Report Generation
+  Building report sections
+
+  Generating 8/10 Competitive Landscape (12s)
+
+✓ Report Generation
+  Sections: 10
+
+✓ Complete in 34m 12s
+
+✓ Report ready
+  output/Meridian_Strategic_Overview_01-28-2026.docx
+
+Quality: Overview 91
+Cost: $1.45
+```
+
+### What the output looks like
+
+From the executive summary of a sample report:
+
+> Meridian Health Systems is a mid-market healthcare IT vendor ($180-220M ARR, estimated) that sells EHR integration middleware to regional hospital networks. The company occupies a defensible but narrowing niche: connecting legacy Epic and Cerner installations to newer cloud-native clinical tools.
+>
+> **Key insights:**
+>
+> - Meridian's customer concentration is high. Cross-referencing case studies, press releases, and conference presentations, roughly 40% of referenced deployments involve just 3 health systems. Loss of any one would be material. *[Confidence: Inferred]*
+> - The company has no disclosed AI strategy, but 4 of their last 7 engineering hires have ML/NLP backgrounds. Combined with a patent filing for "automated clinical document classification," this suggests an unannounced product line. *[Confidence: Inferred]*
+> - Pricing has shifted from perpetual licenses to consumption-based billing (per-API-call), visible in public procurement portal RFP responses. *[Confidence: Reported]*
+
+Reports include 10 structured chapters, SWOT analysis, competitive landscape, discovery questions, and inline confidence levels on every non-obvious claim. Full sample: [docs/examples/sample-brief.md](docs/examples/sample-brief.md)
 
 ## Under the Hood
 
