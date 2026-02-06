@@ -14,7 +14,6 @@ __author__ = "Nick Seal"
 
 # Import subpackages - these must be real imports for submodule access to work
 # (e.g., from primr.output.something import ...)
-# type:ignore needed because mypy doesn't recognize all subpackages
 from . import agentic, ai, config, core, data, output, types, utils  # type: ignore[attr-defined]
 
 
