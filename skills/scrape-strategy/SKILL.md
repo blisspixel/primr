@@ -9,7 +9,7 @@ tools:
   - check_jobs
 
 resources:
-  - references/tiers.md
+  - file://references/tiers
 
 metadata:
   openclaw:
