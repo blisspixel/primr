@@ -192,16 +192,21 @@ class PathValidator:
                             error_message="Path contains symlinks",
                         )
 
-                    # Check for system directories
-                    resolved_str = str(resolved)
-                    for sys_dir in SYSTEM_DIRECTORIES:
-                        if resolved_str.startswith(sys_dir):
-                            self._log_rejection(client_id, path, "system_directory")
-                            return PathValidationResult(
-                                valid=False,
-                                error_type="path_traversal_blocked",
-                                error_message="Path resolves to system directory",
-                            )
+                    # Check for system directories - but skip this check if the allowed root
+                    # itself is under a system directory (administrator explicitly configured it)
+                    root_str = str(root)
+                    root_is_in_system_dir = any(root_str.startswith(sys_dir) for sys_dir in SYSTEM_DIRECTORIES)
+
+                    if not root_is_in_system_dir:
+                        resolved_str = str(resolved)
+                        for sys_dir in SYSTEM_DIRECTORIES:
+                            if resolved_str.startswith(sys_dir):
+                                self._log_rejection(client_id, path, "system_directory")
+                                return PathValidationResult(
+                                    valid=False,
+                                    error_type="path_traversal_blocked",
+                                    error_message="Path resolves to system directory",
+                                )
 
                     return PathValidationResult(valid=True, resolved_path=resolved)
                 except ValueError:
