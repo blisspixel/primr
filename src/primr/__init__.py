@@ -14,7 +14,7 @@ __author__ = "Nick Seal"
 
 # Import core subpackages (api is lazy-loaded since it requires fastapi)
 # Use relative imports for mypy compatibility
-from . import ai, config, core, data, output, types, utils
+from . import ai, config, core, data, output, types, utils  # type: ignore[attr-defined]
 
 # Main entry point
 from .core.research_agent import perform_research
