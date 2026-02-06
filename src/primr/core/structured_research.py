@@ -10,7 +10,7 @@ Usage:
     from primr.core.structured_research import run_research, research_section
 
     # Run full structured research
-    results = run_research("Tesla", "https://tesla.com")
+    results = run_research("Acme Corp", "https://acme.example")
 
     # Research a single section
     content = research_section("Industry", context)

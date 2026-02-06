@@ -404,22 +404,22 @@ class TestTableParsing:
         """Parser correctly identifies a simple markdown table."""
         content = """| Company | Revenue | Growth |
 |---------|---------|--------|
-| Tesla | $81B | 15% |
-| Ford | $158B | 5% |"""
-        
+| Acme Corp | $81B | 15% |
+| Globex Inc | $158B | 5% |"""
+
         parser = MarkdownParser()
         blocks = parser.parse_content(content)
-        
+
         # Should have one table block
         table_blocks = [b for b in blocks if b.type == 'table']
         assert len(table_blocks) == 1, f"Expected 1 table block, got {len(table_blocks)}"
-        
+
         # Parse the table data
         table_data = parser.parse_table_block(table_blocks[0])
         assert table_data['headers'] == ['Company', 'Revenue', 'Growth']
         assert len(table_data['rows']) == 2
-        assert table_data['rows'][0] == ['Tesla', '$81B', '15%']
-        assert table_data['rows'][1] == ['Ford', '$158B', '5%']
+        assert table_data['rows'][0] == ['Acme Corp', '$81B', '15%']
+        assert table_data['rows'][1] == ['Globex Inc', '$158B', '5%']
 
     def test_table_row_detection(self):
         """Individual table rows are correctly detected."""
@@ -435,9 +435,9 @@ class TestTableParsing:
         assert result.type == 'table_separator'
         
         # Data row
-        result = parser.parse_line("| Tesla | $81B |")
+        result = parser.parse_line("| Acme Corp | $81B |")
         assert result.type == 'table_row'
-        assert result.metadata['cells'] == ['Tesla', '$81B']
+        assert result.metadata['cells'] == ['Acme Corp', '$81B']
 
     def test_table_with_alignment_markers(self):
         """Tables with alignment markers (:--, :--:, --:) are parsed correctly."""
@@ -463,12 +463,12 @@ Here is the comparison:
 
 | Company | Market Share |
 |---------|-------------|
-| Apple | 25% |
-| Samsung | 20% |
+| Acme Corp | 25% |
+| Globex Inc | 20% |
 
 Key takeaways:
-- Apple leads the market
-- Samsung is close behind"""
+- Acme Corp leads the market
+- Globex Inc is close behind"""
         
         parser = MarkdownParser()
         blocks = parser.parse_content(content)

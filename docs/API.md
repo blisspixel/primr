@@ -17,8 +17,8 @@ from primr.core.research_orchestrator import ResearchOrchestrator, ResearchMode
 async def main():
     orchestrator = ResearchOrchestrator()
     result = await orchestrator.research(
-        "Tesla",
-        "https://tesla.com",
+        "Acme Corp",
+        "https://acme.example",
         mode=ResearchMode.COMPLETE
     )
     
@@ -89,8 +89,8 @@ def on_progress(message: str):
     print(f"Progress: {message}")
 
 result = await orchestrator.research(
-    "Tesla",
-    "https://tesla.com",
+    "Acme Corp",
+    "https://acme.example",
     mode=ResearchMode.COMPLETE,
     on_progress=on_progress
 )
@@ -147,7 +147,7 @@ class OrchestratorResult:
 **Accessing results:**
 
 ```python
-result = await orchestrator.research("Tesla", "https://tesla.com")
+result = await orchestrator.research("Acme Corp", "https://acme.example")
 
 if result.success:
     # Access individual sections
@@ -186,11 +186,11 @@ from primr.core.workspace import (
 
 ```python
 # Create a working folder for research
-folder = create_working_folder("Tesla")
+folder = create_working_folder("Acme Corp")
 print(f"Working folder: {folder}")
 
 # Save section output
-save_section_output(folder, "company_overview", "Tesla is an electric vehicle company...")
+save_section_output(folder, "company_overview", "Acme Corp is a technology company...")
 
 # Consolidate all sections into a single file
 result = consolidate_working_folder(folder)
@@ -213,9 +213,9 @@ from primr.core.ai_strategy import (
 ```python
 # Generate AI strategy for a company
 config = AIStrategyConfig(
-    company_name="Tesla",
+    company_name="Acme Corp",
     cloud_vendor=CloudVendor.AWS,
-    working_folder=Path("working/Tesla"),
+    working_folder=Path("working/Acme Corp"),
 )
 
 result = generate_ai_strategy_sync(config)
@@ -251,8 +251,8 @@ from primr.core.deep_research_runner import (
 preflight = validate_preflight()
 if preflight.status == PreflightStatus.READY:
     config = DeepResearchConfig(
-        company_name="Tesla",
-        prompt="Research Tesla's competitive position",
+        company_name="Acme Corp",
+        prompt="Research Acme Corp's competitive position in the market",
         mode=DeepResearchMode.STANDARD,
     )
     result = await perform_deep_research(config)
@@ -280,7 +280,7 @@ from primr.core.cli import (
 success = run_doctor()
 
 # Parse CLI arguments
-config = parse_args(["Tesla", "https://tesla.com", "--mode", "deep"])
+config = parse_args(["Acme Corp", "https://acme.example", "--mode", "deep"])
 print(f"Company: {config.company_name}")
 print(f"Mode: {config.mode}")
 ```
@@ -423,7 +423,7 @@ from primr.ai import DeepResearchClient, ResearchResult, ResearchProgress
 ```python
 client = DeepResearchClient()
 result = await client.research(
-    "Research Tesla's competitive position in the EV market"
+    "Research Acme Corp's competitive position in the market"
 )
 
 print(result.content)
@@ -441,7 +441,7 @@ def on_progress(progress: ResearchProgress):
         print(f"Thinking: {progress.thought}")
 
 result = await client.research(
-    "Research Tesla",
+    "Research Acme Corp",
     on_progress=on_progress
 )
 ```
@@ -451,19 +451,19 @@ result = await client.research(
 ```python
 # Company profile format
 result = await client.research(
-    "Research Tesla",
+    "Research Acme Corp",
     output_format="company_profile"
 )
 
 # Executive summary format
 result = await client.research(
-    "Research Tesla",
+    "Research Acme Corp",
     output_format="executive_summary"
 )
 
 # Competitive analysis format
 result = await client.research(
-    "Research Tesla",
+    "Research Acme Corp",
     output_format="competitive_analysis"
 )
 ```
@@ -472,8 +472,8 @@ result = await client.research(
 
 ```python
 result = await client.research(
-    "Research Tesla",
-    priority_urls=["https://tesla.com", "https://ir.tesla.com"]
+    "Research Acme Corp",
+    priority_urls=["https://acme.example", "https://ir.acme.example"]
 )
 ```
 
@@ -505,7 +505,7 @@ for job_id, info in jobs.items():
 save_pending_job(
     interaction_id="v1_abc123...",
     job_type="ai_strategy",
-    description="AI Strategy for Tesla"
+    description="AI Strategy for Acme Corp"
 )
 
 # Remove a completed job from tracking
@@ -607,7 +607,7 @@ builder = DocumentBuilder()
 # Build DOCX from sections
 doc_path = builder.build_docx(
     sections=result.section_results,
-    company_name="Tesla",
+    company_name="Acme Corp",
     output_dir=Path("output")
 )
 
@@ -762,7 +762,7 @@ result = safe_call(risky_function, default_value="fallback")
 ```python
 from primr.utils.errors import error_context
 
-with error_context("fetching company data", company="Tesla"):
+with error_context("fetching company data", company="Acme Corp"):
     # Operations here will have context in error messages
     data = fetch_data()
 ```
@@ -806,7 +806,7 @@ from primr.utils.observability import (
 )
 
 # Track operation duration
-with operation_context("research", company="Tesla"):
+with operation_context("research", company="Acme Corp"):
     # Operations here are tracked
     pass
 
@@ -872,7 +872,7 @@ async def research_company(name: str, website: str):
     return output_path
 
 if __name__ == "__main__":
-    asyncio.run(research_company("Tesla", "https://tesla.com"))
+    asyncio.run(research_company("Acme Corp", "https://acme.example"))
 ```
 
 ## Prompt Architecture
@@ -902,8 +902,8 @@ from primr.prompts import PromptComposer, PromptContext
 
 composer = PromptComposer()
 context = PromptContext(
-    company_name="Tesla",
-    website_url="https://tesla.com",
+    company_name="Acme Corp",
+    website_url="https://acme.example",
     cloud_vendor="azure",
 )
 
@@ -957,8 +957,8 @@ from primr.prompts import (
 prompts = get_available_prompts()  # ['ai_strategy', 'company_overview', ...]
 
 # Build prompts (delegates to PromptComposer internally)
-prompt = build_company_overview_prompt("Tesla", website_url="https://tesla.com")
-prompt = build_ai_strategy_prompt("Tesla", cloud_vendor="azure")
+prompt = build_company_overview_prompt("Acme Corp", website_url="https://acme.example")
+prompt = build_ai_strategy_prompt("Acme Corp", cloud_vendor="azure")
 ```
 
 ### Custom Exceptions
@@ -1062,7 +1062,7 @@ Get cost and time estimates before running research.
 {
   "name": "estimate_run",
   "arguments": {
-    "company_url": "https://tesla.com",
+    "company_url": "https://acme.example",
     "mode": "full"
   }
 }
@@ -1086,8 +1086,8 @@ Initiate company research (async - returns job_id immediately).
 {
   "name": "research_company",
   "arguments": {
-    "company_name": "Tesla",
-    "company_url": "https://tesla.com",
+    "company_name": "Acme Corp",
+    "company_url": "https://acme.example",
     "mode": "full",
     "cloud_vendor": "azure",
     "skip_qa": false
@@ -1112,7 +1112,7 @@ Generate strategy document from existing report.
 {
   "name": "generate_strategy",
   "arguments": {
-    "report_path": "output/Tesla_Strategic_Overview.md",
+    "report_path": "output/Acme_Corp_Strategic_Overview.md",
     "strategy_type": "customer_experience",
     "cloud_vendor": "azure"
   }
@@ -1141,7 +1141,7 @@ Response:
     {
       "job_id": "job_abc123",
       "status": "in_progress",
-      "company_name": "Tesla",
+      "company_name": "Acme Corp",
       "output_path": null
     }
   ]
@@ -1156,7 +1156,7 @@ Run quality assessment on a report.
 {
   "name": "run_qa",
   "arguments": {
-    "report_path": "output/Tesla_Strategic_Overview.md"
+    "report_path": "output/Acme_Corp_Strategic_Overview.md"
   }
 }
 ```
@@ -1210,7 +1210,7 @@ Current research job status with progress information.
 {
   "status": "in_progress",
   "job_id": "job_abc123",
-  "company_name": "Tesla",
+  "company_name": "Acme Corp",
   "mode": "full",
   "current_stage": "deep_research",
   "stage_progress_percent": 45,
@@ -1225,11 +1225,11 @@ Most recent research output. Add `?full_content=true` for complete content.
 
 ```json
 {
-  "report_path": "output/Tesla_Strategic_Overview.md",
-  "company_name": "Tesla",
+  "report_path": "output/Acme_Corp_Strategic_Overview.md",
+  "company_name": "Acme Corp",
   "generation_timestamp": "2026-02-02T10:30:00",
   "report_type": "markdown",
-  "content_preview": "# Tesla Strategic Overview..."
+  "content_preview": "# Acme Corp Strategic Overview..."
 }
 ```
 
@@ -1244,9 +1244,9 @@ Pipeline stage artifacts (scraped_content, insights, dossier, reports).
   "artifacts": [
     {
       "artifact_type": "scraped_content",
-      "file_path": "output/tesla/scraped_content.txt",
+      "file_path": "output/acme_corp/scraped_content.txt",
       "size_bytes": 125000,
-      "preview": "Tesla, Inc. designs...",
+      "preview": "Acme Corp designs...",
       "content_hash": "sha256:abc123..."
     }
   ]
@@ -1427,7 +1427,7 @@ from primr.mcp_server.job_store import SingleJobStore
 store = SingleJobStore(journal_path="logs/mcp_journal.json")
 
 # Create a job
-job = store.create(company_name="Tesla", mode="full", owner_client_id="client1")
+job = store.create(company_name="Acme Corp", mode="full", owner_client_id="client1")
 
 # Update progress
 job.advance_stage(ResearchStage.DEEP_RESEARCH)
@@ -1861,7 +1861,7 @@ primr memory "Acme Corp"              # View hypotheses for a company
 primr --memory-list                   # List all companies with memory
 
 # Orchestrated research
-primr orchestrate "Acme Corp" https://acme.com
+primr orchestrate "Acme Corp" https://acme.example
 primr --orchestrate --max-cost 5.0    # With cost budget
 
 # Roadmap

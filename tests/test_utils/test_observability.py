@@ -94,8 +94,8 @@ class TestOperationContextManager:
     
     def test_includes_metadata(self):
         """Should include metadata in context."""
-        with operation_context("test", company="Tesla", mode="full") as ctx:
-            assert ctx.metadata == {"company": "Tesla", "mode": "full"}
+        with operation_context("test", company="Acme Corp", mode="full") as ctx:
+            assert ctx.metadata == {"company": "Acme Corp", "mode": "full"}
     
     def test_logs_entry_and_exit(self):
         """Should log entry and exit."""
@@ -419,8 +419,8 @@ class TestCorrelationContext:
 
     def test_create_with_metadata(self):
         """Should store metadata on create."""
-        ctx = CorrelationContext.create("test_op", company="Tesla", mode="deep")
-        assert ctx.metadata == {"company": "Tesla", "mode": "deep"}
+        ctx = CorrelationContext.create("test_op", company="Acme Corp", mode="deep")
+        assert ctx.metadata == {"company": "Acme Corp", "mode": "deep"}
 
     def test_duration_calculation(self):
         """Should calculate duration correctly."""
@@ -574,11 +574,11 @@ class TestJobSummary:
     def test_create_with_defaults(self):
         """Should create with sensible defaults."""
         summary = JobSummary.create(
-            company="Tesla",
+            company="Acme Corp",
             mode="deep",
             duration_seconds=120.5,
         )
-        assert summary.company == "Tesla"
+        assert summary.company == "Acme Corp"
         assert summary.mode == "deep"
         assert summary.api_calls == 0
         assert summary.total_tokens == 0
@@ -587,16 +587,16 @@ class TestJobSummary:
 
     def test_success_property(self):
         """Should report success based on errors."""
-        summary_ok = JobSummary.create("Tesla", "deep", 100)
+        summary_ok = JobSummary.create("Acme Corp", "deep", 100)
         assert summary_ok.success
 
-        summary_err = JobSummary.create("Tesla", "deep", 100, errors=["Error 1"])
+        summary_err = JobSummary.create("Acme Corp", "deep", 100, errors=["Error 1"])
         assert not summary_err.success
 
     def test_to_dict(self):
         """Should convert to dictionary."""
         summary = JobSummary.create(
-            company="Tesla",
+            company="Acme Corp",
             mode="deep",
             duration_seconds=120.5,
             api_calls=15,
@@ -607,7 +607,7 @@ class TestJobSummary:
             output_path="/path/to/report.md",
         )
         d = summary.to_dict()
-        assert d["company"] == "Tesla"
+        assert d["company"] == "Acme Corp"
         assert d["mode"] == "deep"
         assert d["api_calls"] == 15
         assert d["total_tokens"] == 50000
@@ -618,13 +618,13 @@ class TestJobSummary:
 
     def test_log_job_summary(self):
         """Should log job summary."""
-        summary = JobSummary.create("Tesla", "deep", 100)
+        summary = JobSummary.create("Acme Corp", "deep", 100)
         with patch("primr.utils.observability.log_structured") as mock_log:
             log_job_summary(summary)
             mock_log.assert_called_once()
             call_args = mock_log.call_args
             assert call_args[0][0] == "info"
-            assert "Tesla" in call_args[0][1]
+            assert "Acme Corp" in call_args[0][1]
 
 
 # =============================================================================

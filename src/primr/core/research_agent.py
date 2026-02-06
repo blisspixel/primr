@@ -17,7 +17,7 @@ Usage:
     from primr.core.research_agent import perform_research, main
 
     # Run research programmatically
-    result = perform_research("Tesla", "https://tesla.com")
+    result = perform_research("Acme Corp", "https://acme.example")
 
     # Run CLI
     main()

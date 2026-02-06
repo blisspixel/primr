@@ -14,7 +14,7 @@ Usage:
     main()
 
     # Parse arguments only
-    config = parse_args(["Tesla", "https://tesla.com", "--mode", "deep"])
+    config = parse_args(["Acme Corp", "https://acme.example", "--mode", "deep"])
 """
 import argparse
 import os
@@ -359,7 +359,7 @@ Research Modes:
   parallel Both engines in parallel (legacy, ~25 min)
 
 Examples:
-  primr "Tesla" https://tesla.com
+  primr "Acme Corp" https://acme.example
   primr "Acme Corp" acme.example --mode deep
   primr "Acme Corp" acme.example --mode scrape       # Build Site Corpus + Extract Insights
   primr doctor                                       # System diagnostics

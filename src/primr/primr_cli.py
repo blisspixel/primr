@@ -3,11 +3,11 @@
 Primr - AI-Powered Company Research
 
 Usage (if not pip installed):
-    python primr_cli.py "Tesla" https://tesla.com
+    python primr_cli.py "Acme Corp" https://acme.example
     python primr_cli.py doctor
 
 Recommended (after pip install -e .):
-    primr "Tesla" https://tesla.com
+    primr "Acme Corp" https://acme.example
     primr doctor
 """
 

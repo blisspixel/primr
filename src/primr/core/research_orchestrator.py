@@ -8,12 +8,12 @@ Usage:
     orchestrator = ResearchOrchestrator()
 
     # Use structured pipeline (default)
-    result = await orchestrator.research("Tesla", "https://tesla.com")
+    result = await orchestrator.research("Acme Corp", "https://acme.example")
 
     # Use deep research
     result = await orchestrator.research(
-        "Tesla",
-        "https://tesla.com",
+        "Acme Corp",
+        "https://acme.example",
         mode=ResearchMode.DEEP_RESEARCH
     )
 """
@@ -171,14 +171,14 @@ class ResearchOrchestrator:
 
         # Quick research with Deep Research
         result = await orchestrator.research(
-            "Tesla",
+            "Acme Corp",
             mode=ResearchMode.DEEP_RESEARCH
         )
 
         # Detailed research with structured pipeline
         result = await orchestrator.research(
-            "Tesla",
-            "https://tesla.com",
+            "Acme Corp",
+            "https://acme.example",
             mode=ResearchMode.STRUCTURED
         )
     """

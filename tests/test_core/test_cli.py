@@ -70,26 +70,26 @@ class TestCLIConfig:
         """Test config with custom values."""
         config = CLIConfig(
             command=Command.RESEARCH,
-            company_name="Tesla",
-            website="https://tesla.com",
+            company_name="Acme Corp",
+            website="https://acme.example",
             mode="deep-research",
             ai_strategy=False,
             cloud_vendor="aws"
         )
-        assert config.company_name == "Tesla"
-        assert config.website == "https://tesla.com"
+        assert config.company_name == "Acme Corp"
+        assert config.website == "https://acme.example"
         assert config.mode == "deep-research"
         assert config.ai_strategy is False
         assert config.cloud_vendor == "aws"
 
     def test_has_company_info_with_name(self):
         """Test has_company_info with company name."""
-        config = CLIConfig(command=Command.RESEARCH, company_name="Tesla")
+        config = CLIConfig(command=Command.RESEARCH, company_name="Acme Corp")
         assert config.has_company_info is True
 
     def test_has_company_info_with_website(self):
         """Test has_company_info with website only."""
-        config = CLIConfig(command=Command.RESEARCH, website="https://tesla.com")
+        config = CLIConfig(command=Command.RESEARCH, website="https://acme.example")
         assert config.has_company_info is True
 
     def test_has_company_info_without_either(self):
@@ -136,10 +136,10 @@ class TestParseArgs:
 
     def test_parse_basic_research(self):
         """Test parsing basic research command."""
-        config = parse_args(["Tesla", "https://tesla.com"])
+        config = parse_args(["Acme Corp", "https://acme.example"])
         assert config.command == Command.RESEARCH
-        assert config.company_name == "Tesla"
-        assert config.website == "https://tesla.com"
+        assert config.company_name == "Acme Corp"
+        assert config.website == "https://acme.example"
 
     def test_parse_doctor_command(self):
         """Test parsing doctor command."""
@@ -148,27 +148,27 @@ class TestParseArgs:
 
     def test_parse_mode_flag(self):
         """Test parsing mode flag."""
-        config = parse_args(["Tesla", "tesla.com", "--mode", "deep"])
+        config = parse_args(["Acme Corp", "acme.example", "--mode", "deep"])
         assert config.mode == "deep-research"  # Mapped from "deep"
 
     def test_parse_mode_short_flag(self):
         """Test parsing mode with short flag."""
-        config = parse_args(["Tesla", "tesla.com", "-m", "scrape"])
+        config = parse_args(["Acme Corp", "acme.example", "-m", "scrape"])
         assert config.mode == "scrape-only"  # Mapped from "scrape"
 
     def test_parse_no_ai_strategy(self):
         """Test parsing --no-ai-strategy flag."""
-        config = parse_args(["Tesla", "tesla.com", "--no-ai-strategy"])
+        config = parse_args(["Acme Corp", "acme.example", "--no-ai-strategy"])
         assert config.ai_strategy is False
 
     def test_parse_cloud_vendor(self):
         """Test parsing cloud vendor flag."""
-        config = parse_args(["Tesla", "tesla.com", "--cloud-vendor", "aws"])
+        config = parse_args(["Acme Corp", "acme.example", "--cloud-vendor", "aws"])
         assert config.cloud_vendor == "aws"
 
     def test_parse_context_files(self):
         """Test parsing context files."""
-        config = parse_args(["Tesla", "tesla.com", "--context", "file1.pdf", "file2.txt"])
+        config = parse_args(["Acme Corp", "acme.example", "--context", "file1.pdf", "file2.txt"])
         assert config.context_files == ("file1.pdf", "file2.txt")
 
     def test_parse_csv_batch(self):
@@ -179,7 +179,7 @@ class TestParseArgs:
 
     def test_parse_dry_run(self):
         """Test parsing dry-run flag."""
-        config = parse_args(["Tesla", "tesla.com", "--dry-run"])
+        config = parse_args(["Acme Corp", "acme.example", "--dry-run"])
         assert config.command == Command.DRY_RUN
 
     def test_parse_show_usage(self):
@@ -205,17 +205,17 @@ class TestParseArgs:
 
     def test_parse_quiet_flag(self):
         """Test parsing quiet flag."""
-        config = parse_args(["Tesla", "tesla.com", "-q"])
+        config = parse_args(["Acme Corp", "acme.example", "-q"])
         assert config.quiet is True
 
     def test_parse_verbose_flag(self):
         """Test parsing verbose flag."""
-        config = parse_args(["Tesla", "tesla.com", "-v"])
+        config = parse_args(["Acme Corp", "acme.example", "-v"])
         assert config.verbose is True
 
     def test_parse_confirm_flag(self):
         """Test parsing confirm flag."""
-        config = parse_args(["Tesla", "tesla.com", "--confirm"])
+        config = parse_args(["Acme Corp", "acme.example", "--confirm"])
         assert config.skip_confirm is False  # Inverted
 
 
@@ -252,12 +252,12 @@ class TestMain:
         """Test main with dry-run flag."""
         with patch("primr.utils.cost_estimator.estimate_cost") as mock_estimate:
             mock_estimate.return_value = MagicMock(__str__=lambda x: "Cost estimate")
-            result = main(["Tesla", "tesla.com", "--dry-run"])
+            result = main(["Acme Corp", "acme.example", "--dry-run"])
             assert result == 0
 
     def test_main_research_missing_args(self):
         """Test main with missing required args."""
-        result = main(["Tesla"])  # Missing website
+        result = main(["Acme Corp"])  # Missing website
         assert result == 1
 
 

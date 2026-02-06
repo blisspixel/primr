@@ -23,7 +23,7 @@ Integration with Gemini's Deep Research Agent for autonomous multi-step research
 from primr.ai import DeepResearchClient
 
 client = DeepResearchClient()
-result = await client.research("Research Tesla's competitive position")
+result = await client.research("Research Acme Corp's competitive position")
 ```
 
 ### Recursive Hierarchical Architecture

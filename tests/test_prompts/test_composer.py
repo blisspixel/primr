@@ -23,14 +23,14 @@ class TestPromptComposer:
         """Should compose company_overview prompt."""
         composer = PromptComposer()
         context = PromptContext(
-            company_name="Tesla",
-            website_url="https://tesla.com",
+            company_name="Acme Corp",
+            website_url="https://acme.example",
         )
         result = composer.compose("company_overview", context)
 
         assert isinstance(result, ComposedPrompt)
         assert len(result.content) > 0
-        assert "Tesla" in result.content
+        assert "Acme Corp" in result.content
         assert result.section_count > 0
 
     def test_compose_strategic_layer(self):

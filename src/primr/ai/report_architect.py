@@ -149,8 +149,8 @@ class MasterArchitect:
     Example:
         architect = MasterArchitect()
         plan = await architect.generate_chapter_plan(
-            "Tesla",
-            "Electric vehicle manufacturer founded in 2003..."
+            "Acme Corp",
+            "Industrial products manufacturer founded in 2003..."
         )
         for chapter in plan.chapters:
             print(f"{chapter.chapter_number}. {chapter.title}")
