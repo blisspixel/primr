@@ -12,42 +12,22 @@ This package provides tools for automated company research including:
 __version__ = "1.5.1"
 __author__ = "Nick Seal"
 
-# Don't import submodules at package level to avoid circular imports
-# Users should import directly: from primr.core import something
-# Or use: import primr.core
+# Import subpackages explicitly so "from primr.X.Y import Z" works
+# The circular import issues have been fixed by lazy-initializing:
+# - Gemini client in ai/llm.py
+# - Search API check in data/search_utils.py
+from . import agentic, ai, config, core, data, output, types, utils
 
 
 def __getattr__(name: str):
-    """Lazy-load submodules on attribute access."""
-    import importlib
-
-    # Standard submodules
-    if name in ("agentic", "ai", "api", "config", "core", "data", "output", "types", "utils"):
-        return importlib.import_module(f".{name}", __name__)
-
-    # Special exports
+    """Lazy-load optional modules."""
+    if name == "api":
+        from . import api
+        return api
     if name == "perform_research":
         from .core.research_agent import perform_research
         return perform_research
-
     raise AttributeError(f"module 'primr' has no attribute {name!r}")
-
-
-def __dir__():
-    """List available submodules."""
-    return [
-        "__version__",
-        "agentic",
-        "ai",
-        "api",
-        "config",
-        "core",
-        "data",
-        "output",
-        "perform_research",
-        "types",
-        "utils",
-    ]
 
 
 __all__ = [
