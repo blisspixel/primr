@@ -573,6 +573,6 @@ class TestUtilityFunctionCompatibility:
         # Typed is PrimrError
         assert isinstance(typed_error, PrimrError)
         
-        # They are different hierarchies
-        assert not isinstance(legacy_error, PrimrError)
-        assert not isinstance(typed_error, ResearchError)
+        # Both are in the same unified hierarchy (aliases point to typed classes)
+        assert isinstance(legacy_error, PrimrError)
+        assert isinstance(typed_error, ResearchError)

@@ -166,7 +166,7 @@ def normalize_url(url: str) -> str:
     # Parse and normalize
     try:
         parsed = urlparse(url)
-    except Exception:
+    except ValueError:
         return url  # Return as-is if parsing fails
 
     # Lowercase scheme and host

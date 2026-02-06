@@ -338,8 +338,6 @@ def run_doctor() -> int:
 
     return 0 if all_passed else 1
 
-    return 0 if all_passed else 1
-
 
 # =============================================================================
 # INTERNAL FUNCTIONS - Parser
@@ -537,65 +535,54 @@ Accordion Method Test (for development):
     return parser
 
 
+_POSITIONAL_COMMANDS: dict[str, Command] = {
+    "doctor": Command.DOCTOR,
+    "memory": Command.MEMORY,
+    "orchestrate": Command.ORCHESTRATE,
+    "roadmap": Command.ROADMAP,
+}
+
+# (attr_name, command) — checked with getattr(args, attr, None) for truthiness
+_FLAG_COMMANDS: list[tuple[str, Command]] = [
+    ("memory", Command.MEMORY),
+    ("memory_list", Command.MEMORY),
+    ("orchestrate", Command.ORCHESTRATE),
+    ("roadmap", Command.ROADMAP),
+    ("roadmap_version", Command.ROADMAP),
+    ("ai_strategy_only", Command.AI_STRATEGY_ONLY),
+    # qa_recent handled separately (is not None check)
+    ("qa", Command.QA),
+    ("analyze_report", Command.ANALYZE_REPORT),
+    ("test_accordion", Command.TEST_ACCORDION),
+    ("show_usage", Command.SHOW_USAGE),
+    ("list_recent", Command.LIST_RECENT),
+    ("clean_temp", Command.CLEAN_TEMP),
+    ("check_quota", Command.CHECK_QUOTA),
+    ("check_jobs", Command.CHECK_JOBS),
+    ("clear_jobs", Command.CLEAR_JOBS),
+    ("list_strategies", Command.LIST_STRATEGIES),
+    ("dry_run", Command.DRY_RUN),
+    ("generate_vendor_research", Command.GENERATE_VENDOR),
+]
+
+
 def _determine_command(args: argparse.Namespace) -> Command:
     """Determine which command to run based on parsed args."""
-    # Check for 'doctor' as first positional arg
-    if args.company and args.company.lower() == "doctor":
-        return Command.DOCTOR
+    # Check for positional command words (e.g. "primr doctor")
+    if args.company:
+        cmd = _POSITIONAL_COMMANDS.get(args.company.lower())
+        if cmd is not None:
+            return cmd
 
-    # Check for 'memory' as first positional arg
-    if args.company and args.company.lower() == "memory":
-        return Command.MEMORY
+    # Check flag-based commands
+    for attr, cmd in _FLAG_COMMANDS:
+        if getattr(args, attr, None):
+            return cmd
 
-    # Check for 'orchestrate' as first positional arg
-    if args.company and args.company.lower() == "orchestrate":
-        return Command.ORCHESTRATE
-
-    # Check for 'roadmap' as first positional arg
-    if args.company and args.company.lower() == "roadmap":
-        return Command.ROADMAP
-
-    # Check agentic architecture flags
-    if getattr(args, 'memory', None):
-        return Command.MEMORY
-    if getattr(args, 'memory_list', False):
-        return Command.MEMORY
-    if getattr(args, 'orchestrate', False):
-        return Command.ORCHESTRATE
-    if getattr(args, 'roadmap', False):
-        return Command.ROADMAP
-    if getattr(args, 'roadmap_version', None):
-        return Command.ROADMAP
-
-    # Check utility flags
-    if getattr(args, 'ai_strategy_only', None):
-        return Command.AI_STRATEGY_ONLY
+    # qa_recent uses `is not None` (0 is a valid value)
     if getattr(args, 'qa_recent', None) is not None:
         return Command.QA_RECENT
-    if getattr(args, 'qa', None):
-        return Command.QA
-    if getattr(args, 'analyze_report', None):
-        return Command.ANALYZE_REPORT
-    if getattr(args, 'test_accordion', None):
-        return Command.TEST_ACCORDION
-    if getattr(args, 'show_usage', False):
-        return Command.SHOW_USAGE
-    if getattr(args, 'list_recent', False):
-        return Command.LIST_RECENT
-    if getattr(args, 'clean_temp', False):
-        return Command.CLEAN_TEMP
-    if getattr(args, 'check_quota', False):
-        return Command.CHECK_QUOTA
-    if getattr(args, 'check_jobs', False):
-        return Command.CHECK_JOBS
-    if getattr(args, 'clear_jobs', False):
-        return Command.CLEAR_JOBS
-    if getattr(args, 'list_strategies', False):
-        return Command.LIST_STRATEGIES
-    if getattr(args, 'dry_run', False):
-        return Command.DRY_RUN
-    if getattr(args, 'generate_vendor_research', None):
-        return Command.GENERATE_VENDOR
+
     if args.csv:
         return Command.BATCH
 
@@ -1574,14 +1561,14 @@ def clean_temp_files() -> None:
                     os.rmdir(d)
                     cleaned += 1
             except Exception:
-                pass
+                logger.debug("Failed to remove temp directory %s", d, exc_info=True)
 
     for f in temp_files:
         try:
             os.remove(f)
             cleaned += 1
         except Exception:
-            pass
+            logger.debug("Failed to remove temp file %s", f, exc_info=True)
 
     print(f"Cleaned {cleaned} temporary files/directories.")
 

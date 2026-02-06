@@ -9,6 +9,7 @@ This module provides foundational utilities used by the error hierarchy:
 
 from __future__ import annotations
 
+import contextvars
 import logging
 import random
 from dataclasses import dataclass
@@ -124,6 +125,19 @@ def calculate_backoff_delay(attempt: int, config: RetryConfig) -> float:
     return max(0.0, capped_delay + jitter)
 
 
+def is_rate_limit_error(error: Exception) -> bool:
+    """Check if an exception indicates a rate-limit (429) or resource-exhaustion error."""
+    error_str = str(error).lower()
+    return "429" in str(error) or "resource_exhausted" in error_str
+
+
+def calculate_retry_delay(attempt: int, *, is_rate_limited: bool) -> float:
+    """Calculate retry delay, using longer backoff for rate-limit errors."""
+    if is_rate_limited:
+        return min(2 ** attempt * 5, 60)  # 5s, 10s, 20s, max 60s
+    return float(2 ** attempt)  # 1s, 2s, 4s
+
+
 # =============================================================================
 # CORRELATION ID HELPER
 # =============================================================================
@@ -133,32 +147,25 @@ def get_correlation_id() -> str:
     Get the current correlation ID from context or generate a new one.
 
     This is a local helper to avoid circular imports with observability module.
-    It attempts to get the correlation ID from the thread-local context,
-    falling back to generating a new UUID if no context exists.
+    Uses contextvars for thread-safe and async-safe context propagation.
 
     Returns:
         8-character correlation ID string
     """
-    import threading
     import uuid
 
-    # Try to get from thread-local context (set by observability module)
-    _context_var = getattr(threading, '_primr_context', None)
-    if _context_var is None:
-        # Create thread-local storage if it doesn't exist
-        threading._primr_context = threading.local()  # type: ignore[attr-defined]
-        _context_var = threading._primr_context  # type: ignore[attr-defined]
-
-    ctx = getattr(_context_var, 'context', None)
-    if ctx is not None and hasattr(ctx, 'correlation_id'):
-        return ctx.correlation_id
-
-    # Try to import from observability module (preferred)
+    # Try to import from observability module (preferred — has full context)
     try:
         from primr.utils.observability import get_correlation_id as obs_get_correlation_id
         return obs_get_correlation_id()
     except ImportError:
         pass
 
-    # Fallback: generate new correlation ID
-    return str(uuid.uuid4())[:8]
+    # Fallback: use module-level ContextVar for thread/async-safe storage
+    return _fallback_correlation_id.get(str(uuid.uuid4())[:8])
+
+
+# Module-level ContextVar — works correctly with both threading and asyncio
+_fallback_correlation_id: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "primr_correlation_id"
+)

@@ -229,7 +229,7 @@ class DomainLearner:
         try:
             parsed = urlparse(url)
             return parsed.netloc.lower()
-        except Exception:
+        except ValueError:
             return "unknown"
 
     def get_profile(self, url: str) -> DomainProfile:

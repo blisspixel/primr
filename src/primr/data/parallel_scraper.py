@@ -84,7 +84,7 @@ class RateLimiter:
         try:
             parsed = urlparse(url)
             return parsed.netloc.lower()
-        except Exception:
+        except ValueError:
             return "unknown"
 
     def wait_for_domain(self, url: str) -> None:
@@ -170,7 +170,7 @@ class CircuitBreaker:
         try:
             parsed = urlparse(url)
             return parsed.netloc.lower()
-        except Exception:
+        except ValueError:
             return "unknown"
 
     def is_open(self, url: str) -> bool:

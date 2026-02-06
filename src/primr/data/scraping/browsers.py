@@ -377,7 +377,7 @@ class PlaywrightSession(BrowserSession):
                             challenge_visible = True
                             break
                     except Exception:
-                        pass
+                        logger.debug("Challenge selector check failed for %s", selector, exc_info=True)
 
                 if not challenge_visible:
                     # Also check page title
@@ -405,7 +405,7 @@ class PlaywrightSession(BrowserSession):
                         time.sleep(0.5)
                         return True
                 except Exception:
-                    pass
+                    logger.debug("Consent button click failed for pattern %s", pattern, exc_info=True)
 
                 # Try link with text
                 try:
@@ -415,7 +415,7 @@ class PlaywrightSession(BrowserSession):
                         time.sleep(0.5)
                         return True
                 except Exception:
-                    pass
+                    logger.debug("Consent link click failed for pattern %s", pattern, exc_info=True)
 
             return False
 
@@ -457,7 +457,7 @@ class PlaywrightSession(BrowserSession):
                                     clicked = True
                                     break
                     except Exception:
-                        pass
+                        logger.debug("Expand button click failed for pattern %s", pattern, exc_info=True)
 
                     try:
                         # Try links
@@ -479,7 +479,7 @@ class PlaywrightSession(BrowserSession):
                                     clicked = True
                                     break
                     except Exception:
-                        pass
+                        logger.debug("Expand link click failed for pattern %s", pattern, exc_info=True)
 
                 if not clicked:
                     break  # No more expandable elements
@@ -634,7 +634,7 @@ class DrissionPageSession(BrowserSession):
                             time.sleep(0.5)
                             return True
                 except Exception:
-                    pass
+                    logger.debug("DrissionPage consent click failed for pattern %s", pattern, exc_info=True)
 
             return False
 
@@ -676,7 +676,7 @@ class DrissionPageSession(BrowserSession):
                                     clicked = True
                                     break
                     except Exception:
-                        pass
+                        logger.debug("DrissionPage expand click failed for pattern %s", pattern, exc_info=True)
 
                     if clicked:
                         break

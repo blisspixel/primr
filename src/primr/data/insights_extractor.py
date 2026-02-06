@@ -41,7 +41,7 @@ def generate_ai_response(prompt, retries=MAX_RETRIES, min_length=200):
                 return response_text
 
         except Exception as e:
-            logger.warning(f"AI response failed: {e}")
+            logger.warning(f"AI response failed: {e}", exc_info=True)
 
         attempt += 1
         if attempt < retries:

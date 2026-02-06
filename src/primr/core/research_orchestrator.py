@@ -498,7 +498,7 @@ class ResearchOrchestrator:
                         stage1_context = f.read()
                     logger.info(f"Stage 1 context prepared: {len(stage1_context)} chars")
                 except Exception as e:
-                    logger.warning(f"Failed to prepare Stage 1 context: {e}")
+                    logger.warning(f"Failed to prepare Stage 1 context: {e}", exc_info=True)
                     if on_progress:
                         on_progress("Warning: Could not prepare context, proceeding without it")
 
@@ -580,7 +580,7 @@ class ResearchOrchestrator:
                     import os
                     os.remove(step1_context_file)
                 except Exception:
-                    pass
+                    logger.debug("Failed to clean up temp file %s", step1_context_file, exc_info=True)
 
             # Build section results for compatibility
             section_results = {
@@ -621,7 +621,7 @@ class ResearchOrchestrator:
                     import os
                     os.remove(step1_context_file)
                 except Exception:
-                    pass
+                    logger.debug("Failed to clean up temp file %s", step1_context_file, exc_info=True)
 
             return OrchestratorResult(
                 company_name=company_name,

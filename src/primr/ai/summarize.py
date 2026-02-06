@@ -114,7 +114,7 @@ def summarize_with_retries(content, retries=MAX_RETRIES, min_length=200):
                 return response_text
 
         except Exception as e:
-            logger.warning(f"AI summarization failed: {e}")
+            logger.warning(f"AI summarization failed: {e}", exc_info=True)
 
         attempt += 1
         if attempt < retries:

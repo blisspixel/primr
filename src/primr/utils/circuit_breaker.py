@@ -604,7 +604,7 @@ class CircuitBreaker:
         try:
             parsed = urlparse(url)
             return parsed.netloc.lower() if parsed.netloc else url
-        except Exception:
+        except ValueError:
             return url
 
     def is_open(self, url: str) -> bool:
