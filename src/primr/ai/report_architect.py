@@ -224,7 +224,7 @@ class MasterArchitect:
             return plan
 
         except Exception as e:
-            logger.warning(f"Chapter planning failed: {e}, using default structure")
+            logger.warning(f"Chapter planning failed: {e}, using default structure", exc_info=True)
             return self._get_default_plan(company_name)
 
     def _build_planning_prompt(

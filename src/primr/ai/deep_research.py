@@ -23,18 +23,17 @@ Usage:
 import asyncio
 import threading
 import time
+import warnings
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Any
 
-import google.genai.client as _genai_client
 from google import genai
 
-# Acknowledge experimental API - we know it may change, disable the warning
-# This is the SDK's own mechanism for one-time warnings
-_genai_client._interactions_experimental_warned = True
+# Suppress the experimental API warning from the Genai SDK
+warnings.filterwarnings("ignore", message=".*experimental.*", module="google.genai")
 
 from primr.config.settings import get_settings
 from primr.utils.errors import AIError
@@ -379,9 +378,9 @@ def _extract_domain_from_redirect(redirect_url: str) -> str:
                 url_match = re.search(r'https?://[^\s<>"\']+', decoded)
                 if url_match:
                     return url_match.group(0)
-            except Exception:
+            except (ValueError, UnicodeDecodeError):
                 pass
-    except Exception:
+    except (re.error, ValueError, UnicodeDecodeError):
         pass
 
     # Return original if we can't extract anything useful

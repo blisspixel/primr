@@ -22,6 +22,8 @@ compatibility with code that imports from primr.utils.errors.
 from primr.utils.errors.base import (
     RetryConfig,
     calculate_backoff_delay,
+    calculate_retry_delay,
+    is_rate_limit_error,
 )
 from primr.utils.errors.decorators import (
     ErrorContext,
@@ -96,10 +98,12 @@ __all__ = [
     "ValidationError",
     "async_safe_callback",
     "calculate_backoff_delay",
+    "calculate_retry_delay",
     "error_context",
     # Formatting
     "format_error_for_user",
     "get_error_guidance",
+    "is_rate_limit_error",
     "is_recoverable_error",
     "retry_on_failure",
     # Decorators

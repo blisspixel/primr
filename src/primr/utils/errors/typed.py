@@ -27,6 +27,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
+from primr.config.config import ConfigurationError as _ConfigConfigurationError
 from primr.utils.errors.base import CATEGORY_GUIDANCE, get_correlation_id
 
 # =============================================================================
@@ -282,9 +283,12 @@ class AuthenticationError(PermanentError):
 
 
 @dataclass
-class PrimrConfigurationError(PermanentError):
+class PrimrConfigurationError(PermanentError, _ConfigConfigurationError):
     """
     Configuration is invalid or missing.
+
+    Inherits from both PermanentError (typed error hierarchy) and
+    config.ConfigurationError so that isinstance checks work for either type.
 
     Attributes:
         config_path: Path to the configuration file (if applicable)

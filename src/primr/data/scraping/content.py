@@ -145,7 +145,7 @@ def detect_content_type(
                 return "json"
             elif "<?xml" in text:
                 return "xml"
-        except Exception:
+        except (UnicodeDecodeError, AttributeError):
             pass
 
     return "unknown"

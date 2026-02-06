@@ -458,7 +458,7 @@ class ContentExtractor:
         try:
             soup = BeautifulSoup(html, 'html.parser')
             text = soup.get_text(separator=' ', strip=True)
-        except Exception:
+        except (ValueError, TypeError):
             text = ""
 
         return {

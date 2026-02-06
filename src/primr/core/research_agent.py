@@ -3539,7 +3539,7 @@ def _clean_temp_files():
                     os.rmdir(d)
                     cleaned += 1
             except Exception:
-                pass
+                logger.debug("Failed to remove temp directory %s", d, exc_info=True)
 
     # Remove temp files
     for f in temp_files:
@@ -3547,7 +3547,7 @@ def _clean_temp_files():
             os.remove(f)
             cleaned += 1
         except Exception:
-            pass
+            logger.debug("Failed to remove temp file %s", f, exc_info=True)
 
     print(f"Cleaned {cleaned} temporary files/directories.")
 

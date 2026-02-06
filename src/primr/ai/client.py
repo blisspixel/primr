@@ -17,7 +17,7 @@ from google import genai
 from google.genai import types
 
 from primr.config.settings import get_settings
-from primr.utils.errors import AIError
+from primr.utils.errors import AIError, calculate_retry_delay, is_rate_limit_error
 from primr.utils.logging_config import get_logger
 from primr.utils.type_guards import is_valid_type
 
@@ -194,11 +194,7 @@ class AIClient:
                     model = fallback
 
                 if attempt < retries - 1:
-                    # Use longer backoff for rate limits
-                    if "429" in str(e) or "resource_exhausted" in error_str:
-                        delay = min(2 ** attempt * 5, 60)  # 5s, 10s, 20s, max 60s
-                    else:
-                        delay = 2 ** attempt  # 1s, 2s, 4s
+                    delay = calculate_retry_delay(attempt, is_rate_limited=is_rate_limit_error(e))
                     logger.debug(f"Retrying in {delay}s...")
                     time.sleep(delay)
 
