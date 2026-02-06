@@ -12,19 +12,16 @@ This package provides tools for automated company research including:
 __version__ = "1.5.1"
 __author__ = "Nick Seal"
 
-# Lazy imports to avoid circular dependencies during test collection
-# Submodules are loaded on first access via __getattr__
+# Import subpackages - these must be real imports for submodule access to work
+# (e.g., from primr.output.something import ...)
+from . import agentic, ai, config, core, data, output, types, utils
 
 
 def __getattr__(name: str):
-    """Lazy-load submodules on first access."""
-    if name in ("ai", "config", "core", "data", "output", "types", "utils", "agentic"):
-        import importlib
-        return importlib.import_module(f".{name}", __name__)
+    """Lazy-load optional modules."""
     if name == "api":
-        # api requires fastapi, load separately
-        import importlib
-        return importlib.import_module(f".{name}", __name__)
+        from . import api
+        return api
     if name == "perform_research":
         from .core.research_agent import perform_research
         return perform_research
