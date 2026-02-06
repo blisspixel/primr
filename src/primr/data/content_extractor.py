@@ -426,8 +426,11 @@ class ContentExtractor:
 
             # Meta tags
             for meta in soup.find_all('meta'):
-                name = meta.get('name', meta.get('property', ''))
-                content = meta.get('content', '')
+                name_attr = meta.get('name', meta.get('property', ''))
+                content_attr = meta.get('content', '')
+                # Convert to str (BeautifulSoup can return AttributeValueList)
+                name = str(name_attr) if name_attr else ''
+                content = str(content_attr) if content_attr else ''
 
                 if name and content:
                     # Common meta tags

@@ -95,6 +95,7 @@ warn_unused_configs = true
 warn_redundant_casts = true
 warn_unused_ignores = true
 ignore_missing_imports = true
+disable_error_code = ["import-untyped"]  # Don't require stubs for all libraries
 # Enable stricter checks - code has been improved to support these
 check_untyped_defs = true
 disallow_untyped_defs = false  # Enable incrementally per-module
