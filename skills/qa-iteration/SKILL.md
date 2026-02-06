@@ -1,6 +1,14 @@
 ---
 name: qa-iteration
+version: "1.0.0"
 description: "Assess and improve report quality. Use when the user asks to check, grade, review, or improve a research report."
+
+tools:
+  - run_qa
+  - research_company
+
+resources:
+  - references/scoring.md
 
 metadata:
   openclaw:
