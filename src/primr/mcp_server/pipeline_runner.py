@@ -439,11 +439,12 @@ def get_doctor_status() -> dict:
     # Check config validity
     config_valid = True
     try:
-        from primr.config.config import get_config
-        config = get_config()
-        if not config:
-            config_valid = False
-            warnings.append("Configuration could not be loaded")
+        from primr.config.config import validate_config
+        result = validate_config()
+        config_valid = result.valid
+        if not config_valid:
+            for err in result.errors:
+                warnings.append(f"Config: {err}")
     except Exception as e:
         config_valid = False
         warnings.append(f"Configuration error: {e}")

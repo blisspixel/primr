@@ -163,7 +163,7 @@ class TestCollectDataPhase:
     """Tests for _collect_data phase function."""
 
     @patch('primr.core.structured_research.fetch_web_content')
-    @patch('primr.core.structured_research.search_google')
+    @patch('primr.core.structured_research.search_web')
     @patch('primr.core.structured_research.scrape_external_sources_validated')
     def test_collects_website_pages(self, mock_scrape, mock_search, mock_fetch):
         """Collects website pages when website provided."""
@@ -178,7 +178,7 @@ class TestCollectDataPhase:
         assert result.page_count == 1
 
     @patch('primr.core.structured_research.fetch_web_content')
-    @patch('primr.core.structured_research.search_google')
+    @patch('primr.core.structured_research.search_web')
     def test_skips_website_when_none(self, mock_search, mock_fetch):
         """Skips website scraping when website is None."""
         from primr.core.structured_research import _collect_data

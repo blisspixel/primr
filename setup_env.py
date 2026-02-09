@@ -417,39 +417,43 @@ def main_rich():
             console.print("  [dim]›[/dim] Playwright skipped [dim](optional)[/dim]")
     
     # API keys
-    required = ["GEMINI_API_KEY", "SEARCH_API_KEY", "SEARCH_ENGINE_ID"]
+    required = ["GEMINI_API_KEY"]
+    optional = ["SEARCH_API_KEY", "SEARCH_ENGINE_ID"]
     current = get_env_keys()
     missing = []
-    
+
     for key in required:
         if key in current and key_looks_valid(key, current[key]):
             console.print(f"  [green]✓[/green] {key}")
         else:
             missing.append(key)
-    
+
+    # Show search provider status
+    console.print(f"  [green]✓[/green] Search: DuckDuckGo [dim](no API key needed)[/dim]")
+
+    # Check optional Google keys
+    has_google_keys = all(
+        key in current and key_looks_valid(key, current[key])
+        for key in optional
+    )
+    if has_google_keys:
+        console.print(f"  [green]✓[/green] Google Search [dim](optional, also configured)[/dim]")
+
     if missing:
-        console.print(f"\n  [cyan]Need {len(missing)} API key(s) from Google[/cyan]")
-        
+        console.print(f"\n  [cyan]Need {len(missing)} API key(s)[/cyan]")
+
         key_info = {
             "GEMINI_API_KEY": (
                 "https://aistudio.google.com/apikey",
                 "Powers AI analysis"
             ),
-            "SEARCH_API_KEY": (
-                "https://console.cloud.google.com/apis/credentials",
-                "Enable 'Custom Search API' first"
-            ),
-            "SEARCH_ENGINE_ID": (
-                "https://programmablesearchengine.google.com/",
-                "Create one that searches entire web"
-            ),
         }
-        
+
         for key in missing:
             url, desc = key_info[key]
             current[key] = get_key_interactive(key, url, desc)
             console.print(f"  [green]✓[/green] {key}")
-        
+
         Path(".env").write_text("\n".join(f"{k}={v}" for k, v in current.items()) + "\n")
     
     # Verify

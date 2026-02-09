@@ -213,10 +213,20 @@ class TestParseArgs:
         config = parse_args(["Acme Corp", "acme.example", "-v"])
         assert config.verbose is True
 
-    def test_parse_confirm_flag(self):
-        """Test parsing confirm flag."""
-        config = parse_args(["Acme Corp", "acme.example", "--confirm"])
-        assert config.skip_confirm is False  # Inverted
+    def test_batch_requires_confirmation_by_default(self):
+        """Test that batch commands require confirmation (skip_confirm=False) by default."""
+        config = parse_args(["--batch", "companies.csv"])
+        assert config.skip_confirm is False
+
+    def test_batch_skip_confirm_flag(self):
+        """Test that --skip-confirm bypasses batch confirmation."""
+        config = parse_args(["--batch", "companies.csv", "--skip-confirm"])
+        assert config.skip_confirm is True
+
+    def test_single_company_skips_confirm_by_default(self):
+        """Test that single-company research skips confirmation by default."""
+        config = parse_args(["Acme Corp", "acme.example"])
+        assert config.skip_confirm is True
 
 
 # =============================================================================
