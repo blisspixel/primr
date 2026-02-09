@@ -28,31 +28,33 @@ def reset_circuit_breaker():
 
 
 class TestSearchQueryConstruction:
-    """Test that search queries are built correctly."""
-    
+    """Test that search queries are built correctly (Google provider)."""
+
     def test_query_includes_company_name(self):
         """Company name should be prepended to query."""
-        from primr.data.search_utils import search_google
-        
-        with patch('primr.data.search_utils.requests.get') as mock_get:
+        from primr.data.search_utils import _search_google
+
+        with patch('primr.data.search_utils._google_api_available', True), \
+             patch('primr.data.search_utils.requests.get') as mock_get:
             mock_response = Mock()
             mock_response.json.return_value = {"items": []}
             mock_response.raise_for_status = Mock()
             mock_get.return_value = mock_response
-            
-            search_google("news", "Acme Corp", "https://acme.com")
-            
+
+            _search_google("news", "Acme Corp", "https://acme.com")
+
             # Check the query parameter
             call_args = mock_get.call_args
             params = call_args[1]["params"]
             assert "Acme Corp" in params["q"]
             assert "news" in params["q"]
-    
+
     def test_site_filter_uses_domain_not_url(self):
         """The -site: filter should use domain, not full URL."""
-        from primr.data.search_utils import search_google
-        
-        with patch('primr.data.search_utils.requests.get') as mock_get:
+        from primr.data.search_utils import _search_google
+
+        with patch('primr.data.search_utils._google_api_available', True), \
+             patch('primr.data.search_utils.requests.get') as mock_get:
             mock_response = Mock()
             # Return actual items so we don't hit fallback path
             mock_response.json.return_value = {
@@ -60,9 +62,9 @@ class TestSearchQueryConstruction:
             }
             mock_response.raise_for_status = Mock()
             mock_get.return_value = mock_response
-            
-            search_google("news", "Acme Corp", "https://www.acme.com/path/page")
-            
+
+            _search_google("news", "Acme Corp", "https://www.acme.com/path/page")
+
             # Get the FIRST call's params (before any fallback)
             first_call = mock_get.call_args_list[0]
             params = first_call[1]["params"]
@@ -70,40 +72,42 @@ class TestSearchQueryConstruction:
             assert "-site:acme.com" in params["q"]
             assert "https://" not in params["q"]
             assert "/path" not in params["q"]
-    
+
     def test_site_filter_strips_www(self):
         """The -site: filter should strip www prefix."""
-        from primr.data.search_utils import search_google
-        
-        with patch('primr.data.search_utils.requests.get') as mock_get:
+        from primr.data.search_utils import _search_google
+
+        with patch('primr.data.search_utils._google_api_available', True), \
+             patch('primr.data.search_utils.requests.get') as mock_get:
             mock_response = Mock()
             mock_response.json.return_value = {
                 "items": [{"link": "https://example.com/article", "title": "Test"}]
             }
             mock_response.raise_for_status = Mock()
             mock_get.return_value = mock_response
-            
-            search_google("news", "Test Co", "https://www.example.com")
-            
+
+            _search_google("news", "Test Co", "https://www.example.com")
+
             first_call = mock_get.call_args_list[0]
             params = first_call[1]["params"]
             assert "-site:example.com" in params["q"]
             # Check www is not in the site filter part
             site_part = params["q"].split("-site:")[1] if "-site:" in params["q"] else ""
             assert not site_part.startswith("www.")
-    
+
     def test_no_site_filter_when_no_website(self):
         """No -site: filter when website is None or empty."""
-        from primr.data.search_utils import search_google
-        
-        with patch('primr.data.search_utils.requests.get') as mock_get:
+        from primr.data.search_utils import _search_google
+
+        with patch('primr.data.search_utils._google_api_available', True), \
+             patch('primr.data.search_utils.requests.get') as mock_get:
             mock_response = Mock()
             mock_response.json.return_value = {"items": []}
             mock_response.raise_for_status = Mock()
             mock_get.return_value = mock_response
-            
-            search_google("news", "Test Co", None)
-            
+
+            _search_google("news", "Test Co", None)
+
             call_args = mock_get.call_args
             params = call_args[1]["params"]
             assert "-site:" not in params["q"]
@@ -142,9 +146,9 @@ class TestExcludedSites:
             assert pattern in EXCLUDED_SITES, f"{pattern} should be in EXCLUDED_SITES"
     
     def test_excluded_sites_filter_works(self):
-        """Verify excluded sites are actually filtered from results."""
-        from primr.data.search_utils import search_google, EXCLUDED_SITES
-        
+        """Verify excluded sites are actually filtered from results (Google provider)."""
+        from primr.data.search_utils import _search_google, EXCLUDED_SITES
+
         mock_items = [
             {"link": "https://www.businesswire.com/news/article", "title": "Good"},
             {"link": "https://www.reddit.com/r/company", "title": "Bad"},
@@ -152,15 +156,16 @@ class TestExcludedSites:
             {"link": "https://support.company.com/help", "title": "Bad"},
             {"link": "https://www.youtube.com/watch", "title": "Bad"},
         ]
-        
-        with patch('primr.data.search_utils.requests.get') as mock_get:
+
+        with patch('primr.data.search_utils._google_api_available', True), \
+             patch('primr.data.search_utils.requests.get') as mock_get:
             mock_response = Mock()
             mock_response.json.return_value = {"items": mock_items}
             mock_response.raise_for_status = Mock()
             mock_get.return_value = mock_response
-            
-            results = search_google("news", "Test Co", "https://test.com")
-            
+
+            results = _search_google("news", "Test Co", "https://test.com")
+
             # Should only have businesswire and techcrunch
             urls = [r["url"] for r in results]
             assert len(urls) == 2
@@ -580,22 +585,160 @@ class TestContentValidation:
 
 class TestCircuitBreaker:
     """Test circuit breaker behavior for search API."""
-    
+
     def test_circuit_breaker_records_failures(self):
-        """Circuit breaker should record failures from API errors."""
-        from primr.data.search_utils import search_google, _search_circuit
+        """Circuit breaker should record failures from API errors (Google provider)."""
+        from primr.data.search_utils import _search_google, _search_circuit
         from requests.exceptions import RequestException
-        
+
         initial_failures = _search_circuit._failure_count
-        
-        with patch('primr.data.search_utils.requests.get') as mock_get:
+
+        with patch('primr.data.search_utils._google_api_available', True), \
+             patch('primr.data.search_utils.requests.get') as mock_get:
             # Simulate request exception (the type that triggers circuit breaker)
             mock_get.side_effect = RequestException("API Error")
-            
+
             # Make a failing call
-            result = search_google("test", "Test Co", "https://test.com")
-            
+            result = _search_google("test", "Test Co", "https://test.com")
+
             # Should return empty
             assert result == []
             # Failure count should have increased
             assert _search_circuit._failure_count > initial_failures or _search_circuit._state == "open"
+
+
+class TestDDGSearch:
+    """Test DuckDuckGo search provider."""
+
+    def test_ddg_returns_structured_results(self):
+        """DDG results should have title and url keys."""
+        from primr.data.search_utils import _search_ddg
+
+        mock_ddg_results = [
+            {"title": "Acme Corp News", "href": "https://news.com/acme", "body": "..."},
+            {"title": "Acme Funding", "href": "https://techcrunch.com/acme", "body": "..."},
+        ]
+
+        with patch('ddgs.DDGS') as MockDDGS:
+            MockDDGS.return_value.text.return_value = mock_ddg_results
+
+            results = _search_ddg("news", "Acme Corp", "https://acme.com")
+
+            assert len(results) == 2
+            assert results[0]["title"] == "Acme Corp News"
+            assert results[0]["url"] == "https://news.com/acme"
+            assert results[1]["url"] == "https://techcrunch.com/acme"
+
+    def test_ddg_excludes_low_value_sites(self):
+        """DDG should filter excluded sites."""
+        from primr.data.search_utils import _search_ddg
+
+        mock_ddg_results = [
+            {"title": "Good", "href": "https://businesswire.com/article", "body": "..."},
+            {"title": "Bad", "href": "https://reddit.com/r/company", "body": "..."},
+            {"title": "Bad", "href": "https://youtube.com/watch", "body": "..."},
+        ]
+
+        with patch('ddgs.DDGS') as MockDDGS:
+            MockDDGS.return_value.text.return_value = mock_ddg_results
+
+            results = _search_ddg("news", "Test Co", "https://test.com")
+
+            assert len(results) == 1
+            assert "businesswire.com" in results[0]["url"]
+
+    def test_ddg_excludes_company_domain(self):
+        """DDG should filter out company's own domain."""
+        from primr.data.search_utils import _search_ddg
+
+        mock_ddg_results = [
+            {"title": "Own Site", "href": "https://acme.com/about", "body": "..."},
+            {"title": "News", "href": "https://news.com/acme-article", "body": "..."},
+        ]
+
+        with patch('ddgs.DDGS') as MockDDGS:
+            MockDDGS.return_value.text.return_value = mock_ddg_results
+
+            results = _search_ddg("news", "Acme Corp", "https://www.acme.com")
+
+            assert len(results) == 1
+            assert "news.com" in results[0]["url"]
+
+    def test_ddg_handles_rate_limit(self):
+        """DDG rate limit should return empty and record failure."""
+        from primr.data.search_utils import _search_ddg, _search_circuit
+        from ddgs.exceptions import RatelimitException
+
+        initial_failures = _search_circuit._failure_count
+
+        with patch('ddgs.DDGS') as MockDDGS:
+            MockDDGS.return_value.text.side_effect = RatelimitException("rate limited")
+
+            results = _search_ddg("test", "Test Co", "https://test.com")
+
+            assert results == []
+            assert _search_circuit._failure_count > initial_failures or _search_circuit._state == "open"
+
+    def test_ddg_handles_timeout(self):
+        """DDG timeout should return empty."""
+        from primr.data.search_utils import _search_ddg
+        from ddgs.exceptions import TimeoutException
+
+        with patch('ddgs.DDGS') as MockDDGS:
+            MockDDGS.return_value.text.side_effect = TimeoutException("timeout")
+
+            results = _search_ddg("test", "Test Co", "https://test.com")
+
+            assert results == []
+
+
+class TestSearchProviderDispatch:
+    """Test search_web dispatches to correct provider."""
+
+    def test_default_uses_ddg(self):
+        """Default provider should be DDG."""
+        from primr.data.search_utils import _get_active_provider
+
+        with patch('primr.data.search_utils.SEARCH_PROVIDER', 'auto'):
+            assert _get_active_provider() == "ddg"
+
+    def test_google_with_keys_uses_google(self):
+        """SEARCH_PROVIDER=google with keys should use Google."""
+        from primr.data.search_utils import _get_active_provider
+
+        with patch('primr.data.search_utils.SEARCH_PROVIDER', 'google'), \
+             patch('primr.data.search_utils._google_api_available', True):
+            assert _get_active_provider() == "google"
+
+    def test_google_without_keys_falls_back_to_ddg(self):
+        """SEARCH_PROVIDER=google without keys should fall back to DDG."""
+        from primr.data.search_utils import _get_active_provider
+
+        with patch('primr.data.search_utils.SEARCH_PROVIDER', 'google'), \
+             patch('primr.data.search_utils._google_api_available', False):
+            assert _get_active_provider() == "ddg"
+
+    def test_search_web_dispatches_to_ddg(self):
+        """search_web should call _search_ddg when provider is DDG."""
+        from primr.data.search_utils import search_web
+
+        with patch('primr.data.search_utils._get_active_provider', return_value='ddg'), \
+             patch('primr.data.search_utils._search_ddg', return_value=[{"title": "T", "url": "U"}]) as mock_ddg:
+            results = search_web("test", "Test Co", "https://test.com")
+            mock_ddg.assert_called_once()
+            assert len(results) == 1
+
+    def test_search_web_dispatches_to_google(self):
+        """search_web should call _search_google when provider is Google."""
+        from primr.data.search_utils import search_web
+
+        with patch('primr.data.search_utils._get_active_provider', return_value='google'), \
+             patch('primr.data.search_utils._search_google', return_value=[{"title": "T", "url": "U"}]) as mock_google:
+            results = search_web("test", "Test Co", "https://test.com")
+            mock_google.assert_called_once()
+            assert len(results) == 1
+
+    def test_search_google_alias_works(self):
+        """search_google backward compatibility alias should work."""
+        from primr.data.search_utils import search_google, search_web
+        assert search_google is search_web

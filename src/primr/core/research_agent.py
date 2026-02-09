@@ -112,7 +112,11 @@ from primr.core.research_orchestrator import (
     get_orchestrator,
 )
 from primr.data.scrape import fetch_web_content, scrape_external_sources_validated
-from primr.data.search_utils import generate_search_queries, search_google
+from primr.data.search_utils import (
+    generate_external_search_queries,
+    generate_search_queries,
+    search_web,
+)
 from primr.output.output_utils import generate_final_report
 from primr.utils.console import console
 from primr.utils.logging_config import get_logger
@@ -500,7 +504,7 @@ def research_section(section_name, company_name, website, industry, folder_path,
             if needs_research and score < GRADE_THRESHOLD_FOR_RESEARCH_REFINEMENT:
                 queries = generate_search_queries(company_name, website, section_name, ai_response)
                 for query in queries[:2]:
-                    results = search_google(query, company_name, website)
+                    results = search_web(query, company_name, website)
                     if results:
                         ai_input += f"\n\n## Additional Research\n{results}"
                         ai_response = llm(ai_input, model_type="report")
@@ -554,40 +558,48 @@ def run_research(company_name: str, website: str, on_progress: Callable[[str], N
     # External research - with LLM validation to ensure correct company
     # This prevents including content from similarly-named but unrelated companies
     # (e.g., "EverTrue" fundraising software vs "EverTrue" senior living)
-    progress("Searching Google for external sources...")
+    progress("Searching for external sources...")
 
     external_data = {}
     total_search_results = 0
     if website:
         from primr.data.scrape import scrape_external_sources_validated
-        from primr.data.search_utils import search_google
+        from primr.data.search_utils import search_web
 
         urlparse(website).netloc.replace("www.", "")
 
-        # Search for business news and press releases about the company
-        external_queries = [
+        # Generate targeted search queries using LLM
+        progress("Generating search strategy...")
+        external_queries = generate_external_search_queries(company_name, website)
+
+        # Keep hardcoded queries as reliable fallbacks at the end
+        fallback_queries = [
             "news OR press release OR announcement",
             "funding OR acquisition OR partnership",
         ]
+        all_queries = external_queries + [q for q in fallback_queries if q not in external_queries]
 
-        for query in external_queries:
-            results = search_google(query, company_name, website)
+        max_external_sources = 8
+
+        for query in all_queries:
+            if len(external_data) >= max_external_sources:
+                break
+
+            results = search_web(query, company_name, website)
             if results:
                 total_search_results += len(results)
-                progress(f"  Found {len(results)} results for '{query[:30]}...'")
+                progress(f"  Found {len(results)} results for '{query[:40]}...'")
                 filtered = [r for r in results[:5] if website.lower() not in r.get("url", "").lower()]
+                remaining_slots = max_external_sources - len(external_data)
                 progress(f"  Validating {len(filtered)} external articles...")
                 scraped = scrape_external_sources_validated(
                     filtered,
                     company_name=company_name,
                     website=website,
-                    max_sources=2,
+                    max_sources=min(2, remaining_slots),
                     working_folder=folder_path
                 )
                 external_data.update(scraped)
-
-                if len(external_data) >= 3:
-                    break
 
     progress(f"+ {len(external_data)} external sources validated (from {total_search_results} search results)")
 
@@ -844,33 +856,34 @@ def perform_research(
             # External research - with LLM validation to ensure correct company
             # This prevents including content from similarly-named but unrelated companies
             with console.timed_operation("Searching external sources (with validation)"):
-                # Include website domain in search to get more targeted results
-                if website:
-                    urlparse(website).netloc.replace("www.", "")
+                # Generate targeted search queries using LLM
+                external_queries = generate_external_search_queries(company_name, website)
 
-                # Search for business news and press releases about the company
-                # These queries target high-value sources for company intelligence
-                external_queries = [
-                    "news OR press release OR announcement",  # Recent news coverage
-                    "funding OR acquisition OR partnership",   # Business developments
+                # Keep hardcoded queries as reliable fallbacks at the end
+                fallback_queries = [
+                    "news OR press release OR announcement",
+                    "funding OR acquisition OR partnership",
                 ]
-                external_data = {}
+                all_queries = external_queries + [q for q in fallback_queries if q not in external_queries]
 
-                for query in external_queries:
-                    results = search_google(query, company_name, website)
+                external_data = {}
+                max_external_sources = 8
+
+                for query in all_queries:
+                    if len(external_data) >= max_external_sources:
+                        break
+
+                    results = search_web(query, company_name, website)
                     if results:
                         filtered = [r for r in results[:5] if website and website.lower() not in r.get("url", "").lower()]
+                        remaining_slots = max_external_sources - len(external_data)
                         scraped = scrape_external_sources_validated(
                             filtered,
                             company_name=company_name,
                             website=website,
-                            max_sources=2
+                            max_sources=min(2, remaining_slots)
                         )
                         external_data.update(scraped)
-
-                        # Stop if we have enough validated sources
-                        if len(external_data) >= 3:
-                            break
             log_structured("info", "External sources complete (validated)", sources=len(external_data))
 
             all_scraped = {**scraped_data, **external_data}
@@ -3638,19 +3651,23 @@ def run_doctor():
         console.info("  Get your key at: https://ai.google.dev/")
         all_passed = False
 
-    search_key = env_config.get("search_key", "")
-    if search_key and len(search_key) >= 10:
-        console.ok("SEARCH_API_KEY configured")
-    else:
-        console.warn("SEARCH_API_KEY not set (optional, for Google Search)")
-        warnings_count += 1
+    search_provider = os.environ.get("SEARCH_PROVIDER", "auto").lower().strip()
+    if search_provider == "google":
+        search_key = env_config.get("search_key", "")
+        if search_key and len(search_key) >= 10:
+            console.ok("SEARCH_API_KEY configured")
+        else:
+            console.warn("SEARCH_API_KEY not set (required for SEARCH_PROVIDER=google)")
+            warnings_count += 1
 
-    search_engine = env_config.get("search_engine_id", "")
-    if search_engine:
-        console.ok("SEARCH_ENGINE_ID configured")
+        search_engine = env_config.get("search_engine_id", "")
+        if search_engine:
+            console.ok("SEARCH_ENGINE_ID configured")
+        else:
+            console.warn("SEARCH_ENGINE_ID not set (required for SEARCH_PROVIDER=google)")
+            warnings_count += 1
     else:
-        console.warn("SEARCH_ENGINE_ID not set (optional, for Google Search)")
-        warnings_count += 1
+        console.ok("Search: DuckDuckGo (no API key needed)")
 
     # 3. Playwright browsers
     console.step("Dependencies")

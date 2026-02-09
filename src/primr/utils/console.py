@@ -100,11 +100,13 @@ class Console:
             self._cross = "✗"
             self._arrow = "→"
             self._dot = "·"
+            self._pointer = "▸"
         else:
             self._check = "+"
             self._cross = "x"
             self._arrow = "->"
             self._dot = "."
+            self._pointer = ">"
 
     @property
     def term_width(self):
@@ -359,7 +361,7 @@ class Console:
             return
         self._print()
         # Modern minimal design - just bold title with subtle accent
-        self._print(f"{self._cyan}▸{self._reset} {self._bold}PHASE {step_num}{self._reset} {self._dim}·{self._reset} {title}")
+        self._print(f"{self._cyan}{self._pointer}{self._reset} {self._bold}PHASE {step_num}{self._reset} {self._dim}{self._dot}{self._reset} {title}")
         if description:
             self._print(f"  {self._dim}{description}{self._reset}")
         self._print()

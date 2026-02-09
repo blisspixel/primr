@@ -115,7 +115,7 @@ class ResearchMode(Enum):
     """Available research modes.
 
     Modes:
-        STRUCTURED: Website scraping + Google search, 18 sections (~20-25 min)
+        STRUCTURED: Website scraping + web search, 18 sections (~20-25 min)
         DEEP_RESEARCH: Autonomous web research, 8 sections (~10-15 min)
         COMPLETE: Two-step sequential: structured then deep research (~30-40 min)
         HYBRID: Parallel execution of both engines (legacy, ~25 min)
@@ -426,7 +426,7 @@ class ResearchOrchestrator:
         This is the recommended mode for comprehensive reports:
 
         Phase 1: Structured Pipeline (Data Collection)
-            - Full website scraping + Google search
+            - Full website scraping + web search
             - Creates baseline context (Stage 1)
             - ~15-25 minutes
 
@@ -465,7 +465,7 @@ class ResearchOrchestrator:
                 step_num=1,
                 total_steps=2,
                 title="Data Collection",
-                description="Website scraping + Google search + AI analysis",
+                description="Website scraping + web search + AI analysis",
                 expected_duration="15-25 minutes"
             )
 
@@ -696,7 +696,7 @@ class ResearchOrchestrator:
             f"# Initial Research Findings: {company_name}",
             f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}",
             "",
-            "This document contains initial research findings from website scraping and Google search.",
+            "This document contains initial research findings from website scraping and web search.",
             "Use this as context for deeper strategic analysis.",
             "",
             "---",

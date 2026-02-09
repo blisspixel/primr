@@ -550,7 +550,7 @@ def scrape_external_sources_validated(
                 with open(raw_file, "w", encoding="utf-8") as f:
                     f.write(f"URL: {url}\n")
                     f.write(f"Title: {title}\n")
-                    f.write("Source: External (Google search)\n")
+                    f.write("Source: External (web search)\n")
                     f.write(f"Length: {len(text)} chars\n")
                     f.write("-" * 60 + "\n\n")
                     f.write(text)

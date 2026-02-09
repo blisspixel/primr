@@ -103,7 +103,7 @@ Available research modes.
 ```python
 from primr.core.research_orchestrator import ResearchMode
 
-ResearchMode.STRUCTURED      # Website scraping + Google search
+ResearchMode.STRUCTURED      # Website scraping + web search
 ResearchMode.DEEP_RESEARCH   # Autonomous web research
 ResearchMode.COMPLETE        # Two-step: structured then deep
 ```

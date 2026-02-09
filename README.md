@@ -35,7 +35,7 @@ Manual research takes hours. Primr typically runs in ~30 minutes and costs ~$1�
 | `deep` | Gemini Deep Research on external sources | ~10 min | ~$1.00 |
 | `full` | Both combined into comprehensive brief | ~30 min | ~$1.50 |
 
-Costs include Google Search grounding ($0.035/query). Use `--dry-run` for accurate estimates based on your usage history.
+Costs are primarily Gemini API usage. Web search is free (DuckDuckGo). Use `--dry-run` for accurate estimates based on your usage history.
 
 ## Quick Start
 
@@ -48,7 +48,7 @@ primr doctor                     # Verify everything works
 primr "Acme Corp" https://acme.example  # Run your first research
 ```
 
-Requires Python 3.11+ and a Gemini API key.
+Requires Python 3.11+ and a Gemini API key. That's it — web search uses DuckDuckGo (no key needed).
 
 ```bash
 # More usage
@@ -61,13 +61,13 @@ primr "Company" https://company.com --dry-run       # Cost estimate first
 
 ```
 ▸ PHASE 1 · Data Collection
-  Website scraping + external sources
+  Website scraping + web search + AI analysis
 
   Scraping 23/47 /about/leadership (15s)
 
 ✓ Data Collection
   Pages scraped: 47
-  External sources: 12
+  External sources: 8
 
 ▸ PHASE 2 · Analysis
   Processing and synthesizing content
@@ -110,6 +110,41 @@ From the executive summary of a sample report:
 
 Reports include 10 structured chapters, SWOT analysis, competitive landscape, discovery questions, and inline confidence levels on every non-obvious claim. Full sample: [docs/examples/sample-brief.md](docs/examples/sample-brief.md)
 
+## Batch Research
+
+Have a spreadsheet of companies? Primr can enrich it with website URLs and run research across the list.
+
+**Two-step workflow (recommended):**
+
+```bash
+# Step 1: Enrich — auto-detect columns, look up websites, filter by industry, save CSV
+primr --batch companies.xlsx --industry Utilities --enrich
+
+# Step 2: Review the enriched CSV, then run research
+primr --batch companies_utilities_enriched.csv --mode scrape
+```
+
+**Options:**
+
+```bash
+--enrich          # Enrich only — look up websites, save CSV, don't research
+--industry NAME   # Filter rows by industry column value
+--limit N         # Process only the first N companies (useful for testing)
+--skip-confirm    # Skip the confirmation prompt (for unattended runs)
+--mode MODE       # scrape (~$0.10/co), deep (~$1.00/co), full (~$1.50/co)
+```
+
+**Defensive behavior:**
+
+- Shows cost estimate and asks for confirmation before starting (use `--skip-confirm` to bypass)
+- **Resume:** re-run the same command to skip companies that already have reports from today
+- Cooldown between companies (10s for scrape, 60s for deep/full) to avoid API quota issues
+- Progressive retry with backoff on rate-limit errors (immediate → 2 min → 5 min)
+- Pauses and asks after 3 consecutive failures — option to wait 10 minutes or stop
+- Deduplicates companies by name (case-insensitive)
+
+Accepts Excel (`.xlsx`) or CSV files. Smart column detection uses an LLM to find company name, website, and industry columns automatically.
+
 ## Under the Hood
 
 **8-Tier Retrieval Engine** (browser-first for modern JS-heavy sites)
@@ -134,9 +169,14 @@ Reports include 10 structured chapters, SWOT analysis, competitive landscape, di
 ```bash
 # Required in .env
 GEMINI_API_KEY=       # https://aistudio.google.com/apikey
-SEARCH_API_KEY=       # Google Custom Search API  
-SEARCH_ENGINE_ID=     # Programmable Search Engine ID
+
+# Optional — only needed if you want to use Google Custom Search instead of DuckDuckGo
+# SEARCH_PROVIDER=google
+# SEARCH_API_KEY=     # Google Custom Search API
+# SEARCH_ENGINE_ID=   # Programmable Search Engine ID
 ```
+
+Web search uses DuckDuckGo by default — no search API key needed. Google Custom Search is available as an optional fallback for users with existing whole-web CSEs.
 
 → [Full setup guide](docs/API_KEYS.md)
 

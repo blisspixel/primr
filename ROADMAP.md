@@ -292,6 +292,13 @@ Goal: Enable human-in-the-loop decisions during research.
 - `InteractiveErrorRecoveryHook` for user-driven error recovery
 - `mutable_data` and `user_input_callback` fields in HookContext
 
+**Expanded External Search Coverage:**
+- LLM-generated search queries (6 targeted queries per company) replace 2 hardcoded queries
+- Target raised from 3 to 8 validated external sources
+- Covers news, funding, technology stack, leadership, competitive landscape, and industry analysis
+- Hardcoded queries retained as fallbacks
+- CLI preflight respects SEARCH_PROVIDER setting (no longer requires Google API keys when using DuckDuckGo)
+
 **MCP Progress Subscriptions:**
 - `wait_for_status_change(job_id, timeout)` tool for real-time progress updates
 - Replaces polling-based `check_jobs` pattern for better UX
@@ -454,7 +461,7 @@ Primr is a tool for understanding companies. The focus is on useful output, not 
 
 **Accuracy**: Primr uses AI models that may produce inaccurate, incomplete, or hallucinated information. All outputs should be treated as hypotheses requiring human verification, not facts. Do not make business decisions based solely on Primr outputs without independent validation.
 
-**Costs**: Primr makes API calls to third-party services (Gemini, Google Search) that incur real monetary charges. Cost estimates are approximate. Users are responsible for monitoring their own API usage and costs.
+**Costs**: Primr makes API calls to third-party services (primarily Gemini) that incur real monetary charges. Web search uses DuckDuckGo by default (free). Cost estimates are approximate. Users are responsible for monitoring their own API usage and costs.
 
 **No Warranty**: This software is provided "as is" without warranty of any kind. The authors are not liable for any damages, costs, or legal issues arising from use of this software.
 
