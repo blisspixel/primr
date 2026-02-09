@@ -28,7 +28,11 @@ from primr.config.prompts import generate_prompt
 from primr.config.sections_config import SECTION_KEY_MAP
 from primr.core.workspace import create_working_folder, save_section_output
 from primr.data.scrape import fetch_web_content, scrape_external_sources_validated
-from primr.data.search_utils import generate_search_queries, search_google
+from primr.data.search_utils import (
+    generate_external_search_queries,
+    generate_search_queries,
+    search_web,
+)
 from primr.utils.logging_config import get_logger
 
 logger = get_logger("structured_research")
@@ -343,39 +347,43 @@ def _collect_data(
     # External research - with LLM validation to ensure correct company
     # This prevents including content from similarly-named but unrelated companies
     # (e.g., "EverTrue" fundraising software vs "EverTrue" senior living)
-    report("Searching external sources (with validation)...")
+    report("Generating search strategy...")
 
-    # Include website domain in search to get more targeted results
-    if website:
-        from urllib.parse import urlparse
-        urlparse(website).netloc.replace("www.", "")
+    # Generate targeted search queries using LLM
+    external_queries = generate_external_search_queries(company_name, website)
 
-    # Search for business news and press releases about the company
-    # These queries target high-value sources for company intelligence
-    external_queries = [
-        "news OR press release OR announcement",  # Recent news coverage
-        "funding OR acquisition OR partnership",   # Business developments
+    # Keep hardcoded queries as reliable fallbacks at the end
+    fallback_queries = [
+        "news OR press release OR announcement",
+        "funding OR acquisition OR partnership",
     ]
-    external_data = {}
+    # Deduplicate: LLM queries first, then fallbacks
+    all_queries = external_queries + [q for q in fallback_queries if q not in external_queries]
 
-    for query in external_queries:
-        results = search_google(query, company_name, website)
+    external_data = {}
+    max_external_sources = 8
+
+    for query in all_queries:
+        if len(external_data) >= max_external_sources:
+            break
+
+        report(f"Searching: {company_name} {query[:40]}...")
+        results = search_web(query, company_name, website)
         if results:
             filtered = [
-                r for r in results[:5]  # Check more results since some will be rejected
+                r for r in results[:5]
                 if website and website.lower() not in r.get("url", "").lower()
             ]
+            remaining_slots = max_external_sources - len(external_data)
             scraped = scrape_external_sources_validated(
                 filtered,
                 company_name=company_name,
                 website=website,
-                max_sources=2
+                max_sources=min(2, remaining_slots)
             )
             external_data.update(scraped)
 
-            # Stop if we have enough validated sources
-            if len(external_data) >= 3:
-                break
+    report(f"Found {len(external_data)} validated external sources")
 
     return ScrapedData(
         website_pages=website_pages,
@@ -595,7 +603,7 @@ def _refine_section_if_needed(
                 company_name, website, section_name, ai_response
             )
             for query in queries[:2]:
-                results = search_google(query, company_name, website)
+                results = search_web(query, company_name, website)
                 if results:
                     # Rebuild input with additional research
                     ai_input = f"""

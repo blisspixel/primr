@@ -7,7 +7,6 @@ import time
 
 from primr.ai.llm import llm
 from primr.config.config import GRADE_THRESHOLD_FOR_RESEARCH_REFINEMENT, MAX_RETRIES
-from primr.data.search_utils import search_google
 from primr.utils.logging_config import get_logger
 
 logger = get_logger("grading")
@@ -69,7 +68,8 @@ def grade_report(section_text, section_name, company_name, company_website, draf
             if needs_research and ("missing" in reason.lower() or "not enough detail" in reason.lower()):
                 logger.debug(f"Section '{section_name}' needs refinement")
                 search_query = f'"{company_name} {section_name}" site:{company_website}'
-                search_google(search_query, company_name, company_website)
+                from primr.data.search_utils import search_web
+                search_web(search_query, company_name, company_website)
 
             return score, needs_research, reason
 

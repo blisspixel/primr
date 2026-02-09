@@ -28,7 +28,7 @@ result = await orchestrator.research(
 
 | Mode | Description | Duration |
 |------|-------------|----------|
-| `STRUCTURED` | Website scraping + Google search | 20-25 min |
+| `STRUCTURED` | Website scraping + web search | 20-25 min |
 | `DEEP_RESEARCH` | Autonomous web research | 10-15 min |
 | `COMPLETE` | Two-phase: structured then deep | 30-40 min |
 

@@ -61,7 +61,7 @@ API delays detected, retrying...
 PHASE 1: DATA COLLECTION
 ===============================================================
 
-Website scraping + Google search + AI analysis
+Website scraping + web search + AI analysis
 ```
 
 **Changes:**

@@ -7,8 +7,28 @@ This guide covers obtaining, configuring, and securing the API keys required for
 | Credential | Purpose | Console |
 |------------|---------|---------|
 | `GEMINI_API_KEY` | Google AI for research & analysis | [Google AI Studio](https://aistudio.google.com/apikey) |
-| `SEARCH_API_KEY` | Google Custom Search API | [Google Cloud Console](https://console.cloud.google.com/apis/credentials) |
-| `SEARCH_ENGINE_ID` | Custom Search Engine config | [Programmable Search Engine](https://programmablesearchengine.google.com/) |
+
+> **That's it!** Primr uses DuckDuckGo for web search by default — no search API key needed.
+
+## Optional Credentials
+
+| Credential | Purpose | Console |
+|------------|---------|---------|
+| `SEARCH_API_KEY` | Google Custom Search API (only if `SEARCH_PROVIDER=google`) | [Google Cloud Console](https://console.cloud.google.com/apis/credentials) |
+| `SEARCH_ENGINE_ID` | Custom Search Engine config (only if `SEARCH_PROVIDER=google`) | [Programmable Search Engine](https://programmablesearchengine.google.com/) |
+
+### Search Provider Configuration
+
+Primr defaults to DuckDuckGo for web search, which requires no API keys. If you have a grandfathered Google Custom Search Engine with whole-web search, you can use it instead:
+
+```bash
+# In your .env file:
+SEARCH_PROVIDER=google          # Use Google Custom Search
+SEARCH_API_KEY=your_key_here
+SEARCH_ENGINE_ID=your_id_here
+```
+
+> **Note:** Google deprecated "Search the entire web" for new Programmable Search Engines in January 2026. New CSEs are limited to 50 domains, making them unsuitable for Primr's use case. Only use `SEARCH_PROVIDER=google` if you have an existing whole-web CSE.
 
 ## Step-by-Step Setup
 

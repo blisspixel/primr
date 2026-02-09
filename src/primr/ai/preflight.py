@@ -199,24 +199,30 @@ class PreflightValidator:
             checks["gemini_api_key"] = {"passed": True, "status": "configured"}
             progress("  + GEMINI_API_KEY")
 
-        # SEARCH_API_KEY - required for full and scrape modes
+        # Search provider - check based on active provider
         if mode in ("full", "scrape"):
-            search_key = getattr(self._settings.api, 'search_key', None) or os.environ.get('SEARCH_API_KEY')
-            if not search_key:
-                errors.append("SEARCH_API_KEY not configured (required for Google Search)")
-                checks["search_api_key"] = {"passed": False, "status": "missing"}
-            else:
-                checks["search_api_key"] = {"passed": True, "status": "configured"}
-                progress("  + SEARCH_API_KEY")
+            search_provider = os.environ.get("SEARCH_PROVIDER", "auto").lower().strip()
+            if search_provider == "google":
+                # Google requires API keys
+                search_key = getattr(self._settings.api, 'search_key', None) or os.environ.get('SEARCH_API_KEY')
+                if not search_key:
+                    errors.append("SEARCH_API_KEY not configured (required when SEARCH_PROVIDER=google)")
+                    checks["search_api_key"] = {"passed": False, "status": "missing"}
+                else:
+                    checks["search_api_key"] = {"passed": True, "status": "configured"}
+                    progress("  + SEARCH_API_KEY")
 
-            # SEARCH_ENGINE_ID
-            search_engine_id = getattr(self._settings.api, 'search_engine_id', None) or os.environ.get('SEARCH_ENGINE_ID')
-            if not search_engine_id:
-                errors.append("SEARCH_ENGINE_ID not configured (required for Google Search)")
-                checks["search_engine_id"] = {"passed": False, "status": "missing"}
+                search_engine_id = getattr(self._settings.api, 'search_engine_id', None) or os.environ.get('SEARCH_ENGINE_ID')
+                if not search_engine_id:
+                    errors.append("SEARCH_ENGINE_ID not configured (required when SEARCH_PROVIDER=google)")
+                    checks["search_engine_id"] = {"passed": False, "status": "missing"}
+                else:
+                    checks["search_engine_id"] = {"passed": True, "status": "configured"}
+                    progress("  + SEARCH_ENGINE_ID")
             else:
-                checks["search_engine_id"] = {"passed": True, "status": "configured"}
-                progress("  + SEARCH_ENGINE_ID")
+                # DuckDuckGo - no keys needed
+                checks["search_provider"] = {"passed": True, "status": "DuckDuckGo (no key needed)"}
+                progress("  + Search: DuckDuckGo (no key needed)")
 
     def _check_yaml_config(
         self,
