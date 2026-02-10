@@ -85,57 +85,62 @@ class TestMakeRequest:
         """Should make GET request by default."""
         mock_response = Mock()
         mock_response.status_code = 200
-        
+        mock_response.url = "https://example.com"
+
         with patch("requests.request", return_value=mock_response) as mock_req:
             make_request("https://example.com")
-        
+
         mock_req.assert_called_once()
         assert mock_req.call_args[1]["method"] == "GET"
-    
+
     def test_makes_head_request(self):
         """Should make HEAD request when specified."""
         mock_response = Mock()
         mock_response.status_code = 200
-        
+        mock_response.url = "https://example.com"
+
         with patch("requests.request", return_value=mock_response) as mock_req:
             make_request("https://example.com", method="HEAD")
-        
+
         assert mock_req.call_args[1]["method"] == "HEAD"
     
     def test_uses_timeout(self):
         """Should use specified timeout."""
         mock_response = Mock()
         mock_response.status_code = 200
-        
+        mock_response.url = "https://example.com"
+
         with patch("requests.request", return_value=mock_response) as mock_req:
             make_request("https://example.com", timeout=30)
-        
+
         assert mock_req.call_args[1]["timeout"] == 30
-    
+
     def test_merges_custom_headers(self):
         """Should merge custom headers with defaults."""
         mock_response = Mock()
         mock_response.status_code = 200
-        
+        mock_response.url = "https://example.com"
+
         custom_headers = {"X-Custom": "value"}
-        
+
         with patch("requests.request", return_value=mock_response) as mock_req:
             make_request("https://example.com", headers=custom_headers)
-        
+
         call_headers = mock_req.call_args[1]["headers"]
         assert call_headers["X-Custom"] == "value"
         assert "User-Agent" in call_headers  # Default still present
-    
+
     def test_passes_cookies(self):
         """Should pass cookies to request."""
         mock_response = Mock()
         mock_response.status_code = 200
-        
+        mock_response.url = "https://example.com"
+
         cookies = {"session": "abc"}
-        
+
         with patch("requests.request", return_value=mock_response) as mock_req:
             make_request("https://example.com", cookies=cookies)
-        
+
         assert mock_req.call_args[1]["cookies"] == cookies
 
 
