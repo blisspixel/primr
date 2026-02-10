@@ -132,6 +132,15 @@ class PathValidator:
 
         Requirements: 11.1-11.9
         """
+        # Check for null bytes (OS truncates at \x00, classic injection vector)
+        if "\x00" in path:
+            self._log_rejection(client_id, path, "null_byte")
+            return PathValidationResult(
+                valid=False,
+                error_type="path_traversal_blocked",
+                error_message="Path contains null bytes",
+            )
+
         # Check for traversal patterns (tripwire)
         for pattern in TRAVERSAL_PATTERNS:
             if pattern.search(path):

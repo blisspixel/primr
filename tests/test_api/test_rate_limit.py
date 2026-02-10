@@ -68,7 +68,7 @@ class TestTokenBucket:
         """Test consumption with insufficient tokens."""
         bucket = TokenBucket(capacity=100, tokens=5)
         assert bucket.consume(10) is False
-        assert bucket.tokens == 5  # Unchanged
+        assert bucket.tokens == pytest.approx(5, abs=0.01)  # Unchanged (approx due to refill timing)
     
     def test_time_until_available(self):
         """Test time calculation."""

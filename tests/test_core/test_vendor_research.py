@@ -112,13 +112,13 @@ class TestGetVendorResearchPath:
         assert "2024-06" in str(path)
         assert "aws" in str(path).lower()
 
-    def test_returns_path_in_docs_folder(self):
-        """Returns path in docs folder."""
+    def test_returns_path_in_vendor_research_folder(self):
+        """Returns path in vendor-research folder."""
         from primr.core.vendor_research import get_vendor_research_path
 
         path = get_vendor_research_path("gcp")
 
-        assert "docs" in str(path)
+        assert "vendor-research" in str(path)
 
 
 class TestGetManualResearchPath:
