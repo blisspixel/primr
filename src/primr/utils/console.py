@@ -214,7 +214,21 @@ class Console:
             return
         self._print(f"{self._dim}{msg}{self._reset}")
 
-    def scrape_progress(self, current, total, path, start_time=None, tier=None):
+    def _format_duration(self, seconds):
+        """Format a duration in seconds to a human-readable string."""
+        if seconds < 1:
+            return ""
+        elif seconds < 60:
+            return f"{int(seconds)}s"
+        elif seconds < 3600:
+            m, s = divmod(int(seconds), 60)
+            return f"{m}m {s}s" if s else f"{m}m"
+        else:
+            h, rem = divmod(int(seconds), 3600)
+            m = rem // 60
+            return f"{h}h {m}m"
+
+    def scrape_progress(self, current, total, path, start_time=None, tier=None, eta_seconds=None):
         """Show scraping progress with clean inline updates."""
         if self.quiet:
             return
@@ -226,10 +240,22 @@ class Console:
             return
 
         # Interactive: clean inline progress
-        # Format: "Scraping 3/50 /investors/financial-reports (9s)"
-        # No tier shown - it's noise. Just path and timing.
+        # Format: "Scraping 3/50 /about  [8s elapsed, ~2m left]"
         width = min(self._caps.width, 120)
-        line = f"Scraping {current}/{total} {path}"
+
+        # Build timing suffix
+        timing_parts = []
+        if start_time:
+            elapsed = self._elapsed(start_time)
+            if elapsed:
+                timing_parts.append(f"{elapsed} elapsed")
+        if eta_seconds is not None and eta_seconds >= 1:
+            eta_str = self._format_duration(eta_seconds)
+            if eta_str:
+                timing_parts.append(f"~{eta_str} left")
+        timing = f"  [{', '.join(timing_parts)}]" if timing_parts else ""
+
+        line = f"Scraping {current}/{total} {path}{timing}"
 
         # Truncate if too long, then pad to width
         if len(line) > width:

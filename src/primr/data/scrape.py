@@ -312,6 +312,7 @@ def fetch_web_content(
             logger.debug(f"Failed to save homepage raw scrape: {e}")
 
     total = len(pages_to_scrape) + 1  # +1 for homepage already scraped
+    page_times = []  # Track per-page durations for ETA
 
     # Show initial progress immediately
     if pages_to_scrape:
@@ -335,12 +336,14 @@ def fetch_web_content(
         result = orchestrator.scrape_url(page_url)
         page_elapsed = time.time() - page_start
 
-        # Show progress AFTER scraping with timing - single line update
-        elapsed_str = f"{int(page_elapsed)}s" if page_elapsed >= 1 else ""
-        if elapsed_str:
-            console.scrape_progress(i + 2, total, f"{path_display} ({elapsed_str})", scrape_start, tier=result.tier if result.success else None)
-        else:
-            console.scrape_progress(i + 2, total, path_display, scrape_start, tier=result.tier if result.success else None)
+        # Track timing and compute ETA from rolling average
+        page_times.append(page_elapsed)
+        avg_time = sum(page_times) / len(page_times)
+        remaining = total - (i + 2)
+        eta_seconds = avg_time * remaining if remaining > 0 else 0
+
+        # Show progress AFTER scraping with ETA
+        console.scrape_progress(i + 2, total, path_display, scrape_start, eta_seconds=eta_seconds)
 
         # Only log actual failures (not slow-but-successful pages)
         if not result.success:
@@ -791,8 +794,9 @@ def clear_cache(max_age_hours: float | None = None) -> None:
 # =============================================================================
 
 def cleanup_browser():
-    """Clean up browser resources."""
-    # The new architecture handles cleanup automatically
+    """Clean up shared browser resources."""
+    from primr.data.scraping.browsers import SharedBrowser
+    SharedBrowser.get().close()
 
 
 # Register cleanup (no-op for now, new arch handles it)

@@ -616,7 +616,7 @@ class TestRetryHistoryAttachment:
                 await manager.execute_with_retry(failing_operation)
             return exc_info.value
         
-        error = asyncio.get_event_loop().run_until_complete(run_test())
+        error = asyncio.run(run_test())
         
         # Should have retry_history in context
         assert "retry_history" in error.context

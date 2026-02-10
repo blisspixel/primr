@@ -218,7 +218,7 @@ def test_property_direct_urls_preserved_sync(url: str):
     
     Synchronous version of direct URL preservation test.
     """
-    result = asyncio.get_event_loop().run_until_complete(resolve_redirect_url(url))
+    result = asyncio.run(resolve_redirect_url(url))
     assert result == url
 
 
@@ -312,7 +312,7 @@ def test_property_graceful_degradation_on_error(error_type: Exception):
             result = await resolve_redirect_url(redirect_url)
             return result
     
-    result = asyncio.get_event_loop().run_until_complete(run_test())
+    result = asyncio.run(run_test())
     
     # Should return something (not None, not empty)
     assert result is not None

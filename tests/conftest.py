@@ -33,6 +33,12 @@ def package_dir():
 
 def pytest_configure(config):
     """Configure pytest to suppress external library warnings."""
+    # Set a generous Hypothesis deadline globally so property tests don't flake
+    # on slower machines or CI. Individual tests can still override with @settings.
+    from hypothesis import settings as hypothesis_settings
+    hypothesis_settings.register_profile("ci", deadline=None)
+    hypothesis_settings.load_profile("ci")
+
     # Suppress unclosed event loop warnings from asyncio
     warnings.filterwarnings(
         "ignore",

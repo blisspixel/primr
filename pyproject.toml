@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "primr"
-version = "1.7.0"
+version = "1.11.0"
 description = "Company intelligence research tool using Google Gemini - generates structured briefs from website content and external sources"
 readme = "README.md"
 license = {text = "MIT"}

@@ -1,8 +1,11 @@
 """Tests for structured content extraction and boilerplate filtering."""
 
 import pytest
+from bs4 import BeautifulSoup
+
 from primr.data.scraping.structured_content import (
     BoilerplateFilter,
+    prune_dom,
     remove_duplicate_lines,
 )
 from primr.data.scraping.net import is_in_scope
@@ -173,3 +176,96 @@ class TestScopePolicy:
             "https://myexample.com/page",
             "https://example.com"
         )
+
+
+class TestPruneDomProtectsMainContent:
+    """Tests that prune_dom protects ancestors of semantic content elements."""
+
+    SUBSTANTIAL_TEXT = "Lorem ipsum dolor sit amet. " * 20  # ~580 chars
+
+    def test_preserves_main_inside_sidebar_wrapper(self):
+        """Drupal 'show-sidebar' wrapper around <main> must not be removed."""
+        html = f"""
+        <html><body>
+        <div class="layout-main-wrapper show-sidebar">
+            <main>{self.SUBSTANTIAL_TEXT}</main>
+        </div>
+        </body></html>
+        """
+        soup = BeautifulSoup(html, "html.parser")
+        soup = prune_dom(soup)
+        assert len(soup.get_text(strip=True)) >= 200
+
+    def test_preserves_main_inside_dialog_canvas(self):
+        """Drupal 'dialog-off-canvas-main-canvas' wrapper must not be removed."""
+        html = f"""
+        <html><body>
+        <div class="dialog-off-canvas-main-canvas">
+            <main>{self.SUBSTANTIAL_TEXT}</main>
+        </div>
+        </body></html>
+        """
+        soup = BeautifulSoup(html, "html.parser")
+        soup = prune_dom(soup)
+        assert len(soup.get_text(strip=True)) >= 200
+
+    def test_preserves_body_with_sidebar_class(self):
+        """Body with 'layout-no-sidebars' class must not lose its content."""
+        html = f"""
+        <html><body class="layout-no-sidebars">
+        <main>{self.SUBSTANTIAL_TEXT}</main>
+        </body></html>
+        """
+        soup = BeautifulSoup(html, "html.parser")
+        soup = prune_dom(soup)
+        assert len(soup.get_text(strip=True)) >= 200
+
+    def test_still_removes_real_sidebar(self):
+        """A real sidebar div next to <main> should still be removed."""
+        html = f"""
+        <html><body>
+        <main>{self.SUBSTANTIAL_TEXT}</main>
+        <div class="sidebar"><p>Sidebar links</p></div>
+        </body></html>
+        """
+        soup = BeautifulSoup(html, "html.parser")
+        soup = prune_dom(soup)
+        assert "Sidebar links" not in soup.get_text()
+
+    def test_still_removes_real_modal(self):
+        """A real modal div next to <main> should still be removed."""
+        html = f"""
+        <html><body>
+        <main>{self.SUBSTANTIAL_TEXT}</main>
+        <div class="modal"><p>Sign up now</p></div>
+        </body></html>
+        """
+        soup = BeautifulSoup(html, "html.parser")
+        soup = prune_dom(soup)
+        assert "Sign up now" not in soup.get_text()
+
+    def test_small_article_does_not_protect_sidebar(self):
+        """A tiny <article> (< 200 chars) inside a sidebar should not protect it."""
+        html = """
+        <html><body>
+        <div class="sidebar">
+            <article><p>Short card</p></article>
+        </div>
+        </body></html>
+        """
+        soup = BeautifulSoup(html, "html.parser")
+        soup = prune_dom(soup)
+        assert "Short card" not in soup.get_text()
+
+    def test_protects_article_with_substantial_content(self):
+        """A 300-char <article> inside a wrapper with 'overlay' class should protect it."""
+        html = f"""
+        <html><body>
+        <div class="content-overlay">
+            <article>{self.SUBSTANTIAL_TEXT}</article>
+        </div>
+        </body></html>
+        """
+        soup = BeautifulSoup(html, "html.parser")
+        soup = prune_dom(soup)
+        assert len(soup.get_text(strip=True)) >= 200

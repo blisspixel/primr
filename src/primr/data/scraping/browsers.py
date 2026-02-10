@@ -31,52 +31,98 @@ logger = logging.getLogger(__name__)
 
 
 # =============================================================================
-# Browser Pool - DISABLED due to greenlet conflicts
-# =============================================================================
-#
-# NOTE: Browser pooling is disabled because Playwright's sync API uses greenlet
-# internally, and greenlet cannot switch between different call contexts.
-# This caused "Cannot switch to a different thread" errors.
-#
-# The performance cost of launching a fresh browser per page (~1-2s) is
-# acceptable compared to the complexity of managing greenlet contexts.
+# Shared Browser Launch Args
 # =============================================================================
 
-class BrowserPool:
-    """
-    DEPRECATED: Browser pool disabled due to greenlet conflicts.
+BROWSER_LAUNCH_ARGS = [
+    '--disable-blink-features=AutomationControlled',
+    '--disable-http2',
+    '--no-sandbox',
+    '--disable-setuid-sandbox',
+    '--disable-dev-shm-usage',
+    '--disable-infobars',
+    '--disable-background-networking',
+    '--disable-breakpad',
+    '--disable-component-update',
+    '--disable-domain-reliability',
+    '--disable-features=AudioServiceOutOfProcess,IsolateOrigins,site-per-process',
+    '--disable-hang-monitor',
+    '--disable-ipc-flooding-protection',
+    '--disable-popup-blocking',
+    '--disable-prompt-on-repost',
+    '--disable-renderer-backgrounding',
+    '--disable-sync',
+    '--force-color-profile=srgb',
+    '--metrics-recording-only',
+    '--no-first-run',
+    '--password-store=basic',
+    '--use-mock-keychain',
+    '--export-tagged-pdf',
+]
 
-    This class is kept for API compatibility but always returns None,
-    forcing callers to create fresh browser instances.
+
+# =============================================================================
+# Shared Browser Singleton
+# =============================================================================
+
+class SharedBrowser:
+    """Shared Playwright browser instance for sequential scraping.
+
+    Creates one Chromium process and reuses it across pages.
+    Each page gets its own browser context (cheap, ~50ms) for isolation.
+    Safe because scraping is single-threaded and sequential.
     """
 
-    _instance = None
+    _instance: "SharedBrowser | None" = None
     _lock = threading.Lock()
 
-    def __new__(cls):
+    def __init__(self):
+        self._playwright = None
+        self._browser = None
+
+    @classmethod
+    def get(cls) -> "SharedBrowser":
         if cls._instance is None:
             with cls._lock:
                 if cls._instance is None:
-                    cls._instance = super().__new__(cls)
+                    cls._instance = SharedBrowser()
         return cls._instance
 
-    def get_context(self, host: str) -> tuple | None:
-        """Always returns None - pool is disabled."""
-        return None
+    def get_browser(self, headless: bool = True):
+        """Get or create the shared Chromium browser. Lazy init on first call."""
+        # Crash recovery: if browser died, restart
+        if self._browser and not self._browser.is_connected():
+            logger.info("Shared browser disconnected, restarting...")
+            self._cleanup_internal()
 
-    def close_all(self) -> None:
-        """No-op - pool is disabled."""
+        if self._browser is None:
+            from playwright.sync_api import sync_playwright
 
+            self._playwright = sync_playwright().start()
+            self._browser = self._playwright.chromium.launch(
+                headless=headless,
+                args=BROWSER_LAUNCH_ARGS,
+            )
+            logger.info("Shared Playwright browser started")
 
-# Global browser pool (disabled)
-_browser_pool = None
+        return self._browser
 
-def get_browser_pool() -> BrowserPool:
-    """Get the global browser pool (disabled - always returns fresh instances)."""
-    global _browser_pool
-    if _browser_pool is None:
-        _browser_pool = BrowserPool()
-    return _browser_pool
+    def _cleanup_internal(self):
+        if self._browser:
+            with contextlib.suppress(Exception):
+                self._browser.close()
+            self._browser = None
+        if self._playwright:
+            with contextlib.suppress(Exception):
+                self._playwright.stop()
+            self._playwright = None
+
+    def close(self):
+        """Shut down the shared browser."""
+        with self._lock:
+            self._cleanup_internal()
+            SharedBrowser._instance = None
+            logger.info("Shared Playwright browser closed")
 
 
 # =============================================================================
@@ -299,23 +345,12 @@ class PlaywrightSession(BrowserSession):
     def _setup_browser(self) -> None:
         """Initialize Playwright browser."""
         try:
-            from playwright.sync_api import sync_playwright
-
             from .profiles import get_random_http_profile
 
-            self._playwright = sync_playwright().start()
-
-            # Launch with anti-detection args
-            self._browser = self._playwright.chromium.launch(
-                headless=self._headless,
-                args=[
-                    '--disable-blink-features=AutomationControlled',
-                    '--disable-http2',
-                    '--no-sandbox',
-                    '--disable-setuid-sandbox',
-                    '--disable-dev-shm-usage',
-                ],
-            )
+            # Use shared browser for reuse across pages
+            shared = SharedBrowser.get()
+            self._browser = shared.get_browser(headless=self._headless)
+            self._owns_browser = False
 
             # Get a proper Chrome user agent
             http_profile = get_random_http_profile()
@@ -512,17 +547,18 @@ class PlaywrightSession(BrowserSession):
             return self._original_url or ""
 
     def close(self) -> None:
-        """Close browser."""
+        """Close page and context. Browser stays alive in SharedBrowser for reuse."""
         self._closed = True
         try:
             if self._page:
                 self._page.close()
             if self._context:
                 self._context.close()
-            if self._browser:
-                self._browser.close()
-            if hasattr(self, '_playwright') and self._playwright:
-                self._playwright.stop()
+            if getattr(self, '_owns_browser', True):
+                if self._browser:
+                    self._browser.close()
+                if hasattr(self, '_playwright') and self._playwright:
+                    self._playwright.stop()
         except Exception as e:
             logger.debug(f"Error closing browser: {e}")
 
@@ -773,54 +809,35 @@ def _scrape_with_playwright_impl(
     profile: BrowserContextProfile | None,
     headless: bool,
 ) -> ScrapeResult:
-    """Internal implementation of Playwright scraping - always creates fresh browser."""
+    """Internal implementation of Playwright scraping - uses shared browser."""
     start_time = time.time()
     tier_name = "playwright"
     extract_host(url)
-    playwright_instance = None
     browser = None
     context = None
     page = None
+    _using_shared = False
+    _fresh_pw = None  # Only set if we fall back to a fresh browser
 
     try:
-        from playwright.sync_api import sync_playwright
-
         from .profiles import get_random_http_profile, get_stealth_script
 
-        playwright_instance = sync_playwright().start()
+        # Try shared browser first, fall back to fresh if it fails
+        try:
+            shared = SharedBrowser.get()
+            browser = shared.get_browser(headless=headless)
+            _using_shared = True
+        except ImportError:
+            raise  # Playwright not installed — let outer handler catch it
+        except Exception:
+            logger.debug("SharedBrowser unavailable, launching fresh browser")
+            from playwright.sync_api import sync_playwright
 
-        # Use new headless mode (headless="new") which is harder to detect
-        # Falls back to regular headless if not supported
-        launch_args = [
-            '--disable-blink-features=AutomationControlled',
-            '--disable-http2',
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-infobars',
-            '--disable-background-networking',
-            '--disable-breakpad',
-            '--disable-component-update',
-            '--disable-domain-reliability',
-            '--disable-features=AudioServiceOutOfProcess,IsolateOrigins,site-per-process',
-            '--disable-hang-monitor',
-            '--disable-ipc-flooding-protection',
-            '--disable-popup-blocking',
-            '--disable-prompt-on-repost',
-            '--disable-renderer-backgrounding',
-            '--disable-sync',
-            '--force-color-profile=srgb',
-            '--metrics-recording-only',
-            '--no-first-run',
-            '--password-store=basic',
-            '--use-mock-keychain',
-            '--export-tagged-pdf',
-        ]
-
-        browser = playwright_instance.chromium.launch(
-            headless=headless,
-            args=launch_args,
-        )
+            _fresh_pw = sync_playwright().start()
+            browser = _fresh_pw.chromium.launch(
+                headless=headless,
+                args=BROWSER_LAUNCH_ARGS,
+            )
 
         http_profile = get_random_http_profile()
         ctx_profile = profile or get_random_context_profile()
@@ -917,7 +934,7 @@ def _scrape_with_playwright_impl(
         )
 
     finally:
-        # Always clean up - log errors but don't let them propagate
+        # Always clean up page and context
         if page:
             try:
                 page.close()
@@ -928,16 +945,18 @@ def _scrape_with_playwright_impl(
                 context.close()
             except Exception as e:
                 logger.debug(f"Error closing context: {e}")
-        if browser:
-            try:
-                browser.close()
-            except Exception as e:
-                logger.debug(f"Error closing browser: {e}")
-        if playwright_instance:
-            try:
-                playwright_instance.stop()
-            except Exception as e:
-                logger.debug(f"Error stopping playwright: {e}")
+        # Only close browser/playwright if we launched a fresh one
+        if not _using_shared:
+            if browser:
+                try:
+                    browser.close()
+                except Exception as e:
+                    logger.debug(f"Error closing browser: {e}")
+            if _fresh_pw:
+                try:
+                    _fresh_pw.stop()
+                except Exception as e:
+                    logger.debug(f"Error stopping playwright: {e}")
 
 
 def scrape_with_playwright_aggressive(

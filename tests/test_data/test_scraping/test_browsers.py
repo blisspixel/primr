@@ -190,29 +190,34 @@ class TestScrapeWithPlaywright:
         # The scrape_with_playwright function imports playwright.sync_api.sync_playwright
         # inside the function, so we need to patch the module import itself
         import sys
-        
+
+        from primr.data.scraping.browsers import SharedBrowser
+
+        # Reset the shared browser singleton so it can't serve a cached browser
+        SharedBrowser.get().close()
+
         # Temporarily remove playwright from sys.modules to simulate import error
         original_modules = {}
         playwright_modules = [k for k in sys.modules.keys() if k.startswith('playwright')]
         for mod in playwright_modules:
             original_modules[mod] = sys.modules.pop(mod)
-        
+
         # Create a mock that raises ImportError when playwright is imported
         with patch.dict(sys.modules, {'playwright': None, 'playwright.sync_api': None}):
             # Force re-import by patching builtins.__import__
             original_import = __builtins__.__import__ if hasattr(__builtins__, '__import__') else __import__
-            
+
             def mock_import(name, *args, **kwargs):
                 if name.startswith('playwright'):
                     raise ImportError("playwright not installed")
                 return original_import(name, *args, **kwargs)
-            
+
             with patch('builtins.__import__', side_effect=mock_import):
                 result = scrape_with_playwright("https://example.com")
-        
+
         # Restore original modules
         sys.modules.update(original_modules)
-        
+
         assert result.success is False
         assert "playwright" in result.error.lower() or "not installed" in result.error.lower()
 
