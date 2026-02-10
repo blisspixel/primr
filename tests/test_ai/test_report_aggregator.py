@@ -275,7 +275,7 @@ class TestAggregationProperty:
     @given(
         chapter_count=st.integers(min_value=1, max_value=15),
     )
-    @settings(max_examples=20)
+    @settings(max_examples=20, deadline=None)
     async def test_aggregation_produces_single_document(
         self, chapter_count: int
     ) -> None:

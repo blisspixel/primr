@@ -65,6 +65,14 @@ REMOVE_TAGS = [
 # Layout regions to remove by tag
 LAYOUT_REMOVE_TAGS = ["header", "footer", "nav", "aside", "form"]
 
+# Semantic content elements whose ancestors must be protected from layout removal.
+# If a <main>, <article>, or [role='main'] has substantial text, its wrapper divs
+# should NOT be removed even if their class/id matches layout patterns (e.g. Drupal
+# "dialog-off-canvas-main-canvas" or "layout-main-wrapper show-sidebar").
+SEMANTIC_CONTENT_TAGS = ["main", "article"]
+SEMANTIC_CONTENT_ROLES = ["main"]
+SEMANTIC_MIN_TEXT_LENGTH = 200
+
 # Class/ID patterns that indicate layout regions to remove (case-insensitive)
 # These are generic patterns that work across sites
 # IMPORTANT: Be careful not to match content containers (e.g., "widget" matches Elementor content)
@@ -351,10 +359,23 @@ def prune_dom(soup: BeautifulSoup) -> BeautifulSoup:
         for element in soup.find_all(tag):
             element.decompose()
 
+    # Build set of ancestors of semantic content elements.
+    # These must not be removed even if their class/id matches layout patterns.
+    protected = set()
+    for selector in (*SEMANTIC_CONTENT_TAGS, *(f"[role='{r}']" for r in SEMANTIC_CONTENT_ROLES)):
+        for el in soup.select(selector):
+            if len(el.get_text(strip=True)) >= SEMANTIC_MIN_TEXT_LENGTH:
+                for ancestor in el.parents:
+                    if ancestor is None or ancestor is soup:
+                        break
+                    protected.add(id(ancestor))
+
     # Collect elements to remove (don't modify during iteration)
     to_remove = []
     for element in soup.find_all(True):
         if element is None or not hasattr(element, 'get'):
+            continue
+        if id(element) in protected:
             continue
 
         try:
