@@ -63,37 +63,44 @@ primr "Company" https://company.com --dry-run       # Cost estimate first
 ▸ PHASE 1 · Data Collection
   Website scraping + web search + AI analysis
 
-  Scraping 23/47 /about/leadership (15s)
-
+✓ 251 links → 50 selected
+Scraping 23/50 /about  [15s elapsed, ~2m left]
+✓ 48/50 pages scraped (6m 10s)
++ 3 external sources validated
 ✓ Data Collection
-  Pages scraped: 47
-  External sources: 8
+  Sections generated: 18
 
-▸ PHASE 2 · Analysis
-  Processing and synthesizing content
+▸ PHASE 2 · Deep Research
+  Comprehensive report with sequential elaboration (50+ pages)
 
-✓ Analysis
-
-▸ PHASE 3 · Deep Research
-  Gemini Deep Research running autonomously
+  Searching sources (1m 33s)
+  Analyzing findings (3m 48s)
+  Generating report (6m 43s)
+  Writing: Executive Summary (1/21)...
+  Writing: Products and Services (2/21)...
+  ...
+  Writing: Strategic Positioning Hypothesis (21/21)...
 
 ✓ Deep Research
+  Chapters: 21
 
-▸ PHASE 4 · Report Generation
-  Building report sections
+▸ PHASE 3 · AI Strategy Roadmap Analysis
+  Generating AI strategy roadmap recommendations
 
-  Generating 8/10 Competitive Landscape (12s)
+✓ AI Strategy Roadmap Analysis
 
-✓ Report Generation
-  Sections: 10
-
-✓ Complete in 34m 12s
+✓ Complete in 78m
 
 ✓ Report ready
-  output/Cirrus_Fleet_Strategic_Overview_01-28-2026.docx
+  output/Acme_Corp_Strategic_Overview_02-10-2026.docx
 
-Quality: Overview 91
-Cost: $1.45
+Mode: Complete (Two-Step)
+Chapters: 21
+Citations: 34
+Duration: 78m
+Est. Cost: $1.68
+Actual Cost: ~$0.63
+AI Strategy: Yes
 ```
 
 ### What the output looks like
@@ -108,7 +115,7 @@ From the executive summary of a sample report:
 > - The company has no disclosed AI strategy, but 4 of their last 7 engineering hires have ML/optimization backgrounds. Combined with a patent filing for "autonomous route replanning under disruption," this suggests an unannounced product line. *[Confidence: Inferred]*
 > - Pricing has shifted from perpetual licenses to consumption-based billing (per-shipment), visible in public procurement portal RFP responses. *[Confidence: Reported]*
 
-Reports include 10 structured chapters, SWOT analysis, competitive landscape, discovery questions, and inline confidence levels on every non-obvious claim. Full sample: [docs/examples/sample-brief.md](docs/examples/sample-brief.md)
+Reports include 20+ structured chapters, SWOT analysis, competitive landscape, discovery questions, and inline confidence levels on every non-obvious claim. Full sample: [docs/examples/sample-brief.md](docs/examples/sample-brief.md)
 
 ## Batch Research
 
@@ -230,7 +237,7 @@ ruff check src/                          # Lint
 mypy src/primr --ignore-missing-imports  # Type check
 ```
 
-1,500+ tests including property-based testing (Hypothesis), full ruff and mypy compliance, OpenTelemetry tracing, and typed error hierarchy with automatic retry classification.
+2,200+ tests including property-based testing (Hypothesis), full ruff and mypy compliance, OpenTelemetry tracing, and typed error hierarchy with automatic retry classification.
 
 ## Documentation
 

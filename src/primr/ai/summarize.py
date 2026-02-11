@@ -72,7 +72,7 @@ def summarize_scraped_content(company_name, company_website, scraped_data, folde
             # Sanitize content for LLM prompt injection protection
             sanitized_text, sanitization_issues = sanitize_for_llm(deduped_text)
             if sanitization_issues:
-                logger.warning(
+                logger.info(
                     f"Content sanitization: {len(sanitization_issues)} issues detected in {website_source}"
                 )
 

@@ -555,6 +555,13 @@ def run_research(company_name: str, website: str, on_progress: Callable[[str], N
     # fetch_web_content already shows completion message, no need to duplicate
     scraped_data = fetch_web_content(website, company_name, max_pages=50, working_folder=folder_path) if website else {}
 
+    # Abort if website was provided but nothing could be scraped
+    if website and not scraped_data:
+        console.fail("Could not scrape any pages from the website - site may be blocking")
+        console.muted("  The site may be rate-limiting after a recent scrape.")
+        console.muted("  Try: primr \"Company\" url --mode deep  (skips site scraping)")
+        return None
+
     # External research - with LLM validation to ensure correct company
     # This prevents including content from similarly-named but unrelated companies
     # (e.g., "EverTrue" fundraising software vs "EverTrue" senior living)
@@ -1175,15 +1182,30 @@ def perform_deep_research(
 
         # Track last phase to only print on phase changes
         last_phase = [None]  # Use list to allow mutation in closure
+        last_update_time = [time.time()]
 
         def progress_callback(msg: str) -> None:
             # Extract phase from message (e.g., "Searching sources (2m 30s)")
             phase = msg.split(" (")[0].strip() if " (" in msg else msg.strip()
 
-            # Only print on actual phase changes, not time updates
+            # Strip leading dots (heartbeat-style updates)
+            display_msg = msg.lstrip(". ")
+
+            # Show indented sub-status messages (e.g. "  Uploading Stage 1 context")
+            if msg.startswith("  "):
+                console.muted(f"  {msg.strip()}")
+                log_structured("debug", f"Deep research progress: {msg}")
+                return
+
+            # Show on phase change
             if phase and phase != last_phase[0] and not phase.startswith("  "):
                 last_phase[0] = phase
-                console.info(phase)
+                last_update_time[0] = time.time()
+                console.info(display_msg)
+            # Also show periodic updates every 2 minutes even if phase unchanged
+            elif time.time() - last_update_time[0] > 120:
+                last_update_time[0] = time.time()
+                console.muted(f"  Still working... {display_msg}")
 
             log_structured("debug", f"Deep research progress: {msg}")
 
@@ -1198,28 +1220,39 @@ def perform_deep_research(
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
 
-            with console.heartbeat("Deep Research in progress", interval=90.0):
-                result = loop.run_until_complete(
-                    orchestrator.research(
-                        company_name=company_name or display_name,
-                        website=website,
-                        mode=research_mode,
-                        on_progress=progress_callback,
-                        context_files=context_files
-                    )
+            result = loop.run_until_complete(
+                orchestrator.research(
+                    company_name=company_name or display_name,
+                    website=website,
+                    mode=research_mode,
+                    on_progress=progress_callback,
+                    context_files=context_files
                 )
+            )
 
             if not result.success:
-                console.error(f"Research failed: {result.error}")
+                console.fail(f"Research failed: {result.error}")
                 log_structured("error", "Deep research failed", error=result.error)
+
+                # Save partial results if the structured phase produced anything
+                if result.section_results:
+                    partial_folder = create_working_folder(company_name, website)
+                    partial_count = 0
+                    for section_key, content in result.section_results.items():
+                        save_section_output(partial_folder, section_key, content)
+                        partial_count += 1
+                    console.warn(
+                        f"Saved {partial_count} partial sections from data collection to: {partial_folder}"
+                    )
+                    console.muted("  Tip: Re-run with --mode scrape to generate a report from scraped data")
+                else:
+                    console.muted("  Tip: Check logs for details, or re-run with --mode scrape")
+
                 return None
 
             # Use sections_written for accurate count (accordion method tracks this)
             section_count = result.sections_written if result.sections_written > 0 else len(result.section_results)
             log_structured("info", "Deep research complete", sections=section_count)
-
-            # Get accurate citation count for display
-            len(result.citations)  # Default fallback
 
             # Calculate word and page count from raw content
             word_count = len(result.raw_content.split()) if result.raw_content else 0
@@ -1229,7 +1262,7 @@ def perform_deep_research(
                 console.phase_complete("Deep Research", [
                     ("Pages", f"~{page_count}"),
                     ("Words", f"{word_count:,}"),
-                    ("Sections", str(section_count)),
+                    ("Chapters", str(section_count)),
                 ])
                 console.phase_banner(2, 3, "Processing Results", "Saving and converting output", "1-2 min")
 
@@ -1275,7 +1308,7 @@ def perform_deep_research(
             # Generate strategies (uses Deep Research with company context)
             strategy_paths: dict[str, str] = {}
             if strategies_to_run:
-                base_phase = 3 if is_simple_deep_research else 5
+                base_phase = 3 if is_simple_deep_research else 3
                 total_strategies = len(strategies_to_run)
 
                 for idx, strategy_name in enumerate(strategies_to_run):
@@ -1356,27 +1389,25 @@ def perform_deep_research(
             # Use sections_written for accurate count
             section_count = result.sections_written if result.sections_written > 0 else len(result.section_results)
 
-            # Get accurate citation count using report analyzer
+            # Count unique citations from generated content ([cite: N] format)
             citation_count = 0
-            if docx_path:
-                try:
-                    # Convert DOCX path to MD path for analysis
-                    md_path = str(docx_path).replace('.docx', '.md')
-                    if os.path.exists(md_path):
-                        from report_analyzer import ReportAnalyzer
-                        analyzer = ReportAnalyzer(md_path)
-                        citation_analysis = analyzer.analyze_citations()
-                        citation_count = citation_analysis['unique_citations']
-                except Exception as e:
-                    logger.debug(f"Could not analyze citations: {e}")
-                    citation_count = len(result.citations)  # Fallback to original
-            else:
-                citation_count = len(result.citations)
+            import re
+            all_content = result.raw_content or ""
+            if not all_content and result.section_results:
+                all_content = "\n".join(result.section_results.values())
+            if all_content:
+                cite_numbers = set()
+                for match in re.findall(r'\[cite:\s*([\d,\s]+)\]', all_content):
+                    for num in match.split(','):
+                        num = num.strip()
+                        if num:
+                            cite_numbers.add(num)
+                citation_count = len(cite_numbers)
 
             # Summary stats with estimated vs actual comparison
             summary_items = [
                 ("Mode", mode_label),
-                ("Sections", str(section_count)),
+                ("Chapters", str(section_count)),
                 ("Citations", str(citation_count)),
                 ("Duration", time_str),
                 ("Est. Cost", f"${pre_estimate.total_cost:.2f}"),

@@ -273,7 +273,7 @@ class ResearchOrchestrator:
 
             except Exception as e:
                 duration = asyncio.get_event_loop().time() - start_time
-                logger.error(f"Research failed: {e}")
+                logger.error(f"Research failed: {e}", exc_info=True)
 
                 # Emit metrics on failure
                 self._emit_research_metrics(
@@ -390,9 +390,6 @@ class ResearchOrchestrator:
         """
         # Import here to avoid circular imports
         from primr.core.research_agent import run_research
-
-        if on_progress:
-            on_progress("Running structured research pipeline...")
 
         # Run the existing pipeline
         # Note: run_research is synchronous, so we run it in executor
@@ -613,7 +610,7 @@ class ResearchOrchestrator:
             )
 
         except Exception as e:
-            logger.error(f"Complete research failed: {e}")
+            logger.error(f"Complete research failed: {e}", exc_info=True)
 
             # Cleanup on error
             if step1_context_file:
@@ -623,11 +620,19 @@ class ResearchOrchestrator:
                 except Exception:
                     logger.debug("Failed to clean up temp file %s", step1_context_file, exc_info=True)
 
+            # Preserve partial results from structured phase if available
+            partial_results = {}
+            try:
+                if structured_result and structured_result.success:
+                    partial_results = structured_result.section_results
+            except NameError:
+                pass  # structured_result not yet assigned
+
             return OrchestratorResult(
                 company_name=company_name,
                 website=website,
                 mode=ResearchMode.COMPLETE,
-                section_results={},
+                section_results=partial_results,
                 success=False,
                 error=str(e),
                 duration_seconds=time_module.time() - total_start

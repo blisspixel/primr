@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.11.0 (February 2026)
+Current State: v1.11.2 (February 2026)
 
 Primr is a CLI-first, local research tool for company intelligence and strategic analysis. It aims to accelerate research workflows while being transparent about uncertainty.
 
@@ -311,6 +311,41 @@ Goal: Enable human-in-the-loop decisions during research.
 - Review and edit hypotheses mid-pipeline
 - Handle recoverable errors with user guidance
 
+### v1.11.1 - Deep Research Progress and Failure Recovery (Complete)
+
+Goal: Fix silent progress and silent failures during Deep Research phase.
+
+**Progress Visibility:**
+- Progress callback now shows periodic updates every 2 minutes even when phase name is unchanged (was going silent after "Finalizing" phase)
+- Sub-status messages (e.g., "Uploading Stage 1 context") now forwarded to console instead of being silently filtered
+- Heartbeat interval reduced from 90s to 30s for more frequent activity indication
+- Heartbeat display uses terminal width instead of hardcoded 60 characters (fixes partial overwrite artifacts)
+- Diagnostic logging every 5 polls in deep research polling loop
+
+**Failure Recovery:**
+- Full exception tracebacks now logged in orchestrator (were being discarded)
+- Partial results from structured phase preserved when deep research fails (were being thrown away)
+- Prominent failure message with actionable tips shown to user on failure
+- Working folder retains scraped data and partial sections instead of appearing empty
+
+### v1.11.2 - Scraping Performance and UI Polish (Complete)
+
+Goal: Improve scraping throughput with shared browser sessions, add ETA progress, and clean up console output.
+
+**Scraping Performance:**
+- SharedBrowser: Single browser instance shared across all pages in a scraping session (reduces memory and startup overhead)
+- ETA progress: Real-time estimated time remaining during scraping (`Scraping 23/50 /about [15s elapsed, ~2m left]`)
+- DOM protections: Graceful handling of dynamic DOM mutations during content extraction
+
+**Console UI Polish:**
+- Removed heartbeat that was firing during Phase 1 scraping (overlapped with existing progress updates)
+- Suppressed experimental API warnings from Genai SDK during Deep Research interactions
+- Downgraded expected SSRF blocks and content sanitization from WARNING to INFO log level (no longer clutters stderr)
+- Fixed phase numbering jump (2 → 5 now correctly goes 2 → 3 in complete mode)
+- Removed internal jargon message "Running structured research pipeline..." from console output
+- Fixed "Sections" label → "Chapters" for consistency with report structure
+- Fixed citation count always showing 0 (broken import path; now counts `[cite: N]` patterns from generated content)
+
 ## Near-Term Roadmap
 
 ### v1.8.0 - QA-Driven Report Iteration (Planned)
@@ -450,6 +485,8 @@ cd deploy/aws && ./deploy.sh -d prod destroy
 | 1.7.0 | Feb 2026 | Agentic architecture (memory, hooks, orchestrator) |
 | 1.8.1 | Feb 2026 | Content sanitization for prompt injection protection |
 | 1.11.0 | Feb 2026 | Interactive research mode (pause/resume, user callbacks) |
+| 1.11.1 | Feb 2026 | Deep Research progress visibility and failure recovery |
+| 1.11.2 | Feb 2026 | SharedBrowser, ETA progress, UI polish |
 
 ## Final Note
 
