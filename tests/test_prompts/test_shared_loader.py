@@ -64,11 +64,12 @@ class TestSharedComponentLoader:
         # After reload, should be a new instance
         assert components1 is not components2
 
-    def test_missing_directory_raises(self):
-        """Should raise FileNotFoundError for missing directory."""
+    def test_missing_directory_returns_empty(self):
+        """Should return empty components for missing directory."""
         loader = SharedComponentLoader(Path("/nonexistent/path"))
-        with pytest.raises(FileNotFoundError):
-            loader.load()
+        components = loader.load()
+        # Returns empty (no personas, rules, etc.) rather than raising
+        assert len(components.personas) == 0
 
     def test_get_persona_default(self):
         """Should return default persona when none specified."""

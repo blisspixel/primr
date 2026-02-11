@@ -245,13 +245,15 @@ class TestCircuitBreaker:
                 delay_between_tiers=(0, 0),
             )
             
-            # Fail on host1 twice
-            orchestrator.scrape_url("https://host1.com/page1")
-            orchestrator.scrape_url("https://host1.com/page2")
-            
-            # host1 should now be skipped, but host2 should still work
-            orchestrator.scrape_url("https://host1.com/page3")  # Skipped
-            orchestrator.scrape_url("https://host2.com/page1")  # Not skipped
+            # Bypass SSRF check for fake test hostnames
+            with patch("primr.utils.security.is_safe_url", return_value=(True, None)):
+                # Fail on host1 twice
+                orchestrator.scrape_url("https://host1.com/page1")
+                orchestrator.scrape_url("https://host1.com/page2")
+
+                # host1 should now be skipped, but host2 should still work
+                orchestrator.scrape_url("https://host1.com/page3")  # Skipped
+                orchestrator.scrape_url("https://host2.com/page1")  # Not skipped
         
         assert call_count["host1"] == 2  # Skipped on 3rd
         assert call_count["host2"] == 1  # Not affected

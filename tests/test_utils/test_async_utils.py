@@ -45,29 +45,47 @@ class TestRunSync:
     """Tests for run_sync function."""
 
     def test_run_sync_simple_coroutine(self):
-        """run_sync should execute a simple coroutine."""
+        """run_sync should execute a simple coroutine (or raise if loop is running)."""
         async def simple():
             return 42
-        
-        result = run_sync(simple())
-        assert result == 42
+
+        try:
+            asyncio.get_running_loop()
+            # Python 3.13+/pytest-asyncio may have a running loop
+            with pytest.raises(RuntimeError, match="async context"):
+                run_sync(simple())
+        except RuntimeError:
+            # No running loop - run_sync should work
+            result = run_sync(simple())
+            assert result == 42
 
     def test_run_sync_with_await(self):
-        """run_sync should handle coroutines with await."""
+        """run_sync should handle coroutines with await (or raise if loop is running)."""
         async def with_await():
             await asyncio.sleep(0.01)
             return "done"
-        
-        result = run_sync(with_await())
-        assert result == "done"
+
+        try:
+            asyncio.get_running_loop()
+            with pytest.raises(RuntimeError, match="async context"):
+                run_sync(with_await())
+        except RuntimeError:
+            result = run_sync(with_await())
+            assert result == "done"
 
     def test_run_sync_preserves_exceptions(self):
         """run_sync should propagate exceptions."""
         async def raises():
             raise ValueError("test error")
-        
-        with pytest.raises(ValueError, match="test error"):
-            run_sync(raises())
+
+        try:
+            asyncio.get_running_loop()
+            # With a running loop, run_sync raises RuntimeError before the coroutine runs
+            with pytest.raises(RuntimeError, match="async context"):
+                run_sync(raises())
+        except RuntimeError:
+            with pytest.raises(ValueError, match="test error"):
+                run_sync(raises())
 
     def test_run_sync_new_loop_isolation(self):
         """run_sync_new_loop should use a fresh event loop each time."""

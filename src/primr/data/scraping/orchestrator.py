@@ -163,7 +163,7 @@ class ScrapeOrchestrator:
 
         is_safe, ssrf_error = is_safe_url(url)
         if not is_safe:
-            logger.warning(f"SSRF blocked: {url} - {ssrf_error}")
+            logger.info(f"SSRF blocked: {url} - {ssrf_error}")
             return ScrapeResult(
                 url=url,
                 success=False,

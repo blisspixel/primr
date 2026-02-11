@@ -80,6 +80,7 @@ class Console:
         self._lock = threading.Lock()
         self._caps = capabilities or _detect_terminal()
         self._last_output_time: float = 0.0
+        self._heartbeat_paused = False
 
         # Colors
         if self._caps.supports_color and self._caps.is_interactive:
@@ -494,6 +495,7 @@ class Console:
                 time.sleep(0.08)
 
         thread = threading.Thread(target=animate, daemon=True)
+        self._heartbeat_paused = True
         thread.start()
 
         def update(msg):
@@ -504,6 +506,7 @@ class Console:
         finally:
             stop_event.set()
             thread.join(timeout=0.5)
+            self._heartbeat_paused = False
             self.clear_line()
 
     @contextmanager
@@ -542,11 +545,13 @@ class Console:
                 stop_event.wait(interval)
                 if not stop_event.is_set():
                     time_since = time.time() - self._last_output_time
-                    if time_since >= interval:
+                    if time_since >= interval and not self._heartbeat_paused:
                         elapsed = self._elapsed(start)
                         if self._caps.supports_cursor and self._caps.is_interactive:
                             with self._lock:
-                                sys.stdout.write(f"\r{self._dim}. {message} ({elapsed}){self._reset}".ljust(60))
+                                width = min(self._caps.width, 120)
+                                line = f"\r{self._dim}. {message} ({elapsed}){self._reset}"
+                                sys.stdout.write(line.ljust(width))
                                 sys.stdout.flush()
                         else:
                             self._print(f"{self._dim}. {message} ({elapsed}){self._reset}")

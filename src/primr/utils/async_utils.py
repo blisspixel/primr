@@ -148,6 +148,9 @@ def run_sync_new_loop(coro: Awaitable[T]) -> T:
     Use this when you need isolation from any existing event loop,
     such as in tests or when running in a thread.
 
+    If called from a thread that already has a running event loop,
+    the coroutine is executed in a new thread to avoid conflicts.
+
     Args:
         coro: The coroutine to run
 
@@ -157,6 +160,16 @@ def run_sync_new_loop(coro: Awaitable[T]) -> T:
     Example:
         result = run_sync_new_loop(async_operation())
     """
+    try:
+        asyncio.get_running_loop()
+        # A loop is already running in this thread — we can't call
+        # run_until_complete here, so delegate to a worker thread.
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            return pool.submit(asyncio.run, coro).result()
+    except RuntimeError:
+        pass
+
     loop = asyncio.new_event_loop()
     try:
         return loop.run_until_complete(coro)

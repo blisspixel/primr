@@ -358,29 +358,34 @@ class TestBrowserTiersRegistry:
 
 class TestScrapeResultStructure:
     """Tests verifying ScrapeResult structure from browser tiers."""
-    
+
+    @pytest.fixture(autouse=True)
+    def _cleanup_shared_browser(self):
+        """Close SharedBrowser after each test to prevent event loop leaks."""
+        from primr.data.scraping.browsers import SharedBrowser
+
+        yield
+        SharedBrowser.get().close()
+
     def test_result_has_cookies_field(self):
         """Browser results should include cookies dict (may be empty for simple sites)."""
         result = scrape_with_playwright("https://example.com")
-        
+
         # Skip if Playwright browsers aren't installed
         if not result.success and "Executable doesn't exist" in (result.error or ""):
             pytest.skip("Playwright browsers not installed")
-        
+
         # Cookies should be a dict (may be empty for sites that don't set cookies)
         assert result.cookies is not None
         assert isinstance(result.cookies, dict)
-    
+
     def test_result_has_attempts(self):
         """Results should include attempt records."""
         result = scrape_with_playwright("https://example.com")
-        
+
         # Skip if Playwright browsers aren't installed
         if not result.success and "Executable doesn't exist" in (result.error or ""):
             pytest.skip("Playwright browsers not installed")
-        
-        assert len(result.attempts) >= 1
-        assert result.attempts[0].tier == "playwright"
-        
+
         assert len(result.attempts) >= 1
         assert result.attempts[0].tier == "playwright"
