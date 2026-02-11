@@ -246,4 +246,4 @@ Unit tests validate specific examples and edge cases.
 
 ---
 
-*Last updated: 2026-02-05 | Primr v1.11.0 | Agentic Architecture v1.0*
+*Last updated: 2026-02-10 | Primr v1.11.2 | Agentic Architecture v1.0*

@@ -2362,7 +2362,9 @@ class DeepResearchOrchestrator:
         if tools:
             create_kwargs["tools"] = tools
 
-        interaction = self._client.interactions.create(**create_kwargs)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            interaction = self._client.interactions.create(**create_kwargs)
         interaction_id = interaction.id
         logger.info(f"Deep Research started: {interaction_id}")
 
@@ -2400,6 +2402,7 @@ class DeepResearchOrchestrator:
         start_time = time.time()
         last_phase = ""
         last_progress_time = 0.0
+        poll_count = 0
         consecutive_poll_errors = 0
         max_poll_errors = 5  # Allow up to 5 consecutive poll failures
 
@@ -2418,6 +2421,14 @@ class DeepResearchOrchestrator:
             try:
                 interaction = self._client.interactions.get(interaction_id)
                 consecutive_poll_errors = 0  # Reset on success
+                poll_count += 1
+
+                # Log status periodically for diagnostics
+                if poll_count % 5 == 0:
+                    logger.info(
+                        f"Deep Research polling: status={interaction.status}, "
+                        f"elapsed={elapsed:.0f}s, polls={poll_count}"
+                    )
             except Exception as e:
                 error_str = str(e).lower()
                 is_transient = (

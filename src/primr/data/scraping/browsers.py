@@ -98,11 +98,19 @@ class SharedBrowser:
         if self._browser is None:
             from playwright.sync_api import sync_playwright
 
-            self._playwright = sync_playwright().start()
-            self._browser = self._playwright.chromium.launch(
-                headless=headless,
-                args=BROWSER_LAUNCH_ARGS,
-            )
+            pw = sync_playwright().start()
+            try:
+                browser = pw.chromium.launch(
+                    headless=headless,
+                    args=BROWSER_LAUNCH_ARGS,
+                )
+            except Exception:
+                # Don't leak playwright if browser launch fails
+                with contextlib.suppress(Exception):
+                    pw.stop()
+                raise
+            self._playwright = pw
+            self._browser = browser
             logger.info("Shared Playwright browser started")
 
         return self._browser

@@ -206,7 +206,8 @@ def fetch_web_content(
     console.status(f"Scanning {domain}...")
 
     # Use playwright directly for homepage - it handles JS
-    result = scrape_with_playwright(website, timeout=15)
+    # Homepage gets a generous timeout: failed homepage = entire run fails
+    result = scrape_with_playwright(website, timeout=25)
     homepage_tier = "playwright"
 
     if not result.success or not result.raw_content:
@@ -795,11 +796,15 @@ def clear_cache(max_age_hours: float | None = None) -> None:
 
 def cleanup_browser():
     """Clean up shared browser resources."""
-    from primr.data.scraping.browsers import SharedBrowser
-    SharedBrowser.get().close()
+    try:
+        from primr.data.scraping.browsers import SharedBrowser
+        if SharedBrowser._instance is not None:
+            SharedBrowser._instance.close()
+    except Exception:
+        pass  # atexit — don't crash on shutdown
 
 
-# Register cleanup (no-op for now, new arch handles it)
+# Register cleanup
 import atexit
 
 atexit.register(cleanup_browser)
