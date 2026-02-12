@@ -1,6 +1,6 @@
 # Primr Documentation
 
-Current version: 1.7.0
+Current version: 1.12.0
 
 ## Getting Started
 
@@ -39,4 +39,4 @@ Current version: 1.7.0
 | [ROADMAP](../ROADMAP.md) | Development roadmap |
 | [CHANGELOG](../CHANGELOG.md) | Version history |
 | [MIGRATION](MIGRATION.md) | Error hierarchy migration |
-| [SECURITY_REVIEW](SECURITY_REVIEW_2026-02-02.md) | Security audit |
+| [INTERNALS](INTERNALS.md) | Core algorithms and prompt strategy |
