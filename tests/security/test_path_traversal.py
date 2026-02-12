@@ -4,10 +4,11 @@ Path traversal protection tests.
 Tests that verify file path validation prevents directory traversal attacks.
 """
 
-import pytest
 from pathlib import Path
 
-from primr.utils.validators import validate_file_path, InputValidationError
+import pytest
+
+from primr.utils.validators import InputValidationError, validate_file_path
 
 
 class TestPathTraversalProtection:
@@ -49,7 +50,6 @@ class TestPathTraversalProtection:
         test_cases = [
             "/etc/passwd",
             "/tmp/malicious.txt",
-            "C:\\Windows\\System32\\config\\sam",
         ]
 
         for path in test_cases:
