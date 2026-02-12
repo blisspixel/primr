@@ -103,13 +103,17 @@ class ScrapePattern:
     def from_dict(cls, data: dict[str, Any]) -> ScrapePattern:
         """Deserialize from dictionary."""
         return cls(
-            pattern_id=data["pattern_id"],
-            company_type=data["company_type"],
-            industry=data["industry"],
+            pattern_id=data.get("pattern_id", ""),
+            company_type=data.get("company_type", ""),
+            industry=data.get("industry", ""),
             effective_tiers=data.get("effective_tiers", []),
             success_rate=data.get("success_rate", 0.0),
             sample_size=data.get("sample_size", 0),
-            last_updated=datetime.fromisoformat(data["last_updated"]),
+            last_updated=(
+                datetime.fromisoformat(data["last_updated"])
+                if "last_updated" in data
+                else datetime.now()
+            ),
         )
 
 

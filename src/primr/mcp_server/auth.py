@@ -139,7 +139,7 @@ class PrimrTokenVerifier:
         if token_hash in self._admin_token_hashes:
             access = AccessToken(
                 token=token,
-                client_id=f"admin-{hash(token) % 10000}",
+                client_id=f"admin-{hashlib.sha256(token.encode()).hexdigest()[:12]}",
                 scopes=["admin", "read", "write"],
                 expires_at=None,  # Static tokens don't expire
             )

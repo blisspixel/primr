@@ -401,6 +401,7 @@ class HookSystem:
                 },
             )
 
+        last_warn: HookResponse | None = None
         for hook in self._hooks[HookType.ERROR_RECOVERY]:
             try:
                 response = await hook.execute(context)
@@ -414,8 +415,17 @@ class HookSystem:
                         f"Hook {hook.name} allowing retry for stage {stage}: {response.message}"
                     )
                     return response
+                elif response.result == HookResult.WARN:
+                    logger.info(
+                        f"Hook {hook.name} warned for stage {stage}: {response.message}"
+                    )
+                    last_warn = response
             except Exception as e:
                 self._handle_error(hook, e)
+
+        # Return last WARN if any hooks warned, otherwise block
+        if last_warn is not None:
+            return last_warn
 
         # Default: no recovery, propagate error
         return HookResponse(
