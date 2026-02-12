@@ -232,10 +232,7 @@ class ExecutiveSummaryGenerator:
             return True
 
         # Contains specific numbers or percentages
-        if re.search(r'\d+%|\$\d+|\d+\s*(million|billion|M|B|K)', sentence, re.IGNORECASE):
-            return True
-
-        return False
+        return bool(re.search(r'\d+%|\$\d+|\d+\s*(million|billion|M|B|K)', sentence, re.IGNORECASE))
 
     def _clean_sentence(self, sentence: str) -> str:
         """Clean a sentence for display."""

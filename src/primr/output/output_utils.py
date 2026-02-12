@@ -50,11 +50,11 @@ def parse_markdown_line(line):
     content = stripped.lstrip()
 
     # Bullet point (* or - at start)
-    if content.startswith('*   ') or content.startswith('* '):
+    if content.startswith(('*   ', '* ')):
         bullet_content = content[4:] if content.startswith('*   ') else content[2:]
         return ('bullet', bullet_content, indent_level)
 
-    if content.startswith('-   ') or content.startswith('- '):
+    if content.startswith(('-   ', '- ')):
         bullet_content = content[4:] if content.startswith('-   ') else content[2:]
         return ('bullet', bullet_content, indent_level)
 

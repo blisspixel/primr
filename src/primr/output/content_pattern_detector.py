@@ -90,9 +90,7 @@ class ContentPatternDetector:
                     next_line = lines[j].strip()
                     if not next_line:
                         continue
-                    if (next_line.startswith('*') or
-                        next_line.startswith('-') or
-                        next_line.startswith('•')):
+                    if (next_line.startswith(('*', '-', '•'))):
                         sub_headings.append((i, stripped))
                     break
 
