@@ -969,7 +969,7 @@ def perform_research(
                 # No heartbeat - the progress callback provides phase-aware status updates
                 ai_strategy_path = _generate_ai_strategy_section(
                     company_name or display_name,
-                    cloud_vendor,
+                    cloud_vendors[0],
                     company_research_path=context_file,
                     force_refresh_vendor=refresh_vendor_research,
                     discovery_notes_content=discovery_notes_content
@@ -1308,7 +1308,7 @@ def perform_deep_research(
             # Generate strategies (uses Deep Research with company context)
             strategy_paths: dict[str, str] = {}
             if strategies_to_run:
-                base_phase = 3 if is_simple_deep_research else 3
+                base_phase = 3
                 # Count total phases: AI strategy runs once per vendor, others run once
                 total_phase_count = sum(
                     len(cloud_vendors) if s == "ai" else 1
