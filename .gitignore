@@ -207,8 +207,8 @@ __marimo__/
 # ===========================================
 
 # Output directories (generated research reports)
-output/
-working/
+/output/
+/working/
 
 # Generated vendor research (monthly, auto-generated)
 vendor-research/
