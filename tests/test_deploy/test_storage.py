@@ -12,6 +12,7 @@ Tests:
 Requirements: 2.1, 2.4, 2.5, 2.8, 2.9, 2.11, 2.12
 """
 
+import importlib.util
 import json
 import threading
 import time
@@ -20,6 +21,14 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch, PropertyMock
 
 import pytest
+
+
+def _has_module(name: str) -> bool:
+    """Check if a module is available without importing it."""
+    try:
+        return importlib.util.find_spec(name) is not None
+    except (ModuleNotFoundError, ValueError):
+        return False
 
 from deploy.storage import (
     ArtifactStore,
@@ -414,10 +423,7 @@ class TestS3StoreMocked:
             store.put_manifest("job-123", manifest)
 
 
-@pytest.mark.skipif(
-    not __import__("importlib").util.find_spec("google.api_core"),
-    reason="google-cloud-storage not installed",
-)
+@pytest.mark.skipif(not _has_module("google.api_core"), reason="google-cloud-storage not installed")
 class TestGCSStoreMocked:
     """Tests for GCSStore with mocked GCS client."""
     
@@ -479,10 +485,7 @@ class TestGCSStoreMocked:
         mock_blob.generate_signed_url.assert_called_once()
 
 
-@pytest.mark.skipif(
-    not __import__("importlib").util.find_spec("azure.core"),
-    reason="azure-storage-blob not installed",
-)
+@pytest.mark.skipif(not _has_module("azure.core"), reason="azure-storage-blob not installed")
 class TestBlobStoreMocked:
     """Tests for BlobStore with mocked Azure client."""
     
