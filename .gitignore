@@ -291,5 +291,9 @@ coverage.xml
 *.egg-info/
 dist/
 build/
+
+# Claude Code local config
 /.claude
+
+# Windows reserved name artifacts
 nul
