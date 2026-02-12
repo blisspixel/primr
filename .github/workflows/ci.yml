@@ -39,4 +39,4 @@ jobs:
       - name: Test
         env:
           GEMINI_API_KEY: fake-key-for-ci-tests
-        run: pytest tests/ --ignore=tests/manual --ignore=tests/test_output --ignore=tests/property_tests --ignore=tests/agentic/property_tests --ignore=tests/test_qa -x --tb=short -q -k "not test_wait_times_out_when_no_change and not TestAPIConnectivity"
+        run: pytest tests/ --ignore=tests/manual --ignore=tests/test_output --ignore=tests/property_tests --ignore=tests/agentic/property_tests --ignore=tests/test_qa -x --tb=short -q -k "not test_wait_times_out_when_no_change" -m "not integration"
