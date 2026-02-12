@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.11.2 (February 2026)
+Current State: v1.12.0 (February 2026)
 
 Primr is a CLI-first, local research tool for company intelligence and strategic analysis. It aims to accelerate research workflows while being transparent about uncertainty.
 
@@ -41,8 +41,10 @@ The design is intentionally opinionated and local-first. This roadmap reflects c
 ### AI Strategy
 
 - AI strategy and roadmap generation
-- Cloud vendor support: Azure, AWS, GCP, agnostic
+- Multi-vendor support: `--cloud-vendor aws azure` generates separate strategy documents per vendor in a single run
+- Cloud vendor options: Azure, AWS, GCP, agnostic
 - Multiple strategy types: AI, Customer Experience, Security, Data Fabric
+- Vendor-tagged output filenames (e.g., `Company_AI_Strategy_AWS_02-11-2026.docx`)
 
 ### Operational Maturity
 
@@ -346,6 +348,30 @@ Goal: Improve scraping throughput with shared browser sessions, add ETA progress
 - Fixed "Sections" label → "Chapters" for consistency with report structure
 - Fixed citation count always showing 0 (broken import path; now counts `[cite: N]` patterns from generated content)
 
+### v1.12.0 - Multi-Cloud-Vendor AI Strategy (Complete)
+
+Goal: Generate separate AI strategy documents for multiple cloud vendors in a single run.
+
+**Multi-Vendor CLI:**
+- `--cloud-vendor` now accepts multiple values: `--cloud-vendor aws azure`
+- Deduplicates vendors while preserving order
+- Backward compatible: single vendor still works the same way
+
+**Efficient Pipeline:**
+- Scraping and deep research run once (vendor-agnostic)
+- Only the AI strategy step loops per vendor
+- Cost estimator accounts for multiple vendor runs
+
+**Vendor-Tagged Output:**
+- Filenames include vendor tag: `Company_AI_Strategy_AWS_02-11-2026.docx`
+- Each vendor gets its own vendor research context
+- Phase banners show vendor name for multi-vendor runs
+
+**Backward Compatibility:**
+- `CLIConfig.cloud_vendor` property still returns first vendor for existing code
+- Single-vendor usage unchanged
+- MCP server unchanged (future work)
+
 ## Near-Term Roadmap
 
 ### v1.8.0 - QA-Driven Report Iteration (Planned)
@@ -440,6 +466,7 @@ primr "Acme Corp" https://acme.example --mode full
 
 # AI Strategy
 primr "Acme Corp" https://acme.example --cloud-vendor azure
+primr "Acme Corp" https://acme.example --cloud-vendor aws azure  # Multi-vendor
 primr "Acme Corp" https://acme.example --no-ai-strategy
 
 # Retry AI Strategy
@@ -487,6 +514,7 @@ cd deploy/aws && ./deploy.sh -d prod destroy
 | 1.11.0 | Feb 2026 | Interactive research mode (pause/resume, user callbacks) |
 | 1.11.1 | Feb 2026 | Deep Research progress visibility and failure recovery |
 | 1.11.2 | Feb 2026 | SharedBrowser, ETA progress, UI polish |
+| 1.12.0 | Feb 2026 | Multi-cloud-vendor AI strategy |
 
 ## Final Note
 
