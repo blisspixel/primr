@@ -143,6 +143,7 @@ def estimate_cost(
     include_ai_strategy: bool = False,
     search_free: bool = False,  # Free period ended Jan 5, 2026
     use_historical: bool = True,  # Use historical averages when available
+    num_vendors: int = 1,
 ) -> CostEstimate:
     """
     Estimate the cost of a research task.
@@ -194,18 +195,18 @@ def estimate_cost(
             ai_strategy_hist = tracker.get_average_by_mode("ai-strategy")
 
         if ai_strategy_hist and ai_strategy_hist["sample_size"] >= 3:
-            # Use historical AI strategy data
-            input_tokens += ai_strategy_hist["avg_input_tokens"]
-            output_tokens += ai_strategy_hist["avg_output_tokens"]
+            # Use historical AI strategy data (multiply by number of vendors)
+            input_tokens += ai_strategy_hist["avg_input_tokens"] * num_vendors
+            output_tokens += ai_strategy_hist["avg_output_tokens"] * num_vendors
             ai_avg_mins = ai_strategy_hist["avg_duration_seconds"] / 60
-            duration_min += int(ai_avg_mins * 0.8)
-            duration_max += int(ai_avg_mins * 1.2)
+            duration_min += int(ai_avg_mins * 0.8) * num_vendors
+            duration_max += int(ai_avg_mins * 1.2) * num_vendors
         else:
-            # Use default estimates
-            input_tokens += AI_STRATEGY_OVERHEAD["input_tokens"]
-            output_tokens += AI_STRATEGY_OVERHEAD["output_tokens"]
-            duration_min += AI_STRATEGY_OVERHEAD["duration_min"]
-            duration_max += AI_STRATEGY_OVERHEAD["duration_max"]
+            # Use default estimates (multiply by number of vendors)
+            input_tokens += AI_STRATEGY_OVERHEAD["input_tokens"] * num_vendors
+            output_tokens += AI_STRATEGY_OVERHEAD["output_tokens"] * num_vendors
+            duration_min += AI_STRATEGY_OVERHEAD["duration_min"] * num_vendors
+            duration_max += AI_STRATEGY_OVERHEAD["duration_max"] * num_vendors
 
     # Format duration string
     duration = f"{duration_min}-{duration_max} min"
@@ -254,6 +255,7 @@ def display_cost_estimate(
     mode: str,
     company_name: str,
     include_ai_strategy: bool = False,
+    num_vendors: int = 1,
 ) -> bool:
     """
     Display cost estimate and ask for confirmation.
@@ -267,7 +269,7 @@ def display_cost_estimate(
         True if user confirms, False to cancel
     """
     import sys
-    estimate = estimate_cost(mode, include_ai_strategy)
+    estimate = estimate_cost(mode, include_ai_strategy, num_vendors=num_vendors)
 
     # Clean single line with visible text
     print(f"\n{company_name} | {mode} | ~${estimate.total_cost:.2f} | {estimate.duration_minutes}")
