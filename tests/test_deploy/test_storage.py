@@ -414,6 +414,10 @@ class TestS3StoreMocked:
             store.put_manifest("job-123", manifest)
 
 
+@pytest.mark.skipif(
+    not __import__("importlib").util.find_spec("google.api_core"),
+    reason="google-cloud-storage not installed",
+)
 class TestGCSStoreMocked:
     """Tests for GCSStore with mocked GCS client."""
     
@@ -475,6 +479,10 @@ class TestGCSStoreMocked:
         mock_blob.generate_signed_url.assert_called_once()
 
 
+@pytest.mark.skipif(
+    not __import__("importlib").util.find_spec("azure.core"),
+    reason="azure-storage-blob not installed",
+)
 class TestBlobStoreMocked:
     """Tests for BlobStore with mocked Azure client."""
     
