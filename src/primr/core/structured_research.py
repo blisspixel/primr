@@ -360,7 +360,7 @@ def _collect_data(
     # Deduplicate: LLM queries first, then fallbacks
     all_queries = external_queries + [q for q in fallback_queries if q not in external_queries]
 
-    external_data = {}
+    external_data: dict[str, str] = {}
     max_external_sources = 8
 
     for query in all_queries:
