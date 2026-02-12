@@ -110,9 +110,7 @@ class MarkdownParser:
             return True
         if block_type == 'numbered_list' and parsed.type == 'numbered':
             return True
-        if block_type == 'table' and parsed.type in ('table_row', 'table_separator'):
-            return True
-        return False
+        return bool(block_type == 'table' and parsed.type in ('table_row', 'table_separator'))
 
     def _get_block_type(self, parsed: ParsedLine) -> str:
         """Get the block type for a parsed line."""
