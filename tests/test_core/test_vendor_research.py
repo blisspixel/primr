@@ -265,9 +265,16 @@ class TestBuildVendorPrompt:
 class TestValidateVendorResearchPreflight:
     """Tests for _validate_vendor_research_preflight function."""
 
-    def test_rejects_invalid_vendor(self):
+    @patch('primr.config.settings.get_settings')
+    def test_rejects_invalid_vendor(self, mock_settings):
         """Rejects invalid vendor name."""
+        from unittest.mock import MagicMock
+
         from primr.core.vendor_research import _validate_vendor_research_preflight
+
+        mock_api = MagicMock()
+        mock_api.gemini_key = "fake-key"
+        mock_settings.return_value.api = mock_api
 
         errors = _validate_vendor_research_preflight("invalid_vendor")
 
