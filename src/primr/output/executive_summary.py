@@ -248,7 +248,7 @@ class ExecutiveSummaryGenerator:
 
         # Sort by score and take top N
         scored.sort(reverse=True)
-        for score, sentence in scored[:max_points]:
+        for _score, sentence in scored[:max_points]:
             # Clean up the sentence
             point = sentence.strip()
             if not point.endswith('.'):

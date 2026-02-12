@@ -15,7 +15,6 @@ from pathlib import Path
 from typing import Any
 
 from docx import Document
-from docx.enum.style import WD_STYLE_TYPE
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
@@ -156,58 +155,56 @@ def strip_heading_markers(text: str) -> str:
 def strip_markdown_header_block(markdown_text: str) -> str:
     """
     Strip the header block from markdown content.
-    
+
     The header block typically looks like:
         # Title
-        
-        **Prepared by:** Primr Research System  
+
+        **Prepared by:** Primr Research System
         **Date:** December 18, 2024
-        
+
         ---
-    
+
     Since the converter owns the header (via title/subtitle params),
     we strip this to avoid duplicate headers in the DOCX.
-    
+
     Args:
         markdown_text: Raw markdown content
-        
+
     Returns:
         Markdown with header block removed
     """
     if not markdown_text:
         return markdown_text
-    
+
     lines = markdown_text.split('\n')
-    
+
     # Find where the header block ends
     # Look for: # Title, then metadata lines, then ---
     i = 0
-    
+
     # Skip leading empty lines
     while i < len(lines) and not lines[i].strip():
         i += 1
-    
+
     # Check if first non-empty line is a top-level heading
     if i < len(lines) and lines[i].strip().startswith('# '):
         i += 1
-        
+
         # Skip empty lines after heading
         while i < len(lines) and not lines[i].strip():
             i += 1
-        
+
         # Skip metadata lines (**Prepared by:**, **Date:**)
         while i < len(lines):
             line = lines[i].strip()
-            if line.startswith('**') and ':**' in line:
-                i += 1
-            elif not line:
+            if (line.startswith('**') and ':**' in line) or not line:
                 i += 1
             elif line == '---':
                 i += 1
                 break
             else:
                 break
-    
+
     # Return remaining content
     return '\n'.join(lines[i:])
 
@@ -215,19 +212,19 @@ def strip_markdown_header_block(markdown_text: str) -> str:
 def setup_document_styles(doc: Document) -> None:
     """
     Set up consistent document styles.
-    
+
     Explicitly defines styles to avoid environment-dependent defaults.
     Uses reduced heading spacing for a cleaner, less "Word-y" look.
     """
     styles = doc.styles
-    
+
     # Normal text style
     normal = styles['Normal']
     normal.font.name = 'Calibri'
     normal.font.size = Pt(11)
     normal.paragraph_format.space_after = Pt(8)
     normal.paragraph_format.line_spacing = 1.15
-    
+
     # Heading styles with graduated spacing (less chunky than Word defaults)
     # Format: (style_name, font_size, bold, space_before, space_after)
     heading_configs = [
@@ -236,7 +233,7 @@ def setup_document_styles(doc: Document) -> None:
         ('Heading 3', 12, True, 8, 4),    # Sub-sub-sections
         ('Heading 4', 11, True, 6, 2),    # Minor headings
     ]
-    
+
     for style_name, size, bold, before, after in heading_configs:
         if style_name in styles:
             style = styles[style_name]
@@ -255,7 +252,7 @@ def markdown_to_docx(
 ) -> Path:
     """
     Convert markdown to DOCX with clean formatting.
-    
+
     Design: Converter owns the header.
     - If title/subtitle provided, they are rendered by the converter
     - Any markdown header block (# Title, **Prepared by:**, etc.) is stripped
@@ -271,17 +268,17 @@ def markdown_to_docx(
         Path to created DOCX
     """
     doc = Document()
-    
+
     # Set up consistent styles
     setup_document_styles(doc)
-    
+
     # Set margins
     for section in doc.sections:
         section.top_margin = Inches(1)
         section.bottom_margin = Inches(1)
         section.left_margin = Inches(1)
         section.right_margin = Inches(1)
-    
+
     # Add title if provided (converter owns the header)
     # Using 20pt for cleaner "memo" feel vs 24pt "report cover page" look
     if title:
@@ -290,7 +287,7 @@ def markdown_to_docx(
         for run in p.runs:
             run.font.size = Pt(20)
             run.font.name = 'Calibri'
-    
+
     if subtitle:
         p = doc.add_paragraph()
         p.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
@@ -298,13 +295,13 @@ def markdown_to_docx(
         run.font.size = Pt(12)  # Smaller than body, muted
         run.font.color.rgb = RGBColor(0x5F, 0x63, 0x68)
         run.font.name = 'Calibri'
-    
+
     # Strip markdown header block if converter is adding title
     # This prevents duplicate headers
     content = markdown_text
     if title:
         content = strip_markdown_header_block(markdown_text)
-    
+
     # Process markdown
     lines = content.split('\n')
     i = 0

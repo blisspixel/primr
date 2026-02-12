@@ -210,7 +210,7 @@ class ReportAssembler:
         try:
             from docx import Document
             from docx.enum.text import WD_ALIGN_PARAGRAPH
-            from docx.shared import Inches, Pt
+            from docx.shared import Inches, Pt  # noqa: F401
         except ImportError:
             logger.error("python-docx not installed. Install with: pip install python-docx")
             return False
