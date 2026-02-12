@@ -270,7 +270,9 @@ class TestMain:
 
     def test_main_dry_run(self):
         """Test main with dry-run flag."""
-        with patch("primr.utils.cost_estimator.estimate_cost") as mock_estimate, \
+        mock_validation = MagicMock(valid=True, errors=[], warnings=[])
+        with patch("primr.utils.config_validation.validate_config", return_value=mock_validation), \
+             patch("primr.utils.cost_estimator.estimate_cost") as mock_estimate, \
              patch("primr.core.cli._run_preflight_checks", return_value=(True, [])):
             mock_estimate.return_value = MagicMock(__str__=lambda x: "Cost estimate")
             result = main(["Acme Corp", "acme.example", "--dry-run"])
