@@ -8,22 +8,20 @@ Tests cover:
 - Command dispatch
 """
 import os
-import tempfile
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-from hypothesis import given, settings, strategies as st
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from primr.core.cli import (
+    MODE_MAP,
     CLIConfig,
     Command,
-    MODE_MAP,
     main,
     parse_args,
     run_doctor,
 )
-
 
 # =============================================================================
 # Command Enum Tests
@@ -272,7 +270,8 @@ class TestMain:
 
     def test_main_dry_run(self):
         """Test main with dry-run flag."""
-        with patch("primr.utils.cost_estimator.estimate_cost") as mock_estimate:
+        with patch("primr.utils.cost_estimator.estimate_cost") as mock_estimate, \
+             patch("primr.core.cli._run_preflight_checks", return_value=(True, [])):
             mock_estimate.return_value = MagicMock(__str__=lambda x: "Cost estimate")
             result = main(["Acme Corp", "acme.example", "--dry-run"])
             assert result == 0
