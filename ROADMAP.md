@@ -194,7 +194,7 @@ Goal: Enable scalable cloud deployment with job-based ephemeral execution.
 Goal: Enable AI agents to drive research workflows with persistent memory and governance.
 
 **Research Memory:**
-- Hypothesis tracking with confidence levels (low, medium, high, validated)
+- Hypothesis tracking with confidence levels (untested, validated, invalidated, confirmed)
 - YAML persistence with file-per-company storage
 - Expiration filtering and topic-based queries
 - Cross-session learning and hypothesis evolution
@@ -374,7 +374,7 @@ Goal: Generate separate AI strategy documents for multiple cloud vendors in a si
 
 ## Near-Term Roadmap
 
-### v1.8.0 - QA-Driven Report Iteration (Planned)
+### v1.13.0 - QA-Driven Report Iteration (Planned)
 
 Goal: Use QA feedback to iteratively improve weak sections until reports hit 90+.
 
@@ -391,7 +391,7 @@ Implementation:
 
 ## Medium-Term Roadmap
 
-### v1.9.0 - Refinement and Learning Loop (Planned)
+### v1.14.0 - Refinement and Learning Loop (Planned)
 
 Goal: Support post-discovery learning without re-running everything from scratch.
 
@@ -399,7 +399,7 @@ Goal: Support post-discovery learning without re-running everything from scratch
 - Re-synthesize insights with updated confidence and revised hypotheses
 - Outputs evolve from pre-meeting prep to post-discovery POV
 
-### v1.10.0 - POV and Narrative Evolution (Planned)
+### v1.15.0 - POV and Narrative Evolution (Planned)
 
 Goal: Make Primr the system of record for how thinking evolves.
 
@@ -503,7 +503,7 @@ cd deploy/aws && ./deploy.sh -d prod destroy
 | 1.1.1 | Jan 2026 | Reader-mode extraction, vision tier |
 | 1.2.0 | Jan 2026 | Test coverage, security review |
 | 1.3.0 | Jan 2026 | Python 3.11+ requirement |
-| 1.3.1 | Jan 2026 | File Search Store billing fix |
+| 1.3.1 | Jan 2026 | Resource cleanup, File Search Store billing fix |
 | 1.4.0 | Feb 2026 | MCP Server for AI agent integration |
 | 1.4.1 | Feb 2026 | Open Claw integration |
 | 1.5.0 | Feb 2026 | Code quality improvements |

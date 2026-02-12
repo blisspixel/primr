@@ -471,11 +471,7 @@ class SingleJobStore(JobStore):
     def _get_or_create_event(self) -> asyncio.Event:
         """Get or create the status change event."""
         if self._status_change_event is None:
-            try:
-                self._status_change_event = asyncio.Event()
-            except RuntimeError:
-                # No running event loop, create one for sync context
-                self._status_change_event = asyncio.Event()
+            self._status_change_event = asyncio.Event()
         return self._status_change_event
 
     async def wait_for_status_change(
@@ -501,7 +497,7 @@ class SingleJobStore(JobStore):
         event = self._get_or_create_event()
         event.clear()
 
-        deadline = asyncio.get_event_loop().time() + timeout_seconds
+        deadline = asyncio.get_running_loop().time() + timeout_seconds
 
         while True:
             # Check current status
@@ -514,7 +510,7 @@ class SingleJobStore(JobStore):
                 return (True, new_status)
 
             # Calculate remaining time
-            remaining = deadline - asyncio.get_event_loop().time()
+            remaining = deadline - asyncio.get_running_loop().time()
             if remaining <= 0:
                 return (False, current_status)
 
