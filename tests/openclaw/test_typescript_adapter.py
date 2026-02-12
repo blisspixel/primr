@@ -8,11 +8,10 @@ import json
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any
 
 import pytest
-from hypothesis import given, settings, strategies as st
-
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 ADAPTER_PATH = Path(__file__).parent.parent.parent / "openclaw" / "skills" / "primr-research" / "scripts" / "research-status.ts"
 
@@ -45,7 +44,7 @@ pytestmark = pytest.mark.skipif(
 
 def run_adapter(input_json: str) -> tuple[str, str, int]:
     """Run the TypeScript adapter with given input.
-    
+
     Returns (stdout, stderr, return_code).
     """
     # Use npx tsx to run TypeScript directly
@@ -64,13 +63,18 @@ valid_status_strategy = st.fixed_dictionaries({
 }).map(lambda d: json.dumps(d))
 
 # Strategy for generating invalid inputs
+# Excludes null bytes (mangled by OS process arg handling) and valid JSON objects
 invalid_input_strategy = st.one_of(
     st.just(""),
     st.just("not json"),
     st.just("{invalid}"),
     st.just("null"),
     st.just("[]"),
-    st.text(min_size=1, max_size=100).filter(lambda s: not s.startswith("{")),
+    st.just("42"),
+    st.just('"a string"'),
+    st.text(min_size=1, max_size=100, alphabet=st.characters(blacklist_characters="\x00")).filter(
+        lambda s: not s.startswith("{")
+    ),
 )
 
 
@@ -82,9 +86,9 @@ class TestAdapterValidInput:
         """FR-4.3: Valid status input returns success JSON."""
         input_json = json.dumps({"status": status})
         stdout, stderr, code = run_adapter(input_json)
-        
+
         assert code == 0, f"Expected success, got code {code}: {stderr}"
-        
+
         output = json.loads(stdout)
         assert output["status"] == "success"
         assert "summary" in output
@@ -94,7 +98,7 @@ class TestAdapterValidInput:
         """FR-4.1: Idle status produces correct summary."""
         input_json = json.dumps({"status": "idle"})
         stdout, _, code = run_adapter(input_json)
-        
+
         assert code == 0
         output = json.loads(stdout)
         assert "ready" in output["summary"].lower() or "no active" in output["summary"].lower()
@@ -108,7 +112,7 @@ class TestAdapterValidInput:
             "current_stage": "deep_research"
         })
         stdout, _, code = run_adapter(input_json)
-        
+
         assert code == 0
         output = json.loads(stdout)
         assert "Acme Corp" in output["summary"]
@@ -122,7 +126,7 @@ class TestAdapterValidInput:
             "artifacts": ["report.md", "insights.txt"]
         })
         stdout, _, code = run_adapter(input_json)
-        
+
         assert code == 0
         output = json.loads(stdout)
         assert "action_required" in output
@@ -139,7 +143,7 @@ class TestAdapterPossiblyStuckDetection:
             "possibly_stuck": True
         })
         stdout, _, code = run_adapter(input_json)
-        
+
         assert code == 0
         output = json.loads(stdout)
         assert "action_required" in output
@@ -153,7 +157,7 @@ class TestAdapterPossiblyStuckDetection:
             "progress": 50
         })
         stdout, _, code = run_adapter(input_json)
-        
+
         assert code == 0
         output = json.loads(stdout)
         # Should not have stuck-related action
@@ -167,9 +171,9 @@ class TestAdapterErrorHandling:
     def test_invalid_json_returns_error(self) -> None:
         """OR-1.2: Invalid JSON returns error with message."""
         stdout, stderr, code = run_adapter("not valid json")
-        
+
         assert code != 0
-        
+
         # Error should be in stderr
         error = json.loads(stderr)
         assert error["status"] == "error"
@@ -179,7 +183,7 @@ class TestAdapterErrorHandling:
     def test_empty_input_returns_error(self) -> None:
         """OR-1.2: Empty input returns error."""
         stdout, stderr, code = run_adapter("")
-        
+
         assert code != 0
         error = json.loads(stderr)
         assert error["status"] == "error"
@@ -187,7 +191,7 @@ class TestAdapterErrorHandling:
     def test_error_output_is_valid_json(self) -> None:
         """OR-1.1: Error output is valid JSON."""
         _, stderr, code = run_adapter("{malformed")
-        
+
         assert code != 0
         # Should not raise - stderr should be valid JSON
         error = json.loads(stderr)
@@ -202,10 +206,10 @@ class TestPropertyBasedErrorHandling:
     def test_invalid_input_always_returns_error_json(self, invalid_input: str) -> None:
         """Property 5: All invalid inputs produce valid error JSON."""
         stdout, stderr, code = run_adapter(invalid_input)
-        
+
         # Should fail
         assert code != 0
-        
+
         # stderr should be valid JSON with required fields
         error = json.loads(stderr)
         assert error["status"] == "error"
@@ -217,10 +221,10 @@ class TestPropertyBasedErrorHandling:
     def test_valid_input_always_returns_success_json(self, valid_input: str) -> None:
         """Property 5: All valid inputs produce valid success JSON."""
         stdout, stderr, code = run_adapter(valid_input)
-        
+
         # Should succeed
         assert code == 0
-        
+
         # stdout should be valid JSON with required fields
         output = json.loads(stdout)
         assert output["status"] == "success"
@@ -238,7 +242,7 @@ class TestFailureActionSuggestions:
             "error_message": "URL blocked: SSRF protection triggered"
         })
         stdout, _, code = run_adapter(input_json)
-        
+
         assert code == 0
         output = json.loads(stdout)
         assert "action_required" in output
@@ -251,7 +255,7 @@ class TestFailureActionSuggestions:
             "error_message": "API rate limit exceeded"
         })
         stdout, _, code = run_adapter(input_json)
-        
+
         assert code == 0
         output = json.loads(stdout)
         assert "action_required" in output
