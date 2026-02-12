@@ -417,7 +417,7 @@ Goal: Make Primr available to the broader community via PyPI.
 **Scope:**
 - PyPI publication (`pip install primr`)
 - Public GitHub repository
-- GitHub Actions CI/CD for automated testing
+- ~~GitHub Actions CI/CD for automated testing~~ (done — lint, type check, tests run on every push)
 - Contribution workflow for external contributors
 - Documentation site
 
