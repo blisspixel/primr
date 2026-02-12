@@ -52,9 +52,10 @@ Requires Python 3.11+ and a Gemini API key. That's it — web search uses DuckDu
 
 ```bash
 # More usage
-primr "Company" https://company.com --mode scrape   # Site corpus only
-primr "Company" https://company.com --mode deep     # External research only
-primr "Company" https://company.com --dry-run       # Cost estimate first
+primr "Company" https://company.com --mode scrape        # Site corpus only
+primr "Company" https://company.com --mode deep          # External research only
+primr "Company" https://company.com --dry-run            # Cost estimate first
+primr "Company" https://company.com --cloud-vendor aws azure  # Multi-vendor AI strategy
 ```
 
 ### What a run looks like
@@ -84,22 +85,33 @@ Scraping 23/50 /about  [15s elapsed, ~2m left]
 ✓ Deep Research
   Chapters: 21
 
-▸ PHASE 3 · AI Strategy Roadmap Analysis
-  Generating AI strategy roadmap recommendations
+▸ PHASE 3 · AI Strategy Roadmap (AWS) Analysis
+  Generating AI strategy roadmap recommendations (aws)
 
-✓ AI Strategy Roadmap Analysis
+✓ AI Strategy Roadmap (AWS) Analysis
 
-✓ Complete in 78m
+▸ PHASE 4 · AI Strategy Roadmap (AZURE) Analysis
+  Generating AI strategy roadmap recommendations (azure)
+
+✓ AI Strategy Roadmap (AZURE) Analysis
+
+✓ Complete in 85m
 
 ✓ Report ready
-  output/Acme_Corp_Strategic_Overview_02-10-2026.docx
+  output/Acme_Corp_Strategic_Overview_02-11-2026.docx
+
+✓ AI Strategy Roadmap (AWS)
+  output/Acme_Corp_AI_Strategy_AWS_02-11-2026.docx
+
+✓ AI Strategy Roadmap (AZURE)
+  output/Acme_Corp_AI_Strategy_AZURE_02-11-2026.docx
 
 Mode: Complete (Two-Step)
 Chapters: 21
 Citations: 34
-Duration: 78m
-Est. Cost: $1.68
-Actual Cost: ~$0.63
+Duration: 85m
+Est. Cost: $1.92
+Actual Cost: ~$0.62
 AI Strategy: Yes
 ```
 

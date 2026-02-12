@@ -74,7 +74,7 @@ class CLIConfig:
     mode: str = "complete"
     citation_style: str = "numbered"
     ai_strategy: bool = True
-    cloud_vendor: str = "azure"
+    cloud_vendors: tuple[str, ...] = ("azure",)
     skip_confirm: bool = True
     context_files: tuple[str, ...] = ()
     context_folder: str | None = None
@@ -103,6 +103,11 @@ class CLIConfig:
     memory_list: bool = False
     orchestrate_max_cost: float | None = None
     roadmap_version: str | None = None
+
+    @property
+    def cloud_vendor(self) -> str:
+        """Backward-compatible single vendor access."""
+        return self.cloud_vendors[0]
 
     @property
     def has_company_info(self) -> bool:
@@ -189,7 +194,7 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         mode=mode,
         citation_style=getattr(parsed, 'citation_style', 'numbered'),
         ai_strategy=ai_strategy,
-        cloud_vendor=getattr(parsed, 'cloud_vendor', 'azure'),
+        cloud_vendors=tuple(dict.fromkeys(getattr(parsed, 'cloud_vendor', ['azure']))),
         skip_confirm=skip_confirm,
         context_files=context_files,
         context_folder=getattr(parsed, 'context_folder', None),
@@ -454,9 +459,10 @@ Accordion Method Test (for development):
     parser.add_argument(
         "--cloud-vendor",
         type=str,
+        nargs="+",
         choices=["azure", "aws", "gcp", "agnostic"],
-        default="azure",
-        help="Cloud vendor for AI recommendations"
+        default=["azure"],
+        help="Cloud vendor(s) for AI recommendations (can specify multiple)"
     )
     parser.add_argument(
         "--discovery-notes",
@@ -767,7 +773,7 @@ def _handle_batch(config: CLIConfig) -> int:
             mode=config.mode,
             citation_style=config.citation_style,
             ai_strategy=config.ai_strategy,
-            cloud_vendor=config.cloud_vendor,
+            cloud_vendors=config.cloud_vendors,
             industry=config.industry,
             limit=config.limit,
             skip_confirm=config.skip_confirm,
@@ -784,7 +790,7 @@ def _handle_batch(config: CLIConfig) -> int:
         mode=config.mode,
         citation_style=config.citation_style,
         ai_strategy=config.ai_strategy,
-        cloud_vendor=config.cloud_vendor
+        cloud_vendors=config.cloud_vendors
     )
     return 0
 
@@ -931,27 +937,34 @@ def _handle_ai_strategy_only(config: CLIConfig) -> int:
     console.info(f"Company: {company_name}")
     console.info(f"Context: {path.name}")
     if strategy_type == "ai":
-        console.info(f"Cloud Vendor: {config.cloud_vendor.upper()}")
+        vendor_names = ", ".join(v.upper() for v in config.cloud_vendors)
+        console.info(f"Cloud Vendor(s): {vendor_names}")
     console.blank()
 
-    # Generate strategy using the report as context
-    result_path = _generate_strategy_section(
-        strategy_name=strategy_type,
-        company_name=company_name,
-        cloud_vendor=config.cloud_vendor,
-        company_research_path=str(path),
-        force_refresh_vendor=config.refresh_vendor_research,
-        discovery_notes_content=None  # TODO: Add discovery notes support
-    )
+    # For AI strategy, loop over each vendor; others run once
+    vendors = list(config.cloud_vendors) if strategy_type == "ai" else ["agnostic"]
+    result_paths: list[str] = []
 
-    if result_path:
-        console.blank()
-        console.success_box(f"{strategy_display} generated", result_path)
+    for vendor in vendors:
+        result_path = _generate_strategy_section(
+            strategy_name=strategy_type,
+            company_name=company_name,
+            cloud_vendor=vendor,
+            company_research_path=str(path),
+            force_refresh_vendor=config.refresh_vendor_research,
+            discovery_notes_content=None  # TODO: Add discovery notes support
+        )
 
-        # Open if requested
+        if result_path:
+            vendor_label = f" ({vendor.upper()})" if strategy_type == "ai" and len(vendors) > 1 else ""
+            console.blank()
+            console.success_box(f"{strategy_display}{vendor_label} generated", result_path)
+            result_paths.append(result_path)
+
+    if result_paths:
+        # Open last generated file if requested
         if config.open_after:
-            open_file(result_path)
-
+            open_file(result_paths[-1])
         return 0
     else:
         console.error(f"{strategy_display} generation failed")
@@ -1371,7 +1384,7 @@ def _handle_research(config: CLIConfig) -> int:
         mode=config.mode,
         citation_style=config.citation_style,
         ai_strategy=config.ai_strategy,
-        cloud_vendor=config.cloud_vendor,
+        cloud_vendors=config.cloud_vendors,
         skip_confirm=config.skip_confirm,
         context_files=context_files if context_files else None,
         refresh_vendor_research=config.refresh_vendor_research,
@@ -2070,7 +2083,7 @@ def process_batch(
     mode: str = "complete",
     citation_style: str = "numbered",
     ai_strategy: bool = True,
-    cloud_vendor: str = "azure",
+    cloud_vendors: tuple[str, ...] = ("azure",),
     industry: str | None = None,
     limit: int | None = None,
     skip_confirm: bool = True,
@@ -2231,7 +2244,7 @@ def process_batch(
                     mode=mode,
                     citation_style=citation_style,
                     ai_strategy=ai_strategy,
-                    cloud_vendor=cloud_vendor,
+                    cloud_vendors=cloud_vendors,
                 )
 
                 if result_path:
@@ -2336,7 +2349,7 @@ def process_csv(
     mode: str = "complete",
     citation_style: str = "numbered",
     ai_strategy: bool = True,
-    cloud_vendor: str = "azure"
+    cloud_vendors: tuple[str, ...] = ("azure",),
 ) -> None:
     """Process a CSV file for batch research."""
     import csv
@@ -2359,7 +2372,7 @@ def process_csv(
                         mode=mode,
                         citation_style=citation_style,
                         ai_strategy=ai_strategy,
-                        cloud_vendor=cloud_vendor
+                        cloud_vendors=cloud_vendors
                     )
                 except Exception as e:
                     console.error(f"Failed: {company or website} - {e}")

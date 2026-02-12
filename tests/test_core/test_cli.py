@@ -74,7 +74,7 @@ class TestCLIConfig:
             website="https://acme.example",
             mode="deep-research",
             ai_strategy=False,
-            cloud_vendor="aws"
+            cloud_vendors=("aws",)
         )
         assert config.company_name == "Acme Corp"
         assert config.website == "https://acme.example"
@@ -165,6 +165,18 @@ class TestParseArgs:
         """Test parsing cloud vendor flag."""
         config = parse_args(["Acme Corp", "acme.example", "--cloud-vendor", "aws"])
         assert config.cloud_vendor == "aws"
+        assert config.cloud_vendors == ("aws",)
+
+    def test_parse_multiple_cloud_vendors(self):
+        """Test parsing multiple cloud vendors."""
+        config = parse_args(["Acme Corp", "acme.example", "--cloud-vendor", "aws", "azure"])
+        assert config.cloud_vendors == ("aws", "azure")
+        assert config.cloud_vendor == "aws"  # backward-compat returns first
+
+    def test_parse_cloud_vendor_deduplicates(self):
+        """Test that duplicate cloud vendors are removed."""
+        config = parse_args(["Acme Corp", "acme.example", "--cloud-vendor", "aws", "aws"])
+        assert config.cloud_vendors == ("aws",)
 
     def test_parse_context_files(self):
         """Test parsing context files."""

@@ -781,7 +781,7 @@ def perform_research(
     mode: str = "structured",
     citation_style: str = "numbered",
     ai_strategy: bool = False,
-    cloud_vendor: str = "agnostic",
+    cloud_vendors: tuple[str, ...] = ("agnostic",),
     skip_confirm: bool = False,
     context_files: list[Any] | None = None,
     refresh_vendor_research: bool = False,
@@ -820,7 +820,7 @@ def perform_research(
     # Show cost estimate and ask for confirmation
     if not skip_confirm:
         from primr.utils.cost_estimator import display_cost_estimate
-        if not display_cost_estimate(mode, display_name, ai_strategy):
+        if not display_cost_estimate(mode, display_name, ai_strategy, num_vendors=len(cloud_vendors)):
             console.info("Research cancelled by user")
             return None
 
@@ -838,7 +838,7 @@ def perform_research(
         if mode in ("deep-research", "complete", "hybrid"):
             return perform_deep_research(
                 company_name, website, mode, start_time, citation_style,
-                ai_strategy, cloud_vendor, context_files, refresh_vendor_research,
+                ai_strategy, cloud_vendors, context_files, refresh_vendor_research,
                 strategies=strategies, strategy_only=strategy_only,
                 discovery_notes_path=discovery_notes_path,
                 discovery_notes_content=discovery_notes_content
@@ -1095,7 +1095,7 @@ def perform_deep_research(
     start_time: float,
     citation_style: str = "numbered",
     ai_strategy: bool = False,
-    cloud_vendor: str = "agnostic",
+    cloud_vendors: tuple[str, ...] = ("agnostic",),
     context_files: list[Any] | None = None,
     refresh_vendor_research: bool = False,
     strategies: list[str] | None = None,
@@ -1113,7 +1113,7 @@ def perform_deep_research(
         start_time: Start timestamp for duration tracking
         citation_style: Citation formatting style
         ai_strategy: If True, generate AI opportunity recommendations (legacy, use strategies instead)
-        cloud_vendor: Cloud vendor for AI recommendations
+        cloud_vendors: Cloud vendor(s) for AI recommendations
         context_files: Optional list of files (PDFs, docs) to upload as context for Deep Research
         refresh_vendor_research: If True, force regenerate vendor research
         strategies: List of strategy module names to generate (e.g., ['ai', 'cloud'])
@@ -1309,37 +1309,58 @@ def perform_deep_research(
             strategy_paths: dict[str, str] = {}
             if strategies_to_run:
                 base_phase = 3 if is_simple_deep_research else 3
-                total_strategies = len(strategies_to_run)
+                # Count total phases: AI strategy runs once per vendor, others run once
+                total_phase_count = sum(
+                    len(cloud_vendors) if s == "ai" else 1
+                    for s in strategies_to_run
+                )
 
-                for idx, strategy_name in enumerate(strategies_to_run):
-                    phase_num = base_phase + idx
-                    total_phases = base_phase + total_strategies - 1
+                phase_offset = 0
+                for strategy_name in strategies_to_run:
+                    # AI strategy iterates over each vendor; others run once
+                    vendors = list(cloud_vendors) if strategy_name == "ai" else ["agnostic"]
 
-                    # Get display name from registry
-                    from primr.prompts.registry import get_registry
-                    registry = get_registry()
-                    strategy_module = registry.get(strategy_name)
-                    display_strategy_name = strategy_module.display_name if strategy_module else strategy_name.replace("_", " ").title()
+                    for vendor in vendors:
+                        phase_num = base_phase + phase_offset
+                        total_phases = base_phase + total_phase_count - 1
 
-                    console.phase_banner(
-                        phase_num, total_phases,
-                        f"{display_strategy_name} Analysis",
-                        f"Generating {display_strategy_name.lower()} recommendations",
-                        "5-10 min"
-                    )
+                        # Get display name from registry
+                        from primr.prompts.registry import get_registry
+                        registry = get_registry()
+                        strategy_module = registry.get(strategy_name)
+                        display_strategy_name = strategy_module.display_name if strategy_module else strategy_name.replace("_", " ").title()
 
-                    # Generate the strategy
-                    strategy_path = _generate_strategy_section(
-                        strategy_name=strategy_name,
-                        company_name=company_name or display_name,
-                        cloud_vendor=cloud_vendor,
-                        company_research_path=raw_md_path,
-                        force_refresh_vendor=refresh_vendor_research
-                    )
+                        # Append vendor to display name for multi-vendor AI runs
+                        vendor_label = ""
+                        if strategy_name == "ai" and len(cloud_vendors) > 1:
+                            vendor_label = f" ({vendor.upper()})"
 
-                    if strategy_path:
-                        strategy_paths[strategy_name] = strategy_path
-                        console.phase_complete(f"{display_strategy_name} Analysis")
+                        console.phase_banner(
+                            phase_num, total_phases,
+                            f"{display_strategy_name}{vendor_label} Analysis",
+                            f"Generating {display_strategy_name.lower()} recommendations{vendor_label.lower()}",
+                            "5-10 min"
+                        )
+
+                        # Generate the strategy
+                        strategy_path = _generate_strategy_section(
+                            strategy_name=strategy_name,
+                            company_name=company_name or display_name,
+                            cloud_vendor=vendor,
+                            company_research_path=raw_md_path,
+                            force_refresh_vendor=refresh_vendor_research
+                        )
+
+                        if strategy_path:
+                            # Use compound key for multi-vendor AI strategies
+                            if strategy_name == "ai" and len(cloud_vendors) > 1:
+                                key = f"ai_{vendor}"
+                            else:
+                                key = strategy_name
+                            strategy_paths[key] = strategy_path
+                            console.phase_complete(f"{display_strategy_name}{vendor_label} Analysis")
+
+                        phase_offset += 1
 
             # For backward compatibility
             strategy_paths.get("ai")
@@ -1356,12 +1377,19 @@ def perform_deep_research(
                 console.success_box("Report ready", str(Path(docx_path).resolve()))
 
             # Show all generated strategy outputs
-            for strategy_name, strategy_path in strategy_paths.items():
+            for strat_key, strategy_path in strategy_paths.items():
                 from primr.prompts.registry import get_registry
                 registry = get_registry()
-                strategy_module = registry.get(strategy_name)
-                display_name = strategy_module.display_name if strategy_module else strategy_name.replace("_", " ").title()
-                console.success_box(display_name, str(Path(strategy_path).resolve()))
+                # Parse compound keys like "ai_aws" back to base strategy name
+                if "_" in strat_key and strat_key.split("_", 1)[0] == "ai":
+                    base_name = "ai"
+                    vendor_suffix = f" ({strat_key.split('_', 1)[1].upper()})"
+                else:
+                    base_name = strat_key
+                    vendor_suffix = ""
+                strategy_module = registry.get(base_name)
+                display_name = strategy_module.display_name if strategy_module else base_name.replace("_", " ").title()
+                console.success_box(f"{display_name}{vendor_suffix}", str(Path(strategy_path).resolve()))
 
             # Get actual usage from AI client (for structured pipeline calls)
             from primr.ai.client import get_client
@@ -1384,7 +1412,7 @@ def perform_deep_research(
 
             # Get pre-run estimate for comparison
             from primr.utils.cost_estimator import estimate_cost
-            pre_estimate = estimate_cost(mode, ai_strategy, use_historical=False)
+            pre_estimate = estimate_cost(mode, ai_strategy, use_historical=False, num_vendors=len(cloud_vendors))
 
             # Use sections_written for accurate count
             section_count = result.sections_written if result.sections_written > 0 else len(result.section_results)
@@ -2469,7 +2497,8 @@ def _generate_ai_strategy_section(
         # Note: Don't save here - let the main research flow save all at once
 
         date_str = datetime.now().strftime("%m-%d-%Y")
-        base_name = f"{company_name}_AI_Strategy_{date_str}"
+        vendor_tag = f"_{cloud_vendor.upper()}" if cloud_vendor.lower() != "agnostic" else ""
+        base_name = f"{company_name}_AI_Strategy{vendor_tag}_{date_str}"
 
         # Save markdown (.md)
         md_path = os.path.join(OUTPUT_DIR, f"{base_name}.md")
@@ -3349,7 +3378,7 @@ def process_csv(
     mode: str = "complete",
     citation_style: str = "numbered",
     ai_strategy: bool = True,
-    cloud_vendor: str = "azure",
+    cloud_vendors: tuple[str, ...] = ("azure",),
     no_qa: bool = False
 ) -> None:
     import csv
@@ -3369,7 +3398,7 @@ def process_csv(
                         mode=mode,
                         citation_style=citation_style,
                         ai_strategy=ai_strategy,
-                        cloud_vendor=cloud_vendor,
+                        cloud_vendors=cloud_vendors,
                         no_qa=no_qa
                     )
                 except Exception as e:

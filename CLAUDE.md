@@ -27,6 +27,9 @@ primr "Company" https://example.com --mode deep
 # Full pipeline (25-40 min, ~$1.50)
 primr "Company" https://example.com --mode full
 
+# Multi-vendor AI strategy (generates separate docs per vendor)
+primr "Company" https://example.com --cloud-vendor aws azure
+
 # Check job status
 primr --check-jobs
 
@@ -246,4 +249,4 @@ Unit tests validate specific examples and edge cases.
 
 ---
 
-*Last updated: 2026-02-10 | Primr v1.11.2 | Agentic Architecture v1.0*
+*Last updated: 2026-02-11 | Primr v1.12.0 | Agentic Architecture v1.0*

@@ -586,7 +586,8 @@ def _save_strategy_outputs(
     content = _process_citations(content)
 
     date_str = datetime.now().strftime("%m-%d-%Y")
-    base_name = f"{company_name}_AI_Strategy_{date_str}"
+    vendor_tag = f"_{cloud_vendor.value.upper()}" if cloud_vendor.value.lower() != "agnostic" else ""
+    base_name = f"{company_name}_AI_Strategy{vendor_tag}_{date_str}"
     outputs: dict[str, str | None] = {"md": None, "txt": None, "docx": None}
 
     try:
