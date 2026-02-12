@@ -123,8 +123,15 @@ function getFailureAction(status: ResearchStatus): string | undefined {
  */
 function processStatus(input: string): void {
   try {
-    const status: ResearchStatus = JSON.parse(input);
-    
+    const parsed = JSON.parse(input);
+
+    // Validate parsed input is a non-null object (not array, number, string, etc.)
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+      throw new Error("Input must be a JSON object, got " + (Array.isArray(parsed) ? "array" : typeof parsed));
+    }
+
+    const status: ResearchStatus = parsed;
+
     const summary = buildSummary(status);
     const stuckAction = detectPossiblyStuck(status);
     const failureAction = getFailureAction(status);
