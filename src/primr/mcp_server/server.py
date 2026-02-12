@@ -130,7 +130,7 @@ class PrimrMCPServer:
         6. Total timeout: SHUTDOWN_TOTAL_TIMEOUT (10s)
         """
         logger.info("Starting graceful shutdown")
-        shutdown_start = asyncio.get_event_loop().time()
+        shutdown_start = asyncio.get_running_loop().time()
 
         # Phase 1: Wait for background tasks to complete (max 5s)
         if self._background_tasks:
@@ -156,7 +156,7 @@ class PrimrMCPServer:
                         task.cancel()
 
                     # Wait briefly for cancellation to complete
-                    remaining_time = SHUTDOWN_TOTAL_TIMEOUT - (asyncio.get_event_loop().time() - shutdown_start)
+                    remaining_time = SHUTDOWN_TOTAL_TIMEOUT - (asyncio.get_running_loop().time() - shutdown_start)
                     if remaining_time > 0:
                         await asyncio.wait(pending, timeout=min(remaining_time, 2.0))
 
@@ -167,7 +167,7 @@ class PrimrMCPServer:
         self.job_store.mark_shutdown()
 
         # Check total timeout
-        elapsed = asyncio.get_event_loop().time() - shutdown_start
+        elapsed = asyncio.get_running_loop().time() - shutdown_start
         if elapsed >= SHUTDOWN_TOTAL_TIMEOUT:
             logger.warning("Shutdown timeout (%ds) exceeded", SHUTDOWN_TOTAL_TIMEOUT)
 

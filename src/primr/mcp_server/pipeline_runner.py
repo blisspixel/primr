@@ -85,7 +85,7 @@ class PipelineRunner:
             # Create progress callback that updates job state
             def on_progress(message: str) -> None:
                 if self._cancel_requested:
-                    raise asyncio.CancelledError("Job cancelled by user")
+                    raise RuntimeError("Job cancelled by user")
                 job.heartbeat()
                 self.mcp_server.job_store.update(job)
                 logger.debug(f"Progress: {message}")

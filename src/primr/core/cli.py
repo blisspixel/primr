@@ -1847,6 +1847,8 @@ def _classify_columns(df) -> _ColumnMap:
     from primr.ai.llm import llm
 
     columns = list(df.columns)
+    if not columns:
+        raise ValueError("Spreadsheet has no columns — cannot classify an empty file")
 
     # Build sample rows (up to 3) for context
     sample_lines = []
@@ -1876,7 +1878,12 @@ Return JSON only, no explanation:
 
     # Parse JSON from response (handle markdown code fences)
     if response.startswith("```"):
-        response = response.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+        parts = response.split("\n", 1)
+        if len(parts) > 1:
+            response = parts[1].rsplit("```", 1)[0].strip()
+        else:
+            # No newline after opening fences (e.g. ```{...}```)
+            response = response[3:].rsplit("```", 1)[0].strip()
 
     try:
         result = json.loads(response)

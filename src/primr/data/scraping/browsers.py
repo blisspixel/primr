@@ -1518,6 +1518,8 @@ def scrape_with_vision(
             from primr.utils.security import validate_final_url_after_redirect
             is_safe, ssrf_error = validate_final_url_after_redirect(final_url)
             if not is_safe:
+                page.close()
+                context.close()
                 browser.close()
                 elapsed_ms = (time.time() - start_time) * 1000
                 return ScrapeResult(
