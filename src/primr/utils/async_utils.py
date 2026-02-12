@@ -166,7 +166,7 @@ def run_sync_new_loop(coro: Awaitable[T]) -> T:
         # run_until_complete here, so delegate to a worker thread.
         from concurrent.futures import ThreadPoolExecutor
         with ThreadPoolExecutor(max_workers=1) as pool:
-            return pool.submit(asyncio.run, coro).result()
+            return pool.submit(asyncio.run, coro).result()  # type: ignore[arg-type]
     except RuntimeError:
         pass
 

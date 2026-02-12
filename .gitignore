@@ -231,6 +231,11 @@ docs/documentation/
 # Kiro IDE settings
 .kiro/
 
+# Data files (customer lists, spreadsheets)
+*.csv
+*.xlsx
+*.xls
+
 # Temporary test files
 test.json
 *.tmp
