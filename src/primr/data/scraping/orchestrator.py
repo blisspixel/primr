@@ -16,7 +16,12 @@ import time
 
 from .cache import ScrapeCache
 from .config import RateLimitConfig
-from .content import detect_content_type, extract_main_content, extract_text_from_pdf_via_llm, is_quality_content
+from .content import (
+    detect_content_type,
+    extract_main_content,
+    extract_text_from_pdf_via_llm,
+    is_quality_content,
+)
 from .detection import check_success_signal, detect_soft_block
 from .models import (
     Attempt,
