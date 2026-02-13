@@ -5,7 +5,6 @@ This module provides the high-level scraping API used by the rest of Primr.
 It wraps the new modular scraping system in primr.data.scraping.
 """
 
-import random
 import time
 from pathlib import Path
 from urllib.parse import urlparse
@@ -85,9 +84,13 @@ def get_orchestrator(
     if _orchestrator is None:
         _orchestrator = ScrapeOrchestrator(
             cache=ScrapeCache(cache_dir=str(CACHE_DIR)),
-            rate_limiter=RateLimiter(RateLimitConfig()),
+            rate_limiter=RateLimiter(RateLimitConfig(
+                per_host_requests_per_minute=30,  # Tokens refill every 2s; actual scrapes take 2-15s
+                base_delay_seconds=0.5,  # Reduced jitter when rate-limited (0-0.5s vs 0-1.5s)
+            )),
             enable_vision=enable_vision,
             max_page_time=45.0,  # Allow time for quality content - we want the data
+            delay_between_tiers=(0.3, 1.0),  # Avg 0.65s between failed tiers (was 1-3s)
             use_cache=use_cache,
             circuit_breaker_threshold=5,  # More lenient - sites have mixed content
         )
@@ -190,8 +193,27 @@ def fetch_web_content(
         Dict mapping URL -> extracted text (cleaned, boilerplate removed)
     """
     import os
+    from concurrent.futures import ThreadPoolExecutor
 
     from .scraping import BoilerplateFilter, extract_structured_content, scrape_with_playwright
+
+    def _write_raw_file(file_path, url, tier, structured):
+        """Write raw scrape file to disk (may run in background thread)."""
+        try:
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write(f"URL: {url}\n")
+                f.write(f"Tier: {tier}\n")
+                f.write(f"Title: {structured.title or 'N/A'}\n")
+                f.write(f"Quality: {structured.quality.score:.2f} {structured.quality.flags}\n")
+                f.write(f"Metrics: {structured.metrics.char_count} chars, ")
+                f.write(f"{structured.metrics.heading_count} headings, ")
+                f.write(f"{structured.metrics.paragraph_count} paragraphs, ")
+                f.write(f"link_density={structured.metrics.link_density:.2f}, ")
+                f.write(f"boilerplate_ratio={structured.metrics.boilerplate_ratio:.2f}\n")
+                f.write("-" * 60 + "\n\n")
+                f.write(structured.raw_text)
+        except Exception as e:
+            logger.debug(f"Failed to save raw scrape: {e}")
 
     # Create raw scrapes folder if working_folder provided
     raw_folder = None
@@ -277,8 +299,10 @@ def fetch_web_content(
     # Step 3: Scrape pages (homepage first, then discovered links)
     scrape_start = time.time()
     raw_pages = []  # List of (url, raw_html_bytes)
+    structured_cache = {}  # normalized_url -> StructuredContent (reused in Phase 2)
     scraped_results = {}  # url -> ScrapeResult
     success_count = 0
+    write_executor = ThreadPoolExecutor(max_workers=1) if raw_folder else None
 
     # Add homepage as first result (we already scraped it for link discovery)
     homepage_normalized = normalize_url(website)
@@ -292,23 +316,13 @@ def fetch_web_content(
     raw_pages.append((homepage_normalized, homepage_html))
     success_count = 1
 
-    # Save homepage raw scrape
+    # Save homepage raw scrape (and cache extraction for Phase 2)
     if raw_folder:
         try:
             structured = extract_structured_content(homepage_html, website)
+            structured_cache[homepage_normalized] = structured
             raw_file = os.path.join(raw_folder, "homepage.txt")
-            with open(raw_file, "w", encoding="utf-8") as f:
-                f.write(f"URL: {website}\n")
-                f.write(f"Tier: {result.tier}\n")
-                f.write(f"Title: {structured.title or 'N/A'}\n")
-                f.write(f"Quality: {structured.quality.score:.2f} {structured.quality.flags}\n")
-                f.write(f"Metrics: {structured.metrics.char_count} chars, ")
-                f.write(f"{structured.metrics.heading_count} headings, ")
-                f.write(f"{structured.metrics.paragraph_count} paragraphs, ")
-                f.write(f"link_density={structured.metrics.link_density:.2f}, ")
-                f.write(f"boilerplate_ratio={structured.metrics.boilerplate_ratio:.2f}\n")
-                f.write("-" * 60 + "\n\n")
-                f.write(structured.raw_text)
+            write_executor.submit(_write_raw_file, raw_file, website, result.tier, structured)
         except Exception as e:
             logger.debug(f"Failed to save homepage raw scrape: {e}")
 
@@ -320,67 +334,57 @@ def fetch_web_content(
         console.scrape_progress(1, total, "homepage", scrape_start)
         logger.info(f"Starting to scrape {total} pages (homepage + {len(pages_to_scrape)} discovered)")
 
-    for i, page_url in enumerate(pages_to_scrape):
-        normalized = normalize_url(page_url)
-        if normalized in scraped_results:
-            continue
+    try:
+        for i, page_url in enumerate(pages_to_scrape):
+            normalized = normalize_url(page_url)
+            if normalized in scraped_results:
+                continue
 
-        path = urlparse(page_url).path or "/"
-        path_display = path[:30] + "..." if len(path) > 30 else path
+            path = urlparse(page_url).path or "/"
+            path_display = path[:30] + "..." if len(path) > 30 else path
 
-        logger.debug(f"Scraping page {i + 2}/{total}: {page_url}")
+            logger.debug(f"Scraping page {i + 2}/{total}: {page_url}")
 
-        # Small delay between requests (reduced for speed)
-        time.sleep(random.uniform(0.1, 0.2))
+            page_start = time.time()
+            result = orchestrator.scrape_url(page_url)
+            page_elapsed = time.time() - page_start
 
-        page_start = time.time()
-        result = orchestrator.scrape_url(page_url)
-        page_elapsed = time.time() - page_start
+            # Track timing and compute ETA from rolling average
+            page_times.append(page_elapsed)
+            avg_time = sum(page_times) / len(page_times)
+            remaining = total - (i + 2)
+            eta_seconds = avg_time * remaining if remaining > 0 else 0
 
-        # Track timing and compute ETA from rolling average
-        page_times.append(page_elapsed)
-        avg_time = sum(page_times) / len(page_times)
-        remaining = total - (i + 2)
-        eta_seconds = avg_time * remaining if remaining > 0 else 0
+            # Show progress AFTER scraping with ETA
+            console.scrape_progress(i + 2, total, path_display, scrape_start, eta_seconds=eta_seconds)
 
-        # Show progress AFTER scraping with ETA
-        console.scrape_progress(i + 2, total, path_display, scrape_start, eta_seconds=eta_seconds)
+            # Only log actual failures (not slow-but-successful pages)
+            if not result.success:
+                logger.debug(f"Failed {page_url}: {result.error}")
 
-        # Only log actual failures (not slow-but-successful pages)
-        if not result.success:
-            logger.debug(f"Failed {page_url}: {result.error}")
+            if result.success and result.raw_content:
+                scraped_results[normalized] = result
+                raw_pages.append((normalized, result.raw_content))
+                success_count += 1
+                logger.debug(f"Scraped {page_url} via {result.tier}")
 
-        if result.success and result.raw_content:
-            scraped_results[normalized] = result
-            raw_pages.append((normalized, result.raw_content))
-            success_count += 1
-            logger.debug(f"Scraped {page_url} via {result.tier}")
-
-            # Save raw scrape incrementally if working folder provided
-            if raw_folder:
-                safe_name = path.replace("/", "_").strip("_") or "page"
-                safe_name = safe_name[:50]  # Limit filename length
-                raw_file = os.path.join(raw_folder, f"{safe_name}.txt")
-                try:
-                    # Extract structured content for quality metrics
-                    structured = extract_structured_content(result.raw_content, page_url)
-
-                    with open(raw_file, "w", encoding="utf-8") as f:
-                        f.write(f"URL: {page_url}\n")
-                        f.write(f"Tier: {result.tier}\n")
-                        f.write(f"Title: {structured.title or 'N/A'}\n")
-                        f.write(f"Quality: {structured.quality.score:.2f} {structured.quality.flags}\n")
-                        f.write(f"Metrics: {structured.metrics.char_count} chars, ")
-                        f.write(f"{structured.metrics.heading_count} headings, ")
-                        f.write(f"{structured.metrics.paragraph_count} paragraphs, ")
-                        f.write(f"link_density={structured.metrics.link_density:.2f}, ")
-                        f.write(f"boilerplate_ratio={structured.metrics.boilerplate_ratio:.2f}\n")
-                        f.write("-" * 60 + "\n\n")
-                        f.write(structured.raw_text)
-                except Exception as e:
-                    logger.debug(f"Failed to save raw scrape: {e}")
-        else:
-            logger.debug(f"Failed to scrape {page_url}: {result.error}")
+                # Extract + cache structured content, write raw file in background
+                if raw_folder:
+                    try:
+                        structured = extract_structured_content(result.raw_content, page_url)
+                        structured_cache[normalized] = structured
+                        safe_name = path.replace("/", "_").strip("_") or "page"
+                        safe_name = safe_name[:50]
+                        raw_file = os.path.join(raw_folder, f"{safe_name}.txt")
+                        write_executor.submit(_write_raw_file, raw_file, page_url, result.tier, structured)
+                    except Exception as e:
+                        logger.debug(f"Failed to save raw scrape: {e}")
+            else:
+                logger.debug(f"Failed to scrape {page_url}: {result.error}")
+    finally:
+        # Ensure executor shutdown even if scraping loop throws
+        if write_executor:
+            write_executor.shutdown(wait=True)
 
     console.clear_line()
 
@@ -398,8 +402,8 @@ def fetch_web_content(
         bp_filter = BoilerplateFilter()
 
         for url, raw_html in raw_pages:
-            # Extract structured content (uses DOM pruning)
-            structured = extract_structured_content(raw_html, url)
+            # Use cached extraction if available (avoids duplicate work)
+            structured = structured_cache.get(url) or extract_structured_content(raw_html, url)
             bp_filter.add_page(structured.raw_text)
 
         # Compute boilerplate (lines appearing in >30% of pages)
@@ -421,7 +425,7 @@ def fetch_web_content(
         # Not enough pages for boilerplate learning, use direct extraction
         scraped_content = {}
         for url, raw_html in raw_pages:
-            structured = extract_structured_content(raw_html, url)
+            structured = structured_cache.get(url) or extract_structured_content(raw_html, url)
             clean_text = structured.to_plain_text(include_cta=False)
             if clean_text.strip():
                 scraped_content[url] = clean_text

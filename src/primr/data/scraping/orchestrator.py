@@ -16,7 +16,7 @@ import time
 
 from .cache import ScrapeCache
 from .config import RateLimitConfig
-from .content import extract_main_content, is_quality_content
+from .content import detect_content_type, extract_main_content, extract_text_from_pdf_via_llm, is_quality_content
 from .detection import check_success_signal, detect_soft_block
 from .models import (
     Attempt,
@@ -226,6 +226,7 @@ class ScrapeOrchestrator:
         # Reorder tiers to start with best_tier if we know one works for this host
         tiers_to_try = self.tiers
         use_fast_timeout = False
+        effective_max_page_time = self.max_page_time
 
         if host_state.best_tier:
             # Find the best tier and put it first
@@ -240,6 +241,10 @@ class ScrapeOrchestrator:
                 # If requests normally works in <1s, waiting 15s is wasteful
                 use_fast_timeout = True
 
+                # Reduce max page time: if we know what works, don't spend 45s
+                # cycling through all 8 tiers on a failing page
+                effective_max_page_time = min(self.max_page_time, 25.0)
+
         tier_attempts = 0
         consecutive_failures = 0
         last_error_type = None
@@ -247,9 +252,9 @@ class ScrapeOrchestrator:
         for tier in tiers_to_try:
             # Check max page time - allow sufficient time for quality content
             elapsed_total = time.time() - start_time
-            if elapsed_total > self.max_page_time:
+            if elapsed_total > effective_max_page_time:
                 logger.debug(
-                    f"Page timeout after {elapsed_total:.1f}s (limit: {self.max_page_time}s): {url}\n"
+                    f"Page timeout after {elapsed_total:.1f}s (limit: {effective_max_page_time}s): {url}\n"
                     f"  Tried {tier_attempts} tiers: {[t.name for t in tiers_to_try[:tier_attempts]]}\n"
                     f"  Last result: {last_result.error if last_result else 'none'}"
                 )
@@ -274,7 +279,7 @@ class ScrapeOrchestrator:
             # If requests normally works in <1s, waiting 15s is wasteful
             # BUT: Browser tiers need full timeout for JS rendering and challenge solving
             # Only apply fast timeout to HTTP tiers (requests, httpx, curl_cffi)
-            remaining_time = self.max_page_time - elapsed_total
+            remaining_time = effective_max_page_time - elapsed_total
 
             # Browser tiers that need full timeout for JS/challenges
             browser_tiers = {"playwright", "playwright_aggressive", "drissionpage", "drissionpage_stealth", "vision"}
@@ -435,13 +440,30 @@ class ScrapeOrchestrator:
             if tier_result.raw_content:
                 self.cache.set_raw(url, tier_result.raw_content)
 
-            # Extract text - vision tier provides extracted_text directly
+            # Extract text - route by content type
             if tier.name == "vision" and tier_result.extracted_text:
                 # Vision tier already extracted text via LLM
                 extracted = tier_result.extracted_text
             else:
-                # Use reader mode for cleaner output from HTML
-                extracted = extract_main_content(tier_result.raw_content)
+                # Detect content type from header + magic bytes
+                detected_type = detect_content_type(
+                    tier_result.raw_content or b"",
+                    tier_result.content_type,
+                )
+
+                if detected_type == "pdf":
+                    # Extract text from PDF via LLM (handles charts/tables)
+                    # Falls back to PyMuPDF if Gemini unavailable
+                    extracted = extract_text_from_pdf_via_llm(tier_result.raw_content) or ""
+                    logger.debug(f"PDF extraction for {url}: {len(extracted)} chars")
+                elif detected_type in ("html", "text", "json", "xml", "unknown"):
+                    # Use reader mode for HTML/text content
+                    extracted = extract_main_content(tier_result.raw_content)
+                else:
+                    # Skip truly binary content (images, fonts, etc.)
+                    logger.debug(f"Skipping non-text content type '{detected_type}' for {url}")
+                    host_state.record_tier_attempt(tier.name, success=False)
+                    continue
 
             # Check content quality - if garbage, try next tier
             is_quality, quality_reason = is_quality_content(extracted)

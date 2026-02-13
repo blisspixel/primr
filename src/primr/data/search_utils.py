@@ -124,15 +124,15 @@ def generate_external_search_queries(company_name: str, website: str | None = No
         website: Optional company website URL for context.
 
     Returns:
-        List of up to 6 search queries covering news, funding, tech,
-        leadership, competitive landscape, and industry analysis.
+        List of up to 7 search queries covering news, funding, tech,
+        leadership, competitive landscape, industry analysis, and financials.
     """
     domain_hint = ""
     if website:
         domain = urlparse(website).netloc.replace("www.", "")
         domain_hint = f"\nTheir website is: {domain}"
 
-    prompt = f"""Generate 6 web search queries to research {company_name} for a business intelligence brief.{domain_hint}
+    prompt = f"""Generate 7 web search queries to research {company_name} for a business intelligence brief.{domain_hint}
 
 Cover these angles:
 - Recent news, press releases, announcements
@@ -141,6 +141,7 @@ Cover these angles:
 - Leadership team, CEO, strategic direction
 - Competitive landscape, market position
 - Industry analysis, analyst coverage
+- Financial performance, revenue, earnings, investor relations
 
 Rules:
 - One query per line, no numbering
@@ -163,7 +164,7 @@ Rules:
             f"{company_name} leadership executive team",
         ]
 
-    return queries[:6]
+    return queries[:7]
 
 
 # =============================================================================
