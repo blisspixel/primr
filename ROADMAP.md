@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.12.0 (February 2026)
+Current State: v1.12.1 (February 2026)
 
 Primr is a CLI-first, local research tool for company intelligence and strategic analysis. It aims to accelerate research workflows while being transparent about uncertainty.
 
@@ -12,8 +12,9 @@ The design is intentionally opinionated and local-first. This roadmap reflects c
 
 **Scrape Mode**: 8-tier web scraping with intelligent escalation (browser-first):
 - Browser tiers: Playwright, Playwright aggressive, DrissionPage stealth, DrissionPage (driverless CDP)
+- Vision tier: Screenshot + LLM extraction for image-heavy pages (enabled by default, can be disabled)
 - HTTP tiers: curl_cffi (TLS fingerprint impersonation), httpx, requests
-- Vision tier: Screenshot + LLM extraction for image-heavy pages (opt-in)
+- Content-type routing: automatic PDF detection and LLM-powered extraction with PyMuPDF fallback
 - Reader-mode content extraction (BeautifulSoup-based, removes boilerplate)
 - Content quality validation (catches garbage pages, triggers escalation)
 - Homepage-first link discovery (fresher than sitemaps)
@@ -295,10 +296,10 @@ Goal: Enable human-in-the-loop decisions during research.
 - `mutable_data` and `user_input_callback` fields in HookContext
 
 **Expanded External Search Coverage:**
-- LLM-generated search queries (6 targeted queries per company) replace 2 hardcoded queries
+- LLM-generated search queries (7 targeted queries per company) replace 2 hardcoded queries
 - Target raised from 3 to 8 validated external sources
-- Covers news, funding, technology stack, leadership, competitive landscape, and industry analysis
-- Hardcoded queries retained as fallbacks
+- Covers news, funding, technology stack, leadership, competitive landscape, industry analysis, and financial performance
+- Hardcoded queries retained as fallbacks (news, funding, financials)
 - CLI preflight respects SEARCH_PROVIDER setting (no longer requires Google API keys when using DuckDuckGo)
 
 **MCP Progress Subscriptions:**
@@ -371,6 +372,26 @@ Goal: Generate separate AI strategy documents for multiple cloud vendors in a si
 - `CLIConfig.cloud_vendor` property still returns first vendor for existing code
 - Single-vendor usage unchanged
 - MCP server unchanged (future work)
+
+### v1.12.1 - Scraping Robustness and Bug Fixes (Complete)
+
+Goal: Improve content handling, scraping throughput, and fix resource management bugs.
+
+**Content-Type Routing:**
+- Orchestrator detects content type from HTTP headers and magic bytes (HTML, PDF, JSON, XML, binary)
+- PDF content routed to Gemini LLM extraction with PyMuPDF fallback
+- Binary content (images, fonts) rejected early instead of crashing BeautifulSoup
+- BeautifulSoup wrapped in try/except for malformed HTML resilience
+
+**Scraping Performance:**
+- Background file I/O: Raw scrape files written via ThreadPoolExecutor (non-blocking)
+- Structured content caching: Avoids duplicate HTML extraction between scraping and boilerplate learning phases
+- Removed inter-page random delay (rate limiter already handles pacing)
+- Smart page timeout: Reduced from 45s to 25s when best_tier is known for a host
+
+**Bug Fixes:**
+- Fixed ThreadPoolExecutor resource leak in scraping loop (try/finally ensures shutdown)
+- Fixed MCP company name extraction truncating multi-word names (`"Acme_Corp_..."` → `"Acme"` instead of `"Acme Corp"`)
 
 ## Near-Term Roadmap
 
@@ -507,7 +528,7 @@ cd deploy/aws && ./deploy.sh -d prod destroy
 | 1.4.0 | Feb 2026 | MCP Server for AI agent integration |
 | 1.4.1 | Feb 2026 | Open Claw integration |
 | 1.5.0 | Feb 2026 | Code quality improvements |
-| 1.5.1 | Feb 2026 | Security hardening, API key rotation |
+| 1.5.1 | Feb 2026 | Code quality fixes, full ruff compliance |
 | 1.6.0 | Feb 2026 | Serverless cloud deployment (AWS/Azure/GCP) |
 | 1.7.0 | Feb 2026 | Agentic architecture (memory, hooks, orchestrator) |
 | 1.8.1 | Feb 2026 | Content sanitization for prompt injection protection |
@@ -515,6 +536,7 @@ cd deploy/aws && ./deploy.sh -d prod destroy
 | 1.11.1 | Feb 2026 | Deep Research progress visibility and failure recovery |
 | 1.11.2 | Feb 2026 | SharedBrowser, ETA progress, UI polish |
 | 1.12.0 | Feb 2026 | Multi-cloud-vendor AI strategy |
+| 1.12.1 | Feb 2026 | Scraping robustness, PDF routing, bug fixes |
 
 ## Final Note
 

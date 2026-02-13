@@ -67,6 +67,7 @@ from .content import (
     detect_content_type,
     extract_clean_text,
     extract_main_content,
+    extract_text_from_pdf_via_llm,
     get_meta_description,
     get_page_title,
 )
@@ -259,6 +260,7 @@ __all__ = [
     "extract_links_from_homepage",
     "extract_links_from_html",
     "extract_main_content",
+    "extract_text_from_pdf_via_llm",
     "extract_structured_content",
     "extract_with_boilerplate_learning",
     "fetch_sitemap_links",

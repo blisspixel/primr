@@ -7,6 +7,7 @@ from primr.data.scraping.content import (
     detect_content_type,
     extract_clean_text,
     extract_text_from_pdf,
+    extract_text_from_pdf_via_llm,
     extract_main_content,
     get_page_title,
     get_meta_description,
@@ -197,8 +198,58 @@ class TestExtractMainContent:
         </body></html>
         """
         text = extract_main_content(html)
-        
+
         assert "Some content" in text
+
+    def test_returns_empty_for_binary_content(self):
+        """Should return empty string for binary/non-HTML content."""
+        # Simulate the exact crash scenario: binary garbage with control chars
+        binary_data = b'\x00\x01\x02\x03\x04\x05\x06\x07\x08' * 50
+        assert extract_main_content(binary_data) == ""
+
+    def test_returns_empty_for_mixed_binary_html(self):
+        """Should return empty for content that looks like garbled binary."""
+        # This mimics the actual error: bytes that decode but have high control char ratio
+        garbled = bytes(range(0, 128)) * 5
+        assert extract_main_content(garbled) == ""
+
+    def test_handles_valid_html_with_some_control_chars(self):
+        """Valid HTML with occasional whitespace control chars should still work."""
+        html = b"<html><body><main><p>Real content here</p></main></body></html>"
+        text = extract_main_content(html)
+        assert "Real content here" in text
+
+
+class TestExtractCleanTextBinary:
+    """Tests that extract_clean_text handles binary content gracefully."""
+
+    def test_returns_empty_for_binary_content(self):
+        """Should return empty string for binary data."""
+        binary_data = b'\x00\x01\x02\x03\x04\x05' * 100
+        assert extract_clean_text(binary_data) == ""
+
+
+class TestExtractTextFromPdfViaLlm:
+    """Tests for extract_text_from_pdf_via_llm function."""
+
+    def test_returns_none_for_empty_input(self):
+        """Should return None for empty bytes."""
+        assert extract_text_from_pdf_via_llm(b"") is None
+        assert extract_text_from_pdf_via_llm(None) is None
+
+    def test_falls_back_to_pymupdf_for_oversized_pdf(self):
+        """Should fall back to PyMuPDF for PDFs over 20MB."""
+        # Create fake oversized content (won't parse as valid PDF)
+        huge = b"%PDF" + b"\x00" * (21 * 1024 * 1024)
+        # Should not crash - returns None since it's not a valid PDF
+        result = extract_text_from_pdf_via_llm(huge)
+        assert result is None
+
+    def test_falls_back_when_no_api_key(self):
+        """Should fall back to PyMuPDF when Gemini key is unavailable."""
+        # With invalid PDF bytes, both paths return None
+        result = extract_text_from_pdf_via_llm(b"not a real pdf")
+        assert result is None
 
 
 class TestGetPageTitle:

@@ -188,7 +188,16 @@ def extract_clean_text(
     except Exception:
         return ""
 
-    soup = BeautifulSoup(html, "html.parser")
+    # Reject binary/non-HTML content that would crash the parser
+    sample = html[:2000]
+    control_chars = sum(1 for c in sample if ord(c) < 32 and c not in '\n\r\t')
+    if len(sample) > 0 and control_chars / len(sample) > 0.05:
+        return ""
+
+    try:
+        soup = BeautifulSoup(html, "html.parser")
+    except (ValueError, TypeError):
+        return ""
 
     # Determine which tags to remove
     if mode == "aggressive":
@@ -293,6 +302,64 @@ def extract_text_from_pdf(pdf_bytes: bytes) -> str | None:
         return None
 
 
+def extract_text_from_pdf_via_llm(pdf_bytes: bytes) -> str | None:
+    """
+    Extract text from PDF bytes using Gemini (handles charts, tables, images).
+
+    Falls back to PyMuPDF text extraction if Gemini is unavailable.
+    Uses the flash model to keep costs low (~$0.01 per PDF).
+
+    Args:
+        pdf_bytes: Raw PDF bytes
+
+    Returns:
+        Extracted text or None if extraction fails
+    """
+    if not pdf_bytes:
+        return None
+
+    # Limit PDF size to 20MB to avoid excessive API costs
+    if len(pdf_bytes) > 20 * 1024 * 1024:
+        return extract_text_from_pdf(pdf_bytes)
+
+    try:
+        from google import genai
+        from primr.config.settings import get_settings
+
+        settings = get_settings()
+        if not settings.api.gemini_key:
+            return extract_text_from_pdf(pdf_bytes)
+
+        import base64
+        pdf_b64 = base64.b64encode(pdf_bytes).decode("utf-8")
+
+        prompt = """Extract all text content from this PDF document.
+Focus on:
+- All body text, headings, and paragraphs
+- Tables: reproduce as structured text with columns aligned
+- Charts/graphs: describe the data shown (axes, values, trends)
+- Key figures, statistics, and financial data
+- Footnotes and captions
+
+Return the extracted content in clean, readable format with proper structure."""
+
+        client = genai.Client(api_key=settings.api.gemini_key)
+        response = client.models.generate_content(
+            model=settings.ai.flash_model,
+            contents=[
+                {"text": prompt},
+                {"inline_data": {"mime_type": "application/pdf", "data": pdf_b64}},
+            ],
+        )
+
+        text = response.text.strip() if response.text else ""
+        return text if len(text) >= 100 else extract_text_from_pdf(pdf_bytes)
+
+    except Exception:
+        # Fall back to PyMuPDF on any LLM failure
+        return extract_text_from_pdf(pdf_bytes)
+
+
 def extract_main_content(raw_html: bytes) -> str:
     """
     Extract main content using reader-mode style extraction.
@@ -316,7 +383,16 @@ def extract_main_content(raw_html: bytes) -> str:
     except Exception:
         return ""
 
-    soup = BeautifulSoup(html, "html.parser")
+    # Reject binary/non-HTML content that would crash the parser
+    sample = html[:2000]
+    control_chars = sum(1 for c in sample if ord(c) < 32 and c not in '\n\r\t')
+    if len(sample) > 0 and control_chars / len(sample) > 0.05:
+        return ""
+
+    try:
+        soup = BeautifulSoup(html, "html.parser")
+    except (ValueError, TypeError):
+        return ""
 
     # Remove noise elements
     for tag in NOISE_TAGS_ALWAYS:
