@@ -324,6 +324,7 @@ def extract_text_from_pdf_via_llm(pdf_bytes: bytes) -> str | None:
 
     try:
         from google import genai
+
         from primr.config.settings import get_settings
 
         settings = get_settings()
