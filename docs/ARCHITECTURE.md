@@ -322,9 +322,9 @@ The `scrape_page` primitive uses a tiered fallback system for web scraping, desi
 | 3 | curl_cffi | TLS fingerprint impersonation | Fast |
 | 4 | DrissionPage Stealth | Maximum stealth with challenge waiting | Slow |
 | 5 | DrissionPage | Driverless browser via CDP | Slow |
-| 6 | httpx | HTTP/2 sites, better headers | Fast |
-| 7 | requests | Simple sites, no JS (fallback) | Fast |
-| 8 | Vision | AI-based extraction (opt-in) | Slow |
+| 6 | Vision | AI-based extraction (enabled by default) | Slow |
+| 7 | httpx | HTTP/2 sites, better headers | Fast |
+| 8 | requests | Simple sites, no JS (fallback) | Fast |
 
 **Key Features:**
 - **Sticky Tier**: Once a tier works for a host, it's tried first for subsequent pages
@@ -333,8 +333,9 @@ The `scrape_page` primitive uses a tiered fallback system for web scraping, desi
 - **Soft Block Detection**: Checks content, not just HTTP status (catches "200 OK" traps)
 - **TLS Fingerprint Impersonation**: curl_cffi mimics real browser TLS signatures
 - **Driverless Browsers**: DrissionPage uses CDP directly, bypassing WebDriver detection
+- **Content-Type Routing**: Automatic detection (HTML, PDF, binary) via headers and magic bytes — PDFs extracted via Gemini LLM with PyMuPDF fallback
 - **Smart Tier Escalation** (v1.2.4+): Stops after 3 consecutive failures of same error type to avoid wasting time on impossible pages
-- **Patient Timeout**: 90s max per page allows multiple tier attempts while being reasonable (content quality > speed)
+- **Adaptive Timeout**: 45s max per page (reduced to 25s when best_tier is known for the host)
 
 ### Link Discovery (Homepage-First, v1.1.0)
 

@@ -128,11 +128,11 @@ mypy src/primr --ignore-missing-imports
 | 3 | curl_cffi | TLS fingerprint impersonation |
 | 4 | DrissionPage Stealth | Challenge waiting |
 | 5 | DrissionPage | Driverless CDP |
-| 6 | httpx | HTTP/2 sites |
-| 7 | requests | Simple sites (fallback) |
-| 8 | Vision | AI extraction (opt-in) |
+| 6 | Vision | AI extraction (enabled by default) |
+| 7 | httpx | HTTP/2 sites |
+| 8 | requests | Simple sites (fallback) |
 
-Key features: Sticky tier (remembers what works), Circuit breaker (skips failing tiers), Cookie handoff (browser→HTTP).
+Key features: Sticky tier (remembers what works), Circuit breaker (skips failing tiers), Cookie handoff (browser→HTTP), Content-type routing (PDF/HTML/binary detection).
 
 </details>
 

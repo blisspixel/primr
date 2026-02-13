@@ -356,6 +356,7 @@ def _collect_data(
     fallback_queries = [
         "news OR press release OR announcement",
         "funding OR acquisition OR partnership",
+        "revenue OR earnings OR financial results OR investor relations",
     ]
     # Deduplicate: LLM queries first, then fallbacks
     all_queries = external_queries + [q for q in fallback_queries if q not in external_queries]

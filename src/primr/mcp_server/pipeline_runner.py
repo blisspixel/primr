@@ -344,11 +344,19 @@ async def run_strategy_generation(
     Returns:
         Dict with output_path, strategy_type, and qa_score
     """
-    # Extract company name from report
+    # Extract company name from report filename
     import os
+    import re
 
     from primr.core.ai_strategy import CloudVendor, generate_ai_strategy
-    company_name = os.path.basename(report_path).split("_")[0].replace("_", " ")
+
+    # Filename pattern: "Company_Name_Strategic_Overview_MM-DD-YYYY.ext"
+    filename = os.path.splitext(os.path.basename(report_path))[0]
+    match = re.match(r'^(.+?)_(?:Strategic_Overview|AI_Strategy|Customer_Experience|Security|Data_Fabric)', filename)
+    if match:
+        company_name = match.group(1).replace('_', ' ')
+    else:
+        company_name = filename.replace('_', ' ')
 
     # Map strategy type
     vendor = CloudVendor.from_string(cloud_vendor) if cloud_vendor else CloudVendor.AGNOSTIC

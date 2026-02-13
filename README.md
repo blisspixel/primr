@@ -20,7 +20,7 @@ Primr does that entire workflow autonomously.
 
 ## What Makes It Different
 
-- **Adaptive scraping**: 8 retrieval methods from simple HTTP to browser rendering to screenshot+vision extraction, with per-host optimization. Tries the simplest approach first and falls back to more capable methods as needed.
+- **Adaptive scraping**: 8 retrieval methods from browser rendering to TLS fingerprinting to screenshot+vision extraction, with per-host optimization. Starts with full browser rendering (what works on 95%+ of modern sites) and falls back through increasingly specialized methods.
 - **Autonomous external research**: Gemini Deep Research plans queries, follows leads, cross-validates sources, and synthesizes findings into a structured brief.
 - **Cost controls built in**: `--dry-run` estimates, usage tracking, and governance hooks for budget limits.
 - **Agent-native interfaces**: CLI, MCP server, OpenClaw integration, and Claude Skills—all first-class.
@@ -167,9 +167,10 @@ Accepts Excel (`.xlsx`) or CSV files. Smart column detection uses an LLM to find
 ## Under the Hood
 
 **8-Tier Retrieval Engine** (browser-first for modern JS-heavy sites)
-- Browser tiers: Playwright → expanded rendering → DrissionPage (driverless CDP)
-- HTTP tiers: curl_cffi → httpx → requests
+- Browser tiers: Playwright → expanded rendering → DrissionPage stealth → DrissionPage (driverless CDP)
 - Vision tier: Screenshot + LLM extraction for image-heavy or non-standard layouts
+- HTTP tiers: curl_cffi (TLS fingerprinting) → httpx → requests
+- Content-type routing: automatic PDF detection and LLM-powered extraction
 - Automatic fallback, per-host optimization, circuit breakers
 
 **Gemini Deep Research**
