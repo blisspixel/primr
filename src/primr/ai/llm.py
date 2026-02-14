@@ -3,11 +3,45 @@ LLM interface using Google Gemini API (modern SDK)
 Supports Gemini 3 Pro with thinking_level control
 """
 import time
+from dataclasses import dataclass
+from typing import Any
 
 from colorama import Fore, Style
 from dotenv import load_dotenv
-from google import genai
-from google.genai import types
+
+try:
+    from google import genai as _google_genai
+    from google.genai import types as _google_types
+    _GENAI_IMPORT_ERROR: Exception | None = None
+except Exception as import_error:
+    _GENAI_IMPORT_ERROR = import_error
+
+    class _GenAIUnavailable:
+        class Client:
+            def __init__(self, *_args: Any, **_kwargs: Any) -> None:
+                raise RuntimeError("google.genai is unavailable")
+
+    @dataclass
+    class _FallbackThinkingConfig:
+        thinking_level: str
+
+    @dataclass
+    class _FallbackGenerateContentConfig:
+        temperature: float
+        thinking_config: _FallbackThinkingConfig
+
+    class _FallbackTypes:
+        GenerateContentConfig = _FallbackGenerateContentConfig
+        ThinkingConfig = _FallbackThinkingConfig
+
+    _google_genai = _GenAIUnavailable()
+    _google_types = _FallbackTypes()
+    _FALLBACK_CLIENT_CLASS = _GenAIUnavailable.Client
+else:
+    _FALLBACK_CLIENT_CLASS = None
+
+genai = _google_genai
+types = _google_types
 
 from primr.config.config import GEMINI_API_KEY, MAX_RETRIES
 from primr.config.models import PrimrModels
@@ -19,9 +53,21 @@ load_dotenv()
 _client: genai.Client | None = None
 
 
+def _require_genai_dependency() -> None:
+    if _GENAI_IMPORT_ERROR is None:
+        return
+    if _FALLBACK_CLIENT_CLASS is not None and getattr(genai, "Client", None) is not _FALLBACK_CLIENT_CLASS:
+        return
+    raise RuntimeError(
+        "google.genai is not available. Install compatible dependencies "
+        "(Python 3.11+ and project requirements)."
+    ) from _GENAI_IMPORT_ERROR
+
+
 def _get_client() -> genai.Client:
     """Get or create the Gemini client."""
     global _client
+    _require_genai_dependency()
     if _client is None:
         _client = genai.Client(api_key=GEMINI_API_KEY)
     return _client

@@ -30,7 +30,23 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
-from google import genai
+try:
+    from google import genai as _google_genai
+    _GENAI_IMPORT_ERROR: Exception | None = None
+except Exception as import_error:
+    _GENAI_IMPORT_ERROR = import_error
+
+    class _GenAIUnavailable:
+        class Client:
+            def __init__(self, *_args: Any, **_kwargs: Any) -> None:
+                raise RuntimeError("google.genai is unavailable")
+
+    _google_genai = _GenAIUnavailable()
+    _FALLBACK_CLIENT_CLASS = _GenAIUnavailable.Client
+else:
+    _FALLBACK_CLIENT_CLASS = None
+
+genai = _google_genai
 
 # Suppress the experimental API warning from the Genai SDK
 warnings.filterwarnings("ignore", message=".*experimental.*", module="google.genai")
@@ -40,6 +56,19 @@ from primr.utils.errors import AIError
 from primr.utils.logging_config import get_logger
 
 logger = get_logger("ai.deep_research")
+
+
+def _require_genai_dependency() -> None:
+    if _GENAI_IMPORT_ERROR is None:
+        return
+    # Allow tests or callers to inject/patch a working client implementation.
+    if _FALLBACK_CLIENT_CLASS is not None and getattr(genai, "Client", None) is not _FALLBACK_CLIENT_CLASS:
+        return
+    raise AIError(
+        "google.genai is not available. Install compatible dependencies "
+        "(Python 3.11+ and project requirements).",
+        cause=_GENAI_IMPORT_ERROR,
+    ) from _GENAI_IMPORT_ERROR
 
 
 class ResearchStatus(Enum):
@@ -493,6 +522,7 @@ class DeepResearchClient:
         Args:
             api_key: Optional API key override. Uses settings if not provided.
         """
+        _require_genai_dependency()
         settings = get_settings()
         self._api_key = api_key or settings.api.gemini_key
         self._client = genai.Client(api_key=self._api_key)
@@ -2050,6 +2080,7 @@ class DeepResearchOrchestrator:
         Args:
             api_key: Optional API key override. Uses settings if not provided.
         """
+        _require_genai_dependency()
         settings = get_settings()
         self._api_key = api_key or settings.api.gemini_key
         self._client = genai.Client(api_key=self._api_key)
@@ -3852,6 +3883,7 @@ class FileSearchStoreManager:
         Args:
             api_key: Optional API key override. Uses settings if not provided.
         """
+        _require_genai_dependency()
         settings = get_settings()
         self._api_key = api_key or settings.api.gemini_key
         self._client = genai.Client(api_key=self._api_key)
