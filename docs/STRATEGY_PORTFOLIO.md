@@ -222,7 +222,7 @@ When implementing a new strategy document:
 - [ ] Add adoption psychology principles in `document_purpose`
 - [ ] Define all sections with clear purpose and depth guidance
 - [ ] Add `cli_description` field to meta section explaining what the strategy helps think through
-- [ ] Update CLI to support `--strategy-type` flag for new strategy
+- [ ] Ensure CLI registration/visibility in `--strategy-type` and `--list-strategies`
 - [ ] Update README with new strategy option
 - [ ] Update this document (STRATEGY_PORTFOLIO.md)
 - [ ] Test generation with real company data
@@ -240,11 +240,11 @@ All strategy documents must:
 
 ## Next Steps
 
-1. **Implement CLI Support**: Update CLI to support `--strategy-type` flag
-2. **Test Tier 1 Strategies**: Generate all three new strategies with real companies
-3. **Update README**: Document new strategy options
-4. **Consider Tier 2**: Evaluate which Tier 2 strategies to implement next
-5. **Deprecation Decision**: Decide whether to deprecate or clearly mark cloud_migration and data_strategy
+1. Keep Tier 1 strategy prompts aligned with current market language and model behavior.
+2. Add QA coverage per strategy type (structure + minimum section completeness checks).
+3. Decide deprecation behavior for `cloud_migration` and `data_strategy` (warning vs hard disable).
+4. Prioritize one Tier 2 strategy based on user demand and maintainability cost.
+5. Keep this portfolio in sync with CLI-visible strategy names.
 
 ## References
 
@@ -253,5 +253,3 @@ All strategy documents must:
 - Security & Compliance: `src/primr/prompts/strategies/modern_security_compliance.yaml`
 - Customer Experience: `src/primr/prompts/strategies/customer_experience.yaml`
 - Data Fabric Strategy: `src/primr/prompts/strategies/data_fabric_strategy.yaml`
-- Social Engineering Research: `docs/research/research social engineering to help.txt`
-- Data Strategy Research (2026): `docs/research/research data strategy with fabric 2026.txt`

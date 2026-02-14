@@ -141,6 +141,22 @@ class TestAIClient:
         assert "Company" in prompt
         assert "Acme Corp" in prompt
 
+    def test_generate_respects_timeout(self, mock_genai_client, mock_settings):
+        """Should raise quickly when timeout is exceeded."""
+        mock_settings.ai.max_retries = 1
+
+        def slow_call(*_args, **_kwargs):
+            import time as _time
+
+            _time.sleep(0.2)
+            return MagicMock(text="late")
+
+        mock_genai_client.models.generate_content.side_effect = slow_call
+
+        client = AIClient()
+        with pytest.raises(AIError, match="timed out"):
+            client.generate("Test prompt", timeout=0.01)
+
 
 class TestAIClientFallback:
     """Tests for model fallback functionality."""
@@ -188,6 +204,12 @@ class TestSingletonAccess:
         reset_client()
         client2 = get_client()
         assert client1 is not client2
+
+    def test_reset_client_closes_existing_singleton(self, mock_genai_client, mock_settings):
+        """reset_client should close existing client resources."""
+        _ = get_client()
+        reset_client()
+        mock_genai_client.close.assert_called_once()
 
 
 class TestBackwardCompatibility:

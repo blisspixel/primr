@@ -8,7 +8,13 @@ expensive full pipeline tests. Run these first to catch issues early.
 """
 
 
+import socket
+import warnings
+
 import pytest
+from unittest.mock import MagicMock, patch
+
+_GEMINI_NETWORK_AVAILABLE: bool | None = None
 
 
 def _is_network_unavailable(error: Exception | str) -> bool:
@@ -23,6 +29,21 @@ def _is_network_unavailable(error: Exception | str) -> bool:
         "winerror 10051",
     )
     return any(pattern in text for pattern in patterns)
+
+
+def _can_reach_gemini_api() -> bool:
+    """Fast probe to skip integration tests in network-restricted environments."""
+    global _GEMINI_NETWORK_AVAILABLE
+    if _GEMINI_NETWORK_AVAILABLE is not None:
+        return _GEMINI_NETWORK_AVAILABLE
+
+    try:
+        with socket.create_connection(("generativelanguage.googleapis.com", 443), timeout=2.5):
+            _GEMINI_NETWORK_AVAILABLE = True
+    except OSError:
+        _GEMINI_NETWORK_AVAILABLE = False
+
+    return _GEMINI_NETWORK_AVAILABLE
 
 
 class TestYAMLConfiguration:
@@ -215,6 +236,32 @@ class TestPreflightValidator:
             assert "duration" in est
             assert "cost" in est
 
+    @pytest.mark.asyncio
+    async def test_deep_research_unknown_error_is_failure(self):
+        """Unknown Deep Research errors should fail preflight."""
+        from primr.ai.preflight import PreflightValidator
+
+        validator = PreflightValidator()
+
+        fake_client = MagicMock()
+        fake_client.interactions.create.side_effect = Exception("weird transport blowup")
+
+        with patch("google.genai.Client", return_value=fake_client):
+            errors: list[str] = []
+            warnings_list: list[str] = []
+            checks: dict[str, dict] = {}
+            await validator._check_models(
+                mode="deep",
+                errors=errors,
+                warnings=warnings_list,
+                checks=checks,
+                progress=lambda _msg: None,
+            )
+
+        assert errors
+        assert checks["deep_research"]["passed"] is False
+        assert checks["deep_research"]["status"] == "error"
+
 
 class TestOrchestratorConfiguration:
     """
@@ -312,6 +359,9 @@ class TestAPIConnectivity:
         """
         Task 8.2: Verify Gemini 3 Flash API access.
         """
+        if not _can_reach_gemini_api():
+            pytest.skip("Network restricted: cannot reach generativelanguage.googleapis.com:443")
+
         from google import genai
 
         from primr.config.settings import get_settings
@@ -347,6 +397,9 @@ class TestAPIConnectivity:
         """
         Task 8.3: Verify Deep Research agent is accessible.
         """
+        if not _can_reach_gemini_api():
+            pytest.skip("Network restricted: cannot reach generativelanguage.googleapis.com:443")
+
         from google import genai
 
         from primr.config.settings import get_settings
@@ -362,11 +415,18 @@ class TestAPIConnectivity:
         client = genai.Client(api_key=api_key)
 
         try:
-            interaction = client.interactions.create(
-                input="Test",
-                agent="deep-research-pro-preview-12-2025",
-                background=True,
-            )
+            # google-genai emits an experimental usage warning for interactions.
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    "ignore",
+                    message="Interactions usage is experimental.*",
+                    category=UserWarning,
+                )
+                interaction = client.interactions.create(
+                    input="Test",
+                    agent="deep-research-pro-preview-12-2025",
+                    background=True,
+                )
 
             assert interaction.id is not None
             print(f"Deep Research agent accessible, interaction: {interaction.id[:20]}...")
@@ -383,6 +443,9 @@ class TestAPIConnectivity:
         """
         Run full pre-flight validation.
         """
+        if not _can_reach_gemini_api():
+            pytest.skip("Network restricted: cannot reach generativelanguage.googleapis.com:443")
+
         from primr.ai.preflight import PreflightValidator
         from primr.config.settings import get_settings
 
@@ -456,6 +519,9 @@ class TestDirectGenerationMethod:
     @pytest.mark.asyncio
     async def test_direct_generation_works(self):
         """Direct generation produces content."""
+        if not _can_reach_gemini_api():
+            pytest.skip("Network restricted: cannot reach generativelanguage.googleapis.com:443")
+
         from primr.ai.deep_research import DeepResearchOrchestrator
         from primr.config.settings import get_settings
 

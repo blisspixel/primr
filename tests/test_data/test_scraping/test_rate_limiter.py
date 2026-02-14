@@ -128,6 +128,41 @@ class TestRateLimiter:
         assert "backoff_count" in stats
         assert stats["host"] == "example.com"
 
+    def test_waiting_for_token_does_not_hold_semaphore(self):
+        """Token wait should not occupy concurrency slots."""
+        config = RateLimitConfig(
+            per_host_concurrency=1,
+            per_host_requests_per_minute=60,  # 1 token/sec refill
+            base_delay_seconds=0.01,
+        )
+        limiter = RateLimiter(config)
+        host = "example.com"
+
+        # Force the next acquire to wait for token refill.
+        limiter._tokens[host] = 0.0
+        limiter._last_refill[host] = time.time()
+        sem = limiter._get_semaphore(host)
+
+        started = threading.Event()
+
+        def wait_for_token_then_release():
+            started.set()
+            limiter.acquire(host)
+            limiter.release(host)
+
+        thread = threading.Thread(target=wait_for_token_then_release, daemon=True)
+        thread.start()
+        started.wait(timeout=1)
+        time.sleep(0.05)
+
+        # If semaphore is still available, token wait is not holding it.
+        acquired = sem.acquire(blocking=False)
+        if acquired:
+            sem.release()
+
+        thread.join(timeout=2)
+        assert acquired is True
+
 
 class TestNoOpRateLimiter:
     """Tests for NoOpRateLimiter."""

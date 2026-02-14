@@ -12,6 +12,7 @@ Requirements: 1.1, 1.2, 1.8, 1.10, 2.6
 import json
 import os
 import signal
+import subprocess
 import threading
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
@@ -36,6 +37,7 @@ from deploy.runner import (
     handle_sigterm,
     map_exit_code,
     parse_job_spec,
+    run_primr,
     utc_now,
 )
 
@@ -314,6 +316,43 @@ class TestExitCodeMapping:
     def test_timeout_maps_to_124(self):
         """Test that timeout maps to exit code 124."""
         assert map_exit_code(0, "timeout") == EXIT_TIMEOUT
+
+
+class TestRunPrimrCancellation:
+    """Tests for run_primr cancellation behavior."""
+
+    def test_cancel_timeout_still_returns_cancelled(self, tmp_path):
+        """Cancellation should remain CANCELLED even if terminate wait times out."""
+        spec = JobSpec(
+            job_id="test-123",
+            deployment="prod",
+            execution_id="task-1",
+            attempt=1,
+            company_name="Test Co",
+            company_url="https://example.com",
+            mode="scrape",
+        )
+        events = EventWriter(tmp_path / "events.jsonl")
+        logs = StructuredLogger(tmp_path / "runner.jsonl")
+
+        mock_proc = MagicMock()
+        mock_proc.stdout = iter(["working\n"])
+        mock_proc.wait.side_effect = [subprocess.TimeoutExpired(cmd="primr", timeout=10), 0]
+        mock_proc.poll.return_value = None
+
+        old_cancel = _state.cancel_requested
+        _state.cancel_requested = True
+        try:
+            with patch("deploy.runner.subprocess.Popen", return_value=mock_proc):
+                exit_code, error = run_primr(spec, tmp_path, events, logs)
+        finally:
+            _state.cancel_requested = old_cancel
+            _state.process = None
+
+        assert exit_code == EXIT_CANCELLED
+        assert error == "user_cancelled"
+        mock_proc.terminate.assert_called_once()
+        mock_proc.kill.assert_called_once()
 
 
 class TestRunnerState:

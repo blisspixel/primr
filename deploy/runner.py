@@ -562,7 +562,15 @@ def run_primr(
                 if _state.cancel_requested:
                     struct_logger.info("cancellation_acknowledged")
                     proc.terminate()
-                    proc.wait(timeout=10)
+                    try:
+                        proc.wait(timeout=10)
+                    except subprocess.TimeoutExpired:
+                        struct_logger.warning("cancellation_terminate_timeout")
+                        proc.kill()
+                        try:
+                            proc.wait(timeout=5)
+                        except subprocess.TimeoutExpired:
+                            struct_logger.warning("cancellation_kill_timeout")
                     return EXIT_CANCELLED, "user_cancelled"
 
         # Wait for completion

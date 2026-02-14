@@ -332,8 +332,8 @@ class PreflightValidator:
                     checks["deep_research"] = {"passed": True, "status": "rate_limited"}
                     progress("  ⚠ Deep Research (rate limited, fallback available)")
                 else:
-                    warnings.append(f"Deep Research connectivity issue: {e}")
-                    checks["deep_research"] = {"passed": True, "status": "unknown"}
+                    errors.append(f"Deep Research connectivity error: {e}")
+                    checks["deep_research"] = {"passed": False, "status": "error", "detail": str(e)}
 
     async def _check_playwright(
         self,
