@@ -16,7 +16,6 @@ from typing import Literal
 
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
-
 from primr.mcp_server.job_store import SingleJobStore
 from primr.mcp_server.logging_config import configure_http_logging, configure_stdio_logging
 from primr.mcp_server.security import PathValidator, RateLimiter, URLValidator
@@ -220,9 +219,10 @@ class PrimrMCPServer:
         Requirements: 1.2, 1.7, 1.8, 13.1-13.10
         """
         import uvicorn
-        from mcp.server.streamable_http import StreamableHTTPServerTransport
         from starlette.applications import Starlette
         from starlette.routing import Mount
+
+        from mcp.server.streamable_http import StreamableHTTPServerTransport
 
         configure_http_logging(self.log_level)
         self._setup_signal_handlers()

@@ -21,7 +21,6 @@ from mcp.types import TextContent, Tool
 
 if TYPE_CHECKING:
     from mcp.server import Server
-
     from primr.mcp_server.server import PrimrMCPServer
 
 logger = logging.getLogger(__name__)
