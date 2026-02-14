@@ -23,10 +23,10 @@ except Exception as import_error:
             def __init__(self, *_args: Any, **_kwargs: Any) -> None:
                 raise RuntimeError("google.genai is unavailable")
 
-    _google_genai = _GenAIUnavailable()
+    _google_genai = _GenAIUnavailable()  # type: ignore[assignment]
     _FALLBACK_CLIENT_CLASS = _GenAIUnavailable.Client
 else:
-    _FALLBACK_CLIENT_CLASS = None
+    _FALLBACK_CLIENT_CLASS = None  # type: ignore[misc]
 
 genai = _google_genai
 

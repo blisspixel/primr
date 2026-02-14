@@ -40,11 +40,11 @@ except Exception as import_error:
         GenerateContentConfig = _FallbackGenerateContentConfig
         ThinkingConfig = _FallbackThinkingConfig
 
-    _google_genai = _GenAIUnavailable()
-    _google_types = _FallbackTypes()
+    _google_genai = _GenAIUnavailable()  # type: ignore[assignment]
+    _google_types = _FallbackTypes()  # type: ignore[assignment]
     _FALLBACK_CLIENT_CLASS = _GenAIUnavailable.Client
 else:
-    _FALLBACK_CLIENT_CLASS = None
+    _FALLBACK_CLIENT_CLASS = None  # type: ignore[misc]
 
 genai = _google_genai
 types = _google_types
