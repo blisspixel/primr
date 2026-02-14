@@ -51,6 +51,17 @@ genai = _google_genai
 # Suppress the experimental API warning from the Genai SDK
 warnings.filterwarnings("ignore", message=".*experimental.*", module="google.genai")
 
+from primr.ai.deep_research_execution import poll_interaction_until_terminal
+from primr.ai.deep_research_parsing import (
+    extract_citations_from_content,
+    extract_interaction_citations,
+    extract_interaction_content,
+    extract_search_queries_count,
+)
+from primr.ai.deep_research_polling import (
+    phase_name_for_elapsed,
+    poll_interval_for_elapsed,
+)
 from primr.config.settings import get_settings
 from primr.utils.errors import AIError
 from primr.utils.logging_config import get_logger
@@ -780,17 +791,7 @@ class DeepResearchClient:
 
                 # Still in progress - show phase changes and periodic updates
                 if on_progress:
-                    # Determine current phase based on elapsed time
-                    if elapsed < 60:
-                        phase = "Initializing"
-                    elif elapsed < 180:
-                        phase = "Searching sources"
-                    elif elapsed < 360:
-                        phase = "Analyzing findings"
-                    elif elapsed < 600:
-                        phase = "Generating report"
-                    else:
-                        phase = "Finalizing"
+                    phase = phase_name_for_elapsed(elapsed)
 
                     mins = int(elapsed // 60)
                     secs = int(elapsed % 60)
@@ -1205,52 +1206,11 @@ Frame everything as hypotheses to explore, not conclusions."""
         The Deep Research API may return multiple output parts.
         We concatenate all text outputs to ensure we capture the full response.
         """
-        if hasattr(interaction, 'outputs') and interaction.outputs:
-            # Concatenate all text outputs - the API may split long responses
-            text_parts = []
-            for output in interaction.outputs:
-                if hasattr(output, 'text') and output.text:
-                    text_parts.append(str(output.text))
-            return '\n'.join(text_parts) if text_parts else ""
-        return ""
+        return extract_interaction_content(interaction)
 
     def _extract_citations(self, interaction: Any) -> list[dict[str, str]]:
         """Extract citations from a completed interaction."""
-        import re
-        citations: list[dict[str, str]] = []
-
-        # Get the content first
-        content = self._extract_content(interaction)
-        if not content:
-            return citations
-
-        # Look for Sources section at the end of the document
-        # Format: 1. [domain.com](url)
-        sources_match = re.search(r'\*\*Sources:\*\*\s*([\s\S]*?)$', content)
-        if sources_match:
-            sources_text = sources_match.group(1)
-            # Extract numbered citations: 1. [text](url)
-            citation_pattern = r'(\d+)\.\s*\[([^\]]+)\]\(([^)]+)\)'
-            for match in re.finditer(citation_pattern, sources_text):
-                citations.append({
-                    'number': match.group(1),
-                    'title': match.group(2),
-                    'url': match.group(3)
-                })
-
-        # Also count inline citations like [cite: 1, 2, 3]
-        if not citations:
-            # Count unique citation numbers from inline refs
-            inline_pattern = r'\[cite:\s*([\d,\s]+)\]'
-            all_nums = set()
-            for match in re.finditer(inline_pattern, content):
-                nums = [n.strip() for n in match.group(1).split(',')]
-                all_nums.update(nums)
-            # Create placeholder citations for count
-            for num in sorted(all_nums, key=lambda x: int(x) if x.isdigit() else 0):
-                citations.append({'number': num, 'title': f'Source {num}', 'url': ''})
-
-        return citations
+        return extract_interaction_citations(interaction)
 
     def _extract_search_queries_count(self, interaction: Any) -> int:
         """
@@ -1269,39 +1229,10 @@ Frame everything as hypotheses to explore, not conclusions."""
         Returns:
             Count of search queries, or 0 if not available
         """
-        try:
-            # Check outputs for grounding metadata
-            if hasattr(interaction, 'outputs') and interaction.outputs:
-                for output in interaction.outputs:
-                    # Check for groundingMetadata on the output
-                    if hasattr(output, 'grounding_metadata'):
-                        metadata = output.grounding_metadata
-                        if hasattr(metadata, 'web_search_queries'):
-                            return len(metadata.web_search_queries)
-                    # Also check snake_case variant
-                    if hasattr(output, 'groundingMetadata'):
-                        metadata = output.groundingMetadata
-                        if hasattr(metadata, 'webSearchQueries'):
-                            return len(metadata.webSearchQueries)
-
-            # Check candidates structure (standard Gemini response format)
-            if hasattr(interaction, 'candidates') and interaction.candidates:
-                for candidate in interaction.candidates:
-                    if hasattr(candidate, 'grounding_metadata'):
-                        metadata = candidate.grounding_metadata
-                        if hasattr(metadata, 'web_search_queries'):
-                            return len(metadata.web_search_queries)
-                    if hasattr(candidate, 'groundingMetadata'):
-                        metadata = candidate.groundingMetadata
-                        if hasattr(metadata, 'webSearchQueries'):
-                            return len(metadata.webSearchQueries)
-
+        count = extract_search_queries_count(interaction)
+        if count == 0:
             logger.debug("No grounding metadata found in interaction response")
-            return 0
-
-        except Exception as e:
-            logger.debug(f"Could not extract search queries count: {e}")
-            return 0
+        return count
 
     def _get_poll_interval(self, elapsed_seconds: float) -> float:
         """
@@ -1316,15 +1247,14 @@ Frame everything as hypotheses to explore, not conclusions."""
         Returns:
             Polling interval in seconds
         """
-        if elapsed_seconds < self.POLL_FAST_THRESHOLD:
-            # First 60s: poll every 5s to catch quick completions
-            return 5.0
-        elif elapsed_seconds < self.POLL_NORMAL_THRESHOLD:
-            # 60-300s: normal polling every 10s
-            return 10.0
-        else:
-            # 300s+: slow polling every 20s for long-running research
-            return 20.0
+        return poll_interval_for_elapsed(
+            elapsed_seconds,
+            schedule=(
+                (self.POLL_FAST_THRESHOLD, 5.0),
+                (self.POLL_NORMAL_THRESHOLD, 10.0),
+            ),
+            default_interval=20.0,
+        )
 
     def check_job(self, interaction_id: str) -> dict[str, Any]:
         """
@@ -1458,113 +1388,101 @@ Frame everything as hypotheses to explore, not conclusions."""
                 self._cleanup_file_store(file_store_name)
             raise AIError(f"Failed to start research: {e}", model=self.AGENT_ID, cause=e) from e
 
-        # Poll for completion with exponential backoff
-        poll_attempt = 0
+        # Poll for completion with shared execution engine
         max_poll_errors = 5
-        consecutive_errors = 0
-
+        last_progress_update = 0.0
         try:
-            while True:
-                elapsed = time.time() - start_time
-                if elapsed > timeout:
-                    logger.warning(f"Research polling timed out after {elapsed:.0f}s")
-                    if on_progress:
-                        on_progress(ResearchProgress(
-                            status=ResearchStatus.IN_PROGRESS,
-                            message=f"Still running after {elapsed:.0f}s. Check later with: primr --check-jobs"
-                        ))
-                    # Don't remove from pending jobs - it may still complete
-                    # NOTE: We still clean up the file store since the research job
-                    # has already started and has its own copy of the context
-                    return ResearchResult(
-                        content="",
-                        interaction_id=interaction_id,
-                        duration_seconds=elapsed,
+            def _on_poll(interaction: Any, elapsed: float) -> None:
+                nonlocal last_progress_update
+                if getattr(interaction, "status", "") in ("completed", "failed"):
+                    return
+                if on_progress and (elapsed - last_progress_update) >= 60:
+                    mins = int(elapsed // 60)
+                    secs = int(elapsed % 60)
+                    time_str = f"{mins}m {secs}s" if mins > 0 else f"{secs}s"
+                    on_progress(ResearchProgress(
                         status=ResearchStatus.IN_PROGRESS,
-                        error=f"Polling timed out after {elapsed:.0f}s. Job may still be running. Use 'primr --check-jobs' to check status."
-                    )
+                        message=f"Research in progress ({time_str})..."
+                    ))
+                    last_progress_update = elapsed
 
-                # Calculate adaptive poll interval
-                poll_attempt += 1
-                if elapsed < 60:
-                    poll_interval = 5.0  # First minute: poll every 5s
-                elif elapsed < 300:
-                    poll_interval = 10.0  # 1-5 minutes: poll every 10s
-                else:
-                    poll_interval = 20.0  # After 5 minutes: poll every 20s
+            def _on_transient_retry(
+                consecutive: int,
+                max_allowed: int,
+                wait_time: float,
+                error: Exception,
+            ) -> None:
+                logger.warning(
+                    f"Transient polling error (attempt {consecutive}/{max_allowed}), "
+                    f"waiting {wait_time}s: {error}"
+                )
+                if on_progress:
+                    on_progress(ResearchProgress(
+                        status=ResearchStatus.IN_PROGRESS,
+                        message=f"API hiccup, retrying in {wait_time}s..."
+                    ))
 
-                # Wait before polling
-                await asyncio.sleep(poll_interval)
+            try:
+                interaction, elapsed = await poll_interaction_until_terminal(
+                    get_interaction=self._get_interaction,
+                    interaction_id=interaction_id,
+                    timeout_seconds=timeout,
+                    max_poll_errors=max_poll_errors,
+                    poll_interval_for_elapsed=self._get_poll_interval,
+                    on_poll=_on_poll,
+                    on_transient_retry=_on_transient_retry,
+                    build_timeout_error=lambda elapsed_s: TimeoutError(
+                        f"Research timed out after {elapsed_s:.0f}s"
+                    ),
+                    build_poll_error=lambda e: AIError(
+                        f"Failed to poll research status: {e}",
+                        model=self.AGENT_ID,
+                        cause=e,
+                    ),
+                )
+            except TimeoutError:
+                elapsed = time.time() - start_time
+                logger.warning(f"Research polling timed out after {elapsed:.0f}s")
+                if on_progress:
+                    on_progress(ResearchProgress(
+                        status=ResearchStatus.IN_PROGRESS,
+                        message=f"Still running after {elapsed:.0f}s. Check later with: primr --check-jobs"
+                    ))
+                # Don't remove from pending jobs - it may still complete.
+                return ResearchResult(
+                    content="",
+                    interaction_id=interaction_id,
+                    duration_seconds=elapsed,
+                    status=ResearchStatus.IN_PROGRESS,
+                    error=f"Polling timed out after {elapsed:.0f}s. Job may still be running. Use 'primr --check-jobs' to check status."
+                )
 
-                # Poll for status
-                try:
-                    interaction = self._get_interaction(interaction_id)
-                    status = interaction.status
-                    consecutive_errors = 0  # Reset on success
+            if interaction.status == "completed":
+                content = self._extract_content(interaction)
+                citations = self._extract_citations(interaction)
+                search_count = self._extract_search_queries_count(interaction)
+                remove_pending_job(interaction_id)
 
-                    if status == "completed":
-                        content = self._extract_content(interaction)
-                        citations = self._extract_citations(interaction)
-                        search_count = self._extract_search_queries_count(interaction)
-                        remove_pending_job(interaction_id)
+                logger.info(f"Research completed in {time.time() - start_time:.0f}s, {search_count} searches")
+                return ResearchResult(
+                    content=content,
+                    citations=citations,
+                    interaction_id=interaction_id,
+                    duration_seconds=elapsed,
+                    status=ResearchStatus.COMPLETED,
+                    search_queries_count=search_count,
+                )
 
-                        logger.info(f"Research completed in {time.time() - start_time:.0f}s, {search_count} searches")
-                        return ResearchResult(
-                            content=content,
-                            citations=citations,
-                            interaction_id=interaction_id,
-                            duration_seconds=time.time() - start_time,
-                            status=ResearchStatus.COMPLETED,
-                            search_queries_count=search_count,
-                        )
-
-                    elif status == "failed":
-                        error_msg = getattr(interaction, 'error', 'Unknown error')
-                        remove_pending_job(interaction_id)
-                        logger.error(f"Research failed: {error_msg}")
-                        return ResearchResult(
-                            content="",
-                            interaction_id=interaction_id,
-                            duration_seconds=time.time() - start_time,
-                            status=ResearchStatus.FAILED,
-                            error=str(error_msg),
-                        )
-
-                    # Still in progress - show periodic updates
-                    if on_progress and poll_attempt % 6 == 0:  # Every ~60s
-                        mins = int(elapsed // 60)
-                        secs = int(elapsed % 60)
-                        time_str = f"{mins}m {secs}s" if mins > 0 else f"{secs}s"
-                        on_progress(ResearchProgress(
-                            status=ResearchStatus.IN_PROGRESS,
-                            message=f"Research in progress ({time_str})..."
-                        ))
-
-                except Exception as e:
-                    consecutive_errors += 1
-                    error_str = str(e).lower()
-                    is_transient = (
-                        '500' in error_str or
-                        '503' in error_str or
-                        'internal' in error_str or
-                        'connection' in error_str or
-                        'timeout' in error_str
-                    )
-
-                    if is_transient and consecutive_errors < max_poll_errors:
-                        wait_time = 10 * consecutive_errors
-                        logger.warning(f"Transient polling error (attempt {consecutive_errors}/{max_poll_errors}), waiting {wait_time}s: {e}")
-                        if on_progress:
-                            on_progress(ResearchProgress(
-                                status=ResearchStatus.IN_PROGRESS,
-                                message=f"API hiccup, retrying in {wait_time}s..."
-                            ))
-                        await asyncio.sleep(wait_time)
-                        continue
-                    else:
-                        # Non-transient or too many failures
-                        logger.error(f"Polling failed after {consecutive_errors} attempts: {e}")
-                        raise AIError(f"Failed to poll research status: {e}", model=self.AGENT_ID, cause=e) from e
+            error_msg = getattr(interaction, 'error', 'Unknown error')
+            remove_pending_job(interaction_id)
+            logger.error(f"Research failed: {error_msg}")
+            return ResearchResult(
+                content="",
+                interaction_id=interaction_id,
+                duration_seconds=elapsed,
+                status=ResearchStatus.FAILED,
+                error=str(error_msg),
+            )
         finally:
             # CRITICAL: Always cleanup File Search Store to prevent billing leaks
             # Per Gemini docs: "There is no TTL for embeddings and files; they persist until manually deleted"
@@ -1573,25 +1491,7 @@ Frame everything as hypotheses to explore, not conclusions."""
 
     def _extract_citations_from_text(self, content: str) -> list[dict[str, str]]:
         """Extract citations from text content (for streaming results)."""
-        import re
-        citations: list[dict[str, str]] = []
-
-        if not content:
-            return citations
-
-        # Look for Sources section
-        sources_match = re.search(r'\*\*Sources:\*\*\s*([\s\S]*?)$', content)
-        if sources_match:
-            sources_text = sources_match.group(1)
-            citation_pattern = r'(\d+)\.\s*\[([^\]]+)\]\(([^)]+)\)'
-            for match in re.finditer(citation_pattern, sources_text):
-                citations.append({
-                    'number': match.group(1),
-                    'title': match.group(2),
-                    'url': match.group(3)
-                })
-
-        return citations
+        return extract_citations_from_content(content)
 
 
 # =============================================================================
@@ -2430,90 +2330,24 @@ class DeepResearchOrchestrator:
         Raises:
             AIError: If research fails or times out
         """
-        start_time = time.time()
         last_phase = ""
         last_progress_time = 0.0
         poll_count = 0
-        consecutive_poll_errors = 0
         max_poll_errors = 5  # Allow up to 5 consecutive poll failures
 
-        while True:
-            elapsed = time.time() - start_time
+        def _on_poll(interaction: Any, elapsed: float) -> None:
+            nonlocal poll_count, last_phase, last_progress_time
+            poll_count += 1
 
-            # Check timeout
-            if elapsed > self.TIMEOUT_SECONDS:
-                raise AIError(
-                    f"Deep Research timed out after {self.TIMEOUT_SECONDS}s. "
-                    f"ID: {interaction_id}",
-                    model=self.AGENT_ID
+            # Log status periodically for diagnostics
+            if poll_count % 5 == 0:
+                logger.info(
+                    f"Deep Research polling: status={interaction.status}, "
+                    f"elapsed={elapsed:.0f}s, polls={poll_count}"
                 )
 
-            # Get status with retry for transient errors
-            try:
-                interaction = self._client.interactions.get(interaction_id)
-                consecutive_poll_errors = 0  # Reset on success
-                poll_count += 1
-
-                # Log status periodically for diagnostics
-                if poll_count % 5 == 0:
-                    logger.info(
-                        f"Deep Research polling: status={interaction.status}, "
-                        f"elapsed={elapsed:.0f}s, polls={poll_count}"
-                    )
-            except Exception as e:
-                error_str = str(e).lower()
-                is_transient = (
-                    "500" in error_str or
-                    "internal server error" in error_str or
-                    "503" in error_str or
-                    "service unavailable" in error_str or
-                    "connection" in error_str or
-                    "timeout" in error_str
-                )
-
-                if is_transient and consecutive_poll_errors < max_poll_errors:
-                    consecutive_poll_errors += 1
-                    wait_time = 10 * consecutive_poll_errors  # 10s, 20s, 30s, etc.
-                    logger.warning(
-                        f"Transient error during polling (attempt {consecutive_poll_errors}/{max_poll_errors}), "
-                        f"waiting {wait_time}s: {e}"
-                    )
-                    # Only show progress on first retry to reduce noise
-                    if on_progress and consecutive_poll_errors == 1:
-                        on_progress("API delays detected, retrying...")
-                    await asyncio.sleep(wait_time)
-                    continue
-                else:
-                    # Non-transient or too many failures
-                    raise AIError(
-                        f"Deep Research polling failed: {e}",
-                        model=self.AGENT_ID
-                    ) from e
-
-            status = interaction.status
-
-            if status == "completed":
-                # Extract content
-                content = ""
-                if hasattr(interaction, 'outputs') and interaction.outputs:
-                    content = str(interaction.outputs[-1].text)
-
-                logger.info(f"Deep Research completed in {elapsed:.0f}s")
-
-                return ResearchResult(
-                    content=content,
-                    citations=[],  # TODO: Extract citations
-                    interaction_id=interaction_id,
-                    duration_seconds=elapsed,
-                    status=ResearchStatus.COMPLETED,
-                )
-
-            elif status == "failed":
-                error_msg = getattr(interaction, 'error', 'Unknown error')
-                raise AIError(
-                    f"Deep Research failed: {error_msg}",
-                    model=self.AGENT_ID
-                )
+            if getattr(interaction, "status", "") in ("completed", "failed"):
+                return
 
             # Still in progress - show phase changes and periodic updates
             if on_progress:
@@ -2536,22 +2370,65 @@ class DeepResearchOrchestrator:
                     else:
                         on_progress(f"{phase} ({time_str})")
 
-            # Adaptive polling interval
-            interval = self._get_poll_interval(elapsed)
-            await asyncio.sleep(interval)
+        def _on_transient_retry(
+            consecutive: int,
+            max_allowed: int,
+            wait_time: float,
+            error: Exception,
+        ) -> None:
+            logger.warning(
+                f"Transient error during polling (attempt {consecutive}/{max_allowed}), "
+                f"waiting {wait_time}s: {error}"
+            )
+            # Only show progress on first retry to reduce noise
+            if on_progress and consecutive == 1:
+                on_progress("API delays detected, retrying...")
+
+        interaction, elapsed = await poll_interaction_until_terminal(
+            get_interaction=self._client.interactions.get,
+            interaction_id=interaction_id,
+            timeout_seconds=self.TIMEOUT_SECONDS,
+            max_poll_errors=max_poll_errors,
+            poll_interval_for_elapsed=self._get_poll_interval,
+            on_poll=_on_poll,
+            on_transient_retry=_on_transient_retry,
+            build_timeout_error=lambda _: AIError(
+                f"Deep Research timed out after {self.TIMEOUT_SECONDS}s. "
+                f"ID: {interaction_id}",
+                model=self.AGENT_ID,
+            ),
+            build_poll_error=lambda e: AIError(
+                f"Deep Research polling failed: {e}",
+                model=self.AGENT_ID,
+            ),
+        )
+
+        status = interaction.status
+        if status == "completed":
+            content = self._extract_content(interaction)
+            citations = self._extract_citations(interaction)
+            search_queries_count = self._extract_search_queries_count(interaction)
+
+            logger.info(f"Deep Research completed in {elapsed:.0f}s")
+
+            return ResearchResult(
+                content=content,
+                citations=citations,
+                interaction_id=interaction_id,
+                duration_seconds=elapsed,
+                status=ResearchStatus.COMPLETED,
+                search_queries_count=search_queries_count,
+            )
+
+        error_msg = getattr(interaction, 'error', 'Unknown error')
+        raise AIError(
+            f"Deep Research failed: {error_msg}",
+            model=self.AGENT_ID
+        )
 
     def _get_phase_name(self, elapsed_seconds: float) -> str:
         """Get the current phase name based on elapsed time."""
-        if elapsed_seconds < 60:
-            return "Initializing"
-        elif elapsed_seconds < 180:
-            return "Searching sources"
-        elif elapsed_seconds < 360:
-            return "Analyzing findings"
-        elif elapsed_seconds < 600:
-            return "Generating report"
-        else:
-            return "Finalizing"
+        return phase_name_for_elapsed(elapsed_seconds)
 
     def _get_poll_interval(self, elapsed_seconds: float) -> float:
         """
@@ -2559,14 +2436,27 @@ class DeepResearchOrchestrator:
 
         5s → 10s → 20s → 30s
         """
-        if elapsed_seconds < 60:
-            return 5.0
-        elif elapsed_seconds < 180:
-            return 10.0
-        elif elapsed_seconds < 360:
-            return 20.0
-        else:
-            return 30.0
+        return poll_interval_for_elapsed(
+            elapsed_seconds,
+            schedule=(
+                (60.0, 5.0),
+                (180.0, 10.0),
+                (360.0, 20.0),
+            ),
+            default_interval=30.0,
+        )
+
+    def _extract_content(self, interaction: Any) -> str:
+        """Extract all output text content from a completed interaction."""
+        return extract_interaction_content(interaction)
+
+    def _extract_citations(self, interaction: Any) -> list[dict[str, str]]:
+        """Extract citations from completed interaction outputs."""
+        return extract_interaction_citations(interaction)
+
+    def _extract_search_queries_count(self, interaction: Any) -> int:
+        """Extract search query count from grounding metadata."""
+        return extract_search_queries_count(interaction)
 
     # =========================================================================
     # ACCORDION METHOD - Generate 30+ page reports
@@ -3686,30 +3576,11 @@ class ReportFormatter:
 
     def _extract_citations(self, content: str) -> list[dict[str, str]]:
         """Extract ALL citations from content (from all Sources sections)."""
-        import re
-
-        citations: list[dict[str, str]] = []
-        seen_urls: set[str] = set()  # Deduplicate by URL
-
-        # Find ALL Sources sections throughout the document
-        # Each section may have its own **Sources:** block
-        sources_pattern = r'\*\*Sources:\*\*\s*((?:\d+\.\s*\[[^\]]+\]\([^)]+\)\s*)+)'
-
-        for sources_match in re.finditer(sources_pattern, content):
-            sources_text = sources_match.group(1)
-            # Extract numbered citations: 1. [text](url)
-            citation_pattern = r'(\d+)\.\s*\[([^\]]+)\]\(([^)]+)\)'
-            for match in re.finditer(citation_pattern, sources_text):
-                url = match.group(3)
-                if url not in seen_urls:
-                    seen_urls.add(url)
-                    citations.append({
-                        'number': match.group(1),
-                        'title': match.group(2),
-                        'url': url
-                    })
-
-        return citations
+        return extract_citations_from_content(
+            content,
+            all_sources_sections=True,
+            dedupe_urls=True,
+        )
 
     def _format_numbered_citations(
         self,

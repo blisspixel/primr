@@ -11,6 +11,7 @@ from datetime import datetime
 
 from primr.ai.deep_research import (
     DeepResearchClient,
+    DeepResearchOrchestrator,
     ResearchStatus,
     ResearchProgress,
     ResearchResult,
@@ -233,6 +234,37 @@ class TestExtractContent:
         
         content = client._extract_content(mock_interaction)
         assert content == ""
+
+    @pytest.mark.asyncio
+    async def test_poll_for_completion_extracts_citations_and_search_count(self):
+        """Polling completion should populate citations and search query count."""
+        client = DeepResearchOrchestrator.__new__(DeepResearchOrchestrator)
+        client.AGENT_ID = "deep-research-pro-preview-12-2025"
+        client.TIMEOUT_SECONDS = 10
+
+        output = Mock()
+        output.text = (
+            "Findings...\n\n"
+            "**Sources:**\n"
+            "1. [Example](https://example.com)\n"
+        )
+        metadata = Mock()
+        metadata.web_search_queries = ["q1", "q2", "q3"]
+        output.grounding_metadata = metadata
+
+        interaction = Mock()
+        interaction.status = "completed"
+        interaction.outputs = [output]
+
+        client._client = Mock()
+        client._client.interactions.get.return_value = interaction
+
+        result = await client._poll_for_completion("interaction-123")
+
+        assert result.success is True
+        assert len(result.citations) == 1
+        assert result.citations[0]["url"] == "https://example.com"
+        assert result.search_queries_count == 3
 
 
 # =============================================================================

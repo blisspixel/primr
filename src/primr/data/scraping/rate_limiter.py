@@ -59,12 +59,13 @@ class RateLimiter:
         # Wait for backoff if active
         self._wait_for_backoff(host)
 
-        # Acquire concurrency semaphore
-        sem = self._get_semaphore(host)
-        sem.acquire()
-
         # Wait for token bucket rate limit
         self._wait_for_token(host)
+
+        # Acquire concurrency semaphore only after token is available.
+        # This avoids holding scarce concurrency slots while sleeping for tokens.
+        sem = self._get_semaphore(host)
+        sem.acquire()
 
     def release(self, host: str) -> None:
         """

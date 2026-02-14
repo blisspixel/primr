@@ -120,7 +120,7 @@ class ScrapeResult:
     elapsed_ms: float | None = None
 
     # Session info for cookie handoff (browser tiers populate this)
-    cookies: dict | None = None           # Clearance cookies for handoff to curl_cffi
+    cookies: dict | None = field(default_factory=dict)  # Clearance cookies for handoff to curl_cffi
 
     # Error info
     error: str | None = None

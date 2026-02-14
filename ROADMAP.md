@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.12.1 (February 2026)
+Current State: v1.12.1 (February 2026, plus unreleased hardening)
 
 Primr is a CLI-first, local research tool for company intelligence and strategic analysis. It aims to accelerate research workflows while being transparent about uncertainty.
 
@@ -221,7 +221,7 @@ Goal: Enable AI agents to drive research workflows with persistent memory and go
 - QASubagent: Quality assessment and feedback
 
 **Research Orchestrator:**
-- Coordinates subagent lifecycle (scrape → analyze → write → qa)
+- Coordinates subagent lifecycle (scrape -> analyze -> write -> qa)
 - Context derivation between stages
 - Hook integration for governance
 - Partial result recovery on failure
@@ -344,9 +344,9 @@ Goal: Improve scraping throughput with shared browser sessions, add ETA progress
 - Removed heartbeat that was firing during Phase 1 scraping (overlapped with existing progress updates)
 - Suppressed experimental API warnings from Genai SDK during Deep Research interactions
 - Downgraded expected SSRF blocks and content sanitization from WARNING to INFO log level (no longer clutters stderr)
-- Fixed phase numbering jump (2 → 5 now correctly goes 2 → 3 in complete mode)
+- Fixed phase numbering jump (2 -> 5 now correctly goes 2 -> 3 in complete mode)
 - Removed internal jargon message "Running structured research pipeline..." from console output
-- Fixed "Sections" label → "Chapters" for consistency with report structure
+- Fixed "Sections" label -> "Chapters" for consistency with report structure
 - Fixed citation count always showing 0 (broken import path; now counts `[cite: N]` patterns from generated content)
 
 ### v1.12.0 - Multi-Cloud-Vendor AI Strategy (Complete)
@@ -391,7 +391,33 @@ Goal: Improve content handling, scraping throughput, and fix resource management
 
 **Bug Fixes:**
 - Fixed ThreadPoolExecutor resource leak in scraping loop (try/finally ensures shutdown)
-- Fixed MCP company name extraction truncating multi-word names (`"Acme_Corp_..."` → `"Acme"` instead of `"Acme Corp"`)
+- Fixed MCP company name extraction truncating multi-word names (`"Acme_Corp_..."` -> `"Acme"` instead of `"Acme Corp"`)
+
+### Post-v1.12.1 - Reliability and Maintainability Hardening (Unreleased)
+
+Goal: Reduce noisy integration-runtime warnings and improve maintainability in AI runtime modules.
+
+**Deep Research Refactor:**
+- Extracted shared deep research parsing helpers to `src/primr/ai/deep_research_parsing.py`
+- Extracted adaptive polling policy helpers to `src/primr/ai/deep_research_polling.py`
+- Extracted shared polling execution engine to `src/primr/ai/deep_research_execution.py`
+- Refactored polling loops in deep research clients/orchestrators to use shared execution logic
+
+**AI Error Policy Refactor:**
+- Extracted shared error classification policy to `src/primr/ai/error_policy.py`
+- Unified sync/async AI client retry classification through the shared policy module
+
+**Flaky/Integration Warning Reduction:**
+- Added a dedicated pass to reduce noisy integration-runtime warnings in constrained environments
+- Hardened handling around Playwright subprocess permission constraints in tests
+- Hardened handling around network-restricted AI integration tests to avoid misleading warning noise
+
+**Validation:**
+- Added targeted tests for new helper modules:
+  - `tests/test_ai/test_deep_research_parsing.py`
+  - `tests/test_ai/test_deep_research_polling.py`
+  - `tests/test_ai/test_error_policy.py`
+- Targeted deep-research and AI suites pass after refactor
 
 ## Near-Term Roadmap
 
@@ -438,7 +464,7 @@ Goal: Make Primr available to the broader community via PyPI.
 **Scope:**
 - PyPI publication (`pip install primr`)
 - Public GitHub repository
-- ~~GitHub Actions CI/CD for automated testing~~ (done — lint, type check, tests run on every push)
+- ~~GitHub Actions CI/CD for automated testing~~ (done - lint, type check, tests run on every push)
 - Contribution workflow for external contributors
 - Documentation site
 
@@ -537,6 +563,7 @@ cd deploy/aws && ./deploy.sh -d prod destroy
 | 1.11.2 | Feb 2026 | SharedBrowser, ETA progress, UI polish |
 | 1.12.0 | Feb 2026 | Multi-cloud-vendor AI strategy |
 | 1.12.1 | Feb 2026 | Scraping robustness, PDF routing, bug fixes |
+| unreleased | Feb 2026 | Deep-research refactor, shared error policy, flaky warning reduction |
 
 ## Final Note
 

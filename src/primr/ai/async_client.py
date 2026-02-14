@@ -47,6 +47,10 @@ else:
 genai = _google_genai
 types = _google_types
 
+from primr.ai.error_policy import (
+    is_daily_quota_exhausted,
+    is_timeout_error,
+)
 from primr.config.settings import get_settings
 from primr.utils.errors import AIError, calculate_retry_delay, is_rate_limit_error
 from primr.utils.logging_config import get_logger
@@ -150,6 +154,24 @@ class AsyncAIClient:
 
     async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Async context manager exit."""
+        await self.aclose()
+
+    async def aclose(self) -> None:
+        """Best-effort close of underlying client resources."""
+        if self._client is not None:
+            aclose_fn = getattr(self._client, "aclose", None)
+            close_fn = getattr(self._client, "close", None)
+
+            try:
+                if callable(aclose_fn):
+                    result = aclose_fn()
+                    if asyncio.iscoroutine(result):
+                        await result
+                elif callable(close_fn):
+                    close_fn()
+            except Exception as e:
+                logger.debug("Failed to close async AI client: %s", e)
+
         self._client = None
         self._semaphore = None
 
@@ -168,6 +190,7 @@ class AsyncAIClient:
         temperature: float = 1.0,
         thinking_level: str = "high",
         max_retries: int | None = None,
+        timeout: float | None = None,
     ) -> str:
         """
         Generate content asynchronously.
@@ -178,6 +201,7 @@ class AsyncAIClient:
             temperature: Sampling temperature
             thinking_level: "low" or "high"
             max_retries: Override default retry count
+            timeout: Request timeout in seconds (across retries)
 
         Returns:
             Generated text response
@@ -196,6 +220,8 @@ class AsyncAIClient:
         )
 
         last_error = None
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + timeout if timeout is not None else None
 
         async with self._semaphore:  # type: ignore
             for attempt in range(retries):
@@ -203,8 +229,7 @@ class AsyncAIClient:
                     logger.debug(f"Async AI call attempt {attempt + 1}/{retries}")
 
                     # Run sync call in thread pool
-                    loop = asyncio.get_event_loop()
-                    response = await loop.run_in_executor(
+                    request = loop.run_in_executor(
                         None,
                         lambda: self._client.models.generate_content(  # type: ignore
                             model=model,
@@ -212,6 +237,24 @@ class AsyncAIClient:
                             config=config
                         )
                     )
+                    if deadline is None:
+                        response = await request
+                    else:
+                        remaining = deadline - loop.time()
+                        if remaining <= 0:
+                            raise TimeoutError(f"AI call timed out after {timeout:.2f}s")
+                        try:
+                            response = await asyncio.wait_for(request, timeout=remaining)
+                        except Exception as e:
+                            is_asyncio_timeout = (
+                                e.__class__.__name__ == "TimeoutError"
+                                and e.__class__.__module__.startswith("asyncio")
+                            )
+                            if not (isinstance(e, TimeoutError) or is_asyncio_timeout):
+                                raise
+                            raise TimeoutError(
+                                f"AI call timed out after {timeout:.2f}s"
+                            ) from e
 
                     result = (response.text or "").strip()
                     logger.debug(f"Async AI response: {len(result)} chars")
@@ -219,21 +262,16 @@ class AsyncAIClient:
 
                 except Exception as e:
                     last_error = e
-                    error_str = str(e).lower()
-
-                    # Check for quota exhaustion (daily limit hit) - STOP IMMEDIATELY
-                    is_quota_exhausted = (
-                        "resource_exhausted" in error_str and
-                        ("per_day" in error_str or ("quota" in error_str and "exceeded" in error_str))
-                    )
-
-                    if is_quota_exhausted:
+                    if is_daily_quota_exhausted(e):
                         logger.error("Daily API quota exhausted - stopping immediately")
                         raise AIError(
                             "Daily API quota exhausted. Wait until quota resets or upgrade your plan. "
-                            "Check status with: python company_research.py --check-quota",
+                            "Check status with: primr --check-quota",
                             cause=e
                         ) from e
+
+                    if is_timeout_error(e):
+                        raise AIError(str(e), cause=e) from e
 
                     logger.warning(f"Async AI call failed (attempt {attempt + 1}): {e}")
 

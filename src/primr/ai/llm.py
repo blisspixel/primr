@@ -176,7 +176,7 @@ def llm(prompt, model_type="fast", temperature=1.0, thinking_level="high", strea
                 print(Fore.YELLOW + "  1. Wait until quota resets (usually midnight PT)" + Style.RESET_ALL)
                 print(Fore.YELLOW + "  2. Upgrade your API plan at https://ai.google.dev" + Style.RESET_ALL)
                 print(Fore.YELLOW + "  3. Use a different API key" + Style.RESET_ALL)
-                print(Fore.YELLOW + "  4. Check quota: python company_research.py --check-quota" + Style.RESET_ALL)
+                print(Fore.YELLOW + "  4. Check quota: primr --check-quota" + Style.RESET_ALL)
                 print(Fore.RED + "=" * 60 + "\n" + Style.RESET_ALL)
                 error_message = "[ERROR] Daily API quota exhausted. Cannot continue."
                 log_chat_interaction(prompt, error_message)
