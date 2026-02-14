@@ -241,6 +241,22 @@ class TestAsyncContextManager:
         assert client._client is None
         assert client._semaphore is None
 
+    @pytest.mark.asyncio
+    @patch("primr.ai.async_client.get_settings")
+    @patch("primr.ai.async_client.genai.Client")
+    async def test_context_manager_exit_calls_aclose(self, mock_client_class, mock_get_settings, mock_settings):
+        """Exit should close async SDK client when supported."""
+        mock_get_settings.return_value = mock_settings
+        mock_client = Mock()
+        mock_client.aclose = AsyncMock()
+        mock_client_class.return_value = mock_client
+
+        client = AsyncAIClient()
+        async with client:
+            pass
+
+        mock_client.aclose.assert_awaited_once()
+
 
 # =============================================================================
 # GENERATE TESTS
@@ -292,6 +308,30 @@ class TestGenerate:
             result = await client.generate("Test")
         
         assert result == "Response with whitespace"
+
+    @pytest.mark.asyncio
+    @patch("primr.ai.async_client.get_settings")
+    @patch("primr.ai.async_client.genai.Client")
+    async def test_generate_respects_timeout(self, mock_client_class, mock_get_settings, mock_settings):
+        """Should raise quickly when timeout is exceeded."""
+        mock_get_settings.return_value = mock_settings
+        mock_settings.ai.max_retries = 1
+
+        def slow_generate(*_args, **_kwargs):
+            import time as _time
+
+            _time.sleep(0.2)
+            response = Mock()
+            response.text = "late"
+            return response
+
+        mock_client = Mock()
+        mock_client.models.generate_content.side_effect = slow_generate
+        mock_client_class.return_value = mock_client
+
+        async with AsyncAIClient() as client:
+            with pytest.raises(Exception, match="timed out"):
+                await client.generate("Test", timeout=0.01)
 
 
 # =============================================================================

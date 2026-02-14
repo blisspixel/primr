@@ -179,19 +179,22 @@ class ReportLoader:
     def _load_pdf_file(self, file_path: Path) -> str | None:
         """Load content from PDF file."""
         try:
-            # Try to import PDF library
+            # Prefer actively maintained pypdf, fall back to PyPDF2 for compatibility.
             try:
-                import PyPDF2
+                from pypdf import PdfReader
             except ImportError:
-                logger.warning("PyPDF2 not available, cannot read PDF files")
-                return None
+                try:
+                    from PyPDF2 import PdfReader
+                except ImportError:
+                    logger.warning("pypdf/PyPDF2 not available, cannot read PDF files")
+                    return None
 
             with open(file_path, 'rb') as file:
-                pdf_reader = PyPDF2.PdfReader(file)
+                pdf_reader = PdfReader(file)
                 text_content = []
 
                 for page in pdf_reader.pages:
-                    text_content.append(page.extract_text())
+                    text_content.append(page.extract_text() or "")
 
                 return '\n'.join(text_content)
 

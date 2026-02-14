@@ -241,4 +241,4 @@ sections:
     depth: "2-3 paragraphs"
 ```
 
-The strategy is automatically discovered. CLI integration (`--strategy my`) is planned but not yet implemented.
+The strategy is automatically discovered. CLI support is available via `--strategy-type` and discoverable via `--list-strategies`.

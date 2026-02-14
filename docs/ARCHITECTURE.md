@@ -577,6 +577,10 @@ src/primr/
 │   ├── client.py            # Unified AI client with retry logic
 │   ├── async_client.py      # Async/parallel AI operations
 │   ├── deep_research.py     # Gemini Deep Research Agent
+│   ├── deep_research_execution.py # Shared deep research polling execution engine
+│   ├── deep_research_parsing.py # Shared deep research parsing helpers
+│   ├── deep_research_polling.py # Shared deep research polling schedules/phases
+│   ├── error_policy.py      # Shared AI error classification and retry policy
 │   ├── report_architect.py  # Chapter planning (Master Architect)
 │   ├── research_executor.py # Parallel chapter execution
 │   ├── report_aggregator.py # Chapter combination
@@ -591,7 +595,7 @@ src/primr/
 │   └── llm.py               # Legacy LLM interface
 │
 ├── data/                    # Data collection
-│   ├── scrape.py            # 4-tier scraping engine
+│   ├── scrape.py            # 8-tier scraping engine
 │   ├── adaptive_scraper.py  # Domain-learning scraper
 │   ├── parallel_scraper.py  # Concurrent scraping
 │   ├── http_client.py       # HTTP client wrapper
@@ -830,9 +834,9 @@ Results (January 2026):
 #### Safety (Dependency Scanner)
 
 Results (January 2026):
-- Core dependencies: CLEAN ✓
+- Core dependencies: CLEAN [OK]
 - Development dependencies: Some vulnerabilities (non-critical)
-- Production deployment: SECURE ✓
+- Production deployment: SECURE [OK]
 
 ### Security Best Practices
 

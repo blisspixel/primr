@@ -38,7 +38,6 @@ class QAIntegration:
         self.report_loader = ReportLoader()
         self.error_handler = QAErrorHandler()
         self.monitor = QAMonitor()  # Add monitoring
-        self.monitor = QAMonitor()  # Add monitoring
 
     @property
     def output_dir(self) -> Path:
@@ -143,11 +142,10 @@ class QAIntegration:
 
     def format_cli_summary(self, qa_result: SimpleQAResult) -> str:
         """Format clean CLI output based on simple assessment."""
-        if not qa_result.parsing_success:
-            return "Assessment: Analysis Failed"
-
-        # Calculate grade for display
         grade = self._calculate_numerical_grade(qa_result)
+
+        if not qa_result.parsing_success:
+            return f"Grade: ({grade}/100)\nAssessment: Analysis Failed"
 
         # Simple, clean format matching README example
         summary = f"Grade: ({grade}/100)"

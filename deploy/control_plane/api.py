@@ -18,51 +18,43 @@ from __future__ import annotations
 import json
 import os
 import time
-from datetime import datetime, timezone
-from typing import Any, Optional
+from contextlib import asynccontextmanager
+from typing import Any
 
-from fastapi import FastAPI, HTTPException, Depends, Header, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field
 
-from deploy.control_plane.job_store import (
-    JobRecord,
-    JobStatus,
-    JobStore,
-    InMemoryJobStore,
-    CostEstimate,
-    JobInputs,
-    JobTiming,
-    ConflictError,
-    NotFoundError,
-    ConditionalCheckFailedError,
-    canonicalize_inputs,
-    hash_inputs,
-    hash_job_id,
-    hash_api_key,
-    get_expected_artifacts,
-    format_timestamp,
-    utc_now,
-)
-from deploy.control_plane.queue import Queue, InMemoryQueue, QueueMessage
-from deploy.control_plane.cancellation import CancellationService, CancelResponse
+from deploy.control_plane.cancellation import CancellationService
 from deploy.control_plane.cost_governor import (
     CostGovernor,
     QuotaExceededError,
     estimate_cost,
 )
-from deploy.control_plane.rate_limiter import (
-    RateLimiter,
-    RateLimitConfig,
-    RateLimitResult,
-    RateLimitExceededError,
+from deploy.control_plane.job_store import (
+    ConditionalCheckFailedError,
+    InMemoryJobStore,
+    JobRecord,
+    JobStatus,
+    JobStore,
+    JobTiming,
+    canonicalize_inputs,
+    format_timestamp,
+    get_expected_artifacts,
+    hash_api_key,
+    hash_inputs,
+    hash_job_id,
+    utc_now,
 )
 from deploy.control_plane.metrics import (
-    ControlPlaneMetrics,
     get_metrics,
 )
+from deploy.control_plane.queue import InMemoryQueue, Queue, QueueMessage
+from deploy.control_plane.rate_limiter import (
+    RateLimiter,
+    RateLimitExceededError,
+)
 from deploy.storage import ArtifactStore, LocalStore
-
 
 # =============================================================================
 # PYDANTIC MODELS
@@ -103,8 +95,8 @@ class LastEvent(BaseModel):
 class TimingResponse(BaseModel):
     """Timing information in response."""
     submitted_at: str
-    started_at: Optional[str] = None
-    completed_at: Optional[str] = None
+    started_at: str | None = None
+    completed_at: str | None = None
 
 
 class StatusResponse(BaseModel):
@@ -112,8 +104,8 @@ class StatusResponse(BaseModel):
     job_id: str
     status: str
     timing: TimingResponse
-    last_event: Optional[LastEvent] = None
-    error: Optional[str] = None
+    last_event: LastEvent | None = None
+    error: str | None = None
 
 
 class CancelResponseModel(BaseModel):
@@ -169,10 +161,18 @@ class QuotaErrorResponse(BaseModel):
 # APPLICATION SETUP
 # =============================================================================
 
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    """Application lifespan handler."""
+    _initialize_default_dependencies()
+    yield
+
+
 app = FastAPI(
     title="Primr Cloud API",
     description="Control plane for serverless Primr job execution",
     version="1.0.0",
+    lifespan=_lifespan,
 )
 
 
@@ -201,7 +201,7 @@ def configure_app(
 ) -> None:
     """
     Configure the application with dependencies.
-    
+
     Call this before starting the server.
     """
     global _job_store, _queue, _artifact_store, _cancellation_service, _cost_governor, _rate_limiter, _deployment
@@ -264,12 +264,12 @@ def get_deployment() -> str:
 def get_api_key(authorization: str = Header(default="")) -> str:
     """
     Extract API key from Authorization header.
-    
+
     Expects: "Bearer <api_key>" or just "<api_key>"
     """
     if not authorization:
         raise HTTPException(status_code=401, detail="Authorization header required")
-    
+
     if authorization.startswith("Bearer "):
         return authorization[7:]
     return authorization
@@ -283,21 +283,21 @@ def get_api_key(authorization: str = Header(default="")) -> str:
 async def submit_job(
     request: SubmitRequest,
     api_key: str = Depends(get_api_key),
-    job_store: JobStore = Depends(get_job_store),
-    queue: Queue = Depends(get_queue),
-    cost_governor: CostGovernor = Depends(get_cost_governor),
-    rate_limiter: RateLimiter = Depends(get_rate_limiter),
+    job_store: JobStore = Depends(get_job_store),  # noqa: B008 - FastAPI dependency injection
+    queue: Queue = Depends(get_queue),  # noqa: B008 - FastAPI dependency injection
+    cost_governor: CostGovernor = Depends(get_cost_governor),  # noqa: B008 - FastAPI dependency injection
+    rate_limiter: RateLimiter = Depends(get_rate_limiter),  # noqa: B008 - FastAPI dependency injection
 ) -> SubmitResponse:
     """
     Submit a research job.
-    
+
     Creates a new job or returns existing job if idempotency_key matches.
     Returns 409 if idempotency_key matches but inputs differ.
     Returns 429 if quota exceeded or rate limited.
     """
     deployment = get_deployment()
     api_key_hash = hash_api_key(api_key)
-    
+
     # Check rate limit first
     rate_result = rate_limiter.check(api_key_hash)
     if not rate_result.allowed:
@@ -313,14 +313,14 @@ async def submit_job(
             },
             headers={"Retry-After": str(int(rate_result.retry_after or 1))},
         )
-    
+
     # Validate mode
     if request.mode not in ("scrape", "deep", "full"):
         raise HTTPException(
             status_code=400,
             detail=f"Invalid mode: {request.mode}. Must be scrape, deep, or full",
         )
-    
+
     # Canonicalize inputs
     canonical = canonicalize_inputs(
         company_name=request.company_name,
@@ -329,10 +329,10 @@ async def submit_job(
         options=request.options,
     )
     canonical_hash = hash_inputs(canonical)
-    
+
     # Derive job_id from (deployment, idempotency_key, api_key)
     job_id = hash_job_id(deployment, request.idempotency_key, api_key)
-    
+
     # Check for existing job
     existing = job_store.get(job_id)
     if existing:
@@ -352,10 +352,10 @@ async def submit_job(
             ),
             is_existing=True,
         )
-    
+
     # Estimate cost
     estimate = estimate_cost(request.mode)
-    
+
     # Check quota
     try:
         cost_governor.check_quota(api_key_hash, estimate)
@@ -368,14 +368,14 @@ async def submit_job(
                 "quota": e.quota.to_dict(),
                 "usage": e.usage.to_dict(),
             },
-        )
-    
+        ) from e
+
     # Determine initial status
     if request.approve:
         initial_status = JobStatus.QUEUED
     else:
         initial_status = JobStatus.PENDING_APPROVAL
-    
+
     # Create job record
     now = utc_now()
     job = JobRecord(
@@ -391,11 +391,11 @@ async def submit_job(
         timing=JobTiming(submitted_at=format_timestamp(now)),
         ttl=int(time.time()) + 30 * 24 * 3600,  # 30 day retention
     )
-    
+
     # Conditional write (prevents race conditions)
     try:
         job_store.put_if_not_exists(job)
-    except ConditionalCheckFailedError:
+    except ConditionalCheckFailedError as e:
         # Another request created the job concurrently - return it
         existing = job_store.get(job_id)
         if existing:
@@ -403,7 +403,7 @@ async def submit_job(
                 raise HTTPException(
                     status_code=409,
                     detail="Idempotency key collision with different inputs",
-                )
+                ) from e
             return SubmitResponse(
                 job_id=existing.job_id,
                 status=existing.status.value,
@@ -413,8 +413,8 @@ async def submit_job(
                 ),
                 is_existing=True,
             )
-        raise HTTPException(status_code=500, detail="Failed to create job")
-    
+        raise HTTPException(status_code=500, detail="Failed to create job") from e
+
     # Enqueue if approved
     if request.approve:
         message = QueueMessage(
@@ -426,11 +426,11 @@ async def submit_job(
             attempt=1,
         )
         queue.enqueue(message)
-    
+
     # Record metrics
     metrics = get_metrics()
     metrics.record_job_submitted(request.mode, deployment)
-    
+
     return SubmitResponse(
         job_id=job_id,
         status=initial_status.value,
@@ -445,26 +445,26 @@ async def submit_job(
 @app.get("/status/{job_id}", response_model=StatusResponse)
 async def get_status(
     job_id: str,
-    job_store: JobStore = Depends(get_job_store),
-    artifact_store: ArtifactStore = Depends(get_artifact_store),
+    job_store: JobStore = Depends(get_job_store),  # noqa: B008 - FastAPI dependency injection
+    artifact_store: ArtifactStore = Depends(get_artifact_store),  # noqa: B008 - FastAPI dependency injection
 ) -> StatusResponse:
     """
     Get job status.
-    
+
     Returns 404 if job not found.
     Includes last_event from events.jsonl or heartbeat for progress tracking.
     """
     job = job_store.get(job_id)
     if not job:
         raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
-    
+
     # Try to get last event from events.jsonl or heartbeat
     last_event = None
     try:
         last_event = _get_last_event(artifact_store, job_id)
     except Exception:
         pass  # Ignore errors reading events
-    
+
     return StatusResponse(
         job_id=job.job_id,
         status=job.status.value,
@@ -481,29 +481,29 @@ async def get_status(
 @app.post("/approve/{job_id}", response_model=ApproveResponse)
 async def approve_job(
     job_id: str,
-    job_store: JobStore = Depends(get_job_store),
-    queue: Queue = Depends(get_queue),
+    job_store: JobStore = Depends(get_job_store),  # noqa: B008 - FastAPI dependency injection
+    queue: Queue = Depends(get_queue),  # noqa: B008 - FastAPI dependency injection
 ) -> ApproveResponse:
     """
     Approve a pending job.
-    
+
     Returns 404 if job not found.
     Returns 409 if job not in PENDING_APPROVAL state.
     """
     job = job_store.get(job_id)
     if not job:
         raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
-    
+
     if job.status != JobStatus.PENDING_APPROVAL:
         raise HTTPException(
             status_code=409,
             detail=f"Job is not pending approval (current status: {job.status.value})",
         )
-    
+
     # Update status to QUEUED
     job.status = JobStatus.QUEUED
     job_store.update(job)
-    
+
     # Enqueue the job
     message = QueueMessage(
         job_id=job_id,
@@ -514,7 +514,7 @@ async def approve_job(
         attempt=job.attempt,
     )
     queue.enqueue(message)
-    
+
     return ApproveResponse(
         job_id=job_id,
         status=JobStatus.QUEUED.value,
@@ -525,18 +525,18 @@ async def approve_job(
 @app.post("/cancel/{job_id}", response_model=CancelResponseModel)
 async def cancel_job(
     job_id: str,
-    cancellation_service: CancellationService = Depends(get_cancellation_service),
+    cancellation_service: CancellationService = Depends(get_cancellation_service),  # noqa: B008 - FastAPI dependency injection
 ) -> CancelResponseModel:
     """
     Cancel a job (best-effort).
-    
+
     Returns 404 if job not found.
     """
     result = cancellation_service.cancel_job(job_id)
-    
+
     if result.result.value == "NOT_FOUND":
         raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
-    
+
     return CancelResponseModel(
         status=result.status.value,
         message=result.message,
@@ -546,19 +546,19 @@ async def cancel_job(
 @app.get("/results/{job_id}", response_model=ResultsResponse)
 async def get_results(
     job_id: str,
-    job_store: JobStore = Depends(get_job_store),
-    artifact_store: ArtifactStore = Depends(get_artifact_store),
+    job_store: JobStore = Depends(get_job_store),  # noqa: B008 - FastAPI dependency injection
+    artifact_store: ArtifactStore = Depends(get_artifact_store),  # noqa: B008 - FastAPI dependency injection
 ) -> ResultsResponse:
     """
     Get job results with presigned URLs.
-    
+
     Returns 404 if job not found.
     Returns 425 (Too Early) if job exists but manifest not yet written.
     """
     job = job_store.get(job_id)
     if not job:
         raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
-    
+
     # Get manifest from artifact store
     manifest = artifact_store.get_manifest(job_id)
     if not manifest:
@@ -566,7 +566,7 @@ async def get_results(
             status_code=425,
             detail=f"Job {job_id} not complete (no manifest yet)",
         )
-    
+
     # Generate presigned URLs for artifacts
     artifacts = {}
     for name, meta in manifest.artifacts.items():
@@ -576,7 +576,7 @@ async def get_results(
             size_bytes=meta.size_bytes,
             checksum_sha256=meta.checksum_sha256,
         )
-    
+
     return ResultsResponse(
         job_id=job_id,
         status=manifest.status,
@@ -589,7 +589,7 @@ async def get_results(
 async def get_metrics_endpoint() -> JSONResponse:
     """
     Get control plane metrics.
-    
+
     Returns metrics in JSON format for monitoring systems.
     """
     metrics = get_metrics()
@@ -600,7 +600,7 @@ async def get_metrics_endpoint() -> JSONResponse:
 async def get_prometheus_metrics() -> str:
     """
     Get control plane metrics in Prometheus format.
-    
+
     Returns metrics in Prometheus text format.
     """
     from fastapi.responses import PlainTextResponse
@@ -615,7 +615,7 @@ async def get_prometheus_metrics() -> str:
 def _get_last_event(artifact_store: ArtifactStore, job_id: str) -> LastEvent | None:
     """
     Get last event from events.jsonl or heartbeat.
-    
+
     Tries events.jsonl first, falls back to heartbeat.
     """
     # Try events.jsonl first
@@ -633,7 +633,7 @@ def _get_last_event(artifact_store: ArtifactStore, job_id: str) -> LastEvent | N
                 )
             except json.JSONDecodeError:
                 pass
-    
+
     # Fall back to heartbeat
     heartbeat_data = artifact_store.get(f"{job_id}/_heartbeat.json")
     if heartbeat_data:
@@ -647,7 +647,7 @@ def _get_last_event(artifact_store: ArtifactStore, job_id: str) -> LastEvent | N
             )
         except json.JSONDecodeError:
             pass
-    
+
     return None
 
 
@@ -687,15 +687,14 @@ async def rate_limit_handler(request: Request, exc: RateLimitExceededError) -> J
 # STARTUP/SHUTDOWN
 # =============================================================================
 
-@app.on_event("startup")
-async def startup_event() -> None:
-    """Initialize application on startup."""
+def _initialize_default_dependencies() -> None:
+    """Initialize default dependencies when app is not explicitly configured."""
     # If not configured, use defaults for local development
     global _job_store, _queue, _artifact_store, _cancellation_service, _cost_governor, _rate_limiter, _deployment
-    
+
     if _job_store is None:
         import tempfile
-        
+
         _job_store = InMemoryJobStore()
         _queue = InMemoryQueue()
         _artifact_store = LocalStore(tempfile.mkdtemp(prefix="primr_artifacts_"))
@@ -718,24 +717,24 @@ def create_app(
 ) -> FastAPI:
     """
     Create and configure the FastAPI application.
-    
+
     Args:
         job_store: Job state store (defaults to InMemoryJobStore)
         queue: Message queue (defaults to InMemoryQueue)
         artifact_store: Artifact store (defaults to LocalStore)
         rate_limiter: Rate limiter (defaults to RateLimiter)
         deployment: Deployment namespace
-        
+
     Returns:
         Configured FastAPI application
     """
     import tempfile
-    
+
     store = job_store or InMemoryJobStore()
     q = queue or InMemoryQueue()
     artifacts = artifact_store or LocalStore(tempfile.mkdtemp(prefix="primr_artifacts_"))
     limiter = rate_limiter or RateLimiter()
-    
+
     configure_app(
         job_store=store,
         queue=q,
@@ -743,15 +742,15 @@ def create_app(
         rate_limiter=limiter,
         deployment=deployment,
     )
-    
+
     return app
 
 
 if __name__ == "__main__":
     import uvicorn
-    
+
     # Create app with defaults
     create_app()
-    
+
     # Run server
     uvicorn.run(app, host="0.0.0.0", port=8000)

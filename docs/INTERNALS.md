@@ -682,10 +682,14 @@ sections:
 
 2. The strategy is automatically discovered by the registry.
 
-3. Use it via CLI (planned - not yet implemented):
+3. Use it via CLI:
 
 ```bash
-# Future: primr "Company Name" https://company.com --strategy my
+# List registered strategies
+primr --list-strategies
+
+# Generate a specific strategy from an existing strategic overview
+primr --ai-strategy-only "output/Company_Strategic_Overview.md" --strategy-type customer_experience
 ```
 
 ### Error Handling

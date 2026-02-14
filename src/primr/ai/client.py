@@ -9,6 +9,8 @@ This module provides:
 - Token usage tracking for cost monitoring
 """
 
+import asyncio
+import concurrent.futures
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -47,6 +49,11 @@ else:
 genai = _google_genai
 types = _google_types
 
+from primr.ai.error_policy import (
+    is_daily_quota_exhausted,
+    is_invalid_api_key_error,
+    is_timeout_error,
+)
 from primr.config.settings import get_settings
 from primr.utils.errors import AIError, calculate_retry_delay, is_rate_limit_error
 from primr.utils.logging_config import get_logger
@@ -110,6 +117,7 @@ class AIClient:
         self._client = genai.Client(api_key=self._api_key)
         self._settings = settings.ai
         self._track_usage = track_usage
+        self._pending_close_tasks: list[asyncio.Task[Any]] = []
 
         # Token usage tracking
         self.total_input_tokens = 0
@@ -117,6 +125,36 @@ class AIClient:
         self.call_count = 0
 
         logger.debug("AI client initialized")
+
+    def close(self) -> None:
+        """Best-effort close of underlying client transport resources."""
+        close_fn = getattr(self._client, "close", None)
+        if callable(close_fn):
+            try:
+                close_fn()
+            except Exception as e:
+                logger.debug("Failed to close AI client with close(): %s", e)
+            return
+
+        aclose_fn = getattr(self._client, "aclose", None)
+        if callable(aclose_fn):
+            try:
+                coro = aclose_fn()
+                if asyncio.iscoroutine(coro):
+                    try:
+                        loop = asyncio.get_running_loop()
+                    except RuntimeError:
+                        asyncio.run(coro)
+                    else:
+                        self._pending_close_tasks.append(loop.create_task(coro))
+            except Exception as e:
+                logger.debug("Failed to close AI client with aclose(): %s", e)
+
+    def __enter__(self) -> "AIClient":
+        return self
+
+    def __exit__(self, _exc_type: Any, _exc_val: Any, _exc_tb: Any) -> None:
+        self.close()
 
     def generate(
         self,
@@ -168,16 +206,39 @@ class AIClient:
             thinking_config=types.ThinkingConfig(thinking_level=thinking_level)  # type: ignore[arg-type]
         )
 
+        deadline = time.monotonic() + timeout if timeout is not None else None
         last_error = None
         for attempt in range(retries):
             try:
                 logger.debug(f"AI call attempt {attempt + 1}/{retries} to {model}")
 
-                response = self._client.models.generate_content(
-                    model=model,
-                    contents=prompt,
-                    config=config
-                )
+                if deadline is not None:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise TimeoutError(f"AI call timed out after {timeout:.2f}s")
+                else:
+                    remaining = None
+
+                if remaining is None:
+                    response = self._client.models.generate_content(
+                        model=model,
+                        contents=prompt,
+                        config=config
+                    )
+                else:
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                        future = executor.submit(
+                            self._client.models.generate_content,
+                            model=model,
+                            contents=prompt,
+                            config=config,
+                        )
+                        try:
+                            response = future.result(timeout=remaining)
+                        except concurrent.futures.TimeoutError as e:
+                            raise TimeoutError(
+                                f"AI call timed out after {timeout:.2f}s"
+                            ) from e
 
                 # Validate and extract response text using type guards
                 result = self._validate_response_text(response)
@@ -197,21 +258,7 @@ class AIClient:
 
             except Exception as e:
                 last_error = e
-                error_str = str(e).lower()
-
-                # Check for quota exhaustion (daily limit hit) - STOP IMMEDIATELY
-                # Multiple patterns to catch various API error formats
-                quota_patterns = [
-                    "resource_exhausted" in error_str and "per_day" in error_str,
-                    "resource_exhausted" in error_str and "quota" in error_str,
-                    "quota exceeded" in error_str,
-                    "daily limit" in error_str,
-                    "rate limit exceeded" in error_str and "daily" in error_str,
-                    "requests per day" in error_str,
-                ]
-                is_quota_exhausted = any(quota_patterns)
-
-                if is_quota_exhausted:
+                if is_daily_quota_exhausted(e):
                     logger.error("Daily API quota exhausted - stopping immediately")
                     raise AIError(
                         "Daily API quota exhausted. Wait until quota resets or upgrade your plan. "
@@ -221,12 +268,19 @@ class AIClient:
                     ) from e
 
                 # Check for invalid API key
-                if "invalid" in error_str and ("api" in error_str or "key" in error_str):
+                if is_invalid_api_key_error(e):
                     logger.error("Invalid API key - stopping immediately")
                     raise AIError(
                         "Invalid API key. Check your GEMINI_API_KEY in .env file.",
                         model=model,
                         cause=e
+                    ) from e
+
+                if is_timeout_error(e):
+                    raise AIError(
+                        str(e),
+                        model=model,
+                        cause=e,
                     ) from e
 
                 logger.warning(
@@ -505,6 +559,8 @@ def reset_client() -> None:
     """Reset the global AI client (useful for testing)."""
     global _client
     with _client_lock:
+        if _client is not None:
+            _client.close()
         _client = None
 
 

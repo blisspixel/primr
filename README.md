@@ -10,7 +10,7 @@ Runs as a CLI, an MCP server, an OpenClaw integration, and a Claude Skill.
 primr "Acme Corp" https://acme.example
 ```
 
-30 minutes later: competitive positioning, technology stack, strategic initiatives, and external validation—all cited.
+30 minutes later: competitive positioning, technology stack, strategic initiatives, and external validation, all cited.
 
 ## Why This Exists
 
@@ -23,9 +23,9 @@ Primr does that entire workflow autonomously.
 - **Adaptive scraping**: 8 retrieval methods from browser rendering to TLS fingerprinting to screenshot+vision extraction, with per-host optimization. Starts with full browser rendering (what works on 95%+ of modern sites) and falls back through increasingly specialized methods.
 - **Autonomous external research**: Gemini Deep Research plans queries, follows leads, cross-validates sources, and synthesizes findings into a structured brief.
 - **Cost controls built in**: `--dry-run` estimates, usage tracking, and governance hooks for budget limits.
-- **Agent-native interfaces**: CLI, MCP server, OpenClaw integration, and Claude Skills—all first-class.
+- **Agent-native interfaces**: CLI, MCP server, OpenClaw integration, and Claude Skills, all first-class.
 
-Manual research takes hours. Primr typically runs in ~30 minutes and costs ~$1–2 in API usage (varies by depth and site behavior).
+Manual research takes hours. Primr typically runs in ~30 minutes and costs ~$1-2 in API usage (varies by depth and site behavior).
 
 ## Modes
 
@@ -48,7 +48,7 @@ primr doctor                     # Verify everything works
 primr "Acme Corp" https://acme.example  # Run your first research
 ```
 
-Requires Python 3.11+ and a Gemini API key. That's it — web search uses DuckDuckGo (no key needed).
+Requires Python 3.11+ and a Gemini API key. That's it - web search uses DuckDuckGo (no key needed).
 
 ```bash
 # More usage
@@ -61,17 +61,17 @@ primr "Company" https://company.com --cloud-vendor aws azure  # Multi-vendor AI 
 ### What a run looks like
 
 ```
-▸ PHASE 1 · Data Collection
+> PHASE 1 - Data Collection
   Website scraping + web search + AI analysis
 
-✓ 251 links → 50 selected
+[OK] 251 links -> 50 selected
 Scraping 23/50 /about  [15s elapsed, ~2m left]
-✓ 48/50 pages scraped (6m 10s)
+[OK] 48/50 pages scraped (6m 10s)
 + 3 external sources validated
-✓ Data Collection
+[OK] Data Collection
   Sections generated: 18
 
-▸ PHASE 2 · Deep Research
+> PHASE 2 - Deep Research
   Comprehensive report with sequential elaboration (50+ pages)
 
   Searching sources (1m 33s)
@@ -82,28 +82,28 @@ Scraping 23/50 /about  [15s elapsed, ~2m left]
   ...
   Writing: Strategic Positioning Hypothesis (21/21)...
 
-✓ Deep Research
+[OK] Deep Research
   Chapters: 21
 
-▸ PHASE 3 · AI Strategy Roadmap (AWS) Analysis
+> PHASE 3 - AI Strategy Roadmap (AWS) Analysis
   Generating AI strategy roadmap recommendations (aws)
 
-✓ AI Strategy Roadmap (AWS) Analysis
+[OK] AI Strategy Roadmap (AWS) Analysis
 
-▸ PHASE 4 · AI Strategy Roadmap (AZURE) Analysis
+> PHASE 4 - AI Strategy Roadmap (AZURE) Analysis
   Generating AI strategy roadmap recommendations (azure)
 
-✓ AI Strategy Roadmap (AZURE) Analysis
+[OK] AI Strategy Roadmap (AZURE) Analysis
 
-✓ Complete in 85m
+[OK] Complete in 85m
 
-✓ Report ready
+[OK] Report ready
   output/Acme_Corp_Strategic_Overview_02-11-2026.docx
 
-✓ AI Strategy Roadmap (AWS)
+[OK] AI Strategy Roadmap (AWS)
   output/Acme_Corp_AI_Strategy_AWS_02-11-2026.docx
 
-✓ AI Strategy Roadmap (AZURE)
+[OK] AI Strategy Roadmap (AZURE)
   output/Acme_Corp_AI_Strategy_AZURE_02-11-2026.docx
 
 Mode: Complete (Two-Step)
@@ -136,7 +136,7 @@ Have a spreadsheet of companies? Primr can enrich it with website URLs and run r
 **Two-step workflow (recommended):**
 
 ```bash
-# Step 1: Enrich — auto-detect columns, look up websites, filter by industry, save CSV
+# Step 1: Enrich - auto-detect columns, look up websites, filter by industry, save CSV
 primr --batch companies.xlsx --industry Utilities --enrich
 
 # Step 2: Review the enriched CSV, then run research
@@ -146,7 +146,7 @@ primr --batch companies_utilities_enriched.csv --mode scrape
 **Options:**
 
 ```bash
---enrich          # Enrich only — look up websites, save CSV, don't research
+--enrich          # Enrich only - look up websites, save CSV, don't research
 --industry NAME   # Filter rows by industry column value
 --limit N         # Process only the first N companies (useful for testing)
 --skip-confirm    # Skip the confirmation prompt (for unattended runs)
@@ -158,8 +158,8 @@ primr --batch companies_utilities_enriched.csv --mode scrape
 - Shows cost estimate and asks for confirmation before starting (use `--skip-confirm` to bypass)
 - **Resume:** re-run the same command to skip companies that already have reports from today
 - Cooldown between companies (10s for scrape, 60s for deep/full) to avoid API quota issues
-- Progressive retry with backoff on rate-limit errors (immediate → 2 min → 5 min)
-- Pauses and asks after 3 consecutive failures — option to wait 10 minutes or stop
+- Progressive retry with backoff on rate-limit errors (immediate -> 2 min -> 5 min)
+- Pauses and asks after 3 consecutive failures - option to wait 10 minutes or stop
 - Deduplicates companies by name (case-insensitive)
 
 Accepts Excel (`.xlsx`) or CSV files. Smart column detection uses an LLM to find company name, website, and industry columns automatically.
@@ -167,16 +167,16 @@ Accepts Excel (`.xlsx`) or CSV files. Smart column detection uses an LLM to find
 ## Under the Hood
 
 **8-Tier Retrieval Engine** (browser-first for modern JS-heavy sites)
-- Browser tiers: Playwright → expanded rendering → DrissionPage stealth → DrissionPage (driverless CDP)
+- Browser tiers: Playwright -> expanded rendering -> DrissionPage stealth -> DrissionPage (driverless CDP)
 - Vision tier: Screenshot + LLM extraction for image-heavy or non-standard layouts
-- HTTP tiers: curl_cffi (TLS fingerprinting) → httpx → requests
+- HTTP tiers: curl_cffi (TLS fingerprinting) -> httpx -> requests
 - Content-type routing: automatic PDF detection and LLM-powered extraction
 - Automatic fallback, per-host optimization, circuit breakers
 
 **Gemini Deep Research**
 - Autonomous multi-step search and synthesis
 - Plans its own research strategy, follows leads, validates across sources
-- Not a wrapper around chat completions—actual agentic research
+- Not a wrapper around chat completions; actual agentic research
 
 **Agentic Architecture**
 - Hypothesis tracking with confidence levels across sessions
@@ -190,28 +190,28 @@ Accepts Excel (`.xlsx`) or CSV files. Smart column detection uses an LLM to find
 # Required in .env
 GEMINI_API_KEY=       # https://aistudio.google.com/apikey
 
-# Optional — only needed if you want to use Google Custom Search instead of DuckDuckGo
+# Optional - only needed if you want to use Google Custom Search instead of DuckDuckGo
 # SEARCH_PROVIDER=google
 # SEARCH_API_KEY=     # Google Custom Search API
 # SEARCH_ENGINE_ID=   # Programmable Search Engine ID
 ```
 
-Web search uses DuckDuckGo by default — no search API key needed. Google Custom Search is available as an optional fallback for users with existing whole-web CSEs.
+Web search uses DuckDuckGo by default - no search API key needed. Google Custom Search is available as an optional fallback for users with existing whole-web CSEs.
 
-→ [Full setup guide](docs/API_KEYS.md)
+[Full setup guide](docs/API_KEYS.md)
 
 ## Agent Integration
 
 Primr is built for the agentic era. Three ways to plug it in:
 
-**MCP Server** — Claude Desktop, Cursor, and any MCP-compatible client:
+**MCP Server** - Claude Desktop, Cursor, and any MCP-compatible client:
 ```bash
 primr-mcp --stdio              # stdio transport
 primr-mcp --http --port 8000   # HTTP with JWT auth
 ```
 
 <details>
-<summary><strong>OpenClaw</strong> — Drop-in integration with skills and workflows</summary>
+<summary><strong>OpenClaw</strong> - Drop-in integration with skills and workflows</summary>
 
 ```bash
 # openclaw/openclaw.json already configured
@@ -221,7 +221,7 @@ primr-mcp --http --port 8000   # HTTP with JWT auth
 </details>
 
 <details>
-<summary><strong>Claude Skills</strong> — Anthropic's Agent Skills format</summary>
+<summary><strong>Claude Skills</strong> - Anthropic's Agent Skills format</summary>
 
 ```
 skills/
@@ -235,12 +235,12 @@ Skills include hypothesis persistence, cost governance hooks, and QA gates. Agen
 </details>
 
 <details>
-<summary><strong>Cloud Deployment</strong> — Serverless on AWS, Azure, or GCP</summary>
+<summary><strong>Cloud Deployment</strong> - Serverless on AWS, Azure, or GCP</summary>
 
 Scale-to-zero ephemeral containers, event-driven queues, production observability. See [deployment guide](docs/CLOUD_DEPLOYMENT.md).
 </details>
 
-→ [MCP docs](docs/API.md) · [OpenClaw config](openclaw/openclaw.json)
+[MCP docs](docs/API.md) | [OpenClaw config](openclaw/openclaw.json)
 
 ## Development
 
@@ -251,6 +251,8 @@ mypy src/primr --ignore-missing-imports  # Type check
 ```
 
 4,400+ tests including property-based testing (Hypothesis), full ruff and mypy compliance, OpenTelemetry tracing, and typed error hierarchy with automatic retry classification. CI runs lint, type check, and tests on every push via GitHub Actions.
+
+Recent hardening includes shared deep-research parsing/polling/execution modules, a shared AI error policy module across sync/async clients, and reduced noisy integration-runtime warnings for constrained Playwright/network test environments.
 
 ## Documentation
 
@@ -268,7 +270,7 @@ mypy src/primr --ignore-missing-imports  # Type check
 
 ## About This Project
 
-Primr is a nights-and-weekends project by a solo developer. I think AI-assisted research workflows are going to be transformative over the next few years, and this is my way of building deeply in the space — learning by shipping something real.
+Primr is a nights-and-weekends project by a solo developer. I think AI-assisted research workflows are going to be transformative over the next few years, and this is my way of building deeply in the space - learning by shipping something real.
 
 It's not backed by a company or a team. It's an independent project built for personal use.
 
@@ -276,7 +278,7 @@ It's not backed by a company or a team. It's an independent project built for pe
 
 Primr is a research tool. You are responsible for:
 
-- **Web content**: Primr retrieves publicly available web content, similar to a browser or search engine crawler. It does not bypass authentication, access paywalled content, or exploit vulnerabilities. However, some websites restrict automated access in their terms of service — it is your responsibility to check before running Primr against any site.
+- **Web content**: Primr retrieves publicly available web content, similar to a browser or search engine crawler. It does not bypass authentication, access paywalled content, or exploit vulnerabilities. However, some websites restrict automated access in their terms of service - it is your responsibility to check before running Primr against any site.
 - **Accuracy**: AI-generated content may contain errors, hallucinations, or outdated information. Verify findings before acting on them.
 - **Costs**: API calls to Gemini and other services incur real charges. Use `--dry-run` to estimate costs before running.
 - **Use case**: This tool is intended for legitimate research purposes such as due diligence and meeting preparation. Do not use it to violate any website's terms of service or any applicable law.
