@@ -24,7 +24,6 @@ from typing import TYPE_CHECKING
 from mcp.server import Server
 from mcp.server.lowlevel.helper_types import ReadResourceContents
 from mcp.types import Resource
-
 from primr.mcp_server.agentic_resources import get_agentic_resources, read_agentic_resource
 from primr.mcp_server.types import (
     ArtifactInfo,

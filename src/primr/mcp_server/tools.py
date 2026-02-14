@@ -25,7 +25,6 @@ from typing import TYPE_CHECKING, Any
 
 from mcp.server import Server
 from mcp.types import TextContent, Tool
-
 from primr.mcp_server.agentic_tools import handle_agentic_tool, register_agentic_tools
 from primr.mcp_server.job_store import JobInProgressError
 from primr.mcp_server.types import (
