@@ -518,6 +518,14 @@ class SingleJobStore(JobStore):
             try:
                 await asyncio.wait_for(event.wait(), timeout=min(remaining, 5.0))
                 event.clear()  # Reset for next wait
-            except TimeoutError:
-                # Check again after timeout (handles both sync and async timeout errors)
-                pass
+            except Exception as exc:
+                # asyncio.wait_for timeout behavior varies by runtime and can surface
+                # different TimeoutError classes.
+                is_asyncio_timeout = (
+                    exc.__class__.__name__ == "TimeoutError"
+                    and exc.__class__.__module__.startswith("asyncio")
+                )
+                if isinstance(exc, TimeoutError) or is_asyncio_timeout:
+                    pass
+                else:
+                    raise
