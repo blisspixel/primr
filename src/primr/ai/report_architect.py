@@ -12,13 +12,40 @@ import json
 from dataclasses import dataclass, field
 from typing import Any
 
-from google import genai
+try:
+    from google import genai as _google_genai
+    _GENAI_IMPORT_ERROR: Exception | None = None
+except Exception as import_error:
+    _GENAI_IMPORT_ERROR = import_error
+
+    class _GenAIUnavailable:
+        class Client:
+            def __init__(self, *_args: Any, **_kwargs: Any) -> None:
+                raise RuntimeError("google.genai is unavailable")
+
+    _google_genai = _GenAIUnavailable()
+    _FALLBACK_CLIENT_CLASS = _GenAIUnavailable.Client
+else:
+    _FALLBACK_CLIENT_CLASS = None
+
+genai = _google_genai
 
 from primr.config.models import PrimrModels
 from primr.config.settings import get_settings
 from primr.utils.logging_config import get_logger
 
 logger = get_logger("ai.report_architect")
+
+
+def _require_genai_dependency() -> None:
+    if _GENAI_IMPORT_ERROR is None:
+        return
+    if _FALLBACK_CLIENT_CLASS is not None and getattr(genai, "Client", None) is not _FALLBACK_CLIENT_CLASS:
+        return
+    raise RuntimeError(
+        "google.genai is not available. Install compatible dependencies "
+        "(Python 3.11+ and project requirements)."
+    ) from _GENAI_IMPORT_ERROR
 
 
 @dataclass
@@ -166,6 +193,7 @@ class MasterArchitect:
         Args:
             api_key: Optional API key override. Uses settings if not provided.
         """
+        _require_genai_dependency()
         settings = get_settings()
         self._api_key = api_key or settings.api.gemini_key
         self._client = genai.Client(api_key=self._api_key)

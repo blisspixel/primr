@@ -13,8 +13,39 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
-from google import genai
-from google.genai import types
+try:
+    from google import genai as _google_genai
+    from google.genai import types as _google_types
+    _GENAI_IMPORT_ERROR: Exception | None = None
+except Exception as import_error:
+    _GENAI_IMPORT_ERROR = import_error
+
+    class _GenAIUnavailable:
+        class Client:
+            def __init__(self, *_args: Any, **_kwargs: Any) -> None:
+                raise RuntimeError("google.genai is unavailable")
+
+    @dataclass
+    class _FallbackThinkingConfig:
+        thinking_level: str
+
+    @dataclass
+    class _FallbackGenerateContentConfig:
+        temperature: float
+        thinking_config: _FallbackThinkingConfig
+
+    class _FallbackTypes:
+        GenerateContentConfig = _FallbackGenerateContentConfig
+        ThinkingConfig = _FallbackThinkingConfig
+
+    _google_genai = _GenAIUnavailable()
+    _google_types = _FallbackTypes()
+    _FALLBACK_CLIENT_CLASS = _GenAIUnavailable.Client
+else:
+    _FALLBACK_CLIENT_CLASS = None
+
+genai = _google_genai
+types = _google_types
 
 from primr.config.settings import get_settings
 from primr.utils.errors import AIError, calculate_retry_delay, is_rate_limit_error
@@ -22,6 +53,20 @@ from primr.utils.logging_config import get_logger
 from primr.utils.type_guards import is_valid_type
 
 logger = get_logger("ai.client")
+
+
+def _require_genai_dependency() -> None:
+    """Raise a clear error when google.genai is unavailable."""
+    if _GENAI_IMPORT_ERROR is None:
+        return
+    # Allow tests or callers to inject/patch a working client implementation.
+    if _FALLBACK_CLIENT_CLASS is not None and getattr(genai, "Client", None) is not _FALLBACK_CLIENT_CLASS:
+        return
+    raise AIError(
+        "google.genai is not available. Install compatible dependencies "
+        "(Python 3.11+ and project requirements).",
+        cause=_GENAI_IMPORT_ERROR,
+    ) from _GENAI_IMPORT_ERROR
 
 
 @dataclass
@@ -59,6 +104,7 @@ class AIClient:
                     uses the key from settings.
             track_usage: If True, track token usage for cost monitoring.
         """
+        _require_genai_dependency()
         settings = get_settings()
         self._api_key = api_key or settings.api.gemini_key
         self._client = genai.Client(api_key=self._api_key)

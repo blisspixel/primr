@@ -1,180 +1,104 @@
+"""AI module exports with lazy loading.
+
+Avoid importing heavy optional dependencies (for example google.genai and MCP
+transitive imports) until specific symbols are actually requested.
 """
-AI module - LLM interface, grading, and summarization.
-"""
 
-from primr.ai.async_client import (
-    AsyncAIClient,
-    BatchResult,
-    BatchStats,
-    generate_parallel,
-    get_batch_stats,
-    run_parallel,
-)
-from primr.ai.client import (
-    AIClient,
-    get_client,
-    llm,
-    llm_fast,
-    reset_client,
-)
-from primr.ai.competitive import (
-    CompetitiveAnalyzer,
-    CompetitiveComparison,
-    Competitor,
-    CompetitorType,
-    MarketAnalysis,
-    MarketPosition,
-    SWOTAnalysis,
-    SWOTItem,
-    ThreatLevel,
-    analyze_market,
-    compare_companies,
-    generate_swot,
-    get_competitive_analyzer,
-    identify_competitors,
-    reset_competitive_analyzer,
-)
+from importlib import import_module
+from typing import Any
 
-# Deep Research Agent
-from primr.ai.deep_research import (
-    DeepResearchClient,
-    ResearchProgress,
-    ResearchResult,
-    ResearchStatus,
-    deep_research,
-    get_deep_research_client,
-    research_company,
-    reset_deep_research_client,
-)
-from primr.ai.grading_agent import grade_report
-from primr.ai.insight_engine import InsightEngine
-from primr.ai.insights import (
-    InsightAnalyzer,
-    InsightReport,
-    Opportunity,
-    OpportunityType,
-    Recommendation,
-    RecommendationType,
-    Risk,
-    RiskCategory,
-    RiskLevel,
-    assess_risks,
-    generate_insights,
-    generate_recommendations,
-    get_insight_analyzer,
-    identify_opportunities,
-    reset_insight_analyzer,
-)
-from primr.ai.quality_grader import QualityGrader
-
-# Recursive Hierarchical Research Architecture
-from primr.ai.report_aggregator import (
-    AggregatedReport,
-    ReportAggregator,
-    get_report_aggregator,
-    reset_report_aggregator,
-)
-from primr.ai.report_architect import (
-    ChapterPlan,
-    MasterArchitect,
-    ReportPlan,
-    get_master_architect,
-    reset_master_architect,
-)
-from primr.ai.research_executor import (
-    ChapterResult,
-    ExecutionResult,
-    ResearchNodeExecutor,
-    get_research_executor,
-    reset_research_executor,
-)
-from primr.ai.result_normalizer import (
-    Citation,
-    NormalizedSection,
-    ResultNormalizer,
-    normalize_deep_research,
-)
-from primr.ai.summarize import summarize_scraped_content
-
-__all__ = [
+_EXPORTS: dict[str, tuple[str, str]] = {
     # Sync client
-    "AIClient",
-    "AggregatedReport",
+    "AIClient": ("primr.ai.client", "AIClient"),
+    "get_client": ("primr.ai.client", "get_client"),
+    "llm": ("primr.ai.client", "llm"),
+    "llm_fast": ("primr.ai.client", "llm_fast"),
+    "reset_client": ("primr.ai.client", "reset_client"),
     # Async client
-    "AsyncAIClient",
-    "BatchResult",
-    "BatchStats",
-    "ChapterPlan",
-    "ChapterResult",
-    "Citation",
+    "AsyncAIClient": ("primr.ai.async_client", "AsyncAIClient"),
+    "BatchResult": ("primr.ai.async_client", "BatchResult"),
+    "BatchStats": ("primr.ai.async_client", "BatchStats"),
+    "generate_parallel": ("primr.ai.async_client", "generate_parallel"),
+    "get_batch_stats": ("primr.ai.async_client", "get_batch_stats"),
+    "run_parallel": ("primr.ai.async_client", "run_parallel"),
     # Competitive intelligence
-    "CompetitiveAnalyzer",
-    "CompetitiveComparison",
-    "Competitor",
-    "CompetitorType",
-    # Deep Research Agent
-    "DeepResearchClient",
-    "ExecutionResult",
-    # Predictive insights
-    "InsightAnalyzer",
-    # Consulting-tier components
-    "InsightEngine",
-    "InsightReport",
-    "MarketAnalysis",
-    "MarketPosition",
-    # Recursive Hierarchical Research Architecture
-    "MasterArchitect",
-    "NormalizedSection",
-    "Opportunity",
-    "OpportunityType",
-    "QualityGrader",
-    "Recommendation",
-    "RecommendationType",
-    "ReportAggregator",
-    "ReportPlan",
-    "ResearchNodeExecutor",
-    "ResearchProgress",
-    "ResearchResult",
-    "ResearchStatus",
+    "CompetitiveAnalyzer": ("primr.ai.competitive", "CompetitiveAnalyzer"),
+    "CompetitiveComparison": ("primr.ai.competitive", "CompetitiveComparison"),
+    "Competitor": ("primr.ai.competitive", "Competitor"),
+    "CompetitorType": ("primr.ai.competitive", "CompetitorType"),
+    "MarketAnalysis": ("primr.ai.competitive", "MarketAnalysis"),
+    "MarketPosition": ("primr.ai.competitive", "MarketPosition"),
+    "SWOTAnalysis": ("primr.ai.competitive", "SWOTAnalysis"),
+    "SWOTItem": ("primr.ai.competitive", "SWOTItem"),
+    "ThreatLevel": ("primr.ai.competitive", "ThreatLevel"),
+    "analyze_market": ("primr.ai.competitive", "analyze_market"),
+    "compare_companies": ("primr.ai.competitive", "compare_companies"),
+    "generate_swot": ("primr.ai.competitive", "generate_swot"),
+    "get_competitive_analyzer": ("primr.ai.competitive", "get_competitive_analyzer"),
+    "identify_competitors": ("primr.ai.competitive", "identify_competitors"),
+    "reset_competitive_analyzer": ("primr.ai.competitive", "reset_competitive_analyzer"),
+    # Deep research
+    "DeepResearchClient": ("primr.ai.deep_research", "DeepResearchClient"),
+    "ResearchProgress": ("primr.ai.deep_research", "ResearchProgress"),
+    "ResearchResult": ("primr.ai.deep_research", "ResearchResult"),
+    "ResearchStatus": ("primr.ai.deep_research", "ResearchStatus"),
+    "deep_research": ("primr.ai.deep_research", "deep_research"),
+    "get_deep_research_client": ("primr.ai.deep_research", "get_deep_research_client"),
+    "research_company": ("primr.ai.deep_research", "research_company"),
+    "reset_deep_research_client": ("primr.ai.deep_research", "reset_deep_research_client"),
+    # Grading and summarization
+    "grade_report": ("primr.ai.grading_agent", "grade_report"),
+    "InsightEngine": ("primr.ai.insight_engine", "InsightEngine"),
+    "summarize_scraped_content": ("primr.ai.summarize", "summarize_scraped_content"),
+    "QualityGrader": ("primr.ai.quality_grader", "QualityGrader"),
+    # Insights
+    "InsightAnalyzer": ("primr.ai.insights", "InsightAnalyzer"),
+    "InsightReport": ("primr.ai.insights", "InsightReport"),
+    "Opportunity": ("primr.ai.insights", "Opportunity"),
+    "OpportunityType": ("primr.ai.insights", "OpportunityType"),
+    "Recommendation": ("primr.ai.insights", "Recommendation"),
+    "RecommendationType": ("primr.ai.insights", "RecommendationType"),
+    "Risk": ("primr.ai.insights", "Risk"),
+    "RiskCategory": ("primr.ai.insights", "RiskCategory"),
+    "RiskLevel": ("primr.ai.insights", "RiskLevel"),
+    "assess_risks": ("primr.ai.insights", "assess_risks"),
+    "generate_insights": ("primr.ai.insights", "generate_insights"),
+    "generate_recommendations": ("primr.ai.insights", "generate_recommendations"),
+    "get_insight_analyzer": ("primr.ai.insights", "get_insight_analyzer"),
+    "identify_opportunities": ("primr.ai.insights", "identify_opportunities"),
+    "reset_insight_analyzer": ("primr.ai.insights", "reset_insight_analyzer"),
+    # Recursive hierarchical architecture
+    "AggregatedReport": ("primr.ai.report_aggregator", "AggregatedReport"),
+    "ReportAggregator": ("primr.ai.report_aggregator", "ReportAggregator"),
+    "get_report_aggregator": ("primr.ai.report_aggregator", "get_report_aggregator"),
+    "reset_report_aggregator": ("primr.ai.report_aggregator", "reset_report_aggregator"),
+    "ChapterPlan": ("primr.ai.report_architect", "ChapterPlan"),
+    "MasterArchitect": ("primr.ai.report_architect", "MasterArchitect"),
+    "ReportPlan": ("primr.ai.report_architect", "ReportPlan"),
+    "get_master_architect": ("primr.ai.report_architect", "get_master_architect"),
+    "reset_master_architect": ("primr.ai.report_architect", "reset_master_architect"),
+    "ChapterResult": ("primr.ai.research_executor", "ChapterResult"),
+    "ExecutionResult": ("primr.ai.research_executor", "ExecutionResult"),
+    "ResearchNodeExecutor": ("primr.ai.research_executor", "ResearchNodeExecutor"),
+    "get_research_executor": ("primr.ai.research_executor", "get_research_executor"),
+    "reset_research_executor": ("primr.ai.research_executor", "reset_research_executor"),
     # Result normalization
-    "ResultNormalizer",
-    "Risk",
-    "RiskCategory",
-    "RiskLevel",
-    "SWOTAnalysis",
-    "SWOTItem",
-    "ThreatLevel",
-    "analyze_market",
-    "assess_risks",
-    "compare_companies",
-    "deep_research",
-    "generate_insights",
-    "generate_parallel",
-    "generate_recommendations",
-    "generate_swot",
-    "get_batch_stats",
-    "get_client",
-    "get_competitive_analyzer",
-    "get_deep_research_client",
-    "get_insight_analyzer",
-    "get_master_architect",
-    "get_report_aggregator",
-    "get_research_executor",
-    # Agents
-    "grade_report",
-    "identify_competitors",
-    "identify_opportunities",
-    "llm",
-    "llm_fast",
-    "normalize_deep_research",
-    "research_company",
-    "reset_client",
-    "reset_competitive_analyzer",
-    "reset_deep_research_client",
-    "reset_insight_analyzer",
-    "reset_master_architect",
-    "reset_report_aggregator",
-    "reset_research_executor",
-    "run_parallel",
-    "summarize_scraped_content",
-]
+    "Citation": ("primr.ai.result_normalizer", "Citation"),
+    "NormalizedSection": ("primr.ai.result_normalizer", "NormalizedSection"),
+    "ResultNormalizer": ("primr.ai.result_normalizer", "ResultNormalizer"),
+    "normalize_deep_research": ("primr.ai.result_normalizer", "normalize_deep_research"),
+}
+
+__all__ = sorted(_EXPORTS)
+
+
+def __getattr__(name: str) -> Any:
+    target = _EXPORTS.get(name)
+    if target is None:
+        raise AttributeError(f"module 'primr.ai' has no attribute '{name}'")
+    module_name, attr_name = target
+    module = import_module(module_name)
+    value = getattr(module, attr_name)
+    globals()[name] = value
+    return value
+
