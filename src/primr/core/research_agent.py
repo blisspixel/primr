@@ -85,6 +85,7 @@ import atexit
 import gc
 import json
 import os
+import re
 import sys
 import time
 from collections.abc import Callable
@@ -813,7 +814,7 @@ def _build_fast_batch_prompt(
     external_sources: str,
     source_urls: list[str],
     sections: list["SectionConfig"],
-    previous_sections: list[dict[str, str]],
+    previous_sections: list[dict[str, Any]],
     batch_number: int,
     total_batches: int,
 ) -> str:
@@ -826,7 +827,6 @@ def _build_fast_batch_prompt(
     - 300-word rolling summaries of the last 5 completed sections
     - Section-specific instructions from the YAML config
     """
-    from datetime import datetime
     current_date = datetime.now().strftime("%B %d, %Y")
 
     # Build section instructions for this batch
@@ -932,11 +932,9 @@ def _parse_batch_sections(
     treating the whole response as a single block assigned to the first
     expected section.
     """
-    import re
-
     # Split on ## headings (keep the heading text)
     parts = re.split(r'^## ', content, flags=re.MULTILINE)
-    parsed: list[dict[str, str]] = []
+    parsed: list[dict[str, Any]] = []
 
     # First element is any text before the first ## (usually empty)
     preamble = parts[0].strip() if parts else ""
@@ -974,7 +972,6 @@ def _assemble_fast_report(
     """
     Assemble individual batch sections into a final markdown report.
     """
-    from datetime import datetime
     current_date = datetime.now().strftime("%B %d, %Y")
 
     header = f"# Strategic Company Overview: {company_name}\n\n"
@@ -1005,7 +1002,6 @@ def _build_fast_analysis_prompt(
     Sends raw scraped data + external sources to Grok and asks for a
     structured analysis workbook (facts, hypotheses, tensions — not prose).
     """
-    from datetime import datetime
     current_date = datetime.now().strftime("%B %d, %Y")
 
     return f"""**Company:** {company_name}
@@ -1292,7 +1288,7 @@ def perform_fast_research(
         )
 
         section_batches = _group_sections_by_part()
-        written_sections: list[dict[str, str]] = []
+        written_sections: list[dict[str, Any]] = []
 
         for batch_num, batch_sections in enumerate(section_batches):
             part_label = _PART_LABELS.get(batch_num + 1, f"Part {batch_num + 1}")
