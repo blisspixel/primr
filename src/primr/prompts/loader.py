@@ -37,6 +37,7 @@ class SectionConfig:
     purpose: str
     covers: list[str] = field(default_factory=list)
     depth: str = ""
+    position: str = "middle"  # opening, middle, closing, or framework
     subsections: list["SectionConfig"] = field(default_factory=list)
 
 
@@ -132,6 +133,7 @@ def _parse_section(data: dict[str, Any]) -> SectionConfig:
         purpose=data.get("purpose", ""),
         covers=data.get("covers", []),
         depth=data.get("depth", ""),
+        position=data.get("position", "middle"),
         subsections=subsections,
     )
 

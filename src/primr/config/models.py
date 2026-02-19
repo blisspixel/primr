@@ -171,7 +171,7 @@ class ModelRegistry:
 
     # =========================================================================
     # GROK 4.1 FAST REASONING - xAI fast reasoning model
-    # USE FOR: Fast mode one-shot report generation (2M context, cheap)
+    # USE FOR: Fast mode two-pass report generation (2M context, cheap)
     # $0.20 input / $0.50 output per 1M tokens
     # Context: 2M tokens, Output: 128k tokens
     # OpenAI-compatible API at https://api.x.ai/v1
