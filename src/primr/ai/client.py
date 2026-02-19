@@ -200,7 +200,7 @@ class AIClient:
             raise ValueError(f"thinking_level must be 'low' or 'high', got {thinking_level}")
 
         model = self._get_model(model_type)
-        retries = max_retries or self._settings.max_retries
+        retries = max_retries if max_retries is not None else self._settings.max_retries
 
         config = types.GenerateContentConfig(
             temperature=temperature,
@@ -476,6 +476,8 @@ class AIClient:
                                     if hasattr(part, 'text') and part.text:
                                         text = part.text
                                         break
+                        if text is not None:
+                            break
                 if text is None:
                     raise AIError("API response text is None and no candidates found")
 

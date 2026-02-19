@@ -90,8 +90,8 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
                         },
                         "cloud_vendor": {
                             "type": "string",
-                            "enum": ["azure", "aws", "gcp"],
-                            "description": "Cloud vendor for AI strategy (optional)",
+                            "enum": ["azure", "aws", "gcp", "agnostic"],
+                            "description": "Cloud vendor for AI strategy (optional, default: agnostic)",
                         },
                         "skip_qa": {
                             "type": "boolean",
@@ -119,8 +119,8 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
                         },
                         "cloud_vendor": {
                             "type": "string",
-                            "enum": ["azure", "aws", "gcp"],
-                            "description": "Cloud vendor for AI strategy (optional)",
+                            "enum": ["azure", "aws", "gcp", "agnostic"],
+                            "description": "Cloud vendor for AI strategy (optional, default: agnostic)",
                         },
                     },
                     "required": ["report_path", "strategy_type"],

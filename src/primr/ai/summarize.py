@@ -120,4 +120,8 @@ def summarize_with_retries(content, retries=MAX_RETRIES, min_length=200):
         if attempt < retries:
             time.sleep(5)
 
-    return "[ERROR] AI summarization failed after multiple attempts."
+    # Return the last response if we got one (even if short), otherwise empty string
+    if response_text:
+        logger.warning(f"Summarization returned short response ({len(response_text)} chars), using it anyway")
+        return response_text
+    return ""

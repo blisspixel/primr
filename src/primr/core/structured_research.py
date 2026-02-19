@@ -373,7 +373,7 @@ def _collect_data(
         if results:
             filtered = [
                 r for r in results[:5]
-                if website and website.lower() not in r.get("url", "").lower()
+                if not website or website.lower() not in r.get("url", "").lower()
             ]
             remaining_slots = max_external_sources - len(external_data)
             scraped = scrape_external_sources_validated(
@@ -615,7 +615,7 @@ def _refine_section_if_needed(
 {ai_response}
 
 ## Additional Research
-{results}
+{chr(10).join(f"- [{r.get('title', 'Source')}]({r.get('url', '')}): {r.get('snippet', '')}" for r in results[:5])}
 """
                     ai_response = llm(ai_input, model_type="report")
                     break

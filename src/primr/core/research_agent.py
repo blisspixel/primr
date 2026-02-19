@@ -510,7 +510,11 @@ def research_section(section_name, company_name, website, industry, folder_path,
                 for query in queries[:2]:
                     results = search_web(query, company_name, website)
                     if results:
-                        ai_input += f"\n\n## Additional Research\n{results}"
+                        formatted = "\n".join(
+                            f"- [{r.get('title', 'Source')}]({r.get('url', '')}): {r.get('snippet', '')}"
+                            for r in results[:5]
+                        )
+                        ai_input += f"\n\n## Additional Research\n{formatted}"
                         ai_response = llm(ai_input, model_type="report")
                         break
         except Exception as e:
@@ -576,8 +580,6 @@ def run_research(company_name: str, website: str, on_progress: Callable[[str], N
     if website:
         from primr.data.scrape import scrape_external_sources_validated
         from primr.data.search_utils import search_web
-
-        urlparse(website).netloc.replace("www.", "")
 
         # Generate targeted search queries using LLM
         progress("Generating search strategy...")
@@ -1611,7 +1613,7 @@ def perform_research(
 
             # Scrape website
             with console.timed_operation("Scanning website"):
-                scraped_data = fetch_web_content(website, company_name, max_pages=50) if website else {}
+                scraped_data = fetch_web_content(website, company_name, max_pages=50, working_folder=folder_path) if website else {}
                 pages_scraped = len(scraped_data)
             log_structured("info", "Website scraping complete", pages=pages_scraped)
 
