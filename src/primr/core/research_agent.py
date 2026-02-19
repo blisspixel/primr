@@ -90,8 +90,11 @@ import time
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
+
+if TYPE_CHECKING:
+    from primr.prompts.loader import SectionConfig
 
 from dotenv import load_dotenv
 
