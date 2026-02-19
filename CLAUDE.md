@@ -255,4 +255,4 @@ Unit tests validate specific examples and edge cases.
 
 ---
 
-*Last updated: 2026-02-11 | Primr v1.12.0 | Agentic Architecture v1.0*
+*Last updated: 2026-02-18 | Primr v1.12.0 | Agentic Architecture v1.0*
