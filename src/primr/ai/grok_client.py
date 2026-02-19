@@ -133,6 +133,9 @@ def grok_llm(
                 _session_input_tokens += response.usage.prompt_tokens or 0
                 _session_output_tokens += response.usage.completion_tokens or 0
 
+            if not response.choices:
+                raise RuntimeError("Grok returned empty response (no choices — possible content filter)")
+
             text = response.choices[0].message.content or ""
             logger.info(
                 "Grok call complete: %d input, %d output tokens",
@@ -146,10 +149,14 @@ def grok_llm(
             # Retry on rate limit (429)
             error_str = str(e)
             if "429" in error_str or "rate" in error_str.lower():
-                wait = 2 ** attempt * 5  # 5s, 10s, 20s
-                logger.warning("Grok rate limited, retrying in %ds (attempt %d/%d)", wait, attempt + 1, retries + 1)
-                time.sleep(wait)
-                continue
+                if attempt < retries:
+                    wait = 2 ** attempt * 5  # 5s, 10s
+                    logger.warning("Grok rate limited, retrying in %ds (attempt %d/%d)", wait, attempt + 1, retries + 1)
+                    time.sleep(wait)
+                    continue
+                # Final attempt — don't sleep, fall through to raise
+                logger.warning("Grok rate limited on final attempt (%d/%d)", attempt + 1, retries + 1)
+                break
             # Non-retryable error
             raise RuntimeError(f"Grok API call failed: {e}") from e
 

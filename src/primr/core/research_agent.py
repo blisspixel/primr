@@ -752,7 +752,6 @@ def perform_scrape_only(
 
     # Extract Insights (LLM)
     console.status("Extracting insights...")
-    time.time()
 
     summarized = summarize_scraped_content(
         company_name, website, corpus, folder_path
@@ -1145,7 +1144,7 @@ def perform_fast_research(
 
         # Scrape website (reduced: 25 pages instead of 50)
         with console.timed_operation("Scanning website"):
-            scraped_data = fetch_web_content(website, company_name, max_pages=25) if website else {}
+            scraped_data = fetch_web_content(website, company_name, max_pages=25, working_folder=folder_path) if website else {}
             pages_scraped = len(scraped_data)
         log_structured("info", "Fast mode: website scraping complete", pages=pages_scraped)
 
@@ -1381,8 +1380,13 @@ def perform_fast_research(
                 )
 
                 vendor_label = f" ({vendor.upper()})" if len(cloud_vendors) > 1 else ""
-                with console.timed_operation(f"AI Strategy{vendor_label} via Grok"):
-                    strategy_content = grok_llm(combined_strategy_prompt, max_tokens=16_000)
+                try:
+                    with console.timed_operation(f"AI Strategy{vendor_label} via Grok"):
+                        strategy_content = grok_llm(combined_strategy_prompt, max_tokens=16_000)
+                except Exception as strat_err:
+                    console.warn(f"AI Strategy{vendor_label} failed: {strat_err} — skipping")
+                    log_structured("warning", "Fast mode strategy failed", vendor=vendor, error=str(strat_err))
+                    continue
 
                 if strategy_content and strategy_content.strip():
                     # Save strategy output
@@ -1395,6 +1399,8 @@ def perform_fast_research(
 
             if strategy_paths:
                 console.phase_complete("AI Strategy (Grok)")
+            else:
+                console.warn("AI Strategy skipped — no vendor strategies generated")
 
         # =================================================================
         # Summary
@@ -1449,7 +1455,7 @@ def perform_fast_research(
             company=display_name,
             input_tokens=grok_usage["input_tokens"],
             output_tokens=grok_usage["output_tokens"],
-            search_queries=len(source_urls),
+            search_queries=len(external_queries),
             duration_seconds=elapsed,
         )
         tracker.save()
@@ -1562,7 +1568,7 @@ def perform_research(
     # Show cost estimate and ask for confirmation
     if not skip_confirm:
         from primr.utils.cost_estimator import display_cost_estimate
-        if not display_cost_estimate(mode, display_name, ai_strategy, num_vendors=len(cloud_vendors)):
+        if not display_cost_estimate(mode, display_name, ai_strategy, num_vendors=len(cloud_vendors), lite_strategy=lite_strategy, fast_mode=fast_mode):
             console.info("Research cancelled by user")
             return None
 
