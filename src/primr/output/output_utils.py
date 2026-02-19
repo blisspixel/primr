@@ -92,7 +92,7 @@ def apply_inline_formatting(paragraph, text):
 
 
 def load_section_results(company_name: str) -> dict[str, str]:
-    """Loads section data from working/{company_name} into a dictionary."""
+    """Loads section data from the most recent working/{company_name}/ run folder."""
     section_results: dict[str, str] = {}
     working_dir = os.path.join(WORKING_DIR, company_name.replace(" ", "_"))
 
@@ -100,10 +100,24 @@ def load_section_results(company_name: str) -> dict[str, str]:
         console.error(f"Working directory not found: {working_dir}")
         return section_results
 
-    console.info(f"Loading section data from: {working_dir}")
+    # Find the most recent timestamped subfolder (e.g. 2026-02-18_2300)
+    # Fall back to the flat directory if no subfolders exist
+    search_dir = working_dir
+    try:
+        subdirs = sorted(
+            [d for d in os.listdir(working_dir)
+             if os.path.isdir(os.path.join(working_dir, d))],
+            reverse=True,
+        )
+        if subdirs:
+            search_dir = os.path.join(working_dir, subdirs[0])
+    except OSError:
+        pass
+
+    console.info(f"Loading section data from: {search_dir}")
 
     for _section_title, section_key in SECTION_KEY_MAP.items():
-        file_path = os.path.join(working_dir, f"{section_key}.txt")
+        file_path = os.path.join(search_dir, f"{section_key}.txt")
         if os.path.exists(file_path):
             with open(file_path, encoding="utf-8") as f:
                 section_results[section_key] = f.read().strip()

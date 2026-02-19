@@ -222,7 +222,7 @@ class ResearchOrchestrator:
             ResearchError: If research fails
         """
         config = config or ResearchConfig(mode=mode)
-        start_time = asyncio.get_event_loop().time()
+        start_time = asyncio.get_running_loop().time()
 
         # Use operation_context for observability
         with operation_context(
@@ -253,7 +253,7 @@ class ResearchOrchestrator:
                 else:
                     raise ResearchError(f"Unknown research mode: {mode}")
 
-                result.duration_seconds = asyncio.get_event_loop().time() - start_time
+                result.duration_seconds = asyncio.get_running_loop().time() - start_time
                 logger.info(
                     f"Research completed in {result.duration_seconds:.0f}s"
                 )
@@ -272,7 +272,7 @@ class ResearchOrchestrator:
                 return result
 
             except Exception as e:
-                duration = asyncio.get_event_loop().time() - start_time
+                duration = asyncio.get_running_loop().time() - start_time
                 logger.error(f"Research failed: {e}", exc_info=True)
 
                 # Emit metrics on failure
@@ -394,7 +394,7 @@ class ResearchOrchestrator:
         # Run the existing pipeline
         # Note: run_research is synchronous, so we run it in executor
         # Pass the progress callback so updates display during execution
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
 
         section_results = await loop.run_in_executor(
             None,

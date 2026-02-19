@@ -425,11 +425,12 @@ async def _poll_for_completion(
     console.info(f"AI Strategy: Job ID: {interaction_id}")
     save_pending_job(interaction_id, "ai_strategy", prompt[:100])
 
-    poll_start = asyncio.get_event_loop().time()
+    loop = asyncio.get_running_loop()
+    poll_start = loop.time()
 
-    while (asyncio.get_event_loop().time() - poll_start) < max_poll_time:
+    while (loop.time() - poll_start) < max_poll_time:
         await asyncio.sleep(poll_interval)
-        elapsed = int(asyncio.get_event_loop().time() - poll_start)
+        elapsed = int(loop.time() - poll_start)
         console.status_with_time(f"AI Strategy: Checking status... ({elapsed}s elapsed)")
 
         check_result = client.check_job(interaction_id)

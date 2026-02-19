@@ -64,6 +64,7 @@ class ResearchJobState:
     error_type: str | None = None
     error_message: str | None = None
     deep_research_job_id: str | None = None  # For recovery after restart
+    qa_score: int | None = None  # QA score (0-100) when available
 
     # Stage ordering for monotonic progression
     _STAGE_ORDER: list[ResearchStage] = field(default_factory=lambda: [
@@ -209,6 +210,7 @@ class ResearchJobState:
             "error_type": self.error_type,
             "error_message": self.error_message,
             "deep_research_job_id": self.deep_research_job_id,
+            "qa_score": self.qa_score,
         }
 
     @classmethod
@@ -246,6 +248,7 @@ class ResearchJobState:
         job.error_type = data.get("error_type")
         job.error_message = data.get("error_message")
         job.deep_research_job_id = data.get("deep_research_job_id")
+        job.qa_score = data.get("qa_score")
         return job
 
 

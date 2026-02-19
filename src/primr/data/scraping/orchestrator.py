@@ -417,6 +417,13 @@ class ScrapeOrchestrator:
                 # 3h. Soft block - record failure, try next tier
                 logger.debug(f"Soft block on {tier.name}: {block_reason}")
                 host_state.record_tier_attempt(tier.name, success=False)
+                # Track consecutive failures for soft blocks
+                error_key = "soft_block"
+                if last_error_type == error_key:
+                    consecutive_failures += 1
+                else:
+                    consecutive_failures = 1
+                    last_error_type = error_key
                 self._random_delay()
                 continue
 
@@ -424,6 +431,13 @@ class ScrapeOrchestrator:
             if not check_success_signal(tier_result.raw_content, tier_result.http_status):
                 logger.debug(f"Success signal failed on {tier.name} for {url}")
                 host_state.record_tier_attempt(tier.name, success=False)
+                # Track consecutive failures for success signal failures
+                error_key = "success_signal_failed"
+                if last_error_type == error_key:
+                    consecutive_failures += 1
+                else:
+                    consecutive_failures = 1
+                    last_error_type = error_key
                 self._random_delay()
                 continue
 
@@ -468,6 +482,13 @@ class ScrapeOrchestrator:
                     # Skip truly binary content (images, fonts, etc.)
                     logger.debug(f"Skipping non-text content type '{detected_type}' for {url}")
                     host_state.record_tier_attempt(tier.name, success=False)
+                    # Track consecutive failures before continuing
+                    error_key = "binary_content"
+                    if last_error_type == error_key:
+                        consecutive_failures += 1
+                    else:
+                        consecutive_failures = 1
+                        last_error_type = error_key
                     continue
 
             # Check content quality - if garbage, try next tier
@@ -483,6 +504,13 @@ class ScrapeOrchestrator:
                     break  # Exit tier loop, return failure
 
                 host_state.record_tier_attempt(tier.name, success=False)
+                # Track consecutive failures for quality issues
+                error_key = "quality_failure"
+                if last_error_type == error_key:
+                    consecutive_failures += 1
+                else:
+                    consecutive_failures = 1
+                    last_error_type = error_key
                 self._random_delay()
                 continue
 
