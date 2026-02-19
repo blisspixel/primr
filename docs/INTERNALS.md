@@ -38,8 +38,8 @@ Prompts explicitly instruct the AI to assume competence:
 ```
 Subject-Positive Intent: We assume this company is rational, competent, and
 generally successful in its context. Our goal is not to critique from the
-outside, but to understand how they create value today and where thoughtful
-support could help them go further or move faster.
+outside, but to understand how they create value today and where they might
+go further or move faster.
 ```
 
 This prevents the AI from generating condescending or accusatory analysis.

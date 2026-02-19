@@ -5,14 +5,14 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "primr"
 version = "1.12.0"
-description = "Company intelligence research tool using Google Gemini - generates structured briefs from website content and external sources"
+description = "Turn any company URL into a strategic intelligence brief. Adaptive scraping + AI-powered research and synthesis."
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.11"
 authors = [
     {name = "Nick Seal", email = "nick@pueo.io"}
 ]
-keywords = ["ai", "research", "company", "intelligence", "gemini", "report", "analysis", "scraping"]
+keywords = ["ai", "research", "company", "intelligence", "gemini", "grok", "report", "analysis", "scraping"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: Console",

@@ -1,8 +1,8 @@
 # Primr
 
-**Turn a company URL into a cited, analyst-grade intelligence brief.**
+**Turn any company URL into a strategic intelligence brief.**
 
-Primr extracts primary-source data from company websites using a multi-tier approach that adapts to different site architectures, then synthesizes external research into structured briefs that can be consumed by humans *or* autonomous agents.
+Primr extracts primary-source data from company websites using adaptive scraping that handles modern site architectures, then synthesizes external research into structured briefs using AI-powered research and synthesis (Gemini Deep Research, Grok 4.1, or both).
 
 Runs as a CLI, an MCP server, an OpenClaw integration, and a Claude Skill.
 
@@ -14,18 +14,18 @@ Under an hour later: competitive positioning, technology stack, strategic initia
 
 ## Why This Exists
 
-Company research is tedious. You visit the website, click around, Google the company, read articles, synthesize it all, write it up. Repeat for every prospect, every deal, every meeting. That process easily takes 1-2 hours per company and the output is usually unstructured notes.
+Company research is tedious. You visit the website, click around, Google the company, read articles, synthesize it all, write it up. That process easily takes 1-2 hours per company and the output is usually unstructured notes.
 
-Primr does that entire workflow autonomously in about an hour for about $6 in API costs. The output is a structured, cited brief you can hand directly to a client or use in a pitch deck. If you're doing consulting, sales engineering, due diligence, or competitive analysis, a single run pays for itself compared to the time you'd spend doing it manually.
+Primr does that entire workflow autonomously in about an hour for about $6 in API costs. The output is a structured, cited intelligence brief — competitive positioning, technology stack, strategic initiatives, financial profile, and external validation. Whether you're researching a potential employer, evaluating an investment, preparing for a partnership, doing competitive analysis, or running due diligence, a single run replaces hours of manual work.
 
 ## What Makes It Different
 
 - **Adaptive scraping**: 8 retrieval methods from browser rendering to TLS fingerprinting to screenshot+vision extraction, with per-host optimization. Starts with full browser rendering (what works on 95%+ of modern sites) and falls back through increasingly specialized methods.
-- **Autonomous external research**: Gemini Deep Research plans queries, follows leads, cross-validates sources, and synthesizes findings into a structured brief.
+- **Autonomous external research**: Gemini Deep Research for comprehensive analysis, Grok 4.1 for fast turnaround — both plan queries, follow leads, cross-validate sources, and synthesize findings.
 - **Cost controls built in**: `--dry-run` estimates, usage tracking, and governance hooks for budget limits.
 - **Agent-native interfaces**: CLI, MCP server, OpenClaw integration, and Claude Skills, all first-class.
 
-Manual research takes hours. Primr typically runs in about an hour and costs about $6 in API usage (varies by depth and site complexity). That's a fraction of what an hour of analyst time costs — and the output is ready to use.
+Manual research takes hours. Primr typically runs in about an hour and costs about $6 in API usage (varies by depth and site complexity). The output is structured, cited, and ready to use.
 
 ## Modes
 
@@ -39,7 +39,7 @@ Manual research takes hours. Primr typically runs in about an hour and costs abo
 | `--mode deep` | Gemini Deep Research on external sources only | 10-15 min | $2.50 |
 | `--fast` | Grok 4.1 accordion report (requires `XAI_API_KEY`) | 10-17 min | $0.25 |
 
-The default `primr` command runs full mode with AI Strategy (Azure vendor). Costs are Gemini API usage: Deep Research is $2.50 per task (one for the brief, one per AI Strategy vendor), plus token costs for Flash/Pro calls. `--lite` swaps the strategy DR task for a Pro model call ($0.15/vendor instead of $2.50). `--fast` uses xAI Grok 4.1 with accordion batch writing. Web search uses DuckDuckGo (free). Use `--dry-run` for accurate estimates based on your usage history.
+The default `primr` command runs full mode with AI Strategy (Azure vendor). Full mode costs are Gemini API usage: Deep Research is $2.50 per task (one for the brief, one per AI Strategy vendor), plus token costs for Flash/Pro calls. `--lite` swaps the strategy DR task for a Pro model call ($0.15/vendor instead of $2.50). `--fast` uses xAI's Grok 4.1 instead — a completely different engine at a fraction of the cost. Web search uses DuckDuckGo (free). Use `--dry-run` for accurate estimates based on your usage history.
 
 ## Quick Start
 
@@ -52,7 +52,7 @@ primr doctor                     # Verify everything works
 primr "Acme Corp" https://acme.example  # Run your first research
 ```
 
-Requires Python 3.11+ and a Gemini API key. That's it - web search uses DuckDuckGo (no key needed).
+Requires Python 3.11+ and a Gemini API key (add `XAI_API_KEY` for `--fast` mode). Web search uses DuckDuckGo (no key needed).
 
 ```bash
 # More usage
@@ -184,10 +184,9 @@ Accepts Excel (`.xlsx`) or CSV files. Smart column detection uses an LLM to find
 
 Includes sticky tier memory, circuit breakers, cookie handoff, and automatic PDF detection.
 
-**Gemini Deep Research**
-- Autonomous multi-step search and synthesis
-- Plans its own research strategy, follows leads, validates across sources
-- Not a wrapper around chat completions; actual agentic research
+**AI Research Engines**
+- **Gemini Deep Research**: Autonomous multi-step search and synthesis — plans its own research strategy, follows leads, validates across sources. Not a wrapper around chat completions; actual agentic research.
+- **Grok 4.1 Fast Mode**: Accordion-style batch writing — analysis workbook + 5-batch report generation in 10-17 minutes for $0.25.
 
 **Agentic Architecture**
 - Hypothesis tracking with confidence levels across sessions
@@ -296,8 +295,8 @@ Primr is a research tool. You are responsible for:
 
 - **Web content**: Primr retrieves publicly available web content, similar to a browser or search engine crawler. It does not bypass authentication, access paywalled content, or exploit vulnerabilities. However, some websites restrict automated access in their terms of service - it is your responsibility to check before running Primr against any site.
 - **Accuracy**: AI-generated content may contain errors, hallucinations, or outdated information. Verify findings before acting on them.
-- **Costs**: API calls to Gemini and other services incur real charges. Use `--dry-run` to estimate costs before running.
-- **Use case**: This tool is intended for legitimate research purposes such as due diligence and meeting preparation. Do not use it to violate any website's terms of service or any applicable law.
+- **Costs**: API calls to AI services (Gemini, Grok) incur real charges. Use `--dry-run` to estimate costs before running.
+- **Use case**: This tool is intended for legitimate research purposes. Do not use it to violate any website's terms of service or any applicable law.
 
 This software is provided as-is by a solo developer. The author is not liable for how you use this software, the accuracy of its outputs, or any consequences of its use.
 

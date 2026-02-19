@@ -24,6 +24,8 @@ The design is intentionally opinionated and local-first. This roadmap reflects c
 
 **Deep Mode**: Gemini Deep Research Agent with autonomous multi-step search and synthesis
 
+**Fast Mode**: Grok 4.1 accordion-style batch writing — analysis workbook + 5-batch report in 10-17 min
+
 **Full Mode**: Sequential scrape + deep research pipeline
 
 ### Resource Management (v1.3.1)
@@ -63,21 +65,20 @@ The design is intentionally opinionated and local-first. This roadmap reflects c
 
 ## Design Philosophy
 
-Primr aims to support understanding companiesaration by focusing on:
+Primr is designed around a few core principles:
 
-- Internal preparation rather than client-ready deliverables
-- Hypothesis generation rather than premature conclusions
-- Helping teams work more efficiently
-- Providing value through structured thinking and framing
+- Structured output over raw data — briefs you can act on, not link dumps
+- Hypothesis generation over premature conclusions — confidence levels on every claim
+- Transparency about uncertainty — what's confirmed, what's inferred, what's speculation
+- Local-first, CLI-first — your data stays on your machine
 
 Primr is intentionally not designed as:
 
-- A generic research scraper
+- A generic web scraper
 - A SaaS collaboration platform
 - A presentation builder
-- A client-facing tool
 
-These design constraints reflect the tool's intended use case and help maintain focus on its core purpose.
+These design constraints help maintain focus on the core purpose: turning a URL into useful intelligence.
 
 ## Completed Work
 
@@ -442,9 +443,9 @@ Implementation:
 
 Goal: Support post-discovery learning without re-running everything from scratch.
 
-- `primr refine` command accepting discovery notes, meeting summaries, client feedback
+- `primr refine` command accepting new information, notes, and follow-up findings
 - Re-synthesize insights with updated confidence and revised hypotheses
-- Outputs evolve from pre-meeting prep to post-discovery POV
+- Outputs evolve as understanding deepens
 
 ### v1.15.0 - POV and Narrative Evolution (Planned)
 
@@ -452,7 +453,7 @@ Goal: Make Primr the system of record for how thinking evolves.
 
 - Versioned research artifacts
 - Explicit "what changed and why" sections
-- Optional narrative framing outputs for internal deck creation
+- Optional narrative framing outputs
 
 ### v2.0.0 - Public Release (Planned)
 
@@ -575,8 +576,8 @@ Primr is a tool for understanding companies. The focus is on useful output, not 
 
 **Accuracy**: Primr uses AI models that may produce inaccurate, incomplete, or hallucinated information. All outputs should be treated as hypotheses requiring human verification, not facts. Do not make business decisions based solely on Primr outputs without independent validation.
 
-**Costs**: Primr makes API calls to third-party services (primarily Gemini) that incur real monetary charges. Web search uses DuckDuckGo by default (free). Cost estimates are approximate. Users are responsible for monitoring their own API usage and costs.
+**Costs**: Primr makes API calls to third-party AI services (Gemini, Grok) that incur real monetary charges. Web search uses DuckDuckGo by default (free). Cost estimates are approximate. Users are responsible for monitoring their own API usage and costs.
 
 **No Warranty**: This software is provided "as is" without warranty of any kind. The authors are not liable for any damages, costs, or legal issues arising from use of this software.
 
-**Intended Use**: Primr is designed for legitimate internal research and due diligence purposes. It is not intended for competitive intelligence gathering that violates laws or ethical standards, mass surveillance, or any malicious purpose.
+**Intended Use**: Primr is designed for legitimate research purposes — understanding companies, evaluating opportunities, and making informed decisions. It is not intended for competitive intelligence gathering that violates laws or ethical standards, mass surveillance, or any malicious purpose.
