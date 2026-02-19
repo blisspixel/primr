@@ -411,7 +411,7 @@ Grades each section of a report on a 0-100 scale based on:
 - Insight Depth
 - Accuracy (vs. scraped website data)
 
-Sections scoring below the threshold (default: 80) trigger additional research refinement.
+Sections scoring below the threshold (default: 70) trigger additional research refinement.
 
 ### AI Client
 

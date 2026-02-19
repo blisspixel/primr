@@ -419,7 +419,10 @@ class TelemetrySystem:
                 yield span
             except Exception as e:
                 # Record exception with stack trace
-                self._record_exception_on_span(span, e)
+                try:
+                    self._record_exception_on_span(span, e)
+                except Exception:
+                    logger.debug("Failed to record exception on span", exc_info=True)
                 raise
 
     @asynccontextmanager
@@ -473,7 +476,10 @@ class TelemetrySystem:
                     yield span
                 except Exception as e:
                     # Record exception with stack trace
-                    self._record_exception_on_span(span, e)
+                    try:
+                        self._record_exception_on_span(span, e)
+                    except Exception:
+                        logger.debug("Failed to record exception on span", exc_info=True)
                     raise
         finally:
             reset_async_correlation_id(token)
@@ -742,6 +748,20 @@ def is_otel_available() -> bool:
 # COST TRACKER
 # =============================================================================
 
+
+def _build_default_pricing() -> dict[str, tuple[float, float]]:
+    """Build pricing table from ModelRegistry, plus legacy model entries."""
+    from primr.config.models import PrimrModels
+    pricing: dict[str, tuple[float, float]] = {}
+    for name, config in PrimrModels.ALL_MODELS.items():
+        pricing[name] = (config.cost_per_1m_input_tokens, config.cost_per_1m_output_tokens)
+    # Legacy entries for older model names (property tests rely on these)
+    pricing.setdefault("gemini-1.5-pro", (1.25, 5.00))
+    pricing.setdefault("gemini-1.5-flash", (0.075, 0.30))
+    pricing.setdefault("gemini-2.0-flash", (0.10, 0.40))
+    return pricing
+
+
 @dataclass
 class CostTracker:
     """
@@ -770,11 +790,7 @@ class CostTracker:
     """
 
     # Default pricing per 1M tokens (input_price, output_price)
-    pricing: dict[str, tuple[float, float]] = field(default_factory=lambda: {
-        "gemini-1.5-pro": (1.25, 5.00),
-        "gemini-1.5-flash": (0.075, 0.30),
-        "gemini-2.0-flash": (0.10, 0.40),
-    })
+    pricing: dict[str, tuple[float, float]] = field(default_factory=lambda: _build_default_pricing())
 
     def calculate_cost(
         self,
@@ -806,6 +822,7 @@ class CostTracker:
         **Validates: Requirements 5.2**
         """
         if model not in self.pricing:
+            logger.warning(f"No pricing for model '{model}' — cost will be underestimated")
             return 0.0
 
         input_price, output_price = self.pricing[model]

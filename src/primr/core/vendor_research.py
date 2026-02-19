@@ -336,10 +336,9 @@ async def generate_vendor_research(
 
         research_path.write_text(result.content, encoding="utf-8")
 
-        # Calculate actual cost
-        output_tokens = len(result.content) // 4
-        input_tokens = 5000
-        actual_cost = (input_tokens / 1_000_000) * 2.0 + (output_tokens / 1_000_000) * 12.0
+        # Deep Research is a flat per-task cost (API doesn't expose tokens)
+        from primr.config.models import DEEP_RESEARCH_COST
+        actual_cost = DEEP_RESEARCH_COST.standard_task_cost
         duration_str = f"{result.duration_seconds / 60:.1f}m"
 
         console.ok(f"Vendor research saved: {research_path.name} ({duration_str}, ~${actual_cost:.2f})")

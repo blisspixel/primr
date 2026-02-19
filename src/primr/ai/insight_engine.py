@@ -173,12 +173,19 @@ class InsightEngine:
         insights = []
 
         try:
-            # Clean up response to extract JSON
+            # Clean up response to extract JSON from code blocks
             response = response.strip()
             if response.startswith("```"):
-                response = response.split("```")[1]
-                if response.startswith("json"):
-                    response = response[4:]
+                parts = response.split("```")
+                if len(parts) >= 3:
+                    response = parts[1]
+                    # Strip language specifier (json, python, etc.)
+                    first_newline = response.find("\n")
+                    if first_newline != -1:
+                        response = response[first_newline + 1:]
+                else:
+                    # Malformed code block — try stripping the opening backticks
+                    response = response.lstrip("`").strip()
 
             data = json.loads(response)
 

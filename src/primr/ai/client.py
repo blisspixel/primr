@@ -123,6 +123,7 @@ class AIClient:
         self.total_input_tokens = 0
         self.total_output_tokens = 0
         self.call_count = 0
+        self.usage_by_model: dict[str, dict[str, int]] = {}
 
         logger.debug("AI client initialized")
 
@@ -249,6 +250,12 @@ class AIClient:
                     self.total_input_tokens += usage.input_tokens
                     self.total_output_tokens += usage.output_tokens
                     self.call_count += 1
+                    # Per-model accumulation
+                    if model not in self.usage_by_model:
+                        self.usage_by_model[model] = {"input_tokens": 0, "output_tokens": 0, "calls": 0}
+                    self.usage_by_model[model]["input_tokens"] += usage.input_tokens
+                    self.usage_by_model[model]["output_tokens"] += usage.output_tokens
+                    self.usage_by_model[model]["calls"] += 1
                     logger.debug(
                         f"Token usage: {usage.input_tokens:,} in / {usage.output_tokens:,} out"
                     )
@@ -421,9 +428,7 @@ class AIClient:
                 )
                 return None
 
-            # Validate non-negative values (input_tokens and output_tokens are validated as int above)
-            if input_tokens is None or output_tokens is None:
-                return None
+            # Validate non-negative values
             if input_tokens < 0 or output_tokens < 0:
                 logger.debug(f"Negative token counts: {input_tokens}, {output_tokens}")
                 return None
@@ -497,17 +502,42 @@ class AIClient:
         """
         Get a summary of token usage for this client instance.
 
+        Calculates per-model cost when per-model data is available,
+        otherwise falls back to Pro pricing (conservative estimate).
+
         Returns:
             Dict with usage statistics and estimated cost
         """
-        # Pricing constants (per 1M tokens) - Gemini API
-        # These are the canonical values; settings.pricing is for configuration
-        INPUT_PRICE = 2.00
-        OUTPUT_PRICE = 12.00
+        from primr.config.models import PrimrModels
 
-        input_cost = (self.total_input_tokens / 1_000_000) * INPUT_PRICE
-        output_cost = (self.total_output_tokens / 1_000_000) * OUTPUT_PRICE
-        total_cost = input_cost + output_cost
+        if self.usage_by_model:
+            # Per-model cost calculation
+            total_cost = 0.0
+            input_cost = 0.0
+            output_cost = 0.0
+            for model_name, counts in self.usage_by_model.items():
+                try:
+                    model_cost = PrimrModels.calculate_cost(
+                        model_name, counts["input_tokens"], counts["output_tokens"]
+                    )
+                except KeyError:
+                    # Unknown model — fall back to Pro pricing
+                    model_cost = PrimrModels.calculate_pro_cost(
+                        counts["input_tokens"], counts["output_tokens"]
+                    )
+                total_cost += model_cost
+                try:
+                    inp_price, out_price = PrimrModels.get_price(model_name)
+                except KeyError:
+                    inp_price, out_price = PrimrModels.get_price(PrimrModels.PRO_MODEL)
+                input_cost += (counts["input_tokens"] / 1_000_000) * inp_price
+                output_cost += (counts["output_tokens"] / 1_000_000) * out_price
+        else:
+            # Fallback to Pro pricing (conservative)
+            inp_price, out_price = PrimrModels.get_price(PrimrModels.PRO_MODEL)
+            input_cost = (self.total_input_tokens / 1_000_000) * inp_price
+            output_cost = (self.total_output_tokens / 1_000_000) * out_price
+            total_cost = input_cost + output_cost
 
         return {
             "call_count": self.call_count,
@@ -524,6 +554,7 @@ class AIClient:
         self.total_input_tokens = 0
         self.total_output_tokens = 0
         self.call_count = 0
+        self.usage_by_model = {}
 
 
 # =============================================================================

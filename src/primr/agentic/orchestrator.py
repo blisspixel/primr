@@ -679,11 +679,8 @@ class ResearchOrchestrator:
                     logger.warning(f"Failed to save hypotheses: {e}")
 
             # Determine final state
-            if errors and self._config.fail_fast:
+            if errors:
                 self._state = OrchestratorState.FAILED
-            elif errors:
-                # Partial success - some stages failed but we continued
-                self._state = OrchestratorState.COMPLETED
             else:
                 self._state = OrchestratorState.COMPLETED
 

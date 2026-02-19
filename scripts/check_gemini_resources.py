@@ -74,7 +74,8 @@ def list_caches(client):
                 meta = cache.usage_metadata
                 if hasattr(meta, 'total_token_count'):
                     tokens = meta.total_token_count
-                    hourly_cost = (tokens / 1_000_000) * 1.00  # Flash rate
+                    from primr.config.models import ModelRegistry
+                    hourly_cost = (tokens / 1_000_000) * ModelRegistry.GEMINI_3_FLASH.cost_per_1m_input_tokens
                     daily_cost = hourly_cost * 24
                     print(f"  Tokens: {tokens:,}")
                     print(f"  Est. Cost: ${hourly_cost:.4f}/hour (${daily_cost:.2f}/day)")

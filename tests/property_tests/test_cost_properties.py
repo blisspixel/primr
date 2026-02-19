@@ -430,9 +430,13 @@ class TestCostTrackerConfiguration:
         Default pricing should include all Gemini model variants.
         """
         tracker = CostTracker()
-        
-        expected_models = ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-2.0-flash"]
-        
+
+        # Both legacy and current models should be present
+        expected_models = [
+            "gemini-1.5-pro", "gemini-1.5-flash", "gemini-2.0-flash",
+            "gemini-3-pro-preview", "gemini-3-flash-preview",
+        ]
+
         for model in expected_models:
             assert model in tracker.get_supported_models(), (
                 f"Model {model} should be in default pricing"
@@ -447,15 +451,15 @@ class TestCostTrackerConfiguration:
         Default pricing values should match the design specification.
         """
         tracker = CostTracker()
-        
-        # From design.md:
-        # "gemini-1.5-pro": (1.25, 5.00),
-        # "gemini-1.5-flash": (0.075, 0.30),
-        # "gemini-2.0-flash": (0.10, 0.40),
-        
+
+        # Legacy models (still present for backward compat)
         assert tracker.get_model_pricing("gemini-1.5-pro") == (1.25, 5.00)
         assert tracker.get_model_pricing("gemini-1.5-flash") == (0.075, 0.30)
         assert tracker.get_model_pricing("gemini-2.0-flash") == (0.10, 0.40)
+
+        # Current Gemini 3 models (from ModelRegistry)
+        assert tracker.get_model_pricing("gemini-3-flash-preview") == (0.50, 3.00)
+        assert tracker.get_model_pricing("gemini-3-pro-preview") == (2.00, 12.00)
 
     @given(
         model=st.from_regex(r'[a-z]+-[a-z0-9]+', fullmatch=True),

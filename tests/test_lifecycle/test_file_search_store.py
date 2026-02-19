@@ -362,3 +362,89 @@ def test_property_upload_before_use(content_size: int):
     
     # Verify order
     assert call_order == ["create", "upload"]
+
+
+# =============================================================================
+# Tests for cleanup_orphaned_resources
+# =============================================================================
+
+
+class TestCleanupOrphanedResources:
+    """Tests for the pre/post-run orphan cleanup function."""
+
+    def test_cleanup_deletes_orphaned_caches(self):
+        """Orphaned caches are deleted."""
+        mock_cache = Mock()
+        mock_cache.name = "cache-orphan-1"
+
+        mock_client = Mock()
+        mock_client.caches.list.return_value = [mock_cache]
+        mock_client.file_search_stores.list.return_value = []
+
+        with patch("primr.ai.deep_research.genai.Client", return_value=mock_client), \
+             patch("primr.ai.deep_research.get_settings") as mock_settings:
+            mock_settings.return_value.api.gemini_key = "test-key"
+
+            from primr.ai.deep_research import cleanup_orphaned_resources
+            result = cleanup_orphaned_resources(api_key="test-key")
+
+        assert result["caches_deleted"] == 1
+        mock_client.caches.delete.assert_called_once_with(name="cache-orphan-1")
+
+    def test_cleanup_deletes_orphaned_stores(self):
+        """Orphaned file search stores are deleted (docs first, then store)."""
+        mock_doc = Mock()
+        mock_doc.name = "doc-1"
+        mock_store = Mock()
+        mock_store.name = "store-orphan-1"
+
+        mock_client = Mock()
+        mock_client.caches.list.return_value = []
+        mock_client.file_search_stores.list.return_value = [mock_store]
+        mock_client.file_search_stores.documents.list.return_value = [mock_doc]
+
+        with patch("primr.ai.deep_research.genai.Client", return_value=mock_client), \
+             patch("primr.ai.deep_research.get_settings") as mock_settings:
+            mock_settings.return_value.api.gemini_key = "test-key"
+
+            from primr.ai.deep_research import cleanup_orphaned_resources
+            result = cleanup_orphaned_resources(api_key="test-key")
+
+        assert result["stores_deleted"] == 1
+        # Documents deleted first
+        mock_client.file_search_stores.documents.delete.assert_called_once()
+        # Then store
+        mock_client.file_search_stores.delete.assert_called_once_with(name="store-orphan-1")
+
+    def test_cleanup_returns_zero_when_clean(self):
+        """Returns zero counts when no orphans exist."""
+        mock_client = Mock()
+        mock_client.caches.list.return_value = []
+        mock_client.file_search_stores.list.return_value = []
+
+        with patch("primr.ai.deep_research.genai.Client", return_value=mock_client), \
+             patch("primr.ai.deep_research.get_settings") as mock_settings:
+            mock_settings.return_value.api.gemini_key = "test-key"
+
+            from primr.ai.deep_research import cleanup_orphaned_resources
+            result = cleanup_orphaned_resources(api_key="test-key")
+
+        assert result["caches_deleted"] == 0
+        assert result["stores_deleted"] == 0
+
+    def test_cleanup_handles_api_errors_gracefully(self):
+        """Cleanup does not raise on API errors."""
+        mock_client = Mock()
+        mock_client.caches.list.side_effect = Exception("API down")
+        mock_client.file_search_stores.list.side_effect = Exception("API down")
+
+        with patch("primr.ai.deep_research.genai.Client", return_value=mock_client), \
+             patch("primr.ai.deep_research.get_settings") as mock_settings:
+            mock_settings.return_value.api.gemini_key = "test-key"
+
+            from primr.ai.deep_research import cleanup_orphaned_resources
+            # Should not raise
+            result = cleanup_orphaned_resources(api_key="test-key")
+
+        assert result["caches_deleted"] == 0
+        assert result["stores_deleted"] == 0

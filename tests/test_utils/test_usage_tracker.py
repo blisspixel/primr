@@ -28,21 +28,33 @@ class TestUsageRecord:
             company="TestCo",
             input_tokens=100_000,
             output_tokens=50_000,
-            search_queries=10,
+            search_queries=0,  # Zero queries so search_cost is deterministic
             duration_seconds=600.0,
         )
-        
+
         assert record.mode == "structured"
         assert record.company == "TestCo"
         assert record.input_tokens == 100_000
         assert record.output_tokens == 50_000
-        
-        # Verify cost calculation
+
+        # Verify cost calculation (Pro pricing: $2/1M input, $12/1M output)
         # Input: 100k tokens * $2/1M = $0.20
         # Output: 50k tokens * $12/1M = $0.60
         assert abs(record.input_cost - 0.20) < 0.001
         assert abs(record.output_cost - 0.60) < 0.001
         assert abs(record.total_cost - 0.80) < 0.001
+
+    def test_create_usage_record_with_search(self):
+        """Search queries incur cost at $0.035/query."""
+        record = UsageRecord.create(
+            mode="structured",
+            company="TestCo",
+            input_tokens=0,
+            output_tokens=0,
+            search_queries=10,
+        )
+        # 10 queries * $0.035 = $0.35
+        assert abs(record.search_cost - 0.35) < 0.001
 
     def test_record_has_timestamp(self):
         """Record includes timestamp."""

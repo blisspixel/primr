@@ -50,7 +50,7 @@ def grade_report(section_text, section_name, company_name, company_website, draf
     attempt = 0
     while attempt < retries:
         try:
-            response = llm(grading_prompt, model_type="report", streaming=False).strip()
+            response = llm(grading_prompt, model_type="fast", streaming=False).strip()
 
             match = re.search(r"Grade:\s*(\d+)", response)
             score = int(match.group(1)) if match else None
@@ -61,15 +61,8 @@ def grade_report(section_text, section_name, company_name, company_website, draf
             if score is None or not (0 <= score <= 100):
                 raise ValueError("Invalid score extracted from AI response.")
 
-            logger.debug(f"Graded '{section_name}': {score}/100")
-
             needs_research = score < GRADE_THRESHOLD_FOR_RESEARCH_REFINEMENT
-
-            if needs_research and ("missing" in reason.lower() or "not enough detail" in reason.lower()):
-                logger.debug(f"Section '{section_name}' needs refinement")
-                search_query = f'"{company_name} {section_name}" site:{company_website}'
-                from primr.data.search_utils import search_web
-                search_web(search_query, company_name, company_website)
+            logger.info(f"Graded '{section_name}': {score}/100 (refinement: {'yes' if needs_research else 'no'})")
 
             return score, needs_research, reason
 
