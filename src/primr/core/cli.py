@@ -376,9 +376,9 @@ def _create_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Research Modes:
-  full     Two-step pipeline: scrape then deep research (~30-40 min) [DEFAULT]
-  scrape   Scrape website + extract insights only (~2-5 min)
-  deep     Autonomous AI web research, 8 sections (~10-15 min)
+  full     Scrape + deep research + AI strategy (~60-90 min, ~$6) [DEFAULT]
+  scrape   Scrape website + extract insights only (~5-10 min, ~$0.10)
+  deep     Autonomous AI web research, 8 sections (~10-15 min, ~$2.50)
   parallel Both engines in parallel (legacy, ~25 min)
 
 Examples:
@@ -478,7 +478,7 @@ Accordion Method Test (for development):
         "--fast",
         action="store_true",
         dest="fast_mode",
-        help="Fast mode: Grok 4.1 accordion report (~12 min, ~$0.25). Requires XAI_API_KEY"
+        help="Fast mode: Grok 4.1 accordion report (~10-17 min, ~$0.25). Requires XAI_API_KEY"
     )
     parser.add_argument(
         "--discovery-notes",
