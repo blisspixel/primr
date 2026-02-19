@@ -1179,7 +1179,7 @@ def perform_fast_research(
                     break
                 results = search_web(query, company_name, website)
                 if results:
-                    filtered = [r for r in results[:3] if website and website.lower() not in r.get("url", "").lower()]
+                    filtered = [r for r in results[:3] if not website or website.lower() not in r.get("url", "").lower()]
                     remaining = max_external_sources - len(external_data)
                     scraped = scrape_external_sources_validated(
                         filtered, company_name=company_name, website=website,
@@ -1291,7 +1291,8 @@ def perform_fast_research(
         written_sections: list[dict[str, Any]] = []
 
         for batch_num, batch_sections in enumerate(section_batches):
-            part_label = _PART_LABELS.get(batch_num + 1, f"Part {batch_num + 1}")
+            part_num = batch_sections[0].part
+            part_label = _PART_LABELS.get(part_num, f"Part {part_num}")
             section_names = ", ".join(s.name for s in batch_sections)
             console.info(f"Batch {batch_num + 1}/{len(section_batches)} ({part_label}): {section_names}")
 
@@ -1351,7 +1352,7 @@ def perform_fast_research(
         # =================================================================
         strategy_paths: dict[str, str] = {}
         if ai_strategy and cloud_vendors:
-            console.phase_banner(4, 4, "AI Strategy (Grok)", "Generating AI recommendations", "2-3 min")
+            console.phase_banner(4, total_phases, "AI Strategy (Grok)", "Generating AI recommendations", "2-3 min")
 
             for vendor in cloud_vendors:
                 # Build strategy prompt (reuse existing)
@@ -1634,7 +1635,7 @@ def perform_research(
 
                     results = search_web(query, company_name, website)
                     if results:
-                        filtered = [r for r in results[:5] if website and website.lower() not in r.get("url", "").lower()]
+                        filtered = [r for r in results[:5] if not website or website.lower() not in r.get("url", "").lower()]
                         remaining_slots = max_external_sources - len(external_data)
                         scraped = scrape_external_sources_validated(
                             filtered,

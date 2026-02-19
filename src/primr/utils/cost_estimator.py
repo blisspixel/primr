@@ -402,6 +402,8 @@ def display_cost_estimate(
     company_name: str,
     include_ai_strategy: bool = False,
     num_vendors: int = 1,
+    lite_strategy: bool = False,
+    fast_mode: bool = False,
 ) -> bool:
     """
     Display cost estimate and ask for confirmation.
@@ -410,12 +412,15 @@ def display_cost_estimate(
         mode: Research mode
         company_name: Company being researched
         include_ai_strategy: Whether AI strategy is included
+        num_vendors: Number of vendor strategies
+        lite_strategy: If True, strategy uses Pro model instead of DR
+        fast_mode: If True, use Grok 4.1 fast mode estimates
 
     Returns:
         True if user confirms, False to cancel
     """
     import sys
-    estimate = estimate_cost(mode, include_ai_strategy, num_vendors=num_vendors)
+    estimate = estimate_cost(mode, include_ai_strategy, num_vendors=num_vendors, lite_strategy=lite_strategy, fast_mode=fast_mode)
 
     # Clean single line with visible text
     print(f"\n{company_name} | {mode} | ~${estimate.total_cost:.2f} | {estimate.duration_minutes}")
