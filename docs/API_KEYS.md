@@ -188,13 +188,13 @@ primr --dry-run "Company Name" https://company.com
 
 ### Typical Costs
 
-| Mode | Gemini | Search | Total |
-|------|--------|--------|-------|
-| scrape | ~$0.01 | ~$0.07 | ~$0.10 |
-| deep | ~$0.28 | ~$0.70 | ~$1.00 |
-| full | ~$0.56 | ~$0.90 | ~$1.50 |
+| Mode | Tokens | Deep Research | Search | Total |
+|------|--------|---------------|--------|-------|
+| scrape | ~$0.05 | -- | ~$0.04 | ~$0.10 |
+| deep | -- | ~$2.50 | -- | ~$2.50 |
+| full | ~$0.60 | ~$2.50 | ~$0.35 | ~$3.50 |
 
-Search costs $0.035/query (Google Search grounding). Use `primr --dry-run` for estimates based on your actual usage history.
+Deep Research is a flat per-task fee from Google (not token-based). Search costs $0.035/query. Use `primr --dry-run` for estimates based on your actual usage history.
 
 ### Set Billing Alerts
 

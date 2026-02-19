@@ -1578,7 +1578,7 @@ hooks.register(SSRFGuardHook())
 context = HookContext(
     operation="scrape",
     target_url="https://acme.example",
-    estimated_cost=0.50,
+    estimated_cost=2.50,
 )
 result = await hooks.execute_pre_hooks(context)
 

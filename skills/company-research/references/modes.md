@@ -2,9 +2,9 @@
 
 | Mode | Duration | Cost | Use Case |
 |------|----------|------|----------|
-| `scrape` | 5-10 min | ~$0.05 | Quick website intel -- first-party content only |
-| `deep` | 10-15 min | ~$1.00 | External research only -- market context, competitors |
-| `full` | 25-40 min | ~$1.50 | Comprehensive report -- both first-party and external |
+| `scrape` | 5-10 min | ~$0.10 | Quick website intel -- first-party content only |
+| `deep` | 10-15 min | ~$2.50 | External research only -- market context, competitors |
+| `full` | 25-40 min | ~$3.50 | Comprehensive report -- both first-party and external |
 
 ## Mode Selection Guidance
 
@@ -20,5 +20,5 @@
 
 **Use `full` when:**
 - Comprehensive report needed
-- Budget allows (~$1.50) and time allows (~30 min)
+- Budget allows (~$3.50) and time allows (~30 min)
 - Both first-party and external sources are valuable

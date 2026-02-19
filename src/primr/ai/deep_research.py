@@ -3946,6 +3946,85 @@ def get_file_search_store_manager() -> FileSearchStoreManager:
 
 
 # =============================================================================
+# ORPHANED RESOURCE CLEANUP
+# =============================================================================
+
+
+def cleanup_orphaned_resources(api_key: str | None = None) -> dict[str, int]:
+    """
+    Clean up orphaned Gemini resources (caches and file search stores).
+
+    Should be called before and after research runs to prevent billing leaks.
+    File Search Stores have NO TTL — they persist (and cost money) until
+    manually deleted. If a prior run crashed, stores may be left behind.
+
+    Args:
+        api_key: Optional API key override. Uses settings if not provided.
+
+    Returns:
+        Dict with counts: {"caches_deleted": N, "stores_deleted": N}
+    """
+    _require_genai_dependency()
+    settings = get_settings()
+    key = api_key or settings.api.gemini_key
+    client = genai.Client(api_key=key)
+
+    result = {"caches_deleted": 0, "stores_deleted": 0}
+
+    # 1. Clean up explicit context caches (shouldn't exist, but check anyway)
+    try:
+        caches = list(client.caches.list())
+        for cache in caches:
+            try:
+                client.caches.delete(name=cache.name)
+                result["caches_deleted"] += 1
+                logger.info(f"Deleted orphaned cache: {cache.name}")
+            except Exception as e:
+                logger.warning(f"Could not delete cache {cache.name}: {e}")
+    except Exception as e:
+        logger.debug(f"Could not list caches: {e}")
+
+    # 2. Clean up orphaned file search stores
+    try:
+        stores = list(client.file_search_stores.list())
+        for store in stores:
+            store_name = store.name
+            # Delete documents inside the store first
+            try:
+                docs = list(client.file_search_stores.documents.list(parent=store_name))
+                for doc in docs:
+                    try:
+                        client.file_search_stores.documents.delete(
+                            name=doc.name, config={"force": True}
+                        )
+                    except TypeError:
+                        client.file_search_stores.documents.delete(name=doc.name)
+                    except Exception as e:
+                        logger.debug(f"Could not delete doc {doc.name}: {e}")
+            except Exception as e:
+                logger.debug(f"Could not list docs in {store_name}: {e}")
+
+            # Now delete the empty store
+            try:
+                client.file_search_stores.delete(name=store_name)
+                result["stores_deleted"] += 1
+                logger.info(f"Deleted orphaned store: {store_name}")
+            except Exception as e:
+                logger.warning(f"Could not delete store {store_name}: {e}")
+    except Exception as e:
+        logger.debug(f"Could not list file search stores: {e}")
+
+    total = result["caches_deleted"] + result["stores_deleted"]
+    if total > 0:
+        logger.warning(
+            f"Cleaned up {total} orphaned resource(s): "
+            f"{result['caches_deleted']} cache(s), {result['stores_deleted']} store(s)"
+        )
+
+    return result
+
+
+# =============================================================================
 # SINGLETON ACCESS (Thread-Safe)
 # =============================================================================
 

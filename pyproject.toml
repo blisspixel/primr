@@ -70,6 +70,9 @@ api = [
     "pydantic>=2.0.0",
     "uvicorn>=0.20.0",
 ]
+fast = [
+    "openai>=1.0.0",
+]
 security = [
     "bandit>=1.7.0",
 ]

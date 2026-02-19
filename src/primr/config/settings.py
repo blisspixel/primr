@@ -113,12 +113,14 @@ class APIConfig:
     _gemini_key: str | None = field(default=None, repr=False)
     _search_key: str | None = field(default=None, repr=False)
     _search_engine_id: str | None = field(default=None, repr=False)
+    _xai_key: str | None = field(default=None, repr=False)
 
     def __post_init__(self):
         # Load from environment but don't validate yet
         self._gemini_key = os.getenv("GEMINI_API_KEY")
         self._search_key = os.getenv("SEARCH_API_KEY")
         self._search_engine_id = os.getenv("SEARCH_ENGINE_ID")
+        self._xai_key = os.getenv("XAI_API_KEY")
 
     @property
     def gemini_key(self) -> str:
@@ -146,6 +148,21 @@ class APIConfig:
                 "SEARCH_ENGINE_ID not set. Add it to your .env file or environment."
             )
         return self._search_engine_id
+
+    @property
+    def xai_key(self) -> str:
+        """Get xAI API key, raising if not set."""
+        if not self._xai_key:
+            raise ConfigurationError(
+                "XAI_API_KEY not set. Required for --fast mode. "
+                "Add it to your .env file or get a key at https://console.x.ai/"
+            )
+        return self._xai_key
+
+    @property
+    def has_xai_key(self) -> bool:
+        """Check if xAI API key is configured (without raising)."""
+        return bool(self._xai_key)
 
     def validate(self) -> None:
         """Validate all API keys are present."""
@@ -203,8 +220,8 @@ class ScrapingConfig:
             raise ValueError(f"timeout too high (max 300s), got {self.timeout}")
         if self.max_depth < 0:
             raise ValueError(f"max_depth must be non-negative, got {self.max_depth}")
-        if self.cache_ttl_hours < 0:
-            raise ValueError(f"cache_ttl_hours must be non-negative, got {self.cache_ttl_hours}")
+        if self.cache_ttl_hours <= 0:
+            raise ValueError(f"cache_ttl_hours must be positive, got {self.cache_ttl_hours}")
         if self.min_content_length < 0:
             raise ValueError(f"min_content_length must be non-negative, got {self.min_content_length}")
         if self.min_html_length < 0:
@@ -352,13 +369,13 @@ class PricingConfig:
     gemini_output_per_million: float = 12.00
 
     # Deep Research estimated costs (based on typical usage)
-    deep_research_base_cost: float = 0.50  # Base cost per query
+    deep_research_base_cost: float = 2.50  # ~$2-3 per standard task
 
-    # Google Search API (free until Jan 5, 2026)
-    search_cost_per_query: float = 0.00
+    # Google Search API ($35/1000 queries)
+    search_cost_per_query: float = 0.035
 
     # Last updated date for tracking staleness
-    last_updated: str = "2024-12-16"
+    last_updated: str = "2026-02-18"
 
     def calculate_cost(self, input_tokens: int, output_tokens: int) -> float:
         """

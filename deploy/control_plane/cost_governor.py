@@ -64,9 +64,9 @@ class QuotaUsage:
 
 # Cost estimates by mode (in USD)
 MODE_COST_ESTIMATES = {
-    "scrape": CostEstimate(cost_usd=0.05, duration_minutes=10),
-    "deep": CostEstimate(cost_usd=1.00, duration_minutes=15),
-    "full": CostEstimate(cost_usd=2.00, duration_minutes=40),
+    "scrape": CostEstimate(cost_usd=0.10, duration_minutes=10),
+    "deep": CostEstimate(cost_usd=2.50, duration_minutes=15),
+    "full": CostEstimate(cost_usd=3.50, duration_minutes=40),
 }
 
 
@@ -75,9 +75,9 @@ def estimate_cost(mode: str) -> CostEstimate:
     Estimate cost and duration for a job mode.
     
     Cost estimates are rough approximations:
-    - scrape: ~$0.05 (minimal LLM usage, 5-10 min)
-    - deep: ~$1.00 (moderate LLM usage, 8-15 min)
-    - full: ~$2.00 (heavy LLM usage, 25-40 min)
+    - scrape: ~$0.10 (minimal LLM usage, 5-10 min)
+    - deep: ~$2.50 (Deep Research flat fee, 8-15 min)
+    - full: ~$3.50 (Deep Research + token costs, 25-40 min)
     
     Args:
         mode: Job mode (scrape, deep, full)

@@ -47,7 +47,7 @@ class MockMCPServer:
     
     def estimate_run(self, company_name: str, company_url: str, mode: str = "full") -> dict:
         """Mock estimate_run tool."""
-        cost_map = {"scrape": 0.05, "deep": 0.50, "full": 0.75}
+        cost_map = {"scrape": 0.14, "deep": 2.50, "full": 3.60}
         time_map = {"scrape": 10, "deep": 15, "full": 30}
         
         return {
@@ -407,8 +407,8 @@ class TestWorkflowSimulation:
         
         # Step 1: Estimate
         estimate = server.estimate_run("Acme Corp", "https://acme.com", "full")
-        assert estimate["cost_usd"] == 0.75
-        
+        assert estimate["cost_usd"] == 3.60
+
         # Step 2: Generate approval token
         token = validator.generate_token(estimate)
         assert len(token) == 6

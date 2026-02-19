@@ -103,7 +103,7 @@ Controls AI model behavior.
 | `research_model` | str | `gemini-3-flash-preview` | Model for research |
 | `report_model` | str | `gemini-3-flash-preview` | Model for reports |
 | `max_retries` | int | 3 | Maximum retry attempts |
-| `grade_threshold` | int | 80 | Quality threshold (0-100) |
+| `grade_threshold` | int | 70 | Quality threshold (0-100) |
 | `default_temperature` | float | 1.0 | Model temperature (0.0-2.0) |
 | `default_thinking_level` | str | "high" | Thinking level |
 | `model_fallbacks` | dict | {...} | Fallback model chains |
@@ -139,8 +139,8 @@ Controls cost estimation. Prices are per 1 million tokens.
 |-------|------|---------|-------------|
 | `gemini_input_per_million` | float | 2.00 | Input token cost (USD/1M) |
 | `gemini_output_per_million` | float | 12.00 | Output token cost (USD/1M) |
-| `deep_research_base_cost` | float | 0.50 | Base cost per deep research |
-| `search_cost_per_query` | float | 0.00 | Search API cost |
+| `deep_research_base_cost` | float | 2.50 | Base cost per deep research task |
+| `search_cost_per_query` | float | 0.035 | Search API cost per query |
 
 ## Usage
 
