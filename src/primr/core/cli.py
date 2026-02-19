@@ -478,7 +478,7 @@ Accordion Method Test (for development):
         "--fast",
         action="store_true",
         dest="fast_mode",
-        help="Fast mode: Grok 4.1 two-pass report (~12 min, ~$0.15). Requires XAI_API_KEY"
+        help="Fast mode: Grok 4.1 accordion report (~12 min, ~$0.25). Requires XAI_API_KEY"
     )
     parser.add_argument(
         "--discovery-notes",
