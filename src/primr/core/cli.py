@@ -99,7 +99,7 @@ class CLIConfig:
     discovery_notes_path: str | None = None
     strategy_type: str = "ai"  # Type of strategy to generate
     lite_strategy: bool = False  # Use Pro model instead of Deep Research for strategy
-    fast_mode: bool = False  # Use Grok 4.1 for fast research (~10 min, ~$0.30)
+    fast_mode: bool = False  # Use Grok 4.1 for fast research (~12 min, ~$0.25)
     # Agentic architecture options
     memory_company: str | None = None
     memory_list: bool = False
@@ -478,7 +478,7 @@ Accordion Method Test (for development):
         "--fast",
         action="store_true",
         dest="fast_mode",
-        help="Fast mode: Grok 4.1 one-shot report (~10 min, ~$0.30). Requires XAI_API_KEY"
+        help="Fast mode: Grok 4.1 two-pass report (~12 min, ~$0.15). Requires XAI_API_KEY"
     )
     parser.add_argument(
         "--discovery-notes",

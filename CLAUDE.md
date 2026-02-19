@@ -10,7 +10,7 @@ Company research tool using Gemini models. Generates intelligence briefs from we
 ### Critical Constraints
 - **Single-job model**: ONE research job at a time. Check `primr --check-jobs` before starting new research.
 - **Async execution**: `research_company` returns immediately with `job_id`. Poll `check_jobs` for completion.
-- **Cost awareness**: ALWAYS run `estimate_run` before `research_company`. Typical costs: scrape ~$0.10, deep ~$2.50, full ~$3.50. Each `--cloud-vendor` adds ~$2.50 (1 DR task per vendor). Use `--lite` to drop strategy cost to ~$0.15/vendor. Use `--fast` for Grok 4.1 mode (~$0.15, ~12 min).
+- **Cost awareness**: ALWAYS run `estimate_run` before `research_company`. Typical costs: scrape ~$0.10, deep ~$2.50, full ~$3.50. Each `--cloud-vendor` adds ~$2.50 (1 DR task per vendor). Use `--lite` to drop strategy cost to ~$0.15/vendor. Use `--fast` for Grok 4.1 mode (~$0.25, ~12 min).
 
 ### Common Tasks
 
@@ -33,7 +33,7 @@ primr "Company" https://example.com --cloud-vendor aws azure
 # Lite AI strategy (~$3.80 for full + 2 vendors, uses Pro instead of DR)
 primr "Company" https://example.com --cloud-vendor aws azure --lite
 
-# Fast mode (~$0.15, ~12 min, uses Grok 4.1 — requires XAI_API_KEY)
+# Fast mode (~$0.25, ~12 min, uses Grok 4.1 — requires XAI_API_KEY)
 primr "Company" https://example.com --fast
 
 # Check job status
