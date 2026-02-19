@@ -162,8 +162,8 @@ MODE_ESTIMATES = {
         "flash_output_tokens": 4_000,
         "pro_input_tokens": 0,
         "pro_output_tokens": 0,
-        "grok_input_tokens": 1_050_000,  # analysis 150k + 5 batches x 180k
-        "grok_output_tokens": 56_000,    # analysis 16k + 5 batches x 8k
+        "grok_input_tokens": 250_000,  # analysis ~40k + 5 batches x ~40k
+        "grok_output_tokens": 30_000,  # analysis ~12k + 5 batches x ~3.5k
         "deep_research_tasks": 0,
         "search_queries": 5,
         "duration_min": 8,
