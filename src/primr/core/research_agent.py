@@ -930,6 +930,18 @@ REQUIREMENTS:
   earlier sections, don't introduce wholly new observations
 - Include tables where instructed (financials, competitors, timelines)
 - Each section should have substantive depth — multiple paragraphs with evidence
+
+CONSULTING RIGOR (critical):
+- Do NOT paraphrase the company's marketing. When you cite their claims, immediately
+  stress-test them against external evidence or flag what's unverifiable.
+- For each major hypothesis or insight, include "What to validate": a specific question
+  or data point a consultant should probe in discovery.
+- Be CONSERVATIVE on financial estimates. If you're inferring revenue from employee
+  count, say "highly uncertain" and use wide ranges. Never state inferences as fact.
+- Frame "why now" for the company — what transition or inflection point makes this
+  moment interesting? Platform shifts, PE investment, leadership changes, etc.
+- Think like a buyer, not a narrator. Where does this company win deals? Where does
+  it lose? What would a competitor say about them?
 """
 
 
@@ -1038,6 +1050,10 @@ Analyze it and produce a Structured Analysis Workbook.
 Produce a **Structured Analysis Workbook** with the following sections.
 Use bullet points, tables, and short paragraphs. This is working notes, not prose.
 
+CRITICAL: You are doing PRE-ENGAGEMENT ANALYSIS for a consulting firm, not summarizing
+the company's marketing. Separate what {company_name} CLAIMS from what external evidence
+SUPPORTS. Be conservative on financial estimates — use wide ranges and note confidence.
+
 1. **Company Basics**
    - Official name, headquarters, founding date, employee count
    - Ownership structure (public/private, investors)
@@ -1047,24 +1063,28 @@ Use bullet points, tables, and short paragraphs. This is working notes, not pros
    - Every product/service found, organized by category
    - Pricing models, contract structures if visible
    - Recent launches or pivots (last 2-3 years)
+   - Distinguish what's live/adopted vs. what's announced/marketing
 
 3. **Customer Segments & Market Positioning**
    - Primary segments with evidence
    - Geographic distribution
    - Enterprise vs SMB vs consumer mix
    - Go-to-market approach
+   - Flag any logo references that lack depth (vague "powered by" vs. detailed case)
 
 4. **Competitive Landscape**
    - At least 5 competitors with: name, estimated size, key differentiator
-   - Where {company_name} appears to win and lose
+   - Where {company_name} appears to win and lose (from external evidence, not their claims)
    - Emerging disruptors
+   - Include competitors the company DOESN'T mention but should
 
 5. **Financial Profile**
-   - Revenue (actual or estimated with confidence)
+   - Revenue (actual or estimated with WIDE ranges and LOW confidence if inferred)
    - Growth rate and trajectory
    - Profitability indicators
    - Funding history / capital structure
    - Include a summary table
+   - AVOID aggressive inferences — if data is thin, say so explicitly
 
 6. **Leadership Profiles**
    - C-suite with backgrounds, tenure, previous roles
@@ -1082,6 +1102,7 @@ Use bullet points, tables, and short paragraphs. This is working notes, not pros
    - Supporting evidence (with sources)
    - Counter-evidence or alternative explanation
    - Confidence level
+   - What question would you ask in discovery to TEST this?
 
 9. **Strategic Tensions** (3-5)
    For each:
@@ -1091,9 +1112,10 @@ Use bullet points, tables, and short paragraphs. This is working notes, not pros
 
 10. **Narrative Gaps** (3-5)
     For each:
-    - What they claim (with quote/source)
-    - Contradicting or complicating external signals
+    - What they claim (with quote/source from THEIR marketing)
+    - Contradicting or complicating EXTERNAL signals
     - Question to explore
+    These should be genuine stress-tests of their story, not minor wording quibbles.
 
 11. **Areas of Potential Fragility** (3-4)
     Focus on systemic risks: single points of failure, concentration risks,
@@ -1108,6 +1130,8 @@ Use bullet points, tables, and short paragraphs. This is working notes, not pros
     - The question
     - Why we're asking (what evidence prompted it)
     - What we hope to learn
+    These should be questions a CONSULTING PARTNER would ask in a first meeting —
+    sharp, grounded in evidence, testing specific hypotheses.
 """
 
 
@@ -1221,9 +1245,11 @@ def perform_fast_research(
         console.phase_banner(2, total_phases, "Analysis (Grok)", "Building structured analysis workbook", "2-4 min")
 
         analysis_system = (
-            "You are a senior strategic analyst conducting pre-engagement research. "
-            "Produce a structured analysis workbook — working notes with evidence, "
-            "confidence levels, and hypotheses. Not polished prose."
+            "You are a senior strategic analyst conducting pre-engagement research "
+            "for a consulting firm. Produce a structured analysis workbook — working "
+            "notes with evidence, confidence levels, and hypotheses. Not polished prose. "
+            "CRITICAL: Separate what the company CLAIMS from what external evidence "
+            "SUPPORTS. Stress-test their narrative. Be conservative on financial inferences."
         )
 
         analysis_prompt = _build_fast_analysis_prompt(
@@ -1261,12 +1287,32 @@ def perform_fast_research(
         raw_corpus_subset = raw_corpus[:100_000] if len(raw_corpus) > 100_000 else raw_corpus
 
         report_system = (
-            "You are a senior strategic analyst writing sections of a Strategic Company Overview. "
-            "This is INTERNAL PREP for pre-engagement preparation — not a client deliverable. "
-            "Write with analytical depth. Surface uncomfortable hypotheses. "
-            "Label claims with confidence levels (Confirmed/Reported/Estimated/Hypothesis). "
-            "Use full paragraphs with evidence. Cite sources with [Source: URL]. "
-            "Include tables for financials, competitors, and timelines."
+            "You are a senior strategic analyst writing a consulting dossier — internal prep "
+            "before a discovery conversation. Your reader is a partner walking into a meeting.\n\n"
+            "CORE DISCIPLINE:\n"
+            "- STRESS-TEST the company's narrative. Do NOT paraphrase their marketing. "
+            "When they claim 'only purpose-built' or '9x ROI', challenge it with evidence.\n"
+            "- Frame every major claim as a hypothesis with counter-evidence. "
+            "What would disprove it? What's the alternative explanation?\n"
+            "- For each section, surface 'what to validate in conversation' — specific "
+            "questions a consultant would ask to test the hypothesis.\n"
+            "- Be CONSERVATIVE on financial estimates. Use wide ranges, note low confidence. "
+            "Never state an inference as if it were confirmed.\n\n"
+            "EPISTEMIC RULES:\n"
+            "- Label claims: Confirmed (filings/official), Reported (credible 3rd party), "
+            "Estimated (inferred), Hypothesis (our speculation)\n"
+            "- CONFIDENCE RESET per section: don't inherit confidence from prior sections\n"
+            "- NARRATIVE CEILING: don't escalate stakes. 'Opportunity' stays 'opportunity', "
+            "not 'transformational opportunity'. Keep scope realistic.\n"
+            "- NUMERIC PRECISION: ranges for estimates ('$800M-$1.2B'), note source/date\n"
+            "- AVOID OVERREACH: don't claim inside knowledge of board decisions, precise "
+            "market share in opaque markets, or causal certainty\n\n"
+            "FORMATTING:\n"
+            "- Full paragraphs with evidence, not bullet dumps\n"
+            "- Tables for financials, competitors, timelines\n"
+            "- Cite sources with [Source: URL]\n"
+            "- Sub-headings (###) within sections for readability\n"
+            "- Each insight lives in ONE section — cross-reference, don't repeat"
         )
 
         section_batches = _group_sections_by_part()
@@ -1548,7 +1594,7 @@ def perform_research(
     with correlation_scope("research", company=display_name, mode=mode):
         log_structured("info", "Starting research job", company=display_name, mode=mode, ai_strategy=ai_strategy)
 
-        # Fast mode: Grok 4.1 two-pass pipeline
+        # Fast mode: Grok 4.1 accordion batch pipeline
         if fast_mode:
             return perform_fast_research(
                 company_name, website, start_time,
