@@ -5,7 +5,7 @@
 ## Quick Start (< 500 tokens)
 
 ### What is Primr?
-Company research tool using Gemini models. Generates intelligence briefs from website scraping + deep research.
+Company research tool using Gemini and Grok models. Generates strategic intelligence briefs from adaptive scraping + AI-powered research and synthesis.
 
 ### Critical Constraints
 - **Single-job model**: ONE research job at a time. Check `primr --check-jobs` before starting new research.
