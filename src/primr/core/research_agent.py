@@ -778,31 +778,6 @@ def perform_scrape_only(
     return folder_path
 
 
-def _load_fast_mode_sections() -> str:
-    """
-    Load section definitions from company_overview.yaml and format them
-    for inclusion in the fast-mode report prompt.
-
-    Returns a formatted string with all 21 section instructions.
-    """
-    from primr.prompts.loader import load_prompt_config
-
-    config = load_prompt_config("company_overview")
-    parts: list[str] = []
-
-    for i, section in enumerate(config.sections, 1):
-        covers_text = "\n".join(f"      - {item}" for item in section.covers)
-        depth_text = section.depth.strip() if section.depth else "Thorough analysis"
-        parts.append(
-            f"  {i}. **{section.name}** (id: {section.id})\n"
-            f"     Purpose: {section.purpose}\n"
-            f"     Must cover:\n{covers_text}\n"
-            f"     Depth: {depth_text}"
-        )
-
-    return "\n\n".join(parts)
-
-
 # Part labels for console output
 _PART_LABELS = {
     1: "Foundation",
@@ -948,13 +923,14 @@ CONSULTING RIGOR (critical):
 def _parse_batch_sections(
     content: str,
     expected_sections: list["SectionConfig"],
-) -> list[dict[str, str]]:
+) -> list[dict[str, Any]]:
     """
     Parse Grok's batch response by splitting on ``## `` headings.
 
-    Returns a list of dicts with keys ``title``, ``content``, and ``words``.
-    If headings don't split cleanly, falls back to treating the whole
-    response as a single block assigned to the first expected section.
+    Returns a list of dicts with keys ``title`` (str), ``content`` (str),
+    and ``words`` (int).  If headings don't split cleanly, falls back to
+    treating the whole response as a single block assigned to the first
+    expected section.
     """
     import re
 
@@ -993,7 +969,7 @@ def _parse_batch_sections(
 def _assemble_fast_report(
     company_name: str,
     website: str | None,
-    written_sections: list[dict[str, str]],
+    written_sections: list[dict[str, Any]],
 ) -> str:
     """
     Assemble individual batch sections into a final markdown report.
@@ -1336,12 +1312,17 @@ def perform_fast_research(
                 len(section_batches),
             )
 
-            batch_content = grok_llm(
-                prompt,
-                max_tokens=16_000,
-                temperature=0.7,
-                system_prompt=report_system,
-            )
+            try:
+                batch_content = grok_llm(
+                    prompt,
+                    max_tokens=16_000,
+                    temperature=0.7,
+                    system_prompt=report_system,
+                )
+            except Exception as batch_err:
+                console.warn(f"Batch {batch_num + 1} failed: {batch_err} — skipping")
+                log_structured("warning", "Fast mode batch failed", batch=batch_num + 1, error=str(batch_err))
+                continue
 
             if not batch_content or not batch_content.strip():
                 console.warn(f"Batch {batch_num + 1} returned empty — skipping")
