@@ -36,9 +36,9 @@ Manual research takes hours. Primr typically runs in ~30 minutes and costs ~$3-6
 | `full` | Both combined into comprehensive brief | ~30 min | ~$3.50 |
 | `full` + AI Strategy | Full brief + vendor roadmap per `--cloud-vendor` | ~60 min | ~$6-9 |
 | `full` + `--lite` | Same output, Pro model instead of DR for strategy | ~35 min | ~$3.80 |
-| `--fast` | Grok 4.1 one-shot report (requires `XAI_API_KEY`) | ~10 min | ~$0.30 |
+| `--fast` | Grok 4.1 two-pass report (requires `XAI_API_KEY`) | ~12 min | ~$0.15 |
 
-Costs are Gemini API usage (Deep Research is a flat ~$2.50 per task, plus token costs for Flash/Pro calls). Each `--cloud-vendor` adds one Deep Research task. `--lite` swaps strategy Deep Research for a Pro model call (~$0.15/vendor instead of ~$2.50). `--fast` uses xAI Grok 4.1 for the entire report (~$0.30 total). Web search uses DuckDuckGo (free). Use `--dry-run` for accurate estimates based on your usage history.
+Costs are Gemini API usage (Deep Research is a flat ~$2.50 per task, plus token costs for Flash/Pro calls). Each `--cloud-vendor` adds one Deep Research task. `--lite` swaps strategy Deep Research for a Pro model call (~$0.15/vendor instead of ~$2.50). `--fast` uses xAI Grok 4.1 with a two-pass pipeline (analysis + report, ~$0.15 total). Web search uses DuckDuckGo (free). Use `--dry-run` for accurate estimates based on your usage history.
 
 ## Quick Start
 
@@ -60,7 +60,7 @@ primr "Company" https://company.com --mode deep          # External research onl
 primr "Company" https://company.com --dry-run            # Cost estimate first
 primr "Company" https://company.com --cloud-vendor aws azure  # Multi-vendor AI strategy
 primr "Company" https://company.com --cloud-vendor aws azure --lite  # Cheaper/faster strategy
-primr "Company" https://company.com --fast                        # Grok 4.1 fast mode (~$0.30)
+primr "Company" https://company.com --fast                        # Grok 4.1 fast mode (~$0.15)
 ```
 
 ### What a run looks like
