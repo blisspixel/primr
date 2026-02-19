@@ -800,6 +800,208 @@ def _load_fast_mode_sections() -> str:
     return "\n\n".join(parts)
 
 
+# Part labels for console output
+_PART_LABELS = {
+    1: "Foundation",
+    2: "Industry",
+    3: "Strategic",
+    4: "Deep Insights",
+    5: "Synthesis",
+}
+
+
+def _group_sections_by_part() -> list[list["SectionConfig"]]:
+    """
+    Load sections from company_overview.yaml and group by ``part`` number.
+
+    Returns a list of 5 lists (parts 1-5), each containing the
+    :class:`SectionConfig` objects that belong to that part.
+    """
+    from primr.prompts.loader import load_prompt_config
+
+    config = load_prompt_config("company_overview")
+    groups: dict[int, list] = {}
+    for section in config.sections:
+        groups.setdefault(section.part, []).append(section)
+    # Return in part order (1-5)
+    return [groups[p] for p in sorted(groups)]
+
+
+def _build_fast_batch_prompt(
+    company_name: str,
+    website: str | None,
+    analysis_workbook: str,
+    raw_corpus_subset: str,
+    external_sources: str,
+    source_urls: list[str],
+    sections: list["SectionConfig"],
+    previous_sections: list[dict[str, str]],
+    batch_number: int,
+    total_batches: int,
+) -> str:
+    """
+    Build the prompt for writing one batch of report sections.
+
+    Each batch receives:
+    - The analysis workbook (shared across all batches)
+    - Raw corpus + external sources for evidence
+    - 300-word rolling summaries of the last 5 completed sections
+    - Section-specific instructions from the YAML config
+    """
+    from datetime import datetime
+    current_date = datetime.now().strftime("%B %d, %Y")
+
+    # Build section instructions for this batch
+    section_parts: list[str] = []
+    for section in sections:
+        covers_text = "\n".join(f"      - {item}" for item in section.covers)
+        depth_text = section.depth.strip() if section.depth else "Thorough analysis"
+        position_label = section.position or "middle"
+        section_parts.append(
+            f"### {section.name}\n"
+            f"**Purpose:** {section.purpose}\n"
+            f"**Position:** {position_label}\n"
+            f"**Must cover:**\n{covers_text}\n"
+            f"**Depth:** {depth_text}"
+        )
+    section_block = "\n\n".join(section_parts)
+
+    # Rolling context: 300-word summaries of last 5 completed sections
+    rolling_context = ""
+    if previous_sections:
+        recent = previous_sections[-5:]
+        context_parts: list[str] = []
+        for s in recent:
+            # Truncate each section to ~300 words for rolling context
+            words = s["content"].split()
+            summary = " ".join(words[:300])
+            if len(words) > 300:
+                summary += " ..."
+            context_parts.append(f"**{s['title']}** (completed):\n{summary}")
+        rolling_context = "\n\n".join(context_parts)
+
+    rolling_block = (
+        f"## PREVIOUS SECTIONS (for narrative continuity)\n{rolling_context}"
+        if rolling_context
+        else "## PREVIOUS SECTIONS\n(This is the first batch — no prior sections.)"
+    )
+
+    sources_text = "\n".join(f"- {url}" for url in source_urls) if source_urls else "(no external sources)"
+    word_target = len(sections) * 600
+
+    return f"""**Company:** {company_name}
+**Website:** {website or 'N/A'}
+**Date:** {current_date}
+**Batch:** {batch_number + 1} of {total_batches}
+
+You are writing batch {batch_number + 1} of {total_batches} for a Strategic Company Overview.
+This batch contains {len(sections)} sections. Write each section under its own ## heading.
+
+{rolling_block}
+
+=== ANALYSIS WORKBOOK ===
+{analysis_workbook}
+
+=== RAW DATA (for evidence and citations) ===
+{raw_corpus_subset}
+
+=== EXTERNAL SOURCES ===
+{external_sources}
+
+SOURCES CONSULTED:
+{sources_text}
+
+---
+
+Write the following sections. Each section MUST start with a ## heading matching the section name exactly.
+
+{section_block}
+
+REQUIREMENTS:
+- Write at least {word_target:,} words total across all sections in this batch
+- Use specific facts, numbers, and examples — cite sources with [Source: URL]
+- Be analytical and hypothesis-driven, not just descriptive
+- Label claims with confidence levels (Confirmed/Reported/Estimated/Hypothesis)
+- Build on the previous sections' narrative (see rolling context above)
+- For framework sections (SWOT, Porter's, Value Chain): organize insights from
+  earlier sections, don't introduce wholly new observations
+- Include tables where instructed (financials, competitors, timelines)
+- Each section should have substantive depth — multiple paragraphs with evidence
+"""
+
+
+def _parse_batch_sections(
+    content: str,
+    expected_sections: list["SectionConfig"],
+) -> list[dict[str, str]]:
+    """
+    Parse Grok's batch response by splitting on ``## `` headings.
+
+    Returns a list of dicts with keys ``title``, ``content``, and ``words``.
+    If headings don't split cleanly, falls back to treating the whole
+    response as a single block assigned to the first expected section.
+    """
+    import re
+
+    # Split on ## headings (keep the heading text)
+    parts = re.split(r'^## ', content, flags=re.MULTILINE)
+    parsed: list[dict[str, str]] = []
+
+    # First element is any text before the first ## (usually empty)
+    preamble = parts[0].strip() if parts else ""
+
+    for part in parts[1:]:
+        # First line is the heading, rest is content
+        lines = part.split("\n", 1)
+        title = lines[0].strip().rstrip("#").strip()
+        body = lines[1].strip() if len(lines) > 1 else ""
+        word_count = len(body.split())
+        parsed.append({"title": title, "content": body, "words": word_count})
+
+    # Fallback: if we got fewer sections than expected, treat whole content as one block
+    if len(parsed) == 0 and content.strip():
+        word_count = len(content.split())
+        parsed.append({
+            "title": expected_sections[0].name if expected_sections else "Section",
+            "content": content.strip(),
+            "words": word_count,
+        })
+
+    # If there's a preamble and we have parsed sections, prepend it to the first section
+    if preamble and parsed:
+        parsed[0]["content"] = preamble + "\n\n" + parsed[0]["content"]
+        parsed[0]["words"] = len(parsed[0]["content"].split())
+
+    return parsed
+
+
+def _assemble_fast_report(
+    company_name: str,
+    website: str | None,
+    written_sections: list[dict[str, str]],
+) -> str:
+    """
+    Assemble individual batch sections into a final markdown report.
+    """
+    from datetime import datetime
+    current_date = datetime.now().strftime("%B %d, %Y")
+
+    header = f"# Strategic Company Overview: {company_name}\n\n"
+    header += f"*{current_date}*"
+    if website:
+        header += f" | [{website}]({website})"
+    header += "\n\n---\n"
+
+    body_parts: list[str] = []
+    for i, section in enumerate(written_sections):
+        body_parts.append(f"## {section['title']}\n\n{section['content']}")
+        # Horizontal separator every 5 sections (matches full mode)
+        if (i + 1) % 5 == 0 and i + 1 < len(written_sections):
+            body_parts.append("---")
+
+    return header + "\n\n".join(body_parts)
+
+
 def _build_fast_analysis_prompt(
     company_name: str,
     website: str | None,
@@ -906,111 +1108,6 @@ Use bullet points, tables, and short paragraphs. This is working notes, not pros
 """
 
 
-def _build_fast_report_prompt_v2(
-    company_name: str,
-    website: str | None,
-    analysis_workbook: str,
-    raw_corpus_subset: str,
-    external_sources: str,
-    source_urls: list[str],
-) -> tuple[str, str]:
-    """
-    Build the Phase 3 report-writing prompt for Grok fast mode.
-
-    Ports all 21 section definitions from company_overview.yaml with full
-    epistemic rules, formatting guidance, and depth instructions.
-
-    Returns:
-        Tuple of (system_prompt, user_prompt) so the system message can carry
-        the role framing and epistemic rules separately from the data.
-    """
-    from datetime import datetime
-    current_date = datetime.now().strftime("%B %d, %Y")
-
-    # Load section definitions from YAML
-    section_instructions = _load_fast_mode_sections()
-
-    sources_text = "\n".join(f"- {url}" for url in source_urls) if source_urls else "(no external sources)"
-
-    system_prompt = """You are a senior strategic analyst writing a comprehensive Strategic Company Overview.
-
-PURPOSE: This is INTERNAL PREP to understand a company before a discovery conversation. The goal is to:
-1. Understand how they create value today
-2. Form hypotheses about where support could help them move faster, reduce risk, or unlock opportunities
-3. Surface smart questions to validate our thinking WITH them
-
-This is NOT a client deliverable. Write with analytical depth. Surface uncomfortable hypotheses.
-
-EPISTEMIC RULES (REQUIRED):
-- Label every significant claim with confidence level:
-  **Confirmed**: From official filings, company statements, or verified sources
-  **Reported**: From credible third-party sources but not verified
-  **Estimated**: Calculated or inferred from available data
-  **Hypothesis**: Our interpretation or speculation to validate
-- Distinguish facts (with citations) from inferences from hypotheses
-- Frame risks as "areas to explore" not definitive threats
-- Use language like "appears to", "worth exploring", "we'd want to validate"
-- For numbers not from filings: use ranges ("$800M-$1.2B"), note source and date
-- Do NOT state internal priorities as if you have inside knowledge
-- Do NOT claim precise market share in opaque markets
-- Frame internal dynamics as hypotheses, not facts
-
-FORMATTING:
-- Write in full paragraphs with evidence
-- Use bullets only for lists of specific items (single-level only)
-- Cite sources using [Source: URL] format
-- Include tables for financials, competitors, timelines
-- Use sub-headings (###) within sections for readability
-
-AVOID REPETITION:
-Each insight should live in ONE section. Don't repeat the same point across SWOT,
-Strategic Tensions, Fragilities, and Patterns. Pick the best home for each idea.
-Cross-reference other sections rather than restating."""
-
-    user_prompt = f"""**Company:** {company_name}
-**Website:** {website or 'N/A'}
-**Date:** {current_date}
-
-Below is an analysis workbook prepared by a research analyst, followed by raw source
-data for evidence and citations. Use both to write the full report.
-
-=== ANALYSIS WORKBOOK ===
-{analysis_workbook}
-
-=== RAW DATA (for evidence and citations) ===
-{raw_corpus_subset}
-
-=== EXTERNAL SOURCES ===
-{external_sources}
-
-SOURCES CONSULTED:
-{sources_text}
-
----
-
-Write a complete Strategic Company Overview in markdown format.
-Start with: # Strategic Company Overview: {company_name}
-
-The report MUST include ALL of the following sections as ## headings, in this order:
-
-{section_instructions}
-
-REQUIREMENTS:
-- Write 10,000-18,000 words total
-- Use specific facts, numbers, and examples — cite sources with [Source: URL]
-- Be analytical and hypothesis-driven, not just descriptive
-- Label claims with confidence levels (Confirmed/Reported/Estimated/Hypothesis)
-- For framework sections (SWOT, Porter's, Value Chain): organize insights from
-  earlier sections, don't introduce wholly new observations
-- For Strategic Tensions, Fragilities, Patterns: don't repeat SWOT items — synthesize
-- Include tables where instructed (financials, competitors, timelines)
-- Frame the Strategic Positioning Hypothesis with explicit counter-hypothesis and
-  falsification tests
-"""
-
-    return system_prompt, user_prompt
-
-
 def perform_fast_research(
     company_name: str | None,
     website: str | None,
@@ -1021,15 +1118,16 @@ def perform_fast_research(
     discovery_notes_content: str | None = None,
 ) -> str | None:
     """
-    Fast research mode using Grok 4.1 with a two-call pipeline.
+    Fast research mode using Grok 4.1 with accordion-style batch writing.
 
     Pipeline:
     1. Data collection: scrape 25 pages + 5 search queries via Gemini Flash
-    2. Grok analysis call: structured workbook from raw data (hypotheses, tensions, gaps)
-    3. Grok report call: full 21-section report using workbook + raw evidence
+    2. Grok analysis call: structured workbook from raw data
+    3. Grok report writing: 5 batch calls (one per YAML part), each writing
+       2-7 sections with rolling context from completed batches
     4. Optional Grok call for AI strategy per vendor
 
-    Target: ~12-15 min, ~$0.17
+    Target: ~12-15 min, ~$0.25
     """
     from primr.ai.grok_client import get_grok_session_usage, grok_llm, reset_grok_session
 
@@ -1152,35 +1250,67 @@ def perform_fast_research(
         console.phase_complete("Analysis (Grok)")
 
         # =================================================================
-        # Phase 3: Grok report writing call
+        # Phase 3: Grok report writing (section batches)
         # =================================================================
-        console.phase_banner(3, total_phases, "Report Generation (Grok)", "Writing full 21-section report", "3-6 min")
+        console.phase_banner(3, total_phases, "Report Writing (Grok)", "Writing 21 sections in 5 batches", "3-6 min")
 
         # Build a raw data subset for evidence (~100k chars)
         raw_corpus_subset = raw_corpus[:100_000] if len(raw_corpus) > 100_000 else raw_corpus
 
-        report_system, report_user = _build_fast_report_prompt_v2(
-            company_name or display_name,
-            website,
-            analysis_workbook,
-            raw_corpus_subset,
-            external_sources_raw,
-            source_urls,
+        report_system = (
+            "You are a senior strategic analyst writing sections of a Strategic Company Overview. "
+            "This is INTERNAL PREP for pre-engagement preparation — not a client deliverable. "
+            "Write with analytical depth. Surface uncomfortable hypotheses. "
+            "Label claims with confidence levels (Confirmed/Reported/Estimated/Hypothesis). "
+            "Use full paragraphs with evidence. Cite sources with [Source: URL]. "
+            "Include tables for financials, competitors, and timelines."
         )
 
-        with console.timed_operation("Generating report via Grok 4.1"):
-            report_content = grok_llm(
-                report_user,
-                max_tokens=32_000,
+        section_batches = _group_sections_by_part()
+        written_sections: list[dict[str, str]] = []
+
+        for batch_num, batch_sections in enumerate(section_batches):
+            part_label = _PART_LABELS.get(batch_num + 1, f"Part {batch_num + 1}")
+            section_names = ", ".join(s.name for s in batch_sections)
+            console.info(f"Batch {batch_num + 1}/{len(section_batches)} ({part_label}): {section_names}")
+
+            prompt = _build_fast_batch_prompt(
+                company_name or display_name,
+                website,
+                analysis_workbook,
+                raw_corpus_subset,
+                external_sources_raw,
+                source_urls,
+                batch_sections,
+                written_sections,
+                batch_num,
+                len(section_batches),
+            )
+
+            batch_content = grok_llm(
+                prompt,
+                max_tokens=16_000,
                 temperature=0.7,
                 system_prompt=report_system,
             )
 
-        if not report_content or not report_content.strip():
-            console.error("Grok report generation failed — empty response")
+            if not batch_content or not batch_content.strip():
+                console.warn(f"Batch {batch_num + 1} returned empty — skipping")
+                continue
+
+            parsed = _parse_batch_sections(batch_content, batch_sections)
+            written_sections.extend(parsed)
+
+            batch_words = sum(s["words"] for s in parsed)
+            console.ok(f"Batch {batch_num + 1}/{len(section_batches)}: {len(parsed)} sections, {batch_words:,} words")
+
+        if not written_sections:
+            console.error("All report batches failed — no sections written")
             return None
 
-        console.phase_complete("Report Generation (Grok)")
+        report_content = _assemble_fast_report(company_name or display_name, website, written_sections)
+        total_words = sum(s["words"] for s in written_sections)
+        console.phase_complete("Report Writing (Grok)", [("Sections", str(len(written_sections))), ("Words", f"{total_words:,}")])
 
         # Save report via existing output pipeline
         docx_path = _convert_deep_research_to_docx(report_content, company_name or display_name, website)
@@ -1304,7 +1434,7 @@ def perform_fast_research(
             duration_seconds=elapsed,
             api_calls=0,
             total_tokens=grok_usage["input_tokens"] + grok_usage["output_tokens"],
-            sections_generated=21,
+            sections_generated=len(written_sections),
             output_path=docx_path,
         )
         log_job_summary(job_summary)
@@ -1415,7 +1545,7 @@ def perform_research(
     with correlation_scope("research", company=display_name, mode=mode):
         log_structured("info", "Starting research job", company=display_name, mode=mode, ai_strategy=ai_strategy)
 
-        # Fast mode: Grok 4.1 one-shot pipeline
+        # Fast mode: Grok 4.1 two-pass pipeline
         if fast_mode:
             return perform_fast_research(
                 company_name, website, start_time,

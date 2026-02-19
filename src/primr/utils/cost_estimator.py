@@ -156,14 +156,14 @@ MODE_ESTIMATES = {
         "duration_min": 20,
         "duration_max": 30,
     },
-    # Fast mode: Flash scraping + two Grok calls (analysis + report), no DR, no Pro
+    # Fast mode: Flash scraping + 6 Grok calls (1 analysis + 5 report batches), no DR, no Pro
     "fast": {
         "flash_input_tokens": 15_000,
         "flash_output_tokens": 4_000,
         "pro_input_tokens": 0,
         "pro_output_tokens": 0,
-        "grok_input_tokens": 400_000,
-        "grok_output_tokens": 46_000,
+        "grok_input_tokens": 1_050_000,  # analysis 150k + 5 batches × 180k
+        "grok_output_tokens": 56_000,    # analysis 16k + 5 batches × 8k
         "deep_research_tasks": 0,
         "search_queries": 5,
         "duration_min": 8,
@@ -375,7 +375,7 @@ def _estimate_fast_mode_cost(
     if include_ai_strategy:
         duration += " + AI strategy (Grok)"
 
-    notes = ["Fast mode: Grok 4.1 two-pass (analysis + report, no Deep Research)"]
+    notes = ["Fast mode: Grok 4.1 accordion (1 analysis + 5 report batches, no Deep Research)"]
     if include_ai_strategy:
         notes.append(f"AI Strategy via Grok ({num_vendors} vendor(s))")
 
