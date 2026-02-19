@@ -52,12 +52,12 @@ def _get_grok_client():
         return _client
 
     try:
-        import openai  # noqa: F811
-    except ImportError:
+        import openai
+    except ImportError as exc:
         raise ImportError(
             "The 'openai' package is required for --fast mode. "
             "Install it with: pip install 'primr[fast]' or pip install openai"
-        )
+        ) from exc
 
     import os
     api_key = os.getenv("XAI_API_KEY")
