@@ -10,13 +10,13 @@ Runs as a CLI, an MCP server, an OpenClaw integration, and a Claude Skill.
 primr "Acme Corp" https://acme.example
 ```
 
-30 minutes later: competitive positioning, technology stack, strategic initiatives, and external validation, all cited.
+Under an hour later: competitive positioning, technology stack, strategic initiatives, and external validation, all cited.
 
 ## Why This Exists
 
 Company research is tedious. You visit the website, click around, Google the company, read articles, synthesize it all, write it up. Repeat for every prospect, every deal, every meeting. That process easily takes 1-2 hours per company and the output is usually unstructured notes.
 
-Primr does that entire workflow autonomously in ~30 minutes for ~$3-6 in API costs. The output is a structured, cited brief you can hand directly to a client or use in a pitch deck. If you're doing consulting, sales engineering, due diligence, or competitive analysis, a single run pays for itself compared to the time you'd spend doing it manually.
+Primr does that entire workflow autonomously in about an hour for about $6 in API costs. The output is a structured, cited brief you can hand directly to a client or use in a pitch deck. If you're doing consulting, sales engineering, due diligence, or competitive analysis, a single run pays for itself compared to the time you'd spend doing it manually.
 
 ## What Makes It Different
 
@@ -25,20 +25,21 @@ Primr does that entire workflow autonomously in ~30 minutes for ~$3-6 in API cos
 - **Cost controls built in**: `--dry-run` estimates, usage tracking, and governance hooks for budget limits.
 - **Agent-native interfaces**: CLI, MCP server, OpenClaw integration, and Claude Skills, all first-class.
 
-Manual research takes hours. Primr typically runs in ~30 minutes and costs ~$3-6 in API usage (varies by depth and site complexity). That's a fraction of what an hour of analyst time costs — and the output is ready to use.
+Manual research takes hours. Primr typically runs in about an hour and costs about $6 in API usage (varies by depth and site complexity). That's a fraction of what an hour of analyst time costs — and the output is ready to use.
 
 ## Modes
 
 | Mode | What it does | Time | Cost |
 |------|--------------|------|------|
-| `scrape` | Crawls site, extracts insights | ~5 min | ~$0.10 |
-| `deep` | Gemini Deep Research on external sources | ~10 min | ~$2.50 |
-| `full` | Both combined into comprehensive brief | ~30 min | ~$3.50 |
-| `full` + AI Strategy | Full brief + vendor roadmap per `--cloud-vendor` | ~60 min | ~$6-9 |
-| `full` + `--lite` | Same output, Pro model instead of DR for strategy | ~35 min | ~$3.80 |
-| `--fast` | Grok 4.1 accordion report (requires `XAI_API_KEY`) | ~12 min | ~$0.25 |
+| `full` | Scrape + Deep Research + AI Strategy (default) | 60-90 min | $6 |
+| `full` + multi-vendor | Add `--cloud-vendor aws azure` for multiple vendors | 75-120 min | $6-9 |
+| `full` + `--lite` | Pro model instead of DR for AI Strategy | 50-80 min | $4 |
+| `full --no-ai-strategy` | Skip AI Strategy, just the research brief | 45-75 min | $3.50 |
+| `--mode scrape` | Crawl site + extract insights only | 5-10 min | $0.10 |
+| `--mode deep` | Gemini Deep Research on external sources only | 10-15 min | $2.50 |
+| `--fast` | Grok 4.1 accordion report (requires `XAI_API_KEY`) | 10-17 min | $0.25 |
 
-Costs are Gemini API usage (Deep Research is a flat ~$2.50 per task, plus token costs for Flash/Pro calls). Each `--cloud-vendor` adds one Deep Research task. `--lite` swaps strategy Deep Research for a Pro model call (~$0.15/vendor instead of ~$2.50). `--fast` uses xAI Grok 4.1 with accordion batch writing (1 analysis + 5 report batches, ~$0.25 total). Web search uses DuckDuckGo (free). Use `--dry-run` for accurate estimates based on your usage history.
+The default `primr` command runs full mode with AI Strategy (Azure vendor). Costs are Gemini API usage: Deep Research is $2.50 per task (one for the brief, one per AI Strategy vendor), plus token costs for Flash/Pro calls. `--lite` swaps the strategy DR task for a Pro model call ($0.15/vendor instead of $2.50). `--fast` uses xAI Grok 4.1 with accordion batch writing. Web search uses DuckDuckGo (free). Use `--dry-run` for accurate estimates based on your usage history.
 
 ## Quick Start
 
@@ -155,7 +156,7 @@ primr --batch companies_utilities_enriched.csv --mode scrape
 --industry NAME   # Filter rows by industry column value
 --limit N         # Process only the first N companies (useful for testing)
 --skip-confirm    # Skip the confirmation prompt (for unattended runs)
---mode MODE       # scrape (~$0.10/co), deep (~$2.50/co), full (~$3.50/co)
+--mode MODE       # scrape ($0.10/co), deep ($2.50/co), full ($6/co)
 ```
 
 **Defensive behavior:**
@@ -171,12 +172,17 @@ Accepts Excel (`.xlsx`) or CSV files. Smart column detection uses an LLM to find
 
 ## Under the Hood
 
-**8-Tier Retrieval Engine** (browser-first for modern JS-heavy sites)
-- Browser tiers: Playwright -> expanded rendering -> DrissionPage stealth -> DrissionPage (driverless CDP)
-- Vision tier: Screenshot + LLM extraction for image-heavy or non-standard layouts
-- HTTP tiers: curl_cffi (TLS fingerprinting) -> httpx -> requests
-- Content-type routing: automatic PDF detection and LLM-powered extraction
-- Automatic fallback, per-host optimization, circuit breakers
+**8-Tier Retrieval Engine** (browser-first, falls back automatically)
+1. Playwright (JS rendering)
+2. Playwright Aggressive (accordions, lazy load)
+3. curl_cffi (TLS fingerprint impersonation)
+4. DrissionPage Stealth (challenge waiting)
+5. DrissionPage (driverless CDP)
+6. Vision (screenshot + LLM extraction)
+7. httpx (HTTP/2)
+8. requests (simple fallback)
+
+Includes sticky tier memory, circuit breakers, cookie handoff, and automatic PDF detection.
 
 **Gemini Deep Research**
 - Autonomous multi-step search and synthesis
@@ -194,6 +200,9 @@ Accepts Excel (`.xlsx`) or CSV files. Smart column detection uses an LLM to find
 ```bash
 # Required in .env
 GEMINI_API_KEY=       # https://aistudio.google.com/apikey
+
+# Optional - for --fast mode (Grok 4.1)
+# XAI_API_KEY=        # https://console.x.ai/
 
 # Optional - only needed if you want to use Google Custom Search instead of DuckDuckGo
 # SEARCH_PROVIDER=google

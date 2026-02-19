@@ -143,8 +143,8 @@ MODE_ESTIMATES = {
         "pro_output_tokens": 30_000,
         "deep_research_tasks": 1,
         "search_queries": 10,
-        "duration_min": 25,
-        "duration_max": 40,
+        "duration_min": 45,
+        "duration_max": 75,
     },
     "hybrid": {
         "flash_input_tokens": 30_000,
