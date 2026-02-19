@@ -98,6 +98,8 @@ class CLIConfig:
     ai_strategy_only_path: str | None = None
     discovery_notes_path: str | None = None
     strategy_type: str = "ai"  # Type of strategy to generate
+    lite_strategy: bool = False  # Use Pro model instead of Deep Research for strategy
+    fast_mode: bool = False  # Use Grok 4.1 for fast research (~10 min, ~$0.30)
     # Agentic architecture options
     memory_company: str | None = None
     memory_list: bool = False
@@ -218,6 +220,8 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         ai_strategy_only_path=getattr(parsed, 'ai_strategy_only', None),
         discovery_notes_path=getattr(parsed, 'discovery_notes', None),
         strategy_type=getattr(parsed, 'strategy_type', 'ai'),
+        lite_strategy=getattr(parsed, 'lite_strategy', False),
+        fast_mode=getattr(parsed, 'fast_mode', False),
         # Agentic architecture options
         memory_company=getattr(parsed, 'memory', None),
         memory_list=getattr(parsed, 'memory_list', False),
@@ -465,6 +469,18 @@ Accordion Method Test (for development):
         help="Cloud vendor(s) for AI recommendations (can specify multiple)"
     )
     parser.add_argument(
+        "--lite",
+        action="store_true",
+        dest="lite_strategy",
+        help="Use Pro model instead of Deep Research for AI strategy (faster, cheaper, less depth)"
+    )
+    parser.add_argument(
+        "--fast",
+        action="store_true",
+        dest="fast_mode",
+        help="Fast mode: Grok 4.1 one-shot report (~10 min, ~$0.30). Requires XAI_API_KEY"
+    )
+    parser.add_argument(
         "--discovery-notes",
         type=str,
         help="Path to discovery notes file (freeform meeting insights)"
@@ -709,15 +725,25 @@ def _handle_dry_run(config: CLIConfig) -> int:
     """Handle dry-run command."""
     from primr.utils.cost_estimator import estimate_cost
 
+    mode_label = "fast (Grok 4.1)" if config.fast_mode else config.mode
     print("")
     print("=" * 60)
-    print(f"COST ESTIMATE: {config.mode} mode")
-    if config.ai_strategy:
-        print("(includes AI Strategy analysis)")
+    print(f"COST ESTIMATE: {mode_label} mode")
+    if config.ai_strategy and not config.fast_mode:
+        strategy_label = "AI Strategy (Pro mode)" if config.lite_strategy else "AI Strategy analysis"
+        print(f"(includes {strategy_label})")
+    elif config.fast_mode and config.ai_strategy:
+        print("(includes AI Strategy via Grok)")
     print("=" * 60)
     print("")
 
-    estimate = estimate_cost(config.mode, config.ai_strategy)
+    estimate = estimate_cost(
+        config.mode,
+        config.ai_strategy,
+        num_vendors=len(config.cloud_vendors),
+        lite_strategy=config.lite_strategy,
+        fast_mode=config.fast_mode,
+    )
     print(str(estimate))
 
     print("")
@@ -952,7 +978,8 @@ def _handle_ai_strategy_only(config: CLIConfig) -> int:
             cloud_vendor=vendor,
             company_research_path=str(path),
             force_refresh_vendor=config.refresh_vendor_research,
-            discovery_notes_content=None  # TODO: Add discovery notes support
+            discovery_notes_content=None,  # TODO: Add discovery notes support
+            lite_strategy=config.lite_strategy,
         )
 
         if result_path:
@@ -1351,6 +1378,20 @@ def _handle_research(config: CLIConfig) -> int:
         console.blank()
         console.info("Run 'primr doctor' for detailed diagnostics")
         return 1
+
+    # Fast mode preflight: verify XAI_API_KEY and openai package
+    if config.fast_mode:
+        if not os.environ.get("XAI_API_KEY"):
+            console.error("--fast requires XAI_API_KEY in your .env or environment")
+            console.info("Get a key at https://console.x.ai/")
+            return 1
+        try:
+            import openai  # noqa: F401
+        except ImportError:
+            console.error("--fast requires the 'openai' package")
+            console.info("Install with: pip install 'primr[fast]' or pip install openai")
+            return 1
+
     console.ok("All systems ready")
 
     # Build context files list
@@ -1390,6 +1431,8 @@ def _handle_research(config: CLIConfig) -> int:
         refresh_vendor_research=config.refresh_vendor_research,
         max_scrape_time=config.max_scrape_time,
         discovery_notes_path=config.discovery_notes_path,
+        lite_strategy=config.lite_strategy,
+        fast_mode=config.fast_mode,
     )
 
     # Open report if requested
@@ -1478,6 +1521,13 @@ def _check_api_keys(all_passed: bool, warnings_count: int) -> tuple[bool, int]:
         except Exception as e:
             console.error(f"DuckDuckGo search check failed: {e}")
             all_passed = False
+
+    # Check xAI API key (optional — for --fast mode)
+    xai_key = os.environ.get("XAI_API_KEY", "")
+    if xai_key and len(xai_key) >= 10:
+        console.ok("XAI_API_KEY configured (enables --fast mode)")
+    else:
+        console.info("XAI_API_KEY not set (optional — needed for --fast mode)")
 
     return all_passed, warnings_count
 
@@ -2072,13 +2122,17 @@ def enrich_batch(
     console.blank()
     console.ok(f"Saved: {out_path}")
 
-    # Cost estimates
+    # Cost estimates (from cost_estimator)
+    from primr.utils.cost_estimator import estimate_cost
     count = len(enriched)
+    scrape_est = estimate_cost("scrape-only", use_historical=False)
+    deep_est = estimate_cost("deep-research", use_historical=False)
+    full_est = estimate_cost("complete", use_historical=False)
     console.blank()
     console.info("Cost estimates:")
-    console.info(f"  scrape mode: {count} x $0.10 = ~${count * 0.10:.2f}")
-    console.info(f"  deep mode:   {count} x $1.00 = ~${count * 1.00:.2f}")
-    console.info(f"  full mode:   {count} x $1.50 = ~${count * 1.50:.2f}")
+    console.info(f"  scrape mode: {count} x ${scrape_est.total_cost:.2f} = ~${count * scrape_est.total_cost:.2f}")
+    console.info(f"  deep mode:   {count} x ${deep_est.total_cost:.2f} = ~${count * deep_est.total_cost:.2f}")
+    console.info(f"  full mode:   {count} x ${full_est.total_cost:.2f} = ~${count * full_est.total_cost:.2f}")
     console.blank()
     console.info(f"Next step: primr --batch \"{out_path}\" --mode scrape")
 

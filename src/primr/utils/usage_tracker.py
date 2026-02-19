@@ -55,14 +55,15 @@ class UsageRecord:
         duration_seconds: float = 0.0,
     ) -> "UsageRecord":
         """Create a usage record with calculated costs."""
-        # Pricing (per 1M tokens)
-        INPUT_PRICE = 2.00  # $2 per 1M input tokens
-        OUTPUT_PRICE = 12.00  # $12 per 1M output tokens
-        SEARCH_PRICE = 0.0  # Free until Jan 5, 2026, then $35/1000 ($0.035/query)
+        from primr.config.models import SEARCH_COST_PER_QUERY, PrimrModels
+
+        # Default to Pro pricing (conservative — covers the most expensive model)
+        INPUT_PRICE = PrimrModels.get_price(PrimrModels.PRO_MODEL)[0]   # 2.00
+        OUTPUT_PRICE = PrimrModels.get_price(PrimrModels.PRO_MODEL)[1]  # 12.00
 
         input_cost = (input_tokens / 1_000_000) * INPUT_PRICE
         output_cost = (output_tokens / 1_000_000) * OUTPUT_PRICE
-        search_cost = (search_queries / 1000) * SEARCH_PRICE
+        search_cost = search_queries * SEARCH_COST_PER_QUERY
 
         return cls(
             timestamp=datetime.now().isoformat(),
@@ -216,9 +217,9 @@ class UsageTracker:
             return None
 
         count = len(mode_records)
-        avg_input = sum(r["input_tokens"] for r in mode_records) // count
-        avg_output = sum(r["output_tokens"] for r in mode_records) // count
-        avg_searches = sum(r.get("search_queries", 0) for r in mode_records) // count
+        avg_input = sum(r["input_tokens"] for r in mode_records) / count
+        avg_output = sum(r["output_tokens"] for r in mode_records) / count
+        avg_searches = sum(r.get("search_queries", 0) for r in mode_records) / count
         avg_cost = sum(r["total_cost"] for r in mode_records) / count
         avg_duration = sum(r.get("duration_seconds", 0) for r in mode_records) / count
 
@@ -293,7 +294,8 @@ class UsageTracker:
 
         # Show search cost projection (after Jan 5, 2026)
         if total_searches > 0:
-            projected_search_cost = (total_searches / 1000) * 35.0  # $35/1000 queries
+            from primr.config.models import SEARCH_COST_PER_QUERY
+            projected_search_cost = total_searches * SEARCH_COST_PER_QUERY
             lines.extend([
                 f"  Search Cost (after Jan 5): +${projected_search_cost:.2f}",
                 "",

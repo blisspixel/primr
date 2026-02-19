@@ -131,7 +131,7 @@ Response:
 {
   "job_id": "abc123def456",
   "status": "QUEUED",
-  "estimate": {"cost_usd": 0.50, "duration_minutes": 15},
+  "estimate": {"cost_usd": 2.50, "duration_minutes": 15},
   "is_existing": false
 }
 ```

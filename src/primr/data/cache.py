@@ -365,8 +365,8 @@ class ContentCache:
                 "SELECT MIN(created_at), MAX(created_at) FROM cache"
             )
             row = cursor.fetchone()
-            oldest = datetime.fromisoformat(row[0]) if row[0] else None
-            newest = datetime.fromisoformat(row[1]) if row[1] else None
+            oldest = datetime.fromisoformat(row[0]) if row and row[0] else None
+            newest = datetime.fromisoformat(row[1]) if row and row[1] else None
 
         return CacheStats(
             total_entries=total_entries,

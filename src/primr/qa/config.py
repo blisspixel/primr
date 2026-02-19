@@ -51,7 +51,7 @@ class QASystemConfig:
                 name=PrimrModels.QA_MODEL,
                 display_name=ModelRegistry.GEMINI_3_FLASH.display_name,
                 provider="google",
-                cost_per_1k_tokens=0.0005,  # $0.50 per 1M tokens
+                cost_per_1k_tokens=ModelRegistry.GEMINI_3_FLASH.cost_per_1m_input_tokens / 1000,
                 max_tokens=65536,
                 supports_json_mode=True,
                 recommended_for=["general", "fast", "analysis"],
@@ -61,7 +61,7 @@ class QASystemConfig:
                 name=PrimrModels.REASONING_MODEL,
                 display_name=ModelRegistry.GEMINI_3_PRO.display_name,
                 provider="google",
-                cost_per_1k_tokens=0.002,  # $2.00 per 1M tokens
+                cost_per_1k_tokens=ModelRegistry.GEMINI_3_PRO.cost_per_1m_input_tokens / 1000,
                 max_tokens=65536,
                 supports_json_mode=True,
                 recommended_for=["complex", "detailed", "technical"],

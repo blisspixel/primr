@@ -14,9 +14,9 @@ primr "Acme Corp" https://acme.example
 
 ## Why This Exists
 
-Company research is tedious. You visit the website, click around, Google the company, read articles, synthesize it all, write it up. Repeat for every prospect, every deal, every meeting.
+Company research is tedious. You visit the website, click around, Google the company, read articles, synthesize it all, write it up. Repeat for every prospect, every deal, every meeting. That process easily takes 1-2 hours per company and the output is usually unstructured notes.
 
-Primr does that entire workflow autonomously.
+Primr does that entire workflow autonomously in ~30 minutes for ~$3-6 in API costs. The output is a structured, cited brief you can hand directly to a client or use in a pitch deck. If you're doing consulting, sales engineering, due diligence, or competitive analysis, a single run pays for itself compared to the time you'd spend doing it manually.
 
 ## What Makes It Different
 
@@ -25,17 +25,20 @@ Primr does that entire workflow autonomously.
 - **Cost controls built in**: `--dry-run` estimates, usage tracking, and governance hooks for budget limits.
 - **Agent-native interfaces**: CLI, MCP server, OpenClaw integration, and Claude Skills, all first-class.
 
-Manual research takes hours. Primr typically runs in ~30 minutes and costs ~$1-2 in API usage (varies by depth and site behavior).
+Manual research takes hours. Primr typically runs in ~30 minutes and costs ~$3-6 in API usage (varies by depth and site complexity). That's a fraction of what an hour of analyst time costs — and the output is ready to use.
 
 ## Modes
 
 | Mode | What it does | Time | Cost |
 |------|--------------|------|------|
 | `scrape` | Crawls site, extracts insights | ~5 min | ~$0.10 |
-| `deep` | Gemini Deep Research on external sources | ~10 min | ~$1.00 |
-| `full` | Both combined into comprehensive brief | ~30 min | ~$1.50 |
+| `deep` | Gemini Deep Research on external sources | ~10 min | ~$2.50 |
+| `full` | Both combined into comprehensive brief | ~30 min | ~$3.50 |
+| `full` + AI Strategy | Full brief + vendor roadmap per `--cloud-vendor` | ~60 min | ~$6-9 |
+| `full` + `--lite` | Same output, Pro model instead of DR for strategy | ~35 min | ~$3.80 |
+| `--fast` | Grok 4.1 one-shot report (requires `XAI_API_KEY`) | ~10 min | ~$0.30 |
 
-Costs are primarily Gemini API usage. Web search is free (DuckDuckGo). Use `--dry-run` for accurate estimates based on your usage history.
+Costs are Gemini API usage (Deep Research is a flat ~$2.50 per task, plus token costs for Flash/Pro calls). Each `--cloud-vendor` adds one Deep Research task. `--lite` swaps strategy Deep Research for a Pro model call (~$0.15/vendor instead of ~$2.50). `--fast` uses xAI Grok 4.1 for the entire report (~$0.30 total). Web search uses DuckDuckGo (free). Use `--dry-run` for accurate estimates based on your usage history.
 
 ## Quick Start
 
@@ -56,6 +59,8 @@ primr "Company" https://company.com --mode scrape        # Site corpus only
 primr "Company" https://company.com --mode deep          # External research only
 primr "Company" https://company.com --dry-run            # Cost estimate first
 primr "Company" https://company.com --cloud-vendor aws azure  # Multi-vendor AI strategy
+primr "Company" https://company.com --cloud-vendor aws azure --lite  # Cheaper/faster strategy
+primr "Company" https://company.com --fast                        # Grok 4.1 fast mode (~$0.30)
 ```
 
 ### What a run looks like
@@ -110,8 +115,8 @@ Mode: Complete (Two-Step)
 Chapters: 21
 Citations: 34
 Duration: 85m
-Est. Cost: $1.92
-Actual Cost: ~$0.62
+Est. Cost: $8.85
+Actual Cost: ~$8.12
 AI Strategy: Yes
 ```
 
@@ -150,7 +155,7 @@ primr --batch companies_utilities_enriched.csv --mode scrape
 --industry NAME   # Filter rows by industry column value
 --limit N         # Process only the first N companies (useful for testing)
 --skip-confirm    # Skip the confirmation prompt (for unattended runs)
---mode MODE       # scrape (~$0.10/co), deep (~$1.00/co), full (~$1.50/co)
+--mode MODE       # scrape (~$0.10/co), deep (~$2.50/co), full (~$3.50/co)
 ```
 
 **Defensive behavior:**
@@ -270,7 +275,9 @@ Recent hardening includes shared deep-research parsing/polling/execution modules
 
 ## About This Project
 
-Primr is a nights-and-weekends project by a solo developer. I think AI-assisted research workflows are going to be transformative over the next few years, and this is my way of building deeply in the space - learning by shipping something real.
+Primr is a nights-and-weekends project by a solo developer. I kept finding myself spending hours researching companies — clicking around websites, reading articles, trying to piece together what a company actually does and where it's headed. The time-to-insight ratio was terrible, and most of the work was mechanical. That's exactly what AI should be doing.
+
+So I built the tool I wanted: drop in a URL, get back a structured brief. It costs a few dollars in API fees and saves hours per company. Whether you're evaluating a potential employer, researching an investment, preparing for a partnership conversation, or just curious about a company, it gets you up to speed fast.
 
 It's not backed by a company or a team. It's an independent project built for personal use.
 

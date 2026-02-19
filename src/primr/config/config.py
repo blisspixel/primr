@@ -234,7 +234,7 @@ AI_RESEARCH_MODEL = os.getenv("AI_RESEARCH_MODEL", PrimrModels.FAST_MODEL)  # Fl
 AI_REPORT_MODEL = os.getenv("AI_REPORT_MODEL", PrimrModels.FAST_MODEL)  # Flash - cheap/fast
 
 MAX_RETRIES = 3
-GRADE_THRESHOLD_FOR_RESEARCH_REFINEMENT = 80
+GRADE_THRESHOLD_FOR_RESEARCH_REFINEMENT = 70
 
 ### **File Handling & Output Settings** ###
 OUTPUT_DIR = str(PROJECT_ROOT / "output")

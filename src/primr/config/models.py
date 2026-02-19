@@ -9,7 +9,7 @@ AVAILABLE MODELS (January 2026):
 --------------------------------
 GEMINI 3 SERIES (Latest Flagship - GA):
 1. gemini-3-pro-preview    - PRO: Deep reasoning, 65k output, 2M context ($2/$12 per 1M)
-2. gemini-3-flash-preview  - FLASH: Speed + intelligence, 65k output, 1M context ($0.60/$2.50 per 1M)
+2. gemini-3-flash-preview  - FLASH: Speed + intelligence, 65k output, 1M context ($0.50/$3.00 per 1M)
 
 GEMINI 2.5 SERIES (Stable Workhorses):
 3. gemini-2.5-pro          - Stable production, 8k output, 2M context ($1.25/$10 per 1M)
@@ -31,7 +31,7 @@ KEY UPGRADE: Gemini 3 has 65k max output tokens (vs 8k for 2.5) - can write enti
 PRICING (January 2026):
 -----------------------
 Gemini 3 Pro:    $2.00 input / $12.00 output per 1M tokens (includes thinking tokens)
-Gemini 3 Flash:  $0.60 input / $2.50 output per 1M tokens
+Gemini 3 Flash:  $0.50 input / $3.00 output per 1M tokens
 Gemini 2.5 Pro:  $1.25 input / $10.00 output per 1M tokens
 Gemini 2.5 Flash: $0.30 input / $1.25 output per 1M tokens
 """
@@ -79,15 +79,15 @@ class ModelRegistry:
     # =========================================================================
     # GEMINI 3 FLASH - Speed + Intelligence balance (GA January 2026)
     # USE FOR: Smart chatbots, scraping summaries, link filtering, QA checks
-    # $0.60 input / $2.50 output per 1M tokens
+    # $0.50 input / $3.00 output per 1M tokens
     # Context: 1M tokens, Output: 65k tokens
     # =========================================================================
     GEMINI_3_FLASH = ModelConfig(
         name="gemini-3-flash-preview",
         display_name="Gemini 3 Flash",
         provider="google",
-        cost_per_1m_input_tokens=0.60,
-        cost_per_1m_output_tokens=2.50,
+        cost_per_1m_input_tokens=0.50,
+        cost_per_1m_output_tokens=3.00,
         max_input_tokens=1_000_000,      # 1M tokens
         max_output_tokens=65_536,        # 65k tokens (major upgrade from 2.5!)
         supports_thinking=True,
@@ -170,11 +170,42 @@ class ModelRegistry:
     )
 
     # =========================================================================
+    # GROK 4.1 FAST REASONING - xAI fast reasoning model
+    # USE FOR: Fast mode one-shot report generation (2M context, cheap)
+    # $0.20 input / $0.50 output per 1M tokens
+    # Context: 2M tokens, Output: 128k tokens
+    # OpenAI-compatible API at https://api.x.ai/v1
+    # =========================================================================
+    GROK_4_1_FAST = ModelConfig(
+        name="grok-4-1-fast-reasoning",
+        display_name="Grok 4.1 Fast Reasoning",
+        provider="xai",
+        cost_per_1m_input_tokens=0.20,
+        cost_per_1m_output_tokens=0.50,
+        max_input_tokens=2_000_000,      # 2M tokens
+        max_output_tokens=131_072,       # 128k tokens
+        supports_thinking=True,
+        supports_tools=True,
+        supports_multimodal=False,
+    )
+
+    # =========================================================================
     # DEEP RESEARCH AGENT - Autonomous research producing 12+ page reports
     # This is a SEPARATE API (Interactions API), not generate_content
     # Uses Gemini 3 Pro under the hood
     # =========================================================================
     DEEP_RESEARCH_AGENT = "deep-research-pro-preview-12-2025"
+
+
+@dataclass
+class DeepResearchCost:
+    """Per-task cost estimates. API doesn't expose tokens — these are approximate."""
+    standard_task_cost: float = 2.50   # $2-3 typical (midpoint)
+    complex_task_cost: float = 4.00    # $3-5 typical (midpoint)
+
+
+DEEP_RESEARCH_COST = DeepResearchCost()
+SEARCH_COST_PER_QUERY = 0.035  # $35/1000 queries
 
 
 class PrimrModels:
@@ -189,7 +220,7 @@ class PrimrModels:
     2. Update FLASH_MODEL and/or PRO_MODEL below
     3. Done - all code uses these constants
 
-    CURRENT ASSIGNMENTS (December 2025):
+    CURRENT ASSIGNMENTS (February 2026):
     ------------------------------------
     FLASH_MODEL = gemini-3-flash-preview  (cheap, fast - for scraping/filtering)
     PRO_MODEL   = gemini-3-pro-preview    (expensive, smart - for report writing)
@@ -237,6 +268,9 @@ class PrimrModels:
     # =========================================================================
     FALLBACK_MODELS: dict = {}  # Empty - no fallbacks
 
+    # --- GROK MODEL (xAI - for fast mode) ---
+    GROK_MODEL = ModelRegistry.GROK_4_1_FAST.name
+
     # Model registry for lookups
     ALL_MODELS = {
         ModelRegistry.GEMINI_3_PRO.name: ModelRegistry.GEMINI_3_PRO,
@@ -244,6 +278,7 @@ class PrimrModels:
         ModelRegistry.GEMINI_3_PRO_IMAGE.name: ModelRegistry.GEMINI_3_PRO_IMAGE,
         ModelRegistry.GEMINI_2_5_PRO.name: ModelRegistry.GEMINI_2_5_PRO,
         ModelRegistry.GEMINI_2_5_FLASH.name: ModelRegistry.GEMINI_2_5_FLASH,
+        ModelRegistry.GROK_4_1_FAST.name: ModelRegistry.GROK_4_1_FAST,
     }
 
     @classmethod
@@ -283,6 +318,61 @@ class PrimrModels:
         }
         return model_name in latest_models
 
+    @classmethod
+    def get_price(cls, model_name: str) -> tuple[float, float]:
+        """Look up (input_price, output_price) per 1M tokens from ALL_MODELS."""
+        config = cls.ALL_MODELS.get(model_name)
+        if config is None:
+            raise KeyError(f"Unknown model: {model_name}")
+        return (config.cost_per_1m_input_tokens, config.cost_per_1m_output_tokens)
+
+    @classmethod
+    def calculate_cost(cls, model_name: str, input_tokens: int, output_tokens: int) -> float:
+        """Calculate cost in USD for given token counts using model pricing."""
+        inp_price, out_price = cls.get_price(model_name)
+        return (input_tokens / 1_000_000) * inp_price + (output_tokens / 1_000_000) * out_price
+
+    @classmethod
+    def calculate_flash_cost(cls, input_tokens: int, output_tokens: int) -> float:
+        """Calculate cost using Flash model pricing."""
+        return cls.calculate_cost(cls.FLASH_MODEL, input_tokens, output_tokens)
+
+    @classmethod
+    def calculate_pro_cost(cls, input_tokens: int, output_tokens: int) -> float:
+        """Calculate cost using Pro model pricing."""
+        return cls.calculate_cost(cls.PRO_MODEL, input_tokens, output_tokens)
+
+    @classmethod
+    def calculate_search_cost(cls, num_queries: int) -> float:
+        """Calculate search cost at $0.035/query."""
+        return num_queries * SEARCH_COST_PER_QUERY
+
+
+# Module-level convenience functions
+def get_price(model_name: str) -> tuple[float, float]:
+    """Look up (input_price, output_price) per 1M tokens."""
+    return PrimrModels.get_price(model_name)
+
+
+def calculate_cost(model_name: str, input_tokens: int, output_tokens: int) -> float:
+    """Calculate cost in USD for given token counts."""
+    return PrimrModels.calculate_cost(model_name, input_tokens, output_tokens)
+
+
+def calculate_flash_cost(input_tokens: int, output_tokens: int) -> float:
+    """Calculate cost using Flash model pricing."""
+    return PrimrModels.calculate_flash_cost(input_tokens, output_tokens)
+
+
+def calculate_pro_cost(input_tokens: int, output_tokens: int) -> float:
+    """Calculate cost using Pro model pricing."""
+    return PrimrModels.calculate_pro_cost(input_tokens, output_tokens)
+
+
+def calculate_search_cost(num_queries: int) -> float:
+    """Calculate search cost at $0.035/query."""
+    return PrimrModels.calculate_search_cost(num_queries)
+
 
 # =============================================================================
 # CONVENIENCE CONSTANTS - Import these directly
@@ -292,6 +382,7 @@ class PrimrModels:
 FLASH_MODEL = PrimrModels.FLASH_MODEL
 PRO_MODEL = PrimrModels.PRO_MODEL
 DEEP_RESEARCH_AGENT = PrimrModels.DEEP_RESEARCH_AGENT
+GROK_MODEL = PrimrModels.GROK_MODEL
 
 # Task-specific (preferred)
 SCRAPING_MODEL = PrimrModels.SCRAPING_MODEL

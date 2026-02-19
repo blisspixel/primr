@@ -904,13 +904,13 @@ class TestCostEstimation:
     def test_scrape_mode_estimate(self) -> None:
         """Scrape mode should have lowest cost estimate."""
         estimate = estimate_cost("scrape")
-        assert estimate.cost_usd < 0.10
+        assert estimate.cost_usd <= 0.10
         assert estimate.duration_minutes <= 15
 
     def test_deep_mode_estimate(self) -> None:
         """Deep mode should have moderate cost estimate."""
         estimate = estimate_cost("deep")
-        assert 0.50 <= estimate.cost_usd <= 2.00
+        assert 0.50 <= estimate.cost_usd <= 3.00
         assert estimate.duration_minutes <= 20
 
     def test_full_mode_estimate(self) -> None:

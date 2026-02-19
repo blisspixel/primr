@@ -4,11 +4,11 @@ Cost Estimator for Gemini API usage.
 Provides estimated costs before running research to help users
 make informed decisions about API spending.
 
-Pricing as of December 2025:
-- Gemini 3 Pro: $2/$12 per 1M tokens (input/output) for prompts <= 200k
-- Gemini 3 Pro: $4/$18 per 1M tokens (input/output) for prompts > 200k
-- Deep Research: Uses Gemini 3 Pro pricing + Google Search (free until Jan 5, 2026)
-- Google Search Grounding: Free until Jan 5, 2026, then $35/1000 queries ($0.035/query)
+Pricing as of February 2026 (from models.py single source of truth):
+- Gemini 3 Flash: $0.50/$3.00 per 1M tokens (input/output)
+- Gemini 3 Pro: $2.00/$12.00 per 1M tokens (input/output) for prompts <= 200k
+- Deep Research: ~$2-3 per standard task, ~$3-5 per complex task (API doesn't expose tokens)
+- Google Search Grounding: $35/1000 queries ($0.035/query)
 
 Note: Actual search query counts are available in API response via
 groundingMetadata.webSearchQueries. Typical reports use 10-30 searches,
@@ -17,6 +17,12 @@ not the 100+ that "thinking steps" might suggest.
 
 from dataclasses import dataclass
 from enum import Enum
+
+from primr.config.models import (
+    DEEP_RESEARCH_COST,
+    SEARCH_COST_PER_QUERY,
+    PrimrModels,
+)
 
 
 class ResearchModeType(Enum):
@@ -39,7 +45,8 @@ class CostEstimate:
     search_cost: float
     total_cost: float
     duration_minutes: str
-    notes: list
+    notes: list[str]
+    deep_research_cost: float = 0.0
 
     def __str__(self) -> str:
         """Format cost estimate for display."""
@@ -55,6 +62,9 @@ class CostEstimate:
         if self.estimated_search_queries > 0:
             lines.append(f"  Search: ~{self.estimated_search_queries} queries (${self.search_cost:.4f})")
 
+        if self.deep_research_cost > 0:
+            lines.append(f"  Deep Research: ${self.deep_research_cost:.2f} (approximate)")
+
         lines.extend([
             "",
             f"Estimated Total: ${self.total_cost:.2f}",
@@ -68,71 +78,102 @@ class CostEstimate:
         return "\n".join(lines)
 
 
-# Pricing constants (per 1M tokens, USD)
-# Gemini 3 Pro (for full research modes)
-GEMINI_3_PRO_INPUT_PRICE_SMALL = 2.00  # prompts <= 200k tokens
-GEMINI_3_PRO_INPUT_PRICE_LARGE = 4.00  # prompts > 200k tokens
-GEMINI_3_PRO_OUTPUT_PRICE_SMALL = 12.00  # prompts <= 200k tokens
+# =============================================================================
+# Backward-compatible pricing aliases (derived from models.py)
+# =============================================================================
+GEMINI_3_PRO_INPUT_PRICE_SMALL = PrimrModels.get_price(PrimrModels.PRO_MODEL)[0]    # 2.00
+GEMINI_3_PRO_INPUT_PRICE_LARGE = 4.00   # prompts > 200k tokens
+GEMINI_3_PRO_OUTPUT_PRICE_SMALL = PrimrModels.get_price(PrimrModels.PRO_MODEL)[1]   # 12.00
 GEMINI_3_PRO_OUTPUT_PRICE_LARGE = 18.00  # prompts > 200k tokens
 
-# Gemini 3 Flash (for scrape-only mode - much cheaper)
-GEMINI_3_FLASH_INPUT_PRICE = 0.10  # $0.10/1M tokens
-GEMINI_3_FLASH_OUTPUT_PRICE = 0.40  # $0.40/1M tokens
+GEMINI_3_FLASH_INPUT_PRICE = PrimrModels.get_price(PrimrModels.FLASH_MODEL)[0]      # 0.50
+GEMINI_3_FLASH_OUTPUT_PRICE = PrimrModels.get_price(PrimrModels.FLASH_MODEL)[1]     # 3.00
 
-# Google Search pricing (free period ended Jan 5, 2026)
-GOOGLE_SEARCH_PRICE_PER_1000 = 35.00  # $35 per 1000 queries ($0.035/query)
+GOOGLE_SEARCH_PRICE_PER_1000 = SEARCH_COST_PER_QUERY * 1000  # 35.00
 
-# Estimated token usage by mode (based on actual runs Dec 2025)
-# These are fallback defaults - actual estimates come from usage_history.json
+
+# Estimated token usage by mode (based on actual runs, split by model)
+# Flash is used for scraping/filtering, Pro for writing/analysis
+# deep_research_tasks: number of Deep Research API calls (flat per-task cost)
 MODE_ESTIMATES = {
     "scrape-test": {
-        "input_tokens": 0,        # No LLM calls
-        "output_tokens": 0,       # No LLM calls
-        "search_queries": 0,      # No search
-        "duration_min": 0,        # Minutes (low estimate)
-        "duration_max": 2,        # Minutes (high estimate)
+        "flash_input_tokens": 0,
+        "flash_output_tokens": 0,
+        "pro_input_tokens": 0,
+        "pro_output_tokens": 0,
+        "deep_research_tasks": 0,
+        "search_queries": 0,
+        "duration_min": 0,
+        "duration_max": 2,
     },
     "scrape-only": {
-        "input_tokens": 20_000,   # Scraped content + insight extraction
-        "output_tokens": 5_000,   # Just insights summary
-        "search_queries": 2,      # Minimal external search
-        "duration_min": 2,        # Minutes (low estimate)
-        "duration_max": 5,        # Minutes (high estimate)
+        "flash_input_tokens": 20_000,
+        "flash_output_tokens": 5_000,
+        "pro_input_tokens": 0,
+        "pro_output_tokens": 0,
+        "deep_research_tasks": 0,
+        "search_queries": 2,
+        "duration_min": 2,
+        "duration_max": 5,
     },
     "structured": {
-        "input_tokens": 80_000,   # Website content + prompts
-        "output_tokens": 40_000,  # 18 sections
-        "search_queries": 10,     # Google Custom Search
-        "duration_min": 20,       # Minutes (low estimate)
-        "duration_max": 30,       # Minutes (high estimate)
+        "flash_input_tokens": 30_000,
+        "flash_output_tokens": 10_000,
+        "pro_input_tokens": 50_000,
+        "pro_output_tokens": 30_000,
+        "deep_research_tasks": 0,
+        "search_queries": 10,
+        "duration_min": 20,
+        "duration_max": 30,
     },
     "deep-research": {
-        "input_tokens": 50_000,   # Prompt + context (estimated, API doesn't expose)
-        "output_tokens": 15_000,  # ~14k actual from runs
-        "search_queries": 20,     # Typical: 10-30 searches (not 100+ "thinking steps")
+        "flash_input_tokens": 0,
+        "flash_output_tokens": 0,
+        "pro_input_tokens": 0,
+        "pro_output_tokens": 0,
+        "deep_research_tasks": 1,
+        "search_queries": 0,
         "duration_min": 8,
         "duration_max": 15,
     },
     "complete": {
-        "input_tokens": 100_000,  # Step 1 + Step 2
-        "output_tokens": 30_000,  # ~14k per step
-        "search_queries": 25,     # Both engines, typical 15-35
+        "flash_input_tokens": 30_000,
+        "flash_output_tokens": 10_000,
+        "pro_input_tokens": 50_000,
+        "pro_output_tokens": 30_000,
+        "deep_research_tasks": 1,
+        "search_queries": 10,
         "duration_min": 25,
         "duration_max": 40,
     },
     "hybrid": {
-        "input_tokens": 100_000,  # Both engines parallel
-        "output_tokens": 30_000,  # Combined output
-        "search_queries": 25,     # Both engines, typical 15-35
+        "flash_input_tokens": 30_000,
+        "flash_output_tokens": 10_000,
+        "pro_input_tokens": 50_000,
+        "pro_output_tokens": 30_000,
+        "deep_research_tasks": 1,
+        "search_queries": 10,
         "duration_min": 20,
         "duration_max": 30,
     },
+    # Fast mode: Flash scraping + two Grok calls (analysis + report), no DR, no Pro
+    "fast": {
+        "flash_input_tokens": 15_000,
+        "flash_output_tokens": 4_000,
+        "pro_input_tokens": 0,
+        "pro_output_tokens": 0,
+        "grok_input_tokens": 400_000,
+        "grok_output_tokens": 46_000,
+        "deep_research_tasks": 0,
+        "search_queries": 5,
+        "duration_min": 8,
+        "duration_max": 15,
+    },
 }
 
-# AI Strategy adds another Deep Research call
+# AI Strategy adds another Deep Research call per vendor
 AI_STRATEGY_OVERHEAD = {
-    "input_tokens": 50_000,   # Prompt + company context + vendor research
-    "output_tokens": 12_000,  # ~10-12k actual
+    "deep_research_tasks": 1,
     "duration_min": 8,
     "duration_max": 15,
 }
@@ -144,41 +185,68 @@ def estimate_cost(
     search_free: bool = False,  # Free period ended Jan 5, 2026
     use_historical: bool = True,  # Use historical averages when available
     num_vendors: int = 1,
+    lite_strategy: bool = False,
+    fast_mode: bool = False,
 ) -> CostEstimate:
     """
     Estimate the cost of a research task.
 
     Uses historical data from actual runs when available (3+ samples),
-    otherwise falls back to default estimates.
+    otherwise falls back to default estimates. Calculates blended cost
+    across Flash (scraping) and Pro (writing) models.
 
     Args:
         mode: Research mode (scrape-only, structured, deep-research, complete, hybrid)
         include_ai_strategy: Whether AI strategy analysis is included
         search_free: Whether Google Search is in free period
         use_historical: Whether to use historical averages (requires 3+ samples)
+        num_vendors: Number of vendor strategies to generate
+        lite_strategy: If True, strategy uses Pro model instead of Deep Research
+        fast_mode: If True, use Grok 4.1 fast mode estimates
 
     Returns:
         CostEstimate with breakdown
     """
+    # Fast mode: completely different cost model (Flash + Grok, no DR, no Pro)
+    if fast_mode:
+        return _estimate_fast_mode_cost(include_ai_strategy, num_vendors, search_free)
+
     estimates = MODE_ESTIMATES.get(mode, MODE_ESTIMATES["scrape-only"])
 
-    input_tokens = estimates["input_tokens"]
-    output_tokens = estimates["output_tokens"]
+    flash_in = estimates["flash_input_tokens"]
+    flash_out = estimates["flash_output_tokens"]
+    pro_in = estimates["pro_input_tokens"]
+    pro_out = estimates["pro_output_tokens"]
+    dr_tasks = estimates["deep_research_tasks"]
     search_queries = estimates["search_queries"]
     duration_min = estimates["duration_min"]
     duration_max = estimates["duration_max"]
 
     # Check for historical data to refine estimates
     historical_used = False
+    hist = None
     if use_historical:
         from primr.utils.usage_tracker import get_usage_tracker
         tracker = get_usage_tracker()
         hist = tracker.get_average_by_mode(mode)
 
         if hist and hist["sample_size"] >= 3:
-            # Use historical averages
-            input_tokens = hist["avg_input_tokens"]
-            output_tokens = hist["avg_output_tokens"]
+            # Use historical averages — distribute across flash+pro
+            total_hist_in = hist["avg_input_tokens"]
+            total_hist_out = hist["avg_output_tokens"]
+            # Preserve the flash/pro ratio from defaults
+            default_total_in = flash_in + pro_in
+            default_total_out = flash_out + pro_out
+            if default_total_in > 0:
+                flash_in = int(total_hist_in * flash_in / default_total_in)
+                pro_in = total_hist_in - flash_in
+            else:
+                pro_in = total_hist_in
+            if default_total_out > 0:
+                flash_out = int(total_hist_out * flash_out / default_total_out)
+                pro_out = total_hist_out - flash_out
+            else:
+                pro_out = total_hist_out
 
             # Calculate duration range from historical (avg +/- 20%)
             avg_mins = hist["avg_duration_seconds"] / 60
@@ -189,58 +257,70 @@ def estimate_cost(
     # Add AI strategy overhead (use historical if available)
     ai_strategy_hist = None
     if include_ai_strategy:
-        if use_historical:
-            from primr.utils.usage_tracker import get_usage_tracker
-            tracker = get_usage_tracker()
-            ai_strategy_hist = tracker.get_average_by_mode("ai-strategy")
-
-        if ai_strategy_hist and ai_strategy_hist["sample_size"] >= 3:
-            # Use historical AI strategy data (multiply by number of vendors)
-            input_tokens += ai_strategy_hist["avg_input_tokens"] * num_vendors
-            output_tokens += ai_strategy_hist["avg_output_tokens"] * num_vendors
-            ai_avg_mins = ai_strategy_hist["avg_duration_seconds"] / 60
-            duration_min += int(ai_avg_mins * 0.8) * num_vendors
-            duration_max += int(ai_avg_mins * 1.2) * num_vendors
+        if lite_strategy:
+            # Lite strategy: Pro model instead of Deep Research per vendor
+            # ~50k input + ~10k output tokens per vendor
+            pro_in += 50_000 * num_vendors
+            pro_out += 10_000 * num_vendors
+            duration_min += 2 * num_vendors
+            duration_max += 3 * num_vendors
         else:
-            # Use default estimates (multiply by number of vendors)
-            input_tokens += AI_STRATEGY_OVERHEAD["input_tokens"] * num_vendors
-            output_tokens += AI_STRATEGY_OVERHEAD["output_tokens"] * num_vendors
-            duration_min += AI_STRATEGY_OVERHEAD["duration_min"] * num_vendors
-            duration_max += AI_STRATEGY_OVERHEAD["duration_max"] * num_vendors
+            if use_historical:
+                from primr.utils.usage_tracker import get_usage_tracker
+                tracker = get_usage_tracker()
+                ai_strategy_hist = tracker.get_average_by_mode("ai-strategy")
+
+            if ai_strategy_hist and ai_strategy_hist["sample_size"] >= 3:
+                # Historical AI strategy data — each vendor = 1 DR task + historical duration
+                dr_tasks += AI_STRATEGY_OVERHEAD["deep_research_tasks"] * num_vendors
+                ai_avg_mins = ai_strategy_hist["avg_duration_seconds"] / 60
+                duration_min += int(ai_avg_mins * 0.8) * num_vendors
+                duration_max += int(ai_avg_mins * 1.2) * num_vendors
+            else:
+                # Default: each AI strategy = 1 Deep Research task per vendor
+                dr_tasks += AI_STRATEGY_OVERHEAD["deep_research_tasks"] * num_vendors
+                duration_min += AI_STRATEGY_OVERHEAD["duration_min"] * num_vendors
+                duration_max += AI_STRATEGY_OVERHEAD["duration_max"] * num_vendors
 
     # Format duration string
     duration = f"{duration_min}-{duration_max} min"
     if include_ai_strategy:
-        duration += " + AI strategy"
+        duration += " + AI strategy (Pro)" if lite_strategy else " + AI strategy"
 
-    # Calculate costs - use Flash pricing for scrape-only (much cheaper)
-    if mode == "scrape-only":
-        input_cost = (input_tokens / 1_000_000) * GEMINI_3_FLASH_INPUT_PRICE
-        output_cost = (output_tokens / 1_000_000) * GEMINI_3_FLASH_OUTPUT_PRICE
-    else:
-        # Use Pro pricing for full research modes
-        input_cost = (input_tokens / 1_000_000) * GEMINI_3_PRO_INPUT_PRICE_SMALL
-        output_cost = (output_tokens / 1_000_000) * GEMINI_3_PRO_OUTPUT_PRICE_SMALL
+    # Calculate blended cost from Flash + Pro models
+    flash_cost = PrimrModels.calculate_flash_cost(flash_in, flash_out)
+    pro_cost = PrimrModels.calculate_pro_cost(pro_in, pro_out)
+    input_cost = (flash_in / 1_000_000) * GEMINI_3_FLASH_INPUT_PRICE + (pro_in / 1_000_000) * GEMINI_3_PRO_INPUT_PRICE_SMALL
+    output_cost = (flash_out / 1_000_000) * GEMINI_3_FLASH_OUTPUT_PRICE + (pro_out / 1_000_000) * GEMINI_3_PRO_OUTPUT_PRICE_SMALL
 
-    # Search cost (free until Jan 5, 2026)
+    # Deep Research cost (flat per-task)
+    deep_research_cost = dr_tasks * DEEP_RESEARCH_COST.standard_task_cost
+
+    # Search cost
     if search_free:
         search_cost = 0.0
     else:
-        search_cost = (search_queries / 1000) * GOOGLE_SEARCH_PRICE_PER_1000
+        search_cost = PrimrModels.calculate_search_cost(search_queries)
 
-    total_cost = input_cost + output_cost + search_cost
+    total_cost = flash_cost + pro_cost + deep_research_cost + search_cost
 
     # Build notes
     notes: list[str] = []
     if historical_used and hist is not None:
         notes.append(f"Based on {hist['sample_size']} previous runs")
-    if include_ai_strategy and ai_strategy_hist and ai_strategy_hist["sample_size"] >= 3:
+    if include_ai_strategy and lite_strategy:
+        notes.append("AI Strategy using Pro model (lite mode)")
+    elif include_ai_strategy and ai_strategy_hist and ai_strategy_hist["sample_size"] >= 3:
         notes.append(f"AI Strategy based on {ai_strategy_hist['sample_size']} runs")
+
+    # Total tokens for backward compat display
+    total_input_tokens = flash_in + pro_in
+    total_output_tokens = flash_out + pro_out
 
     return CostEstimate(
         mode=mode,
-        estimated_input_tokens=input_tokens,
-        estimated_output_tokens=output_tokens,
+        estimated_input_tokens=total_input_tokens,
+        estimated_output_tokens=total_output_tokens,
         estimated_search_queries=search_queries,
         input_cost=input_cost,
         output_cost=output_cost,
@@ -248,6 +328,72 @@ def estimate_cost(
         total_cost=total_cost,
         duration_minutes=duration,
         notes=notes,
+        deep_research_cost=deep_research_cost,
+    )
+
+
+def _estimate_fast_mode_cost(
+    include_ai_strategy: bool,
+    num_vendors: int,
+    search_free: bool,
+) -> CostEstimate:
+    """Estimate cost for fast mode (Grok 4.1 pipeline)."""
+    fast = MODE_ESTIMATES["fast"]
+    flash_in = fast["flash_input_tokens"]
+    flash_out = fast["flash_output_tokens"]
+    grok_in = fast["grok_input_tokens"]
+    grok_out = fast["grok_output_tokens"]
+    search_queries = fast["search_queries"]
+    duration_min = fast["duration_min"]
+    duration_max = fast["duration_max"]
+
+    # AI strategy adds Grok tokens per vendor
+    if include_ai_strategy:
+        grok_in += 100_000 * num_vendors   # strategy prompt + context
+        grok_out += 10_000 * num_vendors   # strategy output
+        duration_min += 2 * num_vendors
+        duration_max += 3 * num_vendors
+
+    # Costs
+    flash_cost = PrimrModels.calculate_flash_cost(flash_in, flash_out)
+    grok_cost = PrimrModels.calculate_cost(PrimrModels.GROK_MODEL, grok_in, grok_out)
+    search_cost = 0.0 if search_free else PrimrModels.calculate_search_cost(search_queries)
+
+    total_cost = flash_cost + grok_cost + search_cost
+
+    # Split for display
+    flash_input_cost = (flash_in / 1_000_000) * GEMINI_3_FLASH_INPUT_PRICE
+    flash_output_cost = (flash_out / 1_000_000) * GEMINI_3_FLASH_OUTPUT_PRICE
+    grok_input_price, grok_output_price = PrimrModels.get_price(PrimrModels.GROK_MODEL)
+    grok_input_cost = (grok_in / 1_000_000) * grok_input_price
+    grok_output_cost = (grok_out / 1_000_000) * grok_output_price
+
+    total_input_cost = flash_input_cost + grok_input_cost
+    total_output_cost = flash_output_cost + grok_output_cost
+
+    duration = f"{duration_min}-{duration_max} min"
+    if include_ai_strategy:
+        duration += " + AI strategy (Grok)"
+
+    notes = ["Fast mode: Grok 4.1 two-pass (analysis + report, no Deep Research)"]
+    if include_ai_strategy:
+        notes.append(f"AI Strategy via Grok ({num_vendors} vendor(s))")
+
+    total_input_tokens = flash_in + grok_in
+    total_output_tokens = flash_out + grok_out
+
+    return CostEstimate(
+        mode="fast",
+        estimated_input_tokens=total_input_tokens,
+        estimated_output_tokens=total_output_tokens,
+        estimated_search_queries=search_queries,
+        input_cost=total_input_cost,
+        output_cost=total_output_cost,
+        search_cost=search_cost,
+        total_cost=total_cost,
+        duration_minutes=duration,
+        notes=notes,
+        deep_research_cost=0.0,
     )
 
 

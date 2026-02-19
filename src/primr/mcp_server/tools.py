@@ -270,6 +270,17 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
         raise ValueError(f"Unknown tool: {name}")
 
 
+def _parse_max_duration(duration_str: str, default: int = 30) -> int:
+    """Parse the max minutes from a duration string like '5-10 min'."""
+    try:
+        parts = duration_str.split("-")
+        if len(parts) >= 2:
+            return int(parts[1].split()[0])
+        return int(parts[0].split()[0])
+    except (ValueError, IndexError):
+        return default
+
+
 async def _handle_estimate_run(
     mcp_server: "PrimrMCPServer",
     arguments: dict[str, Any],
@@ -297,22 +308,21 @@ async def _handle_estimate_run(
             }),
         )]
 
-    # Estimate based on mode
-    # These are rough estimates - actual implementation would use cost_estimator
-    estimates = {
-        "scrape": {"cost_usd": 0.05, "time_minutes": 8, "pages": 20},
-        "deep": {"cost_usd": 0.50, "time_minutes": 15, "pages": 0},
-        "full": {"cost_usd": 0.75, "time_minutes": 30, "pages": 20},
-    }
+    # Map MCP mode names to cost_estimator mode names
+    from primr.utils.cost_estimator import estimate_cost
+    mode_mapping = {"scrape": "scrape-only", "deep": "deep-research", "full": "complete"}
+    estimator_mode = mode_mapping.get(mode, "complete")
+    cost_estimate = estimate_cost(estimator_mode, use_historical=False)
 
-    estimate = estimates.get(mode, estimates["full"])
+    # Pages estimate (scrape-based modes get ~20 pages)
+    pages = 20 if mode in ("scrape", "full") else 0
 
     return [TextContent(
         type="text",
         text=json.dumps({
-            "estimated_cost_usd": estimate["cost_usd"],
-            "estimated_time_minutes": estimate["time_minutes"],
-            "planned_pages": estimate["pages"],
+            "estimated_cost_usd": round(cost_estimate.total_cost, 2),
+            "estimated_time_minutes": _parse_max_duration(cost_estimate.duration_minutes),
+            "planned_pages": pages,
             "mode": mode,
         }),
     )]

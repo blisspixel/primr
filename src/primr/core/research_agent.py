@@ -775,6 +775,589 @@ def perform_scrape_only(
     return folder_path
 
 
+def _load_fast_mode_sections() -> str:
+    """
+    Load section definitions from company_overview.yaml and format them
+    for inclusion in the fast-mode report prompt.
+
+    Returns a formatted string with all 21 section instructions.
+    """
+    from primr.prompts.loader import load_prompt_config
+
+    config = load_prompt_config("company_overview")
+    parts: list[str] = []
+
+    for i, section in enumerate(config.sections, 1):
+        covers_text = "\n".join(f"      - {item}" for item in section.covers)
+        depth_text = section.depth.strip() if section.depth else "Thorough analysis"
+        parts.append(
+            f"  {i}. **{section.name}** (id: {section.id})\n"
+            f"     Purpose: {section.purpose}\n"
+            f"     Must cover:\n{covers_text}\n"
+            f"     Depth: {depth_text}"
+        )
+
+    return "\n\n".join(parts)
+
+
+def _build_fast_analysis_prompt(
+    company_name: str,
+    website: str | None,
+    raw_corpus: str,
+    external_sources: str,
+) -> str:
+    """
+    Build the Phase 2 analysis workbook prompt for Grok fast mode.
+
+    Sends raw scraped data + external sources to Grok and asks for a
+    structured analysis workbook (facts, hypotheses, tensions — not prose).
+    """
+    from datetime import datetime
+    current_date = datetime.now().strftime("%B %d, %Y")
+
+    return f"""**Company:** {company_name}
+**Website:** {website or 'N/A'}
+**Date:** {current_date}
+
+Below is raw data scraped from the company's website and external sources.
+Analyze it and produce a Structured Analysis Workbook.
+
+=== RAW WEBSITE DATA ===
+{raw_corpus}
+
+=== EXTERNAL SOURCES ===
+{external_sources}
+
+---
+
+Produce a **Structured Analysis Workbook** with the following sections.
+Use bullet points, tables, and short paragraphs. This is working notes, not prose.
+
+1. **Company Basics**
+   - Official name, headquarters, founding date, employee count
+   - Ownership structure (public/private, investors)
+   - Label each fact: (Confirmed), (Reported), (Estimated), or (Hypothesis)
+
+2. **Products & Services Catalog**
+   - Every product/service found, organized by category
+   - Pricing models, contract structures if visible
+   - Recent launches or pivots (last 2-3 years)
+
+3. **Customer Segments & Market Positioning**
+   - Primary segments with evidence
+   - Geographic distribution
+   - Enterprise vs SMB vs consumer mix
+   - Go-to-market approach
+
+4. **Competitive Landscape**
+   - At least 5 competitors with: name, estimated size, key differentiator
+   - Where {company_name} appears to win and lose
+   - Emerging disruptors
+
+5. **Financial Profile**
+   - Revenue (actual or estimated with confidence)
+   - Growth rate and trajectory
+   - Profitability indicators
+   - Funding history / capital structure
+   - Include a summary table
+
+6. **Leadership Profiles**
+   - C-suite with backgrounds, tenure, previous roles
+   - Board composition
+   - Recent departures or hires
+
+7. **Industry Dynamics**
+   - Industry size, growth rate
+   - Key trends and disruption factors
+   - Regulatory environment
+
+8. **Strategic Hypotheses** (3-5)
+   For each:
+   - Hypothesis statement
+   - Supporting evidence (with sources)
+   - Counter-evidence or alternative explanation
+   - Confidence level
+
+9. **Strategic Tensions** (3-5)
+   For each:
+   - The tension (a tradeoff they must manage, e.g., "Scale vs Customization")
+   - Evidence from the data
+   - How they appear to be managing it currently
+
+10. **Narrative Gaps** (3-5)
+    For each:
+    - What they claim (with quote/source)
+    - Contradicting or complicating external signals
+    - Question to explore
+
+11. **Areas of Potential Fragility** (3-4)
+    Focus on systemic risks: single points of failure, concentration risks,
+    dependencies that could break under stress.
+
+12. **Patterns Worth Exploring** (3-5)
+    Novel observations: surprising correlations, timing signals, behavioral
+    patterns that don't fit the narrative.
+
+13. **Discovery Questions** (6-8)
+    For each:
+    - The question
+    - Why we're asking (what evidence prompted it)
+    - What we hope to learn
+"""
+
+
+def _build_fast_report_prompt_v2(
+    company_name: str,
+    website: str | None,
+    analysis_workbook: str,
+    raw_corpus_subset: str,
+    external_sources: str,
+    source_urls: list[str],
+) -> tuple[str, str]:
+    """
+    Build the Phase 3 report-writing prompt for Grok fast mode.
+
+    Ports all 21 section definitions from company_overview.yaml with full
+    epistemic rules, formatting guidance, and depth instructions.
+
+    Returns:
+        Tuple of (system_prompt, user_prompt) so the system message can carry
+        the role framing and epistemic rules separately from the data.
+    """
+    from datetime import datetime
+    current_date = datetime.now().strftime("%B %d, %Y")
+
+    # Load section definitions from YAML
+    section_instructions = _load_fast_mode_sections()
+
+    sources_text = "\n".join(f"- {url}" for url in source_urls) if source_urls else "(no external sources)"
+
+    system_prompt = """You are a senior strategic analyst writing a comprehensive Strategic Company Overview.
+
+PURPOSE: This is INTERNAL PREP to understand a company before a discovery conversation. The goal is to:
+1. Understand how they create value today
+2. Form hypotheses about where support could help them move faster, reduce risk, or unlock opportunities
+3. Surface smart questions to validate our thinking WITH them
+
+This is NOT a client deliverable. Write with analytical depth. Surface uncomfortable hypotheses.
+
+EPISTEMIC RULES (REQUIRED):
+- Label every significant claim with confidence level:
+  **Confirmed**: From official filings, company statements, or verified sources
+  **Reported**: From credible third-party sources but not verified
+  **Estimated**: Calculated or inferred from available data
+  **Hypothesis**: Our interpretation or speculation to validate
+- Distinguish facts (with citations) from inferences from hypotheses
+- Frame risks as "areas to explore" not definitive threats
+- Use language like "appears to", "worth exploring", "we'd want to validate"
+- For numbers not from filings: use ranges ("$800M-$1.2B"), note source and date
+- Do NOT state internal priorities as if you have inside knowledge
+- Do NOT claim precise market share in opaque markets
+- Frame internal dynamics as hypotheses, not facts
+
+FORMATTING:
+- Write in full paragraphs with evidence
+- Use bullets only for lists of specific items (single-level only)
+- Cite sources using [Source: URL] format
+- Include tables for financials, competitors, timelines
+- Use sub-headings (###) within sections for readability
+
+AVOID REPETITION:
+Each insight should live in ONE section. Don't repeat the same point across SWOT,
+Strategic Tensions, Fragilities, and Patterns. Pick the best home for each idea.
+Cross-reference other sections rather than restating."""
+
+    user_prompt = f"""**Company:** {company_name}
+**Website:** {website or 'N/A'}
+**Date:** {current_date}
+
+Below is an analysis workbook prepared by a research analyst, followed by raw source
+data for evidence and citations. Use both to write the full report.
+
+=== ANALYSIS WORKBOOK ===
+{analysis_workbook}
+
+=== RAW DATA (for evidence and citations) ===
+{raw_corpus_subset}
+
+=== EXTERNAL SOURCES ===
+{external_sources}
+
+SOURCES CONSULTED:
+{sources_text}
+
+---
+
+Write a complete Strategic Company Overview in markdown format.
+Start with: # Strategic Company Overview: {company_name}
+
+The report MUST include ALL of the following sections as ## headings, in this order:
+
+{section_instructions}
+
+REQUIREMENTS:
+- Write 10,000-18,000 words total
+- Use specific facts, numbers, and examples — cite sources with [Source: URL]
+- Be analytical and hypothesis-driven, not just descriptive
+- Label claims with confidence levels (Confirmed/Reported/Estimated/Hypothesis)
+- For framework sections (SWOT, Porter's, Value Chain): organize insights from
+  earlier sections, don't introduce wholly new observations
+- For Strategic Tensions, Fragilities, Patterns: don't repeat SWOT items — synthesize
+- Include tables where instructed (financials, competitors, timelines)
+- Frame the Strategic Positioning Hypothesis with explicit counter-hypothesis and
+  falsification tests
+"""
+
+    return system_prompt, user_prompt
+
+
+def perform_fast_research(
+    company_name: str | None,
+    website: str | None,
+    start_time: float,
+    ai_strategy: bool = False,
+    cloud_vendors: tuple[str, ...] = ("agnostic",),
+    max_scrape_time: int | None = None,
+    discovery_notes_content: str | None = None,
+) -> str | None:
+    """
+    Fast research mode using Grok 4.1 with a two-call pipeline.
+
+    Pipeline:
+    1. Data collection: scrape 25 pages + 5 search queries via Gemini Flash
+    2. Grok analysis call: structured workbook from raw data (hypotheses, tensions, gaps)
+    3. Grok report call: full 21-section report using workbook + raw evidence
+    4. Optional Grok call for AI strategy per vendor
+
+    Target: ~12-15 min, ~$0.17
+    """
+    from primr.ai.grok_client import get_grok_session_usage, grok_llm, reset_grok_session
+
+    reset_grok_session()
+
+    display_name = company_name or (urlparse(website or "").netloc if website else "")
+    folder_path = create_working_folder(company_name, website)
+
+    try:
+        total_phases = 4 if ai_strategy else 3
+
+        # =================================================================
+        # Phase 1: Data collection (Gemini Flash — cheap)
+        # =================================================================
+        console.phase_banner(1, total_phases, "Data Collection (fast)", "Scraping website + external sources", "3-5 min")
+
+        # Scrape website (reduced: 25 pages instead of 50)
+        with console.timed_operation("Scanning website"):
+            scraped_data = fetch_web_content(website, company_name, max_pages=25) if website else {}
+            pages_scraped = len(scraped_data)
+        log_structured("info", "Fast mode: website scraping complete", pages=pages_scraped)
+
+        if pages_scraped == 0 and website:
+            console.warn("Limited website access — report will rely on web research")
+
+        # Summarize scraped content with Flash (for insights.txt working file)
+        summarized = ""
+        if scraped_data:
+            with console.timed_operation("Extracting insights"):
+                summarized = summarize_scraped_content(company_name, website, scraped_data, folder_path)
+
+        # Build raw corpus from scraped data (truncate each page to 10k chars)
+        raw_corpus_parts: list[str] = []
+        for url, content in scraped_data.items():
+            truncated = content[:10_000] if len(content) > 10_000 else content
+            raw_corpus_parts.append(f"[Page: {url}]\n{truncated}")
+        raw_corpus = "\n\n".join(raw_corpus_parts) if raw_corpus_parts else ""
+
+        # External research (5 queries, 6 sources)
+        source_urls: list[str] = []
+        external_text_parts: list[str] = []
+        external_raw_parts: list[str] = []
+        with console.timed_operation("Searching external sources"):
+            external_queries = generate_external_search_queries(company_name, website)[:5]
+            external_data: dict = {}
+            max_external_sources = 6
+
+            for query in external_queries:
+                if len(external_data) >= max_external_sources:
+                    break
+                results = search_web(query, company_name, website)
+                if results:
+                    filtered = [r for r in results[:3] if website and website.lower() not in r.get("url", "").lower()]
+                    remaining = max_external_sources - len(external_data)
+                    scraped = scrape_external_sources_validated(
+                        filtered, company_name=company_name, website=website,
+                        max_sources=min(2, remaining),
+                    )
+                    external_data.update(scraped)
+
+            for url, content in external_data.items():
+                source_urls.append(url)
+                external_text_parts.append(f"[Source: {url}]\n{content[:3000]}")
+                external_raw_parts.append(f"[Source: {url}]\n{content[:5_000]}")
+
+        log_structured("info", "Fast mode: external sources complete", sources=len(external_data))
+        console.phase_complete("Data Collection (fast)", [("Pages", str(pages_scraped)), ("External", str(len(external_data)))])
+
+        # Combine Flash-summarized insights (for working folder)
+        all_insights_parts = []
+        if summarized:
+            all_insights_parts.append(f"=== WEBSITE INSIGHTS ===\n{summarized}")
+        if external_text_parts:
+            all_insights_parts.append("=== EXTERNAL SOURCES ===\n" + "\n\n".join(external_text_parts))
+        combined_insights = "\n\n".join(all_insights_parts) if all_insights_parts else "No research data collected."
+
+        # Save insights to working folder
+        insights_file = os.path.join(folder_path, "insights.txt")
+        with open(insights_file, "w", encoding="utf-8") as f:
+            f.write(combined_insights)
+
+        # Build raw external sources string for Grok
+        external_sources_raw = "\n\n".join(external_raw_parts) if external_raw_parts else "(no external sources)"
+
+        # =================================================================
+        # Phase 2: Grok analysis call (structured workbook)
+        # =================================================================
+        console.phase_banner(2, total_phases, "Analysis (Grok)", "Building structured analysis workbook", "2-4 min")
+
+        analysis_system = (
+            "You are a senior strategic analyst conducting pre-engagement research. "
+            "Produce a structured analysis workbook — working notes with evidence, "
+            "confidence levels, and hypotheses. Not polished prose."
+        )
+
+        analysis_prompt = _build_fast_analysis_prompt(
+            company_name or display_name,
+            website,
+            raw_corpus,
+            external_sources_raw,
+        )
+
+        with console.timed_operation("Generating analysis workbook via Grok"):
+            analysis_workbook = grok_llm(
+                analysis_prompt,
+                max_tokens=16_000,
+                temperature=0.5,
+                system_prompt=analysis_system,
+            )
+
+        if not analysis_workbook or not analysis_workbook.strip():
+            console.warn("Analysis workbook empty — falling back to insights for report")
+            analysis_workbook = combined_insights
+
+        # Save workbook
+        workbook_path = os.path.join(folder_path, "analysis_workbook.md")
+        with open(workbook_path, "w", encoding="utf-8") as f:
+            f.write(analysis_workbook)
+
+        console.phase_complete("Analysis (Grok)")
+
+        # =================================================================
+        # Phase 3: Grok report writing call
+        # =================================================================
+        console.phase_banner(3, total_phases, "Report Generation (Grok)", "Writing full 21-section report", "3-6 min")
+
+        # Build a raw data subset for evidence (~100k chars)
+        raw_corpus_subset = raw_corpus[:100_000] if len(raw_corpus) > 100_000 else raw_corpus
+
+        report_system, report_user = _build_fast_report_prompt_v2(
+            company_name or display_name,
+            website,
+            analysis_workbook,
+            raw_corpus_subset,
+            external_sources_raw,
+            source_urls,
+        )
+
+        with console.timed_operation("Generating report via Grok 4.1"):
+            report_content = grok_llm(
+                report_user,
+                max_tokens=32_000,
+                temperature=0.7,
+                system_prompt=report_system,
+            )
+
+        if not report_content or not report_content.strip():
+            console.error("Grok report generation failed — empty response")
+            return None
+
+        console.phase_complete("Report Generation (Grok)")
+
+        # Save report via existing output pipeline
+        docx_path = _convert_deep_research_to_docx(report_content, company_name or display_name, website)
+
+        # Also save raw markdown for AI strategy context
+        raw_md_path = os.path.join(folder_path, "report.md")
+        with open(raw_md_path, "w", encoding="utf-8") as f:
+            f.write(report_content)
+
+        # =================================================================
+        # Phase 4: AI Strategy via Grok (optional)
+        # =================================================================
+        strategy_paths: dict[str, str] = {}
+        if ai_strategy and cloud_vendors:
+            console.phase_banner(4, 4, "AI Strategy (Grok)", "Generating AI recommendations", "2-3 min")
+
+            for vendor in cloud_vendors:
+                # Build strategy prompt (reuse existing)
+                strategy_prompt = _build_ai_strategy_prompt(
+                    company_name or display_name, vendor, discovery_notes_content
+                )
+
+                # Read context (report + vendor docs) into prompt
+                context_parts = [f"--- Company Report ---\n{report_content[:50_000]}"]
+
+                # Try to add vendor research docs
+                vendor_doc_paths = _get_or_generate_vendor_research(vendor) if vendor.lower() != "agnostic" else []
+                for vdp in vendor_doc_paths:
+                    if vdp and os.path.exists(vdp):
+                        try:
+                            with open(vdp, encoding="utf-8") as fh:
+                                context_parts.append(f"--- {os.path.basename(vdp)} ---\n{fh.read()[:30_000]}")
+                        except Exception:
+                            pass
+
+                combined_strategy_prompt = (
+                    "Use the following context documents to inform your analysis:\n\n"
+                    + "\n\n".join(context_parts)
+                    + "\n\n---\n\n"
+                    + strategy_prompt
+                )
+
+                vendor_label = f" ({vendor.upper()})" if len(cloud_vendors) > 1 else ""
+                with console.timed_operation(f"AI Strategy{vendor_label} via Grok"):
+                    strategy_content = grok_llm(combined_strategy_prompt, max_tokens=16_000)
+
+                if strategy_content and strategy_content.strip():
+                    # Save strategy output
+                    strategy_path = _save_strategy_output(
+                        strategy_content, company_name or display_name, vendor
+                    )
+                    if strategy_path:
+                        key = f"ai_{vendor}" if len(cloud_vendors) > 1 else "ai"
+                        strategy_paths[key] = strategy_path
+
+            if strategy_paths:
+                console.phase_complete("AI Strategy (Grok)")
+
+        # =================================================================
+        # Summary
+        # =================================================================
+        elapsed = time.time() - start_time
+        mins = int(elapsed // 60)
+        secs = int(elapsed % 60)
+        time_str = f"{mins}m {secs}s" if mins > 0 else f"{secs}s"
+
+        console.ok(f"Fast mode complete in {time_str}")
+
+        if docx_path:
+            console.success_box("Report ready", str(Path(docx_path).resolve()))
+
+        for strat_key, strategy_path in strategy_paths.items():
+            vendor_suffix = f" ({strat_key.split('_', 1)[1].upper()})" if "_" in strat_key else ""
+            console.success_box(f"AI Strategy{vendor_suffix}", str(Path(strategy_path).resolve()))
+
+        # Cost summary from Grok session usage
+        grok_usage = get_grok_session_usage()
+        grok_cost = PrimrModels.calculate_cost(
+            PrimrModels.GROK_MODEL,
+            grok_usage["input_tokens"],
+            grok_usage["output_tokens"],
+        )
+
+        # Flash cost from AI client
+        from primr.ai.client import get_client
+        client = get_client()
+        flash_usage = client.get_usage_summary()
+        flash_cost = flash_usage.get("total_cost", 0.0)
+
+        actual_cost = grok_cost + flash_cost
+
+        summary_items = [
+            ("Mode", "fast (Grok 4.1)"),
+            ("Pages", str(pages_scraped)),
+            ("External", str(len(source_urls))),
+            ("Duration", time_str),
+            ("Grok tokens", f"{grok_usage['input_tokens']:,} in / {grok_usage['output_tokens']:,} out"),
+            ("Actual Cost", f"~${actual_cost:.2f}"),
+        ]
+        if ai_strategy:
+            summary_items.append(("AI Strategy", "Yes"))
+        console.summary(summary_items)
+
+        # Save usage to history
+        from primr.utils.usage_tracker import get_usage_tracker
+        tracker = get_usage_tracker()
+        tracker.record_usage(
+            mode="fast",
+            company=display_name,
+            input_tokens=grok_usage["input_tokens"],
+            output_tokens=grok_usage["output_tokens"],
+            search_queries=len(source_urls),
+            duration_seconds=elapsed,
+        )
+        tracker.save()
+
+        # Log job summary
+        job_summary = JobSummary.create(
+            company=display_name,
+            mode="fast",
+            duration_seconds=elapsed,
+            api_calls=0,
+            total_tokens=grok_usage["input_tokens"] + grok_usage["output_tokens"],
+            sections_generated=21,
+            output_path=docx_path,
+        )
+        log_job_summary(job_summary)
+
+        return docx_path
+
+    except Exception as e:
+        console.error(f"Fast research failed: {e}")
+        log_structured("error", "Fast research failed", error=str(e), error_type=type(e).__name__)
+        logger.exception("Fast research failed")
+        return None
+
+
+def _save_strategy_output(
+    strategy_content: str,
+    company_name: str,
+    cloud_vendor: str,
+) -> str | None:
+    """Save AI strategy markdown/txt/docx output. Returns docx path or None."""
+    from primr.output.markdown_converter import markdown_to_docx
+    from primr.output.output_utils import OUTPUT_DIR
+
+    date_str = datetime.now().strftime("%m-%d-%Y")
+    vendor_suffix = f"_{cloud_vendor.upper()}" if cloud_vendor != "agnostic" else ""
+    base_name = f"{company_name}_AI_Strategy{vendor_suffix}_{date_str}"
+
+    try:
+        md_path = Path(OUTPUT_DIR) / f"{base_name}.md"
+        with open(md_path, "w", encoding="utf-8") as f:
+            f.write(strategy_content)
+
+        txt_path = Path(OUTPUT_DIR) / f"{base_name}.txt"
+        with open(txt_path, "w", encoding="utf-8") as f:
+            f.write(strategy_content)
+
+        docx_path = Path(OUTPUT_DIR) / f"{base_name}.docx"
+        try:
+            markdown_to_docx(
+                markdown_text=strategy_content,
+                output_path=docx_path,
+                title=f"AI Strategy: {company_name}",
+                subtitle=f"{cloud_vendor.upper()} | {datetime.now().strftime('%B %d, %Y')}",
+            )
+        except Exception as e:
+            logger.warning(f"DOCX conversion failed: {e}")
+            return str(md_path)
+
+        return str(docx_path)
+    except Exception as e:
+        logger.error(f"Failed to save strategy output: {e}")
+        return None
+
+
 def perform_research(
     company_name: str | None = None,
     website: str | None = None,
@@ -790,6 +1373,8 @@ def perform_research(
     no_qa: bool = False,
     max_scrape_time: int | None = None,
     discovery_notes_path: str | None = None,
+    lite_strategy: bool = False,
+    fast_mode: bool = False,
 ) -> str | None:
     if not company_name and not website:
         console.error("No company name or website provided")
@@ -830,6 +1415,16 @@ def perform_research(
     with correlation_scope("research", company=display_name, mode=mode):
         log_structured("info", "Starting research job", company=display_name, mode=mode, ai_strategy=ai_strategy)
 
+        # Fast mode: Grok 4.1 one-shot pipeline
+        if fast_mode:
+            return perform_fast_research(
+                company_name, website, start_time,
+                ai_strategy=ai_strategy,
+                cloud_vendors=cloud_vendors,
+                max_scrape_time=max_scrape_time,
+                discovery_notes_content=discovery_notes_content,
+            )
+
         # Handle scrape-only mode - scrape and extract insights
         if mode == "scrape-only":
             return perform_scrape_only(company_name, website, start_time, max_scrape_time)
@@ -841,7 +1436,8 @@ def perform_research(
                 ai_strategy, cloud_vendors, context_files, refresh_vendor_research,
                 strategies=strategies, strategy_only=strategy_only,
                 discovery_notes_path=discovery_notes_path,
-                discovery_notes_content=discovery_notes_content
+                discovery_notes_content=discovery_notes_content,
+                lite_strategy=lite_strategy,
             )
 
         folder_path = create_working_folder(company_name, website)
@@ -972,7 +1568,8 @@ def perform_research(
                     cloud_vendors[0],
                     company_research_path=context_file,
                     force_refresh_vendor=refresh_vendor_research,
-                    discovery_notes_content=discovery_notes_content
+                    discovery_notes_content=discovery_notes_content,
+                    lite_strategy=lite_strategy,
                 )
                 if ai_strategy_path:
                     console.phase_complete("AI Strategy Analysis")
@@ -1102,6 +1699,7 @@ def perform_deep_research(
     strategy_only: bool = False,
     discovery_notes_path: str | None = None,
     discovery_notes_content: str | None = None,
+    lite_strategy: bool = False,
 ) -> str | None:
     """
     Perform research using Deep Research Agent, Complete, or Hybrid mode.
@@ -1157,6 +1755,19 @@ def perform_deep_research(
         return None
 
     # =================================================================
+
+    # Pre-run: clean up any orphaned resources from prior crashed runs
+    # File Search Stores have NO TTL and cost money if left behind
+    try:
+        from primr.ai.deep_research import cleanup_orphaned_resources
+        orphans = cleanup_orphaned_resources()
+        if orphans["caches_deleted"] or orphans["stores_deleted"]:
+            console.warn(
+                f"Cleaned up {orphans['caches_deleted']} orphaned cache(s) "
+                f"and {orphans['stores_deleted']} orphaned store(s) from prior run"
+            )
+    except Exception as e:
+        logger.debug(f"Pre-run resource cleanup check failed (non-fatal): {e}")
 
     # Map mode string to enum
     mode_map = {
@@ -1348,7 +1959,8 @@ def perform_deep_research(
                             company_name=company_name or display_name,
                             cloud_vendor=vendor,
                             company_research_path=raw_md_path,
-                            force_refresh_vendor=refresh_vendor_research
+                            force_refresh_vendor=refresh_vendor_research,
+                            lite_strategy=lite_strategy,
                         )
 
                         if strategy_path:
@@ -1391,28 +2003,30 @@ def perform_deep_research(
                 display_name = strategy_module.display_name if strategy_module else base_name.replace("_", " ").title()
                 console.success_box(f"{display_name}{vendor_suffix}", str(Path(strategy_path).resolve()))
 
-            # Get actual usage from AI client (for structured pipeline calls)
+            # Get actual usage from AI client (per-model accurate cost)
             from primr.ai.client import get_client
+            from primr.config.models import DEEP_RESEARCH_COST
             client = get_client()
             usage = client.get_usage_summary()
 
-            # Deep Research uses Interactions API which doesn't expose token counts
-            # Estimate based on output length: ~4 chars per token, $12/1M output tokens
-            # Also estimate input based on prompt + context (~50k tokens typical)
-            total_output_chars = sum(len(content) for content in result.section_results.values())
-            estimated_output_tokens = total_output_chars // 4
-            estimated_input_tokens = 50_000  # Typical for Deep Research prompt + context
+            # Pipeline portion (Flash + Pro, per-model accurate)
+            pipeline_cost = usage.get("total_cost", 0.0)
+            total_input = usage.get("total_input_tokens", 0)
+            total_output = usage.get("total_output_tokens", 0)
 
-            # Add AI client usage (from structured pipeline in complete mode)
-            total_input = usage.get("total_input_tokens", 0) + estimated_input_tokens
-            total_output = usage.get("total_output_tokens", 0) + estimated_output_tokens
+            # Deep Research portion (flat per-task cost, API doesn't expose tokens)
+            dr_tasks = 0
+            if mode in ("deep-research", "complete", "hybrid"):
+                dr_tasks += 1  # Main research dossier
+            if ai_strategy and cloud_vendors and not lite_strategy:
+                dr_tasks += len(cloud_vendors)  # Each vendor triggers a DR task
+            dr_cost = dr_tasks * DEEP_RESEARCH_COST.standard_task_cost
 
-            # Calculate actual cost: $2/1M input, $12/1M output
-            actual_cost = (total_input / 1_000_000) * 2.0 + (total_output / 1_000_000) * 12.0
+            actual_cost = pipeline_cost + dr_cost
 
             # Get pre-run estimate for comparison
             from primr.utils.cost_estimator import estimate_cost
-            pre_estimate = estimate_cost(mode, ai_strategy, use_historical=False, num_vendors=len(cloud_vendors))
+            pre_estimate = estimate_cost(mode, ai_strategy, use_historical=False, num_vendors=len(cloud_vendors), lite_strategy=lite_strategy)
 
             # Use sections_written for accurate count
             section_count = result.sections_written if result.sections_written > 0 else len(result.section_results)
@@ -1477,6 +2091,18 @@ def perform_deep_research(
             log_structured("error", "Deep research failed", error=str(e), error_type=type(e).__name__)
             logger.exception("Deep research failed")
             return None
+        finally:
+            # Post-run: verify no resources leaked (safety net)
+            try:
+                from primr.ai.deep_research import cleanup_orphaned_resources
+                leaked = cleanup_orphaned_resources()
+                if leaked["caches_deleted"] or leaked["stores_deleted"]:
+                    logger.warning(
+                        f"Post-run cleanup found leaked resources: "
+                        f"{leaked['caches_deleted']} cache(s), {leaked['stores_deleted']} store(s)"
+                    )
+            except Exception as cleanup_err:
+                logger.debug(f"Post-run resource cleanup failed (non-fatal): {cleanup_err}")
 
 
 def _convert_deep_research_to_docx(
@@ -1906,10 +2532,9 @@ List all sources with URLs and dates. Group by section for easy reference.
         with open(research_path, "w", encoding="utf-8") as f:
             f.write(result.content)
 
-        # Calculate actual cost from result
-        output_tokens = len(result.content) // 4  # Rough estimate
-        input_tokens = 5000  # Prompt size
-        actual_cost = (input_tokens / 1_000_000) * 2.0 + (output_tokens / 1_000_000) * 12.0
+        # Deep Research is a flat per-task cost (API doesn't expose tokens)
+        from primr.config.models import DEEP_RESEARCH_COST
+        actual_cost = DEEP_RESEARCH_COST.standard_task_cost
         duration_str = f"{result.duration_seconds / 60:.1f}m"
 
         console.ok(f"Vendor research saved: {os.path.basename(research_path)} ({duration_str}, ~${actual_cost:.2f})")
@@ -1961,7 +2586,8 @@ def _generate_strategy_section(
     cloud_vendor: str,
     company_research_path: str | None = None,
     force_refresh_vendor: bool = False,
-    discovery_notes_content: str | None = None
+    discovery_notes_content: str | None = None,
+    lite_strategy: bool = False,
 ) -> str | None:
     """
     Generate a strategy document using Deep Research.
@@ -1995,7 +2621,8 @@ def _generate_strategy_section(
             cloud_vendor=cloud_vendor,
             company_research_path=company_research_path,
             force_refresh_vendor=force_refresh_vendor,
-            discovery_notes_content=discovery_notes_content
+            discovery_notes_content=discovery_notes_content,
+            lite_strategy=lite_strategy,
         )
 
     # Handle other fully-defined strategies
@@ -2339,7 +2966,8 @@ def _generate_ai_strategy_section(
     cloud_vendor: str,
     company_research_path: str | None = None,
     force_refresh_vendor: bool = False,
-    discovery_notes_content: str | None = None
+    discovery_notes_content: str | None = None,
+    lite_strategy: bool = False,
 ) -> str | None:
     """
     Generate AI strategy using Deep Research for board-level analysis.
@@ -2365,7 +2993,6 @@ def _generate_ai_strategy_section(
     """
     from datetime import datetime
 
-    from primr.ai.deep_research import ResearchStatus, get_deep_research_client
     from primr.config.settings import get_settings
     from primr.output.markdown_converter import markdown_to_docx
     from primr.output.output_utils import OUTPUT_DIR
@@ -2452,48 +3079,102 @@ def _generate_ai_strategy_section(
             context_files.append(agnostic_path)
             console.info("Using cross-industry AI research as additional context")
 
-        # Run Deep Research for AI Strategy
-        client = get_deep_research_client()
+        if lite_strategy:
+            # Fast path: use Pro model directly with context inlined
+            console.info("AI Strategy: Starting research (Pro mode)...")
+            strategy_start = time.time()
 
-        def progress_callback(progress):
-            if progress.message:
-                console.info(f"AI Strategy: {progress.message}")
+            # Read context files into a single string to prepend to prompt
+            context_parts = []
+            for cf in context_files:
+                try:
+                    with open(cf, encoding="utf-8") as fh:
+                        content = fh.read()
+                    if content.strip():
+                        context_parts.append(f"--- Context: {os.path.basename(cf)} ---\n{content}")
+                except Exception as e:
+                    logger.warning(f"Failed to read context file {cf}: {e}")
 
-        # Create event loop if needed
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
+            if context_parts:
+                combined_context = "\n\n".join(context_parts)
+                combined_prompt = (
+                    "Use the following context documents to inform your analysis:\n\n"
+                    f"{combined_context}\n\n"
+                    "---\n\n"
+                    f"{prompt}"
+                )
+            else:
+                combined_prompt = prompt
 
-        result = loop.run_until_complete(
-            client.research(
-                query=prompt,
-                output_format=None,  # Use the prompt directly
-                on_progress=progress_callback,
-                context_files=context_files if context_files else None,
-                timeout=1800  # 30 min timeout for AI strategy
+            strategy_content = llm(combined_prompt, model_type="section_writing", temperature=1.0, thinking_level="high")
+
+            strategy_duration = time.time() - strategy_start
+
+            if not strategy_content or not strategy_content.strip():
+                console.error("AI Strategy Pro generation failed - empty response")
+                return None
+
+            # Track usage
+            ai_strategy_output_tokens = len(strategy_content) // 4
+            ai_strategy_input_tokens = len(combined_prompt) // 4
+
+            from primr.utils.usage_tracker import get_usage_tracker
+            tracker = get_usage_tracker()
+            tracker.record_usage(
+                mode="ai-strategy",
+                company=company_name,
+                input_tokens=ai_strategy_input_tokens,
+                output_tokens=ai_strategy_output_tokens,
+                duration_seconds=strategy_duration,
             )
-        )
+        else:
+            # Default path: use Deep Research
+            from primr.ai.deep_research import ResearchStatus, get_deep_research_client
 
-        if result.status != ResearchStatus.COMPLETED or not result.content:
-            console.error("AI Strategy research failed")
-            return None
+            console.info("AI Strategy: Starting research (background mode)...")
+            client = get_deep_research_client()
 
-        # Track AI Strategy usage (separate from main research)
-        # Deep Research API doesn't expose tokens, so estimate from output
-        ai_strategy_output_tokens = len(result.content) // 4  # ~4 chars per token
-        ai_strategy_input_tokens = 50_000  # Estimated prompt + context
+            def progress_callback(progress):
+                if progress.message:
+                    console.info(f"AI Strategy: {progress.message}")
 
-        from primr.utils.usage_tracker import get_usage_tracker
-        tracker = get_usage_tracker()
-        tracker.record_usage(
-            mode="ai-strategy",
-            company=company_name,
-            input_tokens=ai_strategy_input_tokens,
-            output_tokens=ai_strategy_output_tokens,
-            duration_seconds=result.duration_seconds,
-        )
+            # Create event loop if needed
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+
+            result = loop.run_until_complete(
+                client.research(
+                    query=prompt,
+                    output_format=None,  # Use the prompt directly
+                    on_progress=progress_callback,
+                    context_files=context_files if context_files else None,
+                    timeout=1800  # 30 min timeout for AI strategy
+                )
+            )
+
+            if result.status != ResearchStatus.COMPLETED or not result.content:
+                console.error("AI Strategy research failed")
+                return None
+
+            strategy_content = result.content
+
+            # Track AI Strategy usage (separate from main research)
+            # Deep Research API doesn't expose tokens, so estimate from output
+            ai_strategy_output_tokens = len(strategy_content) // 4  # ~4 chars per token
+            ai_strategy_input_tokens = 50_000  # Estimated prompt + context
+
+            from primr.utils.usage_tracker import get_usage_tracker
+            tracker = get_usage_tracker()
+            tracker.record_usage(
+                mode="ai-strategy",
+                company=company_name,
+                input_tokens=ai_strategy_input_tokens,
+                output_tokens=ai_strategy_output_tokens,
+                duration_seconds=result.duration_seconds,
+            )
         # Note: Don't save here - let the main research flow save all at once
 
         date_str = datetime.now().strftime("%m-%d-%Y")
@@ -2503,13 +3184,13 @@ def _generate_ai_strategy_section(
         # Save markdown (.md)
         md_path = os.path.join(OUTPUT_DIR, f"{base_name}.md")
         with open(md_path, "w", encoding="utf-8") as f:
-            f.write(result.content)
+            f.write(strategy_content)
         console.ok(f"AI Strategy MD: {base_name}.md", show_time=False)
 
         # Save plain text (.txt)
         txt_path = os.path.join(OUTPUT_DIR, f"{base_name}.txt")
         with open(txt_path, "w", encoding="utf-8") as f:
-            f.write(result.content)
+            f.write(strategy_content)
         console.ok(f"AI Strategy TXT: {base_name}.txt", show_time=False)
 
         # Convert to DOCX
@@ -2521,7 +3202,7 @@ def _generate_ai_strategy_section(
             subtitle = " | ".join(subtitle_parts)
 
             markdown_to_docx(
-                markdown_text=result.content,
+                markdown_text=strategy_content,
                 output_path=Path(docx_path),
                 title=f"AI Strategy: {company_name}",
                 subtitle=subtitle
@@ -2533,7 +3214,7 @@ def _generate_ai_strategy_section(
             docx_path = os.path.join(OUTPUT_DIR, f"{base_name}_{timestamp}.docx")
             console.warn(f"Original file locked, saving as: {base_name}_{timestamp}.docx")
             markdown_to_docx(
-                markdown_text=result.content,
+                markdown_text=strategy_content,
                 output_path=Path(docx_path),
                 title=f"AI Strategy: {company_name}",
                 subtitle=subtitle
