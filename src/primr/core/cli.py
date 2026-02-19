@@ -100,6 +100,7 @@ class CLIConfig:
     strategy_type: str = "ai"  # Type of strategy to generate
     lite_strategy: bool = False  # Use Pro model instead of Deep Research for strategy
     fast_mode: bool = False  # Use Grok 4.1 for fast research (~12 min, ~$0.25)
+    no_qa: bool = False  # Disable automatic quality assessment
     # Agentic architecture options
     memory_company: str | None = None
     memory_list: bool = False
@@ -222,6 +223,7 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         strategy_type=getattr(parsed, 'strategy_type', 'ai'),
         lite_strategy=getattr(parsed, 'lite_strategy', False),
         fast_mode=getattr(parsed, 'fast_mode', False),
+        no_qa=getattr(parsed, 'no_qa', False),
         # Agentic architecture options
         memory_company=getattr(parsed, 'memory', None),
         memory_list=getattr(parsed, 'memory_list', False),
@@ -724,6 +726,12 @@ def _handle_show_usage(config: CLIConfig) -> int:
 def _handle_dry_run(config: CLIConfig) -> int:
     """Handle dry-run command."""
     from primr.utils.cost_estimator import estimate_cost
+
+    # Validate --fast + --mode compatibility (same check as _handle_research)
+    if config.fast_mode and config.mode not in ("complete", "structured", "hybrid"):
+        console.error(f"--fast only works with full mode, not --mode {config.mode}")
+        console.info("Usage: primr \"Company\" https://url --fast --dry-run")
+        return 1
 
     mode_label = "fast (Grok 4.1)" if config.fast_mode else config.mode
     print("")
@@ -1381,6 +1389,10 @@ def _handle_research(config: CLIConfig) -> int:
 
     # Fast mode preflight: verify XAI_API_KEY and openai package
     if config.fast_mode:
+        if config.mode not in ("complete", "structured", "hybrid"):
+            console.error(f"--fast only works with full mode, not --mode {config.mode}")
+            console.info("Usage: primr \"Company\" https://url --fast")
+            return 1
         if not os.environ.get("XAI_API_KEY"):
             console.error("--fast requires XAI_API_KEY in your .env or environment")
             console.info("Get a key at https://console.x.ai/")
@@ -1391,6 +1403,8 @@ def _handle_research(config: CLIConfig) -> int:
             console.error("--fast requires the 'openai' package")
             console.info("Install with: pip install 'primr[fast]' or pip install openai")
             return 1
+        if config.lite_strategy:
+            console.warn("--lite is ignored with --fast (fast mode uses Grok for all calls)")
 
     console.ok("All systems ready")
 
@@ -1429,6 +1443,7 @@ def _handle_research(config: CLIConfig) -> int:
         skip_confirm=config.skip_confirm,
         context_files=context_files if context_files else None,
         refresh_vendor_research=config.refresh_vendor_research,
+        no_qa=config.no_qa,
         max_scrape_time=config.max_scrape_time,
         discovery_notes_path=config.discovery_notes_path,
         lite_strategy=config.lite_strategy,
