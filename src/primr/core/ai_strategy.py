@@ -273,8 +273,7 @@ async def generate_ai_strategy(
         cloud_vendor=vendor
     )
 
-    # Track usage
-    _track_usage(company_name, content, time.time() - start_time)
+    # Usage tracked by the main research pipeline (research_agent.py)
 
     return AIStrategyResult(
         docx_path=output_paths.get("docx"),
@@ -641,22 +640,5 @@ def _save_strategy_outputs(
     return outputs
 
 
-def _track_usage(company_name: str, content: str, duration_seconds: float) -> None:
-    """Track AI strategy usage for cost monitoring."""
-    try:
-        from primr.utils.usage_tracker import get_usage_tracker
 
-        # Estimate tokens from content
-        output_tokens = len(content) // 4
-        input_tokens = 50_000  # Estimated prompt + context
-
-        tracker = get_usage_tracker()
-        tracker.record_usage(
-            mode="ai-strategy",
-            company=company_name,
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
-            duration_seconds=duration_seconds,
-        )
-    except Exception as e:
-        logger.warning(f"Failed to track usage: {e}")
+# Usage tracking removed — consolidated in research_agent.py main pipeline
