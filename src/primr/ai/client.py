@@ -523,20 +523,24 @@ class AIClient:
                         model_name, counts["input_tokens"], counts["output_tokens"]
                     )
                 except KeyError:
-                    # Unknown model — fall back to Pro pricing
-                    model_cost = PrimrModels.calculate_pro_cost(
+                    # Unknown model — fall back to active Pro model pricing
+                    model_cost = PrimrModels.calculate_active_pro_cost(
                         counts["input_tokens"], counts["output_tokens"]
                     )
                 total_cost += model_cost
                 try:
                     inp_price, out_price = PrimrModels.get_price(model_name)
                 except KeyError:
-                    inp_price, out_price = PrimrModels.get_price(PrimrModels.PRO_MODEL)
+                    active_pro = PrimrModels.get_active_pro_model()
+                    inp_price = active_pro.cost_per_1m_input_tokens
+                    out_price = active_pro.cost_per_1m_output_tokens
                 input_cost += (counts["input_tokens"] / 1_000_000) * inp_price
                 output_cost += (counts["output_tokens"] / 1_000_000) * out_price
         else:
-            # Fallback to Pro pricing (conservative)
-            inp_price, out_price = PrimrModels.get_price(PrimrModels.PRO_MODEL)
+            # Fallback to active Pro model pricing (conservative)
+            active_pro = PrimrModels.get_active_pro_model()
+            inp_price = active_pro.cost_per_1m_input_tokens
+            out_price = active_pro.cost_per_1m_output_tokens
             input_cost = (self.total_input_tokens / 1_000_000) * inp_price
             output_cost = (self.total_output_tokens / 1_000_000) * out_price
             total_cost = input_cost + output_cost

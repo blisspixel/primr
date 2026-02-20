@@ -24,6 +24,8 @@ The design is intentionally opinionated and local-first. This roadmap reflects c
 
 **Deep Mode**: Gemini Deep Research Agent with autonomous multi-step search and synthesis
 
+**Pro Models**: Gemini 3 Pro (default) for section writing and analysis. Gemini 3.1 Pro Preview available for opt-in testing with improved reasoning and factual consistency.
+
 **Fast Mode**: Grok 4.1 accordion-style batch writing — analysis workbook + 5-batch report in 10-17 min
 
 **Full Mode**: Sequential scrape + deep research pipeline
@@ -394,9 +396,9 @@ Goal: Improve content handling, scraping throughput, and fix resource management
 - Fixed ThreadPoolExecutor resource leak in scraping loop (try/finally ensures shutdown)
 - Fixed MCP company name extraction truncating multi-word names (`"Acme_Corp_..."` -> `"Acme"` instead of `"Acme Corp"`)
 
-### Post-v1.12.1 - Reliability and Maintainability Hardening (Unreleased)
+### Post-v1.12.1 - Reliability, Maintainability, and Model Updates (Unreleased)
 
-Goal: Reduce noisy integration-runtime warnings and improve maintainability in AI runtime modules.
+Goal: Reduce noisy integration-runtime warnings, improve maintainability in AI runtime modules, and register new Gemini models.
 
 **Deep Research Refactor:**
 - Extracted shared deep research parsing helpers to `src/primr/ai/deep_research_parsing.py`
@@ -412,6 +414,25 @@ Goal: Reduce noisy integration-runtime warnings and improve maintainability in A
 - Added a dedicated pass to reduce noisy integration-runtime warnings in constrained environments
 - Hardened handling around Playwright subprocess permission constraints in tests
 - Hardened handling around network-restricted AI integration tests to avoid misleading warning noise
+
+**Gemini 3.1 Pro Preview (February 2026):**
+- Registered `gemini-3.1-pro-preview` and `gemini-3.1-pro-preview-customtools` in ModelRegistry
+- Available for opt-in testing via `AI_REASONING_MODEL=gemini-3.1-pro-preview` in `.env`
+- NOT yet default — pending cost validation on real research runs
+- Improvements: better thinking, token efficiency, factual consistency, agentic workflow optimization
+- Tiered pricing: $2/$12 per 1M (prompts <=200k) | $4/$18 per 1M (prompts >200k)
+- `customtools` variant optimized for tool-heavy workflows (prioritizes custom tools over bash)
+- Default remains `gemini-3-pro-preview` (flat $2/$12 pricing)
+
+**Tiered Pricing Support:**
+- `ModelConfig` now supports tiered pricing via optional fields: `cost_per_1m_input_tokens_high`, `cost_per_1m_output_tokens_high`, `tier_threshold_tokens`
+- `has_tiered_pricing` property on `ModelConfig` for easy detection
+- `PrimrModels.calculate_cost()` accepts optional `prompt_tokens` — uses high tier when prompt exceeds threshold
+- `PrimrModels.calculate_cost_conservative()` — always uses highest tier for tiered models (for pre-run estimates)
+- `PrimrModels.get_active_pro_model()` — reads the active Pro model from settings (honours `AI_REASONING_MODEL`)
+- Cost estimator uses conservative (high-tier) pricing when a tiered model is active; adds note to estimates
+- Usage tracker uses active Pro model pricing instead of hardcoded default
+- AI client fallback pricing uses active Pro model instead of hardcoded default
 
 **Validation:**
 - Added targeted tests for new helper modules:

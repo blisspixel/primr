@@ -186,6 +186,7 @@ Includes sticky tier memory, circuit breakers, cookie handoff, and automatic PDF
 
 **AI Research Engines**
 - **Gemini Deep Research**: Autonomous multi-step search and synthesis — plans its own research strategy, follows leads, validates across sources. Not a wrapper around chat completions; actual agentic research.
+- **Gemini 3.1 Pro Preview**: Available for section writing and analysis — improved thinking, token efficiency, and factual consistency. Opt in via `AI_REASONING_MODEL=gemini-3.1-pro-preview` in `.env`. Tiered pricing applies for large prompts (>200k tokens).
 - **Grok 4.1 Fast Mode**: Accordion-style batch writing — analysis workbook + 5-batch report generation in 10-17 minutes for $0.25.
 
 **Agentic Architecture**

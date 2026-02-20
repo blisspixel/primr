@@ -5,31 +5,39 @@ Centralized Model Configuration for Primr
 THIS IS THE SINGLE SOURCE OF TRUTH FOR ALL AI MODELS.
 UPDATE HERE TO CHANGE MODELS GLOBALLY.
 
-AVAILABLE MODELS (January 2026):
---------------------------------
-GEMINI 3 SERIES (Latest Flagship - GA):
-1. gemini-3-pro-preview    - PRO: Deep reasoning, 65k output, 2M context ($2/$12 per 1M)
-2. gemini-3-flash-preview  - FLASH: Speed + intelligence, 65k output, 1M context ($0.50/$3.00 per 1M)
+AVAILABLE MODELS (February 2026):
+----------------------------------
+GEMINI 3.1 SERIES (Preview - February 2026):
+1. gemini-3.1-pro-preview  - Improved reasoning, token efficiency, factual consistency
+   - Also: gemini-3.1-pro-preview-customtools (optimized for agentic/tool-heavy workflows)
+   - TIERED PRICING: $2/$12 (prompts <=200k) | $4/$18 (prompts >200k) per 1M tokens
+   - NOT YET DEFAULT — available via AI_REASONING_MODEL env var for validation
+
+GEMINI 3 SERIES (GA January 2026 — CURRENT DEFAULT):
+2. gemini-3-pro-preview    - PRO: Deep reasoning, 65k output, 1M context ($2/$12 per 1M)
+3. gemini-3-flash-preview  - FLASH: Speed + intelligence, 65k output, 1M context ($0.50/$3.00 per 1M)
 
 GEMINI 2.5 SERIES (Stable Workhorses):
-3. gemini-2.5-pro          - Stable production, 8k output, 2M context ($1.25/$10 per 1M)
-4. gemini-2.5-flash        - High-volume, 8k output, 1M context ($0.30/$1.25 per 1M)
-5. gemini-2.5-flash-lite   - Ultra-cheap simple tasks ($0.10/$0.40 per 1M)
+4. gemini-2.5-pro          - Stable production, 8k output, 2M context ($1.25/$10 per 1M)
+5. gemini-2.5-flash        - High-volume, 8k output, 1M context ($0.30/$1.25 per 1M)
+6. gemini-2.5-flash-lite   - Ultra-cheap simple tasks ($0.10/$0.40 per 1M)
 
 SPECIALIZED:
-6. deep-research-pro-preview-12-2025 - Autonomous 12+ page research reports
+7. deep-research-pro-preview-12-2025 - Autonomous 12+ page research reports
 
 WHEN TO USE EACH:
 -----------------
 - FLASH (3): Smart chatbots, general assistance, scraping summaries, QA checks
 - PRO (3): Complex coding, reasoning, analysis, report writing (65k output!)
+- PRO (3.1): Same tasks as 3 Pro but with better thinking — use to validate before promoting
 - 2.5 FLASH: High-volume data processing where cost matters more than latest features
 - 2.5 FLASH-LITE: Simple classification, extraction, categorizing
 
 KEY UPGRADE: Gemini 3 has 65k max output tokens (vs 8k for 2.5) - can write entire files!
 
-PRICING (January 2026):
------------------------
+PRICING (February 2026):
+-------------------------
+Gemini 3.1 Pro:  $2.00/$12.00 (prompts <=200k) | $4.00/$18.00 (prompts >200k) per 1M tokens
 Gemini 3 Pro:    $2.00 input / $12.00 output per 1M tokens (includes thinking tokens)
 Gemini 3 Flash:  $0.50 input / $3.00 output per 1M tokens
 Gemini 2.5 Pro:  $1.25 input / $10.00 output per 1M tokens
@@ -64,9 +72,19 @@ class ModelConfig:
     supports_thinking: bool = True
     supports_tools: bool = True
     supports_multimodal: bool = True
+    # Tiered pricing (optional) — higher rates when prompt exceeds threshold
+    cost_per_1m_input_tokens_high: float | None = None
+    cost_per_1m_output_tokens_high: float | None = None
+    tier_threshold_tokens: int | None = None
 
-    def __post_init__(self):
-        pass
+    @property
+    def has_tiered_pricing(self) -> bool:
+        """Whether this model uses tiered pricing based on prompt size."""
+        return (
+            self.cost_per_1m_input_tokens_high is not None
+            and self.cost_per_1m_output_tokens_high is not None
+            and self.tier_threshold_tokens is not None
+        )
 
 
 class ModelRegistry:
@@ -112,6 +130,50 @@ class ModelRegistry:
         supports_thinking=True,          # Native Chain-of-Thought
         supports_tools=True,
         supports_multimodal=True,
+    )
+
+    # =========================================================================
+    # GEMINI 3.1 PRO - Improved reasoning, token efficiency (Preview Feb 2026)
+    # USE FOR: Validation runs — same tasks as 3 Pro but better thinking
+    # TIERED PRICING: $2/$12 (prompts <=200k) | $4/$18 (prompts >200k)
+    # Context: 1M tokens, Output: 65k tokens
+    # NOT YET DEFAULT — opt in via AI_REASONING_MODEL=gemini-3.1-pro-preview
+    # =========================================================================
+    GEMINI_3_1_PRO = ModelConfig(
+        name="gemini-3.1-pro-preview",
+        display_name="Gemini 3.1 Pro Preview",
+        provider="google",
+        cost_per_1m_input_tokens=2.00,      # <=200k prompts
+        cost_per_1m_output_tokens=12.00,    # <=200k prompts
+        max_input_tokens=1_048_576,         # 1M tokens
+        max_output_tokens=65_536,           # 65k tokens
+        supports_thinking=True,
+        supports_tools=True,
+        supports_multimodal=True,
+        cost_per_1m_input_tokens_high=4.00,   # >200k prompts
+        cost_per_1m_output_tokens_high=18.00, # >200k prompts
+        tier_threshold_tokens=200_000,
+    )
+
+    # =========================================================================
+    # GEMINI 3.1 PRO CUSTOMTOOLS - Optimized for agentic/tool-heavy workflows
+    # Better at prioritizing custom tools (view_file, search_code) over bash
+    # Same pricing as 3.1 Pro
+    # =========================================================================
+    GEMINI_3_1_PRO_CUSTOMTOOLS = ModelConfig(
+        name="gemini-3.1-pro-preview-customtools",
+        display_name="Gemini 3.1 Pro Preview (Custom Tools)",
+        provider="google",
+        cost_per_1m_input_tokens=2.00,      # <=200k prompts
+        cost_per_1m_output_tokens=12.00,    # <=200k prompts
+        max_input_tokens=1_048_576,         # 1M tokens
+        max_output_tokens=65_536,           # 65k tokens
+        supports_thinking=True,
+        supports_tools=True,
+        supports_multimodal=True,
+        cost_per_1m_input_tokens_high=4.00,   # >200k prompts
+        cost_per_1m_output_tokens_high=18.00, # >200k prompts
+        tier_threshold_tokens=200_000,
     )
 
     # =========================================================================
@@ -215,7 +277,7 @@ class PrimrModels:
 
     THIS IS WHERE YOU CHANGE MODELS GLOBALLY.
 
-    When Gemini 3.2 or 4.0 comes out:
+    To upgrade to a new model:
     1. Add new model to ModelRegistry above
     2. Update FLASH_MODEL and/or PRO_MODEL below
     3. Done - all code uses these constants
@@ -225,6 +287,13 @@ class PrimrModels:
     FLASH_MODEL = gemini-3-flash-preview  (cheap, fast - for scraping/filtering)
     PRO_MODEL   = gemini-3-pro-preview    (expensive, smart - for report writing)
     DEEP_RESEARCH_AGENT = deep-research-pro-preview-12-2025 (autonomous 12+ page reports)
+
+    AVAILABLE BUT NOT DEFAULT:
+    --------------------------
+    gemini-3.1-pro-preview             - Better thinking, token efficiency, factual consistency
+    gemini-3.1-pro-preview-customtools - Same + optimized for custom tool prioritization
+    To test: set AI_REASONING_MODEL=gemini-3.1-pro-preview in .env
+    NOTE: Tiered pricing — $4/$18 per 1M for prompts >200k tokens (vs flat $2/$12 for 3.0 Pro)
     """
 
     # =========================================================================
@@ -273,6 +342,8 @@ class PrimrModels:
 
     # Model registry for lookups
     ALL_MODELS = {
+        ModelRegistry.GEMINI_3_1_PRO.name: ModelRegistry.GEMINI_3_1_PRO,
+        ModelRegistry.GEMINI_3_1_PRO_CUSTOMTOOLS.name: ModelRegistry.GEMINI_3_1_PRO_CUSTOMTOOLS,
         ModelRegistry.GEMINI_3_PRO.name: ModelRegistry.GEMINI_3_PRO,
         ModelRegistry.GEMINI_3_FLASH.name: ModelRegistry.GEMINI_3_FLASH,
         ModelRegistry.GEMINI_3_PRO_IMAGE.name: ModelRegistry.GEMINI_3_PRO_IMAGE,
@@ -309,6 +380,8 @@ class PrimrModels:
     def is_latest_model(cls, model_name: str) -> bool:
         """Check if a model is one of the latest Gemini 3 models."""
         latest_models = {
+            ModelRegistry.GEMINI_3_1_PRO.name,
+            ModelRegistry.GEMINI_3_1_PRO_CUSTOMTOOLS.name,
             ModelRegistry.GEMINI_3_PRO.name,
             ModelRegistry.GEMINI_3_FLASH.name,
             ModelRegistry.GEMINI_3_PRO_IMAGE.name,
@@ -327,10 +400,87 @@ class PrimrModels:
         return (config.cost_per_1m_input_tokens, config.cost_per_1m_output_tokens)
 
     @classmethod
-    def calculate_cost(cls, model_name: str, input_tokens: int, output_tokens: int) -> float:
-        """Calculate cost in USD for given token counts using model pricing."""
-        inp_price, out_price = cls.get_price(model_name)
+    def calculate_cost(
+        cls,
+        model_name: str,
+        input_tokens: int,
+        output_tokens: int,
+        prompt_tokens: int | None = None,
+    ) -> float:
+        """Calculate cost in USD for given token counts using model pricing.
+
+        For tiered models, uses the high tier when prompt_tokens exceeds the
+        tier threshold. When prompt_tokens is None, uses standard (low) tier.
+        """
+        config = cls.ALL_MODELS.get(model_name)
+        if config is None:
+            raise KeyError(f"Unknown model: {model_name}")
+
+        if (
+            config.has_tiered_pricing
+            and prompt_tokens is not None
+            and prompt_tokens > config.tier_threshold_tokens  # type: ignore[operator]
+        ):
+            inp_price = config.cost_per_1m_input_tokens_high  # type: ignore[assignment]
+            out_price = config.cost_per_1m_output_tokens_high  # type: ignore[assignment]
+        else:
+            inp_price = config.cost_per_1m_input_tokens
+            out_price = config.cost_per_1m_output_tokens
+
         return (input_tokens / 1_000_000) * inp_price + (output_tokens / 1_000_000) * out_price
+
+    @classmethod
+    def calculate_cost_conservative(
+        cls, model_name: str, input_tokens: int, output_tokens: int
+    ) -> float:
+        """Calculate cost using the highest tier for tiered models.
+
+        For flat-pricing models this is identical to calculate_cost().
+        Use this for **pre-run estimates** where we don't know prompt sizes.
+        """
+        config = cls.ALL_MODELS.get(model_name)
+        if config is None:
+            raise KeyError(f"Unknown model: {model_name}")
+
+        if config.has_tiered_pricing:
+            inp_price = config.cost_per_1m_input_tokens_high  # type: ignore[assignment]
+            out_price = config.cost_per_1m_output_tokens_high  # type: ignore[assignment]
+        else:
+            inp_price = config.cost_per_1m_input_tokens
+            out_price = config.cost_per_1m_output_tokens
+
+        return (input_tokens / 1_000_000) * inp_price + (output_tokens / 1_000_000) * out_price
+
+    @classmethod
+    def get_active_pro_model(cls) -> ModelConfig:
+        """Return the ModelConfig for the active Pro model from settings.
+
+        Reads ``get_settings().ai.pro_model`` (which honours the
+        ``AI_REASONING_MODEL`` env-var) and falls back to the default
+        GEMINI_3_PRO config when the resolved name isn't in ALL_MODELS.
+        """
+        from primr.config.settings import get_settings
+
+        active_name = get_settings().ai.pro_model
+        config = cls.ALL_MODELS.get(active_name)
+        if config is not None:
+            return config
+        # Unknown model name — default to GEMINI_3_PRO
+        return cls.ALL_MODELS[cls.PRO_MODEL]
+
+    @classmethod
+    def calculate_active_pro_cost(cls, input_tokens: int, output_tokens: int) -> float:
+        """Calculate cost using the active Pro model (standard tier)."""
+        cfg = cls.get_active_pro_model()
+        return cls.calculate_cost(cfg.name, input_tokens, output_tokens)
+
+    @classmethod
+    def calculate_active_pro_cost_conservative(
+        cls, input_tokens: int, output_tokens: int
+    ) -> float:
+        """Calculate cost using the active Pro model at highest tier."""
+        cfg = cls.get_active_pro_model()
+        return cls.calculate_cost_conservative(cfg.name, input_tokens, output_tokens)
 
     @classmethod
     def calculate_flash_cost(cls, input_tokens: int, output_tokens: int) -> float:
@@ -354,9 +504,14 @@ def get_price(model_name: str) -> tuple[float, float]:
     return PrimrModels.get_price(model_name)
 
 
-def calculate_cost(model_name: str, input_tokens: int, output_tokens: int) -> float:
+def calculate_cost(
+    model_name: str,
+    input_tokens: int,
+    output_tokens: int,
+    prompt_tokens: int | None = None,
+) -> float:
     """Calculate cost in USD for given token counts."""
-    return PrimrModels.calculate_cost(model_name, input_tokens, output_tokens)
+    return PrimrModels.calculate_cost(model_name, input_tokens, output_tokens, prompt_tokens=prompt_tokens)
 
 
 def calculate_flash_cost(input_tokens: int, output_tokens: int) -> float:

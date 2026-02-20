@@ -54,12 +54,24 @@ class UsageRecord:
         search_queries: int = 0,
         duration_seconds: float = 0.0,
     ) -> "UsageRecord":
-        """Create a usage record with calculated costs."""
+        """Create a usage record with calculated costs.
+
+        Uses the active Pro model pricing (from AI_REASONING_MODEL setting).
+        For tiered models, uses conservative high-tier pricing since we don't
+        know per-call prompt sizes.
+        """
         from primr.config.models import SEARCH_COST_PER_QUERY, PrimrModels
 
-        # Default to Pro pricing (conservative — covers the most expensive model)
-        INPUT_PRICE = PrimrModels.get_price(PrimrModels.PRO_MODEL)[0]   # 2.00
-        OUTPUT_PRICE = PrimrModels.get_price(PrimrModels.PRO_MODEL)[1]  # 12.00
+        # Use the active Pro model — honours AI_REASONING_MODEL env var
+        active_pro = PrimrModels.get_active_pro_model()
+
+        # For tiered models, use high-tier pricing (conservative)
+        if active_pro.has_tiered_pricing:
+            INPUT_PRICE = active_pro.cost_per_1m_input_tokens_high  # type: ignore[assignment]
+            OUTPUT_PRICE = active_pro.cost_per_1m_output_tokens_high  # type: ignore[assignment]
+        else:
+            INPUT_PRICE = active_pro.cost_per_1m_input_tokens
+            OUTPUT_PRICE = active_pro.cost_per_1m_output_tokens
 
         input_cost = (input_tokens / 1_000_000) * INPUT_PRICE
         output_cost = (output_tokens / 1_000_000) * OUTPUT_PRICE
