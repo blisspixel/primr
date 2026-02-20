@@ -409,8 +409,7 @@ async def perform_deep_research(
                 config, outputs.get("raw_md_path")
             )
 
-        # Track usage
-        _track_usage(config, research_result, time.time() - start_time)
+        # Usage tracked by the main research pipeline (research_agent.py)
 
         return DeepResearchResult(
             docx_path=outputs.get("docx_path"),
@@ -595,33 +594,5 @@ async def _generate_ai_strategy(
     return None
 
 
-def _track_usage(config: DeepResearchConfig, result: Any, duration_seconds: float) -> None:
-    """Track usage for cost monitoring."""
-    try:
-        from primr.ai.client import get_client
-        from primr.utils.usage_tracker import get_usage_tracker
 
-        # Get AI client usage
-        client = get_client()
-        usage = client.get_usage_summary()
-
-        # Estimate Deep Research tokens
-        total_output_chars = sum(len(content) for content in result.section_results.values())
-        estimated_output_tokens = total_output_chars // 4
-        estimated_input_tokens = 50_000
-
-        total_input = usage.get("total_input_tokens", 0) + estimated_input_tokens
-        total_output = usage.get("total_output_tokens", 0) + estimated_output_tokens
-
-        tracker = get_usage_tracker()
-        tracker.record_usage(
-            mode=config.mode.value,
-            company=config.display_name,
-            input_tokens=total_input,
-            output_tokens=total_output,
-            duration_seconds=duration_seconds,
-        )
-        tracker.save()
-
-    except Exception as e:
-        logger.warning(f"Failed to track usage: {e}")
+# Usage tracking removed — consolidated in research_agent.py main pipeline
