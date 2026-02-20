@@ -247,6 +247,151 @@ class TestSingletonAccess:
         reset_usage_tracker()
 
 
+class TestPipelineCostPassthrough:
+    """Tests for pre-calculated cost passthrough."""
+
+    def test_create_with_pipeline_cost(self):
+        """When pipeline_cost is provided, use it instead of recalculating."""
+        record = UsageRecord.create(
+            mode="fast",
+            company="TestCo",
+            input_tokens=100_000,
+            output_tokens=50_000,
+            pipeline_cost=0.25,
+        )
+        # Total should be pipeline_cost (no search, no DR)
+        assert abs(record.total_cost - 0.25) < 0.001
+        assert record.deep_research_cost == 0.0
+
+    def test_create_with_pipeline_cost_and_search(self):
+        """pipeline_cost + search cost combined."""
+        record = UsageRecord.create(
+            mode="fast",
+            company="TestCo",
+            input_tokens=100_000,
+            output_tokens=50_000,
+            search_queries=10,
+            pipeline_cost=0.25,
+        )
+        # $0.25 + 10 * $0.035 = $0.60
+        assert abs(record.total_cost - 0.60) < 0.001
+
+    def test_create_with_deep_research_cost(self):
+        """deep_research_cost included in total."""
+        record = UsageRecord.create(
+            mode="complete",
+            company="TestCo",
+            input_tokens=100_000,
+            output_tokens=50_000,
+            pipeline_cost=0.50,
+            deep_research_cost=2.50,
+        )
+        # $0.50 + $2.50 = $3.00
+        assert abs(record.total_cost - 3.00) < 0.001
+        assert abs(record.deep_research_cost - 2.50) < 0.001
+
+    def test_create_with_all_cost_components(self):
+        """pipeline_cost + search + DR all combined."""
+        record = UsageRecord.create(
+            mode="complete",
+            company="TestCo",
+            input_tokens=200_000,
+            output_tokens=100_000,
+            search_queries=20,
+            pipeline_cost=0.80,
+            deep_research_cost=5.00,
+        )
+        # $0.80 + 20*$0.035 + $5.00 = $6.50
+        assert abs(record.total_cost - 6.50) < 0.001
+
+    def test_create_without_pipeline_cost_backward_compat(self):
+        """Without pipeline_cost, falls back to token-based pricing."""
+        record = UsageRecord.create(
+            mode="structured",
+            company="TestCo",
+            input_tokens=100_000,
+            output_tokens=50_000,
+        )
+        # Should still work and produce a positive cost
+        assert record.total_cost > 0
+        assert record.input_cost > 0
+        assert record.output_cost > 0
+
+    def test_create_with_pipeline_cost_zeroes_input_output_cost(self):
+        """When pipeline_cost provided, input_cost and output_cost are 0."""
+        record = UsageRecord.create(
+            mode="fast",
+            company="TestCo",
+            input_tokens=100_000,
+            output_tokens=50_000,
+            pipeline_cost=0.25,
+        )
+        assert record.input_cost == 0.0
+        assert record.output_cost == 0.0
+
+    def test_deep_research_cost_in_fallback_path(self):
+        """DR cost included even when using token-based pricing."""
+        record = UsageRecord.create(
+            mode="complete",
+            company="TestCo",
+            input_tokens=0,
+            output_tokens=0,
+            deep_research_cost=2.50,
+        )
+        assert abs(record.total_cost - 2.50) < 0.001
+        assert abs(record.deep_research_cost - 2.50) < 0.001
+
+    def test_record_usage_with_pipeline_cost(self):
+        """record_usage passes pipeline_cost through to session."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            storage_path = Path(tmpdir) / "usage.json"
+            tracker = UsageTracker(storage_path=storage_path)
+            tracker.record_usage(
+                mode="fast",
+                company="TestCo",
+                input_tokens=100_000,
+                output_tokens=50_000,
+                pipeline_cost=0.25,
+            )
+            assert abs(tracker.get_session_cost() - 0.25) < 0.001
+
+    def test_record_usage_with_deep_research_cost(self):
+        """record_usage passes deep_research_cost through."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            storage_path = Path(tmpdir) / "usage.json"
+            tracker = UsageTracker(storage_path=storage_path)
+            tracker.record_usage(
+                mode="complete",
+                company="TestCo",
+                input_tokens=100_000,
+                output_tokens=50_000,
+                pipeline_cost=0.50,
+                deep_research_cost=5.00,
+            )
+            assert abs(tracker.get_session_cost() - 5.50) < 0.001
+
+    def test_save_and_load_with_deep_research_cost(self):
+        """deep_research_cost persists through save/load cycle."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            storage_path = Path(tmpdir) / "usage.json"
+
+            tracker1 = UsageTracker(storage_path=storage_path)
+            tracker1.record_usage(
+                mode="complete",
+                company="TestCo",
+                input_tokens=100_000,
+                output_tokens=50_000,
+                pipeline_cost=0.50,
+                deep_research_cost=2.50,
+            )
+            tracker1.save()
+
+            tracker2 = UsageTracker(storage_path=storage_path)
+            assert len(tracker2.history) == 1
+            assert abs(tracker2.history[0]["deep_research_cost"] - 2.50) < 0.001
+            assert abs(tracker2.history[0]["total_cost"] - 3.00) < 0.001
+
+
 class TestDisplayUsageHistory:
     """Tests for display_usage_history method."""
 
@@ -317,3 +462,25 @@ class TestDisplayUsageHistory:
             assert "By Mode" in output  # Header contains "By Mode (actual averages):"
             assert "Runs: 3" in output
             assert "Avg Cost:" in output
+
+    def test_display_shows_dr_cost_breakdown(self):
+        """Display shows DR cost breakdown when present."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            storage_path = Path(tmpdir) / "usage.json"
+            tracker = UsageTracker(storage_path=storage_path)
+
+            tracker.record_usage(
+                mode="complete",
+                company="TestCo",
+                input_tokens=100_000,
+                output_tokens=50_000,
+                pipeline_cost=0.50,
+                deep_research_cost=5.00,
+            )
+            tracker.save()
+
+            tracker2 = UsageTracker(storage_path=storage_path)
+            output = tracker2.display_usage_history()
+
+            assert "DR cost:" in output
+            assert "$5.00" in output

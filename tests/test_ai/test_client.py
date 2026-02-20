@@ -324,15 +324,42 @@ class TestUsageTracking:
         assert summary["output_cost"] == 6.00  # $12 per 1M output * 0.5M
         assert summary["total_cost"] == 8.00
     
+    def test_get_usage_summary_with_per_call_cost(self, mock_genai_client, mock_settings):
+        """Per-call accumulated cost should be used when available."""
+        client = AIClient()
+        # Simulate per-call cost accumulation
+        client.usage_by_model = {
+            "gemini-3-flash-preview": {
+                "input_tokens": 500_000,
+                "output_tokens": 200_000,
+                "calls": 5,
+                "cost": 0.85,  # Pre-calculated per-call cost
+            },
+            "gemini-3.1-pro-preview": {
+                "input_tokens": 100_000,
+                "output_tokens": 50_000,
+                "calls": 3,
+                "cost": 0.80,  # Pre-calculated per-call cost
+            },
+        }
+        client.total_input_tokens = 600_000
+        client.total_output_tokens = 250_000
+        client.call_count = 8
+
+        summary = client.get_usage_summary()
+
+        # total_cost should use pre-calculated per-call costs
+        assert abs(summary["total_cost"] - 1.65) < 0.001  # $0.85 + $0.80
+
     def test_reset_usage(self, mock_genai_client, mock_settings):
         """Should reset all usage counters."""
         client = AIClient()
         client.total_input_tokens = 1000
         client.total_output_tokens = 500
         client.call_count = 5
-        
+
         client.reset_usage()
-        
+
         assert client.total_input_tokens == 0
         assert client.total_output_tokens == 0
         assert client.call_count == 0

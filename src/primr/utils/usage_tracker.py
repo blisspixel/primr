@@ -43,6 +43,7 @@ class UsageRecord:
     output_cost: float
     search_cost: float
     total_cost: float
+    deep_research_cost: float = 0.0  # Flat per-task DR cost
 
     @classmethod
     def create(
@@ -53,16 +54,42 @@ class UsageRecord:
         output_tokens: int,
         search_queries: int = 0,
         duration_seconds: float = 0.0,
+        pipeline_cost: float | None = None,
+        deep_research_cost: float = 0.0,
     ) -> "UsageRecord":
-        """Create a usage record with calculated costs.
+        """Create a usage record with costs.
 
-        Uses the active Pro model pricing (from AI_REASONING_MODEL setting).
-        For tiered models, uses conservative high-tier pricing since we don't
-        know per-call prompt sizes.
+        Args:
+            pipeline_cost: Pre-calculated accurate cost from AI client
+                (per-model, tier-aware). When provided, skips token-based
+                pricing. When None, falls back to conservative pricing
+                from tokens (backward compat).
+            deep_research_cost: Flat per-task Deep Research cost ($2.50/task).
         """
-        from primr.config.models import SEARCH_COST_PER_QUERY, PrimrModels
+        from primr.config.models import SEARCH_COST_PER_QUERY
 
-        # Use the active Pro model — honours AI_REASONING_MODEL env var
+        search_cost = search_queries * SEARCH_COST_PER_QUERY
+
+        if pipeline_cost is not None:
+            # Use pre-calculated accurate cost from AI client
+            return cls(
+                timestamp=datetime.now().isoformat(),
+                mode=mode,
+                company=company,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                search_queries=search_queries,
+                duration_seconds=duration_seconds,
+                input_cost=0.0,
+                output_cost=0.0,
+                search_cost=search_cost,
+                total_cost=pipeline_cost + search_cost + deep_research_cost,
+                deep_research_cost=deep_research_cost,
+            )
+
+        # Fallback: estimate cost from tokens using active Pro model pricing
+        from primr.config.models import PrimrModels
+
         active_pro = PrimrModels.get_active_pro_model()
 
         # For tiered models, use high-tier pricing (conservative)
@@ -75,7 +102,6 @@ class UsageRecord:
 
         input_cost = (input_tokens / 1_000_000) * INPUT_PRICE
         output_cost = (output_tokens / 1_000_000) * OUTPUT_PRICE
-        search_cost = search_queries * SEARCH_COST_PER_QUERY
 
         return cls(
             timestamp=datetime.now().isoformat(),
@@ -88,7 +114,8 @@ class UsageRecord:
             input_cost=input_cost,
             output_cost=output_cost,
             search_cost=search_cost,
-            total_cost=input_cost + output_cost + search_cost,
+            total_cost=input_cost + output_cost + search_cost + deep_research_cost,
+            deep_research_cost=deep_research_cost,
         )
 
 
@@ -147,6 +174,8 @@ class UsageTracker:
         output_tokens: int,
         search_queries: int = 0,
         duration_seconds: float = 0.0,
+        pipeline_cost: float | None = None,
+        deep_research_cost: float = 0.0,
     ) -> None:
         """
         Record API usage for the current session.
@@ -158,6 +187,8 @@ class UsageTracker:
             output_tokens: Number of output tokens generated
             search_queries: Number of search queries made
             duration_seconds: Duration of the operation
+            pipeline_cost: Pre-calculated accurate cost from AI client
+            deep_research_cost: Flat per-task Deep Research cost
         """
         record = UsageRecord.create(
             mode=mode,
@@ -166,6 +197,8 @@ class UsageTracker:
             output_tokens=output_tokens,
             search_queries=search_queries,
             duration_seconds=duration_seconds,
+            pipeline_cost=pipeline_cost,
+            deep_research_cost=deep_research_cost,
         )
 
         self.session.add(record)
@@ -293,6 +326,7 @@ class UsageTracker:
         total_searches = sum(r.get("search_queries", 0) for r in self.history)
         total_cost = sum(r.get("total_cost", 0) for r in self.history)
         total_duration = sum(r.get("duration_seconds", 0) for r in self.history)
+        total_dr_cost = sum(r.get("deep_research_cost", 0) for r in self.history)
 
         lines.extend([
             "All-Time Totals:",
@@ -300,6 +334,13 @@ class UsageTracker:
             f"  Output Tokens:  {total_output:,}",
             f"  Search Queries: {total_searches:,}",
             f"  Total Cost:     ${total_cost:.2f}",
+        ])
+        if total_dr_cost > 0:
+            lines.extend([
+                f"    Token cost:   ${total_cost - total_dr_cost:.2f}",
+                f"    DR cost:      ${total_dr_cost:.2f}",
+            ])
+        lines.extend([
             f"  Total Time:     {total_duration / 60:.1f} minutes",
             "",
         ])

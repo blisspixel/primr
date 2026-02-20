@@ -123,7 +123,7 @@ class AIClient:
         self.total_input_tokens = 0
         self.total_output_tokens = 0
         self.call_count = 0
-        self.usage_by_model: dict[str, dict[str, int]] = {}
+        self.usage_by_model: dict[str, dict[str, int | float]] = {}
 
         logger.debug("AI client initialized")
 
@@ -250,14 +250,30 @@ class AIClient:
                     self.total_input_tokens += usage.input_tokens
                     self.total_output_tokens += usage.output_tokens
                     self.call_count += 1
-                    # Per-model accumulation
+                    # Per-model accumulation with per-call cost
                     if model not in self.usage_by_model:
-                        self.usage_by_model[model] = {"input_tokens": 0, "output_tokens": 0, "calls": 0}
+                        self.usage_by_model[model] = {
+                            "input_tokens": 0, "output_tokens": 0,
+                            "calls": 0, "cost": 0.0,
+                        }
                     self.usage_by_model[model]["input_tokens"] += usage.input_tokens
                     self.usage_by_model[model]["output_tokens"] += usage.output_tokens
                     self.usage_by_model[model]["calls"] += 1
+                    # Per-call tier-aware cost: prompt_token_count = input_tokens
+                    from primr.config.models import PrimrModels
+                    try:
+                        call_cost = PrimrModels.calculate_cost(
+                            model, usage.input_tokens, usage.output_tokens,
+                            prompt_tokens=usage.input_tokens,
+                        )
+                    except KeyError:
+                        call_cost = PrimrModels.calculate_active_pro_cost(
+                            usage.input_tokens, usage.output_tokens
+                        )
+                    self.usage_by_model[model]["cost"] += call_cost
                     logger.debug(
                         f"Token usage: {usage.input_tokens:,} in / {usage.output_tokens:,} out"
+                        f" (${call_cost:.4f})"
                     )
 
                 logger.debug(f"AI response received: {len(result)} chars")
@@ -504,7 +520,7 @@ class AIClient:
         """
         Get a summary of token usage for this client instance.
 
-        Calculates per-model cost when per-model data is available,
+        Uses per-call accumulated costs when available (tier-aware),
         otherwise falls back to Pro pricing (conservative estimate).
 
         Returns:
@@ -513,21 +529,25 @@ class AIClient:
         from primr.config.models import PrimrModels
 
         if self.usage_by_model:
-            # Per-model cost calculation
             total_cost = 0.0
             input_cost = 0.0
             output_cost = 0.0
             for model_name, counts in self.usage_by_model.items():
-                try:
-                    model_cost = PrimrModels.calculate_cost(
-                        model_name, counts["input_tokens"], counts["output_tokens"]
-                    )
-                except KeyError:
-                    # Unknown model — fall back to active Pro model pricing
-                    model_cost = PrimrModels.calculate_active_pro_cost(
-                        counts["input_tokens"], counts["output_tokens"]
-                    )
-                total_cost += model_cost
+                # Use pre-calculated per-call cost (tier-aware) if available
+                if "cost" in counts and counts["cost"] > 0:
+                    total_cost += counts["cost"]
+                else:
+                    # Backward compat: no per-call cost, recalculate
+                    try:
+                        model_cost = PrimrModels.calculate_cost(
+                            model_name, counts["input_tokens"], counts["output_tokens"]
+                        )
+                    except KeyError:
+                        model_cost = PrimrModels.calculate_active_pro_cost(
+                            counts["input_tokens"], counts["output_tokens"]
+                        )
+                    total_cost += model_cost
+                # Input/output cost breakdown (standard tier, for display)
                 try:
                     inp_price, out_price = PrimrModels.get_price(model_name)
                 except KeyError:

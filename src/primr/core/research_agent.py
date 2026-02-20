@@ -1459,6 +1459,7 @@ def perform_fast_research(
             output_tokens=grok_usage["output_tokens"],
             search_queries=len(external_queries),
             duration_seconds=elapsed,
+            pipeline_cost=actual_cost,
         )
         tracker.save()
 
@@ -1826,6 +1827,7 @@ def perform_research(
                 input_tokens=usage.get("total_input_tokens", 0),
                 output_tokens=usage.get("total_output_tokens", 0),
                 duration_seconds=elapsed,
+                pipeline_cost=actual_cost,
             )
             tracker.save()
 
@@ -2234,6 +2236,8 @@ def perform_deep_research(
                 output_tokens=total_output,
                 search_queries=result.search_queries_count,  # Actual count from API
                 duration_seconds=elapsed,
+                pipeline_cost=pipeline_cost,
+                deep_research_cost=dr_cost,
             )
             tracker.save()
 
@@ -2947,19 +2951,7 @@ def _generate_generic_strategy(
             console.error(f"{strategy_display_name} research failed")
             return None
 
-        # Track usage
-        output_tokens = len(result.content) // 4
-        input_tokens = 50_000  # Estimated
-
-        from primr.utils.usage_tracker import get_usage_tracker
-        tracker = get_usage_tracker()
-        tracker.record_usage(
-            mode=f"strategy-{strategy_name}",
-            company=company_name,
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
-            duration_seconds=result.duration_seconds,
-        )
+        # Usage tracked by the main pipeline recording
 
         # Generate output files
         date_str = datetime.now().strftime("%m-%d-%Y")
@@ -3279,19 +3271,7 @@ def _generate_ai_strategy_section(
                 console.error("AI Strategy Pro generation failed - empty response")
                 return None
 
-            # Track usage
-            ai_strategy_output_tokens = len(strategy_content) // 4
-            ai_strategy_input_tokens = len(combined_prompt) // 4
-
-            from primr.utils.usage_tracker import get_usage_tracker
-            tracker = get_usage_tracker()
-            tracker.record_usage(
-                mode="ai-strategy",
-                company=company_name,
-                input_tokens=ai_strategy_input_tokens,
-                output_tokens=ai_strategy_output_tokens,
-                duration_seconds=strategy_duration,
-            )
+            # Usage tracked by the main pipeline recording
         else:
             # Default path: use Deep Research
             from primr.ai.deep_research import ResearchStatus, get_deep_research_client
@@ -3326,21 +3306,7 @@ def _generate_ai_strategy_section(
 
             strategy_content = result.content
 
-            # Track AI Strategy usage (separate from main research)
-            # Deep Research API doesn't expose tokens, so estimate from output
-            ai_strategy_output_tokens = len(strategy_content) // 4  # ~4 chars per token
-            ai_strategy_input_tokens = 50_000  # Estimated prompt + context
-
-            from primr.utils.usage_tracker import get_usage_tracker
-            tracker = get_usage_tracker()
-            tracker.record_usage(
-                mode="ai-strategy",
-                company=company_name,
-                input_tokens=ai_strategy_input_tokens,
-                output_tokens=ai_strategy_output_tokens,
-                duration_seconds=result.duration_seconds,
-            )
-        # Note: Don't save here - let the main research flow save all at once
+            # Usage tracked by the main pipeline recording
 
         date_str = datetime.now().strftime("%m-%d-%Y")
         vendor_tag = f"_{cloud_vendor.upper()}" if cloud_vendor.lower() != "agnostic" else ""
