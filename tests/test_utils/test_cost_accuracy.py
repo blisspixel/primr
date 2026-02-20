@@ -232,18 +232,30 @@ def test_property_token_cost_relationship(mode: str):
     **Feature: test-coverage-hardening, Property 14: Cost estimate accuracy**
     **Validates: Requirements 9.1**
 
-    For structured mode, cost should reflect blended Flash + Pro pricing.
+    For structured mode, cost should reflect blended Flash + active Pro pricing.
+    Active Pro model may have tiered pricing — estimates use conservative (high) tier.
     """
+    from primr.config.models import PrimrModels
+
     estimate = estimate_cost(mode, use_historical=False)
     m = MODE_ESTIMATES[mode]
 
+    # Resolve active Pro model pricing (conservative for tiered models)
+    active_pro = PrimrModels.get_active_pro_model()
+    if active_pro.has_tiered_pricing:
+        pro_inp_price = active_pro.cost_per_1m_input_tokens_high
+        pro_out_price = active_pro.cost_per_1m_output_tokens_high
+    else:
+        pro_inp_price = active_pro.cost_per_1m_input_tokens
+        pro_out_price = active_pro.cost_per_1m_output_tokens
+
     expected_input_cost = (
         (m["flash_input_tokens"] / 1_000_000) * GEMINI_3_FLASH_INPUT_PRICE
-        + (m["pro_input_tokens"] / 1_000_000) * GEMINI_3_PRO_INPUT_PRICE_SMALL
+        + (m["pro_input_tokens"] / 1_000_000) * pro_inp_price
     )
     expected_output_cost = (
         (m["flash_output_tokens"] / 1_000_000) * GEMINI_3_FLASH_OUTPUT_PRICE
-        + (m["pro_output_tokens"] / 1_000_000) * GEMINI_3_PRO_OUTPUT_PRICE_SMALL
+        + (m["pro_output_tokens"] / 1_000_000) * pro_out_price
     )
 
     assert abs(estimate.input_cost - expected_input_cost) < 0.001

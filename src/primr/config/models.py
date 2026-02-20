@@ -7,13 +7,12 @@ UPDATE HERE TO CHANGE MODELS GLOBALLY.
 
 AVAILABLE MODELS (February 2026):
 ----------------------------------
-GEMINI 3.1 SERIES (Preview - February 2026):
+GEMINI 3.1 SERIES (Preview - February 2026 — CURRENT DEFAULT PRO):
 1. gemini-3.1-pro-preview  - Improved reasoning, token efficiency, factual consistency
    - Also: gemini-3.1-pro-preview-customtools (optimized for agentic/tool-heavy workflows)
    - TIERED PRICING: $2/$12 (prompts <=200k) | $4/$18 (prompts >200k) per 1M tokens
-   - NOT YET DEFAULT — available via AI_REASONING_MODEL env var for validation
 
-GEMINI 3 SERIES (GA January 2026 — CURRENT DEFAULT):
+GEMINI 3 SERIES (GA January 2026):
 2. gemini-3-pro-preview    - PRO: Deep reasoning, 65k output, 1M context ($2/$12 per 1M)
 3. gemini-3-flash-preview  - FLASH: Speed + intelligence, 65k output, 1M context ($0.50/$3.00 per 1M)
 
@@ -134,10 +133,9 @@ class ModelRegistry:
 
     # =========================================================================
     # GEMINI 3.1 PRO - Improved reasoning, token efficiency (Preview Feb 2026)
-    # USE FOR: Validation runs — same tasks as 3 Pro but better thinking
+    # DEFAULT PRO MODEL — better thinking, token efficiency, factual consistency
     # TIERED PRICING: $2/$12 (prompts <=200k) | $4/$18 (prompts >200k)
     # Context: 1M tokens, Output: 65k tokens
-    # NOT YET DEFAULT — opt in via AI_REASONING_MODEL=gemini-3.1-pro-preview
     # =========================================================================
     GEMINI_3_1_PRO = ModelConfig(
         name="gemini-3.1-pro-preview",
@@ -284,23 +282,22 @@ class PrimrModels:
 
     CURRENT ASSIGNMENTS (February 2026):
     ------------------------------------
-    FLASH_MODEL = gemini-3-flash-preview  (cheap, fast - for scraping/filtering)
-    PRO_MODEL   = gemini-3-pro-preview    (expensive, smart - for report writing)
+    FLASH_MODEL = gemini-3-flash-preview       (cheap, fast - for scraping/filtering)
+    PRO_MODEL   = gemini-3.1-pro-preview       (smart - for report writing, tiered pricing)
     DEEP_RESEARCH_AGENT = deep-research-pro-preview-12-2025 (autonomous 12+ page reports)
 
-    AVAILABLE BUT NOT DEFAULT:
-    --------------------------
-    gemini-3.1-pro-preview             - Better thinking, token efficiency, factual consistency
-    gemini-3.1-pro-preview-customtools - Same + optimized for custom tool prioritization
-    To test: set AI_REASONING_MODEL=gemini-3.1-pro-preview in .env
-    NOTE: Tiered pricing — $4/$18 per 1M for prompts >200k tokens (vs flat $2/$12 for 3.0 Pro)
+    ALSO AVAILABLE:
+    ---------------
+    gemini-3-pro-preview               - Previous default, flat $2/$12 pricing
+    gemini-3.1-pro-preview-customtools - Same as 3.1 Pro + optimized for custom tool prioritization
+    Override via AI_REASONING_MODEL env var in .env
     """
 
     # =========================================================================
     # PRIMARY MODELS - UPDATE THESE TO CHANGE MODELS GLOBALLY
     # =========================================================================
     FLASH_MODEL = ModelRegistry.GEMINI_3_FLASH.name    # Cheap - $0.50/$3 per 1M
-    PRO_MODEL = ModelRegistry.GEMINI_3_PRO.name        # Expensive - $2/$12 per 1M
+    PRO_MODEL = ModelRegistry.GEMINI_3_1_PRO.name      # Smart - $2/$12 (≤200k) | $4/$18 (>200k)
     DEEP_RESEARCH_AGENT = ModelRegistry.DEEP_RESEARCH_AGENT  # Autonomous 12+ page reports
 
     # =========================================================================

@@ -138,14 +138,15 @@ class TestEstimateCost:
         assert abs(estimate.search_cost - expected_search_cost) < 0.001
 
     def test_cost_calculation_blended(self):
-        """Verify blended cost calculation across Flash + Pro models."""
+        """Verify blended cost calculation across Flash + active Pro models."""
         estimate = estimate_cost("structured", use_historical=False)
         structured = MODE_ESTIMATES["structured"]
 
         expected_flash_cost = PrimrModels.calculate_flash_cost(
             structured["flash_input_tokens"], structured["flash_output_tokens"]
         )
-        expected_pro_cost = PrimrModels.calculate_pro_cost(
+        # estimate_cost uses conservative pricing for the active Pro model
+        expected_pro_cost = PrimrModels.calculate_active_pro_cost_conservative(
             structured["pro_input_tokens"], structured["pro_output_tokens"]
         )
         expected_search_cost = PrimrModels.calculate_search_cost(structured["search_queries"])
@@ -354,12 +355,27 @@ class TestTieredPricing:
             monkeypatch.delenv("AI_REASONING_MODEL", raising=False)
             reset_settings()
 
-    def test_estimate_cost_default_model_no_tiered_note(self):
-        """estimate_cost with default 3.0 Pro should have no tiered pricing note."""
+    def test_estimate_cost_default_model_has_tiered_note(self):
+        """estimate_cost with default 3.1 Pro should have tiered pricing note."""
         from primr.config.settings import reset_settings
         reset_settings()
 
         estimate = estimate_cost("structured", use_historical=False)
 
         tiered_notes = [n for n in estimate.notes if "tiered pricing" in n]
-        assert len(tiered_notes) == 0
+        assert len(tiered_notes) == 1
+        assert "conservative" in tiered_notes[0].lower()
+
+    def test_estimate_cost_flat_model_no_tiered_note(self, monkeypatch):
+        """estimate_cost with flat-pricing 3.0 Pro should have no tiered pricing note."""
+        from primr.config.settings import reset_settings
+
+        monkeypatch.setenv("AI_REASONING_MODEL", "gemini-3-pro-preview")
+        reset_settings()
+        try:
+            estimate = estimate_cost("structured", use_historical=False)
+            tiered_notes = [n for n in estimate.notes if "tiered pricing" in n]
+            assert len(tiered_notes) == 0
+        finally:
+            monkeypatch.delenv("AI_REASONING_MODEL", raising=False)
+            reset_settings()

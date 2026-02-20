@@ -39,7 +39,7 @@ Manual research takes hours. Primr typically runs in about an hour and costs abo
 | `--mode deep` | Gemini Deep Research on external sources only | 10-15 min | $2.50 |
 | `--fast` | Grok 4.1 accordion report (requires `XAI_API_KEY`) | 10-17 min | $0.25 |
 
-The default `primr` command runs full mode with AI Strategy (Azure vendor). Full mode costs are Gemini API usage: Deep Research is $2.50 per task (one for the brief, one per AI Strategy vendor), plus token costs for Flash/Pro calls. `--lite` swaps the strategy DR task for a Pro model call ($0.15/vendor instead of $2.50). `--fast` uses xAI's Grok 4.1 instead — a completely different engine at a fraction of the cost. Web search uses DuckDuckGo (free). Use `--dry-run` for accurate estimates based on your usage history.
+The default `primr` command runs full mode with AI Strategy (Azure vendor). Full mode costs are Gemini API usage: Deep Research is $2.50 per task (one for the brief, one per AI Strategy vendor), plus token costs for Flash/Pro calls. `--lite` swaps the strategy DR task for a Pro model call ($0.15/vendor instead of $2.50). **Cost-sensitive?** Use `--fast` — Grok 4.1 produces a solid report in ~12 minutes for about $0.25, no Gemini costs at all. Web search uses DuckDuckGo (free). Use `--dry-run` for accurate estimates based on your usage history.
 
 ## Quick Start
 
@@ -184,10 +184,17 @@ Accepts Excel (`.xlsx`) or CSV files. Smart column detection uses an LLM to find
 
 Includes sticky tier memory, circuit breakers, cookie handoff, and automatic PDF detection.
 
-**AI Research Engines**
-- **Gemini Deep Research**: Autonomous multi-step search and synthesis — plans its own research strategy, follows leads, validates across sources. Not a wrapper around chat completions; actual agentic research.
-- **Gemini 3.1 Pro Preview**: Available for section writing and analysis — improved thinking, token efficiency, and factual consistency. Opt in via `AI_REASONING_MODEL=gemini-3.1-pro-preview` in `.env`. Tiered pricing applies for large prompts (>200k tokens).
-- **Grok 4.1 Fast Mode**: Accordion-style batch writing — analysis workbook + 5-batch report generation in 10-17 minutes for $0.25.
+**Models & Pricing**
+
+| Model | Role | Pricing (per 1M tokens) |
+|-------|------|-------------------------|
+| Gemini 3 Flash | Scraping, link selection, QA | $0.50 in / $3 out |
+| Gemini 3.1 Pro (default) | Section writing, analysis | $2/$12 (≤200k) · $4/$18 (>200k) |
+| Gemini 3 Pro | Previous default, flat pricing | $2 in / $12 out |
+| Deep Research Agent | Autonomous multi-step research | ~$2.50/task (flat) |
+| Grok 4.1 Fast | `--fast` mode reports | $0.20 in / $0.50 out |
+
+Gemini 3.1 Pro is the default — improved thinking, token efficiency, and factual consistency. Tiered pricing only kicks in for prompts over 200k tokens; most Primr calls stay well under. To revert: `AI_REASONING_MODEL=gemini-3-pro-preview`. [Full config reference](docs/CONFIG.md).
 
 **Agentic Architecture**
 - Hypothesis tracking with confidence levels across sessions
