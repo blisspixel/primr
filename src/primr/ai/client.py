@@ -533,6 +533,8 @@ class AIClient:
             input_cost = 0.0
             output_cost = 0.0
             for model_name, counts in self.usage_by_model.items():
+                in_tok = int(counts["input_tokens"])
+                out_tok = int(counts["output_tokens"])
                 # Use pre-calculated per-call cost (tier-aware) if available
                 if "cost" in counts and counts["cost"] > 0:
                     total_cost += counts["cost"]
@@ -540,11 +542,11 @@ class AIClient:
                     # Backward compat: no per-call cost, recalculate
                     try:
                         model_cost = PrimrModels.calculate_cost(
-                            model_name, counts["input_tokens"], counts["output_tokens"]
+                            model_name, in_tok, out_tok
                         )
                     except KeyError:
                         model_cost = PrimrModels.calculate_active_pro_cost(
-                            counts["input_tokens"], counts["output_tokens"]
+                            in_tok, out_tok
                         )
                     total_cost += model_cost
                 # Input/output cost breakdown (standard tier, for display)
@@ -554,8 +556,8 @@ class AIClient:
                     active_pro = PrimrModels.get_active_pro_model()
                     inp_price = active_pro.cost_per_1m_input_tokens
                     out_price = active_pro.cost_per_1m_output_tokens
-                input_cost += (counts["input_tokens"] / 1_000_000) * inp_price
-                output_cost += (counts["output_tokens"] / 1_000_000) * out_price
+                input_cost += (in_tok / 1_000_000) * inp_price
+                output_cost += (out_tok / 1_000_000) * out_price
         else:
             # Fallback to active Pro model pricing (conservative)
             active_pro = PrimrModels.get_active_pro_model()

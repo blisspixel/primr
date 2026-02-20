@@ -3239,7 +3239,6 @@ def _generate_ai_strategy_section(
         if lite_strategy:
             # Fast path: use Pro model directly with context inlined
             console.info("AI Strategy: Starting research (Pro mode)...")
-            strategy_start = time.time()
 
             # Read context files into a single string to prepend to prompt
             context_parts = []
@@ -3264,8 +3263,6 @@ def _generate_ai_strategy_section(
                 combined_prompt = prompt
 
             strategy_content = llm(combined_prompt, model_type="section_writing", temperature=1.0, thinking_level="high")
-
-            strategy_duration = time.time() - strategy_start
 
             if not strategy_content or not strategy_content.strip():
                 console.error("AI Strategy Pro generation failed - empty response")
