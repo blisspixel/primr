@@ -21,9 +21,14 @@ This document describes all configuration options available in Primr.
 | `VERBOSE` | Enable verbose output | `false` |
 | `DEBUG` | Enable debug mode | `false` |
 
-Note: The default models can be overridden via environment variables. Primr is designed to work with the latest Gemini models. As of December 2025, the recommended models are:
+Note: The default models can be overridden via environment variables. Primr is designed to work with the latest Gemini models. Current defaults:
 - `gemini-3-flash-preview` - Best balance of speed and cost
 - `gemini-3-pro-preview` - Maximum reasoning capability
+
+To try Gemini 3.1 Pro Preview (improved thinking, token efficiency, factual consistency):
+- Set `AI_REASONING_MODEL=gemini-3.1-pro-preview` in `.env`
+- Note: tiered pricing applies — $4/$18 per 1M tokens for prompts >200k (vs flat $2/$12 for 3.0 Pro)
+- Cost estimates (`--dry-run`) automatically use conservative high-tier pricing when a tiered model is active. Actual costs may be lower.
 
 ## Configuration Classes
 

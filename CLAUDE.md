@@ -10,7 +10,7 @@ Company research tool using Gemini and Grok models. Generates strategic intellig
 ### Critical Constraints
 - **Single-job model**: ONE research job at a time. Check `primr --check-jobs` before starting new research.
 - **Async execution**: `research_company` returns immediately with `job_id`. Poll `check_jobs` for completion.
-- **Cost awareness**: ALWAYS run `estimate_run` before `research_company`. Typical costs: full default ~$6 (includes AI Strategy), scrape ~$0.10, deep ~$2.50. Each extra `--cloud-vendor` adds ~$2.50 (1 DR task per vendor). Use `--lite` to drop strategy cost to ~$0.15/vendor. Use `--fast` for Grok 4.1 mode (~$0.25, ~12 min).
+- **Cost awareness**: ALWAYS run `estimate_run` before `research_company`. Typical costs: full default ~$6 (includes AI Strategy), scrape ~$0.10, deep ~$2.50. Each extra `--cloud-vendor` adds ~$2.50 (1 DR task per vendor). Use `--lite` to drop strategy cost to ~$0.15/vendor. Use `--fast` for Grok 4.1 mode (~$0.25, ~12 min). When `AI_REASONING_MODEL` is set to a tiered model (e.g. 3.1 Pro), estimates use conservative high-tier pricing automatically.
 
 ### Common Tasks
 
@@ -255,4 +255,4 @@ Unit tests validate specific examples and edge cases.
 
 ---
 
-*Last updated: 2026-02-18 | Primr v1.12.0 | Agentic Architecture v1.0*
+*Last updated: 2026-02-19 | Primr v1.12.0 | Agentic Architecture v1.0*
