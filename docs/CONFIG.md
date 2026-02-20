@@ -23,12 +23,12 @@ This document describes all configuration options available in Primr.
 
 Note: The default models can be overridden via environment variables. Primr is designed to work with the latest Gemini models. Current defaults:
 - `gemini-3-flash-preview` - Best balance of speed and cost
-- `gemini-3-pro-preview` - Maximum reasoning capability
+- `gemini-3.1-pro-preview` - Maximum reasoning capability (tiered pricing)
 
-To try Gemini 3.1 Pro Preview (improved thinking, token efficiency, factual consistency):
-- Set `AI_REASONING_MODEL=gemini-3.1-pro-preview` in `.env`
-- Note: tiered pricing applies — $4/$18 per 1M tokens for prompts >200k (vs flat $2/$12 for 3.0 Pro)
-- Cost estimates (`--dry-run`) automatically use conservative high-tier pricing when a tiered model is active. Actual costs may be lower.
+Gemini 3.1 Pro Preview is the default Pro model. It has tiered pricing: $2/$12 per 1M tokens for prompts ≤200k, $4/$18 for >200k. Most Primr calls stay well under 200k tokens. Cost estimates (`--dry-run`) use conservative high-tier pricing; actual costs are typically lower.
+
+To revert to Gemini 3.0 Pro (flat $2/$12 pricing):
+- Set `AI_REASONING_MODEL=gemini-3-pro-preview` in `.env`
 
 ## Configuration Classes
 
