@@ -6,9 +6,14 @@ make informed decisions about API spending.
 
 Pricing as of February 2026 (from models.py single source of truth):
 - Gemini 3 Flash: $0.50/$3.00 per 1M tokens (input/output)
-- Gemini 3 Pro: $2.00/$12.00 per 1M tokens (input/output) for prompts <= 200k
+- Gemini 3 Pro: $2.00/$12.00 per 1M tokens (input/output) — flat pricing
+- Gemini 3.1 Pro: $2.00/$12.00 (<=200k prompts) | $4.00/$18.00 (>200k prompts) — tiered
 - Deep Research: ~$2-3 per standard task, ~$3-5 per complex task (API doesn't expose tokens)
 - Google Search Grounding: $35/1000 queries ($0.035/query)
+
+Note: When AI_REASONING_MODEL is set to a tiered-pricing model (e.g. 3.1 Pro), cost
+estimates use conservative high-tier pricing (>200k). Actual costs may be lower if most
+prompts stay under the 200k token threshold.
 
 Note: Actual search query counts are available in API response via
 groundingMetadata.webSearchQueries. Typical reports use 10-30 searches,
@@ -82,9 +87,7 @@ class CostEstimate:
 # Backward-compatible pricing aliases (derived from models.py)
 # =============================================================================
 GEMINI_3_PRO_INPUT_PRICE_SMALL = PrimrModels.get_price(PrimrModels.PRO_MODEL)[0]    # 2.00
-GEMINI_3_PRO_INPUT_PRICE_LARGE = 4.00   # prompts > 200k tokens
 GEMINI_3_PRO_OUTPUT_PRICE_SMALL = PrimrModels.get_price(PrimrModels.PRO_MODEL)[1]   # 12.00
-GEMINI_3_PRO_OUTPUT_PRICE_LARGE = 18.00  # prompts > 200k tokens
 
 GEMINI_3_FLASH_INPUT_PRICE = PrimrModels.get_price(PrimrModels.FLASH_MODEL)[0]      # 0.50
 GEMINI_3_FLASH_OUTPUT_PRICE = PrimrModels.get_price(PrimrModels.FLASH_MODEL)[1]     # 3.00
@@ -287,11 +290,24 @@ def estimate_cost(
     if include_ai_strategy:
         duration += " + AI strategy (Pro)" if lite_strategy else " + AI strategy"
 
-    # Calculate blended cost from Flash + Pro models
+    # Resolve the active Pro model (honours AI_REASONING_MODEL env var)
+    active_pro = PrimrModels.get_active_pro_model()
+
+    # Calculate blended cost from Flash + active Pro model
     flash_cost = PrimrModels.calculate_flash_cost(flash_in, flash_out)
-    pro_cost = PrimrModels.calculate_pro_cost(pro_in, pro_out)
-    input_cost = (flash_in / 1_000_000) * GEMINI_3_FLASH_INPUT_PRICE + (pro_in / 1_000_000) * GEMINI_3_PRO_INPUT_PRICE_SMALL
-    output_cost = (flash_out / 1_000_000) * GEMINI_3_FLASH_OUTPUT_PRICE + (pro_out / 1_000_000) * GEMINI_3_PRO_OUTPUT_PRICE_SMALL
+    # For estimates, use conservative (highest tier) pricing
+    pro_cost = PrimrModels.calculate_cost_conservative(active_pro.name, pro_in, pro_out)
+
+    # Per-component cost for display
+    flash_inp_price, flash_out_price = PrimrModels.get_price(PrimrModels.FLASH_MODEL)
+    if active_pro.has_tiered_pricing:
+        pro_inp_price = active_pro.cost_per_1m_input_tokens_high  # type: ignore[assignment]
+        pro_out_price = active_pro.cost_per_1m_output_tokens_high  # type: ignore[assignment]
+    else:
+        pro_inp_price = active_pro.cost_per_1m_input_tokens
+        pro_out_price = active_pro.cost_per_1m_output_tokens
+    input_cost = (flash_in / 1_000_000) * flash_inp_price + (pro_in / 1_000_000) * pro_inp_price
+    output_cost = (flash_out / 1_000_000) * flash_out_price + (pro_out / 1_000_000) * pro_out_price
 
     # Deep Research cost (flat per-task)
     deep_research_cost = dr_tasks * DEEP_RESEARCH_COST.standard_task_cost
@@ -312,6 +328,15 @@ def estimate_cost(
         notes.append("AI Strategy using Pro model (lite mode)")
     elif include_ai_strategy and ai_strategy_hist and ai_strategy_hist["sample_size"] >= 3:
         notes.append(f"AI Strategy based on {ai_strategy_hist['sample_size']} runs")
+
+    # Note tiered pricing when active model has it
+    if active_pro.has_tiered_pricing:
+        threshold_k = active_pro.tier_threshold_tokens // 1000  # type: ignore[operator]
+        notes.append(
+            f"Using {active_pro.display_name} with tiered pricing. "
+            f"Estimate uses conservative (>{threshold_k}k) tier. "
+            "Actual cost may be lower."
+        )
 
     # Total tokens for backward compat display
     total_input_tokens = flash_in + pro_in

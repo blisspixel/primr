@@ -243,3 +243,123 @@ class TestPricingSingleSourceOfTruth:
         assert GEMINI_3_PRO_OUTPUT_PRICE_SMALL == ModelRegistry.GEMINI_3_PRO.cost_per_1m_output_tokens
         assert GEMINI_3_FLASH_INPUT_PRICE == ModelRegistry.GEMINI_3_FLASH.cost_per_1m_input_tokens
         assert GEMINI_3_FLASH_OUTPUT_PRICE == ModelRegistry.GEMINI_3_FLASH.cost_per_1m_output_tokens
+
+
+class TestTieredPricing:
+    """Tests for tiered pricing support (Gemini 3.1 Pro)."""
+
+    def test_has_tiered_pricing_on_3_1_pro(self):
+        """Gemini 3.1 Pro should have tiered pricing."""
+        assert ModelRegistry.GEMINI_3_1_PRO.has_tiered_pricing is True
+        assert ModelRegistry.GEMINI_3_1_PRO.tier_threshold_tokens == 200_000
+        assert ModelRegistry.GEMINI_3_1_PRO.cost_per_1m_input_tokens_high == 4.00
+        assert ModelRegistry.GEMINI_3_1_PRO.cost_per_1m_output_tokens_high == 18.00
+
+    def test_has_tiered_pricing_on_3_1_pro_customtools(self):
+        """Gemini 3.1 Pro CustomTools should have tiered pricing."""
+        assert ModelRegistry.GEMINI_3_1_PRO_CUSTOMTOOLS.has_tiered_pricing is True
+
+    def test_no_tiered_pricing_on_3_0_pro(self):
+        """Gemini 3.0 Pro should NOT have tiered pricing."""
+        assert ModelRegistry.GEMINI_3_PRO.has_tiered_pricing is False
+
+    def test_no_tiered_pricing_on_flash(self):
+        """Flash model should NOT have tiered pricing."""
+        assert ModelRegistry.GEMINI_3_FLASH.has_tiered_pricing is False
+
+    def test_calculate_cost_standard_tier(self):
+        """calculate_cost uses standard tier when prompt_tokens is below threshold."""
+        cost = PrimrModels.calculate_cost(
+            ModelRegistry.GEMINI_3_1_PRO.name,
+            input_tokens=100_000,
+            output_tokens=10_000,
+            prompt_tokens=150_000,  # below 200k threshold
+        )
+        # Standard tier: $2/$12
+        expected = (100_000 / 1_000_000) * 2.00 + (10_000 / 1_000_000) * 12.00
+        assert abs(cost - expected) < 0.001
+
+    def test_calculate_cost_high_tier(self):
+        """calculate_cost uses high tier when prompt_tokens exceeds threshold."""
+        cost = PrimrModels.calculate_cost(
+            ModelRegistry.GEMINI_3_1_PRO.name,
+            input_tokens=100_000,
+            output_tokens=10_000,
+            prompt_tokens=250_000,  # above 200k threshold
+        )
+        # High tier: $4/$18
+        expected = (100_000 / 1_000_000) * 4.00 + (10_000 / 1_000_000) * 18.00
+        assert abs(cost - expected) < 0.001
+
+    def test_calculate_cost_no_prompt_tokens_uses_standard(self):
+        """calculate_cost uses standard tier when prompt_tokens is None."""
+        cost = PrimrModels.calculate_cost(
+            ModelRegistry.GEMINI_3_1_PRO.name,
+            input_tokens=100_000,
+            output_tokens=10_000,
+        )
+        # Standard tier: $2/$12
+        expected = (100_000 / 1_000_000) * 2.00 + (10_000 / 1_000_000) * 12.00
+        assert abs(cost - expected) < 0.001
+
+    def test_calculate_cost_conservative_tiered_model(self):
+        """calculate_cost_conservative uses high tier for tiered models."""
+        conservative = PrimrModels.calculate_cost_conservative(
+            ModelRegistry.GEMINI_3_1_PRO.name,
+            input_tokens=100_000,
+            output_tokens=10_000,
+        )
+        standard = PrimrModels.calculate_cost(
+            ModelRegistry.GEMINI_3_1_PRO.name,
+            input_tokens=100_000,
+            output_tokens=10_000,
+        )
+        assert conservative > standard
+
+    def test_calculate_cost_conservative_flat_model(self):
+        """calculate_cost_conservative equals calculate_cost for flat models."""
+        conservative = PrimrModels.calculate_cost_conservative(
+            ModelRegistry.GEMINI_3_PRO.name,
+            input_tokens=100_000,
+            output_tokens=10_000,
+        )
+        standard = PrimrModels.calculate_cost(
+            ModelRegistry.GEMINI_3_PRO.name,
+            input_tokens=100_000,
+            output_tokens=10_000,
+        )
+        assert abs(conservative - standard) < 0.001
+
+    def test_estimate_cost_with_tiered_model(self, monkeypatch):
+        """estimate_cost uses conservative pricing when active model is tiered."""
+        from primr.config.settings import reset_settings
+
+        monkeypatch.setenv("AI_REASONING_MODEL", "gemini-3.1-pro-preview")
+        reset_settings()
+
+        try:
+            estimate = estimate_cost("structured", use_historical=False)
+
+            # Should have a tiered pricing note
+            tiered_notes = [n for n in estimate.notes if "tiered pricing" in n]
+            assert len(tiered_notes) == 1
+            assert "conservative" in tiered_notes[0].lower()
+
+            # Cost should be higher than default 3.0 Pro pricing
+            monkeypatch.setenv("AI_REASONING_MODEL", "gemini-3-pro-preview")
+            reset_settings()
+            baseline = estimate_cost("structured", use_historical=False)
+            assert estimate.total_cost > baseline.total_cost
+        finally:
+            monkeypatch.delenv("AI_REASONING_MODEL", raising=False)
+            reset_settings()
+
+    def test_estimate_cost_default_model_no_tiered_note(self):
+        """estimate_cost with default 3.0 Pro should have no tiered pricing note."""
+        from primr.config.settings import reset_settings
+        reset_settings()
+
+        estimate = estimate_cost("structured", use_historical=False)
+
+        tiered_notes = [n for n in estimate.notes if "tiered pricing" in n]
+        assert len(tiered_notes) == 0
