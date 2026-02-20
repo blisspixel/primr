@@ -417,12 +417,11 @@ Goal: Reduce noisy integration-runtime warnings, improve maintainability in AI r
 
 **Gemini 3.1 Pro Preview (February 2026):**
 - Registered `gemini-3.1-pro-preview` and `gemini-3.1-pro-preview-customtools` in ModelRegistry
-- Available for opt-in testing via `AI_REASONING_MODEL=gemini-3.1-pro-preview` in `.env`
-- NOT yet default — pending cost validation on real research runs
+- Now the default Pro model (cost delta ~$0.28/run vs 3.0 Pro — negligible since DR dominates cost)
+- Override via `AI_REASONING_MODEL=gemini-3-pro-preview` to revert
 - Improvements: better thinking, token efficiency, factual consistency, agentic workflow optimization
 - Tiered pricing: $2/$12 per 1M (prompts <=200k) | $4/$18 per 1M (prompts >200k)
 - `customtools` variant optimized for tool-heavy workflows (prioritizes custom tools over bash)
-- Default remains `gemini-3-pro-preview` (flat $2/$12 pricing)
 
 **Tiered Pricing Support:**
 - `ModelConfig` now supports tiered pricing via optional fields: `cost_per_1m_input_tokens_high`, `cost_per_1m_output_tokens_high`, `tier_threshold_tokens`

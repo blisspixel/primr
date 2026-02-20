@@ -37,12 +37,20 @@ class TestUsageRecord:
         assert record.input_tokens == 100_000
         assert record.output_tokens == 50_000
 
-        # Verify cost calculation (Pro pricing: $2/1M input, $12/1M output)
-        # Input: 100k tokens * $2/1M = $0.20
-        # Output: 50k tokens * $12/1M = $0.60
-        assert abs(record.input_cost - 0.20) < 0.001
-        assert abs(record.output_cost - 0.60) < 0.001
-        assert abs(record.total_cost - 0.80) < 0.001
+        # Verify cost calculation uses active Pro model pricing (conservative for tiered)
+        from primr.config.models import PrimrModels
+        active_pro = PrimrModels.get_active_pro_model()
+        if active_pro.has_tiered_pricing:
+            inp_price = active_pro.cost_per_1m_input_tokens_high
+            out_price = active_pro.cost_per_1m_output_tokens_high
+        else:
+            inp_price = active_pro.cost_per_1m_input_tokens
+            out_price = active_pro.cost_per_1m_output_tokens
+        expected_input = (100_000 / 1_000_000) * inp_price
+        expected_output = (50_000 / 1_000_000) * out_price
+        assert abs(record.input_cost - expected_input) < 0.001
+        assert abs(record.output_cost - expected_output) < 0.001
+        assert abs(record.total_cost - (expected_input + expected_output)) < 0.001
 
     def test_create_usage_record_with_search(self):
         """Search queries incur cost at $0.035/query."""
