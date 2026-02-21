@@ -72,6 +72,7 @@ Primr is designed around a few core principles:
 - Structured output over raw data — briefs you can act on, not link dumps
 - Hypothesis generation over premature conclusions — confidence levels on every claim
 - Transparency about uncertainty — what's confirmed, what's inferred, what's speculation
+- Deterministic verification before AI judgment — check structure, citations, and epistemic labels with code before asking a model to score prose quality (validated by SkillsBench research, arXiv:2602.12670)
 - Local-first, CLI-first — your data stays on your machine
 
 Primr is intentionally not designed as:
@@ -239,6 +240,7 @@ Goal: Enable AI agents to drive research workflows with persistent memory and go
 - `scrape-strategy`: Tier selection heuristics
 - `hypothesis-tracking`: Confidence management
 - `qa-iteration`: Section refinement workflow
+- Design principles: focused > monolithic (94-116 lines, 2-5 tools each), human-curated only, don't skill what the model already knows (validated by SkillsBench, arXiv:2602.12670)
 
 **CLAUDE.md Context Map:**
 - Quick-start section for common agent tasks
@@ -446,7 +448,19 @@ Goal: Reduce noisy integration-runtime warnings, improve maintainability in AI r
 
 Goal: Use QA feedback to iteratively improve weak sections until reports hit 90+.
 
-Workflow:
+**Deterministic Verification (Complete):**
+
+Added code-level quality checks that run before (or instead of) AI-based scoring, validated by SkillsBench research (arXiv:2602.12670) showing deterministic checks outperform model-only evaluation for structural quality:
+
+- **Hypothesis coverage**: Counts `(Hypothesis)` labels and validation phrases (`we hypothesize`, `to validate`, `worth validating`) with report-type thresholds
+- **Confidence labels**: Counts all four epistemic labels `(Confirmed)`, `(Reported)`, `(Estimated)`, `(Hypothesis)` plus hedging phrases from `epistemic_rules.yaml`
+- **Section length analysis**: Flags truncated sections (< 50 words) that indicate incomplete generation
+- **Citation density**: Citations per 1000 words with type-specific thresholds (3.0 strategic, 2.0 AI strategy)
+- **Report-type-aware structure**: Different required-section checklists for strategic_overview vs ai_strategy
+- `QAGateHook` upgraded from 3 inline checks to `ReportAnalyzer`-backed scoring (6 checks, penalty system)
+- `QASubagent` expanded from 5 to 7 quality dimensions with new `hypothesis_framing` and `confidence_labels` scores
+
+**Iteration Workflow (Planned):**
 1. Generate report
 2. Run QA, get feedback on specific weak sections
 3. Re-run just those sections with targeted improvements

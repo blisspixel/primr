@@ -663,7 +663,6 @@ class QAGateHook(Hook):
             return HookResponse(result=HookResult.ALLOW)
 
         try:
-            # Run basic QA check on the report
             from pathlib import Path
 
             report_file = Path(report_path)
@@ -673,29 +672,90 @@ class QAGateHook(Hook):
                     message="Report file not found",
                 )
 
-            content = report_file.read_text(encoding="utf-8")
+            # Use ReportAnalyzer for structured checks
+            try:
+                from primr.qa.report_analyzer import ReportAnalyzer
 
-            # Basic quality checks
-            word_count = len(content.split())
-            has_sections = content.count("#") >= 3
-            has_citations = "[" in content and "]" in content
+                analyzer = ReportAnalyzer(str(report_file))
+                quality = analyzer.analyze_content_quality()
+                structure = analyzer.analyze_structure()
+                hypothesis = analyzer.analyze_hypothesis_coverage()
+                citation_density = analyzer.analyze_citation_density()
+                section_lengths = analyzer.analyze_section_lengths()
 
-            # Simple scoring
-            score = 50
-            if word_count >= 500:
-                score += 20
-            if has_sections:
-                score += 15
-            if has_citations:
-                score += 15
+                score = 50  # base score
+                self._last_feedback = []
+
+                # Word count >= 500: +15
+                if quality['word_count'] >= 500:
+                    score += 15
+                else:
+                    self._last_feedback.append(
+                        f"Report is short ({quality['word_count']} words)"
+                    )
+
+                # Sections >= 3: +10
+                if structure['total_sections'] >= 3:
+                    score += 10
+                else:
+                    self._last_feedback.append("Report has too few sections")
+
+                # Required sections present: +10
+                if not structure['key_sections_missing']:
+                    score += 10
+                else:
+                    self._last_feedback.append(
+                        f"Missing sections: {', '.join(structure['key_sections_missing'])}"
+                    )
+
+                # Hypothesis framing meets threshold: +5
+                if hypothesis['meets_threshold']:
+                    score += 5
+                else:
+                    self._last_feedback.append(
+                        f"Weak hypothesis framing ({hypothesis['total_signals']}"
+                        f"/{hypothesis['threshold']} signals)"
+                    )
+
+                # Citation density meets threshold: +5
+                if citation_density['meets_threshold']:
+                    score += 5
+                else:
+                    self._last_feedback.append(
+                        f"Low citation density ({citation_density['density_per_1000_words']}"
+                        f"/{citation_density['threshold']} per 1000 words)"
+                    )
+
+                # Truncated sections: -5 each (max -10)
+                if section_lengths['truncated_sections']:
+                    penalty = min(10, section_lengths['truncated_count'] * 5)
+                    score -= penalty
+                    self._last_feedback.append(
+                        f"{section_lengths['truncated_count']} truncated section(s): "
+                        f"{', '.join(section_lengths['truncated_sections'][:3])}"
+                    )
+
+                score = max(0, min(95, score))
+
+            except ImportError:
+                # Fallback to basic checks if ReportAnalyzer unavailable
+                content = report_file.read_text(encoding="utf-8")
+                word_count = len(content.split())
+                has_sections = content.count("#") >= 3
+
+                score = 50
+                self._last_feedback = []
+                if word_count >= 500:
+                    score += 20
+                if has_sections:
+                    score += 15
+
+                if not has_sections:
+                    self._last_feedback.append("Report lacks clear section structure")
+                if word_count < 500:
+                    self._last_feedback.append(f"Report is short ({word_count} words)")
 
             self._last_score = score
-            self._last_feedback = []
-
-            if not has_sections:
-                self._last_feedback.append("Report lacks clear section structure")
-            if word_count < 500:
-                self._last_feedback.append(f"Report is short ({word_count} words)")
 
             if score < self._min_score:
                 return HookResponse(

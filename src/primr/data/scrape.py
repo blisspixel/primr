@@ -5,6 +5,7 @@ This module provides the high-level scraping API used by the rest of Primr.
 It wraps the new modular scraping system in primr.data.scraping.
 """
 
+import hashlib
 import time
 from pathlib import Path
 from urllib.parse import urlparse
@@ -195,7 +196,12 @@ def fetch_web_content(
     import os
     from concurrent.futures import ThreadPoolExecutor
 
-    from .scraping import BoilerplateFilter, extract_structured_content, scrape_with_playwright
+    from .scraping import (
+        BoilerplateFilter,
+        extract_main_content,
+        extract_structured_content,
+        scrape_with_playwright,
+    )
 
     def _write_raw_file(file_path, url, tier, structured):
         """Write raw scrape file to disk (may run in background thread)."""
@@ -328,6 +334,22 @@ def fetch_web_content(
 
     total = len(pages_to_scrape) + 1  # +1 for homepage already scraped
     page_times = []  # Track per-page durations for ETA
+    dup_count = 0  # Pages rejected as duplicate content
+
+    # Track content hashes to detect duplicate/wrong-page content
+    # (e.g. every page returning the same sidebar widget text)
+    _seen_content_hashes: set[str] = set()
+    # Seed with homepage content so later pages that return the same
+    # text (e.g. a global sidebar widget) are caught as duplicates.
+    # Uses extract_main_content (same pipeline as the orchestrator's
+    # result.extracted_text) to ensure hashes are comparable.
+    if homepage_html:
+        try:
+            _hp_text = extract_main_content(homepage_html)
+            if _hp_text and _hp_text.strip():
+                _seen_content_hashes.add(hashlib.md5(_hp_text.encode()).hexdigest())
+        except Exception:
+            pass
 
     # Show initial progress immediately
     if pages_to_scrape:
@@ -363,6 +385,19 @@ def fetch_web_content(
                 logger.debug(f"Failed {page_url}: {result.error}")
 
             if result.success and result.raw_content:
+                # Dedup: reject pages whose extracted text is identical to a
+                # previously scraped page (catches wrong-page / sidebar-only content)
+                _text_for_hash = result.extracted_text or ""
+                _content_hash = hashlib.md5(_text_for_hash.encode()).hexdigest() if _text_for_hash else ""
+                if _content_hash and _content_hash in _seen_content_hashes:
+                    dup_count += 1
+                    logger.info(
+                        f"Duplicate content for {page_url} (matches previously scraped page) — skipping"
+                    )
+                    continue
+                if _content_hash:
+                    _seen_content_hashes.add(_content_hash)
+
                 scraped_results[normalized] = result
                 raw_pages.append((normalized, result.raw_content))
                 success_count += 1
@@ -394,7 +429,8 @@ def fetch_web_content(
         time_str = f"{int(scrape_elapsed)}s"
     else:
         time_str = f"{int(scrape_elapsed // 60)}m {int(scrape_elapsed % 60)}s"
-    console.done(f"{success_count}/{total} pages scraped ({time_str})")
+    dup_note = f", {dup_count} duplicates skipped" if dup_count else ""
+    console.done(f"{success_count}/{total} pages scraped ({time_str}{dup_note})")
 
     # Phase 2: Apply boilerplate learning across all pages
     if len(raw_pages) >= 3:
