@@ -11,6 +11,15 @@ import time
 import webbrowser
 from pathlib import Path
 
+# Force UTF-8 stdout/stderr on Windows so Rich can print Unicode symbols.
+# Must run before any Rich imports since Rich inspects the stream encoding.
+if sys.platform == "win32" and hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 # Try to use rich for beautiful output, fall back to basic if not available
 try:
     from rich.console import Console
@@ -21,7 +30,7 @@ try:
 except ImportError:
     RICH = False
 
-console = Console() if RICH else None
+console = Console(legacy_windows=False) if RICH else None
 
 
 def find_best_python():

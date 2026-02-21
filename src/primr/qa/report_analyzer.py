@@ -67,7 +67,13 @@ class ReportAnalyzer:
         }
 
     def analyze_structure(self) -> dict:
-        """Analyze report structure and completeness."""
+        """Analyze report structure and completeness.
+
+        Uses report-type-aware required section checklists:
+        - strategic_overview: business-oriented sections (Executive Summary, Products, etc.)
+        - ai_strategy: strategy-oriented sections (Executive Summary, Recommendations, etc.)
+        - unknown: minimal common sections
+        """
         # Count sections
         sections = re.findall(r'^##\s+(.+)$', self.content, re.MULTILINE)
         subsections = re.findall(r'^###\s+(.+)$', self.content, re.MULTILINE)
@@ -80,16 +86,31 @@ class ReportAnalyzer:
 
         duplicate_sections = {title: count for title, count in section_counts.items() if count > 1}
 
-        # Check for key strategic sections
-        key_sections = [
-            'Executive Summary',
-            'Products and Services',
-            'Target Customers',
-            'Competitive',
-            'Financial',
-            'SWOT',
-            'Strategic'
-        ]
+        # Report-type-aware required sections
+        if self.report_type == 'strategic_overview':
+            key_sections = [
+                'Executive Summary',
+                'Products and Services',
+                'Target Customers',
+                'Competitive',
+                'Financial',
+                'SWOT',
+                'Strategic',
+            ]
+        elif self.report_type == 'ai_strategy':
+            key_sections = [
+                'Executive Summary',
+                'Current State',
+                'Recommendations',
+                'Implementation',
+                'Risk',
+            ]
+        else:
+            key_sections = [
+                'Executive Summary',
+                'Key Insights',
+                'Sources',
+            ]
 
         found_sections = []
         for section in sections:
@@ -104,7 +125,8 @@ class ReportAnalyzer:
             'section_titles': sections,
             'duplicate_sections': duplicate_sections,
             'key_sections_found': found_sections,
-            'key_sections_missing': [k for k in key_sections if k not in found_sections]
+            'key_sections_missing': [k for k in key_sections if k not in found_sections],
+            'report_type': self.report_type,
         }
 
     def analyze_content_quality(self) -> dict:
@@ -163,12 +185,156 @@ class ReportAnalyzer:
             'sample_urls': urls[:5] if urls else []
         }
 
+    def analyze_hypothesis_coverage(self) -> dict:
+        """Analyze hypothesis framing quality.
+
+        Counts explicit (Hypothesis) labels and validation phrases like
+        'we hypothesize', 'to validate', 'worth validating'. Thresholds
+        vary by report type.
+        """
+        labels = re.findall(r'\(Hypothesis\)', self.content, re.IGNORECASE)
+
+        validation_phrases = [
+            r'we hypothesize',
+            r'to validate',
+            r'worth validating',
+            r'hypothesis to test',
+            r'requires validation',
+        ]
+        phrase_count = 0
+        for phrase in validation_phrases:
+            phrase_count += len(re.findall(phrase, self.content, re.IGNORECASE))
+
+        total_signals = len(labels) + phrase_count
+
+        thresholds = {
+            'strategic_overview': 5,
+            'ai_strategy': 3,
+        }
+        threshold = thresholds.get(self.report_type, 2)
+
+        return {
+            'hypothesis_labels': len(labels),
+            'validation_phrases': phrase_count,
+            'total_signals': total_signals,
+            'threshold': threshold,
+            'meets_threshold': total_signals >= threshold,
+        }
+
+    def analyze_confidence_labels(self) -> dict:
+        """Analyze epistemic confidence labels and hedging language.
+
+        Counts all four epistemic labels: (Confirmed), (Reported),
+        (Estimated), (Hypothesis). Also counts hedging phrases from
+        epistemic_rules.yaml.
+        """
+        label_counts = {
+            'confirmed': len(re.findall(r'\(Confirmed[^)]*\)', self.content, re.IGNORECASE)),
+            'reported': len(re.findall(r'\(Reported[^)]*\)', self.content, re.IGNORECASE)),
+            'estimated': len(re.findall(r'\(Estimated[^)]*\)', self.content, re.IGNORECASE)),
+            'hypothesis': len(re.findall(r'\(Hypothesis\)', self.content, re.IGNORECASE)),
+        }
+
+        total_labels = sum(label_counts.values())
+
+        # Hedging phrases from epistemic_rules.yaml
+        hedging_phrases = [
+            r'appears to',
+            r'worth exploring',
+            r'we\'d want to validate',
+            r'based on available evidence',
+            r'signals suggest',
+        ]
+        hedging_count = 0
+        for phrase in hedging_phrases:
+            hedging_count += len(re.findall(phrase, self.content, re.IGNORECASE))
+
+        thresholds = {
+            'strategic_overview': 8,
+            'ai_strategy': 5,
+        }
+        threshold = thresholds.get(self.report_type, 3)
+
+        return {
+            'label_counts': label_counts,
+            'total_labels': total_labels,
+            'hedging_phrases': hedging_count,
+            'threshold': threshold,
+            'meets_threshold': total_labels >= threshold,
+        }
+
+    def analyze_section_lengths(self) -> dict:
+        """Analyze per-section word counts and flag truncated sections.
+
+        Splits content by ## headings and computes word count per section.
+        Sections with fewer than 50 words are flagged as truncated.
+        """
+        # Split by ## headings
+        parts = re.split(r'^##\s+', self.content, flags=re.MULTILINE)
+
+        sections = []
+        truncated = []
+
+        for part in parts[1:]:  # skip preamble before first ##
+            lines = part.split('\n', 1)
+            title = lines[0].strip()
+            body = lines[1] if len(lines) > 1 else ''
+            word_count = len(body.split())
+
+            sections.append({
+                'title': title,
+                'word_count': word_count,
+            })
+
+            if word_count < 50:
+                truncated.append(title)
+
+        return {
+            'sections': sections,
+            'truncated_sections': truncated,
+            'truncated_count': len(truncated),
+        }
+
+    def analyze_citation_density(self) -> dict:
+        """Analyze citation density per 1000 words.
+
+        Counts [cite: N] and [Source: patterns. Thresholds:
+        3.0 for strategic_overview, 2.0 for ai_strategy.
+        """
+        cite_pattern = re.findall(r'\[cite:\s*\d+', self.content)
+        source_pattern = re.findall(r'\[Source:', self.content, re.IGNORECASE)
+
+        total_citations = len(cite_pattern) + len(source_pattern)
+        word_count = len(self.content.split())
+
+        density = (total_citations / word_count * 1000) if word_count > 0 else 0.0
+
+        thresholds = {
+            'strategic_overview': 3.0,
+            'ai_strategy': 2.0,
+        }
+        threshold = thresholds.get(self.report_type, 1.0)
+
+        return {
+            'total_citations': total_citations,
+            'word_count': word_count,
+            'density_per_1000_words': round(density, 2),
+            'threshold': threshold,
+            'meets_threshold': density >= threshold,
+        }
+
     def generate_report(self) -> str:
         """Generate a comprehensive quality report."""
         citations = self.analyze_citations()
         structure = self.analyze_structure()
         quality = self.analyze_content_quality()
         sources = self.analyze_urls_and_sources()
+        hypothesis = self.analyze_hypothesis_coverage()
+        confidence = self.analyze_confidence_labels()
+        section_lengths = self.analyze_section_lengths()
+        citation_density = self.analyze_citation_density()
+
+        key_section_total = len(structure['key_sections_found']) + len(structure['key_sections_missing'])
 
         report = f"""
 # Report Quality Analysis: {self.report_path.name}
@@ -178,11 +344,13 @@ class ReportAnalyzer:
 - **Word Count**: {quality['word_count']:,} words
 - **Estimated Pages**: {quality['estimated_pages']} pages
 - **Total Sections**: {structure['total_sections']} main sections, {structure['total_subsections']} subsections
+- **Report Type**: {structure['report_type']}
 
 ## Citation Analysis
 - **Citation References**: {citations['total_references']} references to {citations['unique_citations']} unique citations
 - **Bibliography Present**: {'Yes' if citations['has_bibliography'] else 'No'}
 - **Citation Coverage**: {citations['citation_coverage']:.1%} ({citations['defined_citations']}/{citations['unique_citations']} citations defined)
+- **Citation Density**: {citation_density['density_per_1000_words']}/1000 words (threshold: {citation_density['threshold']})
 """
 
         if citations['missing_citations']:
@@ -192,7 +360,7 @@ class ReportAnalyzer:
 
         report += f"""
 ## Structure Analysis
-- **Key Strategic Sections Found**: {len(structure['key_sections_found'])}/7
+- **Key Sections Found**: {len(structure['key_sections_found'])}/{key_section_total}
   - Present: {', '.join(structure['key_sections_found'])}
 """
 
@@ -206,6 +374,13 @@ class ReportAnalyzer:
                 report += f"  - '{title}' appears {count} times\n"
             report += "\n"
 
+        # Report truncated sections
+        if section_lengths['truncated_sections']:
+            report += f"\n**WARNING: {section_lengths['truncated_count']} TRUNCATED SECTIONS (< 50 words):**\n"
+            for title in section_lengths['truncated_sections']:
+                report += f"  - {title}\n"
+            report += "\n"
+
         report += f"""
 ## Content Quality
 - **Strategic Frameworks**: {quality['frameworks_used']}/3 frameworks used
@@ -213,11 +388,17 @@ class ReportAnalyzer:
   - Porter's Five Forces: {'Yes' if quality['strategic_frameworks']['Porter'] else 'No'}
   - Value Chain Analysis: {'Yes' if quality['strategic_frameworks']['Value Chain'] else 'No'}
 
-- **Confidence Indicators**: {quality['total_confidence_statements']} total statements
-  - Confirmed: {quality['confidence_indicators']['confirmed']}
-  - Reported: {quality['confidence_indicators']['reported']}
-  - Estimated: {quality['confidence_indicators']['estimated']}
-  - Hypothesis: {quality['confidence_indicators']['hypothesis']}
+- **Confidence Labels**: {confidence['total_labels']} total
+  - Confirmed: {confidence['label_counts']['confirmed']}
+  - Reported: {confidence['label_counts']['reported']}
+  - Estimated: {confidence['label_counts']['estimated']}
+  - Hypothesis: {confidence['label_counts']['hypothesis']}
+  - Hedging Phrases: {confidence['hedging_phrases']}
+  - Meets Threshold: {'Yes' if confidence['meets_threshold'] else 'No'} (need {confidence['threshold']})
+
+- **Hypothesis Framing**: {hypothesis['total_signals']} signals
+  - Labels: {hypothesis['hypothesis_labels']}, Phrases: {hypothesis['validation_phrases']}
+  - Meets Threshold: {'Yes' if hypothesis['meets_threshold'] else 'No'} (need {hypothesis['threshold']})
 
 ## Source Analysis
 - **Total URLs**: {sources['total_urls']} ({sources['unique_urls']} unique)
@@ -232,31 +413,38 @@ class ReportAnalyzer:
 
         # Calculate overall quality score based on report type
         if self.report_type == 'ai_strategy':
-            # AI Strategy reports focus more on recommendations and less on citations
             score_components = {
-                'Citations': min(25, citations['citation_coverage'] * 20 + 5),  # More lenient
-                'Structure': min(25, len(structure['key_sections_found']) * 2),  # Different expectations
-                'Frameworks': 15,  # AI strategies don't need traditional business frameworks
-                'Confidence': min(25, quality['total_confidence_statements'] * 2)  # Less emphasis on confidence statements
+                'Citations': min(20, citations['citation_coverage'] * 16 + 4),
+                'Structure': min(20, len(structure['key_sections_found']) * 4),
+                'Frameworks': 10,
+                'Confidence': min(20, quality['total_confidence_statements'] * 2),
+                'Hypothesis Framing': min(15, hypothesis['total_signals'] * 3),
+                'Citation Density': min(15, citation_density['density_per_1000_words'] * 5),
             }
         else:
-            # Strategic Overview scoring (original logic)
             score_components = {
-                'Citations': 25 if citations['citation_coverage'] >= 0.9 else int(citations['citation_coverage'] * 25),
-                'Structure': min(25, len(structure['key_sections_found']) * 3.5),
-                'Frameworks': quality['frameworks_used'] * 8,
-                'Confidence': min(25, quality['total_confidence_statements'] * 0.5)
+                'Citations': 20 if citations['citation_coverage'] >= 0.9 else int(citations['citation_coverage'] * 20),
+                'Structure': min(20, len(structure['key_sections_found']) * 3),
+                'Frameworks': quality['frameworks_used'] * 7,
+                'Confidence': min(20, quality['total_confidence_statements'] * 0.5),
+                'Hypothesis Framing': min(10, hypothesis['total_signals'] * 2),
+                'Citation Density': min(10, citation_density['density_per_1000_words'] * 3),
             }
 
         # Penalize duplicate sections
         if structure['duplicate_sections']:
-            duplicate_penalty = len(structure['duplicate_sections']) * 5  # 5 points per duplicate
+            duplicate_penalty = len(structure['duplicate_sections']) * 5
             score_components['Structure'] = max(0, score_components['Structure'] - duplicate_penalty)
+
+        # Penalize truncated sections
+        if section_lengths['truncated_sections']:
+            truncation_penalty = min(10, section_lengths['truncated_count'] * 5)
+            score_components['Structure'] = max(0, score_components['Structure'] - truncation_penalty)
 
         total_score = sum(score_components.values())
 
         for component, score in score_components.items():
-            report += f"- {component}: {score:.0f}/25\n"
+            report += f"- {component}: {score:.0f}\n"
 
         report += f"\n**Overall Quality Score: {total_score:.0f}/100**\n"
 
