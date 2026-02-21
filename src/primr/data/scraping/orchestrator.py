@@ -12,7 +12,9 @@ The orchestrator manages:
 
 import logging
 import random
+import re
 import time
+from urllib.parse import urlparse
 
 from .cache import ScrapeCache
 from .config import RateLimitConfig
@@ -37,6 +39,66 @@ from .trace import TraceLogger
 from .validation import validate_content
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+# Matches <link rel="canonical" href="..."> in either attribute order
+_CANONICAL_RE = re.compile(
+    r'<link\s[^>]*?rel=["\']canonical["\'][^>]*?href=["\']([^"\']+)["\']'
+    r'|'
+    r'<link\s[^>]*?href=["\']([^"\']+)["\'][^>]*?rel=["\']canonical["\']',
+    re.IGNORECASE,
+)
+
+
+def _normalise_path(url: str) -> str:
+    """Return lower-cased path without trailing slash for comparison."""
+    parsed = urlparse(url)
+    return parsed.path.rstrip("/").lower()
+
+
+def _detect_wrong_page(
+    requested_url: str,
+    raw_content: bytes,
+    final_url: str | None,
+) -> tuple[bool, str | None]:
+    """Detect if the server returned a different page than requested.
+
+    Checks the ``<link rel="canonical">`` tag and the final (post-redirect)
+    URL against the originally requested URL.  Category pages that redirect
+    to a child (e.g. ``/services`` -> ``/services/environmental/home``) or
+    that serve blog content in place of the requested page are caught here.
+
+    Returns:
+        (is_wrong_page, canonical_or_final_url)
+    """
+    requested_path = _normalise_path(requested_url)
+    if not requested_path:
+        return False, None  # homepage — always accept
+
+    # Check canonical tag
+    try:
+        head = raw_content[:8192].decode("utf-8", errors="ignore")
+    except Exception:
+        head = ""
+
+    match = _CANONICAL_RE.search(head)
+    if match:
+        canonical = match.group(1) or match.group(2)
+        canonical_path = _normalise_path(canonical)
+        if canonical_path and canonical_path != requested_path:
+            return True, canonical
+
+    # Check final URL after redirect
+    if final_url:
+        final_path = _normalise_path(final_url)
+        if final_path and final_path != requested_path:
+            return True, final_url
+
+    return False, None
 
 
 class ScrapeOrchestrator:
@@ -258,17 +320,16 @@ class ScrapeOrchestrator:
             # Check max page time - allow sufficient time for quality content
             elapsed_total = time.time() - start_time
             if elapsed_total > effective_max_page_time:
-                logger.debug(
-                    f"Page timeout after {elapsed_total:.1f}s (limit: {effective_max_page_time}s): {url}\n"
-                    f"  Tried {tier_attempts} tiers: {[t.name for t in tiers_to_try[:tier_attempts]]}\n"
-                    f"  Last result: {last_result.error if last_result else 'none'}"
+                logger.info(
+                    f"Page timeout after {elapsed_total:.1f}s (limit: {effective_max_page_time}s): {url} "
+                    f"[tried {tier_attempts} tiers]"
                 )
                 break
 
             # SMART STOPPING: If we've had too many consecutive failures of the same type, stop
             # This prevents wasting time when a site is down/blocking all methods
             if consecutive_failures >= self.max_consecutive_failures:
-                logger.debug(
+                logger.info(
                     f"Stopping after {consecutive_failures} consecutive {last_error_type} failures for {url}"
                 )
                 break
@@ -441,6 +502,30 @@ class ScrapeOrchestrator:
                 self._random_delay()
                 continue
 
+            # 3f2. Check for wrong-page (canonical URL mismatch)
+            # Some sites redirect category pages to a child or serve a blog
+            # post instead of the requested page.  Detect this by comparing
+            # the <link rel="canonical"> or final URL with the requested URL.
+            if tier_result.raw_content:
+                wrong, canonical = _detect_wrong_page(url, tier_result.raw_content, tier_result.final_url)
+                if wrong:
+                    logger.info(
+                        f"Wrong page for {url}: canonical={canonical}, final={tier_result.final_url}"
+                    )
+                    host_state.record_tier_attempt(tier.name, success=False)
+                    # Overwrite last_result so the "all tiers failed" block
+                    # reports a meaningful error instead of success=True.
+                    last_result = ScrapeResult(
+                        url=url,
+                        success=False,
+                        error=f"Wrong page served (canonical={canonical})",
+                        error_type=ErrorType.NETWORK_ERROR,
+                        tier=tier.name,
+                        elapsed_ms=(time.time() - start_time) * 1000,
+                    )
+                    # Don't retry — other tiers will get the same redirect.
+                    break
+
             # 3g. Success! Cache and return
             # Record this tier as best for this host (sticky tier optimization)
             host_state.best_tier = tier.name
@@ -582,16 +667,23 @@ class ScrapeOrchestrator:
         results = []
 
         for i, url in enumerate(urls[:max_pages]):
-            logger.debug(f"Scraping {i+1}/{min(len(urls), max_pages)}: {url}")
+            page_num = i + 1
+            total = min(len(urls), max_pages)
+            logger.info(f"Scraping {page_num}/{total}: {url}")
 
+            page_start = time.time()
             result = self.scrape_url(url)
+            page_secs = time.time() - page_start
             results.append(result)
 
-            # Log progress
+            # Log progress at INFO so it's always visible
             if result.success:
-                logger.debug(f"  Success: {result.tier}, {len(result.raw_content or b'')} bytes")
+                logger.info(
+                    f"  [{page_secs:.1f}s] OK via {result.tier} "
+                    f"({len(result.raw_content or b'')} bytes)"
+                )
             else:
-                logger.debug(f"  Failed: {result.error}")
+                logger.info(f"  [{page_secs:.1f}s] FAIL: {result.error}")
 
         return results
 

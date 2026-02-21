@@ -874,8 +874,16 @@ def _scrape_with_playwright_impl(
         timeout_ms = int(timeout * 1000)
         page.goto(url, timeout=timeout_ms, wait_until="domcontentloaded")
 
-        # Wait for JS to execute - modern sites need more time
-        time.sleep(1.0)
+        # Wait for JS frameworks (React, Vue, Visual Composer) to hydrate.
+        # networkidle fires when no network requests for 500ms — ideal for
+        # SPA/page-builder sites that fetch data after DOMContentLoaded.
+        # Best-effort with whatever time remains in the tier budget (min 2s).
+        elapsed_so_far_ms = (time.time() - start_time) * 1000
+        idle_budget_ms = max(int(timeout_ms - elapsed_so_far_ms), 2000)
+        try:
+            page.wait_for_load_state("networkidle", timeout=idle_budget_ms)
+        except Exception:
+            pass  # Timeout is fine — some sites never reach idle
 
         # Get HTML
         html = page.content()

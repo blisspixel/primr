@@ -134,11 +134,13 @@ class QASubagent(Subagent[QAResult]):
 
     # Quality dimensions and their weights
     DIMENSIONS: dict[str, float] = {
-        "completeness": 0.25,
-        "accuracy": 0.25,
-        "clarity": 0.20,
+        "completeness": 0.20,
+        "accuracy": 0.20,
+        "clarity": 0.15,
         "structure": 0.15,
-        "evidence": 0.15,
+        "evidence": 0.10,
+        "hypothesis_framing": 0.10,
+        "confidence_labels": 0.10,
     }
 
     def __init__(
@@ -280,6 +282,22 @@ class QASubagent(Subagent[QAResult]):
         accuracy_score = 70  # Default to passing
         dimension_scores["accuracy"] = accuracy_score
 
+        # Assess hypothesis framing
+        hypothesis_score = self._assess_hypothesis_framing(content, feedback)
+        dimension_scores["hypothesis_framing"] = hypothesis_score
+
+        # Assess confidence labels
+        confidence_score = self._assess_confidence_labels(content, feedback)
+        dimension_scores["confidence_labels"] = confidence_score
+
+        # Assess section lengths for truncation
+        section_length_score = self._assess_section_lengths(
+            content, feedback, sections_to_improve
+        )
+        # Apply truncation penalty to structure score
+        structure_score = max(0, structure_score - (100 - section_length_score))
+        dimension_scores["structure"] = structure_score
+
         # Calculate weighted score
         total_score = sum(
             dimension_scores[dim] * weight
@@ -369,6 +387,102 @@ class QASubagent(Subagent[QAResult]):
         if "http" not in content.lower() and "source" not in content.lower():
             score -= 30
             feedback.append("Report lacks citations or sources")
+
+        return max(0, score)
+
+    def _assess_hypothesis_framing(
+        self,
+        content: str,
+        feedback: list[str],
+    ) -> int:
+        """Assess hypothesis framing quality.
+
+        Looks for (Hypothesis) labels and validation phrases like
+        'we hypothesize', 'to validate', 'worth validating'.
+        """
+        import re
+
+        labels = len(re.findall(r'\(Hypothesis\)', content, re.IGNORECASE))
+        phrases = 0
+        for pattern in [
+            r'we hypothesize', r'to validate', r'worth validating',
+            r'hypothesis to test', r'requires validation',
+        ]:
+            phrases += len(re.findall(pattern, content, re.IGNORECASE))
+
+        total = labels + phrases
+        score = 100
+
+        if total == 0:
+            score -= 40
+            feedback.append("No hypothesis framing detected")
+        elif total < 3:
+            score -= 20
+            feedback.append(f"Weak hypothesis framing ({total} signals)")
+
+        return max(0, score)
+
+    def _assess_confidence_labels(
+        self,
+        content: str,
+        feedback: list[str],
+    ) -> int:
+        """Assess epistemic confidence labels.
+
+        Counts (Confirmed), (Reported), (Estimated), (Hypothesis) labels.
+        """
+        import re
+
+        total = 0
+        for pattern in [
+            r'\(Confirmed[^)]*\)', r'\(Reported[^)]*\)',
+            r'\(Estimated[^)]*\)', r'\(Hypothesis\)',
+        ]:
+            total += len(re.findall(pattern, content, re.IGNORECASE))
+
+        score = 100
+
+        if total == 0:
+            score -= 30
+            feedback.append("No confidence labels found")
+        elif total < 3:
+            score -= 15
+            feedback.append(f"Few confidence labels ({total})")
+
+        return max(0, score)
+
+    def _assess_section_lengths(
+        self,
+        content: str,
+        feedback: list[str],
+        sections_to_improve: list[str],
+    ) -> int:
+        """Assess section lengths, penalizing truncated sections (< 50 words).
+
+        Returns a score from 0-100. Each truncated section costs -10 (max -40).
+        """
+        import re
+
+        parts = re.split(r'^##\s+', content, flags=re.MULTILINE)
+        truncated = []
+
+        for part in parts[1:]:  # skip preamble
+            lines = part.split('\n', 1)
+            title = lines[0].strip()
+            body = lines[1] if len(lines) > 1 else ''
+            if len(body.split()) < 50:
+                truncated.append(title)
+
+        score = 100
+        penalty = min(40, len(truncated) * 10)
+        score -= penalty
+
+        if truncated:
+            feedback.append(
+                f"{len(truncated)} truncated section(s): "
+                + ", ".join(truncated[:3])
+            )
+            sections_to_improve.extend(truncated)
 
         return max(0, score)
 
