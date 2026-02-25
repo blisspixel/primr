@@ -36,6 +36,20 @@ jobs:
       - name: Type check
         run: mypy src/primr/ --ignore-missing-imports --disable-error-code=import-untyped --exclude 'src/primr/api/'
 
+      - name: Recovery Regression Suite
+        env:
+          GEMINI_API_KEY: fake-key-for-ci-tests
+        run: |
+          pytest -q \
+            tests/test_core/test_resume_recovery.py \
+            tests/test_core/test_research_agent_resume.py \
+            tests/test_data/test_scrape_resume.py \
+            --cov=primr.core.cli \
+            --cov=primr.core.research_agent \
+            --cov=primr.data.scrape \
+            --cov-fail-under=15 \
+            --cov-report=term
+
       - name: Test
         env:
           GEMINI_API_KEY: fake-key-for-ci-tests
