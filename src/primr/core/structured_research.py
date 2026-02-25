@@ -339,34 +339,24 @@ def _collect_data(
         if progress:
             progress(msg)
 
-    # Scrape website
     website_pages = {}
     if website:
         website_pages = fetch_web_content(website, company_name, max_pages=50)
-
-        # Warn if scraping was very limited
         if len(website_pages) <= 2:
             report("! Limited website access - site may have bot protection")
 
-    # External research - with LLM validation to ensure correct company
-    # This prevents including content from similarly-named but unrelated companies
-    # (e.g., "EverTrue" fundraising software vs "EverTrue" senior living)
     report("Generating search strategy...")
-
-    # Generate targeted search queries using LLM
     external_queries = generate_external_search_queries(
         company_name,
         website,
         max_queries=MAX_EXTERNAL_SEARCH_QUERIES,
     )
 
-    # Keep hardcoded queries as reliable fallbacks at the end
     fallback_queries = [
         "news OR press release OR announcement",
         "funding OR acquisition OR partnership",
         "revenue OR earnings OR financial results OR investor relations",
     ]
-    # Deduplicate: LLM queries first, then fallbacks
     all_queries = list(external_queries)
     for fallback in fallback_queries:
         if len(all_queries) >= MAX_EXTERNAL_SEARCH_QUERIES:
@@ -398,11 +388,7 @@ def _collect_data(
             external_data.update(scraped)
 
     report(f"Found {len(external_data)} validated external sources")
-
-    return ScrapedData(
-        website_pages=website_pages,
-        external_sources=external_data
-    )
+    return ScrapedData(website_pages=website_pages, external_sources=external_data)
 
 
 def _analyze_content(
