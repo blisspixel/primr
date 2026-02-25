@@ -1221,8 +1221,8 @@ Frame everything as hypotheses to explore, not conclusions."""
             "failure_reason",
             "last_error",
         )
-        for field in fields:
-            value = getattr(interaction, field, None)
+        for attr_name in fields:
+            value = getattr(interaction, attr_name, None)
             if value:
                 return str(value)
 
