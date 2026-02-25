@@ -417,6 +417,14 @@ Goal: Reduce noisy integration-runtime warnings, improve maintainability in AI r
 - Hardened handling around Playwright subprocess permission constraints in tests
 - Hardened handling around network-restricted AI integration tests to avoid misleading warning noise
 
+**Scraping Reliability Hardening:**
+- Added adaptive lazy-load scrolling for Playwright tiers (up to 20 steps, early stop when page height stabilizes)
+- Added strict scrape-quality validation gate in scrape/full pipelines (fail fast on thin extraction)
+- Added explicit override flag: `--skip-scrape-validation`
+- Added `_raw_scrapes/_scrape_trace.log` with per-page `OK/FAIL/DUP` outcomes for debugging
+- Updated progress line to show attempted pages and successful pages separately (e.g., `Scraping 23/50 (ok 17) ...`)
+- Added external search caps via config: `MAX_EXTERNAL_SEARCH_QUERIES`, `MAX_EXTERNAL_SOURCES`
+
 **Gemini 3.1 Pro Preview (February 2026):**
 - Registered `gemini-3.1-pro-preview` and `gemini-3.1-pro-preview-customtools` in ModelRegistry
 - Now the default Pro model (cost delta ~$0.28/run vs 3.0 Pro — negligible since DR dominates cost)
@@ -598,7 +606,7 @@ cd deploy/aws && ./deploy.sh -d prod destroy
 | 1.11.2 | Feb 2026 | SharedBrowser, ETA progress, UI polish |
 | 1.12.0 | Feb 2026 | Multi-cloud-vendor AI strategy |
 | 1.12.1 | Feb 2026 | Scraping robustness, PDF routing, bug fixes |
-| unreleased | Feb 2026 | Deep-research refactor, shared error policy, flaky warning reduction |
+| unreleased | Feb 2026 | Deep-research refactor, scrape reliability hardening, shared error policy, warning reduction |
 
 ## Final Note
 

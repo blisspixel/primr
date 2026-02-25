@@ -135,6 +135,7 @@ class ResearchConfig:
     include_website_scrape: bool = True
     include_web_search: bool = True
     sections: list | None = None  # Specific sections to research
+    fail_on_low_scrape: bool = True
 
 
 @dataclass
@@ -398,7 +399,12 @@ class ResearchOrchestrator:
 
         section_results = await loop.run_in_executor(
             None,
-            lambda: run_research(company_name, website or "", on_progress=on_progress)
+            lambda: run_research(
+                company_name,
+                website or "",
+                on_progress=on_progress,
+                fail_on_low_scrape=config.fail_on_low_scrape,
+            )
         )
 
         return OrchestratorResult(
@@ -471,6 +477,19 @@ class ResearchOrchestrator:
             )
 
             if not structured_result.success:
+                if config.fail_on_low_scrape:
+                    logger.error("Structured Pipeline failed and strict scrape validation is enabled")
+                    console.error("Data collection failed scrape validation; aborting run.")
+                    console.muted("  Override with --skip-scrape-validation to continue anyway")
+                    return OrchestratorResult(
+                        company_name=company_name,
+                        website=website,
+                        mode=ResearchMode.COMPLETE,
+                        section_results={},
+                        success=False,
+                        error="Data collection failed scrape validation",
+                        duration_seconds=time_module.time() - total_start,
+                    )
                 logger.warning("Structured Pipeline failed, continuing with limited context")
                 console.warn("Data collection had issues, continuing with limited context...")
             else:

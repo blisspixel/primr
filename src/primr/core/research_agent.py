@@ -105,6 +105,10 @@ from primr.ai.summarize import summarize_scraped_content
 from primr.config.config import (
     GRADE_THRESHOLD_FOR_RESEARCH_REFINEMENT,
     LOGS_DIR,
+    MAX_EXTERNAL_SEARCH_QUERIES,
+    MAX_EXTERNAL_SOURCES,
+    MIN_SCRAPED_CHARS,
+    MIN_SCRAPED_PAGES,
     OUTPUT_DIR,
     PROJECT_ROOT,
     WORKING_DIR,
@@ -112,6 +116,7 @@ from primr.config.config import (
 from primr.config.models import PrimrModels
 from primr.config.sections_config import SECTION_KEY_MAP
 from primr.core.research_orchestrator import (
+    ResearchConfig,
     ResearchMode,
     get_orchestrator,
 )
@@ -174,6 +179,23 @@ def format_tier_stats(tier_stats: dict) -> str:
         display_name = TIER_DISPLAY_NAMES.get(tier, tier)
         parts.append(f"{count} {display_name}")
     return ", ".join(parts)
+
+
+def _validate_scrape_quality(
+    corpus: dict[str, str],
+    *,
+    min_pages: int = MIN_SCRAPED_PAGES,
+    min_chars: int = MIN_SCRAPED_CHARS,
+) -> tuple[bool, str]:
+    """Check whether scraped website content is sufficient for reliable analysis."""
+    pages = len(corpus)
+    chars = sum(len(c or "") for c in corpus.values())
+    ok = pages >= min_pages and chars >= min_chars
+    reason = (
+        f"Scrape quality too low ({pages} pages, {chars:,} chars; "
+        f"requires >= {min_pages} pages and >= {min_chars:,} chars)"
+    )
+    return ok, reason
 
 
 def select_links_with_llm(
@@ -527,7 +549,12 @@ def research_section(section_name, company_name, website, industry, folder_path,
     return ai_response
 
 
-def run_research(company_name: str, website: str, on_progress: Callable[[str], None] | None = None) -> dict:
+def run_research(
+    company_name: str,
+    website: str,
+    on_progress: Callable[[str], None] | None = None,
+    fail_on_low_scrape: bool = True,
+) -> dict:
     """
     Run structured research and return section results.
 
@@ -570,6 +597,13 @@ def run_research(company_name: str, website: str, on_progress: Callable[[str], N
         console.muted("  Try: primr \"Company\" url --mode deep  (skips site scraping)")
         return None
 
+    if website and fail_on_low_scrape:
+        quality_ok, quality_reason = _validate_scrape_quality(scraped_data)
+        if not quality_ok:
+            console.fail(quality_reason)
+            console.muted("  Re-run with --skip-scrape-validation to continue anyway")
+            return None
+
     # External research - with LLM validation to ensure correct company
     # This prevents including content from similarly-named but unrelated companies
     # (e.g., "EverTrue" fundraising software vs "EverTrue" senior living)
@@ -583,16 +617,25 @@ def run_research(company_name: str, website: str, on_progress: Callable[[str], N
 
         # Generate targeted search queries using LLM
         progress("Generating search strategy...")
-        external_queries = generate_external_search_queries(company_name, website)
+        external_queries = generate_external_search_queries(
+            company_name,
+            website,
+            max_queries=MAX_EXTERNAL_SEARCH_QUERIES,
+        )
 
         # Keep hardcoded queries as reliable fallbacks at the end
         fallback_queries = [
             "news OR press release OR announcement",
             "funding OR acquisition OR partnership",
         ]
-        all_queries = external_queries + [q for q in fallback_queries if q not in external_queries]
+        all_queries = list(external_queries)
+        for fallback in fallback_queries:
+            if len(all_queries) >= MAX_EXTERNAL_SEARCH_QUERIES:
+                break
+            if fallback not in all_queries:
+                all_queries.append(fallback)
 
-        max_external_sources = 8
+        max_external_sources = MAX_EXTERNAL_SOURCES
 
         for query in all_queries:
             if len(external_data) >= max_external_sources:
@@ -711,6 +754,7 @@ def perform_scrape_only(
     website: str | None,
     start_time: float,
     max_scrape_time: int | None = None,
+    fail_on_low_scrape: bool = True,
 ) -> str | None:
     """
     Scrape mode: Build site corpus + extract insights.
@@ -739,6 +783,13 @@ def perform_scrape_only(
         console.fail("Could not scrape any pages - site may be blocking")
         console.muted("Try: primr \"Company\" url --mode deep")
         return None
+
+    if website and fail_on_low_scrape:
+        quality_ok, quality_reason = _validate_scrape_quality(corpus)
+        if not quality_ok:
+            console.fail(quality_reason)
+            console.muted("Re-run with --skip-scrape-validation to continue anyway")
+            return None
 
     # Save combined corpus
     scraped_file = os.path.join(folder_path, "scraped_content.txt")
@@ -1171,7 +1222,11 @@ def perform_fast_research(
         external_text_parts: list[str] = []
         external_raw_parts: list[str] = []
         with console.timed_operation("Searching external sources"):
-            external_queries = generate_external_search_queries(company_name, website)[:5]
+            external_queries = generate_external_search_queries(
+                company_name,
+                website,
+                max_queries=min(5, MAX_EXTERNAL_SEARCH_QUERIES),
+            )
             external_data: dict = {}
             max_external_sources = 6
 
@@ -1541,6 +1596,7 @@ def perform_research(
     discovery_notes_path: str | None = None,
     lite_strategy: bool = False,
     fast_mode: bool = False,
+    skip_scrape_validation: bool = False,
 ) -> str | None:
     if not company_name and not website:
         console.error("No company name or website provided")
@@ -1593,7 +1649,13 @@ def perform_research(
 
         # Handle scrape-only mode - scrape and extract insights
         if mode == "scrape-only":
-            return perform_scrape_only(company_name, website, start_time, max_scrape_time)
+            return perform_scrape_only(
+                company_name,
+                website,
+                start_time,
+                max_scrape_time,
+                fail_on_low_scrape=not skip_scrape_validation,
+            )
 
         # Check if using Deep Research, Complete, or Hybrid mode
         if mode in ("deep-research", "complete", "hybrid"):
@@ -1604,6 +1666,7 @@ def perform_research(
                 discovery_notes_path=discovery_notes_path,
                 discovery_notes_content=discovery_notes_content,
                 lite_strategy=lite_strategy,
+                fail_on_low_scrape=not skip_scrape_validation,
             )
 
         folder_path = create_working_folder(company_name, website)
@@ -1622,21 +1685,37 @@ def perform_research(
             if pages_scraped <= 2 and website:
                 console.warn("Limited website access - report will rely more on web research")
 
+            if website and not skip_scrape_validation:
+                quality_ok, quality_reason = _validate_scrape_quality(scraped_data)
+                if not quality_ok:
+                    console.fail(quality_reason)
+                    console.muted("  Re-run with --skip-scrape-validation to continue anyway")
+                    return None
+
             # External research - with LLM validation to ensure correct company
             # This prevents including content from similarly-named but unrelated companies
             with console.timed_operation("Searching external sources (with validation)"):
                 # Generate targeted search queries using LLM
-                external_queries = generate_external_search_queries(company_name, website)
+                external_queries = generate_external_search_queries(
+                    company_name,
+                    website,
+                    max_queries=MAX_EXTERNAL_SEARCH_QUERIES,
+                )
 
                 # Keep hardcoded queries as reliable fallbacks at the end
                 fallback_queries = [
                     "news OR press release OR announcement",
                     "funding OR acquisition OR partnership",
                 ]
-                all_queries = external_queries + [q for q in fallback_queries if q not in external_queries]
+                all_queries = list(external_queries)
+                for fallback in fallback_queries:
+                    if len(all_queries) >= MAX_EXTERNAL_SEARCH_QUERIES:
+                        break
+                    if fallback not in all_queries:
+                        all_queries.append(fallback)
 
                 external_data = {}
-                max_external_sources = 8
+                max_external_sources = MAX_EXTERNAL_SOURCES
 
                 for query in all_queries:
                     if len(external_data) >= max_external_sources:
@@ -1867,6 +1946,7 @@ def perform_deep_research(
     discovery_notes_path: str | None = None,
     discovery_notes_content: str | None = None,
     lite_strategy: bool = False,
+    fail_on_low_scrape: bool = True,
 ) -> str | None:
     """
     Perform research using Deep Research Agent, Complete, or Hybrid mode.
@@ -2003,6 +2083,7 @@ def perform_deep_research(
                     company_name=company_name or display_name,
                     website=website,
                     mode=research_mode,
+                    config=ResearchConfig(mode=research_mode, fail_on_low_scrape=fail_on_low_scrape),
                     on_progress=progress_callback,
                     context_files=context_files
                 )

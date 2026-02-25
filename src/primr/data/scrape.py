@@ -6,11 +6,17 @@ It wraps the new modular scraping system in primr.data.scraping.
 """
 
 import hashlib
+import os
 import time
 from pathlib import Path
 from urllib.parse import urlparse
 
 from primr.config.config import PROJECT_ROOT
+from primr.config.config import (
+    SCRAPE_PILOT_COUNT,
+    SCRAPE_PILOT_MIN_CHARS,
+    SCRAPE_PILOT_MIN_SUCCESS_RATE,
+)
 
 # Import from new modular scraping system
 from primr.data.scraping import (
@@ -22,6 +28,7 @@ from primr.data.scraping import (
     ScrapeOrchestrator,
     ScrapeResult,
 )
+from primr.data.scraping.tier_registry import get_available_tiers
 from primr.data.scraping import (
     extract_links_from_html as _extract_links_from_html_new,
 )
@@ -83,7 +90,16 @@ def get_orchestrator(
     global _orchestrator
 
     if _orchestrator is None:
+        tiers = get_available_tiers()
+
+        # Drission tiers are powerful but can hang on some Windows environments.
+        # Default to Playwright/HTTP/Vision unless explicitly enabled.
+        enable_drission = os.getenv("PRIMR_ENABLE_DRISSION", "0").lower() in {"1", "true", "yes"}
+        if not enable_drission:
+            tiers = [t for t in tiers if t.name not in {"drissionpage", "drissionpage_stealth"}]
+
         _orchestrator = ScrapeOrchestrator(
+            tiers=tiers,
             cache=ScrapeCache(cache_dir=str(CACHE_DIR)),
             rate_limiter=RateLimiter(RateLimitConfig(
                 per_host_requests_per_minute=30,  # Tokens refill every 2s; actual scrapes take 2-15s
@@ -223,9 +239,40 @@ def fetch_web_content(
 
     # Create raw scrapes folder if working_folder provided
     raw_folder = None
+    trace_file = None
     if working_folder:
         raw_folder = os.path.join(working_folder, "_raw_scrapes")
         os.makedirs(raw_folder, exist_ok=True)
+        trace_file = os.path.join(raw_folder, "_scrape_trace.log")
+
+    def _append_trace(status: str, url: str, detail: str = "") -> None:
+        """Write a compact per-page scrape outcome trace for debugging."""
+        if not trace_file:
+            return
+        try:
+            with open(trace_file, "a", encoding="utf-8") as f:
+                line = f"{status} | {url}"
+                if detail:
+                    line += f" | {detail}"
+                f.write(line + "\n")
+        except Exception as e:
+            logger.debug(f"Failed to write scrape trace: {e}")
+
+    def _failure_detail(result: ScrapeResult) -> str:
+        """Extract a useful failure reason even when result.error is empty."""
+        if result.error:
+            return result.error
+        if result.attempts:
+            last = result.attempts[-1]
+            if last.error:
+                return last.error
+            if last.error_type:
+                return str(last.error_type)
+            if last.http_status:
+                return f"http_status={last.http_status}"
+        if result.error_type:
+            return str(result.error_type)
+        return "unknown"
 
     domain = urlparse(website).netloc
     orchestrator = get_orchestrator(enable_vision=use_vision)
@@ -244,9 +291,11 @@ def fetch_web_content(
         homepage_tier = result.tier if result.success else None
 
     if not result.success or not result.raw_content:
+        _append_trace("FAIL", website, f"homepage: {result.error}")
         console.clear_line()
         console.fail(f"Could not access {domain}")
         return {}
+    _append_trace("OK", website, f"homepage via {homepage_tier or result.tier}")
 
     # Tell orchestrator what tier worked for this host (sticky tier)
     # This prevents wasteful tier escalation on subsequent pages
@@ -298,6 +347,19 @@ def fetch_web_content(
         pages_to_scrape = selected_urls
         console.found(f"{len(in_scope_links)} links {console._arrow} {total_found} selected")
 
+    # Persist selected URL set for reproducibility and debugging.
+    if raw_folder:
+        selected_links_file = os.path.join(raw_folder, "_selected_links.txt")
+        try:
+            with open(selected_links_file, "w", encoding="utf-8") as f:
+                f.write(f"# Selected links for {company_name}\n")
+                f.write(f"# Website: {website}\n")
+                f.write(f"# Selected count: {len(pages_to_scrape)} (excluding homepage)\n\n")
+                for idx, link in enumerate(pages_to_scrape, start=1):
+                    f.write(f"{idx:03d}. {link}\n")
+        except Exception as e:
+            logger.debug(f"Failed to save selected links manifest: {e}")
+
     # Flush stdout to ensure progress shows immediately
     import sys
     sys.stdout.flush()
@@ -335,6 +397,12 @@ def fetch_web_content(
     total = len(pages_to_scrape) + 1  # +1 for homepage already scraped
     page_times = []  # Track per-page durations for ETA
     dup_count = 0  # Pages rejected as duplicate content
+    attempted_urls: set[str] = {homepage_normalized}
+
+    pilot_count = min(max(0, SCRAPE_PILOT_COUNT), len(pages_to_scrape))
+    pilot_attempts = 0
+    pilot_success = 0
+    pilot_chars_total = 0
 
     # Track content hashes to detect duplicate/wrong-page content
     # (e.g. every page returning the same sidebar widget text)
@@ -353,19 +421,23 @@ def fetch_web_content(
 
     # Show initial progress immediately
     if pages_to_scrape:
-        console.scrape_progress(1, total, "homepage", scrape_start)
+        console.scrape_progress(1, total, "homepage", scrape_start, ok_count=success_count)
         logger.info(f"Starting to scrape {total} pages (homepage + {len(pages_to_scrape)} discovered)")
 
     try:
         for i, page_url in enumerate(pages_to_scrape):
             normalized = normalize_url(page_url)
-            if normalized in scraped_results:
+            if normalized in scraped_results or normalized in attempted_urls:
                 continue
+            attempted_urls.add(normalized)
 
             path = urlparse(page_url).path or "/"
             path_display = path[:30] + "..." if len(path) > 30 else path
 
             logger.debug(f"Scraping page {i + 2}/{total}: {page_url}")
+            _append_trace("TRY", page_url, f"attempt {i + 2}/{total}")
+            # Show immediate page transition so long-running pages don't appear stuck.
+            console.scrape_progress(i + 2, total, path_display, scrape_start, ok_count=success_count)
 
             page_start = time.time()
             result = orchestrator.scrape_url(page_url)
@@ -377,12 +449,10 @@ def fetch_web_content(
             remaining = total - (i + 2)
             eta_seconds = avg_time * remaining if remaining > 0 else 0
 
-            # Show progress AFTER scraping with ETA
-            console.scrape_progress(i + 2, total, path_display, scrape_start, eta_seconds=eta_seconds)
-
             # Only log actual failures (not slow-but-successful pages)
             if not result.success:
                 logger.debug(f"Failed {page_url}: {result.error}")
+                _append_trace("FAIL", page_url, _failure_detail(result))
 
             if result.success and result.raw_content:
                 # Dedup: reject pages whose extracted text is identical to a
@@ -394,6 +464,7 @@ def fetch_web_content(
                     logger.info(
                         f"Duplicate content for {page_url} (matches previously scraped page) — skipping"
                     )
+                    _append_trace("DUP", page_url, f"tier={result.tier}")
                     continue
                 if _content_hash:
                     _seen_content_hashes.add(_content_hash)
@@ -402,6 +473,10 @@ def fetch_web_content(
                 raw_pages.append((normalized, result.raw_content))
                 success_count += 1
                 logger.debug(f"Scraped {page_url} via {result.tier}")
+                _append_trace("OK", page_url, f"tier={result.tier}")
+                if pilot_attempts < pilot_count:
+                    pilot_success += 1
+                    pilot_chars_total += len(result.extracted_text or "")
 
                 # Extract + cache structured content, write raw file in background
                 if raw_folder:
@@ -416,6 +491,44 @@ def fetch_web_content(
                         logger.debug(f"Failed to save raw scrape: {e}")
             else:
                 logger.debug(f"Failed to scrape {page_url}: {result.error}")
+                _append_trace("FAIL", page_url, _failure_detail(result))
+
+            if pilot_attempts < pilot_count:
+                pilot_attempts += 1
+                if pilot_attempts == pilot_count:
+                    success_rate = pilot_success / max(pilot_attempts, 1)
+                    avg_chars = int(pilot_chars_total / max(pilot_success, 1)) if pilot_success else 0
+                    _append_trace(
+                        "PILOT",
+                        website,
+                        (
+                            f"attempts={pilot_attempts}, success={pilot_success}, "
+                            f"success_rate={success_rate:.2f}, avg_chars={avg_chars}"
+                        ),
+                    )
+                    if success_rate < SCRAPE_PILOT_MIN_SUCCESS_RATE or avg_chars < SCRAPE_PILOT_MIN_CHARS:
+                        console.clear_line()
+                        console.fail(
+                            "Pilot scrape validation failed "
+                            f"({pilot_success}/{pilot_attempts} ok, avg {avg_chars} chars)"
+                        )
+                        console.muted(
+                            "  Defensive stop: initial sample quality too low to trust full crawl"
+                        )
+                        console.muted(
+                            "  Override thresholds via SCRAPE_PILOT_* env vars if needed"
+                        )
+                        return {}
+
+            # Show progress AFTER processing so "ok" count is accurate
+            console.scrape_progress(
+                i + 2,
+                total,
+                path_display,
+                scrape_start,
+                eta_seconds=eta_seconds,
+                ok_count=success_count,
+            )
     finally:
         # Ensure executor shutdown even if scraping loop throws
         if write_executor:

@@ -20,6 +20,7 @@ from .cache import ScrapeCache
 from .config import RateLimitConfig
 from .content import (
     detect_content_type,
+    extract_clean_text,
     extract_main_content,
     extract_text_from_pdf_via_llm,
     is_quality_content,
@@ -39,6 +40,26 @@ from .trace import TraceLogger
 from .validation import validate_content
 
 logger = logging.getLogger(__name__)
+
+_BOILERPLATE_TEXT_PATTERNS = (
+    "skip to content",
+    "consent details",
+    "this website uses cookies",
+    "cookie policy",
+    "accept all",
+    "show details",
+)
+
+
+def _score_extracted_text(text: str) -> float:
+    """Heuristic quality score used to choose the best extraction variant."""
+    if not text:
+        return 0.0
+    length = min(len(text), 20000)
+    sentences = len([s for s in text.split(".") if len(s.strip()) > 20])
+    lower = text.lower()
+    boilerplate_hits = sum(lower.count(p) for p in _BOILERPLATE_TEXT_PATTERNS)
+    return (length * 0.02) + (sentences * 8.0) - (boilerplate_hits * 40.0)
 
 
 # ---------------------------------------------------------------------------
@@ -308,9 +329,9 @@ class ScrapeOrchestrator:
                 # If requests normally works in <1s, waiting 15s is wasteful
                 use_fast_timeout = True
 
-                # Reduce max page time: if we know what works, don't spend 45s
-                # cycling through all 8 tiers on a failing page
-                effective_max_page_time = min(self.max_page_time, 25.0)
+                # Keep full per-page budget even with sticky tier so hard pages
+                # can still escalate to later fallbacks (including vision).
+                effective_max_page_time = self.max_page_time
 
         tier_attempts = 0
         consecutive_failures = 0
@@ -478,6 +499,14 @@ class ScrapeOrchestrator:
                 # 3h. Soft block - record failure, try next tier
                 logger.debug(f"Soft block on {tier.name}: {block_reason}")
                 host_state.record_tier_attempt(tier.name, success=False)
+                last_result = ScrapeResult(
+                    url=url,
+                    success=False,
+                    error=f"Soft block detected: {block_reason}",
+                    error_type=ErrorType.NETWORK_ERROR,
+                    tier=tier.name,
+                    elapsed_ms=(time.time() - start_time) * 1000,
+                )
                 # Track consecutive failures for soft blocks
                 error_key = "soft_block"
                 if last_error_type == error_key:
@@ -492,6 +521,14 @@ class ScrapeOrchestrator:
             if not check_success_signal(tier_result.raw_content, tier_result.http_status):
                 logger.debug(f"Success signal failed on {tier.name} for {url}")
                 host_state.record_tier_attempt(tier.name, success=False)
+                last_result = ScrapeResult(
+                    url=url,
+                    success=False,
+                    error="Success signal check failed (likely blocked/interstitial content)",
+                    error_type=ErrorType.NETWORK_ERROR,
+                    tier=tier.name,
+                    elapsed_ms=(time.time() - start_time) * 1000,
+                )
                 # Track consecutive failures for success signal failures
                 error_key = "success_signal_failed"
                 if last_error_type == error_key:
@@ -561,8 +598,14 @@ class ScrapeOrchestrator:
                     extracted = extract_text_from_pdf_via_llm(tier_result.raw_content) or ""
                     logger.debug(f"PDF extraction for {url}: {len(extracted)} chars")
                 elif detected_type in ("html", "text", "json", "xml", "unknown"):
-                    # Use reader mode for HTML/text content
-                    extracted = extract_main_content(tier_result.raw_content)
+                    # Try multiple extraction strategies and pick highest-quality output.
+                    # Some sites fail reader mode but work in clean-text modes (and vice versa).
+                    candidates = []
+                    reader_text = extract_main_content(tier_result.raw_content)
+                    candidates.append(reader_text or "")
+                    candidates.append(extract_clean_text(tier_result.raw_content, mode="aggressive") or "")
+                    candidates.append(extract_clean_text(tier_result.raw_content, mode="conservative") or "")
+                    extracted = max(candidates, key=_score_extracted_text)
                 else:
                     # Skip truly binary content (images, fonts, etc.)
                     logger.debug(f"Skipping non-text content type '{detected_type}' for {url}")
@@ -580,13 +623,21 @@ class ScrapeOrchestrator:
             is_quality, quality_reason = is_quality_content(extracted)
             if not is_quality:
                 logger.debug(f"Content quality failed on {tier.name} for {url}: {quality_reason}")
+                last_result = ScrapeResult(
+                    url=url,
+                    success=False,
+                    error=f"Content quality failed: {quality_reason}",
+                    error_type=ErrorType.PARSE_ERROR,
+                    tier=tier.name,
+                    elapsed_ms=(time.time() - start_time) * 1000,
+                )
 
-                # FAST FAIL: If we got HTML but content is too short (50-199 chars),
-                # the page is likely a stub/redirect, not a scraping issue.
-                # Don't waste time trying other tiers.
+                # Keep escalating instead of fast-failing; some sites only yield
+                # substantial content at later tiers (especially vision).
                 if extracted and 50 < len(extracted) < 200:
-                    logger.debug(f"Fast fail: Page has content but too short ({len(extracted)} chars)")
-                    break  # Exit tier loop, return failure
+                    logger.debug(
+                        f"Short content ({len(extracted)} chars) on {tier.name}; continuing escalation"
+                    )
 
                 host_state.record_tier_attempt(tier.name, success=False)
                 # Track consecutive failures for quality issues
