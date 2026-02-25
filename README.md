@@ -55,6 +55,18 @@ primr "ExampleCo" https://example.co  # Run your first research
 
 Requires Python 3.11+ and a Gemini API key (add `XAI_API_KEY` for `--fast` mode). Web search uses DuckDuckGo (no key needed).
 
+### Platform Support
+
+Primr is designed to run on all three major desktop/server platforms:
+
+- Windows
+- macOS
+- Linux
+
+Notes:
+- Core research/scraping/report generation flows are cross-platform.
+- "Open report after run" behavior uses native OS launchers (`startfile` / `open` / `xdg-open` family) with a browser fallback on minimal Linux environments.
+
 ```bash
 # More usage
 primr "Company" https://company.com --mode scrape        # Site corpus only
