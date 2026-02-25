@@ -311,6 +311,7 @@ Scale-to-zero ephemeral containers, event-driven queues, production observabilit
 
 ```bash
 python -m pytest tests/ -x --tb=short   # Run tests
+pytest -q tests/test_core/test_resume_recovery.py tests/test_core/test_research_agent_resume.py tests/test_data/test_scrape_resume.py --cov=primr.core.cli --cov=primr.core.research_agent --cov=primr.data.scrape --cov-fail-under=15 --cov-report=term  # Recovery regression gate
 ruff check src/                          # Lint
 mypy src/primr --ignore-missing-imports  # Type check
 ```
