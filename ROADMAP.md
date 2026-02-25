@@ -57,6 +57,7 @@ The design is intentionally opinionated and local-first. This roadmap reflects c
 - Usage tracking and job recovery
 - System diagnostics (primr doctor)
 - Test coverage
+- Cross-platform runtime support (Windows, macOS, Linux) for CLI, scraping, and report generation
 
 ### Cloud Deployment (v1.6.0)
 
