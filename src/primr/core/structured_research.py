@@ -23,7 +23,11 @@ from typing import Protocol
 from primr.ai.grading_agent import grade_report
 from primr.ai.llm import llm
 from primr.ai.summarize import summarize_scraped_content
-from primr.config.config import GRADE_THRESHOLD_FOR_RESEARCH_REFINEMENT
+from primr.config.config import (
+    GRADE_THRESHOLD_FOR_RESEARCH_REFINEMENT,
+    MAX_EXTERNAL_SEARCH_QUERIES,
+    MAX_EXTERNAL_SOURCES,
+)
 from primr.config.prompts import generate_prompt
 from primr.config.sections_config import SECTION_KEY_MAP
 from primr.core.workspace import create_working_folder, save_section_output
@@ -350,7 +354,11 @@ def _collect_data(
     report("Generating search strategy...")
 
     # Generate targeted search queries using LLM
-    external_queries = generate_external_search_queries(company_name, website)
+    external_queries = generate_external_search_queries(
+        company_name,
+        website,
+        max_queries=MAX_EXTERNAL_SEARCH_QUERIES,
+    )
 
     # Keep hardcoded queries as reliable fallbacks at the end
     fallback_queries = [
@@ -359,10 +367,15 @@ def _collect_data(
         "revenue OR earnings OR financial results OR investor relations",
     ]
     # Deduplicate: LLM queries first, then fallbacks
-    all_queries = external_queries + [q for q in fallback_queries if q not in external_queries]
+    all_queries = list(external_queries)
+    for fallback in fallback_queries:
+        if len(all_queries) >= MAX_EXTERNAL_SEARCH_QUERIES:
+            break
+        if fallback not in all_queries:
+            all_queries.append(fallback)
 
     external_data: dict[str, str] = {}
-    max_external_sources = 8
+    max_external_sources = MAX_EXTERNAL_SOURCES
 
     for query in all_queries:
         if len(external_data) >= max_external_sources:

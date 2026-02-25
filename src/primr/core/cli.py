@@ -101,6 +101,7 @@ class CLIConfig:
     lite_strategy: bool = False  # Use Pro model instead of Deep Research for strategy
     fast_mode: bool = False  # Use Grok 4.1 for fast research (~12 min, ~$0.25)
     no_qa: bool = False  # Disable automatic quality assessment
+    skip_scrape_validation: bool = False  # Continue even when scrape quality is too low
     # Agentic architecture options
     memory_company: str | None = None
     memory_list: bool = False
@@ -224,6 +225,7 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         lite_strategy=getattr(parsed, 'lite_strategy', False),
         fast_mode=getattr(parsed, 'fast_mode', False),
         no_qa=getattr(parsed, 'no_qa', False),
+        skip_scrape_validation=getattr(parsed, 'skip_scrape_validation', False),
         # Agentic architecture options
         memory_company=getattr(parsed, 'memory', None),
         memory_list=getattr(parsed, 'memory_list', False),
@@ -462,6 +464,11 @@ Accordion Method Test (for development):
     parser.add_argument("--ai-strategy", action="store_true", default=True, help="Generate AI recommendations")
     parser.add_argument("--no-ai-strategy", action="store_true", help="Disable AI strategy")
     parser.add_argument("--no-qa", action="store_true", help="Disable automatic quality assessment")
+    parser.add_argument(
+        "--skip-scrape-validation",
+        action="store_true",
+        help="Allow run to continue even when website scraping is too thin/failing"
+    )
     parser.add_argument(
         "--cloud-vendor",
         type=str,
@@ -751,6 +758,7 @@ def _handle_dry_run(config: CLIConfig) -> int:
         num_vendors=len(config.cloud_vendors),
         lite_strategy=config.lite_strategy,
         fast_mode=config.fast_mode,
+        skip_scrape_validation=config.skip_scrape_validation,
     )
     print(str(estimate))
 

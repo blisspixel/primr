@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 from primr.ai.llm import llm
 from primr.config.config import (
     INITIAL_RETRY_DELAY,
+    MAX_EXTERNAL_SEARCH_QUERIES,
     MAX_RETRIES,
     NUM_SEARCH_RESULTS,
     SEARCH_API_KEY,
@@ -112,7 +113,11 @@ We need more information on: {section_name}.
     return cleaned_queries[:3] if cleaned_queries else [f"{company_name} {section_name} insights"]
 
 
-def generate_external_search_queries(company_name: str, website: str | None = None) -> list[str]:
+def generate_external_search_queries(
+    company_name: str,
+    website: str | None = None,
+    max_queries: int = MAX_EXTERNAL_SEARCH_QUERIES,
+) -> list[str]:
     """Generate diverse search queries for external company intelligence.
 
     Unlike generate_search_queries() which targets a specific report section,
@@ -124,7 +129,7 @@ def generate_external_search_queries(company_name: str, website: str | None = No
         website: Optional company website URL for context.
 
     Returns:
-        List of up to 7 search queries covering news, funding, tech,
+        List of up to max_queries search queries covering news, funding, tech,
         leadership, competitive landscape, industry analysis, and financials.
     """
     domain_hint = ""
@@ -132,7 +137,8 @@ def generate_external_search_queries(company_name: str, website: str | None = No
         domain = urlparse(website).netloc.replace("www.", "")
         domain_hint = f"\nTheir website is: {domain}"
 
-    prompt = f"""Generate 7 web search queries to research {company_name} for a business intelligence brief.{domain_hint}
+    max_queries = max(1, max_queries)
+    prompt = f"""Generate {max_queries} web search queries to research {company_name} for a business intelligence brief.{domain_hint}
 
 Cover these angles:
 - Recent news, press releases, announcements
@@ -164,7 +170,7 @@ Rules:
             f"{company_name} leadership executive team",
         ]
 
-    return queries[:7]
+    return queries[:max_queries]
 
 
 # =============================================================================

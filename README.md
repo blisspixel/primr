@@ -21,6 +21,7 @@ Primr does that entire workflow autonomously in about an hour for about $6 in AP
 ## What Makes It Different
 
 - **Adaptive scraping**: 8 retrieval methods from browser rendering to TLS fingerprinting to screenshot+vision extraction, with per-host optimization. Starts with full browser rendering (what works on 95%+ of modern sites) and falls back through increasingly specialized methods.
+- **Fail-fast scrape quality gate**: Full/scrape modes now abort when site extraction is too thin (override with `--skip-scrape-validation`).
 - **Autonomous external research**: Gemini Deep Research for comprehensive analysis, Grok 4.1 for fast turnaround — both plan queries, follow leads, cross-validate sources, and synthesize findings.
 - **Cost controls built in**: `--dry-run` estimates, usage tracking, and governance hooks for budget limits.
 - **Agent-native interfaces**: CLI, MCP server, OpenClaw integration, and Claude Skills, all first-class.
@@ -62,6 +63,7 @@ primr "Company" https://company.com --dry-run            # Cost estimate first
 primr "Company" https://company.com --cloud-vendor aws azure  # Multi-vendor AI strategy
 primr "Company" https://company.com --cloud-vendor aws azure --lite  # Cheaper/faster strategy
 primr "Company" https://company.com --fast                        # Grok 4.1 fast mode (~$0.25)
+primr "Company" https://company.com --skip-scrape-validation      # Continue even if scrape quality is low
 ```
 
 ### What a run looks like
@@ -71,7 +73,7 @@ primr "Company" https://company.com --fast                        # Grok 4.1 fas
   Website scraping + web search + AI analysis
 
 [OK] 251 links -> 50 selected
-Scraping 23/50 /about  [15s elapsed, ~2m left]
+Scraping 23/50 (ok 17) /about  [15s elapsed, ~2m left]
 [OK] 48/50 pages scraped (6m 10s)
 + 3 external sources validated
 [OK] Data Collection
@@ -183,6 +185,7 @@ Accepts Excel (`.xlsx`) or CSV files. Smart column detection uses an LLM to find
 8. requests (simple fallback)
 
 Includes sticky tier memory, circuit breakers, cookie handoff, and automatic PDF detection.
+Playwright tiers now perform adaptive lazy-load scrolling (up to 20 steps by default, stops early when page height stabilizes).
 
 **Models & Pricing**
 
@@ -215,9 +218,23 @@ GEMINI_API_KEY=       # https://aistudio.google.com/apikey
 # SEARCH_PROVIDER=google
 # SEARCH_API_KEY=     # Google Custom Search API
 # SEARCH_ENGINE_ID=   # Programmable Search Engine ID
+
+# Optional - scrape quality gate (fail fast when website extraction is too thin)
+# MIN_SCRAPED_PAGES=3
+# MIN_SCRAPED_CHARS=6000
+
+# Optional - external search volume caps
+# MAX_EXTERNAL_SEARCH_QUERIES=5
+# MAX_EXTERNAL_SOURCES=8
+
+# Optional - lazy-load scrolling behavior for scroll-driven sites
+# PLAYWRIGHT_LAZY_SCROLL_MAX_STEPS=20
+# PLAYWRIGHT_LAZY_SCROLL_PAUSE_MS=250
+# PLAYWRIGHT_LAZY_SCROLL_SETTLE_ROUNDS=3
 ```
 
 Web search uses DuckDuckGo by default - no search API key needed. Google Custom Search is available as an optional fallback for users with existing whole-web CSEs.
+If scrape validation blocks a run you intentionally want to continue, pass `--skip-scrape-validation`.
 
 [Full setup guide](docs/API_KEYS.md)
 

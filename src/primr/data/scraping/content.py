@@ -59,6 +59,68 @@ GARBAGE_PATTERNS = [
     "still loading",
 ]
 
+NAV_HINT_TERMS = {
+    "skip", "content", "login", "products", "solutions", "integrations",
+    "resources", "careers", "contact", "demo", "assessment", "hiring",
+}
+
+
+def _is_nav_like_line(line: str) -> bool:
+    """Heuristic detector for mega-menu/navigation text lines."""
+    text = (line or "").strip()
+    if len(text) < 40:
+        return False
+
+    lower = text.lower()
+    if "skip to content" in lower:
+        return True
+
+    # Navigation bundles are often long token lists without sentence punctuation.
+    if any(p in text for p in ".?!;:"):
+        return False
+
+    words = [w.strip(".,()[]{}|/-") for w in text.split() if w.strip()]
+    if len(words) < 8:
+        return False
+
+    short_ratio = sum(1 for w in words if len(w) <= 14) / len(words)
+    alpha_words = [w for w in words if w.isalpha()]
+    title_ratio = (
+        sum(1 for w in alpha_words if w[:1].isupper()) / max(len(alpha_words), 1)
+    )
+    nav_hits = sum(1 for w in words if w.lower() in NAV_HINT_TERMS)
+
+    return (short_ratio >= 0.85 and title_ratio >= 0.55 and nav_hits >= 4)
+
+
+def _is_body_like_line(line: str) -> bool:
+    """Heuristic for a likely article/body paragraph line."""
+    text = (line or "").strip()
+    if len(text) < 60:
+        return False
+    if "cookie" in text.lower() or "consent" in text.lower():
+        return False
+    words = text.split()
+    if len(words) < 10:
+        return False
+    lower_words = sum(1 for w in words if any(ch.islower() for ch in w))
+    return lower_words >= max(4, len(words) // 3)
+
+
+def _trim_leading_noise(lines: list[str]) -> list[str]:
+    """Drop leading nav/cookie blocks before the first body-like content."""
+    start = 0
+    for i, line in enumerate(lines):
+        if _is_body_like_line(line):
+            start = i
+            break
+    # Preserve a nearby heading if present just before the first body paragraph.
+    if start > 0:
+        prev = lines[start - 1].strip()
+        if 4 <= len(prev) <= 80 and prev.lower() not in {"login", "request a demo"}:
+            return lines[start - 1:]
+    return lines[start:] if start > 0 else lines
+
 
 def is_quality_content(text: str, min_length: int = MIN_CONTENT_LENGTH) -> tuple[bool, str]:
     """
@@ -213,6 +275,8 @@ def extract_clean_text(
     # In aggressive mode, also remove boilerplate by class/id
     if mode == "aggressive":
         for element in soup.find_all(True):
+            if element is None or not hasattr(element, "attrs") or element.attrs is None:
+                continue
             classes = element.get("class", [])
             element_id = element.get("id", "")
             all_attrs = " ".join(classes) + " " + element_id
@@ -231,10 +295,14 @@ def extract_clean_text(
     for line in text.split("\n"):
         line = re.sub(r"\s+", " ", line).strip()
 
+        if _is_nav_like_line(line):
+            continue
+
         if line and line != prev_line:  # Deduplicate consecutive identical lines
             lines.append(line)
             prev_line = line
 
+    lines = _trim_leading_noise(lines)
     return "\n".join(lines)
 
 
@@ -510,10 +578,13 @@ def _extract_text_with_structure(element) -> str:
 
     for line in lines:
         line = re.sub(r"\s+", " ", line).strip()
+        if _is_nav_like_line(line):
+            continue
         if line and line != prev_line and len(line) > 2:
             cleaned.append(line)
             prev_line = line
 
+    cleaned = _trim_leading_noise(cleaned)
     return "\n".join(cleaned)
 
 
