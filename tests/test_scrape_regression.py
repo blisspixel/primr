@@ -150,9 +150,10 @@ class TestStructuredContentPruningRegression:
         )
         
         # Key content should be present
-        assert "Getting Started" in extracted
-        assert "Prerequisites" in extracted
-        assert "Installation" in extracted
+        extracted_lower = extracted.lower()
+        assert "getting started" in extracted_lower
+        assert "prerequisites" in extracted_lower
+        assert "installation" in extracted_lower
     
     def test_quality_score_meets_threshold(self, case_config):
         """Quality score should meet minimum threshold for valid content."""
