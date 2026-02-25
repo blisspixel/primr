@@ -143,3 +143,23 @@ def test_find_latest_run_state_returns_none_for_malformed_json(tmp_path, monkeyp
 
     found = cli._find_latest_run_state()
     assert found is None
+
+
+def test_find_latest_run_state_skips_bad_newest_file(tmp_path, monkeypatch):
+    monkeypatch.setattr(cli, "WORKING_DIR", str(tmp_path))
+    older = tmp_path / "ExampleCo" / "2026-02-24_1700"
+    newer_bad = tmp_path / "ExampleCo" / "2026-02-25_0200"
+    older.mkdir(parents=True)
+    newer_bad.mkdir(parents=True)
+    older_state = older / "_run_state.json"
+    newer_state = newer_bad / "_run_state.json"
+    older_state.write_text(json.dumps({"company_name": "ExampleCo", "status": "running"}), encoding="utf-8")
+    newer_state.write_text("{bad-json", encoding="utf-8")
+    os.utime(older_state, (100, 100))
+    os.utime(newer_state, (200, 200))
+
+    found = cli._find_latest_run_state()
+    assert found is not None
+    path, state = found
+    assert path.endswith(str(older_state))
+    assert state["company_name"] == "ExampleCo"

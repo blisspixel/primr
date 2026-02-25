@@ -302,7 +302,7 @@ def create_working_folder(company_name, website, reuse_incomplete: bool = False)
                 if not isinstance(state, dict):
                     continue
                 status = str(state.get("status", "")).lower()
-                if status in {"running", "failed", "cancelled"}:
+                if status in {"running", "failed", "cancelled", "canceled"}:
                     logger.info(f"Reusing incomplete working folder: {candidate}")
                     return candidate
             except Exception:
@@ -4728,16 +4728,10 @@ def _clean_temp_files():
 
 def _open_file(filepath: str) -> None:
     """Open a file with the system default application."""
-    import platform
-    import subprocess
+    from primr.utils.files import open_with_default_app
 
     try:
-        if platform.system() == 'Windows':
-            os.startfile(filepath)
-        elif platform.system() == 'Darwin':  # macOS
-            subprocess.run(['open', filepath], check=True)
-        else:  # Linux
-            subprocess.run(['xdg-open', filepath], check=True)
+        open_with_default_app(filepath)
     except Exception as e:
         console.warn(f"Could not open file: {e}")
 

@@ -1980,14 +1980,16 @@ def _find_latest_run_state() -> tuple[str, dict[str, Any]] | None:
     if not candidates:
         return None
 
-    latest_path = max(candidates, key=os.path.getmtime)
-    try:
-        with open(latest_path, encoding="utf-8") as f:
-            state = json.load(f)
-        if isinstance(state, dict):
-            return latest_path, state
-    except Exception:
-        return None
+    # Walk newest -> oldest and return the first valid JSON state.
+    # This avoids losing recovery hints when the freshest file is truncated/corrupt.
+    for state_path in sorted(candidates, key=os.path.getmtime, reverse=True):
+        try:
+            with open(state_path, encoding="utf-8") as f:
+                state = json.load(f)
+            if isinstance(state, dict):
+                return state_path, state
+        except Exception:
+            continue
     return None
 
 
@@ -2720,16 +2722,10 @@ def process_csv(
 
 def open_file(filepath: str) -> None:
     """Open a file with the system default application."""
-    import platform
-    import subprocess
+    from primr.utils.files import open_with_default_app
 
     try:
-        if platform.system() == 'Windows':
-            os.startfile(filepath)  # type: ignore[attr-defined]  # Windows-only
-        elif platform.system() == 'Darwin':
-            subprocess.run(['open', filepath], check=True)
-        else:
-            subprocess.run(['xdg-open', filepath], check=True)
+        open_with_default_app(filepath)
     except Exception as e:
         console.warn(f"Could not open file: {e}")
 
