@@ -112,3 +112,34 @@ def test_resume_pending_jobs_finalizes_completed(monkeypatch):
 
     exit_code = cli.resume_pending_jobs()
     assert exit_code == 0
+
+
+def test_resume_pending_jobs_falls_back_to_txt_when_finalize_fails(tmp_path, monkeypatch):
+    import importlib
+
+    deep_research_module = importlib.import_module("primr.ai.deep_research")
+    jobs = {"job-1": {"description": "ExampleCo AI strategy", "type": "deep_research"}}
+    client = Mock()
+    client.check_job.return_value = {"status": "completed", "content": "Recovered body"}
+
+    monkeypatch.setattr(cli, "OUTPUT_DIR", str(tmp_path))
+    monkeypatch.setattr(deep_research_module, "get_pending_jobs", lambda: jobs)
+    monkeypatch.setattr(deep_research_module, "get_deep_research_client", lambda: client)
+    monkeypatch.setattr(cli, "_save_recovered_outputs", lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("docx fail")))
+
+    exit_code = cli.resume_pending_jobs()
+
+    fallback = tmp_path / "recovered_deep_research_job-1.txt"
+    assert fallback.exists()
+    assert fallback.read_text(encoding="utf-8") == "Recovered body"
+    assert exit_code == 1
+
+
+def test_find_latest_run_state_returns_none_for_malformed_json(tmp_path, monkeypatch):
+    monkeypatch.setattr(cli, "WORKING_DIR", str(tmp_path))
+    bad = tmp_path / "ExampleCo" / "2026-02-25_0200"
+    bad.mkdir(parents=True)
+    (bad / "_run_state.json").write_text("{not-json", encoding="utf-8")
+
+    found = cli._find_latest_run_state()
+    assert found is None
