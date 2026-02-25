@@ -1888,11 +1888,13 @@ def _sanitize_output_stem(value: str) -> str:
     return cleaned or "Recovered"
 
 
-def _build_recovered_basename(interaction_id: str, job_info: dict[str, str]) -> str:
+def _build_recovered_basename(interaction_id: str, job_info: dict[str, Any]) -> str:
     """Build canonical output basename for recovered jobs."""
     from datetime import datetime
 
-    metadata = job_info.get("metadata", {}) if isinstance(job_info.get("metadata"), dict) else {}
+    metadata: dict[str, Any] = (
+        job_info.get("metadata", {}) if isinstance(job_info.get("metadata"), dict) else {}
+    )
     report_kind = str(metadata.get("report_kind", "")).lower()
     strategy_type = str(metadata.get("strategy_type", "")).lower()
     company_name = _sanitize_output_stem(str(metadata.get("company_name", "")).strip())
@@ -1919,7 +1921,11 @@ def _build_recovered_basename(interaction_id: str, job_info: dict[str, str]) -> 
     return f"recovered_{job_type}_{interaction_id[:8]}_{date_str}"
 
 
-def _save_recovered_outputs(interaction_id: str, job_info: dict[str, str], content: str) -> dict[str, str]:
+def _save_recovered_outputs(
+    interaction_id: str,
+    job_info: dict[str, Any],
+    content: str,
+) -> dict[str, str]:
     """Save recovered content to canonical MD/TXT/DOCX paths."""
     from pathlib import Path
 
@@ -1936,7 +1942,9 @@ def _save_recovered_outputs(interaction_id: str, job_info: dict[str, str], conte
     with open(txt_path, 'w', encoding='utf-8') as f:
         f.write(content)
 
-    metadata = job_info.get("metadata", {}) if isinstance(job_info.get("metadata"), dict) else {}
+    metadata: dict[str, Any] = (
+        job_info.get("metadata", {}) if isinstance(job_info.get("metadata"), dict) else {}
+    )
     company_name = str(metadata.get("company_name", "")).strip() or "Recovered"
     report_kind = str(metadata.get("report_kind", "")).lower()
     cloud_vendor = str(metadata.get("cloud_vendor", "")).strip()
