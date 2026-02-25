@@ -38,6 +38,21 @@ def test_create_working_folder_skips_completed_run(tmp_path, monkeypatch):
     assert result.startswith(str(company_root))
 
 
+def test_create_working_folder_reuses_canceled_run(tmp_path, monkeypatch):
+    monkeypatch.setattr(research_agent, "WORKING_DIR", str(tmp_path))
+
+    company_root = tmp_path / "ExampleCo"
+    canceled = company_root / "2026-02-25_1200"
+    canceled.mkdir(parents=True)
+    (canceled / "_run_state.json").write_text(
+        json.dumps({"status": "canceled"}),
+        encoding="utf-8",
+    )
+
+    result = research_agent.create_working_folder("ExampleCo", "https://example.co", reuse_incomplete=True)
+    assert result == str(canceled)
+
+
 def test_update_run_state_sets_updated_timestamp(tmp_path):
     folder = tmp_path / "run"
     folder.mkdir()

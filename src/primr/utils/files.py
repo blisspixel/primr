@@ -10,8 +10,12 @@ This module provides:
 
 import hashlib
 import os
+import platform
 import re
+import shutil
+import subprocess
 import tempfile
+import webbrowser
 from collections.abc import Iterator
 from contextlib import contextmanager, suppress
 from pathlib import Path
@@ -312,6 +316,49 @@ def ensure_parent_exists(path: Path) -> Path:
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def open_with_default_app(path: str | Path) -> None:
+    """
+    Open a file using the current platform's default application.
+
+    Falls back to the ``webbrowser`` module when desktop open commands are
+    unavailable (common on minimal Linux environments).
+    """
+    file_path = Path(path).expanduser()
+    if not file_path.exists():
+        raise FileNotFoundError(f"File not found: {file_path}")
+
+    resolved = str(file_path.resolve())
+    system = platform.system()
+
+    if system == "Windows":
+        startfile = getattr(os, "startfile", None)
+        if startfile is None:
+            raise RuntimeError("Windows startfile is unavailable in this environment")
+        startfile(resolved)
+        return
+
+    commands: list[list[str]] = []
+    if system == "Darwin":
+        commands = [["open", resolved]]
+    else:
+        commands = [
+            ["xdg-open", resolved],
+            ["gio", "open", resolved],
+            ["gnome-open", resolved],
+            ["kde-open", resolved],
+        ]
+
+    for cmd in commands:
+        if shutil.which(cmd[0]):
+            subprocess.run(cmd, check=True)
+            return
+
+    if webbrowser.open(file_path.resolve().as_uri()):
+        return
+
+    raise RuntimeError("Could not find a platform opener command for this environment")
 
 
 # =============================================================================

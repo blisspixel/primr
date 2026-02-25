@@ -9,6 +9,8 @@ import time
 import typing
 from typing import Any
 
+TERMINAL_STATUSES = {"completed", "failed", "error", "cancelled", "canceled", "expired"}
+
 
 def is_transient_poll_error(error: Exception | str) -> bool:
     """Classify transient polling errors that should be retried."""
@@ -68,8 +70,8 @@ async def poll_interaction_until_terminal(
         if on_poll is not None:
             on_poll(interaction, elapsed)
 
-        status = getattr(interaction, "status", "")
-        if status in ("completed", "failed"):
+        status = str(getattr(interaction, "status", "")).lower()
+        if status in TERMINAL_STATUSES:
             return interaction, elapsed
 
         await asyncio.sleep(poll_interval_for_elapsed(elapsed))

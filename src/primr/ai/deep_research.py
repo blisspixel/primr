@@ -1460,7 +1460,9 @@ Frame everything as hypotheses to explore, not conclusions."""
         try:
             def _on_poll(interaction: Any, elapsed: float) -> None:
                 nonlocal last_progress_update
-                if getattr(interaction, "status", "") in ("completed", "failed"):
+                if str(getattr(interaction, "status", "")).lower() in {
+                    "completed", "failed", "error", "cancelled", "canceled", "expired"
+                }:
                     return
                 if on_progress and (elapsed - last_progress_update) >= 60:
                     mins = int(elapsed // 60)
@@ -2414,7 +2416,9 @@ class DeepResearchOrchestrator:
                     f"elapsed={elapsed:.0f}s, polls={poll_count}"
                 )
 
-            if getattr(interaction, "status", "") in ("completed", "failed"):
+            if str(getattr(interaction, "status", "")).lower() in {
+                "completed", "failed", "error", "cancelled", "canceled", "expired"
+            }:
                 return
 
             # Still in progress - show phase changes and periodic updates
