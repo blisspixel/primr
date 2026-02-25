@@ -245,6 +245,65 @@ def fetch_web_content(
         os.makedirs(raw_folder, exist_ok=True)
         trace_file = os.path.join(raw_folder, "_scrape_trace.log")
 
+    def _load_resume_selected_links() -> list[str]:
+        """Load previously selected links from _selected_links.txt if present."""
+        if not raw_folder:
+            return []
+        selected_links_file = os.path.join(raw_folder, "_selected_links.txt")
+        if not os.path.exists(selected_links_file):
+            return []
+        links: list[str] = []
+        try:
+            with open(selected_links_file, encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    if ". http" in line:
+                        links.append(line.split(". ", 1)[1].strip())
+                    elif line.startswith("http://") or line.startswith("https://"):
+                        links.append(line)
+        except Exception as e:
+            logger.debug(f"Failed loading selected links resume manifest: {e}")
+            return []
+        return links
+
+    def _load_existing_raw_texts() -> dict[str, str]:
+        """Load previously saved raw scrape text outputs for resume behavior."""
+        if not raw_folder:
+            return {}
+        existing: dict[str, str] = {}
+        try:
+            for name in os.listdir(raw_folder):
+                if not name.endswith(".txt"):
+                    continue
+                if name.startswith("_"):
+                    continue
+                file_path = os.path.join(raw_folder, name)
+                try:
+                    with open(file_path, encoding="utf-8") as f:
+                        text = f.read()
+                    url = ""
+                    url_marker = "URL:"
+                    sep_marker = "-" * 60
+                    for line in text.splitlines()[:6]:
+                        if line.startswith(url_marker):
+                            url = line.replace(url_marker, "", 1).strip()
+                            break
+                    if not url:
+                        continue
+                    if sep_marker in text:
+                        body = text.split(sep_marker, 1)[1].strip()
+                    else:
+                        body = text.strip()
+                    if body:
+                        existing[normalize_url(url)] = body
+                except Exception:
+                    continue
+        except Exception as e:
+            logger.debug(f"Failed loading existing raw scrapes: {e}")
+        return existing
+
     def _append_trace(status: str, url: str, detail: str = "") -> None:
         """Write a compact per-page scrape outcome trace for debugging."""
         if not trace_file:
@@ -276,6 +335,8 @@ def fetch_web_content(
 
     domain = urlparse(website).netloc
     orchestrator = get_orchestrator(enable_vision=use_vision)
+    resume_selected_urls_prefetch = _load_resume_selected_links()
+    resumed_text_pages_prefetch = _load_existing_raw_texts()
 
     # Step 1: Get homepage with browser (modern sites need JS rendering)
     console.status(f"Scanning {domain}...")
@@ -291,61 +352,75 @@ def fetch_web_content(
         homepage_tier = result.tier if result.success else None
 
     if not result.success or not result.raw_content:
-        _append_trace("FAIL", website, f"homepage: {result.error}")
-        console.clear_line()
-        console.fail(f"Could not access {domain}")
-        return {}
-    _append_trace("OK", website, f"homepage via {homepage_tier or result.tier}")
+        homepage_norm = normalize_url(website)
+        if resume_selected_urls_prefetch and homepage_norm in resumed_text_pages_prefetch:
+            homepage_html = ""
+            homepage_tier = "resume-local"
+            _append_trace("RESUME", website, "using local homepage content after live fetch failure")
+        else:
+            _append_trace("FAIL", website, f"homepage: {result.error}")
+            console.clear_line()
+            console.fail(f"Could not access {domain}")
+            return {}
+    else:
+        homepage_html = result.raw_content
+        _append_trace("OK", website, f"homepage via {homepage_tier or result.tier}")
 
     # Tell orchestrator what tier worked for this host (sticky tier)
     # This prevents wasteful tier escalation on subsequent pages
-    if homepage_tier:
+    if homepage_tier and homepage_tier != "resume-local":
         from .scraping.net import extract_host
         host = extract_host(website)
         host_state = orchestrator._get_host_state(host)
         host_state.best_tier = homepage_tier
         logger.debug(f"Set best_tier={homepage_tier} for {host} based on homepage success")
 
-    homepage_html = result.raw_content
+    resume_selected_urls = resume_selected_urls_prefetch
+    if resume_selected_urls:
+        selected_urls = resume_selected_urls
+        total_found = len(selected_urls)
+        in_scope_count = len(selected_urls)
+        _append_trace("RESUME", website, f"loaded {len(selected_urls)} selected links from manifest")
+    else:
+        # Step 2: Discover ALL links using full discovery pipeline
+        # This includes: homepage links, common URL guessing, sitemap fallback
+        from .scraping.discovery import discover_links, is_same_domain
 
-    # Step 2: Discover ALL links using full discovery pipeline
-    # This includes: homepage links, common URL guessing, sitemap fallback
-    from .scraping.discovery import discover_links, is_same_domain
-
-    all_links = discover_links(
-        base_url=website,
-        homepage_html=homepage_html,
-        verify_guessed=True,  # Verify guessed URLs exist
-        min_links_before_sitemap=20,  # Check sitemap if < 20 links
-    )
-
-    # Filter to in-scope links (same domain + subdomains)
-    in_scope_links = [link for link in all_links if is_same_domain(website, link.url)]
-
-    # Use LLM to intelligently select the most valuable pages for company research
-    # The LLM decides how many pages are worth scraping - no artificial limits
-    # Falls back to heuristic scoring if LLM fails
-    from primr.core.research_agent import select_links_with_llm
-
-    with console.spinner(f"Selecting from {len(in_scope_links)} pages"):
-        selected_urls = select_links_with_llm(
-            in_scope_links,
-            company_name=company_name,
-            website=website,
-            max_links=max_pages or 100,  # Let LLM decide, but cap at 100 for sanity
+        all_links = discover_links(
+            base_url=website,
+            homepage_html=homepage_html,
+            verify_guessed=True,  # Verify guessed URLs exist
+            min_links_before_sitemap=20,  # Check sitemap if < 20 links
         )
-    total_found = len(selected_urls)
+
+        # Filter to in-scope links (same domain + subdomains)
+        in_scope_links = [link for link in all_links if is_same_domain(website, link.url)]
+        in_scope_count = len(in_scope_links)
+
+        # Use LLM to intelligently select the most valuable pages for company research
+        # The LLM decides how many pages are worth scraping - no artificial limits
+        # Falls back to heuristic scoring if LLM fails
+        from primr.core.research_agent import select_links_with_llm
+
+        with console.spinner(f"Selecting from {len(in_scope_links)} pages"):
+            selected_urls = select_links_with_llm(
+                in_scope_links,
+                company_name=company_name,
+                website=website,
+                max_links=max_pages or 100,  # Let LLM decide, but cap at 100 for sanity
+            )
+        total_found = len(selected_urls)
 
     # Apply max_pages limit (reserve 1 slot for homepage)
     if max_pages and max_pages < total_found + 1:
         pages_to_scrape = selected_urls[:max_pages - 1]
-        console.found(f"{len(in_scope_links)} links {console._arrow} {max_pages} selected")
+        console.found(f"{in_scope_count} links {console._arrow} {max_pages} selected")
     elif total_found == 0:
         pages_to_scrape = []
         console.found("1 page (homepage only)")
     else:
         pages_to_scrape = selected_urls
-        console.found(f"{len(in_scope_links)} links {console._arrow} {total_found} selected")
+        console.found(f"{in_scope_count} links {console._arrow} {total_found} selected")
 
     # Persist selected URL set for reproducibility and debugging.
     if raw_folder:
@@ -371,33 +446,43 @@ def fetch_web_content(
     scraped_results = {}  # url -> ScrapeResult
     success_count = 0
     write_executor = ThreadPoolExecutor(max_workers=1) if raw_folder else None
+    resumed_text_pages = resumed_text_pages_prefetch
+    if resumed_text_pages:
+        _append_trace("RESUME", website, f"loaded {len(resumed_text_pages)} existing local pages")
 
-    # Add homepage as first result (we already scraped it for link discovery)
+    # Add homepage as first result when we have live HTML.
     homepage_normalized = normalize_url(website)
-    homepage_result = ScrapeResult(
-        url=website,
-        success=True,
-        raw_content=homepage_html,
-        tier=result.tier,
-    )
-    scraped_results[homepage_normalized] = homepage_result
-    raw_pages.append((homepage_normalized, homepage_html))
-    success_count = 1
+    if homepage_html:
+        homepage_result = ScrapeResult(
+            url=website,
+            success=True,
+            raw_content=homepage_html,
+            tier=result.tier,
+        )
+        scraped_results[homepage_normalized] = homepage_result
+        raw_pages.append((homepage_normalized, homepage_html))
+        success_count = 1
 
-    # Save homepage raw scrape (and cache extraction for Phase 2)
-    if raw_folder:
-        try:
-            structured = extract_structured_content(homepage_html, website)
-            structured_cache[homepage_normalized] = structured
-            raw_file = os.path.join(raw_folder, "homepage.txt")
-            write_executor.submit(_write_raw_file, raw_file, website, result.tier, structured)
-        except Exception as e:
-            logger.debug(f"Failed to save homepage raw scrape: {e}")
+        # Save homepage raw scrape (and cache extraction for Phase 2)
+        if raw_folder:
+            try:
+                structured = extract_structured_content(homepage_html, website)
+                structured_cache[homepage_normalized] = structured
+                raw_file = os.path.join(raw_folder, "homepage.txt")
+                write_executor.submit(_write_raw_file, raw_file, website, result.tier, structured)
+            except Exception as e:
+                logger.debug(f"Failed to save homepage raw scrape: {e}")
 
+    resumed_non_home = [u for u in resumed_text_pages.keys() if u != homepage_normalized]
+    if homepage_normalized in resumed_text_pages:
+        success_count = max(success_count, 1)
+    if resumed_non_home:
+        success_count += len(resumed_non_home)
     total = len(pages_to_scrape) + 1  # +1 for homepage already scraped
     page_times = []  # Track per-page durations for ETA
     dup_count = 0  # Pages rejected as duplicate content
     attempted_urls: set[str] = {homepage_normalized}
+    attempted_urls.update(resumed_text_pages.keys())
 
     pilot_count = min(max(0, SCRAPE_PILOT_COUNT), len(pages_to_scrape))
     pilot_attempts = 0
@@ -578,6 +663,12 @@ def fetch_web_content(
             clean_text = structured.to_plain_text(include_cta=False)
             if clean_text.strip():
                 scraped_content[url] = clean_text
+
+    # Merge previously saved local pages for reboot/crash resume.
+    # Freshly scraped pages win if both exist.
+    for url, text in resumed_text_pages.items():
+        if url not in scraped_content and text.strip():
+            scraped_content[url] = text
 
     return scraped_content
 

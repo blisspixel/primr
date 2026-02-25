@@ -396,7 +396,7 @@ Goal: Improve content handling, scraping throughput, and fix resource management
 
 **Bug Fixes:**
 - Fixed ThreadPoolExecutor resource leak in scraping loop (try/finally ensures shutdown)
-- Fixed MCP company name extraction truncating multi-word names (`"Acme_Corp_..."` -> `"Acme"` instead of `"Acme Corp"`)
+- Fixed MCP company name extraction truncating multi-word names (`"ExampleCo_Company_..."` -> `"ExampleCo"` instead of `"ExampleCo Company"`)
 
 ### Post-v1.12.1 - Reliability, Maintainability, and Model Updates (Unreleased)
 
@@ -407,6 +407,12 @@ Goal: Reduce noisy integration-runtime warnings, improve maintainability in AI r
 - Extracted adaptive polling policy helpers to `src/primr/ai/deep_research_polling.py`
 - Extracted shared polling execution engine to `src/primr/ai/deep_research_execution.py`
 - Refactored polling loops in deep research clients/orchestrators to use shared execution logic
+- Enforced `store=True` for background Deep Research interactions to support durable async recovery after local process interruption
+- Improved `primr --check-jobs` diagnostics to separate provider terminal failures from local status-check connectivity errors
+- Added `primr --resume-latest` / `--resume-jobs` one-shot recovery flow to finalize canonical MD/TXT/DOCX outputs from completed cloud jobs
+- Added `--resume-local` to reuse latest incomplete local working folders for the same company
+- Added richer pending-job metadata capture (company/vendor/report kind) so recovered files use business-safe names instead of generic `recovered_*`
+- Added per-run `_run_state.json` phase/status timeline in each working folder for reboot-safe local state inspection
 
 **AI Error Policy Refactor:**
 - Extracted shared error classification policy to `src/primr/ai/error_policy.py`
@@ -547,20 +553,20 @@ These are conscious non-goals for now:
 
 ```bash
 # Basic usage
-primr "Acme Corp" https://acme.example
+primr "ExampleCo" https://example.co
 
 # Research modes
-primr "Acme Corp" https://acme.example --mode scrape
-primr "Acme Corp" https://acme.example --mode deep
-primr "Acme Corp" https://acme.example --mode full
+primr "ExampleCo" https://example.co --mode scrape
+primr "ExampleCo" https://example.co --mode deep
+primr "ExampleCo" https://example.co --mode full
 
 # AI Strategy
-primr "Acme Corp" https://acme.example --cloud-vendor azure
-primr "Acme Corp" https://acme.example --cloud-vendor aws azure  # Multi-vendor
-primr "Acme Corp" https://acme.example --no-ai-strategy
+primr "ExampleCo" https://example.co --cloud-vendor azure
+primr "ExampleCo" https://example.co --cloud-vendor aws azure  # Multi-vendor
+primr "ExampleCo" https://example.co --no-ai-strategy
 
 # Retry AI Strategy
-primr --ai-strategy-only "output/Acme_Corp_Strategic_Overview.md"
+primr --ai-strategy-only "output/ExampleCo_Strategic_Overview.md"
 
 # Job management
 primr --check-jobs
@@ -568,7 +574,7 @@ primr --clear-jobs
 
 # Operations
 primr doctor
-primr "Acme Corp" https://acme.example --dry-run
+primr "ExampleCo" https://example.co --dry-run
 
 # MCP Server
 primr-mcp --stdio

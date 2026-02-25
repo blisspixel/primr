@@ -6,6 +6,7 @@ Real API integration tests should be run separately.
 """
 
 import pytest
+import tempfile
 from unittest.mock import Mock, patch, AsyncMock
 from datetime import datetime
 
@@ -17,6 +18,9 @@ from primr.ai.deep_research import (
     ResearchResult,
     get_deep_research_client,
     reset_deep_research_client,
+    save_pending_job,
+    get_pending_jobs,
+    remove_pending_job,
 )
 from primr.utils.errors import AIError
 
@@ -465,6 +469,8 @@ class TestFileSearch:
         # Should not include tools parameter
         call_kwargs = mock_client.interactions.create.call_args[1]
         assert "tools" not in call_kwargs or not call_kwargs.get("tools")
+        assert call_kwargs.get("background") is True
+        assert call_kwargs.get("store") is True
 
     def test_start_research_with_file_store(self):
         """Start research with file store includes file_search tool."""
@@ -483,6 +489,28 @@ class TestFileSearch:
         assert len(call_kwargs["tools"]) == 1
         assert call_kwargs["tools"][0]["type"] == "file_search"
         assert "store-123" in call_kwargs["tools"][0]["file_search_store_names"]
+        assert call_kwargs.get("background") is True
+        assert call_kwargs.get("store") is True
+
+    def test_pending_job_metadata_roundtrip(self):
+        """Pending jobs persist and return metadata fields."""
+        with tempfile.TemporaryDirectory() as td:
+            jobs_file = f"{td}/pending_research_jobs.json"
+            with patch("primr.ai.deep_research._get_jobs_file_path", return_value=jobs_file):
+                save_pending_job(
+                    interaction_id="interaction-123",
+                    job_type="deep_research",
+                    description="ExampleCo run",
+                    metadata={"company_name": "ExampleCo", "cloud_vendor": "aws"},
+                )
+                jobs = get_pending_jobs()
+                assert "interaction-123" in jobs
+                assert jobs["interaction-123"]["metadata"]["company_name"] == "ExampleCo"
+                assert jobs["interaction-123"]["metadata"]["cloud_vendor"] == "aws"
+
+                remove_pending_job("interaction-123")
+                jobs = get_pending_jobs()
+                assert "interaction-123" not in jobs
 
 
 class TestResearchWithContextFiles:

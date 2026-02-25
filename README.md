@@ -7,14 +7,14 @@ Primr extracts primary-source data from company websites using adaptive scraping
 Runs as a CLI, an MCP server, an OpenClaw integration, and a Claude Skill.
 
 ```
-primr "Acme Corp" https://acme.example
+primr "ExampleCo" https://example.co
 ```
 
 Under an hour later: competitive positioning, technology stack, strategic initiatives, and external validation, all cited.
 
 ## Why This Exists
 
-Company research is tedious. You visit the website, click around, Google the company, read articles, synthesize it all, write it up. That process easily takes 1-2 hours per company and the output is usually unstructured notes.
+Company research is tedious. You visit the website, click around, search the company, read articles, synthesize it all, write it up. That process easily takes 1-2 hours per company and the output is usually unstructured notes.
 
 Primr does that entire workflow autonomously in about an hour for about $6 in API costs. The output is a structured, cited intelligence brief — competitive positioning, technology stack, strategic initiatives, financial profile, and external validation. Whether you're researching a potential employer, evaluating an investment, preparing for a partnership, doing competitive analysis, or running due diligence, a single run replaces hours of manual work.
 
@@ -50,7 +50,7 @@ cd primr
 python setup_env.py              # Installs deps, creates .env
 # Add your API keys to .env (see docs/API_KEYS.md)
 primr doctor                     # Verify everything works
-primr "Acme Corp" https://acme.example  # Run your first research
+primr "ExampleCo" https://example.co  # Run your first research
 ```
 
 Requires Python 3.11+ and a Gemini API key (add `XAI_API_KEY` for `--fast` mode). Web search uses DuckDuckGo (no key needed).
@@ -64,6 +64,8 @@ primr "Company" https://company.com --cloud-vendor aws azure  # Multi-vendor AI 
 primr "Company" https://company.com --cloud-vendor aws azure --lite  # Cheaper/faster strategy
 primr "Company" https://company.com --fast                        # Grok 4.1 fast mode (~$0.25)
 primr "Company" https://company.com --skip-scrape-validation      # Continue even if scrape quality is low
+primr "Company" https://company.com --resume-local                # Reuse latest incomplete local run folder
+primr --resume-latest                                              # Recover completed cloud jobs and finalize MD/DOCX
 ```
 
 ### What a run looks like
@@ -106,13 +108,13 @@ Scraping 23/50 (ok 17) /about  [15s elapsed, ~2m left]
 [OK] Complete in 85m
 
 [OK] Report ready
-  output/Acme_Corp_Strategic_Overview_02-11-2026.docx
+  output/ExampleCo_Strategic_Overview_02-11-2026.docx
 
 [OK] AI Strategy Roadmap (AWS)
-  output/Acme_Corp_AI_Strategy_AWS_02-11-2026.docx
+  output/ExampleCo_AI_Strategy_AWS_02-11-2026.docx
 
 [OK] AI Strategy Roadmap (AZURE)
-  output/Acme_Corp_AI_Strategy_AZURE_02-11-2026.docx
+  output/ExampleCo_AI_Strategy_AZURE_02-11-2026.docx
 
 Mode: Complete (Two-Step)
 Chapters: 21
@@ -122,6 +124,29 @@ Est. Cost: $8.85
 Actual Cost: ~$8.12
 AI Strategy: Yes
 ```
+
+### Crash/Reboot Recovery
+
+Primr now writes per-run state to the working folder as `_run_state.json` (phase, status, timeline events).
+
+If your computer reboots mid-run:
+
+```bash
+# 1) Recover completed cloud jobs (Deep Research / AI Strategy)
+primr --resume-latest
+
+# 2) Continue local run from latest incomplete working folder for this company
+primr "Company Name" https://company.com --resume-local
+
+# 3) Inspect local run state (scrape + phase checkpoints)
+type working\\Company_Name\\YYYY-MM-DD_HHMM\\_run_state.json
+```
+
+Recovery behavior:
+- Deep Research / AI Strategy jobs run in the cloud and can be recovered after reboot.
+- `--resume-latest` finalizes recovered outputs to canonical filenames (`.md/.txt/.docx`).
+- `--resume-local` reuses the latest incomplete working folder for the same company and skips pages already saved in `_raw_scrapes`.
+- Local scrape progress is logged in `_raw_scrapes/_scrape_trace.log` and summarized in `_run_state.json`.
 
 ### What the output looks like
 
@@ -235,6 +260,8 @@ GEMINI_API_KEY=       # https://aistudio.google.com/apikey
 
 Web search uses DuckDuckGo by default - no search API key needed. Google Custom Search is available as an optional fallback for users with existing whole-web CSEs.
 If scrape validation blocks a run you intentionally want to continue, pass `--skip-scrape-validation`.
+Deep Research background jobs are created with persistent storage enabled, so `primr --check-jobs` can recover completed cloud work after local interruptions. Job checks now distinguish local connectivity issues (`CHECK ERROR`) from provider terminal failures.
+For one-shot recovery after crashes/reboots, use `primr --resume-latest` (or `--resume-jobs`) to fetch completed jobs and finalize canonical output filenames automatically.
 
 [Full setup guide](docs/API_KEYS.md)
 

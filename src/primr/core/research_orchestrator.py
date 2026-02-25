@@ -357,7 +357,11 @@ class ResearchOrchestrator:
             poll_interval=config.poll_interval,
             timeout=config.timeout,
             on_progress=progress_callback,
-            priority_urls=priority_urls
+            priority_urls=priority_urls,
+            job_metadata={
+                "report_kind": "strategic_overview",
+                "company_name": company_name,
+            },
         )
 
         if not result.success:
