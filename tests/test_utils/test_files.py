@@ -233,6 +233,13 @@ class TestFileValidation:
         result = validate_file_exists(file_path)
         assert result == file_path
 
+    def test_validate_file_exists_accepts_string_path(self, tmp_path):
+        """Should accept str paths and return Path."""
+        file_path = tmp_path / "string-path.txt"
+        file_path.write_text("test")
+        result = validate_file_exists(str(file_path))
+        assert result == file_path
+
     def test_validate_file_exists_failure(self, tmp_path):
         """Should raise when file doesn't exist."""
         with pytest.raises(ValidationError):
@@ -248,6 +255,11 @@ class TestFileValidation:
         result = validate_directory_exists(tmp_path)
         assert result == tmp_path
 
+    def test_validate_directory_exists_accepts_string_path(self, tmp_path):
+        """Should accept str dir paths and return Path."""
+        result = validate_directory_exists(str(tmp_path))
+        assert result == tmp_path
+
     def test_validate_directory_exists_failure(self, tmp_path):
         """Should raise when directory doesn't exist."""
         with pytest.raises(ValidationError):
@@ -257,6 +269,13 @@ class TestFileValidation:
         """Should create parent directories."""
         path = tmp_path / "a" / "b" / "c" / "file.txt"
         ensure_parent_exists(path)
+        assert path.parent.exists()
+
+    def test_ensure_parent_exists_accepts_string_path(self, tmp_path):
+        """Should accept str paths for parent creation."""
+        path = tmp_path / "x" / "y" / "z" / "file.txt"
+        returned = ensure_parent_exists(str(path))
+        assert returned == path
         assert path.parent.exists()
 
 
@@ -285,6 +304,12 @@ class TestFileSizeUtilities:
     def test_is_file_too_large_nonexistent(self, tmp_path):
         """Should return False for nonexistent files."""
         assert is_file_too_large(tmp_path / "nonexistent.txt") is False
+
+    def test_is_file_too_large_accepts_string_path(self, tmp_path):
+        """Should accept str paths for size checks."""
+        file_path = tmp_path / "small-string.txt"
+        file_path.write_text("small content")
+        assert is_file_too_large(str(file_path), max_size_mb=1) is False
 
 
 class TestOpenWithDefaultApp:

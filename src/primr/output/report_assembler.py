@@ -4,8 +4,12 @@ Report Assembler for consulting-tier reports.
 Combines sections into a complete report with sources appendix
 and export capabilities.
 """
+import contextlib
 import os
+import shutil
+import tempfile
 from datetime import datetime
+from pathlib import Path
 
 from primr.core.report_models import Insight, Report, ReportMetadata, SectionContent, SourceCitation
 from primr.utils.logging_config import get_logger
@@ -283,27 +287,48 @@ class ReportAssembler:
         # This is a simplified approach - could use reportlab for direct PDF
         try:
             import subprocess
+            output_pdf = Path(path)
+            output_dir = output_pdf.parent if output_pdf.parent != Path("") else Path(".")
+            output_dir.mkdir(parents=True, exist_ok=True)
 
-            # Create temp DOCX
-            temp_docx = path.replace(".pdf", "_temp.docx")
-            if not self.export_docx(report, temp_docx):
+            # Create temp DOCX in target directory so soffice can emit a sibling PDF.
+            fd, temp_docx_str = tempfile.mkstemp(suffix=".docx", prefix="primr_pdf_", dir=str(output_dir))
+            os.close(fd)
+            temp_docx = Path(temp_docx_str)
+
+            if not self.export_docx(report, str(temp_docx)):
+                with contextlib.suppress(OSError):
+                    temp_docx.unlink(missing_ok=True)
                 return False
 
             # Try to convert using LibreOffice (if available)
             try:
-                output_dir = os.path.dirname(path) or "."
                 subprocess.run([
                     "soffice", "--headless", "--convert-to", "pdf",
-                    "--outdir", output_dir, temp_docx
+                    "--outdir", str(output_dir), str(temp_docx)
                 ], check=True, capture_output=True)
-
-                # Clean up temp file
-                os.remove(temp_docx)
-                return True
+                generated_pdf = output_dir / f"{temp_docx.stem}.pdf"
+                if generated_pdf.exists():
+                    if generated_pdf.resolve() != output_pdf.resolve():
+                        output_pdf.parent.mkdir(parents=True, exist_ok=True)
+                        generated_pdf.replace(output_pdf)
+                    temp_docx.unlink(missing_ok=True)
+                    return True
+                logger.warning("LibreOffice conversion reported success but produced no PDF")
+                return False
 
             except (subprocess.CalledProcessError, FileNotFoundError):
                 logger.warning("LibreOffice not available for PDF conversion")
-                # Keep the DOCX as fallback
+                fallback_docx = output_pdf.with_suffix(".docx")
+                try:
+                    if fallback_docx.exists():
+                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        fallback_docx = output_pdf.with_name(f"{output_pdf.stem}_{timestamp}.docx")
+                    shutil.move(str(temp_docx), str(fallback_docx))
+                except Exception:
+                    logger.debug("Failed to preserve DOCX fallback", exc_info=True)
+                    with contextlib.suppress(OSError):
+                        temp_docx.unlink(missing_ok=True)
                 return False
 
         except Exception as e:
