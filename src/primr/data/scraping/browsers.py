@@ -18,6 +18,9 @@ from .config import (
     DEFAULT_TIMEOUT_PLAYWRIGHT,
     DEFAULT_TIMEOUT_PLAYWRIGHT_AGGRESSIVE,
     DEFAULT_TIMEOUT_VISION,
+    PLAYWRIGHT_LAZY_SCROLL_MAX_STEPS,
+    PLAYWRIGHT_LAZY_SCROLL_PAUSE_MS,
+    PLAYWRIGHT_LAZY_SCROLL_SETTLE_ROUNDS,
 )
 from .models import Attempt, ErrorType, ScrapeResult
 from .net import extract_host
@@ -811,6 +814,35 @@ def scrape_with_playwright(
     return _scrape_with_playwright_impl(url, timeout, profile, headless)
 
 
+def _trigger_lazy_load(page, steps: int | None = None, pause_ms: int | None = None) -> None:
+    """Adaptive scroll to trigger lazy-loaded blocks before HTML capture."""
+    max_steps = max(1, steps or PLAYWRIGHT_LAZY_SCROLL_MAX_STEPS)
+    wait_ms = max(100, pause_ms or PLAYWRIGHT_LAZY_SCROLL_PAUSE_MS)
+    settle_rounds = max(1, PLAYWRIGHT_LAZY_SCROLL_SETTLE_ROUNDS)
+    try:
+        stable_count = 0
+        previous_height = 0
+        for _ in range(max_steps):
+            page.evaluate(
+                "window.scrollBy(0, Math.max(300, Math.floor(window.innerHeight * 0.9)));"
+            )
+            page.wait_for_timeout(wait_ms)
+            height = int(page.evaluate("document.body.scrollHeight || 0") or 0)
+            if height <= previous_height:
+                stable_count += 1
+                if stable_count >= settle_rounds:
+                    break
+            else:
+                stable_count = 0
+            previous_height = height
+        # Nudge near top to keep sticky sections in DOM snapshots consistently.
+        page.evaluate("window.scrollTo(0, Math.min(200, document.body.scrollHeight));")
+        page.wait_for_timeout(120)
+    except Exception:
+        # Non-fatal: some pages block scripted scroll.
+        pass
+
+
 def _scrape_with_playwright_impl(
     url: str,
     timeout: float,
@@ -884,6 +916,9 @@ def _scrape_with_playwright_impl(
             page.wait_for_load_state("networkidle", timeout=idle_budget_ms)
         except Exception:
             pass  # Timeout is fine — some sites never reach idle
+
+        # Trigger lazy-loaded content for scroll-driven page builders.
+        _trigger_lazy_load(page)
 
         # Get HTML
         html = page.content()
@@ -1043,6 +1078,10 @@ def scrape_with_playwright_aggressive(
         # Expand content
         expansions = session.expand_content(max_clicks=max_expand_clicks)
         logger.debug(f"Expanded {expansions} elements")
+
+        # Trigger lazy-loaded blocks that only appear after user scrolling.
+        if session._page:
+            _trigger_lazy_load(session._page, steps=5, pause_ms=300)
 
         # Get HTML
         html = session.get_page_html()

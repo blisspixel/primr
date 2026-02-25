@@ -5,6 +5,7 @@ NOTE: This module contains ONLY constants and dataclasses.
 DEFAULT_TIERS is defined in tier_registry.py to avoid circular imports.
 """
 
+import os
 from dataclasses import dataclass
 
 # =============================================================================
@@ -179,6 +180,11 @@ DEFAULT_TIMEOUT_PLAYWRIGHT = 15     # Full browser (Antea: 20s for basic)
 DEFAULT_TIMEOUT_DRISSION_STEALTH = 20  # Stealth browser
 DEFAULT_TIMEOUT_PLAYWRIGHT_AGGRESSIVE = 15  # Interactive browser (Antea: 15s)
 DEFAULT_TIMEOUT_VISION = 30         # Vision AI (LLM extraction, needs time)
+
+# Lazy-load scroll behavior (for sites that render content on scroll)
+PLAYWRIGHT_LAZY_SCROLL_MAX_STEPS = int(os.getenv("PLAYWRIGHT_LAZY_SCROLL_MAX_STEPS", "20"))
+PLAYWRIGHT_LAZY_SCROLL_PAUSE_MS = int(os.getenv("PLAYWRIGHT_LAZY_SCROLL_PAUSE_MS", "250"))
+PLAYWRIGHT_LAZY_SCROLL_SETTLE_ROUNDS = int(os.getenv("PLAYWRIGHT_LAZY_SCROLL_SETTLE_ROUNDS", "3"))
 
 # Total potential: 125s (still more generous than Antea's 60s)
 # In practice: orchestrator's max_page_time=90s allows multiple tier attempts while being reasonable

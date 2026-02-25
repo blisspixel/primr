@@ -229,7 +229,7 @@ class Console:
             m = rem // 60
             return f"{h}h {m}m"
 
-    def scrape_progress(self, current, total, path, start_time=None, tier=None, eta_seconds=None):
+    def scrape_progress(self, current, total, path, start_time=None, tier=None, eta_seconds=None, ok_count=None):
         """Show scraping progress with clean inline updates."""
         if self.quiet:
             return
@@ -241,7 +241,7 @@ class Console:
             return
 
         # Interactive: clean inline progress
-        # Format: "Scraping 3/50 /about  [8s elapsed, ~2m left]"
+        # Format: "Scraping 3/50 (ok 1) /about  [8s elapsed, ~2m left]"
         width = min(self._caps.width, 120)
 
         # Build timing suffix
@@ -256,7 +256,8 @@ class Console:
                 timing_parts.append(f"~{eta_str} left")
         timing = f"  [{', '.join(timing_parts)}]" if timing_parts else ""
 
-        line = f"Scraping {current}/{total} {path}{timing}"
+        ok_suffix = f" (ok {ok_count})" if ok_count is not None else ""
+        line = f"Scraping {current}/{total}{ok_suffix} {path}{timing}"
 
         # Truncate if too long, then pad to width
         if len(line) > width:
