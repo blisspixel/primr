@@ -11,8 +11,8 @@ import time
 from pathlib import Path
 from urllib.parse import urlparse
 
-from primr.config.config import PROJECT_ROOT
 from primr.config.config import (
+    PROJECT_ROOT,
     SCRAPE_PILOT_COUNT,
     SCRAPE_PILOT_MIN_CHARS,
     SCRAPE_PILOT_MIN_SUCCESS_RATE,
@@ -27,14 +27,10 @@ from primr.data.scraping import (
     ScrapeCache,
     ScrapeOrchestrator,
     ScrapeResult,
-)
-from primr.data.scraping.tier_registry import get_available_tiers
-from primr.data.scraping import (
     extract_links_from_html as _extract_links_from_html_new,
-)
-from primr.data.scraping import (
     normalize_url as normalize_url_new,
 )
+from primr.data.scraping.tier_registry import get_available_tiers
 from primr.utils.console import console
 from primr.utils.logging_config import get_logger
 
@@ -261,7 +257,7 @@ def fetch_web_content(
                         continue
                     if ". http" in line:
                         links.append(line.split(". ", 1)[1].strip())
-                    elif line.startswith("http://") or line.startswith("https://"):
+                    elif line.startswith(("http://", "https://")):
                         links.append(line)
         except Exception as e:
             logger.debug(f"Failed loading selected links resume manifest: {e}")
@@ -354,7 +350,7 @@ def fetch_web_content(
     if not result.success or not result.raw_content:
         homepage_norm = normalize_url(website)
         if resume_selected_urls_prefetch and homepage_norm in resumed_text_pages_prefetch:
-            homepage_html = ""
+            homepage_html = b""
             homepage_tier = "resume-local"
             _append_trace("RESUME", website, "using local homepage content after live fetch failure")
         else:
@@ -441,7 +437,7 @@ def fetch_web_content(
 
     # Step 3: Scrape pages (homepage first, then discovered links)
     scrape_start = time.time()
-    raw_pages = []  # List of (url, raw_html_bytes)
+    raw_pages: list[tuple[str, bytes]] = []  # List of (url, raw_html_bytes)
     structured_cache = {}  # normalized_url -> StructuredContent (reused in Phase 2)
     scraped_results = {}  # url -> ScrapeResult
     success_count = 0
@@ -473,7 +469,7 @@ def fetch_web_content(
             except Exception as e:
                 logger.debug(f"Failed to save homepage raw scrape: {e}")
 
-    resumed_non_home = [u for u in resumed_text_pages.keys() if u != homepage_normalized]
+    resumed_non_home = [u for u in resumed_text_pages if u != homepage_normalized]
     if homepage_normalized in resumed_text_pages:
         success_count = max(success_count, 1)
     if resumed_non_home:

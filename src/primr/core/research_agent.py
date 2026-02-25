@@ -3228,7 +3228,7 @@ def _generate_generic_strategy(
                     "report_kind": strategy_name,
                     "strategy_type": strategy_name,
                     "company_name": company_name,
-                    "cloud_vendor": cloud_vendor.lower(),
+                    "cloud_vendor": "agnostic",
                 },
             )
         )
