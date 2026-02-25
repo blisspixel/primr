@@ -38,6 +38,7 @@ class TestCommand:
         assert Command.CLEAN_TEMP.value == "clean-temp"
         assert Command.CHECK_QUOTA.value == "check-quota"
         assert Command.CHECK_JOBS.value == "check-jobs"
+        assert Command.RESUME_LATEST.value == "resume-latest"
         assert Command.SHOW_USAGE.value == "show-usage"
         assert Command.DRY_RUN.value == "dry-run"
         assert Command.GENERATE_VENDOR.value == "generate-vendor"
@@ -206,6 +207,21 @@ class TestParseArgs:
         """Test parsing check-quota flag."""
         config = parse_args(["--check-quota"])
         assert config.command == Command.CHECK_QUOTA
+
+    def test_parse_resume_latest(self):
+        """Test parsing resume-latest flag."""
+        config = parse_args(["--resume-latest"])
+        assert config.command == Command.RESUME_LATEST
+
+    def test_parse_resume_jobs_alias(self):
+        """Test parsing resume-jobs alias."""
+        config = parse_args(["--resume-jobs"])
+        assert config.command == Command.RESUME_LATEST
+
+    def test_parse_resume_local_flag(self):
+        """Test parsing resume-local flag."""
+        config = parse_args(["ExampleCo", "example.co", "--resume-local"])
+        assert config.resume_local is True
 
     def test_parse_generate_vendor(self):
         """Test parsing generate-vendor-research flag."""

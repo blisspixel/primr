@@ -268,7 +268,7 @@ def select_links_with_llm(
     return [link.url for link in links[:max_links]]
 
 
-def create_working_folder(company_name, website):
+def create_working_folder(company_name, website, reuse_incomplete: bool = False):
     """
     Create working folder for research artifacts with timestamped run ID.
 
@@ -283,13 +283,94 @@ def create_working_folder(company_name, website):
 
     folder_name = company_name.replace(" ", "_") if company_name else "Unknown_Company"
 
+    company_root = os.path.join(WORKING_DIR, folder_name)
+
+    # Optional resume behavior: reuse latest incomplete run folder for this company
+    if reuse_incomplete and os.path.isdir(company_root):
+        run_dirs = sorted(
+            [d for d in os.listdir(company_root) if os.path.isdir(os.path.join(company_root, d))],
+            reverse=True,
+        )
+        for run_id in run_dirs:
+            candidate = os.path.join(company_root, run_id)
+            state_path = os.path.join(candidate, "_run_state.json")
+            if not os.path.exists(state_path):
+                continue
+            try:
+                with open(state_path, encoding="utf-8") as f:
+                    state = json.load(f)
+                if not isinstance(state, dict):
+                    continue
+                status = str(state.get("status", "")).lower()
+                if status in {"running", "failed", "cancelled"}:
+                    logger.info(f"Reusing incomplete working folder: {candidate}")
+                    return candidate
+            except Exception:
+                continue
+
     # Create timestamped run folder: Company_Name/2026-01-09_0915
     run_id = datetime.now().strftime("%Y-%m-%d_%H%M")
-    folder_path = os.path.join(WORKING_DIR, folder_name, run_id)
+    folder_path = os.path.join(company_root, run_id)
 
     os.makedirs(folder_path, exist_ok=True)
     logger.info(f"Created working folder: {folder_path}")
     return folder_path
+
+
+def _run_state_file(folder_path: str) -> str:
+    """Return path to the per-run state file."""
+    return os.path.join(folder_path, "_run_state.json")
+
+
+def _load_run_state(folder_path: str) -> dict[str, Any]:
+    """Load run state JSON if present, else return empty dict."""
+    path = _run_state_file(folder_path)
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _save_run_state(folder_path: str, state: dict[str, Any]) -> None:
+    """Atomically persist run state JSON."""
+    path = _run_state_file(folder_path)
+    tmp = f"{path}.tmp"
+    os.makedirs(folder_path, exist_ok=True)
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(state, f, indent=2)
+    os.replace(tmp, path)
+
+
+def _update_run_state(folder_path: str, **updates: Any) -> None:
+    """Merge updates into run state file and refresh timestamp."""
+    state = _load_run_state(folder_path)
+    state.update(updates)
+    state["updated_at"] = datetime.now().isoformat()
+    _save_run_state(folder_path, state)
+
+
+def _append_run_event(folder_path: str, phase: str, status: str, message: str, **extra: Any) -> None:
+    """Append a timeline event into run state."""
+    state = _load_run_state(folder_path)
+    events = state.get("events", [])
+    if not isinstance(events, list):
+        events = []
+    event: dict[str, Any] = {
+        "ts": datetime.now().isoformat(),
+        "phase": phase,
+        "status": status,
+        "message": message,
+    }
+    if extra:
+        event["extra"] = extra
+    events.append(event)
+    state["events"] = events[-200:]  # keep recent history bounded
+    state["updated_at"] = datetime.now().isoformat()
+    _save_run_state(folder_path, state)
 
 
 def ensure_valid_url(website):
@@ -755,6 +836,7 @@ def perform_scrape_only(
     start_time: float,
     max_scrape_time: int | None = None,
     fail_on_low_scrape: bool = True,
+    folder_path: str | None = None,
 ) -> str | None:
     """
     Scrape mode: Build site corpus + extract insights.
@@ -766,7 +848,9 @@ def perform_scrape_only(
     display_name = company_name or (urlparse(website or "").netloc if website else "")
 
     # Create working folder (silent)
-    folder_path = create_working_folder(company_name, website)
+    folder_path = folder_path or create_working_folder(company_name, website)
+    _update_run_state(folder_path, current_phase="scrape", status="running")
+    _append_run_event(folder_path, "scrape", "started", "Scrape-only mode started")
 
     # Build Site Corpus (shows its own progress)
     corpus = fetch_web_content(
@@ -782,6 +866,8 @@ def perform_scrape_only(
     if pages_scraped == 0:
         console.fail("Could not scrape any pages - site may be blocking")
         console.muted("Try: primr \"Company\" url --mode deep")
+        _update_run_state(folder_path, status="failed", current_phase="scrape")
+        _append_run_event(folder_path, "scrape", "failed", "No pages scraped")
         return None
 
     if website and fail_on_low_scrape:
@@ -789,6 +875,8 @@ def perform_scrape_only(
         if not quality_ok:
             console.fail(quality_reason)
             console.muted("Re-run with --skip-scrape-validation to continue anyway")
+            _update_run_state(folder_path, status="failed", current_phase="scrape")
+            _append_run_event(folder_path, "scrape", "failed", quality_reason)
             return None
 
     # Save combined corpus
@@ -827,6 +915,15 @@ def perform_scrape_only(
     console.blank()
     console.done(f"Complete: {pages_scraped} pages, {total_chars:,} chars ({time_str})")
     console.muted(f"Output: {folder_path}")
+    _update_run_state(
+        folder_path,
+        status="completed",
+        current_phase="complete",
+        completed_at=datetime.now().isoformat(),
+        pages_scraped=pages_scraped,
+        scraped_chars=total_chars,
+    )
+    _append_run_event(folder_path, "scrape", "completed", "Scrape-only mode completed")
 
     return folder_path
 
@@ -1597,12 +1694,42 @@ def perform_research(
     lite_strategy: bool = False,
     fast_mode: bool = False,
     skip_scrape_validation: bool = False,
+    resume_local: bool = False,
 ) -> str | None:
     if not company_name and not website:
         console.error("No company name or website provided")
         return None
 
     display_name: str = company_name or (urlparse(website or "").netloc if website else "")
+    folder_path = create_working_folder(company_name, website, reuse_incomplete=resume_local)
+    existing_state = _load_run_state(folder_path)
+    if resume_local and existing_state:
+        _update_run_state(
+            folder_path,
+            company_name=company_name or display_name,
+            website=website,
+            mode=mode,
+            status="running",
+            current_phase="initializing",
+            ai_strategy=ai_strategy,
+            cloud_vendors=list(cloud_vendors),
+            working_folder=folder_path,
+        )
+        _append_run_event(folder_path, "initializing", "resumed", "Resuming from existing local run folder")
+    else:
+        _save_run_state(folder_path, {
+            "company_name": company_name or display_name,
+            "website": website,
+            "mode": mode,
+            "status": "running",
+            "current_phase": "initializing",
+            "ai_strategy": ai_strategy,
+            "cloud_vendors": list(cloud_vendors),
+            "working_folder": folder_path,
+            "started_at": datetime.now().isoformat(),
+            "events": [],
+        })
+        _append_run_event(folder_path, "initializing", "started", "Run initialized")
 
     # Load discovery notes if provided
     discovery_notes_content: str | None = None
@@ -1618,10 +1745,14 @@ def perform_research(
         except FileNotFoundError:
             logger.error(f"Discovery notes file not found: {discovery_notes_path}")
             console.error(f"Discovery notes file not found: {discovery_notes_path}")
+            _update_run_state(folder_path, status="failed", current_phase="initializing")
+            _append_run_event(folder_path, "initializing", "failed", f"Discovery notes not found: {discovery_notes_path}")
             return None
         except Exception as e:
             logger.error(f"Failed to load discovery notes: {e}")
             console.error(f"Failed to load discovery notes: {e}")
+            _update_run_state(folder_path, status="failed", current_phase="initializing")
+            _append_run_event(folder_path, "initializing", "failed", f"Failed loading discovery notes: {e}")
             return None
 
     # Show cost estimate and ask for confirmation
@@ -1629,6 +1760,8 @@ def perform_research(
         from primr.utils.cost_estimator import display_cost_estimate
         if not display_cost_estimate(mode, display_name, ai_strategy, num_vendors=len(cloud_vendors), lite_strategy=lite_strategy, fast_mode=fast_mode):
             console.info("Research cancelled by user")
+            _update_run_state(folder_path, status="cancelled", current_phase="initializing")
+            _append_run_event(folder_path, "initializing", "cancelled", "Run cancelled by user at cost confirmation")
             return None
 
     start_time = time.time()
@@ -1639,26 +1772,38 @@ def perform_research(
 
         # Fast mode: Grok 4.1 accordion batch pipeline
         if fast_mode:
-            return perform_fast_research(
+            _update_run_state(folder_path, current_phase="fast_mode", status="running")
+            _append_run_event(folder_path, "fast_mode", "started", "Fast mode pipeline started")
+            fast_path = perform_fast_research(
                 company_name, website, start_time,
                 ai_strategy=ai_strategy,
                 cloud_vendors=cloud_vendors,
                 max_scrape_time=max_scrape_time,
                 discovery_notes_content=discovery_notes_content,
             )
+            if fast_path:
+                _update_run_state(folder_path, status="completed", current_phase="complete", completed_at=datetime.now().isoformat())
+                _append_run_event(folder_path, "complete", "completed", "Fast mode completed", output=fast_path)
+            else:
+                _update_run_state(folder_path, status="failed", current_phase="fast_mode")
+                _append_run_event(folder_path, "fast_mode", "failed", "Fast mode failed")
+            return fast_path
 
         # Handle scrape-only mode - scrape and extract insights
         if mode == "scrape-only":
+            _update_run_state(folder_path, current_phase="scrape", status="running")
             return perform_scrape_only(
                 company_name,
                 website,
                 start_time,
                 max_scrape_time,
                 fail_on_low_scrape=not skip_scrape_validation,
+                folder_path=folder_path,
             )
 
         # Check if using Deep Research, Complete, or Hybrid mode
         if mode in ("deep-research", "complete", "hybrid"):
+            _update_run_state(folder_path, current_phase="deep_research", status="running")
             return perform_deep_research(
                 company_name, website, mode, start_time, citation_style,
                 ai_strategy, cloud_vendors, context_files, refresh_vendor_research,
@@ -1667,13 +1812,14 @@ def perform_research(
                 discovery_notes_content=discovery_notes_content,
                 lite_strategy=lite_strategy,
                 fail_on_low_scrape=not skip_scrape_validation,
+                folder_path=folder_path,
             )
-
-        folder_path = create_working_folder(company_name, website)
 
         try:
             # Phase 1: Data Collection
             console.phase_banner(1, 4, "Data Collection", "Scraping website and external sources", "5-10 min")
+            _update_run_state(folder_path, current_phase="data_collection", status="running")
+            _append_run_event(folder_path, "data_collection", "started", "Data collection started")
 
             # Scrape website
             with console.timed_operation("Scanning website"):
@@ -1690,6 +1836,8 @@ def perform_research(
                 if not quality_ok:
                     console.fail(quality_reason)
                     console.muted("  Re-run with --skip-scrape-validation to continue anyway")
+                    _update_run_state(folder_path, status="failed", current_phase="data_collection")
+                    _append_run_event(folder_path, "data_collection", "failed", quality_reason)
                     return None
 
             # External research - with LLM validation to ensure correct company
@@ -1739,6 +1887,8 @@ def perform_research(
 
             # Phase 2: Analysis
             console.phase_banner(2, 4, "Analysis", "Processing and summarizing content", "3-5 min")
+            _update_run_state(folder_path, current_phase="analysis", status="running")
+            _append_run_event(folder_path, "analysis", "started", "Analysis started")
 
             with console.timed_operation("Summarizing content"):
                 summarized = summarize_scraped_content(company_name, website, all_scraped, folder_path)
@@ -1759,6 +1909,8 @@ def perform_research(
 
             # Phase 3: Report Generation
             console.phase_banner(3, 4, "Report Generation", "Building comprehensive report sections", "10-15 min")
+            _update_run_state(folder_path, current_phase="report_generation", status="running")
+            _append_run_event(folder_path, "report_generation", "started", "Report generation started")
 
             # Overview
             with console.timed_operation("Building overview"):
@@ -1798,6 +1950,8 @@ def perform_research(
 
             # Phase 4: Output
             console.phase_banner(4, 4, "Finalizing", "Generating output documents", "1-2 min")
+            _update_run_state(folder_path, current_phase="finalizing", status="running")
+            _append_run_event(folder_path, "finalizing", "started", "Finalizing output documents")
             with console.timed_operation("Generating documents"):
                 docx_path = generate_final_report(company_name or display_name, citation_style=citation_style)
 
@@ -1805,6 +1959,8 @@ def perform_research(
             ai_strategy_path = None
             if ai_strategy:
                 console.phase_banner(5, 5, "AI Strategy Analysis", "Generating AI recommendations", "5-10 min")
+                _update_run_state(folder_path, current_phase="ai_strategy", status="running")
+                _append_run_event(folder_path, "ai_strategy", "started", "AI strategy generation started")
                 # Consolidate working folder into single context file for AI strategy
                 context_file = consolidate_working_folder(folder_path)
                 # No heartbeat - the progress callback provides phase-aware status updates
@@ -1921,6 +2077,14 @@ def perform_research(
                 output_path=docx_path,
             )
             log_job_summary(job_summary)
+            _update_run_state(
+                folder_path,
+                status="completed",
+                current_phase="complete",
+                completed_at=datetime.now().isoformat(),
+                duration_seconds=elapsed,
+            )
+            _append_run_event(folder_path, "complete", "completed", f"Run completed in {time_str}")
 
             return docx_path
 
@@ -1928,6 +2092,8 @@ def perform_research(
             console.error(f"Research failed: {e}")
             log_structured("error", "Research failed", error=str(e), error_type=type(e).__name__)
             logger.exception("Research failed")
+            _update_run_state(folder_path, status="failed", current_phase="error")
+            _append_run_event(folder_path, "error", "failed", str(e))
             return None
 
 
@@ -1947,6 +2113,7 @@ def perform_deep_research(
     discovery_notes_content: str | None = None,
     lite_strategy: bool = False,
     fail_on_low_scrape: bool = True,
+    folder_path: str | None = None,
 ) -> str | None:
     """
     Perform research using Deep Research Agent, Complete, or Hybrid mode.
@@ -1967,6 +2134,9 @@ def perform_deep_research(
         discovery_notes_content: Loaded content of discovery notes (freeform meeting insights)
     """
     display_name: str = company_name or (urlparse(website or "").netloc if website else "")
+    folder_path = folder_path or create_working_folder(company_name, website)
+    _update_run_state(folder_path, current_phase="preflight", status="running")
+    _append_run_event(folder_path, "preflight", "started", "Deep research run started")
 
     # =================================================================
     # PRE-FLIGHT VALIDATION - Verify everything BEFORE expensive API calls
@@ -1999,6 +2169,8 @@ def perform_deep_research(
         for err in preflight_errors:
             console.error(f"  - {err}")
         console.error("Fix these issues before running expensive Deep Research")
+        _update_run_state(folder_path, status="failed", current_phase="preflight")
+        _append_run_event(folder_path, "preflight", "failed", "Pre-flight validation failed", errors=preflight_errors)
         return None
 
     # =================================================================
@@ -2037,6 +2209,8 @@ def perform_deep_research(
             if context_files:
                 context_info = f" with {len(context_files)} context file(s)"
             console.phase_banner(1, 3, f"{mode_label}{context_info}", "Autonomous AI research", "10-15 min")
+        _update_run_state(folder_path, current_phase="deep_research", status="running")
+        _append_run_event(folder_path, "deep_research", "started", f"{mode_label} started")
 
         # Track last phase to only print on phase changes
         last_phase = [None]  # Use list to allow mutation in closure
@@ -2092,10 +2266,12 @@ def perform_deep_research(
             if not result.success:
                 console.fail(f"Research failed: {result.error}")
                 log_structured("error", "Deep research failed", error=result.error)
+                _update_run_state(folder_path, status="failed", current_phase="deep_research")
+                _append_run_event(folder_path, "deep_research", "failed", "Deep research failed", error=result.error)
 
                 # Save partial results if the structured phase produced anything
                 if result.section_results:
-                    partial_folder = create_working_folder(company_name, website)
+                    partial_folder = folder_path
                     partial_count = 0
                     for section_key, content in result.section_results.items():
                         save_section_output(partial_folder, section_key, content)
@@ -2124,10 +2300,10 @@ def perform_deep_research(
                     ("Chapters", str(section_count)),
                 ])
                 console.phase_banner(2, 3, "Processing Results", "Saving and converting output", "1-2 min")
+            _append_run_event(folder_path, "deep_research", "completed", "Deep research completed", pages=page_count, chapters=section_count)
+            _update_run_state(folder_path, current_phase="processing_results", status="running")
 
             # Save section results to working folder
-            folder_path = create_working_folder(company_name, website)
-
             with console.timed_operation("Saving results"):
                 for section_key, content in result.section_results.items():
                     save_section_output(folder_path, section_key, content)
@@ -2167,6 +2343,8 @@ def perform_deep_research(
             # Generate strategies (uses Deep Research with company context)
             strategy_paths: dict[str, str] = {}
             if strategies_to_run:
+                _update_run_state(folder_path, current_phase="strategy_generation", status="running")
+                _append_run_event(folder_path, "strategy_generation", "started", "Strategy generation started", strategies=strategies_to_run)
                 base_phase = 3
                 # Count total phases: AI strategy runs once per vendor, others run once
                 total_phase_count = sum(
@@ -2219,6 +2397,13 @@ def perform_deep_research(
                                 key = strategy_name
                             strategy_paths[key] = strategy_path
                             console.phase_complete(f"{display_strategy_name}{vendor_label} Analysis")
+                            _append_run_event(
+                                folder_path,
+                                "strategy_generation",
+                                "completed",
+                                f"{display_strategy_name}{vendor_label} completed",
+                                output=strategy_path,
+                            )
 
                         phase_offset += 1
 
@@ -2231,6 +2416,14 @@ def perform_deep_research(
             time_str = f"{mins}m {secs}s" if mins > 0 else f"{secs}s"
 
             console.ok(f"Complete in {time_str}")
+            _update_run_state(
+                folder_path,
+                status="completed",
+                current_phase="complete",
+                completed_at=datetime.now().isoformat(),
+                duration_seconds=elapsed,
+            )
+            _append_run_event(folder_path, "complete", "completed", f"Run completed in {time_str}")
 
             # Final output - use plain paths (consistent format)
             if docx_path:
@@ -2340,6 +2533,8 @@ def perform_deep_research(
             console.error(f"Deep research failed: {e}")
             log_structured("error", "Deep research failed", error=str(e), error_type=type(e).__name__)
             logger.exception("Deep research failed")
+            _update_run_state(folder_path, status="failed", current_phase="error")
+            _append_run_event(folder_path, "error", "failed", str(e))
             return None
         finally:
             # Post-run: verify no resources leaked (safety net)
@@ -2767,7 +2962,11 @@ List all sources with URLs and dates. Group by section for easy reference.
                 query=prompt,
                 output_format=None,
                 on_progress=progress_callback,
-                timeout=1800  # 30 min timeout
+                timeout=1800,  # 30 min timeout
+                job_metadata={
+                    "report_kind": "vendor_research",
+                    "cloud_vendor": cloud_vendor.lower(),
+                },
             )
         )
 
@@ -3024,7 +3223,13 @@ def _generate_generic_strategy(
                 output_format=None,
                 on_progress=progress_callback,
                 context_files=context_files if context_files else None,
-                timeout=1800  # 30 min timeout
+                timeout=1800,  # 30 min timeout
+                job_metadata={
+                    "report_kind": strategy_name,
+                    "strategy_type": strategy_name,
+                    "company_name": company_name,
+                    "cloud_vendor": cloud_vendor.lower(),
+                },
             )
         )
 
@@ -3374,7 +3579,13 @@ def _generate_ai_strategy_section(
                     output_format=None,  # Use the prompt directly
                     on_progress=progress_callback,
                     context_files=context_files if context_files else None,
-                    timeout=1800  # 30 min timeout for AI strategy
+                    timeout=1800,  # 30 min timeout for AI strategy
+                    job_metadata={
+                        "report_kind": "ai_strategy",
+                        "strategy_type": "ai",
+                        "company_name": company_name,
+                        "cloud_vendor": cloud_vendor.lower(),
+                    },
                 )
             )
 
