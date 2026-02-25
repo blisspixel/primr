@@ -262,7 +262,7 @@ def get_cache_path(
 # FILE VALIDATION
 # =============================================================================
 
-def validate_file_exists(path: Path, description: str = "File") -> Path:
+def validate_file_exists(path: str | Path, description: str = "File") -> Path:
     """
     Validate that a file exists.
 
@@ -276,14 +276,15 @@ def validate_file_exists(path: Path, description: str = "File") -> Path:
     Raises:
         ValidationError: If file doesn't exist
     """
-    if not path.exists():
+    file_path = Path(path)
+    if not file_path.exists():
         raise ValidationError(f"{description} not found: {path}")
-    if not path.is_file():
+    if not file_path.is_file():
         raise ValidationError(f"{description} is not a file: {path}")
-    return path
+    return file_path
 
 
-def validate_directory_exists(path: Path, description: str = "Directory") -> Path:
+def validate_directory_exists(path: str | Path, description: str = "Directory") -> Path:
     """
     Validate that a directory exists.
 
@@ -297,14 +298,15 @@ def validate_directory_exists(path: Path, description: str = "Directory") -> Pat
     Raises:
         ValidationError: If directory doesn't exist
     """
-    if not path.exists():
+    dir_path = Path(path)
+    if not dir_path.exists():
         raise ValidationError(f"{description} not found: {path}")
-    if not path.is_dir():
+    if not dir_path.is_dir():
         raise ValidationError(f"{description} is not a directory: {path}")
-    return path
+    return dir_path
 
 
-def ensure_parent_exists(path: Path) -> Path:
+def ensure_parent_exists(path: str | Path) -> Path:
     """
     Ensure the parent directory of a path exists.
 
@@ -314,8 +316,9 @@ def ensure_parent_exists(path: Path) -> Path:
     Returns:
         The original path
     """
-    path.parent.mkdir(parents=True, exist_ok=True)
-    return path
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    return target
 
 
 def open_with_default_app(path: str | Path) -> None:
@@ -383,7 +386,7 @@ def get_file_size_str(size_bytes: int) -> str:
     return f"{size:.1f} PB"
 
 
-def is_file_too_large(path: Path, max_size_mb: float = 100) -> bool:
+def is_file_too_large(path: str | Path, max_size_mb: float = 100) -> bool:
     """
     Check if a file exceeds the maximum size.
 
@@ -394,7 +397,8 @@ def is_file_too_large(path: Path, max_size_mb: float = 100) -> bool:
     Returns:
         True if file is too large
     """
-    if not path.exists():
+    file_path = Path(path)
+    if not file_path.exists():
         return False
-    size_mb = path.stat().st_size / (1024 * 1024)
+    size_mb = file_path.stat().st_size / (1024 * 1024)
     return size_mb > max_size_mb

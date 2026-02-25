@@ -9,7 +9,10 @@ import os
 import re
 import shutil
 import zipfile
+from contextlib import suppress
 from datetime import datetime
+from io import StringIO
+from pathlib import Path
 
 from docx import Document
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
@@ -376,28 +379,71 @@ def save_report_as_docx(txt_path, company_name):
         return None
 
 
-def convert_docx_to_pdf(docx_path):
-    """Converts a DOCX file to PDF in the same output directory."""
-    import sys
-    from io import StringIO
+def convert_docx_to_pdf(docx_path: str | Path) -> str | None:
+    """
+    Convert DOCX to PDF and return the PDF path on success.
 
-    from docx2pdf import convert
+    Strategy:
+    1) Try ``docx2pdf`` (best on Windows/macOS with Office available)
+    2) Fallback to LibreOffice ``soffice --headless --convert-to pdf`` when available
+    """
+    import subprocess
+    import sys
+
+    docx_file = Path(docx_path)
+    if not docx_file.exists():
+        console.warn(f"PDF conversion skipped: DOCX not found ({docx_file})")
+        return None
+
+    pdf_file = docx_file.with_suffix(".pdf")
 
     try:
+        from docx2pdf import convert
+
         old_stderr = sys.stderr
         sys.stderr = StringIO()
         try:
-            convert(docx_path)
+            convert(str(docx_file))
         finally:
             sys.stderr = old_stderr
 
-        pdf_path = docx_path.replace(".docx", ".pdf")
-        if os.path.exists(pdf_path):
+        if pdf_file.exists():
             console.ok("PDF saved")
-        else:
-            console.warn("PDF conversion skipped")
+            return str(pdf_file)
+    except Exception as e:
+        console.warn(f"docx2pdf unavailable, trying LibreOffice fallback: {e}")
+
+    soffice = shutil.which("soffice")
+    if not soffice:
+        console.warn("PDF conversion unavailable: no supported converter found")
+        return None
+
+    try:
+        subprocess.run(
+            [
+                soffice,
+                "--headless",
+                "--convert-to",
+                "pdf",
+                "--outdir",
+                str(docx_file.parent),
+                str(docx_file),
+            ],
+            check=True,
+            capture_output=True,
+        )
+        if pdf_file.exists():
+            console.ok("PDF saved")
+            return str(pdf_file)
+        console.warn("PDF conversion skipped: converter returned without creating PDF")
+        return None
     except Exception as e:
         console.warn(f"PDF conversion unavailable: {e}")
+        # Best-effort cleanup if converter produced partial output
+        with suppress(OSError):
+            if pdf_file.exists() and pdf_file.stat().st_size == 0:
+                pdf_file.unlink()
+        return None
 
 
 def zip_research_files(company_name):
