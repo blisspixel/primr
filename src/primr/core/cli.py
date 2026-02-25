@@ -21,7 +21,7 @@ import os
 import sys
 from dataclasses import dataclass
 from enum import Enum
-from typing import Protocol
+from typing import Any, Protocol
 
 from primr.config.config import LOGS_DIR, OUTPUT_DIR, WORKING_DIR
 from primr.config.models import PrimrModels
@@ -43,6 +43,7 @@ class Command(Enum):
     CLEAN_TEMP = "clean-temp"
     CHECK_QUOTA = "check-quota"
     CHECK_JOBS = "check-jobs"
+    RESUME_LATEST = "resume-latest"
     CLEAR_JOBS = "clear-jobs"
     LIST_STRATEGIES = "list-strategies"
     SHOW_USAGE = "show-usage"
@@ -98,6 +99,8 @@ class CLIConfig:
     ai_strategy_only_path: str | None = None
     discovery_notes_path: str | None = None
     strategy_type: str = "ai"  # Type of strategy to generate
+    resume_latest: bool = False
+    resume_local: bool = False
     lite_strategy: bool = False  # Use Pro model instead of Deep Research for strategy
     fast_mode: bool = False  # Use Grok 4.1 for fast research (~12 min, ~$0.25)
     no_qa: bool = False  # Disable automatic quality assessment
@@ -222,6 +225,8 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         ai_strategy_only_path=getattr(parsed, 'ai_strategy_only', None),
         discovery_notes_path=getattr(parsed, 'discovery_notes', None),
         strategy_type=getattr(parsed, 'strategy_type', 'ai'),
+        resume_latest=getattr(parsed, 'resume_latest', False),
+        resume_local=getattr(parsed, 'resume_local', False),
         lite_strategy=getattr(parsed, 'lite_strategy', False),
         fast_mode=getattr(parsed, 'fast_mode', False),
         no_qa=getattr(parsed, 'no_qa', False),
@@ -290,6 +295,7 @@ def main(args: list[str] | None = None) -> int:
         Command.CLEAN_TEMP: _handle_clean_temp,
         Command.CHECK_QUOTA: _handle_check_quota,
         Command.CHECK_JOBS: _handle_check_jobs,
+        Command.RESUME_LATEST: _handle_resume_latest,
         Command.CLEAR_JOBS: _handle_clear_jobs,
         Command.LIST_STRATEGIES: _handle_list_strategies,
         Command.SHOW_USAGE: _handle_show_usage,
@@ -396,6 +402,8 @@ Examples:
 AI Strategy Retry (when main report succeeded but AI strategy failed):
   primr --ai-strategy-only "output/Company_Strategic_Overview_01-09-2026.md"
   primr --ai-strategy-only "output/report.md" --cloud-vendor aws
+  primr "Acme Corp" https://acme.example --resume-local
+  primr --resume-latest                               # Recover + finalize completed cloud jobs
 
 Agentic Architecture (v1.7.0):
   primr memory "Acme Corp"                           # View hypotheses for a company
@@ -470,6 +478,11 @@ Accordion Method Test (for development):
         help="Allow run to continue even when website scraping is too thin/failing"
     )
     parser.add_argument(
+        "--resume-local",
+        action="store_true",
+        help="Reuse latest incomplete local working folder for this company and continue from checkpoints"
+    )
+    parser.add_argument(
         "--cloud-vendor",
         type=str,
         nargs="+",
@@ -505,6 +518,11 @@ Accordion Method Test (for development):
     parser.add_argument("--refresh-vendor-research", action="store_true", help="Force refresh vendor research")
     parser.add_argument("--generate-vendor-research", type=str, choices=["azure", "aws", "gcp", "agnostic", "all"])
     parser.add_argument("--check-jobs", action="store_true", help="Check pending research jobs")
+    parser.add_argument(
+        "--resume-latest", "--resume-jobs",
+        action="store_true",
+        help="Recover completed pending jobs and finalize canonical output files"
+    )
     parser.add_argument("--clear-jobs", action="store_true", help="Clear stale pending jobs")
     parser.add_argument("--list-strategies", action="store_true", help="List available strategy documents")
     parser.add_argument("--check-quota", action="store_true", help="Check API quota")
@@ -631,6 +649,7 @@ _FLAG_COMMANDS: list[tuple[str, Command]] = [
     ("clean_temp", Command.CLEAN_TEMP),
     ("check_quota", Command.CHECK_QUOTA),
     ("check_jobs", Command.CHECK_JOBS),
+    ("resume_latest", Command.RESUME_LATEST),
     ("clear_jobs", Command.CLEAR_JOBS),
     ("list_strategies", Command.LIST_STRATEGIES),
     ("dry_run", Command.DRY_RUN),
@@ -700,6 +719,11 @@ def _handle_check_jobs(config: CLIConfig) -> int:
     return 0
 
 
+def _handle_resume_latest(config: CLIConfig) -> int:
+    """Handle resume-latest command."""
+    return resume_pending_jobs()
+
+
 def _handle_clear_jobs(config: CLIConfig) -> int:
     """Handle clear-jobs command - removes stale pending jobs."""
     import json
@@ -758,7 +782,6 @@ def _handle_dry_run(config: CLIConfig) -> int:
         num_vendors=len(config.cloud_vendors),
         lite_strategy=config.lite_strategy,
         fast_mode=config.fast_mode,
-        skip_scrape_validation=config.skip_scrape_validation,
     )
     print(str(estimate))
 
@@ -1456,6 +1479,7 @@ def _handle_research(config: CLIConfig) -> int:
         discovery_notes_path=config.discovery_notes_path,
         lite_strategy=config.lite_strategy,
         fast_mode=config.fast_mode,
+        resume_local=config.resume_local,
     )
 
     # Open report if requested
@@ -1814,23 +1838,247 @@ def check_pending_jobs() -> None:
 
         result = client.check_job(interaction_id)
         status = result.get('status', 'unknown')
+        error = result.get('error')
+        error_source = result.get('error_source')
+        is_terminal = bool(result.get('terminal', False))
 
         if status == "completed":
             console.ok("  Status: COMPLETED")
             content = result.get('content', '')
             if content:
-                job_type = job_info.get('type', 'research')
-                output_file = os.path.join(OUTPUT_DIR, f"recovered_{job_type}_{interaction_id[:8]}.txt")
-                with open(output_file, 'w', encoding='utf-8') as f:
-                    f.write(content)
-                console.ok(f"  Saved to: {output_file}")
-        elif status == "failed":
+                try:
+                    outputs = _save_recovered_outputs(interaction_id, job_info, content)
+                    console.ok(f"  Finalized MD: {outputs['md']}")
+                    console.ok(f"  Finalized DOCX: {outputs['docx']}")
+                except Exception as e:
+                    job_type = job_info.get('type', 'research')
+                    output_file = os.path.join(OUTPUT_DIR, f"recovered_{job_type}_{interaction_id[:8]}.txt")
+                    with open(output_file, 'w', encoding='utf-8') as f:
+                        f.write(content)
+                    console.warn(f"  Canonical finalize failed: {e}")
+                    console.ok(f"  Saved fallback TXT: {output_file}")
+        elif status in {"failed", "error", "cancelled", "canceled", "expired"}:
             console.error("  Status: FAILED")
-            console.error(f"  Error: {result.get('error', 'Unknown')}")
+            if error_source == "provider":
+                console.error("  Source: Cloud provider reported terminal failure")
+            console.error(f"  Error: {error or 'Unknown'}")
+        elif status == "check_error":
+            console.error("  Status: CHECK ERROR")
+            if error_source == "local":
+                console.error("  Source: Local API connectivity/status check")
+            console.error(f"  Error: {error or 'Unknown'}")
+            console.info("  Job may still be running in the cloud. Re-run `primr --check-jobs`.")
         elif status == "in_progress":
             console.info("  Status: IN PROGRESS (still running)")
         else:
             console.info(f"  Status: {status}")
+            if error:
+                console.info(f"  Detail: {error}")
+            if is_terminal:
+                console.info("  Terminal state reached; job removed from pending list.")
+
+
+def _sanitize_output_stem(value: str) -> str:
+    """Convert user/model-provided names into safe filename stems."""
+    import re
+
+    cleaned = re.sub(r"[^A-Za-z0-9 _-]", "", (value or "").strip())
+    cleaned = re.sub(r"\s+", "_", cleaned)
+    cleaned = re.sub(r"_+", "_", cleaned).strip("_")
+    return cleaned or "Recovered"
+
+
+def _build_recovered_basename(interaction_id: str, job_info: dict[str, str]) -> str:
+    """Build canonical output basename for recovered jobs."""
+    from datetime import datetime
+
+    metadata = job_info.get("metadata", {}) if isinstance(job_info.get("metadata"), dict) else {}
+    report_kind = str(metadata.get("report_kind", "")).lower()
+    strategy_type = str(metadata.get("strategy_type", "")).lower()
+    company_name = _sanitize_output_stem(str(metadata.get("company_name", "")).strip())
+    cloud_vendor = str(metadata.get("cloud_vendor", "")).lower().strip()
+    date_str = datetime.now().strftime("%m-%d-%Y")
+
+    if report_kind == "ai_strategy" or strategy_type == "ai":
+        vendor_tag = f"_{cloud_vendor.upper()}" if cloud_vendor and cloud_vendor != "agnostic" else ""
+        return f"{company_name}_AI_Strategy{vendor_tag}_{date_str}"
+
+    if report_kind in {"customer_experience", "modern_security_compliance", "data_fabric_strategy"}:
+        labels = {
+            "customer_experience": "Customer_Experience_Strategy",
+            "modern_security_compliance": "Modern_Security_Compliance_Strategy",
+            "data_fabric_strategy": "Data_Fabric_Strategy",
+        }
+        label = labels.get(report_kind, _sanitize_output_stem(report_kind))
+        return f"{company_name}_{label}_{date_str}"
+
+    if report_kind == "strategic_overview":
+        return f"{company_name}_Strategic_Overview_{date_str}"
+
+    job_type = _sanitize_output_stem(job_info.get("type", "deep_research"))
+    return f"recovered_{job_type}_{interaction_id[:8]}_{date_str}"
+
+
+def _save_recovered_outputs(interaction_id: str, job_info: dict[str, str], content: str) -> dict[str, str]:
+    """Save recovered content to canonical MD/TXT/DOCX paths."""
+    from pathlib import Path
+
+    from primr.output.markdown_converter import markdown_to_docx
+
+    base_name = _build_recovered_basename(interaction_id, job_info)
+    base_path = Path(OUTPUT_DIR) / base_name
+    md_path = str(base_path.with_suffix(".md"))
+    txt_path = str(base_path.with_suffix(".txt"))
+    docx_path = str(base_path.with_suffix(".docx"))
+
+    with open(md_path, 'w', encoding='utf-8') as f:
+        f.write(content)
+    with open(txt_path, 'w', encoding='utf-8') as f:
+        f.write(content)
+
+    metadata = job_info.get("metadata", {}) if isinstance(job_info.get("metadata"), dict) else {}
+    company_name = str(metadata.get("company_name", "")).strip() or "Recovered"
+    report_kind = str(metadata.get("report_kind", "")).lower()
+    cloud_vendor = str(metadata.get("cloud_vendor", "")).strip()
+    if report_kind == "strategic_overview":
+        title = f"Strategic Overview: {company_name}"
+    elif report_kind == "ai_strategy":
+        title = f"AI Strategy: {company_name}"
+    else:
+        title = f"Recovered Research: {company_name}"
+
+    subtitle_parts = ["Recovered from background job", interaction_id[:8]]
+    if cloud_vendor:
+        subtitle_parts.append(cloud_vendor.upper())
+    subtitle = " | ".join(subtitle_parts)
+
+    markdown_to_docx(
+        markdown_text=content,
+        output_path=Path(docx_path),
+        title=title,
+        subtitle=subtitle,
+    )
+
+    return {"md": md_path, "txt": txt_path, "docx": docx_path}
+
+
+def _find_latest_run_state() -> tuple[str, dict[str, Any]] | None:
+    """Find the most recently updated run state file under working/."""
+    import glob
+    import json
+
+    pattern = os.path.join(WORKING_DIR, "*", "*", "_run_state.json")
+    candidates = glob.glob(pattern)
+    if not candidates:
+        return None
+
+    latest_path = max(candidates, key=os.path.getmtime)
+    try:
+        with open(latest_path, encoding="utf-8") as f:
+            state = json.load(f)
+        if isinstance(state, dict):
+            return latest_path, state
+    except Exception:
+        return None
+    return None
+
+
+def _show_latest_run_state_hint() -> None:
+    """Print the latest local run state summary if available."""
+    latest = _find_latest_run_state()
+    if not latest:
+        return
+    path, state = latest
+    company = state.get("company_name", "Unknown")
+    mode = state.get("mode", "unknown")
+    status = state.get("status", "unknown")
+    phase = state.get("current_phase", "unknown")
+    updated = state.get("updated_at", "unknown")
+    console.blank()
+    console.info("Latest local run state:")
+    console.info(f"  Company: {company}")
+    console.info(f"  Mode: {mode}")
+    console.info(f"  Status: {status}")
+    console.info(f"  Phase: {phase}")
+    console.info(f"  Updated: {updated}")
+    console.info(f"  File: {path}")
+
+
+def resume_pending_jobs() -> int:
+    """Recover and finalize pending jobs into canonical outputs."""
+    from primr.ai.deep_research import get_deep_research_client, get_pending_jobs
+
+    console.banner("Resume Pending Jobs")
+    jobs = get_pending_jobs()
+    if not jobs:
+        console.info("No pending jobs found.")
+        _show_latest_run_state_hint()
+        return 0
+
+    console.info(f"Found {len(jobs)} pending job(s)")
+    client = get_deep_research_client()
+
+    finalized = 0
+    still_running = 0
+    failed = 0
+    check_errors = 0
+
+    for interaction_id, job_info in jobs.items():
+        description = str(job_info.get("description", "Unknown"))[:60]
+        console.step(f"Resuming: {description}...")
+        result = client.check_job(interaction_id)
+        status = result.get("status", "unknown")
+        error = result.get("error")
+
+        if status == "completed":
+            content = result.get("content", "")
+            if not content:
+                console.error("  Completed but returned empty content")
+                failed += 1
+                continue
+
+            try:
+                outputs = _save_recovered_outputs(interaction_id, job_info, content)
+                console.ok("  Status: COMPLETED")
+                console.ok(f"  Finalized MD: {outputs['md']}")
+                console.ok(f"  Finalized DOCX: {outputs['docx']}")
+                finalized += 1
+            except Exception as e:
+                fallback_path = os.path.join(OUTPUT_DIR, f"recovered_deep_research_{interaction_id[:8]}.txt")
+                with open(fallback_path, 'w', encoding='utf-8') as f:
+                    f.write(content)
+                console.error(f"  Finalization failed: {e}")
+                console.ok(f"  Saved fallback TXT: {fallback_path}")
+                failed += 1
+            continue
+
+        if status == "in_progress":
+            console.info("  Status: IN PROGRESS")
+            still_running += 1
+            continue
+
+        if status == "check_error":
+            console.error("  Status: CHECK ERROR")
+            console.error(f"  Error: {error or 'Unknown'}")
+            check_errors += 1
+            continue
+
+        console.error(f"  Status: {status}")
+        console.error(f"  Error: {error or 'Unknown'}")
+        failed += 1
+
+    console.blank()
+    console.info(
+        f"Summary: finalized={finalized}, in_progress={still_running}, "
+        f"failed={failed}, check_errors={check_errors}"
+    )
+
+    if check_errors > 0:
+        console.info("Network/API issue detected during resume. Re-run `primr --resume-latest` when connectivity is stable.")
+        return 1
+    if failed > 0 and finalized == 0:
+        return 1
+    return 0
 
 
 def _handle_list_strategies(config: CLIConfig) -> int:

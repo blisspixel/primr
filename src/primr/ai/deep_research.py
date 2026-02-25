@@ -199,7 +199,12 @@ def _get_jobs_file_path() -> str:
 _jobs_file_lock = threading.Lock()
 
 
-def save_pending_job(interaction_id: str, job_type: str, description: str) -> None:
+def save_pending_job(
+    interaction_id: str,
+    job_type: str,
+    description: str,
+    metadata: dict[str, Any] | None = None,
+) -> None:
     """
     Save a pending research job for later recovery.
 
@@ -234,7 +239,8 @@ def save_pending_job(interaction_id: str, job_type: str, description: str) -> No
             "type": job_type,
             "description": description,
             "started": datetime.now().isoformat(),
-            "status": "pending"
+            "status": "pending",
+            "metadata": metadata or {},
         }
 
         # Save atomically (write to temp, then rename)
@@ -549,6 +555,7 @@ class DeepResearchClient:
         priority_urls: list[str] | None = None,
         context_files: list[str] | None = None,
         use_streaming: bool = True,
+        job_metadata: dict[str, Any] | None = None,
     ) -> ResearchResult:
         """
         Execute a deep research task.
@@ -585,6 +592,7 @@ class DeepResearchClient:
                     on_progress=on_progress,
                     priority_urls=priority_urls,
                     context_files=context_files,
+                    job_metadata=job_metadata,
                 )
             except Exception as e:
                 logger.warning(f"Streaming mode failed, falling back to polling: {e}")
@@ -692,7 +700,8 @@ class DeepResearchClient:
             save_pending_job(
                 interaction_id=interaction_id,
                 job_type="deep_research",
-                description=query[:200]
+                description=query[:200],
+                metadata=job_metadata,
             )
 
             if on_progress:
@@ -1176,12 +1185,16 @@ Frame everything as hypotheses to explore, not conclusions."""
         create_kwargs: dict[str, Any] = {
             "input": prompt,
             "agent": self.AGENT_ID,
-            "background": True
+            "background": True,
+            # Interactions API requirement for background jobs.
+            "store": True,
         }
         if tools:
             create_kwargs["tools"] = tools
 
-        return self._client.interactions.create(**create_kwargs)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            return self._client.interactions.create(**create_kwargs)
 
     def _start_research_stream(self, prompt: str) -> Any:
         """Start a streaming research task."""
@@ -1189,6 +1202,7 @@ Frame everything as hypotheses to explore, not conclusions."""
             input=prompt,
             agent=self.AGENT_ID,
             background=True,
+            store=True,
             stream=True,
             agent_config={
                 "type": "deep-research",
@@ -1196,9 +1210,52 @@ Frame everything as hypotheses to explore, not conclusions."""
             }
         )
 
+    @staticmethod
+    def _format_interaction_error(interaction: Any) -> str:
+        """Extract a readable provider-side error message from an interaction."""
+        fields = (
+            "error",
+            "error_message",
+            "error_status",
+            "status_message",
+            "failure_reason",
+            "last_error",
+        )
+        for field in fields:
+            value = getattr(interaction, field, None)
+            if value:
+                return str(value)
+
+        try:
+            payload = interaction.to_dict() if hasattr(interaction, "to_dict") else {}
+        except Exception:
+            payload = {}
+
+        for key in (
+            "error",
+            "errorMessage",
+            "error_status",
+            "errorStatus",
+            "status_message",
+            "statusMessage",
+            "failure_reason",
+            "failureReason",
+        ):
+            value = payload.get(key)
+            if value:
+                return str(value)
+
+        details = payload.get("metadata") or payload.get("diagnostics")
+        if details:
+            return str(details)
+
+        return "Provider reported terminal error with no details"
+
     def _get_interaction(self, interaction_id: str) -> Any:
         """Get the current state of an interaction."""
-        return self._client.interactions.get(interaction_id)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            return self._client.interactions.get(interaction_id)
 
     def _extract_content(self, interaction: Any) -> str:
         """Extract the text content from a completed interaction.
@@ -1268,21 +1325,26 @@ Frame everything as hypotheses to explore, not conclusions."""
         """
         try:
             interaction = self._get_interaction(interaction_id)
-            status = interaction.status
+            status = str(getattr(interaction, "status", "unknown")).lower()
 
             result = {
                 "interaction_id": interaction_id,
                 "status": status,
                 "content": None,
-                "error": None
+                "error": None,
+                "terminal": False,
+                "error_source": None,
             }
 
             if status == "completed":
                 result["content"] = self._extract_content(interaction)
                 result["citations"] = self._extract_citations(interaction)
+                result["terminal"] = True
                 remove_pending_job(interaction_id)
-            elif status == "failed":
-                result["error"] = getattr(interaction, 'error', 'Unknown error')
+            elif status in {"failed", "error", "cancelled", "canceled", "expired"}:
+                result["error"] = self._format_interaction_error(interaction)
+                result["terminal"] = True
+                result["error_source"] = "provider"
                 remove_pending_job(interaction_id)
 
             return result
@@ -1290,9 +1352,11 @@ Frame everything as hypotheses to explore, not conclusions."""
         except Exception as e:
             return {
                 "interaction_id": interaction_id,
-                "status": "error",
+                "status": "check_error",
                 "content": None,
-                "error": str(e)
+                "error": str(e),
+                "terminal": False,
+                "error_source": "local",
             }
 
     async def research_resilient(
@@ -1303,6 +1367,7 @@ Frame everything as hypotheses to explore, not conclusions."""
         on_progress: Callable[[ResearchProgress], None] | None = None,
         priority_urls: list[str] | None = None,
         context_files: list[str] | None = None,
+        job_metadata: dict[str, Any] | None = None,
     ) -> ResearchResult:
         """
         Execute deep research with maximum resilience using background job + polling.
@@ -1376,7 +1441,8 @@ Frame everything as hypotheses to explore, not conclusions."""
             save_pending_job(
                 interaction_id=interaction_id,
                 job_type="deep_research",
-                description=query[:200]
+                description=query[:200],
+                metadata=job_metadata,
             )
 
             if on_progress:
@@ -2288,7 +2354,9 @@ class DeepResearchOrchestrator:
         create_kwargs: dict[str, Any] = {
             "input": prompt,
             "agent": self.AGENT_ID,
-            "background": True
+            "background": True,
+            # Background interactions must be stored for reliable resume/poll.
+            "store": True,
         }
         if tools:
             create_kwargs["tools"] = tools
