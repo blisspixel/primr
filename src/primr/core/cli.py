@@ -551,7 +551,7 @@ Accordion Method Test (for development):
         "--fast",
         action="store_true",
         dest="fast_mode",
-        help="Fast mode: Grok 4.1 with research deepening (~20 min, ~$0.50). Supports --cloud-vendor. Requires XAI_API_KEY"
+        help="Fast mode: Grok 4.1 with research deepening (~20-30 min, ~$0.20). Supports --cloud-vendor. Requires XAI_API_KEY"
     )
     parser.add_argument(
         "--discovery-notes",

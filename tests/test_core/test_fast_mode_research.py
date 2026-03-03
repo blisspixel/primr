@@ -77,10 +77,10 @@ class TestFastGapAnalysis:
         assert queries == []
         assert "failed" in text.lower()
 
-    def test_limits_to_5_queries(self, monkeypatch):
-        """Gap analysis should return at most 5 queries even if Grok returns more."""
+    def test_limits_to_8_queries(self, monkeypatch):
+        """Gap analysis should return at most 8 queries even if Grok returns more."""
         lines = []
-        for i in range(8):
+        for i in range(12):
             lines.append(f"GAP: Gap {i}")
             lines.append(f"QUERY: query number {i}")
             lines.append("PRIORITY: IMPORTANT")
@@ -93,7 +93,7 @@ class TestFastGapAnalysis:
             "corpus", "external", [],
         )
 
-        assert len(queries) <= 5
+        assert len(queries) <= 8
 
     def test_prompt_includes_company_name(self, monkeypatch):
         """Gap analysis prompt should include the company name."""
