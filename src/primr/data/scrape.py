@@ -402,13 +402,14 @@ def fetch_web_content(
         # Falls back to heuristic scoring if LLM fails
         from primr.core.research_agent import select_links_with_llm
 
-        with console.spinner(f"Selecting from {len(in_scope_links)} pages"):
-            selected_urls = select_links_with_llm(
-                in_scope_links,
-                company_name=company_name,
-                website=website,
-                max_links=max_pages or 100,  # Let LLM decide, but cap at 100 for sanity
-            )
+        console.status(f"Selecting from {len(in_scope_links)} pages...")
+        selected_urls = select_links_with_llm(
+            in_scope_links,
+            company_name=company_name,
+            website=website,
+            max_links=max_pages or 100,  # Let LLM decide, but cap at 100 for sanity
+        )
+        console.clear_line()
         total_found = len(selected_urls)
 
     # Apply max_pages limit (reserve 1 slot for homepage)

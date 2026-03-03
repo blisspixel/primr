@@ -34,7 +34,8 @@ The design is intentionally opinionated and local-first. This roadmap reflects c
 
 - Automatic cleanup of Gemini File Search Stores after each run
 - `primr doctor` checks for orphaned resources that could incur costs
-- Manual cleanup script: `scripts/check_gemini_resources.py`
+- Manual cleanup script: `"<python-executable>" scripts/check_gemini_resources.py --delete-stores --force-empty`
+  - Example on Windows: `"C:\Users\you\AppData\Local\Programs\Python\Python313\python.exe" scripts/check_gemini_resources.py --delete-stores --force-empty`
 
 ### Report Generation
 
@@ -457,6 +458,17 @@ Goal: Reduce noisy integration-runtime warnings, improve maintainability in AI r
   - `tests/test_ai/test_error_policy.py`
 - Targeted deep-research and AI suites pass after refactor
 
+**Versioned Eval Workflow (Initial):**
+- Added `primr --eval` command for offline, versioned profile comparison (`full`, `lite`, `fast`)
+- Generates scorecards at `output/evals/<eval-id>/scorecard.md` and `scorecard.csv`
+- Tracks per-profile trust, decision utility, reuse quality, utility-per-dollar, and cost ratios against baseline
+- Adds a deterministic trust gate (citation coverage + section completeness + confidence labels) before profile pass/fail
+- Auto-stages existing local reports into eval profile folders (no API spend), with optional company targeting (`--eval-company`)
+- Writes `staging_manifest.json` to preserve exactly which artifacts were compared
+- Optional `--eval-run-missing` can execute missing runs, gated by explicit caps:
+  - `--eval-max-new-runs`
+  - `--eval-max-estimated-cost`
+
 ## Near-Term Roadmap
 
 ### v1.13.0 - QA-Driven Report Iteration (Planned)
@@ -485,6 +497,32 @@ Implementation:
 - `primr refine "Company"` command to re-run weak sections
 - QA identifies specific sections needing work
 - Section-level regeneration without full pipeline re-run
+
+### v1.13.1 - Versioned Model Evaluation Harness (Planned)
+
+Goal: Make model/profile upgrades measurable and repeatable before changing defaults.
+
+Problem this solves:
+- New model releases (for example Pro/Flash/Grok variants) are hard to compare consistently
+- Teams need a defensible quality/cost decision, not anecdotal "looks better"
+
+Planned capabilities:
+- `primr eval` workflow to run a fixed company corpus across profiles (for example `full`, `full --lite`, `--fast`)
+- Versioned evaluation IDs (for example `eval-2026-02-r1`) with immutable run manifests
+- Aggregated scorecard per profile:
+  - Cost (estimated and actual)
+  - Runtime
+  - Document length (words/pages)
+  - Citation density
+  - Required-section completeness
+  - Confidence-label coverage
+- Side-by-side comparison output (Markdown + CSV) for baseline vs candidate profiles
+- Configurable acceptance gates (example: quality >= 80% baseline and cost <= 20% baseline)
+- CI guard for regression detection on a lightweight fixture corpus
+
+Success criteria:
+- Model default changes are backed by saved scorecards, not one-off manual judgment
+- Users can answer "is this new model worth it?" in one command with reproducible evidence
 
 ## Medium-Term Roadmap
 

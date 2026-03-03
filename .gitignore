@@ -209,6 +209,12 @@ __marimo__/
 # Output directories (generated research reports)
 /output/
 /working/
+# Explicit eval artifacts (redundant with /output/, kept for clarity)
+output/evals/
+output/evals/**/scorecard.csv
+output/evals/**/scorecard.md
+output/evals/**/staging_manifest.json
+output/evals/**/llm_judge.json
 
 # Generated vendor research (monthly, auto-generated)
 vendor-research/

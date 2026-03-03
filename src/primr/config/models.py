@@ -231,8 +231,8 @@ class ModelRegistry:
 
     # =========================================================================
     # GROK 4.1 FAST REASONING - xAI fast reasoning model
-    # USE FOR: Fast mode accordion report generation (2M context, cheap)
-    # $0.20 input / $0.50 output per 1M tokens
+    # USE FOR: Analytical tasks (gap analysis, workbook, cross-validation)
+    # $0.20 input / $0.50 output per 1M tokens (+ reasoning tokens at output rate)
     # Context: 2M tokens, Output: 128k tokens
     # OpenAI-compatible API at https://api.x.ai/v1
     # =========================================================================
@@ -245,6 +245,26 @@ class ModelRegistry:
         max_input_tokens=2_000_000,      # 2M tokens
         max_output_tokens=131_072,       # 128k tokens
         supports_thinking=True,
+        supports_tools=True,
+        supports_multimodal=False,
+    )
+
+    # =========================================================================
+    # GROK 4.1 FAST NON-REASONING - xAI fast model without reasoning overhead
+    # USE FOR: Writing tasks (report batches, section regen, trust polish, AI strategy)
+    # Same per-token pricing as reasoning variant, but no reasoning token overhead
+    # → strictly faster and cheaper for prose generation
+    # Context: 2M tokens, Output: 128k tokens
+    # =========================================================================
+    GROK_4_1_FAST_NR = ModelConfig(
+        name="grok-4-1-fast-non-reasoning",
+        display_name="Grok 4.1 Fast",
+        provider="xai",
+        cost_per_1m_input_tokens=0.20,
+        cost_per_1m_output_tokens=0.50,
+        max_input_tokens=2_000_000,      # 2M tokens
+        max_output_tokens=131_072,       # 128k tokens
+        supports_thinking=False,
         supports_tools=True,
         supports_multimodal=False,
     )
@@ -334,8 +354,9 @@ class PrimrModels:
     # =========================================================================
     FALLBACK_MODELS: dict = {}  # Empty - no fallbacks
 
-    # --- GROK MODEL (xAI - for fast mode) ---
-    GROK_MODEL = ModelRegistry.GROK_4_1_FAST.name
+    # --- GROK MODELS (xAI - for fast mode) ---
+    GROK_MODEL = ModelRegistry.GROK_4_1_FAST.name            # Reasoning — analytical tasks
+    GROK_MODEL_WRITING = ModelRegistry.GROK_4_1_FAST_NR.name  # Non-reasoning — writing tasks
 
     # Model registry for lookups
     ALL_MODELS = {
@@ -347,6 +368,7 @@ class PrimrModels:
         ModelRegistry.GEMINI_2_5_PRO.name: ModelRegistry.GEMINI_2_5_PRO,
         ModelRegistry.GEMINI_2_5_FLASH.name: ModelRegistry.GEMINI_2_5_FLASH,
         ModelRegistry.GROK_4_1_FAST.name: ModelRegistry.GROK_4_1_FAST,
+        ModelRegistry.GROK_4_1_FAST_NR.name: ModelRegistry.GROK_4_1_FAST_NR,
     }
 
     @classmethod
@@ -535,6 +557,7 @@ FLASH_MODEL = PrimrModels.FLASH_MODEL
 PRO_MODEL = PrimrModels.PRO_MODEL
 DEEP_RESEARCH_AGENT = PrimrModels.DEEP_RESEARCH_AGENT
 GROK_MODEL = PrimrModels.GROK_MODEL
+GROK_MODEL_WRITING = PrimrModels.GROK_MODEL_WRITING
 
 # Task-specific (preferred)
 SCRAPING_MODEL = PrimrModels.SCRAPING_MODEL

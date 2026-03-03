@@ -159,18 +159,18 @@ MODE_ESTIMATES = {
         "duration_min": 20,
         "duration_max": 30,
     },
-    # Fast mode: Flash scraping + 6 Grok calls (1 analysis + 5 report batches), no DR, no Pro
+    # Fast mode: Flash scraping + Grok calls (gap analysis + analysis + 5 batches + cross-validation), no DR, no Pro
     "fast": {
-        "flash_input_tokens": 15_000,
-        "flash_output_tokens": 4_000,
+        "flash_input_tokens": 30_000,     # more pages + gap-fill scraping
+        "flash_output_tokens": 8_000,
         "pro_input_tokens": 0,
         "pro_output_tokens": 0,
-        "grok_input_tokens": 250_000,  # analysis ~40k + 5 batches x ~40k
-        "grok_output_tokens": 30_000,  # analysis ~12k + 5 batches x ~3.5k
+        "grok_input_tokens": 500_000,     # gap analysis + analysis + 5 batches + cross-validation + re-gens
+        "grok_output_tokens": 50_000,     # gap ~5k + analysis ~12k + batches ~18k + cross-val ~15k
         "deep_research_tasks": 0,
         "search_queries": 5,
-        "duration_min": 8,
-        "duration_max": 15,
+        "duration_min": 15,
+        "duration_max": 25,
     },
 }
 
@@ -400,7 +400,7 @@ def _estimate_fast_mode_cost(
     if include_ai_strategy:
         duration += " + AI strategy (Grok)"
 
-    notes = ["Fast mode: Grok 4.1 accordion (1 analysis + 5 report batches, no Deep Research)"]
+    notes = ["Fast mode: Grok 4.1 with research deepening + cross-validation (no Deep Research)"]
     if include_ai_strategy:
         notes.append(f"AI Strategy via Grok ({num_vendors} vendor(s))")
 

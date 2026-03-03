@@ -379,3 +379,51 @@ class TestTieredPricing:
         finally:
             monkeypatch.delenv("AI_REASONING_MODEL", raising=False)
             reset_settings()
+
+
+class TestFastModeAIStrategy:
+    """Tests for fast mode with AI Strategy and cloud vendors."""
+
+    def test_fast_with_strategy_costs_more_than_without(self):
+        """Fast mode + AI Strategy should cost more than fast without."""
+        base = estimate_cost("complete", fast_mode=True, include_ai_strategy=False, use_historical=False)
+        with_strategy = estimate_cost("complete", fast_mode=True, include_ai_strategy=True, use_historical=False)
+        assert with_strategy.total_cost > base.total_cost
+
+    def test_fast_two_vendors_costs_more_than_one(self):
+        """Fast mode + 2 vendors should cost more than 1 vendor."""
+        one_vendor = estimate_cost(
+            "complete", fast_mode=True, include_ai_strategy=True,
+            num_vendors=1, use_historical=False,
+        )
+        two_vendors = estimate_cost(
+            "complete", fast_mode=True, include_ai_strategy=True,
+            num_vendors=2, use_historical=False,
+        )
+        assert two_vendors.total_cost > one_vendor.total_cost
+
+    def test_fast_mode_never_includes_deep_research(self):
+        """Fast mode should never include Deep Research cost, even with AI Strategy."""
+        no_strategy = estimate_cost("complete", fast_mode=True, include_ai_strategy=False, use_historical=False)
+        with_strategy = estimate_cost("complete", fast_mode=True, include_ai_strategy=True, use_historical=False)
+        multi_vendor = estimate_cost(
+            "complete", fast_mode=True, include_ai_strategy=True,
+            num_vendors=3, use_historical=False,
+        )
+        assert no_strategy.deep_research_cost == 0.0
+        assert with_strategy.deep_research_cost == 0.0
+        assert multi_vendor.deep_research_cost == 0.0
+
+    def test_fast_mode_strategy_note_mentions_grok(self):
+        """Fast mode AI Strategy note should mention Grok."""
+        estimate = estimate_cost(
+            "complete", fast_mode=True, include_ai_strategy=True,
+            num_vendors=2, use_historical=False,
+        )
+        grok_notes = [n for n in estimate.notes if "Grok" in n]
+        assert len(grok_notes) >= 1
+
+    def test_fast_mode_returns_fast_mode_label(self):
+        """Fast mode estimate should report mode as 'fast'."""
+        estimate = estimate_cost("complete", fast_mode=True, use_historical=False)
+        assert estimate.mode == "fast"
