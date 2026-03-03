@@ -1009,16 +1009,16 @@ def _build_fast_batch_prompt(
         )
     section_block = "\n\n".join(section_parts)
 
-    # Rolling context: 300-word summaries of last 5 completed sections
+    # Rolling context: 400-word summaries of last 7 completed sections
     rolling_context = ""
     if previous_sections:
-        recent = previous_sections[-5:]
+        recent = previous_sections[-7:]
         context_parts: list[str] = []
         for s in recent:
-            # Truncate each section to ~300 words for rolling context
+            # Truncate each section to ~400 words for rolling context
             words = s["content"].split()
-            summary = " ".join(words[:300])
-            if len(words) > 300:
+            summary = " ".join(words[:400])
+            if len(words) > 400:
                 summary += " ..."
             context_parts.append(f"**{s['title']}** (completed):\n{summary}")
         rolling_context = "\n\n".join(context_parts)
@@ -1808,7 +1808,7 @@ If the report is solid, return empty arrays."""
         response = grok_llm(
             prompt,
             max_tokens=5_000,
-            temperature=0.3,
+            temperature=0.2,
             system_prompt=system_prompt,
         )
     except Exception as e:
@@ -2148,7 +2148,7 @@ def perform_fast_research(
         with console.timed_operation("Generating analysis workbook via Grok"):
             analysis_workbook = grok_llm(
                 analysis_prompt,
-                max_tokens=16_000,
+                max_tokens=18_000,
                 temperature=0.5,
                 system_prompt=analysis_system,
             )
@@ -2228,7 +2228,7 @@ def perform_fast_research(
                     prompt,
                     model=GROK_MODEL_WRITING,
                     max_tokens=16_000,
-                    temperature=0.7,
+                    temperature=0.6,
                     system_prompt=report_system,
                 )
             except Exception as batch_err:
@@ -2305,7 +2305,7 @@ def perform_fast_research(
                             ]
                             scraped = scrape_external_sources_validated(
                                 filtered, company_name=company_name, website=website,
-                                max_sources=2,
+                                max_sources=3,
                             )
                             for url, content in scraped.items():
                                 if url not in source_urls_seen:
