@@ -9,12 +9,8 @@ Tests cover:
 import ast
 import importlib
 import inspect
-import os
-from pathlib import Path
 
 import pytest
-from hypothesis import given, settings, strategies as st
-
 
 # =============================================================================
 # Module Import Compatibility Tests
@@ -91,7 +87,7 @@ class TestFunctionSizeConstraint:
         module = importlib.import_module(module_name)
         module_file = inspect.getfile(module)
 
-        with open(module_file, 'r', encoding='utf-8') as f:
+        with open(module_file, encoding='utf-8') as f:
             source = f.read()
 
         tree = ast.parse(source)
@@ -195,7 +191,7 @@ class TestModuleIndependence:
         """Test workspace doesn't import research_agent."""
         from primr.core import workspace
         source_file = inspect.getfile(workspace)
-        with open(source_file, 'r', encoding='utf-8') as f:
+        with open(source_file, encoding='utf-8') as f:
             source = f.read()
         # Should not import research_agent (would cause circular import)
         assert 'from primr.core.research_agent import' not in source
@@ -205,7 +201,7 @@ class TestModuleIndependence:
         """Test structured_research doesn't import research_agent."""
         from primr.core import structured_research
         source_file = inspect.getfile(structured_research)
-        with open(source_file, 'r', encoding='utf-8') as f:
+        with open(source_file, encoding='utf-8') as f:
             source = f.read()
         assert 'from primr.core.research_agent import' not in source
         assert 'from primr.core import research_agent' not in source
@@ -214,7 +210,7 @@ class TestModuleIndependence:
         """Test vendor_research doesn't import research_agent."""
         from primr.core import vendor_research
         source_file = inspect.getfile(vendor_research)
-        with open(source_file, 'r', encoding='utf-8') as f:
+        with open(source_file, encoding='utf-8') as f:
             source = f.read()
         assert 'from primr.core.research_agent import' not in source
         assert 'from primr.core import research_agent' not in source
@@ -223,7 +219,7 @@ class TestModuleIndependence:
         """Test ai_strategy doesn't import research_agent."""
         from primr.core import ai_strategy
         source_file = inspect.getfile(ai_strategy)
-        with open(source_file, 'r', encoding='utf-8') as f:
+        with open(source_file, encoding='utf-8') as f:
             source = f.read()
         assert 'from primr.core.research_agent import' not in source
         assert 'from primr.core import research_agent' not in source
@@ -232,7 +228,7 @@ class TestModuleIndependence:
         """Test deep_research_runner doesn't import research_agent."""
         from primr.core import deep_research_runner
         source_file = inspect.getfile(deep_research_runner)
-        with open(source_file, 'r', encoding='utf-8') as f:
+        with open(source_file, encoding='utf-8') as f:
             source = f.read()
         assert 'from primr.core.research_agent import' not in source
         assert 'from primr.core import research_agent' not in source

@@ -6,10 +6,7 @@ Verifies:
 - Heartbeat interval is 90 seconds
 - Console methods work correctly
 """
-import io
 import re
-import sys
-from unittest.mock import patch
 
 import pytest
 
@@ -29,10 +26,10 @@ class TestPhaseBarners:
         """Phase banners should use modern 2026 design."""
         console = Console()
         console.phase_banner(1, 3, "Test Phase", "Description here", "5-10 min")
-        
+
         captured = capsys.readouterr()
         output = captured.out
-        
+
         # Should have phase number and title
         assert "PHASE 1" in output
         assert "Test Phase" in output
@@ -45,10 +42,10 @@ class TestPhaseBarners:
         """Phase banners work without description."""
         console = Console()
         console.phase_banner(2, 3, "Another Phase")
-        
+
         captured = capsys.readouterr()
         output = captured.out
-        
+
         assert "PHASE 2" in output
         assert "Another Phase" in output
         # Should NOT have old-school separators
@@ -58,7 +55,7 @@ class TestPhaseBarners:
         """Phase banners should be suppressed in quiet mode."""
         console = Console(quiet=True)
         console.phase_banner(1, 2, "Test Phase", "Description")
-        
+
         captured = capsys.readouterr()
         assert captured.out == ""
 
@@ -71,7 +68,6 @@ class TestHeartbeat:
         # This is verified by code inspection in research_agent.py
         # The heartbeat call uses interval=90.0
         # We can't easily test the actual timing without mocking time.sleep
-        pass
 
 
 class TestConsoleMessages:
@@ -81,7 +77,7 @@ class TestConsoleMessages:
         """Done messages should use checkmark prefix."""
         console = Console()
         console.done("Task complete")
-        
+
         captured = capsys.readouterr()
         output = strip_ansi(captured.out)
         # Modern design uses ✓ (Unicode) or + (ASCII fallback)
@@ -91,7 +87,7 @@ class TestConsoleMessages:
         """Status messages should be dimmed."""
         console = Console()
         console.status("Processing...")
-        
+
         captured = capsys.readouterr()
         # Status messages use dim formatting
         assert "Processing..." in captured.out
@@ -100,7 +96,7 @@ class TestConsoleMessages:
         """Warning messages should use ! prefix."""
         console = Console()
         console.warn("Something to note")
-        
+
         captured = capsys.readouterr()
         output = strip_ansi(captured.out)
         assert "! Something to note" in output
@@ -113,7 +109,7 @@ class TestPhaseComplete:
         """Phase complete should show completion message."""
         console = Console()
         console.phase_complete("Data Collection")
-        
+
         captured = capsys.readouterr()
         output = strip_ansi(captured.out)
         # Modern design uses ✓ (Unicode) or + (ASCII fallback)
@@ -126,7 +122,7 @@ class TestPhaseComplete:
             ("Pages", "15"),
             ("Sources", "3")
         ])
-        
+
         captured = capsys.readouterr()
         output = strip_ansi(captured.out)
         # Modern design uses ✓ (Unicode) or + (ASCII fallback)
@@ -138,7 +134,7 @@ class TestPhaseComplete:
         """Phase complete should be suppressed in quiet mode."""
         console = Console(quiet=True)
         console.phase_complete("Test Phase")
-        
+
         captured = capsys.readouterr()
         assert captured.out == ""
 
@@ -149,10 +145,10 @@ class TestBackwardCompatibility:
     def test_old_phase_banner_calls_still_work(self, capsys):
         """Old phase_banner calls without new parameters still work."""
         console = Console()
-        
+
         # Old style call (still used in some places)
         console.phase_banner(1, 3, "Old Style Phase")
-        
+
         captured = capsys.readouterr()
         # Modern format - no more ALL CAPS or separators
         assert "PHASE 1" in captured.out
@@ -161,7 +157,7 @@ class TestBackwardCompatibility:
     def test_console_methods_unchanged(self):
         """All existing console methods still exist."""
         console = Console()
-        
+
         # Verify key methods exist
         assert hasattr(console, 'phase_banner')
         assert hasattr(console, 'phase_complete')

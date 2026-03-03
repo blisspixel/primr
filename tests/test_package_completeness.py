@@ -6,7 +6,9 @@ Property tests for package structure completeness.
 """
 
 from pathlib import Path
-from hypothesis import given, strategies as st, settings
+
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 PROJECT_ROOT = Path(__file__).parent.parent
 SRC_DIR = PROJECT_ROOT / "src" / "primr"
@@ -39,7 +41,7 @@ def test_module_exists_in_package(original_name: str):
     """
     new_path = ORIGINAL_MODULES[original_name]
     full_path = SRC_DIR / new_path
-    
+
     assert full_path.exists(), \
         f"Module {original_name} should be at {new_path} but was not found"
 
@@ -47,12 +49,12 @@ def test_module_exists_in_package(original_name: str):
 def test_all_modules_moved():
     """Verify all original modules exist in their new locations."""
     missing = []
-    
+
     for original, new_path in ORIGINAL_MODULES.items():
         full_path = SRC_DIR / new_path
         if not full_path.exists():
             missing.append(f"{original} -> {new_path}")
-    
+
     assert len(missing) == 0, f"Missing modules: {missing}"
 
 
@@ -78,11 +80,11 @@ def test_package_structure_complete():
         "utils/__init__.py",
         "utils/chat_logger.py",
     ]
-    
+
     missing = []
     for path in expected_structure:
         full_path = SRC_DIR / path
         if not full_path.exists():
             missing.append(path)
-    
+
     assert len(missing) == 0, f"Missing files in package: {missing}"

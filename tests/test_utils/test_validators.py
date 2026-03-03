@@ -4,22 +4,21 @@ Tests for defensive validation utilities.
 Includes property-based tests using Hypothesis for comprehensive validation.
 """
 
-import pytest
 from pathlib import Path
-from typing import List
 
-from hypothesis import given, strategies as st, settings, assume
+import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from primr.utils.validators import (
     InputValidationError,
-    validate_url,
-    validate_file_path,
-    validate_company_name,
-    sanitize_for_filename,
-    safe_json_parse,
     safe_json_get,
+    safe_json_parse,
+    sanitize_for_filename,
+    validate_company_name,
+    validate_file_path,
+    validate_url,
 )
-
 
 # =============================================================================
 # UNIT TESTS - validate_url
@@ -27,42 +26,42 @@ from primr.utils.validators import (
 
 class TestValidateUrl:
     """Tests for validate_url function."""
-    
+
     def test_accepts_valid_http_url(self):
         """Should accept valid HTTP URL."""
         result = validate_url("http://example.com")
         assert result == "http://example.com"
-    
+
     def test_accepts_valid_https_url(self):
         """Should accept valid HTTPS URL."""
         result = validate_url("https://example.com/path?query=1")
         assert result == "https://example.com/path?query=1"
-    
+
     def test_rejects_empty_url(self):
         """Should reject empty URL."""
         with pytest.raises(InputValidationError, match="cannot be empty"):
             validate_url("")
-    
+
     def test_rejects_javascript_url(self):
         """Should reject javascript: URLs."""
         with pytest.raises(InputValidationError):
             validate_url("javascript:alert(1)")
-    
+
     def test_rejects_data_url(self):
         """Should reject data: URLs."""
         with pytest.raises(InputValidationError, match="not allowed"):
             validate_url("data:text/html,<script>alert(1)</script>")
-    
+
     def test_rejects_missing_scheme(self):
         """Should reject URL without scheme."""
         with pytest.raises(InputValidationError, match="scheme"):
             validate_url("example.com")
-    
+
     def test_rejects_disallowed_scheme(self):
         """Should reject disallowed schemes."""
         with pytest.raises(InputValidationError, match="not allowed"):
             validate_url("ftp://example.com")
-    
+
     def test_custom_allowed_schemes(self):
         """Should accept custom allowed schemes."""
         result = validate_url("ftp://example.com", allowed_schemes=("ftp",))
@@ -75,27 +74,27 @@ class TestValidateUrl:
 
 class TestValidateFilePath:
     """Tests for validate_file_path function."""
-    
+
     def test_accepts_valid_relative_path(self):
         """Should accept valid relative path."""
         result = validate_file_path("data/file.txt")
         assert result == Path("data/file.txt")
-    
+
     def test_rejects_empty_path(self):
         """Should reject empty path."""
         with pytest.raises(InputValidationError, match="cannot be empty"):
             validate_file_path("")
-    
+
     def test_rejects_traversal_dotdot(self):
         """Should reject .. traversal."""
         with pytest.raises(InputValidationError, match="traversal"):
             validate_file_path("../etc/passwd")
-    
+
     def test_rejects_traversal_backslash(self):
         """Should reject ..\\ traversal."""
         with pytest.raises(InputValidationError, match="traversal"):
             validate_file_path("..\\windows\\system32")
-    
+
     def test_rejects_absolute_path_by_default(self):
         """Should reject absolute paths by default."""
         import platform
@@ -105,21 +104,21 @@ class TestValidateFilePath:
         else:
             with pytest.raises(InputValidationError):
                 validate_file_path("/etc/passwd")
-    
+
     def test_accepts_absolute_when_allowed(self):
         """Should accept absolute paths when allowed."""
         result = validate_file_path("/etc/passwd", allow_absolute=True)
         assert result == Path("/etc/passwd")
-    
+
     def test_enforces_base_dir(self, tmp_path):
         """Should enforce base_dir constraint."""
         # Create a file in tmp_path
         (tmp_path / "allowed.txt").touch()
-        
+
         # Should accept path within base_dir
         result = validate_file_path("allowed.txt", base_dir=tmp_path)
         assert result == Path("allowed.txt")
-    
+
     def test_rejects_path_outside_base_dir(self, tmp_path):
         """Should reject path that escapes base_dir."""
         with pytest.raises(InputValidationError):
@@ -132,7 +131,7 @@ class TestValidateFilePath:
 
 class TestValidateCompanyName:
     """Tests for validate_company_name function."""
-    
+
     def test_accepts_valid_name(self):
         """Should accept valid company name."""
         result = validate_company_name("Acme Corp, Inc.")
@@ -142,17 +141,17 @@ class TestValidateCompanyName:
         """Should strip leading/trailing whitespace."""
         result = validate_company_name("  Acme Corp  ")
         assert result == "Acme Corp"
-    
+
     def test_rejects_empty_name(self):
         """Should reject empty name."""
         with pytest.raises(InputValidationError, match="cannot be empty"):
             validate_company_name("")
-    
+
     def test_rejects_too_long_name(self):
         """Should reject name exceeding max_length."""
         with pytest.raises(InputValidationError, match="at most"):
             validate_company_name("A" * 201)
-    
+
     def test_rejects_script_injection(self):
         """Should reject script injection attempts."""
         with pytest.raises(InputValidationError, match="invalid"):
@@ -165,24 +164,24 @@ class TestValidateCompanyName:
 
 class TestSanitizeForFilename:
     """Tests for sanitize_for_filename function."""
-    
+
     def test_preserves_valid_name(self):
         """Should preserve valid filename."""
         result = sanitize_for_filename("valid_filename")
         assert result == "valid_filename"
-    
+
     def test_replaces_invalid_chars(self):
         """Should replace invalid characters."""
         result = sanitize_for_filename("file:name/with\\invalid")
         assert ":" not in result
         assert "/" not in result
         assert "\\" not in result
-    
+
     def test_handles_empty_string(self):
         """Should return 'unnamed' for empty string."""
         result = sanitize_for_filename("")
         assert result == "unnamed"
-    
+
     def test_truncates_long_name(self):
         """Should truncate to max_length."""
         result = sanitize_for_filename("A" * 200, max_length=50)
@@ -195,22 +194,22 @@ class TestSanitizeForFilename:
 
 class TestSafeJsonParse:
     """Tests for safe_json_parse function."""
-    
+
     def test_parses_valid_json(self):
         """Should parse valid JSON."""
         result = safe_json_parse('{"key": "value"}')
         assert result == {"key": "value"}
-    
+
     def test_returns_default_for_invalid_json(self):
         """Should return default for invalid JSON."""
         result = safe_json_parse("not json", default={})
         assert result == {}
-    
+
     def test_returns_default_for_empty_string(self):
         """Should return default for empty string."""
         result = safe_json_parse("", default=[])
         assert result == []
-    
+
     def test_never_raises(self):
         """Should never raise exception."""
         # Various invalid inputs
@@ -226,25 +225,25 @@ class TestSafeJsonParse:
 
 class TestSafeJsonGet:
     """Tests for safe_json_get function."""
-    
+
     def test_gets_nested_value(self):
         """Should get nested value."""
         data = {"a": {"b": {"c": 1}}}
         result = safe_json_get(data, "a", "b", "c")
         assert result == 1
-    
+
     def test_returns_default_for_missing_key(self):
         """Should return default for missing key."""
         data = {"a": 1}
         result = safe_json_get(data, "b", default="missing")
         assert result == "missing"
-    
+
     def test_handles_list_index(self):
         """Should handle list indices."""
         data = {"items": [1, 2, 3]}
         result = safe_json_get(data, "items", 1)
         assert result == 2
-    
+
     def test_returns_default_for_invalid_path(self):
         """Should return default for invalid path."""
         data = {"a": 1}
@@ -266,7 +265,7 @@ class TestUrlValidationSecurityProperty:
     For any URL string, the validator SHALL reject URLs with disallowed
     schemes, invalid format, or potential injection attacks.
     """
-    
+
     @given(st.sampled_from([
         "javascript:alert(1)",
         "javascript:void(0)",
@@ -279,14 +278,14 @@ class TestUrlValidationSecurityProperty:
         """Should reject dangerous URL schemes."""
         with pytest.raises(InputValidationError):
             validate_url(url)
-    
+
     @given(st.text(alphabet="abcdefghij", min_size=1, max_size=20))
     @settings(max_examples=100)
     def test_rejects_schemeless_urls(self, host: str):
         """Should reject URLs without scheme."""
         with pytest.raises(InputValidationError):
             validate_url(host)
-    
+
     @given(st.text(alphabet="abcdefghij", min_size=1, max_size=20))
     @settings(max_examples=100)
     def test_accepts_valid_https_urls(self, path: str):
@@ -306,7 +305,7 @@ class TestPathTraversalPreventionProperty:
     For any file path containing traversal sequences (../, ..\), the
     validator SHALL reject the path when a base_dir constraint is specified.
     """
-    
+
     @given(st.sampled_from([
         "../etc/passwd",
         "..\\windows\\system32",
@@ -320,7 +319,7 @@ class TestPathTraversalPreventionProperty:
         """Should reject paths with traversal patterns."""
         with pytest.raises(InputValidationError, match="traversal"):
             validate_file_path(path)
-    
+
     @given(st.text(alphabet="abcdefghij_", min_size=1, max_size=20))
     @settings(max_examples=100)
     def test_accepts_safe_relative_paths(self, filename: str):
@@ -328,10 +327,10 @@ class TestPathTraversalPreventionProperty:
         # Ensure no dots at start
         if filename.startswith("."):
             filename = "x" + filename
-        
+
         result = validate_file_path(filename)
         assert result == Path(filename)
-    
+
     @given(
         st.text(alphabet="abcdefghij", min_size=1, max_size=10),
         st.text(alphabet="abcdefghij", min_size=1, max_size=10)
@@ -354,7 +353,7 @@ class TestJsonParseSafetyProperty:
     For any malformed JSON string, the safe parser SHALL return the
     default value without raising an exception.
     """
-    
+
     @given(st.text(max_size=100))
     @settings(max_examples=100)
     def test_never_raises_on_any_input(self, content: str):
@@ -365,7 +364,7 @@ class TestJsonParseSafetyProperty:
         # Note: "null" is valid JSON that parses to None, so we can't assert result is not None
         # The property we're testing is that it never raises, which is verified by reaching this line
         assert result == "fallback" or result is not None or content in ("null", "")
-    
+
     @given(st.sampled_from([
         "{invalid}",
         "{'single': 'quotes'}",
@@ -379,12 +378,12 @@ class TestJsonParseSafetyProperty:
         """Should return default for invalid JSON."""
         result = safe_json_parse(content, default="default")
         assert result == "default"
-    
+
     def test_returns_default_for_none(self):
         """Should return default for None input."""
         result = safe_json_parse(None, default="default")
         assert result == "default"
-    
+
     @given(st.dictionaries(
         st.text(alphabet="abcde", min_size=1, max_size=5),
         st.integers(min_value=-100, max_value=100),
@@ -405,12 +404,11 @@ class TestJsonParseSafetyProperty:
 # =============================================================================
 
 from primr.utils.validators import (
-    normalize_url,
-    validate_and_normalize_url,
-    suggest_similar,
     CLIValidationResult,
-    validate_cli_url,
+    normalize_url,
+    suggest_similar,
     validate_cli_mode,
+    validate_cli_url,
 )
 
 

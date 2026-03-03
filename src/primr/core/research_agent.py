@@ -3854,25 +3854,31 @@ List all sources with URLs and dates. Group by section for easy reference.
         if progress.message:
             console.info(f"Vendor Research: {progress.message}")
 
-    try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+    coro = client.research(
+        query=prompt,
+        output_format=None,
+        on_progress=progress_callback,
+        timeout=1800,  # 30 min timeout
+        job_metadata={
+            "report_kind": "vendor_research",
+            "cloud_vendor": cloud_vendor.lower(),
+        },
+    )
 
     try:
-        result = loop.run_until_complete(
-            client.research(
-                query=prompt,
-                output_format=None,
-                on_progress=progress_callback,
-                timeout=1800,  # 30 min timeout
-                job_metadata={
-                    "report_kind": "vendor_research",
-                    "cloud_vendor": cloud_vendor.lower(),
-                },
-            )
-        )
+        # If an event loop is already running (e.g. from Playwright/scraper),
+        # run the coroutine in a separate thread to avoid "already running" error.
+        try:
+            running_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            running_loop = None
+
+        if running_loop and running_loop.is_running():
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                result = pool.submit(asyncio.run, coro).result()
+        else:
+            result = asyncio.run(coro)
 
         if result.status != ResearchStatus.COMPLETED or not result.content:
             console.error("Vendor research generation failed")

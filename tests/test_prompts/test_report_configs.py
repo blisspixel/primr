@@ -7,12 +7,12 @@ are properly structured and the system can load them correctly.
 This ensures the extensible report architecture works correctly.
 """
 
+
 import pytest
 import yaml
-from pathlib import Path
 
 from primr.prompts.composer import PromptComposer
-from primr.prompts.registry import StrategyModuleRegistry, get_registry
+from primr.prompts.registry import get_registry
 
 
 class TestCompanyOverviewConfig:
@@ -22,7 +22,7 @@ class TestCompanyOverviewConfig:
         """company_overview.yaml loads without errors."""
         composer = PromptComposer()
         config = composer._load_config("company_overview")
-        
+
         assert config is not None
         assert config.sections is not None
 
@@ -30,16 +30,16 @@ class TestCompanyOverviewConfig:
         """company_overview.yaml has 21 sections."""
         composer = PromptComposer()
         config = composer._load_config("company_overview")
-        
+
         assert len(config.sections) == 21, f"Expected 21 sections, got {len(config.sections)}"
 
     def test_all_sections_have_required_fields(self):
         """All sections have id, name, part, position."""
         composer = PromptComposer()
         config = composer._load_config("company_overview")
-        
+
         for section in config.sections:
-            assert section.id, f"Section missing 'id'"
+            assert section.id, "Section missing 'id'"
             assert section.name, f"Section {section.id} missing 'name'"
             assert section.part, f"Section {section.id} missing 'part'"
             assert section.position, f"Section {section.id} missing 'position'"
@@ -48,7 +48,7 @@ class TestCompanyOverviewConfig:
         """All section positions are opening, middle, closing, or framework."""
         composer = PromptComposer()
         config = composer._load_config("company_overview")
-        
+
         valid_positions = {"opening", "middle", "closing", "framework"}
         for section in config.sections:
             assert section.position in valid_positions, \
@@ -58,7 +58,7 @@ class TestCompanyOverviewConfig:
         """Config has at least one opening and one closing section."""
         composer = PromptComposer()
         config = composer._load_config("company_overview")
-        
+
         positions = [s.position for s in config.sections]
         assert "opening" in positions, "No opening section found"
         assert "closing" in positions, "No closing section found"
@@ -67,7 +67,7 @@ class TestCompanyOverviewConfig:
         """First section should be Executive Summary."""
         composer = PromptComposer()
         config = composer._load_config("company_overview")
-        
+
         first = config.sections[0]
         assert first.id == "executive_summary"
         assert first.position == "opening"
@@ -76,9 +76,9 @@ class TestCompanyOverviewConfig:
         """Config has accordion_method section with required prompts."""
         composer = PromptComposer()
         config = composer._load_config("company_overview")
-        
+
         accordion = config.raw_config.get("accordion_method", {})
-        
+
         assert "research_dossier_prompt" in accordion, "Missing research_dossier_prompt"
         assert "section_writing_prompt" in accordion, "Missing section_writing_prompt"
         assert "position_guidance" in accordion, "Missing position_guidance"
@@ -87,10 +87,10 @@ class TestCompanyOverviewConfig:
         """position_guidance has opening, middle, closing."""
         composer = PromptComposer()
         config = composer._load_config("company_overview")
-        
+
         accordion = config.raw_config.get("accordion_method", {})
         guidance = accordion.get("position_guidance", {})
-        
+
         assert "opening" in guidance, "Missing opening guidance"
         assert "middle" in guidance, "Missing middle guidance"
         assert "closing" in guidance, "Missing closing guidance"
@@ -103,7 +103,7 @@ class TestAIStrategyConfig:
         """ai_strategy.yaml exists in strategies folder."""
         registry = get_registry()
         strategy = registry.get("ai")
-        
+
         assert strategy is not None
         assert strategy.config_path.exists()
 
@@ -111,10 +111,10 @@ class TestAIStrategyConfig:
         """ai_strategy.yaml loads without errors."""
         registry = get_registry()
         strategy = registry.get("ai")
-        
+
         with open(strategy.config_path, encoding="utf-8") as f:
             config = yaml.safe_load(f)
-        
+
         assert config is not None
         assert "meta" in config
         assert "sections" in config
@@ -123,10 +123,10 @@ class TestAIStrategyConfig:
         """ai_strategy.yaml has sections defined."""
         registry = get_registry()
         strategy = registry.get("ai")
-        
+
         with open(strategy.config_path, encoding="utf-8") as f:
             config = yaml.safe_load(f)
-        
+
         sections = config.get("sections", [])
         assert len(sections) >= 10, f"Expected 10+ sections, got {len(sections)}"
 
@@ -134,12 +134,12 @@ class TestAIStrategyConfig:
         """ai_strategy.yaml has vendor-specific guidance."""
         registry = get_registry()
         strategy = registry.get("ai")
-        
+
         with open(strategy.config_path, encoding="utf-8") as f:
             config = yaml.safe_load(f)
-        
+
         vendor_guidance = config.get("vendor_guidance", {})
-        
+
         assert "azure" in vendor_guidance, "Missing Azure guidance"
         assert "aws" in vendor_guidance, "Missing AWS guidance"
         assert "gcp" in vendor_guidance, "Missing GCP guidance"
@@ -148,9 +148,9 @@ class TestAIStrategyConfig:
         """ai_strategy.yaml has data sources for vendor research."""
         registry = get_registry()
         strategy = registry.get("ai")
-        
+
         assert len(strategy.data_sources) > 0, "No data sources defined"
-        
+
         # Should have sources for multiple vendors
         vendors = [ds.vendor for ds in strategy.data_sources if ds.vendor]
         assert "azure" in vendors
@@ -165,9 +165,9 @@ class TestStrategyExtensibility:
         """Registry discovers all strategy YAML files."""
         registry = get_registry()
         strategies = registry.discover()
-        
+
         assert len(strategies) >= 1, "Should discover at least 1 strategy"
-        
+
         names = [s.name for s in strategies]
         assert "ai" in names, "Should discover AI strategy"
 
@@ -175,7 +175,7 @@ class TestStrategyExtensibility:
         """All strategy names are unique."""
         registry = get_registry()
         strategies = registry.discover()
-        
+
         names = [s.name for s in strategies]
         assert len(names) == len(set(names)), "Duplicate strategy names found"
 
@@ -183,11 +183,11 @@ class TestStrategyExtensibility:
         """All strategy configs are valid YAML."""
         registry = get_registry()
         strategies = registry.discover()
-        
+
         for strategy in strategies:
             with open(strategy.config_path, encoding="utf-8") as f:
                 config = yaml.safe_load(f)
-            
+
             assert isinstance(config, dict), f"Strategy {strategy.name} config is not a dict"
             assert "meta" in config, f"Strategy {strategy.name} missing meta section"
 
@@ -195,11 +195,11 @@ class TestStrategyExtensibility:
         """All strategies have required meta fields."""
         registry = get_registry()
         strategies = registry.discover()
-        
+
         for strategy in strategies:
             with open(strategy.config_path, encoding="utf-8") as f:
                 config = yaml.safe_load(f)
-            
+
             meta = config.get("meta", {})
             assert "name" in meta, f"Strategy {strategy.name} missing meta.name"
             assert "version" in meta, f"Strategy {strategy.name} missing meta.version"
@@ -214,7 +214,7 @@ class TestReportTypeConsistency:
         composer = PromptComposer()
         company_config = composer._load_config("company_overview")
         assert company_config is not None
-        
+
         # AI Strategy
         registry = get_registry()
         ai_strategy = registry.get("ai")
@@ -223,10 +223,10 @@ class TestReportTypeConsistency:
     def test_section_ids_are_valid_identifiers(self):
         """All section IDs are valid Python identifiers (snake_case)."""
         import re
-        
+
         composer = PromptComposer()
         config = composer._load_config("company_overview")
-        
+
         for section in config.sections:
             section_id = section.id
             assert re.match(r'^[a-z][a-z0-9_]*$', section_id), \
@@ -240,10 +240,10 @@ class TestVendorResearchFiles:
         """Vendor research files referenced in ai_strategy.yaml exist."""
         registry = get_registry()
         strategy = registry.get("ai")
-        
+
         # Get base path (project root)
         base_path = strategy.config_path.parent.parent.parent.parent
-        
+
         for ds in strategy.data_sources:
             if ds.vendor:  # Only check vendor-specific files
                 full_path = base_path / ds.path
@@ -254,7 +254,7 @@ class TestVendorResearchFiles:
     def test_get_context_files_returns_existing_files(self):
         """get_context_files only returns files that exist."""
         registry = get_registry()
-        
+
         for vendor in ["azure", "aws", "gcp", "agnostic"]:
             files = registry.get_context_files("ai", vendor=vendor)
             for f in files:
@@ -280,9 +280,9 @@ class TestCompanyOverviewValidation:
         """
         composer = PromptComposer()
         config = composer._load_config("company_overview")
-        
+
         assert len(config.sections) == 21, f"Expected 21 sections, got {len(config.sections)}"
-        
+
         required_fields = ["id", "name", "part", "position"]
         for section in config.sections:
             for field in required_fields:
@@ -293,7 +293,7 @@ class TestCompanyOverviewValidation:
         """All sections should have position and part fields."""
         composer = PromptComposer()
         config = composer._load_config("company_overview")
-        
+
         for section in config.sections:
             assert section.position, f"Section {section.id} missing position"
             assert section.part, f"Section {section.id} missing part"
@@ -311,12 +311,12 @@ class TestAIStrategyVendorGuidance:
         """
         registry = get_registry()
         strategy = registry.get("ai")
-        
+
         with open(strategy.config_path, encoding="utf-8") as f:
             config = yaml.safe_load(f)
-        
+
         vendor_guidance = config.get("vendor_guidance", {})
-        
+
         required_vendors = ["azure", "aws", "gcp"]
         for vendor in required_vendors:
             assert vendor in vendor_guidance, f"Missing vendor guidance for {vendor}"
@@ -327,12 +327,12 @@ class TestAIStrategyVendorGuidance:
         """Vendor guidance should have substantive content."""
         registry = get_registry()
         strategy = registry.get("ai")
-        
+
         with open(strategy.config_path, encoding="utf-8") as f:
             config = yaml.safe_load(f)
-        
+
         vendor_guidance = config.get("vendor_guidance", {})
-        
+
         for vendor, guidance in vendor_guidance.items():
             if vendor in ["azure", "aws", "gcp"]:
                 # Guidance should be non-trivial
@@ -352,14 +352,14 @@ class TestAccordionMethodPrompts:
         """
         composer = PromptComposer()
         config = composer._load_config("company_overview")
-        
+
         accordion = config.raw_config.get("accordion_method", {})
-        
+
         # Research dossier prompt should have company_name placeholder
         dossier_prompt = accordion.get("research_dossier_prompt", "")
         assert "{company_name}" in dossier_prompt, \
             "research_dossier_prompt missing {company_name} placeholder"
-        
+
         # Section writing prompt should have required placeholders
         section_prompt = accordion.get("section_writing_prompt", "")
         required_placeholders = ["{company_name}", "{section_title}"]
@@ -371,10 +371,10 @@ class TestAccordionMethodPrompts:
         """Position guidance should have meaningful content."""
         composer = PromptComposer()
         config = composer._load_config("company_overview")
-        
+
         accordion = config.raw_config.get("accordion_method", {})
         guidance = accordion.get("position_guidance", {})
-        
+
         for position in ["opening", "middle", "closing"]:
             content = guidance.get(position, "")
             assert len(content) > 20, \
@@ -391,9 +391,9 @@ class TestMalformedYAMLHandling:
         
         **Validates: Requirements 6.3**
         """
-        import tempfile
         import os
-        
+        import tempfile
+
         # Create a malformed YAML file
         malformed_yaml = """
 meta:
@@ -405,23 +405,22 @@ sections:
     invalid_indent
       nested: value
 """
-        
+
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
             f.write(malformed_yaml)
             temp_path = f.name
-        
+
         try:
-            with pytest.raises(yaml.YAMLError):
-                with open(temp_path, encoding="utf-8") as f:
-                    yaml.safe_load(f)
+            with pytest.raises(yaml.YAMLError), open(temp_path, encoding="utf-8") as f:
+                yaml.safe_load(f)
         finally:
             os.unlink(temp_path)
 
     def test_missing_required_field_detected(self):
         """Missing required fields should be detectable."""
-        import tempfile
         import os
-        
+        import tempfile
+
         # YAML with missing required field
         incomplete_yaml = """
 meta:
@@ -429,15 +428,15 @@ meta:
   # missing version
 sections: []
 """
-        
+
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
             f.write(incomplete_yaml)
             temp_path = f.name
-        
+
         try:
             with open(temp_path, encoding="utf-8") as f:
                 config = yaml.safe_load(f)
-            
+
             meta = config.get("meta", {})
             # Should be able to detect missing version
             assert "version" not in meta or meta.get("version") is None
@@ -449,7 +448,8 @@ sections: []
 # Property Tests for YAML Validation
 # =============================================================================
 
-from hypothesis import given, settings, strategies as st
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 
 @given(
@@ -468,13 +468,13 @@ def test_property_section_ids_are_snake_case(section_id: str):
     For any valid section ID, it should be in snake_case format.
     """
     import re
-    
+
     # Valid snake_case pattern
     pattern = r'^[a-z][a-z0-9_]*$'
-    
+
     # If it matches the pattern, it's valid snake_case
     is_valid = bool(re.match(pattern, section_id))
-    
+
     # All generated IDs should be valid (by construction)
     assert is_valid, f"Invalid section ID format: {section_id}"
 
@@ -492,11 +492,11 @@ def test_property_vendor_guidance_exists(vendor: str):
     """
     registry = get_registry()
     strategy = registry.get("ai")
-    
+
     with open(strategy.config_path, encoding="utf-8") as f:
         config = yaml.safe_load(f)
-    
+
     vendor_guidance = config.get("vendor_guidance", {})
-    
+
     if vendor != "agnostic":  # agnostic may not have specific guidance
         assert vendor in vendor_guidance, f"Missing guidance for {vendor}"

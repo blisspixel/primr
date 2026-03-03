@@ -6,16 +6,14 @@ Validates: FR-7.1, FR-7.2
 """
 
 import json
-import os
 import string
 import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-import pytest
-from hypothesis import given, settings, strategies as st, HealthCheck
-
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
 
 # Run manifest schema per design document
 REQUIRED_MANIFEST_FIELDS = [
@@ -90,28 +88,28 @@ class TestRunManifestSchema:
     def test_valid_manifest_has_all_required_fields(self):
         """Test that a valid manifest contains all required top-level fields."""
         manifest = create_valid_manifest()
-        
+
         for field in REQUIRED_MANIFEST_FIELDS:
             assert field in manifest, f"Missing required field: {field}"
 
     def test_valid_manifest_estimate_has_required_fields(self):
         """Test that estimate section has all required fields."""
         manifest = create_valid_manifest()
-        
+
         for field in REQUIRED_ESTIMATE_FIELDS:
             assert field in manifest["estimate"], f"Missing estimate field: {field}"
 
     def test_valid_manifest_approval_has_required_fields(self):
         """Test that approval section has all required fields."""
         manifest = create_valid_manifest()
-        
+
         for field in REQUIRED_APPROVAL_FIELDS:
             assert field in manifest["approval"], f"Missing approval field: {field}"
 
     def test_valid_manifest_execution_has_required_fields(self):
         """Test that execution section has all required fields."""
         manifest = create_valid_manifest()
-        
+
         for field in REQUIRED_EXECUTION_FIELDS:
             assert field in manifest["execution"], f"Missing execution field: {field}"
 
@@ -157,25 +155,25 @@ class TestRunManifestPropertyTests:
         # Skip empty strings that pass through
         if not job_id.strip() or not company_name.strip():
             return
-            
+
         manifest = create_valid_manifest(
             job_id=job_id,
             company_name=company_name,
             mode=mode,
             status=status,
         )
-        
+
         # Verify all required top-level fields
         for field in REQUIRED_MANIFEST_FIELDS:
             assert field in manifest, f"Missing required field: {field}"
-        
+
         # Verify nested required fields
         for field in REQUIRED_ESTIMATE_FIELDS:
             assert field in manifest["estimate"], f"Missing estimate field: {field}"
-        
+
         for field in REQUIRED_APPROVAL_FIELDS:
             assert field in manifest["approval"], f"Missing approval field: {field}"
-        
+
         for field in REQUIRED_EXECUTION_FIELDS:
             assert field in manifest["execution"], f"Missing execution field: {field}"
 
@@ -190,17 +188,17 @@ class TestRunManifestPropertyTests:
         **Validates: FR-7.2**
         """
         manifest = create_valid_manifest()
-        
+
         # Generate artifact paths
         artifacts = [f"output/test_corp/artifact_{i}.txt" for i in range(num_artifacts)]
         manifest["artifacts"] = artifacts
-        
+
         # Verify artifacts is a list
         assert isinstance(manifest["artifacts"], list)
-        
+
         # Verify count matches
         assert len(manifest["artifacts"]) == num_artifacts
-        
+
         # Verify all paths are strings
         for artifact in manifest["artifacts"]:
             assert isinstance(artifact, str)
@@ -219,7 +217,7 @@ class TestRunManifestPropertyTests:
         manifest = create_valid_manifest()
         manifest["estimate"]["cost_usd"] = cost_usd
         manifest["estimate"]["time_minutes"] = time_minutes
-        
+
         # Verify values are valid
         assert manifest["estimate"]["cost_usd"] >= 0
         assert manifest["estimate"]["time_minutes"] > 0
@@ -244,10 +242,10 @@ class TestRunManifestFileOperations:
     def test_manifest_can_be_serialized_to_json(self):
         """Test that manifest can be serialized to valid JSON."""
         manifest = create_valid_manifest()
-        
+
         # Should not raise
         json_str = json.dumps(manifest, indent=2)
-        
+
         # Should be parseable
         parsed = json.loads(json_str)
         assert parsed == manifest
@@ -255,18 +253,18 @@ class TestRunManifestFileOperations:
     def test_manifest_can_be_written_and_read(self):
         """Test that manifest can be written to file and read back."""
         manifest = create_valid_manifest()
-        
+
         with tempfile.TemporaryDirectory() as tmpdir:
             manifest_path = Path(tmpdir) / "run_manifest.json"
-            
+
             # Write
             with open(manifest_path, "w", encoding="utf-8") as f:
                 json.dump(manifest, f, indent=2)
-            
+
             # Read
-            with open(manifest_path, "r", encoding="utf-8") as f:
+            with open(manifest_path, encoding="utf-8") as f:
                 loaded = json.load(f)
-            
+
             assert loaded == manifest
 
     def test_manifest_schema_version_is_1_0(self):
@@ -282,19 +280,19 @@ class TestRunManifestIntegration:
         """Test that manifest job_id matches the job it was created for."""
         job_id = "integration-test-job-456"
         manifest = create_valid_manifest(job_id=job_id)
-        
+
         assert manifest["job_id"] == job_id
 
     def test_manifest_company_name_matches_job(self):
         """Test that manifest company_name matches the job."""
         company_name = "Integration Test Corp"
         manifest = create_valid_manifest(company_name=company_name)
-        
+
         assert manifest["company_name"] == company_name
 
     def test_manifest_artifacts_reference_output_directory(self):
         """Test that artifact paths reference the output directory."""
         manifest = create_valid_manifest()
-        
+
         for artifact in manifest["artifacts"]:
             assert artifact.startswith("output/"), f"Artifact should be in output/: {artifact}"

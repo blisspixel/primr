@@ -17,42 +17,36 @@ Requirements: 3.4, 3.5, 3.6, 3.7, 3.11, 3.17, 4.5, 4.6
 from __future__ import annotations
 
 import json
-import tempfile
 import threading
-import time
 from pathlib import Path
-from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
 
-from deploy.control_plane.job_store import (
-    JobRecord,
-    JobStatus,
-    InMemoryJobStore,
-    CostEstimate,
-    JobInputs,
-    JobTiming,
-    ConditionalCheckFailedError,
-    canonicalize_inputs,
-    hash_inputs,
-    hash_job_id,
-    hash_api_key,
-    get_expected_artifacts,
-    format_timestamp,
-    utc_now,
-)
-from deploy.control_plane.queue import InMemoryQueue, QueueMessage
-from deploy.control_plane.cancellation import CancellationService, CancellationResult
+from deploy.control_plane.api import app, configure_app
+from deploy.control_plane.cancellation import CancellationResult, CancellationService
 from deploy.control_plane.cost_governor import (
     CostGovernor,
     QuotaConfig,
     QuotaExceededError,
     estimate_cost,
 )
-from deploy.control_plane.api import app, create_app, configure_app
+from deploy.control_plane.job_store import (
+    ConditionalCheckFailedError,
+    CostEstimate,
+    InMemoryJobStore,
+    JobInputs,
+    JobRecord,
+    JobStatus,
+    JobTiming,
+    canonicalize_inputs,
+    get_expected_artifacts,
+    hash_api_key,
+    hash_inputs,
+    hash_job_id,
+)
+from deploy.control_plane.queue import InMemoryQueue, QueueMessage
 from deploy.storage import LocalStore
-
 
 # =============================================================================
 # FIXTURES
@@ -133,10 +127,10 @@ class TestJobStore:
             estimate=CostEstimate(cost_usd=1.0, duration_minutes=30),
             timing=JobTiming(submitted_at="2024-01-01T00:00:00Z"),
         )
-        
+
         job_store.put_if_not_exists(job)
         retrieved = job_store.get("test-123")
-        
+
         assert retrieved is not None
         assert retrieved.job_id == "test-123"
         assert retrieved.status == JobStatus.QUEUED
@@ -159,9 +153,9 @@ class TestJobStore:
             estimate=CostEstimate(cost_usd=1.0, duration_minutes=30),
             timing=JobTiming(submitted_at="2024-01-01T00:00:00Z"),
         )
-        
+
         job_store.put_if_not_exists(job)
-        
+
         with pytest.raises(ConditionalCheckFailedError):
             job_store.put_if_not_exists(job)
 
@@ -183,12 +177,12 @@ class TestJobStore:
             estimate=CostEstimate(cost_usd=1.0, duration_minutes=30),
             timing=JobTiming(submitted_at="2024-01-01T00:00:00Z"),
         )
-        
+
         job_store.put_if_not_exists(job)
-        
+
         job.status = JobStatus.RUNNING
         job_store.update(job)
-        
+
         retrieved = job_store.get("test-123")
         assert retrieved is not None
         assert retrieved.status == JobStatus.RUNNING
@@ -213,7 +207,7 @@ class TestJobStore:
                 timing=JobTiming(submitted_at="2024-01-01T00:00:00Z"),
             )
             job_store.put_if_not_exists(job)
-        
+
         running = job_store.query_by_status([JobStatus.RUNNING])
         assert len(running) == 1
         assert running[0].job_id == "test-1"
@@ -236,7 +230,7 @@ class TestIdempotency:
             "idempotency_key": "test-key-1",
             "approve": True,
         }
-        
+
         # First submission
         response1 = client.post(
             "/submit",
@@ -245,7 +239,7 @@ class TestIdempotency:
         )
         assert response1.status_code == 200
         data1 = response1.json()
-        
+
         # Second submission with same inputs
         response2 = client.post(
             "/submit",
@@ -254,7 +248,7 @@ class TestIdempotency:
         )
         assert response2.status_code == 200
         data2 = response2.json()
-        
+
         # Should return same job_id
         assert data1["job_id"] == data2["job_id"]
         assert data2["is_existing"] is True
@@ -269,7 +263,7 @@ class TestIdempotency:
             "idempotency_key": "test-key-2",
             "approve": True,
         }
-        
+
         # First submission
         response1 = client.post(
             "/submit",
@@ -277,7 +271,7 @@ class TestIdempotency:
             headers={"Authorization": "Bearer test-api-key"},
         )
         assert response1.status_code == 200
-        
+
         # Second submission with different inputs but same idempotency_key
         request2 = {
             "company_name": "Different Corp",  # Different!
@@ -286,13 +280,13 @@ class TestIdempotency:
             "idempotency_key": "test-key-2",  # Same key
             "approve": True,
         }
-        
+
         response2 = client.post(
             "/submit",
             json=request2,
             headers={"Authorization": "Bearer test-api-key"},
         )
-        
+
         # Should return 409 Conflict
         assert response2.status_code == 409
 
@@ -301,20 +295,20 @@ class TestIdempotency:
         # Validates: Requirements 3.7
         idempotency_key = "same-key"
         api_key = "same-api-key"
-        
+
         job_id_dev = hash_job_id("dev", idempotency_key, api_key)
         job_id_prod = hash_job_id("prod", idempotency_key, api_key)
-        
+
         assert job_id_dev != job_id_prod
 
     def test_different_api_key_returns_different_job_id(self) -> None:
         """Different api_key + same idempotency_key returns different job_id."""
         idempotency_key = "same-key"
         deployment = "prod"
-        
+
         job_id_1 = hash_job_id(deployment, idempotency_key, "api-key-1")
         job_id_2 = hash_job_id(deployment, idempotency_key, "api-key-2")
-        
+
         assert job_id_1 != job_id_2
 
 
@@ -330,7 +324,7 @@ class TestConcurrentSubmission:
         # Validates: Requirements 3.8
         results: list[tuple[bool, str | None]] = []
         errors: list[Exception] = []
-        
+
         def submit_job(idx: int) -> None:
             try:
                 job = JobRecord(
@@ -355,19 +349,19 @@ class TestConcurrentSubmission:
                 results.append((False, None))
             except Exception as e:
                 errors.append(e)
-        
+
         # Start multiple threads
         threads = [threading.Thread(target=submit_job, args=(i,)) for i in range(10)]
         for t in threads:
             t.start()
         for t in threads:
             t.join()
-        
+
         # Exactly one should succeed
         assert len(errors) == 0
         successes = [r for r in results if r[0]]
         failures = [r for r in results if not r[0]]
-        
+
         assert len(successes) == 1
         assert len(failures) == 9
 
@@ -387,10 +381,10 @@ class TestQuotaEnforcement:
         """Quota should be enforced for concurrent jobs."""
         # Validates: Requirements 4.5
         api_key_hash = "sha256:test"
-        
+
         # Set low quota
         cost_governor.set_quota(api_key_hash, QuotaConfig(max_concurrent_jobs=2))
-        
+
         # Create 2 active jobs
         for i in range(2):
             job = JobRecord(
@@ -410,13 +404,13 @@ class TestQuotaEnforcement:
                 timing=JobTiming(submitted_at="2024-01-01T00:00:00Z"),
             )
             job_store.put_if_not_exists(job)
-        
+
         # Third job should exceed quota
         estimate = CostEstimate(cost_usd=1.0, duration_minutes=30)
-        
+
         with pytest.raises(QuotaExceededError) as exc_info:
             cost_governor.check_quota(api_key_hash, estimate)
-        
+
         assert "concurrent jobs" in str(exc_info.value).lower()
 
     def test_quota_exceeded_daily_cost(
@@ -427,28 +421,28 @@ class TestQuotaEnforcement:
         """Quota should be enforced for daily cost."""
         # Validates: Requirements 4.6
         api_key_hash = "sha256:test"
-        
+
         # Set low daily cost quota
         cost_governor.set_quota(api_key_hash, QuotaConfig(max_daily_cost_usd=5.0))
-        
+
         # Record some cost
         cost_governor.record_job_cost(api_key_hash, 4.5)
-        
+
         # New job with cost that would exceed daily limit
         estimate = CostEstimate(cost_usd=1.0, duration_minutes=30)
-        
+
         with pytest.raises(QuotaExceededError) as exc_info:
             cost_governor.check_quota(api_key_hash, estimate)
-        
+
         assert "daily cost" in str(exc_info.value).lower()
 
     def test_quota_returns_429(self, client: TestClient, cost_governor: CostGovernor) -> None:
         """API should return 429 when quota exceeded."""
         api_key_hash = hash_api_key("test-api-key")
-        
+
         # Set very low quota
         cost_governor.set_quota(api_key_hash, QuotaConfig(max_concurrent_jobs=0))
-        
+
         request = {
             "company_name": "Acme Corp",
             "company_url": "https://acme.example",
@@ -456,13 +450,13 @@ class TestQuotaEnforcement:
             "idempotency_key": "quota-test",
             "approve": True,
         }
-        
+
         response = client.post(
             "/submit",
             json=request,
             headers={"Authorization": "Bearer test-api-key"},
         )
-        
+
         assert response.status_code == 429
 
 
@@ -497,12 +491,12 @@ class TestJobStateTransitions:
             timing=JobTiming(submitted_at="2024-01-01T00:00:00Z"),
         )
         job_store.put_if_not_exists(job)
-        
+
         result = cancellation_service.cancel_job("cancel-test-1")
-        
+
         assert result.result == CancellationResult.CANCELLED
         assert result.status == JobStatus.CANCELLED
-        
+
         # Verify job was updated
         updated = job_store.get("cancel-test-1")
         assert updated is not None
@@ -532,15 +526,15 @@ class TestJobStateTransitions:
             execution_id="task-123",
         )
         job_store.put_if_not_exists(job)
-        
+
         # Use a provider that returns False (stop pending)
         class PendingStopProvider:
             def stop_job(self, execution_id: str) -> bool:
                 return False
-        
+
         service = CancellationService(job_store, PendingStopProvider())
         result = service.cancel_job("cancel-test-2")
-        
+
         assert result.result == CancellationResult.CANCEL_REQUESTED
         assert result.status == JobStatus.CANCEL_REQUESTED
 
@@ -567,9 +561,9 @@ class TestJobStateTransitions:
             timing=JobTiming(submitted_at="2024-01-01T00:00:00Z"),
         )
         job_store.put_if_not_exists(job)
-        
+
         result = cancellation_service.cancel_job("cancel-test-3")
-        
+
         assert result.result == CancellationResult.ALREADY_COMPLETED
 
     def test_pending_approval_to_queued(self, client: TestClient, job_store: InMemoryJobStore) -> None:
@@ -582,7 +576,7 @@ class TestJobStateTransitions:
             "idempotency_key": "approval-test",
             "approve": False,  # Don't auto-approve
         }
-        
+
         response = client.post(
             "/submit",
             json=request,
@@ -591,13 +585,13 @@ class TestJobStateTransitions:
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "PENDING_APPROVAL"
-        
+
         job_id = data["job_id"]
-        
+
         # Approve the job
         response = client.post(f"/approve/{job_id}")
         assert response.status_code == 200
-        
+
         # Verify status changed
         job = job_store.get(job_id)
         assert job is not None
@@ -643,7 +637,7 @@ class TestStatusEndpoint:
             timing=JobTiming(submitted_at="2024-01-01T00:00:00Z"),
         )
         job_store.put_if_not_exists(job)
-        
+
         # Write events.jsonl
         events = [
             {"ts": "2024-01-01T00:01:00Z", "stage": "scrape", "percent": 20, "message": "Scraping"},
@@ -651,12 +645,12 @@ class TestStatusEndpoint:
         ]
         events_content = "\n".join(json.dumps(e) for e in events)
         artifact_store.put("status-test-1/events.jsonl", events_content.encode())
-        
+
         # Get status
         response = client.get("/status/status-test-1")
         assert response.status_code == 200
         data = response.json()
-        
+
         assert data["last_event"] is not None
         assert data["last_event"]["stage"] == "insights"
         assert data["last_event"]["percent"] == 50
@@ -700,7 +694,7 @@ class TestResultsEndpoint:
             timing=JobTiming(submitted_at="2024-01-01T00:00:00Z"),
         )
         job_store.put_if_not_exists(job)
-        
+
         # Get results (no manifest exists)
         response = client.get("/results/results-test-1")
         assert response.status_code == 425
@@ -712,9 +706,10 @@ class TestResultsEndpoint:
         artifact_store: LocalStore,
     ) -> None:
         """Results should return manifest and presigned URLs when complete."""
-        from deploy.manifest import JobManifest, ArtifactMeta, JobInputs as ManifestInputs
-        from deploy.manifest import JobTiming as ManifestTiming, JobCost, JobVersions
-        
+        from deploy.manifest import ArtifactMeta, JobCost, JobManifest, JobVersions
+        from deploy.manifest import JobInputs as ManifestInputs
+        from deploy.manifest import JobTiming as ManifestTiming
+
         # Create a job
         job = JobRecord(
             job_id="results-test-2",
@@ -733,10 +728,10 @@ class TestResultsEndpoint:
             timing=JobTiming(submitted_at="2024-01-01T00:00:00Z"),
         )
         job_store.put_if_not_exists(job)
-        
+
         # Write artifact
         artifact_store.put("results-test-2/report.txt", b"Test report content")
-        
+
         # Write manifest
         manifest = JobManifest(
             job_id="results-test-2",
@@ -760,12 +755,12 @@ class TestResultsEndpoint:
             versions=JobVersions(primr="1.0.0", runner="1.0.0"),
         )
         artifact_store.put_manifest("results-test-2", manifest)
-        
+
         # Get results
         response = client.get("/results/results-test-2")
         assert response.status_code == 200
         data = response.json()
-        
+
         assert data["job_id"] == "results-test-2"
         assert data["status"] == "SUCCEEDED"
         assert "report.txt" in data["artifacts"]
@@ -791,7 +786,7 @@ class TestCanonicalization:
             company_url="https://acme.example/path",
             mode="full",
         )
-        
+
         assert inputs1.company_url == inputs2.company_url
         assert hash_inputs(inputs1) == hash_inputs(inputs2)
 
@@ -807,7 +802,7 @@ class TestCanonicalization:
             company_url="https://acme.example",
             mode="full",
         )
-        
+
         assert inputs1.company_name == inputs2.company_name
         assert hash_inputs(inputs1) == hash_inputs(inputs2)
 
@@ -825,7 +820,7 @@ class TestCanonicalization:
             mode="full",
             options={"a": 1, "b": 2},
         )
-        
+
         assert hash_inputs(inputs1) == hash_inputs(inputs2)
 
 
@@ -845,9 +840,9 @@ class TestQueue:
             inputs={"company_name": "Acme"},
             enqueued_at="2024-01-01T00:00:00Z",
         )
-        
+
         queue.enqueue(message)
-        
+
         messages = queue.dequeue(max_messages=1)
         assert len(messages) == 1
         assert messages[0].job_id == "test-job"
@@ -861,13 +856,13 @@ class TestQueue:
             inputs={"company_name": "Acme"},
             enqueued_at="2024-01-01T00:00:00Z",
         )
-        
+
         queue.enqueue(message)
-        
+
         # Dequeue with very short timeout
         messages = queue.dequeue(max_messages=1, visibility_timeout=0)
         assert len(messages) == 1
-        
+
         # Should be visible again immediately
         messages = queue.dequeue(max_messages=1)
         assert len(messages) == 1
@@ -881,14 +876,14 @@ class TestQueue:
             inputs={"company_name": "Acme"},
             enqueued_at="2024-01-01T00:00:00Z",
         )
-        
+
         queue.enqueue(message)
-        
+
         messages = queue.dequeue(max_messages=1, visibility_timeout=0)
         assert len(messages) == 1
-        
+
         queue.delete(messages[0].receipt_handle)
-        
+
         # Should not be visible again
         messages = queue.dequeue(max_messages=1)
         assert len(messages) == 0

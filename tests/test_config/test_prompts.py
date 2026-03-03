@@ -32,7 +32,7 @@ class TestPromptTemplate:
 
     def test_render_raises_on_missing_variable(self):
         """Template raises PromptError when required variable is missing."""
-        from primr.config.prompts import PromptTemplate, PromptError
+        from primr.config.prompts import PromptError, PromptTemplate
 
         template = PromptTemplate(
             name="test",
@@ -87,7 +87,7 @@ class TestPromptRegistry:
 
     def test_get_returns_template(self):
         """get() returns a PromptTemplate for valid name."""
-        from primr.config.prompts import get_registry, PromptTemplate
+        from primr.config.prompts import PromptTemplate, get_registry
 
         registry = get_registry()
         template = registry.get("industry")
@@ -97,7 +97,7 @@ class TestPromptRegistry:
 
     def test_get_raises_on_unknown_prompt(self):
         """get() raises PromptError for unknown prompt name."""
-        from primr.config.prompts import get_registry, PromptError
+        from primr.config.prompts import PromptError, get_registry
 
         registry = get_registry()
 
@@ -152,7 +152,7 @@ class TestPublicInterface:
 
     def test_generate_prompt_raises_on_missing_vars(self):
         """generate_prompt() raises PromptError on missing variables."""
-        from primr.config.prompts import generate_prompt, PromptError
+        from primr.config.prompts import PromptError, generate_prompt
 
         with pytest.raises(PromptError):
             generate_prompt("industry")  # Missing required vars
@@ -170,7 +170,7 @@ class TestPublicInterface:
 
     def test_get_prompt_template_returns_template(self):
         """get_prompt_template() returns template for inspection."""
-        from primr.config.prompts import get_prompt_template, PromptTemplate
+        from primr.config.prompts import PromptTemplate, get_prompt_template
 
         template = get_prompt_template("industry")
 

@@ -4,8 +4,7 @@ Tests for the ReportAggregator component.
 Tests chapter aggregation, TOC generation, and document formatting.
 """
 
-from datetime import datetime
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -72,7 +71,7 @@ class TestReportAggregator:
     def test_build_header(self, aggregator: ReportAggregator) -> None:
         """Test header generation."""
         header = aggregator._build_header("TestCorp", 10)
-        
+
         assert "TestCorp" in header
         assert "10" in header
         assert "Hierarchy of Truth" in header
@@ -84,9 +83,9 @@ class TestReportAggregator:
             ChapterResult(2, "Products", "content", success=True),
             ChapterResult(3, "Failed Chapter", "", success=False, error="Error"),
         ]
-        
+
         toc = aggregator._generate_toc(chapters, "TestCorp")
-        
+
         assert "Table of Contents" in toc
         assert "Executive Summary" in toc
         assert "Products" in toc
@@ -106,9 +105,9 @@ class TestReportAggregator:
             content="Just some content without header",
             success=True
         )
-        
+
         cleaned = aggregator._clean_chapter_content(chapter)
-        
+
         assert cleaned.startswith("## 1. Test Chapter")
 
     def test_clean_chapter_content_updates_existing_header(
@@ -121,9 +120,9 @@ class TestReportAggregator:
             content="## Test Chapter\n\nContent here",
             success=True
         )
-        
+
         cleaned = aggregator._clean_chapter_content(chapter)
-        
+
         assert "## 3. Test Chapter" in cleaned
 
     def test_consolidate_citations(self, aggregator: ReportAggregator) -> None:
@@ -146,9 +145,9 @@ class TestReportAggregator:
                 success=True
             ),
         ]
-        
+
         citations = aggregator._consolidate_citations(chapters)
-        
+
         # Should deduplicate by URL
         assert len(citations) == 3
         urls = [c["url"] for c in citations]
@@ -173,9 +172,9 @@ class TestReportAggregator:
                 success=True
             ),
         ]
-        
+
         report = await aggregator.aggregate(chapters, "TestCorp")
-        
+
         assert report.company_name == "TestCorp"
         assert report.chapter_count == 2
         assert "Executive Summary" in report.content
@@ -200,9 +199,9 @@ class TestReportAggregator:
                 error="API Error"
             ),
         ]
-        
+
         report = await aggregator.aggregate(chapters, "TestCorp")
-        
+
         assert report.chapter_count == 1
         assert len(report.missing_chapters) == 1
         assert "Failed Chapter" in report.missing_chapters
@@ -218,14 +217,14 @@ class TestReportAggregator:
             ChapterResult(1, "Chapter 1", "Content 1", success=True),
             ChapterResult(2, "Chapter 2", "Content 2", success=True),
         ]
-        
+
         report = await aggregator.aggregate(chapters, "TestCorp")
-        
+
         # Check order in content
         pos1 = report.content.find("Chapter 1")
         pos2 = report.content.find("Chapter 2")
         pos3 = report.content.find("Chapter 3")
-        
+
         assert pos1 < pos2 < pos3
 
 
@@ -235,22 +234,22 @@ class TestSingletonAccess:
     def test_get_report_aggregator_returns_instance(self) -> None:
         """Test that get_report_aggregator returns an instance."""
         reset_report_aggregator()
-        
+
         with patch("primr.ai.report_aggregator.get_settings") as mock_settings:
             mock_settings.return_value.api.gemini_key = "test-key"
             aggregator = get_report_aggregator()
-        
+
         assert isinstance(aggregator, ReportAggregator)
 
     def test_get_report_aggregator_returns_same_instance(self) -> None:
         """Test that get_report_aggregator returns the same instance."""
         reset_report_aggregator()
-        
+
         with patch("primr.ai.report_aggregator.get_settings") as mock_settings:
             mock_settings.return_value.api.gemini_key = "test-key"
             aggregator1 = get_report_aggregator()
             aggregator2 = get_report_aggregator()
-        
+
         assert aggregator1 is aggregator2
 
     def test_reset_report_aggregator(self) -> None:
@@ -260,12 +259,13 @@ class TestSingletonAccess:
             aggregator1 = get_report_aggregator()
             reset_report_aggregator()
             aggregator2 = get_report_aggregator()
-        
+
         assert aggregator1 is not aggregator2
 
 
 # Property-based tests using Hypothesis
-from hypothesis import given, settings, strategies as st
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 
 class TestAggregationProperty:
@@ -287,7 +287,7 @@ class TestAggregationProperty:
         with patch("primr.ai.report_aggregator.get_settings") as mock_settings:
             mock_settings.return_value.api.gemini_key = "test-key"
             aggregator = ReportAggregator()
-        
+
         chapters = [
             ChapterResult(
                 chapter_number=i,
@@ -297,13 +297,13 @@ class TestAggregationProperty:
             )
             for i in range(1, chapter_count + 1)
         ]
-        
+
         report = await aggregator.aggregate(chapters, "TestCorp")
-        
+
         # Should produce a single document
         assert isinstance(report.content, str)
         assert len(report.content) > 0
-        
+
         # Should contain all chapters
         assert report.chapter_count == chapter_count
 
@@ -317,21 +317,21 @@ class TestAggregationProperty:
         with patch("primr.ai.report_aggregator.get_settings") as mock_settings:
             mock_settings.return_value.api.gemini_key = "test-key"
             aggregator = ReportAggregator()
-        
+
         chapters = [
             ChapterResult(1, "Alpha", "## Alpha\n\nAlpha content.", success=True),
             ChapterResult(2, "Beta", "## Beta\n\nBeta content.", success=True),
             ChapterResult(3, "Gamma", "", success=False, error="Failed"),
             ChapterResult(4, "Delta", "## Delta\n\nDelta content.", success=True),
         ]
-        
+
         report = await aggregator.aggregate(chapters, "TestCorp")
-        
+
         # All successful chapters should be in content
         assert "Alpha content" in report.content
         assert "Beta content" in report.content
         assert "Delta content" in report.content
-        
+
         # Failed chapter should be noted
         assert "Gamma" in report.content
         assert "could not be generated" in report.content
@@ -359,6 +359,6 @@ class TestChapterCompletenessProperty:
                 success=True
             ),
         ]
-        
+
         total = sum(ch.word_count for ch in chapters if ch.success)
         assert total == 12

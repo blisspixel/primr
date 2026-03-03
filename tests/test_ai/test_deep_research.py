@@ -5,22 +5,22 @@ These tests use mocks to avoid actual API calls.
 Real API integration tests should be run separately.
 """
 
-import pytest
 import tempfile
-from unittest.mock import Mock, patch, AsyncMock
 from datetime import datetime
+from unittest.mock import Mock, patch
+
+import pytest
 
 from primr.ai.deep_research import (
     DeepResearchClient,
     DeepResearchOrchestrator,
-    ResearchStatus,
     ResearchProgress,
     ResearchResult,
-    get_deep_research_client,
-    reset_deep_research_client,
-    save_pending_job,
+    ResearchStatus,
     get_pending_jobs,
     remove_pending_job,
+    reset_deep_research_client,
+    save_pending_job,
 )
 from primr.utils.errors import AIError
 
@@ -45,7 +45,7 @@ class TestResearchProgress:
             status=ResearchStatus.IN_PROGRESS,
             message="Processing..."
         )
-        
+
         assert progress.status == ResearchStatus.IN_PROGRESS
         assert progress.message == "Processing..."
         assert progress.thought is None
@@ -58,7 +58,7 @@ class TestResearchProgress:
             status=ResearchStatus.IN_PROGRESS,
             thought="Analyzing competitive landscape..."
         )
-        
+
         assert progress.thought == "Analyzing competitive landscape..."
 
 
@@ -73,7 +73,7 @@ class TestResearchResult:
             duration_seconds=120.5,
             status=ResearchStatus.COMPLETED
         )
-        
+
         assert result.success is True
         assert result.content == "Research findings..."
         assert result.error is None
@@ -86,7 +86,7 @@ class TestResearchResult:
             status=ResearchStatus.FAILED,
             error="API error"
         )
-        
+
         assert result.success is False
         assert result.error == "API error"
 
@@ -98,7 +98,7 @@ class TestResearchResult:
                 {"text": "Source 1", "url": "https://example.com"}
             ]
         )
-        
+
         assert len(result.citations) == 1
 
     def test_result_with_search_queries_count(self):
@@ -110,7 +110,7 @@ class TestResearchResult:
             status=ResearchStatus.COMPLETED,
             search_queries_count=15,  # Actual count from groundingMetadata
         )
-        
+
         assert result.success is True
         assert result.search_queries_count == 15
 
@@ -180,7 +180,7 @@ class TestPromptFormats:
         """Company profile prompt includes all required sections."""
         client = DeepResearchClient.__new__(DeepResearchClient)
         prompt = client._build_company_profile_prompt("Research Acme Corp")
-        
+
         required_sections = [
             "Executive Summary",
             "Products and Services",
@@ -191,14 +191,14 @@ class TestPromptFormats:
             "Competitive Landscape",
             "Discovery Questions",
         ]
-        
+
         for section in required_sections:
             assert section in prompt, f"Missing section: {section}"
 
     def test_prompt_includes_citation_instruction(self):
         """Prompts include instruction to cite sources."""
         client = DeepResearchClient.__new__(DeepResearchClient)
-        
+
         for format_type in ["company_profile", "executive_summary", "competitive_analysis"]:
             prompt = client._build_prompt("Research test", format_type)
             assert "cite" in prompt.lower() or "source" in prompt.lower()
@@ -210,32 +210,32 @@ class TestExtractContent:
     def test_extract_content_from_outputs(self):
         """Extract text from interaction outputs."""
         client = DeepResearchClient.__new__(DeepResearchClient)
-        
+
         # Mock interaction with outputs
         mock_interaction = Mock()
         mock_output = Mock()
         mock_output.text = "Research findings here"
         mock_interaction.outputs = [mock_output]
-        
+
         content = client._extract_content(mock_interaction)
         assert content == "Research findings here"
 
     def test_extract_content_empty_outputs(self):
         """Handle interaction with no outputs."""
         client = DeepResearchClient.__new__(DeepResearchClient)
-        
+
         mock_interaction = Mock()
         mock_interaction.outputs = []
-        
+
         content = client._extract_content(mock_interaction)
         assert content == ""
 
     def test_extract_content_no_outputs_attr(self):
         """Handle interaction without outputs attribute."""
         client = DeepResearchClient.__new__(DeepResearchClient)
-        
+
         mock_interaction = Mock(spec=[])  # No outputs attribute
-        
+
         content = client._extract_content(mock_interaction)
         assert content == ""
 
@@ -287,7 +287,7 @@ class TestThinkingLog:
             interaction_id="test-123",
             company_name="Acme Corp"
         )
-        
+
         assert log.interaction_id == "test-123"
         assert log.company_name == "Acme Corp"
         assert log.thoughts == []
@@ -300,10 +300,10 @@ class TestThinkingLog:
             interaction_id="test-123",
             company_name="Acme Corp"
         )
-        
+
         log.add_thought("Analyzing company website")
         log.add_thought("Searching for financial data")
-        
+
         assert len(log.thoughts) == 2
         assert "Analyzing company website" in log.thoughts[0]
         assert "Searching for financial data" in log.thoughts[1]
@@ -314,10 +314,10 @@ class TestThinkingLog:
             interaction_id="test-123",
             company_name="Acme Corp"
         )
-        
+
         log.add_search("Acme Corp revenue 2024")
         log.add_search("Acme Corp competitors")
-        
+
         assert len(log.search_queries) == 2
         assert "Acme Corp revenue 2024" in log.search_queries
 
@@ -327,11 +327,11 @@ class TestThinkingLog:
             interaction_id="test-123",
             company_name="Acme Corp"
         )
-        
+
         log.add_source("https://acme.com")
         log.add_source("https://acme.com")
         log.add_source("https://other.com")
-        
+
         assert len(log.sources_visited) == 2
 
     def test_to_markdown(self):
@@ -340,13 +340,13 @@ class TestThinkingLog:
             interaction_id="test-123",
             company_name="Acme Corp"
         )
-        
+
         log.add_thought("Starting research")
         log.add_search("Acme Corp overview")
         log.add_source("https://acme.com")
-        
+
         markdown = log.to_markdown()
-        
+
         assert "# Deep Research Thinking Log" in markdown
         assert "Acme Corp" in markdown
         assert "test-123" in markdown
@@ -362,7 +362,7 @@ class TestCulturePrompt:
         """Company profile prompt includes culture analysis."""
         client = DeepResearchClient.__new__(DeepResearchClient)
         prompt = client._build_company_profile_prompt("Research Acme Corp")
-        
+
         assert "Culture" in prompt or "Leadership" in prompt
         # Should NOT reference Glassdoor/Reddit (unreliable)
         assert "Glassdoor" not in prompt
@@ -372,7 +372,7 @@ class TestCulturePrompt:
         """Culture analysis focuses on official/observable sources."""
         client = DeepResearchClient.__new__(DeepResearchClient)
         prompt = client._build_company_profile_prompt("Research Acme Corp")
-        
+
         # Should reference official sources
         official_signals = [
             "website",
@@ -380,7 +380,7 @@ class TestCulturePrompt:
             "leadership",
             "careers",
         ]
-        
+
         prompt_lower = prompt.lower()
         found_any = any(signal in prompt_lower for signal in official_signals)
         assert found_any, "Should reference official sources for culture analysis"
@@ -389,7 +389,7 @@ class TestCulturePrompt:
         """Prompt includes patterns section for exploring observations."""
         client = DeepResearchClient.__new__(DeepResearchClient)
         prompt = client._build_company_profile_prompt("Research Acme Corp")
-        
+
         assert "Patterns Worth Exploring" in prompt
         assert "question" in prompt.lower()
 
@@ -407,7 +407,7 @@ class TestFileSearch:
         client = DeepResearchClient.__new__(DeepResearchClient)
         client._client = Mock()
         client.AGENT_ID = "deep-research-pro-preview-12-2025"
-        
+
         with pytest.raises(AIError, match="No valid context files"):
             client._upload_context_files([])
 
@@ -416,7 +416,7 @@ class TestFileSearch:
         client = DeepResearchClient.__new__(DeepResearchClient)
         client._client = Mock()
         client.AGENT_ID = "deep-research-pro-preview-12-2025"
-        
+
         with pytest.raises(AIError, match="Context files not found"):
             client._upload_context_files([
                 "/nonexistent/path/file1.pdf",
@@ -427,16 +427,16 @@ class TestFileSearch:
     def test_upload_context_files_creates_store(self, mock_exists):
         """Upload creates file search store and uploads files."""
         mock_exists.return_value = True
-        
+
         client = DeepResearchClient.__new__(DeepResearchClient)
         mock_client = Mock()
         mock_store = Mock()
         mock_store.name = "test-store-123"
         mock_client.file_search_stores.create.return_value = mock_store
         client._client = mock_client
-        
+
         result = client._upload_context_files(["/path/to/file.pdf"])
-        
+
         assert result == "test-store-123"
         mock_client.file_search_stores.create.assert_called_once()
         mock_client.file_search_stores.upload_to_file_search_store.assert_called_once()
@@ -445,13 +445,13 @@ class TestFileSearch:
     def test_upload_context_files_handles_error(self, mock_exists):
         """Upload raises AIError on API errors (fail fast)."""
         mock_exists.return_value = True
-        
+
         client = DeepResearchClient.__new__(DeepResearchClient)
         client.AGENT_ID = "deep-research-pro-preview-12-2025"
         mock_client = Mock()
         mock_client.file_search_stores.create.side_effect = Exception("API Error")
         client._client = mock_client
-        
+
         with pytest.raises(AIError, match="Failed to create file store"):
             client._upload_context_files(["/path/to/file.pdf"])
 
@@ -463,9 +463,9 @@ class TestFileSearch:
         mock_interaction.id = "interaction-123"
         mock_client.interactions.create.return_value = mock_interaction
         client._client = mock_client
-        
+
         result = client._start_research("Research query")
-        
+
         # Should not include tools parameter
         call_kwargs = mock_client.interactions.create.call_args[1]
         assert "tools" not in call_kwargs or not call_kwargs.get("tools")
@@ -480,9 +480,9 @@ class TestFileSearch:
         mock_interaction.id = "interaction-123"
         mock_client.interactions.create.return_value = mock_interaction
         client._client = mock_client
-        
+
         result = client._start_research("Research query", file_store_name="store-123")
-        
+
         # Should include tools parameter with file_search
         call_kwargs = mock_client.interactions.create.call_args[1]
         assert "tools" in call_kwargs
@@ -528,7 +528,7 @@ class TestResearchWithContextFiles:
         client._api_key = "test-key"
         client._client = Mock()
         client.AGENT_ID = "deep-research-pro-preview-12-2025"
-        
+
         with pytest.raises(AIError, match="Context file not found"):
             await client.research(
                 "Research Acme Corp",

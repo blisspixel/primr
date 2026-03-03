@@ -8,7 +8,6 @@ from pathlib import Path
 
 import pytest
 
-
 DOCKERFILE_PATH = Path(__file__).parent.parent.parent / "openclaw" / "Dockerfile.primr"
 
 
@@ -59,14 +58,14 @@ class TestNonRootUser:
         """USER directive comes before pip install."""
         user_line = None
         pip_line = None
-        
+
         for i, line in enumerate(dockerfile_lines):
             if line.strip().startswith("USER primr"):
                 user_line = i
             if "pip install" in line and user_line is not None:
                 pip_line = i
                 break
-        
+
         assert user_line is not None, "USER primr not found"
         assert pip_line is not None, "pip install not found after USER"
         assert user_line < pip_line, "USER should come before pip install"
@@ -139,14 +138,14 @@ class TestSecurityBestPractices:
     def test_no_root_operations_after_user_switch(self, dockerfile_lines: list[str]) -> None:
         """No root operations after USER switch."""
         user_switched = False
-        
+
         for line in dockerfile_lines:
             stripped = line.strip()
-            
+
             if stripped.startswith("USER primr"):
                 user_switched = True
                 continue
-            
+
             if user_switched:
                 # After USER switch, should not see operations requiring root
                 assert not stripped.startswith("RUN apt-get"), "apt-get after USER switch"

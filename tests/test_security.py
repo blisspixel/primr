@@ -12,19 +12,3 @@ file in tests/security/:
 """
 
 # Re-export all test classes for backward compatibility
-from tests.security.test_ssrf import (
-    TestURLValidation as TestSSRFProtection,
-    TestHTTPClientSSRF,
-    TestRedirectSSRFProtection,
-    TestOrchestratorSSRFProtection,
-    TestHTTPClientClassSSRF as TestHTTPClientSSRFProtection,
-    TestBrowserScraperRedirectSSRF,
-)
-from tests.security.test_xxe import TestXXEProtection
-from tests.security.test_path_traversal import TestPathTraversalProtection
-from tests.security.test_input_validation import (
-    TestURLInputValidation as TestInputValidation,
-    TestSecurityHeaders,
-    TestInputSanitization,
-    TestAPIInputValidation,
-)

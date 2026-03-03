@@ -5,10 +5,8 @@ These tests verify that Deep Research output is correctly
 normalized to the section format expected by report generation.
 """
 
-import pytest
 from primr.ai.result_normalizer import (
     ResultNormalizer,
-    Citation,
     normalize_deep_research,
 )
 
@@ -39,7 +37,7 @@ Revenue is $5 billion.
 """
         normalizer = ResultNormalizer()
         result = normalizer.normalize(content)
-        
+
         assert 'company_overview' in result
         assert 'executive summary' in result['company_overview'].lower() or 'This is the executive summary' in result['company_overview']
         assert 'detailed_products_services' in result
@@ -62,7 +60,7 @@ To innovate.
 """
         normalizer = ResultNormalizer()
         result = normalizer.normalize(content)
-        
+
         assert 'company_overview' in result
         # Subsections should be included in parent
         assert 'History' in result['company_overview'] or 'Founded' in result['company_overview']
@@ -78,7 +76,7 @@ Key competitors include:
 """
         normalizer = ResultNormalizer()
         result = normalizer.normalize(content)
-        
+
         assert 'competitive_position' in result
         assert 'Competitor A' in result['competitive_position']
 
@@ -97,7 +95,7 @@ Key competitors include:
 """
         normalizer = ResultNormalizer()
         result = normalizer.normalize(content)
-        
+
         assert 'strategic_recommendations' in result
 
     def test_normalize_no_sections_uses_overview(self):
@@ -108,7 +106,7 @@ It should all go into the company overview section.
 """
         normalizer = ResultNormalizer()
         result = normalizer.normalize(content)
-        
+
         assert 'company_overview' in result
         assert 'plain text' in result['company_overview']
 
@@ -126,14 +124,14 @@ Line 2
 Line 3
 """
         cleaned = normalizer._clean_content(content)
-        
+
         # Should not have more than one consecutive blank line
         assert '\n\n\n' not in cleaned
 
     def test_map_header_variations(self):
         """Various header phrasings map correctly."""
         normalizer = ResultNormalizer()
-        
+
         test_cases = [
             ('Executive Summary', 'company_overview'),
             ('Company Overview', 'company_overview'),
@@ -148,7 +146,7 @@ Line 3
             ('Company History', 'company_history'),
             ('Mission and Vision', 'mission_vision'),
         ]
-        
+
         for header, expected_key in test_cases:
             result = normalizer._map_header_to_section(header)
             assert result == expected_key, f"Header '{header}' should map to '{expected_key}', got '{result}'"
@@ -165,7 +163,7 @@ According to [Company Website](https://example.com), revenue grew 15%.
 See also [Annual Report](https://example.com/report.pdf).
 """
         citations = normalizer.extract_citations(content)
-        
+
         assert len(citations) == 2
         assert citations[0].text == 'Company Website'
         assert citations[0].url == 'https://example.com'
@@ -177,7 +175,7 @@ See also [Annual Report](https://example.com/report.pdf).
 Revenue data from Source: https://example.com/data
 """
         citations = normalizer.extract_citations(content)
-        
+
         assert len(citations) >= 1
 
     def test_no_citations(self):
@@ -185,7 +183,7 @@ Revenue data from Source: https://example.com/data
         normalizer = ResultNormalizer()
         content = "Just plain text without any citations."
         citations = normalizer.extract_citations(content)
-        
+
         assert citations == []
 
 
@@ -200,7 +198,7 @@ class TestConvenienceFunction:
 Test content.
 """
         result = normalize_deep_research(content)
-        
+
         assert isinstance(result, dict)
         assert 'company_overview' in result
 
@@ -211,11 +209,11 @@ class TestSectionTitleMapping:
     def test_get_section_title(self):
         """Get display title for section key."""
         normalizer = ResultNormalizer()
-        
+
         # Known section
         title = normalizer.get_section_title('financial_overview')
         assert title  # Should return something
-        
+
         # Unknown section
         title = normalizer.get_section_title('unknown_section')
         assert title == 'Unknown Section'
@@ -235,7 +233,7 @@ Employees: 10,000
 """
         normalizer = ResultNormalizer()
         result = normalizer.normalize(content)
-        
+
         assert 'company_overview' in result
         assert '$5.2B' in result['company_overview']
 
@@ -248,7 +246,7 @@ Product list here.
 """
         normalizer = ResultNormalizer()
         result = normalizer.normalize(content)
-        
+
         assert 'detailed_products_services' in result
 
     def test_very_long_content(self):
@@ -261,6 +259,6 @@ Product list here.
 """
         normalizer = ResultNormalizer()
         result = normalizer.normalize(content)
-        
+
         assert 'company_overview' in result
         assert len(result['company_overview']) > 1000

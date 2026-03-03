@@ -6,7 +6,9 @@ Property tests for clean project root.
 """
 
 from pathlib import Path
-from hypothesis import given, strategies as st, settings
+
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 PROJECT_ROOT = Path(__file__).parent.parent
 
@@ -71,7 +73,7 @@ def test_readme_is_markdown():
     """Verify readme.txt was renamed to README.md."""
     readme_txt = PROJECT_ROOT / "readme.txt"
     readme_md = PROJECT_ROOT / "README.md"
-    
+
     assert not readme_txt.exists(), "readme.txt should be renamed to README.md"
     assert readme_md.exists(), "README.md should exist"
 

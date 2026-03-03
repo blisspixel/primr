@@ -12,20 +12,18 @@ from __future__ import annotations
 
 import time
 from datetime import datetime
-from typing import Any
 
 import pytest
-from hypothesis import given, settings, strategies as st, HealthCheck, assume
+from hypothesis import HealthCheck, assume, given, settings
+from hypothesis import strategies as st
 
 from primr.utils.circuit_breaker import (
-    CircuitState,
-    CircuitBreakerConfig,
-    CircuitStats,
     CircuitBreaker,
+    CircuitBreakerConfig,
     CircuitOpenError,
+    CircuitState,
     StateChangeEvent,
 )
-
 
 # =============================================================================
 # STRATEGIES FOR GENERATING TEST DATA
@@ -82,15 +80,15 @@ class TestFailureCountTracking:
         """Failure count should equal the number of recorded failures."""
         # Ensure we don't trigger state transition
         assume(num_failures < config.failure_threshold)
-        
+
         breaker = CircuitBreaker(config)
-        
+
         # Record failures
         for _ in range(num_failures):
             breaker.record_failure(key)
-        
+
         stats = breaker.get_stats(key)
-        
+
         # Failure count should match
         assert stats.failure_count == num_failures
 
@@ -105,21 +103,21 @@ class TestFailureCountTracking:
         """Failure count should reset to 0 after a success in closed state."""
         # Ensure we have room to record failures without opening
         assume(config.failure_threshold >= 2)
-        
+
         breaker = CircuitBreaker(config)
-        
+
         # Record some failures (but not enough to open)
         failures_to_record = config.failure_threshold - 1
         for _ in range(failures_to_record):
             breaker.record_failure(key)
-        
+
         # Verify failures were recorded and circuit is still closed
         assert breaker.get_stats(key).failure_count == failures_to_record
         assert breaker.get_state(key) == CircuitState.CLOSED
-        
+
         # Record a success
         breaker.record_success(key)
-        
+
         # Failure count should be reset
         assert breaker.get_stats(key).failure_count == 0
 
@@ -141,24 +139,24 @@ class TestFailureCountTracking:
             half_open_max_calls=config.half_open_max_calls
         )
         breaker = CircuitBreaker(config)
-        
+
         # Open the circuit
         for _ in range(config.failure_threshold):
             breaker.record_failure(key)
-        
+
         assert breaker.get_state(key) == CircuitState.OPEN
-        
+
         # Wait for timeout
         time.sleep(0.02)
-        
+
         # Check to transition to half-open
         breaker.check(key)
         assert breaker.get_state(key) == CircuitState.HALF_OPEN
-        
+
         # Record success to close
         breaker.record_success(key)
         assert breaker.get_state(key) == CircuitState.CLOSED
-        
+
         # Failure count should be reset
         assert breaker.get_stats(key).failure_count == 0
 
@@ -173,16 +171,16 @@ class TestFailureCountTracking:
         """Last failure time should be updated on each failure."""
         config = CircuitBreakerConfig(failure_threshold=num_failures + 5)
         breaker = CircuitBreaker(config)
-        
+
         before = datetime.now()
-        
+
         for _ in range(num_failures):
             breaker.record_failure(key)
-        
+
         after = datetime.now()
-        
+
         stats = breaker.get_stats(key)
-        
+
         # Last failure time should be set and within bounds
         assert stats.last_failure_time is not None
         assert before <= stats.last_failure_time <= after
@@ -213,18 +211,18 @@ class TestStateTransitionEvents:
     ):
         """Listener should receive event when circuit opens."""
         breaker = CircuitBreaker(config)
-        
+
         events: list[StateChangeEvent] = []
         breaker.add_state_change_listener(lambda e: events.append(e))
-        
+
         # Trigger transition to OPEN
         for _ in range(config.failure_threshold):
             breaker.record_failure(key)
-        
+
         # Should have received exactly one event
         assert len(events) == 1
         event = events[0]
-        
+
         assert event.key == key
         assert event.from_state == CircuitState.CLOSED
         assert event.to_state == CircuitState.OPEN
@@ -248,23 +246,23 @@ class TestStateTransitionEvents:
             half_open_max_calls=config.half_open_max_calls
         )
         breaker = CircuitBreaker(config)
-        
+
         events: list[StateChangeEvent] = []
         breaker.add_state_change_listener(lambda e: events.append(e))
-        
+
         # Open the circuit
         for _ in range(config.failure_threshold):
             breaker.record_failure(key)
-        
+
         # Wait for timeout
         time.sleep(0.02)
-        
+
         # Check to trigger transition
         breaker.check(key)
-        
+
         # Should have two events: CLOSED->OPEN and OPEN->HALF_OPEN
         assert len(events) == 2
-        
+
         half_open_event = events[1]
         assert half_open_event.from_state == CircuitState.OPEN
         assert half_open_event.to_state == CircuitState.HALF_OPEN
@@ -288,24 +286,24 @@ class TestStateTransitionEvents:
             half_open_max_calls=config.half_open_max_calls
         )
         breaker = CircuitBreaker(config)
-        
+
         events: list[StateChangeEvent] = []
         breaker.add_state_change_listener(lambda e: events.append(e))
-        
+
         # Open the circuit
         for _ in range(config.failure_threshold):
             breaker.record_failure(key)
-        
+
         # Wait and transition to half-open
         time.sleep(0.02)
         breaker.check(key)
-        
+
         # Record success to close
         breaker.record_success(key)
-        
+
         # Should have three events
         assert len(events) == 3
-        
+
         close_event = events[2]
         assert close_event.from_state == CircuitState.HALF_OPEN
         assert close_event.to_state == CircuitState.CLOSED
@@ -327,24 +325,24 @@ class TestStateTransitionEvents:
             half_open_max_calls=config.half_open_max_calls
         )
         breaker = CircuitBreaker(config)
-        
+
         events: list[StateChangeEvent] = []
         breaker.add_state_change_listener(lambda e: events.append(e))
-        
+
         # Open the circuit
         for _ in range(config.failure_threshold):
             breaker.record_failure(key)
-        
+
         # Wait and transition to half-open
         time.sleep(0.02)
         breaker.check(key)
-        
+
         # Record failure to reopen
         breaker.record_failure(key)
-        
+
         # Should have three events
         assert len(events) == 3
-        
+
         reopen_event = events[2]
         assert reopen_event.from_state == CircuitState.HALF_OPEN
         assert reopen_event.to_state == CircuitState.OPEN
@@ -362,16 +360,16 @@ class TestStateTransitionEvents:
         """All registered listeners should receive state change events."""
         config = CircuitBreakerConfig(failure_threshold=2)
         breaker = CircuitBreaker(config)
-        
+
         # Register multiple listeners
         all_events: list[list[StateChangeEvent]] = [[] for _ in range(num_listeners)]
         for i in range(num_listeners):
             breaker.add_state_change_listener(lambda e, idx=i: all_events[idx].append(e))
-        
+
         # Trigger a state change
         for _ in range(config.failure_threshold):
             breaker.record_failure(key)
-        
+
         # All listeners should have received the event
         for listener_events in all_events:
             assert len(listener_events) == 1
@@ -383,22 +381,22 @@ class TestStateTransitionEvents:
         """Listener errors should not affect circuit breaker operation."""
         config = CircuitBreakerConfig(failure_threshold=2)
         breaker = CircuitBreaker(config)
-        
+
         def failing_listener(event: StateChangeEvent):
             raise RuntimeError("Listener error")
-        
+
         good_events: list[StateChangeEvent] = []
-        
+
         breaker.add_state_change_listener(failing_listener)
         breaker.add_state_change_listener(lambda e: good_events.append(e))
-        
+
         # Should not raise despite failing listener
         for _ in range(config.failure_threshold):
             breaker.record_failure(key)
-        
+
         # Circuit should still be open
         assert breaker.get_state(key) == CircuitState.OPEN
-        
+
         # Good listener should still receive event
         assert len(good_events) == 1
 
@@ -430,12 +428,12 @@ class TestThresholdBasedStateTransitions:
         """Circuit should open after exactly failure_threshold failures."""
         config = CircuitBreakerConfig(failure_threshold=failure_threshold)
         breaker = CircuitBreaker(config)
-        
+
         # Record N-1 failures - should still be closed
         for _ in range(failure_threshold - 1):
             breaker.record_failure(key)
             assert breaker.get_state(key) == CircuitState.CLOSED
-        
+
         # Record Nth failure - should now be open
         breaker.record_failure(key)
         assert breaker.get_state(key) == CircuitState.OPEN
@@ -456,21 +454,21 @@ class TestThresholdBasedStateTransitions:
             half_open_max_calls=success_threshold + 5
         )
         breaker = CircuitBreaker(config)
-        
+
         # Open the circuit
         for _ in range(config.failure_threshold):
             breaker.record_failure(key)
-        
+
         # Wait and transition to half-open
         time.sleep(0.02)
         breaker.check(key)
         assert breaker.get_state(key) == CircuitState.HALF_OPEN
-        
+
         # Record M-1 successes - should still be half-open
         for _ in range(success_threshold - 1):
             breaker.record_success(key)
             assert breaker.get_state(key) == CircuitState.HALF_OPEN
-        
+
         # Record Mth success - should now be closed
         breaker.record_success(key)
         assert breaker.get_state(key) == CircuitState.CLOSED
@@ -487,18 +485,18 @@ class TestThresholdBasedStateTransitions:
         """Success should reset failure count, preventing circuit from opening."""
         config = CircuitBreakerConfig(failure_threshold=failure_threshold)
         breaker = CircuitBreaker(config)
-        
+
         # Record N-1 failures
         for _ in range(failure_threshold - 1):
             breaker.record_failure(key)
-        
+
         # Record a success - should reset failure count
         breaker.record_success(key)
-        
+
         # Record N-1 more failures - should still be closed
         for _ in range(failure_threshold - 1):
             breaker.record_failure(key)
-        
+
         assert breaker.get_state(key) == CircuitState.CLOSED
 
     @given(key=key_strategy)
@@ -511,20 +509,20 @@ class TestThresholdBasedStateTransitions:
             timeout_seconds=0.01
         )
         breaker = CircuitBreaker(config)
-        
+
         # Open the circuit
         for _ in range(config.failure_threshold):
             breaker.record_failure(key)
-        
+
         # Wait and transition to half-open
         time.sleep(0.02)
         breaker.check(key)
         assert breaker.get_state(key) == CircuitState.HALF_OPEN
-        
+
         # Record some successes (but not enough to close)
         for _ in range(config.success_threshold - 2):
             breaker.record_success(key)
-        
+
         # Single failure should reopen
         breaker.record_failure(key)
         assert breaker.get_state(key) == CircuitState.OPEN
@@ -539,11 +537,11 @@ class TestThresholdBasedStateTransitions:
     ):
         """Successes in closed state should not change the state."""
         breaker = CircuitBreaker(config)
-        
+
         # Record many successes
         for _ in range(20):
             breaker.record_success(key)
-        
+
         # Should still be closed
         assert breaker.get_state(key) == CircuitState.CLOSED
 
@@ -577,15 +575,15 @@ class TestOpenCircuitRejection:
             timeout_seconds=timeout_seconds
         )
         breaker = CircuitBreaker(config)
-        
+
         # Open the circuit
         for _ in range(config.failure_threshold):
             breaker.record_failure(key)
-        
+
         # check() should raise CircuitOpenError
         with pytest.raises(CircuitOpenError) as exc_info:
             breaker.check(key)
-        
+
         error = exc_info.value
         assert error.host == key
         assert error.recoverable is True
@@ -605,17 +603,17 @@ class TestOpenCircuitRejection:
             timeout_seconds=timeout_seconds
         )
         breaker = CircuitBreaker(config)
-        
+
         # Open the circuit
         for _ in range(config.failure_threshold):
             breaker.record_failure(key)
-        
+
         # Immediately check - retry_after should be close to timeout_seconds
         with pytest.raises(CircuitOpenError) as exc_info:
             breaker.check(key)
-        
+
         error = exc_info.value
-        
+
         # retry_after should be approximately timeout_seconds (within 0.1s tolerance)
         assert error.retry_after is not None
         assert abs(error.retry_after - timeout_seconds) < 0.1
@@ -630,24 +628,24 @@ class TestOpenCircuitRejection:
             timeout_seconds=1.0  # 1 second timeout
         )
         breaker = CircuitBreaker(config)
-        
+
         # Open the circuit
         for _ in range(config.failure_threshold):
             breaker.record_failure(key)
-        
+
         # Get initial retry_after
         with pytest.raises(CircuitOpenError) as exc_info:
             breaker.check(key)
         initial_retry_after = exc_info.value.retry_after
-        
+
         # Wait a bit
         time.sleep(0.2)
-        
+
         # Get retry_after again
         with pytest.raises(CircuitOpenError) as exc_info:
             breaker.check(key)
         later_retry_after = exc_info.value.retry_after
-        
+
         # Should have decreased
         assert later_retry_after < initial_retry_after
 
@@ -660,17 +658,17 @@ class TestOpenCircuitRejection:
             timeout_seconds=0.01  # Very short timeout
         )
         breaker = CircuitBreaker(config)
-        
+
         # Open the circuit
         for _ in range(config.failure_threshold):
             breaker.record_failure(key)
-        
+
         # Wait for timeout
         time.sleep(0.02)
-        
+
         # check() should succeed (no exception)
         breaker.check(key)
-        
+
         # Should now be in half-open state
         assert breaker.get_state(key) == CircuitState.HALF_OPEN
 
@@ -684,10 +682,10 @@ class TestOpenCircuitRejection:
     ):
         """check() should succeed when circuit is closed."""
         breaker = CircuitBreaker(config)
-        
+
         # check() should not raise when closed
         breaker.check(key)  # Should not raise
-        
+
         assert breaker.get_state(key) == CircuitState.CLOSED
 
 
@@ -700,19 +698,19 @@ class TestOpenCircuitRejection:
             timeout_seconds=60.0  # Long timeout
         )
         breaker = CircuitBreaker(config)
-        
+
         # Open the circuit
         for _ in range(config.failure_threshold):
             breaker.record_failure(key)
-        
+
         initial_rejections = breaker.get_stats(key).total_rejections
-        
+
         # Try to check multiple times
         num_checks = 5
         for _ in range(num_checks):
             with pytest.raises(CircuitOpenError):
                 breaker.check(key)
-        
+
         # total_rejections should have increased
         final_rejections = breaker.get_stats(key).total_rejections
         assert final_rejections == initial_rejections + num_checks
@@ -723,20 +721,20 @@ class TestOpenCircuitRejection:
         """CircuitOpenError should be a PrimrError subclass."""
         config = CircuitBreakerConfig(failure_threshold=2)
         breaker = CircuitBreaker(config)
-        
+
         # Open the circuit
         for _ in range(config.failure_threshold):
             breaker.record_failure(key)
-        
+
         with pytest.raises(CircuitOpenError) as exc_info:
             breaker.check(key)
-        
+
         error = exc_info.value
-        
+
         # Should be a PrimrError
         from primr.utils.errors import PrimrError
         assert isinstance(error, PrimrError)
-        
+
         # Should have all PrimrError attributes
         assert hasattr(error, 'message')
         assert hasattr(error, 'category')
@@ -753,13 +751,13 @@ class TestOpenCircuitRejection:
             timeout_seconds=0.01
         )
         breaker = CircuitBreaker(config)
-        
+
         # Open the circuit
         for _ in range(config.failure_threshold):
             breaker.record_failure(key)
-        
+
         # Check immediately
         with pytest.raises(CircuitOpenError) as exc_info:
             breaker.check(key)
-        
+
         assert exc_info.value.retry_after >= 0

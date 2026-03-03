@@ -13,25 +13,22 @@ from datetime import datetime, timedelta
 from typing import Any
 
 import pytest
-from hypothesis import given, settings, strategies as st, HealthCheck, assume
+from hypothesis import HealthCheck, assume, given, settings
+from hypothesis import strategies as st
 
 from primr.utils.errors import (
-    PrimrError,
-    TransientError,
-    PermanentError,
-    TypedRateLimitError,
-    QuotaError,
-    TypedNetworkError,
-    PrimrValidationError,
     AuthenticationError,
-    PrimrConfigurationError,
+    PermanentError,
+    PrimrValidationError,
+    QuotaError,
+    TransientError,
+    TypedNetworkError,
+    TypedRateLimitError,
 )
 from primr.utils.retry import (
     RetryPolicy,
-    RetryAttempt,
     RetryPolicyManager,
 )
-
 
 # =============================================================================
 # STRATEGIES FOR GENERATING TEST DATA
@@ -183,9 +180,9 @@ class TestRetryEligibilityByErrorType:
         """TransientError should be retryable when attempt < max_retries."""
         manager = RetryPolicyManager(policy)
         error = create_transient_error(message)
-        
+
         result = manager.should_retry(error, attempt)
-        
+
         # Should be True iff attempt < max_retries and category is retryable
         expected = (
             attempt < policy.max_retries and
@@ -205,9 +202,9 @@ class TestRetryEligibilityByErrorType:
         """PermanentError should never be retryable regardless of attempt count."""
         manager = RetryPolicyManager(policy)
         error = create_permanent_error(message)
-        
+
         result = manager.should_retry(error, attempt)
-        
+
         # PermanentError has recoverable=False, so should never retry
         assert result is False
 
@@ -224,9 +221,9 @@ class TestRetryEligibilityByErrorType:
         """TypedRateLimitError should be retryable when attempt < max_retries."""
         manager = RetryPolicyManager(policy)
         error = create_rate_limit_error(message, retry_after)
-        
+
         result = manager.should_retry(error, attempt)
-        
+
         expected = (
             attempt < policy.max_retries and
             error.category in policy.retryable_categories
@@ -246,9 +243,9 @@ class TestRetryEligibilityByErrorType:
         """QuotaError should be retryable when attempt < max_retries."""
         manager = RetryPolicyManager(policy)
         error = create_quota_error(message, hours)
-        
+
         result = manager.should_retry(error, attempt)
-        
+
         expected = (
             attempt < policy.max_retries and
             error.category in policy.retryable_categories
@@ -267,9 +264,9 @@ class TestRetryEligibilityByErrorType:
         """TypedNetworkError should be retryable when attempt < max_retries."""
         manager = RetryPolicyManager(policy)
         error = create_network_error(message)
-        
+
         result = manager.should_retry(error, attempt)
-        
+
         expected = (
             attempt < policy.max_retries and
             error.category in policy.retryable_categories
@@ -288,9 +285,9 @@ class TestRetryEligibilityByErrorType:
         """PrimrValidationError should never be retryable."""
         manager = RetryPolicyManager(policy)
         error = create_validation_error(message)
-        
+
         result = manager.should_retry(error, attempt)
-        
+
         # ValidationError has recoverable=False
         assert result is False
 
@@ -306,9 +303,9 @@ class TestRetryEligibilityByErrorType:
         """AuthenticationError should never be retryable."""
         manager = RetryPolicyManager(policy)
         error = create_auth_error(message)
-        
+
         result = manager.should_retry(error, attempt)
-        
+
         # AuthenticationError has recoverable=False
         assert result is False
 
@@ -323,9 +320,9 @@ class TestRetryEligibilityByErrorType:
         """Non-PrimrError exceptions should never be retryable."""
         manager = RetryPolicyManager(policy)
         error = ValueError(message)
-        
+
         result = manager.should_retry(error, 0)
-        
+
         assert result is False
 
     @given(
@@ -339,10 +336,10 @@ class TestRetryEligibilityByErrorType:
         """Error at exactly max_retries should not be retryable."""
         manager = RetryPolicyManager(policy)
         error = create_transient_error(message)
-        
+
         # At max_retries, should not retry
         result = manager.should_retry(error, policy.max_retries)
-        
+
         assert result is False
 
     @given(
@@ -356,10 +353,10 @@ class TestRetryEligibilityByErrorType:
         """Error above max_retries should not be retryable."""
         manager = RetryPolicyManager(policy)
         error = create_transient_error(message)
-        
+
         # Above max_retries, should not retry
         result = manager.should_retry(error, policy.max_retries + 1)
-        
+
         assert result is False
 
 
@@ -391,9 +388,9 @@ class TestDelayCalculationCorrectness:
         """RateLimitError should use retry_after_seconds for delay."""
         manager = RetryPolicyManager(policy)
         error = create_rate_limit_error(message, retry_after)
-        
+
         delay = manager.get_delay(error, attempt)
-        
+
         # Should return exactly retry_after_seconds
         assert delay == retry_after
 
@@ -409,13 +406,13 @@ class TestDelayCalculationCorrectness:
     ):
         """QuotaError should calculate delay based on quota_reset_time."""
         manager = RetryPolicyManager(policy)
-        
+
         # Create QuotaError with specific reset time
         reset_time = datetime.now() + timedelta(seconds=seconds_until_reset)
         error = QuotaError(message=message, quota_reset_time=reset_time)
-        
+
         delay = manager.get_delay(error, attempt)
-        
+
         # Should be approximately the time until reset (within 1 second tolerance)
         assert delay >= 0
         assert abs(delay - seconds_until_reset) < 1.0
@@ -432,14 +429,14 @@ class TestDelayCalculationCorrectness:
         """TransientError without retry_after should use exponential backoff."""
         manager = RetryPolicyManager(policy)
         error = create_transient_error(message)
-        
+
         delay = manager.get_delay(error, attempt)
-        
+
         # Calculate expected delay range
         base_delay = policy.base_delay * (policy.exponential_base ** attempt)
         capped_delay = min(base_delay, policy.max_delay)
         jitter_range = capped_delay * policy.jitter_factor
-        
+
         # Delay should be within jitter range of expected
         assert delay >= max(0, capped_delay - jitter_range)
         assert delay <= capped_delay + jitter_range
@@ -456,9 +453,9 @@ class TestDelayCalculationCorrectness:
         """Delay should always be non-negative."""
         manager = RetryPolicyManager(policy)
         error = create_transient_error(message)
-        
+
         delay = manager.get_delay(error, attempt)
-        
+
         assert delay >= 0
 
     @given(
@@ -473,9 +470,9 @@ class TestDelayCalculationCorrectness:
         """Delay should never exceed max_delay (plus jitter)."""
         manager = RetryPolicyManager(policy)
         error = create_transient_error(message)
-        
+
         delay = manager.get_delay(error, attempt)
-        
+
         # Max possible delay is max_delay + jitter
         max_possible = policy.max_delay * (1 + policy.jitter_factor)
         assert delay <= max_possible
@@ -491,18 +488,18 @@ class TestDelayCalculationCorrectness:
         """Average delay should increase with attempt number (exponential backoff)."""
         manager = RetryPolicyManager(policy)
         error = create_transient_error(message)
-        
+
         # Get delays for multiple attempts
         delays_0 = [manager.get_delay(error, 0) for _ in range(10)]
         delays_2 = [manager.get_delay(error, 2) for _ in range(10)]
-        
+
         avg_0 = sum(delays_0) / len(delays_0)
         avg_2 = sum(delays_2) / len(delays_2)
-        
+
         # Expected base delays
         expected_0 = min(policy.base_delay, policy.max_delay)
         expected_2 = min(policy.base_delay * (policy.exponential_base ** 2), policy.max_delay)
-        
+
         # Average should be close to expected (within jitter tolerance)
         if expected_2 > expected_0:
             # Only check if expected_2 is actually larger (not capped)
@@ -518,13 +515,13 @@ class TestDelayCalculationCorrectness:
     ):
         """QuotaError with past reset time should return 0 delay."""
         manager = RetryPolicyManager(policy)
-        
+
         # Create QuotaError with reset time in the past
         reset_time = datetime.now() - timedelta(seconds=10)
         error = QuotaError(message=message, quota_reset_time=reset_time)
-        
+
         delay = manager.get_delay(error, 0)
-        
+
         # Should return 0 (or very small positive due to timing)
         assert delay >= 0
         assert delay < 1.0  # Should be essentially 0
@@ -560,26 +557,26 @@ class TestRetryHistoryAttachment:
             jitter_factor=0.0
         )
         manager = RetryPolicyManager(policy)
-        
+
         call_count = 0
-        
+
         def failing_operation():
             nonlocal call_count
             call_count += 1
             raise create_transient_error(message)
-        
+
         with pytest.raises(TransientError) as exc_info:
             manager.execute_with_retry_sync(failing_operation)
-        
+
         error = exc_info.value
-        
+
         # Should have retry_history in context
         assert "retry_history" in error.context
-        
+
         # Should have max_retries entries (one for each retry attempt)
         history = error.context["retry_history"]
         assert len(history) == max_retries
-        
+
         # Each entry should have required fields
         for i, entry in enumerate(history):
             assert "attempt" in entry
@@ -603,21 +600,21 @@ class TestRetryHistoryAttachment:
             jitter_factor=0.0
         )
         manager = RetryPolicyManager(policy)
-        
+
         call_count = 0
-        
+
         async def failing_operation():
             nonlocal call_count
             call_count += 1
             raise create_transient_error(message)
-        
+
         async def run_test():
             with pytest.raises(TransientError) as exc_info:
                 await manager.execute_with_retry(failing_operation)
             return exc_info.value
-        
+
         error = asyncio.run(run_test())
-        
+
         # Should have retry_history in context
         assert "retry_history" in error.context
         assert len(error.context["retry_history"]) == max_retries
@@ -628,12 +625,12 @@ class TestRetryHistoryAttachment:
         """Successful operations should not have retry history."""
         policy = RetryPolicy(max_retries=3, base_delay=0.001)
         manager = RetryPolicyManager(policy)
-        
+
         def successful_operation():
             return "success"
-        
+
         result = manager.execute_with_retry_sync(successful_operation)
-        
+
         assert result == "success"
         # Manager's attempts list should be empty
         assert len(manager.attempts) == 0
@@ -650,25 +647,25 @@ class TestRetryHistoryAttachment:
         """Retry history should track attempts even when eventually successful."""
         # Ensure succeed_on is within valid range
         assume(succeed_on <= max_retries)
-        
+
         policy = RetryPolicy(
             max_retries=max_retries,
             base_delay=0.001,
             jitter_factor=0.0
         )
         manager = RetryPolicyManager(policy)
-        
+
         call_count = 0
-        
+
         def eventually_succeeds():
             nonlocal call_count
             call_count += 1
             if call_count <= succeed_on:
                 raise create_transient_error(message)
             return "success"
-        
+
         result = manager.execute_with_retry_sync(eventually_succeeds)
-        
+
         assert result == "success"
         # Should have tracked the failed attempts
         assert len(manager.attempts) == succeed_on
@@ -681,15 +678,15 @@ class TestRetryHistoryAttachment:
         """Permanent errors should not have retry history (no retries attempted)."""
         policy = RetryPolicy(max_retries=3, base_delay=0.001)
         manager = RetryPolicyManager(policy)
-        
+
         def raises_permanent():
             raise create_permanent_error(message)
-        
+
         with pytest.raises(PermanentError) as exc_info:
             manager.execute_with_retry_sync(raises_permanent)
-        
+
         error = exc_info.value
-        
+
         # Should not have retry_history (no retries were attempted)
         assert "retry_history" not in error.context or len(error.context.get("retry_history", [])) == 0
 
@@ -708,16 +705,16 @@ class TestRetryHistoryAttachment:
             jitter_factor=0.0
         )
         manager = RetryPolicyManager(policy)
-        
+
         def failing_operation():
             raise create_network_error(message)
-        
+
         with pytest.raises(TypedNetworkError) as exc_info:
             manager.execute_with_retry_sync(failing_operation)
-        
+
         error = exc_info.value
         history = error.context["retry_history"]
-        
+
         # Each entry should have error_type
         for entry in history:
             assert "error_type" in entry
@@ -740,16 +737,16 @@ class TestRetryHistoryAttachment:
             jitter_factor=0.0  # No jitter for predictable delays
         )
         manager = RetryPolicyManager(policy)
-        
+
         def failing_operation():
             raise create_transient_error(message)
-        
+
         with pytest.raises(TransientError) as exc_info:
             manager.execute_with_retry_sync(failing_operation)
-        
+
         error = exc_info.value
         history = error.context["retry_history"]
-        
+
         # Verify delays follow exponential backoff pattern
         for i, entry in enumerate(history):
             expected_delay = base_delay * (2.0 ** i)

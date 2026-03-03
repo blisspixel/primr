@@ -14,14 +14,19 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
-from typing import Any
 
-import pytest
-from hypothesis import given, strategies as st, settings
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
-from deploy.manifest import JobManifest, ArtifactMeta, build_manifest, JobInputs, JobTiming, JobCost, JobVersions
+from deploy.manifest import (
+    JobCost,
+    JobInputs,
+    JobManifest,
+    JobTiming,
+    JobVersions,
+    build_manifest,
+)
 from deploy.runner import JobSpec
-
 
 # =============================================================================
 # STRATEGIES
@@ -45,7 +50,7 @@ def job_specs(draw: st.DrawFn) -> JobSpec:
     company_name = draw(st.text(min_size=1, max_size=100).filter(lambda x: x.strip()))
     company_url = draw(st.from_regex(r"https://[a-z]+\.[a-z]+", fullmatch=True))
     mode = draw(st.sampled_from(["scrape", "deep", "full"]))
-    
+
     return JobSpec(
         job_id=job_id,
         deployment=deployment,
@@ -94,7 +99,7 @@ class TestManifestCompleteness:
     
     **Validates: Requirements 2.2, 2.3**
     """
-    
+
     def test_manifest_has_all_required_fields(self) -> None:
         """Manifest should have all required fields."""
         manifest = JobManifest(
@@ -111,12 +116,12 @@ class TestManifestCompleteness:
             artifacts={},
             versions=JobVersions(primr="1.0.0", runner="1.0.0"),
         )
-        
+
         manifest_dict = manifest.to_dict()
-        
+
         for field in REQUIRED_MANIFEST_FIELDS:
             assert field in manifest_dict, f"Missing required field: {field}"
-    
+
     @given(job_specs(), job_statuses())
     @settings(max_examples=50, deadline=None)
     def test_built_manifest_has_required_fields(
@@ -127,11 +132,11 @@ class TestManifestCompleteness:
         """Built manifests should always have required fields."""
         import tempfile
         from pathlib import Path
-        
+
         # Create temp output directory
         with tempfile.TemporaryDirectory() as tmpdir:
             output_dir = Path(tmpdir)
-            
+
             # Build manifest
             now = datetime.now(timezone.utc)
             manifest = build_manifest(
@@ -143,24 +148,24 @@ class TestManifestCompleteness:
                 started_at=now,
                 completed_at=now,
             )
-            
+
             manifest_dict = manifest.to_dict()
-            
+
             # Check all required fields
             for field in REQUIRED_MANIFEST_FIELDS:
                 assert field in manifest_dict, f"Missing required field: {field}"
-    
+
     @given(job_specs())
     @settings(max_examples=30)
     def test_manifest_job_id_matches_spec(self, job_spec: JobSpec) -> None:
         """Manifest job_id should match the job spec."""
         import tempfile
         from pathlib import Path
-        
+
         with tempfile.TemporaryDirectory() as tmpdir:
             output_dir = Path(tmpdir)
             now = datetime.now(timezone.utc)
-            
+
             manifest = build_manifest(
                 job_spec=job_spec,
                 output_dir=output_dir,
@@ -170,20 +175,20 @@ class TestManifestCompleteness:
                 started_at=now,
                 completed_at=now,
             )
-            
+
             assert manifest.job_id == job_spec.job_id
-    
+
     @given(job_specs())
     @settings(max_examples=30)
     def test_manifest_deployment_matches_spec(self, job_spec: JobSpec) -> None:
         """Manifest deployment should match the job spec."""
         import tempfile
         from pathlib import Path
-        
+
         with tempfile.TemporaryDirectory() as tmpdir:
             output_dir = Path(tmpdir)
             now = datetime.now(timezone.utc)
-            
+
             manifest = build_manifest(
                 job_spec=job_spec,
                 output_dir=output_dir,
@@ -193,20 +198,20 @@ class TestManifestCompleteness:
                 started_at=now,
                 completed_at=now,
             )
-            
+
             assert manifest.deployment == job_spec.deployment
-    
+
     @given(job_specs())
     @settings(max_examples=30)
     def test_manifest_attempt_matches_spec(self, job_spec: JobSpec) -> None:
         """Manifest attempt should match the job spec."""
         import tempfile
         from pathlib import Path
-        
+
         with tempfile.TemporaryDirectory() as tmpdir:
             output_dir = Path(tmpdir)
             now = datetime.now(timezone.utc)
-            
+
             manifest = build_manifest(
                 job_spec=job_spec,
                 output_dir=output_dir,
@@ -216,24 +221,24 @@ class TestManifestCompleteness:
                 started_at=now,
                 completed_at=now,
             )
-            
+
             assert manifest.attempt == job_spec.attempt
 
 
 class TestManifestTimestamps:
     """Test manifest timestamp requirements."""
-    
+
     @given(job_specs())
     @settings(max_examples=30)
     def test_timestamps_are_iso_format(self, job_spec: JobSpec) -> None:
         """Timestamps should be in ISO 8601 format."""
         import tempfile
         from pathlib import Path
-        
+
         with tempfile.TemporaryDirectory() as tmpdir:
             output_dir = Path(tmpdir)
             now = datetime.now(timezone.utc)
-            
+
             manifest = build_manifest(
                 job_spec=job_spec,
                 output_dir=output_dir,
@@ -243,7 +248,7 @@ class TestManifestTimestamps:
                 started_at=now,
                 completed_at=now,
             )
-            
+
             # Check timing fields
             timing = manifest.timing
             for ts_field in ["submitted_at", "started_at", "completed_at"]:
@@ -252,21 +257,21 @@ class TestManifestTimestamps:
                     assert ts_value.endswith("Z"), f"{ts_field} should end with Z"
                     # Should be parseable
                     datetime.fromisoformat(ts_value.replace("Z", "+00:00"))
-    
+
     @given(job_specs())
     @settings(max_examples=30)
     def test_completed_at_after_started_at(self, job_spec: JobSpec) -> None:
         """completed_at should be >= started_at."""
         import tempfile
-        from pathlib import Path
         from datetime import timedelta
-        
+        from pathlib import Path
+
         with tempfile.TemporaryDirectory() as tmpdir:
             output_dir = Path(tmpdir)
             submitted = datetime.now(timezone.utc)
             started = submitted + timedelta(seconds=1)
             completed = started + timedelta(minutes=5)
-            
+
             manifest = build_manifest(
                 job_spec=job_spec,
                 output_dir=output_dir,
@@ -276,28 +281,28 @@ class TestManifestTimestamps:
                 started_at=started,
                 completed_at=completed,
             )
-            
+
             timing = manifest.timing
             started_dt = datetime.fromisoformat(timing.started_at.replace("Z", "+00:00"))
             completed_dt = datetime.fromisoformat(timing.completed_at.replace("Z", "+00:00"))
-            
+
             assert completed_dt >= started_dt
 
 
 class TestManifestSerialization:
     """Test manifest serialization/deserialization."""
-    
+
     @given(job_specs(), job_statuses())
     @settings(max_examples=30)
     def test_manifest_roundtrip(self, job_spec: JobSpec, status: str) -> None:
         """Manifest should survive JSON roundtrip."""
         import tempfile
         from pathlib import Path
-        
+
         with tempfile.TemporaryDirectory() as tmpdir:
             output_dir = Path(tmpdir)
             now = datetime.now(timezone.utc)
-            
+
             original = build_manifest(
                 job_spec=job_spec,
                 output_dir=output_dir,
@@ -307,11 +312,11 @@ class TestManifestSerialization:
                 started_at=now,
                 completed_at=now,
             )
-            
+
             # Serialize and deserialize
             json_str = original.to_json()
             restored = JobManifest.from_dict(json.loads(json_str))
-            
+
             # Check key fields match
             assert restored.job_id == original.job_id
             assert restored.deployment == original.deployment

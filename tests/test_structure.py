@@ -5,9 +5,10 @@ Property tests for package structure verification.
 **Validates: Requirements 1.2**
 """
 
-import os
 from pathlib import Path
-from hypothesis import given, strategies as st, settings
+
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 # Get project root
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -35,7 +36,7 @@ def test_subpackages_have_init(subpackage: str):
     """
     subpackage_dir = SRC_DIR / subpackage
     init_file = subpackage_dir / "__init__.py"
-    
+
     assert subpackage_dir.exists(), f"Subpackage directory {subpackage} does not exist"
     assert init_file.exists(), f"Missing __init__.py in {subpackage_dir}"
 

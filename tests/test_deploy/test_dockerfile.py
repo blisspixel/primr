@@ -14,7 +14,6 @@ from pathlib import Path
 
 import pytest
 
-
 DOCKERFILE_PATH = Path(__file__).parent.parent.parent / "deploy" / "Dockerfile"
 
 
@@ -72,7 +71,7 @@ class TestMultiStageBuild:
         # Find the second FROM (runtime stage)
         from_matches = list(re.finditer(r"^FROM\s+(\S+)", dockerfile_content, re.MULTILINE))
         assert len(from_matches) >= 2, "Need at least 2 FROM directives"
-        
+
         runtime_image = from_matches[1].group(1)
         assert "python:3.11-slim" in runtime_image, \
             f"Runtime should use python:3.11-slim, got {runtime_image}"
@@ -124,7 +123,7 @@ class TestNonRootUser:
         in_runtime = False
         from_count = 0
         user_found = False
-        
+
         for line in dockerfile_lines:
             stripped = line.strip()
             if stripped.startswith("FROM "):
@@ -134,7 +133,7 @@ class TestNonRootUser:
             if in_runtime and stripped.startswith("USER primr"):
                 user_found = True
                 break
-        
+
         assert user_found, "USER primr should be in runtime stage"
 
 
@@ -200,7 +199,7 @@ class TestSecurityBestPractices:
             r'sk-[a-zA-Z0-9]{48}',  # OpenAI API key pattern
             r'AKIA[0-9A-Z]{16}',  # AWS access key pattern
         ]
-        
+
         for pattern in secret_patterns:
             assert not re.search(pattern, dockerfile_content), \
                 f"Found potential hardcoded secret matching pattern: {pattern}"
@@ -208,14 +207,14 @@ class TestSecurityBestPractices:
     def test_no_root_operations_after_user_switch(self, dockerfile_lines: list[str]) -> None:
         """No root operations after USER switch."""
         user_switched = False
-        
+
         for line in dockerfile_lines:
             stripped = line.strip()
-            
+
             if stripped.startswith("USER primr"):
                 user_switched = True
                 continue
-            
+
             if user_switched:
                 # After USER switch, should not see operations requiring root
                 assert not stripped.startswith("RUN apt-get"), \

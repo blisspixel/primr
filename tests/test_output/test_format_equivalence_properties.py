@@ -5,11 +5,11 @@ Property 9: Content equivalence across formats
 Validates: Requirements 6.4
 """
 
-import pytest
-from hypothesis import given, strategies as st, settings
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
-from primr.output.output_utils import strip_markdown_artifacts
 from primr.output.markdown_parser import MarkdownParser
+from primr.output.output_utils import strip_markdown_artifacts
 
 
 class TestProperty9ContentEquivalence:
@@ -29,11 +29,11 @@ class TestProperty9ContentEquivalence:
         assume('**' not in text)
         assume('__' not in text)
         assume(not text.startswith('#'))
-        
+
         # Add some markdown formatting
         formatted = f"**{text}**"
         stripped = strip_markdown_artifacts(formatted)
-        
+
         # The core content should be preserved
         assert text in stripped or stripped == text
 
@@ -44,7 +44,7 @@ class TestProperty9ContentEquivalence:
             ("The __company__ is strong", "The company is strong"),
             ("**Multiple** **bold** items", "Multiple bold items"),
         ]
-        
+
         for markdown, expected in test_cases:
             result = strip_markdown_artifacts(markdown)
             assert result == expected, f"Failed for: {markdown}"
@@ -56,7 +56,7 @@ class TestProperty9ContentEquivalence:
             ("### Financial Highlights", "Financial Highlights"),
             ("# Main Title", "Main Title"),
         ]
-        
+
         for markdown, expected in test_cases:
             result = strip_markdown_artifacts(markdown)
             assert result == expected, f"Failed for: {markdown}"
@@ -71,9 +71,9 @@ class TestProperty9ContentEquivalence:
 Key points:
 * First point
 * Second point"""
-        
+
         result = strip_markdown_artifacts(markdown)
-        
+
         # All key content should be present
         assert "Overview" in result
         assert "Revenue" in result
@@ -86,14 +86,14 @@ Key points:
     def test_parser_and_strip_produce_same_content(self):
         """Parser extraction and strip function produce equivalent content."""
         parser = MarkdownParser()
-        
+
         markdown = """## Section Title
 
 This is **bold text** and normal text.
 
 * Bullet one
 * Bullet two"""
-        
+
         # Parse with MarkdownParser
         blocks = parser.parse_content(markdown)
         parsed_content = []
@@ -102,10 +102,10 @@ This is **bold text** and normal text.
                 # Strip any remaining bold markers from content
                 clean = strip_markdown_artifacts(line.content)
                 parsed_content.append(clean)
-        
+
         # Strip directly
         stripped = strip_markdown_artifacts(markdown)
-        
+
         # Both should contain the same key content
         for content in parsed_content:
             if content.strip():
@@ -119,10 +119,10 @@ This is **bold text** and normal text.
         """Bullet list content is fully preserved."""
         # Create markdown bullet list
         markdown = '\n'.join(f"* {item}" for item in items)
-        
+
         # Strip markdown
         stripped = strip_markdown_artifacts(markdown)
-        
+
         # All items should be present
         for item in items:
             assert item.strip() in stripped, f"Item '{item}' not found in stripped output"
@@ -147,9 +147,9 @@ This is **bold text** and normal text.
 ## Strategic Assessment
 
 The company has **strong** fundamentals with __solid__ growth prospects."""
-        
+
         stripped = strip_markdown_artifacts(markdown)
-        
+
         # All key content must be present
         required_content = [
             "Executive Summary",
@@ -171,7 +171,7 @@ The company has **strong** fundamentals with __solid__ growth prospects."""
             "solid",
             "growth prospects",
         ]
-        
+
         for content in required_content:
             assert content in stripped, f"Missing content: {content}"
 
@@ -184,7 +184,7 @@ The company has **strong** fundamentals with __solid__ growth prospects."""
             "Q1/Q2 results",
             "Email: info@company.com",
         ]
-        
+
         for text in test_cases:
             result = strip_markdown_artifacts(text)
             assert result == text, f"Special chars lost in: {text}"
@@ -196,9 +196,9 @@ The company has **strong** fundamentals with __solid__ growth prospects."""
 First paragraph.
 
 Second paragraph."""
-        
+
         stripped = strip_markdown_artifacts(markdown)
-        
+
         # Content should be present
         assert "Title" in stripped
         assert "First paragraph" in stripped

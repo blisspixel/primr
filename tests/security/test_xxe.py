@@ -4,8 +4,9 @@ XXE (XML External Entity) protection tests.
 Tests that verify XML parsing is secure against external entity attacks.
 """
 
-import pytest
 import xml.etree.ElementTree as ET
+
+import pytest
 
 
 class TestXXEProtection:

@@ -4,12 +4,12 @@ Property-based tests for the TableBuilder.
 Uses Hypothesis to verify table styling consistency.
 """
 
-import pytest
-from hypothesis import given, strategies as st, settings, assume, HealthCheck
 from docx import Document
+from hypothesis import HealthCheck, assume, given, settings
+from hypothesis import strategies as st
 
-from primr.output.table_builder import TableBuilder
 from primr.output.models import CompanySnapshot
+from primr.output.table_builder import TableBuilder
 
 
 class TestTableStylingConsistency:
@@ -20,7 +20,7 @@ class TestTableStylingConsistency:
     For any generated table, all cells of the same type SHALL have
     consistent styling properties.
     """
-    
+
     @settings(max_examples=50)
     @given(
         company_name=st.text(min_size=1, max_size=50, alphabet=st.characters(whitelist_categories=['L', 'N'])),
@@ -34,18 +34,18 @@ class TestTableStylingConsistency:
         revenue = revenue.strip()
         assume(len(company_name) > 0)
         assume(len(industry) > 0)
-        
+
         doc = Document()
         builder = TableBuilder(doc)
-        
+
         snapshot = CompanySnapshot(
             company_name=company_name,
             industry=industry,
             revenue=revenue if revenue else None
         )
-        
+
         table = builder.create_company_snapshot(snapshot)
-        
+
         # All rows should have exactly 2 columns
         for row in table.rows:
             assert len(row.cells) == 2, "Snapshot table should have 2 columns"
@@ -60,16 +60,16 @@ class TestTableStylingConsistency:
         """Executive highlights creates a single-cell callout table."""
         highlights = [h.strip() for h in highlights if h.strip()]
         assume(len(highlights) > 0)
-        
+
         doc = Document()
         builder = TableBuilder(doc)
-        
+
         table = builder.create_executive_highlights(highlights)
-        
+
         # Should be a single-cell table
         assert len(table.rows) == 1
         assert len(table.rows[0].cells) == 1
-        
+
         # Cell should contain all highlights
         cell_text = table.rows[0].cells[0].text
         for highlight in highlights:
@@ -86,16 +86,16 @@ class TestTableStylingConsistency:
         """Key metrics table has header row plus data rows."""
         metrics = {k.strip(): v.strip() for k, v in metrics.items() if k.strip() and v.strip()}
         assume(len(metrics) > 0)
-        
+
         doc = Document()
         builder = TableBuilder(doc)
-        
+
         table = builder.create_key_metrics_table(metrics)
-        
+
         if table:
             # Should have header row + data rows
             assert len(table.rows) == len(metrics) + 1
-            
+
             # Header row should have "Metric" and "Value"
             header_text = ''.join(cell.text for cell in table.rows[0].cells)
             assert 'Metric' in header_text
@@ -105,13 +105,13 @@ class TestTableStylingConsistency:
         """All table style variants can be applied without errors."""
         doc = Document()
         builder = TableBuilder(doc)
-        
+
         # Create a simple table
         table = doc.add_table(rows=3, cols=2)
         for i, row in enumerate(table.rows):
             row.cells[0].text = f"Label {i}"
             row.cells[1].text = f"Value {i}"
-        
+
         # All style variants should work
         for style in ['professional', 'snapshot', 'callout']:
             # Create fresh table for each style
@@ -128,10 +128,10 @@ class TestTableStylingConsistency:
         """Professional style applies alternating row colors."""
         doc = Document()
         builder = TableBuilder(doc)
-        
+
         table = doc.add_table(rows=num_rows, cols=num_cols)
         builder.apply_table_style(table, 'professional')
-        
+
         # Table should still have correct dimensions
         assert len(table.rows) == num_rows
         for row in table.rows:

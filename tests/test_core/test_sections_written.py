@@ -8,13 +8,11 @@ actually written by the Accordion Method and propagates through the result chain
 **Validates: Requirements 4.1, 4.2, 4.3, 4.4**
 """
 
-import pytest
-from unittest.mock import Mock, patch
-from hypothesis import given, settings, strategies as st
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from primr.ai.deep_research import DeepResearchOrchestratorResult
 from primr.core.research_orchestrator import OrchestratorResult, ResearchMode
-
 
 # =============================================================================
 # Unit Tests for DeepResearchOrchestratorResult
@@ -129,7 +127,7 @@ class TestOrchestratorResultSectionsWritten:
             section_results={"strategic_overview": "Full 20-section report content"},
             sections_written=20,  # Actual sections written
         )
-        
+
         # section_results has 1 key, but sections_written is 20
         assert len(result.section_results) == 1
         assert result.sections_written == 20
@@ -158,7 +156,7 @@ class TestSectionsWrittenPropagation:
             success=True,
             sections_written=18,
         )
-        
+
         # Create OrchestratorResult with propagated value
         orchestrator_result = OrchestratorResult(
             company_name=deep_result.company_name,
@@ -169,7 +167,7 @@ class TestSectionsWrittenPropagation:
             duration_seconds=deep_result.duration_seconds,
             success=deep_result.success,
         )
-        
+
         assert orchestrator_result.sections_written == deep_result.sections_written
         assert orchestrator_result.sections_written == 18
 
@@ -197,7 +195,7 @@ def test_property_sections_written_accuracy(sections_written: int):
         success=sections_written > 0,
         sections_written=sections_written,
     )
-    
+
     assert result.sections_written == sections_written
     assert result.sections_written >= 0
     assert result.sections_written <= 21
@@ -224,7 +222,7 @@ def test_property_sections_written_propagation(deep_sections: int):
         success=True,
         sections_written=deep_sections,
     )
-    
+
     # Propagate to orchestrator result
     orchestrator_result = OrchestratorResult(
         company_name=deep_result.company_name,
@@ -233,7 +231,7 @@ def test_property_sections_written_propagation(deep_sections: int):
         section_results={},
         sections_written=deep_result.sections_written,
     )
-    
+
     # Value should be unchanged
     assert orchestrator_result.sections_written == deep_result.sections_written
     assert orchestrator_result.sections_written == deep_sections
@@ -252,7 +250,7 @@ def test_property_sections_written_reflects_success_only(successful: int, failed
     When some sections fail, sections_written should reflect only successful sections.
     """
     total_attempted = successful + failed
-    
+
     result = DeepResearchOrchestratorResult(
         company_name="Test",
         content="Partial report",
@@ -262,7 +260,7 @@ def test_property_sections_written_reflects_success_only(successful: int, failed
         sections_written=successful,  # Only successful sections
         api_calls=total_attempted,
     )
-    
+
     # sections_written should be exactly the successful count
     assert result.sections_written == successful
     # sections_written should never exceed total attempted

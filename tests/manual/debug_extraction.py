@@ -1,9 +1,10 @@
 """Debug what's being extracted from Stripe pages."""
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
-from primr.data.scraping import scrape_with_requests, extract_main_content
+from primr.data.scraping import extract_main_content, scrape_with_requests
 from primr.data.scraping.content import is_quality_content
 
 # Scrape Stripe pricing
@@ -19,7 +20,7 @@ if result.success and result.raw_content:
     print(f"Extracted length: {len(extracted)} chars")
     print(f"Word count: {len(extracted.split())}")
     print(f"Preview:\n{extracted[:500]}\n")
-    
+
     # Check quality
     is_quality, reason = is_quality_content(extracted)
     print(f"Quality check: {is_quality}")

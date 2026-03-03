@@ -4,10 +4,8 @@ Tests for the StrategyModuleRegistry.
 Includes property tests for strategy discovery and data source filtering.
 """
 
-import tempfile
 from pathlib import Path
 
-import pytest
 import yaml
 
 from primr.prompts.registry import (
@@ -67,13 +65,13 @@ class TestStrategyModuleRegistry:
     def test_reload_clears_cache(self):
         """Should clear cache and rediscover modules."""
         registry = StrategyModuleRegistry()
-        
+
         # First discovery
         strategies1 = registry.discover()
-        
+
         # Reload
         strategies2 = registry.reload()
-        
+
         # Should have same strategies
         assert len(strategies1) == len(strategies2)
 
@@ -89,14 +87,14 @@ class TestStrategyModuleRegistry:
     def test_get_context_files_filters_by_vendor(self):
         """Should filter context files by vendor."""
         registry = StrategyModuleRegistry()
-        
+
         azure_files = registry.get_context_files("ai", vendor="azure")
         aws_files = registry.get_context_files("ai", vendor="aws")
-        
+
         # Azure and AWS files should be different
         azure_names = [f.name for f in azure_files]
         aws_names = [f.name for f in aws_files]
-        
+
         # At least one file should be vendor-specific
         if azure_files and aws_files:
             assert azure_names != aws_names or len(azure_files) != len(aws_files)
@@ -125,9 +123,9 @@ class TestStrategyDiscoveryProperties:
         """All discovered strategies should have required fields."""
         registry = StrategyModuleRegistry()
         strategies = registry.discover()
-        
+
         for strategy in strategies:
-            assert strategy.name, f"Strategy missing name"
+            assert strategy.name, "Strategy missing name"
             assert strategy.display_name, f"Strategy {strategy.name} missing display_name"
             assert strategy.config_path.exists(), f"Strategy {strategy.name} config not found"
 
@@ -142,7 +140,7 @@ class TestStrategyDiscoveryProperties:
         """All strategy config files should be valid YAML."""
         registry = StrategyModuleRegistry()
         strategies = registry.discover()
-        
+
         for strategy in strategies:
             with open(strategy.config_path, encoding="utf-8") as f:
                 data = yaml.safe_load(f)
@@ -170,16 +168,16 @@ class TestDataSourceVendorFilteringProperties:
             path="docs/agnostic.txt",
             vendor=None,
         )
-        
+
         # Azure source matches azure only
         assert ds_azure.matches_vendor("azure")
         assert not ds_azure.matches_vendor("aws")
         assert not ds_azure.matches_vendor("gcp")
-        
+
         # AWS source matches aws only
         assert ds_aws.matches_vendor("aws")
         assert not ds_aws.matches_vendor("azure")
-        
+
         # Agnostic source matches all vendors
         assert ds_agnostic.matches_vendor("azure")
         assert ds_agnostic.matches_vendor("aws")
@@ -193,7 +191,7 @@ class TestDataSourceVendorFilteringProperties:
             path="test.txt",
             vendor="Azure",
         )
-        
+
         assert ds.matches_vendor("azure")
         assert ds.matches_vendor("AZURE")
         assert ds.matches_vendor("Azure")
@@ -202,10 +200,10 @@ class TestDataSourceVendorFilteringProperties:
         """AI strategy should have vendor-specific data sources."""
         registry = StrategyModuleRegistry()
         strategy = registry.get("ai")
-        
+
         assert strategy is not None
         assert len(strategy.data_sources) > 0
-        
+
         # Should have sources for multiple vendors
         vendors = [ds.vendor for ds in strategy.data_sources if ds.vendor]
         assert "azure" in vendors
@@ -231,11 +229,11 @@ class TestDataSourcePathResolution:
         # Create a test file
         test_file = tmp_path / "test.txt"
         test_file.write_text("test content")
-        
+
         ds = DataSource(
             name="test",
             path="test.txt",
         )
-        
+
         assert ds.exists(tmp_path)
         assert not ds.exists(tmp_path / "nonexistent")

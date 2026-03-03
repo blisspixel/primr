@@ -8,8 +8,6 @@ import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 # Add src to path for imports
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
@@ -199,7 +197,7 @@ class TestAnalyzeContentPhase:
     @patch('primr.core.structured_research.generate_initial_overview')
     def test_returns_analysis_result(self, mock_overview, mock_llm, mock_summarize):
         """Returns AnalysisResult with all fields."""
-        from primr.core.structured_research import _analyze_content, ScrapedData
+        from primr.core.structured_research import ScrapedData, _analyze_content
 
         mock_summarize.return_value = "Summary"
         mock_llm.return_value = "Technology"
@@ -217,7 +215,7 @@ class TestAnalyzeContentPhase:
     @patch('primr.core.structured_research.generate_initial_overview')
     def test_handles_empty_summary(self, mock_overview, mock_llm, mock_summarize):
         """Handles empty summary gracefully."""
-        from primr.core.structured_research import _analyze_content, ScrapedData
+        from primr.core.structured_research import ScrapedData, _analyze_content
 
         mock_summarize.return_value = "   "  # Whitespace only
         mock_llm.return_value = "Unknown"
@@ -235,7 +233,7 @@ class TestGenerateSectionsPhase:
     @patch('primr.core.structured_research.research_section')
     def test_generates_all_sections(self, mock_research):
         """Generates content for all sections."""
-        from primr.core.structured_research import _generate_sections, ResearchContext
+        from primr.core.structured_research import ResearchContext, _generate_sections
 
         mock_research.return_value = "Section content"
 
