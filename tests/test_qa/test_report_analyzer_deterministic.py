@@ -7,9 +7,6 @@ report-type-aware analyze_structure.
 """
 
 import tempfile
-from pathlib import Path
-
-import pytest
 
 from src.primr.qa.report_analyzer import ReportAnalyzer
 

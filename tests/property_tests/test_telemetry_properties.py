@@ -12,22 +12,22 @@ import asyncio
 from typing import Any
 
 import pytest
-from hypothesis import given, settings, strategies as st, HealthCheck
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
 
+from primr.utils.observability import correlation_scope
 from primr.utils.telemetry import (
+    ExporterType,
+    NullSpan,
     TelemetryConfig,
     TelemetrySystem,
-    NullSpan,
-    ExporterType,
     get_async_correlation_id,
-    set_async_correlation_id,
-    reset_async_correlation_id,
-    propagate_correlation_id,
-    run_with_correlation_id,
     is_otel_available,
+    propagate_correlation_id,
+    reset_async_correlation_id,
+    run_with_correlation_id,
+    set_async_correlation_id,
 )
-from primr.utils.observability import correlation_scope, get_correlation_id
-
 
 # =============================================================================
 # STRATEGIES FOR GENERATING TEST DATA
@@ -50,12 +50,12 @@ exporter_type_strategy = st.sampled_from([e.value for e in ExporterType])
 
 # Strategy for generating span attributes (JSON-serializable)
 json_value_strategy = st.recursive(
-    st.none() | st.booleans() | st.integers(min_value=-1000000, max_value=1000000) | 
-    st.floats(allow_nan=False, allow_infinity=False, min_value=-1e6, max_value=1e6) | 
+    st.none() | st.booleans() | st.integers(min_value=-1000000, max_value=1000000) |
+    st.floats(allow_nan=False, allow_infinity=False, min_value=-1e6, max_value=1e6) |
     st.text(max_size=50),
     lambda children: st.lists(children, max_size=3) | st.dictionaries(
-        st.from_regex(r'[a-zA-Z_][a-zA-Z0-9_]{0,19}', fullmatch=True), 
-        children, 
+        st.from_regex(r'[a-zA-Z_][a-zA-Z0-9_]{0,19}', fullmatch=True),
+        children,
         max_size=3
     ),
     max_leaves=5
@@ -108,7 +108,7 @@ class TestSpanAttributeCompleteness:
         # Test with disabled telemetry (default)
         config = TelemetryConfig(enabled=False)
         telemetry = TelemetrySystem(config)
-        
+
         with telemetry.span(operation_name, phase=phase, attributes=attributes) as span:
             # When disabled, we get a NullSpan
             assert isinstance(span, NullSpan)
@@ -131,7 +131,7 @@ class TestSpanAttributeCompleteness:
         """
         config = TelemetryConfig(enabled=False)
         telemetry = TelemetrySystem(config)
-        
+
         with telemetry.span(operation_name, phase=phase, attributes=attributes) as span:
             # Contract: span context manager should work without errors
             assert span is not None
@@ -152,10 +152,10 @@ class TestSpanAttributeCompleteness:
         """
         config = TelemetryConfig(enabled=False)
         telemetry = TelemetrySystem(config)
-        
+
         with correlation_scope("test_operation") as ctx:
             expected_correlation_id = ctx.correlation_id
-            
+
             with telemetry.span(operation_name, attributes=attributes) as span:
                 # The telemetry system should use the correlation_id from context
                 actual_correlation_id = telemetry._get_correlation_id()
@@ -175,7 +175,7 @@ class TestSpanAttributeCompleteness:
         """
         config = TelemetryConfig(enabled=True, exporter_type="none")
         telemetry = TelemetrySystem(config)
-        
+
         if telemetry.is_enabled:
             with correlation_scope("test") as ctx:
                 with telemetry.span(operation_name, phase=phase) as span:
@@ -214,11 +214,10 @@ class TestErrorRecordingInSpans:
         """
         config = TelemetryConfig(enabled=False)
         telemetry = TelemetrySystem(config)
-        
-        with pytest.raises(ValueError) as exc_info:
-            with telemetry.span(operation_name) as span:
-                raise ValueError(error_message)
-        
+
+        with pytest.raises(ValueError) as exc_info, telemetry.span(operation_name) as span:
+            raise ValueError(error_message)
+
         # Exception should propagate with correct message
         assert error_message in str(exc_info.value)
 
@@ -235,13 +234,12 @@ class TestErrorRecordingInSpans:
         """
         config = TelemetryConfig(enabled=False)
         telemetry = TelemetrySystem(config)
-        
+
         class CustomError(Exception):
             pass
-        
-        with pytest.raises(CustomError):
-            with telemetry.span(operation_name) as span:
-                raise CustomError(error_message)
+
+        with pytest.raises(CustomError), telemetry.span(operation_name) as span:
+            raise CustomError(error_message)
 
     @given(
         operation_name=operation_name_strategy,
@@ -259,10 +257,9 @@ class TestErrorRecordingInSpans:
         """
         config = TelemetryConfig(enabled=False)
         telemetry = TelemetrySystem(config)
-        
-        with pytest.raises(error_types):
-            with telemetry.span(operation_name) as span:
-                raise error_types(error_message)
+
+        with pytest.raises(error_types), telemetry.span(operation_name) as span:
+            raise error_types(error_message)
 
     @pytest.mark.skipif(not is_otel_available(), reason="OpenTelemetry not installed")
     @given(
@@ -278,11 +275,10 @@ class TestErrorRecordingInSpans:
         """
         config = TelemetryConfig(enabled=True, exporter_type="none")
         telemetry = TelemetrySystem(config)
-        
+
         if telemetry.is_enabled:
-            with pytest.raises(ValueError):
-                with telemetry.span(operation_name) as span:
-                    raise ValueError(error_message)
+            with pytest.raises(ValueError), telemetry.span(operation_name) as span:
+                raise ValueError(error_message)
 
 
 # =============================================================================
@@ -308,17 +304,17 @@ class TestAsyncContextPropagation:
         """
         # Initially should be None
         initial = get_async_correlation_id()
-        
+
         # Set the correlation ID
         token = set_async_correlation_id(correlation_id)
-        
+
         try:
             # Should return the set value
             assert get_async_correlation_id() == correlation_id
         finally:
             # Reset to previous value
             reset_async_correlation_id(token)
-        
+
         # Should be back to initial value
         assert get_async_correlation_id() == initial
 
@@ -330,16 +326,16 @@ class TestAsyncContextPropagation:
         """
         async def check_correlation_id():
             return get_async_correlation_id()
-        
+
         async def run_test():
             async with propagate_correlation_id(correlation_id):
                 result = await check_correlation_id()
                 assert result == correlation_id
-            
+
             # After context, should be None again
             result = await check_correlation_id()
             assert result is None
-        
+
         asyncio.run(run_test())
 
     @given(
@@ -354,17 +350,17 @@ class TestAsyncContextPropagation:
         async def run_test():
             async with propagate_correlation_id(outer_id):
                 assert get_async_correlation_id() == outer_id
-                
+
                 async with propagate_correlation_id(inner_id):
                     # Inner context should override
                     assert get_async_correlation_id() == inner_id
-                
+
                 # After inner context, should be back to outer
                 assert get_async_correlation_id() == outer_id
-            
+
             # After all contexts, should be None
             assert get_async_correlation_id() is None
-        
+
         asyncio.run(run_test())
 
     @given(correlation_id=correlation_id_strategy)
@@ -375,14 +371,14 @@ class TestAsyncContextPropagation:
         """
         async def get_id():
             return get_async_correlation_id()
-        
+
         async def run_test():
             result = await run_with_correlation_id(correlation_id, get_id())
             assert result == correlation_id
-            
+
             # After the call, context should be reset
             assert get_async_correlation_id() is None
-        
+
         asyncio.run(run_test())
 
     @given(
@@ -398,7 +394,7 @@ class TestAsyncContextPropagation:
         """
         config = TelemetryConfig(enabled=False)
         telemetry = TelemetrySystem(config)
-        
+
         async def run_test():
             # Set up correlation context
             token = set_async_correlation_id(correlation_id)
@@ -408,7 +404,7 @@ class TestAsyncContextPropagation:
                     assert get_async_correlation_id() == correlation_id
             finally:
                 reset_async_correlation_id(token)
-        
+
         asyncio.run(run_test())
 
     @given(correlation_id=correlation_id_strategy)
@@ -419,7 +415,7 @@ class TestAsyncContextPropagation:
         """
         async def inner_task():
             return get_async_correlation_id()
-        
+
         async def run_test():
             async with propagate_correlation_id(correlation_id):
                 # Spawn a task within the context
@@ -427,7 +423,7 @@ class TestAsyncContextPropagation:
                 result = await task
                 # Task should see the same correlation ID
                 assert result == correlation_id
-        
+
         asyncio.run(run_test())
 
     @given(
@@ -443,7 +439,7 @@ class TestAsyncContextPropagation:
         """
         config = TelemetryConfig(enabled=False)
         telemetry = TelemetrySystem(config)
-        
+
         async def run_test():
             token = set_async_correlation_id(correlation_id)
             try:
@@ -452,7 +448,7 @@ class TestAsyncContextPropagation:
                 assert result == correlation_id
             finally:
                 reset_async_correlation_id(token)
-        
+
         asyncio.run(run_test())
 
 
@@ -486,7 +482,7 @@ class TestTelemetryConfiguration:
             exporter_type=exporter_type,
             sampling_rate=sampling_rate
         )
-        
+
         assert config.enabled == enabled
         assert config.service_name == service_name
         assert config.exporter_type == exporter_type
@@ -537,7 +533,7 @@ class TestTelemetryConfiguration:
         """
         config = TelemetryConfig(enabled=False, service_name=service_name)
         telemetry = TelemetrySystem(config)
-        
+
         with telemetry.span("test_operation") as span:
             assert isinstance(span, NullSpan)
 
@@ -566,7 +562,7 @@ class TestRecordEvent:
         """
         config = TelemetryConfig(enabled=False)
         telemetry = TelemetrySystem(config)
-        
+
         # Should not raise
         telemetry.record_event(event_name, attributes)
 
@@ -584,7 +580,7 @@ class TestRecordEvent:
         """
         config = TelemetryConfig(enabled=False)
         telemetry = TelemetrySystem(config)
-        
+
         with telemetry.span(operation_name) as span:
             # Should not raise
             telemetry.record_event(event_name, attributes)
@@ -603,7 +599,7 @@ class TestRecordEvent:
         """
         config = TelemetryConfig(enabled=True, exporter_type="none")
         telemetry = TelemetrySystem(config)
-        
+
         if telemetry.is_enabled:
             with telemetry.span(operation_name) as span:
                 # Should not raise
@@ -624,14 +620,14 @@ class TestNullSpan:
         NullSpan methods should be no-ops and not raise errors.
         """
         span = NullSpan()
-        
+
         # All these should be no-ops
         span.set_attribute("key", "value")
         span.set_attributes({"key1": "value1", "key2": "value2"})
         span.add_event("event_name", {"attr": "value"})
         span.record_exception(ValueError("test"))
         span.set_status(None, "description")
-        
+
         # These should return expected values
         assert span.is_recording() is False
         assert span.get_span_context() is None

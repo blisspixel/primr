@@ -52,8 +52,9 @@ class TestSecurityHeaders:
 
     def test_timeout_configured(self):
         """Test that HTTP requests have timeouts configured."""
-        from primr.data.scraping.http_clients import scrape_with_requests
         import inspect
+
+        from primr.data.scraping.http_clients import scrape_with_requests
 
         sig = inspect.signature(scrape_with_requests)
         assert "timeout" in sig.parameters or "max_wait" in sig.parameters
@@ -87,7 +88,7 @@ class TestInputSanitization:
 
         for name in test_cases:
             sanitized, error = sanitize_company_name(name)
-            assert error is not None, f"Should reject empty name: {repr(name)}"
+            assert error is not None, f"Should reject empty name: {name!r}"
 
     def test_sanitize_company_name_rejects_log_injection(self):
         """Test that log injection attempts are rejected."""
@@ -102,7 +103,7 @@ class TestInputSanitization:
 
         for name in test_cases:
             sanitized, error = sanitize_company_name(name)
-            assert error is not None, f"Should reject log injection: {repr(name)}"
+            assert error is not None, f"Should reject log injection: {name!r}"
 
     def test_sanitize_company_name_rejects_xss(self):
         """Test that XSS attempts are rejected."""
@@ -118,7 +119,7 @@ class TestInputSanitization:
 
         for name in test_cases:
             sanitized, error = sanitize_company_name(name)
-            assert error is not None, f"Should reject XSS: {repr(name)}"
+            assert error is not None, f"Should reject XSS: {name!r}"
 
     def test_sanitize_company_name_rejects_template_injection(self):
         """Test that template injection attempts are rejected."""
@@ -132,7 +133,7 @@ class TestInputSanitization:
 
         for name in test_cases:
             sanitized, error = sanitize_company_name(name)
-            assert error is not None, f"Should reject template injection: {repr(name)}"
+            assert error is not None, f"Should reject template injection: {name!r}"
 
     def test_sanitize_company_name_rejects_too_long(self):
         """Test that excessively long names are rejected."""
@@ -215,6 +216,7 @@ class TestAPIInputValidation:
     def test_research_request_rejects_empty_company_name(self):
         """Test that ResearchRequest rejects empty company names."""
         from pydantic import ValidationError
+
         from primr.api.service import ResearchRequest
 
         with pytest.raises(ValidationError):
@@ -223,6 +225,7 @@ class TestAPIInputValidation:
     def test_research_request_rejects_too_long_company_name(self):
         """Test that ResearchRequest rejects too long company names."""
         from pydantic import ValidationError
+
         from primr.api.service import ResearchRequest
 
         with pytest.raises(ValidationError):

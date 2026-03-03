@@ -5,9 +5,7 @@ Property tests for test file organization.
 **Validates: Requirements 4.1**
 """
 
-import os
 from pathlib import Path
-from hypothesis import given, strategies as st, settings
 
 PROJECT_ROOT = Path(__file__).parent.parent
 
@@ -28,13 +26,13 @@ def test_no_test_files_in_root():
     that file SHALL be moved to the tests/ directory structure.
     """
     root_files = list(PROJECT_ROOT.glob("test_*.py"))
-    
+
     # Filter out any that might be intentionally in root
     unexpected_test_files = [
-        f for f in root_files 
+        f for f in root_files
         if f.name in ROOT_TEST_FILES_TO_MOVE
     ]
-    
+
     assert len(unexpected_test_files) == 0, \
         f"Test files still in root: {[f.name for f in unexpected_test_files]}"
 
@@ -50,15 +48,15 @@ def test_test_subdirectories_exist():
     """Verify test subdirectories exist."""
     expected_subdirs = [
         "test_core",
-        "test_data", 
+        "test_data",
         "test_ai",
         "test_output",
         "test_config",
         "test_utils",
     ]
-    
+
     tests_dir = PROJECT_ROOT / "tests"
-    
+
     for subdir in expected_subdirs:
         subdir_path = tests_dir / subdir
         assert subdir_path.exists(), f"Missing test subdirectory: {subdir}"
@@ -67,7 +65,7 @@ def test_test_subdirectories_exist():
 def test_moved_test_files_exist_in_tests():
     """Verify moved test files exist in tests/manual/ (renamed to demo_* to avoid pytest collection)."""
     manual_dir = PROJECT_ROOT / "tests" / "manual"
-    
+
     # These were renamed from test_* to demo_* because they're manual test scripts,
     # not proper pytest tests (they have function parameters pytest interprets as fixtures)
     # Moved to tests/manual/ since they require manual execution with real API keys
@@ -75,7 +73,7 @@ def test_moved_test_files_exist_in_tests():
         "demo_googlesearch.py",
         "demo_googlesimplesearch.py",
     ]
-    
+
     for filename in expected_files:
         file_path = manual_dir / filename
         assert file_path.exists(), f"Missing moved test file: {filename}"

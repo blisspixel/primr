@@ -7,12 +7,12 @@ across all HTTP client implementations.
 
 import pytest
 
-from primr.utils.validators import validate_url_for_request
 from primr.data.scraping.http_clients import (
-    scrape_with_requests,
     scrape_with_httpx,
+    scrape_with_requests,
 )
-from primr.data.scraping.net import make_request, head_exists
+from primr.data.scraping.net import head_exists, make_request
+from primr.utils.validators import validate_url_for_request
 
 
 class TestURLValidation:
@@ -212,8 +212,8 @@ class TestOrchestratorSSRFProtection:
 
     def test_orchestrator_blocks_localhost(self):
         """Test that ScrapeOrchestrator blocks localhost URLs."""
-        from primr.data.scraping.orchestrator import ScrapeOrchestrator
         from primr.data.scraping.models import ErrorType
+        from primr.data.scraping.orchestrator import ScrapeOrchestrator
 
         orchestrator = ScrapeOrchestrator()
         result = orchestrator.scrape_url("http://localhost:8080/admin")
@@ -225,8 +225,8 @@ class TestOrchestratorSSRFProtection:
 
     def test_orchestrator_blocks_private_ip(self):
         """Test that ScrapeOrchestrator blocks private IP addresses."""
-        from primr.data.scraping.orchestrator import ScrapeOrchestrator
         from primr.data.scraping.models import ErrorType
+        from primr.data.scraping.orchestrator import ScrapeOrchestrator
 
         orchestrator = ScrapeOrchestrator()
 
@@ -243,8 +243,8 @@ class TestOrchestratorSSRFProtection:
 
     def test_orchestrator_blocks_metadata_endpoint(self):
         """Test that ScrapeOrchestrator blocks cloud metadata endpoints."""
-        from primr.data.scraping.orchestrator import ScrapeOrchestrator
         from primr.data.scraping.models import ErrorType
+        from primr.data.scraping.orchestrator import ScrapeOrchestrator
 
         orchestrator = ScrapeOrchestrator()
         result = orchestrator.scrape_url("http://169.254.169.254/latest/meta-data/")
@@ -254,8 +254,8 @@ class TestOrchestratorSSRFProtection:
 
     def test_orchestrator_blocks_loopback(self):
         """Test that ScrapeOrchestrator blocks loopback addresses."""
-        from primr.data.scraping.orchestrator import ScrapeOrchestrator
         from primr.data.scraping.models import ErrorType
+        from primr.data.scraping.orchestrator import ScrapeOrchestrator
 
         orchestrator = ScrapeOrchestrator()
         result = orchestrator.scrape_url("http://127.0.0.1/admin")
@@ -320,6 +320,7 @@ class TestBrowserScraperRedirectSSRF:
     def test_playwright_scraper_impl_has_redirect_ssrf_check(self):
         """Verify _scrape_with_playwright_impl has redirect SSRF validation code."""
         import inspect
+
         from primr.data.scraping.browsers import _scrape_with_playwright_impl
 
         source = inspect.getsource(_scrape_with_playwright_impl)
@@ -329,6 +330,7 @@ class TestBrowserScraperRedirectSSRF:
     def test_playwright_aggressive_scraper_has_redirect_ssrf_check(self):
         """Verify scrape_with_playwright_aggressive has redirect SSRF validation code."""
         import inspect
+
         from primr.data.scraping.browsers import scrape_with_playwright_aggressive
 
         source = inspect.getsource(scrape_with_playwright_aggressive)
@@ -338,6 +340,7 @@ class TestBrowserScraperRedirectSSRF:
     def test_drissionpage_scraper_has_redirect_ssrf_check(self):
         """Verify scrape_with_drissionpage has redirect SSRF validation code."""
         import inspect
+
         from primr.data.scraping.browsers import scrape_with_drissionpage
 
         source = inspect.getsource(scrape_with_drissionpage)
@@ -347,6 +350,7 @@ class TestBrowserScraperRedirectSSRF:
     def test_drissionpage_stealth_scraper_has_redirect_ssrf_check(self):
         """Verify scrape_with_drissionpage_stealth has redirect SSRF validation code."""
         import inspect
+
         from primr.data.scraping.browsers import scrape_with_drissionpage_stealth
 
         source = inspect.getsource(scrape_with_drissionpage_stealth)
@@ -356,6 +360,7 @@ class TestBrowserScraperRedirectSSRF:
     def test_vision_scraper_has_redirect_ssrf_check(self):
         """Verify scrape_with_vision has redirect SSRF validation code."""
         import inspect
+
         from primr.data.scraping.browsers import scrape_with_vision
 
         source = inspect.getsource(scrape_with_vision)

@@ -4,25 +4,22 @@ Tests for observability utilities.
 Includes property-based tests using Hypothesis for comprehensive validation.
 """
 
-import pytest
 import time
-import logging
-from unittest.mock import patch, MagicMock
-from typing import List
+from unittest.mock import patch
 
-from hypothesis import given, strategies as st, settings, HealthCheck
+import pytest
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
 
 from primr.utils.observability import (
-    get_correlation_id,
-    set_correlation_id,
+    Metrics,
     OperationContext,
+    emit_metrics,
+    get_correlation_id,
     operation_context,
     timed,
-    Metrics,
-    emit_metrics,
     tracked_operation,
 )
-
 
 # =============================================================================
 # UNIT TESTS - Correlation ID
@@ -30,13 +27,13 @@ from primr.utils.observability import (
 
 class TestCorrelationId:
     """Tests for correlation ID management."""
-    
+
     def test_generates_id(self):
         """Should generate a correlation ID."""
         cid = get_correlation_id()
         assert isinstance(cid, str)
         assert len(cid) == 8
-    
+
     def test_id_within_context(self):
         """Should return context's correlation ID when in context."""
         with operation_context("test") as ctx:
@@ -50,7 +47,7 @@ class TestCorrelationId:
 
 class TestOperationContext:
     """Tests for OperationContext dataclass."""
-    
+
     def test_default_values(self):
         """Should have sensible defaults."""
         ctx = OperationContext()
@@ -58,7 +55,7 @@ class TestOperationContext:
         assert ctx.operation == ""  # Uses property alias
         assert ctx.operation_name == ""
         assert ctx.metadata == {}
-    
+
     def test_custom_values(self):
         """Should accept custom values."""
         ctx = OperationContext(
@@ -70,7 +67,7 @@ class TestOperationContext:
         assert ctx.operation == "test_op"  # Uses property alias
         assert ctx.operation_name == "test_op"
         assert ctx.metadata == {"key": "value"}
-    
+
     def test_duration_calculation(self):
         """Should calculate duration correctly."""
         ctx = OperationContext()
@@ -84,28 +81,28 @@ class TestOperationContext:
 
 class TestOperationContextManager:
     """Tests for operation_context context manager."""
-    
+
     def test_yields_context(self):
         """Should yield OperationContext."""
         with operation_context("test") as ctx:
             assert isinstance(ctx, OperationContext)
             assert ctx.operation == "test"  # Uses property alias
             assert ctx.operation_name == "test"
-    
+
     def test_includes_metadata(self):
         """Should include metadata in context."""
         with operation_context("test", company="Acme Corp", mode="full") as ctx:
             assert ctx.metadata == {"company": "Acme Corp", "mode": "full"}
-    
+
     def test_logs_entry_and_exit(self):
         """Should log entry and exit."""
         with patch("primr.utils.observability.logger") as mock_logger:
             with operation_context("test_op"):
                 pass
-            
+
             # Should have logged entry and exit
             assert mock_logger.debug.call_count >= 2
-    
+
     def test_logs_error_on_exception(self):
         """Should log error when exception occurs."""
         with patch("primr.utils.observability.logger") as mock_logger:
@@ -114,14 +111,13 @@ class TestOperationContextManager:
                     raise ValueError("test error")
             except ValueError:
                 pass
-            
+
             mock_logger.error.assert_called_once()
-    
+
     def test_propagates_exception(self):
         """Should propagate exceptions."""
-        with pytest.raises(ValueError, match="test error"):
-            with operation_context("test"):
-                raise ValueError("test error")
+        with pytest.raises(ValueError, match="test error"), operation_context("test"):
+            raise ValueError("test error")
 
 
 # =============================================================================
@@ -130,43 +126,42 @@ class TestOperationContextManager:
 
 class TestTimedDecorator:
     """Tests for timed decorator."""
-    
+
     def test_returns_result(self):
         """Should return function result."""
         @timed
         def add(a, b):
             return a + b
-        
+
         assert add(2, 3) == 5
-    
+
     def test_logs_timing(self):
         """Should log entry and exit with timing."""
         @timed
         def slow_func():
             time.sleep(0.05)
             return "done"
-        
+
         with patch("primr.utils.observability.logger") as mock_logger:
             result = slow_func()
             assert result == "done"
             assert mock_logger.debug.call_count >= 2
-    
+
     def test_propagates_exception(self):
         """Should propagate exceptions."""
         @timed
         def failing_func():
             raise ValueError("error")
-        
+
         with pytest.raises(ValueError):
             failing_func()
-    
+
     def test_preserves_function_metadata(self):
         """Should preserve function name and docstring."""
         @timed
         def documented_func():
             """This is a docstring."""
-            pass
-        
+
         assert documented_func.__name__ == "documented_func"
         assert "docstring" in documented_func.__doc__
 
@@ -177,7 +172,7 @@ class TestTimedDecorator:
 
 class TestMetrics:
     """Tests for Metrics dataclass."""
-    
+
     def test_default_values(self):
         """Should have sensible defaults."""
         metrics = Metrics(
@@ -189,7 +184,7 @@ class TestMetrics:
         assert metrics.output_tokens == 0
         assert metrics.cost_usd == 0.0
         assert metrics.error_type is None
-    
+
     def test_to_dict(self):
         """Should convert to dictionary."""
         metrics = Metrics(
@@ -212,7 +207,7 @@ class TestMetrics:
 
 class TestEmitMetrics:
     """Tests for emit_metrics function."""
-    
+
     def test_logs_metrics(self):
         """Should log metrics as JSON."""
         metrics = Metrics(
@@ -220,7 +215,7 @@ class TestEmitMetrics:
             duration_seconds=1.0,
             success=True
         )
-        
+
         with patch("primr.utils.observability.logger") as mock_logger:
             emit_metrics(metrics)
             mock_logger.info.assert_called_once()
@@ -231,18 +226,18 @@ class TestEmitMetrics:
 
 class TestTrackedOperation:
     """Tests for tracked_operation context manager."""
-    
+
     def test_emits_metrics_on_success(self):
         """Should emit metrics on successful completion."""
         with patch("primr.utils.observability.emit_metrics") as mock_emit:
             with tracked_operation("test_op"):
                 pass
-            
+
             mock_emit.assert_called_once()
             metrics = mock_emit.call_args[0][0]
             assert metrics.operation == "test_op"
             assert metrics.success is True
-    
+
     def test_emits_metrics_on_failure(self):
         """Should emit metrics on failure."""
         with patch("primr.utils.observability.emit_metrics") as mock_emit:
@@ -251,12 +246,12 @@ class TestTrackedOperation:
                     raise ValueError("error")
             except ValueError:
                 pass
-            
+
             mock_emit.assert_called_once()
             metrics = mock_emit.call_args[0][0]
             assert metrics.success is False
             assert metrics.error_type == "ValueError"
-    
+
     def test_captures_tracker_values(self):
         """Should capture values set in tracker."""
         with patch("primr.utils.observability.emit_metrics") as mock_emit:
@@ -264,7 +259,7 @@ class TestTrackedOperation:
                 tracker["input_tokens"] = 100
                 tracker["output_tokens"] = 50
                 tracker["cost_usd"] = 0.01
-            
+
             metrics = mock_emit.call_args[0][0]
             assert metrics.input_tokens == 100
             assert metrics.output_tokens == 50
@@ -285,7 +280,7 @@ class TestOperationLoggingCompletenessProperty:
     For any operation executed within an operation_context, the logs SHALL
     contain entry, exit, duration, and correlation ID.
     """
-    
+
     @given(st.text(alphabet="abcdefghij", min_size=1, max_size=20))
     @settings(max_examples=100)
     def test_context_always_has_correlation_id(self, operation_name: str):
@@ -293,7 +288,7 @@ class TestOperationLoggingCompletenessProperty:
         with operation_context(operation_name) as ctx:
             assert ctx.correlation_id is not None
             assert len(ctx.correlation_id) == 8
-    
+
     @given(st.text(alphabet="abcdefghij", min_size=1, max_size=20))
     @settings(max_examples=100)
     def test_context_tracks_duration(self, operation_name: str):
@@ -301,7 +296,7 @@ class TestOperationLoggingCompletenessProperty:
         with operation_context(operation_name) as ctx:
             time.sleep(0.01)
             assert ctx.duration_seconds >= 0.01
-    
+
     @given(
         st.text(alphabet="abcdefghij", min_size=1, max_size=10),
         st.dictionaries(
@@ -328,7 +323,7 @@ class TestMetricsEmissionCompletenessProperty:
     For any completed research operation, the emitted metrics SHALL contain
     duration, token counts, cost, and success status.
     """
-    
+
     @given(
         st.text(alphabet="abcdefghij", min_size=1, max_size=10),
         st.floats(min_value=0.0, max_value=100.0, allow_nan=False, allow_infinity=False),
@@ -356,9 +351,9 @@ class TestMetricsEmissionCompletenessProperty:
             output_tokens=output_tokens,
             cost_usd=cost
         )
-        
+
         d = metrics.to_dict()
-        
+
         # All required fields present
         assert "operation" in d
         assert "duration_seconds" in d
@@ -368,13 +363,13 @@ class TestMetricsEmissionCompletenessProperty:
         assert "cost_usd" in d
         assert "correlation_id" in d
         assert "timestamp" in d
-        
+
         # Values match
         assert d["operation"] == operation
         assert d["success"] == success
         assert d["input_tokens"] == input_tokens
         assert d["output_tokens"] == output_tokens
-    
+
     @given(st.text(alphabet="abcdefghij", min_size=1, max_size=10))
     @settings(max_examples=50)
     def test_tracked_operation_always_emits_metrics(self, operation_name: str):
@@ -382,7 +377,7 @@ class TestMetricsEmissionCompletenessProperty:
         with patch("primr.utils.observability.emit_metrics") as mock_emit:
             with tracked_operation(operation_name):
                 pass
-            
+
             mock_emit.assert_called_once()
             metrics = mock_emit.call_args[0][0]
             assert metrics.operation == operation_name
@@ -395,16 +390,15 @@ class TestMetricsEmissionCompletenessProperty:
 # =============================================================================
 
 from primr.utils.observability import (
+    APICallLog,
     CorrelationContext,
+    JobSummary,
     correlation_scope,
+    get_current_context,
+    is_json_output_mode,
+    log_job_summary,
     log_structured,
     set_json_output_mode,
-    is_json_output_mode,
-    get_current_context,
-    APICallLog,
-    log_api_call,
-    JobSummary,
-    log_job_summary,
 )
 
 
@@ -461,9 +455,8 @@ class TestCorrelationScope:
 
     def test_propagates_exception(self):
         """Should propagate exceptions."""
-        with pytest.raises(ValueError, match="test error"):
-            with correlation_scope("test"):
-                raise ValueError("test error")
+        with pytest.raises(ValueError, match="test error"), correlation_scope("test"):
+            raise ValueError("test error")
 
 
 class TestLogStructured:
@@ -776,7 +769,7 @@ class TestJobSummaryProperty:
     )
     @settings(max_examples=100)
     def test_job_summary_success_based_on_errors(
-        self, errors: List[str], warnings: List[str]
+        self, errors: list[str], warnings: list[str]
     ):
         """Job summary success should be based on error count."""
         summary = JobSummary.create(

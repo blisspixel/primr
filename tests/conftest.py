@@ -2,10 +2,10 @@
 Shared pytest fixtures and configuration for Company Researcher tests.
 """
 
-import asyncio
 import sys
 import warnings
 from pathlib import Path
+
 import pytest
 
 # Add src to path for imports
@@ -45,7 +45,7 @@ def pytest_configure(config):
         message="unclosed event loop",
         category=ResourceWarning
     )
-    
+
     # Suppress legacy error deprecation warnings during test runs
     # These are intentionally used in tests to verify backward compatibility
     warnings.filterwarnings(

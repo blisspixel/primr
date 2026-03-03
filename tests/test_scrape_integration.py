@@ -7,30 +7,27 @@ All tests use mocks - no live network calls.
 Run with: pytest tests/test_scrape_integration.py -v
 """
 
-import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-from primr.data.scraping import (
-    ScrapeOrchestrator,
-    ScrapeCache,
-    ScrapeResult,
-    ScrapeTier,
-    RateLimiter,
-    RateLimitConfig,
-    ErrorType,
-)
+from bs4 import BeautifulSoup
+
 from primr.data.scrape import (
-    scrape_page,
-    get_cached_content,
     cache_content,
     clear_cache,
     detect_soft_block,
     extract_clean_text,
     extract_links_from_html,
-    get_orchestrator,
+    get_cached_content,
+    scrape_page,
 )
-from bs4 import BeautifulSoup
-
+from primr.data.scraping import (
+    RateLimitConfig,
+    RateLimiter,
+    ScrapeCache,
+    ScrapeOrchestrator,
+    ScrapeResult,
+    ScrapeTier,
+)
 
 # ============================================================================
 # TEST HTML FIXTURES
@@ -92,7 +89,7 @@ HTML_WITH_LINKS = """
 
 class TestOrchestratorTierEscalation:
     """Tests for orchestrator tier escalation behavior."""
-    
+
     def test_stops_on_first_success(self, tmp_path):
         """Should stop trying tiers after first success."""
         # Use temp directory for cache to avoid cross-test pollution
@@ -101,30 +98,30 @@ class TestOrchestratorTierEscalation:
             cache=cache,
             rate_limiter=RateLimiter(RateLimitConfig()),
         )
-        
+
         call_order = []
-        
+
         def tier1_success(url, timeout=30):
             call_order.append("tier1")
             return ScrapeResult(
                 url=url, success=True, tier="tier1",
                 raw_content=VALID_HTML.encode('utf-8'),
             )
-        
+
         def tier2_should_not_run(url, timeout=30):
             call_order.append("tier2")
             return ScrapeResult(url=url, success=True, tier="tier2")
-        
+
         orchestrator.tiers = [
             ScrapeTier(name="tier1", scrape_fn=tier1_success, timeout=30),
             ScrapeTier(name="tier2", scrape_fn=tier2_should_not_run, timeout=30),
         ]
-        
+
         result = orchestrator.scrape_url("https://example.com/page1")
-        
+
         assert result.success
         assert call_order == ["tier1"]
-    
+
     def test_escalates_on_failure(self, tmp_path):
         """Should try next tier when previous fails."""
         cache = ScrapeCache(cache_dir=str(tmp_path / "cache2"))
@@ -132,31 +129,31 @@ class TestOrchestratorTierEscalation:
             cache=cache,
             rate_limiter=RateLimiter(RateLimitConfig()),
         )
-        
+
         call_order = []
-        
+
         def tier1_fail(url, timeout=30):
             call_order.append("tier1")
             return ScrapeResult(url=url, success=False, tier="tier1", error="Failed")
-        
+
         def tier2_success(url, timeout=30):
             call_order.append("tier2")
             return ScrapeResult(
                 url=url, success=True, tier="tier2",
                 raw_content=VALID_HTML.encode('utf-8'),
             )
-        
+
         orchestrator.tiers = [
             ScrapeTier(name="tier1", scrape_fn=tier1_fail, timeout=30),
             ScrapeTier(name="tier2", scrape_fn=tier2_success, timeout=30),
         ]
-        
+
         result = orchestrator.scrape_url("https://example.com/page2")
-        
+
         assert result.success
         assert result.tier == "tier2"
         assert call_order == ["tier1", "tier2"]
-    
+
     def test_returns_failure_when_all_tiers_fail(self, tmp_path):
         """Should return failure when all tiers exhausted."""
         cache = ScrapeCache(cache_dir=str(tmp_path / "cache3"))
@@ -164,24 +161,24 @@ class TestOrchestratorTierEscalation:
             cache=cache,
             rate_limiter=RateLimiter(RateLimitConfig()),
         )
-        
+
         def always_fail(url, timeout=30):
             return ScrapeResult(url=url, success=False, tier="fail", error="Nope")
-        
+
         orchestrator.tiers = [
             ScrapeTier(name="tier1", scrape_fn=always_fail, timeout=30),
             ScrapeTier(name="tier2", scrape_fn=always_fail, timeout=30),
         ]
-        
+
         result = orchestrator.scrape_url("https://example.com/page3")
-        
+
         assert not result.success
         assert result.error is not None
 
 
 class TestOrchestratorCaching:
     """Tests for orchestrator cache behavior."""
-    
+
     def test_returns_cached_content(self, tmp_path):
         """Should return cached content without calling tiers."""
         cache = ScrapeCache(cache_dir=str(tmp_path / "cache4"))
@@ -190,21 +187,21 @@ class TestOrchestratorCaching:
             rate_limiter=RateLimiter(RateLimitConfig()),
             use_cache=True,  # Enable cache usage
         )
-        
+
         # Pre-populate cache with raw content (orchestrator checks raw cache)
         url = "https://example.com/cached"
         cache.set_raw(url, VALID_HTML.encode('utf-8'))
-        
+
         tier_called = False
         def should_not_run(url, timeout=30):
             nonlocal tier_called
             tier_called = True
             return ScrapeResult(url=url, success=True)
-        
+
         orchestrator.tiers = [ScrapeTier(name="tier1", scrape_fn=should_not_run, timeout=30)]
-        
+
         result = orchestrator.scrape_url(url)
-        
+
         assert result.success
         assert result.cached
         assert not tier_called
@@ -216,10 +213,10 @@ class TestOrchestratorCaching:
 
 class TestScrapePage:
     """Tests for the scrape_page wrapper function."""
-    
+
     def setup_method(self):
         clear_cache()
-    
+
     def test_returns_content_and_tier_on_success(self):
         """Should return (content, tier) tuple on success."""
         mock_result = ScrapeResult(
@@ -228,13 +225,13 @@ class TestScrapePage:
             tier="requests",
             extracted_text="Test content",
         )
-        
+
         with patch.object(ScrapeOrchestrator, 'scrape_url', return_value=mock_result):
             content, tier = scrape_page("https://test.com")
-        
+
         assert content == "Test content"
         assert tier == "requests"
-    
+
     def test_returns_none_and_error_on_failure(self):
         """Should return (None, error) tuple on failure."""
         mock_result = ScrapeResult(
@@ -242,10 +239,10 @@ class TestScrapePage:
             success=False,
             error="All tiers exhausted",
         )
-        
+
         with patch.object(ScrapeOrchestrator, 'scrape_url', return_value=mock_result):
             content, error = scrape_page("https://blocked.com")
-        
+
         assert content is None
         assert error == "All tiers exhausted"
 
@@ -256,22 +253,22 @@ class TestScrapePage:
 
 class TestSoftBlockDetection:
     """Tests for soft block detection integration."""
-    
+
     def test_detects_access_denied(self):
         """Should detect access denied pages."""
         is_blocked, reason = detect_soft_block(BLOCKED_HTML)
         assert is_blocked
-    
+
     def test_detects_captcha(self):
         """Should detect captcha pages."""
         is_blocked, reason = detect_soft_block(CAPTCHA_HTML)
         assert is_blocked
-    
+
     def test_allows_valid_content(self):
         """Should allow valid content through."""
         is_blocked, reason = detect_soft_block(VALID_HTML)
         assert not is_blocked
-    
+
     def test_detects_empty_response(self):
         """Should detect empty responses."""
         is_blocked, reason = detect_soft_block("")
@@ -284,15 +281,15 @@ class TestSoftBlockDetection:
 
 class TestContentExtraction:
     """Tests for content extraction integration."""
-    
+
     def test_extracts_text_from_soup(self):
         """Should extract clean text from BeautifulSoup."""
         soup = BeautifulSoup(VALID_HTML, "html.parser")
         text = extract_clean_text(soup)
-        
+
         assert "Test Company" in text
         assert "innovative solutions" in text
-    
+
     def test_removes_nav_and_footer(self):
         """Should remove navigation and footer elements."""
         html = """
@@ -304,7 +301,7 @@ class TestContentExtraction:
         """
         soup = BeautifulSoup(html, "html.parser")
         text = extract_clean_text(soup)
-        
+
         assert "Nav content" not in text
         assert "Footer content" not in text
         assert "Main content" in text
@@ -316,18 +313,18 @@ class TestContentExtraction:
 
 class TestLinkExtraction:
     """Tests for link extraction integration."""
-    
+
     def test_extracts_internal_links(self):
         """Should extract internal links."""
         links = extract_links_from_html(HTML_WITH_LINKS, "https://example.com")
-        
+
         assert "https://example.com/about" in links
         assert "https://example.com/products" in links
-    
+
     def test_excludes_external_links(self):
         """Should exclude external links."""
         links = extract_links_from_html(HTML_WITH_LINKS, "https://example.com")
-        
+
         for link in links:
             assert "external.com" not in link
 
@@ -338,20 +335,20 @@ class TestLinkExtraction:
 
 class TestCaching:
     """Tests for caching integration."""
-    
+
     def setup_method(self):
         clear_cache()
-    
+
     def test_cache_roundtrip(self):
         """Should store and retrieve cached content."""
         url = "https://test.com/page"
         content = "Test content"
-        
+
         cache_content(url, content)
         cached = get_cached_content(url)
-        
+
         assert cached == content
-    
+
     def test_cache_miss_returns_none(self):
         """Should return None for uncached URLs."""
         cached = get_cached_content("https://never-cached.com")

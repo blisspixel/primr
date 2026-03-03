@@ -5,7 +5,7 @@ Tests parallel execution, rate limiting, and error handling.
 """
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -144,7 +144,7 @@ class TestResearchNodeExecutor:
         with patch("primr.ai.research_executor.get_settings") as mock_settings:
             mock_settings.return_value.api.gemini_key = "test-key"
             executor = ResearchNodeExecutor(max_concurrent=2)
-        
+
         assert executor._file_search_store is None
         assert executor._max_concurrent == 2
 
@@ -167,22 +167,22 @@ class TestSingletonAccess:
     def test_get_research_executor_returns_instance(self) -> None:
         """Test that get_research_executor returns an instance."""
         reset_research_executor()
-        
+
         with patch("primr.ai.research_executor.get_settings") as mock_settings:
             mock_settings.return_value.api.gemini_key = "test-key"
             executor = get_research_executor("test-store")
-        
+
         assert isinstance(executor, ResearchNodeExecutor)
 
     def test_get_research_executor_different_store_creates_new(self) -> None:
         """Test that different store creates new executor."""
         reset_research_executor()
-        
+
         with patch("primr.ai.research_executor.get_settings") as mock_settings:
             mock_settings.return_value.api.gemini_key = "test-key"
             executor1 = get_research_executor("store1")
             executor2 = get_research_executor("store2")
-        
+
         # Different stores should create different executors
         assert executor1._file_search_store != executor2._file_search_store
 
@@ -193,12 +193,13 @@ class TestSingletonAccess:
             executor1 = get_research_executor("store1")
             reset_research_executor()
             executor2 = get_research_executor("store1")
-        
+
         assert executor1 is not executor2
 
 
 # Property-based tests using Hypothesis
-from hypothesis import given, settings, strategies as st
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 
 class TestRateLimitingProperty:
@@ -217,7 +218,7 @@ class TestRateLimitingProperty:
         with patch("primr.ai.research_executor.get_settings") as mock_settings:
             mock_settings.return_value.api.gemini_key = "test-key"
             executor = ResearchNodeExecutor(max_concurrent=max_concurrent)
-        
+
         # Semaphore should allow max_concurrent acquisitions
         assert executor._max_concurrent == max_concurrent
 
@@ -238,7 +239,7 @@ class TestSharedContextProperty:
         with patch("primr.ai.research_executor.get_settings") as mock_settings:
             mock_settings.return_value.api.gemini_key = "test-key"
             executor = ResearchNodeExecutor(file_search_store=store_name.strip())
-        
+
         assert executor._file_search_store == store_name.strip()
 
 
@@ -255,11 +256,11 @@ class TestConcurrencyProperty:
         max_concurrent = 3
         concurrent_count = 0
         max_observed = 0
-        
+
         with patch("primr.ai.research_executor.get_settings") as mock_settings:
             mock_settings.return_value.api.gemini_key = "test-key"
             executor = ResearchNodeExecutor(max_concurrent=max_concurrent)
-        
+
         async def mock_execute(chapter: ChapterPlan, company: str, progress: None) -> ChapterResult:
             nonlocal concurrent_count, max_observed
             concurrent_count += 1
@@ -272,18 +273,18 @@ class TestConcurrencyProperty:
                 content="Test content",
                 success=True
             )
-        
+
         # Patch the internal execute method
         executor._execute_chapter_internal = mock_execute
-        
+
         # Create 10 chapters
         chapters = [
             ChapterPlan(i, f"Chapter {i}", f"Prompt {i}")
             for i in range(1, 11)
         ]
-        
+
         await executor.execute_all(chapters, "TestCorp", None)
-        
+
         # Max concurrent should not exceed limit
         assert max_observed <= max_concurrent
 
@@ -301,13 +302,13 @@ class TestGracefulFailureProperty:
         with patch("primr.ai.research_executor.get_settings") as mock_settings:
             mock_settings.return_value.api.gemini_key = "test-key"
             executor = ResearchNodeExecutor(max_concurrent=3)
-        
+
         call_count = 0
-        
+
         async def mock_execute(chapter: ChapterPlan, company: str, progress: None) -> ChapterResult:
             nonlocal call_count
             call_count += 1
-            
+
             # Fail chapter 2
             if chapter.chapter_number == 2:
                 return ChapterResult(
@@ -317,26 +318,26 @@ class TestGracefulFailureProperty:
                     success=False,
                     error="Simulated failure"
                 )
-            
+
             return ChapterResult(
                 chapter_number=chapter.chapter_number,
                 title=chapter.title,
                 content="Test content",
                 success=True
             )
-        
+
         executor._execute_chapter_internal = mock_execute
-        
+
         chapters = [
             ChapterPlan(i, f"Chapter {i}", f"Prompt {i}")
             for i in range(1, 6)
         ]
-        
+
         result = await executor.execute_all(chapters, "TestCorp", None)
-        
+
         # All chapters should be attempted
         assert call_count == 5
-        
+
         # Should have 4 successful and 1 failed
         assert result.successful_chapters == 4
         assert result.failed_chapters == 1

@@ -10,8 +10,6 @@ from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
 # Add src to path for imports
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
@@ -284,8 +282,9 @@ class TestValidateVendorResearchPreflight:
     @patch('primr.config.settings.get_settings')
     def test_rejects_missing_api_key(self, mock_settings):
         """Rejects when API key is missing."""
-        from primr.core.vendor_research import _validate_vendor_research_preflight
         from unittest.mock import MagicMock
+
+        from primr.core.vendor_research import _validate_vendor_research_preflight
 
         mock_api = MagicMock()
         mock_api.gemini_key = None

@@ -11,13 +11,11 @@ Key components tested:
 - Retry logic for API errors
 """
 
-import pytest
-from unittest.mock import Mock, patch, AsyncMock
 from datetime import datetime
+from unittest.mock import Mock, patch
 
 from primr.ai.deep_research import (
     DeepResearchOrchestrator,
-    get_deep_research_orchestrator,
     DeepResearchOrchestratorResult,
 )
 
@@ -44,12 +42,12 @@ class TestSectionLoadingFromYAML:
         orchestrator = DeepResearchOrchestrator.__new__(DeepResearchOrchestrator)
         orchestrator._settings = Mock()
         orchestrator._settings.api.gemini_key = "test-key"
-        
+
         sections = orchestrator._load_sections_from_yaml()
-        
+
         # Should have 20 sections per company_overview.yaml
         assert len(sections) >= 15, f"Expected 15+ sections, got {len(sections)}"
-        
+
         # Each section should have required fields
         for section in sections:
             assert "id" in section, f"Section missing 'id': {section}"
@@ -60,9 +58,9 @@ class TestSectionLoadingFromYAML:
         orchestrator = DeepResearchOrchestrator.__new__(DeepResearchOrchestrator)
         orchestrator._settings = Mock()
         orchestrator._settings.api.gemini_key = "test-key"
-        
+
         sections = orchestrator._load_sections_from_yaml()
-        
+
         for section in sections:
             assert "position" in section, f"Section missing 'position': {section.get('id')}"
             assert section["position"] in ("opening", "middle", "closing", "framework")
@@ -72,9 +70,9 @@ class TestSectionLoadingFromYAML:
         orchestrator = DeepResearchOrchestrator.__new__(DeepResearchOrchestrator)
         orchestrator._settings = Mock()
         orchestrator._settings.api.gemini_key = "test-key"
-        
+
         sections = orchestrator._load_sections_from_yaml()
-        
+
         assert sections[0]["id"] == "executive_summary"
         assert sections[0]["position"] == "opening"
 
@@ -85,7 +83,7 @@ class TestIndustryExtraction:
     def test_extracts_industry_from_context(self):
         """Extract Industry from Stage 1 markdown context."""
         orchestrator = DeepResearchOrchestrator.__new__(DeepResearchOrchestrator)
-        
+
         context = """
 ## Company Name
 
@@ -103,15 +101,15 @@ Regional Banking and Financial Services
 
 Banking products...
 """
-        
+
         industry = orchestrator._extract_industry_from_context(context)
-        
+
         assert industry == "Regional Banking and Financial Services"
 
     def test_extracts_industry_case_insensitive(self):
         """Industry extraction is case-insensitive."""
         orchestrator = DeepResearchOrchestrator.__new__(DeepResearchOrchestrator)
-        
+
         context = """
 ## INDUSTRY
 
@@ -119,15 +117,15 @@ Technology Services
 
 ---
 """
-        
+
         industry = orchestrator._extract_industry_from_context(context)
-        
+
         assert industry == "Technology Services"
 
     def test_returns_none_for_missing_industry(self):
         """Returns None if Industry section not found."""
         orchestrator = DeepResearchOrchestrator.__new__(DeepResearchOrchestrator)
-        
+
         context = """
 ## Company Name
 
@@ -137,15 +135,15 @@ Test Company
 
 Some products
 """
-        
+
         industry = orchestrator._extract_industry_from_context(context)
-        
+
         assert industry is None
 
     def test_returns_none_for_empty_context(self):
         """Returns None for empty or None context."""
         orchestrator = DeepResearchOrchestrator.__new__(DeepResearchOrchestrator)
-        
+
         assert orchestrator._extract_industry_from_context(None) is None
         assert orchestrator._extract_industry_from_context("") is None
 
@@ -156,7 +154,7 @@ class TestCompanyNameExtraction:
     def test_extracts_full_company_name(self):
         """Extract full legal name from Stage 1 context."""
         orchestrator = DeepResearchOrchestrator.__new__(DeepResearchOrchestrator)
-        
+
         context = """
 ## Company Name
 
@@ -168,15 +166,15 @@ Bank of Hawaii Corporation
 
 Banking
 """
-        
+
         full_name = orchestrator._extract_full_company_name(context)
-        
+
         assert full_name == "Bank of Hawaii Corporation"
 
     def test_returns_none_for_missing_company_name(self):
         """Returns None if Company Name section not found."""
         orchestrator = DeepResearchOrchestrator.__new__(DeepResearchOrchestrator)
-        
+
         context = """
 ## Industry
 
@@ -186,9 +184,9 @@ Banking
 
 Some products
 """
-        
+
         full_name = orchestrator._extract_full_company_name(context)
-        
+
         assert full_name is None
 
 
@@ -198,12 +196,12 @@ class TestReportAssembly:
     def test_assembles_report_with_header(self):
         """Report has clean header with metadata."""
         orchestrator = DeepResearchOrchestrator.__new__(DeepResearchOrchestrator)
-        
+
         sections = [
             {"id": "exec_summary", "title": "Executive Summary", "content": "Summary content."},
             {"id": "products", "title": "Products", "content": "Product content."},
         ]
-        
+
         report = orchestrator._assemble_report(
             company_name="Bank of Hawaii",
             website_url="https://www.boh.com",
@@ -211,13 +209,13 @@ class TestReportAssembly:
             industry="Regional Banking",
             full_company_name="Bank of Hawaii Corporation",
         )
-        
+
         # Check header elements
         assert "# Strategic Company Overview: Bank of Hawaii" in report
         assert "**Company Name:** Bank of Hawaii Corporation" in report
         assert "**Website:** https://www.boh.com" in report
         assert "**Industry:** Regional Banking" in report
-        
+
         # Check date is in italics
         current_month = datetime.now().strftime("%B %Y")
         assert f"*{current_month}*" in report
@@ -225,11 +223,11 @@ class TestReportAssembly:
     def test_assembles_report_without_optional_fields(self):
         """Report works without Industry or full company name."""
         orchestrator = DeepResearchOrchestrator.__new__(DeepResearchOrchestrator)
-        
+
         sections = [
             {"id": "exec_summary", "title": "Executive Summary", "content": "Summary."},
         ]
-        
+
         report = orchestrator._assemble_report(
             company_name="Test Co",
             website_url=None,
@@ -237,7 +235,7 @@ class TestReportAssembly:
             industry=None,
             full_company_name=None,
         )
-        
+
         assert "# Strategic Company Overview: Test Co" in report
         assert "**Company Name:** Test Co" in report  # Falls back to user input
         assert "**Website:**" not in report
@@ -246,40 +244,40 @@ class TestReportAssembly:
     def test_assembles_sections_in_order(self):
         """Sections appear in the order provided."""
         orchestrator = DeepResearchOrchestrator.__new__(DeepResearchOrchestrator)
-        
+
         sections = [
             {"id": "first", "title": "First Section", "content": "First content."},
             {"id": "second", "title": "Second Section", "content": "Second content."},
             {"id": "third", "title": "Third Section", "content": "Third content."},
         ]
-        
+
         report = orchestrator._assemble_report(
             company_name="Test",
             website_url=None,
             sections=sections,
         )
-        
+
         # Check order
         first_pos = report.find("## First Section")
         second_pos = report.find("## Second Section")
         third_pos = report.find("## Third Section")
-        
+
         assert first_pos < second_pos < third_pos
 
     def test_no_table_of_contents(self):
         """Report should NOT have table of contents (cleaner format)."""
         orchestrator = DeepResearchOrchestrator.__new__(DeepResearchOrchestrator)
-        
+
         sections = [
             {"id": "exec", "title": "Executive Summary", "content": "Content."},
         ]
-        
+
         report = orchestrator._assemble_report(
             company_name="Test",
             website_url=None,
             sections=sections,
         )
-        
+
         assert "Table of Contents" not in report
         assert "## Contents" not in report
 
@@ -292,16 +290,16 @@ class TestSectionPromptBuilding:
         orchestrator = DeepResearchOrchestrator.__new__(DeepResearchOrchestrator)
         orchestrator._settings = Mock()
         orchestrator._settings.api.gemini_key = "test-key"
-        
+
         # Mock the YAML loading
         with patch.object(orchestrator, '_load_accordion_prompts') as mock_load:
             mock_load.return_value = {
                 "section_writing_prompt": "Write {section_title} for {company_name}. Dossier: {research_dossier}",
                 "position_guidance": {"middle": "Middle section guidance."}
             }
-            
+
             section = {"id": "test", "title": "Test Section", "instructions": "Write test.", "position": "middle"}
-            
+
             prompt = orchestrator._build_section_prompt(
                 section=section,
                 company_name="Test Co",
@@ -311,7 +309,7 @@ class TestSectionPromptBuilding:
                 section_index=0,
                 total_sections=5,
             )
-            
+
             assert "dossier" in prompt.lower() or "This is the dossier content" in prompt
 
     def test_section_prompt_includes_previous_sections(self):
@@ -319,18 +317,18 @@ class TestSectionPromptBuilding:
         orchestrator = DeepResearchOrchestrator.__new__(DeepResearchOrchestrator)
         orchestrator._settings = Mock()
         orchestrator._settings.api.gemini_key = "test-key"
-        
+
         with patch.object(orchestrator, '_load_accordion_prompts') as mock_load:
             mock_load.return_value = {
                 "section_writing_prompt": "{previous_sections}",
                 "position_guidance": {"middle": ""}
             }
-            
+
             section = {"id": "test", "title": "Test", "instructions": "", "position": "middle"}
             previous = [
                 {"id": "prev1", "title": "Previous One", "content": "Previous content here."}
             ]
-            
+
             prompt = orchestrator._build_section_prompt(
                 section=section,
                 company_name="Test",
@@ -340,7 +338,7 @@ class TestSectionPromptBuilding:
                 section_index=1,
                 total_sections=5,
             )
-            
+
             assert "Previous One" in prompt or "Previous content" in prompt
 
 
@@ -351,11 +349,11 @@ class TestRetryLogic:
         """Backoff delay increases exponentially."""
         orchestrator = DeepResearchOrchestrator.__new__(DeepResearchOrchestrator)
         orchestrator.BASE_RETRY_DELAY = 60.0
-        
+
         delay_0 = orchestrator._calculate_backoff_delay(0)
         delay_1 = orchestrator._calculate_backoff_delay(1)
         delay_2 = orchestrator._calculate_backoff_delay(2)
-        
+
         assert delay_0 == 60.0  # 60 * 2^0
         assert delay_1 == 120.0  # 60 * 2^1
         assert delay_2 == 240.0  # 60 * 2^2
@@ -373,7 +371,7 @@ class TestDeepResearchOrchestratorResult:
             duration_seconds=100.0,
             success=True,
         )
-        
+
         assert result.success is True
         assert result.content == "Report content here."
         assert result.error is None
@@ -388,7 +386,7 @@ class TestDeepResearchOrchestratorResult:
             success=False,
             error="API quota exhausted",
         )
-        
+
         assert result.success is False
         assert result.error == "API quota exhausted"
 
@@ -401,13 +399,13 @@ class TestAccordionPromptLoading:
         orchestrator = DeepResearchOrchestrator.__new__(DeepResearchOrchestrator)
         orchestrator._settings = Mock()
         orchestrator._settings.api.gemini_key = "test-key"
-        
+
         prompts = orchestrator._load_accordion_prompts()
-        
+
         assert "research_dossier_prompt" in prompts
         assert "section_writing_prompt" in prompts
         assert "position_guidance" in prompts
-        
+
         # Position guidance should have opening/middle/closing
         assert "opening" in prompts["position_guidance"]
         assert "middle" in prompts["position_guidance"]
@@ -418,10 +416,10 @@ class TestAccordionPromptLoading:
         orchestrator = DeepResearchOrchestrator.__new__(DeepResearchOrchestrator)
         orchestrator._settings = Mock()
         orchestrator._settings.api.gemini_key = "test-key"
-        
+
         prompts = orchestrator._load_accordion_prompts()
         dossier_prompt = prompts["research_dossier_prompt"]
-        
+
         assert "{company_name}" in dossier_prompt
 
 
@@ -431,7 +429,7 @@ class TestFallbackBehavior:
     def test_extract_industry_uses_stage1_on_failure(self):
         """When Deep Research fails, Industry is still extracted from Stage 1."""
         orchestrator = DeepResearchOrchestrator.__new__(DeepResearchOrchestrator)
-        
+
         stage1_context = """
 ## Industry
 
@@ -443,10 +441,10 @@ Regional Banking
 
 Test Bank Corp
 """
-        
+
         # Even if Deep Research fails, we can still extract metadata
         industry = orchestrator._extract_industry_from_context(stage1_context)
         full_name = orchestrator._extract_full_company_name(stage1_context)
-        
+
         assert industry == "Regional Banking"
         assert full_name == "Test Bank Corp"

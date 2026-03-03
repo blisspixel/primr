@@ -20,13 +20,11 @@ import tempfile
 import time
 from pathlib import Path
 
-import pytest
-from hypothesis import given, settings, assume
+from hypothesis import given, settings
 from hypothesis import strategies as st
 
+from primr.agentic.models import VersionStatus
 from primr.agentic.roadmap_api import RoadmapAPI
-from primr.agentic.models import Version, Feature, VersionStatus
-
 
 # =============================================================================
 # STRATEGIES

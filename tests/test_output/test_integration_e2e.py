@@ -6,17 +6,13 @@ Task 15: Final integration and testing
 
 import os
 import tempfile
-import pytest
-from pathlib import Path
 
 from primr.output.document_builder import DocumentBuilder
 from primr.output.markdown_parser import ArtifactDetector
 from primr.output.output_utils import (
     save_report_as_txt,
-    save_report_as_docx_premium,
     strip_markdown_artifacts,
 )
-
 
 # Sample section data for testing
 SAMPLE_SECTIONS = {
@@ -93,13 +89,13 @@ class TestDocumentBuilderIntegration:
         """Build a complete document and verify structure."""
         builder = DocumentBuilder('Test Company Inc', SAMPLE_SECTIONS)
         document = builder.build()
-        
+
         # Verify document was created
         assert document is not None
-        
+
         # Verify document has content
         assert len(document.paragraphs) > 0
-        
+
         # Verify document has tables (snapshot, executive highlights)
         assert len(document.tables) > 0
 
@@ -107,13 +103,13 @@ class TestDocumentBuilderIntegration:
         """Verify generated document has no unconverted markdown."""
         builder = DocumentBuilder('Test Company Inc', SAMPLE_SECTIONS)
         document = builder.build()
-        
+
         detector = ArtifactDetector()
         artifacts = detector.scan_document(document)
-        
+
         # Filter out false positives (some patterns may appear in legitimate content)
         real_artifacts = [a for a in artifacts if a['type'] == 'heading']
-        
+
         # Should have no heading artifacts (## patterns)
         assert len(real_artifacts) == 0, f"Found artifacts: {detector.get_artifact_summary()}"
 
@@ -121,14 +117,14 @@ class TestDocumentBuilderIntegration:
         """Verify cover page has required elements."""
         builder = DocumentBuilder('Test Company Inc', SAMPLE_SECTIONS)
         document = builder.build()
-        
+
         # Get text from first few paragraphs
         first_paragraphs = [p.text for p in document.paragraphs[:10]]
         all_text = '\n'.join(first_paragraphs)
-        
+
         # Should have company name
         assert 'Test Company' in all_text
-        
+
         # Should have report title
         assert 'Strategic' in all_text or 'Profile' in all_text
 
@@ -136,20 +132,20 @@ class TestDocumentBuilderIntegration:
         """Verify executive summary section exists."""
         builder = DocumentBuilder('Test Company Inc', SAMPLE_SECTIONS)
         document = builder.build()
-        
+
         # Find executive summary heading
         headings = [p.text for p in document.paragraphs if p.style.name.startswith('Heading')]
-        
+
         assert any('Executive Summary' in h for h in headings)
 
     def test_document_has_chapters(self):
         """Verify document has chapter structure."""
         builder = DocumentBuilder('Test Company Inc', SAMPLE_SECTIONS)
         document = builder.build()
-        
+
         # Find chapter headings (level 1)
         h1_headings = [p.text for p in document.paragraphs if p.style.name == 'Heading 1']
-        
+
         # Should have multiple chapters
         assert len(h1_headings) >= 3
 
@@ -157,10 +153,10 @@ class TestDocumentBuilderIntegration:
         """Verify document can be saved to file."""
         builder = DocumentBuilder('Test Company Inc', SAMPLE_SECTIONS)
         document = builder.build()
-        
+
         with tempfile.NamedTemporaryFile(suffix='.docx', delete=False) as f:
             temp_path = f.name
-        
+
         try:
             document.save(temp_path)
             assert os.path.exists(temp_path)
@@ -181,27 +177,27 @@ class TestTxtReportIntegration:
             import primr.output.output_utils as utils
             original_dir = utils.OUTPUT_DIR
             utils.OUTPUT_DIR = tmpdir
-            
+
             try:
                 txt_path = save_report_as_txt(SAMPLE_SECTIONS, 'Test_Company')
-                
+
                 assert txt_path is not None
                 assert os.path.exists(txt_path)
-                
-                with open(txt_path, 'r', encoding='utf-8') as f:
+
+                with open(txt_path, encoding='utf-8') as f:
                     content = f.read()
-                
+
                 # Should have title
                 assert 'Test_Company' in content
-                
+
                 # Should have section headers
                 assert 'FINANCIAL' in content.upper() or 'OVERVIEW' in content.upper()
-                
+
                 # Should not have raw markdown heading markers
                 lines = content.split('\n')
                 heading_lines = [l for l in lines if l.strip().startswith('##')]
                 assert len(heading_lines) == 0, f"Found markdown headings: {heading_lines}"
-                
+
             finally:
                 utils.OUTPUT_DIR = original_dir
 
@@ -215,18 +211,18 @@ class TestContentEquivalence:
             import primr.output.output_utils as utils
             original_dir = utils.OUTPUT_DIR
             utils.OUTPUT_DIR = tmpdir
-            
+
             try:
                 txt_path = save_report_as_txt(SAMPLE_SECTIONS, 'Test_Company')
-                
-                with open(txt_path, 'r', encoding='utf-8') as f:
+
+                with open(txt_path, encoding='utf-8') as f:
                     content = f.read()
-                
+
                 # Key content from financial_overview should be present
                 assert '$45 billion' in content or '45 billion' in content
                 assert '$1.2 billion' in content or '1.2 billion' in content
                 assert '15%' in content
-                
+
             finally:
                 utils.OUTPUT_DIR = original_dir
 
@@ -242,9 +238,9 @@ Key points:
 * Strong growth
 * Market leader
 """
-        
+
         stripped = strip_markdown_artifacts(test_content)
-        
+
         # All key info should be present
         assert 'Financial Overview' in stripped
         assert 'Revenue' in stripped
@@ -273,7 +269,7 @@ class TestFourTests:
         """
         builder = DocumentBuilder('Test Company Inc', SAMPLE_SECTIONS)
         document = builder.build()
-        
+
         # Get first page content (before first page break)
         first_page_text = []
         for para in document.paragraphs:
@@ -282,12 +278,12 @@ class TestFourTests:
             # Stop at reasonable point
             if len(first_page_text) > 15:
                 break
-        
+
         cover_text = '\n'.join(first_page_text)
-        
+
         # Company name should be prominent
         assert 'Test Company' in cover_text
-        
+
         # Should have some descriptive text
         assert len(cover_text) > 50
 
@@ -302,11 +298,11 @@ class TestFourTests:
         """
         builder = DocumentBuilder('Test Company Inc', SAMPLE_SECTIONS)
         document = builder.build()
-        
+
         # Find executive summary section
         in_exec_summary = False
         exec_summary_content = []
-        
+
         for para in document.paragraphs:
             if 'Executive Summary' in para.text:
                 in_exec_summary = True
@@ -315,12 +311,12 @@ class TestFourTests:
                 if para.style.name == 'Heading 1' and 'Executive' not in para.text:
                     break  # End of exec summary
                 exec_summary_content.append(para.text)
-        
+
         exec_text = '\n'.join(exec_summary_content)
-        
+
         # Should have substantial content
         assert len(exec_text) > 100
-        
+
         # Should have key sections
         assert 'Key' in exec_text or 'Insight' in exec_text or 'Bottom Line' in exec_text
 
@@ -335,20 +331,20 @@ class TestFourTests:
         """
         builder = DocumentBuilder('Test Company Inc', SAMPLE_SECTIONS)
         document = builder.build()
-        
+
         # Count heading levels
         heading_levels = set()
         for para in document.paragraphs:
             if para.style.name.startswith('Heading'):
                 heading_levels.add(para.style.name)
-        
+
         # Should have at least 2 heading levels
         assert len(heading_levels) >= 2
-        
+
         # Should have bullet lists
         bullet_paras = [p for p in document.paragraphs if 'List' in p.style.name]
         assert len(bullet_paras) > 0
-        
+
         # Should have tables
         assert len(document.tables) > 0
 
@@ -367,18 +363,18 @@ class TestUXChecklist:
         """
         builder = DocumentBuilder('Test Company Inc', SAMPLE_SECTIONS)
         document = builder.build()
-        
+
         # Count consecutive bullet items
         consecutive_bullets = 0
         max_consecutive = 0
-        
+
         for para in document.paragraphs:
             if 'List Bullet' in para.style.name:
                 consecutive_bullets += 1
                 max_consecutive = max(max_consecutive, consecutive_bullets)
             else:
                 consecutive_bullets = 0
-        
+
         # Should not exceed 7 consecutive bullets (Miller's Law)
         # Allow some flexibility for nested lists
         assert max_consecutive <= 10, f"Found {max_consecutive} consecutive bullets"
@@ -391,7 +387,7 @@ class TestUXChecklist:
         """
         builder = DocumentBuilder('Test Company Inc', SAMPLE_SECTIONS)
         document = builder.build()
-        
+
         # Check Normal style font size
         normal_style = document.styles['Normal']
         if normal_style.font.size:
@@ -414,13 +410,13 @@ class TestCitationConfidence:
             {'title': f'Source {i}', 'url': f'https://source{i}.com'}
             for i in range(12)
         ]
-        
+
         builder = DocumentBuilder(
             company_name="Test Corp",
             section_results=SAMPLE_SECTIONS,
             citations=citations
         )
-        
+
         assert builder._citation_count == 12
         assert builder._overall_confidence == 'high'
         assert 'High confidence' in builder._get_confidence_description()
@@ -431,13 +427,13 @@ class TestCitationConfidence:
             {'title': f'Source {i}', 'url': f'https://source{i}.com'}
             for i in range(5)
         ]
-        
+
         builder = DocumentBuilder(
             company_name="Test Corp",
             section_results=SAMPLE_SECTIONS,
             citations=citations
         )
-        
+
         assert builder._citation_count == 5
         assert builder._overall_confidence == 'medium'
         assert 'Medium confidence' in builder._get_confidence_description()
@@ -447,13 +443,13 @@ class TestCitationConfidence:
         citations = [
             {'title': 'Source 1', 'url': 'https://source1.com'}
         ]
-        
+
         builder = DocumentBuilder(
             company_name="Test Corp",
             section_results=SAMPLE_SECTIONS,
             citations=citations
         )
-        
+
         assert builder._citation_count == 1
         assert builder._overall_confidence == 'low'
         assert 'Limited sources' in builder._get_confidence_description()
@@ -465,7 +461,7 @@ class TestCitationConfidence:
             section_results=SAMPLE_SECTIONS,
             citations=[]
         )
-        
+
         assert builder._citation_count == 0
         assert builder._overall_confidence == 'low'
 
@@ -475,12 +471,12 @@ class TestCitationConfidence:
             {'title': f'Source {i}', 'url': f'https://source{i}.com'}
             for i in range(7)
         ]
-        
+
         builder = DocumentBuilder(
             company_name="Test Corp",
             section_results=SAMPLE_SECTIONS,
             citations=citations
         )
-        
+
         description = builder._get_confidence_description()
         assert '7' in description  # Should mention the count

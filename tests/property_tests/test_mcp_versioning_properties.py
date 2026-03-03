@@ -9,23 +9,19 @@ These tests verify the correctness properties of the MCP versioning system.
 from __future__ import annotations
 
 import re
-from datetime import datetime
-from hypothesis import given, strategies as st, settings, assume
 
-import pytest
+from hypothesis import assume, given, settings
+from hypothesis import strategies as st
 
 from src.primr.mcp_server.versioning import (
-    SemanticVersion,
-    VersionChangeType,
     DeprecationWarning,
-    VersionHistoryEntry,
-    ToolSchemaMetadata,
     MCPVersionRegistry,
-    inject_version_metadata,
+    SemanticVersion,
+    ToolSchemaMetadata,
+    VersionChangeType,
     extract_deprecation_warnings,
-    get_version_registry,
+    inject_version_metadata,
 )
-
 
 # =============================================================================
 # Strategies
@@ -86,7 +82,7 @@ class TestToolSchemaVersionPresence:
     field matching the semantic versioning pattern `major.minor.patch`.
     **Validates: Requirements 13.1, 13.2**
     """
-    
+
     # Feature: phd-level-excellence, Property 30: Tool Schema Version Presence
     @settings(max_examples=50)
     @given(tool_name=tool_name_strategy())
@@ -94,21 +90,21 @@ class TestToolSchemaVersionPresence:
         """Verify all registered tools have version metadata."""
         registry = MCPVersionRegistry()
         metadata = registry.get_tool_metadata(tool_name)
-        
+
         assert metadata is not None, f"Tool {tool_name} not found in registry"
         assert metadata.version is not None, f"Tool {tool_name} has no version"
-    
+
     # Feature: phd-level-excellence, Property 30: Tool Schema Version Presence
     @settings(max_examples=50)
     @given(version=semantic_version_strategy())
     def test_version_string_format(self, version: SemanticVersion):
         """Verify version string matches major.minor.patch pattern."""
         version_str = str(version)
-        
+
         # Must match pattern
         pattern = r"^\d+\.\d+\.\d+$"
         assert re.match(pattern, version_str), f"Version {version_str} doesn't match pattern"
-    
+
     # Feature: phd-level-excellence, Property 30: Tool Schema Version Presence
     @settings(max_examples=50)
     @given(version_str=version_string_strategy())
@@ -116,7 +112,7 @@ class TestToolSchemaVersionPresence:
         """Verify version parsing and stringification are inverse operations."""
         parsed = SemanticVersion.parse(version_str)
         assert str(parsed) == version_str
-    
+
     # Feature: phd-level-excellence, Property 30: Tool Schema Version Presence
     @settings(max_examples=50)
     @given(tool_name=tool_name_strategy())
@@ -124,45 +120,45 @@ class TestToolSchemaVersionPresence:
         """Verify metadata serialization includes version."""
         registry = MCPVersionRegistry()
         metadata = registry.get_tool_metadata(tool_name)
-        
+
         assert metadata is not None
         metadata_dict = metadata.to_dict()
-        
+
         assert "version" in metadata_dict
         assert "tool_name" in metadata_dict
-        
+
         # Version should be a string in the dict
         assert isinstance(metadata_dict["version"], str)
-        
+
         # Should match pattern
         pattern = r"^\d+\.\d+\.\d+$"
         assert re.match(pattern, metadata_dict["version"])
-    
+
     # Feature: phd-level-excellence, Property 30: Tool Schema Version Presence
     @settings(max_examples=50)
     @given(st.data())
     def test_inject_version_adds_metadata(self, data):
         """Verify inject_version_metadata adds version to schema."""
         tool_name = data.draw(tool_name_strategy())
-        
+
         registry = MCPVersionRegistry()
         metadata = registry.get_tool_metadata(tool_name)
-        
+
         assert metadata is not None
-        
+
         # Create a minimal tool schema
         original_schema = {
             "name": tool_name,
             "description": "Test tool",
             "inputSchema": {"type": "object"},
         }
-        
+
         result = inject_version_metadata(original_schema, metadata)
-        
+
         # Should have metadata field
         assert "metadata" in result
         assert "version" in result["metadata"]
-        
+
         # Original fields preserved
         assert result["name"] == tool_name
         assert result["description"] == "Test tool"
@@ -179,7 +175,7 @@ class TestDeprecationWarningInclusion:
     a deprecation warning with the field name and recommended alternative.
     **Validates: Requirements 13.5**
     """
-    
+
     # Feature: phd-level-excellence, Property 31: Deprecation Warning Inclusion
     @settings(max_examples=50)
     @given(
@@ -189,22 +185,22 @@ class TestDeprecationWarningInclusion:
     def test_deprecation_warning_structure(self, field_name: str, message: str):
         """Verify deprecation warning has required fields."""
         assume(field_name.strip())  # Non-empty after strip
-        
+
         warning = DeprecationWarning(
             field_name=field_name,
             message=message,
             deprecated_in=SemanticVersion(1, 0, 0),
         )
-        
+
         warning_dict = warning.to_dict()
-        
+
         assert "field" in warning_dict
         assert "message" in warning_dict
         assert "deprecated_in" in warning_dict
-        
+
         assert warning_dict["field"] == field_name
         assert warning_dict["message"] == message
-    
+
     # Feature: phd-level-excellence, Property 31: Deprecation Warning Inclusion
     @settings(max_examples=50)
     @given(
@@ -215,19 +211,19 @@ class TestDeprecationWarningInclusion:
         """Verify deprecation warning includes alternative when provided."""
         assume(field_name.strip())
         assume(alternative.strip())
-        
+
         warning = DeprecationWarning(
             field_name=field_name,
             message="Field is deprecated",
             deprecated_in=SemanticVersion(1, 0, 0),
             alternative=alternative,
         )
-        
+
         warning_dict = warning.to_dict()
-        
+
         assert "alternative" in warning_dict
         assert warning_dict["alternative"] == alternative
-    
+
     # Feature: phd-level-excellence, Property 31: Deprecation Warning Inclusion
     @settings(max_examples=50)
     @given(st.data())
@@ -235,7 +231,7 @@ class TestDeprecationWarningInclusion:
         """Verify extract_deprecation_warnings adds warnings for deprecated fields."""
         field_name = data.draw(field_name_strategy())
         assume(field_name.strip())
-        
+
         # Create metadata with deprecation
         metadata = ToolSchemaMetadata(
             tool_name="test_tool",
@@ -247,17 +243,17 @@ class TestDeprecationWarningInclusion:
             deprecated_in=SemanticVersion(1, 0, 0),
             alternative="use_new_field",
         )
-        
+
         # Response containing the deprecated field
         response = {field_name: "some_value", "other_field": "other_value"}
-        
+
         result = extract_deprecation_warnings(response, metadata)
-        
+
         # Should have deprecation warnings
         assert "_deprecation_warnings" in result
         assert len(result["_deprecation_warnings"]) == 1
         assert result["_deprecation_warnings"][0]["field"] == field_name
-    
+
     # Feature: phd-level-excellence, Property 31: Deprecation Warning Inclusion
     @settings(max_examples=50)
     @given(st.data())
@@ -273,22 +269,22 @@ class TestDeprecationWarningInclusion:
             message="This field is deprecated",
             deprecated_in=SemanticVersion(1, 0, 0),
         )
-        
+
         # Response without the deprecated field
         response = {"other_field": "value", "another_field": 123}
-        
+
         result = extract_deprecation_warnings(response, metadata)
-        
+
         # Should not have deprecation warnings
         assert "_deprecation_warnings" not in result
-    
+
     # Feature: phd-level-excellence, Property 31: Deprecation Warning Inclusion
     @settings(max_examples=50)
     @given(tool_name=tool_name_strategy())
     def test_registry_add_deprecation(self, tool_name: str):
         """Verify registry can add deprecations to tools."""
         registry = MCPVersionRegistry()
-        
+
         # Add deprecation
         registry.add_deprecation(
             tool_name=tool_name,
@@ -296,7 +292,7 @@ class TestDeprecationWarningInclusion:
             message="Use new_field instead",
             alternative="new_field",
         )
-        
+
         metadata = registry.get_tool_metadata(tool_name)
         assert metadata is not None
         assert len(metadata.deprecated_fields) == 1
@@ -310,7 +306,7 @@ class TestDeprecationWarningInclusion:
 
 class TestVersioningInvariants:
     """Additional invariant tests for versioning system."""
-    
+
     # Feature: phd-level-excellence, Property 30: Tool Schema Version Presence
     @settings(max_examples=50)
     @given(
@@ -322,11 +318,11 @@ class TestVersioningInvariants:
         # If v1 < v2, then not v2 < v1
         if v1 < v2:
             assert not v2 < v1
-        
+
         # If v1 == v2, then v2 == v1
         if v1 == v2:
             assert v2 == v1
-    
+
     # Feature: phd-level-excellence, Property 30: Tool Schema Version Presence
     @settings(max_examples=50)
     @given(version=semantic_version_strategy())
@@ -335,7 +331,7 @@ class TestVersioningInvariants:
         for change_type in VersionChangeType:
             bumped = version.bump(change_type)
             assert bumped > version
-    
+
     # Feature: phd-level-excellence, Property 30: Tool Schema Version Presence
     @settings(max_examples=50)
     @given(version=semantic_version_strategy())
@@ -345,7 +341,7 @@ class TestVersioningInvariants:
         assert bumped.major == version.major + 1
         assert bumped.minor == 0
         assert bumped.patch == 0
-    
+
     # Feature: phd-level-excellence, Property 30: Tool Schema Version Presence
     @settings(max_examples=50)
     @given(version=semantic_version_strategy())
@@ -355,7 +351,7 @@ class TestVersioningInvariants:
         assert bumped.major == version.major
         assert bumped.minor == version.minor + 1
         assert bumped.patch == 0
-    
+
     # Feature: phd-level-excellence, Property 30: Tool Schema Version Presence
     @settings(max_examples=50)
     @given(
@@ -367,11 +363,11 @@ class TestVersioningInvariants:
         # Same major and v1 >= v2 means compatible
         if v1.major == v2.major and v1 >= v2:
             assert v1.is_compatible_with(v2)
-        
+
         # Different major means not compatible
         if v1.major != v2.major:
             assert not v1.is_compatible_with(v2)
-    
+
     # Feature: phd-level-excellence, Property 30: Tool Schema Version Presence
     @settings(max_examples=50)
     @given(st.data())
@@ -379,33 +375,33 @@ class TestVersioningInvariants:
         """Verify version history is returned in order."""
         registry = MCPVersionRegistry()
         history = registry.get_version_history()
-        
+
         # Should be sorted newest first
         for i in range(len(history) - 1):
             assert history[i].version >= history[i + 1].version
-    
+
     # Feature: phd-level-excellence, Property 31: Deprecation Warning Inclusion
     @settings(max_examples=50)
     @given(tool_name=tool_name_strategy())
     def test_deprecation_policy_minimum_notice(self, tool_name: str):
         """Verify deprecation policy gives minimum 2 minor versions notice."""
         registry = MCPVersionRegistry()
-        
+
         registry.add_deprecation(
             tool_name=tool_name,
             field_name="test_field",
             message="Test deprecation",
         )
-        
+
         metadata = registry.get_tool_metadata(tool_name)
         assert metadata is not None
-        
+
         dep = metadata.deprecated_fields[-1]  # Get the one we just added
-        
+
         # removed_in should be at least 2 minor versions ahead
         assert dep.removed_in is not None
         assert dep.removed_in.minor >= dep.deprecated_in.minor + 2
-    
+
     # Feature: phd-level-excellence, Property 30: Tool Schema Version Presence
     @settings(max_examples=50)
     @given(version=semantic_version_strategy())
@@ -414,7 +410,7 @@ class TestVersioningInvariants:
         # Equal versions should have equal hashes
         v2 = SemanticVersion(version.major, version.minor, version.patch)
         assert hash(version) == hash(v2)
-        
+
         # Can be used in sets/dicts
         version_set = {version, v2}
         assert len(version_set) == 1
@@ -422,7 +418,7 @@ class TestVersioningInvariants:
 
 class TestMigrationGuide:
     """Tests for migration guide generation."""
-    
+
     # Feature: phd-level-excellence, Property 30: Tool Schema Version Presence
     @settings(max_examples=50)
     @given(
@@ -433,24 +429,24 @@ class TestMigrationGuide:
         """Verify migration guide is generated correctly."""
         registry = MCPVersionRegistry()
         guide = registry.get_migration_guide(from_version, to_version)
-        
+
         # Should always return a string
         assert isinstance(guide, str)
-        
+
         # If from >= to, should indicate no migration needed
         if from_version >= to_version:
             assert "No migration needed" in guide or "already at or above" in guide
-    
+
     # Feature: phd-level-excellence, Property 30: Tool Schema Version Presence
     @settings(max_examples=50)
     @given(version=semantic_version_strategy())
     def test_version_support_check(self, version: SemanticVersion):
         """Verify version support checking works correctly."""
         registry = MCPVersionRegistry()
-        
+
         # Current version should always be supported
         assert registry.is_version_supported(registry.CURRENT_VERSION)
-        
+
         # Version with different major should not be supported
         different_major = SemanticVersion(
             registry.CURRENT_VERSION.major + 1,

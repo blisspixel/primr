@@ -5,19 +5,18 @@ This module tests the enhanced QA system with realistic report content
 to ensure it provides meaningful feedback instead of generic fallbacks.
 """
 
-import pytest
-from pathlib import Path
 from datetime import datetime
-from unittest.mock import patch, Mock
+from pathlib import Path
+from unittest.mock import patch
 
-from src.primr.qa.simple_analyzer import SimpleQAAnalyzer, SimpleQAResult
 from src.primr.qa.integration import QAIntegration
-from src.primr.qa.models import ReportContent, ReportMetadata, QAOptions
+from src.primr.qa.models import QAOptions, ReportContent, ReportMetadata
+from src.primr.qa.simple_analyzer import SimpleQAAnalyzer, SimpleQAResult
 
 
 class TestRealReportValidation:
     """Test QA system with realistic report content."""
-    
+
     def test_evertrue_llc_style_comprehensive_report(self):
         """
         Test with a comprehensive strategic analysis similar to the Evertrue LLC case
@@ -162,7 +161,7 @@ Evertrue LLC demonstrates strong fundamentals with clear growth trajectory in th
 
 The analysis suggests Evertrue is well-positioned for continued growth, with particular strength in product-market fit and client relationships. However, success will depend on execution of diversification strategies and ability to scale operations effectively.
         """
-        
+
         # Create comprehensive report structure
         evertrue_report = ReportContent(
             company_name="Evertrue LLC",
@@ -199,10 +198,10 @@ The analysis suggests Evertrue is well-positioned for continued growth, with par
             ),
             file_path=Path("evertrue_comprehensive_analysis.txt")
         )
-        
+
         # Test with the enhanced QA analyzer
         analyzer = SimpleQAAnalyzer()
-        
+
         # Mock a realistic high-quality assessment response
         mock_response = """{
             "ready_for_use": true,
@@ -223,33 +222,33 @@ The analysis suggests Evertrue is well-positioned for continued growth, with par
             ],
             "recommendation": "This comprehensive strategic analysis exceeds Primr standards for internal research use. The report demonstrates exceptional analytical rigor, appropriate use of strategic frameworks, and provides highly actionable insights for strategic decision-making. The hypothesis-driven approach and comprehensive evidence base make this suitable for high-stakes internal planning discussions."
         }"""
-        
+
         with patch.object(analyzer, 'ai_client') as mock_client:
             mock_client.generate.return_value = mock_response
-            
+
             result = analyzer.assess_report(evertrue_report)
-            
+
             # Validate that comprehensive reports receive proper assessment
             assert isinstance(result, SimpleQAResult)
             assert result.parsing_success == True, "Should successfully parse comprehensive report"
             assert result.error_message is None, "Should not have errors for well-structured report"
             assert result.confidence_level == "high", "Should have high confidence for comprehensive analysis"
             assert result.ready_for_use == True, "Should indicate readiness for comprehensive report"
-            
+
             # Validate quality of feedback
             assert len(result.key_strengths) >= 5, "Should identify multiple strengths in comprehensive report"
             assert len(result.areas_for_improvement) >= 2, "Should provide specific improvement areas"
             assert len(result.recommendation) > 100, "Should provide detailed recommendation"
-            
+
             # Should not contain generic fallback language
             fallback_phrases = ["generic", "technical issue", "manual review recommended", "parsing issues"]
             recommendation_lower = result.recommendation.lower()
             assert not any(phrase in recommendation_lower for phrase in fallback_phrases), \
                 f"Should not use fallback language: {result.recommendation}"
-            
+
             # Should reference Primr standards
             assert "primr" in result.recommendation.lower(), "Should reference Primr standards"
-    
+
     def test_integration_with_realistic_report(self):
         """
         Test the full QA integration pipeline with realistic report content
@@ -271,18 +270,18 @@ Revenue of $50M with 80% gross margins indicates healthy unit economics.
 ## Recommendations
 Focus on international expansion while maintaining product innovation leadership.
         """
-        
+
         # Create temporary report file
         import tempfile
         with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8') as f:
             f.write(integration_content)
             report_path = Path(f.name)
-        
+
         try:
             # Test QA integration
             qa_options = QAOptions(enabled=True, save_detailed=False)
             qa_integration = QAIntegration(qa_options)
-            
+
             # Mock the analyzer to return realistic assessment
             mock_qa_result = SimpleQAResult(
                 ready_for_use=True,
@@ -299,31 +298,31 @@ Focus on international expansion while maintaining product innovation leadership
                 recommendation="Report provides solid foundation for strategic planning with minor enhancements needed",
                 parsing_success=True
             )
-            
+
             with patch.object(qa_integration.analyzer, 'assess_report', return_value=mock_qa_result):
                 qa_result = qa_integration.run_post_generation_qa(report_path, "TechCorp")
-                
+
                 # Validate integration results
                 assert qa_result is not None, "Should return QA result"
                 assert isinstance(qa_result.grade, int), "Should have numerical grade"
                 assert 0 <= qa_result.grade <= 100, "Grade should be in valid range"
                 assert "Grade:" in qa_result.summary, "Summary should include grade"
                 assert qa_result.needs_attention == False, "Should not need attention for good report"
-                
+
                 # Validate CLI summary format matches README promise
                 assert "Grade: " in qa_result.summary, "Should show grade as promised in README"
                 assert "/100" in qa_result.summary, "Should show grade out of 100"
-        
+
         finally:
             # Clean up temporary file
             report_path.unlink(missing_ok=True)
-    
+
     def test_error_case_handling(self):
         """
         Test that error cases provide diagnostic information instead of generic fallbacks.
         """
         analyzer = SimpleQAAnalyzer()
-        
+
         # Create minimal report for error testing
         error_test_report = ReportContent(
             company_name="Error Test Corp",
@@ -339,13 +338,13 @@ Focus on international expansion while maintaining product innovation leadership
             ),
             file_path=Path("error_test.txt")
         )
-        
+
         # Test rate limit error handling
         with patch.object(analyzer, 'ai_client') as mock_client:
             mock_client.generate.side_effect = Exception("Rate limit exceeded (429)")
-            
+
             result = analyzer.assess_report(error_test_report)
-            
+
             # Should provide diagnostic information
             assert isinstance(result, SimpleQAResult)
             assert result.parsing_success == False
@@ -354,13 +353,13 @@ Focus on international expansion while maintaining product innovation leadership
             # Message may say "try again" or "retry later"
             assert "try again" in result.recommendation.lower() or "retry" in result.recommendation.lower()
             assert len(result.areas_for_improvement) > 0, "Should provide diagnostic info"
-    
+
     def test_malformed_response_handling(self):
         """
         Test that malformed AI responses are handled gracefully with meaningful fallbacks.
         """
         analyzer = SimpleQAAnalyzer()
-        
+
         test_report = ReportContent(
             company_name="Malformed Test Corp",
             content="Content for malformed response testing.",
@@ -375,7 +374,7 @@ Focus on international expansion while maintaining product innovation leadership
             ),
             file_path=Path("malformed_test.txt")
         )
-        
+
         # Test with malformed JSON response
         malformed_response = """
         This report demonstrates good strategic thinking and analysis.
@@ -384,12 +383,12 @@ Focus on international expansion while maintaining product innovation leadership
         Ready for use: true, confidence level: medium
         Strengths include clear structure and good evidence base.
         """
-        
+
         with patch.object(analyzer, 'ai_client') as mock_client:
             mock_client.generate.return_value = malformed_response
-            
+
             result = analyzer.assess_report(test_report)
-            
+
             # Should handle malformed response gracefully
             assert isinstance(result, SimpleQAResult)
             assert result.parsing_success == False, "Should indicate parsing failure"
@@ -397,16 +396,16 @@ Focus on international expansion while maintaining product innovation leadership
             # The key is that it doesn't crash and provides a recommendation
             assert result.recommendation, "Should provide recommendation"
             assert len(result.recommendation) > 10, "Should provide some recommendation"
-    
+
     def test_grade_calculation_accuracy(self):
         """
         Test that numerical grade calculation produces reasonable scores
         based on assessment quality indicators.
         """
         from src.primr.qa.integration import QAIntegration
-        
+
         qa_integration = QAIntegration()
-        
+
         # Test high-quality assessment
         high_quality_result = SimpleQAResult(
             ready_for_use=True,
@@ -416,10 +415,10 @@ Focus on international expansion while maintaining product innovation leadership
             recommendation="Excellent report ready for use",
             parsing_success=True
         )
-        
+
         high_grade = qa_integration._calculate_numerical_grade(high_quality_result)
         assert 80 <= high_grade <= 95, f"High quality should get 80-95, got {high_grade}"
-        
+
         # Test medium-quality assessment
         medium_quality_result = SimpleQAResult(
             ready_for_use=True,
@@ -429,10 +428,10 @@ Focus on international expansion while maintaining product innovation leadership
             recommendation="Good report with minor improvements needed",
             parsing_success=True
         )
-        
+
         medium_grade = qa_integration._calculate_numerical_grade(medium_quality_result)
         assert 65 <= medium_grade <= 80, f"Medium quality should get 65-80, got {medium_grade}"
-        
+
         # Test low-quality assessment
         low_quality_result = SimpleQAResult(
             ready_for_use=False,
@@ -442,6 +441,6 @@ Focus on international expansion while maintaining product innovation leadership
             recommendation="Significant improvements needed",
             parsing_success=True
         )
-        
+
         low_grade = qa_integration._calculate_numerical_grade(low_quality_result)
         assert 25 <= low_grade <= 50, f"Low quality should get 25-50, got {low_grade}"

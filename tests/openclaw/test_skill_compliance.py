@@ -6,13 +6,11 @@ Validates: FR-2.2, FR-2.3
 
 import re
 from pathlib import Path
-from typing import Any
 
 import pytest
 import yaml
-
-from hypothesis import given, settings, strategies as st
-
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 SKILLS_DIR = Path(__file__).parent.parent.parent / "openclaw" / "skills"
 SKILL_FILES = list(SKILLS_DIR.glob("*/SKILL.md"))
@@ -21,7 +19,7 @@ SKILL_FILES = list(SKILLS_DIR.glob("*/SKILL.md"))
 def parse_skill_file(path: Path) -> tuple[dict, str]:
     """Parse a SKILL.md file into frontmatter and body."""
     content = path.read_text(encoding="utf-8")
-    
+
     # Split frontmatter from body
     if content.startswith("---"):
         parts = content.split("---", 2)
@@ -29,7 +27,7 @@ def parse_skill_file(path: Path) -> tuple[dict, str]:
             frontmatter = yaml.safe_load(parts[1])
             body = parts[2].strip()
             return frontmatter, body
-    
+
     raise ValueError(f"Invalid SKILL.md format: {path}")
 
 
@@ -65,23 +63,23 @@ class TestSkillFrontmatterCompliance:
     def test_has_metadata_openclaw_requires_bins(self, skill_file: Path) -> None:
         """FR-2.2: metadata.openclaw.requires.bins contains primr-mcp."""
         frontmatter, _ = parse_skill_file(skill_file)
-        
+
         assert "metadata" in frontmatter
         assert "openclaw" in frontmatter["metadata"]
         assert "requires" in frontmatter["metadata"]["openclaw"]
         assert "bins" in frontmatter["metadata"]["openclaw"]["requires"]
-        
+
         bins = frontmatter["metadata"]["openclaw"]["requires"]["bins"]
         assert "primr-mcp" in bins
 
     def test_has_metadata_openclaw_requires_env(self, skill_file: Path) -> None:
         """FR-2.2: metadata.openclaw.requires.env lists required env vars."""
         frontmatter, _ = parse_skill_file(skill_file)
-        
+
         env_vars = frontmatter["metadata"]["openclaw"]["requires"]["env"]
         assert isinstance(env_vars, list)
         assert len(env_vars) > 0
-        
+
         # At minimum, GEMINI_API_KEY should be required
         assert "GEMINI_API_KEY" in env_vars
 
@@ -148,7 +146,7 @@ class TestPropertyBasedCompliance:
     def test_all_skills_have_valid_structure(self, skill_path: Path) -> None:
         """Property 3: All SKILL.md files have valid structure."""
         frontmatter, body = parse_skill_file(skill_path)
-        
+
         # Required frontmatter fields
         assert "name" in frontmatter
         assert "version" in frontmatter
@@ -157,7 +155,7 @@ class TestPropertyBasedCompliance:
         assert "requires" in frontmatter["metadata"]["openclaw"]
         assert "bins" in frontmatter["metadata"]["openclaw"]["requires"]
         assert "primr-mcp" in frontmatter["metadata"]["openclaw"]["requires"]["bins"]
-        
+
         # Required body sections
         body_lower = body.lower()
         assert "conceptual framework" in body_lower or "## conceptual" in body_lower

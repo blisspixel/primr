@@ -4,22 +4,21 @@ Tests for the cost estimator module.
 Verifies cost estimation calculations and display formatting.
 """
 
-import pytest
-from primr.utils.cost_estimator import (
-    estimate_cost,
-    get_cost_summary,
-    CostEstimate,
-    MODE_ESTIMATES,
-    GEMINI_3_PRO_INPUT_PRICE_SMALL,
-    GEMINI_3_PRO_OUTPUT_PRICE_SMALL,
-    GEMINI_3_FLASH_INPUT_PRICE,
-    GEMINI_3_FLASH_OUTPUT_PRICE,
-)
 from primr.config.models import (
-    ModelRegistry,
-    PrimrModels,
     DEEP_RESEARCH_COST,
     SEARCH_COST_PER_QUERY,
+    ModelRegistry,
+    PrimrModels,
+)
+from primr.utils.cost_estimator import (
+    GEMINI_3_FLASH_INPUT_PRICE,
+    GEMINI_3_FLASH_OUTPUT_PRICE,
+    GEMINI_3_PRO_INPUT_PRICE_SMALL,
+    GEMINI_3_PRO_OUTPUT_PRICE_SMALL,
+    MODE_ESTIMATES,
+    CostEstimate,
+    estimate_cost,
+    get_cost_summary,
 )
 
 
@@ -240,10 +239,10 @@ class TestPricingSingleSourceOfTruth:
 
     def test_cost_estimator_constants_match_model_registry(self):
         """Backward-compat aliases in cost_estimator should match models.py."""
-        assert GEMINI_3_PRO_INPUT_PRICE_SMALL == ModelRegistry.GEMINI_3_PRO.cost_per_1m_input_tokens
-        assert GEMINI_3_PRO_OUTPUT_PRICE_SMALL == ModelRegistry.GEMINI_3_PRO.cost_per_1m_output_tokens
-        assert GEMINI_3_FLASH_INPUT_PRICE == ModelRegistry.GEMINI_3_FLASH.cost_per_1m_input_tokens
-        assert GEMINI_3_FLASH_OUTPUT_PRICE == ModelRegistry.GEMINI_3_FLASH.cost_per_1m_output_tokens
+        assert ModelRegistry.GEMINI_3_PRO.cost_per_1m_input_tokens == GEMINI_3_PRO_INPUT_PRICE_SMALL
+        assert ModelRegistry.GEMINI_3_PRO.cost_per_1m_output_tokens == GEMINI_3_PRO_OUTPUT_PRICE_SMALL
+        assert ModelRegistry.GEMINI_3_FLASH.cost_per_1m_input_tokens == GEMINI_3_FLASH_INPUT_PRICE
+        assert ModelRegistry.GEMINI_3_FLASH.cost_per_1m_output_tokens == GEMINI_3_FLASH_OUTPUT_PRICE
 
 
 class TestTieredPricing:

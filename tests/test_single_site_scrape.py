@@ -56,30 +56,30 @@ ALLOWED_FILES = {
 
 class SiteScrapeAnalyzer(ast.NodeVisitor):
     """AST visitor to detect site-scrape patterns."""
-    
+
     def __init__(self, filename: str):
         self.filename = filename
         self.current_function = None
         self.patterns_found: list[SiteScrapePattern] = []
-    
+
     def visit_FunctionDef(self, node):
         old_function = self.current_function
         self.current_function = node.name
         self.generic_visit(node)
         self.current_function = old_function
-    
+
     def visit_AsyncFunctionDef(self, node):
         self.visit_FunctionDef(node)
-    
+
     def visit_For(self, node):
         """Check for scrape loops."""
         # Check if iterating over something that looks like URLs
         iter_str = ast.unparse(node.iter) if hasattr(ast, 'unparse') else str(node.iter)
         target_str = ast.unparse(node.target) if hasattr(ast, 'unparse') else str(node.target)
-        
+
         suspicious_iters = ['pages_to_scrape', 'urls_to_scrape', 'links_to_scrape', 'all_links']
         suspicious_targets = ['page_url', 'url', 'link']
-        
+
         if any(s in iter_str for s in suspicious_iters):
             # Check if there's a scrape call inside
             for child in ast.walk(node):
@@ -93,9 +93,9 @@ class SiteScrapeAnalyzer(ast.NodeVisitor):
                             pattern_type='scrape_loop'
                         ))
                         break
-        
+
         self.generic_visit(node)
-    
+
     def visit_Call(self, node):
         """Check for discovery and selection calls."""
         call_str = ''
@@ -103,7 +103,7 @@ class SiteScrapeAnalyzer(ast.NodeVisitor):
             call_str = node.func.id
         elif isinstance(node.func, ast.Attribute):
             call_str = node.func.attr
-        
+
         # Check for discovery patterns
         for pattern in DISCOVERY_PATTERNS:
             if pattern in call_str:
@@ -113,7 +113,7 @@ class SiteScrapeAnalyzer(ast.NodeVisitor):
                     line=node.lineno,
                     pattern_type='discovery'
                 ))
-        
+
         # Check for link selection patterns
         for pattern in LINK_SELECTION_PATTERNS:
             if pattern in call_str:
@@ -123,7 +123,7 @@ class SiteScrapeAnalyzer(ast.NodeVisitor):
                     line=node.lineno,
                     pattern_type='link_selection'
                 ))
-        
+
         self.generic_visit(node)
 
 
@@ -143,34 +143,34 @@ def scan_for_site_scrape_patterns(src_dir: str = 'src/primr') -> list[SiteScrape
     Returns patterns found in files that are NOT in the allowed list.
     """
     violations = []
-    
+
     for root, dirs, files in os.walk(src_dir):
         # Skip __pycache__ directories
         dirs[:] = [d for d in dirs if d != '__pycache__']
-        
+
         for filename in files:
             if not filename.endswith('.py'):
                 continue
-            
+
             filepath = os.path.join(root, filename)
-            
+
             # Skip allowed files
             if is_allowed_file(filepath):
                 continue
-            
+
             try:
-                with open(filepath, 'r', encoding='utf-8') as f:
+                with open(filepath, encoding='utf-8') as f:
                     source = f.read()
-                
+
                 tree = ast.parse(source)
                 analyzer = SiteScrapeAnalyzer(filepath)
                 analyzer.visit(tree)
-                
+
                 violations.extend(analyzer.patterns_found)
-            except (SyntaxError, UnicodeDecodeError) as e:
+            except (SyntaxError, UnicodeDecodeError):
                 # Skip files that can't be parsed
                 pass
-    
+
     return violations
 
 
@@ -183,14 +183,14 @@ import pytest
 
 class TestSingleSiteScrapeImplementation:
     """Tests to ensure only one site-to-corpus implementation exists."""
-    
+
     def test_no_duplicate_site_scrape_patterns(self):
         """
         Property 1: There SHALL NOT exist any other function that discovers links,
         selects a subset, and scrapes pages in a loop except build_site_corpus.
         """
         violations = scan_for_site_scrape_patterns('src/primr')
-        
+
         if violations:
             violation_report = "\n".join([
                 f"  {v.file}:{v.line} in {v.function}() - {v.pattern_type}"
@@ -201,37 +201,37 @@ class TestSingleSiteScrapeImplementation:
                 "These patterns should only exist in fetch_web_content() (build_site_corpus).\n"
                 "If this is intentional, add the file to ALLOWED_FILES in this test."
             )
-    
+
     def test_fetch_web_content_is_the_only_site_scraper(self):
         """Verify fetch_web_content exists and is in the allowed location."""
         scrape_py = Path('src/primr/data/scrape.py')
-        
+
         if not scrape_py.exists():
             pytest.skip("scrape.py not found")
-        
+
         content = scrape_py.read_text()
-        
+
         # Check that fetch_web_content exists
         assert 'def fetch_web_content(' in content, \
             "fetch_web_content (build_site_corpus) should exist in scrape.py"
-        
+
         # Check that it has the expected docstring
         assert 'build_site_corpus' in content or 'site-to-corpus' in content.lower(), \
             "fetch_web_content should document that it's the site-to-corpus workflow"
-    
+
     def test_perform_scrape_only_delegates(self):
         """Verify perform_scrape_only delegates to fetch_web_content."""
         research_agent = Path('src/primr/core/research_agent.py')
-        
+
         if not research_agent.exists():
             pytest.skip("research_agent.py not found")
-        
+
         content = research_agent.read_text()
-        
+
         # Check that perform_scrape_only exists
         assert 'def perform_scrape_only(' in content, \
             "perform_scrape_only should exist"
-        
+
         # Check that it calls fetch_web_content
         # Find the function and check its body
         import re
@@ -240,12 +240,12 @@ class TestSingleSiteScrapeImplementation:
             content,
             re.DOTALL
         )
-        
+
         if func_match:
             func_body = func_match.group(0)
             assert 'fetch_web_content' in func_body, \
                 "perform_scrape_only should delegate to fetch_web_content (build_site_corpus)"
-            
+
             # Check that it does NOT have its own discovery loop
             assert 'discover_links' not in func_body or 'fetch_web_content' in func_body, \
                 "perform_scrape_only should NOT have its own discovery loop"

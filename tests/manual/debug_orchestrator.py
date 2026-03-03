@@ -1,6 +1,7 @@
 """Debug orchestrator behavior on Stripe pricing."""
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from primr.data.scrape import get_orchestrator
@@ -12,7 +13,7 @@ orchestrator = get_orchestrator(enable_vision=False, use_cache=False)
 print("Scraping https://stripe.com/pricing via orchestrator...")
 result = orchestrator.scrape_url('https://stripe.com/pricing')
 
-print(f"\nResult:")
+print("\nResult:")
 print(f"  Success: {result.success}")
 print(f"  Tier: {result.tier}")
 print(f"  Error: {result.error}")
@@ -20,7 +21,7 @@ print(f"  Error type: {result.error_type}")
 print(f"  Attempts: {len(result.attempts) if result.attempts else 0}")
 
 if result.attempts:
-    print(f"\nAttempts:")
+    print("\nAttempts:")
     for i, attempt in enumerate(result.attempts, 1):
         print(f"  {i}. {attempt.tier}: {attempt.success} - {attempt.error}")
 

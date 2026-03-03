@@ -9,19 +9,17 @@ graceful degradation on failure, and deduplication.
 """
 
 import asyncio
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from urllib.parse import urlparse, parse_qs
 
-from hypothesis import given, settings, strategies as st, assume
 import httpx
+import pytest
+from hypothesis import assume, given, settings
+from hypothesis import strategies as st
 
 from primr.ai.deep_research import (
-    resolve_redirect_url,
     resolve_citation_urls,
-    _extract_domain_from_redirect,
+    resolve_redirect_url,
 )
-
 
 # =============================================================================
 # URL Strategies for Property Testing
@@ -95,17 +93,17 @@ class TestGoogleRedirectResolution:
         """
         redirect_url = "https://vertexaisearch.cloud.google.com/grounding-api-redirect/ABC123"
         final_url = "https://www.example.com/resolved"
-        
+
         mock_response = MagicMock()
         mock_response.url = final_url
-        
+
         with patch.object(httpx, 'AsyncClient') as mock_client:
             mock_instance = AsyncMock()
             mock_instance.head = AsyncMock(return_value=mock_response)
             mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
             mock_instance.__aexit__ = AsyncMock(return_value=None)
             mock_client.return_value = mock_instance
-            
+
             result = await resolve_redirect_url(redirect_url)
             assert result == final_url
             assert "vertexaisearch.cloud.google.com" not in result
@@ -123,14 +121,14 @@ class TestGracefulDegradation:
         **Validates: Requirements 5.3**
         """
         redirect_url = "https://vertexaisearch.cloud.google.com/grounding-api-redirect/ABC123"
-        
+
         with patch.object(httpx, 'AsyncClient') as mock_client:
             mock_instance = AsyncMock()
-            mock_instance.head = AsyncMock(side_effect=asyncio.TimeoutError())
+            mock_instance.head = AsyncMock(side_effect=TimeoutError())
             mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
             mock_instance.__aexit__ = AsyncMock(return_value=None)
             mock_client.return_value = mock_instance
-            
+
             result = await resolve_redirect_url(redirect_url)
             # Should return something (either original or extracted domain)
             assert result is not None
@@ -145,14 +143,14 @@ class TestGracefulDegradation:
         **Validates: Requirements 5.3**
         """
         redirect_url = "https://vertexaisearch.cloud.google.com/grounding-api-redirect/ABC123"
-        
+
         with patch.object(httpx, 'AsyncClient') as mock_client:
             mock_instance = AsyncMock()
             mock_instance.head = AsyncMock(side_effect=Exception("Connection refused"))
             mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
             mock_instance.__aexit__ = AsyncMock(return_value=None)
             mock_client.return_value = mock_instance
-            
+
             result = await resolve_redirect_url(redirect_url)
             # Should return something (either original or extracted domain)
             assert result is not None
@@ -175,16 +173,16 @@ class TestCitationDeduplication:
             {'number': '2', 'title': 'Source B', 'url': 'https://example.com/page'},  # Duplicate
             {'number': '3', 'title': 'Source C', 'url': 'https://other.com/page'},
         ]
-        
+
         result = await resolve_citation_urls(citations)
-        
+
         # All citations should be returned (deduplication happens at display level)
         assert len(result) == 3
-        
+
         # Extract unique URLs
         urls = [c['url'] for c in result]
         unique_urls = set(urls)
-        
+
         # Should have 2 unique URLs
         assert len(unique_urls) == 2
 
@@ -236,7 +234,7 @@ def test_property_google_redirect_detected(suffix: str):
     For any Google redirect URL, the resolver should detect it as a redirect.
     """
     redirect_url = f"https://vertexaisearch.cloud.google.com/grounding-api-redirect/{suffix}"
-    
+
     # The URL should be detected as a redirect (contains the pattern)
     assert "vertexaisearch.cloud.google.com/grounding-api-redirect" in redirect_url
 
@@ -255,11 +253,11 @@ def test_property_deduplication_reduces_unique_count(num_citations: int, num_uni
     should be less than or equal to the total citation count.
     """
     assume(num_unique <= num_citations)
-    
+
     # Generate citations with some duplicates
     base_urls = [f"https://example{i}.com/page" for i in range(num_unique)]
     citations = []
-    
+
     for i in range(num_citations):
         url = base_urls[i % num_unique]  # Cycle through base URLs
         citations.append({
@@ -267,10 +265,10 @@ def test_property_deduplication_reduces_unique_count(num_citations: int, num_uni
             'title': f'Source {i + 1}',
             'url': url,
         })
-    
+
     # Count unique URLs
     unique_urls = set(c['url'] for c in citations)
-    
+
     # Unique count should be <= total count
     assert len(unique_urls) <= len(citations)
     # Unique count should equal num_unique
@@ -284,7 +282,7 @@ def test_property_deduplication_reduces_unique_count(num_citations: int, num_uni
 
 @given(
     error_type=st.sampled_from([
-        asyncio.TimeoutError(),
+        TimeoutError(),
         Exception("Connection refused"),
         Exception("DNS resolution failed"),
         Exception("SSL certificate error"),
@@ -300,7 +298,7 @@ def test_property_graceful_degradation_on_error(error_type: Exception):
     (or extract a domain) rather than losing the citation.
     """
     redirect_url = "https://vertexaisearch.cloud.google.com/grounding-api-redirect/ABC123"
-    
+
     async def run_test():
         with patch.object(httpx, 'AsyncClient') as mock_client:
             mock_instance = AsyncMock()
@@ -308,12 +306,12 @@ def test_property_graceful_degradation_on_error(error_type: Exception):
             mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
             mock_instance.__aexit__ = AsyncMock(return_value=None)
             mock_client.return_value = mock_instance
-            
+
             result = await resolve_redirect_url(redirect_url)
             return result
-    
+
     result = asyncio.run(run_test())
-    
+
     # Should return something (not None, not empty)
     assert result is not None
     assert len(result) > 0

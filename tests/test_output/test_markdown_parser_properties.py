@@ -4,11 +4,10 @@ Property-based tests for the MarkdownParser.
 Uses Hypothesis to verify correctness properties across many random inputs.
 """
 
-import pytest
-from hypothesis import given, strategies as st, settings, assume, HealthCheck
+from hypothesis import HealthCheck, assume, given, settings
+from hypothesis import strategies as st
 
 from primr.output.markdown_parser import MarkdownParser
-
 
 # =============================================================================
 # Generators for property-based testing
@@ -23,7 +22,7 @@ def markdown_bullet_line(draw):
     indent = ' ' * (indent_levels * 4)
     # Content must not be empty and not start with bullet chars
     content = draw(st.text(
-        min_size=1, 
+        min_size=1,
         max_size=100,
         alphabet=st.characters(whitelist_categories=['L', 'N', 'P', 'S'])
     ))
@@ -38,7 +37,7 @@ def markdown_heading_line(draw):
     """Generate heading lines with 1-4 # characters."""
     level = draw(st.integers(min_value=1, max_value=4))
     content = draw(st.text(
-        min_size=1, 
+        min_size=1,
         max_size=50,
         alphabet=st.characters(whitelist_categories=['L', 'N', 'S'])
     ))
@@ -69,14 +68,14 @@ def inline_header_line(draw):
     """Generate 'Header: content' patterns."""
     # Header must start with capital, be 3-40 chars, only letters and spaces
     header_chars = draw(st.text(
-        min_size=2, 
+        min_size=2,
         max_size=39,
         alphabet=st.characters(whitelist_categories=['L'])
     ))
     # Ensure first char is uppercase
     header = header_chars[0].upper() + header_chars[1:]
     content = draw(st.text(
-        min_size=1, 
+        min_size=1,
         max_size=100,
         alphabet=st.characters(whitelist_categories=['L', 'N', 'P', 'S'])
     ))
@@ -118,16 +117,16 @@ class TestBulletParsing:
     For any input line starting with a bullet character (*, -, •) followed by 1-4 spaces,
     the parser SHALL return a bullet type with the content correctly extracted.
     """
-    
+
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     @given(data=markdown_bullet_line())
     def test_bullet_parsing_extracts_content(self, data):
         """Parser correctly extracts bullet content regardless of format."""
         line, expected_content, expected_indent, bullet_char = data
         parser = MarkdownParser()
-        
+
         result = parser.parse_line(line)
-        
+
         assert result.type == 'bullet', f"Expected 'bullet', got '{result.type}' for line: {line!r}"
         assert result.content == expected_content, f"Content mismatch: {result.content!r} != {expected_content!r}"
         assert result.level == expected_indent, f"Indent mismatch: {result.level} != {expected_indent}"
@@ -145,9 +144,9 @@ class TestBulletParsing:
         content = content.strip()
         line = bullet_char + ' ' * spaces + content
         parser = MarkdownParser()
-        
+
         result = parser.parse_line(line)
-        
+
         assert result.type == 'bullet', f"Failed for: {line!r}"
 
 
@@ -159,16 +158,16 @@ class TestHeadingParsing:
     For any input line starting with 1-4 # characters followed by a space,
     the parser SHALL return a heading type with the correct level.
     """
-    
+
     @settings(max_examples=100)
     @given(data=markdown_heading_line())
     def test_heading_parsing_preserves_level(self, data):
         """Parser correctly identifies heading level."""
         line, expected_content, expected_level = data
         parser = MarkdownParser()
-        
+
         result = parser.parse_line(line)
-        
+
         assert result.type == 'heading', f"Expected 'heading', got '{result.type}'"
         assert result.level == expected_level, f"Level mismatch: {result.level} != {expected_level}"
         assert result.content == expected_content
@@ -179,9 +178,9 @@ class TestHeadingParsing:
         """All heading levels 1-4 are correctly recognized."""
         line = '#' * level + ' Test Heading'
         parser = MarkdownParser()
-        
+
         result = parser.parse_line(line)
-        
+
         assert result.type == 'heading'
         assert result.level == level
 
@@ -195,7 +194,7 @@ class TestSubHeadingDetection:
     For any content block containing a line that is plain text (no bullet) followed
     immediately by bullet items, the plain text line SHALL be formatted as a sub-heading.
     """
-    
+
     @settings(max_examples=100)
     @given(
         subheading_text=st.text(min_size=3, max_size=50, alphabet=st.characters(whitelist_categories=['L', 'N', 'S'])),
@@ -210,18 +209,18 @@ class TestSubHeadingDetection:
         assume(not subheading_text.startswith('#'))
         assume(not subheading_text.startswith('*'))
         assume(not subheading_text.startswith('-'))
-        
+
         content = f"{subheading_text}\n* {bullet_content}"
         parser = MarkdownParser()
-        
+
         blocks = parser.parse_content(content)
-        
+
         # Should have 2 blocks: subheading and bullet_list
         assert len(blocks) >= 2, f"Expected at least 2 blocks, got {len(blocks)}"
-        
+
         # First block should be the detected subheading
         assert blocks[0].type == 'heading', f"Expected 'heading' block, got '{blocks[0].type}'"
-        assert blocks[0].lines[0].type == 'subheading', f"Expected 'subheading' line type"
+        assert blocks[0].lines[0].type == 'subheading', "Expected 'subheading' line type"
         assert blocks[0].lines[0].metadata.get('detected') == True
 
     @settings(max_examples=100)
@@ -240,12 +239,12 @@ class TestSubHeadingDetection:
         # Ensure they don't look like inline headers
         assume(':' not in text1[:20])
         assume(':' not in text2[:20])
-        
+
         content = f"{text1}\n{text2}"
         parser = MarkdownParser()
-        
+
         blocks = parser.parse_content(content)
-        
+
         # Should be a single paragraph block
         assert len(blocks) == 1, f"Expected 1 block, got {len(blocks)}"
         assert blocks[0].type == 'paragraph'
@@ -262,19 +261,19 @@ class TestGracefulFallback:
     For any input line that doesn't match any known markdown pattern,
     the parser SHALL return a text type without raising an error.
     """
-    
+
     @settings(max_examples=100)
     @given(text=st.text(min_size=1, max_size=200))
     def test_any_input_returns_valid_result(self, text):
         """Parser never raises an error, always returns a valid ParsedLine."""
         parser = MarkdownParser()
-        
+
         # Should not raise any exception
         result = parser.parse_line(text)
-        
+
         # Should always return a ParsedLine with valid type
         assert result is not None
-        assert result.type in ('heading', 'subheading', 'bullet', 'numbered', 
+        assert result.type in ('heading', 'subheading', 'bullet', 'numbered',
                                'text', 'empty', 'inline_header')
         assert isinstance(result.content, str)
         assert isinstance(result.level, int)
@@ -285,10 +284,10 @@ class TestGracefulFallback:
     def test_parse_content_never_raises(self, text):
         """parse_content never raises an error for any input."""
         parser = MarkdownParser()
-        
+
         # Should not raise any exception
         blocks = parser.parse_content(text)
-        
+
         # Should always return a list
         assert isinstance(blocks, list)
         for block in blocks:
@@ -304,7 +303,7 @@ class TestBoldMarkdownConversion:
     For any input text containing **text** or __text__ patterns,
     the output Word runs SHALL have bold formatting applied to the enclosed text.
     """
-    
+
     @settings(max_examples=100)
     @given(
         prefix=st.text(min_size=0, max_size=20, alphabet=st.characters(whitelist_categories=['L', 'N', 'S'])),
@@ -317,12 +316,12 @@ class TestBoldMarkdownConversion:
         assume(len(bold_content) > 0)
         assume('*' not in bold_content)  # Avoid nested patterns
         assume('_' not in bold_content)
-        
+
         text = f"{prefix}**{bold_content}**{suffix}"
         parser = MarkdownParser()
-        
+
         segments = parser.extract_bold_segments(text)
-        
+
         # Find the bold segment
         bold_segments = [(t, b) for t, b in segments if b]
         assert len(bold_segments) >= 1, f"No bold segment found in: {text}"
@@ -341,12 +340,12 @@ class TestBoldMarkdownConversion:
         assume(len(bold_content) > 0)
         assume('*' not in bold_content)
         assume('_' not in bold_content)
-        
+
         text = f"{prefix}__{bold_content}__{suffix}"
         parser = MarkdownParser()
-        
+
         segments = parser.extract_bold_segments(text)
-        
+
         # Find the bold segment
         bold_segments = [(t, b) for t, b in segments if b]
         assert len(bold_segments) >= 1, f"No bold segment found in: {text}"
@@ -359,10 +358,10 @@ class TestBoldMarkdownConversion:
         """Text without bold markers is preserved as non-bold."""
         assume('**' not in text)
         assume('__' not in text)
-        
+
         parser = MarkdownParser()
         segments = parser.extract_bold_segments(text)
-        
+
         # Should be single non-bold segment
         assert len(segments) == 1
         assert segments[0] == (text, False)
@@ -381,13 +380,13 @@ class TestBoldMarkdownConversion:
         assume(len(bold1) > 0 and len(bold2) > 0 and len(middle) > 0)
         assume('*' not in bold1 and '*' not in bold2 and '*' not in middle)
         assume('_' not in bold1 and '_' not in bold2 and '_' not in middle)
-        
+
         text = f"**{bold1}** {middle} **{bold2}**"
         parser = MarkdownParser()
-        
+
         segments = parser.extract_bold_segments(text)
         bold_segments = [t for t, b in segments if b]
-        
+
         assert len(bold_segments) == 2, f"Expected 2 bold segments, got {len(bold_segments)}"
 
 
@@ -399,7 +398,7 @@ class TestTableParsing:
     For any input containing markdown table syntax (|col1|col2|),
     the parser SHALL correctly identify table rows and extract cell content.
     """
-    
+
     def test_simple_table_parsing(self):
         """Parser correctly identifies a simple markdown table."""
         content = """| Company | Revenue | Growth |
@@ -424,16 +423,16 @@ class TestTableParsing:
     def test_table_row_detection(self):
         """Individual table rows are correctly detected."""
         parser = MarkdownParser()
-        
+
         # Header row
         result = parser.parse_line("| Name | Value |")
         assert result.type == 'table_row'
         assert result.metadata['cells'] == ['Name', 'Value']
-        
+
         # Separator row
         result = parser.parse_line("|---|---|")
         assert result.type == 'table_separator'
-        
+
         # Data row
         result = parser.parse_line("| Acme Corp | $81B |")
         assert result.type == 'table_row'
@@ -444,13 +443,13 @@ class TestTableParsing:
         content = """| Left | Center | Right |
 |:-----|:------:|------:|
 | A | B | C |"""
-        
+
         parser = MarkdownParser()
         blocks = parser.parse_content(content)
-        
+
         table_blocks = [b for b in blocks if b.type == 'table']
         assert len(table_blocks) == 1
-        
+
         table_data = parser.parse_table_block(table_blocks[0])
         assert table_data['headers'] == ['Left', 'Center', 'Right']
         assert table_data['rows'][0] == ['A', 'B', 'C']
@@ -469,10 +468,10 @@ Here is the comparison:
 Key takeaways:
 - Acme Corp leads the market
 - Globex Inc is close behind"""
-        
+
         parser = MarkdownParser()
         blocks = parser.parse_content(content)
-        
+
         # Should have: heading, paragraph, table, paragraph, bullet_list
         block_types = [b.type for b in blocks]
         assert 'heading' in block_types
@@ -491,17 +490,17 @@ Key takeaways:
         col1, col2, val1, val2 = col1.strip(), col2.strip(), val1.strip(), val2.strip()
         assume(len(col1) > 0 and len(col2) > 0 and len(val1) > 0 and len(val2) > 0)
         assume('|' not in col1 and '|' not in col2 and '|' not in val1 and '|' not in val2)
-        
+
         content = f"""| {col1} | {col2} |
 |---|---|
 | {val1} | {val2} |"""
-        
+
         parser = MarkdownParser()
         blocks = parser.parse_content(content)
-        
+
         table_blocks = [b for b in blocks if b.type == 'table']
         assert len(table_blocks) == 1
-        
+
         table_data = parser.parse_table_block(table_blocks[0])
         assert table_data['headers'] == [col1, col2]
         assert table_data['rows'][0] == [val1, val2]
@@ -509,17 +508,17 @@ Key takeaways:
     def test_empty_table_handling(self):
         """Empty or malformed tables are handled gracefully."""
         parser = MarkdownParser()
-        
+
         # Just a separator line (not a valid table)
         result = parser.parse_line("|---|---|")
         assert result.type == 'table_separator'
-        
+
         # Single row table
         content = "| Just | One | Row |"
         blocks = parser.parse_content(content)
         table_blocks = [b for b in blocks if b.type == 'table']
         assert len(table_blocks) == 1
-        
+
         table_data = parser.parse_table_block(table_blocks[0])
         # Single row becomes headers with no data rows
         assert table_data['headers'] == ['Just', 'One', 'Row']

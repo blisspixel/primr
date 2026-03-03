@@ -28,7 +28,6 @@ from primr.utils.config_validation import (
     validate_config,
 )
 
-
 # =============================================================================
 # FIXTURES
 # =============================================================================
@@ -57,7 +56,7 @@ class TestAPIKeysConfig:
                 search_engine_id="test"
             )
             errors = config.validate()
-            
+
             assert len(errors) == 1
             assert "GEMINI_API_KEY" in errors[0].field
 
@@ -69,7 +68,7 @@ class TestAPIKeysConfig:
             search_engine_id="test"
         )
         errors = config.validate()
-        
+
         assert len(errors) == 1
         assert "too short" in errors[0].message
 
@@ -81,7 +80,7 @@ class TestAPIKeysConfig:
             search_engine_id=None
         )
         warnings = config.get_warnings()
-        
+
         assert len(warnings) == 2
         assert any("SEARCH_API_KEY" in w.field for w in warnings)
         assert any("SEARCH_ENGINE_ID" in w.field for w in warnings)
@@ -94,7 +93,7 @@ class TestAPIKeysConfig:
             search_engine_id="engine_id"
         )
         errors = config.validate()
-        
+
         assert len(errors) == 0
 
 
@@ -109,7 +108,7 @@ class TestTimeoutsConfig:
         """Should report error for negative timeout."""
         config = TimeoutsConfig(connect_timeout=-1)
         errors = config.validate()
-        
+
         assert len(errors) >= 1
         assert any("connect_timeout" in e.field for e in errors)
 
@@ -117,7 +116,7 @@ class TestTimeoutsConfig:
         """Should report error for excessive timeout."""
         config = TimeoutsConfig(ai_timeout=1000)
         errors = config.validate()
-        
+
         assert len(errors) >= 1
         assert any("ai_timeout" in e.field for e in errors)
 
@@ -125,7 +124,7 @@ class TestTimeoutsConfig:
         """Should report error when total < connect."""
         config = TimeoutsConfig(connect_timeout=30, total_timeout=10)
         errors = config.validate()
-        
+
         assert len(errors) >= 1
         assert any("total_timeout" in e.field for e in errors)
 
@@ -133,7 +132,7 @@ class TestTimeoutsConfig:
         """Should report no errors for valid timeouts."""
         config = TimeoutsConfig()
         errors = config.validate()
-        
+
         assert len(errors) == 0
 
 
@@ -148,7 +147,7 @@ class TestRetryConfig:
         """Should report error for negative max_retries."""
         config = RetryConfig(max_retries=-1)
         errors = config.validate()
-        
+
         assert len(errors) >= 1
         assert any("max_retries" in e.field for e in errors)
 
@@ -156,7 +155,7 @@ class TestRetryConfig:
         """Should report error for excessive max_retries."""
         config = RetryConfig(max_retries=100)
         errors = config.validate()
-        
+
         assert len(errors) >= 1
         assert any("max_retries" in e.field for e in errors)
 
@@ -164,7 +163,7 @@ class TestRetryConfig:
         """Should report error for invalid jitter_factor."""
         config = RetryConfig(jitter_factor=2.0)
         errors = config.validate()
-        
+
         assert len(errors) >= 1
         assert any("jitter_factor" in e.field for e in errors)
 
@@ -172,7 +171,7 @@ class TestRetryConfig:
         """Should report error for exponential_base <= 1."""
         config = RetryConfig(exponential_base=0.5)
         errors = config.validate()
-        
+
         assert len(errors) >= 1
         assert any("exponential_base" in e.field for e in errors)
 
@@ -188,7 +187,7 @@ class TestScrapingConfig:
         """Should report error for zero max_pages."""
         config = ScrapingConfig(max_pages=0)
         errors = config.validate()
-        
+
         assert len(errors) >= 1
         assert any("max_pages" in e.field for e in errors)
 
@@ -196,7 +195,7 @@ class TestScrapingConfig:
         """Should report error for excessive max_pages."""
         config = ScrapingConfig(max_pages=1000)
         errors = config.validate()
-        
+
         assert len(errors) >= 1
         assert any("max_pages" in e.field for e in errors)
 
@@ -204,7 +203,7 @@ class TestScrapingConfig:
         """Should report error for negative max_depth."""
         config = ScrapingConfig(max_depth=-1)
         errors = config.validate()
-        
+
         assert len(errors) >= 1
         assert any("max_depth" in e.field for e in errors)
 
@@ -220,7 +219,7 @@ class TestAIConfig:
         """Should report error for empty model name."""
         config = AIConfig(fast_model="")
         errors = config.validate()
-        
+
         assert len(errors) >= 1
         assert any("Model name" in e.message for e in errors)
 
@@ -228,7 +227,7 @@ class TestAIConfig:
         """Should report error for invalid temperature."""
         config = AIConfig(temperature=3.0)
         errors = config.validate()
-        
+
         assert len(errors) >= 1
         assert any("temperature" in e.field for e in errors)
 
@@ -236,7 +235,7 @@ class TestAIConfig:
         """Should report error for invalid thinking_level."""
         config = AIConfig(thinking_level="medium")  # type: ignore
         errors = config.validate()
-        
+
         assert len(errors) >= 1
         assert any("thinking_level" in e.field for e in errors)
 
@@ -244,7 +243,7 @@ class TestAIConfig:
         """Should report error for invalid grade_threshold."""
         config = AIConfig(grade_threshold=150)
         errors = config.validate()
-        
+
         assert len(errors) >= 1
         assert any("grade_threshold" in e.field for e in errors)
 
@@ -261,7 +260,7 @@ class TestPathsConfig:
         with tempfile.TemporaryDirectory() as tmpdir:
             config = PathsConfig(project_root=Path(tmpdir))
             errors = config.validate()
-            
+
             assert len(errors) == 0
             assert config.output_dir.exists()
             assert config.working_dir.exists()
@@ -273,11 +272,11 @@ class TestPathsConfig:
         import sys
         if sys.platform == "win32":
             pytest.skip("Path validation differs on Windows")
-        
+
         # Use a path that definitely doesn't exist and can't be created
         config = PathsConfig(project_root=Path("/nonexistent/path/that/cannot/exist"))
         errors = config.validate()
-        
+
         # Should have errors for directories that can't be created
         assert len(errors) >= 1
 
@@ -297,7 +296,7 @@ class TestPrimrConfig:
             retry=RetryConfig(max_retries=-1),
         )
         result = config.validate(include_api_keys=True)
-        
+
         assert not result.valid
         assert len(result.errors) >= 3
 
@@ -307,7 +306,7 @@ class TestPrimrConfig:
             api_keys=APIKeysConfig(gemini_api_key=None),
         )
         result = config.validate(include_api_keys=False)
-        
+
         # Should be valid if only API keys are missing
         # (assuming other defaults are valid)
         assert result.valid or all("API" not in e.field for e in result.errors)
@@ -321,11 +320,11 @@ class TestPrimrConfig:
             ),
         )
         data = config.to_dict()
-        
+
         # Should not contain actual keys
         assert "secret_key" not in str(data)
         assert "another_secret" not in str(data)
-        
+
         # Should indicate whether keys are configured
         assert "api_keys_configured" in data
         assert data["api_keys_configured"]["gemini"] is True
@@ -365,7 +364,7 @@ class TestModuleFunctions:
         """require_valid_config should raise on invalid config."""
         # Create invalid config
         reset_config()
-        
+
         # Mock environment to have no API key
         with patch.dict(os.environ, {"GEMINI_API_KEY": ""}, clear=False):
             reset_config()
@@ -375,7 +374,7 @@ class TestModuleFunctions:
     def test_export_schema_returns_valid_schema(self):
         """export_schema should return a valid JSON Schema."""
         schema = export_schema()
-        
+
         assert "$schema" in schema
         assert "properties" in schema
         assert "timeouts" in schema["properties"]

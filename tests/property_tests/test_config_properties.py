@@ -11,20 +11,18 @@ of the ConfigValidator implementation as specified in the PhD-Level Excellence s
 from typing import Any
 
 import pytest
-from hypothesis import given, settings, strategies as st, HealthCheck, assume
+from hypothesis import HealthCheck, assume, given, settings
+from hypothesis import strategies as st
 from pydantic import ValidationError
 
 from primr.prompts.validation import (
-    SchemaVersion,
     CURRENT_SCHEMA_VERSION,
-    SectionPosition,
-    SectionSpecModel,
-    PromptMetaModel,
-    PromptConfigModel,
-    SchemaVersionError,
     ConfigValidator,
+    PromptConfigModel,
+    SchemaVersion,
+    SchemaVersionError,
+    SectionPosition,
 )
-
 
 # =============================================================================
 # STRATEGIES FOR GENERATING TEST DATA
@@ -137,7 +135,7 @@ def generate_valid_config(
     """Generate a valid complete configuration dictionary."""
     if sections is None:
         sections = [generate_valid_section("test_section", "Test Section", 1)]
-    
+
     return {
         "meta": generate_valid_meta(meta_name, meta_version, schema_version),
         "document_purpose": document_purpose,
@@ -192,7 +190,7 @@ class TestValidConfigAcceptance:
     ):
         """Valid configurations should be accepted without exceptions."""
         # Feature: phd-level-excellence, Property 16: Valid Config Acceptance
-        
+
         config = generate_valid_config(
             meta_name=meta_name,
             meta_version=meta_version,
@@ -202,12 +200,12 @@ class TestValidConfigAcceptance:
             epistemic_rules=epistemic_rules,
             formatting=formatting,
         )
-        
+
         validator = ConfigValidator()
-        
+
         # Should not raise any exception
         result = validator.validate_prompt_config(config)
-        
+
         # Should return a valid PromptConfigModel
         assert isinstance(result, PromptConfigModel)
         assert result.meta.name == meta_name
@@ -226,17 +224,17 @@ class TestValidConfigAcceptance:
     def test_multiple_sections_with_unique_ids_accepted(self, num_sections: int):
         """Configurations with multiple sections with unique IDs should be accepted."""
         # Feature: phd-level-excellence, Property 16: Valid Config Acceptance
-        
+
         sections = [
             generate_valid_section(f"section_{i}", f"Section {i}", (i % 5) + 1)
             for i in range(num_sections)
         ]
-        
+
         config = generate_valid_config(sections=sections)
         validator = ConfigValidator()
-        
+
         result = validator.validate_prompt_config(config)
-        
+
         assert isinstance(result, PromptConfigModel)
         assert len(result.sections) == num_sections
 
@@ -250,7 +248,7 @@ class TestValidConfigAcceptance:
     ):
         """Configurations without optional fields should be accepted."""
         # Feature: phd-level-excellence, Property 16: Valid Config Acceptance
-        
+
         # Minimal valid config
         config = {
             "meta": {
@@ -266,10 +264,10 @@ class TestValidConfigAcceptance:
                 }
             ],
         }
-        
+
         validator = ConfigValidator()
         result = validator.validate_prompt_config(config)
-        
+
         assert isinstance(result, PromptConfigModel)
         assert result.meta.name == meta_name
         assert result.epistemic_rules == {}
@@ -280,12 +278,12 @@ class TestValidConfigAcceptance:
     def test_all_supported_schema_versions_accepted(self, schema_version: str):
         """All supported schema versions should be accepted."""
         # Feature: phd-level-excellence, Property 16: Valid Config Acceptance
-        
+
         config = generate_valid_config(schema_version=schema_version)
         validator = ConfigValidator()
-        
+
         result = validator.validate_prompt_config(config)
-        
+
         assert isinstance(result, PromptConfigModel)
         assert result.meta.schema_version.value == schema_version
 
@@ -313,17 +311,17 @@ class TestInvalidConfigRejection:
     def test_missing_meta_rejected(self, meta_name: str, meta_version: str):
         """Configurations missing the 'meta' field should be rejected."""
         # Feature: phd-level-excellence, Property 17: Invalid Config Rejection with Details
-        
+
         config = {
             "document_purpose": "This is a test document purpose with sufficient length.",
             "sections": [generate_valid_section("test", "Test", 1)],
         }
-        
+
         validator = ConfigValidator()
-        
+
         with pytest.raises(ValidationError) as exc_info:
             validator.validate_prompt_config(config)
-        
+
         # Error should mention the missing field
         errors = exc_info.value.errors()
         assert len(errors) > 0
@@ -337,17 +335,17 @@ class TestInvalidConfigRejection:
     def test_missing_document_purpose_rejected(self, meta_name: str, meta_version: str):
         """Configurations missing 'document_purpose' should be rejected."""
         # Feature: phd-level-excellence, Property 17: Invalid Config Rejection with Details
-        
+
         config = {
             "meta": generate_valid_meta(meta_name, meta_version),
             "sections": [generate_valid_section("test", "Test", 1)],
         }
-        
+
         validator = ConfigValidator()
-        
+
         with pytest.raises(ValidationError) as exc_info:
             validator.validate_prompt_config(config)
-        
+
         errors = exc_info.value.errors()
         assert len(errors) > 0
         assert any("document_purpose" in str(e.get("loc", ())) for e in errors)
@@ -360,17 +358,17 @@ class TestInvalidConfigRejection:
     def test_missing_sections_rejected(self, meta_name: str, meta_version: str):
         """Configurations missing 'sections' should be rejected."""
         # Feature: phd-level-excellence, Property 17: Invalid Config Rejection with Details
-        
+
         config = {
             "meta": generate_valid_meta(meta_name, meta_version),
             "document_purpose": "This is a test document purpose with sufficient length.",
         }
-        
+
         validator = ConfigValidator()
-        
+
         with pytest.raises(ValidationError) as exc_info:
             validator.validate_prompt_config(config)
-        
+
         errors = exc_info.value.errors()
         assert len(errors) > 0
         assert any("sections" in str(e.get("loc", ())) for e in errors)
@@ -383,18 +381,18 @@ class TestInvalidConfigRejection:
     def test_empty_sections_rejected(self, meta_name: str, meta_version: str):
         """Configurations with empty sections list should be rejected."""
         # Feature: phd-level-excellence, Property 17: Invalid Config Rejection with Details
-        
+
         config = {
             "meta": generate_valid_meta(meta_name, meta_version),
             "document_purpose": "This is a test document purpose with sufficient length.",
             "sections": [],
         }
-        
+
         validator = ConfigValidator()
-        
+
         with pytest.raises(ValidationError) as exc_info:
             validator.validate_prompt_config(config)
-        
+
         errors = exc_info.value.errors()
         assert len(errors) > 0
 
@@ -406,7 +404,7 @@ class TestInvalidConfigRejection:
     def test_missing_meta_name_rejected(self, meta_name: str, meta_version: str):
         """Configurations with missing meta.name should be rejected."""
         # Feature: phd-level-excellence, Property 17: Invalid Config Rejection with Details
-        
+
         config = {
             "meta": {
                 "version": meta_version,
@@ -414,12 +412,12 @@ class TestInvalidConfigRejection:
             "document_purpose": "This is a test document purpose with sufficient length.",
             "sections": [generate_valid_section("test", "Test", 1)],
         }
-        
+
         validator = ConfigValidator()
-        
+
         with pytest.raises(ValidationError) as exc_info:
             validator.validate_prompt_config(config)
-        
+
         errors = exc_info.value.errors()
         assert len(errors) > 0
         # Should indicate the path to the missing field
@@ -433,7 +431,7 @@ class TestInvalidConfigRejection:
     def test_missing_meta_version_rejected(self, meta_name: str, meta_version: str):
         """Configurations with missing meta.version should be rejected."""
         # Feature: phd-level-excellence, Property 17: Invalid Config Rejection with Details
-        
+
         config = {
             "meta": {
                 "name": meta_name,
@@ -441,12 +439,12 @@ class TestInvalidConfigRejection:
             "document_purpose": "This is a test document purpose with sufficient length.",
             "sections": [generate_valid_section("test", "Test", 1)],
         }
-        
+
         validator = ConfigValidator()
-        
+
         with pytest.raises(ValidationError) as exc_info:
             validator.validate_prompt_config(config)
-        
+
         errors = exc_info.value.errors()
         assert len(errors) > 0
         assert any("version" in str(e.get("loc", ())) for e in errors)
@@ -461,12 +459,12 @@ class TestInvalidConfigRejection:
     def test_invalid_version_format_rejected(self, meta_name: str, invalid_version: str):
         """Configurations with invalid version format should be rejected."""
         # Feature: phd-level-excellence, Property 17: Invalid Config Rejection with Details
-        
+
         # Skip versions that accidentally match the pattern
         assume(not invalid_version or not all(
             part.isdigit() for part in invalid_version.split(".")
         ) or invalid_version.count(".") != 2)
-        
+
         config = {
             "meta": {
                 "name": meta_name,
@@ -475,12 +473,12 @@ class TestInvalidConfigRejection:
             "document_purpose": "This is a test document purpose with sufficient length.",
             "sections": [generate_valid_section("test", "Test", 1)],
         }
-        
+
         validator = ConfigValidator()
-        
+
         with pytest.raises(ValidationError) as exc_info:
             validator.validate_prompt_config(config)
-        
+
         errors = exc_info.value.errors()
         assert len(errors) > 0
 
@@ -495,7 +493,7 @@ class TestInvalidConfigRejection:
     ):
         """Configurations with invalid part numbers should be rejected."""
         # Feature: phd-level-excellence, Property 17: Invalid Config Rejection with Details
-        
+
         config = {
             "meta": generate_valid_meta(meta_name, meta_version),
             "document_purpose": "This is a test document purpose with sufficient length.",
@@ -507,12 +505,12 @@ class TestInvalidConfigRejection:
                 }
             ],
         }
-        
+
         validator = ConfigValidator()
-        
+
         with pytest.raises(ValidationError) as exc_info:
             validator.validate_prompt_config(config)
-        
+
         errors = exc_info.value.errors()
         assert len(errors) > 0
 
@@ -524,7 +522,7 @@ class TestInvalidConfigRejection:
     def test_duplicate_section_ids_rejected(self, meta_name: str, meta_version: str):
         """Configurations with duplicate section IDs should be rejected."""
         # Feature: phd-level-excellence, Property 17: Invalid Config Rejection with Details
-        
+
         config = {
             "meta": generate_valid_meta(meta_name, meta_version),
             "document_purpose": "This is a test document purpose with sufficient length.",
@@ -533,12 +531,12 @@ class TestInvalidConfigRejection:
                 generate_valid_section("duplicate_id", "Section 2", 2),
             ],
         }
-        
+
         validator = ConfigValidator()
-        
+
         with pytest.raises(ValidationError) as exc_info:
             validator.validate_prompt_config(config)
-        
+
         errors = exc_info.value.errors()
         assert len(errors) > 0
         # Error message should mention duplicates
@@ -556,18 +554,18 @@ class TestInvalidConfigRejection:
     ):
         """Configurations with document_purpose < 10 chars should be rejected."""
         # Feature: phd-level-excellence, Property 17: Invalid Config Rejection with Details
-        
+
         config = {
             "meta": generate_valid_meta(meta_name, meta_version),
             "document_purpose": short_purpose,
             "sections": [generate_valid_section("test", "Test", 1)],
         }
-        
+
         validator = ConfigValidator()
-        
+
         with pytest.raises(ValidationError) as exc_info:
             validator.validate_prompt_config(config)
-        
+
         errors = exc_info.value.errors()
         assert len(errors) > 0
 
@@ -584,7 +582,7 @@ class TestInvalidConfigRejection:
     ):
         """Configurations with invalid section positions should be rejected."""
         # Feature: phd-level-excellence, Property 17: Invalid Config Rejection with Details
-        
+
         config = {
             "meta": generate_valid_meta(meta_name, meta_version),
             "document_purpose": "This is a test document purpose with sufficient length.",
@@ -597,12 +595,12 @@ class TestInvalidConfigRejection:
                 }
             ],
         }
-        
+
         validator = ConfigValidator()
-        
+
         with pytest.raises(ValidationError) as exc_info:
             validator.validate_prompt_config(config)
-        
+
         errors = exc_info.value.errors()
         assert len(errors) > 0
 
@@ -614,18 +612,18 @@ class TestInvalidConfigRejection:
     def test_wrong_type_for_sections_rejected(self, meta_name: str, meta_version: str):
         """Configurations with wrong type for sections should be rejected."""
         # Feature: phd-level-excellence, Property 17: Invalid Config Rejection with Details
-        
+
         config = {
             "meta": generate_valid_meta(meta_name, meta_version),
             "document_purpose": "This is a test document purpose with sufficient length.",
             "sections": "not a list",  # Wrong type
         }
-        
+
         validator = ConfigValidator()
-        
+
         with pytest.raises(ValidationError) as exc_info:
             validator.validate_prompt_config(config)
-        
+
         errors = exc_info.value.errors()
         assert len(errors) > 0
 
@@ -654,7 +652,7 @@ class TestSchemaVersionValidation:
     def test_unsupported_schema_version_raises_error(self, invalid_version: str):
         """Unsupported schema versions should raise SchemaVersionError."""
         # Feature: phd-level-excellence, Property 18: Schema Version Validation
-        
+
         config = {
             "meta": {
                 "name": "Test Prompt",
@@ -664,12 +662,12 @@ class TestSchemaVersionValidation:
             "document_purpose": "This is a test document purpose with sufficient length.",
             "sections": [generate_valid_section("test", "Test", 1)],
         }
-        
+
         validator = ConfigValidator()
-        
+
         with pytest.raises(SchemaVersionError) as exc_info:
             validator.check_schema_version(config)
-        
+
         error = exc_info.value
         # Error should contain the current version
         assert CURRENT_SCHEMA_VERSION.value in str(error)
@@ -683,7 +681,7 @@ class TestSchemaVersionValidation:
     def test_supported_schema_versions_pass_check(self, schema_version: str):
         """Supported schema versions should pass the version check."""
         # Feature: phd-level-excellence, Property 18: Schema Version Validation
-        
+
         config = {
             "meta": {
                 "name": "Test Prompt",
@@ -693,12 +691,12 @@ class TestSchemaVersionValidation:
             "document_purpose": "This is a test document purpose with sufficient length.",
             "sections": [generate_valid_section("test", "Test", 1)],
         }
-        
+
         validator = ConfigValidator()
-        
+
         # Should not raise
         version, is_current = validator.check_schema_version(config)
-        
+
         assert version.value == schema_version
         assert is_current == (schema_version == CURRENT_SCHEMA_VERSION.value)
 
@@ -710,7 +708,7 @@ class TestSchemaVersionValidation:
     def test_missing_schema_version_defaults_to_1_0(self, meta_name: str, meta_version: str):
         """Configs without schema_version should default to 1.0."""
         # Feature: phd-level-excellence, Property 18: Schema Version Validation
-        
+
         config = {
             "meta": {
                 "name": meta_name,
@@ -720,11 +718,11 @@ class TestSchemaVersionValidation:
             "document_purpose": "This is a test document purpose with sufficient length.",
             "sections": [generate_valid_section("test", "Test", 1)],
         }
-        
+
         validator = ConfigValidator()
-        
+
         version, is_current = validator.check_schema_version(config)
-        
+
         # Should default to 1.0
         assert version == SchemaVersion.V1_0
 
@@ -737,7 +735,7 @@ class TestSchemaVersionValidation:
     def test_non_numeric_schema_version_raises_error(self, invalid_version: str):
         """Non-numeric schema versions should raise SchemaVersionError."""
         # Feature: phd-level-excellence, Property 18: Schema Version Validation
-        
+
         config = {
             "meta": {
                 "name": "Test Prompt",
@@ -747,12 +745,12 @@ class TestSchemaVersionValidation:
             "document_purpose": "This is a test document purpose with sufficient length.",
             "sections": [generate_valid_section("test", "Test", 1)],
         }
-        
+
         validator = ConfigValidator()
-        
+
         with pytest.raises(SchemaVersionError) as exc_info:
             validator.check_schema_version(config)
-        
+
         error = exc_info.value
         assert error.unsupported_version == invalid_version
         assert error.current_version == CURRENT_SCHEMA_VERSION.value
@@ -760,7 +758,7 @@ class TestSchemaVersionValidation:
     def test_schema_version_error_provides_migration_guidance(self):
         """SchemaVersionError should provide migration guidance."""
         # Feature: phd-level-excellence, Property 18: Schema Version Validation
-        
+
         config = {
             "meta": {
                 "name": "Test Prompt",
@@ -770,15 +768,15 @@ class TestSchemaVersionValidation:
             "document_purpose": "This is a test document purpose with sufficient length.",
             "sections": [generate_valid_section("test", "Test", 1)],
         }
-        
+
         validator = ConfigValidator()
-        
+
         with pytest.raises(SchemaVersionError) as exc_info:
             validator.check_schema_version(config)
-        
+
         error = exc_info.value
         error_str = str(error)
-        
+
         # Should contain migration guidance
         assert "migration" in error_str.lower() or "supported" in error_str.lower()
         # Should list supported versions
@@ -789,21 +787,21 @@ class TestSchemaVersionValidation:
     def test_validate_with_version_check_validates_both(self, schema_version: str):
         """validate_with_version_check should check version AND validate config."""
         # Feature: phd-level-excellence, Property 18: Schema Version Validation
-        
+
         config = generate_valid_config(schema_version=schema_version)
-        
+
         validator = ConfigValidator()
-        
+
         # Should succeed for valid config with valid schema version
         result = validator.validate_with_version_check(config)
-        
+
         assert isinstance(result, PromptConfigModel)
         assert result.meta.schema_version.value == schema_version
 
     def test_validate_with_version_check_rejects_invalid_version_first(self):
         """validate_with_version_check should reject invalid version before validation."""
         # Feature: phd-level-excellence, Property 18: Schema Version Validation
-        
+
         # Config with invalid schema version but otherwise valid
         config = {
             "meta": {
@@ -814,9 +812,9 @@ class TestSchemaVersionValidation:
             "document_purpose": "This is a test document purpose with sufficient length.",
             "sections": [generate_valid_section("test", "Test", 1)],
         }
-        
+
         validator = ConfigValidator()
-        
+
         # Should raise SchemaVersionError, not ValidationError
         with pytest.raises(SchemaVersionError):
             validator.validate_with_version_check(config)
@@ -832,13 +830,13 @@ class TestJsonSchemaExport:
     def test_export_json_schema_returns_valid_schema(self):
         """export_json_schema should return a valid JSON Schema."""
         # Feature: phd-level-excellence, Validates: Requirement 6.8
-        
+
         validator = ConfigValidator()
         schema = validator.export_json_schema()
-        
+
         # Should be a dictionary
         assert isinstance(schema, dict)
-        
+
         # Should have standard JSON Schema fields
         assert "properties" in schema or "$defs" in schema
         assert "type" in schema
@@ -847,10 +845,10 @@ class TestJsonSchemaExport:
     def test_export_json_schema_includes_required_fields(self):
         """Exported schema should include required fields."""
         # Feature: phd-level-excellence, Validates: Requirement 6.8
-        
+
         validator = ConfigValidator()
         schema = validator.export_json_schema()
-        
+
         # Should have required fields listed
         assert "required" in schema
         assert "meta" in schema["required"]
@@ -860,13 +858,13 @@ class TestJsonSchemaExport:
     def test_export_json_schema_includes_section_spec(self):
         """Exported schema should include section specification."""
         # Feature: phd-level-excellence, Validates: Requirement 6.8
-        
+
         validator = ConfigValidator()
         schema = validator.export_json_schema()
-        
+
         # Should have definitions for nested models
         defs = schema.get("$defs", {})
-        
+
         # Should include SectionSpecModel definition
         assert "SectionSpecModel" in defs or any(
             "section" in key.lower() for key in defs.keys()

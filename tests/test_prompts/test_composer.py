@@ -8,12 +8,12 @@ import tempfile
 from pathlib import Path
 
 import pytest
-import yaml
-from hypothesis import given, settings, strategies as st, assume
+from hypothesis import assume, given, settings
+from hypothesis import strategies as st
 
 from primr.prompts.composer import PromptComposer, get_composer
-from primr.prompts.schema import PromptContext, ComposedPrompt
 from primr.prompts.exceptions import PromptConfigNotFoundError
+from primr.prompts.schema import ComposedPrompt, PromptContext
 
 
 class TestPromptComposer:
@@ -499,7 +499,7 @@ class TestCustomStrategySharedComponentsProperties:
             cloud_vendor="agnostic",
             has_stage1_context=True,
         )
-        
+
         try:
             result = composer.compose_strategy(strategy, context)
         except FileNotFoundError:
@@ -563,7 +563,7 @@ class TestCustomStrategySharedComponentsProperties:
 
         # Should discover all strategies
         assert len(strategies) >= 3  # ai, cloud_migration, data
-        
+
         # Check specific strategies exist
         # Note: list_strategies() strips _strategy suffix, so:
         # - ai_strategy.yaml -> "ai"

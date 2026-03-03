@@ -7,7 +7,9 @@ Property tests for import resolution verification.
 
 import sys
 from pathlib import Path
-from hypothesis import given, strategies as st, settings
+
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 # Add src to path for imports
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -41,16 +43,16 @@ def test_module_imports_without_error(module_name: str):
     raise an ImportError, verifying all internal imports are correctly updated.
     """
     import importlib
-    
+
     try:
         # Clear any cached imports
         if module_name in sys.modules:
             del sys.modules[module_name]
-        
+
         # Attempt to import the module
         module = importlib.import_module(module_name)
         assert module is not None, f"Module {module_name} imported as None"
-        
+
     except ImportError as e:
         raise AssertionError(f"Failed to import {module_name}: {e}")
 
@@ -63,9 +65,7 @@ def test_main_package_exports():
 
 def test_config_exports():
     """Verify config module exports expected values."""
-    from primr.config.config import (
-        GEMINI_API_KEY, OUTPUT_DIR, WORKING_DIR, PROJECT_ROOT
-    )
+    from primr.config.config import GEMINI_API_KEY, OUTPUT_DIR, PROJECT_ROOT, WORKING_DIR
     assert GEMINI_API_KEY is not None
     assert OUTPUT_DIR is not None
     assert WORKING_DIR is not None

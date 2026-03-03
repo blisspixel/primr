@@ -5,13 +5,12 @@ Validates: FR-5.1, FR-5.2
 """
 
 import json
-from typing import Any
 
 import pytest
-from hypothesis import given, settings, strategies as st
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from primr.mcp_server.types import StrategyType
-
 
 # Valid strategy type IDs from the enum
 VALID_STRATEGY_IDS = {s.value for s in StrategyType}
@@ -25,7 +24,7 @@ class TestStrategiesResourceSchema:
         """Get strategies resource response."""
         # Import and call the resource handler directly
         from primr.mcp_server.resources import _read_strategies_available
-        
+
         result = _read_strategies_available()
         assert len(result) == 1
         return json.loads(result[0].content)
@@ -56,7 +55,7 @@ class TestStrategyFields:
     def strategies_response(self) -> dict:
         """Get strategies resource response."""
         from primr.mcp_server.resources import _read_strategies_available
-        
+
         result = _read_strategies_available()
         return json.loads(result[0].content)
 
@@ -108,7 +107,7 @@ class TestStrategyIdValidity:
     def strategies_response(self) -> dict:
         """Get strategies resource response."""
         from primr.mcp_server.resources import _read_strategies_available
-        
+
         result = _read_strategies_available()
         return json.loads(result[0].content)
 
@@ -131,7 +130,7 @@ class TestSpecificStrategies:
     def strategies_response(self) -> dict:
         """Get strategies resource response."""
         from primr.mcp_server.resources import _read_strategies_available
-        
+
         result = _read_strategies_available()
         return json.loads(result[0].content)
 
@@ -160,13 +159,13 @@ class TestPropertyBasedStrategiesResource:
     def test_strategies_resource_is_idempotent(self, _iteration: int) -> None:
         """Property 6: Reading resource multiple times returns same result."""
         from primr.mcp_server.resources import _read_strategies_available
-        
+
         result1 = _read_strategies_available()
         result2 = _read_strategies_available()
-        
+
         data1 = json.loads(result1[0].content)
         data2 = json.loads(result2[0].content)
-        
+
         assert data1 == data2
 
     @settings(max_examples=100)
@@ -174,10 +173,10 @@ class TestPropertyBasedStrategiesResource:
     def test_strategies_always_has_four_elements(self, _iteration: int) -> None:
         """Property 6: strategies array always has exactly 4 elements."""
         from primr.mcp_server.resources import _read_strategies_available
-        
+
         result = _read_strategies_available()
         data = json.loads(result[0].content)
-        
+
         assert len(data["strategies"]) == 4
 
     @settings(max_examples=100)
@@ -185,12 +184,12 @@ class TestPropertyBasedStrategiesResource:
     def test_all_strategies_have_required_fields(self, _iteration: int) -> None:
         """Property 6: All strategies have required fields."""
         from primr.mcp_server.resources import _read_strategies_available
-        
+
         result = _read_strategies_available()
         data = json.loads(result[0].content)
-        
-        required_fields = {"id", "name", "description", "requires_cloud_vendor", 
+
+        required_fields = {"id", "name", "description", "requires_cloud_vendor",
                           "estimated_time_minutes", "estimated_cost_usd"}
-        
+
         for strategy in data["strategies"]:
             assert required_fields.issubset(set(strategy.keys()))

@@ -10,9 +10,9 @@ expensive full pipeline tests. Run these first to catch issues early.
 
 import socket
 import warnings
+from unittest.mock import MagicMock, patch
 
 import pytest
-from unittest.mock import MagicMock, patch
 
 _GEMINI_NETWORK_AVAILABLE: bool | None = None
 
