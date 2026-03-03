@@ -161,16 +161,16 @@ MODE_ESTIMATES = {
     },
     # Fast mode: Flash scraping + Grok calls (gap analysis + analysis + 5 batches + cross-validation), no DR, no Pro
     "fast": {
-        "flash_input_tokens": 30_000,     # more pages + gap-fill scraping
-        "flash_output_tokens": 8_000,
+        "flash_input_tokens": 40_000,     # more pages + more external scraping
+        "flash_output_tokens": 10_000,
         "pro_input_tokens": 0,
         "pro_output_tokens": 0,
-        "grok_input_tokens": 500_000,     # gap analysis + analysis + 5 batches + cross-validation + re-gens
-        "grok_output_tokens": 50_000,     # gap ~5k + analysis ~12k + batches ~18k + cross-val ~15k
+        "grok_input_tokens": 700_000,     # larger corpus + more sources in context
+        "grok_output_tokens": 70_000,     # 800 words/section x 21 sections + gap + cross-val
         "deep_research_tasks": 0,
-        "search_queries": 5,
-        "duration_min": 15,
-        "duration_max": 25,
+        "search_queries": 0,              # DDG is free, not Google Search
+        "duration_min": 18,
+        "duration_max": 30,
     },
 }
 

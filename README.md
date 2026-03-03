@@ -38,11 +38,11 @@ Manual research takes hours. Primr typically runs in about an hour and costs abo
 | `full --no-ai-strategy` | Skip AI Strategy, just the research brief | 45-75 min | $3.50 |
 | `--mode scrape` | Crawl site + extract insights only | 5-10 min | $0.10 |
 | `--mode deep` | Gemini Deep Research on external sources only | 10-15 min | $2.50 |
-| `--fast` | Grok 4.1 with research deepening + cross-validation (requires `XAI_API_KEY`) | ~20 min | $0.50 |
-| `--fast` + multi-vendor | Add `--cloud-vendor aws azure` for multiple vendors | 20-28 min | ~$0.55 |
-| `--fast --no-ai-strategy` | Grok 4.1 report only, no AI Strategy | ~20 min | $0.45 |
+| `--fast` | Grok 4.1 with research deepening + cross-validation (requires `XAI_API_KEY`) | ~20-30 min | $0.20 |
+| `--fast` + multi-vendor | Add `--cloud-vendor aws azure` for multiple vendors | 22-36 min | ~$0.25 |
+| `--fast --no-ai-strategy` | Grok 4.1 report only, no AI Strategy | ~20-30 min | $0.15 |
 
-The default `primr` command runs full mode with AI Strategy (Azure vendor). Full mode costs are Gemini API usage: Deep Research is $2.50 per task (one for the brief, one per AI Strategy vendor), plus token costs for Flash/Pro calls. `--lite` swaps the strategy DR task for a Pro model call ($0.15/vendor instead of $2.50). **Cost-sensitive?** Use `--fast` — Grok 4.1 with research deepening and cross-validation produces a high-quality report with AI Strategy in ~20 minutes for about $0.50 (Flash is still used for scraping). Add `--cloud-vendor aws azure` for multi-vendor strategy (~$0.55), or `--no-ai-strategy` for the cheapest option (~$0.45). Web search uses DuckDuckGo (free). Use `--dry-run` for accurate estimates based on your usage history.
+The default `primr` command runs full mode with AI Strategy (Azure vendor). Full mode costs are Gemini API usage: Deep Research is $2.50 per task (one for the brief, one per AI Strategy vendor), plus token costs for Flash/Pro calls. `--lite` swaps the strategy DR task for a Pro model call ($0.15/vendor instead of $2.50). **Cost-sensitive?** Use `--fast` — Grok 4.1 with research deepening and cross-validation produces a high-quality report with 40-55 sources and AI Strategy in ~20-30 minutes for about $0.20 (Flash is still used for scraping). Add `--cloud-vendor aws azure` for multi-vendor strategy (~$0.25), or `--no-ai-strategy` for the cheapest option (~$0.15). DDG searches are free (no API cost). Web search uses DuckDuckGo (free). Use `--dry-run` for accurate estimates based on your usage history.
 
 `--fast` includes research deepening (gap analysis + targeted search), cross-validation (weak section detection + re-generation), plus trust-polish and citation normalization for high-quality reports at a fraction of full mode cost.
 
@@ -130,8 +130,8 @@ primr "Company" https://company.com --mode deep          # External research onl
 primr "Company" https://company.com --dry-run            # Cost estimate first
 primr "Company" https://company.com --cloud-vendor aws azure  # Multi-vendor AI strategy
 primr "Company" https://company.com --cloud-vendor aws azure --lite  # Cheaper/faster strategy
-primr "Company" https://company.com --fast                        # Grok 4.1 fast mode (~$0.50)
-primr "Company" https://company.com --fast --cloud-vendor aws azure  # Fast + multi-vendor AI strategy (~$0.55)
+primr "Company" https://company.com --fast                        # Grok 4.1 fast mode (~$0.20)
+primr "Company" https://company.com --fast --cloud-vendor aws azure  # Fast + multi-vendor AI strategy (~$0.25)
 primr "Company" https://company.com --skip-scrape-validation      # Continue even if scrape quality is low
 primr "Company" https://company.com --resume-local                # Reuse latest incomplete local run folder
 primr --resume-latest                                              # Recover completed cloud jobs and finalize MD/DOCX
