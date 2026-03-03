@@ -103,6 +103,7 @@ from primr.ai.grading_agent import grade_report
 from primr.ai.llm import llm
 from primr.ai.summarize import summarize_scraped_content
 from primr.config.config import (
+    FAST_FEEDBACK_RULES_PATH,
     GRADE_THRESHOLD_FOR_RESEARCH_REFINEMENT,
     LOGS_DIR,
     MAX_EXTERNAL_SEARCH_QUERIES,
@@ -113,7 +114,7 @@ from primr.config.config import (
     PROJECT_ROOT,
     WORKING_DIR,
 )
-from primr.config.models import PrimrModels
+from primr.config.models import GROK_MODEL_WRITING, PrimrModels
 from primr.config.sections_config import SECTION_KEY_MAP
 from primr.core.research_orchestrator import (
     ResearchConfig,
@@ -168,6 +169,21 @@ TIER_DISPLAY_NAMES = {
     "vision": "AI vision",
     "cache": "cache",
 }
+
+
+def _load_fast_feedback_guidance() -> str:
+    """Load persisted fast-mode guidance generated from eval feedback loops."""
+    path = Path(FAST_FEEDBACK_RULES_PATH)
+    if not path.exists():
+        return ""
+    try:
+        text = path.read_text(encoding="utf-8", errors="ignore").strip()
+    except Exception:
+        return ""
+    if not text:
+        return ""
+    # Bound prompt growth.
+    return text[:4000]
 
 
 def format_tier_stats(tier_stats: dict) -> str:
@@ -1015,6 +1031,12 @@ def _build_fast_batch_prompt(
 
     sources_text = "\n".join(f"- {url}" for url in source_urls) if source_urls else "(no external sources)"
     word_target = len(sections) * 600
+    feedback_guidance = _load_fast_feedback_guidance()
+    feedback_block = (
+        f"=== FAST FEEDBACK GUIDANCE (from prior evals) ===\n{feedback_guidance}\n"
+        if feedback_guidance
+        else ""
+    )
 
     return f"""**Company:** {company_name}
 **Website:** {website or 'N/A'}
@@ -1035,6 +1057,8 @@ This batch contains {len(sections)} sections. Write each section under its own #
 === EXTERNAL SOURCES ===
 {external_sources}
 
+{feedback_block}
+
 SOURCES CONSULTED:
 {sources_text}
 
@@ -1046,7 +1070,7 @@ Write the following sections. Each section MUST start with a ## heading matching
 
 REQUIREMENTS:
 - Write at least {word_target:,} words total across all sections in this batch
-- Use specific facts, numbers, and examples — cite sources with [Source: URL]
+- Use specific facts, numbers, and examples — cite sources with [cite: N]
 - Be analytical and hypothesis-driven, not just descriptive
 - Label claims with confidence levels (Confirmed/Reported/Estimated/Hypothesis)
 - Build on the previous sections' narrative (see rolling context above)
@@ -1054,6 +1078,12 @@ REQUIREMENTS:
   earlier sections, don't introduce wholly new observations
 - Include tables where instructed (financials, competitors, timelines)
 - Each section should have substantive depth — multiple paragraphs with evidence
+- If a numeric claim cannot be supported by a cited source, replace it with
+  "Not publicly disclosed" or an explicitly low-confidence qualitative statement
+- Do not invent market sizes, CAGR, revenue ranges, headcount ranges, or shares
+  unless directly grounded in one or more cited sources
+- End each section with a short "What to validate:" line containing one concrete
+  discovery question or data point to confirm in client interviews
 
 CONSULTING RIGOR (critical):
 - Do NOT paraphrase the company's marketing. When you cite their claims, immediately
@@ -1066,7 +1096,391 @@ CONSULTING RIGOR (critical):
   moment interesting? Platform shifts, PE investment, leadership changes, etc.
 - Think like a buyer, not a narrator. Where does this company win deals? Where does
   it lose? What would a competitor say about them?
+
+CITATION FORMAT (strict):
+- Inline claims must reference citations as [cite: N]
+- Reuse the same citation number for the same URL
+- Do not emit [Source: URL] inline; use [cite: N] only
 """
+
+
+def _clean_fast_report_output(report_content: str) -> str:
+    """
+    Final cleanup of fast-mode report artifacts before citation normalization.
+
+    Removes:
+    - Standalone (Reported)/(Estimated)/(Confirmed) confidence labels at section
+      boundaries (inline labels within prose are preserved)
+    - Grok model disclaimer boilerplate
+    - Informal [cite: name] tags that reference internal labels (not URLs)
+    - Excess blank lines
+    """
+    if not report_content.strip():
+        return report_content
+
+    # 1. Strip Grok disclaimer (appears at end of report or AI strategy)
+    report_content = re.sub(
+        r"\n*_?Disclaimer:\s*Grok is not a financial advi[sc]er[^\n]*\n?",
+        "\n",
+        report_content,
+        flags=re.IGNORECASE,
+    )
+
+    # 2. Strip standalone confidence labels at section boundaries.
+    #    These appear as "(Reported)" on their own line, typically between
+    #    a "What to validate" line and the next section heading or EOF.
+    report_content = re.sub(
+        r"\n\s*\((?:Reported|Estimated|Confirmed|Hypothesis)\)\s*\n(?=\s*\n|$)",
+        "\n",
+        report_content,
+    )
+
+    # 3. Strip informal [cite: name] tags (non-numeric, non-URL references).
+    #    These are internal labels like [cite: workbook], [cite: bbb] that
+    #    can't be resolved to URLs. Inline confidence labels in prose are the
+    #    proper way to indicate source type.
+    #    Matches: [cite: workbook], [cite: website; cite: bbb], [cite: enrollment]
+    #    Preserves: [cite: 1], [cite: 2, 3], [Source: URL]
+    def _strip_informal_cites(match: re.Match[str]) -> str:
+        inner = match.group(1)
+        # Split on semicolons for compound citations like [cite: workbook; cite: bbb]
+        parts = [p.strip() for p in inner.split(";")]
+        kept: list[str] = []
+        for part in parts:
+            # Keep numeric citations (cite: 1, cite: 2)
+            cite_val = re.match(r"cite:\s*(.+)", part, re.IGNORECASE)
+            if cite_val:
+                val = cite_val.group(1).strip()
+                if re.match(r"^[\d,\s]+$", val):
+                    kept.append(part.strip())
+            else:
+                # Keep non-cite entries (shouldn't appear, but be safe)
+                kept.append(part.strip())
+        if not kept:
+            return ""
+        return "[" + "; ".join(kept) + "]"
+
+    report_content = re.sub(
+        r"\[([^\]]*cite:\s*[^\]]+)\]",
+        _strip_informal_cites,
+        report_content,
+        flags=re.IGNORECASE,
+    )
+
+    # Also strip [cross-ref: ...] tags — internal analysis references
+    report_content = re.sub(r"\s*\[cross-ref:[^\]]*\]", "", report_content, flags=re.IGNORECASE)
+
+    # 4. Clean up double spaces left by stripped citations/tags
+    report_content = re.sub(r"  +", " ", report_content)
+
+    # 5. Clean up excess blank lines (3+ newlines → 2)
+    report_content = re.sub(r"\n{3,}", "\n\n", report_content)
+
+    return report_content.strip() + "\n"
+
+
+def _normalize_fast_citations(report_content: str) -> str:
+    """
+    Normalize fast-mode citations to the deterministic analyzer format.
+
+    Converts `[Source: URL]` inline tags to `[cite: N]` and ensures a
+    trailing `## Sources` appendix with `[cite: N] URL` entries.
+    """
+    # Collect existing citation definitions if present.
+    existing_cite_def = re.compile(r"\[cite:\s*(\d+)\]\s*(https?://\S+)", re.IGNORECASE)
+    num_to_url: dict[int, str] = {}
+    for m in existing_cite_def.finditer(report_content):
+        num_to_url[int(m.group(1))] = m.group(2).strip()
+
+    # Collect and number source URLs found inline.
+    # Match both [Source: https://...] and [Source: domain.com/...] (bare domains).
+    source_pattern = re.compile(r"\[Source:\s*((?:https?://)?[^\]\s]+)\s*\]", re.IGNORECASE)
+    urls_in_order: list[str] = []
+    url_to_num: dict[str, int] = {}
+    next_num = max(num_to_url.keys(), default=0) + 1
+
+    # Seed URL mappings from existing defs.
+    for num, url in sorted(num_to_url.items()):
+        url_to_num[url] = num
+        urls_in_order.append(url)
+
+    for match in source_pattern.finditer(report_content):
+        raw_url = match.group(1).strip()
+        # Normalize bare domains to https:// for consistent keying
+        url = raw_url if raw_url.startswith(("http://", "https://")) else f"https://{raw_url}"
+        if url not in url_to_num:
+            url_to_num[url] = next_num
+            next_num += 1
+            urls_in_order.append(url)
+
+    if not url_to_num and not num_to_url:
+        return report_content
+
+    def _replace_source(match: re.Match[str]) -> str:
+        raw_url = match.group(1).strip()
+        url = raw_url if raw_url.startswith(("http://", "https://")) else f"https://{raw_url}"
+        num = url_to_num.get(url)
+        if num is None:
+            nonlocal next_num
+            num = next_num
+            next_num += 1
+            url_to_num[url] = num
+            urls_in_order.append(url)
+        return f"[cite: {num}]"
+
+    normalized = source_pattern.sub(_replace_source, report_content)
+
+    # Replace "Sources" heading if present to avoid duplicate appendices.
+    sources_heading = re.compile(r"^##\s+(Sources|Citations|References)\s*$", re.IGNORECASE | re.MULTILINE)
+    if sources_heading.search(normalized):
+        # Remove existing appendix section content from first sources heading onward.
+        lines = normalized.splitlines()
+        start_idx = None
+        for i, line in enumerate(lines):
+            if sources_heading.match(line.strip()):
+                start_idx = i
+                break
+        if start_idx is not None:
+            normalized = "\n".join(lines[:start_idx]).rstrip()
+
+    # Resolve body citation refs against known definitions; drop orphan refs.
+    known = dict(num_to_url)
+    for url, num in url_to_num.items():
+        known[num] = url
+
+    cite_ref = re.compile(r"\[cite:\s*([0-9,\s]+)\]", re.IGNORECASE)
+    used_old_nums: list[int] = []
+
+    def _clean_refs(match: re.Match[str]) -> str:
+        nums: list[int] = []
+        for raw in match.group(1).split(","):
+            raw = raw.strip()
+            if not raw.isdigit():
+                continue
+            n = int(raw)
+            if n in known and n not in nums:
+                nums.append(n)
+        if not nums:
+            return ""
+        for n in nums:
+            if n not in used_old_nums:
+                used_old_nums.append(n)
+        return "[cite: " + ", ".join(str(n) for n in nums) + "]"
+
+    normalized = cite_ref.sub(_clean_refs, normalized)
+
+    # Renumber used citations to contiguous sequence in first-use order.
+    remap = {old: idx + 1 for idx, old in enumerate(used_old_nums)}
+
+    def _renumber_refs(match: re.Match[str]) -> str:
+        nums: list[str] = []
+        for raw in match.group(1).split(","):
+            raw = raw.strip()
+            if not raw.isdigit():
+                continue
+            old = int(raw)
+            if old in remap:
+                new_num = str(remap[old])
+                if new_num not in nums:
+                    nums.append(new_num)
+        return f"[cite: {', '.join(nums)}]" if nums else ""
+
+    normalized = cite_ref.sub(_renumber_refs, normalized)
+
+    sources_lines = ["## Sources", ""]
+    for old in used_old_nums:
+        url = known[old]
+        sources_lines.append(f"[cite: {remap[old]}] {url}")
+
+    return normalized.rstrip() + "\n\n" + "\n".join(sources_lines) + "\n"
+
+
+def _split_markdown_sections(content: str) -> tuple[str, list[tuple[str, str]]]:
+    """Split markdown into preamble and (heading, body) sections."""
+    lines = content.splitlines()
+    sections: list[tuple[str, str]] = []
+    preamble_lines: list[str] = []
+    current_heading: str | None = None
+    current_body: list[str] = []
+
+    for line in lines:
+        if line.startswith("## "):
+            if current_heading is None:
+                preamble = "\n".join(preamble_lines).strip()
+            else:
+                sections.append((current_heading, "\n".join(current_body).strip()))
+            current_heading = line[3:].strip()
+            current_body = []
+            continue
+        if current_heading is None:
+            preamble_lines.append(line)
+        else:
+            current_body.append(line)
+
+    if current_heading is not None:
+        sections.append((current_heading, "\n".join(current_body).strip()))
+        preamble = "\n".join(preamble_lines).strip()
+    else:
+        preamble = content.strip()
+
+    return preamble, sections
+
+
+def _enforce_fast_section_quality_guards(report_content: str) -> str:
+    """
+    Apply deterministic quality guards to fast reports.
+
+    - Ensure each section has at least one confidence label token.
+    - Ensure each non-reference section includes a "What to validate:" line.
+    """
+    preamble, sections = _split_markdown_sections(report_content)
+    if not sections:
+        return report_content
+
+    label_pattern = re.compile(r"\((Confirmed|Reported|Estimated|Hypothesis)[^)]*\)", re.IGNORECASE)
+    reference_headings = {"sources", "citations", "references"}
+    rebuilt: list[str] = [preamble] if preamble else []
+
+    for heading, body in sections:
+        lower_heading = heading.strip().lower()
+        guarded_body = body.strip()
+
+        if lower_heading not in reference_headings:
+            if not label_pattern.search(guarded_body):
+                guarded_body = (guarded_body + "\n\n(Reported)").strip()
+            if "what to validate" not in guarded_body.lower():
+                guarded_body = (
+                    guarded_body
+                    + "\n\nWhat to validate: Confirm this section's key claim with primary customer or operator evidence."
+                ).strip()
+
+        rebuilt.append(f"## {heading}\n\n{guarded_body}")
+
+    return "\n\n".join(part for part in rebuilt if part).strip() + "\n"
+
+
+def _compute_fast_report_qa_metrics(report_content: str) -> dict[str, int | float | bool]:
+    """Compute lightweight local QA metrics for fast reports."""
+    confidence_labels = len(
+        re.findall(r"\((Confirmed|Reported|Estimated|Hypothesis)[^)]*\)", report_content, re.IGNORECASE)
+    )
+    citation_refs = re.findall(r"\[cite:\s*(\d+)\]", report_content, re.IGNORECASE)
+    cited_numbers = {int(n) for n in citation_refs}
+
+    sources_block = ""
+    match = re.search(r"^##\s+Sources\s*$", report_content, flags=re.IGNORECASE | re.MULTILINE)
+    if match:
+        sources_block = report_content[match.start():]
+    defined = {int(n) for n in re.findall(r"\[cite:\s*(\d+)\]", sources_block, re.IGNORECASE)}
+    missing = sorted(cited_numbers - defined)
+
+    _, sections = _split_markdown_sections(report_content)
+    reference_headings = {"sources", "citations", "references"}
+    content_sections = [h for h, _ in sections if h.strip().lower() not in reference_headings]
+    with_validate = sum(
+        1 for h, body in sections
+        if h.strip().lower() not in reference_headings and "what to validate:" in body.lower()
+    )
+
+    return {
+        "word_count": len(report_content.split()),
+        "confidence_labels": confidence_labels,
+        "citations_used": len(cited_numbers),
+        "citations_defined": len(defined),
+        "missing_citations": len(missing),
+        "section_count": len(content_sections),
+        "sections_with_validate": with_validate,
+        "qa_gate_passed": bool(confidence_labels >= 8 and len(missing) == 0 and with_validate >= max(1, len(content_sections))),
+    }
+
+
+def _polish_fast_report_for_trust(
+    company_name: str,
+    website: str | None,
+    report_content: str,
+    source_urls: list[str],
+) -> str:
+    """
+    Run a lightweight post-write polish pass for fast mode trust/readability.
+
+    Goals:
+    - keep prose readable and concise
+    - ensure confidence labels are present on non-obvious claims
+    - improve citation discipline while keeping citations compact
+    - preserve section structure and core meaning
+    """
+    from primr.ai.grok_client import grok_llm
+
+    if not report_content.strip():
+        return report_content
+
+    source_block = "\n".join(f"{i}. {u}" for i, u in enumerate(source_urls, 1)) if source_urls else "(none)"
+    feedback_guidance = _load_fast_feedback_guidance()
+    feedback_block = (
+        f"\n10. Apply this prior-eval feedback guidance where relevant:\n{feedback_guidance}\n"
+        if feedback_guidance
+        else ""
+    )
+    prompt = f"""You are editing a strategic report for quality and trust, not rewriting from scratch.
+
+Company: {company_name}
+Website: {website or 'N/A'}
+
+Rules:
+1. Preserve the report structure and section headings.
+2. Keep prose readable for executives; do not overstuff citations inline.
+3. Use compact inline citations only as [cite: N].
+4. Ensure non-obvious claims include confidence labels:
+   (Confirmed), (Reported), (Estimated), or (Hypothesis).
+5. Add/retain a single "## Sources" section at the end only.
+6. Do NOT invent sources. Only use these source URLs:
+{source_block}
+7. Replace any unsupported numeric precision with cautious language:
+   "Not publicly disclosed" or low-confidence qualitative ranges.
+8. Remove repeated or contradictory claims; prefer one clear statement with
+   the best available evidence and confidence tag.
+9. Ensure each section ends with "What to validate:" and one concrete check.
+{feedback_block}
+
+Return the fully edited markdown report only.
+
+--- REPORT START ---
+{report_content}
+--- REPORT END ---
+"""
+    try:
+        polished = grok_llm(
+            prompt,
+            model=GROK_MODEL_WRITING,
+            max_tokens=10_000,
+            temperature=0.2,
+            system_prompt=(
+                "You are a meticulous editorial QA analyst improving evidence discipline and readability."
+            ),
+        )
+        if not polished or not polished.strip():
+            return report_content
+
+        # Guard against destructive compression/truncation from the polish pass.
+        original_words = len(report_content.split())
+        polished_words = len(polished.split())
+        _, original_sections = _split_markdown_sections(report_content)
+        _, polished_sections = _split_markdown_sections(polished)
+        if original_words < 100:
+            min_words = 1
+        elif original_words >= 1200:
+            min_words = max(1200, int(original_words * 0.70))
+        else:
+            min_words = max(50, int(original_words * 0.50))
+        if original_words >= 1200:
+            min_sections = max(1, len(original_sections))
+        else:
+            min_sections = max(1, int(len(original_sections) * 0.70))
+        if polished_words < min_words or len(polished_sections) < min_sections:
+            return report_content
+        return polished
+    except Exception:
+        return report_content
 
 
 def _parse_batch_sections(
@@ -1256,6 +1670,276 @@ SUPPORTS. Be conservative on financial estimates — use wide ranges and note co
 """
 
 
+def _fast_gap_analysis(
+    company_name: str,
+    website: str | None,
+    raw_corpus: str,
+    external_sources: str,
+    source_urls: list[str],
+) -> tuple[list[str], str]:
+    """
+    Phase 2 helper: Grok identifies research gaps and returns targeted search queries.
+
+    Returns:
+        (list of search queries, gap analysis text for logging)
+    """
+    from primr.ai.grok_client import grok_llm
+
+    # Build corpus summary — first 500 chars of each page
+    corpus_lines = raw_corpus.split("\n\n")
+    corpus_summary_parts: list[str] = []
+    for block in corpus_lines:
+        if block.startswith("[Page:"):
+            corpus_summary_parts.append(block[:500])
+    corpus_summary = "\n\n".join(corpus_summary_parts[:60]) if corpus_summary_parts else raw_corpus[:30_000]
+
+    # Build external source summary — first 500 chars each
+    ext_lines = external_sources.split("\n\n")
+    ext_summary_parts: list[str] = []
+    for block in ext_lines:
+        if block.startswith("[Source:"):
+            ext_summary_parts.append(block[:500])
+    ext_summary = "\n\n".join(ext_summary_parts) if ext_summary_parts else external_sources[:5_000]
+
+    prompt = f"""You've reviewed primary sources for {company_name}. As a strategic analyst, identify
+what's MISSING — gaps that would weaken a consulting brief.
+
+SOURCES REVIEWED:
+{corpus_summary}
+
+EXTERNAL SOURCES:
+{ext_summary}
+
+KNOWN SOURCE URLS (do NOT repeat these):
+{chr(10).join(source_urls[:30])}
+
+Return exactly 5 items in this format (one per block, no extra text):
+GAP: [what's missing]
+QUERY: [web search query to fill it]
+PRIORITY: CRITICAL | IMPORTANT
+
+Focus on: financials, competitive positioning, leadership changes, customer evidence,
+technology direction, recent news, risk factors.
+"""
+
+    system_prompt = (
+        "You are a research gap analyst for a consulting firm. "
+        "Identify what's missing from preliminary research and suggest "
+        "targeted web searches to fill those gaps. Be specific and actionable."
+    )
+
+    try:
+        response = grok_llm(
+            prompt,
+            max_tokens=5_000,
+            temperature=0.4,
+            system_prompt=system_prompt,
+        )
+    except Exception as e:
+        log_structured("warning", "Gap analysis failed", error=str(e))
+        return [], f"Gap analysis failed: {e}"
+
+    if not response or not response.strip():
+        return [], "Gap analysis returned empty response"
+
+    # Parse queries from response
+    queries: list[str] = []
+    for line in response.strip().splitlines():
+        line = line.strip()
+        if line.upper().startswith("QUERY:"):
+            query = line[6:].strip().strip('"\'[]')
+            if query:
+                queries.append(query)
+
+    return queries[:5], response
+
+
+def _fast_cross_validate(
+    company_name: str,
+    website: str | None,
+    report_content: str,
+    source_urls: list[str],
+) -> dict:
+    """
+    Phase 5 helper: Grok reviews the assembled report for quality issues.
+
+    Returns:
+        {"weak_sections": [{"title": str, "reason": str, "queries": [str, str]}],
+         "contradictions": [str]}
+    """
+    from primr.ai.grok_client import grok_llm
+
+    source_list = "\n".join(f"- {url}" for url in source_urls[:50])
+
+    prompt = f"""Review this consulting brief for {company_name}. Identify quality issues.
+
+REPORT:
+{report_content[:120_000]}
+
+AVAILABLE SOURCES:
+{source_list}
+
+Return JSON (no markdown fencing, just raw JSON):
+{{
+  "weak_sections": [
+    {{"title": "exact ## heading", "reason": "why it's weak", "queries": ["search query 1", "search query 2"]}}
+  ],
+  "contradictions": ["description of contradiction between sections"]
+}}
+
+A section is WEAK if it:
+- Makes claims without citing any source
+- Uses only generic industry statements, not company-specific evidence
+- Is significantly shorter than other sections
+- Relies heavily on the company's own marketing claims without external validation
+
+Limit: max 3 weak sections, max 3 contradictions. Only flag genuinely weak sections.
+If the report is solid, return empty arrays."""
+
+    system_prompt = (
+        "You are a quality reviewer for consulting research briefs. "
+        "Identify sections that need more evidence or have quality issues. "
+        "Return structured JSON only."
+    )
+
+    try:
+        response = grok_llm(
+            prompt,
+            max_tokens=5_000,
+            temperature=0.3,
+            system_prompt=system_prompt,
+        )
+    except Exception as e:
+        log_structured("warning", "Cross-validation failed", error=str(e))
+        return {"weak_sections": [], "contradictions": []}
+
+    if not response or not response.strip():
+        return {"weak_sections": [], "contradictions": []}
+
+    # Parse JSON from response
+    try:
+        # Strip markdown code fencing if present (```json, ```JSON, ``` etc.)
+        text = response.strip()
+        if text.startswith("```"):
+            # Remove opening fence line (```json, ```JSON, ```, etc.)
+            first_newline = text.find("\n")
+            text = text[first_newline + 1:] if first_newline != -1 else text[3:]
+            # Remove closing fence
+            if text.rstrip().endswith("```"):
+                text = text.rstrip()[:-3]
+            text = text.strip()
+
+        # Try to extract JSON object if surrounded by prose
+        try:
+            result = json.loads(text)
+        except json.JSONDecodeError:
+            # Look for JSON object within the text
+            brace_start = text.find("{")
+            brace_end = text.rfind("}")
+            if brace_start != -1 and brace_end > brace_start:
+                result = json.loads(text[brace_start:brace_end + 1])
+            else:
+                raise
+
+        if not isinstance(result, dict):
+            log_structured("warning", "Cross-validation JSON is not a dict", type=type(result).__name__)
+            return {"weak_sections": [], "contradictions": []}
+
+        # Enforce limits and validate types
+        raw_weak = result.get("weak_sections", [])
+        weak = [w for w in (raw_weak if isinstance(raw_weak, list) else [])
+                if isinstance(w, dict)][:3]
+        raw_contradictions = result.get("contradictions", [])
+        contradictions = [c for c in (raw_contradictions if isinstance(raw_contradictions, list) else [])
+                         if isinstance(c, str)][:3]
+
+        return {"weak_sections": weak, "contradictions": contradictions}
+    except (json.JSONDecodeError, KeyError, TypeError, AttributeError) as e:
+        log_structured("warning", "Cross-validation JSON parse failed", error=str(e))
+        return {"weak_sections": [], "contradictions": []}
+
+
+def _fast_regenerate_section(
+    company_name: str,
+    website: str | None,
+    section_title: str,
+    section_content: str,
+    analysis_workbook: str,
+    new_evidence: str,
+    source_urls: list[str],
+) -> str:
+    """
+    Phase 5 helper: Re-writes one weak section with additional evidence.
+
+    Uses the same system prompt style as Phase 4 report writing.
+    Returns the re-generated section content (starting with ## heading).
+    """
+    from primr.ai.grok_client import grok_llm
+
+    source_list = "\n".join(f"- {url}" for url in source_urls[:50])
+
+    prompt = f"""Re-write this section of a consulting brief for {company_name}, incorporating
+the NEW EVIDENCE provided below. The goal is to make the section evidence-rich,
+specific, and analytically strong.
+
+SECTION TO REWRITE:
+{section_content}
+
+NEW EVIDENCE (incorporate this):
+{new_evidence}
+
+ANALYSIS CONTEXT (for background):
+{analysis_workbook[:20_000]}
+
+ALL AVAILABLE SOURCES:
+{source_list}
+
+RULES:
+- Start with: ## {section_title}
+- Full paragraphs with evidence, not bullet dumps
+- Cite sources with [Source: URL]
+- Label claims: Confirmed, Reported, Estimated, Hypothesis
+- Stress-test the company narrative — separate claims from evidence
+- Keep roughly the same scope as the original section
+- End with a single "What to validate:" line followed by a concrete check question"""
+
+    system_prompt = (
+        "You are a senior strategic analyst rewriting a section of a consulting dossier. "
+        "Your reader is a partner walking into a meeting. Incorporate the new evidence "
+        "to make the section analytically stronger. Be conservative on financial inferences."
+    )
+
+    try:
+        result = grok_llm(
+            prompt,
+            model=GROK_MODEL_WRITING,
+            max_tokens=5_000,
+            temperature=0.7,
+            system_prompt=system_prompt,
+        )
+    except Exception as e:
+        log_structured("warning", "Section regeneration failed", section=section_title, error=str(e))
+        return section_content  # Return original on failure
+
+    if not result or not result.strip():
+        return section_content
+
+    # Ensure it starts with the correct heading
+    result = result.strip()
+    if not result.startswith(f"## {section_title}"):
+        # Strip Grok's wrong heading if it starts with any ## heading
+        if result.startswith("## "):
+            # Remove the first line (wrong heading)
+            first_newline = result.find("\n")
+            if first_newline != -1:
+                result = result[first_newline:].strip()
+            else:
+                result = ""
+        result = f"## {section_title}\n\n{result}" if result else f"## {section_title}\n\n"
+
+    return result
+
+
 def perform_fast_research(
     company_name: str | None,
     website: str | None,
@@ -1269,13 +1953,15 @@ def perform_fast_research(
     Fast research mode using Grok 4.1 with accordion-style batch writing.
 
     Pipeline:
-    1. Data collection: scrape 25 pages + 5 search queries via Gemini Flash
-    2. Grok analysis call: structured workbook from raw data
-    3. Grok report writing: 5 batch calls (one per YAML part), each writing
+    1. Data collection: scrape 50 pages + 10 search queries via Gemini Flash
+    2. Research deepening: Grok gap analysis → targeted search → fill
+    3. Grok analysis call: structured workbook from enriched data
+    4. Grok report writing: 5 batch calls (one per YAML part), each writing
        2-7 sections with rolling context from completed batches
-    4. Optional Grok call for AI strategy per vendor
+    5. Cross-validation: find weak spots → targeted search → re-write ≤3 sections
+    6. Optional Grok call for AI strategy per vendor
 
-    Target: ~12-15 min, ~$0.25
+    Target: ~20-25 min, ~$0.50
     """
     from primr.ai.grok_client import get_grok_session_usage, grok_llm, reset_grok_session
 
@@ -1285,16 +1971,16 @@ def perform_fast_research(
     folder_path = create_working_folder(company_name, website)
 
     try:
-        total_phases = 4 if ai_strategy else 3
+        total_phases = 6 if ai_strategy else 5
 
         # =================================================================
         # Phase 1: Data collection (Gemini Flash — cheap)
         # =================================================================
-        console.phase_banner(1, total_phases, "Data Collection (fast)", "Scraping website + external sources", "3-5 min")
+        console.phase_banner(1, total_phases, "Data Collection (fast)", "Scraping website + external sources", "5-8 min")
 
-        # Scrape website (reduced: 25 pages instead of 50)
+        # Scrape website (50 pages for enhanced fast mode)
         with console.timed_operation("Scanning website"):
-            scraped_data = fetch_web_content(website, company_name, max_pages=25, working_folder=folder_path) if website else {}
+            scraped_data = fetch_web_content(website, company_name, max_pages=50, working_folder=folder_path) if website else {}
             pages_scraped = len(scraped_data)
         log_structured("info", "Fast mode: website scraping complete", pages=pages_scraped)
 
@@ -1307,25 +1993,26 @@ def perform_fast_research(
             with console.timed_operation("Extracting insights"):
                 summarized = summarize_scraped_content(company_name, website, scraped_data, folder_path)
 
-        # Build raw corpus from scraped data (truncate each page to 10k chars)
+        # Build raw corpus from scraped data (truncate each page to 20k chars)
         raw_corpus_parts: list[str] = []
         for url, content in scraped_data.items():
-            truncated = content[:10_000] if len(content) > 10_000 else content
+            truncated = content[:20_000] if len(content) > 20_000 else content
             raw_corpus_parts.append(f"[Page: {url}]\n{truncated}")
         raw_corpus = "\n\n".join(raw_corpus_parts) if raw_corpus_parts else ""
 
-        # External research (5 queries, 6 sources)
+        # External research (10 queries, up to 15 sources)
         source_urls: list[str] = []
+        source_urls_seen: set[str] = set()  # O(1) dedup across phases
         external_text_parts: list[str] = []
         external_raw_parts: list[str] = []
         with console.timed_operation("Searching external sources"):
             external_queries = generate_external_search_queries(
                 company_name,
                 website,
-                max_queries=min(5, MAX_EXTERNAL_SEARCH_QUERIES),
+                max_queries=min(10, MAX_EXTERNAL_SEARCH_QUERIES),
             )
             external_data: dict = {}
-            max_external_sources = 6
+            max_external_sources = 15
 
             for query in external_queries:
                 if len(external_data) >= max_external_sources:
@@ -1342,8 +2029,9 @@ def perform_fast_research(
 
             for url, content in external_data.items():
                 source_urls.append(url)
-                external_text_parts.append(f"[Source: {url}]\n{content[:3000]}")
-                external_raw_parts.append(f"[Source: {url}]\n{content[:5_000]}")
+                source_urls_seen.add(url)
+                external_text_parts.append(f"[Source: {url}]\n{content[:8_000]}")
+                external_raw_parts.append(f"[Source: {url}]\n{content[:12_000]}")
 
         log_structured("info", "Fast mode: external sources complete", sources=len(external_data))
         console.phase_complete("Data Collection (fast)", [("Pages", str(pages_scraped)), ("External", str(len(external_data)))])
@@ -1365,9 +2053,80 @@ def perform_fast_research(
         external_sources_raw = "\n\n".join(external_raw_parts) if external_raw_parts else "(no external sources)"
 
         # =================================================================
-        # Phase 2: Grok analysis call (structured workbook)
+        # Phase 2: Research Deepening (Grok gap analysis → targeted search)
         # =================================================================
-        console.phase_banner(2, total_phases, "Analysis (Grok)", "Building structured analysis workbook", "2-4 min")
+        console.phase_banner(2, total_phases, "Research Deepening", "Identifying gaps and searching for additional evidence", "3-5 min")
+
+        with console.timed_operation("Analyzing research gaps via Grok"):
+            gap_queries, gap_text = _fast_gap_analysis(
+                company_name or display_name,
+                website,
+                raw_corpus,
+                external_sources_raw,
+                source_urls,
+            )
+
+        gap_new_sources = 0
+        gap_search_count = 0
+
+        if gap_queries:
+            console.ok(f"Gap analysis: {len(gap_queries)} questions identified")
+            max_gap_sources = 8
+
+            with console.timed_operation("Searching for gap-filling sources"):
+                for gq in gap_queries:
+                    if gap_new_sources >= max_gap_sources:
+                        break
+                    gap_search_count += 1
+                    results = search_web(gq, company_name, website)
+                    if results:
+                        filtered = [
+                            r for r in results[:3]
+                            if (not website or website.lower() not in r.get("url", "").lower())
+                            and r.get("url", "") not in source_urls_seen
+                        ]
+                        remaining = max_gap_sources - gap_new_sources
+                        scraped = scrape_external_sources_validated(
+                            filtered, company_name=company_name, website=website,
+                            max_sources=min(2, remaining),
+                        )
+                        for url, content in scraped.items():
+                            if url not in source_urls_seen:
+                                source_urls.append(url)
+                                source_urls_seen.add(url)
+                                external_text_parts.append(f"[Source: {url}]\n{content[:8_000]}")
+                                external_raw_parts.append(f"[Source: {url}]\n{content[:12_000]}")
+                                gap_new_sources += 1
+
+            console.ok(f"Found {gap_new_sources} additional sources")
+
+            # Rebuild external_sources_raw with new sources
+            external_sources_raw = "\n\n".join(external_raw_parts) if external_raw_parts else "(no external sources)"
+
+            # Update insights file
+            all_insights_parts_updated = []
+            if summarized:
+                all_insights_parts_updated.append(f"=== WEBSITE INSIGHTS ===\n{summarized}")
+            if external_text_parts:
+                all_insights_parts_updated.append("=== EXTERNAL SOURCES ===\n" + "\n\n".join(external_text_parts))
+            combined_insights = "\n\n".join(all_insights_parts_updated) if all_insights_parts_updated else combined_insights
+            with open(insights_file, "w", encoding="utf-8") as f:
+                f.write(combined_insights)
+        else:
+            console.info("Gap analysis returned no queries — skipping")
+
+        # Save gap analysis output to working folder
+        gap_analysis_path = os.path.join(folder_path, "gap_analysis.md")
+        with open(gap_analysis_path, "w", encoding="utf-8") as f:
+            f.write(gap_text if gap_text else "(no gap analysis performed)")
+
+        total_external = len(source_urls)
+        console.phase_complete("Research Deepening", [("New sources", str(gap_new_sources)), ("Total external", str(total_external))])
+
+        # =================================================================
+        # Phase 3: Grok analysis call (structured workbook)
+        # =================================================================
+        console.phase_banner(3, total_phases, "Analysis (Grok)", "Building structured analysis workbook", "2-4 min")
 
         analysis_system = (
             "You are a senior strategic analyst conducting pre-engagement research "
@@ -1404,9 +2163,9 @@ def perform_fast_research(
         console.phase_complete("Analysis (Grok)")
 
         # =================================================================
-        # Phase 3: Grok report writing (section batches)
+        # Phase 4: Grok report writing (section batches)
         # =================================================================
-        console.phase_banner(3, total_phases, "Report Writing (Grok)", "Writing 21 sections in 5 batches", "3-6 min")
+        console.phase_banner(4, total_phases, "Report Writing (Grok)", "Writing 21 sections in 5 batches", "3-6 min")
 
         # Build a raw data subset for evidence (~100k chars)
         raw_corpus_subset = raw_corpus[:100_000] if len(raw_corpus) > 100_000 else raw_corpus
@@ -1465,6 +2224,7 @@ def perform_fast_research(
             try:
                 batch_content = grok_llm(
                     prompt,
+                    model=GROK_MODEL_WRITING,
                     max_tokens=16_000,
                     temperature=0.7,
                     system_prompt=report_system,
@@ -1489,8 +2249,139 @@ def perform_fast_research(
             return None
 
         report_content = _assemble_fast_report(company_name or display_name, website, written_sections)
-        total_words = sum(s["words"] for s in written_sections)
+        total_words = len(report_content.split())
         console.phase_complete("Report Writing (Grok)", [("Sections", str(len(written_sections))), ("Words", f"{total_words:,}")])
+
+        # =================================================================
+        # Phase 5: Cross-Validation (review + targeted enrichment)
+        # =================================================================
+        console.phase_banner(5, total_phases, "Cross-Validation", "Reviewing report for gaps and weak sections", "2-4 min")
+
+        with console.timed_operation("Reviewing report quality via Grok"):
+            cv_result = _fast_cross_validate(
+                company_name or display_name,
+                website,
+                report_content,
+                source_urls,
+            )
+
+        weak_sections = cv_result.get("weak_sections", [])
+        contradictions = cv_result.get("contradictions", [])
+        sections_enriched = 0
+        cv_search_count = 0
+
+        if weak_sections:
+            console.ok(f"Review complete: {len(weak_sections)} section(s) flagged for enrichment")
+
+            # Build a lookup of report headings for case-insensitive matching
+            report_headings = re.findall(r"^## (.+)$", report_content, re.MULTILINE)
+            heading_lookup = {h.lower().strip(): h for h in report_headings}
+
+            for ws in weak_sections:
+                raw_title = str(ws.get("title", "")).lstrip("#").strip()
+                raw_queries = ws.get("queries", [])
+                queries = [str(q) for q in raw_queries[:2]] if isinstance(raw_queries, list) else []
+
+                if not raw_title or not queries:
+                    continue
+
+                # Case-insensitive heading match
+                section_title = heading_lookup.get(raw_title.lower(), raw_title)
+
+                # Search for additional evidence
+                new_evidence_parts: list[str] = []
+                cv_new_sources = 0
+                with console.timed_operation(f"Enriching: {section_title}"):
+                    for q in queries:
+                        cv_search_count += 1
+                        results = search_web(q, company_name, website)
+                        if results:
+                            filtered = [
+                                r for r in results[:3]
+                                if (not website or website.lower() not in r.get("url", "").lower())
+                                and r.get("url", "") not in source_urls_seen
+                            ]
+                            scraped = scrape_external_sources_validated(
+                                filtered, company_name=company_name, website=website,
+                                max_sources=2,
+                            )
+                            for url, content in scraped.items():
+                                if url not in source_urls_seen:
+                                    source_urls.append(url)
+                                    source_urls_seen.add(url)
+                                    new_evidence_parts.append(f"[Source: {url}]\n{content[:8_000]}")
+                                    cv_new_sources += 1
+
+                if not new_evidence_parts:
+                    continue
+
+                new_evidence = "\n\n".join(new_evidence_parts)
+
+                # Find the original section content in the report
+                section_pattern = re.compile(
+                    rf"(## {re.escape(section_title)}\n.*?)(?=\n## |\Z)",
+                    re.DOTALL,
+                )
+                match = section_pattern.search(report_content)
+                if not match:
+                    log_structured("warning", "Cross-validation: section not found in report", section=section_title)
+                    continue
+
+                original_section = match.group(1)
+
+                # Re-generate the section with new evidence
+                with console.timed_operation(f"Rewriting: {section_title}"):
+                    regenerated = _fast_regenerate_section(
+                        company_name or display_name,
+                        website,
+                        section_title,
+                        original_section,
+                        analysis_workbook,
+                        new_evidence,
+                        source_urls,
+                    )
+
+                # Splice back into report (preserve \n\n separator between sections)
+                if regenerated and regenerated != original_section:
+                    if not regenerated.endswith("\n"):
+                        regenerated += "\n"
+                    report_content = report_content[:match.start()] + regenerated + report_content[match.end():]
+                    sections_enriched += 1
+                    console.ok(f"Enriched: {section_title} ({cv_new_sources} new source(s))")
+        else:
+            console.ok("Review complete: no sections flagged for enrichment")
+
+        if contradictions:
+            for c in contradictions:
+                console.info(f"Contradiction noted: {c[:100]}")
+
+        # Save cross-validation output to working folder
+        cv_output_path = os.path.join(folder_path, "cross_validation.json")
+        with open(cv_output_path, "w", encoding="utf-8") as f:
+            json.dump(cv_result, f, indent=2)
+
+        # Extract section count from report for metrics
+        report_section_count = len(re.findall(r"^## ", report_content, re.MULTILINE))
+        console.phase_complete("Cross-Validation", [("Sections reviewed", str(report_section_count)), ("Enriched", str(sections_enriched))])
+
+        # Trust polish is a low-cost editorial pass to improve evidence discipline.
+        report_content = _polish_fast_report_for_trust(
+            company_name or display_name,
+            website,
+            report_content,
+            source_urls,
+        )
+        report_content = _normalize_fast_citations(report_content)
+        report_content = _enforce_fast_section_quality_guards(report_content)
+        report_content = _clean_fast_report_output(report_content)
+        qa_metrics = _compute_fast_report_qa_metrics(report_content)
+        console.info(
+            "Fast QA: "
+            f"labels={qa_metrics['confidence_labels']}, "
+            f"cites={qa_metrics['citations_used']}/{qa_metrics['citations_defined']}, "
+            f"validate={qa_metrics['sections_with_validate']}/{qa_metrics['section_count']}, "
+            f"gate={'PASS' if qa_metrics['qa_gate_passed'] else 'WARN'}"
+        )
 
         # Save report via existing output pipeline
         docx_path = _convert_deep_research_to_docx(report_content, company_name or display_name, website)
@@ -1501,11 +2392,11 @@ def perform_fast_research(
             f.write(report_content)
 
         # =================================================================
-        # Phase 4: AI Strategy via Grok (optional)
+        # Phase 6: AI Strategy via Grok (optional)
         # =================================================================
         strategy_paths: dict[str, str] = {}
         if ai_strategy and cloud_vendors:
-            console.phase_banner(4, total_phases, "AI Strategy (Grok)", "Generating AI recommendations", "2-3 min")
+            console.phase_banner(6, total_phases, "AI Strategy (Grok)", "Generating AI recommendations", "2-3 min")
 
             for vendor in cloud_vendors:
                 # Build strategy prompt (reuse existing)
@@ -1536,13 +2427,24 @@ def perform_fast_research(
                 vendor_label = f" ({vendor.upper()})" if len(cloud_vendors) > 1 else ""
                 try:
                     with console.timed_operation(f"AI Strategy{vendor_label} via Grok"):
-                        strategy_content = grok_llm(combined_strategy_prompt, max_tokens=16_000)
+                        strategy_content = grok_llm(
+                            combined_strategy_prompt,
+                            model=GROK_MODEL_WRITING,
+                            max_tokens=16_000,
+                        )
                 except Exception as strat_err:
                     console.warn(f"AI Strategy{vendor_label} failed: {strat_err} — skipping")
                     log_structured("warning", "Fast mode strategy failed", vendor=vendor, error=str(strat_err))
                     continue
 
                 if strategy_content and strategy_content.strip():
+                    # Strip Grok disclaimer from strategy output
+                    strategy_content = re.sub(
+                        r"\n*_?Disclaimer:\s*Grok is not a financial advi[sc]er[^\n]*\n?",
+                        "\n",
+                        strategy_content,
+                        flags=re.IGNORECASE,
+                    ).strip()
                     # Save strategy output
                     strategy_path = _save_strategy_output(
                         strategy_content, company_name or display_name, vendor
@@ -1609,7 +2511,7 @@ def perform_fast_research(
             company=display_name,
             input_tokens=grok_usage["input_tokens"],
             output_tokens=grok_usage["output_tokens"],
-            search_queries=len(external_queries),
+            search_queries=len(external_queries) + gap_search_count + cv_search_count,
             duration_seconds=elapsed,
             pipeline_cost=actual_cost,
         )

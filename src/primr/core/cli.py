@@ -56,6 +56,7 @@ class Command(Enum):
     QA = "qa"
     QA_RECENT = "qa-recent"
     AI_STRATEGY_ONLY = "ai-strategy-only"
+    EVAL = "eval"
     # Agentic architecture commands
     MEMORY = "memory"
     ORCHESTRATE = "orchestrate"
@@ -110,6 +111,26 @@ class CLIConfig:
     memory_list: bool = False
     orchestrate_max_cost: float | None = None
     roadmap_version: str | None = None
+    eval_mode: bool = False
+    eval_id: str | None = None
+    eval_root: str = "output/evals"
+    eval_profiles: tuple[str, ...] = ("full", "lite", "fast")
+    eval_baseline: str = "full"
+    eval_manifest: str | None = None
+    eval_run_missing: bool = False
+    eval_max_new_runs: int = 0
+    eval_max_estimated_cost: float = 0.0
+    eval_quality_ratio_threshold: float = 0.8
+    eval_cost_ratio_threshold: float = 0.2
+    eval_company: str | None = None
+    eval_source_dir: str = "output"
+    eval_auto_stage: bool = True
+    eval_llm_judge: bool = False
+    eval_judge_provider: str = "grok"
+    eval_judge_model: str = "grok-4-1-fast-reasoning"
+    eval_judge_max_pairs: int = 1
+    eval_judge_passes: int = 1
+    eval_judge_max_cost: float = 0.0
 
     @property
     def cloud_vendor(self) -> str:
@@ -236,6 +257,26 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         memory_list=getattr(parsed, 'memory_list', False),
         orchestrate_max_cost=getattr(parsed, 'max_cost', None),
         roadmap_version=getattr(parsed, 'roadmap_version', None),
+        eval_mode=getattr(parsed, 'eval_mode', False),
+        eval_id=getattr(parsed, 'eval_id', None),
+        eval_root=getattr(parsed, 'eval_root', "output/evals"),
+        eval_profiles=tuple(dict.fromkeys(getattr(parsed, 'eval_profiles', ['full', 'lite', 'fast']))),
+        eval_baseline=getattr(parsed, 'eval_baseline', 'full'),
+        eval_manifest=getattr(parsed, 'eval_manifest', None),
+        eval_run_missing=getattr(parsed, 'eval_run_missing', False),
+        eval_max_new_runs=getattr(parsed, 'eval_max_new_runs', 0),
+        eval_max_estimated_cost=getattr(parsed, 'eval_max_estimated_cost', 0.0),
+        eval_quality_ratio_threshold=getattr(parsed, 'eval_quality_ratio_threshold', 0.8),
+        eval_cost_ratio_threshold=getattr(parsed, 'eval_cost_ratio_threshold', 0.2),
+        eval_company=getattr(parsed, 'eval_company', None),
+        eval_source_dir=getattr(parsed, 'eval_source_dir', "output"),
+        eval_auto_stage=not getattr(parsed, 'eval_no_auto_stage', False),
+        eval_llm_judge=getattr(parsed, 'eval_llm_judge', False),
+        eval_judge_provider=getattr(parsed, 'eval_judge_provider', "grok"),
+        eval_judge_model=getattr(parsed, 'eval_judge_model', "grok-4-1-fast-reasoning"),
+        eval_judge_max_pairs=getattr(parsed, 'eval_judge_max_pairs', 1),
+        eval_judge_passes=getattr(parsed, 'eval_judge_passes', 1),
+        eval_judge_max_cost=getattr(parsed, 'eval_judge_max_cost', 0.0),
     )
 
 
@@ -260,9 +301,11 @@ def main(args: list[str] | None = None) -> int:
     utility_commands = {
         Command.DOCTOR, Command.LIST_RECENT, Command.CLEAN_TEMP,
         Command.CHECK_JOBS, Command.CLEAR_JOBS, Command.LIST_STRATEGIES,
-        Command.SHOW_USAGE, Command.ENRICH,
+        Command.SHOW_USAGE, Command.ENRICH, Command.EVAL,
     }
     include_api_keys = config.command not in utility_commands
+    if config.command == Command.EVAL and config.eval_run_missing:
+        include_api_keys = True
 
     validation_result = validate_config(include_api_keys=include_api_keys)
     if not validation_result.valid:
@@ -308,6 +351,7 @@ def main(args: list[str] | None = None) -> int:
         Command.QA: _handle_qa,
         Command.QA_RECENT: _handle_qa_recent,
         Command.AI_STRATEGY_ONLY: _handle_ai_strategy_only,
+        Command.EVAL: _handle_eval,
         Command.RESEARCH: _handle_research,
         # Agentic architecture handlers
         Command.MEMORY: _handle_memory,
@@ -405,6 +449,13 @@ AI Strategy Retry (when main report succeeded but AI strategy failed):
   primr "Acme Corp" https://acme.example --resume-local
   primr --resume-latest                               # Recover + finalize completed cloud jobs
 
+Versioned Eval (offline-first, no API spend by default):
+  primr --eval --eval-id eval-2026-02-r1
+  primr --eval --eval-id eval-2026-02-r1 --eval-profiles full lite fast
+  primr --eval --eval-id eval-2026-02-r1 --eval-company "Harver"
+  primr --eval --eval-id eval-2026-02-r1 --eval-llm-judge --eval-judge-max-cost 0.25
+  primr --eval --eval-id eval-2026-02-r1 --eval-run-missing --eval-manifest eval_companies.csv --eval-max-new-runs 2 --eval-max-estimated-cost 12
+
 Agentic Architecture (v1.7.0):
   primr memory "Acme Corp"                           # View hypotheses for a company
   primr --memory-list                                # List all companies with memory
@@ -500,7 +551,7 @@ Accordion Method Test (for development):
         "--fast",
         action="store_true",
         dest="fast_mode",
-        help="Fast mode: Grok 4.1 accordion report (~10-17 min, ~$0.25). Requires XAI_API_KEY"
+        help="Fast mode: Grok 4.1 with research deepening (~20 min, ~$0.50). Supports --cloud-vendor. Requires XAI_API_KEY"
     )
     parser.add_argument(
         "--discovery-notes",
@@ -622,6 +673,128 @@ Accordion Method Test (for development):
         help="Show details for a specific roadmap version (e.g., 'v1.7.0')"
     )
 
+    # Versioned model/profile evaluation
+    parser.add_argument(
+        "--eval",
+        action="store_true",
+        dest="eval_mode",
+        help="Run versioned model/profile evaluation scorecard (offline analysis by default)"
+    )
+    parser.add_argument(
+        "--eval-id",
+        type=str,
+        metavar="EVAL_ID",
+        help="Evaluation run id (e.g., eval-2026-02-r1)"
+    )
+    parser.add_argument(
+        "--eval-root",
+        type=str,
+        default="output/evals",
+        help="Root folder containing eval outputs (default: output/evals)"
+    )
+    parser.add_argument(
+        "--eval-profiles",
+        type=str,
+        nargs="+",
+        choices=["full", "lite", "fast"],
+        default=["full", "lite", "fast"],
+        help="Profiles to compare (default: full lite fast)"
+    )
+    parser.add_argument(
+        "--eval-baseline",
+        type=str,
+        choices=["full", "lite", "fast"],
+        default="full",
+        help="Baseline profile for quality/cost ratio comparison (default: full)"
+    )
+    parser.add_argument(
+        "--eval-manifest",
+        type=str,
+        metavar="CSV_PATH",
+        help="CSV manifest with company/company_name and website columns (required for --eval-run-missing)"
+    )
+    parser.add_argument(
+        "--eval-run-missing",
+        action="store_true",
+        help="Execute missing profile/company runs (requires explicit spend guardrails)"
+    )
+    parser.add_argument(
+        "--eval-max-new-runs",
+        type=int,
+        default=0,
+        help="Maximum number of missing runs to execute when --eval-run-missing is set (default: 0)"
+    )
+    parser.add_argument(
+        "--eval-max-estimated-cost",
+        type=float,
+        default=0.0,
+        help="Hard spend cap in USD for missing runs when --eval-run-missing is set (default: 0.0)"
+    )
+    parser.add_argument(
+        "--eval-quality-ratio-threshold",
+        type=float,
+        default=0.8,
+        help="Minimum quality ratio vs baseline for pass/fail (default: 0.8)"
+    )
+    parser.add_argument(
+        "--eval-cost-ratio-threshold",
+        type=float,
+        default=0.2,
+        help="Maximum estimated cost ratio vs baseline for pass/fail (default: 0.2)"
+    )
+    parser.add_argument(
+        "--eval-company",
+        type=str,
+        help="Target a specific company for auto-staging from existing outputs"
+    )
+    parser.add_argument(
+        "--eval-source-dir",
+        type=str,
+        default="output",
+        help="Source directory to auto-stage reports from (default: output)"
+    )
+    parser.add_argument(
+        "--eval-no-auto-stage",
+        action="store_true",
+        help="Disable automatic staging from existing local outputs"
+    )
+    parser.add_argument(
+        "--eval-llm-judge",
+        action="store_true",
+        help="Optional LLM judge overlay for eval scorecard (incurs API cost)"
+    )
+    parser.add_argument(
+        "--eval-judge-provider",
+        type=str,
+        choices=["grok"],
+        default="grok",
+        help="LLM judge provider (default: grok)"
+    )
+    parser.add_argument(
+        "--eval-judge-model",
+        type=str,
+        default="grok-4-1-fast-reasoning",
+        help="Model name for LLM judge (default: grok-4-1-fast-reasoning)"
+    )
+    parser.add_argument(
+        "--eval-judge-max-pairs",
+        type=int,
+        default=1,
+        help="Max company profile pairs to judge (default: 1)"
+    )
+    parser.add_argument(
+        "--eval-judge-passes",
+        type=int,
+        default=1,
+        help="Judge passes per pair for variance reduction (default: 1, cheapest)"
+    )
+    parser.add_argument(
+        "--eval-judge-max-cost",
+        type=float,
+        default=0.0,
+        help="Hard cost cap in USD for LLM judge pass (required when --eval-llm-judge)"
+    )
+
     return parser
 
 
@@ -639,6 +812,7 @@ _FLAG_COMMANDS: list[tuple[str, Command]] = [
     ("orchestrate", Command.ORCHESTRATE),
     ("roadmap", Command.ROADMAP),
     ("roadmap_version", Command.ROADMAP),
+    ("eval_mode", Command.EVAL),
     ("ai_strategy_only", Command.AI_STRATEGY_ONLY),
     # qa_recent handled separately (is not None check)
     ("qa", Command.QA),
@@ -761,7 +935,7 @@ def _handle_dry_run(config: CLIConfig) -> int:
     # Validate --fast + --mode compatibility (same check as _handle_research)
     if config.fast_mode and config.mode not in ("complete", "structured", "hybrid"):
         console.error(f"--fast only works with full mode, not --mode {config.mode}")
-        console.info("Usage: primr \"Company\" https://url --fast --dry-run")
+        console.info("Usage: primr \"Company\" https://url --fast [--cloud-vendor aws azure] --dry-run")
         return 1
 
     mode_label = "fast (Grok 4.1)" if config.fast_mode else config.mode
@@ -1287,6 +1461,239 @@ def _handle_roadmap(config: CLIConfig) -> int:
     return 0
 
 
+def _handle_eval(config: CLIConfig) -> int:
+    """Handle versioned model/profile evaluation."""
+    import csv
+    import shutil
+    from pathlib import Path
+
+    from primr.config.config import FAST_FEEDBACK_RULES_PATH, OUTPUT_DIR
+    from primr.core.model_eval import (
+        auto_stage_existing_reports,
+        evaluate_outputs,
+        run_grok_judge,
+        write_fast_feedback_guidance,
+        write_llm_judge_report,
+    )
+    from primr.core.research_agent import perform_research
+    from primr.utils.cost_estimator import estimate_cost
+
+    if not config.eval_id:
+        console.error("--eval-id is required for --eval")
+        console.info("Usage: primr --eval --eval-id eval-2026-02-r1")
+        return 1
+
+    if config.eval_baseline not in config.eval_profiles:
+        console.error(f"--eval-baseline '{config.eval_baseline}' must be included in --eval-profiles")
+        return 1
+
+    eval_root = Path(config.eval_root)
+    eval_dir = eval_root / config.eval_id
+    eval_dir.mkdir(parents=True, exist_ok=True)
+    manifest_path = Path(config.eval_manifest) if config.eval_manifest else None
+    if config.eval_company and manifest_path is None:
+        company_manifest = eval_dir / "eval_company_manifest.csv"
+        company_manifest.write_text(
+            "company\n" + config.eval_company.strip() + "\n",
+            encoding="utf-8",
+        )
+        manifest_path = company_manifest
+
+    if config.eval_auto_stage:
+        staged = auto_stage_existing_reports(
+            eval_id=config.eval_id,
+            eval_root=eval_root,
+            source_dir=Path(config.eval_source_dir),
+            profiles=config.eval_profiles,
+            company=config.eval_company,
+            usage_file=Path("logs") / "usage_history.json",
+        )
+        staged_count = sum(len(v) for v in staged.values())
+        if staged_count > 0:
+            console.info(f"Auto-staged {staged_count} existing report(s) into eval folders.")
+        else:
+            console.info("Auto-stage found no matching local reports.")
+
+    if config.eval_run_missing:
+        if not manifest_path:
+            console.error("--eval-run-missing requires --eval-manifest (CSV with company/company_name + website)")
+            return 1
+        if config.eval_max_new_runs <= 0:
+            console.error("--eval-run-missing requires --eval-max-new-runs > 0")
+            return 1
+        if config.eval_max_estimated_cost <= 0:
+            console.error("--eval-run-missing requires --eval-max-estimated-cost > 0")
+            return 1
+
+        current = evaluate_outputs(
+            eval_id=config.eval_id,
+            eval_root=eval_root,
+            profiles=config.eval_profiles,
+            baseline=config.eval_baseline,
+            quality_ratio_threshold=config.eval_quality_ratio_threshold,
+            cost_ratio_threshold=config.eval_cost_ratio_threshold,
+            manifest_path=manifest_path,
+        )
+
+        if current.missing_pairs:
+            websites: dict[str, str] = {}
+            with open(manifest_path, encoding="utf-8", newline="") as f:
+                reader = csv.DictReader(f)
+                for manifest_row in reader:
+                    name = (manifest_row.get("company") or manifest_row.get("company_name") or "").strip().lower()
+                    website = (manifest_row.get("website") or manifest_row.get("url") or "").strip()
+                    if name and website:
+                        websites[name] = website
+
+            to_run = current.missing_pairs[:config.eval_max_new_runs]
+
+            def _profile_estimate(profile: str) -> float:
+                if profile == "fast":
+                    return estimate_cost("complete", include_ai_strategy=True, fast_mode=True).total_cost
+                if profile == "lite":
+                    return estimate_cost("complete", include_ai_strategy=True, lite_strategy=True).total_cost
+                return estimate_cost("complete", include_ai_strategy=True).total_cost
+
+            estimated_total = sum(_profile_estimate(profile) for _, profile in to_run)
+            if estimated_total > config.eval_max_estimated_cost:
+                console.error(
+                    f"Estimated cost for planned runs (${estimated_total:.2f}) exceeds cap "
+                    f"(${config.eval_max_estimated_cost:.2f})."
+                )
+                console.info("Increase --eval-max-estimated-cost or lower --eval-max-new-runs.")
+                return 1
+
+            console.step("Eval run-missing")
+            console.info(f"Executing {len(to_run)} run(s), estimated <= ${estimated_total:.2f}")
+
+            for company, profile in to_run:
+                website = websites.get(company.lower())
+                if not website:
+                    console.warn(f"Skipping {company} ({profile}): website missing in manifest")
+                    continue
+
+                profile_output = eval_dir / profile
+                profile_output.mkdir(parents=True, exist_ok=True)
+
+                console.info(f"Running {company} [{profile}]")
+                run_result = perform_research(
+                    company_name=company,
+                    website=website,
+                    mode="complete",
+                    ai_strategy=True,
+                    skip_confirm=True,
+                    lite_strategy=(profile == "lite"),
+                    fast_mode=(profile == "fast"),
+                )
+                if not run_result:
+                    console.warn(f"Run failed: {company} [{profile}]")
+                    continue
+
+                # Copy latest strategic overview artifact to eval profile folder.
+                company_prefix = company.replace(" ", "_")
+                output_root = Path(OUTPUT_DIR)
+                matches: list[Path] = []
+                for ext in ("*.md", "*.txt"):
+                    matches.extend(output_root.glob(f"{company_prefix}_Strategic_Overview_{ext}"))
+                if matches:
+                    latest = max(matches, key=lambda p: p.stat().st_mtime)
+                    shutil.copy2(latest, profile_output / latest.name)
+                else:
+                    console.warn(f"Could not locate output artifact to copy for {company} [{profile}]")
+
+    eval_result = evaluate_outputs(
+        eval_id=config.eval_id,
+        eval_root=eval_root,
+        profiles=config.eval_profiles,
+        baseline=config.eval_baseline,
+        quality_ratio_threshold=config.eval_quality_ratio_threshold,
+        cost_ratio_threshold=config.eval_cost_ratio_threshold,
+        manifest_path=manifest_path,
+    )
+
+    console.banner("Eval Scorecard")
+    console.info(f"Eval ID: {config.eval_id}")
+    console.info(f"Profiles: {', '.join(config.eval_profiles)}")
+    console.info(f"Baseline: {config.eval_baseline}")
+    console.blank()
+    for row in eval_result.decision_rows:
+        console.info(f"- {row}")
+    console.blank()
+    has_any_reports = any(summary.report_count > 0 for summary in eval_result.profile_summaries)
+    if not has_any_reports:
+        console.warn("No reports found for this eval id yet.")
+        console.info("Place outputs under output/evals/<eval-id>/<profile>/ or run with --eval-run-missing.")
+    elif eval_result.missing_pairs:
+        console.warn(f"Missing profile/company pairs: {len(eval_result.missing_pairs)}")
+        console.info("Re-run with --eval-run-missing plus spend caps to fill gaps.")
+    else:
+        console.ok("All profile/company pairs present.")
+    console.info(f"Scorecard: {eval_result.scorecard_md}")
+    console.info(f"CSV: {eval_result.scorecard_csv}")
+
+    judge_rows = []
+    if config.eval_llm_judge:
+        if config.eval_judge_max_cost <= 0:
+            console.error("--eval-llm-judge requires --eval-judge-max-cost > 0")
+            return 1
+        if not eval_result.metrics:
+            console.warn("No staged metrics available for LLM judge.")
+            return 0
+        candidates = [
+            p.profile for p in eval_result.profile_summaries
+            if p.profile != config.eval_baseline and p.report_count > 0
+        ]
+        if not candidates:
+            console.warn("No non-baseline profile with reports available for LLM judge.")
+            return 0
+        candidate_profile = candidates[0]
+        console.blank()
+        console.step("LLM Judge")
+        console.info(
+            f"Provider={config.eval_judge_provider}, Model={config.eval_judge_model}, "
+            f"Baseline={config.eval_baseline}, Candidate={candidate_profile}, "
+            f"MaxPairs={config.eval_judge_max_pairs}, Passes={config.eval_judge_passes}, "
+            f"MaxCost=${config.eval_judge_max_cost:.2f}"
+        )
+        if config.eval_judge_provider != "grok":
+            console.error(f"Unsupported eval judge provider: {config.eval_judge_provider}")
+            return 1
+        try:
+            rows, judge_cost = run_grok_judge(
+                eval_result=eval_result,
+                baseline_profile=config.eval_baseline,
+                candidate_profile=candidate_profile,
+                max_pairs=max(1, config.eval_judge_max_pairs),
+                passes=max(1, config.eval_judge_passes),
+                max_cost_usd=config.eval_judge_max_cost,
+                model=config.eval_judge_model,
+            )
+            judge_rows = rows
+            judge_path = Path(config.eval_root) / config.eval_id / "llm_judge.json"
+            write_llm_judge_report(judge_path, rows, judge_cost)
+            console.info(f"LLM judge rows: {len(rows)}")
+            console.info(f"LLM judge cost: ${judge_cost:.4f}")
+            console.info(f"LLM judge output: {judge_path}")
+        except Exception as e:
+            console.warn(f"LLM judge skipped due to provider/network error: {e}")
+            console.info("Deterministic eval scorecard is still valid.")
+
+    # Persist fast-mode feedback guidance for future --fast runs.
+    if "fast" in config.eval_profiles and any(m.profile == "fast" for m in eval_result.metrics):
+        feedback_path = Path(config.eval_root) / config.eval_id / "fast_feedback_guidance.md"
+        write_fast_feedback_guidance(
+            feedback_path,
+            eval_result=eval_result,
+            judge_rows=judge_rows,
+        )
+        # Promote latest guidance to a stable path consumed by fast report prompts.
+        Path(FAST_FEEDBACK_RULES_PATH).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(feedback_path, Path(FAST_FEEDBACK_RULES_PATH))
+        console.info(f"Fast feedback guidance: {feedback_path}")
+        console.info(f"Promoted guidance: {FAST_FEEDBACK_RULES_PATH}")
+    return 0
+
+
 def _run_preflight_checks(mode: str) -> tuple[bool, list[str]]:
     """
     Run preflight checks before starting research pipeline.
@@ -1422,7 +1829,7 @@ def _handle_research(config: CLIConfig) -> int:
     if config.fast_mode:
         if config.mode not in ("complete", "structured", "hybrid"):
             console.error(f"--fast only works with full mode, not --mode {config.mode}")
-            console.info("Usage: primr \"Company\" https://url --fast")
+            console.info("Usage: primr \"Company\" https://url --fast [--cloud-vendor aws azure]")
             return 1
         if not os.environ.get("XAI_API_KEY"):
             console.error("--fast requires XAI_API_KEY in your .env or environment")
@@ -1683,13 +2090,14 @@ def _check_gemini_resources(all_passed: bool, warnings_count: int) -> tuple[bool
     try:
         from google import genai
         client = genai.Client(api_key=gemini_key)
+        python_cmd = f'"{sys.executable}"'
 
         # Check for explicit caches
         try:
             caches = list(client.caches.list())
             if caches:
                 console.warn(f"Found {len(caches)} orphaned cache(s) - costing money!")
-                console.info("  Run: python scripts/check_gemini_resources.py --delete-caches")
+                console.info(f"  Run: {python_cmd} scripts/check_gemini_resources.py --delete-caches")
                 warnings_count += 1
             else:
                 console.ok("No orphaned caches")
@@ -1702,7 +2110,9 @@ def _check_gemini_resources(all_passed: bool, warnings_count: int) -> tuple[bool
             stores = list(client.file_search_stores.list())
             if stores:
                 console.warn(f"Found {len(stores)} orphaned file search store(s)")
-                console.info("  Run: python scripts/check_gemini_resources.py --delete-stores --force-empty")
+                console.info(
+                    f"  Run: {python_cmd} scripts/check_gemini_resources.py --delete-stores --force-empty"
+                )
                 warnings_count += 1
             else:
                 console.ok("No orphaned file search stores")

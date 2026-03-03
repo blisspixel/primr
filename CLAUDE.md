@@ -10,7 +10,7 @@ Company research tool using Gemini and Grok models. Generates strategic intellig
 ### Critical Constraints
 - **Single-job model**: ONE research job at a time. Check `primr --check-jobs` before starting new research.
 - **Async execution**: `research_company` returns immediately with `job_id`. Poll `check_jobs` for completion.
-- **Cost awareness**: ALWAYS run `estimate_run` before `research_company`. Typical costs: full default ~$6 (includes AI Strategy), scrape ~$0.10, deep ~$2.50. Each extra `--cloud-vendor` adds ~$2.50 (1 DR task per vendor). Use `--lite` to drop strategy cost to ~$0.15/vendor. Use `--fast` for Grok 4.1 mode (~$0.25, ~12 min). When `AI_REASONING_MODEL` is set to a tiered model (e.g. 3.1 Pro), estimates use conservative high-tier pricing automatically.
+- **Cost awareness**: ALWAYS run `estimate_run` before `research_company`. Typical costs: full default ~$6 (includes AI Strategy), scrape ~$0.10, deep ~$2.50. Each extra `--cloud-vendor` adds ~$2.50 (1 DR task per vendor). Use `--lite` to drop strategy cost to ~$0.15/vendor. Use `--fast` for Grok 4.1 mode (~$0.50 with AI Strategy, ~$0.45 with `--no-ai-strategy`, ~20 min). `--fast` supports `--cloud-vendor` for multi-vendor strategy. When `AI_REASONING_MODEL` is set to a tiered model (e.g. 3.1 Pro), estimates use conservative high-tier pricing automatically.
 
 ### Common Tasks
 
@@ -33,8 +33,11 @@ primr "Company" https://example.com --cloud-vendor aws azure
 # Lite AI strategy (~$4 for full + 2 vendors, uses Pro instead of DR)
 primr "Company" https://example.com --cloud-vendor aws azure --lite
 
-# Fast mode (~$0.25, ~12 min, uses Grok 4.1 — requires XAI_API_KEY)
+# Fast mode (~$0.50, ~20 min, uses Grok 4.1 — requires XAI_API_KEY)
 primr "Company" https://example.com --fast
+
+# Fast + multi-vendor AI strategy (~$0.55, 20-28 min)
+primr "Company" https://example.com --fast --cloud-vendor aws azure
 
 # Check job status
 primr --check-jobs

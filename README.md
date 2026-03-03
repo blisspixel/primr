@@ -38,9 +38,65 @@ Manual research takes hours. Primr typically runs in about an hour and costs abo
 | `full --no-ai-strategy` | Skip AI Strategy, just the research brief | 45-75 min | $3.50 |
 | `--mode scrape` | Crawl site + extract insights only | 5-10 min | $0.10 |
 | `--mode deep` | Gemini Deep Research on external sources only | 10-15 min | $2.50 |
-| `--fast` | Grok 4.1 accordion report (requires `XAI_API_KEY`) | 10-17 min | $0.25 |
+| `--fast` | Grok 4.1 with research deepening + cross-validation (requires `XAI_API_KEY`) | ~20 min | $0.50 |
+| `--fast` + multi-vendor | Add `--cloud-vendor aws azure` for multiple vendors | 20-28 min | ~$0.55 |
+| `--fast --no-ai-strategy` | Grok 4.1 report only, no AI Strategy | ~20 min | $0.45 |
 
-The default `primr` command runs full mode with AI Strategy (Azure vendor). Full mode costs are Gemini API usage: Deep Research is $2.50 per task (one for the brief, one per AI Strategy vendor), plus token costs for Flash/Pro calls. `--lite` swaps the strategy DR task for a Pro model call ($0.15/vendor instead of $2.50). **Cost-sensitive?** Use `--fast` — Grok 4.1 produces a solid report in ~12 minutes for about $0.25, no Gemini costs at all. Web search uses DuckDuckGo (free). Use `--dry-run` for accurate estimates based on your usage history.
+The default `primr` command runs full mode with AI Strategy (Azure vendor). Full mode costs are Gemini API usage: Deep Research is $2.50 per task (one for the brief, one per AI Strategy vendor), plus token costs for Flash/Pro calls. `--lite` swaps the strategy DR task for a Pro model call ($0.15/vendor instead of $2.50). **Cost-sensitive?** Use `--fast` — Grok 4.1 with research deepening and cross-validation produces a high-quality report with AI Strategy in ~20 minutes for about $0.50 (Flash is still used for scraping). Add `--cloud-vendor aws azure` for multi-vendor strategy (~$0.55), or `--no-ai-strategy` for the cheapest option (~$0.45). Web search uses DuckDuckGo (free). Use `--dry-run` for accurate estimates based on your usage history.
+
+`--fast` includes research deepening (gap analysis + targeted search), cross-validation (weak section detection + re-generation), plus trust-polish and citation normalization for high-quality reports at a fraction of full mode cost.
+
+## Versioned Model Evaluation (Quality vs Cost)
+
+When a new model or profile is released (for example, a new Pro/Flash/Grok variant), evaluate it with a repeatable run ID so decisions are data-driven.
+
+### 1) Pick an eval version and fixed corpus
+
+- Example eval ID: `eval-2026-02-r1`
+- Use 5-10 representative companies (keep this set stable across model tests)
+- Save runs under a dedicated folder per profile:
+
+```bash
+primr "ExampleCo A" https://example-a.com --mode full --output-dir output/evals/eval-2026-02-r1/full
+primr "ExampleCo A" https://example-a.com --mode full --lite --output-dir output/evals/eval-2026-02-r1/lite
+primr "ExampleCo A" https://example-a.com --fast --output-dir output/evals/eval-2026-02-r1/fast
+```
+
+Offline comparison (no API spend):
+
+```bash
+primr --eval --eval-id eval-2026-02-r1
+primr --eval --eval-id eval-2026-02-r1 --eval-company "ExampleCo"
+```
+
+By default, `--eval` auto-stages matching existing reports from `output/` into `output/evals/<eval-id>/<profile>/` and writes `staging_manifest.json` for reproducibility.
+
+Optional controlled fill-in for missing profile/company pairs (explicit spend caps required):
+
+```bash
+primr --eval --eval-id eval-2026-02-r1 --eval-run-missing --eval-manifest eval_companies.csv --eval-max-new-runs 2 --eval-max-estimated-cost 12
+```
+
+### 2) Track the same metrics for every profile
+
+- Trust gate (must-pass): citation coverage + section completeness + confidence-label quality
+- Decision utility: actionable recommendations, risks/tradeoffs, and key validation questions
+- Reuse quality (human + AI): structured headings, bullets/tables, machine-friendly signal density
+- Efficiency: utility-per-dollar and total estimated cost
+- Runtime: end-to-end duration per company
+
+These dimensions are aligned to the README goal: helping humans and AI get up to speed quickly and safely, not just producing long reports.
+
+### 3) Use a clear decision rule
+
+Adopt a candidate profile when all are true:
+
+- Trust gate passes for compared reports
+- Mean decision-utility score >= 80% of baseline profile
+- Mean cost <= 20% of baseline (or your own budget target)
+- Utility-per-dollar improves enough to matter operationally
+
+This lets you make explicit tradeoffs such as "80% of quality for 1/10th of cost" with evidence, not intuition.
 
 ## Quick Start
 
@@ -74,7 +130,8 @@ primr "Company" https://company.com --mode deep          # External research onl
 primr "Company" https://company.com --dry-run            # Cost estimate first
 primr "Company" https://company.com --cloud-vendor aws azure  # Multi-vendor AI strategy
 primr "Company" https://company.com --cloud-vendor aws azure --lite  # Cheaper/faster strategy
-primr "Company" https://company.com --fast                        # Grok 4.1 fast mode (~$0.25)
+primr "Company" https://company.com --fast                        # Grok 4.1 fast mode (~$0.50)
+primr "Company" https://company.com --fast --cloud-vendor aws azure  # Fast + multi-vendor AI strategy (~$0.55)
 primr "Company" https://company.com --skip-scrape-validation      # Continue even if scrape quality is low
 primr "Company" https://company.com --resume-local                # Reuse latest incomplete local run folder
 primr --resume-latest                                              # Recover completed cloud jobs and finalize MD/DOCX

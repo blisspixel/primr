@@ -247,6 +247,7 @@ GRADE_THRESHOLD_FOR_RESEARCH_REFINEMENT = 70
 OUTPUT_DIR = str(PROJECT_ROOT / "output")
 WORKING_DIR = str(PROJECT_ROOT / "working")
 LOGS_DIR = str(PROJECT_ROOT / "logs" / "chat_history")
+FAST_FEEDBACK_RULES_PATH = str(PROJECT_ROOT / "output" / "evals" / "_fast_feedback_current.md")
 
 # Ensure necessary directories exist (safe operation)
 for directory in [OUTPUT_DIR, WORKING_DIR, LOGS_DIR]:

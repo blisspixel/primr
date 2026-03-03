@@ -247,6 +247,7 @@ class TestPhaseBanner:
         c.phase_banner(1, 3, "Research Phase")
         captured = capsys.readouterr()
         assert "Research Phase" in captured.out
+        assert "PHASE 1/3" in captured.out
 
     def test_phase_banner_with_description(self, capsys):
         """phase_banner() should display description if provided."""

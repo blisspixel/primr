@@ -96,6 +96,7 @@ def grok_llm(
     Args:
         prompt: The user prompt to send.
         model: Model ID (default: grok-4-1-fast-reasoning).
+               Use grok-4-1-fast-non-reasoning for writing tasks.
         temperature: Sampling temperature.
         max_tokens: Maximum output tokens.
         retries: Number of retries on 429 rate-limit errors.
