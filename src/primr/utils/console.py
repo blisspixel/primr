@@ -203,10 +203,12 @@ class Console:
         """Show completion: "✓ 47 pages scraped" """
         if self.quiet:
             return
+        self.clear_line()
         self._print(f"{self._green}{self._check}{self._reset} {msg}")
 
     def fail(self, msg):
         """Show failure: "✗ Could not scrape" """
+        self.clear_line()
         self._print(f"{self._red}{self._cross}{self._reset} {msg}")
 
     def muted(self, msg):
@@ -324,6 +326,7 @@ class Console:
     def warn(self, msg):
         if self.quiet:
             return
+        self.clear_line()
         self._print(f"{self._yellow}!{self._reset} {msg}")
 
     def ok(self, msg="", show_time=True):
@@ -338,6 +341,7 @@ class Console:
         """Backward compat - show a step."""
         if self.quiet:
             return
+        self.clear_line()
         self._print(f"\n{self._cyan}>{self._reset} {msg}")
 
     def result(self, label, value, highlight=False):
@@ -353,9 +357,10 @@ class Console:
         """Show success with details."""
         if self.quiet:
             return
+        self.clear_line()
         self._print()
         self._print(f"{self._green}{self._check}{self._reset} {title}")
-        self._print(f"  {self._dim}{details}{self._reset}")
+        self._print(f"  {self._dim}{self._arrow} {details}{self._reset}")
 
     def summary(self, stats):
         if self.quiet:
@@ -387,9 +392,15 @@ class Console:
         """Modern phase header - clean 2026 design."""
         if self.quiet:
             return
+        self.clear_line()
         self._print()
         # Modern minimal design - just bold title with subtle accent
-        self._print(f"{self._cyan}{self._pointer}{self._reset} {self._bold}PHASE {step_num}{self._reset} {self._dim}{self._dot}{self._reset} {title}")
+        phase_label = f"PHASE {step_num}/{total_steps}" if total_steps and total_steps > 0 else f"PHASE {step_num}"
+        self._print(
+            f"{self._cyan}{self._pointer}{self._reset} "
+            f"{self._bold}{phase_label}{self._reset} "
+            f"{self._dim}{self._dot}{self._reset} {title}"
+        )
         if description:
             self._print(f"  {self._dim}{description}{self._reset}")
         self._print()
@@ -397,6 +408,7 @@ class Console:
     def phase_complete(self, title, stats=None):
         if self.quiet:
             return
+        self.clear_line()
         self._print(f"{self._green}{self._check}{self._reset} {title}")
         if stats:
             for label, value in stats:

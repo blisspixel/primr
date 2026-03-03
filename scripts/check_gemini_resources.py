@@ -29,7 +29,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 try:
     from google import genai
 except ImportError:
-    print("ERROR: google-genai not installed. Run: pip install google-genai")
+    print("ERROR: google-genai not installed for this interpreter.")
+    print(f"Run: \"{sys.executable}\" -m pip install google-genai")
     sys.exit(1)
 
 try:
@@ -54,13 +55,13 @@ def list_caches(client):
     print("EXPLICIT CONTEXT CACHES")
     print("(These cost $1-4.50/M tokens/hour just sitting there!)")
     print("=" * 60)
-    
+
     try:
         caches = list(client.caches.list())
         if not caches:
             print("\n✓ No explicit caches found. You're not being charged for cache storage.")
             return []
-        
+
         print(f"\n⚠ Found {len(caches)} cache(s):\n")
         for cache in caches:
             print(f"  Name: {cache.name}")
@@ -92,13 +93,13 @@ def list_file_search_stores(client):
     print("FILE SEARCH STORES")
     print("(Used by Deep Research for context)")
     print("=" * 60)
-    
+
     try:
         stores = list(client.file_search_stores.list())
         if not stores:
             print("\n✓ No file search stores found.")
             return []
-        
+
         print(f"\n⚠ Found {len(stores)} store(s):\n")
         for store in stores:
             print(f"  Name: {store.name}")
@@ -118,7 +119,7 @@ def delete_caches(client, caches):
     if not caches:
         print("\nNo caches to delete.")
         return
-    
+
     print(f"\nDeleting {len(caches)} cache(s)...")
     for cache in caches:
         try:
@@ -130,7 +131,7 @@ def delete_caches(client, caches):
 
 def delete_documents_in_store(client, store_name, force=True):
     """Delete all documents inside a file search store.
-    
+
     Args:
         client: Gemini client
         store_name: Name of the store
@@ -142,7 +143,7 @@ def delete_documents_in_store(client, store_name, force=True):
         docs = list(client.file_search_stores.documents.list(parent=store_name))
         if not docs:
             return 0
-        
+
         for doc in docs:
             try:
                 # Try with config dict for force parameter (REST API style)
@@ -157,7 +158,7 @@ def delete_documents_in_store(client, store_name, force=True):
                     except TypeError:
                         # If config doesn't work, try without force
                         pass
-                
+
                 # Fallback: try without force
                 client.file_search_stores.documents.delete(name=doc.name)
                 deleted_count += 1
@@ -167,16 +168,16 @@ def delete_documents_in_store(client, store_name, force=True):
                     print(f"    ⚠ Doc {doc.name.split('/')[-1]}: has chunks, cannot delete")
                 else:
                     print(f"    ⚠ Could not delete doc: {e}")
-        
+
         return deleted_count
-    except Exception as e:
+    except Exception:
         # API might not support listing documents for all store types
         return -1  # Signal that we couldn't list docs
 
 
 def delete_stores(client, stores, force_empty=False):
     """Delete all file search stores.
-    
+
     Args:
         client: Gemini client
         stores: List of stores to delete
@@ -185,14 +186,14 @@ def delete_stores(client, stores, force_empty=False):
     if not stores:
         print("\nNo stores to delete.")
         return
-    
+
     print(f"\nDeleting {len(stores)} store(s)...")
     if force_empty:
         print("(Force mode: deleting documents inside stores first)\n")
-    
+
     for store in stores:
         store_name = store.name
-        
+
         # If force mode, try to empty the store first
         if force_empty:
             doc_count = delete_documents_in_store(client, store_name)
@@ -200,7 +201,7 @@ def delete_stores(client, stores, force_empty=False):
                 print(f"  Deleted {doc_count} document(s) from {store_name}")
             elif doc_count == -1:
                 print(f"  Could not list documents in {store_name}")
-        
+
         # Now try to delete the store
         try:
             client.file_search_stores.delete(name=store_name)
@@ -218,13 +219,13 @@ def main():
         description="Inspect and clean up Gemini resources that may be incurring costs"
     )
     parser.add_argument(
-        '--delete-caches', 
+        '--delete-caches',
         action='store_true',
         help='Delete all explicit context caches'
     )
     parser.add_argument(
         '--delete-stores',
-        action='store_true', 
+        action='store_true',
         help='Delete all file search stores'
     )
     parser.add_argument(
@@ -238,42 +239,55 @@ def main():
         help='Delete all caches and stores'
     )
     args = parser.parse_args()
-    
+
     print("Gemini Resource Inspector")
     print(f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    
+
     api_key = get_api_key()
     client = genai.Client(api_key=api_key)
-    
+
     # List resources
     caches = list_caches(client)
     stores = list_file_search_stores(client)
-    
+
     # Delete if requested
     if args.delete_all or args.delete_caches:
         delete_caches(client, caches)
-    
+
     if args.delete_all or args.delete_stores:
         delete_stores(client, stores, force_empty=args.force_empty)
-    
+
+    # Re-check after deletion so summary reflects final state
+    final_caches = caches
+    final_stores = stores
+    if args.delete_all or args.delete_caches or args.delete_stores:
+        try:
+            final_caches = list(client.caches.list())
+        except Exception:
+            final_caches = []
+        try:
+            final_stores = list(client.file_search_stores.list())
+        except Exception:
+            final_stores = []
+
     # Summary
     print("\n" + "=" * 60)
     print("SUMMARY")
     print("=" * 60)
-    
-    if not caches and not stores:
+
+    if not final_caches and not final_stores:
         print("\n✓ No Gemini resources found that could be causing ongoing costs.")
         print("  If you're seeing charges, check:")
         print("  - Google Cloud Console for other projects")
         print("  - Other applications using this API key")
         print("  - AI Studio experiments with caching enabled")
     else:
-        if caches:
-            print(f"\n⚠ {len(caches)} explicit cache(s) found - these cost money!")
+        if final_caches:
+            print(f"\n⚠ {len(final_caches)} explicit cache(s) found - these cost money!")
             if not (args.delete_all or args.delete_caches):
                 print("  Run with --delete-caches to remove them")
-        if stores:
-            print(f"\n⚠ {len(stores)} file search store(s) found")
+        if final_stores:
+            print(f"\n⚠ {len(final_stores)} file search store(s) found")
             if not (args.delete_all or args.delete_stores):
                 print("  Run with --delete-stores to remove them")
 

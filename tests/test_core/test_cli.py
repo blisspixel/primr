@@ -193,6 +193,53 @@ class TestParseArgs:
         config = parse_args(["Acme Corp", "acme.example", "--dry-run"])
         assert config.command == Command.DRY_RUN
 
+    def test_parse_eval_command(self):
+        """Test parsing eval command and options."""
+        config = parse_args([
+            "--eval",
+            "--eval-id", "eval-2026-02-r1",
+            "--eval-profiles", "full", "fast",
+            "--eval-baseline", "full",
+        ])
+        assert config.command == Command.EVAL
+        assert config.eval_mode is True
+        assert config.eval_id == "eval-2026-02-r1"
+        assert config.eval_profiles == ("full", "fast")
+        assert config.eval_baseline == "full"
+
+    def test_parse_eval_company_and_no_auto_stage(self):
+        """Test eval company targeting and auto-stage toggle."""
+        config = parse_args([
+            "--eval",
+            "--eval-id", "eval-2026-02-r1",
+            "--eval-company", "Harver",
+            "--eval-no-auto-stage",
+            "--eval-source-dir", "output",
+        ])
+        assert config.command == Command.EVAL
+        assert config.eval_company == "Harver"
+        assert config.eval_auto_stage is False
+        assert config.eval_source_dir == "output"
+
+    def test_parse_eval_llm_judge_options(self):
+        """Test eval LLM judge argument parsing."""
+        config = parse_args([
+            "--eval",
+            "--eval-id", "eval-2026-02-r1",
+            "--eval-llm-judge",
+            "--eval-judge-provider", "grok",
+            "--eval-judge-model", "grok-4-1-fast-reasoning",
+            "--eval-judge-max-pairs", "1",
+            "--eval-judge-passes", "1",
+            "--eval-judge-max-cost", "0.25",
+        ])
+        assert config.eval_llm_judge is True
+        assert config.eval_judge_provider == "grok"
+        assert config.eval_judge_model == "grok-4-1-fast-reasoning"
+        assert config.eval_judge_max_pairs == 1
+        assert config.eval_judge_passes == 1
+        assert config.eval_judge_max_cost == 0.25
+
     def test_parse_show_usage(self):
         """Test parsing show-usage flag."""
         config = parse_args(["--show-usage"])
@@ -253,6 +300,32 @@ class TestParseArgs:
         """Test that single-company research skips confirmation by default."""
         config = parse_args(["Acme Corp", "acme.example"])
         assert config.skip_confirm is True
+
+    def test_parse_fast_mode(self):
+        """Test parsing --fast flag."""
+        config = parse_args(["Acme Corp", "acme.example", "--fast"])
+        assert config.fast_mode is True
+        assert config.ai_strategy is True  # AI strategy on by default
+
+    def test_parse_fast_with_cloud_vendors(self):
+        """Test parsing --fast with --cloud-vendor aws azure."""
+        config = parse_args(["Acme Corp", "acme.example", "--fast", "--cloud-vendor", "aws", "azure"])
+        assert config.fast_mode is True
+        assert config.cloud_vendors == ("aws", "azure")
+        assert config.ai_strategy is True
+
+    def test_parse_fast_no_ai_strategy(self):
+        """Test parsing --fast --no-ai-strategy."""
+        config = parse_args(["Acme Corp", "acme.example", "--fast", "--no-ai-strategy"])
+        assert config.fast_mode is True
+        assert config.ai_strategy is False
+
+    def test_parse_fast_with_single_vendor(self):
+        """Test parsing --fast with single --cloud-vendor."""
+        config = parse_args(["Acme Corp", "acme.example", "--fast", "--cloud-vendor", "aws"])
+        assert config.fast_mode is True
+        assert config.cloud_vendors == ("aws",)
+        assert config.cloud_vendor == "aws"
 
 
 # =============================================================================
