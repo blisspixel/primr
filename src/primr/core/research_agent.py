@@ -1030,7 +1030,7 @@ def _build_fast_batch_prompt(
     )
 
     sources_text = "\n".join(f"- {url}" for url in source_urls) if source_urls else "(no external sources)"
-    word_target = len(sections) * 600
+    word_target = len(sections) * 800
     feedback_guidance = _load_fast_feedback_guidance()
     feedback_block = (
         f"=== FAST FEEDBACK GUIDANCE (from prior evals) ===\n{feedback_guidance}\n"
@@ -1691,7 +1691,7 @@ def _fast_gap_analysis(
     for block in corpus_lines:
         if block.startswith("[Page:"):
             corpus_summary_parts.append(block[:500])
-    corpus_summary = "\n\n".join(corpus_summary_parts[:60]) if corpus_summary_parts else raw_corpus[:30_000]
+    corpus_summary = "\n\n".join(corpus_summary_parts[:80]) if corpus_summary_parts else raw_corpus[:30_000]
 
     # Build external source summary — first 500 chars each
     ext_lines = external_sources.split("\n\n")
@@ -1713,12 +1713,14 @@ EXTERNAL SOURCES:
 KNOWN SOURCE URLS (do NOT repeat these):
 {chr(10).join(source_urls[:30])}
 
-Return exactly 5 items in this format (one per block, no extra text):
+Return exactly 8 items in this format (one per block, no extra text):
 GAP: [what's missing]
 QUERY: [web search query to fill it]
 PRIORITY: CRITICAL | IMPORTANT
 
-Focus on: financials, competitive positioning, leadership changes, customer evidence,
+Prioritize third-party validation sources: analyst reports, industry publications,
+financial filings, customer case studies, employee reviews, regulatory documents.
+Also cover: financials, competitive positioning, leadership changes, customer evidence,
 technology direction, recent news, risk factors.
 """
 
@@ -1751,7 +1753,7 @@ technology direction, recent news, risk factors.
             if query:
                 queries.append(query)
 
-    return queries[:5], response
+    return queries[:8], response
 
 
 def _fast_cross_validate(
@@ -1961,7 +1963,7 @@ def perform_fast_research(
     5. Cross-validation: find weak spots → targeted search → re-write ≤3 sections
     6. Optional Grok call for AI strategy per vendor
 
-    Target: ~20-25 min, ~$0.50
+    Target: ~20-30 min, ~$0.20
     """
     from primr.ai.grok_client import get_grok_session_usage, grok_llm, reset_grok_session
 
@@ -1993,14 +1995,14 @@ def perform_fast_research(
             with console.timed_operation("Extracting insights"):
                 summarized = summarize_scraped_content(company_name, website, scraped_data, folder_path)
 
-        # Build raw corpus from scraped data (truncate each page to 20k chars)
+        # Build raw corpus from scraped data (truncate each page to 30k chars)
         raw_corpus_parts: list[str] = []
         for url, content in scraped_data.items():
-            truncated = content[:20_000] if len(content) > 20_000 else content
+            truncated = content[:30_000] if len(content) > 30_000 else content
             raw_corpus_parts.append(f"[Page: {url}]\n{truncated}")
         raw_corpus = "\n\n".join(raw_corpus_parts) if raw_corpus_parts else ""
 
-        # External research (10 queries, up to 15 sources)
+        # External research (15 queries, up to 30 sources)
         source_urls: list[str] = []
         source_urls_seen: set[str] = set()  # O(1) dedup across phases
         external_text_parts: list[str] = []
@@ -2009,29 +2011,29 @@ def perform_fast_research(
             external_queries = generate_external_search_queries(
                 company_name,
                 website,
-                max_queries=min(10, MAX_EXTERNAL_SEARCH_QUERIES),
+                max_queries=15,
             )
             external_data: dict = {}
-            max_external_sources = 15
+            max_external_sources = 30
 
             for query in external_queries:
                 if len(external_data) >= max_external_sources:
                     break
                 results = search_web(query, company_name, website)
                 if results:
-                    filtered = [r for r in results[:3] if not website or website.lower() not in r.get("url", "").lower()]
+                    filtered = [r for r in results[:5] if not website or website.lower() not in r.get("url", "").lower()]
                     remaining = max_external_sources - len(external_data)
                     scraped = scrape_external_sources_validated(
                         filtered, company_name=company_name, website=website,
-                        max_sources=min(2, remaining),
+                        max_sources=min(3, remaining),
                     )
                     external_data.update(scraped)
 
             for url, content in external_data.items():
                 source_urls.append(url)
                 source_urls_seen.add(url)
-                external_text_parts.append(f"[Source: {url}]\n{content[:8_000]}")
-                external_raw_parts.append(f"[Source: {url}]\n{content[:12_000]}")
+                external_text_parts.append(f"[Source: {url}]\n{content[:12_000]}")
+                external_raw_parts.append(f"[Source: {url}]\n{content[:20_000]}")
 
         log_structured("info", "Fast mode: external sources complete", sources=len(external_data))
         console.phase_complete("Data Collection (fast)", [("Pages", str(pages_scraped)), ("External", str(len(external_data)))])
@@ -2071,7 +2073,7 @@ def perform_fast_research(
 
         if gap_queries:
             console.ok(f"Gap analysis: {len(gap_queries)} questions identified")
-            max_gap_sources = 8
+            max_gap_sources = 15
 
             with console.timed_operation("Searching for gap-filling sources"):
                 for gq in gap_queries:
@@ -2088,14 +2090,14 @@ def perform_fast_research(
                         remaining = max_gap_sources - gap_new_sources
                         scraped = scrape_external_sources_validated(
                             filtered, company_name=company_name, website=website,
-                            max_sources=min(2, remaining),
+                            max_sources=min(3, remaining),
                         )
                         for url, content in scraped.items():
                             if url not in source_urls_seen:
                                 source_urls.append(url)
                                 source_urls_seen.add(url)
-                                external_text_parts.append(f"[Source: {url}]\n{content[:8_000]}")
-                                external_raw_parts.append(f"[Source: {url}]\n{content[:12_000]}")
+                                external_text_parts.append(f"[Source: {url}]\n{content[:12_000]}")
+                                external_raw_parts.append(f"[Source: {url}]\n{content[:20_000]}")
                                 gap_new_sources += 1
 
             console.ok(f"Found {gap_new_sources} additional sources")
@@ -2167,8 +2169,8 @@ def perform_fast_research(
         # =================================================================
         console.phase_banner(4, total_phases, "Report Writing (Grok)", "Writing 21 sections in 5 batches", "3-6 min")
 
-        # Build a raw data subset for evidence (~100k chars)
-        raw_corpus_subset = raw_corpus[:100_000] if len(raw_corpus) > 100_000 else raw_corpus
+        # Build a raw data subset for evidence (~200k chars)
+        raw_corpus_subset = raw_corpus[:200_000] if len(raw_corpus) > 200_000 else raw_corpus
 
         report_system = (
             "You are a senior strategic analyst writing a consulting dossier — internal prep "
@@ -2280,7 +2282,7 @@ def perform_fast_research(
             for ws in weak_sections:
                 raw_title = str(ws.get("title", "")).lstrip("#").strip()
                 raw_queries = ws.get("queries", [])
-                queries = [str(q) for q in raw_queries[:2]] if isinstance(raw_queries, list) else []
+                queries = [str(q) for q in raw_queries[:3]] if isinstance(raw_queries, list) else []
 
                 if not raw_title or not queries:
                     continue
@@ -2309,7 +2311,7 @@ def perform_fast_research(
                                 if url not in source_urls_seen:
                                     source_urls.append(url)
                                     source_urls_seen.add(url)
-                                    new_evidence_parts.append(f"[Source: {url}]\n{content[:8_000]}")
+                                    new_evidence_parts.append(f"[Source: {url}]\n{content[:12_000]}")
                                     cv_new_sources += 1
 
                 if not new_evidence_parts:
