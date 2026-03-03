@@ -3,24 +3,25 @@ Tests for console output utilities.
 """
 
 import pytest
-from primr.utils.console import Console, console, set_console, get_console
+
+from primr.utils.console import Console, console, get_console, set_console
 
 
 class TestConsole:
     """Tests for Console class."""
-    
+
     @pytest.fixture
     def captured_console(self):
         """Create a console with captured output."""
         return Console(verbose=False, quiet=False)
-    
+
     def test_step_output(self, captured_console, capsys):
         """step() should print formatted step message."""
         captured_console.step("Test step")
         captured = capsys.readouterr()
         assert "Test step" in captured.out
         assert ">" in captured.out
-    
+
     def test_ok_output(self, captured_console, capsys):
         """ok() should print success message."""
         captured_console.ok("Success message")
@@ -28,14 +29,14 @@ class TestConsole:
         assert "Success message" in captured.out
         # Check for either ASCII (+) or unicode (✓) indicator
         assert "+" in captured.out or "\u2713" in captured.out
-    
+
     def test_warn_output(self, captured_console, capsys):
         """warn() should print warning message."""
         captured_console.warn("Warning message")
         captured = capsys.readouterr()
         assert "Warning message" in captured.out
         assert "!" in captured.out
-    
+
     def test_error_output(self, captured_console, capsys):
         """error() should print error message."""
         captured_console.error("Error message")
@@ -43,20 +44,20 @@ class TestConsole:
         assert "Error message" in captured.out
         # Check for either ASCII (x) or unicode (✗) indicator
         assert "x" in captured.out or "\u2717" in captured.out
-    
+
     def test_info_output(self, captured_console, capsys):
         """info() should print dim info message."""
         captured_console.info("Info message")
         captured = capsys.readouterr()
         assert "Info message" in captured.out
-    
+
     def test_debug_hidden_by_default(self, capsys):
         """debug() should not print when verbose=False."""
         c = Console(verbose=False)
         c.debug("Debug message")
         captured = capsys.readouterr()
         assert "Debug message" not in captured.out
-    
+
     def test_debug_shown_when_verbose(self, capsys):
         """debug() should print when verbose=True."""
         c = Console(verbose=True)
@@ -64,7 +65,7 @@ class TestConsole:
         captured = capsys.readouterr()
         assert "Debug message" in captured.out
         assert "debug" in captured.out
-    
+
     def test_quiet_mode_suppresses_output(self, capsys):
         """Quiet mode should suppress non-error output."""
         c = Console(quiet=True)
@@ -74,14 +75,14 @@ class TestConsole:
         c.info("Info")
         captured = capsys.readouterr()
         assert captured.out == ""
-    
+
     def test_quiet_mode_shows_errors(self, capsys):
         """Quiet mode should still show errors."""
         c = Console(quiet=True)
         c.error("Error message")
         captured = capsys.readouterr()
         assert "Error message" in captured.out
-    
+
     def test_timing_in_ok(self, capsys):
         """ok() should show elapsed time after step()."""
         import time
@@ -91,7 +92,7 @@ class TestConsole:
         c.ok("Done", show_time=True)
         captured = capsys.readouterr()
         assert "Done" in captured.out
-    
+
     def test_ok_without_timing(self, capsys):
         """ok() should not show time when show_time=False."""
         c = Console()
@@ -103,7 +104,7 @@ class TestConsole:
 
 class TestConsoleProgress:
     """Tests for progress tracking."""
-    
+
     @pytest.fixture
     def non_interactive_console(self):
         """Create a console that doesn't use in-place updates."""
@@ -116,14 +117,14 @@ class TestConsoleProgress:
             is_interactive=False
         )
         return Console(capabilities=caps)
-    
+
     def test_progress_update(self, non_interactive_console, capsys):
         """progress() should show current/total when complete."""
         # Non-interactive mode only prints on completion
         non_interactive_console.progress(10, 10, "item.txt")
         captured = capsys.readouterr()
         assert "10/10" in captured.out
-    
+
     def test_progress_truncates_long_items(self, non_interactive_console, capsys):
         """progress() should handle long item names."""
         long_name = "a" * 100
@@ -131,7 +132,7 @@ class TestConsoleProgress:
         captured = capsys.readouterr()
         # Non-interactive mode shows full label, interactive mode truncates
         assert long_name in captured.out or "..." in captured.out
-    
+
     def test_progress_done(self, capsys):
         """progress_done() should clear the line."""
         c = Console()
@@ -142,14 +143,14 @@ class TestConsoleProgress:
 
 class TestConsoleFormatting:
     """Tests for formatted output methods."""
-    
+
     def test_header(self, capsys):
         """header() should print title."""
         c = Console()
         c.header("Test Header")
         captured = capsys.readouterr()
         assert "Test Header" in captured.out
-    
+
     def test_header_with_subtitle(self, capsys):
         """header() should print subtitle if provided."""
         c = Console()
@@ -157,7 +158,7 @@ class TestConsoleFormatting:
         captured = capsys.readouterr()
         assert "Title" in captured.out
         assert "Subtitle" in captured.out
-    
+
     def test_result(self, capsys):
         """result() should print label: value."""
         c = Console()
@@ -165,7 +166,7 @@ class TestConsoleFormatting:
         captured = capsys.readouterr()
         assert "Status" in captured.out
         assert "Complete" in captured.out
-    
+
     def test_detail(self, capsys):
         """detail() should print key-value pair."""
         c = Console()
@@ -173,14 +174,14 @@ class TestConsoleFormatting:
         captured = capsys.readouterr()
         assert "Key" in captured.out
         assert "Value" in captured.out
-    
+
     def test_divider(self, capsys):
         """divider() should print line."""
         c = Console()
         c.divider("-")
         captured = capsys.readouterr()
         assert "-" in captured.out
-    
+
     def test_banner(self, capsys):
         """banner() should print title and version."""
         c = Console()
@@ -188,7 +189,7 @@ class TestConsoleFormatting:
         captured = capsys.readouterr()
         assert "App Name" in captured.out
         assert "1.0" in captured.out
-    
+
     def test_summary(self, capsys):
         """summary() should print stats."""
         c = Console()
@@ -198,7 +199,7 @@ class TestConsoleFormatting:
         assert "10" in captured.out
         assert "Time" in captured.out
         assert "5s" in captured.out
-    
+
     def test_success_box(self, capsys):
         """success_box() should print highlighted output."""
         c = Console()
@@ -210,21 +211,21 @@ class TestConsoleFormatting:
 
 class TestGlobalConsole:
     """Tests for global console instance."""
-    
+
     def test_default_console_exists(self):
         """Global console should exist."""
         assert console is not None
         assert isinstance(console, Console)
-    
+
     def test_get_console(self):
         """get_console() should return global instance."""
         assert get_console() is console
-    
+
     def test_set_console(self):
         """set_console() should replace global instance."""
         original = get_console()
         new_console = Console(verbose=True)
-        
+
         try:
             set_console(new_console)
             assert get_console() is new_console
@@ -372,7 +373,8 @@ class TestHeartbeat:
 # PROPERTY-BASED TESTS
 # =============================================================================
 
-from hypothesis import given, strategies as st, settings, HealthCheck
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
 
 
 class TestPhaseBannerCompletenessProperty:

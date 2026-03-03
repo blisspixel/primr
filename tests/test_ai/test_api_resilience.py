@@ -7,12 +7,11 @@ Tests retry behavior, exponential backoff, fallback logic, and consecutive failu
 **Validates: Requirements 3.1, 3.2, 3.3, 3.4, 3.5, 4.4**
 """
 
-import asyncio
-import pytest
-from unittest.mock import Mock, patch, AsyncMock, MagicMock
-from typing import Any
+from unittest.mock import Mock
 
-from hypothesis import given, settings, strategies as st
+import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from primr.ai.deep_research import (
     DeepResearchOrchestrator,
@@ -21,7 +20,6 @@ from primr.ai.deep_research import (
     ResearchStatus,
 )
 from primr.utils.errors import AIError
-
 
 # =============================================================================
 # Fixtures
@@ -176,7 +174,7 @@ class TestRetryBehavior:
         **Validates: Requirements 3.1**
         """
         call_count = 0
-        
+
         async def mock_execute(*args, **kwargs):
             nonlocal call_count
             call_count += 1
@@ -186,16 +184,16 @@ class TestRetryBehavior:
                 content="Success after retries",
                 status=ResearchStatus.COMPLETED,
             )
-        
+
         mock_orchestrator._execute_single = mock_execute
         mock_orchestrator.BASE_RETRY_DELAY = 0.01  # Speed up test
-        
+
         result = await mock_orchestrator._execute_with_retry(
             prompt="Test prompt",
             store_name=None,
             on_progress=None,
         )
-        
+
         assert call_count == 3
         assert result.status == ResearchStatus.COMPLETED
 
@@ -207,7 +205,7 @@ class TestRetryBehavior:
         **Validates: Requirements 3.2**
         """
         call_count = 0
-        
+
         async def mock_execute(*args, **kwargs):
             nonlocal call_count
             call_count += 1
@@ -217,16 +215,16 @@ class TestRetryBehavior:
                 content="Success",
                 status=ResearchStatus.COMPLETED,
             )
-        
+
         mock_orchestrator._execute_single = mock_execute
         mock_orchestrator.BASE_RETRY_DELAY = 0.01
-        
+
         result = await mock_orchestrator._execute_with_retry(
             prompt="Test",
             store_name=None,
             on_progress=None,
         )
-        
+
         assert call_count == 2
         assert result.status == ResearchStatus.COMPLETED
 
@@ -238,7 +236,7 @@ class TestRetryBehavior:
         **Validates: Requirements 3.3**
         """
         call_count = 0
-        
+
         async def mock_execute(*args, **kwargs):
             nonlocal call_count
             call_count += 1
@@ -248,16 +246,16 @@ class TestRetryBehavior:
                 content="Success",
                 status=ResearchStatus.COMPLETED,
             )
-        
+
         mock_orchestrator._execute_single = mock_execute
         mock_orchestrator.BASE_RETRY_DELAY = 0.01
-        
+
         result = await mock_orchestrator._execute_with_retry(
             prompt="Test",
             store_name=None,
             on_progress=None,
         )
-        
+
         assert call_count == 2
         assert result.status == ResearchStatus.COMPLETED
 
@@ -268,38 +266,38 @@ class TestRetryBehavior:
         """
         async def mock_execute(*args, **kwargs):
             raise mock_api_429
-        
+
         mock_orchestrator._execute_single = mock_execute
         mock_orchestrator.BASE_RETRY_DELAY = 0.01
         mock_orchestrator.MAX_RETRIES = 3
-        
+
         with pytest.raises(AIError) as exc_info:
             await mock_orchestrator._execute_with_retry(
                 prompt="Test",
                 store_name=None,
                 on_progress=None,
             )
-        
+
         assert "429" in str(exc_info.value)
 
     async def test_progress_callback_called_on_retry(self, mock_orchestrator, mock_api_429):
         """Progress callback is called when retrying."""
         progress_messages = []
-        
+
         async def mock_execute(*args, **kwargs):
             if len(progress_messages) < 2:
                 raise mock_api_429
             return ResearchResult(content="Success", status=ResearchStatus.COMPLETED)
-        
+
         mock_orchestrator._execute_single = mock_execute
         mock_orchestrator.BASE_RETRY_DELAY = 0.01
-        
+
         await mock_orchestrator._execute_with_retry(
             prompt="Test",
             store_name=None,
             on_progress=lambda msg: progress_messages.append(msg),
         )
-        
+
         # Should have progress messages about retrying
         assert any("retry" in msg.lower() for msg in progress_messages)
 
@@ -324,10 +322,10 @@ class TestRetryProperties:
         """
         orchestrator = DeepResearchOrchestrator.__new__(DeepResearchOrchestrator)
         orchestrator.BASE_RETRY_DELAY = 60.0
-        
+
         delay = orchestrator._calculate_backoff_delay(attempt)
         expected = 60.0 * (2**attempt)
-        
+
         assert delay == expected
 
     @given(attempt=st.integers(min_value=0, max_value=4))
@@ -341,10 +339,10 @@ class TestRetryProperties:
         """
         orchestrator = DeepResearchOrchestrator.__new__(DeepResearchOrchestrator)
         orchestrator.BASE_RETRY_DELAY = 60.0
-        
+
         delay_current = orchestrator._calculate_backoff_delay(attempt)
         delay_next = orchestrator._calculate_backoff_delay(attempt + 1)
-        
+
         assert delay_next > delay_current
 
 
@@ -402,7 +400,7 @@ class TestFallbackBehavior:
         When Deep Research fails, the system should use Stage 1 context as fallback.
         """
         orchestrator = DeepResearchOrchestrator.__new__(DeepResearchOrchestrator)
-        
+
         stage1_context = """
 ## Industry
 
@@ -414,11 +412,11 @@ Technology Services
 
 Test Corp Inc
 """
-        
+
         # Even when Deep Research fails, we can extract metadata from Stage 1
         industry = orchestrator._extract_industry_from_context(stage1_context)
         full_name = orchestrator._extract_full_company_name(stage1_context)
-        
+
         assert industry == "Technology Services"
         assert full_name == "Test Corp Inc"
 
@@ -430,14 +428,14 @@ Test Corp Inc
         Industry extraction works with various formatting.
         """
         orchestrator = DeepResearchOrchestrator.__new__(DeepResearchOrchestrator)
-        
+
         # Test different formats
         contexts = [
             ("## Industry\n\nBanking\n\n---", "Banking"),
             ("## INDUSTRY\n\nFinance\n\n---", "Finance"),
             ("## industry\n\nRetail\n\n---", "Retail"),
         ]
-        
+
         for context, expected in contexts:
             result = orchestrator._extract_industry_from_context(context)
             assert result == expected, f"Failed for context: {context}"
@@ -466,7 +464,7 @@ def test_property_fallback_extracts_metadata(industry: str, company: str):
     the fallback should correctly extract both values.
     """
     orchestrator = DeepResearchOrchestrator.__new__(DeepResearchOrchestrator)
-    
+
     # Build a valid Stage 1 context (single-line values only)
     context = f"""
 ## Company Name
@@ -481,10 +479,10 @@ def test_property_fallback_extracts_metadata(industry: str, company: str):
 
 ---
 """
-    
+
     extracted_industry = orchestrator._extract_industry_from_context(context)
     extracted_company = orchestrator._extract_full_company_name(context)
-    
+
     assert extracted_industry == industry.strip()
     assert extracted_company == company.strip()
 
@@ -510,7 +508,7 @@ class TestConsecutiveFailureThreshold:
         orchestrator = DeepResearchOrchestrator.__new__(DeepResearchOrchestrator)
         orchestrator._settings = Mock()
         orchestrator._settings.api.gemini_key = "test-key"
-        
+
         # The threshold is 3 consecutive failures
         # This is verified by the code: if consecutive_failures >= 3:
         assert True  # Threshold exists in code
@@ -531,7 +529,7 @@ class TestConsecutiveFailureThreshold:
             sections_written=15,  # Only 15 of 21 succeeded
             api_calls=20,
         )
-        
+
         assert result.sections_written == 15
         # sections_written should be less than total sections when some fail
 
@@ -559,7 +557,7 @@ def test_property_sections_written_accuracy(successful: int, failed: int):
         sections_written=successful,
         api_calls=successful + failed,
     )
-    
+
     # sections_written should exactly match successful sections
     assert result.sections_written == successful
     # sections_written should never exceed total possible sections
@@ -578,7 +576,7 @@ def test_property_consecutive_failure_threshold(consecutive_failures: int):
     """
     threshold = 3
     should_stop = consecutive_failures >= threshold
-    
+
     # Verify the threshold logic
     if should_stop:
         assert consecutive_failures >= 3

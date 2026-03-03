@@ -11,30 +11,28 @@ Requirements: 12.2, 12.3, 12.4
 
 from __future__ import annotations
 
-import json
 import tempfile
-from datetime import datetime, timezone, timedelta
-from pathlib import Path
+from datetime import datetime, timedelta
 
 import pytest
 
+from deploy.control_plane.job_store import (
+    CostEstimate,
+    InMemoryJobStore,
+    JobInputs,
+    JobRecord,
+    JobStatus,
+    JobTiming,
+    format_timestamp,
+    utc_now,
+)
 from deploy.control_plane.reconciler import (
     Reconciler,
     ReconciliationConfig,
     ReconciliationResult,
 )
-from deploy.control_plane.job_store import (
-    InMemoryJobStore,
-    JobRecord,
-    JobStatus,
-    JobInputs,
-    JobTiming,
-    CostEstimate,
-    format_timestamp,
-    utc_now,
-)
+from deploy.manifest import ArtifactMeta, JobCost, JobInputs, JobManifest, JobTiming, JobVersions
 from deploy.storage import LocalStore
-from deploy.manifest import JobManifest, ArtifactMeta, JobInputs, JobTiming, JobCost, JobVersions
 
 
 def create_test_job(
@@ -68,8 +66,8 @@ def create_test_manifest(
     error: str | None = None,
 ) -> JobManifest:
     """Create a test manifest."""
-    from deploy.manifest import JobInputs, JobTiming, JobCost, JobVersions
-    
+    from deploy.manifest import JobInputs, JobTiming
+
     now = utc_now()
     return JobManifest(
         job_id=job_id,
@@ -103,18 +101,18 @@ def create_test_manifest(
 
 class TestReconciler:
     """Tests for the Reconciler class."""
-    
+
     @pytest.fixture
     def job_store(self) -> InMemoryJobStore:
         """Create a test job store."""
         return InMemoryJobStore()
-    
+
     @pytest.fixture
     def artifact_store(self) -> LocalStore:
         """Create a test artifact store."""
         temp_dir = tempfile.mkdtemp(prefix="test_artifacts_")
         return LocalStore(temp_dir, "test")
-    
+
     @pytest.fixture
     def reconciler(self, job_store: InMemoryJobStore, artifact_store: LocalStore) -> Reconciler:
         """Create a test reconciler."""
@@ -124,17 +122,17 @@ class TestReconciler:
             heartbeat_stale_seconds=600,  # 10 minutes
         )
         return Reconciler(job_store, artifact_store, config)
-    
+
     def test_reconcile_empty_store(self, reconciler: Reconciler) -> None:
         """Reconciliation with no jobs returns zero counts."""
         result = reconciler.reconcile()
-        
+
         assert result.jobs_checked == 0
         assert result.timeout_reconciled == 0
         assert result.manifest_reconciled == 0
         assert result.cancellation_timeout == 0
         assert result.errors == 0
-    
+
     def test_timeout_detection(
         self,
         reconciler: Reconciler,
@@ -145,19 +143,19 @@ class TestReconciler:
         old_start = utc_now() - timedelta(hours=2)
         job = create_test_job("timeout-job", JobStatus.RUNNING, started_at=old_start)
         job_store.put_if_not_exists(job)
-        
+
         result = reconciler.reconcile()
-        
+
         assert result.jobs_checked == 1
         assert result.timeout_reconciled == 1
-        
+
         # Verify job was updated
         updated = job_store.get("timeout-job")
         assert updated is not None
         assert updated.status == JobStatus.FAILED
         assert updated.error_message == "timeout_reconciled"
         assert updated.no_runner_manifest is True
-    
+
     def test_manifest_reconciliation(
         self,
         reconciler: Reconciler,
@@ -168,21 +166,21 @@ class TestReconciler:
         # Create a running job
         job = create_test_job("manifest-job", JobStatus.RUNNING)
         job_store.put_if_not_exists(job)
-        
+
         # Write a manifest indicating success
         manifest = create_test_manifest("manifest-job", "SUCCEEDED")
         artifact_store.put_manifest("manifest-job", manifest)
-        
+
         result = reconciler.reconcile()
-        
+
         assert result.jobs_checked == 1
         assert result.manifest_reconciled == 1
-        
+
         # Verify job was updated
         updated = job_store.get("manifest-job")
         assert updated is not None
         assert updated.status == JobStatus.SUCCEEDED
-    
+
     def test_cancellation_timeout(
         self,
         reconciler: Reconciler,
@@ -193,19 +191,19 @@ class TestReconciler:
         old_start = utc_now() - timedelta(hours=2)
         job = create_test_job("cancel-job", JobStatus.CANCEL_REQUESTED, started_at=old_start)
         job_store.put_if_not_exists(job)
-        
+
         result = reconciler.reconcile()
-        
+
         assert result.jobs_checked == 1
         assert result.cancellation_timeout == 1
-        
+
         # Verify job was updated
         updated = job_store.get("cancel-job")
         assert updated is not None
         assert updated.status == JobStatus.FAILED
         assert updated.error_message == "cancellation_timeout"
         assert updated.no_runner_manifest is True
-    
+
     def test_cancel_with_manifest(
         self,
         reconciler: Reconciler,
@@ -216,21 +214,21 @@ class TestReconciler:
         # Create a cancel-requested job
         job = create_test_job("cancel-manifest-job", JobStatus.CANCEL_REQUESTED)
         job_store.put_if_not_exists(job)
-        
+
         # Write a CANCELLED manifest
         manifest = create_test_manifest("cancel-manifest-job", "CANCELLED")
         artifact_store.put_manifest("cancel-manifest-job", manifest)
-        
+
         result = reconciler.reconcile()
-        
+
         assert result.jobs_checked == 1
         assert result.manifest_reconciled == 1
-        
+
         # Verify job was updated
         updated = job_store.get("cancel-manifest-job")
         assert updated is not None
         assert updated.status == JobStatus.CANCELLED
-    
+
     def test_healthy_job_not_modified(
         self,
         reconciler: Reconciler,
@@ -241,18 +239,18 @@ class TestReconciler:
         recent_start = utc_now() - timedelta(minutes=10)
         job = create_test_job("healthy-job", JobStatus.RUNNING, started_at=recent_start)
         job_store.put_if_not_exists(job)
-        
+
         result = reconciler.reconcile()
-        
+
         assert result.jobs_checked == 1
         assert result.timeout_reconciled == 0
         assert result.manifest_reconciled == 0
-        
+
         # Verify job was not modified
         updated = job_store.get("healthy-job")
         assert updated is not None
         assert updated.status == JobStatus.RUNNING
-    
+
     def test_queued_jobs_not_checked(
         self,
         reconciler: Reconciler,
@@ -261,12 +259,12 @@ class TestReconciler:
         """Jobs in QUEUED state are not checked."""
         job = create_test_job("queued-job", JobStatus.QUEUED)
         job_store.put_if_not_exists(job)
-        
+
         result = reconciler.reconcile()
-        
+
         # QUEUED jobs are not in active_statuses
         assert result.jobs_checked == 0
-    
+
     def test_result_to_dict(self) -> None:
         """ReconciliationResult can be serialized to dict."""
         result = ReconciliationResult(
@@ -276,7 +274,7 @@ class TestReconciler:
             cancellation_timeout=1,
             errors=0,
         )
-        
+
         d = result.to_dict()
         assert d["jobs_checked"] == 10
         assert d["timeout_reconciled"] == 2

@@ -18,10 +18,8 @@ from __future__ import annotations
 import asyncio
 import tempfile
 from pathlib import Path
-from typing import Any
 
-import pytest
-from hypothesis import given, settings, assume
+from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from primr.agentic.orchestrator import (
@@ -31,7 +29,6 @@ from primr.agentic.orchestrator import (
     ResearchOrchestrator,
 )
 from primr.agentic.subagents import SubagentStatus
-
 
 # =============================================================================
 # STRATEGIES
@@ -425,7 +422,7 @@ def test_orchestrator_with_memory():
 
 def test_orchestrator_with_hooks():
     """Orchestrator integrates with HookSystem."""
-    from primr.agentic.hooks import HookSystem, CostGuardHook
+    from primr.agentic.hooks import CostGuardHook, HookSystem
 
     with tempfile.TemporaryDirectory() as tmpdir:
         hooks = HookSystem()

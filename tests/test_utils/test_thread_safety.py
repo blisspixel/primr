@@ -8,20 +8,16 @@ and file write safety.
 **Validates: Requirements 8.1, 8.2, 8.3**
 """
 
-import os
 import tempfile
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from io import StringIO
-from unittest.mock import patch
 
-import pytest
-from hypothesis import given, settings, strategies as st
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from primr.utils.console import Console
-
 
 # =============================================================================
 # Console Thread Safety Tests
@@ -41,23 +37,23 @@ class TestConsoleThreadSafety:
         console = Console()
         messages = []
         lock = threading.Lock()
-        
+
         def write_message(thread_id: int):
             for i in range(5):
                 msg = f"Thread-{thread_id}-Message-{i}"
                 with lock:
                     messages.append(msg)
                 console.info(msg)
-        
+
         threads = []
         for i in range(5):
             t = threading.Thread(target=write_message, args=(i,))
             threads.append(t)
             t.start()
-        
+
         for t in threads:
             t.join()
-        
+
         # All messages should have been recorded
         assert len(messages) == 25
 
@@ -69,16 +65,16 @@ class TestConsoleThreadSafety:
         **Validates: Requirements 8.2**
         """
         console = Console()
-        
+
         with console.heartbeat("Processing", interval=0.05):
             # Simulate section writing
             for i in range(3):
                 console.step(f"Writing section {i + 1}")
                 time.sleep(0.1)
                 console.ok(f"Section {i + 1} complete")
-        
+
         captured = capsys.readouterr()
-        
+
         # All section messages should be present
         assert "Writing section 1" in captured.out
         assert "Section 1 complete" in captured.out
@@ -90,24 +86,24 @@ class TestConsoleThreadSafety:
     def test_concurrent_step_ok_pairs(self, capsys):
         """Step/OK pairs from different threads should not interleave."""
         console = Console()
-        
+
         def step_ok_pair(thread_id: int):
             for i in range(3):
                 console.step(f"T{thread_id}-Step-{i}")
                 time.sleep(0.01)
                 console.ok(f"T{thread_id}-OK-{i}")
-        
+
         threads = []
         for i in range(3):
             t = threading.Thread(target=step_ok_pair, args=(i,))
             threads.append(t)
             t.start()
-        
+
         for t in threads:
             t.join()
-        
+
         captured = capsys.readouterr()
-        
+
         # All step/ok pairs should be present
         for tid in range(3):
             for i in range(3):
@@ -137,12 +133,12 @@ class TestFileWriteThreadSafety:
                 with open(filepath, 'w', encoding='utf-8') as f:
                     f.write(content)
                 return filepath
-            
+
             # Write sections concurrently
             with ThreadPoolExecutor(max_workers=10) as executor:
                 futures = [executor.submit(write_section, i) for i in range(10)]
                 paths = [f.result() for f in futures]
-            
+
             # Verify all files exist and have correct content
             for i, path in enumerate(paths):
                 assert path.exists()
@@ -155,29 +151,28 @@ class TestFileWriteThreadSafety:
         with tempfile.TemporaryDirectory() as tmpdir:
             filepath = Path(tmpdir) / "combined.txt"
             filepath.touch()
-            
+
             lock = threading.Lock()
-            
+
             def append_content(thread_id: int):
                 for i in range(10):
                     line = f"Thread-{thread_id}-Line-{i}\n"
-                    with lock:
-                        with open(filepath, 'a', encoding='utf-8') as f:
-                            f.write(line)
-            
+                    with lock, open(filepath, 'a', encoding='utf-8') as f:
+                        f.write(line)
+
             threads = []
             for i in range(5):
                 t = threading.Thread(target=append_content, args=(i,))
                 threads.append(t)
                 t.start()
-            
+
             for t in threads:
                 t.join()
-            
+
             # Verify all lines are present
             content = filepath.read_text(encoding='utf-8')
             lines = content.strip().split('\n')
-            
+
             # Should have 50 lines (5 threads * 10 lines each)
             assert len(lines) == 50
 
@@ -185,19 +180,19 @@ class TestFileWriteThreadSafety:
         """Writing to different files should not interfere."""
         with tempfile.TemporaryDirectory() as tmpdir:
             results = {}
-            
+
             def write_unique_file(file_id: int):
                 filepath = Path(tmpdir) / f"file_{file_id}.txt"
                 unique_content = f"Unique content for file {file_id}: {'x' * 1000}"
                 with open(filepath, 'w', encoding='utf-8') as f:
                     f.write(unique_content)
                 results[file_id] = unique_content
-            
+
             with ThreadPoolExecutor(max_workers=20) as executor:
                 futures = [executor.submit(write_unique_file, i) for i in range(20)]
                 for f in futures:
                     f.result()
-            
+
             # Verify each file has its unique content
             for file_id, expected_content in results.items():
                 filepath = Path(tmpdir) / f"file_{file_id}.txt"
@@ -226,22 +221,22 @@ def test_property_console_thread_safety(num_threads: int, messages_per_thread: i
     console = Console()
     message_count = [0]
     lock = threading.Lock()
-    
+
     def write_messages(thread_id: int):
         for i in range(messages_per_thread):
             console.info(f"T{thread_id}M{i}")
             with lock:
                 message_count[0] += 1
-    
+
     threads = []
     for i in range(num_threads):
         t = threading.Thread(target=write_messages, args=(i,))
         threads.append(t)
         t.start()
-    
+
     for t in threads:
         t.join()
-    
+
     # All messages should have been written
     expected_count = num_threads * messages_per_thread
     assert message_count[0] == expected_count
@@ -262,19 +257,19 @@ def test_property_file_write_thread_safety(num_files: int, content_size: int):
     """
     with tempfile.TemporaryDirectory() as tmpdir:
         expected_contents = {}
-        
+
         def write_file(file_id: int):
             filepath = Path(tmpdir) / f"section_{file_id}.txt"
             content = f"File {file_id}: " + "x" * content_size
             expected_contents[file_id] = content
             with open(filepath, 'w', encoding='utf-8') as f:
                 f.write(content)
-        
+
         with ThreadPoolExecutor(max_workers=num_files) as executor:
             futures = [executor.submit(write_file, i) for i in range(num_files)]
             for f in futures:
                 f.result()
-        
+
         # Verify all files have correct content
         for file_id, expected in expected_contents.items():
             filepath = Path(tmpdir) / f"section_{file_id}.txt"
@@ -299,7 +294,7 @@ def test_property_heartbeat_does_not_corrupt_output(num_threads: int, iterations
     console = Console()
     completed = [0]
     lock = threading.Lock()
-    
+
     def write_with_heartbeat(thread_id: int):
         with console.heartbeat(f"T{thread_id}", interval=0.05):
             for i in range(iterations):
@@ -308,15 +303,15 @@ def test_property_heartbeat_does_not_corrupt_output(num_threads: int, iterations
                 console.ok(f"T{thread_id}-Done-{i}")
         with lock:
             completed[0] += 1
-    
+
     threads = []
     for i in range(num_threads):
         t = threading.Thread(target=write_with_heartbeat, args=(i,))
         threads.append(t)
         t.start()
-    
+
     for t in threads:
         t.join()
-    
+
     # All threads should complete
     assert completed[0] == num_threads

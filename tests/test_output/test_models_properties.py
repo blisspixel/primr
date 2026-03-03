@@ -4,19 +4,18 @@ Property-based tests for report generation data models.
 Uses Hypothesis to verify correctness properties across many random inputs.
 """
 
-import pytest
-from hypothesis import given, strategies as st, settings, HealthCheck
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
 
 from primr.output.models import (
-    ParsedLine,
-    ContentBlock,
     ChapterContent,
-    SectionContent,
     CompanySnapshot,
+    ContentBlock,
     DocumentMetadata,
     ExecutiveSummary,
+    ParsedLine,
+    SectionContent,
 )
-
 
 # =============================================================================
 # Generators for property-based testing
@@ -85,7 +84,7 @@ class TestSpecialCharacterPreservation:
     def test_parsed_line_preserves_unicode(self, data):
         """ParsedLine preserves all Unicode characters in content and raw fields."""
         line_type, content, level, raw, metadata = data
-        
+
         parsed = ParsedLine(
             type=line_type,
             content=content,
@@ -93,7 +92,7 @@ class TestSpecialCharacterPreservation:
             raw=raw,
             metadata=metadata
         )
-        
+
         # Verify content is preserved exactly
         assert parsed.content == content, "Content was corrupted"
         assert parsed.raw == raw, "Raw was corrupted"
@@ -106,7 +105,7 @@ class TestSpecialCharacterPreservation:
     def test_company_snapshot_preserves_unicode(self, data):
         """CompanySnapshot preserves all Unicode characters in all fields."""
         snapshot = CompanySnapshot(**data)
-        
+
         # Verify all fields are preserved exactly
         assert snapshot.company_name == data['company_name']
         assert snapshot.website == data['website']
@@ -133,7 +132,7 @@ class TestSpecialCharacterPreservation:
             lines=[line],
             properties={}
         )
-        
+
         # Verify content is preserved through nesting
         assert block.lines[0].content == content
         assert block.lines[0].raw == content
@@ -153,7 +152,7 @@ class TestSpecialCharacterPreservation:
             risk_factors=[takeaway],
             one_liner=one_liner
         )
-        
+
         assert summary.narrative == narrative
         assert summary.key_takeaways[0] == takeaway
         assert summary.metrics_snapshot['key'] == takeaway
@@ -171,14 +170,14 @@ class TestSpecialCharacterPreservation:
             blocks=[],
             has_content=True
         )
-        
+
         chapter = ChapterContent(
             number=1,
             title=title,
             icon="🏢",
             sections=[section]
         )
-        
+
         assert chapter.title == title
         assert chapter.sections[0].title == section_title
 
@@ -187,5 +186,5 @@ class TestSpecialCharacterPreservation:
     def test_document_metadata_preserves_unicode(self, company_name):
         """DocumentMetadata preserves Unicode in company name."""
         metadata = DocumentMetadata(company_name=company_name)
-        
+
         assert metadata.company_name == company_name

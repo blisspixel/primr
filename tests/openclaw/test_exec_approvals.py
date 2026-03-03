@@ -8,7 +8,6 @@ from pathlib import Path
 
 import pytest
 
-
 EXEC_APPROVALS_PATH = Path(__file__).parent.parent.parent / "openclaw" / "exec-approvals.json"
 
 
@@ -45,7 +44,7 @@ class TestApprovalRules:
         """SR-1.6: research_company requires approval."""
         approvals = exec_approvals["approvals"]
         research_rule = next((a for a in approvals if a["pattern"] == "research_company"), None)
-        
+
         assert research_rule is not None
         assert research_rule["approval"] == "required"
         assert "timeout_seconds" in research_rule
@@ -55,7 +54,7 @@ class TestApprovalRules:
         """SR-1.6: generate_strategy requires approval."""
         approvals = exec_approvals["approvals"]
         strategy_rule = next((a for a in approvals if a["pattern"] == "generate_strategy"), None)
-        
+
         assert strategy_rule is not None
         assert strategy_rule["approval"] == "required"
         assert "timeout_seconds" in strategy_rule
@@ -64,7 +63,7 @@ class TestApprovalRules:
         """SR-1.6: clear_jobs requires approval."""
         approvals = exec_approvals["approvals"]
         clear_rule = next((a for a in approvals if a["pattern"] == "clear_jobs"), None)
-        
+
         assert clear_rule is not None
         assert clear_rule["approval"] == "required"
 
@@ -111,6 +110,6 @@ class TestNoOverlap:
         """Tools should not appear in both lists."""
         approval_patterns = {a["pattern"] for a in exec_approvals["approvals"]}
         allowed = set(exec_approvals["allow_without_approval"])
-        
+
         overlap = approval_patterns & allowed
         assert len(overlap) == 0, f"Tools in both lists: {overlap}"

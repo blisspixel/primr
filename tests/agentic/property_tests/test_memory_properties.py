@@ -20,17 +20,13 @@ import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
 
-import pytest
-from hypothesis import given, settings, assume, HealthCheck
+from hypothesis import HealthCheck, assume, given, settings
 from hypothesis import strategies as st
 
 from primr.agentic.memory import (
-    CompanyMemory,
     ResearchMemory,
-    ScrapePattern,
 )
 from primr.agentic.models import ConfidenceLevel, Hypothesis
-
 
 # =============================================================================
 # STRATEGIES

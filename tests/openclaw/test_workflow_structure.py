@@ -5,13 +5,11 @@ Validates: FR-3.1, FR-3.2, FR-3.3
 """
 
 from pathlib import Path
-from typing import Any
 
 import pytest
 import yaml
-
-from hypothesis import given, settings, strategies as st
-
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 WORKFLOWS_DIR = Path(__file__).parent.parent.parent / "openclaw" / "workflows"
 WORKFLOW_FILES = list(WORKFLOWS_DIR.glob("*.yaml"))
@@ -69,7 +67,7 @@ class TestWorkflowStepsStructure:
         """FR-3.1: Each step has unique id."""
         steps = workflow["steps"]
         ids = [step["id"] for step in steps]
-        
+
         assert len(ids) == len(set(ids)), f"Duplicate step IDs found: {ids}"
 
     def test_each_step_has_id(self, workflow: dict) -> None:
@@ -93,14 +91,14 @@ class TestApprovalGate:
         """FR-3.2: At least one step has approval: required."""
         steps = workflow["steps"]
         approval_steps = [s for s in steps if s.get("approval") == "required"]
-        
+
         assert len(approval_steps) > 0, "No approval gate found in workflow"
 
     def test_approval_step_has_message(self, workflow: dict) -> None:
         """FR-3.2: Approval step has message."""
         steps = workflow["steps"]
         approval_steps = [s for s in steps if s.get("approval") == "required"]
-        
+
         for step in approval_steps:
             assert "message" in step, f"Approval step {step['id']} missing message"
 
@@ -108,7 +106,7 @@ class TestApprovalGate:
         """FR-3.2: Approval step has timeout."""
         steps = workflow["steps"]
         approval_steps = [s for s in steps if s.get("approval") == "required"]
-        
+
         for step in approval_steps:
             assert "timeout_minutes" in step, f"Approval step {step['id']} missing timeout"
             assert step["timeout_minutes"] == 10, "Approval timeout should be 10 minutes"
@@ -117,7 +115,7 @@ class TestApprovalGate:
         """SR-1.2: Approval step specifies token length."""
         steps = workflow["steps"]
         approval_steps = [s for s in steps if s.get("approval") == "required"]
-        
+
         for step in approval_steps:
             assert "token_length" in step, f"Approval step {step['id']} missing token_length"
             assert step["token_length"] == 6, "Token length should be 6 characters"
@@ -129,12 +127,12 @@ class TestConditionFields:
     def test_dependent_steps_have_conditions(self, workflow: dict) -> None:
         """FR-3.3: Dependent steps have condition fields."""
         steps = workflow["steps"]
-        
+
         # Find steps that depend on approval
         for i, step in enumerate(steps):
             if i == 0:
                 continue  # First step doesn't need condition
-            
+
             # Steps after approval that use tools should have conditions
             if step.get("type") == "tool" or "tool" in step:
                 # Check if this step references previous step outputs
@@ -181,10 +179,10 @@ class TestResearchPipelineSpecific:
     def test_has_required_inputs(self, research_pipeline: dict) -> None:
         """FR-3.1: Has required inputs."""
         inputs = research_pipeline.get("inputs", {})
-        
+
         assert "company_name" in inputs
         assert inputs["company_name"]["required"] is True
-        
+
         assert "company_url" in inputs
         assert inputs["company_url"]["required"] is True
 
@@ -192,7 +190,7 @@ class TestResearchPipelineSpecific:
         """Mode input has valid enum values."""
         inputs = research_pipeline.get("inputs", {})
         mode = inputs.get("mode", {})
-        
+
         assert "enum" in mode
         assert set(mode["enum"]) == {"scrape", "deep", "full"}
 
@@ -200,7 +198,7 @@ class TestResearchPipelineSpecific:
         """FR-3.1: Has estimate step."""
         steps = research_pipeline["steps"]
         estimate_step = next((s for s in steps if s["id"] == "estimate"), None)
-        
+
         assert estimate_step is not None
         assert estimate_step.get("tool") == "estimate_run"
 
@@ -208,7 +206,7 @@ class TestResearchPipelineSpecific:
         """FR-3.1: Has research step."""
         steps = research_pipeline["steps"]
         research_step = next((s for s in steps if s["id"] == "research"), None)
-        
+
         assert research_step is not None
         assert research_step.get("tool") == "research_company"
 
@@ -216,7 +214,7 @@ class TestResearchPipelineSpecific:
         """FR-3.1: Has monitor/poll step."""
         steps = research_pipeline["steps"]
         monitor_step = next((s for s in steps if s["id"] == "monitor"), None)
-        
+
         assert monitor_step is not None
         assert monitor_step.get("type") == "poll"
         assert "primr://research/status" in monitor_step.get("resource", "")
@@ -225,7 +223,7 @@ class TestResearchPipelineSpecific:
         """Steps are in correct order: estimate → approval → research → monitor → retrieve."""
         steps = research_pipeline["steps"]
         step_ids = [s["id"] for s in steps]
-        
+
         # Verify order
         assert step_ids.index("estimate") < step_ids.index("approval")
         assert step_ids.index("approval") < step_ids.index("research")
@@ -240,17 +238,17 @@ class TestPropertyBasedWorkflowValidity:
     def test_all_workflows_have_valid_structure(self, workflow_path: Path) -> None:
         """Property 4: All workflows have valid structure."""
         workflow = load_workflow(workflow_path)
-        
+
         # Required top-level fields
         assert "name" in workflow
         assert "steps" in workflow
         assert isinstance(workflow["steps"], list)
         assert len(workflow["steps"]) > 0
-        
+
         # All steps have unique IDs
         ids = [s["id"] for s in workflow["steps"]]
         assert len(ids) == len(set(ids))
-        
+
         # At least one approval step
         approval_steps = [s for s in workflow["steps"] if s.get("approval") == "required"]
         assert len(approval_steps) > 0

@@ -4,11 +4,9 @@ Tests FR-1.1, FR-1.2, FR-1.3 requirements.
 """
 
 import json
-import re
 from pathlib import Path
 
 import pytest
-
 
 OPENCLAW_CONFIG_PATH = Path(__file__).parent.parent.parent / "openclaw" / "openclaw.json"
 
@@ -43,7 +41,7 @@ class TestOpenclawJsonValidity:
         """FR-1.1: primr server has correct structure."""
         xiaowan = openclaw_config["plugins"]["entries"]["xiaowan"]
         servers = xiaowan["config"]["servers"]
-        
+
         primr_server = next((s for s in servers if s["name"] == "primr"), None)
         assert primr_server is not None
         assert primr_server["transport"] == "stdio"
@@ -59,9 +57,9 @@ class TestEnvironmentVariablePassthrough:
         xiaowan = openclaw_config["plugins"]["entries"]["xiaowan"]
         servers = xiaowan["config"]["servers"]
         primr_server = next((s for s in servers if s["name"] == "primr"), None)
-        
+
         env = primr_server["env"]
-        
+
         # Check each required env var uses ${VAR} syntax
         assert env["GEMINI_API_KEY"] == "${GEMINI_API_KEY}"
         assert env["SEARCH_API_KEY"] == "${SEARCH_API_KEY}"
@@ -72,10 +70,10 @@ class TestEnvironmentVariablePassthrough:
         xiaowan = openclaw_config["plugins"]["entries"]["xiaowan"]
         servers = xiaowan["config"]["servers"]
         primr_server = next((s for s in servers if s["name"] == "primr"), None)
-        
+
         env = primr_server["env"]
         required_vars = ["GEMINI_API_KEY", "SEARCH_API_KEY", "SEARCH_ENGINE_ID"]
-        
+
         for var in required_vars:
             assert var in env, f"Missing required env var: {var}"
 
@@ -111,7 +109,7 @@ class TestSkillsEntries:
         """FR-1.3: Per-skill environment overrides are supported."""
         skills = openclaw_config["skills"]["entries"]
         research_skill = skills["primr-research"]
-        
+
         # primr-research has env overrides
         assert "env" in research_skill
         assert "PRIMR_OUTPUT_DIR" in research_skill["env"]

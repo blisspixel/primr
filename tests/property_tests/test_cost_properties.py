@@ -8,20 +8,19 @@ of the CostTracker implementation as specified in the PhD-Level Excellence spec.
 **Validates: Requirements 5.1-5.6**
 """
 
-from typing import Any
 
 import pytest
-from hypothesis import given, settings, strategies as st, HealthCheck, assume
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
 
+from primr.utils.observability import correlation_scope
 from primr.utils.telemetry import (
-    TelemetryConfig,
-    TelemetrySystem,
     CostTracker,
     NullSpan,
+    TelemetryConfig,
+    TelemetrySystem,
     is_otel_available,
 )
-from primr.utils.observability import correlation_scope
-
 
 # =============================================================================
 # STRATEGIES FOR GENERATING TEST DATA
@@ -92,19 +91,19 @@ class TestCostCalculationCorrectness:
         Formula: (input_tokens / 1_000_000) * input_price + (output_tokens / 1_000_000) * output_price
         """
         tracker = CostTracker()
-        
+
         # Get the pricing for this model
         pricing = tracker.get_model_pricing(model)
         assert pricing is not None, f"Model {model} should be in default pricing"
-        
+
         input_price, output_price = pricing
-        
+
         # Calculate expected cost using the formula
         expected_cost = (input_tokens / 1_000_000) * input_price + (output_tokens / 1_000_000) * output_price
-        
+
         # Calculate actual cost
         actual_cost = tracker.calculate_cost(model, input_tokens, output_tokens)
-        
+
         # Verify the formula is correct (using approximate equality for floating point)
         assert abs(actual_cost - expected_cost) < 1e-10, (
             f"Cost calculation mismatch for {model}: "
@@ -123,9 +122,9 @@ class TestCostCalculationCorrectness:
         Unknown models should return 0.0 cost.
         """
         tracker = CostTracker()
-        
+
         cost = tracker.calculate_cost("unknown-model", input_tokens, output_tokens)
-        
+
         assert cost == 0.0, f"Unknown model should return 0.0 cost, got {cost}"
 
     @given(
@@ -142,12 +141,12 @@ class TestCostCalculationCorrectness:
         tracker = CostTracker()
         pricing = tracker.get_model_pricing(model)
         assert pricing is not None
-        
+
         _, output_price = pricing
-        
+
         expected_cost = (output_tokens / 1_000_000) * output_price
         actual_cost = tracker.calculate_cost(model, 0, output_tokens)
-        
+
         assert abs(actual_cost - expected_cost) < 1e-10
 
     @given(
@@ -164,12 +163,12 @@ class TestCostCalculationCorrectness:
         tracker = CostTracker()
         pricing = tracker.get_model_pricing(model)
         assert pricing is not None
-        
+
         input_price, _ = pricing
-        
+
         expected_cost = (input_tokens / 1_000_000) * input_price
         actual_cost = tracker.calculate_cost(model, input_tokens, 0)
-        
+
         assert abs(actual_cost - expected_cost) < 1e-10
 
     @given(model=model_name_strategy)
@@ -179,9 +178,9 @@ class TestCostCalculationCorrectness:
         Zero input and output tokens should return zero cost.
         """
         tracker = CostTracker()
-        
+
         cost = tracker.calculate_cost(model, 0, 0)
-        
+
         assert cost == 0.0, f"Zero tokens should return 0.0 cost, got {cost}"
 
     @given(
@@ -191,22 +190,22 @@ class TestCostCalculationCorrectness:
     )
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_custom_pricing_table_is_used(
-        self, custom_pricing: dict[str, tuple[float, float]], 
-        input_tokens: int, 
+        self, custom_pricing: dict[str, tuple[float, float]],
+        input_tokens: int,
         output_tokens: int
     ):
         """
         Custom pricing tables should be used for cost calculation.
         """
         tracker = CostTracker(pricing=custom_pricing)
-        
+
         # Pick a model from the custom pricing
         model = list(custom_pricing.keys())[0]
         input_price, output_price = custom_pricing[model]
-        
+
         expected_cost = (input_tokens / 1_000_000) * input_price + (output_tokens / 1_000_000) * output_price
         actual_cost = tracker.calculate_cost(model, input_tokens, output_tokens)
-        
+
         assert abs(actual_cost - expected_cost) < 1e-10
 
     @given(
@@ -222,9 +221,9 @@ class TestCostCalculationCorrectness:
         Cost should always be non-negative for non-negative token counts.
         """
         tracker = CostTracker()
-        
+
         cost = tracker.calculate_cost(model, input_tokens, output_tokens)
-        
+
         assert cost >= 0.0, f"Cost should be non-negative, got {cost}"
 
     @given(
@@ -240,11 +239,11 @@ class TestCostCalculationCorrectness:
         Cost should increase when token counts increase.
         """
         tracker = CostTracker()
-        
+
         base_cost = tracker.calculate_cost(model, input_tokens, output_tokens)
         more_input_cost = tracker.calculate_cost(model, input_tokens + 1000, output_tokens)
         more_output_cost = tracker.calculate_cost(model, input_tokens, output_tokens + 1000)
-        
+
         assert more_input_cost >= base_cost, "Cost should increase with more input tokens"
         assert more_output_cost >= base_cost, "Cost should increase with more output tokens"
 
@@ -280,9 +279,9 @@ class TestCostAttributionToSpans:
         config = TelemetryConfig(enabled=False)
         telemetry = TelemetrySystem(config)
         tracker = CostTracker()
-        
+
         expected_cost = tracker.calculate_cost(model, input_tokens, output_tokens)
-        
+
         with telemetry.span("test_operation") as span:
             actual_cost = telemetry.record_cost(
                 model=model,
@@ -290,7 +289,7 @@ class TestCostAttributionToSpans:
                 output_tokens=output_tokens,
                 operation=operation
             )
-        
+
         assert abs(actual_cost - expected_cost) < 1e-10, (
             f"record_cost should return calculated cost: expected {expected_cost}, got {actual_cost}"
         )
@@ -309,14 +308,14 @@ class TestCostAttributionToSpans:
         """
         config = TelemetryConfig(enabled=False)
         telemetry = TelemetrySystem(config)
-        
+
         # Should not raise
         cost = telemetry.record_cost(
             model=model,
             input_tokens=input_tokens,
             output_tokens=output_tokens
         )
-        
+
         # Should still return the calculated cost
         tracker = CostTracker()
         expected_cost = tracker.calculate_cost(model, input_tokens, output_tokens)
@@ -337,7 +336,7 @@ class TestCostAttributionToSpans:
         """
         config = TelemetryConfig(enabled=False)
         telemetry = TelemetrySystem(config)
-        
+
         with telemetry.span("test_operation") as span:
             # Should not raise
             cost = telemetry.record_cost(
@@ -346,7 +345,7 @@ class TestCostAttributionToSpans:
                 output_tokens=output_tokens,
                 operation=operation
             )
-            
+
             # Cost should be calculated correctly
             assert cost >= 0.0
 
@@ -364,20 +363,20 @@ class TestCostAttributionToSpans:
         """
         config = TelemetryConfig(enabled=False)
         telemetry = TelemetrySystem(config)
-        
+
         # Create a custom tracker with different pricing
         custom_pricing = {model: (10.0, 20.0)}  # Much higher prices
         custom_tracker = CostTracker(pricing=custom_pricing)
-        
+
         expected_cost = custom_tracker.calculate_cost(model, input_tokens, output_tokens)
-        
+
         actual_cost = telemetry.record_cost(
             model=model,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             cost_tracker=custom_tracker
         )
-        
+
         assert abs(actual_cost - expected_cost) < 1e-10
 
     @pytest.mark.skipif(not is_otel_available(), reason="OpenTelemetry not installed")
@@ -395,7 +394,7 @@ class TestCostAttributionToSpans:
         """
         config = TelemetryConfig(enabled=True, exporter_type="none")
         telemetry = TelemetrySystem(config)
-        
+
         if telemetry.is_enabled:
             with correlation_scope("test") as ctx:
                 with telemetry.span("ai_operation", phase="generation") as span:
@@ -405,11 +404,11 @@ class TestCostAttributionToSpans:
                         output_tokens=output_tokens,
                         operation="test_operation"
                     )
-                    
+
                     # Span should be a real OpenTelemetry span
                     assert not isinstance(span, NullSpan)
                     assert span.is_recording()
-                    
+
                     # Cost should be calculated
                     assert cost >= 0.0
 
@@ -474,9 +473,9 @@ class TestCostTrackerConfiguration:
         add_model_pricing should add new models to the pricing table.
         """
         tracker = CostTracker()
-        
+
         tracker.add_model_pricing(model, input_price, output_price)
-        
+
         assert model in tracker.get_supported_models()
         assert tracker.get_model_pricing(model) == (input_price, output_price)
 
@@ -493,10 +492,10 @@ class TestCostTrackerConfiguration:
         """
         tracker = CostTracker()
         model = "gemini-1.5-pro"
-        
+
         # Update existing model pricing
         tracker.add_model_pricing(model, input_price, output_price)
-        
+
         assert tracker.get_model_pricing(model) == (input_price, output_price)
 
     def test_get_model_pricing_returns_none_for_unknown(self):
@@ -504,7 +503,7 @@ class TestCostTrackerConfiguration:
         get_model_pricing should return None for unknown models.
         """
         tracker = CostTracker()
-        
+
         assert tracker.get_model_pricing("unknown-model") is None
 
     @given(custom_pricing=custom_pricing_strategy)
@@ -516,7 +515,7 @@ class TestCostTrackerConfiguration:
         CostTracker should accept custom pricing at initialization.
         """
         tracker = CostTracker(pricing=custom_pricing)
-        
+
         assert tracker.pricing == custom_pricing
         assert set(tracker.get_supported_models()) == set(custom_pricing.keys())
 
@@ -535,12 +534,12 @@ class TestCostCalculationEdgeCases:
         Cost calculation should handle very large token counts.
         """
         tracker = CostTracker()
-        
+
         # 1 billion tokens
         large_count = 1_000_000_000
-        
+
         cost = tracker.calculate_cost("gemini-1.5-pro", large_count, large_count)
-        
+
         # Expected: (1B/1M) * 1.25 + (1B/1M) * 5.00 = 1000 * 1.25 + 1000 * 5.00 = 6250
         expected = 1000 * 1.25 + 1000 * 5.00
         assert abs(cost - expected) < 1e-6
@@ -550,11 +549,11 @@ class TestCostCalculationEdgeCases:
         Cost for exactly 1 million tokens should equal the price per million.
         """
         tracker = CostTracker()
-        
+
         # 1 million input tokens with gemini-1.5-pro (input price = 1.25)
         cost = tracker.calculate_cost("gemini-1.5-pro", 1_000_000, 0)
         assert abs(cost - 1.25) < 1e-10
-        
+
         # 1 million output tokens with gemini-1.5-pro (output price = 5.00)
         cost = tracker.calculate_cost("gemini-1.5-pro", 0, 1_000_000)
         assert abs(cost - 5.00) < 1e-10
@@ -564,10 +563,10 @@ class TestCostCalculationEdgeCases:
         Cost calculation should handle small token counts accurately.
         """
         tracker = CostTracker()
-        
+
         # 1 token
         cost = tracker.calculate_cost("gemini-1.5-pro", 1, 1)
-        
+
         # Expected: (1/1M) * 1.25 + (1/1M) * 5.00 = 0.00000125 + 0.000005 = 0.00000625
         expected = (1 / 1_000_000) * 1.25 + (1 / 1_000_000) * 5.00
         assert abs(cost - expected) < 1e-15
@@ -585,10 +584,10 @@ class TestCostCalculationEdgeCases:
         Cost calculation should be deterministic (same inputs = same output).
         """
         tracker = CostTracker()
-        
+
         cost1 = tracker.calculate_cost(model, input_tokens, output_tokens)
         cost2 = tracker.calculate_cost(model, input_tokens, output_tokens)
-        
+
         assert cost1 == cost2, "Cost calculation should be deterministic"
 
     @given(
@@ -604,13 +603,13 @@ class TestCostCalculationEdgeCases:
         Cost should be additive: cost(a+b) = cost(a) + cost(b) for same model.
         """
         tracker = CostTracker()
-        
+
         # Calculate cost for combined tokens
         combined_cost = tracker.calculate_cost(model, input_tokens, output_tokens)
-        
+
         # Calculate cost for input and output separately
         input_only_cost = tracker.calculate_cost(model, input_tokens, 0)
         output_only_cost = tracker.calculate_cost(model, 0, output_tokens)
-        
+
         # Should be additive
         assert abs(combined_cost - (input_only_cost + output_only_cost)) < 1e-10

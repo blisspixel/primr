@@ -7,21 +7,17 @@ Validates report structure, section ordering, and format conversion.
 **Validates: Requirements 7.1, 7.2, 7.3, 7.4, 7.5**
 """
 
-import pytest
 import tempfile
 from pathlib import Path
-from unittest.mock import Mock, patch
 
-from hypothesis import given, settings, strategies as st
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
-from primr.prompts.composer import PromptComposer
 from primr.output.markdown_converter import (
     markdown_to_docx,
     render_table,
-    strip_heading_markers,
-    parse_inline_markdown,
 )
-
+from primr.prompts.composer import PromptComposer
 
 # =============================================================================
 # Expected Section Configuration
@@ -52,7 +48,7 @@ class TestReportSectionStructure:
         """
         composer = PromptComposer()
         config = composer._load_config("company_overview")
-        
+
         assert len(config.sections) == 21, f"Expected 21 sections, got {len(config.sections)}"
 
     def test_executive_summary_is_first(self):
@@ -64,7 +60,7 @@ class TestReportSectionStructure:
         """
         composer = PromptComposer()
         config = composer._load_config("company_overview")
-        
+
         first_section = config.sections[0]
         assert first_section.id == "executive_summary"
         assert first_section.position == "opening"
@@ -78,7 +74,7 @@ class TestReportSectionStructure:
         """
         composer = PromptComposer()
         config = composer._load_config("company_overview")
-        
+
         last_section = config.sections[-1]
         # The last section should be a closing section
         assert last_section.position == "closing"
@@ -89,13 +85,13 @@ class TestReportSectionStructure:
         """Sections maintain consistent ordering across loads."""
         composer1 = PromptComposer()
         config1 = composer1._load_config("company_overview")
-        
+
         composer2 = PromptComposer()
         config2 = composer2._load_config("company_overview")
-        
+
         ids1 = [s.id for s in config1.sections]
         ids2 = [s.id for s in config2.sections]
-        
+
         assert ids1 == ids2
 
 
@@ -115,7 +111,7 @@ class TestDOCXTablePreservation:
         **Validates: Requirements 7.4**
         """
         from docx import Document
-        
+
         doc = Document()
         table_lines = [
             "| Header 1 | Header 2 |",
@@ -123,13 +119,13 @@ class TestDOCXTablePreservation:
             "| Cell 1   | Cell 2   |",
             "| Cell 3   | Cell 4   |",
         ]
-        
+
         render_table(doc, table_lines)
-        
+
         # Should have created a table
         assert len(doc.tables) == 1
         table = doc.tables[0]
-        
+
         # Should have correct dimensions
         # Note: render_table may include separator as a row
         assert len(table.rows) >= 3  # At least header + 2 data rows
@@ -138,16 +134,16 @@ class TestDOCXTablePreservation:
     def test_table_with_formatting(self):
         """Tables with inline formatting are converted correctly."""
         from docx import Document
-        
+
         doc = Document()
         table_lines = [
             "| **Bold** | *Italic* |",
             "|----------|----------|",
             "| Normal   | `Code`   |",
         ]
-        
+
         render_table(doc, table_lines)
-        
+
         assert len(doc.tables) == 1
         table = doc.tables[0]
         assert len(table.rows) >= 2  # At least header + 1 data row
@@ -175,22 +171,22 @@ More content.
 
 Even more content.
 """
-        
+
         with tempfile.NamedTemporaryFile(suffix='.docx', delete=False) as f:
             output_path = Path(f.name)
-        
+
         try:
             markdown_to_docx(markdown, output_path)
-            
+
             from docx import Document
             doc = Document(output_path)
-            
+
             # Check that headings exist with correct styles
             heading_styles = []
             for para in doc.paragraphs:
                 if para.style.name.startswith('Heading'):
                     heading_styles.append(para.style.name)
-            
+
             # Should have multiple heading levels
             assert len(heading_styles) >= 2
         finally:
@@ -206,16 +202,16 @@ Even more content.
 
 #### H4 Minor
 """
-        
+
         with tempfile.NamedTemporaryFile(suffix='.docx', delete=False) as f:
             output_path = Path(f.name)
-        
+
         try:
             markdown_to_docx(markdown, output_path, title="Test")
-            
+
             from docx import Document
             doc = Document(output_path)
-            
+
             # Document should be created successfully
             assert len(doc.paragraphs) > 0
         finally:
@@ -228,16 +224,16 @@ class TestDOCXContentPreservation:
     def test_bold_text_preserved(self):
         """Bold text is preserved in DOCX."""
         markdown = "This is **bold text** in a paragraph."
-        
+
         with tempfile.NamedTemporaryFile(suffix='.docx', delete=False) as f:
             output_path = Path(f.name)
-        
+
         try:
             markdown_to_docx(markdown, output_path)
-            
+
             from docx import Document
             doc = Document(output_path)
-            
+
             # Find paragraph with bold text
             found_bold = False
             for para in doc.paragraphs:
@@ -245,7 +241,7 @@ class TestDOCXContentPreservation:
                     if run.font.bold and "bold text" in run.text:
                         found_bold = True
                         break
-            
+
             assert found_bold, "Bold text not found in DOCX"
         finally:
             output_path.unlink(missing_ok=True)
@@ -258,16 +254,16 @@ class TestDOCXContentPreservation:
 * Second item
 * Third item
 """
-        
+
         with tempfile.NamedTemporaryFile(suffix='.docx', delete=False) as f:
             output_path = Path(f.name)
-        
+
         try:
             markdown_to_docx(markdown, output_path)
-            
+
             from docx import Document
             doc = Document(output_path)
-            
+
             # Check content is present
             full_text = "\n".join(p.text for p in doc.paragraphs)
             assert "First item" in full_text
@@ -296,7 +292,7 @@ def test_property_table_dimensions_preserved(num_rows: int, num_cols: int):
     a table with matching column structure.
     """
     from docx import Document
-    
+
     # Generate table markdown
     header = "| " + " | ".join(f"Col{i}" for i in range(num_cols)) + " |"
     separator = "| " + " | ".join("---" for _ in range(num_cols)) + " |"
@@ -304,15 +300,15 @@ def test_property_table_dimensions_preserved(num_rows: int, num_cols: int):
     for r in range(num_rows - 1):  # -1 because header is a row
         row = "| " + " | ".join(f"R{r}C{c}" for c in range(num_cols)) + " |"
         rows.append(row)
-    
+
     table_lines = [header, separator] + rows
-    
+
     doc = Document()
     render_table(doc, table_lines)
-    
+
     assert len(doc.tables) == 1
     table = doc.tables[0]
-    
+
     # Verify column count is correct
     assert len(table.columns) == num_cols
     # Verify we have at least the expected data rows
@@ -343,21 +339,21 @@ def test_property_heading_hierarchy_preserved(heading_levels: list[int]):
         lines.append("")
         lines.append(f"Content for heading {i + 1}.")
         lines.append("")
-    
+
     markdown = "\n".join(lines)
-    
+
     with tempfile.NamedTemporaryFile(suffix='.docx', delete=False) as f:
         output_path = Path(f.name)
-    
+
     try:
         markdown_to_docx(markdown, output_path)
-        
+
         from docx import Document
         doc = Document(output_path)
-        
+
         # Document should be created successfully
         assert len(doc.paragraphs) > 0
-        
+
         # All heading content should be present
         full_text = "\n".join(p.text for p in doc.paragraphs)
         for i in range(len(heading_levels)):
@@ -382,23 +378,23 @@ def test_property_content_not_lost_in_conversion(text: str):
     For any text content, conversion to DOCX should not lose the content.
     """
     markdown = f"## Test Section\n\n{text}"
-    
+
     with tempfile.NamedTemporaryFile(suffix='.docx', delete=False) as f:
         output_path = Path(f.name)
-    
+
     try:
         markdown_to_docx(markdown, output_path)
-        
+
         from docx import Document
         doc = Document(output_path)
-        
+
         # Extract all text from document
         full_text = "\n".join(p.text for p in doc.paragraphs)
-        
+
         # Original text should be present (allowing for whitespace normalization)
         normalized_text = " ".join(text.split())
         normalized_full = " ".join(full_text.split())
-        
+
         assert normalized_text in normalized_full or text.strip() in full_text
     finally:
         output_path.unlink(missing_ok=True)

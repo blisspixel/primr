@@ -2,22 +2,23 @@
 Google Search API test - moved from root.
 """
 
+import csv
+import json
 import os
+import re
 import sys
 import time
-import requests
-import json
-import csv
-import re
-from pathlib import Path
-from dotenv import load_dotenv
-from colorama import Fore, Style
 from datetime import datetime
+from pathlib import Path
+
+import requests
+from colorama import Fore, Style
+from dotenv import load_dotenv
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
-from primr.config.config import SEARCH_API_KEY, SEARCH_ENGINE_ID, OUTPUT_DIR
+from primr.config.config import OUTPUT_DIR, SEARCH_API_KEY, SEARCH_ENGINE_ID
 
 load_dotenv()
 

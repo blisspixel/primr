@@ -25,7 +25,6 @@ from primr.utils.async_utils import (
     sync_context,
 )
 
-
 # =============================================================================
 # TEST FIXTURES
 # =============================================================================
@@ -93,15 +92,15 @@ class TestRunSync:
         # We can't compare loop IDs because Python may reuse memory addresses
         # Instead, verify that each call completes independently
         results = []
-        
+
         async def capture_result(value):
             await asyncio.sleep(0.01)
             results.append(value)
             return value
-        
+
         r1 = run_sync_new_loop(capture_result(1))
         r2 = run_sync_new_loop(capture_result(2))
-        
+
         assert r1 == 1
         assert r2 == 2
         assert results == [1, 2]
@@ -120,7 +119,7 @@ class TestRunAsync:
         def blocking():
             time.sleep(0.05)
             return "done"
-        
+
         result = await run_async(blocking)
         assert result == "done"
 
@@ -129,7 +128,7 @@ class TestRunAsync:
         """run_async should pass arguments correctly."""
         def add(a, b):
             return a + b
-        
+
         result = await run_async(add, 2, 3)
         assert result == 5
 
@@ -138,7 +137,7 @@ class TestRunAsync:
         """run_async should pass keyword arguments correctly."""
         def greet(name, greeting="Hello"):
             return f"{greeting}, {name}!"
-        
+
         result = await run_async(greet, "World", greeting="Hi")
         assert result == "Hi, World!"
 
@@ -147,7 +146,7 @@ class TestRunAsync:
         """run_async should propagate exceptions."""
         def raises():
             raise RuntimeError("test error")
-        
+
         with pytest.raises(RuntimeError, match="test error"):
             await run_async(raises)
 
@@ -157,7 +156,7 @@ class TestRunAsync:
         def fast():
             time.sleep(0.01)
             return "done"
-        
+
         result = await run_async_with_timeout(fast, 1.0)
         assert result == "done"
 
@@ -167,7 +166,7 @@ class TestRunAsync:
         def slow():
             time.sleep(10)
             return "done"
-        
+
         with pytest.raises(asyncio.TimeoutError):
             await run_async_with_timeout(slow, 0.1)
 
@@ -185,7 +184,7 @@ class TestEnsureAsync:
         @ensure_async
         def sync_func(x):
             return x * 2
-        
+
         result = await sync_func(5)
         assert result == 10
 
@@ -195,7 +194,7 @@ class TestEnsureAsync:
         @ensure_async
         def my_function():
             pass
-        
+
         assert my_function.__name__ == "my_function"
 
 
@@ -208,7 +207,7 @@ class TestEnsureSync:
         async def async_func(x):
             await asyncio.sleep(0.01)
             return x * 2
-        
+
         result = async_func(5)
         assert result == 10
 
@@ -217,7 +216,7 @@ class TestEnsureSync:
         @ensure_sync
         async def my_async_function():
             pass
-        
+
         assert my_async_function.__name__ == "my_async_function"
 
 
@@ -238,7 +237,7 @@ class TestSyncContext:
         """sync_context should allow running coroutines."""
         async def coro():
             return 42
-        
+
         with sync_context() as loop:
             result = loop.run_until_complete(coro())
             assert result == 42
@@ -250,10 +249,10 @@ class TestAsyncBridge:
     def test_bridge_run_executes_coroutine(self):
         """AsyncBridge.run should execute coroutines from sync code."""
         bridge = AsyncBridge()
-        
+
         async def coro():
             return "result"
-        
+
         result = bridge.run(coro())
         assert result == "result"
 
@@ -261,11 +260,11 @@ class TestAsyncBridge:
     async def test_bridge_run_blocking_executes_sync(self):
         """AsyncBridge.run_blocking should execute sync functions from async code."""
         bridge = AsyncBridge()
-        
+
         def blocking():
             time.sleep(0.01)
             return "done"
-        
+
         result = await bridge.run_blocking(blocking)
         assert result == "done"
 
@@ -274,14 +273,14 @@ class TestAsyncBridge:
         """AsyncBridge should use custom executor if provided."""
         executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="custom-")
         bridge = AsyncBridge(executor=executor)
-        
+
         def get_thread_name():
             import threading
             return threading.current_thread().name
-        
+
         result = await bridge.run_blocking(get_thread_name)
         assert "custom-" in result
-        
+
         executor.shutdown(wait=True)
 
 
@@ -311,7 +310,7 @@ class TestGatherWithConcurrency:
         async def task(n):
             await asyncio.sleep(0.01)
             return n * 2
-        
+
         results = await gather_with_concurrency(
             3,
             task(1),
@@ -320,7 +319,7 @@ class TestGatherWithConcurrency:
             task(4),
             task(5),
         )
-        
+
         assert results == [2, 4, 6, 8, 10]
 
     @pytest.mark.asyncio
@@ -328,7 +327,7 @@ class TestGatherWithConcurrency:
         """gather_with_concurrency should limit concurrent execution."""
         concurrent_count = 0
         max_concurrent = 0
-        
+
         async def task():
             nonlocal concurrent_count, max_concurrent
             concurrent_count += 1
@@ -336,7 +335,7 @@ class TestGatherWithConcurrency:
             await asyncio.sleep(0.05)
             concurrent_count -= 1
             return True
-        
+
         await gather_with_concurrency(
             2,  # Limit to 2 concurrent
             task(),
@@ -344,7 +343,7 @@ class TestGatherWithConcurrency:
             task(),
             task(),
         )
-        
+
         assert max_concurrent <= 2
 
 
@@ -358,7 +357,7 @@ class TestExecutorConfiguration:
     def test_configure_executor_changes_workers(self):
         """configure_executor should change worker count."""
         configure_executor(max_workers=2)
-        
+
         # Verify by running concurrent tasks
         async def test():
             results = await gather_with_concurrency(
@@ -367,7 +366,7 @@ class TestExecutorConfiguration:
                 run_async(lambda: 2),
             )
             return results
-        
+
         result = run_sync(test())
         assert result == [1, 2]
 
@@ -375,6 +374,6 @@ class TestExecutorConfiguration:
         """shutdown_executor should clean up resources."""
         # Force executor creation
         run_sync(run_async(lambda: 1))
-        
+
         # Shutdown should not raise
         shutdown_executor(wait=True)

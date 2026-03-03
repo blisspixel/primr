@@ -7,20 +7,16 @@ Tests that cost estimates are within acceptable ranges of actual usage.
 **Validates: Requirements 9.1, 9.2, 9.3**
 """
 
-import pytest
-from hypothesis import given, settings, strategies as st
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
+from primr.config.models import PrimrModels
 from primr.utils.cost_estimator import (
-    estimate_cost,
-    CostEstimate,
-    MODE_ESTIMATES,
-    GEMINI_3_PRO_INPUT_PRICE_SMALL,
-    GEMINI_3_PRO_OUTPUT_PRICE_SMALL,
     GEMINI_3_FLASH_INPUT_PRICE,
     GEMINI_3_FLASH_OUTPUT_PRICE,
+    MODE_ESTIMATES,
+    estimate_cost,
 )
-from primr.config.models import PrimrModels
-
 
 # =============================================================================
 # Historical Usage Data (for accuracy validation)
@@ -235,7 +231,6 @@ def test_property_token_cost_relationship(mode: str):
     For structured mode, cost should reflect blended Flash + active Pro pricing.
     Active Pro model may have tiered pricing — estimates use conservative (high) tier.
     """
-    from primr.config.models import PrimrModels
 
     estimate = estimate_cost(mode, use_historical=False)
     m = MODE_ESTIMATES[mode]

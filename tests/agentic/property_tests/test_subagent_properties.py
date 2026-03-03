@@ -24,8 +24,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-import pytest
-from hypothesis import given, settings, assume
+from hypothesis import assume, given, settings
 from hypothesis import strategies as st
 
 from primr.agentic.models import ConfidenceLevel, Hypothesis
@@ -36,14 +35,12 @@ from primr.agentic.subagents import (
     QASubagent,
     ScrapeResult,
     ScraperSubagent,
-    Subagent,
     SubagentContext,
     SubagentResult,
     SubagentStatus,
     WriterResult,
     WriterSubagent,
 )
-
 
 # =============================================================================
 # STRATEGIES

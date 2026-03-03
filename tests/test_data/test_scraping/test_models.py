@@ -1,28 +1,27 @@
 """Tests for scraping models."""
 
-import pytest
 from datetime import datetime, timedelta
 
 from primr.data.scraping.models import (
-    ErrorType,
-    BlockType,
     Attempt,
-    ValidationResult,
+    BlockType,
+    ErrorType,
     HostState,
     ScrapeResult,
     ScrapeTier,
+    ValidationResult,
 )
 
 
 class TestErrorType:
     """Tests for ErrorType enum."""
-    
+
     def test_all_error_types_have_string_values(self):
         """All error types should have string values for serialization."""
         for error_type in ErrorType:
             assert isinstance(error_type.value, str)
             assert len(error_type.value) > 0
-    
+
     def test_error_types_are_unique(self):
         """All error type values should be unique."""
         values = [e.value for e in ErrorType]
@@ -31,13 +30,13 @@ class TestErrorType:
 
 class TestBlockType:
     """Tests for BlockType enum."""
-    
+
     def test_all_block_types_have_string_values(self):
         """All block types should have string values for serialization."""
         for block_type in BlockType:
             assert isinstance(block_type.value, str)
             assert len(block_type.value) > 0
-    
+
     def test_block_types_are_unique(self):
         """All block type values should be unique."""
         values = [b.value for b in BlockType]
@@ -46,7 +45,7 @@ class TestBlockType:
 
 class TestAttempt:
     """Tests for Attempt dataclass."""
-    
+
     def test_minimal_attempt(self):
         """Attempt can be created with just tier and success."""
         attempt = Attempt(tier="requests", success=True)
@@ -54,7 +53,7 @@ class TestAttempt:
         assert attempt.success is True
         assert attempt.error is None
         assert attempt.error_type is None
-    
+
     def test_full_attempt(self):
         """Attempt can be created with all fields."""
         attempt = Attempt(
@@ -75,14 +74,14 @@ class TestAttempt:
 
 class TestValidationResult:
     """Tests for ValidationResult dataclass."""
-    
+
     def test_valid_result(self):
         """ValidationResult for valid content."""
         result = ValidationResult(valid=True, content_density=0.75)
         assert result.valid is True
         assert result.content_density == 0.75
         assert result.is_duplicate_template is False
-    
+
     def test_invalid_result(self):
         """ValidationResult for invalid content."""
         result = ValidationResult(
@@ -97,7 +96,7 @@ class TestValidationResult:
 
 class TestHostState:
     """Tests for HostState dataclass."""
-    
+
     def test_initial_state(self):
         """HostState starts with clean state."""
         state = HostState(host="example.com")
@@ -107,12 +106,12 @@ class TestHostState:
         assert state.best_tier is None
         assert state.hard_blocked is False
         assert state.tier_failures == {}
-    
+
     def test_has_fresh_clearance_no_cookies(self):
         """has_fresh_clearance returns False when no cookies."""
         state = HostState(host="example.com")
         assert state.has_fresh_clearance() is False
-    
+
     def test_has_fresh_clearance_fresh(self):
         """has_fresh_clearance returns True for fresh cookies."""
         state = HostState(
@@ -121,7 +120,7 @@ class TestHostState:
             last_clearance_ts=datetime.now(),
         )
         assert state.has_fresh_clearance() is True
-    
+
     def test_has_fresh_clearance_stale(self):
         """has_fresh_clearance returns False for stale cookies."""
         state = HostState(
@@ -130,38 +129,38 @@ class TestHostState:
             last_clearance_ts=datetime.now() - timedelta(minutes=15),
         )
         assert state.has_fresh_clearance(max_age_minutes=10) is False
-    
+
     def test_record_tier_failure(self):
         """record_tier_failure increments failure count."""
         state = HostState(host="example.com")
-        
+
         state.record_tier_failure("requests")
         assert state.tier_failures["requests"] == 1
-        
+
         state.record_tier_failure("requests")
         assert state.tier_failures["requests"] == 2
-        
+
         state.record_tier_failure("httpx")
         assert state.tier_failures["httpx"] == 1
-    
+
     def test_should_skip_tier_below_threshold(self):
         """should_skip_tier returns False below threshold attempts."""
         state = HostState(host="example.com")
         state.tier_attempts["requests"] = 2
         state.tier_failures["requests"] = 2
-        
+
         # Below threshold attempts, should not skip
         assert state.should_skip_tier("requests", threshold=3) is False
-    
+
     def test_should_skip_tier_at_threshold(self):
         """should_skip_tier returns True at threshold with 100% failure rate."""
         state = HostState(host="example.com")
         # Need both attempts and failures at threshold for skip
         state.tier_attempts["requests"] = 3
         state.tier_failures["requests"] = 3
-        
+
         assert state.should_skip_tier("requests", threshold=3) is True
-    
+
     def test_should_skip_tier_unknown_tier(self):
         """should_skip_tier returns False for unknown tier."""
         state = HostState(host="example.com")
@@ -170,7 +169,7 @@ class TestHostState:
 
 class TestScrapeResult:
     """Tests for ScrapeResult dataclass."""
-    
+
     def test_minimal_result(self):
         """ScrapeResult can be created with just url and success."""
         result = ScrapeResult(url="https://example.com", success=False)
@@ -178,7 +177,7 @@ class TestScrapeResult:
         assert result.success is False
         assert result.raw_content is None
         assert result.attempts == []
-    
+
     def test_successful_result(self):
         """ScrapeResult for successful scrape."""
         result = ScrapeResult(
@@ -194,7 +193,7 @@ class TestScrapeResult:
         assert result.success is True
         assert result.raw_content == b"<html>content</html>"
         assert result.tier == "requests"
-    
+
     def test_result_with_cookies(self):
         """ScrapeResult can carry cookies for handoff."""
         result = ScrapeResult(
@@ -203,7 +202,7 @@ class TestScrapeResult:
             cookies={"cf_clearance": "abc123"},
         )
         assert result.cookies == {"cf_clearance": "abc123"}
-    
+
     def test_result_with_attempts(self):
         """ScrapeResult can track multiple attempts."""
         attempts = [
@@ -222,22 +221,22 @@ class TestScrapeResult:
 
 class TestScrapeTier:
     """Tests for ScrapeTier dataclass."""
-    
+
     def test_tier_without_requires(self):
         """ScrapeTier can be created without requires."""
         def dummy_fn(url: str, timeout: int) -> ScrapeResult:
             return ScrapeResult(url=url, success=True)
-        
+
         tier = ScrapeTier(name="test", scrape_fn=dummy_fn, timeout=15)
         assert tier.name == "test"
         assert tier.timeout == 15
         assert tier.requires is None
-    
+
     def test_tier_with_requires(self):
         """ScrapeTier can specify a dependency."""
         def dummy_fn(url: str, timeout: int) -> ScrapeResult:
             return ScrapeResult(url=url, success=True)
-        
+
         tier = ScrapeTier(
             name="curl_cffi",
             scrape_fn=dummy_fn,

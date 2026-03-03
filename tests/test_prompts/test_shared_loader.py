@@ -9,7 +9,8 @@ from pathlib import Path
 
 import pytest
 import yaml
-from hypothesis import given, settings, strategies as st
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from primr.prompts.schema import SharedComponents
 from primr.prompts.shared_loader import (

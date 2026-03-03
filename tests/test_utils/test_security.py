@@ -310,10 +310,10 @@ class TestSecurityAuditLogger:
         """Auth success is logged."""
         import logging
         audit = SecurityAuditLogger("test")
-        
+
         with caplog.at_level(logging.INFO):
             audit.log_auth_success(user_id="user123", method="jwt")
-        
+
         assert "AUTH_SUCCESS" in caplog.text
         assert "user123" in caplog.text
 
@@ -321,10 +321,10 @@ class TestSecurityAuditLogger:
         """Auth failure is logged."""
         import logging
         audit = SecurityAuditLogger("test")
-        
+
         with caplog.at_level(logging.WARNING):
             audit.log_auth_failure(reason="invalid_token", ip="192.168.1.1")
-        
+
         assert "AUTH_FAILURE" in caplog.text
         assert "invalid_token" in caplog.text
 
@@ -332,13 +332,13 @@ class TestSecurityAuditLogger:
         """Security violation is logged."""
         import logging
         audit = SecurityAuditLogger("test")
-        
+
         with caplog.at_level(logging.ERROR):
             audit.log_security_violation(
                 violation_type="ssrf_attempt",
                 details="Attempted access to 169.254.169.254"
             )
-        
+
         assert "SECURITY_VIOLATION" in caplog.text
         assert "ssrf_attempt" in caplog.text
 
@@ -346,9 +346,9 @@ class TestSecurityAuditLogger:
         """Rate limit is logged."""
         import logging
         audit = SecurityAuditLogger("test")
-        
+
         with caplog.at_level(logging.WARNING):
             audit.log_rate_limit(user_id="user123", endpoint="/api/research", limit=10)
-        
+
         assert "RATE_LIMIT" in caplog.text
         assert "user123" in caplog.text

@@ -12,22 +12,20 @@ import json
 from datetime import datetime, timedelta
 from typing import Any
 
-import pytest
-from hypothesis import given, settings, strategies as st, HealthCheck
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
 
 from primr.utils.errors import (
-    PrimrError,
-    TransientError,
-    PermanentError,
-    TypedRateLimitError,
-    QuotaError,
-    TypedNetworkError,
-    PrimrValidationError,
     AuthenticationError,
+    PermanentError,
     PrimrConfigurationError,
+    PrimrValidationError,
+    QuotaError,
+    TransientError,
+    TypedNetworkError,
+    TypedRateLimitError,
 )
-from primr.utils.observability import correlation_scope, get_correlation_id
-
+from primr.utils.observability import correlation_scope
 
 # =============================================================================
 # STRATEGIES FOR GENERATING ERROR INSTANCES
@@ -93,8 +91,8 @@ def generate_permanent_error(message: str, context: dict[str, Any]) -> Permanent
 
 
 def generate_rate_limit_error(
-    message: str, 
-    retry_after_seconds: float, 
+    message: str,
+    retry_after_seconds: float,
     context: dict[str, Any]
 ) -> TypedRateLimitError:
     """Generate a TypedRateLimitError instance."""
@@ -200,7 +198,7 @@ class TestErrorStructureInvariant:
     ):
         """TransientError should have all required attributes with correct types."""
         error = generate_transient_error(message, context)
-        
+
         # Verify required attributes exist
         assert hasattr(error, 'category')
         assert hasattr(error, 'recoverable')
@@ -209,7 +207,7 @@ class TestErrorStructureInvariant:
         assert hasattr(error, 'timestamp')
         assert hasattr(error, 'cause')
         assert hasattr(error, 'context')
-        
+
         # Verify attribute types
         assert isinstance(error.category, str)
         assert isinstance(error.recoverable, bool)
@@ -218,7 +216,7 @@ class TestErrorStructureInvariant:
         assert isinstance(error.timestamp, datetime)
         assert error.cause is None or isinstance(error.cause, Exception)
         assert isinstance(error.context, dict)
-        
+
         # Verify TransientError specific values
         assert error.recoverable is True
         assert error.category == "transient"
@@ -233,14 +231,14 @@ class TestErrorStructureInvariant:
     ):
         """PermanentError should have all required attributes with correct types."""
         error = generate_permanent_error(message, context)
-        
+
         # Verify required attributes exist and have correct types
         assert isinstance(error.category, str)
         assert isinstance(error.recoverable, bool)
         assert error.retry_after is None or isinstance(error.retry_after, (int, float))
         assert isinstance(error.correlation_id, str)
         assert isinstance(error.timestamp, datetime)
-        
+
         # Verify PermanentError specific values
         assert error.recoverable is False
         assert error.category == "permanent"
@@ -256,14 +254,14 @@ class TestErrorStructureInvariant:
     ):
         """TypedRateLimitError should have all required attributes with correct types."""
         error = generate_rate_limit_error(message, retry_after, context)
-        
+
         # Verify required attributes
         assert isinstance(error.category, str)
         assert isinstance(error.recoverable, bool)
         assert isinstance(error.retry_after, (int, float))
         assert isinstance(error.correlation_id, str)
         assert isinstance(error.retry_after_seconds, (int, float))
-        
+
         # Verify specific values
         assert error.recoverable is True
         assert error.category == "rate_limit"
@@ -280,14 +278,14 @@ class TestErrorStructureInvariant:
     ):
         """QuotaError should have all required attributes with correct types."""
         error = generate_quota_error(message, hours, context)
-        
+
         # Verify required attributes
         assert isinstance(error.category, str)
         assert isinstance(error.recoverable, bool)
         assert isinstance(error.retry_after, (int, float))
         assert isinstance(error.correlation_id, str)
         assert isinstance(error.quota_reset_time, datetime)
-        
+
         # Verify specific values
         assert error.recoverable is True
         assert error.category == "quota"
@@ -305,14 +303,14 @@ class TestErrorStructureInvariant:
     ):
         """TypedNetworkError should have all required attributes with correct types."""
         error = generate_network_error(message, host, port, context)
-        
+
         # Verify required attributes
         assert isinstance(error.category, str)
         assert isinstance(error.recoverable, bool)
         assert isinstance(error.correlation_id, str)
         assert isinstance(error.host, str)
         assert isinstance(error.port, int)
-        
+
         # Verify specific values
         assert error.recoverable is True
         assert error.category == "network"
@@ -330,13 +328,13 @@ class TestErrorStructureInvariant:
     ):
         """PrimrValidationError should have all required attributes with correct types."""
         error = generate_validation_error(message, field_errors, context)
-        
+
         # Verify required attributes
         assert isinstance(error.category, str)
         assert isinstance(error.recoverable, bool)
         assert isinstance(error.correlation_id, str)
         assert isinstance(error.field_errors, dict)
-        
+
         # Verify specific values
         assert error.recoverable is False
         assert error.category == "validation"
@@ -352,13 +350,13 @@ class TestErrorStructureInvariant:
     ):
         """AuthenticationError should have all required attributes with correct types."""
         error = generate_auth_error(message, auth_method, context)
-        
+
         # Verify required attributes
         assert isinstance(error.category, str)
         assert isinstance(error.recoverable, bool)
         assert isinstance(error.correlation_id, str)
         assert isinstance(error.auth_method, str)
-        
+
         # Verify specific values
         assert error.recoverable is False
         assert error.category == "authentication"
@@ -375,14 +373,14 @@ class TestErrorStructureInvariant:
     ):
         """PrimrConfigurationError should have all required attributes with correct types."""
         error = generate_config_error(message, config_path, missing_keys, context)
-        
+
         # Verify required attributes
         assert isinstance(error.category, str)
         assert isinstance(error.recoverable, bool)
         assert isinstance(error.correlation_id, str)
         assert isinstance(error.config_path, str)
         assert isinstance(error.missing_keys, list)
-        
+
         # Verify specific values
         assert error.recoverable is False
         assert error.category == "configuration"
@@ -464,7 +462,7 @@ class TestCorrelationIdAutoCapture:
     def test_error_without_context_generates_correlation_id(self, message: str):
         """Errors created outside a context should still have a correlation ID."""
         error = TransientError(message=message)
-        
+
         # Should have a correlation ID
         assert error.correlation_id is not None
         assert isinstance(error.correlation_id, str)
@@ -496,14 +494,14 @@ class TestErrorSerializationRoundTrip:
     ):
         """TransientError.to_dict() should produce JSON-serializable dict with all attributes."""
         error = generate_transient_error(message, context)
-        
+
         # Get serialized dict
         d = error.to_dict()
-        
+
         # Verify JSON serializable
         json_str = json.dumps(d)
         assert isinstance(json_str, str)
-        
+
         # Verify required fields present
         assert "type" in d
         assert "message" in d
@@ -513,7 +511,7 @@ class TestErrorSerializationRoundTrip:
         assert "correlation_id" in d
         assert "timestamp" in d
         assert "context" in d
-        
+
         # Verify field values match error attributes
         assert d["type"] == "TransientError"
         assert d["message"] == error.message
@@ -533,10 +531,10 @@ class TestErrorSerializationRoundTrip:
     ):
         """PermanentError.to_dict() should produce JSON-serializable dict with all attributes."""
         error = generate_permanent_error(message, context)
-        
+
         d = error.to_dict()
         json_str = json.dumps(d)
-        
+
         assert d["type"] == "PermanentError"
         assert d["recoverable"] is False
         assert d["category"] == "permanent"
@@ -552,10 +550,10 @@ class TestErrorSerializationRoundTrip:
     ):
         """TypedRateLimitError.to_dict() should produce JSON-serializable dict."""
         error = generate_rate_limit_error(message, retry_after, context)
-        
+
         d = error.to_dict()
         json_str = json.dumps(d)
-        
+
         assert d["type"] == "TypedRateLimitError"
         assert d["retry_after"] == retry_after
         assert d["category"] == "rate_limit"
@@ -571,10 +569,10 @@ class TestErrorSerializationRoundTrip:
     ):
         """QuotaError.to_dict() should produce JSON-serializable dict."""
         error = generate_quota_error(message, hours, context)
-        
+
         d = error.to_dict()
         json_str = json.dumps(d)
-        
+
         assert d["type"] == "QuotaError"
         assert d["category"] == "quota"
         assert isinstance(d["retry_after"], (int, float))
@@ -591,10 +589,10 @@ class TestErrorSerializationRoundTrip:
     ):
         """TypedNetworkError.to_dict() should produce JSON-serializable dict."""
         error = generate_network_error(message, host, port, context)
-        
+
         d = error.to_dict()
         json_str = json.dumps(d)
-        
+
         assert d["type"] == "TypedNetworkError"
         assert d["category"] == "network"
 
@@ -609,10 +607,10 @@ class TestErrorSerializationRoundTrip:
     ):
         """PrimrValidationError.to_dict() should produce JSON-serializable dict."""
         error = generate_validation_error(message, field_errors, context)
-        
+
         d = error.to_dict()
         json_str = json.dumps(d)
-        
+
         assert d["type"] == "PrimrValidationError"
         assert d["category"] == "validation"
         assert d["recoverable"] is False
@@ -628,10 +626,10 @@ class TestErrorSerializationRoundTrip:
     ):
         """AuthenticationError.to_dict() should produce JSON-serializable dict."""
         error = generate_auth_error(message, auth_method, context)
-        
+
         d = error.to_dict()
         json_str = json.dumps(d)
-        
+
         assert d["type"] == "AuthenticationError"
         assert d["category"] == "authentication"
 
@@ -647,10 +645,10 @@ class TestErrorSerializationRoundTrip:
     ):
         """PrimrConfigurationError.to_dict() should produce JSON-serializable dict."""
         error = generate_config_error(message, config_path, missing_keys, context)
-        
+
         d = error.to_dict()
         json_str = json.dumps(d)
-        
+
         assert d["type"] == "PrimrConfigurationError"
         assert d["category"] == "configuration"
 
@@ -665,10 +663,10 @@ class TestErrorSerializationRoundTrip:
         """Error with cause should serialize cause information."""
         cause = ValueError(cause_message)
         error = TransientError(message=message, cause=cause)
-        
+
         d = error.to_dict()
         json_str = json.dumps(d)
-        
+
         # Verify cause is serialized
         assert "cause" in d
         assert d["cause"]["type"] == "ValueError"
@@ -679,13 +677,13 @@ class TestErrorSerializationRoundTrip:
     def test_timestamp_is_iso_format(self, message: str):
         """Timestamp in to_dict() should be ISO format string."""
         error = TransientError(message=message)
-        
+
         d = error.to_dict()
-        
+
         # Verify timestamp is ISO format
         timestamp_str = d["timestamp"]
         assert isinstance(timestamp_str, str)
-        
+
         # Should be parseable as ISO format
         parsed = datetime.fromisoformat(timestamp_str)
         assert isinstance(parsed, datetime)

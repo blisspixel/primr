@@ -5,10 +5,12 @@ Property tests for CLI backward compatibility.
 **Validates: Requirements 6.2**
 """
 
-import sys
 import argparse
+import sys
 from pathlib import Path
-from hypothesis import given, strategies as st, settings
+
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 # Add src to path for imports
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -37,15 +39,13 @@ def test_cli_parser_accepts_expected_args():
     For any CLI argument that was supported before reorganization,
     that argument SHALL be supported by the new company_research.py entry point.
     """
-    from primr.core.research_agent import main
-    import argparse
-    
+
     # Create a parser matching the one in research_agent
     parser = argparse.ArgumentParser(description="AI Company Research Tool")
     parser.add_argument("--company", type=str, help="Company name")
     parser.add_argument("--website", type=str, help="Company website")
     parser.add_argument("--csv", type=str, help="CSV file for batch")
-    
+
     # Test that all expected args are recognized
     for arg in EXPECTED_ARGS:
         # Parse with just this argument
@@ -69,17 +69,16 @@ def test_cli_args_are_supported(arg: str):
     
     Property test verifying each expected CLI argument is supported.
     """
-    import argparse
-    
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--company", type=str)
     parser.add_argument("--website", type=str)
     parser.add_argument("--csv", type=str)
-    
+
     # Verify the argument is recognized (doesn't raise)
     test_value = "test_value" if arg != "--csv" else "test.csv"
     args = parser.parse_args([arg, test_value])
-    
+
     # Verify the value was captured
     arg_name = arg.lstrip("-")
     assert getattr(args, arg_name) == test_value
@@ -91,8 +90,7 @@ def test_cli_args_are_supported(arg: str):
 
 def test_cli_mode_flag_exists():
     """Verify --mode flag is supported."""
-    import argparse
-    
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--company", type=str)
     parser.add_argument("--website", type=str)
@@ -103,7 +101,7 @@ def test_cli_mode_flag_exists():
         choices=RESEARCH_MODES,
         default="structured"
     )
-    
+
     # Test default mode
     args = parser.parse_args(["--company", "TestCo"])
     assert args.mode == "structured"
@@ -111,48 +109,44 @@ def test_cli_mode_flag_exists():
 
 def test_cli_mode_structured():
     """Verify structured mode is accepted."""
-    import argparse
-    
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--company", type=str)
     parser.add_argument("--mode", type=str, choices=RESEARCH_MODES, default="structured")
-    
+
     args = parser.parse_args(["--company", "TestCo", "--mode", "structured"])
     assert args.mode == "structured"
 
 
 def test_cli_mode_deep_research():
     """Verify deep-research mode is accepted."""
-    import argparse
-    
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--company", type=str)
     parser.add_argument("--mode", type=str, choices=RESEARCH_MODES, default="structured")
-    
+
     args = parser.parse_args(["--company", "TestCo", "--mode", "deep-research"])
     assert args.mode == "deep-research"
 
 
 def test_cli_mode_hybrid():
     """Verify hybrid mode is accepted."""
-    import argparse
-    
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--company", type=str)
     parser.add_argument("--mode", type=str, choices=RESEARCH_MODES, default="structured")
-    
+
     args = parser.parse_args(["--company", "TestCo", "--mode", "hybrid"])
     assert args.mode == "hybrid"
 
 
 def test_cli_mode_short_flag():
     """Verify -m short flag works."""
-    import argparse
-    
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--company", type=str)
     parser.add_argument("--mode", "-m", type=str, choices=RESEARCH_MODES, default="structured")
-    
+
     args = parser.parse_args(["--company", "TestCo", "-m", "deep-research"])
     assert args.mode == "deep-research"
 
@@ -163,23 +157,21 @@ def test_cli_all_modes_accepted(mode: str):
     """
     Property test verifying all research modes are accepted.
     """
-    import argparse
-    
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--company", type=str)
     parser.add_argument("--mode", type=str, choices=RESEARCH_MODES, default="structured")
-    
+
     args = parser.parse_args(["--company", "TestCo", "--mode", mode])
     assert args.mode == mode
 
 
 def test_cli_invalid_mode_rejected():
     """Verify invalid modes are rejected."""
-    import argparse
-    
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", type=str, choices=RESEARCH_MODES, default="structured")
-    
+
     try:
         parser.parse_args(["--mode", "invalid-mode"])
         assert False, "Should have raised SystemExit"
@@ -189,12 +181,11 @@ def test_cli_invalid_mode_rejected():
 
 def test_cli_mode_with_csv():
     """Verify mode works with CSV batch processing."""
-    import argparse
-    
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--csv", type=str)
     parser.add_argument("--mode", type=str, choices=RESEARCH_MODES, default="structured")
-    
+
     args = parser.parse_args(["--csv", "companies.csv", "--mode", "deep-research"])
     assert args.csv == "companies.csv"
     assert args.mode == "deep-research"

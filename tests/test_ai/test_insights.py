@@ -1,24 +1,25 @@
 """Tests for predictive insights module."""
 
-import pytest
 from datetime import datetime
+
+import pytest
 
 from primr.ai.insights import (
     InsightAnalyzer,
-    Risk,
-    RiskCategory,
-    RiskLevel,
+    InsightReport,
     Opportunity,
     OpportunityType,
     Recommendation,
     RecommendationType,
-    InsightReport,
-    get_insight_analyzer,
-    reset_insight_analyzer,
+    Risk,
+    RiskCategory,
+    RiskLevel,
     assess_risks,
-    identify_opportunities,
-    generate_recommendations,
     generate_insights,
+    generate_recommendations,
+    get_insight_analyzer,
+    identify_opportunities,
+    reset_insight_analyzer,
 )
 
 
@@ -49,7 +50,7 @@ def sample_content():
 
 class TestRiskCategory:
     """Tests for RiskCategory enum."""
-    
+
     def test_risk_categories(self):
         """Test all risk categories exist."""
         assert RiskCategory.FINANCIAL.value == "financial"
@@ -62,7 +63,7 @@ class TestRiskCategory:
 
 class TestRiskLevel:
     """Tests for RiskLevel enum."""
-    
+
     def test_risk_levels(self):
         """Test all risk levels exist."""
         assert RiskLevel.CRITICAL.value == "critical"
@@ -74,7 +75,7 @@ class TestRiskLevel:
 
 class TestOpportunityType:
     """Tests for OpportunityType enum."""
-    
+
     def test_opportunity_types(self):
         """Test all opportunity types exist."""
         assert OpportunityType.MARKET_EXPANSION.value == "market_expansion"
@@ -85,7 +86,7 @@ class TestOpportunityType:
 
 class TestRisk:
     """Tests for Risk dataclass."""
-    
+
     def test_default_values(self):
         """Test default values."""
         risk = Risk(
@@ -99,7 +100,7 @@ class TestRisk:
         assert risk.impact == 0.5
         assert risk.mitigations == []
         assert risk.confidence == 0.7
-    
+
     def test_risk_score(self):
         """Test risk score calculation."""
         risk = Risk(
@@ -112,7 +113,7 @@ class TestRisk:
             impact=0.6,
         )
         assert risk.risk_score == 0.48
-    
+
     def test_to_dict(self):
         """Test conversion to dictionary."""
         risk = Risk(
@@ -130,7 +131,7 @@ class TestRisk:
 
 class TestOpportunity:
     """Tests for Opportunity dataclass."""
-    
+
     def test_default_values(self):
         """Test default values."""
         opp = Opportunity(
@@ -142,7 +143,7 @@ class TestOpportunity:
         assert opp.potential_value == ""
         assert opp.timeframe == ""
         assert opp.requirements == []
-    
+
     def test_to_dict(self):
         """Test conversion to dictionary."""
         opp = Opportunity(
@@ -160,7 +161,7 @@ class TestOpportunity:
 
 class TestRecommendation:
     """Tests for Recommendation dataclass."""
-    
+
     def test_default_values(self):
         """Test default values."""
         rec = Recommendation(
@@ -171,7 +172,7 @@ class TestRecommendation:
         )
         assert rec.priority == 5
         assert rec.effort == ""
-    
+
     def test_to_dict(self):
         """Test conversion to dictionary."""
         rec = Recommendation(
@@ -189,14 +190,14 @@ class TestRecommendation:
 
 class TestInsightReport:
     """Tests for InsightReport dataclass."""
-    
+
     def test_default_values(self):
         """Test default values."""
         report = InsightReport(company_name="Test Corp")
         assert report.risks == []
         assert report.opportunities == []
         assert report.recommendations == []
-    
+
     def test_get_summary(self):
         """Test summary generation."""
         report = InsightReport(
@@ -211,7 +212,7 @@ class TestInsightReport:
             ],
         )
         summary = report.get_summary()
-        
+
         assert summary["company_name"] == "Test Corp"
         assert summary["total_risks"] == 3
         assert summary["critical_risks"] == 1
@@ -221,47 +222,47 @@ class TestInsightReport:
 
 class TestInsightAnalyzer:
     """Tests for InsightAnalyzer class."""
-    
+
     def test_assess_risks(self, analyzer, sample_content):
         """Test risk assessment."""
         risks = analyzer.assess_risks("Acme Corp", sample_content)
-        
+
         assert isinstance(risks, list)
         for risk in risks:
             assert isinstance(risk, Risk)
-    
+
     def test_assess_risks_finds_financial(self, analyzer):
         """Test finding financial risks."""
         content = "The company has high debt levels and declining revenue."
         risks = analyzer.assess_risks("Test Corp", content)
-        
+
         categories = [r.category for r in risks]
         assert RiskCategory.FINANCIAL in categories
-    
+
     def test_assess_risks_finds_regulatory(self, analyzer):
         """Test finding regulatory risks."""
         content = "The company is facing a lawsuit and regulatory investigation."
         risks = analyzer.assess_risks("Test Corp", content)
-        
+
         categories = [r.category for r in risks]
         assert RiskCategory.REGULATORY in categories
-    
+
     def test_assess_risks_finds_technology(self, analyzer):
         """Test finding technology risks."""
         content = "The company suffered a security breach and data hack."
         risks = analyzer.assess_risks("Test Corp", content)
-        
+
         categories = [r.category for r in risks]
         assert RiskCategory.TECHNOLOGY in categories
-    
+
     def test_assess_risks_sorted_by_score(self, analyzer, sample_content):
         """Test risks are sorted by score."""
         risks = analyzer.assess_risks("Test Corp", sample_content)
-        
+
         if len(risks) >= 2:
             for i in range(len(risks) - 1):
                 assert risks[i].risk_score >= risks[i + 1].risk_score
-    
+
     def test_assess_risks_limited(self, analyzer):
         """Test risk limit."""
         content = """
@@ -270,39 +271,39 @@ class TestInsightAnalyzer:
         """
         risks = analyzer.assess_risks("Test Corp", content)
         assert len(risks) <= 10
-    
+
     def test_identify_opportunities(self, analyzer, sample_content):
         """Test opportunity identification."""
         opportunities = analyzer.identify_opportunities("Acme Corp", sample_content)
-        
+
         assert isinstance(opportunities, list)
         for opp in opportunities:
             assert isinstance(opp, Opportunity)
-    
+
     def test_identify_opportunities_finds_expansion(self, analyzer):
         """Test finding market expansion opportunities."""
         content = "The company is exploring new market expansion in Asia."
         opportunities = analyzer.identify_opportunities("Test Corp", content)
-        
+
         types = [o.opportunity_type for o in opportunities]
         assert OpportunityType.MARKET_EXPANSION in types
-    
+
     def test_identify_opportunities_finds_partnership(self, analyzer):
         """Test finding partnership opportunities."""
         content = "The company announced a strategic partnership with TechGiant."
         opportunities = analyzer.identify_opportunities("Test Corp", content)
-        
+
         types = [o.opportunity_type for o in opportunities]
         assert OpportunityType.PARTNERSHIP in types
-    
+
     def test_identify_opportunities_finds_innovation(self, analyzer):
         """Test finding innovation opportunities."""
         content = "The company is investing heavily in R&D and innovation."
         opportunities = analyzer.identify_opportunities("Test Corp", content)
-        
+
         types = [o.opportunity_type for o in opportunities]
         assert OpportunityType.PRODUCT_INNOVATION in types
-    
+
     def test_generate_recommendations(self, analyzer):
         """Test recommendation generation."""
         risks = [
@@ -312,32 +313,32 @@ class TestInsightAnalyzer:
         opportunities = [
             Opportunity("o1", OpportunityType.PARTNERSHIP, "Partnership", "Strategic"),
         ]
-        
+
         recommendations = analyzer.generate_recommendations(
             "Test Corp", risks, opportunities
         )
-        
+
         assert len(recommendations) > 0
         for rec in recommendations:
             assert isinstance(rec, Recommendation)
-    
+
     def test_generate_recommendations_sorted_by_priority(self, analyzer):
         """Test recommendations sorted by priority."""
         risks = [
             Risk("r1", RiskCategory.FINANCIAL, RiskLevel.CRITICAL, "R1", "D1"),
             Risk("r2", RiskCategory.MARKET, RiskLevel.HIGH, "R2", "D2"),
         ]
-        
+
         recommendations = analyzer.generate_recommendations("Test Corp", risks, [])
-        
+
         if len(recommendations) >= 2:
             for i in range(len(recommendations) - 1):
                 assert recommendations[i].priority >= recommendations[i + 1].priority
-    
+
     def test_generate_insights(self, analyzer, sample_content):
         """Test complete insights generation."""
         report = analyzer.generate_insights("Acme Corp", sample_content)
-        
+
         assert report.company_name == "Acme Corp"
         assert isinstance(report.risks, list)
         assert isinstance(report.opportunities, list)
@@ -347,28 +348,28 @@ class TestInsightAnalyzer:
 
 class TestGlobalFunctions:
     """Tests for global convenience functions."""
-    
+
     def test_get_insight_analyzer(self):
         """Test getting global analyzer."""
         reset_insight_analyzer()
         analyzer1 = get_insight_analyzer()
         analyzer2 = get_insight_analyzer()
         assert analyzer1 is analyzer2
-    
+
     def test_assess_risks_function(self):
         """Test assess_risks convenience function."""
         reset_insight_analyzer()
         content = "Company has high debt and declining revenue."
         risks = assess_risks("Test Corp", content)
         assert isinstance(risks, list)
-    
+
     def test_identify_opportunities_function(self):
         """Test identify_opportunities convenience function."""
         reset_insight_analyzer()
         content = "Company exploring new market expansion."
         opportunities = identify_opportunities("Test Corp", content)
         assert isinstance(opportunities, list)
-    
+
     def test_generate_recommendations_function(self):
         """Test generate_recommendations convenience function."""
         reset_insight_analyzer()
@@ -376,7 +377,7 @@ class TestGlobalFunctions:
         opportunities = []
         recommendations = generate_recommendations("Test Corp", risks, opportunities)
         assert isinstance(recommendations, list)
-    
+
     def test_generate_insights_function(self):
         """Test generate_insights convenience function."""
         reset_insight_analyzer()
@@ -387,68 +388,68 @@ class TestGlobalFunctions:
 
 class TestEdgeCases:
     """Tests for edge cases."""
-    
+
     def test_empty_content(self, analyzer):
         """Test with empty content."""
         risks = analyzer.assess_risks("Test Corp", "")
         assert risks == []
-        
+
         opportunities = analyzer.identify_opportunities("Test Corp", "")
         assert opportunities == []
-    
+
     def test_no_indicators(self, analyzer):
         """Test content with no risk/opportunity indicators."""
         content = "The company is a business that does things."
         risks = analyzer.assess_risks("Test Corp", content)
         opportunities = analyzer.identify_opportunities("Test Corp", content)
-        
+
         # May or may not find anything
         assert isinstance(risks, list)
         assert isinstance(opportunities, list)
-    
+
     def test_very_long_content(self, analyzer):
         """Test with very long content."""
         content = "Company has debt. " * 500
         risks = analyzer.assess_risks("Test Corp", content)
         assert isinstance(risks, list)
-    
+
     def test_special_characters(self, analyzer):
         """Test with special characters."""
         content = "Company™ has debt® and declining© revenue!"
         risks = analyzer.assess_risks("Test Corp", content)
         assert isinstance(risks, list)
-    
+
     def test_unicode_content(self, analyzer):
         """Test with unicode content."""
         content = "公司有债务 - Company has debt and declining revenue"
         risks = analyzer.assess_risks("Test Corp", content)
         assert isinstance(risks, list)
-    
+
     def test_multiple_same_category_risks(self, analyzer):
         """Test multiple risks in same category."""
         content = "Company has debt, loss, and declining revenue."
         risks = analyzer.assess_risks("Test Corp", content)
-        
+
         # Should find multiple financial risks
         financial_risks = [r for r in risks if r.category == RiskCategory.FINANCIAL]
         assert len(financial_risks) >= 1
-    
+
     def test_recommendations_with_no_risks(self, analyzer):
         """Test recommendations with no risks."""
         opportunities = [
             Opportunity("o1", OpportunityType.PARTNERSHIP, "Partnership", "Strategic"),
         ]
         recommendations = analyzer.generate_recommendations("Test Corp", [], opportunities)
-        
+
         # Should still generate opportunity-based recommendations
         assert isinstance(recommendations, list)
-    
+
     def test_recommendations_with_no_opportunities(self, analyzer):
         """Test recommendations with no opportunities."""
         risks = [
             Risk("r1", RiskCategory.FINANCIAL, RiskLevel.HIGH, "Debt", "High debt"),
         ]
         recommendations = analyzer.generate_recommendations("Test Corp", risks, [])
-        
+
         # Should still generate risk-based recommendations
         assert len(recommendations) >= 1

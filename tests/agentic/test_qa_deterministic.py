@@ -10,8 +10,6 @@ import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import pytest
-
 from src.primr.agentic.hooks import HookContext, HookResult, HookType, QAGateHook
 from src.primr.agentic.subagents.base import SubagentContext
 from src.primr.agentic.subagents.qa import QASubagent

@@ -10,8 +10,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from primr.ai.report_architect import (
-    ChapterPlan,
     DEFAULT_CHAPTERS,
+    ChapterPlan,
     MasterArchitect,
     ReportPlan,
     get_master_architect,
@@ -92,7 +92,7 @@ class TestDefaultChapters:
     def test_default_chapters_cover_key_topics(self) -> None:
         """Test that default chapters cover essential topics."""
         titles = [ch["title"].lower() for ch in DEFAULT_CHAPTERS]
-        
+
         # Check for key topics
         assert any("executive" in t for t in titles)
         assert any("product" in t for t in titles)
@@ -126,7 +126,7 @@ class TestMasterArchitect:
     def test_get_default_chapters(self, architect: MasterArchitect) -> None:
         """Test getting default chapters with company name substitution."""
         chapters = architect._get_default_chapters("TestCorp")
-        
+
         assert len(chapters) == 10
         for ch in chapters:
             assert isinstance(ch, ChapterPlan)
@@ -135,7 +135,7 @@ class TestMasterArchitect:
     def test_get_default_plan(self, architect: MasterArchitect) -> None:
         """Test getting default plan."""
         plan = architect._get_default_plan("TestCorp")
-        
+
         assert plan.company_name == "TestCorp"
         assert len(plan.chapters) == 10
         assert plan.total_expected_pages == 50  # 10 chapters * 5 pages
@@ -148,9 +148,9 @@ class TestMasterArchitect:
         # Mock the client to raise an error
         architect._client = MagicMock()
         architect._client.models.generate_content.side_effect = Exception("API Error")
-        
+
         plan = await architect.generate_chapter_plan("TestCorp", "Some context")
-        
+
         # Should fall back to defaults
         assert plan.company_name == "TestCorp"
         assert len(plan.chapters) == 10
@@ -173,12 +173,12 @@ class TestMasterArchitect:
                 for i in range(1, 11)
             ]
         })
-        
+
         architect._client = MagicMock()
         architect._client.models.generate_content.return_value = mock_response
-        
+
         plan = await architect.generate_chapter_plan("TestCorp", "Some context")
-        
+
         assert plan.company_name == "TestCorp"
         assert len(plan.chapters) == 10
         assert plan.chapters[0].title == "Chapter 1"
@@ -188,7 +188,7 @@ class TestMasterArchitect:
     ) -> None:
         """Test parsing invalid JSON falls back to defaults."""
         chapters = architect._parse_chapter_response("not valid json", "TestCorp")
-        
+
         assert len(chapters) == 10  # Falls back to defaults
 
     def test_parse_chapter_response_too_few_chapters(
@@ -200,9 +200,9 @@ class TestMasterArchitect:
                 {"chapter_number": 1, "title": "Ch1", "research_prompt": "P1"}
             ]
         })
-        
+
         chapters = architect._parse_chapter_response(response, "TestCorp")
-        
+
         assert len(chapters) == 10  # Falls back to defaults
 
 
@@ -212,22 +212,22 @@ class TestSingletonAccess:
     def test_get_master_architect_returns_instance(self) -> None:
         """Test that get_master_architect returns an instance."""
         reset_master_architect()
-        
+
         with patch("primr.ai.report_architect.get_settings") as mock_settings:
             mock_settings.return_value.api.gemini_key = "test-key"
             architect = get_master_architect()
-        
+
         assert isinstance(architect, MasterArchitect)
 
     def test_get_master_architect_returns_same_instance(self) -> None:
         """Test that get_master_architect returns the same instance."""
         reset_master_architect()
-        
+
         with patch("primr.ai.report_architect.get_settings") as mock_settings:
             mock_settings.return_value.api.gemini_key = "test-key"
             architect1 = get_master_architect()
             architect2 = get_master_architect()
-        
+
         assert architect1 is architect2
 
     def test_reset_master_architect(self) -> None:
@@ -237,12 +237,13 @@ class TestSingletonAccess:
             architect1 = get_master_architect()
             reset_master_architect()
             architect2 = get_master_architect()
-        
+
         assert architect1 is not architect2
 
 
 # Property-based tests using Hypothesis
-from hypothesis import given, settings, strategies as st
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 
 class TestChapterDecompositionProperty:
@@ -263,9 +264,9 @@ class TestChapterDecompositionProperty:
         with patch("primr.ai.report_architect.get_settings") as mock_settings:
             mock_settings.return_value.api.gemini_key = "test-key"
             architect = MasterArchitect()
-        
+
         plan = architect._get_default_plan(company_name.strip())
-        
+
         assert 8 <= len(plan.chapters) <= 10
 
     @given(
@@ -283,9 +284,9 @@ class TestChapterDecompositionProperty:
         with patch("primr.ai.report_architect.get_settings") as mock_settings:
             mock_settings.return_value.api.gemini_key = "test-key"
             architect = MasterArchitect()
-        
+
         plan = architect._get_default_plan(company_name.strip())
-        
+
         for chapter in plan.chapters:
             assert chapter.title, "Chapter must have a title"
             assert chapter.research_prompt, "Chapter must have a research_prompt"

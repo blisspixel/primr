@@ -1,6 +1,7 @@
 """Debug why Stripe pages are failing."""
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from primr.data.scraping import scrape_with_playwright, scrape_with_requests

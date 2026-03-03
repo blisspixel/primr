@@ -9,13 +9,13 @@ Tests cover:
 - DeepResearchResult computed properties
 - validate_preflight function
 """
-import os
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-from hypothesis import given, settings, strategies as st
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from primr.core.deep_research_runner import (
     DeepResearchConfig,
@@ -28,7 +28,6 @@ from primr.core.deep_research_runner import (
     perform_deep_research_sync,
     validate_preflight,
 )
-
 
 # =============================================================================
 # PreflightStatus Enum Tests

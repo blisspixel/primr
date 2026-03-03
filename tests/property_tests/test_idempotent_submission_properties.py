@@ -12,33 +12,26 @@ of the control plane job submission system.
 from __future__ import annotations
 
 import string
-import tempfile
-from pathlib import Path
 from typing import Any
 
-import pytest
-from hypothesis import given, settings, strategies as st, HealthCheck, assume
+from hypothesis import HealthCheck, assume, given, settings
+from hypothesis import strategies as st
 
+from deploy.control_plane.cost_governor import estimate_cost
 from deploy.control_plane.job_store import (
+    ConditionalCheckFailedError,
+    InMemoryJobStore,
     JobRecord,
     JobStatus,
-    InMemoryJobStore,
-    CostEstimate,
-    JobInputs,
     JobTiming,
-    ConditionalCheckFailedError,
     canonicalize_inputs,
+    format_timestamp,
+    get_expected_artifacts,
+    hash_api_key,
     hash_inputs,
     hash_job_id,
-    hash_api_key,
-    get_expected_artifacts,
-    format_timestamp,
     utc_now,
 )
-from deploy.control_plane.queue import InMemoryQueue, QueueMessage
-from deploy.control_plane.cost_governor import CostGovernor, estimate_cost
-from deploy.storage import LocalStore
-
 
 # =============================================================================
 # STRATEGIES FOR GENERATING TEST DATA
@@ -112,11 +105,11 @@ def create_job_record(
         options=options,
     )
     canonical_hash = hash_inputs(canonical)
-    
+
     # Derive job_id
     job_id = hash_job_id(deployment, idempotency_key, api_key)
     api_key_hash = hash_api_key(api_key)
-    
+
     # Create job record
     job = JobRecord(
         job_id=job_id,
@@ -130,7 +123,7 @@ def create_job_record(
         estimate=estimate_cost(mode),
         timing=JobTiming(submitted_at=format_timestamp(utc_now())),
     )
-    
+
     job_store.put_if_not_exists(job)
     return job_id, canonical_hash
 
@@ -161,11 +154,11 @@ def submit_job_idempotent(
         options=options,
     )
     canonical_hash = hash_inputs(canonical)
-    
+
     # Derive job_id
     job_id = hash_job_id(deployment, idempotency_key, api_key)
     api_key_hash = hash_api_key(api_key)
-    
+
     # Check for existing job
     existing = job_store.get(job_id)
     if existing:
@@ -173,7 +166,7 @@ def submit_job_idempotent(
         if existing.canonical_hash != canonical_hash:
             return job_id, False, True  # Conflict!
         return job_id, True, False  # Existing job, same inputs
-    
+
     # Create new job
     job = JobRecord(
         job_id=job_id,
@@ -187,7 +180,7 @@ def submit_job_idempotent(
         estimate=estimate_cost(mode),
         timing=JobTiming(submitted_at=format_timestamp(utc_now())),
     )
-    
+
     try:
         job_store.put_if_not_exists(job)
         return job_id, False, False  # New job created
@@ -240,7 +233,7 @@ class TestSameInputsReturnsSameJobId:
         **Validates: Requirements 3.5**
         """
         job_store = InMemoryJobStore()
-        
+
         # First submission
         job_id_1, is_existing_1, is_conflict_1 = submit_job_idempotent(
             job_store=job_store,
@@ -252,7 +245,7 @@ class TestSameInputsReturnsSameJobId:
             mode=mode,
             options=options,
         )
-        
+
         # Second submission with identical inputs
         job_id_2, is_existing_2, is_conflict_2 = submit_job_idempotent(
             job_store=job_store,
@@ -264,7 +257,7 @@ class TestSameInputsReturnsSameJobId:
             mode=mode,
             options=options,
         )
-        
+
         # Assertions
         assert job_id_1 == job_id_2, "Same inputs should return same job_id"
         assert not is_conflict_1, "First submission should not be a conflict"
@@ -299,7 +292,7 @@ class TestSameInputsReturnsSameJobId:
         """
         job_store = InMemoryJobStore()
         job_ids = []
-        
+
         for _ in range(num_submissions):
             job_id, _, is_conflict = submit_job_idempotent(
                 job_store=job_store,
@@ -312,7 +305,7 @@ class TestSameInputsReturnsSameJobId:
             )
             assert not is_conflict
             job_ids.append(job_id)
-        
+
         # All job_ids should be identical
         assert len(set(job_ids)) == 1, "All submissions should return same job_id"
 
@@ -359,9 +352,9 @@ class TestDifferentInputsReturns409:
         """
         # Ensure company names are actually different after canonicalization
         assume(company_name_1.strip() != company_name_2.strip())
-        
+
         job_store = InMemoryJobStore()
-        
+
         # First submission
         job_id_1, _, is_conflict_1 = submit_job_idempotent(
             job_store=job_store,
@@ -373,7 +366,7 @@ class TestDifferentInputsReturns409:
             mode=mode,
         )
         assert not is_conflict_1
-        
+
         # Second submission with different company_name
         job_id_2, _, is_conflict_2 = submit_job_idempotent(
             job_store=job_store,
@@ -384,7 +377,7 @@ class TestDifferentInputsReturns409:
             company_url=company_url,
             mode=mode,
         )
-        
+
         assert is_conflict_2, "Different inputs should return conflict"
 
     @given(
@@ -417,9 +410,9 @@ class TestDifferentInputsReturns409:
         canonical_1 = canonicalize_inputs(company_name, company_url_1, mode)
         canonical_2 = canonicalize_inputs(company_name, company_url_2, mode)
         assume(canonical_1.company_url != canonical_2.company_url)
-        
+
         job_store = InMemoryJobStore()
-        
+
         # First submission
         _, _, is_conflict_1 = submit_job_idempotent(
             job_store=job_store,
@@ -431,7 +424,7 @@ class TestDifferentInputsReturns409:
             mode=mode,
         )
         assert not is_conflict_1
-        
+
         # Second submission with different URL
         _, _, is_conflict_2 = submit_job_idempotent(
             job_store=job_store,
@@ -442,7 +435,7 @@ class TestDifferentInputsReturns409:
             company_url=company_url_2,  # Different!
             mode=mode,
         )
-        
+
         assert is_conflict_2, "Different URL should return conflict"
 
     @given(
@@ -472,9 +465,9 @@ class TestDifferentInputsReturns409:
         **Validates: Requirements 3.6**
         """
         assume(mode_1 != mode_2)
-        
+
         job_store = InMemoryJobStore()
-        
+
         # First submission
         _, _, is_conflict_1 = submit_job_idempotent(
             job_store=job_store,
@@ -486,7 +479,7 @@ class TestDifferentInputsReturns409:
             mode=mode_1,
         )
         assert not is_conflict_1
-        
+
         # Second submission with different mode
         _, _, is_conflict_2 = submit_job_idempotent(
             job_store=job_store,
@@ -497,7 +490,7 @@ class TestDifferentInputsReturns409:
             company_url=company_url,
             mode=mode_2,  # Different!
         )
-        
+
         assert is_conflict_2, "Different mode should return conflict"
 
 
@@ -544,10 +537,10 @@ class TestDifferentDeploymentReturnsDifferentJobId:
         **Validates: Requirements 3.7**
         """
         assume(deployment_1 != deployment_2)
-        
+
         job_id_1 = hash_job_id(deployment_1, idempotency_key, api_key)
         job_id_2 = hash_job_id(deployment_2, idempotency_key, api_key)
-        
+
         assert job_id_1 != job_id_2, "Different deployments should produce different job_ids"
 
     @given(
@@ -577,9 +570,9 @@ class TestDifferentDeploymentReturnsDifferentJobId:
         **Validates: Requirements 3.7**
         """
         assume(deployment_1 != deployment_2)
-        
+
         job_store = InMemoryJobStore()
-        
+
         # Submit to first deployment
         job_id_1, _, is_conflict_1 = submit_job_idempotent(
             job_store=job_store,
@@ -591,7 +584,7 @@ class TestDifferentDeploymentReturnsDifferentJobId:
             mode=mode,
         )
         assert not is_conflict_1
-        
+
         # Submit to second deployment with same idempotency_key
         job_id_2, is_existing_2, is_conflict_2 = submit_job_idempotent(
             job_store=job_store,
@@ -602,7 +595,7 @@ class TestDifferentDeploymentReturnsDifferentJobId:
             company_url=company_url,
             mode=mode,
         )
-        
+
         # Should create a new job, not conflict
         assert not is_conflict_2, "Different deployment should not conflict"
         assert not is_existing_2, "Different deployment should create new job"
@@ -652,10 +645,10 @@ class TestDifferentApiKeyReturnsDifferentJobId:
         **Validates: Requirements 3.7**
         """
         assume(api_key_1 != api_key_2)
-        
+
         job_id_1 = hash_job_id(deployment, idempotency_key, api_key_1)
         job_id_2 = hash_job_id(deployment, idempotency_key, api_key_2)
-        
+
         assert job_id_1 != job_id_2, "Different API keys should produce different job_ids"
 
     @given(
@@ -685,9 +678,9 @@ class TestDifferentApiKeyReturnsDifferentJobId:
         **Validates: Requirements 3.7**
         """
         assume(api_key_1 != api_key_2)
-        
+
         job_store = InMemoryJobStore()
-        
+
         # Submit with first API key
         job_id_1, _, is_conflict_1 = submit_job_idempotent(
             job_store=job_store,
@@ -699,7 +692,7 @@ class TestDifferentApiKeyReturnsDifferentJobId:
             mode=mode,
         )
         assert not is_conflict_1
-        
+
         # Submit with second API key (same idempotency_key)
         job_id_2, is_existing_2, is_conflict_2 = submit_job_idempotent(
             job_store=job_store,
@@ -710,7 +703,7 @@ class TestDifferentApiKeyReturnsDifferentJobId:
             company_url=company_url,
             mode=mode,
         )
-        
+
         # Should create a new job, not conflict
         assert not is_conflict_2, "Different API key should not conflict"
         assert not is_existing_2, "Different API key should create new job"
@@ -753,10 +746,10 @@ class TestCanonicalHashConsistency:
         """
         canonical_1 = canonicalize_inputs(company_name, company_url, mode, options)
         canonical_2 = canonicalize_inputs(company_name, company_url, mode, options)
-        
+
         hash_1 = hash_inputs(canonical_1)
         hash_2 = hash_inputs(canonical_2)
-        
+
         assert hash_1 == hash_2, "Same inputs should produce same hash"
 
     @given(
@@ -780,10 +773,10 @@ class TestCanonicalHashConsistency:
         # Add trailing slash to URL
         url_with_slash = company_url.rstrip("/") + "/"
         url_without_slash = company_url.rstrip("/")
-        
+
         canonical_1 = canonicalize_inputs(company_name, url_with_slash, mode)
         canonical_2 = canonicalize_inputs(company_name, url_without_slash, mode)
-        
+
         # After normalization, URLs should be the same
         assert canonical_1.company_url == canonical_2.company_url
         assert hash_inputs(canonical_1) == hash_inputs(canonical_2)
@@ -808,10 +801,10 @@ class TestCanonicalHashConsistency:
         """
         name_with_spaces = f"  {company_name}  "
         name_without_spaces = company_name.strip()
-        
+
         canonical_1 = canonicalize_inputs(name_with_spaces, company_url, mode)
         canonical_2 = canonicalize_inputs(name_without_spaces, company_url, mode)
-        
+
         # After normalization, names should be the same
         assert canonical_1.company_name == canonical_2.company_name
         assert hash_inputs(canonical_1) == hash_inputs(canonical_2)
@@ -859,8 +852,8 @@ class TestJobIdUniqueness:
         tuple_1 = (deployment_1, idempotency_key_1, api_key_1)
         tuple_2 = (deployment_2, idempotency_key_2, api_key_2)
         assume(tuple_1 != tuple_2)
-        
+
         job_id_1 = hash_job_id(deployment_1, idempotency_key_1, api_key_1)
         job_id_2 = hash_job_id(deployment_2, idempotency_key_2, api_key_2)
-        
+
         assert job_id_1 != job_id_2, "Different tuples should produce different job_ids"

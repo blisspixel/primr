@@ -3,16 +3,23 @@ Property tests for report data models.
 
 **Feature: consulting-tier-report**
 """
-import pytest
 from datetime import datetime
-from hypothesis import given, strategies as st, settings, HealthCheck
+
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
 
 from primr.core.report_models import (
-    SourceType, ConfidenceLevel, InsightCategory,
-    SourceCitation, GatheredData, ConfidenceNote,
-    Insight, SectionContent, ReportMetadata, Report, QualityScore
+    ConfidenceLevel,
+    ConfidenceNote,
+    GatheredData,
+    Insight,
+    InsightCategory,
+    QualityScore,
+    ReportMetadata,
+    SectionContent,
+    SourceCitation,
+    SourceType,
 )
-
 
 # Strategies for generating test data
 source_type_strategy = st.sampled_from(list(SourceType))
@@ -100,14 +107,14 @@ def quality_score_strategy(draw):
 
 class TestSourceCitationSerialization:
     """**Property 7: Source Attribution** - verify source citations serialize correctly."""
-    
+
     @given(source_citation_strategy())
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_roundtrip_serialization(self, citation: SourceCitation):
         """SourceCitation should serialize and deserialize without data loss."""
         data = citation.to_dict()
         restored = SourceCitation.from_dict(data)
-        
+
         assert restored.url == citation.url
         assert restored.title == citation.title
         assert restored.source_type == citation.source_type
@@ -117,14 +124,14 @@ class TestSourceCitationSerialization:
 
 class TestGatheredDataSerialization:
     """Test GatheredData serialization."""
-    
+
     @given(gathered_data_strategy())
     @settings(max_examples=100)
     def test_roundtrip_serialization(self, data: GatheredData):
         """GatheredData should serialize and deserialize without data loss."""
         serialized = data.to_dict()
         restored = GatheredData.from_dict(serialized)
-        
+
         assert restored.content == data.content
         assert restored.source_url == data.source_url
         assert restored.source_type == data.source_type
@@ -135,14 +142,14 @@ class TestGatheredDataSerialization:
 
 class TestConfidenceNoteSerialization:
     """Test ConfidenceNote serialization."""
-    
+
     @given(confidence_note_strategy())
     @settings(max_examples=100)
     def test_roundtrip_serialization(self, note: ConfidenceNote):
         """ConfidenceNote should serialize and deserialize without data loss."""
         data = note.to_dict()
         restored = ConfidenceNote.from_dict(data)
-        
+
         assert restored.statement == note.statement
         assert restored.confidence == note.confidence
         assert restored.basis == note.basis
@@ -150,14 +157,14 @@ class TestConfidenceNoteSerialization:
 
 class TestInsightSerialization:
     """Test Insight serialization."""
-    
+
     @given(insight_strategy())
     @settings(max_examples=100)
     def test_roundtrip_serialization(self, insight: Insight):
         """Insight should serialize and deserialize without data loss."""
         data = insight.to_dict()
         restored = Insight.from_dict(data)
-        
+
         assert restored.title == insight.title
         assert restored.description == insight.description
         assert restored.evidence == insight.evidence
@@ -169,14 +176,14 @@ class TestInsightSerialization:
 
 class TestSectionContentSerialization:
     """Test SectionContent serialization."""
-    
+
     @given(section_content_strategy())
     @settings(max_examples=100)
     def test_roundtrip_serialization(self, section: SectionContent):
         """SectionContent should serialize and deserialize without data loss."""
         data = section.to_dict()
         restored = SectionContent.from_dict(data)
-        
+
         assert restored.title == section.title
         assert restored.content == section.content
         assert len(restored.sources) == len(section.sources)
@@ -185,14 +192,14 @@ class TestSectionContentSerialization:
 
 class TestReportMetadataSerialization:
     """Test ReportMetadata serialization."""
-    
+
     @given(report_metadata_strategy())
     @settings(max_examples=100)
     def test_roundtrip_serialization(self, metadata: ReportMetadata):
         """ReportMetadata should serialize and deserialize without data loss."""
         data = metadata.to_dict()
         restored = ReportMetadata.from_dict(data)
-        
+
         assert restored.company_name == metadata.company_name
         assert restored.website == metadata.website
         assert restored.industry == metadata.industry
@@ -203,14 +210,14 @@ class TestReportMetadataSerialization:
 
 class TestQualityScoreSerialization:
     """Test QualityScore serialization."""
-    
+
     @given(quality_score_strategy())
     @settings(max_examples=100)
     def test_roundtrip_serialization(self, score: QualityScore):
         """QualityScore should serialize and deserialize without data loss."""
         data = score.to_dict()
         restored = QualityScore.from_dict(data)
-        
+
         assert abs(restored.score - score.score) < 0.0001
         assert restored.issues == score.issues
         assert restored.suggestions == score.suggestions
