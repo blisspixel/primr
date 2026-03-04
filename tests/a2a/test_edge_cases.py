@@ -210,6 +210,15 @@ class TestA2AErrorClass:
             raise A2AError("test")
 
 
+def _has_a2a_sdk():
+    try:
+        import a2a  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
+@pytest.mark.skipif(not _has_a2a_sdk(), reason="a2a SDK not installed")
 class TestParseResearchParams:
     """Tests for _parse_research_params helper."""
 
