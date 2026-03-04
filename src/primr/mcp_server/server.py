@@ -271,10 +271,11 @@ class PrimrMCPServer:
             try:
                 from primr.a2a.server import PrimrA2AServer
 
+                a2a_port = getattr(self, "_a2a_port", 9000)
                 a2a_server = PrimrA2AServer(
                     mcp_server=self,
                     host=self.host,
-                    port=self.port,
+                    port=a2a_port,
                     require_auth=self.require_auth,
                 )
                 a2a_app = a2a_server.build_app()

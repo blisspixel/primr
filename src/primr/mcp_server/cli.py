@@ -128,6 +128,7 @@ Authentication (HTTP mode):
         try:
             import a2a  # noqa: F401
             server._a2a_enabled = True
+            server._a2a_port = args.a2a_port
         except ImportError:
             print(
                 "Warning: --a2a requested but a2a-sdk not installed. "

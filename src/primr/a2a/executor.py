@@ -330,11 +330,13 @@ class PrimrAgentExecutor(AgentExecutor):
         else:
             terminal = self._mcp.job_store.get_latest_terminal()
             if terminal:
+                stage = terminal.current_stage.value
                 result = {
                     "job_id": terminal.job_id,
                     "company": terminal.company_name,
-                    "stage": terminal.current_stage.value,
-                    "status": terminal.current_stage.value,
+                    "stage": stage,
+                    "status": stage if stage in ("completed", "failed", "cancelled") else "finished",
+                    "output_paths": terminal.output_paths or [],
                 }
             else:
                 result = {"status": "idle", "message": "No active or recent jobs"}
@@ -453,7 +455,9 @@ def _parse_research_params(text: str) -> dict[str, str]:
     if "url" in params:
         idx = text.find(params["url"])
         if idx > 0:
-            name = text[:idx].strip().rstrip("at").strip()
+            name = text[:idx].strip()
+            if name.endswith(" at"):
+                name = name[:-3].strip()
             if name:
                 params["name"] = name
 
