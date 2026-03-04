@@ -8,7 +8,7 @@ and rejects articles about different companies with similar names.
 
 Usage:
     python tests/manual/test_external_source_relevance.py "Company Name" "https://website.com"
-    
+
 Examples:
     python tests/manual/test_external_source_relevance.py "Softchoice" "https://www.softchoice.com"
     python tests/manual/test_external_source_relevance.py "EverTrue" "https://www.evertrue.com"

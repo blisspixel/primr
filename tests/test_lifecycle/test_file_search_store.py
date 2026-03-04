@@ -120,7 +120,7 @@ class TestStoreDeletion:
         """
         WHEN a research task completes
         THEN the File Search Store SHALL be deleted
-        
+
         **Validates: Requirements 10.1**
         """
         mock_store_manager.delete_store("test-store-123")
@@ -131,7 +131,7 @@ class TestStoreDeletion:
         """
         WHEN a research task fails
         THEN the File Search Store SHALL still be deleted in the finally block
-        
+
         **Validates: Requirements 10.2**
         """
         # Simulate deletion after failure
@@ -154,7 +154,7 @@ class TestUploadOrdering:
         """
         WHEN Stage 1 context is uploaded
         THEN the file SHALL be properly indexed before Deep Research starts
-        
+
         **Validates: Requirements 10.3**
         """
         # Create store
@@ -257,7 +257,7 @@ def test_property_store_cleanup_always_called(display_name: str):
     """
     **Feature: test-coverage-hardening, Property 15: File Search Store cleanup**
     **Validates: Requirements 10.1, 10.2**
-    
+
     For any research task (successful or failed), the File Search Store
     should be deleted in the finally block.
     """
@@ -291,7 +291,7 @@ def test_property_cleanup_regardless_of_outcome(success: bool):
     """
     **Feature: test-coverage-hardening, Property 15: File Search Store cleanup**
     **Validates: Requirements 10.1, 10.2**
-    
+
     For any research outcome (success or failure), cleanup should occur.
     """
     from primr.ai.deep_research import FileSearchStoreManager
@@ -326,7 +326,7 @@ def test_property_upload_before_use(content_size: int):
     """
     **Feature: test-coverage-hardening, Property 16: Context upload ordering**
     **Validates: Requirements 10.3**
-    
+
     For any research task using Stage 1 context, the file upload
     must complete before Deep Research begins.
     """

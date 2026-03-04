@@ -59,7 +59,7 @@ class TestDirectURLPreservation:
         """
         WHEN a citation URL is already a direct link
         THEN the system SHALL preserve it unchanged
-        
+
         **Validates: Requirements 5.2**
         """
         direct_url = "https://www.example.com/page"
@@ -88,7 +88,7 @@ class TestGoogleRedirectResolution:
         """
         WHEN a citation contains a Google redirect URL
         THEN the system SHALL resolve it to the final destination URL
-        
+
         **Validates: Requirements 5.1**
         """
         redirect_url = "https://vertexaisearch.cloud.google.com/grounding-api-redirect/ABC123"
@@ -117,7 +117,7 @@ class TestGracefulDegradation:
         """
         WHEN URL resolution fails due to timeout
         THEN the system SHALL preserve the original URL
-        
+
         **Validates: Requirements 5.3**
         """
         redirect_url = "https://vertexaisearch.cloud.google.com/grounding-api-redirect/ABC123"
@@ -139,7 +139,7 @@ class TestGracefulDegradation:
         """
         WHEN URL resolution fails due to connection error
         THEN the system SHALL preserve the original URL
-        
+
         **Validates: Requirements 5.3**
         """
         redirect_url = "https://vertexaisearch.cloud.google.com/grounding-api-redirect/ABC123"
@@ -165,7 +165,7 @@ class TestCitationDeduplication:
         """
         WHEN multiple citations reference the same URL
         THEN the system SHALL deduplicate them in the sources list
-        
+
         **Validates: Requirements 5.4**
         """
         citations = [
@@ -199,7 +199,7 @@ async def test_property_direct_urls_preserved(url: str):
     """
     **Feature: test-coverage-hardening, Property 6: Google redirect URL resolution**
     **Validates: Requirements 5.1, 5.2**
-    
+
     For any direct URL (not a Google redirect), the resolver should
     return it unchanged.
     """
@@ -213,7 +213,7 @@ def test_property_direct_urls_preserved_sync(url: str):
     """
     **Feature: test-coverage-hardening, Property 6: Google redirect URL resolution**
     **Validates: Requirements 5.1, 5.2**
-    
+
     Synchronous version of direct URL preservation test.
     """
     result = asyncio.run(resolve_redirect_url(url))
@@ -230,7 +230,7 @@ def test_property_google_redirect_detected(suffix: str):
     """
     **Feature: test-coverage-hardening, Property 6: Google redirect URL resolution**
     **Validates: Requirements 5.1, 5.2**
-    
+
     For any Google redirect URL, the resolver should detect it as a redirect.
     """
     redirect_url = f"https://vertexaisearch.cloud.google.com/grounding-api-redirect/{suffix}"
@@ -248,7 +248,7 @@ def test_property_deduplication_reduces_unique_count(num_citations: int, num_uni
     """
     **Feature: test-coverage-hardening, Property 8: Citation deduplication**
     **Validates: Requirements 5.4**
-    
+
     For any set of citations with duplicates, the unique URL count
     should be less than or equal to the total citation count.
     """
@@ -267,7 +267,7 @@ def test_property_deduplication_reduces_unique_count(num_citations: int, num_uni
         })
 
     # Count unique URLs
-    unique_urls = set(c['url'] for c in citations)
+    unique_urls = {c['url'] for c in citations}
 
     # Unique count should be <= total count
     assert len(unique_urls) <= len(citations)
@@ -293,7 +293,7 @@ def test_property_graceful_degradation_on_error(error_type: Exception):
     """
     **Feature: test-coverage-hardening, Property 7: URL resolution graceful degradation**
     **Validates: Requirements 5.3**
-    
+
     For any URL resolution failure, the system should preserve the original URL
     (or extract a domain) rather than losing the citation.
     """

@@ -423,6 +423,6 @@ class TestFastModeAIStrategy:
         assert len(grok_notes) >= 1
 
     def test_fast_mode_returns_fast_mode_label(self):
-        """Fast mode estimate should report mode as 'fast'."""
+        """Fast mode estimate should report mode as 'standard (Grok 4.1)'."""
         estimate = estimate_cost("complete", fast_mode=True, use_historical=False)
-        assert estimate.mode == "fast"
+        assert estimate.mode == "standard (Grok 4.1)"

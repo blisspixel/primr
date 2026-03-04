@@ -472,7 +472,7 @@ class TestAuthLogging:
 class TestAuthenticationEnforcement:
     """
     Property 12: Authentication Enforcement (HTTP Mode)
-    
+
     Validates: Requirements 13.1, 13.2, 13.3, 13.4, 13.6
     """
 

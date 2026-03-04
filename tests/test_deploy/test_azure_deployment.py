@@ -54,7 +54,8 @@ class TestAzureDeployScriptContent:
     def test_sources_common_sh(self, azure_dir: Path) -> None:
         """Script should source common.sh."""
         content = (azure_dir / "deploy.sh").read_text()
-        assert "source" in content and "common.sh" in content
+        assert "source" in content
+        assert "common.sh" in content
 
     def test_has_deploy_command(self, azure_dir: Path) -> None:
         """Script should have deploy command."""

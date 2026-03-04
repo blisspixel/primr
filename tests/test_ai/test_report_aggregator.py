@@ -281,7 +281,7 @@ class TestAggregationProperty:
     ) -> None:
         """
         Property 5: Aggregation Produces Single Document
-        
+
         For any number of chapters, aggregation SHALL produce a single document.
         """
         with patch("primr.ai.report_aggregator.get_settings") as mock_settings:
@@ -311,7 +311,7 @@ class TestAggregationProperty:
     async def test_aggregation_includes_all_successful_chapters(self) -> None:
         """
         Property 5: Aggregation Produces Single Document
-        
+
         The final document SHALL contain all successful chapters.
         """
         with patch("primr.ai.report_aggregator.get_settings") as mock_settings:
@@ -343,7 +343,7 @@ class TestChapterCompletenessProperty:
     def test_word_count_tracked_correctly(self) -> None:
         """
         Property 4: Chapter Completeness
-        
+
         Word count SHALL be tracked correctly for each chapter.
         """
         # Create chapters with known word counts

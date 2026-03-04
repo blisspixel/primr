@@ -318,7 +318,7 @@ class TestTenantManager:
 
     def test_list_tenants_filter_by_status(self, manager):
         """Test listing tenants filtered by status."""
-        t1 = manager.create_tenant("Active", TenantTier.FREE)
+        manager.create_tenant("Active", TenantTier.FREE)
         t2 = manager.create_tenant("Suspended", TenantTier.FREE)
         manager.update_tenant(t2.tenant_id, status=TenantStatus.SUSPENDED)
 

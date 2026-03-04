@@ -411,7 +411,8 @@ class TestTimeoutConfig:
         with pytest.raises(ValueError) as exc_info:
             config.validate()
 
-        assert "total" in str(exc_info.value) and "connect" in str(exc_info.value)
+        assert "total" in str(exc_info.value)
+        assert "connect" in str(exc_info.value)
 
     def test_validate_rejects_total_less_than_read(self):
         """validate() should reject total < read."""
@@ -420,7 +421,8 @@ class TestTimeoutConfig:
         with pytest.raises(ValueError) as exc_info:
             config.validate()
 
-        assert "total" in str(exc_info.value) and "read" in str(exc_info.value)
+        assert "total" in str(exc_info.value)
+        assert "read" in str(exc_info.value)
 
     def test_as_tuple_returns_connect_read(self):
         """as_tuple() should return (connect, read) for requests library."""
@@ -639,9 +641,9 @@ class TestSettingsValidateAll:
 class TestConfigurationValidationProperty:
     """
     Property-based tests for configuration validation.
-    
+
     **Feature: code-quality-hardening, Property 17: Configuration Validation**
-    
+
     For any configuration with invalid values (negative timeouts, zero cache size),
     the validator SHALL reject the configuration with a descriptive error.
     """
@@ -655,7 +657,7 @@ class TestConfigurationValidationProperty:
     def test_timeout_rejects_non_positive_connect(self, connect, read, total):
         """
         **Feature: code-quality-hardening, Property 17: Configuration Validation**
-        
+
         TimeoutConfig SHALL reject non-positive connect timeout.
         """
         config = TimeoutConfig(connect=connect, read=read, total=total)
@@ -674,7 +676,7 @@ class TestConfigurationValidationProperty:
     def test_timeout_rejects_non_positive_read(self, connect, read, total):
         """
         **Feature: code-quality-hardening, Property 17: Configuration Validation**
-        
+
         TimeoutConfig SHALL reject non-positive read timeout.
         """
         config = TimeoutConfig(connect=connect, read=read, total=total)
@@ -692,7 +694,7 @@ class TestConfigurationValidationProperty:
     def test_cache_rejects_non_positive_max_size(self, max_size, ttl):
         """
         **Feature: code-quality-hardening, Property 17: Configuration Validation**
-        
+
         CacheConfig SHALL reject non-positive max_size.
         """
         config = CacheConfig(max_size=max_size, ttl_seconds=ttl)
@@ -710,7 +712,7 @@ class TestConfigurationValidationProperty:
     def test_cache_rejects_non_positive_ttl(self, max_size, ttl):
         """
         **Feature: code-quality-hardening, Property 17: Configuration Validation**
-        
+
         CacheConfig SHALL reject non-positive ttl_seconds (when not None).
         """
         config = CacheConfig(max_size=max_size, ttl_seconds=ttl)
@@ -729,7 +731,7 @@ class TestConfigurationValidationProperty:
     def test_timeout_accepts_valid_config(self, connect, read, total):
         """
         **Feature: code-quality-hardening, Property 17: Configuration Validation**
-        
+
         TimeoutConfig SHALL accept valid configurations where all values are
         positive and total >= max(connect, read).
         """
@@ -748,7 +750,7 @@ class TestConfigurationValidationProperty:
     def test_cache_accepts_valid_config(self, max_size, ttl, name):
         """
         **Feature: code-quality-hardening, Property 17: Configuration Validation**
-        
+
         CacheConfig SHALL accept valid configurations where max_size > 0,
         ttl_seconds is None or positive, and name is non-empty.
         """

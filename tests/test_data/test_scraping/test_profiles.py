@@ -183,13 +183,13 @@ class TestProfileRandomness:
     def test_random_http_profiles_vary(self):
         """Multiple calls to get_random_http_profile should vary."""
         profiles = [get_random_http_profile() for _ in range(20)]
-        unique_names = set(p.name for p in profiles)
+        unique_names = {p.name for p in profiles}
         # With 4+ profiles and 20 samples, we should see at least 2 different ones
         assert len(unique_names) >= 2, "Random profiles not varying enough"
 
     def test_random_context_profiles_vary(self):
         """Multiple calls to get_random_context_profile should vary."""
         profiles = [get_random_context_profile() for _ in range(20)]
-        unique_names = set(p.name for p in profiles)
+        unique_names = {p.name for p in profiles}
         # With 3+ profiles and 20 samples, we should see at least 2 different ones
         assert len(unique_names) >= 2, "Random context profiles not varying enough"

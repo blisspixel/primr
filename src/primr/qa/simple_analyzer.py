@@ -14,6 +14,16 @@ from .models import ReportContent
 
 logger = logging.getLogger(__name__)
 
+# Quality dimensions scored by the LLM on a 1-5 scale, then converted to 0-100.
+# Weights must sum to 1.0.
+QA_DIMENSIONS: dict[str, float] = {
+    "company_understanding": 0.20,    # How well the report explains the business model
+    "analytical_depth": 0.25,         # Hypothesis-driven vs descriptive
+    "actionable_intelligence": 0.25,  # Specific engagement opportunities
+    "evidence_quality": 0.15,         # Citations, sourcing, precision
+    "structure_clarity": 0.15,        # Organization, no repetition, flow
+}
+
 
 @dataclass
 class SimpleQAResult:
@@ -25,6 +35,7 @@ class SimpleQAResult:
     recommendation: str
     parsing_success: bool = True
     error_message: str | None = None
+    scores: dict[str, int] | None = None  # Dimension scores (0-100 scale)
 
 
 class SimpleQAAnalyzer:
@@ -232,12 +243,35 @@ Based on your analysis, provide your assessment in this exact JSON format:
 {{
     "ready_for_use": true,
     "confidence_level": "high",
-    "key_strengths": ["Specific strength 1", "Specific strength 2", "Specific strength 3"],
-    "areas_for_improvement": ["Specific improvement 1", "Specific improvement 2"],
+    "scores": {{
+        "company_understanding": 4,
+        "analytical_depth": 3,
+        "actionable_intelligence": 4,
+        "evidence_quality": 3,
+        "structure_clarity": 4
+    }},
+    "key_strengths": ["strength 1", "strength 2", "...up to 5 if warranted"],
+    "areas_for_improvement": ["improvement 1", "...only if genuinely needed, can be empty []"],
     "recommendation": "Clear recommendation with reasoning"
 }}
 
+SCORING GUIDE (1-5 per dimension):
+- company_understanding: Does the report explain how this company creates value?
+  1=no business model insight, 2=surface-level description, 3=adequate overview, 4=clear model with nuances, 5=deep insight into value creation and competitive moats
+- analytical_depth: Is the analysis hypothesis-driven or just descriptive?
+  1=bullet-point facts only, 2=descriptive summary, 3=some analysis but generic, 4=hypothesis-driven with specific evidence, 5=original synthesis revealing non-obvious patterns
+- actionable_intelligence: Could a consultant act on this?
+  1=no engagement angles, 2=vague suggestions, 3=generic consulting opportunities, 4=specific pain points with clear entry points, 5=prioritized opportunities with timing and stakeholder context
+- evidence_quality: Are claims sourced and precise?
+  1=unsourced assertions, 2=occasional citations, 3=adequate sourcing, 4=well-cited with ranges for estimates, 5=rigorous sourcing with confidence labels on claims
+- structure_clarity: Is it well-organized without repetition?
+  1=disorganized or heavily repetitive, 2=basic structure with some repetition, 3=clear structure, 4=clean flow with each insight in one place, 5=exceptional organization that builds understanding progressively
+
 ASSESSMENT GUIDELINES:
+- Score each dimension independently based on the anchors above
+- List 2-5 key strengths (more for genuinely excellent reports)
+- List 0-3 areas for improvement (0 if the report is exceptional, don't invent issues)
+- Do NOT pad with generic improvements just to have something to say
 - Be specific in strengths and improvements (not generic)
 - Flag any placeholder values, truncated sections, or missing citations
 - Evaluate hypothesis-driven framing vs declarative statements
@@ -315,18 +349,21 @@ Key questions:
 
             if data:
                 # Successfully parsed JSON
+                scores = self._validate_and_convert_scores(data.get('scores'))
                 return SimpleQAResult(
                     ready_for_use=bool(data['ready_for_use']),
                     confidence_level=data['confidence_level'],
                     key_strengths=data['key_strengths'],
                     areas_for_improvement=data['areas_for_improvement'],
                     recommendation=str(data['recommendation']),
-                    parsing_success=True
+                    parsing_success=True,
+                    scores=scores,
                 )
             else:
                 # JSON parsing failed, use regex fallback
                 logger.warning("JSON parsing failed, using regex fallback")
                 fallback_data = self.json_parser.extract_with_regex_fallback(response)
+                scores = self._validate_and_convert_scores(fallback_data.get('scores'))
 
                 return SimpleQAResult(
                     ready_for_use=bool(fallback_data['ready_for_use']),
@@ -334,12 +371,35 @@ Key questions:
                     key_strengths=fallback_data['key_strengths'],
                     areas_for_improvement=fallback_data['areas_for_improvement'],
                     recommendation=str(fallback_data['recommendation']),
-                    parsing_success=False
+                    parsing_success=False,
+                    scores=scores,
                 )
 
         except Exception as e:
             logger.error(f"Critical error in JSON parsing: {e}")
             return self._create_parsing_fallback(response)
+
+    def _validate_and_convert_scores(self, raw_scores: dict | None) -> dict[str, int] | None:
+        """Validate dimension scores (1-5) and convert to 0-100 scale.
+
+        Returns None on any validation failure so the legacy grading path is used.
+        """
+        if not isinstance(raw_scores, dict):
+            return None
+
+        converted: dict[str, int] = {}
+        for dim in QA_DIMENSIONS:
+            val = raw_scores.get(dim)
+            if not isinstance(val, (int, float)):
+                logger.debug(f"Dimension score missing or non-numeric: {dim}={val!r}")
+                return None
+            val_int = round(val)
+            if val_int < 1 or val_int > 5:
+                logger.debug(f"Dimension score out of range: {dim}={val_int}")
+                return None
+            converted[dim] = val_int * 20  # 1→20, 2→40, 3→60, 4→80, 5→100
+
+        return converted
 
     def _create_parsing_fallback(self, response: str) -> SimpleQAResult:
         """Create fallback result when all parsing strategies fail."""

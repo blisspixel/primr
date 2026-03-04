@@ -203,7 +203,7 @@ def content_with_links(draw):
     parts = []
     links = []
 
-    for i in range(num_links):
+    for _i in range(num_links):
         # Add some text before link
         prefix = draw(st.text(
             min_size=1, max_size=20,
@@ -225,7 +225,7 @@ class TestCitationReferenceNumbering:
     """
     **Feature: consulting-tier-report, Property 18: Citation Reference Numbering**
     **Validates: Requirements 12.1**
-    
+
     For any content containing inline markdown links, the CitationProcessor
     SHALL replace each [text](url) with text [n] where n is a sequential reference number.
     """
@@ -259,7 +259,7 @@ class TestCitationReferenceNumbering:
         assert "](" not in result.transformed_content
 
         # Each unique URL should have a citation
-        unique_urls = set(link[2] for link in links)
+        unique_urls = {link[2] for link in links}
         # Account for URL normalization
         assert len(result.citations) <= len(unique_urls)
 
@@ -268,7 +268,7 @@ class TestCitationDeduplication:
     """
     **Feature: consulting-tier-report, Property 19: Citation Deduplication**
     **Validates: Requirements 12.2**
-    
+
     For any URL that appears multiple times in the document, the CitationProcessor
     SHALL assign the same reference number to all occurrences.
     """
@@ -316,7 +316,7 @@ class TestCitationRoundTrip:
     """
     **Feature: consulting-tier-report, Property 20: Citation Round-Trip Consistency**
     **Validates: Requirements 12.3**
-    
+
     For any content processed by CitationProcessor, the number of unique URLs
     in the input SHALL equal the number of entries in the generated sources appendix.
     """

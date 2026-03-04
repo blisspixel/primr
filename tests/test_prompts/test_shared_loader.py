@@ -219,7 +219,7 @@ class TestSharedComponentLoaderProperties:
         rule_contents = rule_contents[:min_len]
 
         # Build rules dict
-        rules = dict(zip(rule_names, rule_contents))
+        rules = dict(zip(rule_names, rule_contents, strict=False))
 
         if not rules:
             return  # Skip if no valid rules
@@ -277,7 +277,7 @@ class TestFormattingRulesProperties:
         rule_contents = rule_contents[:min_len]
 
         # Build rules dict
-        rules = dict(zip(rule_names, rule_contents))
+        rules = dict(zip(rule_names, rule_contents, strict=False))
 
         if not rules:
             return  # Skip if no valid rules

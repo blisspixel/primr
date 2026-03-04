@@ -16,7 +16,7 @@ class TestTableStylingConsistency:
     """
     **Feature: report-excellence, Property 6: Style consistency across document** (tables portion)
     **Validates: Requirements 5.5**
-    
+
     For any generated table, all cells of the same type SHALL have
     consistent styling properties.
     """

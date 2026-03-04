@@ -273,10 +273,10 @@ class TestTrackedOperation:
 class TestOperationLoggingCompletenessProperty:
     """
     Property-based tests for operation logging completeness.
-    
+
     **Feature: code-quality-hardening, Property 10: Operation Logging Completeness**
     **Validates: Requirements 5.1, 5.2**
-    
+
     For any operation executed within an operation_context, the logs SHALL
     contain entry, exit, duration, and correlation ID.
     """
@@ -316,10 +316,10 @@ class TestOperationLoggingCompletenessProperty:
 class TestMetricsEmissionCompletenessProperty:
     """
     Property-based tests for metrics emission completeness.
-    
+
     **Feature: code-quality-hardening, Property 11: Metrics Emission Completeness**
     **Validates: Requirements 5.3, 5.5**
-    
+
     For any completed research operation, the emitted metrics SHALL contain
     duration, token counts, cost, and success status.
     """

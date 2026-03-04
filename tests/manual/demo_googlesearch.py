@@ -52,7 +52,7 @@ def export_results_to_csv(query, results):
     print(Fore.GREEN + f"[INFO] Results saved to: {filepath}" + Style.RESET_ALL)
 
 
-def test_google_search(query, max_results=5, verbose=False, output_to_csv=True, retry_attempts=3, retry_delay=5):
+def test_google_search(query, max_results=5, verbose=False, output_to_csv=True, retry_attempts=3, retry_delay=5):  # noqa: PT028
     print(Fore.YELLOW + f"\n[INFO] Searching Google API for: {query}" + Style.RESET_ALL)
 
     search_url = "https://www.googleapis.com/customsearch/v1"

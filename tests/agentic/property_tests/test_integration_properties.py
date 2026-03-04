@@ -24,9 +24,9 @@ from hypothesis import strategies as st
 def test_agentic_errors_inherit_from_primr_error():
     """
     All agentic errors inherit from PrimrError.
-    
+
     This ensures consistent error handling across the codebase.
-    
+
     Validates: Requirements 8.3
     """
     from primr.agentic.errors import (
@@ -51,7 +51,7 @@ def test_agentic_errors_inherit_from_primr_error():
 def test_agentic_errors_have_required_attributes():
     """
     All agentic errors have the required PrimrError attributes.
-    
+
     Validates: Requirements 8.3
     """
     from primr.agentic.errors import (
@@ -88,7 +88,7 @@ def test_agentic_errors_have_required_attributes():
 def test_subagent_error_is_transient():
     """
     SubagentError is classified as transient (recoverable).
-    
+
     Validates: Requirements 8.3
     """
     from primr.agentic.errors import SubagentError
@@ -105,7 +105,7 @@ def test_subagent_error_is_transient():
 def test_memory_error_is_permanent():
     """
     MemoryError is classified as permanent (not recoverable).
-    
+
     Validates: Requirements 8.3
     """
     from primr.agentic.errors import MemoryError
@@ -126,7 +126,7 @@ def test_memory_error_is_permanent():
 def test_integration_graceful_degradation():
     """
     Integration components work gracefully when dependencies unavailable.
-    
+
     Validates: Requirements 8.6
     """
     from primr.agentic.integration import (
@@ -157,7 +157,7 @@ def test_integration_graceful_degradation():
 def test_state_machine_adapter_no_crash_when_unavailable():
     """
     State machine adapter doesn't crash when state machine unavailable.
-    
+
     Validates: Requirements 8.2, 8.6
     """
     from primr.agentic.integration import OrchestratorStateMachineAdapter
@@ -179,7 +179,7 @@ def test_state_machine_adapter_no_crash_when_unavailable():
 def test_telemetry_integration_no_crash_when_disabled():
     """
     Telemetry integration doesn't crash when telemetry disabled.
-    
+
     Validates: Requirements 8.4, 8.6
     """
     from primr.agentic.integration import TelemetryIntegration
@@ -203,7 +203,7 @@ def test_telemetry_integration_no_crash_when_disabled():
 def test_circuit_breaker_integration_no_crash_when_unavailable():
     """
     Circuit breaker integration doesn't crash when unavailable.
-    
+
     Validates: Requirements 8.5, 8.6
     """
     from primr.agentic.integration import CircuitBreakerIntegration
@@ -233,7 +233,7 @@ def test_circuit_breaker_integration_no_crash_when_unavailable():
 async def test_circuit_breaker_protected_execution():
     """
     Circuit breaker protected execution context manager works.
-    
+
     Validates: Requirements 8.5
     """
     from primr.agentic.integration import CircuitBreakerIntegration
@@ -248,7 +248,7 @@ async def test_circuit_breaker_protected_execution():
 def test_combined_integration_initialization():
     """
     Combined AgenticIntegration initializes all components.
-    
+
     Validates: Requirements 8.2, 8.4, 8.5
     """
     from primr.agentic.integration import AgenticIntegration
@@ -272,7 +272,7 @@ def test_combined_integration_initialization():
 def test_state_machine_adapter_transitions():
     """
     State machine adapter correctly maps orchestrator states.
-    
+
     Validates: Requirements 8.2
     """
     from primr.agentic.integration import OrchestratorStateMachineAdapter
@@ -293,7 +293,7 @@ def test_state_machine_adapter_transitions():
 def test_state_machine_adapter_history():
     """
     State machine adapter tracks transition history.
-    
+
     Validates: Requirements 8.2
     """
     from primr.agentic.integration import OrchestratorStateMachineAdapter
@@ -317,7 +317,7 @@ def test_state_machine_adapter_history():
 def test_telemetry_record_subagent_result():
     """
     Telemetry can record subagent result attributes.
-    
+
     Validates: Requirements 8.4
     """
     from primr.agentic.integration import TelemetryIntegration, _NullSpan
@@ -341,7 +341,7 @@ def test_telemetry_record_subagent_result():
 def test_telemetry_span_attributes():
     """
     Telemetry spans accept custom attributes.
-    
+
     Validates: Requirements 8.4
     """
     from primr.agentic.integration import TelemetryIntegration
@@ -365,7 +365,7 @@ def test_telemetry_span_attributes():
 def test_circuit_breaker_state_tracking():
     """
     Circuit breaker tracks state correctly.
-    
+
     Validates: Requirements 8.5
     """
     from primr.agentic.integration import CircuitBreakerIntegration
@@ -386,7 +386,7 @@ def test_circuit_breaker_state_tracking():
 def test_circuit_breaker_reset():
     """
     Circuit breaker reset works correctly.
-    
+
     Validates: Requirements 8.5
     """
     from primr.agentic.integration import CircuitBreakerIntegration
@@ -435,7 +435,7 @@ def test_null_span_methods():
 def test_integration_with_various_job_ids(job_id: str):
     """
     Integration handles various job ID formats.
-    
+
     Validates: Requirements 8.2
     """
     from primr.agentic.integration import AgenticIntegration

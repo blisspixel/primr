@@ -14,7 +14,7 @@ from primr.core.report_models import SectionContent, SourceCitation, SourceType
 def create_section(
     title: str = "Test Section",
     content: str = "This is test content with specific details about Acme Corp's $50M revenue in 2024.",
-    sources: list = None
+    sources: list | None = None
 ) -> SectionContent:
     """Create a test section."""
     if sources is None:
@@ -55,9 +55,9 @@ class TestQualityGraderRefinementTrigger:
         # Create a high-quality section
         section = create_section(
             content="""
-            Acme Corporation reported $150M in revenue for Q4 2024, representing 
-            a 25% year-over-year increase. The company's market share grew to 15% 
-            in the enterprise software segment. Key growth drivers include their 
+            Acme Corporation reported $150M in revenue for Q4 2024, representing
+            a 25% year-over-year increase. The company's market share grew to 15%
+            in the enterprise software segment. Key growth drivers include their
             new cloud platform, which acquired 500 new enterprise customers.
             CEO John Smith announced plans to expand into European markets in 2025.
             """,
@@ -111,7 +111,7 @@ class TestQualityGraderFillerDetection:
         grader = QualityGrader()
 
         clean_content = """
-        Acme Corporation achieved $50M in revenue during Q3 2024. 
+        Acme Corporation achieved $50M in revenue during Q3 2024.
         The company expanded into three new markets and hired 200 employees.
         Their flagship product saw 40% adoption growth among enterprise customers.
         """
@@ -217,10 +217,10 @@ class TestQualityGraderSpecificity:
 
         # Very generic content with many buzzwords and no specifics
         generic_content = """
-        The company is an innovative, industry-leading organization with 
-        cutting-edge solutions. They have various products and serve numerous 
-        customers. Their state-of-the-art technology is best-in-class and 
-        world-class. They offer significant value through substantial 
+        The company is an innovative, industry-leading organization with
+        cutting-edge solutions. They have various products and serve numerous
+        customers. Their state-of-the-art technology is best-in-class and
+        world-class. They offer significant value through substantial
         improvements and considerable advantages.
         """
 
@@ -236,7 +236,7 @@ class TestQualityGraderSpecificity:
         grader = QualityGrader()
 
         specific_content = """
-        Acme Corporation reported $150M in revenue for Q4 2024, a 25% increase 
+        Acme Corporation reported $150M in revenue for Q4 2024, a 25% increase
         from Q4 2023. The company's market share in the CRM segment grew to 12%.
         CEO Jane Smith announced plans to hire 500 engineers in 2025.
         The company's gross margin improved to 72%, up from 68% in 2023.

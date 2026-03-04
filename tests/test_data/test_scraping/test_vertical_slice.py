@@ -123,7 +123,7 @@ class TestVerticalSlice:
             )
 
             with patch("requests.get", return_value=mock_response):
-                result = scrape_single_url(
+                scrape_single_url(
                     "https://example.com",
                     trace_logger=trace_logger,
                 )

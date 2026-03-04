@@ -35,7 +35,7 @@ def test_cli_parser_accepts_expected_args():
     """
     **Feature: project-reorganization, Property 6: CLI backward compatibility**
     **Validates: Requirements 6.2**
-    
+
     For any CLI argument that was supported before reorganization,
     that argument SHALL be supported by the new company_research.py entry point.
     """
@@ -66,7 +66,7 @@ def test_cli_args_are_supported(arg: str):
     """
     **Feature: project-reorganization, Property 6: CLI backward compatibility**
     **Validates: Requirements 6.2**
-    
+
     Property test verifying each expected CLI argument is supported.
     """
 
@@ -174,7 +174,7 @@ def test_cli_invalid_mode_rejected():
 
     try:
         parser.parse_args(["--mode", "invalid-mode"])
-        assert False, "Should have raised SystemExit"
+        raise AssertionError("Should have raised SystemExit")
     except SystemExit:
         pass  # Expected
 

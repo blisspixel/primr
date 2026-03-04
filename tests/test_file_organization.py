@@ -21,7 +21,7 @@ def test_no_test_files_in_root():
     """
     **Feature: project-reorganization, Property 5: Test file organization**
     **Validates: Requirements 4.1**
-    
+
     For any test file (test_*.py) that existed in the project root,
     that file SHALL be moved to the tests/ directory structure.
     """

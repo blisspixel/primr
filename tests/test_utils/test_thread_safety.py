@@ -31,7 +31,7 @@ class TestConsoleThreadSafety:
         """
         WHEN multiple threads write to console
         THEN output SHALL not be interleaved mid-line
-        
+
         **Validates: Requirements 8.1**
         """
         console = Console()
@@ -61,7 +61,7 @@ class TestConsoleThreadSafety:
         """
         WHEN heartbeat thread runs during section writing
         THEN console output SHALL remain coherent
-        
+
         **Validates: Requirements 8.2**
         """
         console = Console()
@@ -123,7 +123,7 @@ class TestFileWriteThreadSafety:
         """
         WHEN multiple sections are saved to working folder
         THEN file writes SHALL not corrupt each other
-        
+
         **Validates: Requirements 8.3**
         """
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -214,7 +214,7 @@ def test_property_console_thread_safety(num_threads: int, messages_per_thread: i
     """
     **Feature: test-coverage-hardening, Property 12: Console thread safety**
     **Validates: Requirements 8.1, 8.2**
-    
+
     For any concurrent console writes from multiple threads,
     output lines should be complete (not interleaved mid-line).
     """
@@ -251,7 +251,7 @@ def test_property_file_write_thread_safety(num_files: int, content_size: int):
     """
     **Feature: test-coverage-hardening, Property 13: File write thread safety**
     **Validates: Requirements 8.3**
-    
+
     For any concurrent section saves to the working folder,
     files should not be corrupted by race conditions.
     """
@@ -287,7 +287,7 @@ def test_property_heartbeat_does_not_corrupt_output(num_threads: int, iterations
     """
     **Feature: test-coverage-hardening, Property 12: Console thread safety**
     **Validates: Requirements 8.1, 8.2**
-    
+
     For any heartbeat thread running during section writing,
     console output should remain coherent.
     """

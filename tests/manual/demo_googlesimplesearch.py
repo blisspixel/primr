@@ -29,7 +29,7 @@ EXCLUDED_SITES = [
 ]
 
 
-def test_google_search(query, retries=3, retry_delay=5, max_results=30):
+def test_google_search(query, retries=3, retry_delay=5, max_results=30):  # noqa: PT028
     """Tests Google Custom Search API for a given query with detailed debugging."""
 
     print(Fore.YELLOW + f"\n[INFO] Searching Google API for: {query}" + Style.RESET_ALL)
@@ -57,7 +57,7 @@ def test_google_search(query, retries=3, retry_delay=5, max_results=30):
                 print(Fore.BLUE + "[DEBUG] Raw API Response:" + Style.RESET_ALL)
                 print(json.dumps(search_results, indent=2))
 
-                total_results = search_results.get("searchInformation", {}).get("totalResults", "0")
+                search_results.get("searchInformation", {}).get("totalResults", "0")
 
                 if "items" not in search_results or not search_results["items"]:
                     print(Fore.RED + f"[ERROR] No 'items' in API response (Attempt {attempt}/{retries})." + Style.RESET_ALL)

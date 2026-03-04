@@ -131,7 +131,7 @@ class TestArtifactDetectorProperties:
 class TestProperty5NoMarkdownArtifacts:
     """
     Property 5: No markdown artifacts in output.
-    
+
     After document generation, the output should not contain
     unconverted markdown syntax like ##, **, *, etc.
     """
@@ -173,7 +173,7 @@ Revenue: $5.2 billion
             artifacts = detector.scan_text(text)
             # Filter out false positives - parsed content shouldn't have heading markers
             heading_artifacts = [a for a in artifacts if a['type'] == 'heading']
-            bold_artifacts = [a for a in artifacts if a['type'] == 'bold']
+            [a for a in artifacts if a['type'] == 'bold']
             assert len(heading_artifacts) == 0, f"Heading artifact in parsed content: {text}"
             # Note: bold markers may still be in content for inline formatting
             # They get converted during apply_inline_formatting()

@@ -347,7 +347,7 @@ class TestDeduplicateContent:
         content = "This is a test line.\nThis  is  a  TEST  line.\nOther content."
         result = deduplicate_content(content)
         # Should only have one of the test lines
-        lines = [l for l in result.split('\n') if 'test' in l.lower()]
+        lines = [line for line in result.split('\n') if 'test' in line.lower()]
         assert len(lines) == 1
 
     def test_handles_empty_content(self):
@@ -386,10 +386,10 @@ class TestDeduplicationStats:
 class TestContentDeduplicationEffectivenessProperty:
     """
     Property-based tests for content deduplication effectiveness.
-    
+
     **Feature: code-quality-hardening, Property 15: Content Deduplication Effectiveness**
     **Validates: Requirements 9.1**
-    
+
     For any content with duplicate lines, deduplication SHALL reduce the
     content size, and the deduplicated content SHALL preserve all unique
     information.
@@ -440,6 +440,6 @@ class TestContentDeduplicationEffectivenessProperty:
 
         # The line should appear only once
         normalized_line = ' '.join(line.lower().split())
-        count = sum(1 for l in result.split('\n')
-                   if ' '.join(l.lower().split()) == normalized_line)
+        count = sum(1 for line in result.split('\n')
+                   if ' '.join(line.lower().split()) == normalized_line)
         assert count <= 1

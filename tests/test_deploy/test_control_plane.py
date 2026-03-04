@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import json
 import threading
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 from fastapi.testclient import TestClient
@@ -47,6 +47,9 @@ from deploy.control_plane.job_store import (
 )
 from deploy.control_plane.queue import InMemoryQueue, QueueMessage
 from deploy.storage import LocalStore
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 # =============================================================================
 # FIXTURES

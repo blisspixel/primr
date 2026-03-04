@@ -180,11 +180,11 @@ def generate_config_error(
 class TestErrorStructureInvariant:
     """
     **Property 1: Error Structure Invariant**
-    
+
     For any PrimrError instance (including all subclasses), the error SHALL have
     `category`, `recoverable`, `retry_after`, and `correlation_id` attributes
     with correct types.
-    
+
     **Validates: Requirements 1.1**
     """
 
@@ -393,10 +393,10 @@ class TestErrorStructureInvariant:
 class TestCorrelationIdAutoCapture:
     """
     **Property 2: Correlation ID Auto-Capture**
-    
+
     For any error raised within a correlation context, the error's `correlation_id`
     attribute SHALL match the current context's correlation ID.
-    
+
     **Validates: Requirements 1.10**
     """
 
@@ -449,13 +449,12 @@ class TestCorrelationIdAutoCapture:
         self, message: str, operation_name: str
     ):
         """Errors in nested contexts should use the innermost correlation ID."""
-        with correlation_scope("outer") as outer_ctx:
-            with correlation_scope(operation_name) as inner_ctx:
-                error = TransientError(message=message)
-                # Should use inner context's correlation ID
-                assert error.correlation_id == inner_ctx.correlation_id
-                # Inner and outer should be different
-                assert inner_ctx.correlation_id != outer_ctx.correlation_id
+        with correlation_scope("outer") as outer_ctx, correlation_scope(operation_name) as inner_ctx:
+            error = TransientError(message=message)
+            # Should use inner context's correlation ID
+            assert error.correlation_id == inner_ctx.correlation_id
+            # Inner and outer should be different
+            assert inner_ctx.correlation_id != outer_ctx.correlation_id
 
     @given(message=error_message_strategy)
     @settings(max_examples=50, suppress_health_check=[HealthCheck.too_slow])
@@ -476,11 +475,11 @@ class TestCorrelationIdAutoCapture:
 class TestErrorSerializationRoundTrip:
     """
     **Property 3: Error Serialization Round-Trip**
-    
+
     For any PrimrError instance, calling `to_dict()` SHALL produce a JSON-serializable
     dictionary, and the dictionary SHALL contain all error attributes including type,
     message, category, recoverable, retry_after, correlation_id, and timestamp.
-    
+
     **Validates: Requirements 1.11**
     """
 
@@ -533,7 +532,7 @@ class TestErrorSerializationRoundTrip:
         error = generate_permanent_error(message, context)
 
         d = error.to_dict()
-        json_str = json.dumps(d)
+        json.dumps(d)
 
         assert d["type"] == "PermanentError"
         assert d["recoverable"] is False
@@ -552,7 +551,7 @@ class TestErrorSerializationRoundTrip:
         error = generate_rate_limit_error(message, retry_after, context)
 
         d = error.to_dict()
-        json_str = json.dumps(d)
+        json.dumps(d)
 
         assert d["type"] == "TypedRateLimitError"
         assert d["retry_after"] == retry_after
@@ -571,7 +570,7 @@ class TestErrorSerializationRoundTrip:
         error = generate_quota_error(message, hours, context)
 
         d = error.to_dict()
-        json_str = json.dumps(d)
+        json.dumps(d)
 
         assert d["type"] == "QuotaError"
         assert d["category"] == "quota"
@@ -591,7 +590,7 @@ class TestErrorSerializationRoundTrip:
         error = generate_network_error(message, host, port, context)
 
         d = error.to_dict()
-        json_str = json.dumps(d)
+        json.dumps(d)
 
         assert d["type"] == "TypedNetworkError"
         assert d["category"] == "network"
@@ -609,7 +608,7 @@ class TestErrorSerializationRoundTrip:
         error = generate_validation_error(message, field_errors, context)
 
         d = error.to_dict()
-        json_str = json.dumps(d)
+        json.dumps(d)
 
         assert d["type"] == "PrimrValidationError"
         assert d["category"] == "validation"
@@ -628,7 +627,7 @@ class TestErrorSerializationRoundTrip:
         error = generate_auth_error(message, auth_method, context)
 
         d = error.to_dict()
-        json_str = json.dumps(d)
+        json.dumps(d)
 
         assert d["type"] == "AuthenticationError"
         assert d["category"] == "authentication"
@@ -647,7 +646,7 @@ class TestErrorSerializationRoundTrip:
         error = generate_config_error(message, config_path, missing_keys, context)
 
         d = error.to_dict()
-        json_str = json.dumps(d)
+        json.dumps(d)
 
         assert d["type"] == "PrimrConfigurationError"
         assert d["category"] == "configuration"
@@ -665,7 +664,7 @@ class TestErrorSerializationRoundTrip:
         error = TransientError(message=message, cause=cause)
 
         d = error.to_dict()
-        json_str = json.dumps(d)
+        json.dumps(d)
 
         # Verify cause is serialized
         assert "cause" in d

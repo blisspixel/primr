@@ -49,7 +49,7 @@ def test_scraping_patience():
 
     # Show sample content
     if scraped_content:
-        first_url = list(scraped_content.keys())[0]
+        first_url = next(iter(scraped_content.keys()))
         first_content = scraped_content[first_url]
         print(f"\nSample content from {first_url}:")
         print(f"  Length: {len(first_content)} chars")

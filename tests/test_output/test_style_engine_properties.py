@@ -15,7 +15,7 @@ class TestStyleConsistency:
     """
     **Feature: report-excellence, Property 6: Style consistency across document**
     **Validates: Requirements 2.1, 5.1**
-    
+
     For any generated document, all paragraphs of the same semantic type
     SHALL have identical style properties (font, size, spacing, color).
     """
@@ -165,7 +165,7 @@ class TestInlineHeaderFormatting:
     """
     **Feature: report-excellence, Property 4: Inline header detection and formatting**
     **Validates: Requirements 3.6**
-    
+
     For any input line matching the pattern "Header Text: content",
     the output SHALL have the header portion (before colon) formatted as bold.
     """
@@ -192,7 +192,7 @@ class TestInlineHeaderFormatting:
         assert len(para.runs) == 2
 
         # First run should be bold and contain header + colon
-        assert para.runs[0].bold == True
+        assert para.runs[0].bold
         assert header in para.runs[0].text
         assert ':' in para.runs[0].text
 

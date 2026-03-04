@@ -62,11 +62,11 @@ invalid_trigger_strategy = st.text(min_size=1, max_size=20).filter(
 class TestValidTransitionAcceptance:
     """
     **Property 22: Valid Transition Acceptance**
-    
+
     For any state machine and any transition defined in its transition table,
     calling `transition()` with the correct trigger from the correct state
     SHALL succeed and update the state.
-    
+
     **Validates: Requirements 9.2, 10.2**
     """
 
@@ -136,7 +136,7 @@ class TestValidTransitionAcceptance:
         sm = create_job_state_machine("job-123")
         sm.transition("start")
 
-        event = sm.transition("complete")
+        sm.transition("complete")
 
         assert sm.state == JobState.COMPLETED
         assert sm.is_terminal
@@ -157,7 +157,7 @@ class TestValidTransitionAcceptance:
     def test_all_job_transitions_from_pending(self, job_id: str):
         """All valid transitions from PENDING should succeed."""
         # Feature: phd-level-excellence, Property 22: Valid Transition Acceptance
-        sm = create_job_state_machine(job_id)
+        create_job_state_machine(job_id)
 
         # Valid triggers from PENDING
         valid_triggers = ["start", "cancel"]
@@ -190,11 +190,11 @@ class TestValidTransitionAcceptance:
 class TestInvalidTransitionRejection:
     """
     **Property 23: Invalid Transition Rejection**
-    
+
     For any state machine and any (state, trigger) pair NOT in its transition
     table, calling `transition()` SHALL raise `InvalidTransitionError` with
     the attempted from_state and trigger.
-    
+
     **Validates: Requirements 9.6**
     """
 
@@ -286,11 +286,11 @@ class TestInvalidTransitionRejection:
 class TestTransitionEventEmission:
     """
     **Property 24: Transition Event Emission**
-    
+
     For any successful state transition, all registered listeners SHALL receive
     a `StateChangeEvent` with correct `from_state`, `to_state`, `trigger`, and
     `timestamp` values.
-    
+
     **Validates: Requirements 9.5, 10.5**
     """
 
@@ -416,11 +416,11 @@ class TestTransitionEventEmission:
 class TestStatePersistenceRoundTrip:
     """
     **Property 25: State Persistence Round-Trip**
-    
+
     For any job state machine state, persisting the state and then recovering
     it SHALL produce a state machine in the same state with the same transition
     history.
-    
+
     **Validates: Requirements 10.6**
     """
 

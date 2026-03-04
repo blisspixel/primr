@@ -56,19 +56,19 @@ class TestSectionWriterExecutiveSummary:
         mock_llm.return_value = """
         Company Snapshot
         Acme Corp is a leading enterprise software provider serving Fortune 500 companies.
-        
+
         Strategic Position
         The company holds a strong position in the CRM market with 15% market share.
-        
+
         Key Insights
         Revenue growth accelerated to 25% in Q4 2024.
         Customer retention improved to 95%.
         New product launch drove 40% of new bookings.
-        
+
         Critical Risks
         Increasing competition from cloud-native startups.
         Talent retention challenges in engineering.
-        
+
         Recommended Actions
         Accelerate cloud migration to maintain competitive position.
         Invest in AI capabilities to differentiate product offering.

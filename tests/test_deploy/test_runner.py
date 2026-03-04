@@ -252,9 +252,8 @@ class TestParseJobSpec:
 
     def test_parse_invalid_json_env(self):
         """Test that invalid JSON in env var raises ValueError."""
-        with patch.dict(os.environ, {"JOB_SPEC": "not valid json"}):
-            with pytest.raises(ValueError, match="Invalid JSON"):
-                parse_job_spec()
+        with patch.dict(os.environ, {"JOB_SPEC": "not valid json"}), pytest.raises(ValueError, match="Invalid JSON"):
+            parse_job_spec()
 
     def test_parse_no_spec_found(self):
         """Test that missing spec raises ValueError."""

@@ -122,6 +122,13 @@ class SimpleJSONParser:
             improvement_items = re.findall(r'"([^"]+)"', improvements_text)
             result["areas_for_improvement"] = improvement_items[:5]  # Limit to 5 items
 
+        # Best-effort extraction for dimension scores block
+        scores_match = re.search(r'"scores"\s*:\s*\{([^}]+)\}', response, re.DOTALL)
+        if scores_match:
+            score_pairs = re.findall(r'"(\w+)"\s*:\s*(\d+)', scores_match.group(1))
+            if score_pairs:
+                result["scores"] = {k: int(v) for k, v in score_pairs}
+
         # Fallback content analysis if arrays are empty
         if not result["key_strengths"]:
             result["key_strengths"] = self._extract_strengths_from_text(response)
@@ -222,6 +229,18 @@ class SimpleJSONParser:
         if not isinstance(data['recommendation'], str) or not data['recommendation'].strip():
             logger.warning("recommendation must be a non-empty string")
             return False
+
+        # Optional: validate scores if present (absence is OK — backward compat)
+        if 'scores' in data:
+            if not isinstance(data['scores'], dict):
+                logger.warning("scores must be a dict if present, ignoring")
+                del data['scores']  # Remove invalid scores so downstream gets None
+            else:
+                for key, val in data['scores'].items():
+                    if not isinstance(val, (int, float)):
+                        logger.warning(f"scores.{key} is not numeric, ignoring all scores")
+                        del data['scores']
+                        break
 
         return True
 

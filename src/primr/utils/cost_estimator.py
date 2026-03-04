@@ -159,14 +159,14 @@ MODE_ESTIMATES = {
         "duration_min": 20,
         "duration_max": 30,
     },
-    # Fast mode: Flash scraping + Grok calls (gap analysis + analysis + 5 batches + cross-validation), no DR, no Pro
+    # Fast mode: Flash scraping + Grok calls (gap analysis + analysis + 21 individual sections + coherence + cross-validation), no DR, no Pro
     "fast": {
         "flash_input_tokens": 40_000,     # more pages + more external scraping
         "flash_output_tokens": 10_000,
         "pro_input_tokens": 0,
         "pro_output_tokens": 0,
-        "grok_input_tokens": 700_000,     # larger corpus + more sources in context
-        "grok_output_tokens": 70_000,     # 800 words/section x 21 sections + gap + cross-val
+        "grok_input_tokens": 1_600_000,   # 21 x ~72k per section + gap + analysis + cross-val + coherence
+        "grok_output_tokens": 100_000,    # ~34k writing + 25k coherence + gap + cross-val
         "deep_research_tasks": 0,
         "search_queries": 0,              # DDG is free, not Google Search
         "duration_min": 18,
@@ -190,6 +190,7 @@ def estimate_cost(
     num_vendors: int = 1,
     lite_strategy: bool = False,
     fast_mode: bool = False,
+    premium_mode: bool = False,
 ) -> CostEstimate:
     """
     Estimate the cost of a research task.
@@ -206,12 +207,14 @@ def estimate_cost(
         num_vendors: Number of vendor strategies to generate
         lite_strategy: If True, strategy uses Pro model instead of Deep Research
         fast_mode: If True, use Grok 4.1 fast mode estimates
+        premium_mode: If True, force Gemini + Deep Research estimates
 
     Returns:
         CostEstimate with breakdown
     """
     # Fast mode: completely different cost model (Flash + Grok, no DR, no Pro)
-    if fast_mode:
+    # premium_mode overrides fast_mode (explicit Gemini + DR request)
+    if fast_mode and not premium_mode:
         return _estimate_fast_mode_cost(include_ai_strategy, num_vendors, search_free)
 
     estimates = MODE_ESTIMATES.get(mode, MODE_ESTIMATES["scrape-only"])
@@ -372,12 +375,12 @@ def _estimate_fast_mode_cost(
     duration_min = fast["duration_min"]
     duration_max = fast["duration_max"]
 
-    # AI strategy adds Grok tokens per vendor
+    # AI strategy adds Grok tokens per vendor (enriched context + CV + polish)
     if include_ai_strategy:
-        grok_in += 100_000 * num_vendors   # strategy prompt + context
-        grok_out += 10_000 * num_vendors   # strategy output
-        duration_min += 2 * num_vendors
-        duration_max += 3 * num_vendors
+        grok_in += 200_000 * num_vendors   # strategy prompt + context + CV + polish
+        grok_out += 50_000 * num_vendors   # 32K gen + 4K CV + 16K regen + 32K polish
+        duration_min += 3 * num_vendors
+        duration_max += 6 * num_vendors
 
     # Costs
     flash_cost = PrimrModels.calculate_flash_cost(flash_in, flash_out)
@@ -400,7 +403,7 @@ def _estimate_fast_mode_cost(
     if include_ai_strategy:
         duration += " + AI strategy (Grok)"
 
-    notes = ["Fast mode: Grok 4.1 with research deepening + cross-validation (no Deep Research)"]
+    notes = ["Standard mode: Grok 4.1 with research deepening + cross-validation (no Deep Research)"]
     if include_ai_strategy:
         notes.append(f"AI Strategy via Grok ({num_vendors} vendor(s))")
 
@@ -408,7 +411,7 @@ def _estimate_fast_mode_cost(
     total_output_tokens = flash_out + grok_out
 
     return CostEstimate(
-        mode="fast",
+        mode="standard (Grok 4.1)",
         estimated_input_tokens=total_input_tokens,
         estimated_output_tokens=total_output_tokens,
         estimated_search_queries=search_queries,
@@ -429,6 +432,7 @@ def display_cost_estimate(
     num_vendors: int = 1,
     lite_strategy: bool = False,
     fast_mode: bool = False,
+    premium_mode: bool = False,
 ) -> bool:
     """
     Display cost estimate and ask for confirmation.
@@ -440,12 +444,13 @@ def display_cost_estimate(
         num_vendors: Number of vendor strategies
         lite_strategy: If True, strategy uses Pro model instead of DR
         fast_mode: If True, use Grok 4.1 fast mode estimates
+        premium_mode: If True, force Gemini + Deep Research estimates
 
     Returns:
         True if user confirms, False to cancel
     """
     import sys
-    estimate = estimate_cost(mode, include_ai_strategy, num_vendors=num_vendors, lite_strategy=lite_strategy, fast_mode=fast_mode)
+    estimate = estimate_cost(mode, include_ai_strategy, num_vendors=num_vendors, lite_strategy=lite_strategy, fast_mode=fast_mode, premium_mode=premium_mode)
 
     # Clean single line with visible text
     print(f"\n{company_name} | {mode} | ~${estimate.total_cost:.2f} | {estimate.duration_minutes}")

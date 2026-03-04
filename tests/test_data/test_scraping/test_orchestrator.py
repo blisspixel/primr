@@ -364,7 +364,7 @@ class TestRateLimiting:
             )
 
             # Should not raise, should handle gracefully
-            result = orchestrator.scrape_url("https://example.com")
+            orchestrator.scrape_url("https://example.com")
 
         # Release should still be called
         mock_limiter.release.assert_called()

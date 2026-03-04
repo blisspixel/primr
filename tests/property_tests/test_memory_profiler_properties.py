@@ -62,7 +62,7 @@ def component_names_strategy(draw):
 
 class TestMemoryTrackingAndReporting:
     """Tests for Property 28: Memory Tracking and Reporting.
-    
+
     *For any* profiled operation, the memory profiler SHALL record peak memory
     usage and generate a report showing memory allocation by component.
     **Validates: Requirements 12.1, 12.3**
@@ -184,7 +184,7 @@ class TestMemoryTrackingAndReporting:
 
 class TestMemoryThresholdWarnings:
     """Tests for Property 29: Memory Threshold Warnings.
-    
+
     *For any* operation where memory usage exceeds the configured threshold,
     the profiler SHALL emit a warning with the current usage and threshold values.
     **Validates: Requirements 12.4**
@@ -209,7 +209,7 @@ class TestMemoryThresholdWarnings:
             # Should have received at least one warning (threshold is very small)
             # Note: This may not always trigger depending on system state
             # The important thing is the mechanism works
-            report = profiler.generate_report()
+            profiler.generate_report()
 
             # If warnings were emitted, verify structure
             for warning in warnings_received:

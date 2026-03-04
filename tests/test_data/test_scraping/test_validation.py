@@ -22,14 +22,14 @@ class TestValidateContent:
         """Should validate good content."""
         text = """
         About Our Company
-        
+
         We are a leading provider of innovative solutions.
         Our team of experts has over 20 years of experience.
         We serve customers in 50 countries worldwide.
-        
+
         Our mission is to empower businesses with technology.
         We believe in quality, integrity, and customer focus.
-        
+
         Contact us today to learn more about our services.
         """
 
@@ -157,11 +157,11 @@ class TestIsNavOnlyPage:
         """Real content with paragraphs is not nav-only."""
         text = """
         About Our Company
-        
+
         We are a leading provider of innovative solutions that help businesses grow.
         Our team of experts has over 20 years of experience in the industry.
         We serve customers in 50 countries worldwide with dedication and excellence.
-        
+
         Our mission is to empower businesses with cutting-edge technology solutions.
         """
         assert is_nav_only_page(text) is False
@@ -178,14 +178,14 @@ class TestEstimateContentQuality:
         """Good content should have high quality score."""
         text = """
         About Our Company
-        
+
         We are a leading provider of innovative solutions that help businesses grow and succeed in today's competitive market.
         Our team of experts has over 20 years of experience in the industry, delivering exceptional results for our clients.
         We serve customers in 50 countries worldwide with dedication, excellence, and a commitment to quality.
-        
+
         Our mission is to empower businesses with cutting-edge technology solutions that drive growth and efficiency.
         We believe in quality, integrity, and putting our customers first in everything we do.
-        
+
         Contact us today to learn more about how we can help your business succeed.
         """
 

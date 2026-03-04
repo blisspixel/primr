@@ -24,7 +24,7 @@ from primr.mcp_server.server import create_mcp_server
 class TestPathTraversalAttacks:
     """
     Adversarial tests for path traversal protection.
-    
+
     Validates: Requirements 11.3, 11.4, 11.5
     """
 
@@ -58,13 +58,13 @@ class TestPathTraversalAttacks:
 
     def test_unicode_homoglyph_dot(self, validator):
         """Unicode homoglyph for dot is blocked."""
-        # U+FF0E is fullwidth full stop (．)
+        # U+FF0E is fullwidth full stop (．)  # noqa: RUF003
         result = validator.validate("\uff0e\uff0e/\uff0e\uff0e/etc/passwd")
         assert not result.valid
 
     def test_unicode_homoglyph_slash(self, validator):
         """Unicode homoglyph for slash is blocked."""
-        # U+2215 is division slash (∕)
+        # U+2215 is division slash (∕)  # noqa: RUF003
         result = validator.validate("..\u2215..\u2215etc\u2215passwd")
         assert not result.valid
 
@@ -92,7 +92,7 @@ class TestPathTraversalAttacks:
 class TestSSRFAttacks:
     """
     Adversarial tests for SSRF protection.
-    
+
     Validates: Requirements 17.2, 17.3
     """
 
@@ -179,7 +179,7 @@ class TestSSRFAttacks:
 class TestPromptInjection:
     """
     Adversarial tests for prompt injection attempts.
-    
+
     Validates: Requirements 5.2, 17.1
     - Malicious input in company_name/company_url doesn't affect behavior
     """
@@ -272,7 +272,7 @@ class TestPromptInjection:
 class TestResourceExhaustion:
     """
     Adversarial tests for resource exhaustion attacks.
-    
+
     Validates: Requirements 12.1, 12.3
     """
 
@@ -349,7 +349,7 @@ class TestResourceExhaustion:
 class TestMultiClientInterleaving:
     """
     Adversarial tests for multi-client interleaving scenarios.
-    
+
     Validates: Requirements 5.9, 2.1
     """
 

@@ -8,6 +8,7 @@ Property-based tests for QA analysis completeness.
 from datetime import datetime
 from pathlib import Path
 
+import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
@@ -96,10 +97,10 @@ class TestQAAnalysisCompleteness:
         """
         **Feature: report-quality-assurance, Property 1: QA execution completeness**
         **Validates: Requirements 1.2, 2.1, 2.2, 2.3, 2.4, 2.5**
-        
+
         Property: For any valid report content, QA analysis should produce
         a complete analysis with all required components.
-        
+
         This tests that the QA analyzer consistently produces comprehensive
         analysis regardless of report content variations.
         """
@@ -177,7 +178,7 @@ class TestQAAnalysisCompleteness:
         """
         **Feature: report-quality-assurance, Property 2: Citation accuracy validation**
         **Validates: Requirements 2.1**
-        
+
         Property: Citation analysis should be consistent with report content.
         The total citations found should relate to the citations in the report.
         """
@@ -274,7 +275,7 @@ class TestCitationCheckingProperties:
         """
         **Feature: report-quality-assurance, Property 2: Citation accuracy validation**
         **Validates: Requirements 2.1**
-        
+
         Property: For any list of citations, the citation checking should
         produce consistent and valid results.
         """
@@ -415,7 +416,7 @@ class TestIssueClassifierProperties:
         """
         **Feature: report-quality-assurance, Property 2: Score consistency**
         **Validates: Requirements 3.1**
-        
+
         Property: For any set of issues, the scoring should be consistent
         and the overall score should align with component scores.
         """
@@ -540,7 +541,7 @@ class TestIssueClassifierProperties:
         """
         **Feature: report-quality-assurance, Property 3: Issue location specificity**
         **Validates: Requirements 3.3**
-        
+
         Property: For any set of issues, location specificity analysis should
         provide meaningful metrics about how precisely issues are located.
         """
@@ -668,7 +669,7 @@ class TestFilePersistenceProperties:
         """
         **Feature: report-quality-assurance, Property 4: File persistence**
         **Validates: Requirements 3.4, 5.4**
-        
+
         Property: For any company name, when QA analysis is saved,
         the detailed analysis files should be created and readable.
         """
@@ -914,7 +915,7 @@ class TestDefaultQAIntegrationProperties:
         """
         **Feature: report-quality-assurance, Property 1: Default QA execution**
         **Validates: Requirements 1.1, 3.1**
-        
+
         Property: For any company name, when QA is enabled by default,
         the QA integration should execute automatically and produce results.
         """
@@ -1035,7 +1036,7 @@ class TestWorkspaceIntegrationProperties:
         """
         **Feature: report-quality-assurance, Property 7: Workspace integration**
         **Validates: Requirements 5.2, 5.4**
-        
+
         Property: For any company name, QA system should integrate properly
         with workspace file structure and naming conventions.
         """
@@ -1100,7 +1101,7 @@ class TestWorkspaceIntegrationProperties:
                 assert "QA_Report" in filename, f"Filename {filename} should contain QA_Report"
 
                 # Should have proper file extension
-                assert filename.endswith('.txt') or filename.endswith('.json'), \
+                assert filename.endswith(('.txt', '.json')), \
                     f"Filename {filename} should have proper extension"
 
                 # Property: Files should be readable and contain expected content
@@ -1282,7 +1283,7 @@ class TestQAHistoryPreservationProperties:
 
             scores = [70, 80, 90]  # Improving scores over time
 
-            for i, (timestamp, score) in enumerate(zip(timestamps, scores)):
+            for _i, (timestamp, score) in enumerate(zip(timestamps, scores, strict=False)):
                 analysis = QAAnalysis(
                     overall_score=score,
                     section_scores={},
@@ -1350,7 +1351,7 @@ class TestErrorRecoveryProperties:
         """
         **Feature: report-quality-assurance, Property 7: Error recovery**
         **Validates: Requirements 1.4**
-        
+
         Property: For any company name, when QA operations encounter errors,
         the system should recover gracefully and provide meaningful feedback.
         """
@@ -1472,12 +1473,9 @@ class TestErrorRecoveryProperties:
             return "Success"
 
         # Should convert generic exceptions to QA errors
-        try:
+        with pytest.raises(QAError, match="Test operation failed") as exc_info:
             failing_function()
-            assert False, "Should have raised QAError"
-        except QAError as e:
-            assert "Test operation failed" in str(e), "Should mention operation name"
-            assert "Test error" in str(e), "Should include original error message"
+        assert "Test error" in str(exc_info.value), "Should include original error message"
 
         # Should pass through successful operations
         result = successful_function()

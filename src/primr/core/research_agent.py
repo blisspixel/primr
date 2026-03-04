@@ -1084,6 +1084,14 @@ REQUIREMENTS:
   unless directly grounded in one or more cited sources
 - End each section with a short "What to validate:" line containing one concrete
   discovery question or data point to confirm in client interviews
+- ZERO REPETITION: Before writing a section, review the rolling context above.
+  If an insight, data point, or hypothesis already appeared in a prior section,
+  do NOT restate it. Reference the earlier section instead ("as noted in the
+  Executive Summary...") or build on it with new evidence.
+- AI/TECHNOLOGY INTEGRATION: When relevant, explicitly connect AI or technology
+  use cases to the company's specific business challenges. Don't just mention
+  "AI could help" — specify which AI capability (NLP, computer vision, predictive
+  analytics, etc.) maps to which concrete business problem identified in this report.
 
 CONSULTING RIGOR (critical):
 - Do NOT paraphrase the company's marketing. When you cite their claims, immediately
@@ -1102,6 +1110,401 @@ CITATION FORMAT (strict):
 - Reuse the same citation number for the same URL
 - Do not emit [Source: URL] inline; use [cite: N] only
 """
+
+
+# --- Section-level fast-mode helpers (individual section writing) ---
+
+_HIGH_DEPTH_SECTION_IDS = frozenset({
+    "executive_summary",
+    "competitive_landscape",
+    "company_history",
+    "engagement_opportunities",
+})
+
+
+def _get_section_word_target(section: "SectionConfig") -> int:
+    """Return adaptive word target for a single section.
+
+    - Sections with depth mentioning 'pages'/'comprehensive', or IDs in
+      ``_HIGH_DEPTH_SECTION_IDS`` → 1,200 words
+    - Framework sections (position == 'framework') → 800 words
+    - Everything else → 800 words
+    """
+    depth_lower = (section.depth or "").lower()
+    if section.id in _HIGH_DEPTH_SECTION_IDS or "pages" in depth_lower or "comprehensive" in depth_lower:
+        return 1_200
+    if section.position == "framework":
+        return 800
+    return 800
+
+
+def _get_section_max_tokens(section: "SectionConfig") -> int:
+    """Return max_tokens for a single-section Grok call."""
+    return 6_000 if _get_section_word_target(section) >= 1_000 else 4_000
+
+
+def _build_fast_section_prompt(
+    company_name: str,
+    website: str | None,
+    analysis_workbook: str,
+    raw_corpus_subset: str,
+    external_sources: str,
+    source_urls: list[str],
+    section: "SectionConfig",
+    written_sections: list[dict[str, Any]],
+    section_index: int,
+    all_section_names: list[str],
+) -> str:
+    """Build prompt for writing a single report section.
+
+    Similar to ``_build_fast_batch_prompt`` but tailored for one section at
+    a time with table-of-contents awareness and rolling context.
+    """
+    current_date = datetime.now().strftime("%B %d, %Y")
+    word_target = _get_section_word_target(section)
+
+    # Section instructions
+    covers_text = "\n".join(f"      - {item}" for item in section.covers)
+    depth_text = section.depth.strip() if section.depth else "Thorough analysis"
+    position_label = section.position or "middle"
+    section_block = (
+        f"### {section.name}\n"
+        f"**Purpose:** {section.purpose}\n"
+        f"**Position:** {position_label}\n"
+        f"**Must cover:**\n{covers_text}\n"
+        f"**Depth:** {depth_text}"
+    )
+
+    # Table of contents with [DONE]/[NOW]/[TODO] markers
+    toc_parts: list[str] = []
+    for idx, name in enumerate(all_section_names):
+        if idx < section_index:
+            toc_parts.append(f"  [DONE] {name}")
+        elif idx == section_index:
+            toc_parts.append(f"  [NOW]  {name}")
+        else:
+            toc_parts.append(f"  [TODO] {name}")
+    toc_block = "## REPORT TABLE OF CONTENTS\n" + "\n".join(toc_parts)
+
+    # Rolling context: framework/exec-summary sections get full prior content for synthesis;
+    # regular sections get 300-word summaries of last 5 completed sections
+    rolling_context = ""
+    if written_sections:
+        if section.position == "framework" or section.id == "executive_summary":
+            # Framework sections and executive summary need full prior content
+            # to synthesise insights from earlier analytical sections
+            context_parts = [
+                f"**{s['title']}** (completed):\n{s['content']}"
+                for s in written_sections
+            ]
+        else:
+            recent = written_sections[-5:]
+            context_parts = []
+            for s in recent:
+                words = s["content"].split()
+                summary = " ".join(words[:300])
+                if len(words) > 300:
+                    summary += " ..."
+                context_parts.append(f"**{s['title']}** (completed):\n{summary}")
+        rolling_context = "\n\n".join(context_parts)
+
+    rolling_block = (
+        f"## PREVIOUS SECTIONS (for narrative continuity)\n{rolling_context}"
+        if rolling_context
+        else "## PREVIOUS SECTIONS\n(This is the first section — no prior sections.)"
+    )
+
+    sources_text = "\n".join(f"- {url}" for url in source_urls) if source_urls else "(no external sources)"
+    feedback_guidance = _load_fast_feedback_guidance()
+    feedback_block = (
+        f"=== FAST FEEDBACK GUIDANCE (from prior evals) ===\n{feedback_guidance}\n"
+        if feedback_guidance
+        else ""
+    )
+
+    return f"""**Company:** {company_name}
+**Website:** {website or 'N/A'}
+**Date:** {current_date}
+**Section:** {section_index + 1} of {len(all_section_names)} — {section.name}
+
+{toc_block}
+
+You are writing ONE section of a Strategic Company Overview.
+Write this section under a single ## heading matching the section name exactly.
+
+{rolling_block}
+
+=== ANALYSIS WORKBOOK ===
+{analysis_workbook}
+
+=== RAW DATA (for evidence and citations) ===
+{raw_corpus_subset}
+
+=== EXTERNAL SOURCES ===
+{external_sources}
+
+{feedback_block}
+
+SOURCES CONSULTED:
+{sources_text}
+
+---
+
+Write the following section. It MUST start with a ## heading matching the section name exactly.
+
+{section_block}
+
+REQUIREMENTS:
+- Write at least {word_target:,} words for this section
+- Use specific facts, numbers, and examples — cite sources with [cite: N]
+- Be analytical and hypothesis-driven, not just descriptive
+- Label claims with confidence levels (Confirmed/Reported/Estimated/Hypothesis)
+- Build on the previous sections' narrative (see rolling context above)
+- For framework sections (SWOT, Porter's, Value Chain): organize insights from
+  earlier sections, don't introduce wholly new observations
+- Include tables where instructed (financials, competitors, timelines)
+- This section should have substantive depth — multiple paragraphs with evidence
+- If a numeric claim cannot be supported by a cited source, replace it with
+  "Not publicly disclosed" or an explicitly low-confidence qualitative statement
+- Do not invent market sizes, CAGR, revenue ranges, headcount ranges, or shares
+  unless directly grounded in one or more cited sources
+- End the section with a short "What to validate:" line containing one concrete
+  discovery question or data point to confirm in client interviews
+- ZERO REPETITION: Before writing, review the rolling context and TOC above.
+  If an insight, data point, or hypothesis already appeared in a prior section,
+  do NOT restate it. Reference the earlier section instead ("as noted in the
+  Executive Summary...") or build on it with new evidence.
+- AI/TECHNOLOGY INTEGRATION: When relevant, explicitly connect AI or technology
+  use cases to the company's specific business challenges. Don't just mention
+  "AI could help" — specify which AI capability maps to which concrete problem.
+
+CONSULTING RIGOR (critical):
+- Do NOT paraphrase the company's marketing. When you cite their claims, immediately
+  stress-test them against external evidence or flag what's unverifiable.
+- For each major hypothesis or insight, include "What to validate": a specific question
+  or data point a consultant should probe in discovery.
+- Be CONSERVATIVE on financial estimates. If you're inferring revenue from employee
+  count, say "highly uncertain" and use wide ranges. Never state inferences as fact.
+- Frame "why now" for the company — what transition or inflection point makes this
+  moment interesting? Platform shifts, PE investment, leadership changes, etc.
+- Think like a buyer, not a narrator. Where does this company win deals? Where does
+  it lose? What would a competitor say about them?
+
+CITATION FORMAT (strict):
+- Inline claims must reference citations as [cite: N]
+- Reuse the same citation number for the same URL
+- Do not emit [Source: URL] inline; use [cite: N] only
+"""
+
+
+def _parse_single_section(
+    content: str,
+    expected_section: "SectionConfig",
+) -> dict[str, Any]:
+    """Parse Grok's single-section response.
+
+    Expects one ``## `` heading. Strips preamble text before the heading.
+    Falls back to using the expected section name if no heading found.
+    """
+    parts = re.split(r"^## ", content, flags=re.MULTILINE)
+
+    if len(parts) >= 2:
+        # First element is preamble (usually empty), second is heading+body
+        section_text = parts[1]
+        lines = section_text.split("\n", 1)
+        title = lines[0].strip().rstrip("#").strip()
+        body = lines[1].strip() if len(lines) > 1 else ""
+    else:
+        # No ## heading found — use expected name, treat whole content as body
+        title = expected_section.name
+        body = content.strip()
+
+    word_count = len(body.split())
+    return {"title": title, "content": body, "words": word_count}
+
+
+def _write_section_with_retry(
+    section: "SectionConfig",
+    section_index: int,
+    all_section_names: list[str],
+    written_sections: list[dict[str, Any]],
+    company_name: str,
+    website: str | None,
+    analysis_workbook: str,
+    raw_corpus_subset: str,
+    external_sources_raw: str,
+    source_urls: list[str],
+    report_system: str,
+) -> dict[str, Any] | None:
+    """Write a single section with one retry if output is thin.
+
+    Returns the parsed section dict, or ``None`` on failure.
+    """
+    from primr.ai.grok_client import grok_llm
+
+    word_target = _get_section_word_target(section)
+
+    prompt = _build_fast_section_prompt(
+        company_name,
+        website,
+        analysis_workbook,
+        raw_corpus_subset,
+        external_sources_raw,
+        source_urls,
+        section,
+        written_sections,
+        section_index,
+        all_section_names,
+    )
+
+    try:
+        section_content = grok_llm(
+            prompt,
+            model=GROK_MODEL_WRITING,
+            max_tokens=_get_section_max_tokens(section),
+            temperature=0.6,
+            system_prompt=report_system,
+        )
+    except Exception as section_err:
+        logger.warning("Section '%s' failed: %s", section.name, section_err)
+        log_structured("warning", "Fast mode section failed", section=section.name, error=str(section_err))
+        return None
+
+    if not section_content or not section_content.strip():
+        logger.warning("Section '%s' returned empty", section.name)
+        return None
+
+    parsed = _parse_single_section(section_content, section)
+
+    # Thin-section retry: if < 50% of target, retry once
+    if parsed["words"] < word_target * 0.5:
+        logger.warning(
+            "Section '%s' too thin (%d/%d words), retrying",
+            section.name, parsed["words"], word_target,
+        )
+        retry_prompt = (
+            f"IMPORTANT: Your previous attempt produced only {parsed['words']} words. "
+            f"The minimum target is {word_target} words. Write a substantive, "
+            f"evidence-rich section.\n\n" + prompt
+        )
+        try:
+            retry_content = grok_llm(
+                retry_prompt,
+                model=GROK_MODEL_WRITING,
+                max_tokens=_get_section_max_tokens(section),
+                temperature=0.6,
+                system_prompt=report_system,
+            )
+            if retry_content and retry_content.strip():
+                retry_parsed = _parse_single_section(retry_content, section)
+                if retry_parsed["words"] > parsed["words"]:
+                    parsed = retry_parsed
+        except Exception as retry_err:
+            logger.warning("Section '%s' retry failed: %s", section.name, retry_err)
+
+    return parsed
+
+
+def _fast_coherence_pass(
+    company_name: str,
+    website: str | None,
+    report_content: str,
+) -> str:
+    """Run a coherence pass over the assembled fast-mode report.
+
+    Tasks:
+    1. Remove cross-section repetition → replace with cross-references
+    2. Smooth transitions between sections
+    3. Ensure framework sections reference earlier analytical sections
+    4. Fix terminology consistency
+
+    Guards against destructive compression — rejects output that loses
+    too many words or sections.
+    """
+    from primr.ai.grok_client import grok_llm
+
+    if not report_content.strip():
+        return report_content
+
+    prompt = f"""You are editing a strategic company overview for coherence and flow.
+The report was written section-by-section and needs LIGHT deduplication and transition smoothing.
+
+Company: {company_name}
+Website: {website or 'N/A'}
+
+CRITICAL: The output MUST contain at least 95% of the original word count. This is a LIGHT editing pass, not a rewrite.
+
+TASKS (in priority order):
+1. CROSS-REFERENCE DUPLICATES: When the SAME specific fact or data point appears
+   verbatim in multiple sections, keep the FIRST occurrence intact and replace
+   ONLY the later duplicate sentence with a brief cross-reference like
+   "As noted in [Section Name]..." Do NOT delete surrounding context or analysis.
+   Example of ACCEPTABLE edit:
+     BEFORE: "Revenue grew 25% in 2025." (appearing in section 5, already stated in section 2)
+     AFTER: "As noted in the Financial Overview, revenue growth was strong."
+   Example of UNACCEPTABLE edit:
+     Deleting an entire paragraph because one sentence overlaps with another section.
+2. SMOOTH TRANSITIONS: Add 1-2 sentence transitions between sections so the report
+   reads as a continuous narrative, not isolated blocks.
+3. FRAMEWORK COHERENCE: Ensure SWOT, Porter's, and Value Chain sections explicitly
+   reference the analytical sections that precede them.
+4. TERMINOLOGY CONSISTENCY: Standardize how the company, products, and competitors
+   are named throughout. Pick one form and use it consistently.
+
+STRICT RULES — do NOT modify these elements:
+- Do NOT remove or rename ## section headings
+- Do NOT remove [cite: N] citations
+- Do NOT remove confidence labels (Confirmed/Reported/Estimated/Hypothesis)
+- Do NOT remove "What to validate:" lines
+- Do NOT remove or restructure tables
+- Do NOT add new facts, claims, or analysis — only edit for coherence
+- Do NOT delete paragraphs, bullet points, or subsections — only edit individual sentences
+- PRESERVE all depth, evidence, and analysis. Every paragraph in the input should appear in the output.
+
+Return the fully edited markdown report only. No preamble or commentary.
+
+--- REPORT START ---
+{report_content}
+--- REPORT END ---
+"""
+    try:
+        polished = grok_llm(
+            prompt,
+            model=GROK_MODEL_WRITING,
+            max_tokens=32_000,
+            temperature=0.3,
+            system_prompt=(
+                "You are a meticulous editorial analyst improving coherence and flow "
+                "across a multi-section strategic report. Preserve ALL depth and evidence. "
+                "Make only surgical edits to duplicate sentences — never delete paragraphs."
+            ),
+        )
+        if not polished or not polished.strip():
+            return report_content
+
+        # Guard: reject destructive compression
+        original_words = len(report_content.split())
+        polished_words = len(polished.split())
+        _, original_sections = _split_markdown_sections(report_content)
+        _, polished_sections = _split_markdown_sections(polished)
+
+        if polished_words < int(original_words * 0.92):
+            logger.warning(
+                "Coherence pass dropped too many words (%d → %d), using original",
+                original_words, polished_words,
+            )
+            return report_content
+        if len(polished_sections) < len(original_sections):
+            logger.warning(
+                "Coherence pass lost sections (%d → %d), using original",
+                len(original_sections), len(polished_sections),
+            )
+            return report_content
+
+        return polished
+    except Exception:
+        logger.warning("Coherence pass failed, using original report", exc_info=True)
+        return report_content
 
 
 def _clean_fast_report_output(report_content: str) -> str:
@@ -1857,7 +2260,59 @@ If the report is solid, return empty arrays."""
 
         return {"weak_sections": weak, "contradictions": contradictions}
     except (json.JSONDecodeError, KeyError, TypeError, AttributeError) as e:
-        log_structured("warning", "Cross-validation JSON parse failed", error=str(e))
+        log_structured("warning", "Cross-validation JSON parse failed, retrying", error=str(e))
+
+        # Retry with tighter prompt including the failed response
+        retry_prompt = (
+            "Your previous response could not be parsed as JSON. "
+            "Return ONLY a JSON object, no markdown fencing, no prose before or after.\n\n"
+            f"Previous response (first 2000 chars):\n{response[:2000]}\n\n"
+            "Fix the JSON and return ONLY this structure:\n"
+            '{"weak_sections": [{"title": "...", "reason": "...", "queries": ["...", "..."]}], '
+            '"contradictions": ["..."]}'
+        )
+        try:
+            retry_response = grok_llm(
+                retry_prompt, max_tokens=3_000, temperature=0.1,
+                system_prompt="Return valid JSON only. No markdown, no prose.",
+            )
+            if retry_response and retry_response.strip():
+                retry_text = retry_response.strip()
+                brace_start = retry_text.find("{")
+                brace_end = retry_text.rfind("}")
+                if brace_start != -1 and brace_end > brace_start:
+                    result = json.loads(retry_text[brace_start:brace_end + 1])
+                    if isinstance(result, dict):
+                        raw_weak = result.get("weak_sections", [])
+                        weak = [w for w in (raw_weak if isinstance(raw_weak, list) else [])
+                                if isinstance(w, dict)][:3]
+                        raw_contradictions = result.get("contradictions", [])
+                        contradictions = [c for c in (raw_contradictions if isinstance(raw_contradictions, list) else [])
+                                         if isinstance(c, str)][:3]
+                        return {"weak_sections": weak, "contradictions": contradictions}
+        except Exception:
+            pass
+
+        # Last resort: regex extraction of weak section titles and reasons
+        try:
+            weak_sections = []
+            title_pattern = re.compile(r'"title"\s*:\s*"([^"]+)"')
+            reason_pattern = re.compile(r'"reason"\s*:\s*"([^"]+)"')
+            titles = title_pattern.findall(response)
+            reasons = reason_pattern.findall(response)
+            for i, title in enumerate(titles[:3]):
+                weak_sections.append({
+                    "title": title,
+                    "reason": reasons[i] if i < len(reasons) else "Needs more evidence",
+                    "queries": [f"{company_name} {title.lower()}"],
+                })
+            if weak_sections:
+                log_structured("info", "Cross-validation recovered via regex", count=len(weak_sections))
+                return {"weak_sections": weak_sections, "contradictions": []}
+        except Exception:
+            pass
+
+        log_structured("warning", "Cross-validation JSON parse failed after retry", error=str(e))
         return {"weak_sections": [], "contradictions": []}
 
 
@@ -1942,12 +2397,400 @@ RULES:
     return result
 
 
+# ── Strategy enrichment helpers (Phase 6 quality pass) ──────────────────
+
+
+def _strategy_cross_validate(
+    company_name: str,
+    strategy_content: str,
+    vendor: str,
+    source_urls: list[str],
+) -> dict:
+    """
+    Phase 6 helper: Grok reviews the strategy document for quality issues.
+
+    Returns:
+        {"weak_sections": [{"title": str, "reason": str, "queries": [str, str]}],
+         "issues": [str]}
+    """
+    from primr.ai.grok_client import grok_llm
+
+    source_list = "\n".join(f"- {url}" for url in source_urls[:50])
+
+    prompt = f"""Review this {vendor.upper()} strategy document for {company_name}. Identify quality issues.
+
+STRATEGY DOCUMENT:
+{strategy_content[:120_000]}
+
+AVAILABLE SOURCES:
+{source_list}
+
+Return JSON (no markdown fencing, just raw JSON):
+{{
+  "weak_sections": [
+    {{"title": "exact ## heading", "reason": "why it's weak", "queries": ["search query 1", "search query 2"]}}
+  ],
+  "issues": ["description of quality issue"]
+}}
+
+A section is WEAK if it:
+- Makes vendor-specific claims without citing evidence (e.g., "{vendor} offers best-in-class X" with no source)
+- Uses generic cloud/AI recommendations that could apply to ANY company
+- Lacks specific implementation details, timelines, or cost estimates
+- Doesn't connect the vendor capability to THIS company's specific needs or challenges
+
+Limit: max 2 weak sections, max 2 issues. Only flag genuinely weak sections.
+If the strategy is solid, return empty arrays."""
+
+    system_prompt = (
+        "You are a quality reviewer for cloud strategy documents. "
+        "Identify sections that need more evidence or are too generic. "
+        "Return structured JSON only."
+    )
+
+    try:
+        response = grok_llm(
+            prompt,
+            max_tokens=4_000,
+            temperature=0.2,
+            system_prompt=system_prompt,
+        )
+    except Exception as e:
+        log_structured("warning", "Strategy cross-validation failed", error=str(e))
+        return {"weak_sections": [], "issues": []}
+
+    if not response or not response.strip():
+        return {"weak_sections": [], "issues": []}
+
+    # Parse JSON from response (same pattern as _fast_cross_validate)
+    try:
+        text = response.strip()
+        if text.startswith("```"):
+            first_newline = text.find("\n")
+            text = text[first_newline + 1:] if first_newline != -1 else text[3:]
+            if text.rstrip().endswith("```"):
+                text = text.rstrip()[:-3]
+            text = text.strip()
+
+        try:
+            result = json.loads(text)
+        except json.JSONDecodeError:
+            brace_start = text.find("{")
+            brace_end = text.rfind("}")
+            if brace_start != -1 and brace_end > brace_start:
+                result = json.loads(text[brace_start:brace_end + 1])
+            else:
+                raise
+
+        if not isinstance(result, dict):
+            return {"weak_sections": [], "issues": []}
+
+        raw_weak = result.get("weak_sections", [])
+        weak = [w for w in (raw_weak if isinstance(raw_weak, list) else [])
+                if isinstance(w, dict)][:2]
+        raw_issues = result.get("issues", [])
+        issues = [i for i in (raw_issues if isinstance(raw_issues, list) else [])
+                  if isinstance(i, str)][:2]
+
+        return {"weak_sections": weak, "issues": issues}
+    except (json.JSONDecodeError, KeyError, TypeError, AttributeError) as e:
+        log_structured("warning", "Strategy cross-validation JSON parse failed", error=str(e))
+        return {"weak_sections": [], "issues": []}
+
+
+def _strategy_regenerate_section(
+    company_name: str,
+    vendor: str,
+    section_title: str,
+    section_content: str,
+    new_evidence: str,
+    analysis_workbook: str,
+) -> str:
+    """
+    Phase 6 helper: Re-writes one weak strategy section with additional evidence.
+
+    Returns the re-generated section content (starting with ## heading).
+    """
+    from primr.ai.grok_client import grok_llm
+
+    prompt = f"""Re-write this section of a {vendor.upper()} strategy document for {company_name},
+incorporating the NEW EVIDENCE provided below. Make the section specific, actionable,
+and tied to this company's actual situation.
+
+SECTION TO REWRITE:
+{section_content}
+
+NEW EVIDENCE (incorporate this):
+{new_evidence}
+
+ANALYSIS CONTEXT (for background):
+{analysis_workbook[:20_000]}
+
+RULES:
+- Start with: ## {section_title}
+- Connect {vendor.upper()} capabilities to THIS company's specific needs
+- Include specific services, pricing tiers, or implementation approaches where evidence supports it
+- Label claims: Confirmed, Reported, Estimated, Hypothesis
+- Cite sources with [Source: URL]
+- Keep roughly the same scope as the original section
+- Include concrete next steps or validation questions"""
+
+    system_prompt = (
+        f"You are a senior cloud strategy consultant rewriting a section of a {vendor.upper()} "
+        f"strategy document for {company_name}. Incorporate new evidence to make the section "
+        "more specific and actionable. Be conservative on cost estimates."
+    )
+
+    try:
+        result = grok_llm(
+            prompt,
+            model=GROK_MODEL_WRITING,
+            max_tokens=8_000,
+            temperature=0.6,
+            system_prompt=system_prompt,
+        )
+    except Exception as e:
+        log_structured("warning", "Strategy section regeneration failed", section=section_title, error=str(e))
+        return section_content  # Return original on failure
+
+    if not result or not result.strip():
+        return section_content
+
+    # Ensure it starts with the correct heading
+    result = result.strip()
+    if not result.startswith(f"## {section_title}"):
+        if result.startswith("## "):
+            first_newline = result.find("\n")
+            if first_newline != -1:
+                result = result[first_newline:].strip()
+            else:
+                result = ""
+        result = f"## {section_title}\n\n{result}" if result else f"## {section_title}\n\n"
+
+    return result
+
+
+def _strategy_polish(
+    company_name: str,
+    vendor: str,
+    strategy_content: str,
+) -> str:
+    """
+    Phase 6 helper: Combined coherence + evidence discipline pass for strategy documents.
+
+    Deduplicates, standardizes vendor references, adds confidence labels,
+    and ensures specificity. Guards against destructive compression (90% word count,
+    section count preservation).
+    """
+    from primr.ai.grok_client import grok_llm
+
+    if not strategy_content.strip():
+        return strategy_content
+
+    prompt = f"""You are editing a {vendor.upper()} strategy document for {company_name} for coherence,
+evidence discipline, and specificity.
+
+TASKS (in priority order):
+1. DEDUPLICATION: When the same point appears in multiple sections, keep the first
+   occurrence and replace later duplicates with a cross-reference.
+2. EVIDENCE DISCIPLINE: For each major recommendation, ensure it has:
+   - A confidence label: Confirmed, Reported, Estimated, or Hypothesis
+   - A source citation [Source: URL] where available
+   - Specific {vendor.upper()} services/products named (not generic "cloud services")
+3. SPECIFICITY CHECK: Replace generic recommendations with company-specific ones.
+   BAD: "Leverage AI/ML capabilities to improve operations"
+   GOOD: "Deploy {vendor.upper()} vision APIs for [specific company process] to reduce [specific metric]"
+4. TERMINOLOGY: Standardize how {company_name}, {vendor.upper()} services, and
+   competitors are named throughout.
+
+STRICT RULES:
+- Do NOT remove or rename ## section headings
+- Do NOT remove confidence labels or source citations
+- Do NOT add new strategic recommendations — only improve existing ones
+- Do NOT delete paragraphs — only edit individual sentences
+- PRESERVE all depth and analysis
+- Output MUST contain at least 90% of the original word count
+
+Return the fully edited markdown strategy document only. No preamble or commentary.
+
+--- STRATEGY START ---
+{strategy_content}
+--- STRATEGY END ---"""
+
+    try:
+        polished = grok_llm(
+            prompt,
+            model=GROK_MODEL_WRITING,
+            max_tokens=32_000,
+            temperature=0.3,
+            system_prompt=(
+                f"You are a meticulous editorial analyst polishing a {vendor.upper()} strategy "
+                f"document for {company_name}. Improve evidence discipline and specificity "
+                "while preserving ALL depth and analysis. Make only surgical edits."
+            ),
+        )
+        if not polished or not polished.strip():
+            return strategy_content
+
+        # Guard: reject destructive compression
+        original_words = len(strategy_content.split())
+        polished_words = len(polished.split())
+        _, original_sections = _split_markdown_sections(strategy_content)
+        _, polished_sections = _split_markdown_sections(polished)
+
+        if polished_words < int(original_words * 0.90):
+            logger.warning(
+                "Strategy polish dropped too many words (%d → %d), using original",
+                original_words, polished_words,
+            )
+            return strategy_content
+        if len(polished_sections) < len(original_sections):
+            logger.warning(
+                "Strategy polish lost sections (%d → %d), using original",
+                len(original_sections), len(polished_sections),
+            )
+            return strategy_content
+
+        return polished
+    except Exception:
+        logger.warning("Strategy polish failed, using original", exc_info=True)
+        return strategy_content
+
+
+def _enrich_strategy_content(
+    strategy_content: str,
+    company_name: str,
+    vendor: str,
+    label: str,
+    source_urls: list[str],
+    source_urls_seen: set[str],
+    analysis_workbook: str,
+    website: str | None,
+) -> str:
+    """
+    Phase 6 orchestrator: Full quality pass for strategy documents.
+
+    1. Cross-validate to find up to 2 weak sections
+    2. For each: DDG search → scrape evidence → regenerate section
+    3. Polish pass for coherence + evidence discipline
+    4. Falls back to original on any failure
+    """
+    if not strategy_content or not strategy_content.strip():
+        return strategy_content
+
+    vendor_label = f" ({vendor.upper()})" if vendor.lower() != "agnostic" else ""
+
+    # Step 1: Cross-validate
+    try:
+        with console.timed_operation(f"Reviewing {label}{vendor_label}"):
+            cv_result = _strategy_cross_validate(
+                company_name, strategy_content, vendor, source_urls,
+            )
+    except Exception as e:
+        log_structured("warning", "Strategy CV failed, skipping enrichment", error=str(e))
+        return strategy_content
+
+    weak_sections = cv_result.get("weak_sections", [])
+    issues = cv_result.get("issues", [])
+
+    if issues:
+        for issue in issues:
+            console.info(f"Strategy issue: {issue[:100]}")
+
+    # Step 2: Enrich weak sections
+    sections_enriched = 0
+    if weak_sections:
+        # Build heading lookup for case-insensitive matching
+        _, parsed_sections = _split_markdown_sections(strategy_content)
+        heading_lookup = {h.lower(): h for h, _ in parsed_sections}
+
+        for ws in weak_sections[:2]:
+            raw_title = ws.get("title", "").strip().lstrip("#").strip()
+            queries = ws.get("queries", [])
+            reason = ws.get("reason", "")
+
+            if not raw_title or not queries:
+                continue
+
+            section_title = heading_lookup.get(raw_title.lower(), raw_title)
+            console.info(f"Weak: {section_title} — {reason[:80]}")
+
+            # Search for additional evidence
+            new_evidence_parts: list[str] = []
+            with console.timed_operation(f"Enriching: {section_title}"):
+                for q in queries[:2]:
+                    results = search_web(q, company_name, website)
+                    if results:
+                        filtered = [
+                            r for r in results[:3]
+                            if (not website or website.lower() not in r.get("url", "").lower())
+                            and r.get("url", "") not in source_urls_seen
+                        ]
+                        scraped = scrape_external_sources_validated(
+                            filtered, company_name=company_name, website=website,
+                            max_sources=3,
+                        )
+                        for url, content in scraped.items():
+                            if url not in source_urls_seen:
+                                source_urls.append(url)
+                                source_urls_seen.add(url)
+                                new_evidence_parts.append(f"[Source: {url}]\n{content[:12_000]}")
+
+            if not new_evidence_parts:
+                continue
+
+            new_evidence = "\n\n".join(new_evidence_parts)
+
+            # Find section in strategy content
+            section_pattern = re.compile(
+                rf"(## {re.escape(section_title)}\n.*?)(?=\n## |\Z)",
+                re.DOTALL,
+            )
+            match = section_pattern.search(strategy_content)
+            if not match:
+                log_structured("warning", "Strategy CV: section not found", section=section_title)
+                continue
+
+            original_section = match.group(1)
+
+            # Regenerate the section
+            with console.timed_operation(f"Rewriting: {section_title}"):
+                regenerated = _strategy_regenerate_section(
+                    company_name, vendor, section_title,
+                    original_section, new_evidence, analysis_workbook,
+                )
+
+            if regenerated and regenerated != original_section:
+                if not regenerated.endswith("\n"):
+                    regenerated += "\n"
+                strategy_content = (
+                    strategy_content[:match.start()] + regenerated + strategy_content[match.end():]
+                )
+                sections_enriched += 1
+                console.ok(f"Enriched: {section_title}")
+    else:
+        console.ok("Strategy review: no sections flagged for enrichment")
+
+    if sections_enriched > 0:
+        log_structured("info", "Strategy sections enriched", count=sections_enriched, vendor=vendor)
+
+    # Step 3: Polish pass
+    try:
+        with console.timed_operation(f"Polishing {label}{vendor_label}"):
+            strategy_content = _strategy_polish(company_name, vendor, strategy_content)
+    except Exception as e:
+        log_structured("warning", "Strategy polish failed, keeping unpolished", error=str(e))
+
+    return strategy_content
+
+
 def perform_fast_research(
     company_name: str | None,
     website: str | None,
     start_time: float,
     ai_strategy: bool = False,
     cloud_vendors: tuple[str, ...] = ("agnostic",),
+    strategy_types: list[str] | None = None,
     max_scrape_time: int | None = None,
     discovery_notes_content: str | None = None,
 ) -> str | None:
@@ -1961,10 +2804,13 @@ def perform_fast_research(
     4. Grok report writing: 5 batch calls (one per YAML part), each writing
        2-7 sections with rolling context from completed batches
     5. Cross-validation: find weak spots → targeted search → re-write ≤3 sections
-    6. Optional Grok call for AI strategy per vendor
+    6. Optional strategy generation via Grok (AI strategy per vendor,
+       and/or YAML-defined strategies like CX, security, data fabric)
 
     Target: ~20-30 min, ~$0.20
     """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
     from primr.ai.grok_client import get_grok_session_usage, grok_llm, reset_grok_session
 
     reset_grok_session()
@@ -1973,7 +2819,8 @@ def perform_fast_research(
     folder_path = create_working_folder(company_name, website)
 
     try:
-        total_phases = 6 if ai_strategy else 5
+        has_strategies = ai_strategy or bool(strategy_types)
+        total_phases = 6 if has_strategies else 5
 
         # =================================================================
         # Phase 1: Data collection (Gemini Flash — cheap)
@@ -2016,18 +2863,30 @@ def perform_fast_research(
             external_data: dict = {}
             max_external_sources = 30
 
-            for query in external_queries:
-                if len(external_data) >= max_external_sources:
-                    break
+            def _search_and_scrape_one(query: str) -> dict:
+                """Search + scrape for a single query (thread-safe)."""
                 results = search_web(query, company_name, website)
-                if results:
-                    filtered = [r for r in results[:5] if not website or website.lower() not in r.get("url", "").lower()]
-                    remaining = max_external_sources - len(external_data)
-                    scraped = scrape_external_sources_validated(
-                        filtered, company_name=company_name, website=website,
-                        max_sources=min(3, remaining),
-                    )
-                    external_data.update(scraped)
+                if not results:
+                    return {}
+                filtered = [r for r in results[:5]
+                            if not website or website.lower() not in r.get("url", "").lower()]
+                return scrape_external_sources_validated(
+                    filtered, company_name=company_name, website=website,
+                    max_sources=3,
+                )
+
+            with ThreadPoolExecutor(max_workers=3) as executor:
+                futures = [executor.submit(_search_and_scrape_one, q)
+                           for q in external_queries]
+                for future in as_completed(futures):
+                    if len(external_data) >= max_external_sources:
+                        break
+                    try:
+                        for url, content in future.result().items():
+                            if len(external_data) < max_external_sources:
+                                external_data[url] = content
+                    except Exception:
+                        pass  # individual query failure is non-fatal
 
             for url, content in external_data.items():
                 source_urls.append(url)
@@ -2076,29 +2935,39 @@ def perform_fast_research(
             max_gap_sources = 15
 
             with console.timed_operation("Searching for gap-filling sources"):
-                for gq in gap_queries:
-                    if gap_new_sources >= max_gap_sources:
-                        break
-                    gap_search_count += 1
+                def _gap_search_one(gq: str) -> dict:
+                    """Search + scrape for a single gap query (thread-safe)."""
                     results = search_web(gq, company_name, website)
-                    if results:
-                        filtered = [
-                            r for r in results[:3]
-                            if (not website or website.lower() not in r.get("url", "").lower())
-                            and r.get("url", "") not in source_urls_seen
-                        ]
-                        remaining = max_gap_sources - gap_new_sources
-                        scraped = scrape_external_sources_validated(
-                            filtered, company_name=company_name, website=website,
-                            max_sources=min(3, remaining),
-                        )
-                        for url, content in scraped.items():
-                            if url not in source_urls_seen:
-                                source_urls.append(url)
-                                source_urls_seen.add(url)
-                                external_text_parts.append(f"[Source: {url}]\n{content[:12_000]}")
-                                external_raw_parts.append(f"[Source: {url}]\n{content[:20_000]}")
-                                gap_new_sources += 1
+                    if not results:
+                        return {}
+                    filtered = [
+                        r for r in results[:3]
+                        if (not website or website.lower() not in r.get("url", "").lower())
+                        and r.get("url", "") not in source_urls_seen
+                    ]
+                    return scrape_external_sources_validated(
+                        filtered, company_name=company_name, website=website,
+                        max_sources=3,
+                    )
+
+                with ThreadPoolExecutor(max_workers=3) as executor:
+                    futures = [executor.submit(_gap_search_one, gq)
+                               for gq in gap_queries]
+                    for future in as_completed(futures):
+                        if gap_new_sources >= max_gap_sources:
+                            break
+                        try:
+                            for url, content in future.result().items():
+                                if gap_new_sources >= max_gap_sources:
+                                    break
+                                if url not in source_urls_seen:
+                                    source_urls.append(url)
+                                    source_urls_seen.add(url)
+                                    external_text_parts.append(f"[Source: {url}]\n{content[:12_000]}")
+                                    external_raw_parts.append(f"[Source: {url}]\n{content[:20_000]}")
+                                    gap_new_sources += 1
+                        except Exception:
+                            pass  # individual gap query failure is non-fatal
 
             console.ok(f"Found {gap_new_sources} additional sources")
 
@@ -2165,12 +3034,12 @@ def perform_fast_research(
         console.phase_complete("Analysis (Grok)")
 
         # =================================================================
-        # Phase 4: Grok report writing (section batches)
+        # Phase 4: Grok report writing (parallel within parts + coherence)
         # =================================================================
-        console.phase_banner(4, total_phases, "Report Writing (Grok)", "Writing 21 sections in 5 batches", "3-6 min")
+        console.phase_banner(4, total_phases, "Report Writing (Grok)", "Writing 21 sections (parallel within parts)", "2-4 min")
 
-        # Build a raw data subset for evidence (~200k chars)
-        raw_corpus_subset = raw_corpus[:200_000] if len(raw_corpus) > 200_000 else raw_corpus
+        # Build a raw data subset for evidence (~100k chars — workbook already distills corpus)
+        raw_corpus_subset = raw_corpus[:100_000] if len(raw_corpus) > 100_000 else raw_corpus
 
         report_system = (
             "You are a senior strategic analyst writing a consulting dossier — internal prep "
@@ -2201,56 +3070,115 @@ def perform_fast_research(
             "- Each insight lives in ONE section — cross-reference, don't repeat"
         )
 
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
         section_batches = _group_sections_by_part()
+        all_sections = [s for part in section_batches for s in part]
+
+        # Pop executive_summary — write it LAST so it can synthesize the full report
+        exec_summary_section = None
+        for batch in section_batches:
+            for sec in batch:
+                if sec.id == "executive_summary":
+                    exec_summary_section = sec
+                    batch.remove(sec)
+                    break
+            if exec_summary_section:
+                break
+        # Remove empty batches (if exec summary was the only section in its batch)
+        section_batches = [b for b in section_batches if b]
+
+        all_section_names = [s.name for s in all_sections]  # keep exec summary in ToC for context
         written_sections: list[dict[str, Any]] = []
+        effective_name = company_name or display_name
 
-        for batch_num, batch_sections in enumerate(section_batches):
-            part_num = batch_sections[0].part
-            part_label = _PART_LABELS.get(part_num, f"Part {part_num}")
-            section_names = ", ".join(s.name for s in batch_sections)
-            console.info(f"Batch {batch_num + 1}/{len(section_batches)} ({part_label}): {section_names}")
+        global_offset = 0
+        for part_num, part_sections in enumerate(section_batches):
+            part_label = _PART_LABELS.get(part_sections[0].part, f"Part {part_sections[0].part}")
+            console.info(
+                f"Part {part_num + 1}/{len(section_batches)} ({part_label}): "
+                f"{len(part_sections)} section(s) in parallel"
+            )
 
-            prompt = _build_fast_batch_prompt(
-                company_name or display_name,
+            # Snapshot written_sections — threads in this part share the same frozen prior context
+            prior_sections = list(written_sections)
+
+            def _write_one(
+                idx_section: tuple[int, "SectionConfig"],
+                _offset: int = global_offset,
+                _prior: list[dict[str, Any]] = prior_sections,
+            ) -> tuple[int, dict[str, Any] | None]:
+                local_idx, sec = idx_section
+                return (local_idx, _write_section_with_retry(
+                    sec,
+                    _offset + local_idx,
+                    all_section_names,
+                    _prior,
+                    effective_name,
+                    website,
+                    analysis_workbook,
+                    raw_corpus_subset,
+                    external_sources_raw,
+                    source_urls,
+                    report_system,
+                ))
+
+            results: list[tuple[int, dict[str, Any] | None]] = []
+            if len(part_sections) == 1:
+                results.append(_write_one((0, part_sections[0])))
+            else:
+                with ThreadPoolExecutor(max_workers=min(len(part_sections), 4)) as executor:
+                    futures = {
+                        executor.submit(_write_one, (i, s)): i
+                        for i, s in enumerate(part_sections)
+                    }
+                    for future in as_completed(futures):
+                        results.append(future.result())
+
+            # Sort by local index to maintain canonical section order
+            results.sort(key=lambda x: x[0])
+            for local_idx, parsed in results:
+                if parsed:
+                    written_sections.append(parsed)
+                    console.ok(f"  {parsed['title']} ({parsed['words']:,} words)")
+                else:
+                    sec_name = part_sections[local_idx].name
+                    console.warn(f"  {sec_name} — skipped (failed or empty)")
+
+            global_offset += len(part_sections)
+
+        # Write executive summary LAST — it now has full report context to synthesize
+        if exec_summary_section is not None:
+            console.info("Writing Executive Summary (with full report context)")
+            exec_parsed = _write_section_with_retry(
+                exec_summary_section,
+                0,  # section_index 0 — first section in final report
+                all_section_names,
+                written_sections,  # ALL completed sections → full synthesis context
+                effective_name,
                 website,
                 analysis_workbook,
                 raw_corpus_subset,
                 external_sources_raw,
                 source_urls,
-                batch_sections,
-                written_sections,
-                batch_num,
-                len(section_batches),
+                report_system,
             )
-
-            try:
-                batch_content = grok_llm(
-                    prompt,
-                    model=GROK_MODEL_WRITING,
-                    max_tokens=16_000,
-                    temperature=0.6,
-                    system_prompt=report_system,
-                )
-            except Exception as batch_err:
-                console.warn(f"Batch {batch_num + 1} failed: {batch_err} — skipping")
-                log_structured("warning", "Fast mode batch failed", batch=batch_num + 1, error=str(batch_err))
-                continue
-
-            if not batch_content or not batch_content.strip():
-                console.warn(f"Batch {batch_num + 1} returned empty — skipping")
-                continue
-
-            parsed = _parse_batch_sections(batch_content, batch_sections)
-            written_sections.extend(parsed)
-
-            batch_words = sum(s["words"] for s in parsed)
-            console.ok(f"Batch {batch_num + 1}/{len(section_batches)}: {len(parsed)} sections, {batch_words:,} words")
+            if exec_parsed:
+                written_sections.insert(0, exec_parsed)
+                console.ok(f"  {exec_parsed['title']} ({exec_parsed['words']:,} words)")
+            else:
+                console.warn("  Executive Summary — skipped (failed or empty)")
 
         if not written_sections:
-            console.error("All report batches failed — no sections written")
+            console.error("All report sections failed — no sections written")
             return None
 
         report_content = _assemble_fast_report(company_name or display_name, website, written_sections)
+
+        # Coherence pass: deduplicate and smooth transitions
+        with console.timed_operation("Running coherence pass"):
+            report_content = _fast_coherence_pass(company_name or display_name, website, report_content)
+
         total_words = len(report_content.split())
         console.phase_complete("Report Writing (Grok)", [("Sections", str(len(written_sections))), ("Words", f"{total_words:,}")])
 
@@ -2394,71 +3322,202 @@ def perform_fast_research(
             f.write(report_content)
 
         # =================================================================
-        # Phase 6: AI Strategy via Grok (optional)
+        # Phase 6: Strategy Generation via Grok (optional)
         # =================================================================
         strategy_paths: dict[str, str] = {}
-        if ai_strategy and cloud_vendors:
-            console.phase_banner(6, total_phases, "AI Strategy (Grok)", "Generating AI recommendations", "2-3 min")
+        if has_strategies:
+            console.phase_banner(6, total_phases, "Strategy (Grok)", "Generating strategy documents", "3-8 min")
 
-            for vendor in cloud_vendors:
-                # Build strategy prompt (reuse existing)
-                strategy_prompt = _build_ai_strategy_prompt(
-                    company_name or display_name, vendor, discovery_notes_content
-                )
-
-                # Read context (report + vendor docs) into prompt
-                context_parts = [f"--- Company Report ---\n{report_content[:50_000]}"]
-
-                # Try to add vendor research docs
-                vendor_doc_paths = _get_or_generate_vendor_research(vendor) if vendor.lower() != "agnostic" else []
-                for vdp in vendor_doc_paths:
-                    if vdp and os.path.exists(vdp):
-                        try:
-                            with open(vdp, encoding="utf-8") as fh:
-                                context_parts.append(f"--- {os.path.basename(vdp)} ---\n{fh.read()[:30_000]}")
-                        except Exception:
-                            pass
-
-                combined_strategy_prompt = (
-                    "Use the following context documents to inform your analysis:\n\n"
-                    + "\n\n".join(context_parts)
-                    + "\n\n---\n\n"
-                    + strategy_prompt
-                )
-
-                vendor_label = f" ({vendor.upper()})" if len(cloud_vendors) > 1 else ""
-                try:
-                    with console.timed_operation(f"AI Strategy{vendor_label} via Grok"):
-                        strategy_content = grok_llm(
-                            combined_strategy_prompt,
-                            model=GROK_MODEL_WRITING,
-                            max_tokens=16_000,
-                        )
-                except Exception as strat_err:
-                    console.warn(f"AI Strategy{vendor_label} failed: {strat_err} — skipping")
-                    log_structured("warning", "Fast mode strategy failed", vendor=vendor, error=str(strat_err))
-                    continue
-
-                if strategy_content and strategy_content.strip():
-                    # Strip Grok disclaimer from strategy output
-                    strategy_content = re.sub(
-                        r"\n*_?Disclaimer:\s*Grok is not a financial advi[sc]er[^\n]*\n?",
-                        "\n",
-                        strategy_content,
-                        flags=re.IGNORECASE,
-                    ).strip()
-                    # Save strategy output
-                    strategy_path = _save_strategy_output(
-                        strategy_content, company_name or display_name, vendor
+            # --- AI Strategy (per vendor) ---
+            if ai_strategy and cloud_vendors:
+                for vendor in cloud_vendors:
+                    strategy_prompt = _build_ai_strategy_prompt(
+                        company_name or display_name, vendor, discovery_notes_content
                     )
-                    if strategy_path:
-                        key = f"ai_{vendor}" if len(cloud_vendors) > 1 else "ai"
-                        strategy_paths[key] = strategy_path
+
+                    context_parts = [f"--- Company Report ---\n{report_content[:50_000]}"]
+
+                    # Enrich with working-folder artifacts (insights, gap analysis, workbook)
+                    for artifact_name, artifact_limit in [
+                        ("insights.txt", 20_000),
+                        ("gap_analysis.md", 15_000),
+                        ("analysis_workbook.md", 20_000),
+                    ]:
+                        artifact_path = os.path.join(folder_path, artifact_name)
+                        if os.path.exists(artifact_path):
+                            try:
+                                with open(artifact_path, encoding="utf-8") as fh:
+                                    artifact_content = fh.read()[:artifact_limit]
+                                    if artifact_content.strip():
+                                        context_parts.append(f"--- {artifact_name} ---\n{artifact_content}")
+                            except Exception:
+                                pass
+
+                    vendor_doc_paths = _get_or_generate_vendor_research(vendor) if vendor.lower() != "agnostic" else []
+                    for vdp in vendor_doc_paths:
+                        if vdp and os.path.exists(vdp):
+                            try:
+                                with open(vdp, encoding="utf-8") as fh:
+                                    context_parts.append(f"--- {os.path.basename(vdp)} ---\n{fh.read()[:30_000]}")
+                            except Exception:
+                                pass
+
+                    combined_strategy_prompt = (
+                        "Use the following context documents to inform your analysis:\n\n"
+                        + "\n\n".join(context_parts)
+                        + "\n\n---\n\n"
+                        + strategy_prompt
+                    )
+
+                    vendor_label = f" ({vendor.upper()})" if len(cloud_vendors) > 1 else ""
+                    try:
+                        with console.timed_operation(f"AI Strategy{vendor_label} via Grok"):
+                            strategy_content = grok_llm(
+                                combined_strategy_prompt,
+                                model=GROK_MODEL_WRITING,
+                                max_tokens=32_000,
+                            )
+                    except Exception as strat_err:
+                        console.warn(f"AI Strategy{vendor_label} failed: {strat_err} — skipping")
+                        log_structured("warning", "Fast mode strategy failed", vendor=vendor, error=str(strat_err))
+                        continue
+
+                    if strategy_content and strategy_content.strip():
+                        strategy_content = re.sub(
+                            r"\n*_?Disclaimer:\s*Grok is not a financial advi[sc]er[^\n]*\n?",
+                            "\n",
+                            strategy_content,
+                            flags=re.IGNORECASE,
+                        ).strip()
+
+                        # Enrich: cross-validate → evidence search → polish
+                        try:
+                            strategy_content = _enrich_strategy_content(
+                                strategy_content,
+                                company_name or display_name,
+                                vendor,
+                                "AI Strategy",
+                                source_urls,
+                                source_urls_seen,
+                                analysis_workbook,
+                                website,
+                            )
+                        except Exception as enrich_err:
+                            log_structured("warning", "Strategy enrichment failed, keeping original",
+                                           vendor=vendor, error=str(enrich_err))
+
+                        strategy_path = _save_strategy_output(
+                            strategy_content, company_name or display_name, vendor,
+                            strategy_label="AI_Strategy",
+                        )
+                        if strategy_path:
+                            key = f"ai_{vendor}" if len(cloud_vendors) > 1 else "ai"
+                            strategy_paths[key] = strategy_path
+
+            # --- YAML-defined strategies (customer_experience, security, data_fabric, etc.) ---
+            if strategy_types:
+                import yaml as _yaml
+                for stype in strategy_types:
+                    if stype == "ai":
+                        continue  # already handled above
+
+                    # Load strategy YAML config (name matches filename)
+                    yaml_path = Path(__file__).parent.parent / "prompts" / "strategies" / f"{stype}.yaml"
+
+                    if not yaml_path.exists():
+                        console.warn(f"Strategy YAML not found: {stype}.yaml — skipping")
+                        continue
+
+                    try:
+                        with open(yaml_path, encoding="utf-8") as f:
+                            strategy_config = _yaml.safe_load(f)
+                    except Exception as e:
+                        console.warn(f"Failed to load {stype}.yaml: {e} — skipping")
+                        continue
+
+                    meta = strategy_config.get("meta", {})
+                    display_name_strat = meta.get("name", stype.replace("_", " ").title())
+                    output_filename = meta.get("output_filename", f"{{company_name}}_{stype}")
+                    # Build label for filename from YAML meta
+                    file_label = output_filename.replace("{company_name}_", "").replace("{company_name}", "")
+                    if not file_label:
+                        file_label = stype.replace(" ", "_")
+
+                    strategy_prompt = _build_strategy_prompt_from_yaml(
+                        strategy_config, company_name or display_name, discovery_notes_content
+                    )
+
+                    # Build context with report + working-folder artifacts
+                    yaml_context_parts = [f"--- Company Report ---\n{report_content[:50_000]}"]
+                    for artifact_name, artifact_limit in [
+                        ("insights.txt", 20_000),
+                        ("gap_analysis.md", 15_000),
+                        ("analysis_workbook.md", 20_000),
+                    ]:
+                        artifact_path = os.path.join(folder_path, artifact_name)
+                        if os.path.exists(artifact_path):
+                            try:
+                                with open(artifact_path, encoding="utf-8") as fh:
+                                    artifact_content = fh.read()[:artifact_limit]
+                                    if artifact_content.strip():
+                                        yaml_context_parts.append(f"--- {artifact_name} ---\n{artifact_content}")
+                            except Exception:
+                                pass
+
+                    combined_prompt = (
+                        "Use the following context documents to inform your analysis:\n\n"
+                        + "\n\n".join(yaml_context_parts)
+                        + "\n\n---\n\n"
+                        + strategy_prompt
+                    )
+
+                    try:
+                        with console.timed_operation(f"{display_name_strat} via Grok"):
+                            strategy_content = grok_llm(
+                                combined_prompt,
+                                model=GROK_MODEL_WRITING,
+                                max_tokens=32_000,
+                            )
+                    except Exception as strat_err:
+                        console.warn(f"{display_name_strat} failed: {strat_err} — skipping")
+                        log_structured("warning", "Fast mode strategy failed", strategy=stype, error=str(strat_err))
+                        continue
+
+                    if strategy_content and strategy_content.strip():
+                        strategy_content = re.sub(
+                            r"\n*_?Disclaimer:\s*Grok is not a financial advi[sc]er[^\n]*\n?",
+                            "\n",
+                            strategy_content,
+                            flags=re.IGNORECASE,
+                        ).strip()
+
+                        # Enrich: cross-validate → evidence search → polish
+                        try:
+                            strategy_content = _enrich_strategy_content(
+                                strategy_content,
+                                company_name or display_name,
+                                "agnostic",
+                                display_name_strat,
+                                source_urls,
+                                source_urls_seen,
+                                analysis_workbook,
+                                website,
+                            )
+                        except Exception as enrich_err:
+                            log_structured("warning", "Strategy enrichment failed, keeping original",
+                                           strategy=stype, error=str(enrich_err))
+
+                        strategy_path = _save_strategy_output(
+                            strategy_content, company_name or display_name, "agnostic",
+                            strategy_label=file_label,
+                        )
+                        if strategy_path:
+                            strategy_paths[stype] = strategy_path
 
             if strategy_paths:
-                console.phase_complete("AI Strategy (Grok)")
+                console.phase_complete("Strategy (Grok)")
             else:
-                console.warn("AI Strategy skipped — no vendor strategies generated")
+                console.warn("Strategy generation skipped — no strategies generated")
 
         # =================================================================
         # Summary
@@ -2474,8 +3533,13 @@ def perform_fast_research(
             console.success_box("Report ready", str(Path(docx_path).resolve()))
 
         for strat_key, strategy_path in strategy_paths.items():
-            vendor_suffix = f" ({strat_key.split('_', 1)[1].upper()})" if "_" in strat_key else ""
-            console.success_box(f"AI Strategy{vendor_suffix}", str(Path(strategy_path).resolve()))
+            # AI strategy keys: "ai" or "ai_azure" — show vendor suffix
+            if strat_key.startswith("ai"):
+                vendor_suffix = f" ({strat_key.split('_', 1)[1].upper()})" if "_" in strat_key else ""
+                label = f"AI Strategy{vendor_suffix}"
+            else:
+                label = strat_key.replace("_", " ").title()
+            console.success_box(label, str(Path(strategy_path).resolve()))
 
         # Cost summary from Grok session usage
         grok_usage = get_grok_session_usage()
@@ -2501,8 +3565,15 @@ def perform_fast_research(
             ("Grok tokens", f"{grok_usage['input_tokens']:,} in / {grok_usage['output_tokens']:,} out"),
             ("Actual Cost", f"~${actual_cost:.2f}"),
         ]
-        if ai_strategy:
-            summary_items.append(("AI Strategy", "Yes"))
+        if strategy_paths:
+            strat_labels = []
+            for k in strategy_paths:
+                if k.startswith("ai"):
+                    vendor_suffix = f" ({k.split('_', 1)[1].upper()})" if "_" in k else ""
+                    strat_labels.append(f"AI Strategy{vendor_suffix}")
+                else:
+                    strat_labels.append(k.replace("_", " ").title())
+            summary_items.append(("Strategies", ", ".join(strat_labels)))
         console.summary(summary_items)
 
         # Save usage to history
@@ -2544,14 +3615,18 @@ def _save_strategy_output(
     strategy_content: str,
     company_name: str,
     cloud_vendor: str,
+    strategy_label: str = "AI_Strategy",
 ) -> str | None:
-    """Save AI strategy markdown/txt/docx output. Returns docx path or None."""
+    """Save strategy markdown/txt/docx output. Returns docx path or None."""
     from primr.output.markdown_converter import markdown_to_docx
     from primr.output.output_utils import OUTPUT_DIR
 
     date_str = datetime.now().strftime("%m-%d-%Y")
     vendor_suffix = f"_{cloud_vendor.upper()}" if cloud_vendor != "agnostic" else ""
-    base_name = f"{company_name}_AI_Strategy{vendor_suffix}_{date_str}"
+    base_name = f"{company_name}_{strategy_label}{vendor_suffix}_{date_str}"
+
+    # Human-readable title for DOCX
+    display_label = strategy_label.replace("_", " ")
 
     try:
         md_path = Path(OUTPUT_DIR) / f"{base_name}.md"
@@ -2567,8 +3642,8 @@ def _save_strategy_output(
             markdown_to_docx(
                 markdown_text=strategy_content,
                 output_path=docx_path,
-                title=f"AI Strategy: {company_name}",
-                subtitle=f"{cloud_vendor.upper()} | {datetime.now().strftime('%B %d, %Y')}",
+                title=f"{display_label}: {company_name}",
+                subtitle=f"{cloud_vendor.upper()} | {datetime.now().strftime('%B %d, %Y')}" if cloud_vendor != "agnostic" else datetime.now().strftime("%B %d, %Y"),
             )
         except Exception as e:
             logger.warning(f"DOCX conversion failed: {e}")
@@ -2597,6 +3672,7 @@ def perform_research(
     discovery_notes_path: str | None = None,
     lite_strategy: bool = False,
     fast_mode: bool = False,
+    premium_mode: bool = False,
     skip_scrape_validation: bool = False,
     resume_local: bool = False,
 ) -> str | None:
@@ -2675,13 +3751,20 @@ def perform_research(
         log_structured("info", "Starting research job", company=display_name, mode=mode, ai_strategy=ai_strategy)
 
         # Fast mode: Grok 4.1 accordion batch pipeline
-        if fast_mode:
+        # Activated by: explicit --fast, or auto-detect (complete mode + XAI_API_KEY + not premium)
+        use_fast = fast_mode or (
+            not premium_mode
+            and mode in ("complete", "structured", "hybrid")
+            and os.environ.get("XAI_API_KEY")
+        )
+        if use_fast and not premium_mode:
             _update_run_state(folder_path, current_phase="fast_mode", status="running")
             _append_run_event(folder_path, "fast_mode", "started", "Fast mode pipeline started")
             fast_path = perform_fast_research(
                 company_name, website, start_time,
                 ai_strategy=ai_strategy,
                 cloud_vendors=cloud_vendors,
+                strategy_types=strategies,
                 max_scrape_time=max_scrape_time,
                 discovery_notes_content=discovery_notes_content,
             )

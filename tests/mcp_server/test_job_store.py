@@ -578,7 +578,7 @@ class TestJournalPersistence:
         """Journal write is atomic (uses temp file + rename)."""
         store = SingleJobStore(journal_path=str(temp_journal))
 
-        job = store.create("Acme Corp", "full")
+        store.create("Acme Corp", "full")
 
         # Temp file should not exist after write
         temp_file = temp_journal.with_suffix(".tmp")

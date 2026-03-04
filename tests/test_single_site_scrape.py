@@ -75,10 +75,9 @@ class SiteScrapeAnalyzer(ast.NodeVisitor):
         """Check for scrape loops."""
         # Check if iterating over something that looks like URLs
         iter_str = ast.unparse(node.iter) if hasattr(ast, 'unparse') else str(node.iter)
-        target_str = ast.unparse(node.target) if hasattr(ast, 'unparse') else str(node.target)
+        ast.unparse(node.target) if hasattr(ast, 'unparse') else str(node.target)
 
         suspicious_iters = ['pages_to_scrape', 'urls_to_scrape', 'links_to_scrape', 'all_links']
-        suspicious_targets = ['page_url', 'url', 'link']
 
         if any(s in iter_str for s in suspicious_iters):
             # Check if there's a scrape call inside
@@ -130,16 +129,13 @@ class SiteScrapeAnalyzer(ast.NodeVisitor):
 def is_allowed_file(filepath: str) -> bool:
     """Check if a file is allowed to have site-scrape patterns."""
     filepath_normalized = filepath.replace('\\', '/')
-    for allowed in ALLOWED_FILES:
-        if allowed in filepath_normalized:
-            return True
-    return False
+    return any(allowed in filepath_normalized for allowed in ALLOWED_FILES)
 
 
 def scan_for_site_scrape_patterns(src_dir: str = 'src/primr') -> list[SiteScrapePattern]:
     """
     Scan source directory for site-scrape patterns.
-    
+
     Returns patterns found in files that are NOT in the allowed list.
     """
     violations = []

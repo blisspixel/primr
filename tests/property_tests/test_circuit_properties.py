@@ -60,11 +60,11 @@ success_count_strategy = st.integers(min_value=0, max_value=50)
 class TestFailureCountTracking:
     """
     **Property 7: Failure Count Tracking**
-    
+
     For any sequence of `record_failure()` calls for a given key,
     `get_stats().failure_count` SHALL equal the number of failures
     recorded since the last reset or state change.
-    
+
     **Validates: Requirements 3.1, 3.3**
     """
 
@@ -193,11 +193,11 @@ class TestFailureCountTracking:
 class TestStateTransitionEvents:
     """
     **Property 8: State Transition Events**
-    
+
     For any circuit breaker state transition (closed→open, open→half-open,
     half-open→closed), all registered listeners SHALL receive a `StateChangeEvent`
     with correct `from_state`, `to_state`, and `trigger` values.
-    
+
     **Validates: Requirements 3.4**
     """
 
@@ -408,12 +408,12 @@ class TestStateTransitionEvents:
 class TestThresholdBasedStateTransitions:
     """
     **Property 9: Threshold-Based State Transitions**
-    
+
     For any circuit breaker with `failure_threshold=N`, the circuit SHALL
     transition from CLOSED to OPEN after exactly N consecutive failures.
     For any circuit with `success_threshold=M`, the circuit SHALL transition
     from HALF_OPEN to CLOSED after exactly M consecutive successes.
-    
+
     **Validates: Requirements 3.5, 3.6**
     """
 
@@ -553,11 +553,11 @@ class TestThresholdBasedStateTransitions:
 class TestOpenCircuitRejection:
     """
     **Property 10: Open Circuit Rejection**
-    
+
     For any circuit in OPEN state (before timeout), calling `check()` SHALL
     raise `CircuitOpenError` with a `retry_after` value equal to the remaining
     timeout duration.
-    
+
     **Validates: Requirements 3.7**
     """
 

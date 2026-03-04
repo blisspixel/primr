@@ -362,9 +362,9 @@ class TestKeyExpiration:
         """Test getting keys expiring soon."""
 
         # Create keys with different expirations
-        key1 = auth.create_key("expires-soon", expires_in_days=3)
-        key2 = auth.create_key("expires-later", expires_in_days=30)
-        key3 = auth.create_key("no-expiry", expires_in_days=0)
+        auth.create_key("expires-soon", expires_in_days=3)
+        auth.create_key("expires-later", expires_in_days=30)
+        auth.create_key("no-expiry", expires_in_days=0)
 
         expiring = auth.get_expiring_keys(within_days=7)
 

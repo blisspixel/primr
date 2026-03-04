@@ -184,8 +184,8 @@ class TestScoreLinksHeuristically:
         scored = score_links_heuristically(links)
 
         # About should score higher than privacy
-        about_link = next(l for l in scored if "about" in l.url)
-        privacy_link = next(l for l in scored if "privacy" in l.url)
+        about_link = next(lnk for lnk in scored if "about" in lnk.url)
+        privacy_link = next(lnk for lnk in scored if "privacy" in lnk.url)
 
         assert about_link.score > privacy_link.score
 
@@ -198,8 +198,8 @@ class TestScoreLinksHeuristically:
 
         scored = score_links_heuristically(links)
 
-        page1 = next(l for l in scored if "page1" in l.url)
-        page2 = next(l for l in scored if "page2" in l.url)
+        page1 = next(lnk for lnk in scored if "page1" in lnk.url)
+        page2 = next(lnk for lnk in scored if "page2" in lnk.url)
 
         assert page1.score > page2.score
 
@@ -212,8 +212,8 @@ class TestScoreLinksHeuristically:
 
         scored = score_links_heuristically(links)
 
-        page1 = next(l for l in scored if "page1" in l.url)
-        page2 = next(l for l in scored if "page2" in l.url)
+        page1 = next(lnk for lnk in scored if "page1" in lnk.url)
+        page2 = next(lnk for lnk in scored if "page2" in lnk.url)
 
         assert page1.score > page2.score
 
@@ -227,7 +227,7 @@ class TestScoreLinksHeuristically:
 
         scored = score_links_heuristically(links)
 
-        scores = [l.score for l in scored]
+        scores = [lnk.score for lnk in scored]
         assert scores == sorted(scores, reverse=True)
 
     def test_penalizes_deep_urls(self):
@@ -239,8 +239,8 @@ class TestScoreLinksHeuristically:
 
         scored = score_links_heuristically(links)
 
-        shallow = next(l for l in scored if l.url.count("/") < 5)
-        deep = next(l for l in scored if l.url.count("/") > 5)
+        shallow = next(lnk for lnk in scored if lnk.url.count("/") < 5)
+        deep = next(lnk for lnk in scored if lnk.url.count("/") > 5)
 
         assert shallow.score > deep.score
 
@@ -270,7 +270,7 @@ class TestFetchSitemapLinks:
             links = fetch_sitemap_links("https://example.com")
 
         assert len(links) == 2
-        urls = [l.url for l in links]
+        urls = [lnk.url for lnk in links]
         assert "https://example.com/about" in urls
         assert "https://example.com/contact" in urls
 
@@ -491,12 +491,11 @@ class TestDiscoverLinks:
                 response.content = homepage_html
             return response
 
-        with patch("primr.data.scraping.discovery.make_request", side_effect=mock_request):
-            with patch("primr.data.scraping.discovery.head_exists", return_value=True):
-                links = discover_links("https://example.com", verify_guessed=False)
+        with patch("primr.data.scraping.discovery.make_request", side_effect=mock_request), patch("primr.data.scraping.discovery.head_exists", return_value=True):
+            links = discover_links("https://example.com", verify_guessed=False)
 
         # Should have links from multiple sources
-        sources = set(link.source for link in links)
+        sources = {link.source for link in links}
         assert "sitemap" in sources or "homepage" in sources or "guess" in sources
 
     def test_deduplicates_links(self):
@@ -526,7 +525,7 @@ class TestDiscoverLinks:
             links = discover_links("https://example.com", verify_guessed=False)
 
         # Should not have duplicate exact /about URLs (same URL from sitemap and homepage)
-        exact_about_links = [l for l in links if l.url == "https://example.com/about"]
+        exact_about_links = [lnk for lnk in links if lnk.url == "https://example.com/about"]
         assert len(exact_about_links) == 1  # Only one, not two (deduplicated)
 
     def test_returns_scored_links(self):

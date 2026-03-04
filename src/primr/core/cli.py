@@ -104,6 +104,7 @@ class CLIConfig:
     resume_local: bool = False
     lite_strategy: bool = False  # Use Pro model instead of Deep Research for strategy
     fast_mode: bool = False  # Use Grok 4.1 for fast research (~12 min, ~$0.25)
+    premium_mode: bool = False  # Force Gemini + Deep Research pipeline
     no_qa: bool = False  # Disable automatic quality assessment
     skip_scrape_validation: bool = False  # Continue even when scrape quality is too low
     # Agentic architecture options
@@ -164,6 +165,7 @@ MODE_MAP = {
     "scrape": "scrape-only",  # Scrape + insights (uses LLM for summarization)
     "deep": "deep-research",
     "full": "complete",
+    "premium": "complete",  # Explicitly request Gemini + Deep Research pipeline
     "parallel": "hybrid",
     # Also accept old names for backwards compatibility
     "structured": "structured",
@@ -250,6 +252,7 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         resume_local=getattr(parsed, 'resume_local', False),
         lite_strategy=getattr(parsed, 'lite_strategy', False),
         fast_mode=getattr(parsed, 'fast_mode', False),
+        premium_mode=getattr(parsed, 'premium_mode', False),
         no_qa=getattr(parsed, 'no_qa', False),
         skip_scrape_validation=getattr(parsed, 'skip_scrape_validation', False),
         # Agentic architecture options
@@ -422,6 +425,66 @@ def run_doctor() -> int:
 # INTERNAL FUNCTIONS - Parser
 # =============================================================================
 
+
+def _discover_strategies() -> list[dict[str, str]]:
+    """Discover available strategy types from YAML configs.
+
+    Returns list of dicts with 'name', 'display_name', 'description', 'status'.
+    Results are cached after first call.
+    """
+    if hasattr(_discover_strategies, "_cache"):
+        return _discover_strategies._cache  # type: ignore[attr-defined]
+
+    from pathlib import Path
+
+    import yaml
+
+    strategies_dir = Path(__file__).parent.parent / "prompts" / "strategies"
+    results: list[dict[str, str]] = [
+        {"name": "ai", "display_name": "AI Strategy", "description": "AI transformation roadmap with vendor-specific recommendations", "status": "active"},
+    ]
+
+    if strategies_dir.exists():
+        for yaml_path in sorted(strategies_dir.glob("*.yaml")):
+            stem = yaml_path.stem
+            # Skip files that map to the built-in "ai" type
+            if stem in ("ai_strategy", "ai_first_transformation"):
+                continue
+            try:
+                with open(yaml_path, encoding="utf-8") as f:
+                    data = yaml.safe_load(f)
+                meta = data.get("meta", {})
+                status = meta.get("status", "active")
+                if status == "placeholder":
+                    continue
+                desc = meta.get("cli_description") or meta.get("description", "")
+                display = meta.get("name", stem.replace("_", " ").title())
+                results.append({"name": stem, "display_name": display, "description": desc, "status": status})
+            except Exception:
+                continue
+
+    _discover_strategies._cache = results  # type: ignore[attr-defined]
+    return results
+
+
+def _get_strategy_choices() -> list[str]:
+    """Get valid --strategy-type choices from YAML discovery."""
+    return [s["name"] for s in _discover_strategies()]
+
+
+def _get_strategy_help() -> str:
+    """Build --strategy-type help text from YAML descriptions."""
+    strategies = _discover_strategies()
+    parts = ["Strategy type. Options:"]
+    for s in strategies:
+        short_desc = s["description"]
+        if len(short_desc) > 80:
+            short_desc = short_desc[:77] + "..."
+        parts.append(f"  {s['name']}: {short_desc}")
+    parts.append("Use --list-strategies for details.")
+    return " ".join(parts)
+
+
 def _create_parser() -> argparse.ArgumentParser:
     """Create the argument parser."""
     parser = argparse.ArgumentParser(
@@ -507,9 +570,9 @@ Accordion Method Test (for development):
     parser.add_argument(
         "--mode", "-m",
         type=str,
-        choices=["scrape", "deep", "full", "parallel", "structured", "deep-research", "complete", "hybrid"],
+        choices=["scrape", "deep", "full", "premium", "parallel", "structured", "deep-research", "complete", "hybrid"],
         default="full",
-        help="Research mode: scrape (corpus + insights), deep, full (default)"
+        help="Research mode: scrape (corpus + insights), deep, full (default, uses fast mode when XAI_API_KEY set), premium (Gemini + Deep Research)"
     )
     parser.add_argument("--quiet", "-q", action="store_true", help="Minimal output")
     parser.add_argument("--verbose", "-v", action="store_true", help="Detailed output")
@@ -551,7 +614,13 @@ Accordion Method Test (for development):
         "--fast",
         action="store_true",
         dest="fast_mode",
-        help="Fast mode: Grok 4.1 with research deepening (~20-30 min, ~$0.20). Supports --cloud-vendor. Requires XAI_API_KEY"
+        help="Fast mode (now the default when XAI_API_KEY is set). Explicit flag for backward compat"
+    )
+    parser.add_argument(
+        "--premium",
+        action="store_true",
+        dest="premium_mode",
+        help="Premium mode: Gemini + Deep Research pipeline (~$5, 50-75 min). Use for maximum depth"
     )
     parser.add_argument(
         "--discovery-notes",
@@ -634,9 +703,9 @@ Accordion Method Test (for development):
     parser.add_argument(
         "--strategy-type",
         type=str,
-        choices=["ai", "customer_experience", "modern_security_compliance", "data_fabric_strategy"],
+        choices=_get_strategy_choices(),
         default="ai",
-        help="Strategy document type: 'ai' (AI transformation), 'customer_experience' (CX strategy), 'modern_security_compliance' (security/compliance), 'data_fabric_strategy' (data platform). Use with --ai-strategy-only."
+        help=_get_strategy_help()
     )
 
     # Agentic architecture commands
@@ -932,20 +1001,40 @@ def _handle_dry_run(config: CLIConfig) -> int:
     """Handle dry-run command."""
     from primr.utils.cost_estimator import estimate_cost
 
-    # Validate --fast + --mode compatibility (same check as _handle_research)
-    if config.fast_mode and config.mode not in ("complete", "structured", "hybrid"):
+    # Resolve mode: same logic as _handle_research
+    if config.premium_mode and config.fast_mode:
+        console.error("Cannot use both --fast and --premium. Choose one.")
+        return 1
+
+    use_fast_mode = config.fast_mode
+    use_premium_mode = config.premium_mode
+
+    if not use_fast_mode and not use_premium_mode and config.mode in ("complete", "structured", "hybrid"):
+        if os.environ.get("XAI_API_KEY"):
+            use_fast_mode = True
+
+    # Validate compatibility
+    if use_fast_mode and config.mode not in ("complete", "structured", "hybrid"):
         console.error(f"--fast only works with full mode, not --mode {config.mode}")
         console.info("Usage: primr \"Company\" https://url --fast [--cloud-vendor aws azure] --dry-run")
         return 1
+    if use_premium_mode and config.mode not in ("complete", "structured", "hybrid"):
+        console.error(f"--premium only works with full mode, not --mode {config.mode}")
+        return 1
 
-    mode_label = "fast (Grok 4.1)" if config.fast_mode else config.mode
+    if use_premium_mode:
+        mode_label = "premium (Gemini + Deep Research)"
+    elif use_fast_mode:
+        mode_label = "standard (Grok 4.1)"
+    else:
+        mode_label = config.mode
     print("")
     print("=" * 60)
     print(f"COST ESTIMATE: {mode_label} mode")
-    if config.ai_strategy and not config.fast_mode:
+    if config.ai_strategy and not use_fast_mode:
         strategy_label = "AI Strategy (Pro mode)" if config.lite_strategy else "AI Strategy analysis"
         print(f"(includes {strategy_label})")
-    elif config.fast_mode and config.ai_strategy:
+    elif use_fast_mode and config.ai_strategy:
         print("(includes AI Strategy via Grok)")
     print("=" * 60)
     print("")
@@ -955,7 +1044,8 @@ def _handle_dry_run(config: CLIConfig) -> int:
         config.ai_strategy,
         num_vendors=len(config.cloud_vendors),
         lite_strategy=config.lite_strategy,
-        fast_mode=config.fast_mode,
+        fast_mode=use_fast_mode,
+        premium_mode=use_premium_mode,
     )
     print(str(estimate))
 
@@ -1825,20 +1915,42 @@ def _handle_research(config: CLIConfig) -> int:
         console.info("Run 'primr doctor' for detailed diagnostics")
         return 1
 
+    # Resolve mode: --premium vs --fast vs auto-detect via XAI_API_KEY
+    if config.premium_mode and config.fast_mode:
+        console.error("Cannot use both --fast and --premium. Choose one.")
+        return 1
+
+    # Determine effective fast_mode for this run
+    use_fast_mode = config.fast_mode
+    use_premium_mode = config.premium_mode
+
+    if not use_fast_mode and not use_premium_mode and config.mode in ("complete", "structured", "hybrid"):
+        # Auto-detect: if XAI_API_KEY is set, default to fast mode
+        if os.environ.get("XAI_API_KEY"):
+            use_fast_mode = True
+            console.info("Using fast mode (Grok 4.1) — XAI_API_KEY detected. Use --premium for Gemini + Deep Research.")
+        else:
+            console.info("Using standard mode (Gemini). Set XAI_API_KEY for faster, cheaper runs.")
+
+    if use_premium_mode:
+        if config.mode not in ("complete", "structured", "hybrid"):
+            console.error(f"--premium only works with full mode, not --mode {config.mode}")
+            return 1
+
     # Fast mode preflight: verify XAI_API_KEY and openai package
-    if config.fast_mode:
+    if use_fast_mode:
         if config.mode not in ("complete", "structured", "hybrid"):
             console.error(f"--fast only works with full mode, not --mode {config.mode}")
             console.info("Usage: primr \"Company\" https://url --fast [--cloud-vendor aws azure]")
             return 1
         if not os.environ.get("XAI_API_KEY"):
-            console.error("--fast requires XAI_API_KEY in your .env or environment")
+            console.error("Fast mode requires XAI_API_KEY in your .env or environment")
             console.info("Get a key at https://console.x.ai/")
             return 1
         try:
             import openai  # noqa: F401
         except ImportError:
-            console.error("--fast requires the 'openai' package")
+            console.error("Fast mode requires the 'openai' package")
             console.info("Install with: pip install 'primr[fast]' or pip install openai")
             return 1
         if config.lite_strategy:
@@ -1870,6 +1982,11 @@ def _handle_research(config: CLIConfig) -> int:
             return 1
         context_files = [str(p) for p in validation_result.valid_files]
 
+    # Build strategy types list from --strategy-type (non-AI strategies for Grok/DR)
+    strategy_types = None
+    if config.strategy_type and config.strategy_type != "ai":
+        strategy_types = [config.strategy_type]
+
     # Run research
     result_path = perform_research(
         company_name,
@@ -1881,11 +1998,14 @@ def _handle_research(config: CLIConfig) -> int:
         skip_confirm=config.skip_confirm,
         context_files=context_files if context_files else None,
         refresh_vendor_research=config.refresh_vendor_research,
+        strategies=strategy_types,
         no_qa=config.no_qa,
         max_scrape_time=config.max_scrape_time,
         discovery_notes_path=config.discovery_notes_path,
         lite_strategy=config.lite_strategy,
-        fast_mode=config.fast_mode,
+        fast_mode=use_fast_mode,
+        premium_mode=use_premium_mode,
+        skip_scrape_validation=config.skip_scrape_validation,
         resume_local=config.resume_local,
     )
 
@@ -2502,63 +2622,91 @@ def resume_pending_jobs() -> int:
 
 
 def _handle_list_strategies(config: CLIConfig) -> int:
-    """List available strategy documents."""
+    """List available strategy documents (dynamically from YAML configs)."""
+    from pathlib import Path
+
+    import yaml
+
     console.banner("Available Strategy Documents")
 
     console.info("Strategy documents are research tools to help you show up prepared")
     console.info("for discovery conversations. They're NOT deliverables to hand over.")
     console.blank()
 
-    console.step("Tier 1: External Research (No Discovery Required)")
-    console.info("  These can be generated from public information:")
+    strategies_dir = Path(__file__).parent.parent / "prompts" / "strategies"
+
+    # Separate active vs placeholder strategies
+    active: list[dict[str, str]] = []
+    placeholders: list[dict[str, str]] = []
+
+    # AI Strategy is always first (built-in)
+    active.append({
+        "name": "ai",
+        "display_name": "AI Strategy",
+        "description": "Agentic AI transformation roadmap with vendor-specific recommendations (Azure/AWS/GCP)",
+        "usage": 'primr "Company" https://example.com --cloud-vendor azure',
+        "standalone": 'primr --ai-strategy-only "report.md" --cloud-vendor azure',
+    })
+
+    if strategies_dir.exists():
+        for yaml_path in sorted(strategies_dir.glob("*.yaml")):
+            stem = yaml_path.stem
+            if stem in ("ai_strategy", "ai_first_transformation"):
+                continue
+            try:
+                with open(yaml_path, encoding="utf-8") as f:
+                    data = yaml.safe_load(f)
+                meta = data.get("meta", {})
+                status = meta.get("status", "active")
+                display = meta.get("name", stem.replace("_", " ").title())
+                desc = meta.get("cli_description") or meta.get("description", "")
+                expected_pages = meta.get("expected_pages", "")
+
+                entry = {
+                    "name": stem,
+                    "display_name": display,
+                    "description": desc,
+                    "expected_pages": expected_pages,
+                    "usage": f'primr "Company" https://example.com --strategy-type {stem}',
+                    "standalone": f'primr --ai-strategy-only "report.md" --strategy-type {stem}',
+                }
+                if status == "placeholder":
+                    placeholders.append(entry)
+                else:
+                    active.append(entry)
+            except Exception:
+                continue
+
+    console.step(f"Available Strategies ({len(active)} active)")
     console.blank()
 
-    console.ok("  AI Strategy (ai)")
-    console.info("    - Agentic AI transformation roadmap")
-    console.info("    - Cloud vendor recommendations (Azure/AWS/GCP)")
-    console.info("    - ROAI framework and superagency enablement")
-    console.info("    Usage: primr --ai-strategy-only \"report.md\" --cloud-vendor azure")
-    console.blank()
+    for s in active:
+        console.ok(f"  {s['display_name']} ({s['name']})")
+        if s.get("description"):
+            # Wrap long descriptions
+            desc = s["description"]
+            console.info(f"    {desc}")
+        if s.get("expected_pages"):
+            console.muted(f"    Expected: {s['expected_pages']} pages")
+        console.info(f"    In research run:  {s['usage']}")
+        console.info(f"    Standalone:       {s['standalone']}")
+        console.blank()
 
-    console.ok("  Customer Experience Strategy (customer_experience)")
-    console.info("    - CX transformation and digital experience")
-    console.info("    - Journey mapping and personalization")
-    console.info("    Usage: primr --ai-strategy-only \"report.md\" --strategy-type customer_experience")
-    console.blank()
-
-    console.ok("  Security & Compliance Strategy (modern_security_compliance)")
-    console.info("    - Zero Trust architecture and identity management")
-    console.info("    - Compliance frameworks and risk management")
-    console.info("    Usage: primr --ai-strategy-only \"report.md\" --strategy-type modern_security_compliance")
-    console.blank()
-
-    console.ok("  Data Fabric Strategy (data_fabric_strategy)")
-    console.info("    - Semantic layers and zero-copy architecture")
-    console.info("    - Agent enablement and data mesh patterns")
-    console.info("    Usage: primr --ai-strategy-only \"report.md\" --strategy-type data_fabric_strategy")
-    console.blank()
-
-    console.step("Tier 2: Discovery-Informed (Requires Meeting Insights)")
-    console.info("  These require discovery notes from client conversations:")
-    console.blank()
-
-    console.warn("  Cloud Migration Strategy (cloud_migration)")
-    console.info("    - Status: Placeholder only")
-    console.info("    - Requires: Discovery notes about current infrastructure")
-    console.blank()
-
-    console.warn("  Application Modernization (placeholder)")
-    console.info("    - Status: Not yet defined")
-    console.info("    - Requires: Discovery notes about application portfolio")
-    console.blank()
+    if placeholders:
+        console.step(f"Placeholder Strategies ({len(placeholders)} - not yet implemented)")
+        console.blank()
+        for s in placeholders:
+            console.warn(f"  {s['display_name']} ({s['name']})")
+            if s.get("description"):
+                console.info(f"    {s['description']}")
+            console.blank()
 
     console.step("How to Generate Strategies")
-    console.info("  1. Run full research: primr \"Company\" https://example.com --mode full")
-    console.info("  2. Generate specific strategy: primr --ai-strategy-only \"report.md\" --strategy-type customer_experience")
-    console.info("  3. With discovery notes: primr --ai-strategy-only \"report.md\" --discovery-notes \"notes.md\"")
+    console.info('  1. During research:   primr "Company" https://example.com --strategy-type customer_experience')
+    console.info('  2. Standalone:        primr --ai-strategy-only "report.md" --strategy-type customer_experience')
+    console.info('  3. With notes:        primr --ai-strategy-only "report.md" --strategy-type ai --discovery-notes "notes.md"')
+    console.info("  4. Multi-vendor AI:   primr \"Company\" https://example.com --cloud-vendor aws azure")
     console.blank()
-
-    console.info("See docs/STRATEGY_PORTFOLIO.md for detailed information")
 
     return 0
 

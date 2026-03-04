@@ -10,7 +10,7 @@ Company research tool using Gemini and Grok models. Generates strategic intellig
 ### Critical Constraints
 - **Single-job model**: ONE research job at a time. Check `primr --check-jobs` before starting new research.
 - **Async execution**: `research_company` returns immediately with `job_id`. Poll `check_jobs` for completion.
-- **Cost awareness**: ALWAYS run `estimate_run` before `research_company`. Typical costs: full default ~$6 (includes AI Strategy), scrape ~$0.10, deep ~$2.50. Each extra `--cloud-vendor` adds ~$2.50 (1 DR task per vendor). Use `--lite` to drop strategy cost to ~$0.15/vendor. Use `--fast` for Grok 4.1 mode (~$0.20 with AI Strategy, ~$0.15 with `--no-ai-strategy`, ~20-30 min, 40-55 sources). `--fast` supports `--cloud-vendor` for multi-vendor strategy. DDG searches are free (no API cost). When `AI_REASONING_MODEL` is set to a tiered model (e.g. 3.1 Pro), estimates use conservative high-tier pricing automatically.
+- **Cost awareness**: ALWAYS run `estimate_run` before `research_company`. Default mode uses Grok 4.1 when XAI_API_KEY is set (~$0.55, ~30 min, 40-55 sources). Use `--premium` for Gemini + Deep Research (~$5, 50-75 min). Scrape ~$0.10, deep ~$2.50. Each extra `--cloud-vendor` adds ~$0.07 (standard) or ~$2.50 (premium). DDG searches are free. Use `--lite` with `--premium` to drop strategy cost.
 
 ### Common Tasks
 
@@ -24,20 +24,23 @@ primr "Company" https://example.com --mode scrape
 # Deep external research (10-15 min, ~$2.50)
 primr "Company" https://example.com --mode deep
 
-# Full pipeline + AI Strategy (60-90 min, ~$6)
+# Standard run (~$0.55, ~30 min — auto-uses Grok 4.1 when XAI_API_KEY set)
 primr "Company" https://example.com
 
-# Multi-vendor AI strategy (~$9, adds ~$2.50 per vendor)
+# Multi-vendor AI strategy (~$0.60, adds ~$0.07 per vendor)
 primr "Company" https://example.com --cloud-vendor aws azure
 
-# Lite AI strategy (~$4 for full + 2 vendors, uses Pro instead of DR)
-primr "Company" https://example.com --cloud-vendor aws azure --lite
+# Other strategy types (CX, security, data fabric — see --list-strategies)
+primr "Company" https://example.com --strategy-type customer_experience
 
-# Fast mode (~$0.20, ~20-30 min, uses Grok 4.1 — requires XAI_API_KEY)
-primr "Company" https://example.com --fast
+# Premium mode: Gemini + Deep Research (~$5, 50-75 min)
+primr "Company" https://example.com --premium
 
-# Fast + multi-vendor AI strategy (~$0.25, 22-36 min)
-primr "Company" https://example.com --fast --cloud-vendor aws azure
+# Premium + multi-vendor (~$9, adds ~$2.50 per vendor)
+primr "Company" https://example.com --premium --cloud-vendor aws azure
+
+# Lite premium strategy (~$4 for premium + 2 vendors, uses Pro instead of DR)
+primr "Company" https://example.com --premium --cloud-vendor aws azure --lite
 
 # Check job status
 primr --check-jobs
@@ -49,8 +52,8 @@ primr doctor
 ### MCP Tools (for programmatic access)
 | Tool | Purpose |
 |------|---------|
-| `estimate_run` | Get cost/time estimate (call FIRST) |
-| `research_company` | Start async research job |
+| `estimate_run` | Get cost/time estimate (call FIRST). Modes: scrape, deep, full (default, Grok), premium (Gemini+DR) |
+| `research_company` | Start async research job. Modes: scrape, deep, full, premium |
 | `check_jobs` | Poll job status |
 | `run_qa` | Quality assessment on reports |
 | `doctor` | System health check |
@@ -258,4 +261,4 @@ Unit tests validate specific examples and edge cases.
 
 ---
 
-*Last updated: 2026-02-19 | Primr v1.12.0 | Agentic Architecture v1.0*
+*Last updated: 2026-03-03 | Primr v1.12.0 | Agentic Architecture v1.0*
