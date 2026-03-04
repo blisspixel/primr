@@ -295,7 +295,7 @@ Playwright tiers now perform adaptive lazy-load scrolling (up to 20 steps by def
 | Gemini 3.1 Pro | `--premium` mode: section writing, analysis | $2/$12 (≤200k) · $4/$18 (>200k) |
 | Deep Research Agent | `--premium` mode: autonomous research | ~$2.50/task (flat) |
 
-Grok 4.1 is the default when `XAI_API_KEY` is set — same quality as Gemini+DR at ~10% of the cost. Gemini Flash is still used for scraping in both modes. Use `--premium` to switch to Gemini + Deep Research for maximum depth. [Full config reference](docs/CONFIG.md).
+**Why Grok 4.1 is the default:** Primr originally ran everything through Google's Deep Research API + Gemini 3.1 Pro — excellent research quality, but the Deep Research API runs ~$2.50 per task, pushing full runs to ~$5 and 50-75 minutes. When xAI released Grok 4.1, testing showed it handles company research comparably: strong at search-grounded analysis, solid structured output, and reliable citation handling. Switching the default pipeline to Grok 4.1 dropped costs to ~$0.55 (~90% cheaper) and runtime to ~30 minutes with similar report quality. Gemini Flash is still used for scraping in both modes. The full Gemini + Deep Research pipeline remains available via `--premium` when maximum research depth justifies the cost. [Full config reference](docs/CONFIG.md).
 
 **Agentic Architecture**
 - Hypothesis tracking with confidence levels across sessions
