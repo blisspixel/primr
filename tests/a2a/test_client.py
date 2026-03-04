@@ -179,6 +179,114 @@ class TestA2AClientClose:
         await client.close()  # Should not raise
 
 
+class TestA2AClientJsonDecodeError:
+    """Tests for handling invalid JSON responses."""
+
+    @pytest.mark.asyncio
+    async def test_discover_invalid_json(self, httpx_mock):
+        """Discovery raises A2AError on invalid JSON."""
+        httpx_mock.add_response(
+            url="http://example.com/.well-known/agent.json",
+            raw_text="<html>Not JSON</html>",
+        )
+
+        async with A2AClient(agent_url="http://example.com") as client:
+            with pytest.raises(A2AError, match="Invalid JSON"):
+                await client.discover()
+
+    @pytest.mark.asyncio
+    async def test_send_message_invalid_json(self, httpx_mock):
+        """RPC call raises A2AError on invalid JSON response."""
+        httpx_mock.add_response(
+            url="http://example.com",
+            raw_text="Server Error",
+        )
+
+        async with A2AClient(agent_url="http://example.com") as client:
+            with pytest.raises(A2AError, match="Invalid JSON"):
+                await client.send_message("Test")
+
+    @pytest.mark.asyncio
+    async def test_send_message_empty_result(self, httpx_mock):
+        """RPC call with no result key returns empty dict."""
+        httpx_mock.add_response(
+            url="http://example.com",
+            json={"jsonrpc": "2.0", "id": "1"},
+        )
+
+        async with A2AClient(agent_url="http://example.com") as client:
+            result = await client.send_message("Test")
+        assert result == {}
+
+
+class TestA2AClientContextAndTask:
+    """Tests for context_id and task_id parameters."""
+
+    @pytest.mark.asyncio
+    async def test_send_message_with_context_id(self, httpx_mock):
+        """context_id is included in configuration."""
+        httpx_mock.add_response(
+            url="http://example.com",
+            json={"jsonrpc": "2.0", "id": "1", "result": {}},
+        )
+
+        async with A2AClient(agent_url="http://example.com") as client:
+            await client.send_message("Test", context_id="ctx-123")
+
+        request = httpx_mock.get_request()
+        body = json.loads(request.content)
+        assert body["params"]["configuration"]["contextId"] == "ctx-123"
+
+    @pytest.mark.asyncio
+    async def test_send_message_with_task_id(self, httpx_mock):
+        """task_id is included in configuration."""
+        httpx_mock.add_response(
+            url="http://example.com",
+            json={"jsonrpc": "2.0", "id": "1", "result": {}},
+        )
+
+        async with A2AClient(agent_url="http://example.com") as client:
+            await client.send_message("Test", task_id="task-456")
+
+        request = httpx_mock.get_request()
+        body = json.loads(request.content)
+        assert body["params"]["configuration"]["taskId"] == "task-456"
+
+    @pytest.mark.asyncio
+    async def test_auth_header_set(self, httpx_mock):
+        """Auth token is set in client headers."""
+        httpx_mock.add_response(
+            url="http://example.com/.well-known/agent.json",
+            json={"name": "Test"},
+        )
+
+        async with A2AClient(agent_url="http://example.com", auth_token="tok") as client:
+            internal = await client._get_client()
+            assert "Bearer tok" in internal._headers.get("Authorization", "")
+
+
+class TestA2AClientGetClient:
+    """Tests for lazy client initialization."""
+
+    @pytest.mark.asyncio
+    async def test_get_client_creates_once(self, httpx_mock):
+        """_get_client returns same instance on repeated calls."""
+        async with A2AClient(agent_url="http://example.com") as client:
+            c1 = await client._get_client()
+            c2 = await client._get_client()
+            assert c1 is c2
+
+    @pytest.mark.asyncio
+    async def test_get_client_recreates_after_close(self, httpx_mock):
+        """_get_client creates new instance after close."""
+        client = A2AClient(agent_url="http://example.com")
+        c1 = await client._get_client()
+        await client.close()
+        c2 = await client._get_client()
+        assert c1 is not c2
+        await client.close()
+
+
 @pytest.fixture
 def httpx_mock(monkeypatch):
     """Simple httpx mock fixture."""
@@ -198,11 +306,14 @@ class HttpxMock:
         mock_self = self
 
         class MockResponse:
-            def __init__(self, status_code, json_data):
+            def __init__(self, status_code, json_data, raw_text=None):
                 self.status_code = status_code
                 self._json = json_data
+                self._raw_text = raw_text
 
             def json(self):
+                if self._raw_text is not None:
+                    raise ValueError(f"Invalid JSON: {self._raw_text[:50]}")
                 return self._json
 
             def raise_for_status(self):
@@ -223,17 +334,16 @@ class HttpxMock:
                 key = url
                 if key in mock_self._responses:
                     r = mock_self._responses[key]
-                    return MockResponse(r["status_code"], r.get("json"))
+                    return MockResponse(r["status_code"], r.get("json"), r.get("raw_text"))
                 return MockResponse(404, None)
 
             async def post(self, url, **kwargs):
                 content = json.dumps(kwargs.get("json", {})).encode()
                 mock_self._requests.append(httpx.Request("POST", url, content=content))
-                # Match on base URL (ignore query params)
                 key = url
                 if key in mock_self._responses:
                     r = mock_self._responses[key]
-                    return MockResponse(r["status_code"], r.get("json"))
+                    return MockResponse(r["status_code"], r.get("json"), r.get("raw_text"))
                 return MockResponse(404, None)
 
             async def aclose(self):
@@ -241,8 +351,8 @@ class HttpxMock:
 
         self._monkeypatch.setattr(httpx, "AsyncClient", MockAsyncClient)
 
-    def add_response(self, url, json=None, status_code=200):
-        self._responses[url] = {"json": json, "status_code": status_code}
+    def add_response(self, url, json=None, status_code=200, raw_text=None):
+        self._responses[url] = {"json": json, "status_code": status_code, "raw_text": raw_text}
 
     def get_request(self):
         return self._requests[-1] if self._requests else None

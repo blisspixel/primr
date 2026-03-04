@@ -1052,7 +1052,7 @@ asyncio.run(main())
 
 ### Tools
 
-The MCP server exposes 8 tools for research operations:
+The MCP server exposes 9 tools for research operations:
 
 #### estimate_run
 
@@ -1197,6 +1197,87 @@ Cancel an active research job.
   }
 }
 ```
+
+#### delegate_to_agent
+
+Delegate a task to an external A2A agent. Requires `pip install primr[a2a]`.
+
+```json
+{
+  "name": "delegate_to_agent",
+  "arguments": {
+    "agent_url": "https://remote-agent.example.com",
+    "message": "Research Acme Corp competitive landscape",
+    "skill_id": "research_company"
+  }
+}
+```
+
+Response (success):
+```json
+{
+  "status": {"state": "completed"},
+  "artifacts": [...]
+}
+```
+
+Response (error):
+```json
+{
+  "error": true,
+  "error_type": "a2a_delegation_failed",
+  "message": "Connection refused"
+}
+```
+
+SSRF protection validates all agent URLs. Private IPs, metadata endpoints, and non-HTTP schemes are blocked.
+
+### A2A Server
+
+Primr can also expose its capabilities via the A2A (Agent-to-Agent) protocol, allowing other agents to discover and invoke Primr's research tools.
+
+```bash
+# Install A2A support
+pip install primr[a2a]
+
+# Standalone A2A server
+primr-a2a --no-auth
+
+# Co-hosted with MCP server
+primr-mcp --http --a2a --a2a-port 9000
+```
+
+**Agent Card** (served at `/.well-known/agent.json`):
+```bash
+curl http://localhost:9000/.well-known/agent.json
+```
+
+**Skills available via A2A:**
+
+| Skill ID | Description |
+|----------|-------------|
+| `estimate_research` | Cost/time estimate for a research run |
+| `research_company` | Start async research (SSE streaming progress) |
+| `check_jobs` | Current job status |
+| `run_qa` | Quality assessment on completed reports |
+| `system_health` | System diagnostics |
+
+**Example A2A message:**
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "message/send",
+  "params": {
+    "message": {
+      "role": "user",
+      "parts": [{"kind": "text", "text": "{\"url\": \"https://acme.com\", \"mode\": \"full\"}"}],
+      "metadata": {"skillId": "research_company"}
+    }
+  }
+}
+```
+
+The A2A server shares the MCP server's `SingleJobStore`, rate limiter, and security middleware. The single-job model is enforced across both protocols.
 
 ### Resources
 
