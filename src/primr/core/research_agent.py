@@ -2873,30 +2873,37 @@ def perform_fast_research(
             external_data: dict = {}
             max_external_sources = 30
 
-            def _search_and_scrape_one(query: str) -> dict:
-                """Search + scrape for a single query (thread-safe)."""
+            def _search_one(query: str) -> list[dict]:
+                """Search for a single query (thread-safe HTTP call)."""
                 results = search_web(query, company_name, website)
                 if not results:
-                    return {}
-                filtered = [r for r in results[:5]
-                            if not website or website.lower() not in r.get("url", "").lower()]
-                return scrape_external_sources_validated(
-                    filtered, company_name=company_name, website=website,
-                    max_sources=3,
-                )
+                    return []
+                return [r for r in results[:5]
+                        if not website or website.lower() not in r.get("url", "").lower()]
 
+            # Phase 1: parallel searches (thread-safe HTTP calls)
+            all_search_results: list[dict] = []
             with ThreadPoolExecutor(max_workers=3) as executor:
-                futures = [executor.submit(_search_and_scrape_one, q)
+                futures = [executor.submit(_search_one, q)
                            for q in external_queries]
                 for future in as_completed(futures):
-                    if len(external_data) >= max_external_sources:
-                        break
                     try:
-                        for url, content in future.result().items():
-                            if len(external_data) < max_external_sources:
-                                external_data[url] = content
+                        all_search_results.extend(future.result())
                     except Exception:
                         pass  # individual query failure is non-fatal
+
+            # Phase 2: sequential scraping on main thread (Playwright-safe)
+            for result in all_search_results:
+                if len(external_data) >= max_external_sources:
+                    break
+                url = result.get("url")
+                if not url or url in external_data:
+                    continue
+                scraped = scrape_external_sources_validated(
+                    [result], company_name=company_name, website=website,
+                    max_sources=1,
+                )
+                external_data.update(scraped)
 
             for url, content in external_data.items():
                 source_urls.append(url)
@@ -2945,39 +2952,48 @@ def perform_fast_research(
             max_gap_sources = 15
 
             with console.timed_operation("Searching for gap-filling sources"):
-                def _gap_search_one(gq: str) -> dict:
-                    """Search + scrape for a single gap query (thread-safe)."""
+                def _gap_search_one(gq: str) -> list[dict]:
+                    """Search for a single gap query (thread-safe HTTP call)."""
                     results = search_web(gq, company_name, website)
                     if not results:
-                        return {}
-                    filtered = [
+                        return []
+                    return [
                         r for r in results[:3]
                         if (not website or website.lower() not in r.get("url", "").lower())
                         and r.get("url", "") not in source_urls_seen
                     ]
-                    return scrape_external_sources_validated(
-                        filtered, company_name=company_name, website=website,
-                        max_sources=3,
-                    )
 
+                # Phase 1: parallel searches (thread-safe HTTP calls)
+                gap_search_results: list[dict] = []
                 with ThreadPoolExecutor(max_workers=3) as executor:
                     futures = [executor.submit(_gap_search_one, gq)
                                for gq in gap_queries]
                     for future in as_completed(futures):
-                        if gap_new_sources >= max_gap_sources:
-                            break
                         try:
-                            for url, content in future.result().items():
-                                if gap_new_sources >= max_gap_sources:
-                                    break
-                                if url not in source_urls_seen:
-                                    source_urls.append(url)
-                                    source_urls_seen.add(url)
-                                    external_text_parts.append(f"[Source: {url}]\n{content[:12_000]}")
-                                    external_raw_parts.append(f"[Source: {url}]\n{content[:20_000]}")
-                                    gap_new_sources += 1
+                            gap_search_results.extend(future.result())
                         except Exception:
                             pass  # individual gap query failure is non-fatal
+
+                # Phase 2: sequential scraping on main thread (Playwright-safe)
+                for result in gap_search_results:
+                    if gap_new_sources >= max_gap_sources:
+                        break
+                    url = result.get("url")
+                    if not url or url in source_urls_seen:
+                        continue
+                    scraped = scrape_external_sources_validated(
+                        [result], company_name=company_name, website=website,
+                        max_sources=1,
+                    )
+                    for scraped_url, content in scraped.items():
+                        if gap_new_sources >= max_gap_sources:
+                            break
+                        if scraped_url not in source_urls_seen:
+                            source_urls.append(scraped_url)
+                            source_urls_seen.add(scraped_url)
+                            external_text_parts.append(f"[Source: {scraped_url}]\n{content[:12_000]}")
+                            external_raw_parts.append(f"[Source: {scraped_url}]\n{content[:20_000]}")
+                            gap_new_sources += 1
 
             console.ok(f"Found {gap_new_sources} additional sources")
 
