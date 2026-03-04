@@ -49,7 +49,7 @@ class TestReportSectionStructure:
         composer = PromptComposer()
         config = composer._load_config("company_overview")
 
-        assert len(config.sections) == 21, f"Expected 21 sections, got {len(config.sections)}"
+        assert len(config.sections) == 23, f"Expected 23 sections, got {len(config.sections)}"
 
     def test_executive_summary_is_first(self):
         """

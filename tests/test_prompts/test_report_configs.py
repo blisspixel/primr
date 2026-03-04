@@ -26,12 +26,12 @@ class TestCompanyOverviewConfig:
         assert config is not None
         assert config.sections is not None
 
-    def test_has_20_sections(self):
-        """company_overview.yaml has 21 sections."""
+    def test_has_23_sections(self):
+        """company_overview.yaml has 23 sections."""
         composer = PromptComposer()
         config = composer._load_config("company_overview")
 
-        assert len(config.sections) == 21, f"Expected 21 sections, got {len(config.sections)}"
+        assert len(config.sections) == 23, f"Expected 23 sections, got {len(config.sections)}"
 
     def test_all_sections_have_required_fields(self):
         """All sections have id, name, part, position."""
@@ -271,17 +271,17 @@ class TestVendorResearchFiles:
 class TestCompanyOverviewValidation:
     """Extended validation tests for company_overview.yaml."""
 
-    def test_all_21_sections_have_required_fields(self):
+    def test_all_23_sections_have_required_fields(self):
         """
         WHEN company_overview.yaml is loaded
-        THEN the system SHALL validate all 21 sections have required fields
+        THEN the system SHALL validate all 23 sections have required fields
 
         **Validates: Requirements 6.1**
         """
         composer = PromptComposer()
         config = composer._load_config("company_overview")
 
-        assert len(config.sections) == 21, f"Expected 21 sections, got {len(config.sections)}"
+        assert len(config.sections) == 23, f"Expected 23 sections, got {len(config.sections)}"
 
         required_fields = ["id", "name", "part", "position"]
         for section in config.sections:

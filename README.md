@@ -145,56 +145,65 @@ primr --resume-latest                                              # Recover com
 ### What a run looks like
 
 ```
-Using fast mode (Grok 4.1) — XAI_API_KEY detected. Use --premium for Gemini + Deep Research.
+Using Grok 4.1 · for deeper research add --premium
 
-> PHASE 1/5 - Data Collection (fast)
-  Scraping website + external sources
+▸ PHASE 1/6 · Data Collection (fast)
+  Scraping example.co + external sources
 
-[OK] 251 links -> 50 selected
+✓ 251 links → 50 selected
 Scraping 23/50 (ok 17) /about  [15s elapsed, ~2m left]
-[OK] 48/50 pages scraped (6m 10s)
-[OK] 38 external sources validated
-[OK] Data Collection (fast)
-  Pages: 48  External: 38
+✓ 48/50 pages scraped (6m 10s)
+Searching external sources (15/15 queries, 42 results)
+Validating external sources (38 validated, checking 42/42)
+✓ Searching external sources (8m 22s)
+Quality filter: 38 → 31 sources (dropped 7 low-relevance)
+✓ Data Collection (fast)
+  Pages: 48  External: 31
 
-> PHASE 2/5 - Research Deepening
+▸ PHASE 2/6 · Research Deepening
   Identifying gaps and searching for additional evidence
 
-[OK] Gap analysis: 8 questions identified
-[OK] Found 12 additional sources
+✓ Gap analysis: 8 questions identified
+✓ Found 12 additional sources
 
-> PHASE 3/5 - Analysis (Grok)
+▸ PHASE 3/6 · Analysis (Grok)
   Building structured workbook from enriched data
 
-[OK] Analysis (Grok)
+✓ Analysis (Grok)
 
-> PHASE 4/5 - Report Writing (Grok)
-  Writing 21 sections (parallel within parts)
+▸ PHASE 4/6 · Report Writing (Grok)
+  Writing sections (parallel within parts)
 
-Part 1/5 (Opening): 7 section(s) in parallel
-  Executive Summary (1,142 words)
+Part 1/5 (Foundation): 7 section(s) in parallel
+  ✓ Executive Summary (1,142 words)
   ...
-Part 5/5 (Frameworks): 3 section(s) in parallel
-  SWOT Analysis (847 words)
-  Porter's Five Forces Analysis (812 words)
-  Value Chain Analysis (798 words)
-[OK] Report Writing (Grok)
-  Sections: 21  Words: 18,658
+Part 2/5 (Industry): 3 section(s) in parallel
+  ✓ Industry Dynamics (970 words)
+  ✓ Industry Outlook (1,050 words)
+  ✓ Competitive Landscape (1,118 words)
+Part 4/5 (Deep Insights): 7 section(s) in parallel
+  ✓ Strategic Leadership Perspective (1,200 words)
+  ...
+✓ Report Writing (Grok)
+  Sections: 23  Words: 21,500
 
-> PHASE 5/5 - Cross-Validation
+▸ PHASE 5/6 · Cross-Validation
   Reviewing report for gaps and weak sections
 
-[OK] Cross-Validation
+✓ Resolved 3 contradiction(s)
+✓ Cross-Validation
 
-[OK] Complete in 32m
+Fast QA: labels=310, cites=12/12, validate=23/23, gate=PASS
 
-[OK] Report ready
+✓ Complete in 35m
+
+✓ Report ready
   output/ExampleCo_Strategic_Overview_03-03-2026.docx
 
 Mode: Fast (Grok 4.1)
-Chapters: 21
-Citations: 42
-Duration: 32m
+Chapters: 23
+Citations: 48
+Duration: 35m
 Est. Cost: $0.60
 AI Strategy: Yes
 ```
