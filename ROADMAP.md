@@ -575,6 +575,42 @@ Success criteria:
 - Model default changes are backed by saved scorecards, not one-off manual judgment
 - Users can answer "is this new model worth it?" in one command with reproducible evidence
 
+### v1.13.2 - OpenAI Deep Research Integration (Planned)
+
+Goal: Add OpenAI's Deep Research API as an alternative research backend, giving users a third provider option alongside Grok and Gemini.
+
+**Motivation:** OpenAI's Deep Research API offers a different cost/depth/speed tradeoff. Adding it unlocks better defaults — the eval harness (v1.13.1) can determine which provider wins at each tier (quick, standard, premium) based on real data instead of assumptions.
+
+**Research Tiers:**
+- **Quick**: Lightweight OpenAI Deep Research call for fast external research (potential replacement for DDG search + scrape in standard mode)
+- **Full**: Full-depth OpenAI Deep Research for comprehensive analysis (potential `--premium` alternative to Gemini DR)
+
+**Implementation:**
+- `OPENAI_API_KEY` env var support
+- OpenAI Deep Research client in `src/primr/ai/`
+- `--provider openai` flag (or auto-detect from available keys)
+- Cost estimator updated with OpenAI DR pricing
+- Shared deep research parsing/polling modules extended for OpenAI response format
+
+**Decision:** Which tier(s) OpenAI DR best serves (quick, standard, premium) will be determined by eval results from v1.13.1, not by assumption.
+
+### v1.13.3 - Cross-Provider Eval and Tier Optimization (Planned)
+
+Goal: Extend the eval harness to compare all available providers and determine the best default for each research tier.
+
+**Motivation:** With three providers (Grok, Gemini, OpenAI), the eval system should answer: what's the best option for quick runs, standard runs, and premium runs? These answers should be data-driven, not hardcoded.
+
+**Planned capabilities:**
+- Eval profiles expanded: `grok-standard`, `gemini-premium`, `openai-quick`, `openai-full`, etc.
+- Cross-provider scorecard: quality, cost, runtime, citation density compared side-by-side
+- Tier recommendation output: "For quick: use X, for standard: use Y, for premium: use Z"
+- Auto-detect available API keys and only eval providers the user has access to
+- Historical eval tracking: compare across eval IDs to see if a provider improved over time
+
+**Success criteria:**
+- `primr eval` can answer "which provider should be my default?" with evidence
+- Tier defaults (quick/standard/premium) are backed by saved scorecards across providers
+
 ## Medium-Term Roadmap
 
 ### v1.14.0 - Refinement and Learning Loop (Planned)
