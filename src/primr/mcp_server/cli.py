@@ -86,6 +86,19 @@ Authentication (HTTP mode):
         help="Logging level (default: INFO)",
     )
 
+    # A2A co-hosting options
+    parser.add_argument(
+        "--a2a",
+        action="store_true",
+        help="Co-host A2A server alongside MCP (requires pip install primr[a2a])",
+    )
+    parser.add_argument(
+        "--a2a-port",
+        type=int,
+        default=9000,
+        help="A2A server port when co-hosted (default: 9000)",
+    )
+
     # Other options
     parser.add_argument(
         "--journal-path",
@@ -109,6 +122,18 @@ Authentication (HTTP mode):
         allow_plaintext=args.allow_plaintext,
         require_auth=not args.no_auth,
     )
+
+    # Enable A2A co-hosting if requested
+    if args.a2a:
+        try:
+            import a2a  # noqa: F401
+            server._a2a_enabled = True
+        except ImportError:
+            print(
+                "Warning: --a2a requested but a2a-sdk not installed. "
+                "Install with: pip install primr[a2a]",
+                file=sys.stderr,
+            )
 
     try:
         asyncio.run(server.run())
