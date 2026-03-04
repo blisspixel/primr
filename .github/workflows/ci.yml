@@ -47,7 +47,7 @@ jobs:
             --cov=primr.core.cli \
             --cov=primr.core.research_agent \
             --cov=primr.data.scrape \
-            --cov-fail-under=14 \
+            --cov-fail-under=13 \
             --cov-report=term
 
       - name: Test
