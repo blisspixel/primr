@@ -377,7 +377,14 @@ def main_rich():
             console.print()
             
             # Restart with the better Python
-            os.execv(better_python, [better_python] + sys.argv)
+            # On Windows, os.execv doesn't truly replace the process —
+            # it spawns a child and exits, leaving cmd.exe without a
+            # prompt after the child finishes.  Use subprocess instead.
+            if sys.platform == "win32":
+                result = subprocess.run([better_python] + sys.argv)
+                sys.exit(result.returncode)
+            else:
+                os.execv(better_python, [better_python] + sys.argv)
         else:
             console.print()
             console.print("  [yellow]Python 3.11 or newer is required[/yellow]")
