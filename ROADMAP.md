@@ -520,6 +520,46 @@ Goal: Make the Grok 4.1 pipeline the default and improve report quality.
 - `src/primr/mcp_server/pipeline_runner.py` — fast mode dispatch for "full"
 - `CLAUDE.md` — updated examples, costs, MCP docs
 
+### Agentic Pipeline + Report Quality + New Sections (Unreleased)
+
+Goal: Make the pipeline more agentic, fix quality bugs, improve UX, and add new report sections.
+
+**Bug Fixes:**
+- **Duplicate section elimination**: Section writing now deduplicates by title — if Grok hallucinates a section that already exists, it is dropped with a warning instead of appearing twice in the report
+- **Coherence pass rewrite**: Prompt completely rewritten to be minimally invasive (terminology, cross-references, transitions only). Guard threshold raised from 0.92 to 0.96. Eliminates the catastrophic word-loss bug (19,000 → 1,300 words)
+- **Contradiction resolution**: Contradictions detected during cross-validation are now resolved by standardizing conflicting values across sections, preferring best-sourced data. Previously only logged
+
+**UX Improvements:**
+- **Domain in progress**: "Scanning website" now shows the actual domain (e.g., "Scanning northgatemarket.com"). Phase subtitle also shows the domain
+- **Cleaner mode message**: "Using fast mode (Grok 4.1) — XAI_API_KEY detected..." replaced with "Using Grok 4.1 · for deeper research add --premium"
+- **Search sub-progress**: External source search and gap-filling search now show live progress (queries completed, results found, sources validated) instead of a static spinner during 15+ minute phases
+
+**Agentic Behavior:**
+- **Adaptive search depth**: After scraping, assesses data richness. Rich websites (>200K chars, 30+ pages) get reduced external search (10 queries, 20 sources). Thin websites (<20K chars, <5 pages) get increased search (15 queries, 40 sources)
+- **Source quality filtering**: LLM reviews all collected external sources and drops low-relevance ones. Prefers 5 high-quality sources over 25 mediocre ones, especially for less prominent companies
+- **Dynamic section selection**: Before writing, checks if analysis workbook contains evidence keywords for each section. Sections with zero evidence signals (e.g., Financial Profile when no financial data found) are skipped with a notice
+
+**New Report Sections (23 total, up from 21):**
+- **Industry Outlook** (part 2): Near-term (6-12mo), medium-term (1-3yr), long-term (3-5yr) industry trends with positioning assessment. Includes timeline table
+- **Strategic Leadership Perspective** (part 4): Simulated board meeting — builds executive personas from public data, debates findings from CEO/CFO/CTO/board perspectives, identifies alignment and tension points
+
+**Stronger QA Gate:**
+- Fast QA now checks for duplicate section headings and thin sections (<100 words) in addition to confidence labels, citations, and validation prompts
+- QA gate fails if duplicates or thin sections detected
+- Display includes `dupes=` and `thin=` counts when issues found
+
+**Search Query Improvements:**
+- External search queries now explicitly target industry trends/outlook and executive/board information
+- Ensures at least 2 industry trend queries and 1 leadership query per run
+
+**Files Modified:**
+- `src/primr/core/research_agent.py` — duplicate dedup, coherence rewrite, domain progress, sub-progress, adaptive depth, source quality filter, contradiction resolution, dynamic sections, QA gate
+- `src/primr/core/cli.py` — cleaner mode message
+- `src/primr/data/search_utils.py` — industry/leadership search queries
+- `src/primr/prompts/company_overview.yaml` — Industry Outlook, Strategic Leadership Perspective sections
+- `README.md` — updated sample output
+- Tests updated for 23-section count
+
 ## Near-Term Roadmap
 
 ### v1.13.0 - QA-Driven Report Iteration (Planned)

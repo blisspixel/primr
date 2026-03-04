@@ -1928,7 +1928,7 @@ def _handle_research(config: CLIConfig) -> int:
         # Auto-detect: if XAI_API_KEY is set, default to fast mode
         if os.environ.get("XAI_API_KEY"):
             use_fast_mode = True
-            console.info("Using fast mode (Grok 4.1) — XAI_API_KEY detected. Use --premium for Gemini + Deep Research.")
+            console.info("Using Grok 4.1 · for deeper research add --premium")
         else:
             console.info("Using standard mode (Gemini). Set XAI_API_KEY for faster, cheaper runs.")
 

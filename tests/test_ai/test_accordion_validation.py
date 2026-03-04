@@ -116,7 +116,7 @@ class TestYAMLConfiguration:
         assert "closing" in guidance, "Missing closing guidance"
 
     def test_all_sections_have_required_fields(self):
-        """All 21 sections have id, name, part, position, purpose, covers."""
+        """All 23 sections have id, name, part, position, purpose, covers."""
         from primr.prompts.composer import PromptComposer
 
         composer = PromptComposer()
@@ -144,14 +144,14 @@ class TestYAMLConfiguration:
                 f"Section {section.id} has invalid position: {position}"
 
     def test_section_count(self):
-        """Should have 21 sections defined."""
+        """Should have 23 sections defined."""
         from primr.prompts.composer import PromptComposer
 
         composer = PromptComposer()
         config = composer._load_config("company_overview")
 
-        assert len(config.sections) == 21, \
-            f"Expected 21 sections, got {len(config.sections)}"
+        assert len(config.sections) == 23, \
+            f"Expected 23 sections, got {len(config.sections)}"
 
 
 class TestPreflightValidator:
@@ -278,7 +278,7 @@ class TestOrchestratorConfiguration:
         orchestrator = DeepResearchOrchestrator.__new__(DeepResearchOrchestrator)
         sections = orchestrator.REPORT_SECTIONS
 
-        assert len(sections) == 21, f"Expected 21 sections, got {len(sections)}"
+        assert len(sections) == 23, f"Expected 23 sections, got {len(sections)}"
 
         # Verify structure
         for section in sections:

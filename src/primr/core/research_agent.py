@@ -1426,42 +1426,35 @@ def _fast_coherence_pass(
     if not report_content.strip():
         return report_content
 
-    prompt = f"""You are editing a strategic company overview for coherence and flow.
-The report was written section-by-section and needs LIGHT deduplication and transition smoothing.
+    prompt = f"""You are a copy editor making MINIMAL tweaks to a strategic company overview.
+The report was written section-by-section. Your ONLY job is light polish.
 
 Company: {company_name}
 Website: {website or 'N/A'}
 
-CRITICAL: The output MUST contain at least 95% of the original word count. This is a LIGHT editing pass, not a rewrite.
+CRITICAL: Output MUST be at least 98% of the original word count. You are NOT rewriting.
 
-TASKS (in priority order):
-1. CROSS-REFERENCE DUPLICATES: When the SAME specific fact or data point appears
-   verbatim in multiple sections, keep the FIRST occurrence intact and replace
-   ONLY the later duplicate sentence with a brief cross-reference like
-   "As noted in [Section Name]..." Do NOT delete surrounding context or analysis.
-   Example of ACCEPTABLE edit:
-     BEFORE: "Revenue grew 25% in 2025." (appearing in section 5, already stated in section 2)
-     AFTER: "As noted in the Financial Overview, revenue growth was strong."
-   Example of UNACCEPTABLE edit:
-     Deleting an entire paragraph because one sentence overlaps with another section.
-2. SMOOTH TRANSITIONS: Add 1-2 sentence transitions between sections so the report
-   reads as a continuous narrative, not isolated blocks.
-3. FRAMEWORK COHERENCE: Ensure SWOT, Porter's, and Value Chain sections explicitly
-   reference the analytical sections that precede them.
-4. TERMINOLOGY CONSISTENCY: Standardize how the company, products, and competitors
-   are named throughout. Pick one form and use it consistently.
+YOUR THREE TASKS — nothing else:
+1. TERMINOLOGY: If the company/product name varies (e.g. "Northgate" vs "Northgate Gonzalez"),
+   pick one form and use it consistently. Fix obvious typos only.
+2. CROSS-REFERENCES: If the EXACT same sentence (same fact, same number) appears in two
+   sections, replace the SECOND occurrence with "As noted in [Section Name]..." Keep all
+   surrounding paragraphs intact.
+3. TRANSITIONS: Add ONE linking sentence at the start of each section (e.g. "Building on
+   the financial profile above...") if no transition exists.
 
-STRICT RULES — do NOT modify these elements:
-- Do NOT remove or rename ## section headings
-- Do NOT remove [cite: N] citations
-- Do NOT remove confidence labels (Confirmed/Reported/Estimated/Hypothesis)
-- Do NOT remove "What to validate:" lines
-- Do NOT remove or restructure tables
-- Do NOT add new facts, claims, or analysis — only edit for coherence
-- Do NOT delete paragraphs, bullet points, or subsections — only edit individual sentences
-- PRESERVE all depth, evidence, and analysis. Every paragraph in the input should appear in the output.
+ABSOLUTE PROHIBITIONS:
+- Do NOT delete ANY paragraph, bullet, subsection, or table
+- Do NOT remove or rename ## headings
+- Do NOT remove [cite: N], confidence labels, or "What to validate:" lines
+- Do NOT rewrite sentences for style — only fix terminology and add cross-references
+- Do NOT summarize, condense, or merge sections
+- Do NOT add new facts or analysis
+- Every paragraph in the input MUST appear in the output
 
-Return the fully edited markdown report only. No preamble or commentary.
+If in doubt, leave the text unchanged. Err on the side of doing nothing.
+
+Return the full markdown report. No preamble.
 
 --- REPORT START ---
 {report_content}
@@ -1488,7 +1481,7 @@ Return the fully edited markdown report only. No preamble or commentary.
         _, original_sections = _split_markdown_sections(report_content)
         _, polished_sections = _split_markdown_sections(polished)
 
-        if polished_words < int(original_words * 0.92):
+        if polished_words < int(original_words * 0.96):
             logger.warning(
                 "Coherence pass dropped too many words (%d → %d), using original",
                 original_words, polished_words,
@@ -1763,7 +1756,11 @@ def _enforce_fast_section_quality_guards(report_content: str) -> str:
 
 
 def _compute_fast_report_qa_metrics(report_content: str) -> dict[str, int | float | bool]:
-    """Compute lightweight local QA metrics for fast reports."""
+    """Compute lightweight local QA metrics for fast reports.
+
+    Checks: confidence labels, citations, validation prompts, duplicate
+    sections, and thin sections.
+    """
     confidence_labels = len(
         re.findall(r"\((Confirmed|Reported|Estimated|Hypothesis)[^)]*\)", report_content, re.IGNORECASE)
     )
@@ -1785,6 +1782,28 @@ def _compute_fast_report_qa_metrics(report_content: str) -> dict[str, int | floa
         if h.strip().lower() not in reference_headings and "what to validate:" in body.lower()
     )
 
+    # Check for duplicate section headings
+    heading_counts: dict[str, int] = {}
+    for h, _ in sections:
+        key = h.strip().lower()
+        heading_counts[key] = heading_counts.get(key, 0) + 1
+    duplicate_sections = sum(1 for c in heading_counts.values() if c > 1)
+
+    # Check for thin sections (< 100 words)
+    thin_sections = sum(
+        1 for h, body in sections
+        if h.strip().lower() not in reference_headings and len(body.split()) < 100
+    )
+
+    # QA gate: stricter — also checks for duplicates and thin sections
+    qa_passed = bool(
+        confidence_labels >= 8
+        and len(missing) == 0
+        and with_validate >= max(1, len(content_sections))
+        and duplicate_sections == 0
+        and thin_sections == 0
+    )
+
     return {
         "word_count": len(report_content.split()),
         "confidence_labels": confidence_labels,
@@ -1793,7 +1812,9 @@ def _compute_fast_report_qa_metrics(report_content: str) -> dict[str, int | floa
         "missing_citations": len(missing),
         "section_count": len(content_sections),
         "sections_with_validate": with_validate,
-        "qa_gate_passed": bool(confidence_labels >= 8 and len(missing) == 0 and with_validate >= max(1, len(content_sections))),
+        "duplicate_sections": duplicate_sections,
+        "thin_sections": thin_sections,
+        "qa_gate_passed": qa_passed,
     }
 
 
@@ -2071,6 +2092,86 @@ SUPPORTS. Be conservative on financial estimates — use wide ranges and note co
     These should be questions a CONSULTING PARTNER would ask in a first meeting —
     sharp, grounded in evidence, testing specific hypotheses.
 """
+
+
+def _assess_source_relevance(
+    company_name: str,
+    external_data: dict[str, str],
+) -> dict[str, str]:
+    """Filter external sources by relevance using LLM assessment.
+
+    Asks the LLM to rate each source's relevance given the company's profile.
+    Drops sources that are generic filler rather than genuinely informative.
+    Returns a filtered dict of URL -> content.
+    """
+    if len(external_data) <= 5:
+        return external_data  # too few to bother filtering
+
+    # Build a compact summary of each source for LLM review
+    source_summaries: list[str] = []
+    url_list = list(external_data.keys())
+    for i, url in enumerate(url_list):
+        snippet = external_data[url][:500].replace("\n", " ")
+        source_summaries.append(f"{i + 1}. {url}\n   {snippet}")
+
+    prompt = f"""You are evaluating external research sources about {company_name}.
+
+Below are {len(url_list)} sources. For each, decide: KEEP or DROP.
+
+KEEP a source if it provides SPECIFIC, USEFUL intelligence about {company_name}:
+- Names executives, financials, deals, partnerships, or strategies
+- Provides industry analysis mentioning this company specifically
+- Contains news, press releases, or analyst coverage about this company
+
+DROP a source if it is:
+- Generic industry content that barely mentions the company
+- A directory listing, job board, or social media page with no substance
+- Duplicate information already covered by another KEPT source
+- Tangentially related but not genuinely informative
+
+IMPORTANT: For smaller or less prominent companies, it is BETTER to keep 5 high-quality
+sources than 25 mediocre ones. Be selective. Quality over quantity.
+
+SOURCES:
+{chr(10).join(source_summaries)}
+
+Return ONLY a JSON array of the source NUMBERS to KEEP (e.g. [1, 3, 5, 8]).
+No prose, no explanation."""
+
+    try:
+        response = llm(prompt, model_type="fast", streaming=False).strip()
+        # Parse the JSON array
+        import json as _json
+        # Strip markdown fencing if present
+        text = response.strip()
+        if text.startswith("```"):
+            first_nl = text.find("\n")
+            text = text[first_nl + 1:] if first_nl != -1 else text[3:]
+            if text.rstrip().endswith("```"):
+                text = text.rstrip()[:-3]
+            text = text.strip()
+        bracket_start = text.find("[")
+        bracket_end = text.rfind("]")
+        if bracket_start != -1 and bracket_end > bracket_start:
+            keep_indices = _json.loads(text[bracket_start:bracket_end + 1])
+        else:
+            return external_data  # parse failed, keep all
+
+        # Convert 1-indexed numbers to 0-indexed
+        keep_set = {int(n) - 1 for n in keep_indices if isinstance(n, (int, float))}
+        filtered = {url_list[i]: external_data[url_list[i]] for i in keep_set if 0 <= i < len(url_list)}
+
+        if len(filtered) < 3:
+            # LLM was too aggressive, keep originals
+            return external_data
+
+        dropped = len(external_data) - len(filtered)
+        if dropped > 0:
+            log_structured("info", "Source quality filter dropped low-relevance sources",
+                           kept=len(filtered), dropped=dropped)
+        return filtered
+    except Exception:
+        return external_data  # on any error, keep all sources
 
 
 def _fast_gap_analysis(
@@ -2835,10 +2936,11 @@ def perform_fast_research(
         # =================================================================
         # Phase 1: Data collection (Gemini Flash — cheap)
         # =================================================================
-        console.phase_banner(1, total_phases, "Data Collection (fast)", "Scraping website + external sources", "5-8 min")
+        scan_domain = urlparse(website or "").netloc.replace("www.", "") if website else "website"
+        console.phase_banner(1, total_phases, "Data Collection (fast)", f"Scraping {scan_domain} + external sources", "5-8 min")
 
         # Scrape website (50 pages for enhanced fast mode)
-        with console.timed_operation("Scanning website"):
+        with console.timed_operation(f"Scanning {scan_domain}"):
             scraped_data = fetch_web_content(website, company_name, max_pages=50, working_folder=folder_path) if website else {}
             pages_scraped = len(scraped_data)
         log_structured("info", "Fast mode: website scraping complete", pages=pages_scraped)
@@ -2859,57 +2961,94 @@ def perform_fast_research(
             raw_corpus_parts.append(f"[Page: {url}]\n{truncated}")
         raw_corpus = "\n\n".join(raw_corpus_parts) if raw_corpus_parts else ""
 
-        # External research (15 queries, up to 30 sources)
+        # Adaptive depth: assess data richness to calibrate search effort
+        total_scraped_chars = sum(len(v) for v in scraped_data.values())
+        if total_scraped_chars > 200_000 and pages_scraped > 30:
+            # Rich website — reduce external search, data is abundant
+            _search_depth = "rich"
+            _ext_query_count = 10
+            _max_ext = 20
+            log_structured("info", "Adaptive depth: rich website, reducing external search", pages=pages_scraped, chars=total_scraped_chars)
+        elif total_scraped_chars < 20_000 or pages_scraped < 5:
+            # Thin website — increase external search to compensate
+            _search_depth = "thin"
+            _ext_query_count = 15
+            _max_ext = 40
+            console.info(f"Thin website data ({pages_scraped} pages) — increasing external search depth")
+            log_structured("info", "Adaptive depth: thin website, increasing external search", pages=pages_scraped, chars=total_scraped_chars)
+        else:
+            # Normal
+            _search_depth = "normal"
+            _ext_query_count = 15
+            _max_ext = 30
+
+        # External research (adaptive query count)
         source_urls: list[str] = []
         source_urls_seen: set[str] = set()  # O(1) dedup across phases
         external_text_parts: list[str] = []
         external_raw_parts: list[str] = []
-        with console.timed_operation("Searching external sources"):
-            external_queries = generate_external_search_queries(
-                company_name,
-                website,
-                max_queries=15,
+        external_queries = generate_external_search_queries(
+            company_name,
+            website,
+            max_queries=_ext_query_count,
+        )
+        external_data: dict = {}
+        max_external_sources = _max_ext
+        _ext_search_start = time.time()
+
+        def _search_one(query: str) -> list[dict]:
+            """Search for a single query (thread-safe HTTP call)."""
+            results = search_web(query, company_name, website)
+            if not results:
+                return []
+            return [r for r in results[:5]
+                    if not website or website.lower() not in r.get("url", "").lower()]
+
+        # Phase 1: parallel searches (thread-safe HTTP calls)
+        console.status(f"Searching external sources (0/{len(external_queries)} queries)")
+        all_search_results: list[dict] = []
+        _queries_done = 0
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            futures = [executor.submit(_search_one, q)
+                       for q in external_queries]
+            for future in as_completed(futures):
+                try:
+                    all_search_results.extend(future.result())
+                except Exception:
+                    pass  # individual query failure is non-fatal
+                _queries_done += 1
+                console.status(f"Searching external sources ({_queries_done}/{len(external_queries)} queries, {len(all_search_results)} results)")
+
+        # Phase 2: sequential scraping on main thread (Playwright-safe)
+        _scrape_idx = 0
+        _scrape_total = min(len(all_search_results), max_external_sources)
+        for result in all_search_results:
+            if len(external_data) >= max_external_sources:
+                break
+            url = result.get("url")
+            if not url or url in external_data:
+                continue
+            _scrape_idx += 1
+            console.status(f"Validating external sources ({len(external_data)} validated, checking {_scrape_idx}/{_scrape_total})")
+            scraped = scrape_external_sources_validated(
+                [result], company_name=company_name, website=website,
+                max_sources=1,
             )
-            external_data: dict = {}
-            max_external_sources = 30
+            external_data.update(scraped)
 
-            def _search_one(query: str) -> list[dict]:
-                """Search for a single query (thread-safe HTTP call)."""
-                results = search_web(query, company_name, website)
-                if not results:
-                    return []
-                return [r for r in results[:5]
-                        if not website or website.lower() not in r.get("url", "").lower()]
+        console.ok(f"Searching external sources ({console._elapsed(_ext_search_start)})")
 
-            # Phase 1: parallel searches (thread-safe HTTP calls)
-            all_search_results: list[dict] = []
-            with ThreadPoolExecutor(max_workers=3) as executor:
-                futures = [executor.submit(_search_one, q)
-                           for q in external_queries]
-                for future in as_completed(futures):
-                    try:
-                        all_search_results.extend(future.result())
-                    except Exception:
-                        pass  # individual query failure is non-fatal
+        # Adaptive quality filter: drop low-relevance sources
+        pre_filter_count = len(external_data)
+        external_data = _assess_source_relevance(company_name, external_data)
+        if len(external_data) < pre_filter_count:
+            console.info(f"Quality filter: {pre_filter_count} → {len(external_data)} sources (dropped {pre_filter_count - len(external_data)} low-relevance)")
 
-            # Phase 2: sequential scraping on main thread (Playwright-safe)
-            for result in all_search_results:
-                if len(external_data) >= max_external_sources:
-                    break
-                url = result.get("url")
-                if not url or url in external_data:
-                    continue
-                scraped = scrape_external_sources_validated(
-                    [result], company_name=company_name, website=website,
-                    max_sources=1,
-                )
-                external_data.update(scraped)
-
-            for url, content in external_data.items():
-                source_urls.append(url)
-                source_urls_seen.add(url)
-                external_text_parts.append(f"[Source: {url}]\n{content[:12_000]}")
-                external_raw_parts.append(f"[Source: {url}]\n{content[:20_000]}")
+        for url, content in external_data.items():
+            source_urls.append(url)
+            source_urls_seen.add(url)
+            external_text_parts.append(f"[Source: {url}]\n{content[:12_000]}")
+            external_raw_parts.append(f"[Source: {url}]\n{content[:20_000]}")
 
         log_structured("info", "Fast mode: external sources complete", sources=len(external_data))
         console.phase_complete("Data Collection (fast)", [("Pages", str(pages_scraped)), ("External", str(len(external_data)))])
@@ -2951,49 +3090,59 @@ def perform_fast_research(
             console.ok(f"Gap analysis: {len(gap_queries)} questions identified")
             max_gap_sources = 15
 
-            with console.timed_operation("Searching for gap-filling sources"):
-                def _gap_search_one(gq: str) -> list[dict]:
-                    """Search for a single gap query (thread-safe HTTP call)."""
-                    results = search_web(gq, company_name, website)
-                    if not results:
-                        return []
-                    return [
-                        r for r in results[:3]
-                        if (not website or website.lower() not in r.get("url", "").lower())
-                        and r.get("url", "") not in source_urls_seen
-                    ]
+            _gap_start = time.time()
 
-                # Phase 1: parallel searches (thread-safe HTTP calls)
-                gap_search_results: list[dict] = []
-                with ThreadPoolExecutor(max_workers=3) as executor:
-                    futures = [executor.submit(_gap_search_one, gq)
-                               for gq in gap_queries]
-                    for future in as_completed(futures):
-                        try:
-                            gap_search_results.extend(future.result())
-                        except Exception:
-                            pass  # individual gap query failure is non-fatal
+            def _gap_search_one(gq: str) -> list[dict]:
+                """Search for a single gap query (thread-safe HTTP call)."""
+                results = search_web(gq, company_name, website)
+                if not results:
+                    return []
+                return [
+                    r for r in results[:3]
+                    if (not website or website.lower() not in r.get("url", "").lower())
+                    and r.get("url", "") not in source_urls_seen
+                ]
 
-                # Phase 2: sequential scraping on main thread (Playwright-safe)
-                for result in gap_search_results:
+            # Phase 1: parallel searches (thread-safe HTTP calls)
+            gap_search_results: list[dict] = []
+            _gap_queries_done = 0
+            console.status(f"Searching for gap-filling sources (0/{len(gap_queries)} queries)")
+            with ThreadPoolExecutor(max_workers=3) as executor:
+                futures = [executor.submit(_gap_search_one, gq)
+                           for gq in gap_queries]
+                for future in as_completed(futures):
+                    try:
+                        gap_search_results.extend(future.result())
+                    except Exception:
+                        pass  # individual gap query failure is non-fatal
+                    _gap_queries_done += 1
+                    console.status(f"Searching for gap-filling sources ({_gap_queries_done}/{len(gap_queries)} queries, {len(gap_search_results)} results)")
+
+            # Phase 2: sequential scraping on main thread (Playwright-safe)
+            _gap_check_idx = 0
+            for result in gap_search_results:
+                if gap_new_sources >= max_gap_sources:
+                    break
+                url = result.get("url")
+                if not url or url in source_urls_seen:
+                    continue
+                _gap_check_idx += 1
+                console.status(f"Validating gap sources ({gap_new_sources} found, checking {_gap_check_idx})")
+                scraped = scrape_external_sources_validated(
+                    [result], company_name=company_name, website=website,
+                    max_sources=1,
+                )
+                for scraped_url, content in scraped.items():
                     if gap_new_sources >= max_gap_sources:
                         break
-                    url = result.get("url")
-                    if not url or url in source_urls_seen:
-                        continue
-                    scraped = scrape_external_sources_validated(
-                        [result], company_name=company_name, website=website,
-                        max_sources=1,
-                    )
-                    for scraped_url, content in scraped.items():
-                        if gap_new_sources >= max_gap_sources:
-                            break
-                        if scraped_url not in source_urls_seen:
-                            source_urls.append(scraped_url)
-                            source_urls_seen.add(scraped_url)
-                            external_text_parts.append(f"[Source: {scraped_url}]\n{content[:12_000]}")
-                            external_raw_parts.append(f"[Source: {scraped_url}]\n{content[:20_000]}")
-                            gap_new_sources += 1
+                    if scraped_url not in source_urls_seen:
+                        source_urls.append(scraped_url)
+                        source_urls_seen.add(scraped_url)
+                        external_text_parts.append(f"[Source: {scraped_url}]\n{content[:12_000]}")
+                        external_raw_parts.append(f"[Source: {scraped_url}]\n{content[:20_000]}")
+                        gap_new_sources += 1
+
+            console.ok(f"Searching for gap-filling sources ({console._elapsed(_gap_start)})")
 
             console.ok(f"Found {gap_new_sources} additional sources")
 
@@ -3062,7 +3211,7 @@ def perform_fast_research(
         # =================================================================
         # Phase 4: Grok report writing (parallel within parts + coherence)
         # =================================================================
-        console.phase_banner(4, total_phases, "Report Writing (Grok)", "Writing 21 sections (parallel within parts)", "2-4 min")
+        console.phase_banner(4, total_phases, "Report Writing (Grok)", "Writing sections (parallel within parts)", "3-5 min")
 
         # Build a raw data subset for evidence (~100k chars — workbook already distills corpus)
         raw_corpus_subset = raw_corpus[:100_000] if len(raw_corpus) > 100_000 else raw_corpus
@@ -3099,6 +3248,31 @@ def perform_fast_research(
         from concurrent.futures import ThreadPoolExecutor, as_completed
 
         section_batches = _group_sections_by_part()
+
+        # Dynamic section selection: skip sections that lack evidence
+        # based on what the analysis workbook actually contains
+        _evidence_keywords = {
+            "financial_profile": ["revenue", "profit", "margin", "funding", "valuation", "earnings"],
+            "company_history": ["founded", "history", "acquisition", "pivot", "milestone"],
+            "industry_outlook": ["industry trend", "regulation", "outlook", "forecast", "disruption"],
+        }
+        workbook_lower = analysis_workbook.lower() if analysis_workbook else ""
+        _skipped_sections: list[str] = []
+        for batch in section_batches:
+            to_remove = []
+            for sec in batch:
+                if sec.id in _evidence_keywords:
+                    keywords = _evidence_keywords[sec.id]
+                    hits = sum(1 for kw in keywords if kw in workbook_lower)
+                    if hits == 0:
+                        to_remove.append(sec)
+                        _skipped_sections.append(sec.name)
+            for sec in to_remove:
+                batch.remove(sec)
+        section_batches = [b for b in section_batches if b]
+        if _skipped_sections:
+            console.info(f"Skipping {len(_skipped_sections)} section(s) with insufficient evidence: {', '.join(_skipped_sections)}")
+
         all_sections = [s for part in section_batches for s in part]
 
         # Pop executive_summary — write it LAST so it can synthesize the full report
@@ -3163,8 +3337,14 @@ def perform_fast_research(
 
             # Sort by local index to maintain canonical section order
             results.sort(key=lambda x: x[0])
+            seen_titles: set[str] = {s["title"].lower().strip() for s in written_sections}
             for local_idx, parsed in results:
                 if parsed:
+                    title_key = parsed["title"].lower().strip()
+                    if title_key in seen_titles:
+                        console.warn(f"  {parsed['title']} — duplicate, skipping")
+                        continue
+                    seen_titles.add(title_key)
                     written_sections.append(parsed)
                     console.ok(f"  {parsed['title']} ({parsed['words']:,} words)")
                 else:
@@ -3311,6 +3491,52 @@ def perform_fast_research(
             for c in contradictions:
                 console.info(f"Contradiction noted: {c[:100]}")
 
+            # Resolve contradictions by asking Grok to standardize
+            try:
+                contradiction_list = "\n".join(f"- {c}" for c in contradictions)
+                resolve_prompt = f"""You are editing a strategic report about {company_name or display_name}.
+
+The cross-validation pass found these contradictions between sections:
+
+{contradiction_list}
+
+For EACH contradiction:
+1. Determine which value has the strongest source/evidence
+2. Standardize the report to use that value consistently
+3. Add a confidence label if the value is uncertain
+
+RULES:
+- Do NOT delete any sections, paragraphs, or content
+- Only change the SPECIFIC contradictory values/numbers to be consistent
+- When evidence is ambiguous, use the most conservative estimate with a range
+- Add "(Estimated)" or "(Reported)" labels to standardized values
+- Preserve all ## headings, [cite: N] references, and structure
+
+Return the full corrected report. No preamble.
+
+--- REPORT ---
+{report_content}
+--- END ---"""
+
+                resolved = grok_llm(
+                    resolve_prompt,
+                    model=GROK_MODEL_WRITING,
+                    max_tokens=32_000,
+                    temperature=0.2,
+                    system_prompt="You are a fact-checker standardizing contradictory data points across report sections.",
+                )
+                if resolved and resolved.strip():
+                    resolved_words = len(resolved.split())
+                    original_words = len(report_content.split())
+                    if resolved_words >= int(original_words * 0.95):
+                        report_content = resolved
+                        console.ok(f"Resolved {len(contradictions)} contradiction(s)")
+                    else:
+                        logger.warning("Contradiction resolution dropped too many words (%d → %d), keeping original",
+                                       original_words, resolved_words)
+            except Exception as resolve_err:
+                logger.warning("Contradiction resolution failed: %s", resolve_err)
+
         # Save cross-validation output to working folder
         cv_output_path = os.path.join(folder_path, "cross_validation.json")
         with open(cv_output_path, "w", encoding="utf-8") as f:
@@ -3331,13 +3557,17 @@ def perform_fast_research(
         report_content = _enforce_fast_section_quality_guards(report_content)
         report_content = _clean_fast_report_output(report_content)
         qa_metrics = _compute_fast_report_qa_metrics(report_content)
-        console.info(
-            "Fast QA: "
-            f"labels={qa_metrics['confidence_labels']}, "
-            f"cites={qa_metrics['citations_used']}/{qa_metrics['citations_defined']}, "
-            f"validate={qa_metrics['sections_with_validate']}/{qa_metrics['section_count']}, "
-            f"gate={'PASS' if qa_metrics['qa_gate_passed'] else 'WARN'}"
-        )
+        qa_parts = [
+            f"labels={qa_metrics['confidence_labels']}",
+            f"cites={qa_metrics['citations_used']}/{qa_metrics['citations_defined']}",
+            f"validate={qa_metrics['sections_with_validate']}/{qa_metrics['section_count']}",
+        ]
+        if qa_metrics.get("duplicate_sections", 0) > 0:
+            qa_parts.append(f"dupes={qa_metrics['duplicate_sections']}")
+        if qa_metrics.get("thin_sections", 0) > 0:
+            qa_parts.append(f"thin={qa_metrics['thin_sections']}")
+        qa_parts.append(f"gate={'PASS' if qa_metrics['qa_gate_passed'] else 'WARN'}")
+        console.info("Fast QA: " + ", ".join(qa_parts))
 
         # Save report via existing output pipeline
         docx_path = _convert_deep_research_to_docx(report_content, company_name or display_name, website)
