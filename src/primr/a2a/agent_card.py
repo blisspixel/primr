@@ -12,47 +12,67 @@ import logging
 from importlib.metadata import version as pkg_version
 
 from a2a.types import (
-    AgentAuthentication,
     AgentCapabilities,
     AgentCard,
     AgentSkill,
+    HTTPAuthSecurityScheme,
+    SecurityScheme,
 )
 
 logger = logging.getLogger(__name__)
 
-# Skill definitions mapping to existing MCP tools
+# Skill definitions mapping to existing MCP tools.
+#
+# Input/output format documented in description since a2a-sdk v0.3.x
+# AgentSkill does not have inputSchema/outputSchema fields.
+# When SDK adds schema support, migrate to structured schemas.
 _SKILLS: list[dict] = [
     {
         "id": "estimate_research",
         "name": "Estimate Research Cost",
         "description": (
             "Estimate the cost, time, and page count for a company research run. "
-            "Call this before starting research."
+            "Call this before starting research.\n\n"
+            "Input (JSON or natural language): {\"url\": \"https://example.com\", \"mode\": \"full\"}\n"
+            "Modes: scrape (~$0.10, 5-10 min), deep (~$2.50, 10-15 min), "
+            "full (~$0.55, ~30 min, default), premium (~$5, 50-75 min)\n\n"
+            "Output: JSON with estimated_cost_usd, estimated_time_minutes, estimated_pages"
         ),
         "tags": ["estimate", "cost", "planning"],
         "examples": [
             "How much would it cost to research Acme Corp?",
             "Estimate research for https://example.com",
+            '{"url": "https://acme.com", "mode": "deep"}',
         ],
     },
     {
         "id": "research_company",
         "name": "Research Company",
         "description": (
-            "Start an asynchronous company research job. Returns a job ID for tracking. "
-            "Supports modes: scrape (website only), deep (external research), "
-            "full (Grok-powered), premium (Gemini + Deep Research)."
+            "Start an asynchronous company research job. Returns a job ID for "
+            "tracking. Streams progress events via SSE until completion.\n\n"
+            "Input (JSON or natural language): "
+            '{\"url\": \"https://example.com\", \"name\": \"Acme Corp\", \"mode\": \"full\"}\n'
+            "Modes: scrape (website only), deep (external research), "
+            "full (Grok-powered, default), premium (Gemini + Deep Research)\n\n"
+            "Output: SSE stream of TaskStatusUpdateEvent, final artifact is "
+            "a .docx research brief path"
         ),
-        "tags": ["research", "company", "async", "intelligence"],
+        "tags": ["research", "company", "async", "intelligence", "streaming"],
         "examples": [
             "Research Acme Corp at https://acme.com",
             "Run a deep research job on https://example.com",
+            '{"url": "https://acme.com", "name": "Acme Corp", "mode": "premium"}',
         ],
     },
     {
         "id": "check_jobs",
         "name": "Check Research Jobs",
-        "description": "Check the status of the current or most recent research job.",
+        "description": (
+            "Check the status of the current or most recent research job.\n\n"
+            "Input: none required\n\n"
+            "Output: JSON with job_id, company, stage, progress (0-100), status"
+        ),
         "tags": ["status", "jobs", "monitoring"],
         "examples": [
             "What's the status of the current research?",
@@ -64,19 +84,27 @@ _SKILLS: list[dict] = [
         "name": "Run Quality Assessment",
         "description": (
             "Run a quality assessment on a completed research report. "
-            "Returns scores and improvement suggestions."
+            "Returns scores and improvement suggestions.\n\n"
+            "Input (JSON or natural language): {\"path\": \"/path/to/report.docx\"}\n"
+            "If path omitted, uses the latest completed report.\n\n"
+            "Output: JSON with overall_score (0-100), section_scores, "
+            "improvement_suggestions, confidence_level"
         ),
         "tags": ["qa", "quality", "assessment"],
         "examples": [
             "Run QA on the latest report",
             "Check the quality of the Acme Corp report",
+            '{"path": "output/acme-corp/report.docx"}',
         ],
     },
     {
         "id": "system_health",
         "name": "System Health Check",
         "description": (
-            "Check Primr system health: API keys, dependencies, and configuration."
+            "Check Primr system health: API keys, dependencies, and configuration.\n\n"
+            "Input: none required\n\n"
+            "Output: JSON with status (healthy/degraded/unhealthy), checks array "
+            "with individual component statuses"
         ),
         "tags": ["health", "doctor", "diagnostics"],
         "examples": [
@@ -117,6 +145,8 @@ def build_agent_card(
             description=s["description"],
             tags=s["tags"],
             examples=s["examples"],
+            input_modes=["text"],
+            output_modes=["text"],
         )
         for s in _SKILLS
     ]
@@ -131,14 +161,19 @@ def build_agent_card(
         ),
         url=url,
         version=version,
-        defaultInputModes=["text"],
-        defaultOutputModes=["text"],
+        default_input_modes=["text"],
+        default_output_modes=["text"],
         capabilities=AgentCapabilities(
             streaming=True,
-            pushNotifications=False,
+            push_notifications=False,
         ),
         skills=skills,
-        authentication=AgentAuthentication(schemes=["bearer"]),
+        security_schemes={
+            "bearer": SecurityScheme(
+                root=HTTPAuthSecurityScheme(scheme="bearer", type="http")
+            ),
+        },
+        security=[{"bearer": []}],
     )
 
     logger.info("Built AgentCard: %s v%s at %s (%d skills)", card.name, version, url, len(skills))
