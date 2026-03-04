@@ -208,6 +208,16 @@ class A2AClient:
                                     yield json.loads(data)
                                 except json.JSONDecodeError:
                                     logger.warning("Failed to parse SSE data: %s", data[:100])
+            # Flush any remaining complete SSE lines in the buffer
+            if buffer.strip():
+                for line in buffer.split("\n"):
+                    if line.startswith("data: "):
+                        data = line[6:]
+                        if data.strip():
+                            try:
+                                yield json.loads(data)
+                            except json.JSONDecodeError:
+                                logger.warning("Failed to parse trailing SSE data: %s", data[:100])
 
     async def get_task(self, task_id: str) -> dict[str, Any]:
         """Get the current state of a task.

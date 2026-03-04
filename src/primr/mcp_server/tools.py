@@ -336,7 +336,11 @@ async def _handle_estimate_run(
             text=json.dumps({
                 "error": True,
                 "error_type": url_result.error_type,
-                "error_code": MCPErrorCode.INVALID_URL if url_result.error_type == "invalid_url" else MCPErrorCode.SSRF_BLOCKED,
+                "error_code": {
+                    "invalid_url": MCPErrorCode.INVALID_URL,
+                    "ssrf_blocked": MCPErrorCode.SSRF_BLOCKED,
+                    "url_unreachable": MCPErrorCode.URL_UNREACHABLE,
+                }.get(url_result.error_type, MCPErrorCode.INVALID_URL),
                 "message": url_result.error_message,
             }),
         )]
@@ -889,12 +893,17 @@ async def _handle_delegate_to_agent(
     # Validate URL via SSRF protection
     url_result = mcp_server.url_validator.validate(agent_url)
     if not url_result.valid:
+        error_code = {
+            "invalid_url": MCPErrorCode.INVALID_URL,
+            "ssrf_blocked": MCPErrorCode.SSRF_BLOCKED,
+            "url_unreachable": MCPErrorCode.URL_UNREACHABLE,
+        }.get(url_result.error_type, MCPErrorCode.INVALID_URL)
         return [TextContent(
             type="text",
             text=json.dumps({
                 "error": True,
                 "error_type": url_result.error_type,
-                "error_code": MCPErrorCode.SSRF_BLOCKED,
+                "error_code": error_code,
                 "message": f"Agent URL blocked: {url_result.error_message}",
             }),
         )]
