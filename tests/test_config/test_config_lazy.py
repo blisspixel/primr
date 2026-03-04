@@ -21,9 +21,9 @@ class TestLazyAPIKeyValidation:
     """
     **Feature: research-agent-decomposition, Property 2: Lazy API key validation**
     **Validates: Requirements 3.2**
-    
+
     Property: For any access to an API key property when the key is not configured,
-    the System SHALL raise ConfigurationError. For any access when the key is 
+    the System SHALL raise ConfigurationError. For any access when the key is
     configured, the System SHALL return the key value.
     """
 
@@ -199,7 +199,7 @@ class TestModuleImportWithoutAPIKeys:
     """
     **Feature: research-agent-decomposition, Property 1: Module import compatibility**
     **Validates: Requirements 3.1, 3.3**
-    
+
     Tests that config module can be imported without API keys configured.
     """
 

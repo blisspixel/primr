@@ -13,10 +13,13 @@ to the deployment scripts or configuration files.
 from __future__ import annotations
 
 import re
-from collections.abc import Iterator
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 # =============================================================================
 # SECRET PATTERNS
@@ -122,7 +125,7 @@ def is_allowed_match(line: str, match: str) -> bool:
 def scan_file_for_secrets(file_path: Path) -> list[tuple[int, str, str, str]]:
     """
     Scan a file for potential hardcoded secrets.
-    
+
     Returns:
         List of (line_number, pattern_name, match, line) tuples
     """
@@ -138,7 +141,7 @@ def scan_file_for_secrets(file_path: Path) -> list[tuple[int, str, str, str]]:
     for line_num, line in enumerate(lines, start=1):
         # Skip comments
         stripped = line.strip()
-        if stripped.startswith("#") or stripped.startswith("//"):
+        if stripped.startswith(("#", "//")):
             continue
 
         for pattern, pattern_name in SECRET_PATTERNS:
@@ -157,9 +160,9 @@ def scan_file_for_secrets(file_path: Path) -> list[tuple[int, str, str, str]]:
 class TestNoHardcodedSecrets:
     """
     Property 1: No Hardcoded Secrets
-    
+
     Scan all files in deploy/** for API key patterns.
-    
+
     **Validates: Requirements 8.1**
     """
 
@@ -279,14 +282,14 @@ class TestNoHardcodedSecrets:
     def test_comprehensive_secret_scan(self) -> None:
         """
         Comprehensive scan of all deploy files for any secret patterns.
-        
+
         This is the main property test that validates no secrets are hardcoded.
         """
         all_findings: list[tuple[Path, int, str, str]] = []
 
         for file_path in get_deploy_files():
             findings = scan_file_for_secrets(file_path)
-            for line_num, pattern_name, match, line in findings:
+            for line_num, pattern_name, match, _line in findings:
                 all_findings.append((file_path, line_num, pattern_name, match))
 
         if all_findings:

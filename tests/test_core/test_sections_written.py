@@ -25,7 +25,7 @@ class TestDeepResearchOrchestratorResultSectionsWritten:
     def test_sections_written_default_is_zero(self):
         """
         sections_written defaults to 0 when not specified.
-        
+
         **Validates: Requirements 4.1**
         """
         result = DeepResearchOrchestratorResult(
@@ -40,7 +40,7 @@ class TestDeepResearchOrchestratorResultSectionsWritten:
     def test_sections_written_can_be_set(self):
         """
         sections_written can be explicitly set.
-        
+
         **Validates: Requirements 4.1**
         """
         result = DeepResearchOrchestratorResult(
@@ -56,7 +56,7 @@ class TestDeepResearchOrchestratorResultSectionsWritten:
     def test_sections_written_reflects_partial_success(self):
         """
         sections_written reflects only successful sections when some fail.
-        
+
         **Validates: Requirements 4.4**
         """
         result = DeepResearchOrchestratorResult(
@@ -83,7 +83,7 @@ class TestOrchestratorResultSectionsWritten:
     def test_orchestrator_result_has_sections_written(self):
         """
         OrchestratorResult has sections_written field.
-        
+
         **Validates: Requirements 4.2**
         """
         result = OrchestratorResult(
@@ -99,7 +99,7 @@ class TestOrchestratorResultSectionsWritten:
     def test_orchestrator_result_sections_written_default(self):
         """
         OrchestratorResult.sections_written defaults to 0.
-        
+
         **Validates: Requirements 4.2**
         """
         result = OrchestratorResult(
@@ -113,11 +113,11 @@ class TestOrchestratorResultSectionsWritten:
     def test_sections_written_independent_of_section_results_length(self):
         """
         sections_written is independent of len(section_results).
-        
+
         This is the key fix - section_results may have only 1 key
         (strategic_overview) containing the entire report, but
         sections_written should reflect actual sections written.
-        
+
         **Validates: Requirements 4.3**
         """
         result = OrchestratorResult(
@@ -144,7 +144,7 @@ class TestSectionsWrittenPropagation:
     def test_deep_research_to_orchestrator_propagation(self):
         """
         sections_written propagates from DeepResearchOrchestratorResult to OrchestratorResult.
-        
+
         **Validates: Requirements 4.2**
         """
         # Simulate DeepResearchOrchestratorResult
@@ -183,7 +183,7 @@ def test_property_sections_written_accuracy(sections_written: int):
     """
     **Feature: test-coverage-hardening, Property 5: sections_written accuracy and propagation**
     **Validates: Requirements 4.1, 4.2, 4.3**
-    
+
     For any Accordion Method execution, sections_written should equal
     the count of successfully written sections.
     """
@@ -209,7 +209,7 @@ def test_property_sections_written_propagation(deep_sections: int):
     """
     **Feature: test-coverage-hardening, Property 5: sections_written accuracy and propagation**
     **Validates: Requirements 4.1, 4.2, 4.3**
-    
+
     For any sections_written value, it should propagate unchanged
     from DeepResearchOrchestratorResult to OrchestratorResult.
     """
@@ -246,7 +246,7 @@ def test_property_sections_written_reflects_success_only(successful: int, failed
     """
     **Feature: test-coverage-hardening, Property 5: sections_written accuracy and propagation**
     **Validates: Requirements 4.4**
-    
+
     When some sections fail, sections_written should reflect only successful sections.
     """
     total_attempted = successful + failed

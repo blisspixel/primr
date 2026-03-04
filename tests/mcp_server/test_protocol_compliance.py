@@ -34,7 +34,7 @@ from primr.mcp_server.types import MCPErrorCode
 class TestProtocolListResponseCompleteness:
     """
     Property 13: Protocol List Response Completeness
-    
+
     Validates: Requirements 16.3, 16.4, 16.5
     - All list responses have required fields
     - Tool schemas are valid JSON Schema
@@ -145,7 +145,7 @@ class TestProtocolListResponseCompleteness:
 class TestProtocolErrorCodes:
     """
     Property 14: Protocol Error Codes
-    
+
     Validates: Requirements 16.9, 16.10
     - Error responses use correct error codes
     - Error messages are informative
@@ -332,7 +332,7 @@ class TestProtocolErrorCodes:
 class TestToolParameterValidation:
     """
     Property 8: Tool Parameter Validation
-    
+
     Validates: Requirements 5.2, 5.3, 5.4, 5.5, 6.2, 6.3, 6.4, 7.2, 7.3, 8.2
     - Tools validate their parameters correctly
     - Invalid parameters return appropriate errors
@@ -401,7 +401,7 @@ class TestToolParameterValidation:
 class TestToolResultStructure:
     """
     Property 9: Tool Result Structure
-    
+
     Validates: Requirements 5.6, 6.5, 7.4, 7.5, 7.6, 8.3, 8.6, 18.2, 18.5
     - Tool results have correct structure
     - Success results have expected fields

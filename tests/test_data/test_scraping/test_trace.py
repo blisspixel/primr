@@ -213,7 +213,7 @@ class TestGoldenRunTrace:
     def test_golden_run_trace(self):
         """
         Verify trace artifact contains correct attempt sequence.
-        
+
         This is a regression test - if trace format changes, update expected.
         """
         with tempfile.TemporaryDirectory() as tmpdir:

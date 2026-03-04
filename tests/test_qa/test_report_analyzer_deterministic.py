@@ -13,7 +13,7 @@ from src.primr.qa.report_analyzer import ReportAnalyzer
 
 def _make_analyzer(content: str, filename: str = "test_report.md") -> ReportAnalyzer:
     """Create a ReportAnalyzer from in-memory content."""
-    tmp = tempfile.NamedTemporaryFile(
+    tmp = tempfile.NamedTemporaryFile(  # noqa: SIM115
         mode="w", suffix=f"_{filename}", delete=False, encoding="utf-8"
     )
     tmp.write(content)

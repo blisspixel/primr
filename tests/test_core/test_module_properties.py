@@ -153,7 +153,7 @@ class TestModuleIndependence:
         """Test workspace module can be imported independently."""
         # Clear any cached imports
         import sys
-        modules_to_clear = [k for k in sys.modules.keys() if 'primr.core' in k]
+        modules_to_clear = [k for k in sys.modules if 'primr.core' in k]
         for mod in modules_to_clear:
             if mod != 'primr.core':
                 pass  # Don't actually clear to avoid breaking other tests

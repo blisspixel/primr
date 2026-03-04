@@ -80,7 +80,7 @@ def roadmap_content(draw, num_versions: int | None = None):
 
         # Add some features
         num_features = draw(st.integers(min_value=0, max_value=3))
-        for j in range(num_features):
+        for _j in range(num_features):
             feature_name = draw(feature_names)
             lines.append(f"- {feature_name}\n")
 
@@ -257,13 +257,13 @@ def test_status_partitioning(content: str):
         api = RoadmapAPI(roadmap_path)
 
         # Get all versions
-        all_versions = set(v.number for v in api.list_all_versions())
+        all_versions = {v.number for v in api.list_all_versions()}
 
         # Get versions by each status
-        completed = set(v.number for v in api.list_by_status(VersionStatus.COMPLETED))
-        in_progress = set(v.number for v in api.list_by_status(VersionStatus.IN_PROGRESS))
-        planned = set(v.number for v in api.list_by_status(VersionStatus.PLANNED))
-        deferred = set(v.number for v in api.list_by_status(VersionStatus.DEFERRED))
+        completed = {v.number for v in api.list_by_status(VersionStatus.COMPLETED)}
+        in_progress = {v.number for v in api.list_by_status(VersionStatus.IN_PROGRESS)}
+        planned = {v.number for v in api.list_by_status(VersionStatus.PLANNED)}
+        deferred = {v.number for v in api.list_by_status(VersionStatus.DEFERRED)}
 
         # Union should equal all versions
         union = completed | in_progress | planned | deferred

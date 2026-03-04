@@ -15,7 +15,7 @@ from primr.output.output_utils import strip_markdown_artifacts
 class TestProperty9ContentEquivalence:
     """
     Property 9: Content equivalence across formats.
-    
+
     The same source content should produce equivalent information
     in TXT and DOCX formats - no content should be lost or corrupted.
     """

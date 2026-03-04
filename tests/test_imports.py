@@ -38,8 +38,8 @@ def test_module_imports_without_error(module_name: str):
     """
     **Feature: project-reorganization, Property 4: Import resolution**
     **Validates: Requirements 3.1, 4.3**
-    
-    For any module in the reorganized package, importing that module SHALL NOT 
+
+    For any module in the reorganized package, importing that module SHALL NOT
     raise an ImportError, verifying all internal imports are correctly updated.
     """
     import importlib
@@ -54,7 +54,7 @@ def test_module_imports_without_error(module_name: str):
         assert module is not None, f"Module {module_name} imported as None"
 
     except ImportError as e:
-        raise AssertionError(f"Failed to import {module_name}: {e}")
+        raise AssertionError(f"Failed to import {module_name}: {e}") from e
 
 
 def test_main_package_exports():

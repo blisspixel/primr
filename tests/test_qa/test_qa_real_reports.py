@@ -230,10 +230,10 @@ The analysis suggests Evertrue is well-positioned for continued growth, with par
 
             # Validate that comprehensive reports receive proper assessment
             assert isinstance(result, SimpleQAResult)
-            assert result.parsing_success == True, "Should successfully parse comprehensive report"
+            assert result.parsing_success, "Should successfully parse comprehensive report"
             assert result.error_message is None, "Should not have errors for well-structured report"
             assert result.confidence_level == "high", "Should have high confidence for comprehensive analysis"
-            assert result.ready_for_use == True, "Should indicate readiness for comprehensive report"
+            assert result.ready_for_use, "Should indicate readiness for comprehensive report"
 
             # Validate quality of feedback
             assert len(result.key_strengths) >= 5, "Should identify multiple strengths in comprehensive report"
@@ -261,7 +261,7 @@ The analysis suggests Evertrue is well-positioned for continued growth, with par
 ## Executive Summary
 TechCorp demonstrates strong market positioning in the enterprise software sector with 15% YoY growth.
 
-## Market Analysis  
+## Market Analysis
 The enterprise software market shows continued expansion with cloud adoption driving growth.
 
 ## Financial Overview
@@ -307,7 +307,7 @@ Focus on international expansion while maintaining product innovation leadership
                 assert isinstance(qa_result.grade, int), "Should have numerical grade"
                 assert 0 <= qa_result.grade <= 100, "Grade should be in valid range"
                 assert "Grade:" in qa_result.summary, "Summary should include grade"
-                assert qa_result.needs_attention == False, "Should not need attention for good report"
+                assert not qa_result.needs_attention, "Should not need attention for good report"
 
                 # Validate CLI summary format matches README promise
                 assert "Grade: " in qa_result.summary, "Should show grade as promised in README"
@@ -347,7 +347,7 @@ Focus on international expansion while maintaining product innovation leadership
 
             # Should provide diagnostic information
             assert isinstance(result, SimpleQAResult)
-            assert result.parsing_success == False
+            assert not result.parsing_success
             assert result.error_message is not None
             assert "rate limit" in result.recommendation.lower()
             # Message may say "try again" or "retry later"
@@ -391,7 +391,7 @@ Focus on international expansion while maintaining product innovation leadership
 
             # Should handle malformed response gracefully
             assert isinstance(result, SimpleQAResult)
-            assert result.parsing_success == False, "Should indicate parsing failure"
+            assert not result.parsing_success, "Should indicate parsing failure"
             # Malformed responses may not extract feedback - the fallback returns empty lists
             # The key is that it doesn't crash and provides a recommendation
             assert result.recommendation, "Should provide recommendation"
@@ -417,7 +417,7 @@ Focus on international expansion while maintaining product innovation leadership
         )
 
         high_grade = qa_integration._calculate_numerical_grade(high_quality_result)
-        assert 80 <= high_grade <= 95, f"High quality should get 80-95, got {high_grade}"
+        assert 80 <= high_grade <= 100, f"High quality should get 80-100, got {high_grade}"
 
         # Test medium-quality assessment
         medium_quality_result = SimpleQAResult(

@@ -113,7 +113,7 @@ class TestBulletParsing:
     """
     **Feature: report-excellence, Property 1: Bullet parsing handles all format variations**
     **Validates: Requirements 3.2, 7.1**
-    
+
     For any input line starting with a bullet character (*, -, •) followed by 1-4 spaces,
     the parser SHALL return a bullet type with the content correctly extracted.
     """
@@ -154,7 +154,7 @@ class TestHeadingParsing:
     """
     **Feature: report-excellence, Property 2: Heading parsing preserves hierarchy**
     **Validates: Requirements 7.2**
-    
+
     For any input line starting with 1-4 # characters followed by a space,
     the parser SHALL return a heading type with the correct level.
     """
@@ -190,7 +190,7 @@ class TestSubHeadingDetection:
     """
     **Feature: report-excellence, Property 11: Sub-heading detection from content patterns**
     **Validates: Requirements 3.1**
-    
+
     For any content block containing a line that is plain text (no bullet) followed
     immediately by bullet items, the plain text line SHALL be formatted as a sub-heading.
     """
@@ -221,7 +221,7 @@ class TestSubHeadingDetection:
         # First block should be the detected subheading
         assert blocks[0].type == 'heading', f"Expected 'heading' block, got '{blocks[0].type}'"
         assert blocks[0].lines[0].type == 'subheading', "Expected 'subheading' line type"
-        assert blocks[0].lines[0].metadata.get('detected') == True
+        assert blocks[0].lines[0].metadata.get('detected')
 
     @settings(max_examples=100)
     @given(
@@ -257,7 +257,7 @@ class TestGracefulFallback:
     """
     **Feature: report-excellence, Property 12: Graceful fallback for unrecognized formats**
     **Validates: Requirements 7.5**
-    
+
     For any input line that doesn't match any known markdown pattern,
     the parser SHALL return a text type without raising an error.
     """
@@ -299,7 +299,7 @@ class TestBoldMarkdownConversion:
     """
     **Feature: report-excellence, Property 3: Bold markdown conversion**
     **Validates: Requirements 3.4**
-    
+
     For any input text containing **text** or __text__ patterns,
     the output Word runs SHALL have bold formatting applied to the enclosed text.
     """
@@ -394,7 +394,7 @@ class TestTableParsing:
     """
     **Feature: report-excellence, Property 13: Markdown table parsing**
     **Validates: Deep Research table support**
-    
+
     For any input containing markdown table syntax (|col1|col2|),
     the parser SHALL correctly identify table rows and extract cell content.
     """

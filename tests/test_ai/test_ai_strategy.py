@@ -189,7 +189,7 @@ class TestAIOpportunityCount:
     """
     **Feature: consulting-tier-report, Property 21: AI Opportunity Count**
     **Validates: Requirements 13.2**
-    
+
     For any AI strategy analysis, the AIStrategyAnalyzer SHALL produce exactly 5 AI opportunities.
     """
 
@@ -213,7 +213,7 @@ class TestAIOpportunityStructure:
     """
     **Feature: consulting-tier-report, Property 22: AI Opportunity Structure**
     **Validates: Requirements 13.7**
-    
+
     For any generated AI opportunity, it SHALL contain all required fields:
     title, description, category, technologies, business_impact.
     """
@@ -232,19 +232,23 @@ class TestAIOpportunityStructure:
         opportunities = analyzer.analyze(company, "technology", cloud_vendor=vendor)
 
         for opp in opportunities:
-            assert opp.title and len(opp.title) > 0, "title is required"
-            assert opp.description and len(opp.description) > 0, "description is required"
+            assert opp.title, "title is required"
+            assert len(opp.title) > 0, "title must not be empty"
+            assert opp.description, "description is required"
+            assert len(opp.description) > 0, "description must not be empty"
             assert opp.category is not None, "category is required"
             assert isinstance(opp.category, AICategory), "category must be AICategory"
-            assert opp.technologies and len(opp.technologies) > 0, "technologies is required"
-            assert opp.business_impact and len(opp.business_impact) > 0, "business_impact is required"
+            assert opp.technologies, "technologies is required"
+            assert len(opp.technologies) > 0, "technologies must not be empty"
+            assert opp.business_impact, "business_impact is required"
+            assert len(opp.business_impact) > 0, "business_impact must not be empty"
 
 
 class TestVendorTechnologyAlignment:
     """
     **Feature: consulting-tier-report, Property 23: Vendor Technology Alignment**
     **Validates: Requirements 13.3, 13.4, 13.5**
-    
+
     For any AI opportunity generated with a specific cloud vendor, the technologies
     list SHALL only contain technologies from that vendor's catalog.
     """

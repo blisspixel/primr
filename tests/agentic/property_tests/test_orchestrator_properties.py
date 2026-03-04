@@ -163,7 +163,7 @@ def test_orchestrator_stage_results_tracking(
             assert "scrape" in result.stage_results
 
         # Each stage result should have a valid status
-        for stage_name, stage_result in result.stage_results.items():
+        for _stage_name, stage_result in result.stage_results.items():
             assert stage_result.status in list(SubagentStatus)
 
 

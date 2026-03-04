@@ -35,7 +35,7 @@ def test_module_exists_in_package(original_name: str):
     """
     **Feature: project-reorganization, Property 1: Package structure completeness**
     **Validates: Requirements 1.1**
-    
+
     For any Python module that existed in the project root before reorganization,
     that module SHALL exist within the src/primr/ package hierarchy.
     """

@@ -68,11 +68,11 @@ custom_pricing_strategy = st.dictionaries(
 class TestCostCalculationCorrectness:
     """
     **Property 14: Cost Calculation Correctness**
-    
+
     For any model in the pricing table and any token counts (input_tokens, output_tokens),
-    `calculate_cost()` SHALL return `(input_tokens / 1_000_000) * input_price + 
+    `calculate_cost()` SHALL return `(input_tokens / 1_000_000) * input_price +
     (output_tokens / 1_000_000) * output_price` where prices are from the pricing table.
-    
+
     **Validates: Requirements 5.2**
     """
 
@@ -87,7 +87,7 @@ class TestCostCalculationCorrectness:
     ):
         """
         Cost calculation should follow the exact formula from the design.
-        
+
         Formula: (input_tokens / 1_000_000) * input_price + (output_tokens / 1_000_000) * output_price
         """
         tracker = CostTracker()
@@ -200,7 +200,7 @@ class TestCostCalculationCorrectness:
         tracker = CostTracker(pricing=custom_pricing)
 
         # Pick a model from the custom pricing
-        model = list(custom_pricing.keys())[0]
+        model = next(iter(custom_pricing.keys()))
         input_price, output_price = custom_pricing[model]
 
         expected_cost = (input_tokens / 1_000_000) * input_price + (output_tokens / 1_000_000) * output_price
@@ -255,11 +255,11 @@ class TestCostCalculationCorrectness:
 class TestCostAttributionToSpans:
     """
     **Property 15: Cost Attribution to Spans**
-    
+
     For any call to `record_cost()` within an active span, the span SHALL have
     `ai.model`, `ai.input_tokens`, `ai.output_tokens`, and `ai.cost_usd` attributes
     set to the provided values.
-    
+
     **Validates: Requirements 5.4, 5.5**
     """
 
@@ -282,7 +282,7 @@ class TestCostAttributionToSpans:
 
         expected_cost = tracker.calculate_cost(model, input_tokens, output_tokens)
 
-        with telemetry.span("test_operation") as span:
+        with telemetry.span("test_operation"):
             actual_cost = telemetry.record_cost(
                 model=model,
                 input_tokens=input_tokens,
@@ -337,7 +337,7 @@ class TestCostAttributionToSpans:
         config = TelemetryConfig(enabled=False)
         telemetry = TelemetrySystem(config)
 
-        with telemetry.span("test_operation") as span:
+        with telemetry.span("test_operation"):
             # Should not raise
             cost = telemetry.record_cost(
                 model=model,
@@ -396,21 +396,20 @@ class TestCostAttributionToSpans:
         telemetry = TelemetrySystem(config)
 
         if telemetry.is_enabled:
-            with correlation_scope("test") as ctx:
-                with telemetry.span("ai_operation", phase="generation") as span:
-                    cost = telemetry.record_cost(
-                        model=model,
-                        input_tokens=input_tokens,
-                        output_tokens=output_tokens,
-                        operation="test_operation"
-                    )
+            with correlation_scope("test"), telemetry.span("ai_operation", phase="generation") as span:
+                cost = telemetry.record_cost(
+                    model=model,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    operation="test_operation"
+                )
 
-                    # Span should be a real OpenTelemetry span
-                    assert not isinstance(span, NullSpan)
-                    assert span.is_recording()
+                # Span should be a real OpenTelemetry span
+                assert not isinstance(span, NullSpan)
+                assert span.is_recording()
 
-                    # Cost should be calculated
-                    assert cost >= 0.0
+                # Cost should be calculated
+                assert cost >= 0.0
 
 
 # =============================================================================
@@ -420,7 +419,7 @@ class TestCostAttributionToSpans:
 class TestCostTrackerConfiguration:
     """
     Additional tests for CostTracker configuration and behavior.
-    
+
     **Validates: Requirements 5.6**
     """
 

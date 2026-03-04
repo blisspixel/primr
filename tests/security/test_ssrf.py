@@ -92,8 +92,8 @@ class TestURLValidation:
         for url in test_cases:
             is_valid, normalized, error_msg = validate_url_for_request(url)
             assert is_valid, f"Should allow public URL: {url}, error: {error_msg}"
-            assert normalized is not None and len(normalized) > 0, \
-                f"Should return normalized URL for: {url}"
+            assert normalized is not None, f"Should return normalized URL for: {url}"
+            assert len(normalized) > 0, f"Normalized URL should not be empty for: {url}"
             assert error_msg is None, f"Should not have error for valid URL: {url}"
 
     def test_validate_url_malformed(self):

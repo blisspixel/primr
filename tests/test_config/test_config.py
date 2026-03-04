@@ -33,7 +33,7 @@ def test_runtime_directories_resolve_to_project_root():
     """
     **Feature: project-reorganization, Property 7: Runtime directory handling**
     **Validates: Requirements 7.2, 7.3**
-    
+
     Runtime directories should resolve to project root, not package location.
     """
     from primr.config.config import LOGS_DIR, OUTPUT_DIR, PROJECT_ROOT, WORKING_DIR
@@ -60,8 +60,8 @@ def test_runtime_directories_exist(dir_name: str):
     """
     **Feature: project-reorganization, Property 7: Runtime directory handling**
     **Validates: Requirements 7.2, 7.3**
-    
-    For any runtime directory, the application SHALL create that directory 
+
+    For any runtime directory, the application SHALL create that directory
     if it does not exist.
     """
     from primr.config.config import PROJECT_ROOT

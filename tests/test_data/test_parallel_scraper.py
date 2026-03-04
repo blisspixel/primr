@@ -365,7 +365,7 @@ class TestParallelScraper:
             "https://bad.com/3",  # Should be blocked by circuit breaker
             "https://bad.com/4",  # Should be blocked
         ]
-        results = scraper.scrape_urls(urls)
+        scraper.scrape_urls(urls)
 
         # Circuit should open after 2 failures
         # So only 2 actual scrape attempts should be made

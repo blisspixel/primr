@@ -14,7 +14,7 @@ class TestChapterGrouping:
     """
     **Feature: report-excellence, Property 10: Chapter grouping correctness**
     **Validates: Requirements 1.4**
-    
+
     For any section in the input, it SHALL appear under the correct chapter
     heading as defined in the chapter configuration.
     """
@@ -25,17 +25,17 @@ class TestChapterGrouping:
             sections = chapter_data.get('sections', [])
             assert len(sections) > 0, f"Chapter '{chapter_name}' has no sections"
 
-            for section_title, section_key in sections:
+            for _section_title, section_key in sections:
                 chapter, num = get_chapter_for_section(section_key)
                 assert chapter == chapter_name, \
                     f"Section '{section_key}' should be in '{chapter_name}' but got '{chapter}'"
 
     def test_section_numbers_are_sequential(self):
         """Section numbers within each chapter are sequential."""
-        for chapter_num, (chapter_name, chapter_data) in enumerate(CHAPTER_CONFIG.items(), 1):
+        for chapter_num, (_chapter_name, chapter_data) in enumerate(CHAPTER_CONFIG.items(), 1):
             sections = chapter_data.get('sections', [])
 
-            for section_idx, (section_title, section_key) in enumerate(sections, 1):
+            for section_idx, (_section_title, section_key) in enumerate(sections, 1):
                 expected_num = f"{chapter_num}.{section_idx}"
                 actual_num = get_section_number(section_key)
                 assert actual_num == expected_num, \
@@ -70,7 +70,7 @@ class TestNestedListIndentation:
     """
     **Feature: report-excellence, Property 7: Nested list indentation preservation**
     **Validates: Requirements 7.3**
-    
+
     For any input with nested bullet lists, the output SHALL preserve
     the relative indentation levels.
     """
@@ -116,7 +116,7 @@ class TestDefensiveParsing:
     """
     **Feature: consulting-tier-report, Property: Defensive content parsing**
     **Validates: Requirements 29.2 - Graceful handling of malformed content**
-    
+
     For any malformed or unparseable content, the DocumentBuilder SHALL
     fall back to plain text rendering without crashing.
     """

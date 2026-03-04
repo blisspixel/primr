@@ -71,10 +71,10 @@ class TestRegressionFixturesStructure:
 class TestStructuredContentPruningRegression:
     """
     Regression tests for structured content pruning fix.
-    
+
     Bug: Aggressive DOM pruning was removing valid content from
     well-structured pages (e.g., documentation sites).
-    
+
     Fix: Adjusted pruning heuristics to preserve content-rich sections.
     """
 
@@ -105,7 +105,7 @@ class TestStructuredContentPruningRegression:
                 <h1>Getting Started Guide</h1>
                 <p>Welcome to our comprehensive getting started guide. This document
                 will walk you through the initial setup process step by step.</p>
-                
+
                 <h2>Prerequisites</h2>
                 <p>Before you begin, ensure you have the following installed:</p>
                 <ul>
@@ -113,15 +113,15 @@ class TestStructuredContentPruningRegression:
                     <li>pip package manager</li>
                     <li>Git version control</li>
                 </ul>
-                
+
                 <h2>Installation</h2>
                 <p>To install the package, run the following command:</p>
                 <pre><code>pip install example-package</code></pre>
-                
+
                 <h2>Configuration</h2>
                 <p>After installation, you need to configure the application.
                 Create a configuration file in your home directory.</p>
-                
+
                 <h2>First Steps</h2>
                 <p>Now that you have installed and configured the application,
                 you can start using it. Here are some common tasks:</p>
@@ -156,24 +156,24 @@ class TestStructuredContentPruningRegression:
         # Simulate extracted content from a well-structured page
         extracted_text = """
         Getting Started Guide
-        
+
         Welcome to our comprehensive getting started guide. This document
         will walk you through the initial setup process step by step.
-        
+
         Prerequisites
-        
+
         Before you begin, ensure you have the following installed:
         - Python 3.10 or higher
         - pip package manager
         - Git version control
-        
+
         Installation
-        
+
         To install the package, run the following command:
         pip install example-package
-        
+
         Configuration
-        
+
         After installation, you need to configure the application.
         Create a configuration file in your home directory.
         """
@@ -181,7 +181,7 @@ class TestStructuredContentPruningRegression:
         # Use is_quality_content to check quality
         is_quality, reason = is_quality_content(extracted_text)
 
-        assertions = case_config["assertions"]
+        case_config["assertions"]
         # If min_quality is specified, we check that content passes quality check
         assert is_quality, f"Content failed quality check: {reason}"
 
@@ -189,10 +189,10 @@ class TestStructuredContentPruningRegression:
 class TestJSRenderedContentRegression:
     """
     Regression tests for JS-rendered content fix.
-    
+
     Bug: JS-rendered content was not being captured because the
     requests tier was used for pages that require browser rendering.
-    
+
     Fix: Added quality-based escalation to browser tiers.
     """
 
@@ -234,16 +234,16 @@ class TestJSRenderedContentRegression:
         # (after JS execution)
         browser_extracted = """
         Welcome to Our Platform
-        
+
         Our innovative solution helps businesses streamline their operations.
-        
+
         Key Features:
         - Real-time analytics dashboard
         - Automated workflow management
         - Integration with popular tools
-        
+
         Get Started Today
-        
+
         Sign up for a free trial and see the difference.
         """
 
@@ -257,10 +257,10 @@ class TestJSRenderedContentRegression:
 class TestBoilerplateOverRemovalRegression:
     """
     Regression tests for boilerplate over-removal fix.
-    
+
     Bug: Boilerplate filter was removing too much content, including
     meaningful text that happened to appear on multiple pages.
-    
+
     Fix: Adjusted threshold and added allowlist for brand content.
     """
 
@@ -286,36 +286,36 @@ class TestBoilerplateOverRemovalRegression:
             # Page 1: About page
             """
             About Our Company
-            
+
             We are a leading provider of enterprise solutions.
             Our mission is to help businesses succeed.
-            
+
             Founded in 2010, we have grown to serve over 1000 customers.
-            
+
             Request a demo today.
             © 2026 Example Corp. All rights reserved.
             """,
             # Page 2: Products page
             """
             Our Products
-            
+
             Enterprise Suite - Complete business management solution.
             Analytics Platform - Real-time insights for your data.
             Integration Hub - Connect all your tools seamlessly.
-            
+
             Request a demo today.
             © 2026 Example Corp. All rights reserved.
             """,
             # Page 3: Pricing page
             """
             Pricing Plans
-            
+
             Starter - $99/month - For small teams
             Professional - $299/month - For growing businesses
             Enterprise - Custom pricing - For large organizations
-            
+
             All plans include 24/7 support and free onboarding.
-            
+
             Request a demo today.
             © 2026 Example Corp. All rights reserved.
             """,
@@ -346,47 +346,47 @@ class TestBoilerplateOverRemovalRegression:
         pages = [
             """
             Product Documentation
-            
+
             This guide covers the installation and configuration of our product.
-            
+
             Installation Steps:
             1. Download the installer
             2. Run the setup wizard
             3. Configure your settings
-            
+
             Request a demo today.
             © 2026 Example Corp. All rights reserved.
             """,
             """
             API Reference
-            
+
             This section documents all available API endpoints.
-            
+
             Authentication:
             Use Bearer tokens for all requests.
-            
+
             Request a demo today.
             © 2026 Example Corp. All rights reserved.
             """,
             """
             User Guide
-            
+
             Learn how to use our platform effectively.
-            
+
             Getting Started:
             Create your first project in minutes.
-            
+
             Request a demo today.
             © 2026 Example Corp. All rights reserved.
             """,
             """
             FAQ
-            
+
             Frequently asked questions about our service.
-            
+
             Common Questions:
             How do I reset my password?
-            
+
             Request a demo today.
             © 2026 Example Corp. All rights reserved.
             """,
@@ -415,7 +415,7 @@ class TestBoilerplateOverRemovalRegression:
 class TestQualityEscalationThresholds:
     """
     Tests that quality escalation thresholds are correctly applied.
-    
+
     These tests verify that the escalation triggers from the fixture
     file are reasonable and would trigger escalation appropriately.
     """

@@ -132,7 +132,7 @@ class TestRunManifestSchema:
 class TestRunManifestPropertyTests:
     """
     Property-based tests for run manifest completeness.
-    
+
     **Property 9: Run Manifest Completeness**
     **Validates: FR-7.1, FR-7.2**
     """
@@ -149,7 +149,7 @@ class TestRunManifestPropertyTests:
     ):
         """
         Property: For any completed job, manifest SHALL contain all required fields.
-        
+
         **Validates: FR-7.1, FR-7.2**
         """
         # Skip empty strings that pass through
@@ -184,7 +184,7 @@ class TestRunManifestPropertyTests:
     def test_artifacts_array_lists_generated_files(self, num_artifacts: int):
         """
         Property: The artifacts array SHALL list all generated files.
-        
+
         **Validates: FR-7.2**
         """
         manifest = create_valid_manifest()
@@ -211,7 +211,7 @@ class TestRunManifestPropertyTests:
     def test_estimate_values_are_valid(self, cost_usd: float, time_minutes: int):
         """
         Property: Estimate values SHALL be valid numbers.
-        
+
         **Validates: FR-7.1**
         """
         manifest = create_valid_manifest()
@@ -229,7 +229,7 @@ class TestRunManifestPropertyTests:
     def test_mode_is_always_valid(self, mode: str):
         """
         Property: Mode SHALL always be one of the valid values.
-        
+
         **Validates: FR-7.1**
         """
         manifest = create_valid_manifest(mode=mode)

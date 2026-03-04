@@ -221,7 +221,7 @@ class TestToneAnalysis:
         result = analyzer.analyze_tone(text)
 
         # Should have both promotional and technical tones
-        all_tones = [result.primary_tone] + result.secondary_tones
+        all_tones = [result.primary_tone, *result.secondary_tones]
         assert Tone.PROMOTIONAL in all_tones or Tone.TECHNICAL in all_tones
 
 

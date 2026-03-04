@@ -156,7 +156,7 @@ class TestPropertyBasedStrategiesResource:
 
     @settings(max_examples=100)
     @given(st.integers(min_value=1, max_value=100))
-    def test_strategies_resource_is_idempotent(self, _iteration: int) -> None:
+    def test_strategies_resource_is_idempotent(self, _iteration: int) -> None:  # noqa: PT019
         """Property 6: Reading resource multiple times returns same result."""
         from primr.mcp_server.resources import _read_strategies_available
 
@@ -170,7 +170,7 @@ class TestPropertyBasedStrategiesResource:
 
     @settings(max_examples=100)
     @given(st.integers(min_value=1, max_value=100))
-    def test_strategies_always_has_four_elements(self, _iteration: int) -> None:
+    def test_strategies_always_has_four_elements(self, _iteration: int) -> None:  # noqa: PT019
         """Property 6: strategies array always has exactly 4 elements."""
         from primr.mcp_server.resources import _read_strategies_available
 
@@ -181,7 +181,7 @@ class TestPropertyBasedStrategiesResource:
 
     @settings(max_examples=100)
     @given(st.integers(min_value=1, max_value=100))
-    def test_all_strategies_have_required_fields(self, _iteration: int) -> None:
+    def test_all_strategies_have_required_fields(self, _iteration: int) -> None:  # noqa: PT019
         """Property 6: All strategies have required fields."""
         from primr.mcp_server.resources import _read_strategies_available
 

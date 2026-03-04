@@ -146,11 +146,11 @@ def generate_v2_0_config(
 class TestMigrationProducesValidConfig:
     """
     **Property 19: Migration Produces Valid Config**
-    
+
     For any configuration file with an older schema version, applying migrations
     SHALL produce a configuration that validates successfully against the target
     schema version.
-    
+
     **Validates: Requirements 7.2, 7.4**
     """
 
@@ -301,10 +301,10 @@ class TestMigrationProducesValidConfig:
 class TestMigrationBackupAndRestore:
     """
     **Property 20: Migration Backup and Restore**
-    
+
     For any migration operation, a backup file SHALL be created before modification.
     If migration fails, the original file SHALL be restored from backup.
-    
+
     **Validates: Requirements 7.3, 7.5**
     """
 
@@ -426,10 +426,10 @@ class TestMigrationBackupAndRestore:
 class TestDryRunIdempotence:
     """
     **Property 21: Dry-Run Idempotence**
-    
+
     For any migration in dry-run mode, the original configuration file SHALL
     remain unchanged (byte-for-byte identical) after the operation completes.
-    
+
     **Validates: Requirements 7.6**
     """
 

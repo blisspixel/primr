@@ -28,7 +28,7 @@ import yaml
 def load_skill_metadata(skill_path: Path) -> dict[str, Any]:
     """
     Load and parse skill metadata from a SKILL.md file.
-    
+
     The SKILL.md format uses YAML front matter between --- delimiters.
     """
     content = skill_path.read_text(encoding="utf-8")
@@ -83,11 +83,11 @@ def list_skills() -> list[Path]:
 def test_skill_metadata_loading():
     """
     All skills load with required metadata fields.
-    
+
     For any skill file in the skills directory, loading the skill
     should return structured metadata containing at minimum:
     name, version, description, tools list, and resources list.
-    
+
     Validates: Requirements 6.5
     """
     skills = list_skills()
@@ -131,7 +131,7 @@ def test_skill_metadata_loading():
 def test_skill_format_compliance():
     """
     All skills follow the SKILL.md format specification.
-    
+
     Validates: Requirements 6.6
     """
     skills = list_skills()

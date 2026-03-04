@@ -29,16 +29,16 @@ class DiffResult(NamedTuple):
 def diff_scrape_outputs(folder_scrape: str, folder_full: str) -> DiffResult:
     """
     Compare scrape outputs from two folders (e.g., scrape mode vs full mode).
-    
+
     Compares:
     - _raw_scrapes/ folder contents
     - scraped_content.txt (corpus)
     - _external_links.txt
-    
+
     Args:
         folder_scrape: Path to scrape mode output folder
         folder_full: Path to full mode output folder
-    
+
     Returns:
         DiffResult with comparison details
     """

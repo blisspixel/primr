@@ -27,10 +27,10 @@ from hypothesis import strategies as st
 def test_roadmap_resource_json_validity():
     """
     Roadmap resource returns valid JSON.
-    
+
     For any roadmap query, the response should be valid JSON
     that can be parsed without errors.
-    
+
     Validates: Requirements 7.7
     """
     from primr.agentic.roadmap_api import RoadmapAPI
@@ -59,9 +59,9 @@ def test_roadmap_resource_json_validity():
 def test_memory_resource_json_validity():
     """
     Memory resource returns valid JSON.
-    
+
     For any company memory query, the response should be valid JSON.
-    
+
     Validates: Requirements 7.7
     """
     import tempfile
@@ -96,7 +96,7 @@ def test_memory_resource_json_validity():
 def test_context_resource_structure():
     """
     Context resource returns expected structure.
-    
+
     Validates: Requirements 7.7
     """
     claude_md_path = Path("CLAUDE.md")
@@ -127,22 +127,12 @@ def test_context_resource_structure():
 def test_agentic_tools_list_includes_base_tools():
     """
     Agentic tools don't remove existing base tools.
-    
+
     The tool list should include all original tools plus agentic tools.
-    
+
     Validates: Requirements 8.1
     """
     # Base tools that must always be present
-    required_base_tools = [
-        "estimate_run",
-        "research_company",
-        "generate_strategy",
-        "check_jobs",
-        "run_qa",
-        "doctor",
-        "clear_jobs",
-        "cancel_job",
-    ]
 
     # Agentic tools that should be added
     agentic_tools = [
@@ -166,9 +156,9 @@ def test_agentic_tools_list_includes_base_tools():
 def test_agentic_resources_list_includes_base_resources():
     """
     Agentic resources don't remove existing base resources.
-    
+
     The resource list should include all original resources plus agentic resources.
-    
+
     Validates: Requirements 8.1
     """
     from urllib.parse import unquote
@@ -197,7 +187,7 @@ def test_agentic_resources_list_includes_base_resources():
 def test_tool_schema_validity():
     """
     All agentic tools have valid JSON schemas.
-    
+
     Validates: Requirements 7.7
     """
     from primr.mcp_server.agentic_tools import register_agentic_tools
@@ -221,7 +211,7 @@ def test_tool_schema_validity():
 def test_resource_mime_types():
     """
     All agentic resources have valid MIME types.
-    
+
     Validates: Requirements 7.7
     """
     from primr.mcp_server.agentic_resources import get_agentic_resources
@@ -295,7 +285,7 @@ def test_memory_uri_parsing():
 def test_hypothesis_round_trip_via_tools(company: str):
     """
     Hypotheses saved via tools can be retrieved via tools.
-    
+
     Property: For any company and hypothesis, saving and then
     retrieving should return the same data.
     """

@@ -15,6 +15,7 @@ class ResearchMode(str, Enum):
     SCRAPE = "scrape"
     DEEP = "deep"
     FULL = "full"
+    PREMIUM = "premium"
 
 
 class CloudVendor(str, Enum):

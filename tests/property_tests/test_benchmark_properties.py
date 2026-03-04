@@ -70,11 +70,11 @@ def generate_benchmark_result(
 class TestBenchmarkResultStorage:
     """
     **Property 26: Benchmark Result Storage**
-    
+
     For any benchmark execution, the results (timing, memory, throughput) SHALL
     be stored in the historical results store with a timestamp and benchmark
     identifier.
-    
+
     **Validates: Requirements 11.5**
     """
 
@@ -203,12 +203,12 @@ class TestBenchmarkResultStorage:
 class TestRegressionDetection:
     """
     **Property 27: Regression Detection**
-    
+
     For any benchmark result that exceeds the baseline by more than the
     configured threshold percentage, the benchmark system SHALL emit a
     regression warning with the baseline value, current value, and percentage
     difference.
-    
+
     **Validates: Requirements 11.6**
     """
 

@@ -28,11 +28,11 @@ class TestQAIntegration:
     def test_automatic_qa_execution_property(self, company_name, content_length, qa_enabled):
         """
         Property 1: Automatic QA execution
-        
+
         For any valid company name and report content, when QA is enabled,
         the system should execute QA analysis and return a QAResult.
         When QA is disabled, it should return None.
-        
+
         **Feature: report-quality-assurance, Property 1: Automatic QA execution**
         **Validates: Requirements 1.1**
         """
@@ -111,7 +111,7 @@ class TestQAIntegration:
     def test_qa_result_consistency_property(self, company_names):
         """
         Property: QA results are consistent for the same input
-        
+
         For any company name, running QA multiple times on the same report
         should produce consistent results (same grade, similar analysis).
         """
@@ -162,7 +162,7 @@ class TestQAIntegration:
     def test_cli_summary_format_property(self, ready_for_use, confidence_level):
         """
         Property: CLI summary format is consistent
-        
+
         For any QA result, the CLI summary should follow the format
         "Grade: (XX/100)".
         """
@@ -187,7 +187,7 @@ class TestQAIntegration:
     def test_qa_failure_handling_property(self):
         """
         Property: QA failures are handled gracefully
-        
+
         When QA analysis fails (analyzer throws exception), the system
         should return a QAResult indicating failure rather than crashing.
         """

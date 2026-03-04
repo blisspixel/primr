@@ -94,7 +94,7 @@ def create_job_record(
 ) -> tuple[str, str]:
     """
     Create a job record and return (job_id, canonical_hash).
-    
+
     Simulates the submit_job logic from the API.
     """
     # Canonicalize inputs
@@ -140,9 +140,9 @@ def submit_job_idempotent(
 ) -> tuple[str, bool, bool]:
     """
     Submit a job with idempotency handling.
-    
+
     Returns (job_id, is_existing, is_conflict).
-    
+
     - is_existing: True if job already existed with same inputs
     - is_conflict: True if idempotency key was reused with different inputs
     """
@@ -199,10 +199,10 @@ def submit_job_idempotent(
 class TestSameInputsReturnsSameJobId:
     """
     **Property 2.1: Same Inputs Returns Same Job ID**
-    
+
     For any valid job submission with the same (deployment, idempotency_key, api_key)
     and same inputs, the system SHALL return the same job_id.
-    
+
     **Validates: Requirements 3.5**
     """
 
@@ -228,7 +228,7 @@ class TestSameInputsReturnsSameJobId:
     ) -> None:
         """
         Same (deployment, idempotency_key, api_key) + same inputs returns same job_id.
-        
+
         Feature: serverless-cloud-deployment, Property 2: Idempotent Submission
         **Validates: Requirements 3.5**
         """
@@ -286,7 +286,7 @@ class TestSameInputsReturnsSameJobId:
     ) -> None:
         """
         Multiple submissions with same inputs all return same job_id.
-        
+
         Feature: serverless-cloud-deployment, Property 2: Idempotent Submission
         **Validates: Requirements 3.5**
         """
@@ -317,10 +317,10 @@ class TestSameInputsReturnsSameJobId:
 class TestDifferentInputsReturns409:
     """
     **Property 2.2: Different Inputs Returns 409**
-    
+
     For any job submission where the idempotency_key matches an existing job
     but the inputs differ, the system SHALL return a 409 Conflict.
-    
+
     **Validates: Requirements 3.6**
     """
 
@@ -346,7 +346,7 @@ class TestDifferentInputsReturns409:
     ) -> None:
         """
         Same idempotency_key + different company_name returns 409.
-        
+
         Feature: serverless-cloud-deployment, Property 2: Idempotent Submission
         **Validates: Requirements 3.6**
         """
@@ -402,7 +402,7 @@ class TestDifferentInputsReturns409:
     ) -> None:
         """
         Same idempotency_key + different URL returns 409.
-        
+
         Feature: serverless-cloud-deployment, Property 2: Idempotent Submission
         **Validates: Requirements 3.6**
         """
@@ -460,7 +460,7 @@ class TestDifferentInputsReturns409:
     ) -> None:
         """
         Same idempotency_key + different mode returns 409.
-        
+
         Feature: serverless-cloud-deployment, Property 2: Idempotent Submission
         **Validates: Requirements 3.6**
         """
@@ -501,12 +501,12 @@ class TestDifferentInputsReturns409:
 class TestDifferentDeploymentReturnsDifferentJobId:
     """
     **Property 2.3: Different Deployment Returns Different Job ID**
-    
+
     For any job submission where the deployment differs but idempotency_key
     and api_key are the same, the system SHALL return different job_ids.
-    
+
     This prevents cross-environment collisions.
-    
+
     **Validates: Requirements 3.7**
     """
 
@@ -532,7 +532,7 @@ class TestDifferentDeploymentReturnsDifferentJobId:
     ) -> None:
         """
         Different deployment + same idempotency_key returns different job_id.
-        
+
         Feature: serverless-cloud-deployment, Property 2: Idempotent Submission
         **Validates: Requirements 3.7**
         """
@@ -565,7 +565,7 @@ class TestDifferentDeploymentReturnsDifferentJobId:
     ) -> None:
         """
         Same idempotency_key in different deployments should not conflict.
-        
+
         Feature: serverless-cloud-deployment, Property 2: Idempotent Submission
         **Validates: Requirements 3.7**
         """
@@ -609,12 +609,12 @@ class TestDifferentDeploymentReturnsDifferentJobId:
 class TestDifferentApiKeyReturnsDifferentJobId:
     """
     **Property 2.4: Different API Key Returns Different Job ID**
-    
+
     For any job submission where the api_key differs but deployment and
     idempotency_key are the same, the system SHALL return different job_ids.
-    
+
     This prevents cross-tenant collisions.
-    
+
     **Validates: Requirements 3.7**
     """
 
@@ -640,7 +640,7 @@ class TestDifferentApiKeyReturnsDifferentJobId:
     ) -> None:
         """
         Different api_key + same idempotency_key returns different job_id.
-        
+
         Feature: serverless-cloud-deployment, Property 2: Idempotent Submission
         **Validates: Requirements 3.7**
         """
@@ -673,7 +673,7 @@ class TestDifferentApiKeyReturnsDifferentJobId:
     ) -> None:
         """
         Same idempotency_key with different API keys should not conflict.
-        
+
         Feature: serverless-cloud-deployment, Property 2: Idempotent Submission
         **Validates: Requirements 3.7**
         """
@@ -717,10 +717,10 @@ class TestDifferentApiKeyReturnsDifferentJobId:
 class TestCanonicalHashConsistency:
     """
     **Property 2.5: Canonical Hash Consistency**
-    
+
     For any inputs, the canonical hash SHALL be deterministic and consistent
     across multiple computations.
-    
+
     **Validates: Requirements 3.5, 3.6**
     """
 
@@ -740,7 +740,7 @@ class TestCanonicalHashConsistency:
     ) -> None:
         """
         Canonical hash should be deterministic for same inputs.
-        
+
         Feature: serverless-cloud-deployment, Property 2: Idempotent Submission
         **Validates: Requirements 3.5**
         """
@@ -766,7 +766,7 @@ class TestCanonicalHashConsistency:
     ) -> None:
         """
         URL normalization should produce consistent hashes.
-        
+
         Feature: serverless-cloud-deployment, Property 2: Idempotent Submission
         **Validates: Requirements 3.5**
         """
@@ -795,7 +795,7 @@ class TestCanonicalHashConsistency:
     ) -> None:
         """
         Whitespace normalization should produce consistent hashes.
-        
+
         Feature: serverless-cloud-deployment, Property 2: Idempotent Submission
         **Validates: Requirements 3.5**
         """
@@ -817,10 +817,10 @@ class TestCanonicalHashConsistency:
 class TestJobIdUniqueness:
     """
     **Property 2.6: Job ID Uniqueness**
-    
+
     For any two distinct (deployment, idempotency_key, api_key) tuples,
     the derived job_ids SHALL be different.
-    
+
     **Validates: Requirements 3.7**
     """
 
@@ -844,7 +844,7 @@ class TestJobIdUniqueness:
     ) -> None:
         """
         Different (deployment, idempotency_key, api_key) tuples produce different job_ids.
-        
+
         Feature: serverless-cloud-deployment, Property 2: Idempotent Submission
         **Validates: Requirements 3.7**
         """

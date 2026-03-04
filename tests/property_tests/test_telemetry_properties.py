@@ -84,11 +84,11 @@ event_name_strategy = st.sampled_from([
 class TestSpanAttributeCompleteness:
     """
     **Property 11: Span Attribute Completeness**
-    
+
     For any span created via `TelemetrySystem.span()`, the span SHALL have
     `correlation_id` and `operation_name` attributes. If a `phase` parameter
     is provided, the span SHALL also have a `phase` attribute.
-    
+
     **Validates: Requirements 4.2, 4.3**
     """
 
@@ -156,7 +156,7 @@ class TestSpanAttributeCompleteness:
         with correlation_scope("test_operation") as ctx:
             expected_correlation_id = ctx.correlation_id
 
-            with telemetry.span(operation_name, attributes=attributes) as span:
+            with telemetry.span(operation_name, attributes=attributes):
                 # The telemetry system should use the correlation_id from context
                 actual_correlation_id = telemetry._get_correlation_id()
                 assert actual_correlation_id == expected_correlation_id
@@ -177,12 +177,11 @@ class TestSpanAttributeCompleteness:
         telemetry = TelemetrySystem(config)
 
         if telemetry.is_enabled:
-            with correlation_scope("test") as ctx:
-                with telemetry.span(operation_name, phase=phase) as span:
-                    # Span should be a real OpenTelemetry span
-                    assert not isinstance(span, NullSpan)
-                    # Span should be recording
-                    assert span.is_recording()
+            with correlation_scope("test"), telemetry.span(operation_name, phase=phase) as span:
+                # Span should be a real OpenTelemetry span
+                assert not isinstance(span, NullSpan)
+                # Span should be recording
+                assert span.is_recording()
 
 
 # =============================================================================
@@ -192,11 +191,11 @@ class TestSpanAttributeCompleteness:
 class TestErrorRecordingInSpans:
     """
     **Property 12: Error Recording in Spans**
-    
+
     For any exception raised within a `TelemetrySystem.span()` context, the span
     SHALL have its status set to ERROR and SHALL have the exception recorded
     with type and message.
-    
+
     **Validates: Requirements 4.6**
     """
 
@@ -215,7 +214,7 @@ class TestErrorRecordingInSpans:
         config = TelemetryConfig(enabled=False)
         telemetry = TelemetrySystem(config)
 
-        with pytest.raises(ValueError) as exc_info, telemetry.span(operation_name) as span:
+        with pytest.raises(ValueError) as exc_info, telemetry.span(operation_name):
             raise ValueError(error_message)
 
         # Exception should propagate with correct message
@@ -238,7 +237,7 @@ class TestErrorRecordingInSpans:
         class CustomError(Exception):
             pass
 
-        with pytest.raises(CustomError), telemetry.span(operation_name) as span:
+        with pytest.raises(CustomError), telemetry.span(operation_name):
             raise CustomError(error_message)
 
     @given(
@@ -258,7 +257,7 @@ class TestErrorRecordingInSpans:
         config = TelemetryConfig(enabled=False)
         telemetry = TelemetrySystem(config)
 
-        with pytest.raises(error_types), telemetry.span(operation_name) as span:
+        with pytest.raises(error_types), telemetry.span(operation_name):
             raise error_types(error_message)
 
     @pytest.mark.skipif(not is_otel_available(), reason="OpenTelemetry not installed")
@@ -277,7 +276,7 @@ class TestErrorRecordingInSpans:
         telemetry = TelemetrySystem(config)
 
         if telemetry.is_enabled:
-            with pytest.raises(ValueError), telemetry.span(operation_name) as span:
+            with pytest.raises(ValueError), telemetry.span(operation_name):
                 raise ValueError(error_message)
 
 
@@ -288,11 +287,11 @@ class TestErrorRecordingInSpans:
 class TestAsyncContextPropagation:
     """
     **Property 13: Async Context Propagation**
-    
+
     For any async operation executed within a correlation scope, `get_correlation_id()`
     called from within that operation SHALL return the same correlation ID as the
     outer scope.
-    
+
     **Validates: Requirements 4.4**
     """
 
@@ -399,7 +398,7 @@ class TestAsyncContextPropagation:
             # Set up correlation context
             token = set_async_correlation_id(correlation_id)
             try:
-                async with telemetry.async_span(operation_name) as span:
+                async with telemetry.async_span(operation_name):
                     # Inside async span, correlation_id should be available
                     assert get_async_correlation_id() == correlation_id
             finally:
@@ -459,7 +458,7 @@ class TestAsyncContextPropagation:
 class TestTelemetryConfiguration:
     """
     Additional tests for TelemetryConfig validation and behavior.
-    
+
     **Validates: Requirements 4.7, 4.8**
     """
 
@@ -545,7 +544,7 @@ class TestTelemetryConfiguration:
 class TestRecordEvent:
     """
     Tests for record_event functionality.
-    
+
     **Validates: Requirements 4.5**
     """
 
@@ -581,7 +580,7 @@ class TestRecordEvent:
         config = TelemetryConfig(enabled=False)
         telemetry = TelemetrySystem(config)
 
-        with telemetry.span(operation_name) as span:
+        with telemetry.span(operation_name):
             # Should not raise
             telemetry.record_event(event_name, attributes)
 
@@ -601,7 +600,7 @@ class TestRecordEvent:
         telemetry = TelemetrySystem(config)
 
         if telemetry.is_enabled:
-            with telemetry.span(operation_name) as span:
+            with telemetry.span(operation_name):
                 # Should not raise
                 telemetry.record_event(event_name, {"test": "value"})
 

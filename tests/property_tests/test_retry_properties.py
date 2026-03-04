@@ -160,11 +160,11 @@ def create_auth_error(
 class TestRetryEligibilityByErrorType:
     """
     **Property 4: Retry Eligibility by Error Type**
-    
+
     For any error, `should_retry()` SHALL return `True` if and only if the error
     is a `TransientError` (or subclass) with `recoverable=True` and attempt count
     is below `max_retries`.
-    
+
     **Validates: Requirements 2.1, 2.2, 2.3**
     """
 
@@ -367,11 +367,11 @@ class TestRetryEligibilityByErrorType:
 class TestDelayCalculationCorrectness:
     """
     **Property 5: Delay Calculation Correctness**
-    
+
     For any `RateLimitError` with `retry_after_seconds` set, `get_delay()` SHALL
     return exactly that value. For any `QuotaError` with `quota_reset_time` set,
     `get_delay()` SHALL return the time difference to that reset time.
-    
+
     **Validates: Requirements 2.4, 2.5**
     """
 
@@ -534,11 +534,11 @@ class TestDelayCalculationCorrectness:
 class TestRetryHistoryAttachment:
     """
     **Property 6: Retry History Attachment**
-    
+
     For any operation that exhausts all retries, the final raised error SHALL
     have a `retry_history` key in its `context` dictionary containing all
     previous attempt details.
-    
+
     **Validates: Requirements 2.8**
     """
 

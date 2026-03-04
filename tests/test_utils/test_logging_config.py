@@ -35,7 +35,7 @@ class TestSetupLogging:
 
     def test_creates_file_handler(self, tmp_path):
         """Should create file handler when log_dir specified."""
-        logger = setup_logging(level="INFO", log_dir=tmp_path)
+        setup_logging(level="INFO", log_dir=tmp_path)
 
         # Check that a log file was created
         log_files = list(tmp_path.glob("research_*.log"))
@@ -43,7 +43,7 @@ class TestSetupLogging:
 
     def test_uses_session_id_in_filename(self, tmp_path):
         """Should use session_id in log filename."""
-        logger = setup_logging(
+        setup_logging(
             level="INFO",
             log_dir=tmp_path,
             session_id="test_session"

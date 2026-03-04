@@ -43,7 +43,7 @@ class TestDockerfileExists:
 
 class TestMultiStageBuild:
     """Test multi-stage build configuration.
-    
+
     Requirements: 1.1 (job runner contract)
     """
 
@@ -97,7 +97,7 @@ class TestMultiStageBuild:
 
 class TestNonRootUser:
     """Test non-root user configuration.
-    
+
     Requirements: 1.4 (non-root execution)
     """
 
@@ -139,7 +139,7 @@ class TestNonRootUser:
 
 class TestEntrypoint:
     """Test entrypoint configuration.
-    
+
     Requirements: 1.1 (job runner contract)
     """
 

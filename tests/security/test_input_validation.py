@@ -41,7 +41,7 @@ class TestURLInputValidation:
             ("https://example.com/path/../other", "https://example.com/other"),
         ]
 
-        for input_url, expected_normalized in test_cases:
+        for input_url, _expected_normalized in test_cases:
             is_valid, _, normalized = validate_url_for_request(input_url)
             if is_valid and normalized:
                 assert normalized.lower() == normalized, "URL should be lowercase"

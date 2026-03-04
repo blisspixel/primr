@@ -23,7 +23,7 @@ class TestColorAdaptation:
     """
     **Feature: cli-ux-enhancement, Property 30: Color Adaptation**
     **Validates: Requirements 15.1, 15.3, 15.5**
-    
+
     For any terminal where NO_COLOR is set OR output is piped OR TERM=dumb,
     the output SHALL not contain ANSI color codes.
     """
@@ -47,16 +47,15 @@ class TestColorAdaptation:
         env_clean = {k: v for k, v in os.environ.items() if k != "NO_COLOR"}
         env_clean.update(env)
 
-        with patch.dict(os.environ, env_clean, clear=True):
-            with patch('sys.stdout') as mock_stdout:
-                mock_stdout.isatty.return_value = True
-                mock_stdout.encoding = "utf-8"
+        with patch.dict(os.environ, env_clean, clear=True), patch('sys.stdout') as mock_stdout:
+            mock_stdout.isatty.return_value = True
+            mock_stdout.encoding = "utf-8"
 
-                clear_terminal_cache()
-                caps = TerminalCapabilities.detect()
+            clear_terminal_cache()
+            caps = TerminalCapabilities.detect()
 
-                assert not caps.supports_color, \
-                    "Colors should be disabled when TERM=dumb"
+            assert not caps.supports_color, \
+                "Colors should be disabled when TERM=dumb"
 
     def test_no_color_when_piped(self):
         """Piped output (non-TTY) disables colors."""
@@ -72,16 +71,15 @@ class TestColorAdaptation:
 
     def test_force_color_overrides_no_color(self):
         """FORCE_COLOR overrides NO_COLOR."""
-        with patch.dict(os.environ, {"NO_COLOR": "1", "FORCE_COLOR": "1"}):
-            with patch('sys.stdout') as mock_stdout:
-                mock_stdout.isatty.return_value = True
-                mock_stdout.encoding = "utf-8"
+        with patch.dict(os.environ, {"NO_COLOR": "1", "FORCE_COLOR": "1"}), patch('sys.stdout') as mock_stdout:
+            mock_stdout.isatty.return_value = True
+            mock_stdout.encoding = "utf-8"
 
-                clear_terminal_cache()
-                caps = TerminalCapabilities.detect()
+            clear_terminal_cache()
+            caps = TerminalCapabilities.detect()
 
-                assert caps.supports_color, \
-                    "FORCE_COLOR should override NO_COLOR"
+            assert caps.supports_color, \
+                "FORCE_COLOR should override NO_COLOR"
 
     @given(st.booleans())
     @settings(max_examples=100)

@@ -219,7 +219,7 @@ class TestDomainFiltering:
 
             # Call the function - it will fail at LLM validation but we just want to verify
             # the subdomain wasn't filtered out before scraping
-            result = scrape_external_sources_validated(
+            scrape_external_sources_validated(
                 search_results,
                 company_name="Acme Corp",
                 website="https://www.acme.com",
@@ -303,7 +303,7 @@ class TestContentExtraction:
         """
 
         text = extract_clean_text(html)
-        lines = [l for l in text.split("\n") if l.strip()]
+        lines = [line for line in text.split("\n") if line.strip()]
 
         # Should only have 2 unique lines
         assert lines.count("Line one") == 1
@@ -400,7 +400,7 @@ class TestLLMValidation:
                 )
 
                 assert len(result) == 1
-                assert "businesswire.com" in list(result.keys())[0]
+                assert "businesswire.com" in next(iter(result.keys()))
 
 
 class TestErrorHandling:
@@ -435,7 +435,7 @@ class TestErrorHandling:
 
                 # Should have 1 result (the working one)
                 assert len(result) == 1
-                assert "working-site.com" in list(result.keys())[0]
+                assert "working-site.com" in next(iter(result.keys()))
 
     def test_llm_failure_skipped_gracefully(self):
         """LLM validation failures should skip the source, not crash."""
@@ -501,7 +501,7 @@ class TestErrorHandling:
 
                 # Only the long content should pass
                 assert len(result) == 1
-                assert "long" in list(result.keys())[0]
+                assert "long" in next(iter(result.keys()))
 
     def test_empty_search_results_returns_empty(self):
         """Empty search results should return empty dict."""

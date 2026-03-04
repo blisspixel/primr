@@ -258,10 +258,10 @@ class TestSafeJsonGet:
 class TestUrlValidationSecurityProperty:
     """
     Property-based tests for URL validation security.
-    
+
     **Feature: code-quality-hardening, Property 12: URL Validation Security**
     **Validates: Requirements 7.2**
-    
+
     For any URL string, the validator SHALL reject URLs with disallowed
     schemes, invalid format, or potential injection attacks.
     """
@@ -298,10 +298,10 @@ class TestUrlValidationSecurityProperty:
 class TestPathTraversalPreventionProperty:
     r"""
     Property-based tests for path traversal prevention.
-    
+
     **Feature: code-quality-hardening, Property 13: Path Traversal Prevention**
     **Validates: Requirements 7.3**
-    
+
     For any file path containing traversal sequences (../, ..\), the
     validator SHALL reject the path when a base_dir constraint is specified.
     """
@@ -346,10 +346,10 @@ class TestPathTraversalPreventionProperty:
 class TestJsonParseSafetyProperty:
     """
     Property-based tests for JSON parse safety.
-    
+
     **Feature: code-quality-hardening, Property 14: JSON Parse Safety**
     **Validates: Requirements 7.4**
-    
+
     For any malformed JSON string, the safe parser SHALL return the
     default value without raising an exception.
     """
@@ -598,7 +598,7 @@ class TestUrlNormalizationIdempotenceProperty:
         normalized = normalize_url(url)
 
         # Should have a scheme
-        assert normalized.startswith("http://") or normalized.startswith("https://")
+        assert normalized.startswith(("http://", "https://"))
 
         # Should have lowercase scheme
         assert normalized[:8].islower()

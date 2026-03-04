@@ -54,7 +54,8 @@ class TestGCPDeployScriptContent:
     def test_sources_common_sh(self, gcp_dir: Path) -> None:
         """Script should source common.sh."""
         content = (gcp_dir / "deploy.sh").read_text()
-        assert "source" in content and "common.sh" in content
+        assert "source" in content
+        assert "common.sh" in content
 
     def test_has_deploy_command(self, gcp_dir: Path) -> None:
         """Script should have deploy command."""

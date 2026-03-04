@@ -45,8 +45,8 @@ def test_no_moved_python_files_in_root():
     """
     **Feature: project-reorganization, Property 3: Clean project root**
     **Validates: Requirements 1.3**
-    
-    For any file in the project root after reorganization, that file SHALL be 
+
+    For any file in the project root after reorganization, that file SHALL be
     either a configuration file, documentation, an entry point, or a directory.
     """
     for filename in MOVED_PYTHON_FILES:
@@ -61,7 +61,7 @@ def test_moved_files_not_in_root(filename: str):
     """
     **Feature: project-reorganization, Property 3: Clean project root**
     **Validates: Requirements 1.3**
-    
+
     Property test verifying each moved file is no longer in root.
     """
     file_path = PROJECT_ROOT / filename

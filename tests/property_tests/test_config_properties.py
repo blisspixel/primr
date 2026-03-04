@@ -152,11 +152,11 @@ def generate_valid_config(
 class TestValidConfigAcceptance:
     """
     **Property 16: Valid Config Acceptance**
-    
+
     For any YAML configuration that conforms to the Pydantic schema (all required
     fields present with correct types), `validate_prompt_config()` SHALL return a
     valid `PromptConfigModel` without raising exceptions.
-    
+
     **Validates: Requirements 6.2**
     """
 
@@ -295,11 +295,11 @@ class TestValidConfigAcceptance:
 class TestInvalidConfigRejection:
     """
     **Property 17: Invalid Config Rejection with Details**
-    
+
     For any YAML configuration with missing required fields or incorrect types,
     `validate_prompt_config()` SHALL raise a `ValidationError` with error messages
     that include the field path and expected type.
-    
+
     **Validates: Requirements 6.3, 6.6, 6.7**
     """
 
@@ -635,11 +635,11 @@ class TestInvalidConfigRejection:
 class TestSchemaVersionValidation:
     """
     **Property 18: Schema Version Validation**
-    
+
     For any configuration with an unsupported `schema_version` value, the validator
     SHALL raise `SchemaVersionError` with the current supported version in the error
     message.
-    
+
     **Validates: Requirements 6.4, 6.5**
     """
 
@@ -867,5 +867,5 @@ class TestJsonSchemaExport:
 
         # Should include SectionSpecModel definition
         assert "SectionSpecModel" in defs or any(
-            "section" in key.lower() for key in defs.keys()
+            "section" in key.lower() for key in defs
         )

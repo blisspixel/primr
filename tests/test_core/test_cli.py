@@ -382,24 +382,25 @@ class TestRunDoctor:
 
     def test_doctor_returns_exit_code(self):
         """Test doctor returns appropriate exit code."""
-        with patch.dict(os.environ, {"GEMINI_API_KEY": ""}):
-            with patch("primr.core.cli._check_api_connectivity") as mock_api:
-                mock_api.return_value = (False, 0)
-                result = run_doctor()
-                # Should fail without API key
-                assert result == 1
+        with patch.dict(os.environ, {"GEMINI_API_KEY": ""}), patch("primr.core.cli._check_api_connectivity") as mock_api:
+            mock_api.return_value = (False, 0)
+            result = run_doctor()
+            # Should fail without API key
+            assert result == 1
 
     def test_doctor_with_valid_config(self):
         """Test doctor with valid configuration."""
-        with patch.dict(os.environ, {"GEMINI_API_KEY": "AItest1234567890"}):
-            with patch("primr.core.cli._check_dependencies") as mock_deps:
-                mock_deps.return_value = 0
-                with patch("primr.core.cli._check_filesystem") as mock_fs:
-                    mock_fs.return_value = (True, 0)
-                    with patch("primr.core.cli._check_api_connectivity") as mock_api:
-                        mock_api.return_value = (True, 0)
-                        result = run_doctor()
-                        assert result == 0
+        with (
+            patch.dict(os.environ, {"GEMINI_API_KEY": "AItest1234567890"}),
+            patch("primr.core.cli._check_dependencies") as mock_deps,
+            patch("primr.core.cli._check_filesystem") as mock_fs,
+            patch("primr.core.cli._check_api_connectivity") as mock_api,
+        ):
+            mock_deps.return_value = 0
+            mock_fs.return_value = (True, 0)
+            mock_api.return_value = (True, 0)
+            result = run_doctor()
+            assert result == 0
 
 
 # =============================================================================

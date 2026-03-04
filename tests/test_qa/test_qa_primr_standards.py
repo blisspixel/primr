@@ -51,8 +51,8 @@ class TestPrimrStandardsCoverage:
         """
         **Feature: qa-grading-fix, Property 1: Assessment covers Primr quality standards**
         **Validates: Requirements 1.1**
-        
-        For any report analyzed, the QA system should evaluate strategic coherence, 
+
+        For any report analyzed, the QA system should evaluate strategic coherence,
         citation quality, and hypothesis-driven framing as specified in Primr's standards.
         """
         # Setup analyzer with mocked AI client to avoid actual API calls
@@ -204,8 +204,8 @@ class TestActionableFeedbackGeneration:
         """
         **Feature: qa-grading-fix, Property 2: Feedback is actionable and specific**
         **Validates: Requirements 2.1**
-        
-        For any QA analysis result, the output should contain specific strengths and 
+
+        For any QA analysis result, the output should contain specific strengths and
         improvement areas rather than generic scores or comments.
         """
         analyzer = SimpleQAAnalyzer()
@@ -381,8 +381,8 @@ class TestComprehensiveReportReliability:
         """
         **Feature: qa-grading-fix, Property 3: Comprehensive reports complete successfully**
         **Validates: Requirements 3.1**
-        
-        For any well-structured report like the Evertrue LLC analysis, the system should 
+
+        For any well-structured report like the Evertrue LLC analysis, the system should
         provide a complete assessment without falling back to error responses.
         """
         analyzer = SimpleQAAnalyzer()
@@ -412,7 +412,7 @@ class TestComprehensiveReportReliability:
 
             # Verify comprehensive reports complete successfully
             assert isinstance(result, SimpleQAResult), "Should return SimpleQAResult"
-            assert result.parsing_success == True, "Should successfully parse comprehensive report assessment"
+            assert result.parsing_success, "Should successfully parse comprehensive report assessment"
             assert result.error_message is None, "Should not have error message for successful assessment"
             assert result.confidence_level in ['high', 'medium', 'low'], "Should have valid confidence level"
 
@@ -565,25 +565,25 @@ class TestComprehensiveReportReliability:
         comprehensive_content = """
         EXECUTIVE SUMMARY
         Evertrue LLC demonstrates strong market positioning in the alumni engagement technology sector...
-        
+
         MARKET ANALYSIS
         The alumni engagement market has grown significantly, with total addressable market estimated at $2.1B...
-        
+
         COMPETITIVE LANDSCAPE
         Key competitors include Blackbaud, Salesforce Nonprofit Cloud, and emerging players...
-        
+
         SWOT ANALYSIS
         Strengths: Strong product-market fit, established client base, innovative technology platform
         Weaknesses: Limited international presence, dependency on higher education sector
         Opportunities: Corporate alumni programs, international expansion, AI-driven insights
         Threats: Economic downturns affecting education budgets, increased competition
-        
+
         FINANCIAL OVERVIEW
         Revenue growth of 23% YoY, with strong unit economics and improving margins...
-        
+
         VALUE CHAIN ANALYSIS
         Primary activities include software development, client onboarding, customer success...
-        
+
         STRATEGIC RECOMMENDATIONS
         Focus on international expansion while maintaining core market leadership...
         """ * 10  # Simulate comprehensive content
@@ -637,10 +637,10 @@ class TestComprehensiveReportReliability:
 
             # Should handle comprehensive reports like Evertrue LLC successfully
             assert isinstance(result, SimpleQAResult), "Should handle Evertrue-style comprehensive reports"
-            assert result.parsing_success == True, "Should successfully parse comprehensive strategic analysis"
+            assert result.parsing_success, "Should successfully parse comprehensive strategic analysis"
             assert result.error_message is None, "Should not error on comprehensive reports"
             assert result.confidence_level == "high", "Should have high confidence for well-structured reports"
-            assert result.ready_for_use == True, "Should indicate readiness for comprehensive reports"
+            assert result.ready_for_use, "Should indicate readiness for comprehensive reports"
 
             # Should provide detailed, specific feedback
             assert len(result.key_strengths) >= 3, "Should identify multiple strengths in comprehensive reports"

@@ -275,7 +275,7 @@ class TestCompanyOverviewValidation:
         """
         WHEN company_overview.yaml is loaded
         THEN the system SHALL validate all 21 sections have required fields
-        
+
         **Validates: Requirements 6.1**
         """
         composer = PromptComposer()
@@ -306,7 +306,7 @@ class TestAIStrategyVendorGuidance:
         """
         WHEN ai_strategy.yaml is loaded
         THEN the system SHALL validate vendor guidance exists for azure, aws, gcp
-        
+
         **Validates: Requirements 6.2**
         """
         registry = get_registry()
@@ -347,7 +347,7 @@ class TestAccordionMethodPrompts:
         """
         WHEN accordion_method prompts are loaded
         THEN the system SHALL validate placeholders exist
-        
+
         **Validates: Requirements 6.4**
         """
         composer = PromptComposer()
@@ -388,7 +388,7 @@ class TestMalformedYAMLHandling:
         """
         WHEN a strategy module YAML is malformed
         THEN the system SHALL raise a descriptive error
-        
+
         **Validates: Requirements 6.3**
         """
         import os
@@ -464,7 +464,7 @@ def test_property_section_ids_are_snake_case(section_id: str):
     """
     **Feature: test-coverage-hardening, Property 9: Malformed YAML raises descriptive error**
     **Validates: Requirements 6.3**
-    
+
     For any valid section ID, it should be in snake_case format.
     """
     import re
@@ -487,7 +487,7 @@ def test_property_vendor_guidance_exists(vendor: str):
     """
     **Feature: test-coverage-hardening, Property 9: Malformed YAML raises descriptive error**
     **Validates: Requirements 6.2**
-    
+
     For any supported vendor, guidance should exist in ai_strategy.yaml.
     """
     registry = get_registry()

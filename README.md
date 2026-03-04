@@ -2,7 +2,7 @@
 
 **Turn any company URL into a strategic intelligence brief.**
 
-Primr extracts primary-source data from company websites using adaptive scraping that handles modern site architectures, then synthesizes external research into structured briefs using AI-powered research and synthesis (Gemini Deep Research, Grok 4.1, or both).
+Primr extracts primary-source data from company websites using adaptive scraping that handles modern site architectures, then synthesizes external research into structured briefs using AI-powered research and synthesis (Grok 4.1 by default, or Gemini Deep Research via `--premium`).
 
 Runs as a CLI, an MCP server, an OpenClaw integration, and a Claude Skill.
 
@@ -10,13 +10,13 @@ Runs as a CLI, an MCP server, an OpenClaw integration, and a Claude Skill.
 primr "ExampleCo" https://example.co
 ```
 
-Under an hour later: competitive positioning, technology stack, strategic initiatives, and external validation, all cited.
+About 30 minutes later: competitive positioning, technology stack, strategic initiatives, and external validation, all cited. ~$0.55 in API costs.
 
 ## Why This Exists
 
 Company research is tedious. You visit the website, click around, search the company, read articles, synthesize it all, write it up. That process easily takes 1-2 hours per company and the output is usually unstructured notes.
 
-Primr does that entire workflow autonomously in about an hour for about $6 in API costs. The output is a structured, cited intelligence brief — competitive positioning, technology stack, strategic initiatives, financial profile, and external validation. Whether you're researching a potential employer, evaluating an investment, preparing for a partnership, doing competitive analysis, or running due diligence, a single run replaces hours of manual work.
+Primr does that entire workflow autonomously in about 30 minutes for about $0.55 in API costs. The output is a structured, cited intelligence brief — competitive positioning, technology stack, strategic initiatives, financial profile, and external validation. Whether you're researching a potential employer, evaluating an investment, preparing for a partnership, doing competitive analysis, or running due diligence, a single run replaces hours of manual work.
 
 ## What Makes It Different
 
@@ -26,25 +26,27 @@ Primr does that entire workflow autonomously in about an hour for about $6 in AP
 - **Cost controls built in**: `--dry-run` estimates, usage tracking, and governance hooks for budget limits.
 - **Agent-native interfaces**: CLI, MCP server, OpenClaw integration, and Claude Skills, all first-class.
 
-Manual research takes hours. Primr typically runs in about an hour and costs about $6 in API usage (varies by depth and site complexity). The output is structured, cited, and ready to use.
+Manual research takes hours. Primr typically runs in about 30 minutes and costs about $0.55 in API usage (varies by depth and site complexity). The output is structured, cited, and ready to use.
 
 ## Modes
 
 | Mode | What it does | Time | Cost |
 |------|--------------|------|------|
-| `full` | Scrape + Deep Research + AI Strategy (default) | 60-90 min | $6 |
-| `full` + multi-vendor | Add `--cloud-vendor aws azure` for multiple vendors | 75-120 min | $6-9 |
-| `full` + `--lite` | Pro model instead of DR for AI Strategy | 50-80 min | $4 |
-| `full --no-ai-strategy` | Skip AI Strategy, just the research brief | 45-75 min | $3.50 |
+| Default | Grok 4.1 pipeline + AI Strategy (auto when `XAI_API_KEY` set) | ~30 min | ~$0.55 |
+| Default + multi-vendor | Add `--cloud-vendor aws azure` | ~35-40 min | ~$0.60 |
+| Default + strategy type | Add `--strategy-type customer_experience` | ~35-40 min | ~$0.60 |
+| Default `--no-ai-strategy` | Grok 4.1 report only, no strategy | ~25 min | ~$0.40 |
+| `--premium` | Gemini + Deep Research + AI Strategy | 50-75 min | ~$5 |
+| `--premium` + multi-vendor | Add `--cloud-vendor aws azure` | 75-120 min | $6-9 |
+| `--premium --lite` | Pro model instead of DR for AI Strategy | 50-80 min | ~$4 |
 | `--mode scrape` | Crawl site + extract insights only | 5-10 min | $0.10 |
 | `--mode deep` | Gemini Deep Research on external sources only | 10-15 min | $2.50 |
-| `--fast` | Grok 4.1 with research deepening + cross-validation (requires `XAI_API_KEY`) | ~20-30 min | $0.20 |
-| `--fast` + multi-vendor | Add `--cloud-vendor aws azure` for multiple vendors | 22-36 min | ~$0.25 |
-| `--fast --no-ai-strategy` | Grok 4.1 report only, no AI Strategy | ~20-30 min | $0.15 |
 
-The default `primr` command runs full mode with AI Strategy (Azure vendor). Full mode costs are Gemini API usage: Deep Research is $2.50 per task (one for the brief, one per AI Strategy vendor), plus token costs for Flash/Pro calls. `--lite` swaps the strategy DR task for a Pro model call ($0.15/vendor instead of $2.50). **Cost-sensitive?** Use `--fast` — Grok 4.1 with research deepening and cross-validation produces a high-quality report with 40-55 sources and AI Strategy in ~20-30 minutes for about $0.20 (Flash is still used for scraping). Add `--cloud-vendor aws azure` for multi-vendor strategy (~$0.25), or `--no-ai-strategy` for the cheapest option (~$0.15). DDG searches are free (no API cost). Web search uses DuckDuckGo (free). Use `--dry-run` for accurate estimates based on your usage history.
+The default `primr` command auto-detects: when `XAI_API_KEY` is set, it uses Grok 4.1 (fast, cheap, high quality). Without it, falls back to Gemini. Use `--premium` to explicitly request the Gemini + Deep Research pipeline for maximum depth.
 
-`--fast` includes research deepening (gap analysis + targeted search), cross-validation (weak section detection + re-generation), plus trust-polish and citation normalization for high-quality reports at a fraction of full mode cost.
+**Strategy types** (use `primr --list-strategies` for details): `ai` (default), `customer_experience`, `modern_security_compliance`, `data_fabric_strategy`. Strategy types are defined by YAML configs in `src/primr/prompts/strategies/` and auto-discovered at runtime.
+
+The standard Grok pipeline includes research deepening (gap analysis + targeted search), cross-validation (weak section detection + re-generation), trust-polish, and citation normalization for reports. Strategy documents get the same treatment: cross-validation to find weak sections, targeted evidence search, section regeneration, and a polish pass. Produces reports with 40-55 sources. DDG searches are free. Use `--dry-run` for accurate estimates based on your usage history.
 
 ## Versioned Model Evaluation (Quality vs Cost)
 
@@ -109,7 +111,7 @@ primr doctor                     # Verify everything works
 primr "ExampleCo" https://example.co  # Run your first research
 ```
 
-Requires Python 3.11+ and a Gemini API key (add `XAI_API_KEY` for `--fast` mode). Web search uses DuckDuckGo (no key needed).
+Requires Python 3.11+. Set `XAI_API_KEY` for the standard Grok pipeline (recommended), or `GEMINI_API_KEY` for Gemini/premium mode. Web search uses DuckDuckGo (no key needed).
 
 ### Platform Support
 
@@ -129,9 +131,12 @@ primr "Company" https://company.com --mode scrape        # Site corpus only
 primr "Company" https://company.com --mode deep          # External research only
 primr "Company" https://company.com --dry-run            # Cost estimate first
 primr "Company" https://company.com --cloud-vendor aws azure  # Multi-vendor AI strategy
-primr "Company" https://company.com --cloud-vendor aws azure --lite  # Cheaper/faster strategy
-primr "Company" https://company.com --fast                        # Grok 4.1 fast mode (~$0.20)
-primr "Company" https://company.com --fast --cloud-vendor aws azure  # Fast + multi-vendor AI strategy (~$0.25)
+primr "Company" https://company.com --strategy-type customer_experience  # CX strategy document
+primr "Company" https://company.com --strategy-type data_fabric_strategy # Data fabric strategy
+primr --list-strategies                                                  # See all strategy types
+primr "Company" https://company.com --premium            # Gemini + Deep Research (~$5)
+primr "Company" https://company.com --premium --cloud-vendor aws azure  # Premium + multi-vendor
+primr "Company" https://company.com --premium --lite     # Cheaper premium strategy
 primr "Company" https://company.com --skip-scrape-validation      # Continue even if scrape quality is low
 primr "Company" https://company.com --resume-local                # Reuse latest incomplete local run folder
 primr --resume-latest                                              # Recover completed cloud jobs and finalize MD/DOCX
@@ -140,57 +145,57 @@ primr --resume-latest                                              # Recover com
 ### What a run looks like
 
 ```
-> PHASE 1 - Data Collection
-  Website scraping + web search + AI analysis
+Using fast mode (Grok 4.1) — XAI_API_KEY detected. Use --premium for Gemini + Deep Research.
+
+> PHASE 1/5 - Data Collection (fast)
+  Scraping website + external sources
 
 [OK] 251 links -> 50 selected
 Scraping 23/50 (ok 17) /about  [15s elapsed, ~2m left]
 [OK] 48/50 pages scraped (6m 10s)
-+ 3 external sources validated
-[OK] Data Collection
-  Sections generated: 18
+[OK] 38 external sources validated
+[OK] Data Collection (fast)
+  Pages: 48  External: 38
 
-> PHASE 2 - Deep Research
-  Comprehensive report with sequential elaboration (50+ pages)
+> PHASE 2/5 - Research Deepening
+  Identifying gaps and searching for additional evidence
 
-  Searching sources (1m 33s)
-  Analyzing findings (3m 48s)
-  Generating report (6m 43s)
-  Writing: Executive Summary (1/21)...
-  Writing: Products and Services (2/21)...
+[OK] Gap analysis: 8 questions identified
+[OK] Found 12 additional sources
+
+> PHASE 3/5 - Analysis (Grok)
+  Building structured workbook from enriched data
+
+[OK] Analysis (Grok)
+
+> PHASE 4/5 - Report Writing (Grok)
+  Writing 21 sections (parallel within parts)
+
+Part 1/5 (Opening): 7 section(s) in parallel
+  Executive Summary (1,142 words)
   ...
-  Writing: Strategic Positioning Hypothesis (21/21)...
+Part 5/5 (Frameworks): 3 section(s) in parallel
+  SWOT Analysis (847 words)
+  Porter's Five Forces Analysis (812 words)
+  Value Chain Analysis (798 words)
+[OK] Report Writing (Grok)
+  Sections: 21  Words: 18,658
 
-[OK] Deep Research
-  Chapters: 21
+> PHASE 5/5 - Cross-Validation
+  Reviewing report for gaps and weak sections
 
-> PHASE 3 - AI Strategy Roadmap (AWS) Analysis
-  Generating AI strategy roadmap recommendations (aws)
+[OK] Cross-Validation
 
-[OK] AI Strategy Roadmap (AWS) Analysis
-
-> PHASE 4 - AI Strategy Roadmap (AZURE) Analysis
-  Generating AI strategy roadmap recommendations (azure)
-
-[OK] AI Strategy Roadmap (AZURE) Analysis
-
-[OK] Complete in 85m
+[OK] Complete in 32m
 
 [OK] Report ready
-  output/ExampleCo_Strategic_Overview_02-11-2026.docx
+  output/ExampleCo_Strategic_Overview_03-03-2026.docx
 
-[OK] AI Strategy Roadmap (AWS)
-  output/ExampleCo_AI_Strategy_AWS_02-11-2026.docx
-
-[OK] AI Strategy Roadmap (AZURE)
-  output/ExampleCo_AI_Strategy_AZURE_02-11-2026.docx
-
-Mode: Complete (Two-Step)
+Mode: Fast (Grok 4.1)
 Chapters: 21
-Citations: 34
-Duration: 85m
-Est. Cost: $8.85
-Actual Cost: ~$8.12
+Citations: 42
+Duration: 32m
+Est. Cost: $0.60
 AI Strategy: Yes
 ```
 
@@ -221,11 +226,11 @@ Recovery behavior:
 
 From the executive summary of a sample report:
 
-> Cirrus Fleet Technologies is a mid-market logistics optimization vendor ($180-220M ARR, estimated) that sells route planning and fleet analytics software to regional shipping companies. The company occupies a defensible but narrowing niche: optimizing last-mile delivery for carriers still running legacy dispatch systems.
+> Northwind Haulage Corp is a mid-market logistics optimization vendor ($180-220M ARR, estimated) that sells route planning and fleet analytics software to regional shipping companies. The company occupies a defensible but narrowing niche: optimizing last-mile delivery for carriers still running legacy dispatch systems.
 >
 > **Key insights:**
 >
-> - Cirrus's customer concentration is high. Cross-referencing case studies, press releases, and conference presentations, roughly 40% of referenced deployments involve just 3 carrier networks. Loss of any one would be material. *[Confidence: Inferred]*
+> - Northwind's customer concentration is high. Cross-referencing case studies, press releases, and conference presentations, roughly 40% of referenced deployments involve just 3 carrier networks. Loss of any one would be material. *[Confidence: Inferred]*
 > - The company has no disclosed AI strategy, but 4 of their last 7 engineering hires have ML/optimization backgrounds. Combined with a patent filing for "autonomous route replanning under disruption," this suggests an unannounced product line. *[Confidence: Inferred]*
 > - Pricing has shifted from perpetual licenses to consumption-based billing (per-shipment), visible in public procurement portal RFP responses. *[Confidence: Reported]*
 
@@ -252,7 +257,7 @@ primr --batch companies_utilities_enriched.csv --mode scrape
 --industry NAME   # Filter rows by industry column value
 --limit N         # Process only the first N companies (useful for testing)
 --skip-confirm    # Skip the confirmation prompt (for unattended runs)
---mode MODE       # scrape ($0.10/co), deep ($2.50/co), full ($6/co)
+--mode MODE       # scrape ($0.10/co), deep ($2.50/co), full (~$0.55/co or ~$5/co with --premium)
 ```
 
 **Defensive behavior:**
@@ -285,13 +290,12 @@ Playwright tiers now perform adaptive lazy-load scrolling (up to 20 steps by def
 
 | Model | Role | Pricing (per 1M tokens) |
 |-------|------|-------------------------|
+| Grok 4.1 Fast | Default mode: analysis, writing, strategy | $0.20 in / $0.50 out |
 | Gemini 3 Flash | Scraping, link selection, QA | $0.50 in / $3 out |
-| Gemini 3.1 Pro (default) | Section writing, analysis | $2/$12 (≤200k) · $4/$18 (>200k) |
-| Gemini 3 Pro | Previous default, flat pricing | $2 in / $12 out |
-| Deep Research Agent | Autonomous multi-step research | ~$2.50/task (flat) |
-| Grok 4.1 Fast | `--fast` mode reports | $0.20 in / $0.50 out |
+| Gemini 3.1 Pro | `--premium` mode: section writing, analysis | $2/$12 (≤200k) · $4/$18 (>200k) |
+| Deep Research Agent | `--premium` mode: autonomous research | ~$2.50/task (flat) |
 
-Gemini 3.1 Pro is the default — improved thinking, token efficiency, and factual consistency. Tiered pricing only kicks in for prompts over 200k tokens; most Primr calls stay well under. To revert: `AI_REASONING_MODEL=gemini-3-pro-preview`. [Full config reference](docs/CONFIG.md).
+Grok 4.1 is the default when `XAI_API_KEY` is set — same quality as Gemini+DR at ~10% of the cost. Gemini Flash is still used for scraping in both modes. Use `--premium` to switch to Gemini + Deep Research for maximum depth. [Full config reference](docs/CONFIG.md).
 
 **Agentic Architecture**
 - Hypothesis tracking with confidence levels across sessions
@@ -302,11 +306,11 @@ Gemini 3.1 Pro is the default — improved thinking, token efficiency, and factu
 ## Configuration
 
 ```bash
-# Required in .env
-GEMINI_API_KEY=       # https://aistudio.google.com/apikey
+# Recommended - for default Grok 4.1 pipeline
+XAI_API_KEY=          # https://console.x.ai/
 
-# Optional - for --fast mode (Grok 4.1)
-# XAI_API_KEY=        # https://console.x.ai/
+# Required for --premium mode or if XAI_API_KEY not set
+GEMINI_API_KEY=       # https://aistudio.google.com/apikey
 
 # Optional - only needed if you want to use Google Custom Search instead of DuckDuckGo
 # SEARCH_PROVIDER=google
@@ -328,6 +332,7 @@ GEMINI_API_KEY=       # https://aistudio.google.com/apikey
 ```
 
 Web search uses DuckDuckGo by default - no search API key needed. Google Custom Search is available as an optional fallback for users with existing whole-web CSEs.
+When `XAI_API_KEY` is set, Primr automatically uses the Grok 4.1 pipeline (faster, cheaper, same quality). Use `--premium` to force Gemini + Deep Research.
 If scrape validation blocks a run you intentionally want to continue, pass `--skip-scrape-validation`.
 Deep Research background jobs are created with persistent storage enabled, so `primr --check-jobs` can recover completed cloud work after local interruptions. Job checks now distinguish local connectivity issues (`CHECK ERROR`) from provider terminal failures.
 For one-shot recovery after crashes/reboots, use `primr --resume-latest` (or `--resume-jobs`) to fetch completed jobs and finalize canonical output filenames automatically.
@@ -407,7 +412,7 @@ Recent hardening includes shared deep-research parsing/polling/execution modules
 
 Primr is a nights-and-weekends project by a solo developer. I kept finding myself spending hours researching companies — clicking around websites, reading articles, trying to piece together what a company actually does and where it's headed. The time-to-insight ratio was terrible, and most of the work was mechanical. That's exactly what AI should be doing.
 
-So I built the tool I wanted: drop in a URL, get back a structured brief. It costs a few dollars in API fees and saves hours per company. Whether you're evaluating a potential employer, researching an investment, preparing for a partnership conversation, or just curious about a company, it gets you up to speed fast.
+So I built the tool I wanted: drop in a URL, get back a structured brief. It costs about $0.50 in API fees and saves hours per company. Whether you're evaluating a potential employer, researching an investment, preparing for a partnership conversation, or just curious about a company, it gets you up to speed fast.
 
 It's not backed by a company or a team. It's an independent project built for personal use.
 

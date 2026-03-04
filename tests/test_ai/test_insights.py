@@ -37,11 +37,11 @@ def sample_content():
     Acme Corp is facing significant challenges. The company reported declining revenue
     in Q3 and has high debt levels that concern investors. There's also an ongoing
     lawsuit related to patent infringement.
-    
+
     However, the company is pursuing digital transformation and exploring new market
     expansion opportunities in Asia. They recently announced a partnership with
     TechGiant for cloud migration services.
-    
+
     The CEO mentioned innovation as a key priority, with R&D investment increasing
     by 20% this year. The company is also looking at potential acquisition targets
     to strengthen their market position.
