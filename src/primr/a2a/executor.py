@@ -320,7 +320,7 @@ class PrimrAgentExecutor(AgentExecutor):
         active = self._mcp.job_store.get_active()
         if active:
             progress = active.stage_progress_percent or 0
-            result = {
+            result: dict[str, object] = {
                 "job_id": active.job_id,
                 "company": active.company_name,
                 "stage": active.current_stage.value,
