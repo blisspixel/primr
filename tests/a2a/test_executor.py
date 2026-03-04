@@ -178,3 +178,108 @@ class TestPrimrAgentExecutor:
         context.task_id = "nonexistent-task"
         await executor.cancel(context, event_queue)
         event_queue.enqueue_event.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_check_jobs_returns_json(self, executor, event_queue, context):
+        """check_jobs response is valid JSON with status field."""
+        context.message["metadata"] = {"skillId": "check_jobs"}
+        await executor.execute(context, event_queue)
+
+        call_args = event_queue.enqueue_event.call_args
+        # Extract text from the agent message event
+        event = call_args[0][0]
+        text = _get_event_text(event)
+        data = json.loads(text)
+        assert "status" in data
+        assert data["status"] == "idle"
+
+    @pytest.mark.asyncio
+    async def test_doctor_returns_json(self, executor, event_queue, context):
+        """system_health returns valid JSON."""
+        context.message["metadata"] = {"skillId": "system_health"}
+        with patch("primr.a2a.executor.get_doctor_status", return_value={"status": "healthy"}):
+            await executor.execute(context, event_queue)
+
+        event = event_queue.enqueue_event.call_args[0][0]
+        text = _get_event_text(event)
+        data = json.loads(text)
+        assert data["status"] == "healthy"
+
+    @pytest.mark.asyncio
+    async def test_estimate_invalid_url(self, executor, event_queue, context):
+        """estimate_research with invalid URL returns error message."""
+        context.message = {
+            "parts": [{"kind": "text", "text": '{"url": "http://169.254.169.254/meta"}'}],
+            "metadata": {"skillId": "estimate_research"},
+        }
+        await executor.execute(context, event_queue)
+        event = event_queue.enqueue_event.call_args[0][0]
+        text = _get_event_text(event)
+        assert "Invalid URL" in text or "url" in text.lower()
+
+    @pytest.mark.asyncio
+    async def test_research_no_url(self, executor, event_queue, context):
+        """research_company without URL asks for one."""
+        context.message = {
+            "parts": [{"kind": "text", "text": "research something"}],
+            "metadata": {"skillId": "research_company"},
+        }
+        await executor.execute(context, event_queue)
+        event = event_queue.enqueue_event.call_args[0][0]
+        text = _get_event_text(event)
+        assert "URL" in text
+
+    @pytest.mark.asyncio
+    async def test_qa_no_report(self, executor, event_queue, context):
+        """run_qa without path and no recent job asks for path."""
+        context.message = {
+            "parts": [{"kind": "text", "text": "run qa"}],
+            "metadata": {"skillId": "run_qa"},
+        }
+        await executor.execute(context, event_queue)
+        event = event_queue.enqueue_event.call_args[0][0]
+        text = _get_event_text(event)
+        assert "path" in text.lower() or "report" in text.lower()
+
+    @pytest.mark.asyncio
+    async def test_executor_handles_exception(self, executor, event_queue, context):
+        """Executor catches exceptions and enqueues error event."""
+        context.message["metadata"] = {"skillId": "system_health"}
+        with patch("primr.a2a.executor.get_doctor_status", side_effect=RuntimeError("boom")):
+            await executor.execute(context, event_queue)
+
+        # Should enqueue at least one event with error content
+        assert event_queue.enqueue_event.called
+        event = event_queue.enqueue_event.call_args[0][0]
+        text = _get_event_text(event)
+        assert "failed" in text.lower() or "error" in text.lower() or "Internal" in text
+
+
+def _get_event_text(event) -> str:
+    """Extract text from an A2A event (handles Message, TaskStatusUpdateEvent, etc.)."""
+    # Direct Message with parts
+    if hasattr(event, "parts") and event.parts:
+        for part in event.parts:
+            # Part(root=TextPart(...)) wrapper
+            root = getattr(part, "root", part)
+            if hasattr(root, "text"):
+                return root.text
+            if isinstance(root, dict) and root.get("kind") == "text":
+                return root["text"]
+
+    # TaskStatusUpdateEvent — message in status.message
+    status = getattr(event, "status", None)
+    if status:
+        msg = getattr(status, "message", None)
+        if isinstance(msg, dict):
+            parts = msg.get("parts", [])
+            for part in parts:
+                if isinstance(part, dict) and part.get("kind") == "text":
+                    return part.get("text", "")
+        elif hasattr(msg, "parts"):
+            for part in msg.parts:
+                root = getattr(part, "root", part)
+                if hasattr(root, "text"):
+                    return root.text
+
+    return ""
