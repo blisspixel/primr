@@ -95,8 +95,8 @@ class TestSimpleQAAnalyzer:
             result = analyzer.assess_report(test_report)
 
             assert isinstance(result, SimpleQAResult)
-            assert result.parsing_success == True
-            assert result.ready_for_use == True
+            assert result.parsing_success
+            assert result.ready_for_use
             assert result.confidence_level == "high"
             assert len(result.key_strengths) == 2
             assert len(result.areas_for_improvement) == 1
@@ -137,16 +137,15 @@ class TestSimpleQAAnalyzer:
                 raise Exception("Rate limit exceeded (429)")
             return success_response
 
-        with patch.object(analyzer, 'ai_client') as mock_client:
-            with patch('time.sleep'):  # Mock sleep to speed up test
-                mock_client.generate.side_effect = mock_generate
+        with patch.object(analyzer, 'ai_client') as mock_client, patch('time.sleep'):  # Mock sleep to speed up test
+            mock_client.generate.side_effect = mock_generate
 
-                result = analyzer.assess_report(test_report)
+            result = analyzer.assess_report(test_report)
 
-                assert isinstance(result, SimpleQAResult)
-                assert result.parsing_success == True
-                assert "after handling rate limit" in result.recommendation
-                assert call_count == 2  # Should have retried once
+            assert isinstance(result, SimpleQAResult)
+            assert result.parsing_success
+            assert "after handling rate limit" in result.recommendation
+            assert call_count == 2  # Should have retried once
 
     def test_error_result_creation(self):
         """Test error result creation with diagnostic information."""
@@ -154,7 +153,7 @@ class TestSimpleQAAnalyzer:
 
         # Test rate limit error
         rate_limit_result = analyzer._create_error_result("Rate limit exceeded (429)")
-        assert rate_limit_result.ready_for_use == False
+        assert not rate_limit_result.ready_for_use
         assert rate_limit_result.confidence_level == "low"
         assert "rate limit" in rate_limit_result.recommendation.lower()
         assert "retry later" in rate_limit_result.recommendation.lower()
@@ -194,7 +193,7 @@ class TestSimpleJSONParser:
         result = parser.parse_qa_response(valid_response)
 
         assert result is not None
-        assert result["ready_for_use"] == True
+        assert result["ready_for_use"]
         assert result["confidence_level"] == "high"
         assert len(result["key_strengths"]) == 1
         assert parser.successful_extractions == 1
@@ -204,7 +203,7 @@ class TestSimpleJSONParser:
         parser = SimpleJSONParser()
 
         markdown_response = """Here's the assessment:
-        
+
 ```json
 {
     "ready_for_use": false,
@@ -220,7 +219,7 @@ That's my analysis."""
         result = parser.parse_qa_response(markdown_response)
 
         assert result is not None
-        assert result["ready_for_use"] == False
+        assert not result["ready_for_use"]
         assert result["confidence_level"] == "medium"
         assert parser.successful_extractions == 1
 
@@ -239,7 +238,7 @@ That's my analysis."""
 
         result = parser.extract_with_regex_fallback(malformed_response)
 
-        assert result["ready_for_use"] == True
+        assert result["ready_for_use"]
         assert result["confidence_level"] == "medium"
         assert len(result["key_strengths"]) == 2
         assert len(result["areas_for_improvement"]) == 1
@@ -257,7 +256,7 @@ That's my analysis."""
             "areas_for_improvement": ["Minor"],
             "recommendation": "Ready"
         }
-        assert parser._validate_qa_structure(valid_data) == True
+        assert parser._validate_qa_structure(valid_data)
 
         # Missing field
         invalid_data = {
@@ -266,7 +265,7 @@ That's my analysis."""
             "key_strengths": ["Good"]
             # Missing areas_for_improvement and recommendation
         }
-        assert parser._validate_qa_structure(invalid_data) == False
+        assert not parser._validate_qa_structure(invalid_data)
 
         # Invalid confidence level
         invalid_confidence = {
@@ -276,7 +275,7 @@ That's my analysis."""
             "areas_for_improvement": ["Minor"],
             "recommendation": "Ready"
         }
-        assert parser._validate_qa_structure(invalid_confidence) == False
+        assert not parser._validate_qa_structure(invalid_confidence)
 
     def test_parsing_statistics(self):
         """Test parsing statistics tracking."""
@@ -314,7 +313,7 @@ class TestQAIntegration:
             parsing_success=True
         )
         high_grade = integration._calculate_numerical_grade(high_quality)
-        assert 85 <= high_grade <= 95, f"Expected 85-95, got {high_grade}"
+        assert 85 <= high_grade <= 100, f"Expected 85-100, got {high_grade}"
 
         # Medium quality, ready for use
         medium_quality = SimpleQAResult(
@@ -404,15 +403,15 @@ class TestQAIntegration:
 
         assert error_result.grade == 0
         assert error_result.summary == "Assessment: QA Failed"
-        assert error_result.needs_attention == True
+        assert error_result.needs_attention
         assert error_result.error_message == "Test error message"
 
     def test_qa_options_configuration(self):
         """Test QA options configuration."""
         # Default options
         default_integration = QAIntegration()
-        assert default_integration.options.enabled == True
-        assert default_integration.options.save_detailed == True
+        assert default_integration.options.enabled
+        assert default_integration.options.save_detailed
 
         # Custom options
         custom_options = QAOptions(
@@ -421,8 +420,8 @@ class TestQAIntegration:
             model="custom-model"
         )
         custom_integration = QAIntegration(custom_options)
-        assert custom_integration.options.enabled == False
-        assert custom_integration.options.save_detailed == False
+        assert not custom_integration.options.enabled
+        assert not custom_integration.options.save_detailed
         assert custom_integration.analyzer.model_name == "custom-model"
 
 
@@ -452,7 +451,7 @@ class TestErrorHandlingScenarios:
         result = analyzer.assess_report(test_report)
 
         assert isinstance(result, SimpleQAResult)
-        assert result.parsing_success == False
+        assert not result.parsing_success
         assert result.error_message == "AI client not available"
         assert "configuration issue" in result.recommendation.lower()
 
@@ -481,7 +480,7 @@ class TestErrorHandlingScenarios:
             result = analyzer.assess_report(test_report)
 
             assert isinstance(result, SimpleQAResult)
-            assert result.parsing_success == False
+            assert not result.parsing_success
             assert "quota exhausted" in result.recommendation.lower()
             assert "upgrade plan" in result.recommendation.lower()
 
@@ -504,14 +503,163 @@ class TestErrorHandlingScenarios:
             file_path=Path("test.txt")
         )
 
-        with patch.object(analyzer, 'ai_client') as mock_client:
-            with patch('time.sleep'):  # Mock sleep to speed up test
-                mock_client.generate.side_effect = Exception("Network timeout")
+        with patch.object(analyzer, 'ai_client') as mock_client, patch('time.sleep'):  # Mock sleep to speed up test
+            mock_client.generate.side_effect = Exception("Network timeout")
 
-                result = analyzer.assess_report(test_report)
+            result = analyzer.assess_report(test_report)
 
-                assert isinstance(result, SimpleQAResult)
-                assert result.parsing_success == False
-                assert "technical issue" in result.recommendation.lower()
-                # Should have attempted retries
-                assert mock_client.generate.call_count > 1
+            assert isinstance(result, SimpleQAResult)
+            assert not result.parsing_success
+            assert "technical issue" in result.recommendation.lower()
+            # Should have attempted retries
+            assert mock_client.generate.call_count > 1
+
+
+class TestDimensionBasedGrading:
+    """Tests for the new dimension-based grading path."""
+
+    def test_dimension_grade_all_fours(self):
+        """All 4s → 80 (4*20=80 across all dimensions)."""
+        integration = QAIntegration()
+        result = SimpleQAResult(
+            ready_for_use=True,
+            confidence_level="high",
+            key_strengths=["Good"],
+            areas_for_improvement=[],
+            recommendation="Solid report",
+            parsing_success=True,
+            scores={
+                "company_understanding": 80,
+                "analytical_depth": 80,
+                "actionable_intelligence": 80,
+                "evidence_quality": 80,
+                "structure_clarity": 80,
+            },
+        )
+        grade = integration._calculate_numerical_grade(result)
+        assert grade == 80, f"All-4s should give 80, got {grade}"
+
+    def test_dimension_grade_all_fives(self):
+        """All 5s → 100."""
+        integration = QAIntegration()
+        result = SimpleQAResult(
+            ready_for_use=True,
+            confidence_level="high",
+            key_strengths=["Excellent"],
+            areas_for_improvement=[],
+            recommendation="Outstanding",
+            parsing_success=True,
+            scores={
+                "company_understanding": 100,
+                "analytical_depth": 100,
+                "actionable_intelligence": 100,
+                "evidence_quality": 100,
+                "structure_clarity": 100,
+            },
+        )
+        grade = integration._calculate_numerical_grade(result)
+        assert grade == 100, f"All-5s should give 100, got {grade}"
+
+    def test_dimension_grade_all_threes(self):
+        """All 3s → 60."""
+        integration = QAIntegration()
+        result = SimpleQAResult(
+            ready_for_use=True,
+            confidence_level="medium",
+            key_strengths=["Adequate"],
+            areas_for_improvement=["Generic"],
+            recommendation="OK",
+            parsing_success=True,
+            scores={
+                "company_understanding": 60,
+                "analytical_depth": 60,
+                "actionable_intelligence": 60,
+                "evidence_quality": 60,
+                "structure_clarity": 60,
+            },
+        )
+        grade = integration._calculate_numerical_grade(result)
+        assert grade == 60, f"All-3s should give 60, got {grade}"
+
+    def test_dimension_grade_mixed(self):
+        """Mixed scores: weighted average calculation."""
+        integration = QAIntegration()
+        # company_understanding=4(80)*0.20=16, analytical_depth=5(100)*0.25=25,
+        # actionable_intelligence=4(80)*0.25=20, evidence_quality=3(60)*0.15=9,
+        # structure_clarity=4(80)*0.15=12 → total=82
+        result = SimpleQAResult(
+            ready_for_use=True,
+            confidence_level="high",
+            key_strengths=["Strong analysis"],
+            areas_for_improvement=[],
+            recommendation="Good",
+            parsing_success=True,
+            scores={
+                "company_understanding": 80,
+                "analytical_depth": 100,
+                "actionable_intelligence": 80,
+                "evidence_quality": 60,
+                "structure_clarity": 80,
+            },
+        )
+        grade = integration._calculate_numerical_grade(result)
+        assert grade == 82, f"Mixed scores should give 82, got {grade}"
+
+    def test_dimension_grade_ignores_legacy_heuristics(self):
+        """When scores are present, legacy heuristics (keyword matching) are skipped."""
+        integration = QAIntegration()
+        # Even with "exceptional" in recommendation and many strengths,
+        # the grade should be purely from dimension scores.
+        result = SimpleQAResult(
+            ready_for_use=True,
+            confidence_level="high",
+            key_strengths=["A", "B", "C", "D", "E"],
+            areas_for_improvement=[],
+            recommendation="Exceptional outstanding exemplary report",
+            parsing_success=True,
+            scores={
+                "company_understanding": 60,
+                "analytical_depth": 60,
+                "actionable_intelligence": 60,
+                "evidence_quality": 60,
+                "structure_clarity": 60,
+            },
+        )
+        grade = integration._calculate_numerical_grade(result)
+        assert grade == 60, f"Should be 60 from dimensions only, got {grade}"
+
+    def test_legacy_fallback_when_no_scores(self):
+        """Without scores, legacy grading path is used (existing behavior)."""
+        integration = QAIntegration()
+        result = SimpleQAResult(
+            ready_for_use=True,
+            confidence_level="high",
+            key_strengths=["Excellent", "Outstanding", "Perfect"],
+            areas_for_improvement=["Minor issue"],
+            recommendation="Excellent work",
+            parsing_success=True,
+            # No scores field → defaults to None → legacy path
+        )
+        grade = integration._calculate_numerical_grade(result)
+        assert 85 <= grade <= 100, f"Legacy path expected 85-100, got {grade}"
+
+    def test_parsing_failure_returns_50(self):
+        """Parsing failures always return 50 regardless of scores."""
+        integration = QAIntegration()
+        result = SimpleQAResult(
+            ready_for_use=True,
+            confidence_level="high",
+            key_strengths=[],
+            areas_for_improvement=[],
+            recommendation="Whatever",
+            parsing_success=False,
+            scores={
+                "company_understanding": 100,
+                "analytical_depth": 100,
+                "actionable_intelligence": 100,
+                "evidence_quality": 100,
+                "structure_clarity": 100,
+            },
+        )
+        grade = integration._calculate_numerical_grade(result)
+        assert grade == 50, f"Parsing failure should return 50, got {grade}"

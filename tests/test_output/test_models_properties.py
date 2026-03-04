@@ -74,7 +74,7 @@ class TestSpecialCharacterPreservation:
     """
     **Feature: report-excellence, Property 8: Special character preservation**
     **Validates: Requirements 7.4**
-    
+
     For any input containing Unicode characters (accented letters, currency symbols, etc.),
     the data models SHALL preserve the identical characters without encoding corruption.
     """

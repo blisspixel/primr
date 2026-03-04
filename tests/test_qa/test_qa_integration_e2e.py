@@ -68,7 +68,8 @@ Sources:
             assert isinstance(qa_result.grade, int), "Grade should be integer"
             assert 0 <= qa_result.grade <= 100, "Grade should be 0-100"
             # Summary format varies - may be "Grade: (X/100)" or "Assessment: Analysis Failed" if no API
-            assert qa_result.summary is not None and len(qa_result.summary) > 0, "Summary should not be empty"
+            assert qa_result.summary is not None, "Summary should not be None"
+            assert len(qa_result.summary) > 0, "Summary should not be empty"
             # detailed_analysis may be None in simplified QA flow
 
             # Step 2: QA command access - skip if no API available (test environment)
@@ -85,7 +86,7 @@ Sources:
                 "content": """# AI Strategy Analysis
 ## Current State Assessment
 The company has limited AI capabilities but strong data infrastructure.
-## AI Opportunities  
+## AI Opportunities
 Machine learning could enhance customer experience and operational efficiency.
 ## Implementation Roadmap
 Phase 1: Data preparation, Phase 2: Model development, Phase 3: Deployment.
@@ -209,7 +210,7 @@ Sources: https://example.com/market-data""",
         with tempfile.TemporaryDirectory() as temp_dir:
             # Simulate the report generation pipeline
             company_name = "Pipeline Test Company"
-            report_path = Path(temp_dir) / f"{company_name.replace(' ', '_')}_Report.docx"
+            Path(temp_dir) / f"{company_name.replace(' ', '_')}_Report.docx"
 
             # Create a realistic report file
             report_content = """# Pipeline Test Company Analysis
@@ -269,7 +270,8 @@ The company is well-positioned for continued success in the evolving analytics m
             assert qa_result is not None, "Auto-QA should produce result"
             assert qa_result.grade >= 0, "Should have valid grade"
             # Summary format varies - may be "Grade: (X/100)" or "Assessment: Analysis Failed" if no API
-            assert qa_result.summary is not None and len(qa_result.summary) > 0, "Should have summary"
+            assert qa_result.summary is not None, "Should have summary"
+            assert len(qa_result.summary) > 0, "Summary should not be empty"
 
             # Test that detailed analysis is properly structured
             if qa_result.detailed_analysis:

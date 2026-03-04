@@ -82,7 +82,8 @@ class TestDeployScriptContent:
     def test_sources_common_sh(self, aws_dir: Path) -> None:
         """Script should source common.sh."""
         content = (aws_dir / "deploy.sh").read_text()
-        assert "source" in content and "common.sh" in content
+        assert "source" in content
+        assert "common.sh" in content
 
     def test_has_deploy_command(self, aws_dir: Path) -> None:
         """Script should have deploy command."""

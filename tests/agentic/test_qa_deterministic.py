@@ -17,7 +17,7 @@ from src.primr.agentic.subagents.qa import QASubagent
 
 def _write_report(content: str) -> Path:
     """Write content to a temp file and return its path."""
-    tmp = tempfile.NamedTemporaryFile(
+    tmp = tempfile.NamedTemporaryFile(  # noqa: SIM115
         mode="w", suffix=".md", delete=False, encoding="utf-8"
     )
     tmp.write(content)
@@ -81,7 +81,7 @@ class TestQASubagentDimensions:
         report_path = _write_report(GOOD_REPORT)
         ctx = _make_qa_context(report_path)
         agent = QASubagent(ctx)
-        result = asyncio.get_event_loop().run_until_complete(agent.execute())
+        result = asyncio.run(agent.execute())
         assert result.status.value == "completed"
         assert result.data is not None
         assert result.data.score >= 70
@@ -92,7 +92,7 @@ class TestQASubagentDimensions:
         report_path = _write_report(THIN_REPORT)
         ctx = _make_qa_context(report_path)
         agent = QASubagent(ctx)
-        result = asyncio.get_event_loop().run_until_complete(agent.execute())
+        result = asyncio.run(agent.execute())
         assert result.data is not None
         assert result.data.dimension_scores["hypothesis_framing"] <= 60
         assert any("hypothesis" in f.lower() for f in result.data.feedback)
@@ -101,7 +101,7 @@ class TestQASubagentDimensions:
         report_path = _write_report(THIN_REPORT)
         ctx = _make_qa_context(report_path)
         agent = QASubagent(ctx)
-        result = asyncio.get_event_loop().run_until_complete(agent.execute())
+        result = asyncio.run(agent.execute())
         assert result.data is not None
         assert result.data.dimension_scores["confidence_labels"] <= 70
         assert any("confidence" in f.lower() for f in result.data.feedback)
@@ -116,7 +116,7 @@ class TestQASubagentDimensions:
         report_path = _write_report(content)
         ctx = _make_qa_context(report_path)
         agent = QASubagent(ctx)
-        result = asyncio.get_event_loop().run_until_complete(agent.execute())
+        result = asyncio.run(agent.execute())
         assert result.data is not None
         assert "Stub Section" in result.data.sections_to_improve
 
@@ -142,7 +142,7 @@ class TestQAGateHookDeterministic:
         )
 
         hook = QAGateHook(min_score=70)
-        asyncio.get_event_loop().run_until_complete(hook.execute(context))
+        asyncio.run(hook.execute(context))
         return hook.last_score, hook.last_feedback
 
     def test_penalizes_missing_hypothesis_framing(self):
@@ -190,7 +190,5 @@ class TestQAGateHookDeterministic:
             stage_name="scrape",
         )
         hook = QAGateHook(min_score=70)
-        response = asyncio.get_event_loop().run_until_complete(
-            hook.execute(context)
-        )
+        response = asyncio.run(hook.execute(context))
         assert response.result == HookResult.ALLOW

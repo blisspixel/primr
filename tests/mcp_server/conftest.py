@@ -14,7 +14,7 @@ from primr.mcp_server.server import create_mcp_server
 def mcp_server():
     """
     Create a test MCP server with background tasks disabled.
-    
+
     This fixture provides a clean server instance for each test,
     with background task execution disabled to prevent actual
     pipeline runs during testing.
@@ -33,7 +33,7 @@ def mcp_server():
 def mcp_server_with_tasks():
     """
     Create a test MCP server with background tasks enabled.
-    
+
     Use this fixture only for tests that need to verify
     actual pipeline execution.
     """

@@ -258,7 +258,7 @@ class TestChapterDecompositionProperty:
     ) -> None:
         """
         Property 1: Chapter Decomposition
-        
+
         For any company name, the default plan SHALL produce 8-10 chapters.
         """
         with patch("primr.ai.report_architect.get_settings") as mock_settings:
@@ -278,7 +278,7 @@ class TestChapterDecompositionProperty:
     ) -> None:
         """
         Property 1: Chapter Decomposition
-        
+
         For any company name, all chapters SHALL have title and research_prompt.
         """
         with patch("primr.ai.report_architect.get_settings") as mock_settings:

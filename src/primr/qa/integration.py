@@ -156,6 +156,20 @@ class QAIntegration:
             summary += f"\n• Ready for Use: {'Yes' if qa_result.ready_for_use else 'No'}"
             summary += f"\n• Confidence Level: {qa_result.confidence_level.title()}"
 
+            if qa_result.scores:
+                summary += "\n• Dimension Scores:"
+                dim_labels = {
+                    "company_understanding": "Company Understanding",
+                    "analytical_depth": "Analytical Depth",
+                    "actionable_intelligence": "Actionable Intelligence",
+                    "evidence_quality": "Evidence Quality",
+                    "structure_clarity": "Structure & Clarity",
+                }
+                for dim, score in qa_result.scores.items():
+                    label = dim_labels.get(dim, dim)
+                    stars = score // 20  # back to 1-5
+                    summary += f"\n  {label}: {score}/100 ({'*' * stars})"
+
             if qa_result.key_strengths:
                 summary += f"\n• Key Strengths ({len(qa_result.key_strengths)}):"
                 for i, strength in enumerate(qa_result.key_strengths, 1):
@@ -203,9 +217,27 @@ ASSESSMENT CRITERIA EVALUATION
 [x] Completeness: Covers key areas needed for strategic decisions
 [x] Confidence Level: Information reliability for decision-making
 
-KEY STRENGTHS
--------------
 """
+
+            # Add dimension scores section if available
+            if result.scores:
+                report_content += "DIMENSION SCORES\n"
+                report_content += "----------------\n"
+                dim_labels = {
+                    "company_understanding": "Company Understanding",
+                    "analytical_depth": "Analytical Depth",
+                    "actionable_intelligence": "Actionable Intelligence",
+                    "evidence_quality": "Evidence Quality",
+                    "structure_clarity": "Structure & Clarity",
+                }
+                for dim, score in result.scores.items():
+                    label = dim_labels.get(dim, dim)
+                    stars = score // 20
+                    report_content += f"  {label}: {score}/100 ({'*' * stars})\n"
+                report_content += "\n"
+
+            report_content += "KEY STRENGTHS\n"
+            report_content += "-------------\n"
 
             if result.key_strengths:
                 for i, strength in enumerate(result.key_strengths, 1):
@@ -247,19 +279,38 @@ KEY STRENGTHS
         )
 
     def _calculate_numerical_grade(self, qa_result: SimpleQAResult) -> int:
-        """Calculate numerical grade based on QA assessment with more nuanced scoring."""
+        """Calculate numerical grade — dispatches to dimension-based or legacy path."""
         if not qa_result.parsing_success:
             return 50  # Default for parsing failures
 
-        # More sophisticated base scoring
+        if qa_result.scores is not None:
+            return self._calculate_dimension_grade(qa_result)
+        return self._calculate_legacy_grade(qa_result)
+
+    def _calculate_dimension_grade(self, qa_result: SimpleQAResult) -> int:
+        """Calculate grade from weighted dimension scores (0-100 each)."""
+        from .simple_analyzer import QA_DIMENSIONS
+
+        scores = qa_result.scores
+        assert scores is not None  # Caller guarantees this
+
+        weighted_sum = sum(
+            scores[dim] * weight
+            for dim, weight in QA_DIMENSIONS.items()
+        )
+        return max(0, min(100, round(weighted_sum)))
+
+    def _calculate_legacy_grade(self, qa_result: SimpleQAResult) -> int:
+        """Legacy grade calculation from ready_for_use + confidence + heuristics."""
+        # Base scoring — ready + high confidence reports are already excellent
         base_score = 0
         if qa_result.ready_for_use:
             if qa_result.confidence_level == "high":
-                base_score = 82  # Reduced from 85 to allow more variation
+                base_score = 85
             elif qa_result.confidence_level == "medium":
-                base_score = 72  # Reduced from 75
+                base_score = 74
             else:  # low confidence but ready
-                base_score = 62  # Reduced from 65
+                base_score = 64
         else:
             # Not ready for use
             if qa_result.confidence_level == "medium":
@@ -269,13 +320,10 @@ KEY STRENGTHS
             else:
                 base_score = 50
 
-        # More nuanced strength and improvement scoring
+        # Strength bonus (wider range, rewards exceptional reports)
         strength_count = len(qa_result.key_strengths)
-        improvement_count = len(qa_result.areas_for_improvement)
-
-        # Variable strength bonus based on quality and quantity
         if strength_count == 0:
-            strength_bonus = -5  # Penalty for no identified strengths
+            strength_bonus = -5
         elif strength_count == 1:
             strength_bonus = 2
         elif strength_count == 2:
@@ -283,32 +331,31 @@ KEY STRENGTHS
         elif strength_count == 3:
             strength_bonus = 8
         elif strength_count >= 4:
-            strength_bonus = 10  # Diminishing returns
-        else:
-            strength_bonus = 0
+            strength_bonus = 12  # Reward exceptional reports
 
-        # Variable improvement penalty based on severity
+        # Improvement penalty (lighter for minor issues, bonus for perfect)
+        improvement_count = len(qa_result.areas_for_improvement)
         if improvement_count == 0:
-            improvement_penalty = 0  # Perfect report
+            improvement_penalty = -3  # Bonus for perfect report
         elif improvement_count == 1:
-            improvement_penalty = 1  # Minor issues
+            improvement_penalty = 0  # One minor issue is fine
         elif improvement_count == 2:
-            improvement_penalty = 3  # Some issues
+            improvement_penalty = 2
         elif improvement_count == 3:
-            improvement_penalty = 6  # Several issues
+            improvement_penalty = 5
         elif improvement_count >= 4:
-            improvement_penalty = 10  # Many issues
-        else:
-            improvement_penalty = 0
+            improvement_penalty = 10
 
-        # Content quality modifiers based on recommendation text
+        # Content quality modifiers (wider range for top-tier language)
         recommendation_lower = qa_result.recommendation.lower()
         content_modifier = 0
 
-        # Positive indicators
-        if "excellent" in recommendation_lower or "outstanding" in recommendation_lower:
+        # Positive indicators — tiered
+        if any(w in recommendation_lower for w in ["exceptional", "outstanding", "exemplary"]):
+            content_modifier += 4
+        elif any(w in recommendation_lower for w in ["excellent", "superb"]):
             content_modifier += 3
-        elif "strong" in recommendation_lower or "solid" in recommendation_lower:
+        elif any(w in recommendation_lower for w in ["strong", "solid", "highly"]):
             content_modifier += 2
         elif "good" in recommendation_lower:
             content_modifier += 1
@@ -324,10 +371,10 @@ KEY STRENGTHS
         # Calculate final score
         final_score = base_score + strength_bonus - improvement_penalty + content_modifier
 
-        # Add some randomization to prevent identical scores (±2 points)
+        # Deterministic variation based on recommendation hash (±1)
         import random
-        random.seed(hash(qa_result.recommendation))  # Deterministic but varied
-        variation = random.randint(-2, 2)
+        random.seed(hash(qa_result.recommendation))
+        variation = random.randint(-1, 1)
         final_score += variation
 
         # Ensure score is within bounds

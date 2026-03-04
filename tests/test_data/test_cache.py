@@ -233,7 +233,7 @@ class TestContentCache:
     def test_expired_entry_returns_none(self, temp_cache):
         """Test that expired entries return None."""
         # Set with very short TTL
-        config = CacheConfig(
+        CacheConfig(
             db_path=temp_cache._config.db_path,
             default_ttl_hours=0  # Immediate expiration
         )

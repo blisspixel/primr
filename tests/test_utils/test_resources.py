@@ -304,10 +304,10 @@ class TestCacheMetrics:
 class TestTempFileCleanupProperty:
     """
     Property-based tests for temp file cleanup.
-    
+
     **Feature: code-quality-hardening, Property 5: Temp File Cleanup on Exception**
     **Validates: Requirements 3.2**
-    
+
     For any temporary file created within a managed context, the file SHALL
     be deleted even if an exception occurs within the context.
     """
@@ -349,10 +349,10 @@ class TestTempFileCleanupProperty:
 class TestLRUCacheEvictionProperty:
     """
     Property-based tests for LRU cache eviction.
-    
+
     **Feature: code-quality-hardening, Property 6: LRU Cache Eviction**
     **Validates: Requirements 3.4**
-    
+
     For any LRU cache with max_size N, after inserting N+1 items, the cache
     SHALL contain exactly N items and the oldest item SHALL have been evicted.
     """
@@ -417,10 +417,10 @@ class TestLRUCacheEvictionProperty:
 class TestCacheHitRateLoggingProperty:
     """
     Property-based tests for cache hit rate logging.
-    
+
     **Feature: code-quality-hardening, Property 16: Cache Hit Rate Logging**
     **Validates: Requirements 9.5**
-    
+
     For any cache operation (get/set), the cache SHALL track and log
     hit/miss statistics.
     """
@@ -540,10 +540,10 @@ class TestThreadSafeSingleton:
 class TestThreadSafeSingletonProperty:
     """
     Property-based tests for thread-safe singleton access.
-    
+
     **Feature: code-quality-hardening, Property 7: Thread-Safe Singleton Access**
     **Validates: Requirements 4.1**
-    
+
     For any number of concurrent threads accessing a singleton, all threads
     SHALL receive the same instance and no race conditions SHALL occur.
     """
@@ -612,10 +612,10 @@ class TestThreadSafeSingletonProperty:
 class TestConcurrentStateModificationProperty:
     """
     Property-based tests for concurrent state modification safety.
-    
+
     **Feature: code-quality-hardening, Property 8: Concurrent State Modification Safety**
     **Validates: Requirements 4.2, 4.3**
-    
+
     For any shared state protected by locks, concurrent modifications SHALL
     not corrupt the state or cause data races.
     """
@@ -706,10 +706,10 @@ class TestConcurrentStateModificationProperty:
 class TestProgressCallbackThreadSafetyProperty:
     """
     Property-based tests for progress callback thread safety.
-    
+
     **Feature: code-quality-hardening, Property 9: Progress Callback Thread Safety**
     **Validates: Requirements 4.4**
-    
+
     For any progress callback invoked from multiple threads, the callback
     SHALL execute without blocking and handle concurrent invocation safely.
     """
@@ -830,7 +830,7 @@ class TestResourceManager:
         test_file = tmp_path / "test.txt"
         test_file.write_text("content")
 
-        handle = open(test_file)
+        handle = open(test_file)  # noqa: SIM115
         manager.register_handle(handle)
 
         results = manager.cleanup()
@@ -959,7 +959,7 @@ class TestResourceCleanupCompletenessProperty:
             for i in range(num_handles):
                 f = tmp_dir / f"test_{i}.txt"
                 f.write_text(f"content_{i}")
-                handle = open(f)
+                handle = open(f)  # noqa: SIM115
                 handles.append(handle)
                 manager.register_handle(handle)
 

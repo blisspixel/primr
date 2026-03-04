@@ -360,10 +360,10 @@ class TestMalformedYAMLHandling:
 class TestYAMLLoadingRoundTrip:
     """
     Property tests for YAML loading round-trip consistency.
-    
+
     **Feature: deep-research-prompt-architecture, Property 1: YAML Loading Round-Trip**
     **Validates: Requirements 1.1**
-    
+
     These tests verify that:
     1. Both build_company_overview_prompt() and ConsultingPromptBuilder produce identical output
     2. The PromptComposer-based implementation maintains backward compatibility
@@ -379,10 +379,10 @@ class TestYAMLLoadingRoundTrip:
         """
         Property: build_company_overview_prompt() and ConsultingPromptBuilder.build_comprehensive_prompt()
         produce semantically equivalent output (both delegate to PromptComposer).
-        
+
         Note: Minor differences in date formatting are acceptable since loader uses "%B %Y"
         while builder uses the composer's default "%B %d, %Y" format.
-        
+
         **Feature: deep-research-prompt-architecture, Property 1: YAML Loading Round-Trip**
         **Validates: Requirements 1.1**
         """
@@ -421,10 +421,10 @@ class TestYAMLLoadingRoundTrip:
     def test_composer_direct_produces_semantically_equivalent_output(self):
         """
         Property: PromptComposer.compose() produces semantically equivalent output as build_company_overview_prompt().
-        
+
         Note: Minor differences in date formatting are acceptable since loader uses "%B %Y"
         while direct composer uses "%B %d, %Y" format by default.
-        
+
         **Feature: deep-research-prompt-architecture, Property 1: YAML Loading Round-Trip**
         **Validates: Requirements 1.1**
         """
@@ -458,9 +458,9 @@ class TestYAMLLoadingRoundTrip:
     def test_ai_strategy_loader_and_composer_semantically_equivalent(self):
         """
         Property: build_ai_strategy_prompt() produces semantically equivalent output as PromptComposer.compose_strategy().
-        
+
         Note: Minor differences in date formatting are acceptable.
-        
+
         **Feature: deep-research-prompt-architecture, Property 1: YAML Loading Round-Trip**
         **Validates: Requirements 1.1**
         """
@@ -498,7 +498,7 @@ class TestYAMLLoadingRoundTrip:
     def test_idempotency_company_overview(self):
         """
         Property: Calling build_company_overview_prompt twice with same inputs produces identical output.
-        
+
         **Feature: deep-research-prompt-architecture, Property 1: YAML Loading Round-Trip**
         **Validates: Requirements 1.1**
         """
@@ -510,7 +510,7 @@ class TestYAMLLoadingRoundTrip:
     def test_idempotency_ai_strategy(self):
         """
         Property: Calling build_ai_strategy_prompt twice with same inputs produces identical output.
-        
+
         **Feature: deep-research-prompt-architecture, Property 1: YAML Loading Round-Trip**
         **Validates: Requirements 1.1**
         """
@@ -522,7 +522,7 @@ class TestYAMLLoadingRoundTrip:
     def test_idempotency_multiple_composer_instances(self):
         """
         Property: Different PromptComposer instances produce identical output for same inputs.
-        
+
         **Feature: deep-research-prompt-architecture, Property 1: YAML Loading Round-Trip**
         **Validates: Requirements 1.1**
         """
@@ -545,7 +545,7 @@ class TestYAMLLoadingRoundTrip:
     def test_all_yaml_sections_appear_in_output(self):
         """
         Property: ALL sections defined in company_overview.yaml MUST appear in the output.
-        
+
         **Feature: deep-research-prompt-architecture, Property 1: YAML Loading Round-Trip**
         **Validates: Requirements 1.1**
         """
@@ -562,10 +562,10 @@ class TestYAMLLoadingRoundTrip:
     def test_all_epistemic_rules_appear_in_output(self):
         """
         Property: ALL epistemic rules from shared components MUST appear in the output.
-        
+
         Note: The composer uses shared/epistemic_rules.yaml, not the prompt-specific YAML.
         The composer adds "- " prefix to each rule.
-        
+
         **Feature: deep-research-prompt-architecture, Property 1: YAML Loading Round-Trip**
         **Validates: Requirements 1.1**
         """
@@ -586,10 +586,10 @@ class TestYAMLLoadingRoundTrip:
     def test_all_formatting_rules_appear_in_output(self):
         """
         Property: ALL formatting rules from shared components MUST appear in the output.
-        
+
         Note: The composer uses shared/formatting.yaml, not the prompt-specific YAML.
         The composer adds "- " prefix to each rule.
-        
+
         **Feature: deep-research-prompt-architecture, Property 1: YAML Loading Round-Trip**
         **Validates: Requirements 1.1**
         """
@@ -610,7 +610,7 @@ class TestYAMLLoadingRoundTrip:
     def test_document_purpose_appears_verbatim(self):
         """
         Property: Document purpose from YAML MUST appear verbatim in output.
-        
+
         **Feature: deep-research-prompt-architecture, Property 1: YAML Loading Round-Trip**
         **Validates: Requirements 1.1**
         """
@@ -629,7 +629,7 @@ class TestYAMLLoadingRoundTrip:
     def test_company_name_with_special_characters(self):
         """
         Property: Company names with special characters are handled correctly.
-        
+
         **Feature: deep-research-prompt-architecture, Property 1: YAML Loading Round-Trip**
         **Validates: Requirements 1.1**
         """
@@ -651,7 +651,7 @@ class TestYAMLLoadingRoundTrip:
     def test_empty_company_name_handled(self):
         """
         Property: Empty company name produces valid output (with placeholder or error).
-        
+
         **Feature: deep-research-prompt-architecture, Property 1: YAML Loading Round-Trip**
         **Validates: Requirements 1.1**
         """
@@ -666,7 +666,7 @@ class TestYAMLLoadingRoundTrip:
     def test_very_long_company_name(self):
         """
         Property: Very long company names are handled without truncation or error.
-        
+
         **Feature: deep-research-prompt-architecture, Property 1: YAML Loading Round-Trip**
         **Validates: Requirements 1.1**
         """
@@ -679,7 +679,7 @@ class TestYAMLLoadingRoundTrip:
     def test_website_url_none_vs_not_provided(self):
         """
         Property: website_url=None and not providing website_url produce same output.
-        
+
         **Feature: deep-research-prompt-architecture, Property 1: YAML Loading Round-Trip**
         **Validates: Requirements 1.1**
         """
@@ -691,7 +691,7 @@ class TestYAMLLoadingRoundTrip:
     def test_empty_website_url(self):
         """
         Property: Empty string website_url is handled gracefully.
-        
+
         **Feature: deep-research-prompt-architecture, Property 1: YAML Loading Round-Trip**
         **Validates: Requirements 1.1**
         """
@@ -708,7 +708,7 @@ class TestYAMLLoadingRoundTrip:
     def test_all_vendors_produce_valid_ai_strategy(self):
         """
         Property: All supported cloud vendors produce valid AI strategy prompts.
-        
+
         **Feature: deep-research-prompt-architecture, Property 1: YAML Loading Round-Trip**
         **Validates: Requirements 1.1**
         """
@@ -728,7 +728,7 @@ class TestYAMLLoadingRoundTrip:
     def test_vendor_specific_content_differs(self):
         """
         Property: Different vendors produce different vendor-specific content.
-        
+
         **Feature: deep-research-prompt-architecture, Property 1: YAML Loading Round-Trip**
         **Validates: Requirements 1.1**
         """
@@ -753,7 +753,7 @@ class TestYAMLLoadingRoundTrip:
     def test_stage1_context_affects_output(self):
         """
         Property: has_stage1_context=True vs False produces different output.
-        
+
         **Feature: deep-research-prompt-architecture, Property 1: YAML Loading Round-Trip**
         **Validates: Requirements 1.1**
         """
@@ -779,7 +779,7 @@ class TestYAMLLoadingRoundTrip:
     def test_backward_compatibility_query_parameter_ignored(self):
         """
         Property: The query parameter is accepted but ignored for backward compatibility.
-        
+
         **Feature: deep-research-prompt-architecture, Property 1: YAML Loading Round-Trip**
         **Validates: Requirements 1.1**
         """
@@ -801,7 +801,7 @@ class TestYAMLLoadingRoundTrip:
     def test_backward_compatibility_all_parameters(self):
         """
         Property: All legacy parameters are accepted without error.
-        
+
         **Feature: deep-research-prompt-architecture, Property 1: YAML Loading Round-Trip**
         **Validates: Requirements 1.1**
         """
@@ -822,7 +822,7 @@ class TestYAMLLoadingRoundTrip:
     def test_strategic_layer_round_trip(self):
         """
         Property: strategic_layer prompt also follows round-trip consistency.
-        
+
         **Feature: deep-research-prompt-architecture, Property 1: YAML Loading Round-Trip**
         **Validates: Requirements 1.1**
         """
@@ -854,7 +854,7 @@ class TestYAMLLoadingRoundTrip:
     def test_various_company_names_produce_valid_output(self, company_name):
         """
         Property: Various company name formats all produce valid prompts.
-        
+
         **Feature: deep-research-prompt-architecture, Property 1: YAML Loading Round-Trip**
         **Validates: Requirements 1.1**
         """

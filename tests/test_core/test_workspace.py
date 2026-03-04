@@ -203,9 +203,8 @@ class TestConsolidateWorkingFolder:
         """Raises ValueError when folder has no research files (.txt or .md)."""
         from primr.core.workspace import consolidate_working_folder
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            with pytest.raises(ValueError, match="No research files"):
-                consolidate_working_folder(tmpdir)
+        with tempfile.TemporaryDirectory() as tmpdir, pytest.raises(ValueError, match="No research files"):
+            consolidate_working_folder(tmpdir)
 
 
 class TestValidateContextFiles:

@@ -21,7 +21,7 @@ class TestSymbolVocabularyConsistency:
     """
     **Feature: cli-ux-enhancement, Property 2: Symbol Vocabulary Consistency**
     **Validates: Requirements 1.4**
-    
+
     For any status type, the displayed indicator SHALL match
     the defined symbol for that status type.
     """

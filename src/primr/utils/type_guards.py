@@ -25,6 +25,7 @@ Example:
             print(f"{error.field}: {error.message}")
 """
 
+import types
 from collections.abc import Callable
 from dataclasses import dataclass, field, is_dataclass
 from dataclasses import fields as dataclass_fields
@@ -264,8 +265,8 @@ def _check_type(value: Any, expected_type: type) -> bool:
     # Get origin for generic types (List, Dict, Optional, Union)
     origin = get_origin(expected_type)
 
-    # Handle Optional[X] which is Union[X, None]
-    if origin is Union:
+    # Handle Optional[X] which is Union[X, None], and PEP 604 X | None
+    if origin is Union or isinstance(expected_type, types.UnionType):
         args = get_args(expected_type)
         return any(_check_type(value, arg) for arg in args)
 

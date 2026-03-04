@@ -121,7 +121,7 @@ class TestErrorClassification:
     """Tests for classifying retryable vs non-retryable errors."""
 
     @pytest.mark.parametrize(
-        "error_message,should_retry",
+        ("error_message", "should_retry"),
         [
             ("429 Too Many Requests", True),
             ("quota exceeded", True),
@@ -170,7 +170,7 @@ class TestRetryBehavior:
         """
         WHEN a 429 rate limit error occurs
         THEN the system SHALL retry with exponential backoff
-        
+
         **Validates: Requirements 3.1**
         """
         call_count = 0
@@ -201,7 +201,7 @@ class TestRetryBehavior:
         """
         WHEN a 500 internal server error occurs
         THEN the system SHALL retry up to MAX_RETRIES times
-        
+
         **Validates: Requirements 3.2**
         """
         call_count = 0
@@ -232,7 +232,7 @@ class TestRetryBehavior:
         """
         WHEN a network timeout occurs
         THEN the system SHALL log the error and attempt reconnection
-        
+
         **Validates: Requirements 3.3**
         """
         call_count = 0
@@ -317,7 +317,7 @@ class TestRetryProperties:
         """
         **Feature: test-coverage-hardening, Property 2: Retryable errors trigger exponential backoff**
         **Validates: Requirements 3.1, 3.2, 3.3**
-        
+
         For any attempt number, the backoff delay should be base_delay * 2^attempt.
         """
         orchestrator = DeepResearchOrchestrator.__new__(DeepResearchOrchestrator)
@@ -334,7 +334,7 @@ class TestRetryProperties:
         """
         **Feature: test-coverage-hardening, Property 2: Retryable errors trigger exponential backoff**
         **Validates: Requirements 3.1, 3.2, 3.3**
-        
+
         For any two consecutive attempts, the later attempt should have a longer delay.
         """
         orchestrator = DeepResearchOrchestrator.__new__(DeepResearchOrchestrator)
@@ -364,7 +364,7 @@ def test_property_retryable_errors_are_retried(error_type: str):
     """
     **Feature: test-coverage-hardening, Property 2: Retryable errors trigger exponential backoff**
     **Validates: Requirements 3.1, 3.2, 3.3**
-    
+
     For any retryable error type, the error should be classified as retryable.
     """
     error_str = error_type.lower()
@@ -396,7 +396,7 @@ class TestFallbackBehavior:
         """
         **Feature: test-coverage-hardening, Property 3: Deep Research fallback on exhausted retries**
         **Validates: Requirements 3.4**
-        
+
         When Deep Research fails, the system should use Stage 1 context as fallback.
         """
         orchestrator = DeepResearchOrchestrator.__new__(DeepResearchOrchestrator)
@@ -424,7 +424,7 @@ Test Corp Inc
         """
         **Feature: test-coverage-hardening, Property 3: Deep Research fallback on exhausted retries**
         **Validates: Requirements 3.4**
-        
+
         Industry extraction works with various formatting.
         """
         orchestrator = DeepResearchOrchestrator.__new__(DeepResearchOrchestrator)
@@ -459,7 +459,7 @@ def test_property_fallback_extracts_metadata(industry: str, company: str):
     """
     **Feature: test-coverage-hardening, Property 3: Deep Research fallback on exhausted retries**
     **Validates: Requirements 3.4**
-    
+
     For any Stage 1 context with Industry and Company Name sections,
     the fallback should correctly extract both values.
     """
@@ -500,7 +500,7 @@ class TestConsecutiveFailureThreshold:
         """
         **Feature: test-coverage-hardening, Property 4: Consecutive failure threshold stops processing**
         **Validates: Requirements 3.5, 4.4**
-        
+
         The consecutive failure threshold should be defined (typically 3).
         """
         # The threshold is hardcoded in the generate_comprehensive_report method
@@ -517,7 +517,7 @@ class TestConsecutiveFailureThreshold:
         """
         **Feature: test-coverage-hardening, Property 4: Consecutive failure threshold stops processing**
         **Validates: Requirements 3.5, 4.4**
-        
+
         sections_written should only count successful sections.
         """
         result = DeepResearchOrchestratorResult(
@@ -544,7 +544,7 @@ def test_property_sections_written_accuracy(successful: int, failed: int):
     """
     **Feature: test-coverage-hardening, Property 4: Consecutive failure threshold stops processing**
     **Validates: Requirements 3.5, 4.4**
-    
+
     For any combination of successful and failed sections,
     sections_written should equal only the successful count.
     """
@@ -571,7 +571,7 @@ def test_property_consecutive_failure_threshold(consecutive_failures: int):
     """
     **Feature: test-coverage-hardening, Property 4: Consecutive failure threshold stops processing**
     **Validates: Requirements 3.5, 4.4**
-    
+
     For any number of consecutive failures >= 3, processing should stop.
     """
     threshold = 3

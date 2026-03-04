@@ -212,7 +212,7 @@ class TestRateLimitingProperty:
     def test_semaphore_initialized_correctly(self, max_concurrent: int) -> None:
         """
         Property 2: Parallel Execution with Rate Limiting
-        
+
         For any max_concurrent value, the semaphore SHALL be initialized correctly.
         """
         with patch("primr.ai.research_executor.get_settings") as mock_settings:
@@ -233,7 +233,7 @@ class TestSharedContextProperty:
     def test_file_search_store_preserved(self, store_name: str) -> None:
         """
         Property 3: Shared Context Access
-        
+
         For any store name, the executor SHALL preserve the store reference.
         """
         with patch("primr.ai.research_executor.get_settings") as mock_settings:
@@ -250,7 +250,7 @@ class TestConcurrencyProperty:
     async def test_semaphore_limits_concurrent_tasks(self) -> None:
         """
         Property 2: Parallel Execution with Rate Limiting
-        
+
         The system SHALL limit concurrent tasks to max_concurrent.
         """
         max_concurrent = 3
@@ -296,7 +296,7 @@ class TestGracefulFailureProperty:
     async def test_continues_after_chapter_failure(self) -> None:
         """
         Property 6: Graceful Failure Handling
-        
+
         When a chapter task fails, the system SHALL continue with other chapters.
         """
         with patch("primr.ai.research_executor.get_settings") as mock_settings:

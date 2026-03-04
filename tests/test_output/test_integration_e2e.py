@@ -195,7 +195,7 @@ class TestTxtReportIntegration:
 
                 # Should not have raw markdown heading markers
                 lines = content.split('\n')
-                heading_lines = [l for l in lines if l.strip().startswith('##')]
+                heading_lines = [line for line in lines if line.strip().startswith('##')]
                 assert len(heading_lines) == 0, f"Found markdown headings: {heading_lines}"
 
             finally:
@@ -253,7 +253,7 @@ Key points:
 class TestFourTests:
     """
     The Four Tests for report quality.
-    
+
     These are qualitative checks that verify the report structure
     supports quick comprehension at different time scales.
     """
@@ -261,7 +261,7 @@ class TestFourTests:
     def test_10_second_test_cover_page(self):
         """
         10-Second Test: Can you understand company essence from cover page?
-        
+
         The cover page should have:
         - Company name prominently displayed
         - One-liner summary
@@ -290,7 +290,7 @@ class TestFourTests:
     def test_60_second_test_exec_summary(self):
         """
         60-Second Test: Can you get 5 key insights from exec summary?
-        
+
         The executive summary should have:
         - Clear structure
         - Key insights section
@@ -323,7 +323,7 @@ class TestFourTests:
     def test_visual_hierarchy_exists(self):
         """
         Verify document has clear visual hierarchy.
-        
+
         Should have:
         - Multiple heading levels
         - Bullet lists
@@ -357,7 +357,7 @@ class TestUXChecklist:
     def test_millers_law_compliance(self):
         """
         No section should have more than 7 distinct information chunks.
-        
+
         This is a simplified check - we verify that bullet lists
         don't exceed 7 items in a row.
         """
@@ -382,7 +382,7 @@ class TestUXChecklist:
     def test_minimum_font_sizes(self):
         """
         Verify minimum font sizes are respected.
-        
+
         Body text should be at least 11pt.
         """
         builder = DocumentBuilder('Test Company Inc', SAMPLE_SECTIONS)

@@ -114,7 +114,7 @@ class TestScopePolicyFromFixtures:
 class TestMultiSiteSanity:
     """
     Multi-site sanity tests using fixture configurations.
-    
+
     These tests verify that the scraping pipeline produces reasonable
     output for different site types. They use mocked responses to avoid
     hitting live sites during CI.
@@ -158,7 +158,7 @@ class TestMultiSiteSanity:
 class TestMockedMultiSiteScraping:
     """
     Tests scraping behavior with mocked responses.
-    
+
     These tests verify the pipeline logic without hitting live sites.
     They use realistic mock data to simulate different site types.
     """
@@ -232,7 +232,7 @@ class TestMockedMultiSiteScraping:
 class TestSiteTypeAssertions:
     """
     Tests that verify assertion logic for different site types.
-    
+
     These tests ensure the assertion framework works correctly
     without requiring live site access.
     """
@@ -290,11 +290,11 @@ class TestSiteTypeAssertions:
 class TestLiveMultiSiteScraping:
     """
     Live site tests that actually scrape real websites.
-    
+
     These tests are skipped by default. To run them:
     1. Set environment variables for test URLs
     2. Run with: pytest --run-live-tests tests/test_multisite_sanity.py
-    
+
     WARNING: Running these tests may get your IP flagged by target sites.
     """
 
@@ -305,7 +305,7 @@ class TestLiveMultiSiteScraping:
         site_types = fixtures.get("site_types", {})
 
         # Override URLs from environment
-        for site_name, config in site_types.items():
+        for _site_name, config in site_types.items():
             env_var = config.get("url_env_var")
             if env_var:
                 url = os.environ.get(env_var)

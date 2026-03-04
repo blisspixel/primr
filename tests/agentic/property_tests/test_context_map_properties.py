@@ -27,10 +27,10 @@ from hypothesis import strategies as st
 def count_tokens_simple(text: str) -> int:
     """
     Simple token counter approximation.
-    
+
     Uses a conservative estimate: ~4 characters per token for English text.
     This is a reasonable approximation for GPT-style tokenizers.
-    
+
     For more accurate counting, use tiktoken or similar, but this
     provides a good upper bound for validation.
     """
@@ -54,7 +54,7 @@ def count_tokens_simple(text: str) -> int:
 def extract_quick_start_section(content: str) -> str:
     """
     Extract the Quick Start section from CLAUDE.md.
-    
+
     The Quick Start section is defined as everything from the
     "## Quick Start" header until the next "---" horizontal rule
     or "## " header.
@@ -94,11 +94,11 @@ def extract_quick_start_section(content: str) -> str:
 def test_context_map_token_budget():
     """
     Quick Start section stays within token budget.
-    
+
     For any generated CLAUDE.md context map, the quick-start section
     should contain fewer than 2000 tokens when measured by a standard
     tokenizer.
-    
+
     Validates: Requirements 1.5
     """
     claude_md_path = Path("CLAUDE.md")
@@ -132,7 +132,7 @@ def test_context_map_token_budget():
 def test_context_map_structure():
     """
     CLAUDE.md contains all required sections.
-    
+
     Validates the structural requirements of the context map.
     """
     claude_md_path = Path("CLAUDE.md")
@@ -157,7 +157,7 @@ def test_context_map_structure():
 def test_context_map_negative_constraints():
     """
     CLAUDE.md contains critical negative constraints.
-    
+
     Validates that the context map includes the key "what NOT to do"
     guidance for agents.
     """
@@ -185,7 +185,7 @@ def test_context_map_negative_constraints():
 def test_context_map_verification_commands():
     """
     CLAUDE.md contains runnable verification commands.
-    
+
     Validates that the context map includes commands agents can use
     to verify system state.
     """
@@ -209,7 +209,7 @@ def test_context_map_verification_commands():
 def test_context_map_progressive_disclosure():
     """
     CLAUDE.md uses progressive disclosure for detailed content.
-    
+
     Validates that detailed sections are wrapped in collapsible
     elements to keep the main document scannable.
     """
@@ -250,7 +250,7 @@ def test_context_map_progressive_disclosure():
 def test_token_counter_consistency(extra_content: str):
     """
     Token counter produces consistent results.
-    
+
     Property: For any text, the token count should be:
     1. Non-negative
     2. Proportional to text length

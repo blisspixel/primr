@@ -26,7 +26,7 @@ from primr.mcp_server.types import ResearchStage
 class TestEndToEndResearchWorkflow:
     """
     Integration test for end-to-end research workflow.
-    
+
     Validates: Requirements 5.1, 5.6, 2.6
     """
 
@@ -118,7 +118,7 @@ class TestEndToEndResearchWorkflow:
 class TestMultiClientJobObservation:
     """
     Integration test for multi-client job observation.
-    
+
     Validates: Requirements 2.1, 2.2
     - Client A triggers job
     - Client B can read status
@@ -174,7 +174,7 @@ class TestMultiClientJobObservation:
 class TestCancelJobAuthorization:
     """
     Integration test for cancel_job authorization.
-    
+
     Validates: Requirements 18.9
     - Owner can cancel their job
     - Non-owner cannot cancel (in HTTP mode)
@@ -230,7 +230,7 @@ class TestCancelJobAuthorization:
 class TestJobStateRecovery:
     """
     Integration test for job state recovery.
-    
+
     Validates: Requirements 13.5, 13.10, 19.4
     - Job state survives server restart
     """
@@ -277,7 +277,7 @@ class TestJobStateRecovery:
 class TestRateLimitingMultiClient:
     """
     Integration test for multi-client rate limiting.
-    
+
     Validates: Requirements 12.3
     - Rate limits are per-client
     """
@@ -312,7 +312,7 @@ class TestRateLimitingMultiClient:
 class TestGracefulShutdown:
     """
     Integration test for graceful shutdown.
-    
+
     Validates: Requirements 20.2, 20.5
     - Active jobs marked as failed on shutdown
     - No ghost jobs
@@ -457,7 +457,7 @@ class TestGracefulShutdown:
     async def test_shutdown_no_ghost_jobs(self, server):
         """
         No ghost jobs after shutdown.
-        
+
         Validates: Requirement 20.5
         """
         tool_handler = server.server.request_handlers[CallToolRequest]
@@ -494,7 +494,7 @@ class TestGracefulShutdown:
     async def test_shutdown_flushes_journal(self, server):
         """
         Journal is flushed during shutdown.
-        
+
         Validates: Requirement 20.2 (flush job journal to disk)
         """
         tool_handler = server.server.request_handlers[CallToolRequest]

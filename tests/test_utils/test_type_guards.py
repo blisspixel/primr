@@ -5,7 +5,6 @@ Includes property-based tests using Hypothesis for comprehensive validation.
 """
 
 from dataclasses import dataclass
-from typing import Optional, Union
 
 import pytest
 from hypothesis import HealthCheck, given, settings
@@ -122,18 +121,18 @@ class TestValidateTypeOptional:
 
     def test_accepts_value_for_optional(self):
         """Should accept non-None value for Optional."""
-        result = validate_type("hello", Optional[str])
+        result = validate_type("hello", str | None)
         assert result == "hello"
 
     def test_accepts_none_for_optional(self):
         """Should accept None for Optional."""
-        result = validate_type(None, Optional[str])
+        result = validate_type(None, str | None)
         assert result is None
 
     def test_rejects_wrong_type_for_optional(self):
         """Should reject wrong type even for Optional."""
         with pytest.raises(TypeValidationError):
-            validate_type(123, Optional[str])
+            validate_type(123, str | None)
 
 
 class TestValidateTypeList:
@@ -194,18 +193,18 @@ class TestValidateTypeUnion:
 
     def test_accepts_first_union_type(self):
         """Should accept value matching first type in Union."""
-        result = validate_type("hello", Union[str, int])
+        result = validate_type("hello", str | int)
         assert result == "hello"
 
     def test_accepts_second_union_type(self):
         """Should accept value matching second type in Union."""
-        result = validate_type(42, Union[str, int])
+        result = validate_type(42, str | int)
         assert result == 42
 
     def test_rejects_non_union_type(self):
         """Should reject value not matching any Union type."""
         with pytest.raises(TypeValidationError):
-            validate_type(3.14, Union[str, int])
+            validate_type(3.14, str | int)
 
 
 # =============================================================================
@@ -331,10 +330,10 @@ class TestIsValidType:
 class TestTypeValidatorCorrectnessProperty:
     """
     Property-based tests for type validator correctness.
-    
+
     **Feature: code-quality-hardening, Property 1: Type Validator Correctness**
     **Validates: Requirements 1.1, 1.2**
-    
+
     For any value and expected type, the type validator SHALL accept values
     that match the type and reject values that don't match.
     """
@@ -402,9 +401,9 @@ class TestTypeValidatorCorrectnessProperty:
     @settings(max_examples=100)
     def test_optional_str_values_accepted(self, value: str | None):
         """Any str or None should be accepted as Optional[str]."""
-        result = validate_type(value, Optional[str])
+        result = validate_type(value, str | None)
         assert result == value
-        assert is_valid_type(value, Optional[str]) is True
+        assert is_valid_type(value, str | None) is True
 
     @given(st.integers())
     @settings(max_examples=100)
@@ -442,10 +441,10 @@ class TestTypeValidatorCorrectnessProperty:
 class TestApiResponseValidationProperty:
     """
     Property-based tests for API response validation.
-    
+
     **Feature: code-quality-hardening, Property 2: API Response Validation**
     **Validates: Requirements 1.5**
-    
+
     For any API response dict and list of required fields, the validator SHALL
     accept responses containing all required fields and reject responses
     missing any required field.
@@ -522,7 +521,7 @@ class TestApiResponseValidationProperty:
     def test_field_type_validation(self, response: dict[str, str]):
         """Field type validation should reject wrong types."""
         # Pick first field and expect it to be int (but it's str)
-        field_name = list(response.keys())[0]
+        field_name = next(iter(response.keys()))
 
         with pytest.raises(TypeValidationError):
             validate_api_response(
@@ -543,7 +542,7 @@ class TestApiResponseValidationProperty:
     def test_correct_field_type_accepted(self, response: dict[str, int]):
         """Correct field types should be accepted."""
         # Pick first field and expect it to be int (which it is)
-        field_name = list(response.keys())[0]
+        field_name = next(iter(response.keys()))
 
         result = validate_api_response(
             response,
@@ -835,7 +834,7 @@ class TestTypeGuardCorrectnessProperty:
     """
     **Feature: primr-excellence, Property 1: Type Guard Correctness**
     **Validates: Requirements 1.2, 1.3, 1.5**
-    
+
     For any input value and expected type, the type guard SHALL either:
     - Return the value unchanged if it matches the type
     - Raise TypeValidationError with field, expected, and actual if it doesn't match

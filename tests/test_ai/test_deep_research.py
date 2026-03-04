@@ -464,7 +464,7 @@ class TestFileSearch:
         mock_client.interactions.create.return_value = mock_interaction
         client._client = mock_client
 
-        result = client._start_research("Research query")
+        client._start_research("Research query")
 
         # Should not include tools parameter
         call_kwargs = mock_client.interactions.create.call_args[1]
@@ -481,7 +481,7 @@ class TestFileSearch:
         mock_client.interactions.create.return_value = mock_interaction
         client._client = mock_client
 
-        result = client._start_research("Research query", file_store_name="store-123")
+        client._start_research("Research query", file_store_name="store-123")
 
         # Should include tools parameter with file_search
         call_kwargs = mock_client.interactions.create.call_args[1]
@@ -515,7 +515,7 @@ class TestFileSearch:
 
 class TestResearchWithContextFiles:
     """Tests for research method with context files parameter.
-    
+
     Note: The research method now does strict pre-flight validation.
     Context files must exist and be readable BEFORE any API calls.
     This is intentional "fail fast" behavior to avoid wasting money.

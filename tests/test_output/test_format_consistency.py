@@ -43,7 +43,7 @@ class TestReportSectionStructure:
         """
         WHEN a report is generated in deep mode
         THEN the output SHALL contain all 21 section headings
-        
+
         **Validates: Requirements 7.1**
         """
         composer = PromptComposer()
@@ -55,7 +55,7 @@ class TestReportSectionStructure:
         """
         WHEN a report is generated
         THEN the executive summary SHALL appear first
-        
+
         **Validates: Requirements 7.2**
         """
         composer = PromptComposer()
@@ -69,7 +69,7 @@ class TestReportSectionStructure:
         """
         WHEN a report is generated
         THEN the strategic positioning hypothesis SHALL appear last
-        
+
         **Validates: Requirements 7.3**
         """
         composer = PromptComposer()
@@ -107,7 +107,7 @@ class TestDOCXTablePreservation:
         """
         WHEN markdown is converted to DOCX
         THEN table formatting SHALL be preserved
-        
+
         **Validates: Requirements 7.4**
         """
         from docx import Document
@@ -156,7 +156,7 @@ class TestDOCXHeadingHierarchy:
         """
         WHEN markdown is converted to DOCX
         THEN heading hierarchy SHALL be preserved
-        
+
         **Validates: Requirements 7.5**
         """
         markdown = """## Section Title
@@ -287,7 +287,7 @@ def test_property_table_dimensions_preserved(num_rows: int, num_cols: int):
     """
     **Feature: test-coverage-hardening, Property 10: Markdown table to DOCX preservation**
     **Validates: Requirements 7.4**
-    
+
     For any markdown table, the DOCX conversion should produce
     a table with matching column structure.
     """
@@ -301,7 +301,7 @@ def test_property_table_dimensions_preserved(num_rows: int, num_cols: int):
         row = "| " + " | ".join(f"R{r}C{c}" for c in range(num_cols)) + " |"
         rows.append(row)
 
-    table_lines = [header, separator] + rows
+    table_lines = [header, separator, *rows]
 
     doc = Document()
     render_table(doc, table_lines)
@@ -327,7 +327,7 @@ def test_property_heading_hierarchy_preserved(heading_levels: list[int]):
     """
     **Feature: test-coverage-hardening, Property 11: Heading hierarchy preservation**
     **Validates: Requirements 7.5**
-    
+
     For any markdown content with heading levels (H1-H4),
     the DOCX conversion should preserve the relative hierarchy.
     """
@@ -374,7 +374,7 @@ def test_property_content_not_lost_in_conversion(text: str):
     """
     **Feature: test-coverage-hardening, Property 10: Markdown table to DOCX preservation**
     **Validates: Requirements 7.4**
-    
+
     For any text content, conversion to DOCX should not lose the content.
     """
     markdown = f"## Test Section\n\n{text}"

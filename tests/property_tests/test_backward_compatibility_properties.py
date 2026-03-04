@@ -57,7 +57,7 @@ def url_strategy(draw):
 
 class TestExistingErrorCompatibility:
     """Tests for Property 32: Existing Error Compatibility.
-    
+
     *For any* existing `ResearchError` subclass in the codebase, the error
     SHALL continue to function correctly (can be raised, caught, and have
     its attributes accessed) after the error hierarchy changes.
@@ -227,7 +227,7 @@ class TestExistingErrorCompatibility:
 
 class TestTelemetryOptInBehavior:
     """Tests for Property 33: Telemetry Opt-In Behavior.
-    
+
     *For any* operation with telemetry disabled (`TelemetryConfig.enabled=False`),
     the operation SHALL complete successfully without creating spans or emitting
     telemetry, and existing logging behavior SHALL be unchanged.
@@ -245,7 +245,7 @@ class TestTelemetryOptInBehavior:
         telemetry = TelemetrySystem(config)
 
         # Should not raise, should complete successfully
-        with telemetry.span("test_operation") as span:
+        with telemetry.span("test_operation"):
             # Span should be a NullSpan (no-op) when disabled
             # The key property is that it doesn't create real telemetry
             # NullSpan is a lightweight placeholder that does nothing
@@ -311,7 +311,7 @@ class TestTelemetryOptInBehavior:
         telemetry = TelemetrySystem(config)
 
         # Should create a span
-        with telemetry.span("test_operation", phase="test") as span:
+        with telemetry.span("test_operation", phase="test"):
             # Span should not be None when enabled
             # Note: May still be None if tracer initialization failed
             pass  # Just verify no exception
@@ -323,7 +323,7 @@ class TestTelemetryOptInBehavior:
 
 class TestExistingConfigAcceptance:
     """Tests for Property 34: Existing Config Acceptance.
-    
+
     *For any* existing valid YAML configuration file in the codebase,
     the new `ConfigValidator` SHALL accept it without requiring modifications.
     **Validates: Requirements 14.3**

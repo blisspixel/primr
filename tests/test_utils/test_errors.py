@@ -433,10 +433,10 @@ class TestAsyncSafeCallback:
 class TestExponentialBackoffProperty:
     """
     Property-based tests for exponential backoff with jitter.
-    
+
     **Feature: code-quality-hardening, Property 4: Exponential Backoff with Jitter**
     **Validates: Requirements 2.5**
-    
+
     For any sequence of retry attempts, the delay between attempts SHALL follow
     exponential growth with bounded jitter, and no two consecutive delays SHALL
     be identical (due to jitter).
@@ -560,10 +560,10 @@ class TestExponentialBackoffProperty:
 class TestAsyncErrorPropagationProperty:
     """
     Property-based tests for async error propagation.
-    
+
     **Feature: code-quality-hardening, Property 3: Async Error Propagation**
     **Validates: Requirements 2.3**
-    
+
     For any async function that raises an exception, the exception SHALL
     propagate to the caller without being silently swallowed.
     """
@@ -779,7 +779,7 @@ class TestRetryManagerProperty:
     """
     **Feature: primr-excellence, Property 2: Retry Backoff Pattern**
     **Validates: Requirements 2.1**
-    
+
     For any sequence of N consecutive failures followed by success,
     the retry manager SHALL make exactly min(N+1, max_attempts) attempts.
     """
@@ -984,7 +984,7 @@ class TestStructuredErrorLoggingProperty:
     """
     **Feature: primr-excellence, Property 3: Structured Error Logging**
     **Validates: Requirements 2.3, 2.4**
-    
+
     For any error that occurs, the log entry SHALL contain required fields
     and user-facing output SHALL NOT contain stack traces.
     """

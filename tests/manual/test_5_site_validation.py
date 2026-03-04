@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 from primr.data.scrape import fetch_web_content
 
 
-def test_site(website: str, company_name: str, max_pages: int = 5):
+def test_site(website: str, company_name: str, max_pages: int = 5):  # noqa: PT028
     """Test scraping a single site."""
     print(f"\n{'='*70}")
     print(f"Testing: {company_name} ({website})")

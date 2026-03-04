@@ -94,9 +94,9 @@ REQUIRED_MANIFEST_FIELDS = [
 class TestManifestCompleteness:
     """
     Property 3: Manifest Completeness
-    
+
     All completed jobs have required manifest fields.
-    
+
     **Validates: Requirements 2.2, 2.3**
     """
 

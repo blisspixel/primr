@@ -60,9 +60,9 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
                         },
                         "mode": {
                             "type": "string",
-                            "enum": ["scrape", "deep", "full"],
+                            "enum": ["scrape", "deep", "full", "premium"],
                             "default": "full",
-                            "description": "Research mode",
+                            "description": "Research mode: full (standard Grok pipeline, default), premium (Gemini + Deep Research), scrape, deep",
                         },
                     },
                     "required": ["company_url"],
@@ -84,9 +84,9 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
                         },
                         "mode": {
                             "type": "string",
-                            "enum": ["scrape", "deep", "full"],
+                            "enum": ["scrape", "deep", "full", "premium"],
                             "default": "full",
-                            "description": "Research mode",
+                            "description": "Research mode: full (standard Grok pipeline, default), premium (Gemini + Deep Research), scrape, deep",
                         },
                         "cloud_vendor": {
                             "type": "string",

@@ -225,7 +225,7 @@ class TestRateLimiter:
     def test_blocks_requests_over_limit(self, limiter):
         """Requests over limit are blocked."""
         # doctor has limit of 10/min
-        for i in range(10):
+        for _i in range(10):
             limiter.record("client-1", "doctor")
 
         result = limiter.check("client-1", "doctor")
@@ -237,7 +237,7 @@ class TestRateLimiter:
     def test_different_clients_independent(self, limiter):
         """Different clients have independent limits."""
         # Exhaust client-1's limit
-        for i in range(10):
+        for _i in range(10):
             limiter.record("client-1", "doctor")
 
         # client-2 should still be allowed
@@ -248,7 +248,7 @@ class TestRateLimiter:
     def test_different_tools_independent(self, limiter):
         """Different tools have independent limits."""
         # Exhaust doctor limit
-        for i in range(10):
+        for _i in range(10):
             limiter.record("client-1", "doctor")
 
         # estimate_run should still be allowed
@@ -281,7 +281,7 @@ class TestRateLimiter:
 
     def test_reset_clears_state(self, limiter):
         """reset() clears rate limit state."""
-        for i in range(10):
+        for _i in range(10):
             limiter.record("client-1", "doctor")
 
         limiter.reset("client-1")
@@ -292,7 +292,7 @@ class TestRateLimiter:
     def test_retry_after_calculation(self, limiter):
         """retry_after_seconds is calculated correctly."""
         # Record requests
-        for i in range(10):
+        for _i in range(10):
             limiter.record("client-1", "doctor")
 
         result = limiter.check("client-1", "doctor")

@@ -72,6 +72,8 @@ class PipelineRunner:
         self._cancel_requested = False
 
         try:
+            import os
+
             # Map MCP mode to orchestrator mode
             from primr.core.research_orchestrator import ResearchMode, ResearchOrchestrator
 
@@ -79,8 +81,17 @@ class PipelineRunner:
                 "scrape": ResearchMode.STRUCTURED,
                 "deep": ResearchMode.DEEP_RESEARCH,
                 "full": ResearchMode.COMPLETE,
+                "premium": ResearchMode.COMPLETE,
             }
             research_mode = mode_map.get(mode, ResearchMode.COMPLETE)
+
+            # Determine if fast mode should be used:
+            # "full" + XAI_API_KEY → fast pipeline; "premium" → always Gemini+DR
+            use_fast = (
+                mode == "full"
+                and os.environ.get("XAI_API_KEY")
+                and mode != "premium"
+            )
 
             # Create progress callback that updates job state
             def on_progress(message: str) -> None:
@@ -90,13 +101,50 @@ class PipelineRunner:
                 self.mcp_server.job_store.update(job)
                 logger.debug(f"Progress: {message}")
 
-            # Stage 1: Scraping (for scrape and full modes)
-            if mode in ("scrape", "full"):
+            # Stage 1: Scraping (for scrape, full, and premium modes)
+            if mode in ("scrape", "full", "premium"):
                 job.advance_stage(ResearchStage.SCRAPING)
                 self.mcp_server.job_store.update(job)
                 on_progress("Starting website scraping...")
 
-            # Run the research orchestrator
+            if use_fast:
+                # Fast pipeline: Grok 4.1
+                import time
+
+                from primr.core.research_agent import perform_fast_research
+
+                # Start heartbeat task
+                heartbeat_task = asyncio.create_task(
+                    self._heartbeat_loop(job, HEARTBEAT_INTERVAL)
+                )
+                try:
+                    result_path = await asyncio.to_thread(
+                        perform_fast_research,
+                        job.company_name,
+                        company_url,
+                        time.time(),
+                        ai_strategy=cloud_vendor is not None,
+                        cloud_vendors=(cloud_vendor,) if cloud_vendor else ("agnostic",),
+                    )
+                finally:
+                    heartbeat_task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await heartbeat_task
+
+                if not result_path:
+                    job.advance_stage(ResearchStage.FAILED)
+                    job.error_type = "research_failed"
+                    job.error_message = "Fast mode pipeline failed"
+                    self.mcp_server.job_store.update(job)
+                    return
+
+                # Fast mode produces final output directly
+                job.advance_stage(ResearchStage.COMPLETED)
+                job.output_paths = [result_path]
+                self.mcp_server.job_store.update(job)
+                return
+
+            # Standard orchestrator pipeline (premium or non-fast full)
             orchestrator = ResearchOrchestrator()
 
             # Start heartbeat task

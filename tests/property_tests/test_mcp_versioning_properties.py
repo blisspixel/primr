@@ -77,7 +77,7 @@ def field_name_strategy(draw):
 
 class TestToolSchemaVersionPresence:
     """Tests for Property 30: Tool Schema Version Presence.
-    
+
     *For any* MCP tool schema, the schema metadata SHALL include a `version`
     field matching the semantic versioning pattern `major.minor.patch`.
     **Validates: Requirements 13.1, 13.2**
@@ -170,7 +170,7 @@ class TestToolSchemaVersionPresence:
 
 class TestDeprecationWarningInclusion:
     """Tests for Property 31: Deprecation Warning Inclusion.
-    
+
     *For any* deprecated field in an MCP response, the response SHALL include
     a deprecation warning with the field name and recommended alternative.
     **Validates: Requirements 13.5**

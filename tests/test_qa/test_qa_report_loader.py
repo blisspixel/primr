@@ -39,10 +39,10 @@ class TestReportLoader:
     def test_report_existence_validation_property(self, company_name, content_length):
         """
         Property 8: Report existence validation
-        
+
         For any company name, when no report exists, the system should
         return None gracefully. When a report exists, it should load successfully.
-        
+
         **Feature: report-quality-assurance, Property 8: Report existence validation**
         **Validates: Requirements 1.3**
         """
@@ -95,7 +95,7 @@ class TestReportLoader:
     def test_latest_report_selection_property(self, company_names):
         """
         Property: Latest report selection
-        
+
         When multiple reports exist for a company, the system should
         consistently select the most recent one based on modification time.
         """
@@ -135,7 +135,7 @@ class TestReportLoader:
     def test_file_format_support_property(self, file_extensions):
         """
         Property: File format support
-        
+
         The system should handle different file formats appropriately,
         either loading them successfully or failing gracefully.
         """
@@ -173,7 +173,7 @@ class TestReportLoader:
     def test_section_parsing_property(self, section_count):
         """
         Property: Section parsing consistency
-        
+
         For any report with clearly defined sections, the parser should
         consistently identify and separate the sections.
         """
@@ -199,7 +199,7 @@ class TestReportLoader:
         assert len(parsed_sections) >= section_count
 
         # Each section should have content
-        for section_name, content in parsed_sections.items():
+        for _section_name, content in parsed_sections.items():
             assert len(content.strip()) > 0
 
     @given(
@@ -212,7 +212,7 @@ class TestReportLoader:
     def test_company_name_extraction_property(self, company_name):
         """
         Property: Company name extraction consistency
-        
+
         For any valid company name in a filename, the extraction should
         consistently recover a reasonable company name.
         """

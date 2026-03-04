@@ -412,7 +412,7 @@ class TestConcurrency:
 
         concurrent_count = 0
         max_concurrent_seen = 0
-        lock = asyncio.Lock()
+        asyncio.Lock()
 
         def slow_generate(*args, **kwargs):
             # Sync function that simulates work - used with run_in_executor

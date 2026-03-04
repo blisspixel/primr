@@ -30,8 +30,8 @@ def test_subpackages_have_init(subpackage: str):
     """
     **Feature: project-reorganization, Property 2: Package initialization**
     **Validates: Requirements 1.2**
-    
-    For any directory within src/primr/, that directory SHALL 
+
+    For any directory within src/primr/, that directory SHALL
     contain an __init__.py file making it importable as a Python package.
     """
     subpackage_dir = SRC_DIR / subpackage

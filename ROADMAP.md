@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.12.1 (February 2026, plus unreleased hardening)
+Current State: v1.12.1 (February 2026, plus unreleased hardening and mode changes)
 
 Primr is a CLI-first, local research tool for company intelligence and strategic analysis. It aims to accelerate research workflows while being transparent about uncertainty.
 
@@ -24,11 +24,13 @@ The design is intentionally opinionated and local-first. This roadmap reflects c
 
 **Deep Mode**: Gemini Deep Research Agent with autonomous multi-step search and synthesis
 
-**Pro Models**: Gemini 3 Pro (default) for section writing and analysis. Gemini 3.1 Pro Preview available for opt-in testing with improved reasoning and factual consistency.
+**Pro Models**: Gemini 3.1 Pro for section writing and analysis in premium mode.
 
-**Fast Mode**: Grok 4.1 accordion-style batch writing — analysis workbook + 5-batch report in 10-17 min
+**Standard Mode** (default when `XAI_API_KEY` set): Grok 4.1 pipeline with research deepening, parallel section writing, cross-validation, coherence pass, and strategy enrichment. ~30 min, ~$0.55. Formerly called "fast mode."
 
-**Full Mode**: Sequential scrape + deep research pipeline
+**Premium Mode** (`--premium`): Gemini + Deep Research pipeline for maximum depth. ~50-75 min, ~$5. Formerly the default "full" mode.
+
+**Full Mode**: Auto-detects — uses standard (Grok) when `XAI_API_KEY` is set, otherwise falls back to Gemini pipeline
 
 ### Resource Management (v1.3.1)
 
@@ -51,6 +53,7 @@ The design is intentionally opinionated and local-first. This roadmap reflects c
 - Cloud vendor options: Azure, AWS, GCP, agnostic
 - Multiple strategy types: AI, Customer Experience, Security, Data Fabric
 - Vendor-tagged output filenames (e.g., `Company_AI_Strategy_AWS_02-11-2026.docx`)
+- Strategy enrichment: cross-validation, evidence search, section regeneration, and polish pass (same quality treatment as reports)
 
 ### Operational Maturity
 
@@ -469,6 +472,54 @@ Goal: Reduce noisy integration-runtime warnings, improve maintainability in AI r
   - `--eval-max-new-runs`
   - `--eval-max-estimated-cost`
 
+### Fast Mode Default + Quality Improvements (Unreleased)
+
+Goal: Make the Grok 4.1 pipeline the default and improve report quality.
+
+**Motivation:** Fast mode now matches full mode on QA score (89 vs 89), has more external sources (38 vs 8), similar page count (~40 vs ~39), and costs 88% less ($0.57 vs $5.00). The quality gap has closed enough to make fast mode the default.
+
+**Mode Renaming:**
+- Default `primr` command now auto-detects: uses Grok 4.1 when `XAI_API_KEY` is set, falls back to Gemini otherwise
+- Added `--premium` flag to explicitly request Gemini + Deep Research pipeline
+- `--fast` retained for backward compatibility (no-op when `XAI_API_KEY` already set)
+- MCP server tools accept `"premium"` mode alongside `"scrape"`, `"deep"`, `"full"`
+- Pipeline runner auto-dispatches to fast pipeline for `"full"` mode when `XAI_API_KEY` available
+- Cost estimator labels updated: "standard (Grok 4.1)" for default, "premium" for Gemini+DR
+
+**Quality Improvements:**
+- **Coherence pass fix**: Rewrote prompt to be surgical (cross-references only, not content deletion). Added explicit 95% word budget, acceptable/unacceptable edit examples. Increased `max_tokens` from 25K to 32K. Tightened guard threshold from 0.85 to 0.92.
+- **Executive summary written last**: Exec summary now written after all other sections, with full report context for true synthesis. Previously written first with zero prior context.
+- **Parallel external source search**: Phase 1 and Phase 2 search loops parallelized with `ThreadPoolExecutor(max_workers=3)`. Expected speedup: Phase 1 from ~14 min to ~5-6 min, Phase 2 from ~8 min to ~3-4 min.
+- **Robust cross-validation JSON parsing**: On parse failure, retries with tighter prompt including failed response. Falls back to regex extraction of title/reason fields as last resort.
+- **Framework section word targets**: Raised from 600 to 800 words (sections were consistently producing 700-900 anyway).
+
+**Strategy Enrichment Pass:**
+- Strategy documents now go through the same quality treatment as reports: cross-validation to identify weak sections, targeted DDG search for evidence, section regeneration with new evidence, and a polish pass for coherence and evidence discipline
+- Cross-validation tuned for strategy-specific weaknesses: unsupported vendor claims, generic recommendations, missing company-specific details
+- Up to 2 weak sections identified and re-written per strategy document
+- Polish pass deduplicates, standardizes vendor references, adds confidence labels, and checks specificity
+- Guarded at every step: CV failure skips enrichment, regen failure keeps original section, polish failure keeps unpolished content
+- Strategy `max_tokens` raised from 16K to 32K (Grok supports 131K; strategies were being truncated)
+- Strategy context enriched with `insights.txt`, `gap_analysis.md`, and `analysis_workbook.md` from earlier pipeline phases
+- Per-vendor strategy cost: ~$0.03 to ~$0.07. Per-vendor time: 2-3 min to 3-6 min
+- Phase 6 banner updated from "2-5 min" to "3-8 min"
+
+**All Strategy Types in Fast Mode:**
+- `--strategy-type` now works during research runs (not just `--ai-strategy-only`)
+- Non-AI strategy types (customer_experience, modern_security_compliance, data_fabric_strategy) run via Grok in Phase 6, using YAML-based prompts
+- Strategy YAML configs auto-discovered at runtime from `src/primr/prompts/strategies/`
+- `--list-strategies` dynamically reads YAML metadata (name, description, expected pages)
+- `_save_strategy_output` uses strategy-specific filenames from YAML `output_filename` field
+
+**Files Modified:**
+- `src/primr/core/research_agent.py` — coherence prompt, exec summary last, parallel search, cross-val retry, word targets, premium_mode dispatch, generalized Phase 6 for all strategy types, strategy enrichment pass (cross-validate, evidence search, regen, polish)
+- `src/primr/core/cli.py` — `--premium` flag, `CLIConfig.premium_mode`, `MODE_MAP`, auto-detect logic, dynamic `--strategy-type` choices/help from YAML, dynamic `--list-strategies`
+- `src/primr/utils/cost_estimator.py` — `premium_mode` param, display labels
+- `src/primr/mcp_server/types.py` — `PREMIUM` enum member
+- `src/primr/mcp_server/tools.py` — tool schema enums + descriptions
+- `src/primr/mcp_server/pipeline_runner.py` — fast mode dispatch for "full"
+- `CLAUDE.md` — updated examples, costs, MCP docs
+
 ## Near-Term Roadmap
 
 ### v1.13.0 - QA-Driven Report Iteration (Planned)
@@ -591,13 +642,13 @@ These are conscious non-goals for now:
 ## Usage Reference
 
 ```bash
-# Basic usage
+# Basic usage (auto-uses Grok 4.1 when XAI_API_KEY set)
 primr "ExampleCo" https://example.co
 
 # Research modes
 primr "ExampleCo" https://example.co --mode scrape
 primr "ExampleCo" https://example.co --mode deep
-primr "ExampleCo" https://example.co --mode full
+primr "ExampleCo" https://example.co --premium  # Gemini + Deep Research
 
 # AI Strategy
 primr "ExampleCo" https://example.co --cloud-vendor azure
@@ -652,6 +703,7 @@ cd deploy/aws && ./deploy.sh -d prod destroy
 | 1.12.0 | Feb 2026 | Multi-cloud-vendor AI strategy |
 | 1.12.1 | Feb 2026 | Scraping robustness, PDF routing, bug fixes |
 | unreleased | Feb 2026 | Deep-research refactor, scrape reliability hardening, shared error policy, warning reduction |
+| unreleased | Mar 2026 | Fast mode as default, `--premium` flag, quality improvements (coherence, exec summary, parallel search, cross-val), strategy enrichment pass |
 
 ## Final Note
 

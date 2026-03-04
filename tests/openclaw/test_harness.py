@@ -76,7 +76,7 @@ class MockMCPServer:
         """Mock check_jobs tool."""
         return {"jobs": list(self.jobs.values())}
 
-    def cancel_job(self, job_id: str = None) -> dict:
+    def cancel_job(self, job_id: str | None = None) -> dict:
         """Mock cancel_job tool."""
         if job_id and job_id in self.jobs:
             self.jobs[job_id]["status"] = "cancelled"
@@ -115,7 +115,7 @@ class ApprovalTokenValidator:
 
     def validate_token(self, token: str, estimate: dict) -> tuple[bool, str]:
         """Validate a token against an estimate.
-        
+
         Returns (is_valid, error_message).
         """
         if token not in self.tokens:
@@ -321,7 +321,7 @@ class TestMockMCPServer:
 class TestHighRiskSeams:
     """
     High-risk seam tests for approval + governance interaction.
-    
+
     Requirements: SR-1.1, AP-1
     """
 
@@ -440,7 +440,7 @@ class TestWorkflowSimulation:
         estimate = server.estimate_run("Acme Corp", "https://acme.com", "full")
 
         # Step 2: Generate token but don't use it (denial)
-        token = validator.generate_token(estimate)
+        validator.generate_token(estimate)
 
         # Step 3: Verify no job was started
         jobs = server.check_jobs()
