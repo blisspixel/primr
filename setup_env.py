@@ -324,6 +324,8 @@ def key_looks_valid(name, value):
         return value.startswith("AIza") and len(value) > 30
     if name == "SEARCH_ENGINE_ID":
         return len(value) >= 10
+    if name == "XAI_API_KEY":
+        return value.startswith("xai-") and len(value) > 20
     return True
 
 
@@ -434,7 +436,7 @@ def main_rich():
     
     # API keys
     required = ["GEMINI_API_KEY"]
-    optional = ["SEARCH_API_KEY", "SEARCH_ENGINE_ID"]
+    optional_keys = ["XAI_API_KEY", "SEARCH_API_KEY", "SEARCH_ENGINE_ID"]
     current = get_env_keys()
     missing = []
 
@@ -444,13 +446,19 @@ def main_rich():
         else:
             missing.append(key)
 
+    # Show XAI/Grok status
+    if "XAI_API_KEY" in current and key_looks_valid("XAI_API_KEY", current["XAI_API_KEY"]):
+        console.print("  [green]✓[/green] XAI_API_KEY [dim](Grok — default model)[/dim]")
+    else:
+        console.print("  [dim]·[/dim] XAI_API_KEY [dim](optional — enables Grok default mode, ~$0.55/run)[/dim]")
+
     # Show search provider status
     console.print(f"  [green]✓[/green] Search: DuckDuckGo [dim](no API key needed)[/dim]")
 
     # Check optional Google keys
     has_google_keys = all(
         key in current and key_looks_valid(key, current[key])
-        for key in optional
+        for key in ["SEARCH_API_KEY", "SEARCH_ENGINE_ID"]
     )
     if has_google_keys:
         console.print(f"  [green]✓[/green] Google Search [dim](optional, also configured)[/dim]")
@@ -461,7 +469,7 @@ def main_rich():
         key_info = {
             "GEMINI_API_KEY": (
                 "https://aistudio.google.com/apikey",
-                "Powers AI analysis"
+                "Powers AI analysis (required)"
             ),
         }
 
@@ -471,6 +479,19 @@ def main_rich():
             console.print(f"  [green]✓[/green] {key}")
 
         Path(".env").write_text("\n".join(f"{k}={v}" for k, v in current.items()) + "\n")
+
+    # Offer to set up XAI key if not present
+    if "XAI_API_KEY" not in current or not key_looks_valid("XAI_API_KEY", current["XAI_API_KEY"]):
+        console.print()
+        if Confirm.ask("  Set up XAI_API_KEY for Grok? [dim](faster, cheaper default)[/dim]", default=False):
+            xai_key = get_key_interactive(
+                "XAI_API_KEY",
+                "https://console.x.ai/",
+                "Powers Grok analysis — default mode (~$0.55/run, ~30 min)"
+            )
+            current["XAI_API_KEY"] = xai_key
+            Path(".env").write_text("\n".join(f"{k}={v}" for k, v in current.items()) + "\n")
+            console.print("  [green]✓[/green] XAI_API_KEY")
     
     # Verify
     console.print()

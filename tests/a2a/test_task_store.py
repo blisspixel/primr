@@ -109,10 +109,14 @@ class TestPrimrTaskStore:
 
 def _make_job(stage=ResearchStage.IDLE):
     """Create a minimal ResearchJobState for testing."""
+    from datetime import datetime, timezone
+
     from primr.mcp_server.job_store import ResearchJobState
     job = ResearchJobState(
+        job_id="test-job-001",
         company_name="Test",
         mode="full",
+        start_time=datetime.now(timezone.utc),
         owner_client_id="test",
     )
     if stage != ResearchStage.IDLE:
