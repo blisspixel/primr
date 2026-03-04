@@ -53,4 +53,33 @@ jobs:
       - name: Test
         env:
           GEMINI_API_KEY: fake-key-for-ci-tests
-        run: pytest tests/ --ignore=tests/manual --ignore=tests/test_output --ignore=tests/property_tests --ignore=tests/agentic/property_tests --ignore=tests/test_qa -x --tb=short -q -k "not test_wait_times_out_when_no_change" -m "not integration"
+        run: pytest tests/ --ignore=tests/manual --ignore=tests/test_output --ignore=tests/property_tests --ignore=tests/agentic/property_tests --ignore=tests/a2a/property_tests --ignore=tests/test_qa -x --tb=short -q -k "not test_wait_times_out_when_no_change" -m "not integration"
+
+  a2a-tests:
+    runs-on: ubuntu-latest
+    name: A2A Integration Tests
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-a2a-${{ hashFiles('pyproject.toml') }}
+          restore-keys: ${{ runner.os }}-pip-
+
+      - name: Install dependencies (with A2A SDK)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,api,a2a]"
+
+      - name: A2A Tests
+        env:
+          GEMINI_API_KEY: fake-key-for-ci-tests
+        run: pytest tests/a2a/ --ignore=tests/a2a/property_tests -x --tb=short -q
