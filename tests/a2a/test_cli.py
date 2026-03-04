@@ -44,6 +44,20 @@ class TestA2ACli:
         assert args.journal_path == "/tmp/test.json"
 
 
+class TestA2ACliModuleImport:
+    """Tests for a2a CLI module imports."""
+
+    def test_cli_module_imports(self):
+        """CLI module can be imported without errors."""
+        from primr.a2a import cli
+        assert hasattr(cli, "main")
+
+    def test_cli_main_is_callable(self):
+        """main() function exists and is callable."""
+        from primr.a2a.cli import main
+        assert callable(main)
+
+
 def _make_parser():
     """Create the argument parser (mirrors cli.py structure)."""
     import argparse

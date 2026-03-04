@@ -669,25 +669,37 @@ Goal: Make Primr the system of record for how thinking evolves.
 - Explicit "what changed and why" sections
 - Optional narrative framing outputs
 
-### v1.16.0 - A2A Protocol Integration (Planned)
+### v1.16.0 - A2A Protocol Integration (Complete)
 
 Goal: Enable Primr to participate in the Agent-to-Agent (A2A) mesh — both as a callable research agent and as a client that delegates to external agents.
 
 **A2A Server (Primr as an A2A agent):**
-- AgentCard served at `/.well-known/agent.json` describing Primr's research skills
-- A2A JSON-RPC endpoint for `message/send` and `message/stream`
-- Skills: `estimate_research`, `research_company`, `check_jobs`, `run_qa`, `system_health`
-- SSE streaming for long-running research jobs
-- Shares `SingleJobStore` with MCP server (single-job model enforced across both protocols)
-- Standalone `primr-a2a` CLI or `primr-mcp --a2a` co-hosted mode
+- AgentCard served at `/.well-known/agent.json` with 5 skills, input/output modes, and bearer auth
+- `PrimrAgentExecutor` bridges A2A messages to Primr's pipeline runner
+- Skills: `estimate_research`, `research_company` (SSE streaming), `check_jobs`, `run_qa`, `system_health`
+- `PrimrTaskStore` maps A2A task IDs to Primr job IDs via `SingleJobStore`
+- Standalone `primr-a2a` CLI or `primr-mcp --http --a2a` co-hosted mode
+- Auth middleware reused from MCP server (`PrimrTokenVerifier`)
 
 **A2A Client (Primr calls external agents):**
-- `delegate_to_agent` MCP tool for calling external A2A agents
+- `delegate_to_agent` MCP tool for calling external A2A agents (guarded by ImportError)
+- `A2AClient` with httpx: discover, send_message, send_message_streaming, get_task, cancel_task
 - Agent discovery via `/.well-known/agent.json`
 - `A2AExternalAgentHook` for SSRF validation and cost budget on delegations
 - `A2AContentSanitizationHook` for prompt injection protection on external responses
 
-**Optional dependency:** `pip install primr[a2a]` (a2a-sdk). Existing installs unaffected.
+**Governance:**
+- SSRF protection via `URLValidator` on all delegation URLs
+- Per-delegation cost budget tracking with configurable max
+- Content sanitization on all external agent responses
+- JSON response validation (catches non-JSON 200 responses)
+
+**Testing:**
+- 165 tests in `tests/a2a/` (unit, integration, edge cases, property-based)
+- 76% code coverage across 9 source modules
+- CI job with `pip install .[a2a]` for SDK-dependent tests
+
+**Optional dependency:** `pip install primr[a2a]` (a2a-sdk >=0.3.20,<0.4.0). Existing installs unaffected.
 
 ### v2.0.0 - Public Release (Planned)
 
@@ -800,6 +812,7 @@ cd deploy/aws && ./deploy.sh -d prod destroy
 | 1.12.1 | Feb 2026 | Scraping robustness, PDF routing, bug fixes |
 | unreleased | Feb 2026 | Deep-research refactor, scrape reliability hardening, shared error policy, warning reduction |
 | unreleased | Mar 2026 | Fast mode as default, `--premium` flag, quality improvements (coherence, exec summary, parallel search, cross-val), strategy enrichment pass |
+| unreleased | Mar 2026 | A2A protocol integration (client, server, executor, hooks, 165 tests) |
 
 ## Final Note
 

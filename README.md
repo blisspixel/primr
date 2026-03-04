@@ -401,22 +401,23 @@ Scale-to-zero ephemeral containers, event-driven queues, production observabilit
 ## Development
 
 ```bash
-python -m pytest tests/ -x --tb=short   # Run tests
+python -m pytest tests/ -x --tb=short                    # Run tests
+python -m pytest tests/a2a/ -v --tb=short                # A2A tests only (requires pip install .[a2a])
 pytest -q tests/test_core/test_resume_recovery.py tests/test_core/test_research_agent_resume.py tests/test_data/test_scrape_resume.py --cov=primr.core.cli --cov=primr.core.research_agent --cov=primr.data.scrape --cov-fail-under=13 --cov-report=term  # Recovery regression gate
-ruff check src/                          # Lint
-mypy src/primr --ignore-missing-imports  # Type check
+ruff check src/                                           # Lint
+mypy src/primr --ignore-missing-imports                  # Type check
 ```
 
-4,400+ tests including property-based testing (Hypothesis), full ruff and mypy compliance, OpenTelemetry tracing, and typed error hierarchy with automatic retry classification. CI runs lint, type check, and tests on every push via GitHub Actions.
+4,500+ tests including property-based testing (Hypothesis), full ruff and mypy compliance, OpenTelemetry tracing, and typed error hierarchy with automatic retry classification. CI runs lint, type check, and tests on every push via GitHub Actions.
 
-Recent hardening includes shared deep-research parsing/polling/execution modules, a shared AI error policy module across sync/async clients, and reduced noisy integration-runtime warnings for constrained Playwright/network test environments.
+Recent hardening includes shared deep-research parsing/polling/execution modules, a shared AI error policy module across sync/async clients, reduced noisy integration-runtime warnings for constrained Playwright/network test environments, and A2A protocol integration with 165+ dedicated tests.
 
 ## Documentation
 
 | Doc | What's in it |
 |-----|--------------|
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design, data flow, scraping tiers |
-| [API.md](docs/API.md) | MCP server, programmatic usage |
+| [API.md](docs/API.md) | MCP server, A2A server, programmatic usage |
 | [CONFIG.md](docs/CONFIG.md) | Full configuration reference |
 | [API_KEYS.md](docs/API_KEYS.md) | API key setup |
 | [CLOUD_DEPLOYMENT.md](docs/CLOUD_DEPLOYMENT.md) | Serverless deployment |

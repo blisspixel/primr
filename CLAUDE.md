@@ -107,6 +107,9 @@ python -m pytest tests/ -x --tb=short
 # Run agentic module tests only
 python -m pytest tests/agentic/ -v --tb=short
 
+# Run A2A tests only (requires: pip install .[a2a])
+python -m pytest tests/a2a/ -v --tb=short
+
 # Lint check
 ruff check src/
 
@@ -267,4 +270,4 @@ Unit tests validate specific examples and edge cases.
 
 ---
 
-*Last updated: 2026-03-03 | Primr v1.12.0 | Agentic Architecture v1.0*
+*Last updated: 2026-03-03 | Primr v1.16.0 | Agentic Architecture v1.0 | A2A Protocol v1.0*
