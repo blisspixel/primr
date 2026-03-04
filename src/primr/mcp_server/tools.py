@@ -214,6 +214,37 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
                 },
             ),
         ]
+
+        # Add A2A delegate tool if a2a-sdk is available
+        try:
+            from primr.a2a.client import A2AClient  # noqa: F401
+            base_tools.append(
+                Tool(
+                    name="delegate_to_agent",
+                    description="Delegate a task to an external A2A agent",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "agent_url": {
+                                "type": "string",
+                                "description": "URL of the A2A agent to call",
+                            },
+                            "message": {
+                                "type": "string",
+                                "description": "Message to send to the agent",
+                            },
+                            "skill_id": {
+                                "type": "string",
+                                "description": "Optional skill ID to target on the remote agent",
+                            },
+                        },
+                        "required": ["agent_url", "message"],
+                    },
+                ),
+            )
+        except ImportError:
+            pass
+
         # Include agentic tools
         return base_tools + agentic_tools
 
@@ -266,6 +297,8 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
             return await _handle_cancel_job(mcp_server, arguments, client_id)
         elif name == "wait_for_status_change":
             return await _handle_wait_for_status_change(mcp_server, arguments)
+        elif name == "delegate_to_agent":
+            return await _handle_delegate_to_agent(mcp_server, arguments)
 
         raise ValueError(f"Unknown tool: {name}")
 
@@ -824,3 +857,59 @@ async def _handle_wait_for_status_change(
         type="text",
         text=json.dumps(result),
     )]
+
+
+async def _handle_delegate_to_agent(
+    mcp_server: "PrimrMCPServer",
+    arguments: dict[str, Any],
+) -> list[TextContent]:
+    """
+    Handle delegate_to_agent tool — call an external A2A agent.
+
+    Guarded by ImportError: only available when primr[a2a] is installed.
+    """
+    import json
+
+    try:
+        from primr.a2a.client import A2AClient
+    except ImportError:
+        return [TextContent(
+            type="text",
+            text=json.dumps({
+                "error": True,
+                "error_type": "missing_dependency",
+                "message": "A2A support not installed. Run: pip install primr[a2a]",
+            }),
+        )]
+
+    agent_url = arguments.get("agent_url", "")
+    message = arguments.get("message", "")
+    skill_id = arguments.get("skill_id")
+
+    # Validate URL via SSRF protection
+    url_result = mcp_server.url_validator.validate(agent_url)
+    if not url_result.valid:
+        return [TextContent(
+            type="text",
+            text=json.dumps({
+                "error": True,
+                "error_type": url_result.error_type,
+                "error_code": MCPErrorCode.SSRF_BLOCKED,
+                "message": f"Agent URL blocked: {url_result.error_message}",
+            }),
+        )]
+
+    try:
+        async with A2AClient(agent_url=agent_url) as client:
+            result = await client.send_message(message=message, skill_id=skill_id)
+        return [TextContent(type="text", text=json.dumps(result, indent=2, default=str))]
+    except Exception as e:
+        logger.exception("A2A delegation failed: %s", agent_url)
+        return [TextContent(
+            type="text",
+            text=json.dumps({
+                "error": True,
+                "error_type": "a2a_delegation_failed",
+                "message": str(e),
+            }),
+        )]

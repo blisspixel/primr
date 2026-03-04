@@ -73,6 +73,9 @@ api = [
 fast = [
     "openai>=1.0.0",
 ]
+a2a = [
+    "a2a-sdk[http-server]>=0.3.20,<0.4.0",
+]
 security = [
     "bandit>=1.7.0",
 ]
@@ -80,6 +83,7 @@ security = [
 [project.scripts]
 primr = "primr.core.cli:main"
 primr-mcp = "primr.mcp_server.cli:main"
+primr-a2a = "primr.a2a.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/blisspixel/primr"

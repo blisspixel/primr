@@ -47,6 +47,10 @@ primr --check-jobs
 
 # System health
 primr doctor
+
+# A2A server (requires: pip install primr[a2a])
+primr-a2a --no-auth                        # Standalone A2A on port 9000
+primr-mcp --http --a2a                     # Co-hosted MCP + A2A
 ```
 
 ### MCP Tools (for programmatic access)
@@ -57,6 +61,7 @@ primr doctor
 | `check_jobs` | Poll job status |
 | `run_qa` | Quality assessment on reports |
 | `doctor` | System health check |
+| `delegate_to_agent` | Call an external A2A agent (requires primr[a2a]) |
 
 ---
 
@@ -76,6 +81,7 @@ src/primr/
 ├── core/           # Research orchestration, CLI
 ├── ai/             # LLM clients, deep research, summarization
 ├── data/           # Scraping engine, caching, link discovery
+├── a2a/            # A2A protocol integration (optional: pip install primr[a2a])
 ├── agentic/        # Agent architecture (memory, hooks, subagents)
 ├── mcp_server/     # MCP protocol implementation
 └── prompts/        # YAML-based prompt templates
