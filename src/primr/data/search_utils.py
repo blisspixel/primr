@@ -144,16 +144,20 @@ Cover these angles:
 - Recent news, press releases, announcements
 - Funding, acquisitions, partnerships
 - Technology stack, digital transformation, IT strategy
-- Leadership team, CEO, strategic direction
+- Leadership team, CEO, executive bios, board of directors
 - Competitive landscape, market position
-- Industry analysis, analyst coverage
+- Industry analysis, analyst coverage, industry outlook and trends
 - Financial performance, revenue, earnings, investor relations
+- Industry regulatory changes upcoming legislation affecting their sector
+- Executive interviews, conference presentations, earnings calls
 
 Rules:
 - One query per line, no numbering
 - Plain Google-style queries, no quotes or OR operators
 - Include the company name in each query
-- Make queries specific enough to find high-quality sources"""
+- Make queries specific enough to find high-quality sources
+- Include at least 2 queries specifically about industry trends and outlook
+- Include at least 1 query about executives, board members, or leadership team"""
 
     try:
         response = llm(prompt.strip(), model_type="fast", streaming=False).strip()

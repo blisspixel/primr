@@ -207,6 +207,29 @@ sections:
       - "Consolidation or fragmentation trends"
     depth: "Thorough industry analysis"
 
+  - id: industry_outlook
+    name: "Industry Outlook"
+    part: 2
+    position: middle
+    purpose: "What's coming for their industry across near, medium, and long-term horizons"
+    covers:
+      - "Near-term (6-12 months): Regulatory changes, pending legislation, M&A activity, market shifts already underway"
+      - "Medium-term (1-3 years): Technology disruption, competitive dynamics shifts, customer behavior evolution"
+      - "Long-term (3-5+ years): Structural industry changes, demographic shifts, platform transitions, new entrant threats"
+      - "Wildcards: Low-probability but high-impact events (geopolitical, technology breakthroughs, black swan scenarios)"
+    depth: |
+      For each time horizon, include:
+      - Specific trends with evidence and sources (not generic platitudes)
+      - How this company is positioned relative to the trend (advantage, neutral, exposed)
+      - What a smart executive at this company should be watching
+
+      REQUIRED: Include a timeline table with columns: Horizon, Trend, Impact on Company,
+      Positioning (Advantage/Neutral/Exposed), Source.
+
+      Cite recent industry reports, analyst coverage, and news. Avoid generic "AI will
+      change everything" statements — be specific about WHICH AI capabilities affect
+      WHICH part of their business.
+
   - id: competitive_landscape
     name: "Competitive Landscape"
     part: 2
@@ -343,6 +366,37 @@ sections:
       - "6-8 questions"
       - "For each: The question, Why we're asking, What we hope to learn"
     depth: "Specific and thoughtful, not gotcha questions"
+
+  - id: board_perspective
+    name: "Strategic Leadership Perspective"
+    part: 4
+    position: middle
+    purpose: "Simulate how the company's leadership would debate these findings"
+    covers:
+      - "Leadership roster: CEO, CFO, CTO/CIO, and 2-3 board members with brief backgrounds"
+      - "CEO lens: What would the CEO prioritize given their background and stated vision?"
+      - "CFO lens: Where would the CFO push back on spend or demand ROI evidence?"
+      - "CTO/CIO lens: What technical debt or capability gaps would they flag?"
+      - "Board lens: What would a PE-backed or activist board member focus on?"
+      - "Points of agreement: Where would leadership likely align?"
+      - "Points of tension: Where would leadership likely disagree, and why?"
+    depth: |
+      SIMULATION APPROACH: Based on publicly available information about the leadership
+      team (LinkedIn, press, conference talks, board composition), construct plausible
+      perspectives for each executive.
+
+      For each perspective:
+      - Name the executive (or role if name unknown) and note their background
+      - Explain what their likely priorities would be given their track record
+      - Identify which of our findings they would find most compelling
+      - Identify which findings they would push back on
+
+      End with a "BOARD MEETING SYNTHESIS": If this leadership team debated our
+      strategic findings for 30 minutes, what would they likely conclude? What
+      would remain unresolved? What decisions would they defer?
+
+      NOTE: Frame all executive perspectives as hypotheses based on public information.
+      Label as (Hypothesis) — we don't know what they actually think.
 
   - id: engagement_opportunities
     name: "Where They're Likely to Say Yes"
