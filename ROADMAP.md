@@ -701,6 +701,122 @@ Goal: Enable Primr to participate in the Agent-to-Agent (A2A) mesh — both as a
 
 **Optional dependency:** `pip install primr[a2a]` (a2a-sdk >=0.3.20,<0.4.0). Existing installs unaffected.
 
+### v1.17.0 - Parallel Pipeline and Scraper Observability (Planned)
+
+Goal: Unlock the easiest throughput wins by parallelizing what's currently sequential, and add per-tier metrics for data-driven scraper tuning.
+
+**Parallel Page Scraping:**
+- Current: pages scraped sequentially (50 pages × 5-15s = 5-10 min)
+- Upgrade: concurrent scraping with configurable concurrency (default 4), respecting per-host rate limiter
+- Sticky tier + circuit breaker already work per-host, so parallelism is safe within rate limits
+- Expected gain: 2-3× faster scraping phase (5-10 min → 2-4 min)
+
+**Parallel External Search:**
+- Current: search queries run sequentially (5-10 queries × 30-60s)
+- Upgrade: concurrent search with semaphore-bounded concurrency
+- Expected gain: 40-60% faster research deepening
+
+**Scraper Tier Metrics:**
+- Per-tier success rate, latency p95, and content quality score
+- Stored in run state JSON for post-hoc analysis
+- `primr doctor --scraper-stats` to show tier performance across recent runs
+- Informs sticky tier policy and circuit breaker thresholds
+
+**Phase Overlap:**
+- External search queries can start after homepage is scraped (don't wait for all 50 pages)
+- Insight extraction can begin on early pages while later pages are still scraping
+- Simple `asyncio.gather()` scheduling — no orchestration framework needed
+- Inspired by [Anthropic's research system](https://www.anthropic.com/engineering/multi-agent-research-system): parallelism at the execution level, not the architecture level
+
+**OpenTelemetry Spans:**
+- Add spans per scrape tier attempt and per search query
+- Trace scraping → extraction → summarization flow end-to-end
+- Compatible with existing OTel setup
+
+### v1.18.0 - Verification Agent and Trust Scoring (Planned)
+
+Goal: Add a post-QA "skeptic" pass that actively disputes claims using fresh web searches, producing auditable trust scores.
+
+**Skeptic Agent:**
+- After QA pass, spawn a verification agent that:
+  1. Extracts all claims with confidence > 0.6 from the report
+  2. Formulates targeted search queries to challenge each claim
+  3. Runs fresh web searches (DDG, no extra API cost)
+  4. Compares search evidence against report claims
+  5. Produces a delta report: confirmed, disputed, unverifiable
+- Opt-in via `--verify` flag (adds 5-10 min, negligible cost since DDG is free)
+- Trust score: percentage of claims independently verified
+
+**Trust Score in Output:**
+- Report header includes verification summary (e.g., "Trust: 94% verified, 3% disputed, 3% unverifiable")
+- Disputed claims get inline annotations with counter-evidence
+- QA score incorporates verification results
+
+**Implementation:**
+- New `VerifierSubagent` in agentic/subagents.py
+- Orchestrator stage: `IDLE → SCRAPING → ANALYZING → WRITING → QA → VERIFYING → COMPLETED`
+- Hooks: `VerificationGateHook` can block output if trust < configurable threshold
+
+### v1.19.0 - First-Class VLM Extraction (Planned)
+
+Goal: Promote vision extraction from fallback tier to first-class path for data-dense pages (charts, tables, IR decks, org charts).
+
+**Motivation:** Corporate sites in 2026 are increasingly visual — investor relations decks, product comparison matrices, org charts, and pricing tables are often images or rendered graphics that pure-text extraction misses entirely. The vision tier (tier 6) already works but only triggers after 5 other tiers fail.
+
+**Smart VLM Routing:**
+- Content-type detection identifies pages likely to be data-dense (PDF, pages with high image-to-text ratio)
+- Route those pages directly to VLM extraction alongside (not instead of) text extraction
+- LLM reconciliation merges text + VLM outputs, preferring structured data from VLM
+- No change to existing tier fallback for text-heavy pages
+
+**Structured Extraction:**
+- VLM prompt optimized for tables, org charts, and financial data
+- Output as structured JSON (not just prose description)
+- Table data extracted to markdown tables in report sections
+
+**Cost Control:**
+- VLM extraction is more expensive per page — only trigger on high-value pages
+- `--vlm-budget N` flag to cap VLM calls per run (default: 10 pages)
+- Cost estimator updated with VLM pricing
+
+### v1.20.0 - Cross-Run Research Memory (Planned)
+
+Goal: Make research compound across runs by persisting extracted claims, citations, and hypotheses in a searchable store.
+
+**Motivation:** Currently each run starts fresh. If you research 50 companies in the same industry, each run rediscovers the same industry context. Cross-run memory enables meta-research ("show AI strategy evolution across all fintech targets") and few-shot learning for new verticals.
+
+**Implementation:**
+- SQLite-backed claim store (no external dependencies like Neo4j/Redis)
+- Each claim stored with: company, section, text, confidence, citations, timestamp, embedding
+- Embedding via local model (sentence-transformers) or API (Gemini embedding)
+- `primr memory search "AI strategy fintech"` to query across all past runs
+- `primr memory timeline "Company"` to show how understanding evolved across runs
+
+**Research Priming:**
+- When starting a new run, query memory for related companies/industries
+- Inject relevant prior findings as context for the analysis stage
+- Reduces redundant research and improves hypothesis quality for repeat verticals
+
+**Privacy:**
+- All data stays local (SQLite file in working directory)
+- `primr memory clear` to reset
+- No data leaves the machine unless user explicitly exports
+
+### Why Not a Research DAG / LangGraph-Style Orchestration?
+
+The QA feedback suggested replacing the linear pipeline with a DAG orchestration layer (LangGraph-style). After researching production experiences, we decided against this:
+
+**What the research shows:**
+- [Anthropic's own multi-agent research system](https://www.anthropic.com/engineering/multi-agent-research-system) does NOT use a DAG — it's a simple orchestrator-worker pattern (lead agent spawns 3-5 subagents in parallel, waits, synthesizes). They got 90% speed improvement purely from parallelism, not graph orchestration.
+- Multi-agent systems use ~15× more tokens than single-agent ([LangChain State of Agents](https://www.langchain.com/state-of-agent-engineering)), which directly conflicts with Primr's $0.55 value proposition.
+- [Production teams report](https://dev.to/isaachagoel/read-this-before-building-ai-agents-lessons-from-the-trenches-333i) the golden rule: "Can I code this without losing functionality?" Mechanical tasks (scraping, search) should be code, not agent orchestration.
+- [Community consensus](https://community.latenode.com/t/coordinating-multiple-ai-agents-for-scraping-validation-and-reporting-does-the-complexity-actually-pay-off/60040): keep simple pipelines simple; multi-agent DAGs only justified for horizontal scaling or dynamic replanning.
+
+**What Primr actually needs:**
+The real bottlenecks are sequential page scraping and sequential search queries — both fixed with `asyncio.gather()` in v1.17.0, no framework required. The verification agent (v1.18.0) is a single new pipeline stage, not a graph node. Phase overlap (external search starting after homepage instead of after all pages) is a scheduling optimization, not an architectural change.
+
+**The decision:** Invest in targeted parallelism (v1.17.0) and a verification stage (v1.18.0) rather than a DAG framework. This matches how the best production research systems actually work — simple orchestration with parallel execution where it matters — while keeping Primr maintainable as a solo project.
+
 ### v2.0.0 - Public Release (Planned)
 
 Goal: Make Primr available to the broader community via PyPI.
@@ -777,6 +893,10 @@ primr "ExampleCo" https://example.co --dry-run
 # MCP Server
 primr-mcp --stdio
 primr-mcp --http --port 8000
+
+# A2A Server
+primr-a2a --no-auth                        # Standalone A2A on port 9000
+primr-mcp --http --a2a                     # Co-hosted MCP + A2A
 
 # Cloud Deployment
 cd deploy/aws && ./deploy.sh -d prod deploy
