@@ -208,3 +208,52 @@ class TestA2AErrorClass:
     def test_error_is_exception(self):
         with pytest.raises(A2AError, match="test"):
             raise A2AError("test")
+
+
+class TestParseResearchParams:
+    """Tests for _parse_research_params helper."""
+
+    def test_json_input(self):
+        from primr.a2a.executor import _parse_research_params
+
+        result = _parse_research_params('{"url": "https://acme.com", "mode": "deep"}')
+        assert result["url"] == "https://acme.com"
+        assert result["mode"] == "deep"
+
+    def test_natural_language_url_extraction(self):
+        from primr.a2a.executor import _parse_research_params
+
+        result = _parse_research_params("Research https://acme.com")
+        assert result["url"] == "https://acme.com"
+
+    def test_company_name_ending_in_at(self):
+        """rstrip('at') bug: should not strip trailing 'a'/'t' chars."""
+        from primr.a2a.executor import _parse_research_params
+
+        result = _parse_research_params("Research Karata at https://karata.com")
+        assert result.get("name") == "Research Karata"
+
+    def test_company_name_at_stripped(self):
+        """The word ' at' should be stripped from company name."""
+        from primr.a2a.executor import _parse_research_params
+
+        result = _parse_research_params("Acme Corp at https://acme.com")
+        assert result.get("name") == "Acme Corp"
+
+    def test_mode_extraction(self):
+        from primr.a2a.executor import _parse_research_params
+
+        result = _parse_research_params("Run premium research on https://acme.com")
+        assert result.get("mode") == "premium"
+
+    def test_empty_input(self):
+        from primr.a2a.executor import _parse_research_params
+
+        result = _parse_research_params("")
+        assert result == {}
+
+    def test_no_url(self):
+        from primr.a2a.executor import _parse_research_params
+
+        result = _parse_research_params("Research Acme Corp")
+        assert "url" not in result

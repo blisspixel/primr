@@ -119,7 +119,7 @@ class TestDelegateToolExecution:
 
         text = result.root.content[0].text
         data = json.loads(text)
-        assert "error" not in data or data.get("error") is not True
+        assert not data.get("error")
         assert data.get("status", {}).get("state") == "completed"
 
     @pytest.mark.asyncio
