@@ -2400,6 +2400,11 @@ RULES:
 # ── Strategy enrichment helpers (Phase 6 quality pass) ──────────────────
 
 
+def _a_or_an(word: str) -> str:
+    """Return 'a' or 'an' depending on whether word starts with a vowel sound."""
+    return "an" if word and word[0].upper() in "AEIOU" else "a"
+
+
 def _strategy_cross_validate(
     company_name: str,
     strategy_content: str,
@@ -2434,16 +2439,16 @@ Return JSON (no markdown fencing, just raw JSON):
 }}
 
 A section is WEAK if it:
-- Makes vendor-specific claims without citing evidence (e.g., "{vendor} offers best-in-class X" with no source)
-- Uses generic cloud/AI recommendations that could apply to ANY company
+- Makes claims without citing evidence (e.g., "{vendor.upper()} offers best-in-class X" with no source)
+- Uses generic recommendations that could apply to ANY company
 - Lacks specific implementation details, timelines, or cost estimates
-- Doesn't connect the vendor capability to THIS company's specific needs or challenges
+- Doesn't connect capabilities to THIS company's specific needs or challenges
 
 Limit: max 2 weak sections, max 2 issues. Only flag genuinely weak sections.
 If the strategy is solid, return empty arrays."""
 
     system_prompt = (
-        "You are a quality reviewer for cloud strategy documents. "
+        f"You are a quality reviewer for {vendor.upper()} strategy documents. "
         "Identify sections that need more evidence or are too generic. "
         "Return structured JSON only."
     )
@@ -2513,7 +2518,8 @@ def _strategy_regenerate_section(
     """
     from primr.ai.grok_client import grok_llm
 
-    prompt = f"""Re-write this section of a {vendor.upper()} strategy document for {company_name},
+    article = _a_or_an(vendor.upper())
+    prompt = f"""Re-write this section of {article} {vendor.upper()} strategy document for {company_name},
 incorporating the NEW EVIDENCE provided below. Make the section specific, actionable,
 and tied to this company's actual situation.
 
@@ -2536,7 +2542,7 @@ RULES:
 - Include concrete next steps or validation questions"""
 
     system_prompt = (
-        f"You are a senior cloud strategy consultant rewriting a section of a {vendor.upper()} "
+        f"You are a senior strategy consultant rewriting a section of {article} {vendor.upper()} "
         f"strategy document for {company_name}. Incorporate new evidence to make the section "
         "more specific and actionable. Be conservative on cost estimates."
     )
@@ -2587,7 +2593,8 @@ def _strategy_polish(
     if not strategy_content.strip():
         return strategy_content
 
-    prompt = f"""You are editing a {vendor.upper()} strategy document for {company_name} for coherence,
+    article = _a_or_an(vendor.upper())
+    prompt = f"""You are editing {article} {vendor.upper()} strategy document for {company_name} for coherence,
 evidence discipline, and specificity.
 
 TASKS (in priority order):
@@ -2624,7 +2631,7 @@ Return the fully edited markdown strategy document only. No preamble or commenta
             max_tokens=32_000,
             temperature=0.3,
             system_prompt=(
-                f"You are a meticulous editorial analyst polishing a {vendor.upper()} strategy "
+                f"You are a meticulous editorial analyst polishing {article} {vendor.upper()} strategy "
                 f"document for {company_name}. Improve evidence discipline and specificity "
                 "while preserving ALL depth and analysis. Make only surgical edits."
             ),
@@ -2678,7 +2685,8 @@ def _enrich_strategy_content(
     if not strategy_content or not strategy_content.strip():
         return strategy_content
 
-    vendor_label = f" ({vendor.upper()})" if vendor.lower() != "agnostic" else ""
+    # Show vendor suffix only when vendor is a real cloud vendor (not the label itself)
+    vendor_label = f" ({vendor.upper()})" if vendor.lower() not in ("agnostic", label.lower()) else ""
 
     # Step 1: Cross-validate
     try:
@@ -2707,6 +2715,8 @@ def _enrich_strategy_content(
         for ws in weak_sections[:2]:
             raw_title = ws.get("title", "").strip().lstrip("#").strip()
             queries = ws.get("queries", [])
+            if not isinstance(queries, list):
+                queries = [str(queries)] if queries else []
             reason = ws.get("reason", "")
 
             if not raw_title or not queries:
@@ -3492,11 +3502,12 @@ def perform_fast_research(
                         ).strip()
 
                         # Enrich: cross-validate → evidence search → polish
+                        # Use strategy display name (e.g. "Customer Experience") not "agnostic"
                         try:
                             strategy_content = _enrich_strategy_content(
                                 strategy_content,
                                 company_name or display_name,
-                                "agnostic",
+                                display_name_strat,
                                 display_name_strat,
                                 source_urls,
                                 source_urls_seen,
