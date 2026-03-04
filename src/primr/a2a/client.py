@@ -97,7 +97,10 @@ class A2AClient:
         response = await client.post(self.agent_url, json=payload)
         response.raise_for_status()
 
-        data = response.json()
+        try:
+            data = response.json()
+        except (ValueError, TypeError) as exc:
+            raise A2AError(f"Invalid JSON response from {self.agent_url}: {exc}") from exc
         if "error" in data:
             err = data["error"]
             raise A2AError(
@@ -118,7 +121,10 @@ class A2AClient:
         logger.info("Discovering agent at %s", url)
         response = await client.get(url)
         response.raise_for_status()
-        card = response.json()
+        try:
+            card = response.json()
+        except (ValueError, TypeError) as exc:
+            raise A2AError(f"Invalid JSON in agent card from {url}: {exc}") from exc
         logger.info("Discovered agent: %s (v%s)", card.get("name"), card.get("version"))
         return card
 
