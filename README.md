@@ -350,12 +350,20 @@ For one-shot recovery after crashes/reboots, use `primr --resume-latest` (or `--
 
 ## Agent Integration
 
-Primr is built for the agentic era. Three ways to plug it in:
+Primr is built for the agentic era. Four ways to plug it in:
 
 **MCP Server** - Claude Desktop, Cursor, and any MCP-compatible client:
 ```bash
 primr-mcp --stdio              # stdio transport
 primr-mcp --http --port 8000   # HTTP with JWT auth
+```
+
+**A2A Protocol** - Agent-to-Agent communication with any A2A-compatible agent:
+```bash
+pip install primr[a2a]                     # install optional A2A support
+primr-a2a --no-auth                        # standalone A2A server on port 9000
+primr-mcp --http --a2a                     # co-hosted with MCP server
+curl localhost:9000/.well-known/agent.json  # discover agent capabilities
 ```
 
 <details>
@@ -388,7 +396,7 @@ Skills include hypothesis persistence, cost governance hooks, and QA gates. Agen
 Scale-to-zero ephemeral containers, event-driven queues, production observability. See [deployment guide](docs/CLOUD_DEPLOYMENT.md).
 </details>
 
-[MCP docs](docs/API.md) | [OpenClaw config](openclaw/openclaw.json)
+[MCP docs](docs/API.md) | [A2A protocol](https://github.com/a2aproject/a2a-python) | [OpenClaw config](openclaw/openclaw.json)
 
 ## Development
 

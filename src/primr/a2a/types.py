@@ -17,9 +17,9 @@ class ExternalAgentConfig:
     timeout: float = 60.0
 
     def __post_init__(self) -> None:
-        if not self.url:
+        if not self.url or not self.url.strip():
             raise ValueError("Agent URL is required")
-        if not self.name:
+        if not self.name or not self.name.strip():
             raise ValueError("Agent name is required")
 
 
