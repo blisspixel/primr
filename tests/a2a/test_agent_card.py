@@ -38,12 +38,13 @@ class TestBuildAgentCard:
 
     def test_input_output_modes(self):
         card = build_agent_card(version="1.0.0")
-        assert "text" in card.defaultInputModes
-        assert "text" in card.defaultOutputModes
+        assert "text" in card.default_input_modes
+        assert "text" in card.default_output_modes
 
-    def test_authentication_scheme(self):
+    def test_security_schemes(self):
         card = build_agent_card(version="1.0.0")
-        assert "bearer" in card.authentication.schemes
+        assert "bearer" in card.security_schemes
+        assert card.security == [{"bearer": []}]
 
     def test_version_fallback(self):
         """When version is None, falls back to package version or 0.0.0."""
@@ -59,3 +60,28 @@ class TestBuildAgentCard:
         card = build_agent_card(version="1.0.0")
         for skill in card.skills:
             assert len(skill.tags) > 0, f"Skill {skill.id} has no tags"
+
+    def test_each_skill_has_input_output_modes(self):
+        card = build_agent_card(version="1.0.0")
+        for skill in card.skills:
+            assert skill.input_modes == ["text"], f"Skill {skill.id} missing input_modes"
+            assert skill.output_modes == ["text"], f"Skill {skill.id} missing output_modes"
+
+    def test_skill_descriptions_include_io_format(self):
+        """Skill descriptions include input/output format documentation."""
+        card = build_agent_card(version="1.0.0")
+        for skill in card.skills:
+            assert "Input" in skill.description or "none" in skill.description.lower(), (
+                f"Skill {skill.id} description should document input format"
+            )
+            assert "Output" in skill.description or "output" in skill.description.lower(), (
+                f"Skill {skill.id} description should document output format"
+            )
+
+    def test_card_serializes_to_json(self):
+        """AgentCard serializes correctly with camelCase keys."""
+        card = build_agent_card(version="1.0.0")
+        data = card.model_dump(by_alias=True, exclude_none=True)
+        assert "defaultInputModes" in data
+        assert "securitySchemes" in data
+        assert data["securitySchemes"]["bearer"]["scheme"] == "bearer"
