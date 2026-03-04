@@ -669,6 +669,26 @@ Goal: Make Primr the system of record for how thinking evolves.
 - Explicit "what changed and why" sections
 - Optional narrative framing outputs
 
+### v1.16.0 - A2A Protocol Integration (Planned)
+
+Goal: Enable Primr to participate in the Agent-to-Agent (A2A) mesh — both as a callable research agent and as a client that delegates to external agents.
+
+**A2A Server (Primr as an A2A agent):**
+- AgentCard served at `/.well-known/agent.json` describing Primr's research skills
+- A2A JSON-RPC endpoint for `message/send` and `message/stream`
+- Skills: `estimate_research`, `research_company`, `check_jobs`, `run_qa`, `system_health`
+- SSE streaming for long-running research jobs
+- Shares `SingleJobStore` with MCP server (single-job model enforced across both protocols)
+- Standalone `primr-a2a` CLI or `primr-mcp --a2a` co-hosted mode
+
+**A2A Client (Primr calls external agents):**
+- `delegate_to_agent` MCP tool for calling external A2A agents
+- Agent discovery via `/.well-known/agent.json`
+- `A2AExternalAgentHook` for SSRF validation and cost budget on delegations
+- `A2AContentSanitizationHook` for prompt injection protection on external responses
+
+**Optional dependency:** `pip install primr[a2a]` (a2a-sdk). Existing installs unaffected.
+
 ### v2.0.0 - Public Release (Planned)
 
 Goal: Make Primr available to the broader community via PyPI.

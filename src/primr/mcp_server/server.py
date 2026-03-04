@@ -263,9 +263,31 @@ class PrimrMCPServer:
                 # Handle HTTP requests
                 await transport.handle_request(scope, receive, send)
 
+        # Build routes
+        routes = [Mount("/mcp", app=handle_mcp)]
+
+        # Co-host A2A server if available and enabled
+        if getattr(self, "_a2a_enabled", False):
+            try:
+                from primr.a2a.server import PrimrA2AServer
+
+                a2a_server = PrimrA2AServer(
+                    mcp_server=self,
+                    host=self.host,
+                    port=self.port,
+                    require_auth=self.require_auth,
+                )
+                a2a_app = a2a_server.build_app()
+                routes.append(Mount("/a2a", app=a2a_app))
+                logger.info("A2A server co-hosted at /a2a/")
+            except ImportError:
+                logger.warning("A2A co-hosting requested but a2a-sdk not installed")
+            except Exception:
+                logger.exception("Failed to initialize A2A co-hosting")
+
         # Build app with optional auth middleware
         app = Starlette(
-            routes=[Mount("/mcp", app=handle_mcp)],
+            routes=routes,
             on_startup=[lambda: logger.info("MCP HTTP server started")],
             on_shutdown=[self._graceful_shutdown],
         )

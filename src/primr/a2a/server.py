@@ -1,0 +1,116 @@
+"""A2A server for Primr — exposes research capabilities via Agent-to-Agent protocol.
+
+Builds a Starlette app with A2A routes. Shares the PrimrMCPServer instance
+for unified job store, rate limiter, and security middleware.
+
+Requires: pip install primr[a2a]
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import TYPE_CHECKING
+
+from a2a.server.apps import A2AStarletteApplication
+from a2a.server.request_handlers import DefaultRequestHandler
+
+from primr.a2a.agent_card import build_agent_card
+from primr.a2a.executor import PrimrAgentExecutor
+from primr.a2a.task_store import PrimrTaskStore
+
+if TYPE_CHECKING:
+    from starlette.applications import Starlette
+
+    from primr.mcp_server.server import PrimrMCPServer
+
+logger = logging.getLogger(__name__)
+
+
+class PrimrA2AServer:
+    """A2A server wrapping Primr's research pipeline.
+
+    Can run standalone or be co-hosted with the MCP server.
+    """
+
+    def __init__(
+        self,
+        mcp_server: PrimrMCPServer,
+        host: str = "0.0.0.0",
+        port: int = 9000,
+        require_auth: bool = True,
+    ):
+        self._mcp = mcp_server
+        self.host = host
+        self.port = port
+        self.require_auth = require_auth
+
+        # A2A components
+        self._task_store = PrimrTaskStore(mcp_server.job_store)
+        self._executor = PrimrAgentExecutor(mcp_server, self._task_store)
+        self._agent_card = build_agent_card(host=host, port=port)
+
+    @property
+    def task_store(self) -> PrimrTaskStore:
+        return self._task_store
+
+    @property
+    def agent_card(self):
+        return self._agent_card
+
+    def build_app(self) -> Starlette:
+        """Build the Starlette ASGI application with A2A routes.
+
+        Returns:
+            Configured Starlette application.
+        """
+        request_handler = DefaultRequestHandler(
+            agent_executor=self._executor,
+            task_store=self._task_store,
+        )
+
+        a2a_app_builder = A2AStarletteApplication(
+            agent_card=self._agent_card,
+            http_handler=request_handler,
+        )
+
+        app = a2a_app_builder.build()
+
+        # Add auth middleware if required
+        if self.require_auth:
+            try:
+                from primr.mcp_server.auth import (
+                    AuthConfig,
+                    PrimrTokenVerifier,
+                    create_auth_middleware,
+                )
+
+                config = AuthConfig.from_env()
+                verifier = PrimrTokenVerifier(config)
+                auth_middleware = create_auth_middleware(verifier)
+                app = auth_middleware(app)
+                logger.info("A2A server: authentication enabled")
+            except Exception:
+                logger.warning("A2A server: auth middleware setup failed, running without auth")
+
+        return app
+
+    async def run(self) -> None:
+        """Run the A2A server standalone with uvicorn."""
+        import uvicorn
+
+        app = self.build_app()
+
+        logger.info(
+            "Starting Primr A2A server on %s:%d",
+            self.host,
+            self.port,
+        )
+
+        config = uvicorn.Config(
+            app,
+            host=self.host,
+            port=self.port,
+            log_level="info",
+        )
+        server = uvicorn.Server(config)
+        await server.serve()
