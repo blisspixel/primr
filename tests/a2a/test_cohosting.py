@@ -42,3 +42,27 @@ class TestA2ACohosting:
     def test_server_has_shared_rate_limiter(self, server):
         """Server's rate limiter is available for sharing with A2A."""
         assert server.rate_limiter is not None
+
+    def test_a2a_port_default(self, server):
+        """Default A2A port is 9000 when not explicitly set."""
+        server._a2a_enabled = True
+        assert getattr(server, "_a2a_port", 9000) == 9000
+
+    def test_a2a_port_stored(self, server):
+        """Custom A2A port is stored on server instance."""
+        server._a2a_enabled = True
+        server._a2a_port = 8888
+        assert server._a2a_port == 8888
+
+
+class TestA2APortWiring:
+    """Tests that --a2a-port is wired through CLI to server."""
+
+    def test_cli_parser_passes_port(self):
+        """CLI parser stores a2a_port from --a2a-port argument."""
+        from tests.a2a.test_mcp_cli_a2a import _make_mcp_parser
+
+        parser = _make_mcp_parser()
+        args = parser.parse_args(["--a2a", "--a2a-port", "7777"])
+        assert args.a2a is True
+        assert args.a2a_port == 7777
