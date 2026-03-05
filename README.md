@@ -244,7 +244,7 @@ From the executive summary of a sample report:
 > - The company has no disclosed AI strategy, but 4 of their last 7 engineering hires have ML/optimization backgrounds. Combined with a patent filing for "autonomous route replanning under disruption," this suggests an unannounced product line. *[Confidence: Inferred]*
 > - Pricing has shifted from perpetual licenses to consumption-based billing (per-shipment), visible in public procurement portal RFP responses. *[Confidence: Reported]*
 
-Reports include 20+ structured chapters, SWOT analysis, competitive landscape, discovery questions, and inline confidence levels on every non-obvious claim. Full sample: [docs/examples/sample-brief.md](docs/examples/sample-brief.md)
+Reports include 20+ structured chapters, SWOT analysis, competitive landscape, discovery questions, and inline confidence levels on every non-obvious claim.
 
 ## Batch Research
 
