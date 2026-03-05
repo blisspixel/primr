@@ -299,6 +299,7 @@ class HookSystem:
                 stage_name=stage,
             )
 
+        merged_args: dict[str, Any] | None = None
         for hook in self._hooks[HookType.PRE_TOOL_USE]:
             try:
                 response = await hook.execute(context)
@@ -311,10 +312,16 @@ class HookSystem:
                     logger.warning(
                         f"Hook {hook.name} warning for stage {stage}: {response.message}"
                     )
+                # Propagate modified_args through the hook chain
+                if response.modified_args:
+                    if merged_args is None:
+                        merged_args = dict(context.arguments)
+                    merged_args.update(response.modified_args)
+                    context.arguments.update(response.modified_args)
             except Exception as e:
                 self._handle_error(hook, e)
 
-        return HookResponse(result=HookResult.ALLOW)
+        return HookResponse(result=HookResult.ALLOW, modified_args=merged_args)
 
     async def run_post_hooks(
         self,
@@ -449,7 +456,9 @@ class HookSystem:
             ) from error
         elif self._on_error == "log":
             logger.error(f"Hook {hook.name} failed: {error}")
-        # "skip" does nothing
+        else:
+            # "skip" — still log at debug for diagnostics
+            logger.debug(f"Hook {hook.name} skipped due to error: {error}")
 
 
 
@@ -509,7 +518,7 @@ class CostGuardHook(Hook):
 
     async def execute(self, context: HookContext) -> HookResponse:
         """Check if operation would exceed budget."""
-        estimated_cost = context.arguments.get("estimated_cost_usd", 0.0)
+        estimated_cost = max(0.0, context.arguments.get("estimated_cost_usd", 0.0))
 
         if self._spent + estimated_cost > self._max_cost:
             return HookResponse(
@@ -965,12 +974,13 @@ class ContentSanitizationHook(Hook):
     async def execute(self, context: HookContext) -> HookResponse:
         """Sanitize content in arguments against prompt injection."""
         # Extract content from various argument names
-        content = (
-            context.arguments.get("content")
-            or context.arguments.get("text")
-            or context.arguments.get("raw_text")
-            or context.arguments.get("scraped_content")
-        )
+        content_key: str | None = None
+        for key in ("content", "text", "raw_text", "scraped_content"):
+            if context.arguments.get(key):
+                content_key = key
+                break
+
+        content = context.arguments.get(content_key, "") if content_key else ""
 
         if not content or not isinstance(content, str):
             return HookResponse(result=HookResult.ALLOW)
@@ -1011,11 +1021,11 @@ class ContentSanitizationHook(Hook):
                         message=f"Content warning: {len(result.issues)} issues detected ({injection_count} prompt injection patterns)",
                     )
                 else:
-                    # STRIP mode - modify the arguments
+                    # STRIP mode - modify the arguments using the actual key
                     return HookResponse(
                         result=HookResult.WARN,
                         message=f"Content sanitized: {len(result.issues)} issues removed ({injection_count} prompt injection patterns)",
-                        modified_args={"content": result.sanitized},
+                        modified_args={content_key: result.sanitized},
                     )
 
             return HookResponse(result=HookResult.ALLOW)
@@ -1026,3 +1036,72 @@ class ContentSanitizationHook(Hook):
                 result=HookResult.WARN,
                 message="Content sanitization skipped: module not available",
             )
+
+
+class VerificationGateHook(Hook):
+    """
+    PostToolUse hook that warns when verification trust score is low.
+
+    Runs after the verify stage and warns if the trust score
+    falls below the configured threshold.
+
+    Attributes:
+        min_trust_score: Minimum acceptable trust score (0.0-1.0)
+
+    Example:
+        hook = VerificationGateHook(min_trust_score=0.5)
+        hooks.register(hook)
+    """
+
+    def __init__(self, min_trust_score: float = 0.5, priority: int = 55):
+        """
+        Initialize verification gate.
+
+        Args:
+            min_trust_score: Minimum acceptable trust score (0.0-1.0)
+            priority: Execution priority (default 55 = after QAGateHook)
+        """
+        super().__init__(priority=priority, name="VerificationGate")
+        self._min_trust_score = min_trust_score
+        self._last_trust_score: float | None = None
+
+    @property
+    def hook_type(self) -> HookType:
+        return HookType.POST_TOOL_USE
+
+    @property
+    def min_trust_score(self) -> float:
+        """Get the minimum acceptable trust score."""
+        return self._min_trust_score
+
+    @property
+    def last_trust_score(self) -> float | None:
+        """Get the last trust score."""
+        return self._last_trust_score
+
+    async def execute(self, context: HookContext) -> HookResponse:
+        """Check verification trust score after verify stage."""
+        if context.stage_name != "verify":
+            return HookResponse(result=HookResult.ALLOW)
+
+        trust_score = None
+        if context.result:
+            if hasattr(context.result, "data") and context.result.data:
+                trust_score = getattr(context.result.data, "trust_score", None)
+
+        if trust_score is None:
+            return HookResponse(result=HookResult.ALLOW)
+
+        self._last_trust_score = trust_score
+
+        if trust_score < self._min_trust_score:
+            pct = int(trust_score * 100)
+            threshold_pct = int(self._min_trust_score * 100)
+            return HookResponse(
+                result=HookResult.WARN,
+                message=(
+                    f"Trust score {pct}% below threshold {threshold_pct}%"
+                ),
+            )
+
+        return HookResponse(result=HookResult.ALLOW)

@@ -395,8 +395,6 @@ def ensure_valid_url(website):
     website = website.strip()
     if website.startswith(("http://", "https://")):
         return website
-    if website.startswith("www."):
-        return f"https://{website}"
     return f"https://{website}"
 
 
@@ -445,8 +443,13 @@ def consolidate_working_folder(folder_path: str) -> str:
     if not txt_files:
         raise ValueError(f"No .txt files found in {folder_path}")
 
-    # Extract company name from folder
-    company_name = os.path.basename(folder_path).replace("_", " ")
+    # Extract company name from folder — skip timestamped leaf dirs like 2026-03-04_1530
+    basename = os.path.basename(folder_path)
+    if re.match(r"^\d{4}-\d{2}-\d{2}", basename):
+        # Timestamped run folder; company name is the parent
+        company_name = os.path.basename(os.path.dirname(folder_path)).replace("_", " ")
+    else:
+        company_name = basename.replace("_", " ")
 
     # Build consolidated document
     lines = [
@@ -877,7 +880,7 @@ def perform_scrape_only(
     )
 
     pages_scraped = len(corpus)
-    total_chars = sum(len(c) for c in corpus.values())
+    total_chars = sum(len(c or "") for c in corpus.values())
 
     if pages_scraped == 0:
         console.fail("Could not scrape any pages - site may be blocking")
@@ -1312,7 +1315,7 @@ def _parse_single_section(
         # First element is preamble (usually empty), second is heading+body
         section_text = parts[1]
         lines = section_text.split("\n", 1)
-        title = lines[0].strip().rstrip("#").strip()
+        title = lines[0].strip().rstrip("#").strip().lstrip("#").strip()
         body = lines[1].strip() if len(lines) > 1 else ""
     else:
         # No ## heading found — use expected name, treat whole content as body
@@ -1424,6 +1427,17 @@ def _fast_coherence_pass(
     from primr.ai.grok_client import grok_llm
 
     if not report_content.strip():
+        return report_content
+
+    # Skip coherence pass for reports that would exceed the output token budget.
+    # ~1.4 tokens per word; prompt overhead ~2K tokens; max_tokens=32K.
+    word_count = len(report_content.split())
+    max_output_words = 20_000  # ~28K tokens, leaving headroom within 32K cap
+    if word_count > max_output_words:
+        logger.info(
+            "Skipping coherence pass: report is %d words (exceeds %d word limit for single-pass editing)",
+            word_count, max_output_words,
+        )
         return report_content
 
     prompt = f"""You are a copy editor making MINIMAL tweaks to a strategic company overview.
@@ -1610,6 +1624,13 @@ def _normalize_fast_citations(report_content: str) -> str:
             urls_in_order.append(url)
 
     if not url_to_num and not num_to_url:
+        # No [Source: URL] tags and no [cite: N] URL definitions found.
+        # Check for orphan bare [cite: N] refs the LLM hallucinated without URLs —
+        # strip them so they don't trigger QA citation-integrity warnings.
+        bare_cite = re.compile(r"\s*\[cite:\s*\d+(?:\s*,\s*\d+)*\]", re.IGNORECASE)
+        if bare_cite.search(report_content):
+            logger.info("Stripping orphan [cite: N] refs with no backing URLs")
+            return bare_cite.sub("", report_content)
         return report_content
 
     def _replace_source(match: re.Match[str]) -> str:
@@ -2158,7 +2179,7 @@ No prose, no explanation."""
             return external_data  # parse failed, keep all
 
         # Convert 1-indexed numbers to 0-indexed
-        keep_set = {int(n) - 1 for n in keep_indices if isinstance(n, (int, float))}
+        keep_set = {round(n) - 1 for n in keep_indices if isinstance(n, (int, float))}
         filtered = {url_list[i]: external_data[url_list[i]] for i in keep_set if 0 <= i < len(url_list)}
 
         if len(filtered) < 3:
@@ -2391,8 +2412,8 @@ If the report is solid, return empty arrays."""
                         contradictions = [c for c in (raw_contradictions if isinstance(raw_contradictions, list) else [])
                                          if isinstance(c, str)][:3]
                         return {"weak_sections": weak, "contradictions": contradictions}
-        except Exception:
-            pass
+        except Exception as retry_err:
+            log_structured("debug", "Cross-validation retry JSON parse failed", error=str(retry_err))
 
         # Last resort: regex extraction of weak section titles and reasons
         try:
@@ -2410,10 +2431,10 @@ If the report is solid, return empty arrays."""
             if weak_sections:
                 log_structured("info", "Cross-validation recovered via regex", count=len(weak_sections))
                 return {"weak_sections": weak_sections, "contradictions": []}
-        except Exception:
-            pass
+        except Exception as regex_err:
+            log_structured("debug", "Cross-validation regex fallback failed", error=str(regex_err))
 
-        log_structured("warning", "Cross-validation JSON parse failed after retry", error=str(e))
+        log_structured("warning", "Cross-validation JSON parse failed after all retries")
         return {"weak_sections": [], "contradictions": []}
 
 
@@ -2940,7 +2961,7 @@ def perform_fast_research(
         console.phase_banner(1, total_phases, "Data Collection (fast)", f"Scraping {scan_domain} + external sources", "5-8 min")
 
         # Scrape website (50 pages for enhanced fast mode)
-        with console.timed_operation(f"Scanning {scan_domain}"):
+        with console.timed_operation(f"Website scrape ({scan_domain})", show_spinner=False):
             scraped_data = fetch_web_content(website, company_name, max_pages=50, working_folder=folder_path) if website else {}
             pages_scraped = len(scraped_data)
         log_structured("info", "Fast mode: website scraping complete", pages=pages_scraped)
@@ -2962,7 +2983,7 @@ def perform_fast_research(
         raw_corpus = "\n\n".join(raw_corpus_parts) if raw_corpus_parts else ""
 
         # Adaptive depth: assess data richness to calibrate search effort
-        total_scraped_chars = sum(len(v) for v in scraped_data.values())
+        total_scraped_chars = sum(len(v or "") for v in scraped_data.values())
         if total_scraped_chars > 200_000 and pages_scraped > 30:
             # Rich website — reduce external search, data is abundant
             _search_depth = "rich"
@@ -3273,8 +3294,6 @@ def perform_fast_research(
         if _skipped_sections:
             console.info(f"Skipping {len(_skipped_sections)} section(s) with insufficient evidence: {', '.join(_skipped_sections)}")
 
-        all_sections = [s for part in section_batches for s in part]
-
         # Pop executive_summary — write it LAST so it can synthesize the full report
         exec_summary_section = None
         for batch in section_batches:
@@ -3288,7 +3307,11 @@ def perform_fast_research(
         # Remove empty batches (if exec summary was the only section in its batch)
         section_batches = [b for b in section_batches if b]
 
-        all_section_names = [s.name for s in all_sections]  # keep exec summary in ToC for context
+        # Rebuild section names from the post-pop batches so indices align with
+        # global_offset used in _write_one.  Exec summary is written last, so it
+        # should NOT be in the ToC during batch writing — avoids off-by-one where
+        # [NOW] marker points to the wrong section name.
+        all_section_names = [s.name for batch in section_batches for s in batch]
         written_sections: list[dict[str, Any]] = []
         effective_name = company_name or display_name
 
@@ -3554,8 +3577,8 @@ Return the full corrected report. No preamble.
             source_urls,
         )
         report_content = _normalize_fast_citations(report_content)
-        report_content = _enforce_fast_section_quality_guards(report_content)
         report_content = _clean_fast_report_output(report_content)
+        report_content = _enforce_fast_section_quality_guards(report_content)
         qa_metrics = _compute_fast_report_qa_metrics(report_content)
         qa_parts = [
             f"labels={qa_metrics['confidence_labels']}",
@@ -3932,6 +3955,7 @@ def perform_research(
     premium_mode: bool = False,
     skip_scrape_validation: bool = False,
     resume_local: bool = False,
+    verify: bool = False,
 ) -> str | None:
     if not company_name and not website:
         console.error("No company name or website provided")
@@ -4066,7 +4090,7 @@ def perform_research(
             _append_run_event(folder_path, "data_collection", "started", "Data collection started")
 
             # Scrape website
-            with console.timed_operation("Scanning website"):
+            with console.timed_operation("Website scrape", show_spinner=False):
                 scraped_data = fetch_web_content(website, company_name, max_pages=50, working_folder=folder_path) if website else {}
                 pages_scraped = len(scraped_data)
             log_structured("info", "Website scraping complete", pages=pages_scraped)
@@ -4193,7 +4217,8 @@ def perform_research(
             console.phase_complete("Report Generation", [("Sections", str(len(sections)))])
 
             # Phase 4: Output
-            console.phase_banner(4, 4, "Finalizing", "Generating output documents", "1-2 min")
+            total_phases = 4 + (1 if ai_strategy else 0) + (1 if verify else 0)
+            console.phase_banner(4, total_phases, "Finalizing", "Generating output documents", "1-2 min")
             _update_run_state(folder_path, current_phase="finalizing", status="running")
             _append_run_event(folder_path, "finalizing", "started", "Finalizing output documents")
             with console.timed_operation("Generating documents"):
@@ -4202,7 +4227,7 @@ def perform_research(
             # Generate AI strategy if requested (uses Deep Research with company context)
             ai_strategy_path = None
             if ai_strategy:
-                console.phase_banner(5, 5, "AI Strategy Analysis", "Generating AI recommendations", "5-10 min")
+                console.phase_banner(5, total_phases, "AI Strategy Analysis", "Generating AI recommendations", "5-10 min")
                 _update_run_state(folder_path, current_phase="ai_strategy", status="running")
                 _append_run_event(folder_path, "ai_strategy", "started", "AI strategy generation started")
                 # Consolidate working folder into single context file for AI strategy
@@ -4253,6 +4278,30 @@ def perform_research(
 
                 except Exception as e:
                     logger.warning(f"QA analysis failed: {e}")
+
+            # Run claim verification if --verify flag is set
+            verification_result = None
+            if verify and docx_path:
+                try:
+                    verify_phase = 6 if ai_strategy else 5
+                    verify_total = verify_phase
+                    console.phase_banner(verify_phase, verify_total, "Claim Verification", "Verifying factual claims", "1-3 min")
+                    verification_result = _run_verification(
+                        company_name or display_name,
+                        website or "",
+                        docx_path,
+                    )
+                    if verification_result:
+                        console.phase_complete(
+                            "Claim Verification",
+                            [("Trust", f"{verification_result.trust_percentage}%"),
+                             ("Verified", f"{verification_result.verified_count}/{verification_result.total_claims}")]
+                        )
+                    else:
+                        console.phase_complete("Claim Verification", [("Status", "No claims found")])
+                except Exception as e:
+                    logger.warning(f"Claim verification failed: {e}")
+                    console.warn(f"Verification failed (non-blocking): {e}")
 
             elapsed = time.time() - start_time
             mins = int(elapsed // 60)
@@ -4685,8 +4734,8 @@ def perform_deep_research(
                     base_name = strat_key
                     vendor_suffix = ""
                 strategy_module = registry.get(base_name)
-                display_name = strategy_module.display_name if strategy_module else base_name.replace("_", " ").title()
-                console.success_box(f"{display_name}{vendor_suffix}", str(Path(strategy_path).resolve()))
+                strat_display_name = strategy_module.display_name if strategy_module else base_name.replace("_", " ").title()
+                console.success_box(f"{strat_display_name}{vendor_suffix}", str(Path(strategy_path).resolve()))
 
             # Get actual usage from AI client (per-model accurate cost)
             from primr.ai.client import get_client
@@ -4956,7 +5005,8 @@ def _generate_vendor_research(cloud_vendor: str) -> str | None:
         "azure": "Microsoft Azure",
         "aws": "Amazon Web Services (AWS)",
         "gcp": "Google Cloud Platform (GCP)",
-        "agnostic": "the AI Industry (cross-vendor)"
+        "agnostic": "the AI Industry (cross-vendor)",
+        "private": "Private Cloud / NVIDIA"
     }
     vendor_name = vendor_names.get(cloud_vendor.lower(), cloud_vendor)
 
@@ -4965,7 +5015,8 @@ def _generate_vendor_research(cloud_vendor: str) -> str | None:
         "azure": "Microsoft Ignite, Microsoft Build",
         "aws": "AWS re:Invent, AWS Summit",
         "gcp": "Google Cloud Next, Google I/O",
-        "agnostic": "NeurIPS, major vendor conferences (Ignite, re:Invent, Cloud Next), and recent announcements from OpenAI, Anthropic, NVIDIA, Meta, Mistral, and Cohere"
+        "agnostic": "NeurIPS, major vendor conferences (Ignite, re:Invent, Cloud Next), and recent announcements from OpenAI, Anthropic, NVIDIA, Meta, Mistral, and Cohere",
+        "private": "NVIDIA GTC 2025, NVIDIA AI Enterprise releases, and partner announcements (VMware, Red Hat, Dell, HPE)"
     }
     conference = conferences.get(cloud_vendor.lower(), "recent conferences")
 
@@ -5934,7 +5985,8 @@ def _build_ai_strategy_prompt(
         "azure": "Microsoft Azure",
         "aws": "Amazon Web Services (AWS)",
         "gcp": "Google Cloud Platform (GCP)",
-        "agnostic": "all major cloud vendors (Azure, AWS, GCP)"
+        "agnostic": "all major cloud vendors (Azure, AWS, GCP)",
+        "private": "Private Cloud / NVIDIA"
     }
     vendor_name = vendor_names.get(cloud_vendor.lower(), vendor_names["agnostic"])
 
@@ -6057,6 +6109,50 @@ Key areas to compare:
 - Governance: Purview vs Bedrock Guardrails vs Vertex AI governance
 
 Search for the latest announcements from all three vendors' recent conferences.
+""",
+        "private": """
+KEY PRIVATE CLOUD / NVIDIA AI SERVICES TO RESEARCH AND RECOMMEND (search for latest as of {current_date}):
+
+GPU Infrastructure & Compute:
+- NVIDIA DGX Cloud (managed GPU clusters, multi-tenant)
+- NVIDIA DGX SuperPOD / DGX B200 / GB200 NVL72 (on-prem supercomputers)
+- NVIDIA HGX / MGX (modular GPU server platforms)
+
+AI Platform & Inference:
+- NVIDIA AI Enterprise (end-to-end AI platform, supported stack)
+- NVIDIA NIM microservices (optimized model inference containers)
+- NVIDIA TensorRT-LLM (inference optimization engine)
+- NVIDIA Triton Inference Server (multi-framework model serving)
+
+Model Training & Customization:
+- NVIDIA NeMo (LLM training, fine-tuning, RLHF)
+- NVIDIA CUDA / cuDNN (GPU-accelerated computing)
+- NVIDIA Base Command Manager (cluster orchestration)
+
+Agentic AI & Vertical Solutions:
+- NVIDIA AI Blueprints (pre-built agentic RAG, digital humans, video search)
+- NVIDIA Morpheus (cybersecurity AI pipeline)
+- NVIDIA Metropolis (vision AI, video analytics)
+- NVIDIA Omniverse (digital twin simulation)
+
+On-Prem Infrastructure Partners:
+- VMware Private AI Foundation with NVIDIA
+- Red Hat OpenShift AI (Kubernetes-native ML)
+- Dell AI Factory with NVIDIA
+- HPE GreenLake for Large Language Models
+
+Open-Source MLOps Stack:
+- Kubeflow (ML pipelines on Kubernetes)
+- MLflow (experiment tracking, model registry)
+- Ray (distributed training and serving)
+- vLLM / Ollama / TGI (self-hosted LLM inference)
+
+Data Sovereignty & Air-Gap Patterns:
+- Fully on-premises deployment with NIM containers
+- Air-gapped inference (no cloud dependency)
+- Private model registries and artifact stores
+
+Search for the latest from NVIDIA GTC 2025, NVIDIA AI Enterprise releases, and partner announcements.
 """
     }
 
@@ -6722,6 +6818,48 @@ DOWNSTREAM TRANSLATION NOTE
 
 This output is intended to inform internal thinking and deck creation. When reused externally, conclusions should be softened, hypotheses foregrounded, and language reframed for diplomacy.
 """
+
+
+def _run_verification(
+    company_name: str,
+    company_url: str,
+    report_path: str,
+) -> Any:
+    """Run claim verification on a report. Returns VerificationResult or None."""
+    import asyncio
+    from pathlib import Path
+
+    from primr.agentic.subagents.base import SubagentContext
+    from primr.agentic.subagents.verifier import VerifierSubagent
+
+    txt_path = Path(report_path).with_suffix('.txt')
+    if not txt_path.exists():
+        txt_path = Path(report_path)
+        if txt_path.suffix in ('.docx', '.pdf'):
+            logger.warning(f"Verification: no .txt companion found, using {txt_path.suffix} file directly")
+            return None
+
+    context = SubagentContext(
+        company_name=company_name,
+        company_url=company_url,
+        working_dir=txt_path.parent,
+        parent_results={"report_path": txt_path},
+    )
+    verifier = VerifierSubagent(context)
+
+    try:
+        asyncio.get_running_loop()
+        # Already in an async context — run in a thread to avoid RuntimeError
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            result = pool.submit(asyncio.run, verifier.execute()).result()
+    except RuntimeError:
+        # No running loop — safe to use asyncio.run directly
+        result = asyncio.run(verifier.execute())
+
+    if result.is_success and result.data:
+        return result.data
+    return None
 
 
 def process_csv(

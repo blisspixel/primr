@@ -15,7 +15,7 @@ from dataclasses import dataclass
 @dataclass
 class RateLimitConfig:
     """Per-host rate limiting configuration."""
-    per_host_concurrency: int = 2          # Max concurrent requests per host
+    per_host_concurrency: int = 3          # Max concurrent requests per host
     per_host_requests_per_minute: int = 20 # Max requests per minute per host
     per_run_max_pages: int = 500           # Max pages per scrape run
     base_delay_seconds: float = 1.5        # Base delay between requests

@@ -140,6 +140,8 @@ def llm(prompt, model_type="fast", temperature=1.0, thinking_level="high", strea
                     config=types.GenerateContentConfig(**config_params)
                 )
                 ai_response = (response.text or "").strip()
+                if not ai_response:
+                    raise RuntimeError("LLM returned empty response (possible content filter or safety block)")
             else:
                 stream_response = _get_client().models.generate_content_stream(
                     model=model_name,

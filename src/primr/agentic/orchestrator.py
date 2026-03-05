@@ -63,6 +63,7 @@ from primr.agentic.subagents import (
     SubagentContext,
     SubagentResult,
     SubagentStatus,
+    VerifierSubagent,
     WriterSubagent,
 )
 
@@ -104,6 +105,7 @@ class OrchestratorState(Enum):
     ANALYZING = "analyzing"
     WRITING = "writing"
     QA = "qa"
+    VERIFYING = "verifying"
     COMPLETED = "completed"
     FAILED = "failed"
     PAUSED = "paused"
@@ -152,6 +154,7 @@ class OrchestratorConfig:
     output_dir: Path = field(default_factory=lambda: Path("./output"))
     qa_min_score: int = 70
     hypothesis_expiry_days: int = 90
+    enable_verification: bool = False
     # v1.11.0 Interactive mode settings
     enable_interactive: bool = False
     user_input_callback: UserInputCallback | None = None
@@ -494,6 +497,7 @@ class ResearchOrchestrator:
             OrchestratorState.ANALYZING,
             OrchestratorState.WRITING,
             OrchestratorState.QA,
+            OrchestratorState.VERIFYING,
         }
 
         if self._state in active_states:
@@ -547,6 +551,11 @@ class ResearchOrchestrator:
             f"Starting research for {company_name} "
             f"(url={company_url}, mode={mode})"
         )
+
+        # Reset interactive state from any prior run
+        self._paused_at_stage = None
+        self._previous_state = None
+        self._user_decisions = []
 
         # Load prior hypotheses from memory
         prior_hypotheses: list[Hypothesis] = []
@@ -614,9 +623,10 @@ class ResearchOrchestrator:
                     )
                     stage_results["analyze"] = analyze_result
 
-                    if analyze_result.is_success:
+                    # Accumulate hypotheses even from partial failures
+                    if analyze_result.hypotheses:
                         all_hypotheses.extend(analyze_result.hypotheses)
-                    elif analyze_result.is_failure:
+                    if analyze_result.is_failure:
                         errors.append(f"Analysis failed: {analyze_result.error}")
                         if self._config.fail_fast:
                             raise SubagentError(
@@ -667,6 +677,33 @@ class ResearchOrchestrator:
 
                 if qa_result.is_failure:
                     errors.append(f"QA failed: {qa_result.error}")
+
+            # Stage 5: Verification (optional, non-blocking)
+            if report_path and self._config.enable_verification:
+                self._state = OrchestratorState.VERIFYING
+                verify_context = self._derive_context(
+                    base_context,
+                    report_path=report_path,
+                )
+                try:
+                    verify_result = await self._execute_stage(
+                        "verify",
+                        VerifierSubagent(verify_context),
+                    )
+                    stage_results["verify"] = verify_result
+
+                    if verify_result.is_failure:
+                        logger.warning(
+                            f"Verification failed for {company_name}: "
+                            f"{verify_result.error}"
+                        )
+                    elif verify_result.is_success and verify_result.data:
+                        logger.info(
+                            f"Verification complete for {company_name}: "
+                            f"trust={verify_result.data.trust_percentage}%"
+                        )
+                except Exception as e:
+                    logger.warning(f"Verification stage failed: {e}")
 
             # Persist hypotheses to memory
             if self._memory and all_hypotheses:

@@ -51,6 +51,7 @@ from primr.agentic.subagents.base import (
 )
 from primr.agentic.subagents.qa import QAResult, QASubagent
 from primr.agentic.subagents.scraper import ScrapeResult, ScraperSubagent
+from primr.agentic.subagents.verifier import VerificationResult, VerifierSubagent
 from primr.agentic.subagents.writer import WriterResult, WriterSubagent
 
 __all__ = [
@@ -68,6 +69,9 @@ __all__ = [
     "SubagentContext",
     "SubagentResult",
     "SubagentStatus",
+    "VerificationResult",
+    # Verifier
+    "VerifierSubagent",
     "WriterResult",
     # Writer
     "WriterSubagent",

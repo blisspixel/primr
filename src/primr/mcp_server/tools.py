@@ -64,6 +64,11 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
                             "default": "full",
                             "description": "Research mode: full (standard Grok pipeline, default), premium (Gemini + Deep Research), scrape, deep",
                         },
+                        "verify": {
+                            "type": "boolean",
+                            "default": False,
+                            "description": "Run post-QA claim verification (~$0.01, 3-5 min)",
+                        },
                     },
                     "required": ["company_url"],
                 },
@@ -90,13 +95,18 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
                         },
                         "cloud_vendor": {
                             "type": "string",
-                            "enum": ["azure", "aws", "gcp", "agnostic"],
+                            "enum": ["azure", "aws", "gcp", "agnostic", "private"],
                             "description": "Cloud vendor for AI strategy (optional, default: agnostic)",
                         },
                         "skip_qa": {
                             "type": "boolean",
                             "default": False,
                             "description": "Skip quality assessment",
+                        },
+                        "verify": {
+                            "type": "boolean",
+                            "default": False,
+                            "description": "Run post-QA claim verification (~$0.01, 3-5 min)",
                         },
                     },
                     "required": ["company_name", "company_url"],
@@ -119,7 +129,7 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
                         },
                         "cloud_vendor": {
                             "type": "string",
-                            "enum": ["azure", "aws", "gcp", "agnostic"],
+                            "enum": ["azure", "aws", "gcp", "agnostic", "private"],
                             "description": "Cloud vendor for AI strategy (optional, default: agnostic)",
                         },
                     },
@@ -346,13 +356,21 @@ async def _handle_estimate_run(
         )]
 
     # Map MCP mode names to cost_estimator mode names
+    import os
+
     from primr.utils.cost_estimator import estimate_cost
-    mode_mapping = {"scrape": "scrape-only", "deep": "deep-research", "full": "complete"}
+    mode_mapping = {"scrape": "scrape-only", "deep": "deep-research", "full": "complete", "premium": "complete"}
     estimator_mode = mode_mapping.get(mode, "complete")
-    cost_estimate = estimate_cost(estimator_mode, use_historical=False)
+    verify = arguments.get("verify", False)
+    premium_mode = mode == "premium"
+    fast_mode = mode == "full" and bool(os.environ.get("XAI_API_KEY"))
+    cost_estimate = estimate_cost(
+        estimator_mode, use_historical=False, verify=verify,
+        premium_mode=premium_mode, fast_mode=fast_mode,
+    )
 
     # Pages estimate (scrape-based modes get ~20 pages)
-    pages = 20 if mode in ("scrape", "full") else 0
+    pages = 20 if mode in ("scrape", "full", "premium") else 0
 
     return [TextContent(
         type="text",
@@ -386,6 +404,7 @@ async def _handle_research_company(
     mode = arguments.get("mode", "full")
     cloud_vendor = arguments.get("cloud_vendor")
     skip_qa = arguments.get("skip_qa", False)
+    verify = arguments.get("verify", False)
 
     # Validate URL
     url_result = mcp_server.url_validator.validate(company_url)
@@ -438,6 +457,7 @@ async def _handle_research_company(
                 mode=mode,
                 cloud_vendor=cloud_vendor,
                 skip_qa=skip_qa,
+                verify=verify,
             )
         )
         # Track task for graceful shutdown
@@ -515,14 +535,14 @@ async def _handle_generate_strategy(
             }),
         )]
 
-    except Exception:
+    except Exception as e:
         logger.exception("Strategy generation failed")
         return [TextContent(
             type="text",
             text=json.dumps({
                 "error": True,
                 "error_type": "strategy_generation_failed",
-                "message": "Strategy generation failed - see server logs",
+                "message": f"Strategy generation failed: {e}",
             }),
         )]
 
@@ -639,14 +659,14 @@ async def _handle_run_qa(
             text=json.dumps(result),
         )]
 
-    except Exception:
+    except Exception as e:
         logger.exception("QA analysis failed")
         return [TextContent(
             type="text",
             text=json.dumps({
                 "error": True,
                 "error_type": "qa_analysis_failed",
-                "message": "QA analysis failed - see server logs",
+                "message": f"QA analysis failed: {e}",
             }),
         )]
 

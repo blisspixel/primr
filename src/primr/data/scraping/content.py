@@ -267,13 +267,14 @@ def extract_clean_text(
     else:
         noise_tags = NOISE_TAGS_ALWAYS
 
-    # Remove noise tags
+    # Remove noise tags (collect first to avoid mutating tree during iteration)
     for tag in noise_tags:
-        for element in soup.find_all(tag):
+        for element in list(soup.find_all(tag)):
             element.decompose()
 
     # In aggressive mode, also remove boilerplate by class/id
     if mode == "aggressive":
+        to_remove = []
         for element in soup.find_all(True):
             if element is None or not hasattr(element, "attrs") or element.attrs is None:
                 continue
@@ -283,6 +284,9 @@ def extract_clean_text(
 
             # Use word-boundary matching to avoid false positives (e.g., "ddpa" matching "ad")
             if BOILERPLATE_PATTERN.search(all_attrs):
+                to_remove.append(element)
+        for element in to_remove:
+            with contextlib.suppress(Exception):
                 element.decompose()
 
     # Get text with newlines for block elements
@@ -328,9 +332,23 @@ def _decode_html_entities(text: str) -> str:
     for entity, char in entities.items():
         text = text.replace(entity, char)
 
-    # Handle numeric entities
-    text = re.sub(r"&#(\d+);", lambda m: chr(int(m.group(1))), text)
-    text = re.sub(r"&#x([0-9a-fA-F]+);", lambda m: chr(int(m.group(1), 16)), text)
+    # Handle numeric entities (guard against out-of-range values)
+    def _safe_chr_decimal(m: re.Match[str]) -> str:
+        try:
+            code = int(m.group(1))
+            return chr(code) if 0 < code <= 0x10FFFF else m.group(0)
+        except (ValueError, OverflowError):
+            return m.group(0)
+
+    def _safe_chr_hex(m: re.Match[str]) -> str:
+        try:
+            code = int(m.group(1), 16)
+            return chr(code) if 0 < code <= 0x10FFFF else m.group(0)
+        except (ValueError, OverflowError):
+            return m.group(0)
+
+    text = re.sub(r"&#(\d+);", _safe_chr_decimal, text)
+    text = re.sub(r"&#x([0-9a-fA-F]+);", _safe_chr_hex, text)
 
     return text
 
@@ -366,7 +384,9 @@ def extract_text_from_pdf(pdf_bytes: bytes) -> str | None:
         text = "\n".join(text_parts).strip()
         return text if text else None
 
-    except Exception:
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).debug("PDF text extraction failed: %s", e)
         return None
 
 
@@ -424,8 +444,10 @@ Return the extracted content in clean, readable format with proper structure."""
         text = response.text.strip() if response.text else ""
         return text if len(text) >= 100 else extract_text_from_pdf(pdf_bytes)
 
-    except Exception:
+    except Exception as e:
         # Fall back to PyMuPDF on any LLM failure
+        import logging
+        logging.getLogger(__name__).debug("LLM PDF extraction failed, falling back to PyMuPDF: %s", e)
         return extract_text_from_pdf(pdf_bytes)
 
 
@@ -463,9 +485,9 @@ def extract_main_content(raw_html: bytes) -> str:
     except (ValueError, TypeError):
         return ""
 
-    # Remove noise elements
+    # Remove noise elements (collect first to avoid mutating tree during iteration)
     for tag in NOISE_TAGS_ALWAYS:
-        for element in soup.find_all(tag):
+        for element in list(soup.find_all(tag)):
             element.decompose()
 
     # Collect elements to remove (don't modify during iteration)

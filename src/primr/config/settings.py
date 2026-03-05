@@ -264,7 +264,7 @@ class AIConfig:
     )
 
     max_retries: int = 3
-    grade_threshold: int = 80
+    grade_threshold: int = 70
     default_temperature: float = 1.0
     default_thinking_level: str = "high"
 

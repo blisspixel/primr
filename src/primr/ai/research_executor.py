@@ -437,6 +437,7 @@ class ResearchNodeExecutor:
             "input": prompt,
             "agent": self.AGENT_ID,
             "background": True,
+            "store": True,  # Required for background interactions
         }
 
         if tools:
@@ -451,7 +452,8 @@ class ResearchNodeExecutor:
     def _extract_content(self, interaction: Any) -> str:
         """Extract the text content from a completed interaction."""
         if hasattr(interaction, 'outputs') and interaction.outputs:
-            return str(interaction.outputs[-1].text)
+            parts = [output.text for output in interaction.outputs if getattr(output, 'text', None)]
+            return "\n\n".join(parts) if parts else ""
         return ""
 
     def _extract_citations(self, interaction: Any) -> list[dict[str, str]]:

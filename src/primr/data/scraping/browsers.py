@@ -539,7 +539,8 @@ class PlaywrightSession(BrowserSession):
         """Get current page HTML."""
         try:
             return self._page.content()
-        except Exception:
+        except Exception as e:
+            logger.debug("Failed to get page HTML: %s", e)
             return ""
 
     def get_cookies(self) -> dict:
@@ -547,14 +548,16 @@ class PlaywrightSession(BrowserSession):
         try:
             cookies = self._context.cookies()
             return {c["name"]: c["value"] for c in cookies}
-        except Exception:
+        except Exception as e:
+            logger.debug("Failed to get cookies: %s", e)
             return {}
 
     def get_current_url(self) -> str:
         """Get current URL."""
         try:
             return self._page.url
-        except Exception:
+        except Exception as e:
+            logger.debug("Failed to get current URL: %s", e)
             return self._original_url or ""
 
     def close(self) -> None:
@@ -565,7 +568,7 @@ class PlaywrightSession(BrowserSession):
                 self._page.close()
             if self._context:
                 self._context.close()
-            if getattr(self, '_owns_browser', True):
+            if getattr(self, '_owns_browser', False):
                 if self._browser:
                     self._browser.close()
                 if hasattr(self, '_playwright') and self._playwright:
@@ -740,7 +743,8 @@ class DrissionPageSession(BrowserSession):
         """Get current page HTML."""
         try:
             return self._page.html or ""
-        except Exception:
+        except Exception as e:
+            logger.debug("DrissionPage: failed to get HTML: %s", e)
             return ""
 
     def get_cookies(self) -> dict:
@@ -748,14 +752,16 @@ class DrissionPageSession(BrowserSession):
         try:
             cookies = self._page.cookies()
             return {c["name"]: c["value"] for c in cookies}
-        except Exception:
+        except Exception as e:
+            logger.debug("DrissionPage: failed to get cookies: %s", e)
             return {}
 
     def get_current_url(self) -> str:
         """Get current URL."""
         try:
             return self._page.url or self._original_url or ""
-        except Exception:
+        except Exception as e:
+            logger.debug("DrissionPage: failed to get current URL: %s", e)
             return self._original_url or ""
 
     def close(self) -> None:

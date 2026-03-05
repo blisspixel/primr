@@ -371,7 +371,7 @@ async def resolve_redirect_url(url: str, timeout: float = 10.0, retries: int = 2
 
                 logger.debug(f"Resolved URL: {url[:50]}... -> {final_url[:80]}...")
                 return final_url
-        except TimeoutError:
+        except (TimeoutError, httpx.TimeoutException):
             if attempt < retries:
                 logger.debug(f"URL resolution timeout (attempt {attempt + 1}), retrying...")
                 await asyncio.sleep(0.5)
@@ -424,10 +424,10 @@ def _extract_domain_from_redirect(redirect_url: str) -> str:
                 url_match = re.search(r'https?://[^\s<>"\']+', decoded)
                 if url_match:
                     return url_match.group(0)
-            except (ValueError, UnicodeDecodeError):
-                pass
-    except (re.error, ValueError, UnicodeDecodeError):
-        pass
+            except (ValueError, UnicodeDecodeError) as e:
+                logger.debug("Failed to decode redirect URL base64: %s", e)
+    except (re.error, ValueError, UnicodeDecodeError) as e:
+        logger.debug("Failed to extract domain from redirect URL: %s", e)
 
     # Return original if we can't extract anything useful
     return redirect_url
@@ -1431,6 +1431,7 @@ Frame everything as hypotheses to explore, not conclusions."""
 
         # Start background job (NO streaming - job runs async on Google's servers)
         interaction_id = None
+        job_still_running = False
         try:
             interaction = self._start_research(prompt, file_store_name=file_store_name)
             interaction_id = interaction.id
@@ -1517,6 +1518,7 @@ Frame everything as hypotheses to explore, not conclusions."""
                         message=f"Still running after {elapsed:.0f}s. Check later with: primr --check-jobs"
                     ))
                 # Don't remove from pending jobs - it may still complete.
+                job_still_running = True
                 return ResearchResult(
                     content="",
                     interaction_id=interaction_id,
@@ -1554,8 +1556,11 @@ Frame everything as hypotheses to explore, not conclusions."""
         finally:
             # CRITICAL: Always cleanup File Search Store to prevent billing leaks
             # Per Gemini docs: "There is no TTL for embeddings and files; they persist until manually deleted"
-            if file_store_name:
+            # But skip cleanup if job is still running — it may still need the file store
+            if file_store_name and not job_still_running:
                 self._cleanup_file_store(file_store_name)
+            elif file_store_name and job_still_running:
+                logger.warning(f"Skipping file store cleanup — job {interaction_id} may still be running")
 
     def _extract_citations_from_text(self, content: str) -> list[dict[str, str]]:
         """Extract citations from text content (for streaming results)."""

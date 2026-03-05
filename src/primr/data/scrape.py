@@ -142,7 +142,8 @@ def validate_url(url: str, base_url: str | None = None) -> str | None:
     parsed = urlparse(url)
     if not parsed.scheme:
         url = f"https://{url.lstrip('/')}"
-    return url if "http" in url else None
+        parsed = urlparse(url)
+    return url if parsed.scheme in ("http", "https") else None
 
 
 # =============================================================================
@@ -210,7 +211,7 @@ def fetch_web_content(
         Dict mapping URL -> extracted text (cleaned, boilerplate removed)
     """
     import os
-    from concurrent.futures import ThreadPoolExecutor
+    from concurrent.futures import ThreadPoolExecutor, as_completed
 
     from .scraping import (
         BoilerplateFilter,
@@ -510,111 +511,158 @@ def fetch_web_content(
         console.scrape_progress(1, total, "homepage", scrape_start, ok_count=success_count)
         logger.info(f"Starting to scrape {total} pages (homepage + {len(pages_to_scrape)} discovered)")
 
+    def _scrape_one_page(page_url, orchestrator):
+        """Scrape a single page in a worker thread. Returns (result, elapsed)."""
+        page_start = time.time()
+        result = orchestrator.scrape_url(page_url)
+        page_elapsed = time.time() - page_start
+        return result, page_elapsed
+
+    def _process_result(page_url, normalized, result, page_elapsed, page_index):
+        """Process a scrape result, updating shared state. Returns True if pilot abort needed."""
+        nonlocal success_count, dup_count, pilot_attempts, pilot_success, pilot_chars_total
+
+        path = urlparse(page_url).path or "/"
+        path_display = path[:30] + "..." if len(path) > 30 else path
+
+        page_times.append(page_elapsed)
+
+        if not result.success:
+            logger.debug(f"Failed {page_url}: {result.error}")
+            _append_trace("FAIL", page_url, _failure_detail(result))
+        elif result.success and result.raw_content:
+            _text_for_hash = result.extracted_text or ""
+            _content_hash = hashlib.md5(_text_for_hash.encode()).hexdigest() if _text_for_hash else ""
+            if _content_hash and _content_hash in _seen_content_hashes:
+                dup_count += 1
+                logger.info(
+                    f"Duplicate content for {page_url} (matches previously scraped page) — skipping"
+                )
+                _append_trace("DUP", page_url, f"tier={result.tier}")
+                if pilot_attempts < pilot_count:
+                    pilot_success += 1
+                    pilot_attempts += 1
+                return False
+            if _content_hash:
+                _seen_content_hashes.add(_content_hash)
+
+            scraped_results[normalized] = result
+            raw_pages.append((normalized, result.raw_content))
+            success_count += 1
+            logger.debug(f"Scraped {page_url} via {result.tier}")
+            _append_trace("OK", page_url, f"tier={result.tier}")
+            if pilot_attempts < pilot_count:
+                pilot_success += 1
+                pilot_chars_total += len(result.extracted_text or "")
+
+            if raw_folder:
+                try:
+                    structured = extract_structured_content(result.raw_content, page_url)
+                    structured_cache[normalized] = structured
+                    safe_name = path.replace("/", "_").strip("_") or "page"
+                    safe_name = safe_name[:50]
+                    raw_file = os.path.join(raw_folder, f"{safe_name}.txt")
+                    write_executor.submit(_write_raw_file, raw_file, page_url, result.tier, structured)
+                except Exception as e:
+                    logger.debug(f"Failed to save raw scrape: {e}")
+        else:
+            logger.debug(f"Failed to scrape {page_url}: {result.error}")
+            _append_trace("FAIL", page_url, _failure_detail(result))
+
+        if pilot_attempts < pilot_count:
+            pilot_attempts += 1
+            if pilot_attempts == pilot_count:
+                success_rate = pilot_success / max(pilot_attempts, 1)
+                avg_chars = int(pilot_chars_total / max(pilot_success, 1)) if pilot_success else 0
+                _append_trace(
+                    "PILOT",
+                    website,
+                    (
+                        f"attempts={pilot_attempts}, success={pilot_success}, "
+                        f"success_rate={success_rate:.2f}, avg_chars={avg_chars}"
+                    ),
+                )
+                if success_rate < SCRAPE_PILOT_MIN_SUCCESS_RATE or avg_chars < SCRAPE_PILOT_MIN_CHARS:
+                    console.clear_line()
+                    console.fail(
+                        "Pilot scrape validation failed "
+                        f"({pilot_success}/{pilot_attempts} ok, avg {avg_chars} chars)"
+                    )
+                    console.muted(
+                        "  Defensive stop: initial sample quality too low to trust full crawl"
+                    )
+                    console.muted(
+                        "  Override thresholds via SCRAPE_PILOT_* env vars if needed"
+                    )
+                    return True  # signal pilot abort
+
+        # Update progress
+        completed = len(scraped_results)
+        avg_time = sum(page_times) / len(page_times) if page_times else 0
+        remaining_pages = total - completed
+        eta_seconds = avg_time * remaining_pages if remaining_pages > 0 else 0
+        console.scrape_progress(
+            completed,
+            total,
+            path_display,
+            scrape_start,
+            eta_seconds=eta_seconds,
+            ok_count=success_count,
+        )
+        return False
+
     try:
-        for i, page_url in enumerate(pages_to_scrape):
+        # Phase A: Pilot — scrape first N pages sequentially for quality gate
+        pilot_pages = pages_to_scrape[:pilot_count]
+        post_pilot_pages = pages_to_scrape[pilot_count:]
+        pilot_abort = False
+
+        for i, page_url in enumerate(pilot_pages):
             normalized = normalize_url(page_url)
             if normalized in scraped_results or normalized in attempted_urls:
                 continue
             attempted_urls.add(normalized)
 
-            path = urlparse(page_url).path or "/"
-            path_display = path[:30] + "..." if len(path) > 30 else path
-
             logger.debug(f"Scraping page {i + 2}/{total}: {page_url}")
             _append_trace("TRY", page_url, f"attempt {i + 2}/{total}")
-            # Show immediate page transition so long-running pages don't appear stuck.
+            path = urlparse(page_url).path or "/"
+            path_display = path[:30] + "..." if len(path) > 30 else path
             console.scrape_progress(i + 2, total, path_display, scrape_start, ok_count=success_count)
 
-            page_start = time.time()
-            result = orchestrator.scrape_url(page_url)
-            page_elapsed = time.time() - page_start
+            result, page_elapsed = _scrape_one_page(page_url, orchestrator)
+            if _process_result(page_url, normalized, result, page_elapsed, i):
+                pilot_abort = True
+                break
 
-            # Track timing and compute ETA from rolling average
-            page_times.append(page_elapsed)
-            avg_time = sum(page_times) / len(page_times)
-            remaining = total - (i + 2)
-            eta_seconds = avg_time * remaining if remaining > 0 else 0
+        if pilot_abort:
+            return {}
 
-            # Only log actual failures (not slow-but-successful pages)
-            if not result.success:
-                logger.debug(f"Failed {page_url}: {result.error}")
-                _append_trace("FAIL", page_url, _failure_detail(result))
+        # Phase B: Concurrent scraping — remaining pages with 3 workers
+        if post_pilot_pages:
+            with ThreadPoolExecutor(max_workers=3) as scrape_pool:
+                futures = {}
+                for i, page_url in enumerate(post_pilot_pages, start=pilot_count):
+                    normalized = normalize_url(page_url)
+                    if normalized in scraped_results or normalized in attempted_urls:
+                        continue
+                    attempted_urls.add(normalized)
 
-            if result.success and result.raw_content:
-                # Dedup: reject pages whose extracted text is identical to a
-                # previously scraped page (catches wrong-page / sidebar-only content)
-                _text_for_hash = result.extracted_text or ""
-                _content_hash = hashlib.md5(_text_for_hash.encode()).hexdigest() if _text_for_hash else ""
-                if _content_hash and _content_hash in _seen_content_hashes:
-                    dup_count += 1
-                    logger.info(
-                        f"Duplicate content for {page_url} (matches previously scraped page) — skipping"
-                    )
-                    _append_trace("DUP", page_url, f"tier={result.tier}")
-                    continue
-                if _content_hash:
-                    _seen_content_hashes.add(_content_hash)
+                    logger.debug(f"Scraping page {i + 2}/{total}: {page_url}")
+                    _append_trace("TRY", page_url, f"attempt {i + 2}/{total}")
 
-                scraped_results[normalized] = result
-                raw_pages.append((normalized, result.raw_content))
-                success_count += 1
-                logger.debug(f"Scraped {page_url} via {result.tier}")
-                _append_trace("OK", page_url, f"tier={result.tier}")
-                if pilot_attempts < pilot_count:
-                    pilot_success += 1
-                    pilot_chars_total += len(result.extracted_text or "")
+                    future = scrape_pool.submit(_scrape_one_page, page_url, orchestrator)
+                    futures[future] = (page_url, normalized, i)
 
-                # Extract + cache structured content, write raw file in background
-                if raw_folder:
+                for future in as_completed(futures):
+                    page_url, normalized, i = futures[future]
                     try:
-                        structured = extract_structured_content(result.raw_content, page_url)
-                        structured_cache[normalized] = structured
-                        safe_name = path.replace("/", "_").strip("_") or "page"
-                        safe_name = safe_name[:50]
-                        raw_file = os.path.join(raw_folder, f"{safe_name}.txt")
-                        write_executor.submit(_write_raw_file, raw_file, page_url, result.tier, structured)
+                        result, page_elapsed = future.result()
                     except Exception as e:
-                        logger.debug(f"Failed to save raw scrape: {e}")
-            else:
-                logger.debug(f"Failed to scrape {page_url}: {result.error}")
-                _append_trace("FAIL", page_url, _failure_detail(result))
+                        logger.debug(f"Scrape worker error for {page_url}: {e}")
+                        _append_trace("FAIL", page_url, f"worker error: {e}")
+                        continue
+                    _process_result(page_url, normalized, result, page_elapsed, i)
 
-            if pilot_attempts < pilot_count:
-                pilot_attempts += 1
-                if pilot_attempts == pilot_count:
-                    success_rate = pilot_success / max(pilot_attempts, 1)
-                    avg_chars = int(pilot_chars_total / max(pilot_success, 1)) if pilot_success else 0
-                    _append_trace(
-                        "PILOT",
-                        website,
-                        (
-                            f"attempts={pilot_attempts}, success={pilot_success}, "
-                            f"success_rate={success_rate:.2f}, avg_chars={avg_chars}"
-                        ),
-                    )
-                    if success_rate < SCRAPE_PILOT_MIN_SUCCESS_RATE or avg_chars < SCRAPE_PILOT_MIN_CHARS:
-                        console.clear_line()
-                        console.fail(
-                            "Pilot scrape validation failed "
-                            f"({pilot_success}/{pilot_attempts} ok, avg {avg_chars} chars)"
-                        )
-                        console.muted(
-                            "  Defensive stop: initial sample quality too low to trust full crawl"
-                        )
-                        console.muted(
-                            "  Override thresholds via SCRAPE_PILOT_* env vars if needed"
-                        )
-                        return {}
-
-            # Show progress AFTER processing so "ok" count is accurate
-            console.scrape_progress(
-                i + 2,
-                total,
-                path_display,
-                scrape_start,
-                eta_seconds=eta_seconds,
-                ok_count=success_count,
-            )
     finally:
         # Ensure executor shutdown even if scraping loop throws
         if write_executor:

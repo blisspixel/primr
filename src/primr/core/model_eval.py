@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import csv
 import json
+import logging
 import re
 import shutil
 from dataclasses import dataclass
@@ -19,6 +20,8 @@ from typing import TYPE_CHECKING, Any
 from primr.config.models import PrimrModels
 from primr.qa.report_analyzer import ReportAnalyzer
 from primr.utils.cost_estimator import estimate_cost
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -352,7 +355,8 @@ def _load_fast_companies_from_usage(usage_file: Path) -> list[str]:
         return []
     try:
         records = json.loads(usage_file.read_text(encoding="utf-8"))
-    except Exception:
+    except Exception as e:
+        logger.warning("Failed to load usage file %s: %s", usage_file, e)
         return []
 
     companies: list[str] = []
@@ -834,8 +838,8 @@ Candidate report excerpt:
                         parsed_baseline[k] = float(b_obj.get(k, parsed_baseline[k]))
                         parsed_candidate[k] = float(c_obj.get(k, parsed_candidate[k]))
                     rationale = str(payload.get("rationale", rationale))
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Model eval JSON parse failed: %s", e)
 
             for k in aspect_keys:
                 baseline_aspect_sum[k] += max(0.0, min(100.0, parsed_baseline[k]))

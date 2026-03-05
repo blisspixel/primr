@@ -221,9 +221,11 @@ def _search_ddg(query, company_name, website, num_results=NUM_SEARCH_RESULTS):
             if len(structured_results) >= num_results:
                 break
 
+        # Record success even with empty results — the API call worked fine,
+        # we just got no matches. Don't penalize the circuit for that.
+        _search_circuit.record_success()
         if structured_results:
             logger.debug(f"DDG: Found {len(structured_results)} results for '{formatted_query[:50]}'")
-            _search_circuit.record_success()
 
         return structured_results
 
@@ -304,12 +306,12 @@ def _search_google(query, company_name, website, num_results=NUM_SEARCH_RESULTS)
 
         except requests.exceptions.RequestException as e:
             logger.warning(f"API request failed: {e}")
-            _search_circuit.record_failure()
             time.sleep(retry_delay)
             retry_delay *= 2
 
         attempt += 1
 
+    # Only record a single failure after exhausting all retries
     logger.debug("All searches failed")
     _search_circuit.record_failure()
     return []

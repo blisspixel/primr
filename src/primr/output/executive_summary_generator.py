@@ -145,7 +145,7 @@ class ExecutiveSummaryGenerator:
         """
         # Get key content
         usp = self.sections.get('unique_selling_proposition', '')
-        self.sections.get('financial_overview', '')
+        financial_overview = self.sections.get('financial_overview', '')
         strategic = self.sections.get('strategic_recommendations', '')
 
         # Build narrative paragraphs
@@ -163,6 +163,12 @@ class ExecutiveSummaryGenerator:
             complication = self._extract_first_paragraph(industry)
             if complication:
                 paragraphs.append(complication)
+
+        # Financial context (bridge between complication and resolution)
+        if financial_overview:
+            financial = self._extract_first_paragraph(financial_overview)
+            if financial:
+                paragraphs.append(financial)
 
         # Resolution: Strategic direction and recommendations
         if strategic:
@@ -242,9 +248,15 @@ class ExecutiveSummaryGenerator:
         clean = re.sub(r'\*(.+?)\*', r'\1', clean)
         clean = clean.strip()
 
-        # Truncate if too long
-        if len(clean) > 200:
-            clean = clean[:197] + '...'
+        # Truncate if too long (generous limit for narrative paragraphs)
+        if len(clean) > 500:
+            # Try to break at a sentence boundary
+            truncated = clean[:500]
+            last_period = truncated.rfind('.')
+            if last_period > 200:
+                clean = truncated[:last_period + 1]
+            else:
+                clean = truncated[:497] + '...'
 
         return clean
 

@@ -127,7 +127,7 @@ class ResearchJobState:
         try:
             current_idx = self._STAGE_ORDER.index(self.current_stage)
             new_idx = self._STAGE_ORDER.index(new_stage)
-            if new_idx >= current_idx:
+            if new_idx > current_idx:
                 self.current_stage = new_stage
                 self.stage_progress_percent = min(100, max(0, progress))
                 self.stage_started_at = _utcnow()
@@ -458,6 +458,8 @@ class SingleJobStore(JobStore):
                 self._job.error_message = "Server shutdown while job in progress"
                 self._job.completion_time = _utcnow()
                 self._save_journal()
+        # Notify outside the lock to avoid potential deadlock
+        self._notify_status_change()
 
     def clear(self) -> None:
         """Clear job state (for testing)."""
@@ -520,7 +522,6 @@ class SingleJobStore(JobStore):
             # Wait for notification or timeout
             try:
                 await asyncio.wait_for(event.wait(), timeout=min(remaining, 5.0))
-                event.clear()  # Reset for next wait
             except Exception as exc:
                 # asyncio.wait_for timeout behavior varies by runtime and can surface
                 # different TimeoutError classes.
@@ -532,3 +533,5 @@ class SingleJobStore(JobStore):
                     pass
                 else:
                     raise
+            finally:
+                event.clear()  # Reset for next wait (must clear after timeout too)

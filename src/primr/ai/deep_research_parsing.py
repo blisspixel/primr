@@ -4,8 +4,11 @@ Shared parsing helpers for Deep Research interaction responses.
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 def extract_interaction_content(interaction: Any) -> str:
@@ -128,7 +131,8 @@ def extract_search_queries_count(interaction: Any) -> int:
                             queries = candidate_meta.web_search_queries
                             if isinstance(queries, list):
                                 return len(queries)
-    except Exception:
+    except Exception as e:
+        logger.debug("Failed to count search queries: %s", e)
         return 0
 
     return 0
