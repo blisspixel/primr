@@ -563,12 +563,8 @@ class ScrapeOrchestrator:
                     # Don't retry — other tiers will get the same redirect.
                     break
 
-            # 3g. Success! Cache and return
-            # Record this tier as best for this host (sticky tier optimization)
-            host_state.best_tier = tier.name
-            host_state.record_tier_attempt(tier.name, success=True)
-
-            # Reset consecutive failures on success
+            # 3g. Tentative success — defer best_tier promotion until after
+            # binary content and quality checks (below) confirm usable output.
             consecutive_failures = 0
 
             # Store cookies if browser tier provided them (for cookie handoff)
@@ -656,6 +652,10 @@ class ScrapeOrchestrator:
 
             # Validate content (informational only)
             validation = validate_content(extracted, url) if extracted else None
+
+            # Content is confirmed usable — now promote this tier as best
+            host_state.best_tier = tier.name
+            host_state.record_tier_attempt(tier.name, success=True)
 
             result = ScrapeResult(
                 url=url,

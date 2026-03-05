@@ -188,7 +188,6 @@ def detect_soft_block(
 
     # 7. Content length check - only if no structural elements present
     # This is the last check because legitimate small pages with good structure should pass
-    content_length = len(raw_content)
     if content_length < MIN_CONTENT_LENGTH_BYTES:
         # Check for structural elements that indicate legitimate content
         has_title = bool(re.search(r"<title[^>]*>.+</title>", text, re.DOTALL | re.IGNORECASE))
@@ -284,11 +283,11 @@ def detect_consent_wall(raw_content: bytes) -> bool:
     has_consent = any(indicator in text_lower for indicator in consent_indicators)
 
     if has_consent:
-        # Check if content is hidden (common pattern)
-        if "display: none" in text_lower or "visibility: hidden" in text_lower:
+        # Check if content is hidden (common pattern, handle minified CSS too)
+        if re.search(r"display\s*:\s*none", text_lower) or re.search(r"visibility\s*:\s*hidden", text_lower):
             return True
         # Check if modal/overlay is blocking
-        if "position: fixed" in text_lower and ("z-index: 9999" in text_lower or "z-index:9999" in text_lower):
+        if re.search(r"position\s*:\s*fixed", text_lower) and re.search(r"z-index\s*:\s*9999", text_lower):
             return True
 
     return False

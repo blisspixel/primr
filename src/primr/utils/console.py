@@ -185,9 +185,11 @@ class Console:
         if self._caps.supports_cursor and self._caps.is_interactive:
             with self._lock:
                 width = min(self._caps.width, 120)
-                line = f"\r{self._dim}{msg}{self._reset}"
-                sys.stdout.write(line.ljust(width))
-                sys.stdout.write("\r" + line)
+                # Pad with spaces based on visible length (excluding ANSI codes)
+                visible_len = len(msg) + 1  # +1 for \r
+                pad = " " * max(0, width - visible_len)
+                line = f"\r{self._dim}{msg}{self._reset}{pad}"
+                sys.stdout.write(line)
                 sys.stdout.flush()
         else:
             self._print(f"{self._dim}{msg}{self._reset}")
@@ -420,8 +422,8 @@ class Console:
         if self.quiet:
             return
         # Subtle centered divider
-        min(40, self._caps.width - 4)
-        self._print(f"{self._dim}{char * 3}{self._reset}")
+        length = min(40, self._caps.width - 4)
+        self._print(f"{self._dim}{char * length}{self._reset}")
 
     def debug(self, msg):
         if not self.verbose:
@@ -493,14 +495,14 @@ class Console:
                 with self._lock:
                     # Build line with proper padding
                     msg_text = current_msg[0]
-                    line = f"{self._cyan}{frame}{self._reset} {msg_text}"
-                    # Truncate if needed, then pad to full width
+                    # Calculate visible length (excluding ANSI codes)
                     visible_len = len(frame) + 1 + len(msg_text)  # frame + space + message
                     if visible_len > line_width:
                         msg_text = msg_text[:line_width - len(frame) - 4] + "..."
-                        line = f"{self._cyan}{frame}{self._reset} {msg_text}"
-                    # Pad with spaces to overwrite previous content
-                    line = line + " " * max(0, line_width - visible_len)
+                        visible_len = len(frame) + 1 + len(msg_text)
+                    # Pad based on visible length, not string length
+                    pad = " " * max(0, line_width - visible_len)
+                    line = f"{self._cyan}{frame}{self._reset} {msg_text}{pad}"
                     # Write with carriage return
                     sys.stdout.write(f"\r{line}")
                     sys.stdout.flush()
@@ -563,9 +565,12 @@ class Console:
                         if self._caps.supports_cursor and self._caps.is_interactive:
                             with self._lock:
                                 width = min(self._caps.width, 120)
-                                line = f"\r{self._dim}. {message} ({elapsed}){self._reset}"
-                                sys.stdout.write(line.ljust(width))
+                                visible_text = f". {message} ({elapsed})"
+                                pad = " " * max(0, width - len(visible_text) - 1)
+                                line = f"\r{self._dim}{visible_text}{self._reset}{pad}"
+                                sys.stdout.write(line)
                                 sys.stdout.flush()
+                                self._last_output_time = time.time()
                         else:
                             self._print(f"{self._dim}. {message} ({elapsed}){self._reset}")
 

@@ -435,6 +435,11 @@ class ContentCache:
         logger.info(f"Cache warmed: {cached}/{len(urls)} URLs")
         return cached
 
+    @staticmethod
+    def _escape_like(value: str) -> str:
+        """Escape special characters for SQL LIKE patterns."""
+        return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
     def get_urls_by_domain(self, domain: str) -> list[str]:
         """
         Get all cached URLs for a domain.
@@ -445,10 +450,11 @@ class ContentCache:
         Returns:
             List of cached URLs
         """
+        escaped = self._escape_like(domain)
         with self._lock, self._get_connection() as conn:
             cursor = conn.execute(
-                "SELECT url FROM cache WHERE url LIKE ?",
-                (f"%{domain}%",)
+                "SELECT url FROM cache WHERE url LIKE ? ESCAPE '\\'",
+                (f"%{escaped}%",)
             )
             return [row["url"] for row in cursor.fetchall()]
 
@@ -462,10 +468,11 @@ class ContentCache:
         Returns:
             Number of entries invalidated
         """
+        escaped = self._escape_like(domain)
         with self._lock, self._get_connection() as conn:
             cursor = conn.execute(
-                "DELETE FROM cache WHERE url LIKE ?",
-                (f"%{domain}%",)
+                "DELETE FROM cache WHERE url LIKE ? ESCAPE '\\'",
+                (f"%{escaped}%",)
             )
             conn.commit()
             count: int = cursor.rowcount or 0

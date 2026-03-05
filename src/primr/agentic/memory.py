@@ -44,7 +44,7 @@ import json
 import logging
 import re
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -112,7 +112,7 @@ class ScrapePattern:
             last_updated=(
                 datetime.fromisoformat(data["last_updated"])
                 if "last_updated" in data
-                else datetime.now()
+                else datetime.now(timezone.utc)
             ),
         )
 
@@ -335,7 +335,9 @@ class ResearchMemory:
 
         try:
             data = memory.to_dict()
-            with open(path, "w", encoding="utf-8") as f:
+            # Atomic write: write to temp file then rename, preventing corruption on crash
+            tmp_path = path.with_suffix(".tmp")
+            with open(tmp_path, "w", encoding="utf-8") as f:
                 yaml.dump(
                     data,
                     f,
@@ -343,6 +345,7 @@ class ResearchMemory:
                     allow_unicode=True,
                     sort_keys=False,
                 )
+            tmp_path.replace(path)
         except OSError as e:
             raise MemoryError(
                 message=f"Cannot write memory file: {e}",
@@ -427,7 +430,7 @@ class ResearchMemory:
                 memory.hypotheses.append(h)
                 existing_by_id[h.id] = len(memory.hypotheses) - 1
 
-        memory.last_researched = datetime.now()
+        memory.last_researched = datetime.now(timezone.utc)
         self._save_company(memory)
 
     def update_hypothesis(
@@ -462,7 +465,7 @@ class ResearchMemory:
                 else:
                     # For UNTESTED, just update the confidence
                     h.confidence = confidence
-                    h.updated_at = datetime.now()
+                    h.updated_at = datetime.now(timezone.utc)
 
                 self._save_company(memory)
                 return True

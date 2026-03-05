@@ -30,6 +30,12 @@ primr "Company" https://example.com
 # Multi-vendor AI strategy (~$0.60, adds ~$0.07 per vendor)
 primr "Company" https://example.com --cloud-vendor aws azure
 
+# Private cloud / NVIDIA AI strategy
+primr "Company" https://example.com --cloud-vendor private
+
+# Azure + private cloud combo
+primr "Company" https://example.com --cloud-vendor azure private
+
 # Other strategy types (CX, security, data fabric — see --list-strategies)
 primr "Company" https://example.com --strategy-type customer_experience
 
@@ -41,6 +47,9 @@ primr "Company" https://example.com --premium --cloud-vendor aws azure
 
 # Lite premium strategy (~$4 for premium + 2 vendors, uses Pro instead of DR)
 primr "Company" https://example.com --premium --cloud-vendor aws azure --lite
+
+# Claim verification (~$0.01, 3-5 min, non-blocking)
+primr "Company" https://example.com --verify
 
 # Check job status
 primr --check-jobs

@@ -23,6 +23,7 @@ class CloudVendor(str, Enum):
     AZURE = "azure"
     AWS = "aws"
     GCP = "gcp"
+    PRIVATE = "private"
 
 
 class StrategyType(str, Enum):

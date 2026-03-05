@@ -50,7 +50,7 @@ The design is intentionally opinionated and local-first. This roadmap reflects c
 
 - AI strategy and roadmap generation
 - Multi-vendor support: `--cloud-vendor aws azure` generates separate strategy documents per vendor in a single run
-- Cloud vendor options: Azure, AWS, GCP, agnostic
+- Cloud vendor options: Azure, AWS, GCP, agnostic, private (NVIDIA/on-prem)
 - Multiple strategy types: AI, Customer Experience, Security, Data Fabric
 - Vendor-tagged output filenames (e.g., `Company_AI_Strategy_AWS_02-11-2026.docx`)
 - Strategy enrichment: cross-validation, evidence search, section regeneration, and polish pass (same quality treatment as reports)
@@ -701,32 +701,38 @@ Goal: Enable Primr to participate in the Agent-to-Agent (A2A) mesh — both as a
 
 **Optional dependency:** `pip install primr[a2a]` (a2a-sdk >=0.3.20,<0.4.0). Existing installs unaffected.
 
-### v1.17.0 - Parallel Pipeline and Scraper Observability (Planned)
+### v1.17.0 - Pipeline Overlap and Scraper Observability (Planned)
 
-Goal: Unlock the easiest throughput wins by parallelizing what's currently sequential, and add per-tier metrics for data-driven scraper tuning.
+Goal: Reduce end-to-end runtime by overlapping independent pipeline phases, and add per-tier metrics for data-driven scraper tuning.
 
-**Parallel Page Scraping:**
-- Current: pages scraped sequentially (50 pages × 5-15s = 5-10 min)
-- Upgrade: concurrent scraping with configurable concurrency (default 4), respecting per-host rate limiter
-- Sticky tier + circuit breaker already work per-host, so parallelism is safe within rate limits
-- Expected gain: 2-3× faster scraping phase (5-10 min → 2-4 min)
+**What's already parallel (no changes needed):**
+- Section writing: `ThreadPoolExecutor(max_workers=4)` — up to 4 Grok sections concurrently
+- External search queries: `ThreadPoolExecutor(max_workers=3)` — 3 concurrent DDG/Google queries
+- Per-host rate limiting: 2 concurrent/host, 20 req/min/host, with 0-1.5s random jitter
 
-**Parallel External Search:**
-- Current: search queries run sequentially (5-10 queries × 30-60s)
-- Upgrade: concurrent search with semaphore-bounded concurrency
-- Expected gain: 40-60% faster research deepening
+**Why same-host scraping stays sequential:**
+All 50 pages in a run come from one company website. Blasting concurrent requests to the same host is a bot detection signal. The current approach — sequential with per-host jitter (0-1.5s random delays), sticky tier optimization, and circuit breakers — mimics human browsing: one page every 2-5 seconds with natural variance. The rate limiter already caps at 2 concurrent per host, but in practice sequential-with-jitter is what avoids WAF blocks, Cloudflare challenges, and fingerprint-based bot detection. This is an intentional design choice, not a limitation.
+
+**Phase Overlap (the real runtime win):**
+- Current: scrape all 50 pages → THEN start external search → THEN summarize
+- Upgrade: start external search after homepage content is available (don't wait for all 50 pages)
+- External searches hit different hosts (DDG, news sites, press releases) — safe to run alongside primary site scraping without triggering bot detection
+- Insight extraction can begin on early pages while later pages are still scraping
+- Simple scheduling with `asyncio.gather()` — no orchestration framework needed
+- Pattern from [Anthropic's multi-agent research system](https://www.anthropic.com/engineering/multi-agent-research-system): parallelism at the execution level, not the architecture level
+- Expected gain: 5-10 min overlap between scraping and external research phases
+
+**Completion Guarantees:**
+- All overlapped phases must complete before downstream stages start (no partial results)
+- `asyncio.gather(return_exceptions=True)` with explicit error handling — a failed external search doesn't block scraping and vice versa
+- Run state tracks per-phase completion status for crash recovery
+- Progress display updated to show concurrent phases (e.g., "Scraping 23/50 | Searching 4/10")
 
 **Scraper Tier Metrics:**
 - Per-tier success rate, latency p95, and content quality score
 - Stored in run state JSON for post-hoc analysis
 - `primr doctor --scraper-stats` to show tier performance across recent runs
 - Informs sticky tier policy and circuit breaker thresholds
-
-**Phase Overlap:**
-- External search queries can start after homepage is scraped (don't wait for all 50 pages)
-- Insight extraction can begin on early pages while later pages are still scraping
-- Simple `asyncio.gather()` scheduling — no orchestration framework needed
-- Inspired by [Anthropic's research system](https://www.anthropic.com/engineering/multi-agent-research-system): parallelism at the execution level, not the architecture level
 
 **OpenTelemetry Spans:**
 - Add spans per scrape tier attempt and per search query
@@ -737,13 +743,12 @@ Goal: Unlock the easiest throughput wins by parallelizing what's currently seque
 
 Goal: Add a post-QA "skeptic" pass that actively disputes claims using fresh web searches, producing auditable trust scores.
 
-**Skeptic Agent:**
-- After QA pass, spawn a verification agent that:
-  1. Extracts all claims with confidence > 0.6 from the report
-  2. Formulates targeted search queries to challenge each claim
-  3. Runs fresh web searches (DDG, no extra API cost)
-  4. Compares search evidence against report claims
-  5. Produces a delta report: confirmed, disputed, unverifiable
+**Skeptic Agent (orchestrator-worker pattern):**
+- After QA pass, a lead verifier extracts all claims with confidence > 0.6
+- Spawns parallel worker searches (DDG) to challenge each claim — different hosts, safe to parallelize
+- Workers return evidence; lead verifier compares against report claims
+- Produces a delta report: confirmed, disputed, unverifiable
+- Pattern matches [Anthropic's production research system](https://www.anthropic.com/engineering/multi-agent-research-system): lead agent + parallel subagents, synchronous gather
 - Opt-in via `--verify` flag (adds 5-10 min, negligible cost since DDG is free)
 - Trust score: percentage of claims independently verified
 
@@ -877,6 +882,7 @@ primr "ExampleCo" https://example.co --premium  # Gemini + Deep Research
 # AI Strategy
 primr "ExampleCo" https://example.co --cloud-vendor azure
 primr "ExampleCo" https://example.co --cloud-vendor aws azure  # Multi-vendor
+primr "ExampleCo" https://example.co --cloud-vendor azure private  # Azure + private cloud
 primr "ExampleCo" https://example.co --no-ai-strategy
 
 # Retry AI Strategy
@@ -933,6 +939,7 @@ cd deploy/aws && ./deploy.sh -d prod destroy
 | unreleased | Feb 2026 | Deep-research refactor, scrape reliability hardening, shared error policy, warning reduction |
 | unreleased | Mar 2026 | Fast mode as default, `--premium` flag, quality improvements (coherence, exec summary, parallel search, cross-val), strategy enrichment pass |
 | unreleased | Mar 2026 | A2A protocol integration (client, server, executor, hooks, 165 tests) |
+| unreleased | Mar 2026 | Private cloud vendor (NVIDIA-first, on-prem AI strategy) |
 
 ## Final Note
 

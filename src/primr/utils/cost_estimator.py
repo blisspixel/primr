@@ -174,6 +174,14 @@ MODE_ESTIMATES = {
     },
 }
 
+# Verification overhead: 2 Flash LLM calls (~15k input, ~3k output) + free DDG searches
+VERIFICATION_OVERHEAD = {
+    "flash_input_tokens": 15_000,
+    "flash_output_tokens": 3_000,
+    "duration_min": 3,
+    "duration_max": 5,
+}
+
 # AI Strategy adds another Deep Research call per vendor
 AI_STRATEGY_OVERHEAD = {
     "deep_research_tasks": 1,
@@ -191,6 +199,7 @@ def estimate_cost(
     lite_strategy: bool = False,
     fast_mode: bool = False,
     premium_mode: bool = False,
+    verify: bool = False,
 ) -> CostEstimate:
     """
     Estimate the cost of a research task.
@@ -215,7 +224,7 @@ def estimate_cost(
     # Fast mode: completely different cost model (Flash + Grok, no DR, no Pro)
     # premium_mode overrides fast_mode (explicit Gemini + DR request)
     if fast_mode and not premium_mode:
-        return _estimate_fast_mode_cost(include_ai_strategy, num_vendors, search_free)
+        return _estimate_fast_mode_cost(include_ai_strategy, num_vendors, search_free, verify=verify)
 
     estimates = MODE_ESTIMATES.get(mode, MODE_ESTIMATES["scrape-only"])
 
@@ -247,17 +256,19 @@ def estimate_cost(
                 flash_in = int(total_hist_in * flash_in / default_total_in)
                 pro_in = total_hist_in - flash_in
             else:
+                flash_in = 0
                 pro_in = total_hist_in
             if default_total_out > 0:
                 flash_out = int(total_hist_out * flash_out / default_total_out)
                 pro_out = total_hist_out - flash_out
             else:
+                flash_out = 0
                 pro_out = total_hist_out
 
             # Calculate duration range from historical (avg +/- 20%)
             avg_mins = hist["avg_duration_seconds"] / 60
-            duration_min = int(avg_mins * 0.8)
-            duration_max = int(avg_mins * 1.2)
+            duration_min = max(1, int(avg_mins * 0.8))
+            duration_max = max(1, int(avg_mins * 1.2))
             historical_used = True
 
     # Add AI strategy overhead (use historical if available)
@@ -288,10 +299,19 @@ def estimate_cost(
                 duration_min += AI_STRATEGY_OVERHEAD["duration_min"] * num_vendors
                 duration_max += AI_STRATEGY_OVERHEAD["duration_max"] * num_vendors
 
+    # Add verification overhead
+    if verify:
+        flash_in += VERIFICATION_OVERHEAD["flash_input_tokens"]
+        flash_out += VERIFICATION_OVERHEAD["flash_output_tokens"]
+        duration_min += VERIFICATION_OVERHEAD["duration_min"]
+        duration_max += VERIFICATION_OVERHEAD["duration_max"]
+
     # Format duration string
     duration = f"{duration_min}-{duration_max} min"
     if include_ai_strategy:
         duration += " + AI strategy (Pro)" if lite_strategy else " + AI strategy"
+    if verify:
+        duration += " + verification"
 
     # Resolve the active Pro model (honours AI_REASONING_MODEL env var)
     active_pro = PrimrModels.get_active_pro_model()
@@ -332,6 +352,9 @@ def estimate_cost(
     elif include_ai_strategy and ai_strategy_hist and ai_strategy_hist["sample_size"] >= 3:
         notes.append(f"AI Strategy based on {ai_strategy_hist['sample_size']} runs")
 
+    if verify:
+        notes.append("Includes claim verification (~$0.01, DDG searches are free)")
+
     # Note tiered pricing when active model has it
     if active_pro.has_tiered_pricing:
         threshold_k = active_pro.tier_threshold_tokens // 1000  # type: ignore[operator]
@@ -364,6 +387,7 @@ def _estimate_fast_mode_cost(
     include_ai_strategy: bool,
     num_vendors: int,
     search_free: bool,
+    verify: bool = False,
 ) -> CostEstimate:
     """Estimate cost for fast mode (Grok 4.1 pipeline)."""
     fast = MODE_ESTIMATES["fast"]
@@ -381,6 +405,13 @@ def _estimate_fast_mode_cost(
         grok_out += 50_000 * num_vendors   # 32K gen + 4K CV + 16K regen + 32K polish
         duration_min += 3 * num_vendors
         duration_max += 6 * num_vendors
+
+    # Verification overhead (Flash model for claim extraction + classification)
+    if verify:
+        flash_in += VERIFICATION_OVERHEAD["flash_input_tokens"]
+        flash_out += VERIFICATION_OVERHEAD["flash_output_tokens"]
+        duration_min += VERIFICATION_OVERHEAD["duration_min"]
+        duration_max += VERIFICATION_OVERHEAD["duration_max"]
 
     # Costs
     flash_cost = PrimrModels.calculate_flash_cost(flash_in, flash_out)
@@ -406,6 +437,8 @@ def _estimate_fast_mode_cost(
     notes = ["Standard mode: Grok 4.1 with research deepening + cross-validation (no Deep Research)"]
     if include_ai_strategy:
         notes.append(f"AI Strategy via Grok ({num_vendors} vendor(s))")
+    if verify:
+        notes.append("Claim verification via Flash (~$0.01, 3-5 min)")
 
     total_input_tokens = flash_in + grok_in
     total_output_tokens = flash_out + grok_out
@@ -433,6 +466,7 @@ def display_cost_estimate(
     lite_strategy: bool = False,
     fast_mode: bool = False,
     premium_mode: bool = False,
+    verify: bool = False,
 ) -> bool:
     """
     Display cost estimate and ask for confirmation.
@@ -450,7 +484,7 @@ def display_cost_estimate(
         True if user confirms, False to cancel
     """
     import sys
-    estimate = estimate_cost(mode, include_ai_strategy, num_vendors=num_vendors, lite_strategy=lite_strategy, fast_mode=fast_mode, premium_mode=premium_mode)
+    estimate = estimate_cost(mode, include_ai_strategy, num_vendors=num_vendors, lite_strategy=lite_strategy, fast_mode=fast_mode, premium_mode=premium_mode, verify=verify)
 
     # Clean single line with visible text
     print(f"\n{company_name} | {mode} | ~${estimate.total_cost:.2f} | {estimate.duration_minutes}")

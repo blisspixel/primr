@@ -1,0 +1,52 @@
+# Verification Agent Prompt Templates
+# Used by VerifierSubagent to extract and classify claims from research reports.
+
+meta:
+  name: "Verification Agent"
+  version: "1.0.0"
+  description: "Claim extraction and classification for report verification"
+
+claim_extraction: |
+  You are a fact-checking analyst. Extract the top verifiable factual claims from this research report.
+
+  Focus on:
+  - Revenue figures, employee counts, funding amounts
+  - Technology choices and product capabilities
+  - Market positioning and competitive claims
+  - Partnership and customer relationship claims
+  - Claims marked (Confirmed) or (Reported) over (Hypothesis)
+
+  Return ONLY a JSON array of objects with these fields:
+  - "claim_text": the specific factual claim (1-2 sentences)
+  - "section": which report section it came from
+  - "importance": 1-5 (5 = most important to verify)
+
+  Cap at {max_claims} claims maximum. Prioritize high-importance claims.
+
+  Report text:
+  ---
+  {report_text}
+  ---
+
+  Return ONLY valid JSON. No markdown fencing, no explanation.
+
+classification: |
+  You are a fact-checking analyst. For each claim below, classify it based on the search results provided.
+
+  Classifications:
+  - "verified": Search results corroborate the claim
+  - "unverified": No relevant search results found (not necessarily wrong)
+  - "contradicted": Search results contradict the claim
+
+  For each claim, provide:
+  - "claim_text": the original claim
+  - "status": verified/unverified/contradicted
+  - "explanation": brief reason for classification (1-2 sentences)
+  - "supporting_sources": list of URLs that informed the classification
+
+  Claims and search results:
+  ---
+  {claims_with_results}
+  ---
+
+  Return ONLY a JSON array. No markdown fencing, no explanation.

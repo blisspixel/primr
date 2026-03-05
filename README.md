@@ -131,6 +131,7 @@ primr "Company" https://company.com --mode scrape        # Site corpus only
 primr "Company" https://company.com --mode deep          # External research only
 primr "Company" https://company.com --dry-run            # Cost estimate first
 primr "Company" https://company.com --cloud-vendor aws azure  # Multi-vendor AI strategy
+primr "Company" https://company.com --cloud-vendor azure private  # Azure + private cloud/NVIDIA
 primr "Company" https://company.com --strategy-type customer_experience  # CX strategy document
 primr "Company" https://company.com --strategy-type data_fabric_strategy # Data fabric strategy
 primr --list-strategies                                                  # See all strategy types
