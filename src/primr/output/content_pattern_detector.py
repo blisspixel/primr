@@ -36,7 +36,7 @@ class ContentPatternDetector:
         # Prioritize patterns like "over X employees", "X+ employees", "approximately X employees"
         'employees': re.compile(
             r'(?:over|approximately|about|~|more than)\s*([\d,]+)\s*(?:full[- ]?time\s+)?employees?'
-            r'|(?:[\d,]+)\s*(?:full[- ]?time\s+)?employees?'
+            r'|([\d,]+)\s*(?:full[- ]?time\s+)?employees?'
             r'|employees?[^:]*:\s*~?(?:over\s+|approximately\s+|about\s+)?([\d,]+)',
             re.IGNORECASE
         ),

@@ -212,7 +212,7 @@ class AsyncAIClient:
         self._ensure_initialized()
 
         model = self._get_model(model_type)
-        retries = max_retries or self._settings.max_retries
+        retries = max_retries if max_retries is not None else self._settings.max_retries
 
         config = types.GenerateContentConfig(
             temperature=temperature,

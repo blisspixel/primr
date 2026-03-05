@@ -364,7 +364,7 @@ class PreflightValidator:
                 }
             else:
                 warnings.append(f"Playwright check failed: {e}")
-                checks["playwright"] = {"passed": True, "status": "unknown", "detail": str(e)}
+                checks["playwright"] = {"passed": False, "status": "unknown", "detail": str(e)}
 
     async def _check_website(
         self,
@@ -415,7 +415,7 @@ class PreflightValidator:
 
         except Exception as e:
             warnings.append(f"Could not reach website: {e}")
-            checks["website"] = {"passed": True, "status": "unreachable", "detail": str(e)}
+            checks["website"] = {"passed": False, "status": "unreachable", "detail": str(e)}
 
     def _check_output_dir(
         self,

@@ -195,6 +195,11 @@ data_sources:
     description: "Cloud-agnostic AI guidance and multi-cloud comparison"
     vendor: "agnostic"
     required: false
+  - name: "vendor_research_private"
+    path: "vendor-research/vendor-research-private-2026-03.txt"
+    description: "NVIDIA AI Enterprise, DGX, NIM, and private cloud AI infrastructure"
+    vendor: "private"
+    required: false
 
 # =============================================================================
 # EPISTEMIC RULES (Strategy-Specific Overrides)
@@ -910,3 +915,35 @@ vendor_guidance:
       - "Agent platforms: Copilot Studio vs Bedrock Agents vs Agent Builder"
       - "Data platforms: Fabric vs SageMaker/Bedrock vs BigQuery/Vertex"
       - "Governance: Purview vs Bedrock Guardrails vs Vertex AI governance"
+
+  private:
+    display_name: "Private Cloud / NVIDIA"
+    key_services:
+      gpu_infrastructure:
+        - "NVIDIA DGX Cloud (managed GPU clusters)"
+        - "NVIDIA DGX SuperPOD / DGX B200 / GB200 NVL72 (on-prem)"
+        - "NVIDIA HGX / MGX (modular GPU server platforms)"
+      ai_platform_inference:
+        - "NVIDIA AI Enterprise (end-to-end AI platform)"
+        - "NVIDIA NIM microservices (optimized model inference)"
+        - "NVIDIA TensorRT-LLM (inference optimization)"
+        - "NVIDIA Triton Inference Server (multi-model serving)"
+      model_training:
+        - "NVIDIA NeMo (LLM training and fine-tuning)"
+        - "NVIDIA CUDA / cuDNN (GPU-accelerated computing)"
+        - "NVIDIA Base Command Manager (cluster orchestration)"
+      agentic_ai:
+        - "NVIDIA AI Blueprints (pre-built agentic RAG, digital humans)"
+        - "NVIDIA Morpheus (cybersecurity AI pipeline)"
+        - "NVIDIA Metropolis (vision AI, video analytics)"
+      infrastructure_partners:
+        - "VMware Private AI Foundation with NVIDIA"
+        - "Red Hat OpenShift AI"
+        - "Dell AI Factory with NVIDIA"
+        - "HPE GreenLake for Large Language Models"
+      open_source_mlops:
+        - "Kubeflow (ML pipelines on Kubernetes)"
+        - "MLflow (experiment tracking, model registry)"
+        - "Ray (distributed training and serving)"
+        - "vLLM / Ollama / TGI (self-hosted inference)"
+    research_sources: "NVIDIA GTC 2025, NVIDIA AI Enterprise releases, and partner announcements"

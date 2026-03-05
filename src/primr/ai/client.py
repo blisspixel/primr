@@ -200,7 +200,7 @@ class AIClient:
             raise ValueError(f"thinking_level must be 'low' or 'high', got {thinking_level}")
 
         model = self._get_model(model_type)
-        retries = max_retries if max_retries is not None else self._settings.max_retries
+        retries = max(1, max_retries if max_retries is not None else self._settings.max_retries)
 
         config = types.GenerateContentConfig(
             temperature=temperature,

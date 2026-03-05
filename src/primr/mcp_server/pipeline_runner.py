@@ -55,6 +55,7 @@ class PipelineRunner:
         mode: str,
         cloud_vendor: str | None = None,
         skip_qa: bool = False,
+        verify: bool = False,
     ) -> None:
         """
         Run the research pipeline for a job.
@@ -87,11 +88,7 @@ class PipelineRunner:
 
             # Determine if fast mode should be used:
             # "full" + XAI_API_KEY → fast pipeline; "premium" → always Gemini+DR
-            use_fast = (
-                mode == "full"
-                and os.environ.get("XAI_API_KEY")
-                and mode != "premium"
-            )
+            use_fast = mode == "full" and os.environ.get("XAI_API_KEY")
 
             # Create progress callback that updates job state
             def on_progress(message: str) -> None:
@@ -189,6 +186,20 @@ class PipelineRunner:
                 qa_result = await self._run_qa(output_path)
                 if qa_result:
                     job.qa_score = qa_result.get("overall_score")
+
+            # Stage: Verification (optional, non-blocking)
+            if verify and output_path:
+                on_progress("Running claim verification...")
+                try:
+                    from primr.core.research_agent import _run_verification
+                    await asyncio.to_thread(
+                        _run_verification,
+                        company_name=job.company_name,
+                        company_url=company_url,
+                        report_path=output_path,
+                    )
+                except Exception as e:
+                    logger.warning(f"Verification failed (non-blocking): {e}")
 
             # Complete
             job.advance_stage(ResearchStage.COMPLETED)

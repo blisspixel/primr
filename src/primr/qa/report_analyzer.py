@@ -47,11 +47,14 @@ class ReportAnalyzer:
         # Check for citations section
         has_citations_section = bool(re.search(r'^##\s+(Citations|References|Sources)', self.content, re.MULTILINE))
 
-        # Find defined citations in bibliography
+        # Find defined citations in bibliography section only (not the whole report)
         defined_citations = set()
         if has_citations_section:
-            cite_definitions = re.findall(r'\[cite:\s*(\d+)\]', self.content)
-            defined_citations = {int(c) for c in cite_definitions}
+            bib_match = re.search(r'^##\s+(?:Citations|References|Sources)\s*$', self.content, re.MULTILINE)
+            if bib_match:
+                bibliography_text = self.content[bib_match.start():]
+                cite_definitions = re.findall(r'\[cite:\s*(\d+)\]', bibliography_text)
+                defined_citations = {int(c) for c in cite_definitions}
 
         # Find missing citations
         missing_citations = all_cite_numbers - defined_citations
@@ -425,7 +428,7 @@ class ReportAnalyzer:
             score_components = {
                 'Citations': 20 if citations['citation_coverage'] >= 0.9 else int(citations['citation_coverage'] * 20),
                 'Structure': min(20, len(structure['key_sections_found']) * 3),
-                'Frameworks': quality['frameworks_used'] * 7,
+                'Frameworks': min(20, quality['frameworks_used'] * 7),
                 'Confidence': min(20, quality['total_confidence_statements'] * 0.5),
                 'Hypothesis Framing': min(10, hypothesis['total_signals'] * 2),
                 'Citation Density': min(10, citation_density['density_per_1000_words'] * 3),
@@ -441,7 +444,7 @@ class ReportAnalyzer:
             truncation_penalty = min(10, section_lengths['truncated_count'] * 5)
             score_components['Structure'] = max(0, score_components['Structure'] - truncation_penalty)
 
-        total_score = sum(score_components.values())
+        total_score = min(100, sum(score_components.values()))
 
         for component, score in score_components.items():
             report += f"- {component}: {score:.0f}\n"

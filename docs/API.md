@@ -1347,7 +1347,7 @@ Current configuration (no secrets exposed).
     "modern_security_compliance": "Security posture assessment",
     "data_fabric_strategy": "Data platform modernization"
   },
-  "configured_vendors": ["azure", "aws", "gcp"]
+  "configured_vendors": ["azure", "aws", "gcp", "private"]
 }
 ```
 

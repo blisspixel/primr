@@ -18,6 +18,7 @@ class CloudVendor(Enum):
     AWS = "aws"
     GCP = "gcp"
     AGNOSTIC = "agnostic"
+    PRIVATE = "private"
 
 
 class AICategory(Enum):
@@ -87,6 +88,14 @@ VENDOR_TECHNOLOGIES: dict[CloudVendor, dict[AICategory, list[str]]] = {
         AICategory.AUTOMATION: ["Process Automation", "Decision Intelligence", "RPA with AI"],
         AICategory.PRODUCTIVITY: ["AI Coding Assistants", "Document AI", "Meeting AI"],
         AICategory.ML_WORKLOADS: ["ML Platform", "Model Training", "MLOps"],
+    },
+    CloudVendor.PRIVATE: {
+        AICategory.CONVERSATIONAL: ["NVIDIA NIM", "Ollama", "vLLM"],
+        AICategory.AGENTIC: ["NVIDIA AI Blueprints", "LangChain", "CrewAI"],
+        AICategory.GEN_BI: ["NVIDIA RAPIDS", "Apache Superset", "MindsDB"],
+        AICategory.AUTOMATION: ["Kubeflow Pipelines", "Airflow", "Prefect"],
+        AICategory.PRODUCTIVITY: ["Continue.dev", "Tabby", "Open-source Copilots"],
+        AICategory.ML_WORKLOADS: ["NVIDIA DGX", "NVIDIA AI Enterprise", "Kubeflow"],
     },
 }
 

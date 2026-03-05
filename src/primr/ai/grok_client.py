@@ -129,13 +129,13 @@ def grok_llm(
                 max_tokens=max_tokens,
             )
 
-            # Track tokens
+            if not response.choices:
+                raise RuntimeError("Grok returned empty response (no choices — possible content filter)")
+
+            # Track tokens only after confirming we got a valid response
             if response.usage:
                 _session_input_tokens += response.usage.prompt_tokens or 0
                 _session_output_tokens += response.usage.completion_tokens or 0
-
-            if not response.choices:
-                raise RuntimeError("Grok returned empty response (no choices — possible content filter)")
 
             text = response.choices[0].message.content or ""
             logger.info(
@@ -149,7 +149,7 @@ def grok_llm(
             last_error = e
             # Retry on rate limit (429)
             error_str = str(e)
-            if "429" in error_str or "rate" in error_str.lower():
+            if "429" in error_str or "rate limit" in error_str.lower() or "rate_limit" in error_str.lower():
                 if attempt < retries:
                     wait = 2 ** attempt * 5  # 5s, 10s
                     logger.warning("Grok rate limited, retrying in %ds (attempt %d/%d)", wait, attempt + 1, retries + 1)

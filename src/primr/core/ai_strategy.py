@@ -46,6 +46,7 @@ class CloudVendor(Enum):
     AWS = "aws"
     GCP = "gcp"
     AGNOSTIC = "agnostic"
+    PRIVATE = "private"
 
     @property
     def display_name(self) -> str:
@@ -54,7 +55,8 @@ class CloudVendor(Enum):
             "azure": "Microsoft Azure",
             "aws": "Amazon Web Services (AWS)",
             "gcp": "Google Cloud Platform (GCP)",
-            "agnostic": "Cloud Agnostic (Multi-Cloud)"
+            "agnostic": "Cloud Agnostic (Multi-Cloud)",
+            "private": "Private Cloud / NVIDIA"
         }
         return names.get(self.value, self.value.upper())
 
@@ -64,6 +66,7 @@ class CloudVendor(Enum):
         try:
             return cls(value.lower())
         except ValueError:
+            logger.warning("Unknown cloud vendor '%s', defaulting to agnostic", value)
             return cls.AGNOSTIC
 
 

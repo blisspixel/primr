@@ -314,7 +314,7 @@ class AIConfig:
     reasoning_model: str = "gemini-2.5-pro-preview-06-05"
     temperature: float = 1.0
     thinking_level: Literal["low", "high"] = "high"
-    grade_threshold: int = 80
+    grade_threshold: int = 70
 
     def validate(self) -> list[ConfigError]:
         """Validate AI configuration."""

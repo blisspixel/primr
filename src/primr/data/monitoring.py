@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import sqlite3
 import threading
 import time
@@ -15,6 +16,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import TYPE_CHECKING, Any
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -424,8 +427,8 @@ class CompanyMonitor:
         for handler in self._alert_handlers:
             try:
                 handler(alert)
-            except Exception:
-                pass  # Don't let handler errors break alerting
+            except Exception as e:
+                logger.warning("Alert handler %s failed: %s", getattr(handler, '__name__', handler), e)
 
         return alert
 
@@ -566,11 +569,10 @@ class CompanyMonitor:
     ) -> tuple[str, str]:
         """Extract title and description around a keyword."""
         sentences = content.replace("\n", " ").split(".")
-        for sentence in sentences:
+        for idx, sentence in enumerate(sentences):
             if keyword in sentence.lower():
                 title = sentence.strip()[:100]
                 # Get surrounding context
-                idx = sentences.index(sentence)
                 start = max(0, idx - 1)
                 end = min(len(sentences), idx + 2)
                 description = ". ".join(sentences[start:end]).strip()

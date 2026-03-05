@@ -106,6 +106,7 @@ class CLIConfig:
     fast_mode: bool = False  # Use Grok 4.1 for fast research (~12 min, ~$0.25)
     premium_mode: bool = False  # Force Gemini + Deep Research pipeline
     no_qa: bool = False  # Disable automatic quality assessment
+    verify: bool = False  # Run post-QA claim verification
     skip_scrape_validation: bool = False  # Continue even when scrape quality is too low
     # Agentic architecture options
     memory_company: str | None = None
@@ -254,6 +255,7 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         fast_mode=getattr(parsed, 'fast_mode', False),
         premium_mode=getattr(parsed, 'premium_mode', False),
         no_qa=getattr(parsed, 'no_qa', False),
+        verify=getattr(parsed, 'verify', False),
         skip_scrape_validation=getattr(parsed, 'skip_scrape_validation', False),
         # Agentic architecture options
         memory_company=getattr(parsed, 'memory', None),
@@ -460,7 +462,8 @@ def _discover_strategies() -> list[dict[str, str]]:
                 desc = meta.get("cli_description") or meta.get("description", "")
                 display = meta.get("name", stem.replace("_", " ").title())
                 results.append({"name": stem, "display_name": display, "description": desc, "status": status})
-            except Exception:
+            except Exception as e:
+                logger.warning("Failed to load strategy %s: %s", yaml_path.name, e)
                 continue
 
     _discover_strategies._cache = results  # type: ignore[attr-defined]
@@ -586,6 +589,7 @@ Accordion Method Test (for development):
     parser.add_argument("--ai-strategy", action="store_true", default=True, help="Generate AI recommendations")
     parser.add_argument("--no-ai-strategy", action="store_true", help="Disable AI strategy")
     parser.add_argument("--no-qa", action="store_true", help="Disable automatic quality assessment")
+    parser.add_argument("--verify", action="store_true", help="Run post-QA claim verification (~$0.01, 3-5 min)")
     parser.add_argument(
         "--skip-scrape-validation",
         action="store_true",
@@ -600,7 +604,7 @@ Accordion Method Test (for development):
         "--cloud-vendor",
         type=str,
         nargs="+",
-        choices=["azure", "aws", "gcp", "agnostic"],
+        choices=["azure", "aws", "gcp", "agnostic", "private"],
         default=["azure"],
         help="Cloud vendor(s) for AI recommendations (can specify multiple)"
     )
@@ -2007,6 +2011,7 @@ def _handle_research(config: CLIConfig) -> int:
         premium_mode=use_premium_mode,
         skip_scrape_validation=config.skip_scrape_validation,
         resume_local=config.resume_local,
+        verify=config.verify,
     )
 
     # Open report if requested
@@ -2518,7 +2523,8 @@ def _find_latest_run_state() -> tuple[str, dict[str, Any]] | None:
                 state = json.load(f)
             if isinstance(state, dict):
                 return state_path, state
-        except Exception:
+        except Exception as e:
+            logger.debug("Skipping corrupt state file %s: %s", state_path, e)
             continue
     return None
 
@@ -2674,7 +2680,8 @@ def _handle_list_strategies(config: CLIConfig) -> int:
                     placeholders.append(entry)
                 else:
                     active.append(entry)
-            except Exception:
+            except Exception as e:
+                logger.warning("Failed to load strategy %s: %s", yaml_path.name, e)
                 continue
 
     console.step(f"Available Strategies ({len(active)} active)")
