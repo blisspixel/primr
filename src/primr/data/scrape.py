@@ -1184,3 +1184,4 @@ def extract_clean_text(soup_or_bytes):
     else:
         # It's bytes, use new function
         return _extract_text(soup_or_bytes)
+
