@@ -1580,10 +1580,13 @@ def _clean_fast_report_output(report_content: str) -> str:
     # Also strip [cross-ref: ...] tags — internal analysis references
     report_content = re.sub(r"\s*\[cross-ref:[^\]]*\]", "", report_content, flags=re.IGNORECASE)
 
-    # 4. Clean up double spaces left by stripped citations/tags
+    # 4. Strip LLM meta-annotations like [Word count: 1028]
+    report_content = re.sub(r"\[Word count:\s*[\d,]+\]", "", report_content, flags=re.IGNORECASE)
+
+    # 5. Clean up double spaces left by stripped citations/tags
     report_content = re.sub(r"  +", " ", report_content)
 
-    # 5. Clean up excess blank lines (3+ newlines → 2)
+    # 6. Clean up excess blank lines (3+ newlines → 2)
     report_content = re.sub(r"\n{3,}", "\n\n", report_content)
 
     return report_content.strip() + "\n"
@@ -3042,7 +3045,7 @@ def perform_fast_research(
 
         # Phase 2: sequential scraping on main thread (Playwright-safe)
         _scrape_idx = 0
-        _scrape_total = min(len(all_search_results), max_external_sources)
+        _scrape_total = len(all_search_results)
         for result in all_search_results:
             if len(external_data) >= max_external_sources:
                 break
@@ -3529,13 +3532,15 @@ For EACH contradiction:
 3. Add a confidence label if the value is uncertain
 
 RULES:
-- Do NOT delete any sections, paragraphs, or content
-- Only change the SPECIFIC contradictory values/numbers to be consistent
+- Do NOT delete, summarize, or condense any sections, paragraphs, or content
+- Make ONLY surgical edits to the specific contradictory values/numbers
+- Do NOT rewrite prose — change only the conflicting data points
 - When evidence is ambiguous, use the most conservative estimate with a range
 - Add "(Estimated)" or "(Reported)" labels to standardized values
 - Preserve all ## headings, [cite: N] references, and structure
+- Output MUST contain at least 98% of the original word count
 
-Return the full corrected report. No preamble.
+Return the COMPLETE corrected report with all sections intact. No preamble.
 
 --- REPORT ---
 {report_content}
@@ -3544,7 +3549,7 @@ Return the full corrected report. No preamble.
                 resolved = grok_llm(
                     resolve_prompt,
                     model=GROK_MODEL_WRITING,
-                    max_tokens=32_000,
+                    max_tokens=65_000,
                     temperature=0.2,
                     system_prompt="You are a fact-checker standardizing contradictory data points across report sections.",
                 )
@@ -3668,6 +3673,12 @@ Return the full corrected report. No preamble.
                             strategy_content,
                             flags=re.IGNORECASE,
                         ).strip()
+                        strategy_content = re.sub(
+                            r"\[Word count:\s*[\d,]+\]",
+                            "",
+                            strategy_content,
+                            flags=re.IGNORECASE,
+                        )
 
                         # Enrich: cross-validate → evidence search → polish
                         try:
@@ -3769,6 +3780,12 @@ Return the full corrected report. No preamble.
                             strategy_content,
                             flags=re.IGNORECASE,
                         ).strip()
+                        strategy_content = re.sub(
+                            r"\[Word count:\s*[\d,]+\]",
+                            "",
+                            strategy_content,
+                            flags=re.IGNORECASE,
+                        )
 
                         # Enrich: cross-validate → evidence search → polish
                         # Use strategy display name (e.g. "Customer Experience") not "agnostic"
