@@ -363,7 +363,9 @@ class PlaywrightSession(BrowserSession):
     def _setup_browser(self) -> None:
         """Initialize Playwright browser."""
         try:
-            from .profiles import get_random_http_profile            self._owns_browser = False
+            from .profiles import get_random_http_profile
+
+            self._owns_browser = False
             self._playwright = None
 
             # Playwright sync API objects are thread-affine.
@@ -884,7 +886,9 @@ def _scrape_with_playwright_impl(
     _fresh_pw = None  # Only set if we fall back to a fresh browser
 
     try:
-        from .profiles import get_random_http_profile, get_stealth_script        # Playwright sync API objects are thread-affine.
+        from .profiles import get_random_http_profile, get_stealth_script
+
+        # Playwright sync API objects are thread-affine.
         # Reuse shared browser only on main thread; workers use isolated instances.
         try:
             if _can_use_shared_browser():
@@ -1703,5 +1707,4 @@ BROWSER_TIERS = {
     "drissionpage_stealth": scrape_with_drissionpage_stealth,
     "vision": scrape_with_vision,
 }
-
 

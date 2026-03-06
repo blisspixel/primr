@@ -1091,8 +1091,7 @@ def cleanup_browser():
     """Clean up shared browser resources."""
     try:
         from primr.data.scraping.browsers import SharedBrowser
-        if SharedBrowser._instance is not None:
-            SharedBrowser._instance.close()
+        SharedBrowser.get().close()
     except Exception:
         pass  # atexit — don't crash on shutdown
 
