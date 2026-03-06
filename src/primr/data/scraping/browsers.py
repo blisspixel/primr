@@ -7,6 +7,7 @@ rendering or challenge solving.
 
 import contextlib
 import logging
+import os
 import threading
 import time
 from abc import ABC, abstractmethod
@@ -31,6 +32,12 @@ from .profiles import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _can_use_shared_browser() -> bool:
+    """Allow shared Playwright only where thread affinity is safe."""
+    enabled = os.getenv("PRIMR_PLAYWRIGHT_SHARED_BROWSER", "1").lower() in {"1", "true", "yes"}
+    return enabled and threading.current_thread() is threading.main_thread()
 
 
 # =============================================================================
@@ -356,12 +363,23 @@ class PlaywrightSession(BrowserSession):
     def _setup_browser(self) -> None:
         """Initialize Playwright browser."""
         try:
-            from .profiles import get_random_http_profile
+            from .profiles import get_random_http_profile            self._owns_browser = False
+            self._playwright = None
 
-            # Use shared browser for reuse across pages
-            shared = SharedBrowser.get()
-            self._browser = shared.get_browser(headless=self._headless)
-            self._owns_browser = False
+            # Playwright sync API objects are thread-affine.
+            # In worker threads, use an isolated browser instance per session.
+            if _can_use_shared_browser():
+                shared = SharedBrowser.get()
+                self._browser = shared.get_browser(headless=self._headless)
+            else:
+                from playwright.sync_api import sync_playwright
+
+                self._playwright = sync_playwright().start()
+                self._browser = self._playwright.chromium.launch(
+                    headless=self._headless,
+                    args=BROWSER_LAUNCH_ARGS,
+                )
+                self._owns_browser = True
 
             # Get a proper Chrome user agent
             http_profile = get_random_http_profile()
@@ -866,13 +884,22 @@ def _scrape_with_playwright_impl(
     _fresh_pw = None  # Only set if we fall back to a fresh browser
 
     try:
-        from .profiles import get_random_http_profile, get_stealth_script
-
-        # Try shared browser first, fall back to fresh if it fails
+        from .profiles import get_random_http_profile, get_stealth_script        # Playwright sync API objects are thread-affine.
+        # Reuse shared browser only on main thread; workers use isolated instances.
         try:
-            shared = SharedBrowser.get()
-            browser = shared.get_browser(headless=headless)
-            _using_shared = True
+            if _can_use_shared_browser():
+                shared = SharedBrowser.get()
+                browser = shared.get_browser(headless=headless)
+                _using_shared = True
+            else:
+                from playwright.sync_api import sync_playwright
+
+                _fresh_pw = sync_playwright().start()
+                browser = _fresh_pw.chromium.launch(
+                    headless=headless,
+                    args=BROWSER_LAUNCH_ARGS,
+                )
+                _using_shared = False
         except ImportError:
             raise  # Playwright not installed — let outer handler catch it
         except Exception:
@@ -1676,3 +1703,5 @@ BROWSER_TIERS = {
     "drissionpage_stealth": scrape_with_drissionpage_stealth,
     "vision": scrape_with_vision,
 }
+
+
