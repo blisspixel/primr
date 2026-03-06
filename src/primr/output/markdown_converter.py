@@ -329,22 +329,20 @@ def markdown_to_docx(
                 in_table = False
                 table_lines = []
                 continue
-        # H1
-        if line.startswith('# '):
-            heading = strip_heading_markers(line[2:])
-            doc.add_heading(heading, level=1)
-        # H2
-        elif line.startswith('## '):
-            heading = strip_heading_markers(line[3:])
-            doc.add_heading(heading, level=2)
-        # H3
-        elif line.startswith('### '):
-            heading = strip_heading_markers(line[4:])
-            doc.add_heading(heading, level=3)
-        # H4
-        elif line.startswith('#### '):
-            heading = strip_heading_markers(line[5:])
+        # H1-H4 (strip leading whitespace for detection)
+        stripped = line.strip()
+        if stripped.startswith('#### '):
+            heading = strip_heading_markers(stripped[5:])
             doc.add_heading(heading, level=4)
+        elif stripped.startswith('### '):
+            heading = strip_heading_markers(stripped[4:])
+            doc.add_heading(heading, level=3)
+        elif stripped.startswith('## '):
+            heading = strip_heading_markers(stripped[3:])
+            doc.add_heading(heading, level=2)
+        elif stripped.startswith('# '):
+            heading = strip_heading_markers(stripped[2:])
+            doc.add_heading(heading, level=1)
         # Blockquote
         elif line.strip().startswith('> '):
             quote_text = line.strip()[2:].strip()
@@ -420,18 +418,17 @@ def render_section_content(doc: Document, content: str) -> None:
                 in_table = False
                 table_lines = []
                 continue
-        # H2 (section heading within content)
-        if line.startswith('## '):
-            heading = strip_heading_markers(line[3:])
-            doc.add_heading(heading, level=2)
-        # H3 (sub-section within content)
-        elif line.startswith('### '):
-            heading = strip_heading_markers(line[4:])
-            doc.add_heading(heading, level=3)
-        # H4
-        elif line.startswith('#### '):
-            heading = strip_heading_markers(line[5:])
+        # H2-H4 (strip leading whitespace for detection)
+        stripped = line.strip()
+        if stripped.startswith('#### '):
+            heading = strip_heading_markers(stripped[5:])
             doc.add_heading(heading, level=4)
+        elif stripped.startswith('### '):
+            heading = strip_heading_markers(stripped[4:])
+            doc.add_heading(heading, level=3)
+        elif stripped.startswith('## '):
+            heading = strip_heading_markers(stripped[3:])
+            doc.add_heading(heading, level=2)
         # Blockquote
         elif line.strip().startswith('> '):
             quote_text = line.strip()[2:].strip()
