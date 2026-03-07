@@ -15,7 +15,7 @@ import uuid
 from typing import TYPE_CHECKING, Any
 
 from a2a.server.agent_execution import AgentExecutor, RequestContext
-from a2a.types import TaskState, TaskStatus, TaskStatusUpdateEvent
+from a2a.types import Message, TaskState, TaskStatus, TaskStatusUpdateEvent
 from a2a.utils import new_agent_text_message
 from typing_extensions import override
 
@@ -34,15 +34,38 @@ logger = logging.getLogger(__name__)
 _JOB_POLL_INTERVAL = 5
 
 
+def _status_message(text: str, task_id: str | None, context_id: str | None) -> Message:
+    return new_agent_text_message(text, task_id=task_id, context_id=context_id)
+
+
+def _status_update_event(
+    *,
+    state: TaskState,
+    text: str,
+    task_id: str,
+    context_id: str,
+    final: bool,
+) -> TaskStatusUpdateEvent:
+    return TaskStatusUpdateEvent(
+        task_id=task_id,
+        context_id=context_id,
+        final=final,
+        status=TaskStatus(
+            state=state,
+            message=_status_message(text, task_id=task_id, context_id=context_id),
+        ),
+    )
+
+
 class PrimrAgentExecutor(AgentExecutor):
     """A2A executor that bridges to Primr's research pipeline.
 
     Skill dispatch:
-        - estimate_research → synchronous cost estimate
-        - research_company  → async job, streams progress via SSE
-        - check_jobs        → synchronous job status
-        - run_qa            → synchronous QA analysis
-        - system_health     → synchronous doctor check
+        - estimate_research -> synchronous cost estimate
+        - research_company  -> async job, streams progress via SSE
+        - check_jobs        -> synchronous job status
+        - run_qa            -> synchronous QA analysis
+        - system_health     -> synchronous doctor check
     """
 
     def __init__(self, mcp_server: PrimrMCPServer, task_store: PrimrTaskStore):
@@ -78,18 +101,20 @@ class PrimrAgentExecutor(AgentExecutor):
                 await self._handle_unknown(skill_id, text, event_queue)
         except Exception:
             logger.exception("A2A executor error for skill=%s", skill_id)
-            event_queue.enqueue_event(
-                TaskStatusUpdateEvent(
-                    status=TaskStatus(
+            task_id = context.task_id
+            context_id = context.context_id or task_id
+            if task_id and context_id:
+                await event_queue.enqueue_event(
+                    _status_update_event(
                         state=TaskState.failed,
-                        message={
-                            "role": "agent",
-                            "parts": [{"kind": "text", "text": "Internal error processing request"}],
-                            "messageId": str(uuid.uuid4()),
-                        },
-                    ),
+                        text="Internal error processing request",
+                        task_id=task_id,
+                        context_id=context_id,
+                        final=True,
+                    )
                 )
-            )
+            else:
+                await event_queue.enqueue_event(new_agent_text_message("Internal error processing request"))
 
     @override
     async def cancel(
@@ -100,12 +125,12 @@ class PrimrAgentExecutor(AgentExecutor):
         """Cancel a running research task."""
         task_id = context.task_id
         if not task_id:
-            event_queue.enqueue_event(new_agent_text_message("No task ID to cancel"))
+            await event_queue.enqueue_event(new_agent_text_message("No task ID to cancel"))
             return
 
         job_id = self._task_store.get_job_id(task_id)
         if not job_id:
-            event_queue.enqueue_event(new_agent_text_message(f"No job found for task {task_id}"))
+            await event_queue.enqueue_event(new_agent_text_message(f"No job found for task {task_id}"))
             return
 
         runner = self._runners.get(job_id)
@@ -113,16 +138,14 @@ class PrimrAgentExecutor(AgentExecutor):
             runner.request_cancel()
             logger.info("Cancel requested for task %s (job %s)", task_id, job_id)
 
-        event_queue.enqueue_event(
-            TaskStatusUpdateEvent(
-                status=TaskStatus(
-                    state=TaskState.canceled,
-                    message={
-                        "role": "agent",
-                        "parts": [{"kind": "text", "text": f"Cancellation requested for job {job_id}"}],
-                        "messageId": str(uuid.uuid4()),
-                    },
-                ),
+        context_id = context.context_id or task_id
+        await event_queue.enqueue_event(
+            _status_update_event(
+                state=TaskState.canceled,
+                text=f"Cancellation requested for job {job_id}",
+                task_id=task_id,
+                context_id=context_id,
+                final=True,
             )
         )
 
@@ -131,12 +154,12 @@ class PrimrAgentExecutor(AgentExecutor):
     # -------------------------------------------------------------------------
 
     async def _handle_estimate(self, text: str, event_queue: EventQueue) -> None:
-        """Handle estimate_research skill — synchronous."""
+        """Handle estimate_research skill - synchronous."""
         params = _parse_research_params(text)
         company_url = params.get("url", "")
 
         if not company_url:
-            event_queue.enqueue_event(
+            await event_queue.enqueue_event(
                 new_agent_text_message("Please provide a company URL to estimate.")
             )
             return
@@ -144,7 +167,7 @@ class PrimrAgentExecutor(AgentExecutor):
         # Validate URL
         url_result = self._mcp.url_validator.validate(company_url)
         if not url_result.valid:
-            event_queue.enqueue_event(
+            await event_queue.enqueue_event(
                 new_agent_text_message(f"Invalid URL: {url_result.error_message}")
             )
             return
@@ -152,13 +175,18 @@ class PrimrAgentExecutor(AgentExecutor):
         from primr.utils.cost_estimator import estimate_cost
 
         mode = params.get("mode", "full")
-        mode_mapping = {"scrape": "scrape-only", "deep": "deep-research", "full": "complete", "premium": "premium"}
+        mode_mapping = {
+            "scrape": "scrape-only",
+            "deep": "deep-research",
+            "full": "complete",
+            "premium": "premium",
+        }
         estimator_mode = mode_mapping.get(mode, "complete")
         try:
             estimate = estimate_cost(estimator_mode, use_historical=False)
-            event_queue.enqueue_event(new_agent_text_message(json.dumps(estimate, indent=2, default=str)))
+            await event_queue.enqueue_event(new_agent_text_message(json.dumps(estimate, indent=2, default=str)))
         except Exception as e:
-            event_queue.enqueue_event(new_agent_text_message(f"Estimate failed: {e}"))
+            await event_queue.enqueue_event(new_agent_text_message(f"Estimate failed: {e}"))
 
     async def _handle_research(
         self,
@@ -166,14 +194,14 @@ class PrimrAgentExecutor(AgentExecutor):
         context: RequestContext,
         event_queue: EventQueue,
     ) -> None:
-        """Handle research_company skill — async with SSE streaming."""
+        """Handle research_company skill - async with SSE streaming."""
         params = _parse_research_params(text)
         company_url = params.get("url", "")
         company_name = params.get("name", "Unknown")
         mode = params.get("mode", "full")
 
         if not company_url:
-            event_queue.enqueue_event(
+            await event_queue.enqueue_event(
                 new_agent_text_message("Please provide a company URL to research.")
             )
             return
@@ -181,7 +209,7 @@ class PrimrAgentExecutor(AgentExecutor):
         # Validate URL
         url_result = self._mcp.url_validator.validate(company_url)
         if not url_result.valid:
-            event_queue.enqueue_event(
+            await event_queue.enqueue_event(
                 new_agent_text_message(f"Invalid URL: {url_result.error_message}")
             )
             return
@@ -194,11 +222,12 @@ class PrimrAgentExecutor(AgentExecutor):
                 owner_client_id="a2a",
             )
         except Exception as e:
-            event_queue.enqueue_event(new_agent_text_message(f"Cannot start research: {e}"))
+            await event_queue.enqueue_event(new_agent_text_message(f"Cannot start research: {e}"))
             return
 
         # Register A2A task mapping
         task_id = context.task_id or str(uuid.uuid4())
+        context_id = context.context_id or task_id
         mapping = A2ATaskMapping(
             task_id=task_id,
             job_id=job.job_id,
@@ -207,16 +236,13 @@ class PrimrAgentExecutor(AgentExecutor):
         self._task_store.register_mapping(mapping)
 
         # Signal task is working
-        event_queue.enqueue_event(
-            TaskStatusUpdateEvent(
-                status=TaskStatus(
-                    state=TaskState.working,
-                    message={
-                        "role": "agent",
-                        "parts": [{"kind": "text", "text": f"Research started: job {job.job_id}"}],
-                        "messageId": str(uuid.uuid4()),
-                    },
-                ),
+        await event_queue.enqueue_event(
+            _status_update_event(
+                state=TaskState.working,
+                text=f"Research started: job {job.job_id}",
+                task_id=task_id,
+                context_id=context_id,
+                final=False,
             )
         )
 
@@ -245,16 +271,13 @@ class PrimrAgentExecutor(AgentExecutor):
                                if current_job.stage_progress_percent
                                else "")
                         )
-                        event_queue.enqueue_event(
-                            TaskStatusUpdateEvent(
-                                status=TaskStatus(
-                                    state=TaskState.working,
-                                    message={
-                                        "role": "agent",
-                                        "parts": [{"kind": "text", "text": progress}],
-                                        "messageId": str(uuid.uuid4()),
-                                    },
-                                ),
+                        await event_queue.enqueue_event(
+                            _status_update_event(
+                                state=TaskState.working,
+                                text=progress,
+                                task_id=task_id,
+                                context_id=context_id,
+                                final=False,
                             )
                         )
 
@@ -268,55 +291,46 @@ class PrimrAgentExecutor(AgentExecutor):
 
                     if final_job.current_stage == ResearchStage.COMPLETED:
                         paths = ", ".join(final_job.output_paths) if final_job.output_paths else "N/A"
-                        event_queue.enqueue_event(
-                            TaskStatusUpdateEvent(
-                                status=TaskStatus(
-                                    state=TaskState.completed,
-                                    message={
-                                        "role": "agent",
-                                        "parts": [{"kind": "text", "text": f"Research complete. Output: {paths}"}],
-                                        "messageId": str(uuid.uuid4()),
-                                    },
-                                ),
+                        await event_queue.enqueue_event(
+                            _status_update_event(
+                                state=TaskState.completed,
+                                text=f"Research complete. Output: {paths}",
+                                task_id=task_id,
+                                context_id=context_id,
+                                final=True,
                             )
                         )
                     else:
                         error_msg = final_job.error_message or "Unknown error"
-                        event_queue.enqueue_event(
-                            TaskStatusUpdateEvent(
-                                status=TaskStatus(
-                                    state=TaskState.failed,
-                                    message={
-                                        "role": "agent",
-                                        "parts": [{"kind": "text", "text": f"Research failed: {error_msg}"}],
-                                        "messageId": str(uuid.uuid4()),
-                                    },
-                                ),
+                        await event_queue.enqueue_event(
+                            _status_update_event(
+                                state=TaskState.failed,
+                                text=f"Research failed: {error_msg}",
+                                task_id=task_id,
+                                context_id=context_id,
+                                final=True,
                             )
                         )
             except Exception:
                 logger.exception("Research pipeline error for job %s", job.job_id)
-                event_queue.enqueue_event(
-                    TaskStatusUpdateEvent(
-                        status=TaskStatus(
-                            state=TaskState.failed,
-                            message={
-                                "role": "agent",
-                                "parts": [{"kind": "text", "text": "Research pipeline error"}],
-                                "messageId": str(uuid.uuid4()),
-                            },
-                        ),
+                await event_queue.enqueue_event(
+                    _status_update_event(
+                        state=TaskState.failed,
+                        text="Research pipeline error",
+                        task_id=task_id,
+                        context_id=context_id,
+                        final=True,
                     )
                 )
             finally:
                 self._runners.pop(job.job_id, None)
 
-        # Run in background — the event_queue bridges to SSE
+        # Run in background - the event_queue bridges to SSE
         task = asyncio.create_task(_run_and_stream())
         self._mcp._track_task(task)
 
     async def _handle_check_jobs(self, event_queue: EventQueue) -> None:
-        """Handle check_jobs skill — synchronous."""
+        """Handle check_jobs skill - synchronous."""
         active = self._mcp.job_store.get_active()
         if active:
             progress = active.stage_progress_percent or 0
@@ -341,10 +355,10 @@ class PrimrAgentExecutor(AgentExecutor):
             else:
                 result = {"status": "idle", "message": "No active or recent jobs"}
 
-        event_queue.enqueue_event(new_agent_text_message(json.dumps(result, indent=2)))
+        await event_queue.enqueue_event(new_agent_text_message(json.dumps(result, indent=2)))
 
     async def _handle_qa(self, text: str, event_queue: EventQueue) -> None:
-        """Handle run_qa skill — synchronous."""
+        """Handle run_qa skill - synchronous."""
         params = _parse_research_params(text)
         report_path = params.get("path", "")
 
@@ -354,35 +368,35 @@ class PrimrAgentExecutor(AgentExecutor):
             if terminal and terminal.output_paths:
                 report_path = terminal.output_paths[0]
             else:
-                event_queue.enqueue_event(
+                await event_queue.enqueue_event(
                     new_agent_text_message("Please provide a report path for QA analysis.")
                 )
                 return
 
         try:
             qa_result = await run_qa_analysis(report_path)
-            event_queue.enqueue_event(
+            await event_queue.enqueue_event(
                 new_agent_text_message(json.dumps(qa_result, indent=2, default=str))
             )
         except Exception as e:
-            event_queue.enqueue_event(new_agent_text_message(f"QA analysis failed: {e}"))
+            await event_queue.enqueue_event(new_agent_text_message(f"QA analysis failed: {e}"))
 
     async def _handle_doctor(self, event_queue: EventQueue) -> None:
-        """Handle system_health skill — synchronous."""
+        """Handle system_health skill - synchronous."""
         try:
             status = get_doctor_status()
-            event_queue.enqueue_event(
+            await event_queue.enqueue_event(
                 new_agent_text_message(json.dumps(status, indent=2, default=str))
             )
         except Exception as e:
-            event_queue.enqueue_event(new_agent_text_message(f"Health check failed: {e}"))
+            await event_queue.enqueue_event(new_agent_text_message(f"Health check failed: {e}"))
 
     async def _handle_unknown(
         self, skill_id: str | None, text: str, event_queue: EventQueue
     ) -> None:
-        """Handle unrecognized skill — try to route by content."""
+        """Handle unrecognized skill - try to route by content."""
         available = "estimate_research, research_company, check_jobs, run_qa, system_health"
-        event_queue.enqueue_event(
+        await event_queue.enqueue_event(
             new_agent_text_message(
                 f"Unknown skill '{skill_id}'. Available skills: {available}"
             )
@@ -392,6 +406,7 @@ class PrimrAgentExecutor(AgentExecutor):
 # =============================================================================
 # Helpers
 # =============================================================================
+
 
 def _extract_skill_id(message: Any) -> str | None:
     """Extract skill_id from an A2A message."""
