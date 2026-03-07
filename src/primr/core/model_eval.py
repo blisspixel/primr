@@ -839,7 +839,7 @@ Candidate report excerpt:
                         parsed_candidate[k] = float(c_obj.get(k, parsed_candidate[k]))
                     rationale = str(payload.get("rationale", rationale))
             except Exception as e:
-                logger.debug("Model eval JSON parse failed: %s", e)
+                logger.warning("Model eval JSON parse failed: %s", e)
 
             for k in aspect_keys:
                 baseline_aspect_sum[k] += max(0.0, min(100.0, parsed_baseline[k]))

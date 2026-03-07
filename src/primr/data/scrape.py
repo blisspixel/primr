@@ -236,7 +236,7 @@ def fetch_web_content(
                 f.write("-" * 60 + "\n\n")
                 f.write(structured.raw_text)
         except Exception as e:
-            logger.debug(f"Failed to save raw scrape: {e}")
+            logger.warning(f"Failed to save raw scrape: {e}")
 
     # Create raw scrapes folder if working_folder provided
     raw_folder = None
@@ -316,7 +316,7 @@ def fetch_web_content(
                     line += f" | {detail}"
                 f.write(line + "\n")
         except Exception as e:
-            logger.debug(f"Failed to write scrape trace: {e}")
+            logger.warning(f"Failed to write scrape trace: {e}")
 
     def _failure_detail(result: ScrapeResult) -> str:
         """Extract a useful failure reason even when result.error is empty."""
@@ -435,7 +435,7 @@ def fetch_web_content(
                 for idx, link in enumerate(pages_to_scrape, start=1):
                     f.write(f"{idx:03d}. {link}\n")
         except Exception as e:
-            logger.debug(f"Failed to save selected links manifest: {e}")
+            logger.warning(f"Failed to save selected links manifest: {e}")
 
     # Flush stdout to ensure progress shows immediately
     import sys
@@ -473,7 +473,7 @@ def fetch_web_content(
                 raw_file = os.path.join(raw_folder, "homepage.txt")
                 write_executor.submit(_write_raw_file, raw_file, website, result.tier, structured)
             except Exception as e:
-                logger.debug(f"Failed to save homepage raw scrape: {e}")
+                logger.warning(f"Failed to save homepage raw scrape: {e}")
 
     resumed_non_home = [u for u in resumed_text_pages if u != homepage_normalized]
     if homepage_normalized in resumed_text_pages:
@@ -503,8 +503,8 @@ def fetch_web_content(
             _hp_text = extract_main_content(homepage_html)
             if _hp_text and _hp_text.strip():
                 _seen_content_hashes.add(hashlib.md5(_hp_text.encode()).hexdigest())
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Homepage content hash failed: %s", e)
 
     # Show initial progress immediately
     if pages_to_scrape:
@@ -564,9 +564,9 @@ def fetch_web_content(
                     raw_file = os.path.join(raw_folder, f"{safe_name}.txt")
                     write_executor.submit(_write_raw_file, raw_file, page_url, result.tier, structured)
                 except Exception as e:
-                    logger.debug(f"Failed to save raw scrape: {e}")
+                    logger.warning(f"Failed to save raw scrape: {e}")
         else:
-            logger.debug(f"Failed to scrape {page_url}: {result.error}")
+            logger.warning(f"Failed to scrape {page_url}: {result.error}")
             _append_trace("FAIL", page_url, _failure_detail(result))
 
         if pilot_attempts < pilot_count:
@@ -658,7 +658,7 @@ def fetch_web_content(
                     try:
                         result, page_elapsed = future.result()
                     except Exception as e:
-                        logger.debug(f"Scrape worker error for {page_url}: {e}")
+                        logger.warning(f"Scrape worker error for {page_url}: {e}")
                         _append_trace("FAIL", page_url, f"worker error: {e}")
                         continue
                     _process_result(page_url, normalized, result, page_elapsed, i)
@@ -852,7 +852,7 @@ def scrape_external_sources_validated(
                     f.write("-" * 60 + "\n\n")
                     f.write(text)
             except Exception as e:
-                logger.debug(f"Failed to save external raw scrape: {e}")
+                logger.warning(f"Failed to save external raw scrape: {e}")
 
         # Use LLM to validate this is about the RIGHT company
         # Use a small snippet to save tokens

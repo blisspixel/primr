@@ -4059,7 +4059,7 @@ def cleanup_orphaned_resources(api_key: str | None = None) -> dict[str, int]:
             except Exception as e:
                 logger.warning(f"Could not delete cache {cache.name}: {e}")
     except Exception as e:
-        logger.debug(f"Could not list caches: {e}")
+        logger.warning(f"Could not list caches: {e}")
 
     # 2. Clean up orphaned file search stores
     try:
@@ -4077,9 +4077,9 @@ def cleanup_orphaned_resources(api_key: str | None = None) -> dict[str, int]:
                     except TypeError:
                         client.file_search_stores.documents.delete(name=doc.name)
                     except Exception as e:
-                        logger.debug(f"Could not delete doc {doc.name}: {e}")
+                        logger.warning(f"Could not delete doc {doc.name}: {e}")
             except Exception as e:
-                logger.debug(f"Could not list docs in {store_name}: {e}")
+                logger.warning(f"Could not list docs in {store_name}: {e}")
 
             # Now delete the empty store
             try:
@@ -4089,7 +4089,7 @@ def cleanup_orphaned_resources(api_key: str | None = None) -> dict[str, int]:
             except Exception as e:
                 logger.warning(f"Could not delete store {store_name}: {e}")
     except Exception as e:
-        logger.debug(f"Could not list file search stores: {e}")
+        logger.warning(f"Could not list file search stores: {e}")
 
     total = result["caches_deleted"] + result["stores_deleted"]
     if total > 0:

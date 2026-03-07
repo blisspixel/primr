@@ -2610,7 +2610,7 @@ def _find_latest_run_state() -> tuple[str, dict[str, Any]] | None:
             if isinstance(state, dict):
                 return state_path, state
         except Exception as e:
-            logger.debug("Skipping corrupt state file %s: %s", state_path, e)
+            logger.warning("Skipping corrupt state file %s: %s", state_path, e)
             continue
     return None
 

@@ -523,7 +523,8 @@ def is_safe_url(url: str) -> tuple[bool, str | None]:
 
     try:
         parsed = urlparse(url)
-    except Exception:
+    except (ValueError, Exception) as e:
+        logger.warning("URL parse failed for %s: %s", url, e)
         return False, "Failed to parse URL"
 
     # Check scheme
@@ -590,7 +591,8 @@ def validate_redirect_url(url: str, allowed_hosts: set[str] | None = None) -> bo
 
     try:
         parsed = urlparse(url)
-    except Exception:
+    except (ValueError, Exception) as e:
+        logger.warning("URL parse failed for %s: %s", url, e)
         return False
 
     # Relative URLs are always safe
@@ -803,7 +805,8 @@ def sanitize_webhook_url(url: str, allowed_schemes: set[str] | None = None) -> t
 
     try:
         parsed = urlparse(url)
-    except Exception:
+    except (ValueError, Exception) as e:
+        logger.warning("URL parse failed for %s: %s", url, e)
         return "", "Invalid webhook URL format"
 
     # Check scheme
