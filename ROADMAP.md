@@ -93,6 +93,8 @@ A real quick profile that finishes in under 5 minutes for most companies. Ideal 
 
 - New CLI profile with explicit runtime budget and reduced token/search footprint
 - Tight phase budget: fewer sections, capped external queries, smaller synthesis context
+- Scraping capped at tier 3 (Playwright → Playwright Aggressive → curl_cffi) — skip slow stealth/vision tiers
+- Fewer pages scraped (10-15 instead of 50)
 - Quality floor + graceful fallback when evidence is thin
 - Target: median runtime < 5 min, cost < $0.10, with citations and confidence labels
 - Users choose between `quick` (speed), `standard` (balanced), and `premium` (depth)
@@ -132,19 +134,17 @@ Completion guarantees:
 
 **Expert Perspective Passes (`--with-experts`)**
 
-After the standard pipeline, run parallel "expert review" passes that scrutinize findings from specific domain perspectives. Uses existing infrastructure — no new data stores or APIs.
+After the standard pipeline, add domain-specific scrutiny of findings.
 
-**Expert Personas:**
-- **CFO perspective**: scrutinize financial claims, flag unsupported revenue estimates, assess unit economics
-- **CTO perspective**: evaluate technology stack claims, assess technical moat, identify build-vs-buy signals
+- Default: single "multi-perspective" prompt that evaluates from CFO, CTO, competitive, and risk viewpoints in one pass (~$0.03)
+- `--with-experts full`: parallel expert reviews (4 separate Grok passes, ~$0.15) for deeper analysis
+- Output: "Expert Perspectives" section appended to report, or separate sidecar document
+
+**Perspectives:**
+- **CFO**: scrutinize financial claims, flag unsupported revenue estimates, assess unit economics
+- **CTO**: evaluate technology stack claims, assess technical moat, identify build-vs-buy signals
 - **Competitive analyst**: compare findings against known competitors, identify positioning gaps
 - **Risk analyst**: identify regulatory, market, and execution risks
-
-**Implementation:**
-- Each expert is a prompt persona + the same report, producing a short addendum
-- Spawn 3-4 parallel expert reviews (different prompts, same input) via existing ThreadPoolExecutor
-- Output: "Expert Perspectives" section appended to report, or separate sidecar document
-- `--with-experts` flag (opt-in, adds ~$0.10-0.20 for 3-4 Grok passes)
 
 **QA Iteration Loop**
 
