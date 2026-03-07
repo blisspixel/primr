@@ -123,11 +123,15 @@ Completion guarantees:
 - Run state tracks per-phase completion status for crash recovery
 - Progress display updated to show concurrent phases (e.g., "Scraping 23/50 | Searching 4/10")
 
-**Scraper Observability**
+**Operational Observability**
+
+Surface the cost, performance, and scraping data that Primr already tracks internally.
 
 - Per-tier success rate, latency p95, and content quality score
-- Stored in run state JSON for post-hoc analysis
 - `primr doctor --scraper-stats` to show tier performance across recent runs
+- `--budget $N` flag to enforce per-run cost ceiling (activates existing `CostGuardHook`)
+- `primr show-usage` enhancements: total lifetime spend, per-company history, cost-by-mode breakdown
+- Stored in run state JSON for post-hoc analysis
 - Informs sticky tier policy and circuit breaker thresholds
 
 #### v1.18.0 — Better Reports
@@ -204,11 +208,39 @@ Extend the eval harness to compare all available providers and determine the bes
 - Auto-detect available API keys and only eval providers the user has access to
 - Historical eval tracking: compare across eval IDs to see if a provider improved over time
 
+#### v1.21.0 — Local Inference
+
+Run parts of the pipeline on local NVIDIA hardware via Ollama, cutting API costs toward zero for batch workloads.
+
+At scale, API costs compound: 100 companies × $0.55 = $55 per batch. Local inference on NVIDIA GPUs eliminates per-run API costs for pipeline stages that don't require frontier model reasoning.
+
+**Hardware Targets:**
+- **RTX 4090 (24GB VRAM)**: 7B-14B models — scraping helpers, link selection, content quality assessment, QA checks, insight extraction
+- **DGX Spark (128GB unified)**: 70B+ models — full synthesis, section writing, cross-validation, expert perspectives
+
+**Routing:**
+- `--local` flag: route all compatible tasks to Ollama (cheapest, requires capable hardware)
+- `--hybrid` flag: local for high-volume/low-complexity tasks, API for deep research and expert analysis
+- Task-level capability mapping: each pipeline stage declares a minimum capability tier, model router selects the cheapest option that qualifies
+- Automatic fallback to API if local model produces below-threshold quality on eval gates
+
+**Integration:**
+- Ollama client in `src/primr/ai/` (OpenAI-compatible API, minimal new code)
+- `OLLAMA_BASE_URL` env var (default: `http://localhost:11434`)
+- Model registry extended with local model entries, VRAM requirements, and capability flags
+- Eval harness validates local models against the same scorecards as cloud models
+- Cost estimator reflects local inference as $0.00 API cost
+
+**What stays API-only (initially):**
+- Gemini Deep Research (autonomous multi-step search — no local equivalent)
+- Web search grounding (DDG/Google — free anyway)
+- Vision extraction (local VLMs exist but quality varies — eval-gated for promotion)
+
 ### Stretch Goals
 
 Ambitious ideas that would meaningfully expand what Primr can do. These depend on the earlier work and may or may not happen.
 
-#### v1.21.0 — Cross-Run Research Memory
+#### v1.22.0 — Cross-Run Research Memory
 
 Make research compound across runs by persisting extracted claims, citations, and hypotheses in a searchable store.
 
@@ -231,9 +263,9 @@ Currently each run starts fresh. If you research 50 companies in the same indust
 - `primr memory clear` to reset
 - No data leaves the machine unless user explicitly exports
 
-#### v1.22.0 — Knowledge Compounding
+#### v1.23.0 — Knowledge Compounding
 
-Build on cross-run memory (v1.21.0) to make research compound across batch runs and evolving investigations.
+Build on cross-run memory (v1.22.0) to make research compound across batch runs and evolving investigations.
 
 **Industry Knowledge Base for Batch Runs**
 
@@ -259,11 +291,11 @@ Support post-discovery learning without re-running everything from scratch.
 - `primr refine` command accepting new information, notes, and follow-up findings
 - Re-synthesize insights with updated confidence and revised hypotheses
 - Outputs evolve as understanding deepens
-- Cross-run memory (v1.21.0) stores the evolution
+- Cross-run memory (v1.22.0) stores the evolution
 
-#### v1.23.0 — Narrative Evolution
+#### v1.24.0 — Narrative Evolution
 
-Make Primr the system of record for how thinking evolves about a company. Requires cross-run memory (v1.21.0).
+Make Primr the system of record for how thinking evolves about a company. Requires cross-run memory (v1.22.0).
 
 - Versioned research artifacts
 - Explicit "what changed and why" sections
