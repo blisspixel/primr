@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 
@@ -23,7 +23,7 @@ class RateLimitConfig:
     """Rate limit configuration."""
     requests_per_second: float = 10.0  # Sustained rate
     burst_size: int = 20  # Maximum burst
-    
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "requests_per_second": self.requests_per_second,
@@ -38,7 +38,7 @@ class RateLimitResult:
     remaining: int  # Remaining tokens
     reset_after: float  # Seconds until bucket refills
     retry_after: float | None = None  # Seconds to wait if not allowed
-    
+
     def to_dict(self) -> dict[str, Any]:
         result = {
             "allowed": self.allowed,
@@ -53,18 +53,18 @@ class RateLimitResult:
 class TokenBucket:
     """
     Token bucket rate limiter.
-    
+
     Implements the token bucket algorithm:
     - Tokens are added at a fixed rate (requests_per_second)
     - Bucket has a maximum capacity (burst_size)
     - Each request consumes one token
     - If no tokens available, request is rejected
     """
-    
+
     def __init__(self, config: RateLimitConfig) -> None:
         """
         Initialize token bucket.
-        
+
         Args:
             config: Rate limit configuration
         """
@@ -72,7 +72,7 @@ class TokenBucket:
         self.tokens = float(config.burst_size)
         self.last_update = time.monotonic()
         self._lock = threading.Lock()
-    
+
     def _refill(self) -> None:
         """Refill tokens based on elapsed time."""
         now = time.monotonic()
@@ -82,20 +82,20 @@ class TokenBucket:
             self.tokens + elapsed * self.config.requests_per_second,
         )
         self.last_update = now
-    
+
     def try_acquire(self, tokens: int = 1) -> RateLimitResult:
         """
         Try to acquire tokens from the bucket.
-        
+
         Args:
             tokens: Number of tokens to acquire (default 1)
-            
+
         Returns:
             RateLimitResult indicating if request is allowed
         """
         with self._lock:
             self._refill()
-            
+
             if self.tokens >= tokens:
                 self.tokens -= tokens
                 return RateLimitResult(
@@ -113,7 +113,7 @@ class TokenBucket:
                     reset_after=self.config.burst_size / self.config.requests_per_second,
                     retry_after=retry_after,
                 )
-    
+
     def get_remaining(self) -> int:
         """Get remaining tokens without consuming any."""
         with self._lock:
@@ -124,14 +124,14 @@ class TokenBucket:
 class RateLimiter:
     """
     Per-API-key rate limiter.
-    
+
     Maintains separate token buckets for each API key.
     """
-    
+
     def __init__(self, default_config: RateLimitConfig | None = None) -> None:
         """
         Initialize rate limiter.
-        
+
         Args:
             default_config: Default rate limit config for all API keys
         """
@@ -139,11 +139,11 @@ class RateLimiter:
         self._buckets: dict[str, TokenBucket] = {}
         self._configs: dict[str, RateLimitConfig] = {}
         self._lock = threading.Lock()
-    
+
     def set_config(self, api_key_hash: str, config: RateLimitConfig) -> None:
         """
         Set rate limit config for an API key.
-        
+
         Args:
             api_key_hash: Hashed API key
             config: Rate limit configuration
@@ -153,12 +153,12 @@ class RateLimiter:
             # Reset bucket with new config
             if api_key_hash in self._buckets:
                 del self._buckets[api_key_hash]
-    
+
     def get_config(self, api_key_hash: str) -> RateLimitConfig:
         """Get rate limit config for an API key."""
         with self._lock:
             return self._configs.get(api_key_hash, self.default_config)
-    
+
     def _get_bucket(self, api_key_hash: str) -> TokenBucket:
         """Get or create token bucket for an API key."""
         with self._lock:
@@ -166,55 +166,55 @@ class RateLimiter:
                 config = self._configs.get(api_key_hash, self.default_config)
                 self._buckets[api_key_hash] = TokenBucket(config)
             return self._buckets[api_key_hash]
-    
+
     def check(self, api_key_hash: str, tokens: int = 1) -> RateLimitResult:
         """
         Check rate limit for an API key.
-        
+
         Args:
             api_key_hash: Hashed API key
             tokens: Number of tokens to consume (default 1)
-            
+
         Returns:
             RateLimitResult indicating if request is allowed
         """
         bucket = self._get_bucket(api_key_hash)
         return bucket.try_acquire(tokens)
-    
+
     def get_remaining(self, api_key_hash: str) -> int:
         """Get remaining tokens for an API key."""
         bucket = self._get_bucket(api_key_hash)
         return bucket.get_remaining()
-    
+
     def cleanup_inactive(self, max_age_seconds: float = 3600) -> int:
         """
         Clean up inactive buckets to free memory.
-        
+
         Args:
             max_age_seconds: Remove buckets not used for this long
-            
+
         Returns:
             Number of buckets removed
         """
         now = time.monotonic()
         removed = 0
-        
+
         with self._lock:
             to_remove = []
             for key, bucket in self._buckets.items():
                 if now - bucket.last_update > max_age_seconds:
                     to_remove.append(key)
-            
+
             for key in to_remove:
                 del self._buckets[key]
                 removed += 1
-        
+
         return removed
 
 
 class RateLimitExceededError(Exception):
     """Raised when rate limit is exceeded."""
-    
+
     def __init__(self, message: str, result: RateLimitResult) -> None:
         super().__init__(message)
         self.result = result

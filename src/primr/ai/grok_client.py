@@ -11,6 +11,8 @@ Usage:
     usage = get_grok_session_usage()  # {'input_tokens': ..., 'output_tokens': ...}
 """
 
+import random
+import re
 import time
 
 from primr.utils.logging_config import get_logger
@@ -81,13 +83,71 @@ def _get_grok_client():
 _DEFAULT_MODEL = "grok-4-1-fast-reasoning"
 
 
+def _is_retryable_grok_error(error: Exception) -> bool:
+    """Return True when a Grok API error is likely transient and safe to retry."""
+    error_text = str(error).lower()
+    retryable_markers = [
+        "429",
+        "rate limit",
+        "rate_limit",
+        "quota",
+        "500",
+        "502",
+        "503",
+        "504",
+        "internal server error",
+        "service unavailable",
+        "temporarily unavailable",
+        "try again later",
+        "timeout",
+        "timed out",
+        "connection reset",
+        "connection aborted",
+        "connection refused",
+    ]
+    return any(marker in error_text for marker in retryable_markers)
+
+
+def _extract_retry_after_seconds(error: Exception) -> float | None:
+    """Best-effort extraction of server-directed retry delay (Retry-After header)."""
+    response = getattr(error, "response", None)
+    headers = getattr(response, "headers", None)
+    if headers:
+        retry_after = headers.get("retry-after")
+        if retry_after:
+            try:
+                value = float(retry_after)
+                if value > 0:
+                    return value
+            except (TypeError, ValueError):
+                pass
+
+    # Fallback parse for message fragments like "retry after 10 seconds"
+    match = re.search(r"retry after\s+(\d+(?:\.\d+)?)", str(error).lower())
+    if match:
+        try:
+            value = float(match.group(1))
+            if value > 0:
+                return value
+        except ValueError:
+            pass
+    return None
+
+
+def _compute_backoff_delay(attempt: int, *, base: float = 5.0, cap: float = 90.0) -> float:
+    """Exponential backoff with jitter for transient API failures."""
+    raw = min(cap, base * (2 ** attempt))
+    jitter = random.uniform(0, raw * 0.2)
+    return raw + jitter
+
+
 def grok_llm(
     prompt: str,
     *,
     model: str = _DEFAULT_MODEL,
     temperature: float = 0.7,
     max_tokens: int = 16_000,
-    retries: int = 2,
+    retries: int = 4,
     system_prompt: str | None = None,
 ) -> str:
     """
@@ -99,7 +159,7 @@ def grok_llm(
                Use grok-4-1-fast-non-reasoning for writing tasks.
         temperature: Sampling temperature.
         max_tokens: Maximum output tokens.
-        retries: Number of retries on 429 rate-limit errors.
+        retries: Number of retries on transient errors (429/5xx/network timeouts).
         system_prompt: Optional system message prepended before the user message.
 
     Returns:
@@ -147,18 +207,20 @@ def grok_llm(
 
         except Exception as e:
             last_error = e
-            # Retry on rate limit (429)
-            error_str = str(e)
-            if "429" in error_str or "rate limit" in error_str.lower() or "rate_limit" in error_str.lower():
+            if _is_retryable_grok_error(e):
                 if attempt < retries:
-                    wait = 2 ** attempt * 5  # 5s, 10s
-                    logger.warning("Grok rate limited, retrying in %ds (attempt %d/%d)", wait, attempt + 1, retries + 1)
+                    retry_after = _extract_retry_after_seconds(e)
+                    wait = retry_after if retry_after is not None else _compute_backoff_delay(attempt)
+                    logger.warning(
+                        "Transient Grok API error, retrying in %.1fs (attempt %d/%d): %s",
+                        wait, attempt + 1, retries + 1, e,
+                    )
                     time.sleep(wait)
                     continue
-                # Final attempt — don't sleep, fall through to raise
-                logger.warning("Grok rate limited on final attempt (%d/%d)", attempt + 1, retries + 1)
+                logger.warning("Transient Grok API error on final attempt (%d/%d): %s", attempt + 1, retries + 1, e)
                 break
+
             # Non-retryable error
-            raise RuntimeError(f"Grok API call failed: {e}") from e
+            raise RuntimeError(f"Grok API call failed (non-retryable): {e}") from e
 
     raise RuntimeError(f"Grok API call failed after {retries + 1} attempts: {last_error}") from last_error

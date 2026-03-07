@@ -22,8 +22,6 @@ import json
 import os
 import tempfile
 import threading
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
@@ -47,7 +45,7 @@ def utc_now() -> datetime:
 class ArtifactStore(Protocol):
     """
     Protocol for artifact storage backends.
-    
+
     All implementations must support:
     - Atomic artifact writes
     - Conditional manifest writes (fail if exists)
@@ -55,100 +53,100 @@ class ArtifactStore(Protocol):
     - Event appending for progress tracking
     - Heartbeat updates for liveness
     """
-    
+
     def put(self, key: str, data: bytes, content_type: str = "application/octet-stream") -> None:
         """
         Write artifact atomically.
-        
+
         Args:
             key: Object key (path within the store)
             data: Artifact content as bytes
             content_type: MIME type of the content
         """
         ...
-    
+
     def get(self, key: str) -> bytes | None:
         """
         Get artifact content.
-        
+
         Args:
             key: Object key (path within the store)
-            
+
         Returns:
             Artifact content as bytes, or None if not found
         """
         ...
-    
+
     def list_keys(self, prefix: str) -> list[str]:
         """
         List all keys with the given prefix.
-        
+
         Args:
             prefix: Key prefix to filter by
-            
+
         Returns:
             List of matching keys
         """
         ...
-    
+
     def presign(self, key: str, expires_in: int = 3600) -> str:
         """
         Generate a presigned URL for artifact retrieval.
-        
+
         Args:
             key: Object key (path within the store)
             expires_in: URL expiration time in seconds (default 1 hour)
-            
+
         Returns:
             Presigned URL string
         """
         ...
-    
+
     def put_manifest(self, job_id: str, manifest: JobManifest) -> None:
         """
         Write manifest with conditional check (fails if exists).
-        
+
         This implements the manifest-as-commit pattern where the manifest
         is written LAST after all artifacts are complete. The conditional
         write ensures only one runner can successfully write the manifest.
-        
+
         Args:
             job_id: Job identifier
             manifest: JobManifest to write
-            
+
         Raises:
             ManifestAlreadyExistsError: If manifest already exists
         """
         ...
-    
+
     def get_manifest(self, job_id: str) -> JobManifest | None:
         """
         Get manifest for a job.
-        
+
         Returns None if manifest doesn't exist (job incomplete).
-        
+
         Args:
             job_id: Job identifier
-            
+
         Returns:
             JobManifest if exists, None otherwise
         """
         ...
-    
+
     def append_event(self, job_id: str, event: dict[str, Any]) -> None:
         """
         Append event to events.jsonl for progress tracking.
-        
+
         Args:
             job_id: Job identifier
             event: Event data to append (will be JSON serialized)
         """
         ...
-    
+
     def update_heartbeat(self, job_id: str, heartbeat: dict[str, Any]) -> None:
         """
         Update heartbeat file for liveness tracking.
-        
+
         Args:
             job_id: Job identifier
             heartbeat: Heartbeat data (will be JSON serialized)
@@ -159,15 +157,15 @@ class ArtifactStore(Protocol):
 class LocalStore:
     """
     Local filesystem artifact store for testing.
-    
+
     Uses temp file + rename for atomic writes.
     Implements conditional manifest writes by checking existence before write.
     """
-    
+
     def __init__(self, base_path: str | Path, deployment: str = "local") -> None:
         """
         Initialize local store.
-        
+
         Args:
             base_path: Base directory for artifact storage
             deployment: Deployment namespace (e.g., dev, staging, prod)
@@ -175,23 +173,23 @@ class LocalStore:
         self.base_path = Path(base_path)
         self.deployment = deployment
         self._lock = threading.Lock()
-        
+
         # Ensure base path exists
         self.base_path.mkdir(parents=True, exist_ok=True)
-    
+
     def _get_path(self, key: str) -> Path:
         """Get full path for a key."""
         return self.base_path / self.deployment / key
-    
+
     def _get_job_path(self, job_id: str) -> Path:
         """Get path for a job's artifacts."""
         return self.base_path / self.deployment / job_id
-    
+
     def put(self, key: str, data: bytes, content_type: str = "application/octet-stream") -> None:
         """Write artifact atomically using temp file + rename."""
         path = self._get_path(key)
         path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         # Write to temp file first, then rename for atomicity
         fd, temp_path = tempfile.mkstemp(
             suffix=".tmp",
@@ -211,7 +209,7 @@ class LocalStore:
             except OSError:
                 pass
             raise
-    
+
     def get(self, key: str) -> bytes | None:
         """Get artifact content, returns None if not found."""
         path = self._get_path(key)
@@ -221,16 +219,16 @@ class LocalStore:
             return path.read_bytes()
         except OSError:
             return None
-    
+
     def list_keys(self, prefix: str) -> list[str]:
         """List all keys with the given prefix."""
         base = self.base_path / self.deployment
         if not base.exists():
             return []
-        
+
         keys = []
         prefix_path = base / prefix if prefix else base
-        
+
         # If prefix is a directory, list its contents
         if prefix_path.is_dir():
             for path in prefix_path.rglob("*"):
@@ -246,32 +244,32 @@ class LocalStore:
                     rel_str = str(path.relative_to(base)).replace("\\", "/")
                     if path.is_file() and rel_str.startswith(prefix):
                         keys.append(rel_str)
-        
+
         return sorted(keys)
-    
+
     def presign(self, key: str, expires_in: int = 3600) -> str:
         """
         Generate a 'presigned' URL for local files.
-        
+
         For local testing, returns a file:// URL.
         """
         path = self._get_path(key)
         return f"file://{path.absolute()}"
-    
+
     def put_manifest(self, job_id: str, manifest: JobManifest) -> None:
         """
         Write manifest with conditional check (fails if exists).
-        
+
         Uses temp file + rename for atomicity, with existence check.
         """
         manifest_path = self._get_job_path(job_id) / "manifest.json"
         manifest_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         with self._lock:
             # Check if manifest already exists (conditional create)
             if manifest_path.exists():
                 raise ManifestAlreadyExistsError(f"Manifest for {job_id} already exists")
-            
+
             # Write to temp file first
             fd, temp_path = tempfile.mkstemp(
                 suffix=".json",
@@ -282,12 +280,12 @@ class LocalStore:
                 os.close(fd)
                 temp_file = Path(temp_path)
                 temp_file.write_text(manifest.to_json())
-                
+
                 # Check again before rename (minimize race window)
                 if manifest_path.exists():
                     temp_file.unlink()
                     raise ManifestAlreadyExistsError(f"Manifest for {job_id} already exists")
-                
+
                 temp_file.rename(manifest_path)
             except ManifestAlreadyExistsError:
                 raise
@@ -298,26 +296,25 @@ class LocalStore:
                 except OSError:
                     pass
                 raise
-    
+
     def get_manifest(self, job_id: str) -> JobManifest | None:
         """Get manifest, returns None if job incomplete."""
         manifest_path = self._get_job_path(job_id) / "manifest.json"
         return JobManifest.load(manifest_path)
-    
+
     def append_event(self, job_id: str, event: dict[str, Any]) -> None:
         """Append event to events.jsonl."""
         events_path = self._get_job_path(job_id) / "events.jsonl"
         events_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        with self._lock:
-            with open(events_path, "a", encoding="utf-8") as f:
-                f.write(json.dumps(event) + "\n")
-    
+
+        with self._lock, open(events_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(event) + "\n")
+
     def update_heartbeat(self, job_id: str, heartbeat: dict[str, Any]) -> None:
         """Update heartbeat file atomically."""
         heartbeat_path = self._get_job_path(job_id) / "_heartbeat.json"
         heartbeat_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         # Write atomically via temp file
         fd, temp_path = tempfile.mkstemp(
             suffix=".json",
@@ -341,10 +338,10 @@ class LocalStore:
 class S3Store:
     """
     AWS S3 artifact store.
-    
+
     Uses If-None-Match: * for conditional manifest writes.
     """
-    
+
     def __init__(
         self,
         bucket: str,
@@ -354,7 +351,7 @@ class S3Store:
     ) -> None:
         """
         Initialize S3 store.
-        
+
         Args:
             bucket: S3 bucket name
             deployment: Deployment namespace (prefix)
@@ -364,12 +361,12 @@ class S3Store:
         self.bucket = bucket
         self.deployment = deployment
         self.region = region
-        
+
         if client is not None:
             self._client = client
         else:
             self._client = None  # Lazy initialization
-    
+
     @property
     def client(self) -> Any:
         """Get or create boto3 S3 client."""
@@ -377,11 +374,11 @@ class S3Store:
             import boto3
             self._client = boto3.client("s3", region_name=self.region)
         return self._client
-    
+
     def _get_key(self, key: str) -> str:
         """Get full S3 key with deployment prefix."""
         return f"{self.deployment}/{key}"
-    
+
     def put(self, key: str, data: bytes, content_type: str = "application/octet-stream") -> None:
         """Write artifact to S3."""
         self.client.put_object(
@@ -390,7 +387,7 @@ class S3Store:
             Body=data,
             ContentType=content_type,
         )
-    
+
     def get(self, key: str) -> bytes | None:
         """Get artifact from S3, returns None if not found."""
         try:
@@ -406,12 +403,12 @@ class S3Store:
             if hasattr(e, "response") and e.response.get("Error", {}).get("Code") == "NoSuchKey":
                 return None
             raise
-    
+
     def list_keys(self, prefix: str) -> list[str]:
         """List all keys with the given prefix."""
         full_prefix = self._get_key(prefix)
         keys = []
-        
+
         paginator = self.client.get_paginator("list_objects_v2")
         for page in paginator.paginate(Bucket=self.bucket, Prefix=full_prefix):
             for obj in page.get("Contents", []):
@@ -420,9 +417,9 @@ class S3Store:
                 if key.startswith(f"{self.deployment}/"):
                     key = key[len(f"{self.deployment}/"):]
                 keys.append(key)
-        
+
         return keys
-    
+
     def presign(self, key: str, expires_in: int = 3600) -> str:
         """Generate presigned URL for S3 object."""
         return self.client.generate_presigned_url(
@@ -430,15 +427,15 @@ class S3Store:
             Params={"Bucket": self.bucket, "Key": self._get_key(key)},
             ExpiresIn=expires_in,
         )
-    
+
     def put_manifest(self, job_id: str, manifest: JobManifest) -> None:
         """
         Write manifest with conditional check (If-None-Match: *).
-        
+
         Fails if manifest already exists.
         """
         key = self._get_key(f"{job_id}/manifest.json")
-        
+
         try:
             # Conditional write: fail if object already exists
             self.client.put_object(
@@ -455,7 +452,7 @@ class S3Store:
                 if error_code == "PreconditionFailed":
                     raise ManifestAlreadyExistsError(f"Manifest for {job_id} already exists") from e
             raise
-    
+
     def get_manifest(self, job_id: str) -> JobManifest | None:
         """Get manifest from S3, returns None if not found."""
         data = self.get(f"{job_id}/manifest.json")
@@ -465,24 +462,24 @@ class S3Store:
             return JobManifest.from_dict(json.loads(data.decode("utf-8")))
         except (json.JSONDecodeError, UnicodeDecodeError):
             return None
-    
+
     def append_event(self, job_id: str, event: dict[str, Any]) -> None:
         """
         Append event to events.jsonl.
-        
+
         Note: S3 doesn't support true append, so we read-modify-write.
         For high-frequency updates, consider using a different approach.
         """
         key = f"{job_id}/events.jsonl"
         existing = self.get(key)
-        
+
         if existing:
             content = existing.decode("utf-8") + json.dumps(event) + "\n"
         else:
             content = json.dumps(event) + "\n"
-        
+
         self.put(key, content.encode("utf-8"), "application/x-ndjson")
-    
+
     def update_heartbeat(self, job_id: str, heartbeat: dict[str, Any]) -> None:
         """Update heartbeat file in S3."""
         self.put(
@@ -495,10 +492,10 @@ class S3Store:
 class BlobStore:
     """
     Azure Blob Storage artifact store.
-    
+
     Uses IfNoneMatch="*" for conditional manifest writes.
     """
-    
+
     def __init__(
         self,
         container_name: str,
@@ -508,7 +505,7 @@ class BlobStore:
     ) -> None:
         """
         Initialize Azure Blob store.
-        
+
         Args:
             container_name: Azure Blob container name
             deployment: Deployment namespace (prefix)
@@ -518,12 +515,12 @@ class BlobStore:
         self.container_name = container_name
         self.deployment = deployment
         self.connection_string = connection_string
-        
+
         if container_client is not None:
             self._container_client = container_client
         else:
             self._container_client = None  # Lazy initialization
-    
+
     @property
     def container_client(self) -> Any:
         """Get or create Azure container client."""
@@ -534,22 +531,22 @@ class BlobStore:
                 container_name=self.container_name,
             )
         return self._container_client
-    
+
     def _get_blob_name(self, key: str) -> str:
         """Get full blob name with deployment prefix."""
         return f"{self.deployment}/{key}"
-    
+
     def put(self, key: str, data: bytes, content_type: str = "application/octet-stream") -> None:
         """Write artifact to Azure Blob."""
         from azure.storage.blob import ContentSettings
-        
+
         blob_client = self.container_client.get_blob_client(self._get_blob_name(key))
         blob_client.upload_blob(
             data,
             overwrite=True,
             content_settings=ContentSettings(content_type=content_type),
         )
-    
+
     def get(self, key: str) -> bytes | None:
         """Get artifact from Azure Blob, returns None if not found."""
         try:
@@ -560,27 +557,27 @@ class BlobStore:
             if "BlobNotFound" in str(e) or "ResourceNotFoundError" in str(type(e)):
                 return None
             raise
-    
+
     def list_keys(self, prefix: str) -> list[str]:
         """List all keys with the given prefix."""
         full_prefix = self._get_blob_name(prefix)
         keys = []
-        
+
         for blob in self.container_client.list_blobs(name_starts_with=full_prefix):
             # Remove deployment prefix from name
             name = blob.name
             if name.startswith(f"{self.deployment}/"):
                 name = name[len(f"{self.deployment}/"):]
             keys.append(name)
-        
+
         return keys
-    
+
     def presign(self, key: str, expires_in: int = 3600) -> str:
         """Generate SAS URL for Azure Blob."""
-        from azure.storage.blob import generate_blob_sas, BlobSasPermissions
-        
+        from azure.storage.blob import BlobSasPermissions, generate_blob_sas
+
         blob_client = self.container_client.get_blob_client(self._get_blob_name(key))
-        
+
         # Generate SAS token
         sas_token = generate_blob_sas(
             account_name=blob_client.account_name,
@@ -590,21 +587,21 @@ class BlobStore:
             permission=BlobSasPermissions(read=True),
             expiry=utc_now() + timedelta(seconds=expires_in),
         )
-        
+
         return f"{blob_client.url}?{sas_token}"
-    
+
     def put_manifest(self, job_id: str, manifest: JobManifest) -> None:
         """
         Write manifest with conditional check (IfNoneMatch="*").
-        
+
         Fails if manifest already exists.
         """
         from azure.core.exceptions import ResourceExistsError
         from azure.storage.blob import ContentSettings
-        
+
         blob_name = self._get_blob_name(f"{job_id}/manifest.json")
         blob_client = self.container_client.get_blob_client(blob_name)
-        
+
         try:
             # Conditional write: fail if blob already exists
             blob_client.upload_blob(
@@ -614,7 +611,7 @@ class BlobStore:
             )
         except ResourceExistsError as e:
             raise ManifestAlreadyExistsError(f"Manifest for {job_id} already exists") from e
-    
+
     def get_manifest(self, job_id: str) -> JobManifest | None:
         """Get manifest from Azure Blob, returns None if not found."""
         data = self.get(f"{job_id}/manifest.json")
@@ -624,24 +621,24 @@ class BlobStore:
             return JobManifest.from_dict(json.loads(data.decode("utf-8")))
         except (json.JSONDecodeError, UnicodeDecodeError):
             return None
-    
+
     def append_event(self, job_id: str, event: dict[str, Any]) -> None:
         """
         Append event to events.jsonl.
-        
+
         Note: Azure Blob doesn't support true append for block blobs,
         so we read-modify-write. For append blobs, use append_block.
         """
         key = f"{job_id}/events.jsonl"
         existing = self.get(key)
-        
+
         if existing:
             content = existing.decode("utf-8") + json.dumps(event) + "\n"
         else:
             content = json.dumps(event) + "\n"
-        
+
         self.put(key, content.encode("utf-8"), "application/x-ndjson")
-    
+
     def update_heartbeat(self, job_id: str, heartbeat: dict[str, Any]) -> None:
         """Update heartbeat file in Azure Blob."""
         self.put(
@@ -654,10 +651,10 @@ class BlobStore:
 class GCSStore:
     """
     Google Cloud Storage artifact store.
-    
+
     Uses if_generation_match=0 for conditional manifest writes.
     """
-    
+
     def __init__(
         self,
         bucket_name: str,
@@ -667,7 +664,7 @@ class GCSStore:
     ) -> None:
         """
         Initialize GCS store.
-        
+
         Args:
             bucket_name: GCS bucket name
             deployment: Deployment namespace (prefix)
@@ -677,12 +674,12 @@ class GCSStore:
         self.bucket_name = bucket_name
         self.deployment = deployment
         self.project = project
-        
+
         if bucket is not None:
             self._bucket = bucket
         else:
             self._bucket = None  # Lazy initialization
-    
+
     @property
     def bucket(self) -> Any:
         """Get or create GCS bucket object."""
@@ -691,16 +688,16 @@ class GCSStore:
             client = storage.Client(project=self.project)
             self._bucket = client.bucket(self.bucket_name)
         return self._bucket
-    
+
     def _get_blob_name(self, key: str) -> str:
         """Get full blob name with deployment prefix."""
         return f"{self.deployment}/{key}"
-    
+
     def put(self, key: str, data: bytes, content_type: str = "application/octet-stream") -> None:
         """Write artifact to GCS."""
         blob = self.bucket.blob(self._get_blob_name(key))
         blob.upload_from_string(data, content_type=content_type)
-    
+
     def get(self, key: str) -> bytes | None:
         """Get artifact from GCS, returns None if not found."""
         try:
@@ -711,21 +708,21 @@ class GCSStore:
             if "NotFound" in str(type(e)) or "404" in str(e):
                 return None
             raise
-    
+
     def list_keys(self, prefix: str) -> list[str]:
         """List all keys with the given prefix."""
         full_prefix = self._get_blob_name(prefix)
         keys = []
-        
+
         for blob in self.bucket.list_blobs(prefix=full_prefix):
             # Remove deployment prefix from name
             name = blob.name
             if name.startswith(f"{self.deployment}/"):
                 name = name[len(f"{self.deployment}/"):]
             keys.append(name)
-        
+
         return keys
-    
+
     def presign(self, key: str, expires_in: int = 3600) -> str:
         """Generate signed URL for GCS object."""
         blob = self.bucket.blob(self._get_blob_name(key))
@@ -734,18 +731,18 @@ class GCSStore:
             expiration=timedelta(seconds=expires_in),
             method="GET",
         )
-    
+
     def put_manifest(self, job_id: str, manifest: JobManifest) -> None:
         """
         Write manifest with conditional check (if_generation_match=0).
-        
+
         if_generation_match=0 means "only if object doesn't exist".
         Fails if manifest already exists.
         """
         from google.api_core.exceptions import PreconditionFailed
-        
+
         blob = self.bucket.blob(self._get_blob_name(f"{job_id}/manifest.json"))
-        
+
         try:
             # Conditional write: fail if blob already exists
             # if_generation_match=0 means "only create if doesn't exist"
@@ -756,7 +753,7 @@ class GCSStore:
             )
         except PreconditionFailed as e:
             raise ManifestAlreadyExistsError(f"Manifest for {job_id} already exists") from e
-    
+
     def get_manifest(self, job_id: str) -> JobManifest | None:
         """Get manifest from GCS, returns None if not found."""
         data = self.get(f"{job_id}/manifest.json")
@@ -766,24 +763,24 @@ class GCSStore:
             return JobManifest.from_dict(json.loads(data.decode("utf-8")))
         except (json.JSONDecodeError, UnicodeDecodeError):
             return None
-    
+
     def append_event(self, job_id: str, event: dict[str, Any]) -> None:
         """
         Append event to events.jsonl.
-        
+
         Note: GCS doesn't support true append, so we read-modify-write.
         For high-frequency updates, consider using Cloud Pub/Sub or Firestore.
         """
         key = f"{job_id}/events.jsonl"
         existing = self.get(key)
-        
+
         if existing:
             content = existing.decode("utf-8") + json.dumps(event) + "\n"
         else:
             content = json.dumps(event) + "\n"
-        
+
         self.put(key, content.encode("utf-8"), "application/x-ndjson")
-    
+
     def update_heartbeat(self, job_id: str, heartbeat: dict[str, Any]) -> None:
         """Update heartbeat file in GCS."""
         self.put(
@@ -796,31 +793,31 @@ class GCSStore:
 def create_store(url: str, deployment: str = "default") -> ArtifactStore:
     """
     Factory function to create appropriate store based on URL scheme.
-    
+
     Supported URL schemes:
     - file:///path/to/dir -> LocalStore
     - /path/to/dir or C:\\path\\to\\dir -> LocalStore (plain paths)
     - s3://bucket-name -> S3Store
     - gs://bucket-name -> GCSStore
     - https://*.blob.core.windows.net/container -> BlobStore
-    
+
     Args:
         url: Storage URL
         deployment: Deployment namespace
-        
+
     Returns:
         Appropriate ArtifactStore implementation
-        
+
     Raises:
         ValueError: If URL scheme is not supported
     """
     parsed = urlparse(url)
-    
+
     # Handle Windows drive letters (e.g., C:\path) - urlparse treats C: as scheme
     if len(parsed.scheme) == 1 and parsed.scheme.isalpha():
         # This is a Windows path like C:\path\to\dir
         return LocalStore(url, deployment)
-    
+
     if parsed.scheme == "file":
         # file:// URL - extract the path
         # On Windows, file:///C:/path becomes /C:/path, need to strip leading /
@@ -828,21 +825,21 @@ def create_store(url: str, deployment: str = "default") -> ArtifactStore:
         if path.startswith("/") and len(path) > 2 and path[2] == ":":
             path = path[1:]  # Remove leading / for Windows paths
         return LocalStore(path, deployment)
-    
+
     if parsed.scheme == "":
         # Plain path (Unix-style or relative)
         return LocalStore(url, deployment)
-    
+
     if parsed.scheme == "s3":
         # AWS S3
         bucket = parsed.netloc
         return S3Store(bucket, deployment)
-    
+
     if parsed.scheme == "gs":
         # Google Cloud Storage
         bucket = parsed.netloc
         return GCSStore(bucket, deployment)
-    
+
     if parsed.scheme in ("https", "http") and ".blob.core.windows.net" in parsed.netloc:
         # Azure Blob Storage
         # URL format: https://<account>.blob.core.windows.net/<container>
@@ -851,5 +848,5 @@ def create_store(url: str, deployment: str = "default") -> ArtifactStore:
         # Connection string would need to be provided via environment
         connection_string = os.environ.get("AZURE_STORAGE_CONNECTION_STRING", "")
         return BlobStore(container, deployment, connection_string)
-    
+
     raise ValueError(f"Unsupported storage URL scheme: {parsed.scheme}")

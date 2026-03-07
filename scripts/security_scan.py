@@ -271,7 +271,7 @@ def check_file_encoding() -> tuple[bool, list[str]]:
     src_path = Path("src/primr")
 
     # Pattern for open() calls without encoding (text mode)
-    open_pattern = re.compile(r'open\s*\([^)]*\)')
+    re.compile(r'open\s*\([^)]*\)')
 
     for py_file in src_path.rglob("*.py"):
         try:

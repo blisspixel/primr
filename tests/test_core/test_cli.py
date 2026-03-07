@@ -43,6 +43,7 @@ class TestCommand:
         assert Command.DRY_RUN.value == "dry-run"
         assert Command.GENERATE_VENDOR.value == "generate-vendor"
         assert Command.BATCH.value == "batch"
+        assert Command.IMPROVE.value == "improve"
 
 
 # =============================================================================
@@ -240,6 +241,37 @@ class TestParseArgs:
         assert config.eval_judge_passes == 1
         assert config.eval_judge_max_cost == 0.25
 
+    def test_parse_improve_flag(self):
+        """Test parsing --improve flag."""
+        config = parse_args(["--improve", "output/demo.md"])
+        assert config.command == Command.IMPROVE
+        assert config.improve_path == "output/demo.md"
+
+    def test_parse_improve_positional_command(self):
+        """Test parsing positional improve command."""
+        config = parse_args(["improve", "output/demo.md", "--in-place", "--improve-agentic"])
+        assert config.command == Command.IMPROVE
+        assert config.improve_path == "output/demo.md"
+        assert config.improve_in_place is True
+        assert config.improve_agentic is True
+
+    def test_parse_banner_defaults(self):
+        """Test banner defaults for normal runs."""
+        config = parse_args(["Acme Corp", "acme.example"])
+        assert config.banner_mode == "auto"
+        assert config.banner_explicit is False
+
+    def test_parse_banner_explicit(self):
+        """Test explicit --banner mode."""
+        config = parse_args(["--banner"])
+        assert config.banner_mode == "animated"
+        assert config.banner_explicit is True
+
+    def test_parse_no_banner(self):
+        """Test --no-banner override."""
+        config = parse_args(["--no-banner", "Acme Corp", "acme.example"])
+        assert config.banner_mode == "off"
+        assert config.banner_explicit is True
     def test_parse_show_usage(self):
         """Test parsing show-usage flag."""
         config = parse_args(["--show-usage"])
@@ -372,6 +404,17 @@ class TestMain:
         result = main(["Acme Corp"])  # Missing website
         assert result == 1
 
+    def test_main_banner_only_returns_exit_code(self):
+        """Test main with explicit --banner exits cleanly without research args."""
+        mock_validation = MagicMock(valid=True, errors=[], warnings=[])
+        with patch("primr.utils.config_validation.validate_config", return_value=mock_validation), \
+             patch("primr.core.cli.maybe_show_startup_banner") as mock_banner, \
+             patch("primr.core.cli._handle_research") as mock_research:
+            result = main(["--banner"])
+            assert result == 0
+            mock_banner.assert_called_once()
+            mock_research.assert_not_called()
+
 
 # =============================================================================
 # run_doctor Tests
@@ -437,3 +480,5 @@ class TestCLIProperties:
         """Property: All new mode names have mappings."""
         assert mode in MODE_MAP
         assert MODE_MAP[mode] in ["scrape-only", "deep-research", "complete", "hybrid"]
+
+
