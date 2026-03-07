@@ -17,7 +17,8 @@ def _ctx(*, is_tty: bool = True, unicode: bool = True, cursor: bool = True) -> B
     )
 
 
-def test_resolve_banner_mode_auto_animated():
+def test_resolve_banner_mode_auto_animated(monkeypatch):
+    monkeypatch.delenv("CI", raising=False)
     assert resolve_banner_mode("auto", explicit=False, ctx=_ctx()) == "animated"
 
 
