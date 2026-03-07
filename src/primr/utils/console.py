@@ -44,8 +44,8 @@ def _enable_windows_ansi():
             mode = ctypes.c_ulong()
             kernel32.GetConsoleMode(handle, ctypes.byref(mode))
             kernel32.SetConsoleMode(handle, mode.value | ENABLE_VIRTUAL_TERMINAL_PROCESSING)
-        except Exception:
-            pass
+        except (OSError, AttributeError, ValueError):
+            pass  # Windows console mode not available (e.g., redirected output)
 
 _enable_windows_ansi()
 

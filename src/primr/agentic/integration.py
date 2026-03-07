@@ -437,7 +437,8 @@ class CircuitBreakerIntegration:
             state = self._breaker.get_state(key)
             state_value: str = state.value
             return state_value
-        except Exception:
+        except Exception as e:
+            logger.warning("Failed to get circuit state for key=%s: %s", key, e)
             return "unknown"
 
     def reset(self, key: str) -> None:

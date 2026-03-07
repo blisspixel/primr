@@ -170,7 +170,7 @@ class AsyncAIClient:
                 elif callable(close_fn):
                     close_fn()
             except Exception as e:
-                logger.debug("Failed to close async AI client: %s", e)
+                logger.warning("Failed to close async AI client: %s", e)
 
         self._client = None
         self._semaphore = None

@@ -951,8 +951,10 @@ def _scrape_with_playwright_impl(
         idle_budget_ms = max(int(timeout_ms - elapsed_so_far_ms), 2000)
         try:
             page.wait_for_load_state("networkidle", timeout=idle_budget_ms)
-        except Exception:
-            pass  # Timeout is fine — some sites never reach idle
+        except TimeoutError:
+            pass  # Timeout is expected — some sites never reach idle
+        except Exception as e:
+            logger.debug("Unexpected error waiting for networkidle on %s: %s", url if 'url' in dir() else 'unknown', e)
 
         # Trigger lazy-loaded content for scroll-driven page builders.
         _trigger_lazy_load(page)
