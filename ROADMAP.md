@@ -79,13 +79,13 @@ Primr is intentionally not designed as a generic web scraper, a SaaS collaborati
 
 ## Planned Work
 
-Ordered by practical impact: first make runs faster and cheaper, then expand provider options and data extraction, then enable compounding knowledge across runs.
+Ordered by practical impact: first make runs faster and cheaper, then make reports better, then expand extraction and provider choices, then enable compounding knowledge across runs.
 
 ### Near-Term
 
 Scoped, practical improvements. Some are partially built.
 
-#### v1.17.0 — Quick Mode, Pipeline Overlap, and QA Iteration
+#### v1.17.0 — Faster Runs
 
 **Quick Mode (`--quick`)**
 
@@ -121,6 +121,31 @@ Completion guarantees:
 - Run state tracks per-phase completion status for crash recovery
 - Progress display updated to show concurrent phases (e.g., "Scraping 23/50 | Searching 4/10")
 
+**Scraper Observability**
+
+- Per-tier success rate, latency p95, and content quality score
+- Stored in run state JSON for post-hoc analysis
+- `primr doctor --scraper-stats` to show tier performance across recent runs
+- Informs sticky tier policy and circuit breaker thresholds
+
+#### v1.18.0 — Better Reports
+
+**Expert Perspective Passes (`--with-experts`)**
+
+After the standard pipeline, run parallel "expert review" passes that scrutinize findings from specific domain perspectives. Uses existing infrastructure — no new data stores or APIs.
+
+**Expert Personas:**
+- **CFO perspective**: scrutinize financial claims, flag unsupported revenue estimates, assess unit economics
+- **CTO perspective**: evaluate technology stack claims, assess technical moat, identify build-vs-buy signals
+- **Competitive analyst**: compare findings against known competitors, identify positioning gaps
+- **Risk analyst**: identify regulatory, market, and execution risks
+
+**Implementation:**
+- Each expert is a prompt persona + the same report, producing a short addendum
+- Spawn 3-4 parallel expert reviews (different prompts, same input) via existing ThreadPoolExecutor
+- Output: "Expert Perspectives" section appended to report, or separate sidecar document
+- `--with-experts` flag (opt-in, adds ~$0.10-0.20 for 3-4 Grok passes)
+
 **QA Iteration Loop**
 
 Use QA feedback to iteratively improve weak sections until reports hit 90+.
@@ -130,39 +155,9 @@ Use QA feedback to iteratively improve weak sections until reports hit 90+.
 - Section-level regeneration without full pipeline re-run
 - Repeat until grade >= 90
 
-**Scraper Observability**
-
-- Per-tier success rate, latency p95, and content quality score
-- Stored in run state JSON for post-hoc analysis
-- `primr doctor --scraper-stats` to show tier performance across recent runs
-- Informs sticky tier policy and circuit breaker thresholds
-
 ### Medium-Term
 
 Larger investments that expand Primr's capabilities.
-
-#### v1.18.0 — OpenAI Deep Research and Cross-Provider Eval
-
-**OpenAI Deep Research Integration**
-
-Add OpenAI's Deep Research API as a third provider option alongside Grok and Gemini.
-
-- `OPENAI_API_KEY` env var support
-- OpenAI Deep Research client in `src/primr/ai/`
-- `--provider openai` flag (or auto-detect from available keys)
-- Cost estimator updated with OpenAI DR pricing
-- Shared deep research parsing/polling modules extended for OpenAI response format
-- Which tier(s) OpenAI DR best serves (quick, standard, premium) determined by eval results, not assumption
-
-**Cross-Provider Eval**
-
-Extend the eval harness to compare all available providers and determine the best default for each research tier.
-
-- Eval profiles expanded: `grok-standard`, `gemini-premium`, `openai-quick`, `openai-full`, etc.
-- Cross-provider scorecard: quality, cost, runtime, citation density compared side-by-side
-- Tier recommendation output: "For quick: use X, for standard: use Y, for premium: use Z"
-- Auto-detect available API keys and only eval providers the user has access to
-- Historical eval tracking: compare across eval IDs to see if a provider improved over time
 
 #### v1.19.0 — First-Class VLM Extraction
 
@@ -186,11 +181,34 @@ Corporate sites are increasingly visual — investor relations decks, product co
 - `--vlm-budget N` flag to cap VLM calls per run (default: 10 pages)
 - Cost estimator updated with VLM pricing
 
+#### v1.20.0 — Provider Expansion
+
+**OpenAI Deep Research Integration**
+
+Add OpenAI's Deep Research API as a third provider option alongside Grok and Gemini.
+
+- `OPENAI_API_KEY` env var support
+- OpenAI Deep Research client in `src/primr/ai/`
+- `--provider openai` flag (or auto-detect from available keys)
+- Cost estimator updated with OpenAI DR pricing
+- Shared deep research parsing/polling modules extended for OpenAI response format
+- Which tier(s) OpenAI DR best serves (quick, standard, premium) determined by eval results, not assumption
+
+**Cross-Provider Eval**
+
+Extend the eval harness to compare all available providers and determine the best default for each research tier.
+
+- Eval profiles expanded: `grok-standard`, `gemini-premium`, `openai-quick`, `openai-full`, etc.
+- Cross-provider scorecard: quality, cost, runtime, citation density compared side-by-side
+- Tier recommendation output: "For quick: use X, for standard: use Y, for premium: use Z"
+- Auto-detect available API keys and only eval providers the user has access to
+- Historical eval tracking: compare across eval IDs to see if a provider improved over time
+
 ### Stretch Goals
 
 Ambitious ideas that would meaningfully expand what Primr can do. These depend on the earlier work and may or may not happen.
 
-#### v1.20.0 — Cross-Run Research Memory
+#### v1.21.0 — Cross-Run Research Memory
 
 Make research compound across runs by persisting extracted claims, citations, and hypotheses in a searchable store.
 
@@ -213,7 +231,11 @@ Currently each run starts fresh. If you research 50 companies in the same indust
 - `primr memory clear` to reset
 - No data leaves the machine unless user explicitly exports
 
-#### v1.20.1 — Industry Knowledge Base for Batch Runs
+#### v1.22.0 — Knowledge Compounding
+
+Build on cross-run memory (v1.21.0) to make research compound across batch runs and evolving investigations.
+
+**Industry Knowledge Base for Batch Runs**
 
 When researching multiple companies in the same industry, build shared industry context first, then analyze each company with that context.
 
@@ -230,34 +252,18 @@ A company's positioning makes more sense when you know what the industry looks l
 - Industry synthesis may identify patterns but may NOT introduce claims not present in scraped data
 - Individual company analysis may interpret with industry context but must cite specific scraped content
 
-#### v1.21.0 — Refinement and Learning Loop
+**Refinement Loop**
 
 Support post-discovery learning without re-running everything from scratch.
 
 - `primr refine` command accepting new information, notes, and follow-up findings
 - Re-synthesize insights with updated confidence and revised hypotheses
 - Outputs evolve as understanding deepens
-- Cross-run memory (v1.20.0) stores the evolution
-
-#### v1.22.0 — Expert Perspective Passes
-
-After the standard pipeline, run parallel "expert review" passes that scrutinize findings from specific domain perspectives.
-
-**Expert Personas:**
-- **CFO perspective**: scrutinize financial claims, flag unsupported revenue estimates, assess unit economics
-- **CTO perspective**: evaluate technology stack claims, assess technical moat, identify build-vs-buy signals
-- **Competitive analyst**: compare findings against known competitors (from memory if available), identify positioning gaps
-- **Risk analyst**: identify regulatory, market, and execution risks
-
-**Implementation:**
-- Each expert is a prompt persona + the same report, producing a short addendum
-- Spawn 3-4 parallel expert reviews (different prompts, same input) via existing ThreadPoolExecutor
-- Output: "Expert Perspectives" section appended to report, or separate sidecar document
-- `--with-experts` flag (opt-in, adds ~$0.10-0.20 for 3-4 Grok passes)
+- Cross-run memory (v1.21.0) stores the evolution
 
 #### v1.23.0 — Narrative Evolution
 
-Make Primr the system of record for how thinking evolves about a company.
+Make Primr the system of record for how thinking evolves about a company. Requires cross-run memory (v1.21.0).
 
 - Versioned research artifacts
 - Explicit "what changed and why" sections
