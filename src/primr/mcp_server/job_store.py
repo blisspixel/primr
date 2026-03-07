@@ -137,7 +137,7 @@ class ResearchJobState:
                         self.completion_time = _utcnow()
                 return True
         except ValueError:
-            pass
+            pass  # new_stage not in ResearchStage — return False below
         return False
 
     def get_status(self) -> JobStatus:
@@ -362,8 +362,11 @@ class SingleJobStore(JobStore):
                 with open(self._journal_path, encoding="utf-8") as f:
                     data = json.load(f)
                 self._job = ResearchJobState.from_journal_dict(data)
-            except (json.JSONDecodeError, KeyError, ValueError):
-                # Corrupted journal, start fresh
+            except (json.JSONDecodeError, KeyError, ValueError) as e:
+                import logging
+                logging.getLogger(__name__).warning(
+                    "Corrupted job journal at %s, starting fresh: %s", self._journal_path, e
+                )
                 self._job = None
 
     def _save_journal(self) -> None:

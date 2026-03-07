@@ -329,7 +329,7 @@ class HTTPClient:
             )
             return response
         except requests.RequestException as e:
-            logger.debug(f"HEAD {url} failed: {e}")
+            logger.warning("HEAD %s failed: %s", url, e)
             return None
 
     def _record_request(self, success: bool, duration: float) -> None:

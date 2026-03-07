@@ -6,9 +6,12 @@ Uses BeautifulSoup for robust HTML parsing and reader-mode extraction.
 """
 
 import contextlib
+import logging
 import re
 
 from bs4 import BeautifulSoup, NavigableString
+
+logger = logging.getLogger(__name__)
 
 # Tags to remove in both modes
 NOISE_TAGS_ALWAYS = ["script", "style", "noscript", "meta", "link", "svg", "canvas", "iframe"]
@@ -247,7 +250,8 @@ def extract_clean_text(
     # Decode bytes
     try:
         html = raw_html.decode("utf-8", errors="ignore")
-    except Exception:
+    except (UnicodeDecodeError, AttributeError) as e:
+        logger.warning("HTML decode failed in extract_clean_text: %s", e)
         return ""
 
     # Reject binary/non-HTML content that would crash the parser
@@ -385,8 +389,7 @@ def extract_text_from_pdf(pdf_bytes: bytes) -> str | None:
         return text if text else None
 
     except Exception as e:
-        import logging
-        logging.getLogger(__name__).debug("PDF text extraction failed: %s", e)
+        logger.warning("PDF text extraction failed: %s", e)
         return None
 
 
@@ -445,9 +448,7 @@ Return the extracted content in clean, readable format with proper structure."""
         return text if len(text) >= 100 else extract_text_from_pdf(pdf_bytes)
 
     except Exception as e:
-        # Fall back to PyMuPDF on any LLM failure
-        import logging
-        logging.getLogger(__name__).debug("LLM PDF extraction failed, falling back to PyMuPDF: %s", e)
+        logger.warning("LLM PDF extraction failed, falling back to PyMuPDF: %s", e)
         return extract_text_from_pdf(pdf_bytes)
 
 
@@ -471,7 +472,8 @@ def extract_main_content(raw_html: bytes) -> str:
 
     try:
         html = raw_html.decode("utf-8", errors="ignore")
-    except Exception:
+    except (UnicodeDecodeError, AttributeError) as e:
+        logger.warning("HTML decode failed in extract_main_content: %s", e)
         return ""
 
     # Reject binary/non-HTML content that would crash the parser
@@ -625,7 +627,8 @@ def get_page_title(raw_html: bytes) -> str | None:
 
     try:
         html = raw_html.decode("utf-8", errors="ignore")
-    except Exception:
+    except (UnicodeDecodeError, AttributeError) as e:
+        logger.warning("HTML decode failed in get_page_title: %s", e)
         return None
 
     match = re.search(r"<title[^>]*>(.*?)</title>", html, flags=re.DOTALL | re.IGNORECASE)
@@ -653,7 +656,8 @@ def get_meta_description(raw_html: bytes) -> str | None:
 
     try:
         html = raw_html.decode("utf-8", errors="ignore")
-    except Exception:
+    except (UnicodeDecodeError, AttributeError) as e:
+        logger.warning("HTML decode failed in get_meta_description: %s", e)
         return None
 
     # Try different meta description patterns
