@@ -77,3 +77,24 @@ def test_append_run_event_keeps_recent_200(tmp_path):
     assert len(events) == 200
     assert events[0]["message"] == "event-5"
     assert events[-1]["message"] == "event-204"
+
+
+def test_validate_scrape_quality_thresholds():
+    ok, reason = research_agent._validate_scrape_quality(
+        {"https://example.com": "x" * 1000},
+        min_pages=1,
+        min_chars=500,
+    )
+    assert ok is True
+    assert "Scrape quality too low" in reason
+
+
+def test_strategy_money_to_millions_conversions():
+    assert research_agent._strategy_money_to_millions(2, "B") == 2000.0
+    assert research_agent._strategy_money_to_millions(500, "K") == 0.5
+    assert research_agent._strategy_money_to_millions(12, "M") == 12
+
+
+def test_a_or_an_helper():
+    assert research_agent._a_or_an("enterprise") == "an"
+    assert research_agent._a_or_an("platform") == "a"
