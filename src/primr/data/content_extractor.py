@@ -225,7 +225,7 @@ class ContentExtractor:
             )
 
         except Exception as e:
-            logger.debug(f"Error parsing table: {e}")
+            logger.warning(f"Error parsing table: {e}")
             return None
 
     def extract_lists(self, html: str) -> list[ExtractedList]:
