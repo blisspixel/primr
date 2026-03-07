@@ -13,9 +13,11 @@ For completed work, see the [Changelog](#changelog) at the bottom of this file, 
 ### Research Engines
 
 **Scrape Mode**: 8-tier web scraping with intelligent escalation (browser-first):
-- Browser tiers: Playwright, Playwright aggressive, DrissionPage stealth, DrissionPage (driverless CDP)
+- Browser tiers: Playwright, Playwright aggressive
+- TLS impersonation: curl_cffi (tier 3 — tried before stealth browsers)
+- Stealth browser tiers: DrissionPage stealth, DrissionPage (driverless CDP)
 - Vision tier: Screenshot + LLM extraction for image-heavy pages (enabled by default, can be disabled)
-- HTTP tiers: curl_cffi (TLS fingerprint impersonation), httpx, requests
+- HTTP tiers: httpx, requests
 - Content-type routing: automatic PDF detection and LLM-powered extraction with PyMuPDF fallback
 - Reader-mode content extraction (BeautifulSoup-based, removes boilerplate)
 - Content quality validation (catches garbage pages, triggers escalation)
@@ -317,7 +319,7 @@ A company's positioning makes more sense when you know what the industry looks l
 - Individual company analysis may interpret with industry context but must cite specific scraped content
 - These invariants prevent hallucination propagation across the batch
 
-#### v1.14.0 — Refinement and Learning Loop
+#### v1.20.2 — Refinement and Learning Loop
 
 Goal: Support post-discovery learning without re-running everything from scratch. This is the primitive that enables Deepr experts to learn over time.
 
@@ -351,7 +353,7 @@ Goal: After standard pipeline, run parallel "expert review" passes that scrutini
 
 **Connection to Deepr:** Expert perspectives are the read-only version of what Deepr experts do. A Primr expert pass produces a one-shot assessment; a Deepr expert accumulates those assessments across sessions and fills its own gaps. Primr expert passes can seed Deepr experts with initial domain knowledge.
 
-#### v1.15.0 — POV and Narrative Evolution
+#### v1.22.0 — POV and Narrative Evolution
 
 Goal: Make Primr the system of record for how thinking evolves about a company.
 

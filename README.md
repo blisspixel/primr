@@ -295,7 +295,7 @@ From the executive summary of a sample report:
 > - The company has no disclosed AI strategy, but 4 of their last 7 engineering hires have ML/optimization backgrounds. Combined with a patent filing for "autonomous route replanning under disruption," this suggests an unannounced product line. *[Confidence: Inferred]*
 > - Pricing has shifted from perpetual licenses to consumption-based billing (per-shipment), visible in public procurement portal RFP responses. *[Confidence: Reported]*
 
-Reports include 20+ structured chapters, SWOT analysis, competitive landscape, discovery questions, and inline confidence levels on every non-obvious claim.
+Reports include 23 structured sections, SWOT analysis, competitive landscape, discovery questions, and inline confidence levels on every non-obvious claim.
 
 ## Batch Research
 
@@ -351,7 +351,7 @@ Playwright tiers now perform adaptive lazy-load scrolling (up to 20 steps by def
 
 | Model | Role | Pricing (per 1M tokens) |
 |-------|------|-------------------------|
-| Grok 4.1 Fast | Default mode: analysis, writing, strategy | $0.20 in / $0.50 out |
+| Grok 4.1 | Default mode: analysis, writing, strategy | $0.20 in / $0.50 out |
 | Gemini 3 Flash | Scraping, link selection, QA | $0.50 in / $3 out |
 | Gemini 3.1 Pro | `--premium` mode: section writing, analysis | $2/$12 (≤200k) · $4/$18 (>200k) |
 | Deep Research Agent | `--premium` mode: autonomous research | ~$2.50/task (flat) |
