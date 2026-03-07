@@ -4,7 +4,7 @@ Current State: v1.16.0 (March 2026)
 
 Primr is a CLI-first, local research tool for company intelligence and strategic analysis. It aims to accelerate research workflows while being transparent about uncertainty.
 
-The design is intentionally opinionated and local-first. This roadmap reflects planned improvements ordered to build toward Primr's role as research infrastructure — the foundation that tools like [Deepr](https://github.com/blisspixel/deepr) route through for company intelligence.
+The design is intentionally opinionated and local-first. This roadmap reflects planned improvements ordered by practical impact — first make runs faster and cheaper, then expand provider options and data extraction, then enable compounding knowledge across runs.
 
 For completed work, see the [Changelog](#changelog) at the bottom of this file, or check [GitHub releases](https://github.com/blisspixel/primr/releases) for the latest.
 
@@ -48,6 +48,14 @@ For completed work, see the [Changelog](#changelog) at the bottom of this file, 
 - OpenClaw integration with skills and workflows
 - Claude Skills directory
 
+### Quality & Trust
+
+- Deterministic QA checks: hypothesis coverage, confidence labels, section length, citation density, report-type-aware structure
+- `QAGateHook` with `ReportAnalyzer`-backed scoring (6 checks, penalty system)
+- Claim verification via `--verify` flag (~$0.01, 3-5 min) — extracts claims, challenges them with DDG searches, produces trust score
+- Versioned model evaluation harness: `primr eval` with scorecard generation (Markdown + CSV), versioned eval IDs, acceptance gates
+- Output improvement: `primr improve` for deterministic cleanup + optional agentic review pass
+
 ### Operational Maturity
 
 - Cost estimation, usage tracking, job recovery, crash/reboot recovery
@@ -71,186 +79,96 @@ Primr is intentionally not designed as a generic web scraper, a SaaS collaborati
 
 ## Planned Work
 
-Ordered to build toward Primr as research infrastructure: first make output better and cheaper, then add trust and speed, then enable compounding knowledge and expert-level intelligence. Each layer feeds the next — and feeds Deepr's routing, expert learning, and batch orchestration.
+Ordered by practical impact: first make runs faster and cheaper, then expand provider options and data extraction, then enable compounding knowledge across runs.
 
-### Phase 1: Quality Foundation
+### Near-Term
 
-Make individual reports better and prove it with data.
+Scoped, practical improvements. Some are partially built.
 
-#### v1.13.0 — QA-Driven Report Iteration
+#### v1.17.0 — Quick Mode, Pipeline Overlap, and QA Iteration
 
-Goal: Use QA feedback to iteratively improve weak sections until reports hit 90+.
+**Quick Mode (`--quick`)**
 
-**Deterministic Verification (Complete):**
+A real quick profile that finishes in under 5 minutes for most companies. Ideal for batch screening or fast lookups.
 
-Added code-level quality checks that run before (or instead of) AI-based scoring, validated by SkillsBench research (arXiv:2602.12670) showing deterministic checks outperform model-only evaluation for structural quality:
+- New CLI profile with explicit runtime budget and reduced token/search footprint
+- Tight phase budget: fewer sections, capped external queries, smaller synthesis context
+- Quality floor + graceful fallback when evidence is thin
+- Target: median runtime < 5 min, cost < $0.10, with citations and confidence labels
+- Users choose between `quick` (speed), `standard` (balanced), and `premium` (depth)
 
-- **Hypothesis coverage**: Counts `(Hypothesis)` labels and validation phrases (`we hypothesize`, `to validate`, `worth validating`) with report-type thresholds
-- **Confidence labels**: Counts all four epistemic labels `(Confirmed)`, `(Reported)`, `(Estimated)`, `(Hypothesis)` plus hedging phrases from `epistemic_rules.yaml`
-- **Section length analysis**: Flags truncated sections (< 50 words) that indicate incomplete generation
-- **Citation density**: Citations per 1000 words with type-specific thresholds (3.0 strategic, 2.0 AI strategy)
-- **Report-type-aware structure**: Different required-section checklists for strategic_overview vs ai_strategy
-- `QAGateHook` upgraded from 3 inline checks to `ReportAnalyzer`-backed scoring (6 checks, penalty system)
-- `QASubagent` expanded from 5 to 7 quality dimensions with new `hypothesis_framing` and `confidence_labels` scores
+**Pipeline Overlap**
 
-**Iteration Workflow (Planned):**
-1. Generate report
-2. Run QA, get feedback on specific weak sections
-3. Re-run just those sections with targeted improvements
-4. Repeat until grade >= 90
+Reduce end-to-end runtime by overlapping independent pipeline phases.
 
-Learny validated this pattern: their quality loop (grade -> specific feedback -> regenerate) across 286 documents achieved 98.6% A-grade. The key insight: feedback must be *specific* ("section X lacks quantified metrics") not generic ("improve quality").
+- Current: scrape all 50 pages → THEN start external search → THEN summarize
+- Upgrade: start external search after homepage content is available (don't wait for all pages)
+- External searches hit different hosts (DDG, news sites) — safe to run alongside primary site scraping
+- Insight extraction can begin on early pages while later pages are still scraping
+- Simple scheduling with `asyncio.gather()` — no orchestration framework needed
+- Expected gain: 5-10 min overlap between scraping and external research phases
 
-Implementation:
+What's already parallel (no changes needed):
+- Section writing: `ThreadPoolExecutor(max_workers=4)` — up to 4 sections concurrently
+- External search queries: `ThreadPoolExecutor(max_workers=3)` — 3 concurrent DDG/Google queries
+- Per-host rate limiting: 2 concurrent/host, 20 req/min/host, with 0-1.5s random jitter
+
+Why same-host scraping stays sequential: all 50 pages come from one company website. Concurrent requests to the same host is a bot detection signal. Sequential with per-host jitter, sticky tier optimization, and circuit breakers mimics human browsing. This is an intentional design choice, not a limitation.
+
+Completion guarantees:
+- All overlapped phases must complete before downstream stages start (no partial results)
+- `asyncio.gather(return_exceptions=True)` with explicit error handling
+- Run state tracks per-phase completion status for crash recovery
+- Progress display updated to show concurrent phases (e.g., "Scraping 23/50 | Searching 4/10")
+
+**QA Iteration Loop**
+
+Use QA feedback to iteratively improve weak sections until reports hit 90+.
+
 - `primr refine "Company"` command to re-run weak sections
 - QA identifies specific sections needing work
 - Section-level regeneration without full pipeline re-run
+- Repeat until grade >= 90
 
-#### v1.13.1 — Versioned Model Evaluation Harness
+**Scraper Observability**
 
-Goal: Make model/profile upgrades measurable and repeatable before changing defaults.
+- Per-tier success rate, latency p95, and content quality score
+- Stored in run state JSON for post-hoc analysis
+- `primr doctor --scraper-stats` to show tier performance across recent runs
+- Informs sticky tier policy and circuit breaker thresholds
 
-Problem this solves:
-- New model releases (for example Pro/Flash/Grok variants) are hard to compare consistently
-- Teams need a defensible quality/cost decision, not anecdotal "looks better"
+### Medium-Term
 
-Planned capabilities:
-- `primr eval` workflow to run a fixed company corpus across profiles (for example `full`, `full --lite`, `--fast`)
-- Versioned evaluation IDs (for example `eval-2026-02-r1`) with immutable run manifests
-- Aggregated scorecard per profile: cost, runtime, document length, citation density, required-section completeness, confidence-label coverage
-- Side-by-side comparison output (Markdown + CSV) for baseline vs candidate profiles
-- Configurable acceptance gates (example: quality >= 80% baseline and cost <= 20% baseline)
-- CI guard for regression detection on a lightweight fixture corpus
+Larger investments that expand Primr's capabilities.
 
-Success criteria:
-- Model default changes are backed by saved scorecards, not one-off manual judgment
-- Users can answer "is this new model worth it?" in one command with reproducible evidence
+#### v1.18.0 — OpenAI Deep Research and Cross-Provider Eval
 
-#### v1.13.1b — True Quick Mode
+**OpenAI Deep Research Integration**
 
-Goal: Add a real quick profile that finishes in under 5 minutes for most companies. This becomes the cheap routing tier that Deepr auto-routes to for simple lookups.
+Add OpenAI's Deep Research API as a third provider option alongside Grok and Gemini.
 
-Scope:
-- New CLI profile (`--quick`) with explicit runtime budget and reduced token/search footprint
-- Tight phase budget: fewer sections, capped external queries, and smaller synthesis context
-- Quality floor + graceful fallback when evidence is thin
-- Eval-harness benchmark vs standard mode for utility-per-minute and utility-per-dollar
-
-Success criteria:
-- Median runtime < 5 minutes on eval corpus
-- Produces a usable briefing artifact with citations and explicit confidence labels
-- Users can choose between `quick` (speed), `standard` (balanced), and `premium` (depth) tiers
-
-### Phase 2: Multi-Provider & Speed
-
-More provider options and faster execution. These directly feed Deepr's auto-routing — more providers means smarter routing decisions.
-
-#### v1.13.2 — OpenAI Deep Research Integration
-
-Goal: Add OpenAI's Deep Research API as an alternative research backend, giving users a third provider option alongside Grok and Gemini.
-
-**Motivation:** OpenAI's Deep Research API offers a different cost/depth/speed tradeoff. Adding it unlocks better defaults — the eval harness (v1.13.1) can determine which provider wins at each tier (quick, standard, premium) based on real data instead of assumptions.
-
-**Research Tiers:**
-- **Quick**: Lightweight OpenAI Deep Research call for fast external research (potential replacement for DDG search + scrape in standard mode)
-- **Full**: Full-depth OpenAI Deep Research for comprehensive analysis (potential `--premium` alternative to Gemini DR)
-
-**Implementation:**
 - `OPENAI_API_KEY` env var support
 - OpenAI Deep Research client in `src/primr/ai/`
 - `--provider openai` flag (or auto-detect from available keys)
 - Cost estimator updated with OpenAI DR pricing
 - Shared deep research parsing/polling modules extended for OpenAI response format
+- Which tier(s) OpenAI DR best serves (quick, standard, premium) determined by eval results, not assumption
 
-**Decision:** Which tier(s) OpenAI DR best serves (quick, standard, premium) will be determined by eval results from v1.13.1, not by assumption.
+**Cross-Provider Eval**
 
-#### v1.13.3 — Cross-Provider Eval and Tier Optimization
+Extend the eval harness to compare all available providers and determine the best default for each research tier.
 
-Goal: Extend the eval harness to compare all available providers and determine the best default for each research tier.
-
-**Motivation:** With three providers (Grok, Gemini, OpenAI), the eval system should answer: what's the best option for quick runs, standard runs, and premium runs? These answers should be data-driven, not hardcoded.
-
-**Planned capabilities:**
 - Eval profiles expanded: `grok-standard`, `gemini-premium`, `openai-quick`, `openai-full`, etc.
 - Cross-provider scorecard: quality, cost, runtime, citation density compared side-by-side
 - Tier recommendation output: "For quick: use X, for standard: use Y, for premium: use Z"
 - Auto-detect available API keys and only eval providers the user has access to
 - Historical eval tracking: compare across eval IDs to see if a provider improved over time
 
-**Success criteria:**
-- `primr eval` can answer "which provider should be my default?" with evidence
-- Tier defaults (quick/standard/premium) are backed by saved scorecards across providers
-
-#### v1.17.0 — Pipeline Overlap and Scraper Observability
-
-Goal: Reduce end-to-end runtime by overlapping independent pipeline phases, and add per-tier metrics for data-driven scraper tuning.
-
-**What's already parallel (no changes needed):**
-- Section writing: `ThreadPoolExecutor(max_workers=4)` — up to 4 Grok sections concurrently
-- External search queries: `ThreadPoolExecutor(max_workers=3)` — 3 concurrent DDG/Google queries
-- Per-host rate limiting: 2 concurrent/host, 20 req/min/host, with 0-1.5s random jitter
-
-**Why same-host scraping stays sequential:**
-All 50 pages in a run come from one company website. Blasting concurrent requests to the same host is a bot detection signal. The current approach — sequential with per-host jitter (0-1.5s random delays), sticky tier optimization, and circuit breakers — mimics human browsing. The rate limiter already caps at 2 concurrent per host, but in practice sequential-with-jitter is what avoids WAF blocks, Cloudflare challenges, and fingerprint-based bot detection. This is an intentional design choice, not a limitation.
-
-**Phase Overlap (the real runtime win):**
-- Current: scrape all 50 pages -> THEN start external search -> THEN summarize
-- Upgrade: start external search after homepage content is available (don't wait for all 50 pages)
-- External searches hit different hosts (DDG, news sites, press releases) — safe to run alongside primary site scraping
-- Insight extraction can begin on early pages while later pages are still scraping
-- Simple scheduling with `asyncio.gather()` — no orchestration framework needed
-- Pattern from [Anthropic's multi-agent research system](https://www.anthropic.com/engineering/multi-agent-research-system): parallelism at the execution level, not the architecture level
-- Expected gain: 5-10 min overlap between scraping and external research phases
-
-**Completion Guarantees:**
-- All overlapped phases must complete before downstream stages start (no partial results)
-- `asyncio.gather(return_exceptions=True)` with explicit error handling
-- Run state tracks per-phase completion status for crash recovery
-- Progress display updated to show concurrent phases (e.g., "Scraping 23/50 | Searching 4/10")
-
-**Scraper Tier Metrics:**
-- Per-tier success rate, latency p95, and content quality score
-- Stored in run state JSON for post-hoc analysis
-- `primr doctor --scraper-stats` to show tier performance across recent runs
-- Informs sticky tier policy and circuit breaker thresholds
-
-**OpenTelemetry Spans:**
-- Add spans per scrape tier attempt and per search query
-- Trace scraping -> extraction -> summarization flow end-to-end
-- Compatible with existing OTel setup
-
-### Phase 3: Trust & Richer Data
-
-Verify claims independently and extract more from visual content. Trust scoring feeds Deepr's source trust decisions and expert confidence tracking.
-
-#### v1.18.0 — Verification Agent and Trust Scoring
-
-Goal: Add a post-QA "skeptic" pass that actively disputes claims using fresh web searches, producing auditable trust scores.
-
-**Skeptic Agent (orchestrator-worker pattern):**
-- After QA pass, a lead verifier extracts all claims with confidence > 0.6
-- Spawns parallel worker searches (DDG) to challenge each claim — different hosts, safe to parallelize
-- Workers return evidence; lead verifier compares against report claims
-- Produces a delta report: confirmed, disputed, unverifiable
-- Pattern matches [Anthropic's production research system](https://www.anthropic.com/engineering/multi-agent-research-system): lead agent + parallel subagents, synchronous gather
-- Opt-in via `--verify` flag (adds 5-10 min, negligible cost since DDG is free)
-- Trust score: percentage of claims independently verified
-
-**Trust Score in Output:**
-- Report header includes verification summary (e.g., "Trust: 94% verified, 3% disputed, 3% unverifiable")
-- Disputed claims get inline annotations with counter-evidence
-- QA score incorporates verification results
-
-**Implementation:**
-- New `VerifierSubagent` in agentic/subagents.py
-- Orchestrator stage: `IDLE -> SCRAPING -> ANALYZING -> WRITING -> QA -> VERIFYING -> COMPLETED`
-- Hooks: `VerificationGateHook` can block output if trust < configurable threshold
-
 #### v1.19.0 — First-Class VLM Extraction
 
-Goal: Promote vision extraction from fallback tier to first-class path for data-dense pages (charts, tables, IR decks, org charts).
+Promote vision extraction from fallback tier to first-class path for data-dense pages (charts, tables, IR decks, org charts).
 
-**Motivation:** Corporate sites in 2026 are increasingly visual — investor relations decks, product comparison matrices, org charts, and pricing tables are often images or rendered graphics that pure-text extraction misses entirely. The vision tier (tier 6) already works but only triggers after 5 other tiers fail.
+Corporate sites are increasingly visual — investor relations decks, product comparison matrices, org charts, and pricing tables are often images or rendered graphics that pure-text extraction misses. The vision tier already works but only triggers after 5 other tiers fail.
 
 **Smart VLM Routing:**
 - Content-type detection identifies pages likely to be data-dense (PDF, pages with high image-to-text ratio)
@@ -268,20 +186,18 @@ Goal: Promote vision extraction from fallback tier to first-class path for data-
 - `--vlm-budget N` flag to cap VLM calls per run (default: 10 pages)
 - Cost estimator updated with VLM pricing
 
-### Phase 4: Compounding Knowledge
+### Stretch Goals
 
-Make research compound across runs. This is where Learny's patterns pay off most — and where Primr becomes the knowledge layer that Deepr experts build on.
+Ambitious ideas that would meaningfully expand what Primr can do. These depend on the earlier work and may or may not happen.
 
 #### v1.20.0 — Cross-Run Research Memory
 
-Goal: Make research compound across runs by persisting extracted claims, citations, and hypotheses in a searchable store.
+Make research compound across runs by persisting extracted claims, citations, and hypotheses in a searchable store.
 
-**Motivation:** Currently each run starts fresh. If you research 50 companies in the same industry, each run rediscovers the same industry context. Cross-run memory enables meta-research ("show AI strategy evolution across all fintech targets") and few-shot learning for new verticals.
-
-Learny proved this pattern at scale: their Stage 3 builds a corpus-wide knowledge base from ALL documents, then every subsequent analysis has full context. The same principle applies across Primr runs — industry context discovered in run 1 should inform run 50.
+Currently each run starts fresh. If you research 50 companies in the same industry, each run rediscovers the same industry context. Cross-run memory enables meta-research ("show AI strategy evolution across all fintech targets") and better hypothesis quality for repeat verticals.
 
 **Implementation:**
-- SQLite-backed claim store (no external dependencies like Neo4j/Redis)
+- SQLite-backed claim store (no external dependencies)
 - Each claim stored with: company, section, text, confidence, citations, timestamp, embedding
 - Embedding via local model (sentence-transformers) or API (Gemini embedding)
 - `primr memory search "AI strategy fintech"` to query across all past runs
@@ -299,44 +215,33 @@ Learny proved this pattern at scale: their Stage 3 builds a corpus-wide knowledg
 
 #### v1.20.1 — Industry Knowledge Base for Batch Runs
 
-Goal: When researching multiple companies in the same industry, build shared industry context first, then analyze each company with that context.
-
-**Motivation:** Direct port of Learny's most powerful pattern. Learny's Stage 3 (Synthesis) builds a knowledge base from ALL extracted facts before any individual analysis runs. For Primr batch runs, this means: scrape all companies first, build an industry synthesis (themes, trends, common tech stacks, competitive dynamics), then inject that context into each company's analysis.
+When researching multiple companies in the same industry, build shared industry context first, then analyze each company with that context.
 
 A company's positioning makes more sense when you know what the industry looks like. "Company X uses Kubernetes" is unremarkable if every company in the batch does. "Company X still runs bare-metal" is remarkable if nobody else does.
 
-**Implementation:**
 - `--batch companies.csv --industry-context` flag
 - Phase 0: scrape all companies (existing batch behavior)
 - Phase 0.5 (new): synthesize industry-wide patterns from all scrape results
-  - Themes, trends, common tech stacks, competitive dynamics
-  - Cost: one extra synthesis call (~$0.05), reused across all company analyses
 - Phase 1+: each company analysis receives industry context as additional input
 - Industry synthesis saved as a reusable artifact
+- Cost: one extra synthesis call (~$0.05), reused across all company analyses
 
-**Stage Invariants (from Learny):**
-- Industry synthesis may identify patterns and contradictions but may NOT introduce claims not present in scraped data
+**Invariants:**
+- Industry synthesis may identify patterns but may NOT introduce claims not present in scraped data
 - Individual company analysis may interpret with industry context but must cite specific scraped content
-- These invariants prevent hallucination propagation across the batch
 
-#### v1.20.2 — Refinement and Learning Loop
+#### v1.21.0 — Refinement and Learning Loop
 
-Goal: Support post-discovery learning without re-running everything from scratch. This is the primitive that enables Deepr experts to learn over time.
+Support post-discovery learning without re-running everything from scratch.
 
 - `primr refine` command accepting new information, notes, and follow-up findings
 - Re-synthesize insights with updated confidence and revised hypotheses
 - Outputs evolve as understanding deepens
 - Cross-run memory (v1.20.0) stores the evolution
 
-### Phase 5: Expert-Level Intelligence
+#### v1.22.0 — Expert Perspective Passes
 
-Add perspective and narrative depth. These features directly feed Deepr's expert system — expert personas become Deepr domain experts, and narrative evolution becomes expert knowledge tracking.
-
-#### v1.21.0 — Expert Perspective Passes
-
-Goal: After standard pipeline, run parallel "expert review" passes that scrutinize findings from specific domain perspectives.
-
-**Motivation:** Learny generates multi-perspective insights (business leaders, architects, developers, product teams) for every document. Primr can do the same: the report is the shared artifact, and each expert persona is a prompt that reviews it from a specific angle.
+After the standard pipeline, run parallel "expert review" passes that scrutinize findings from specific domain perspectives.
 
 **Expert Personas:**
 - **CFO perspective**: scrutinize financial claims, flag unsupported revenue estimates, assess unit economics
@@ -349,27 +254,19 @@ Goal: After standard pipeline, run parallel "expert review" passes that scrutini
 - Spawn 3-4 parallel expert reviews (different prompts, same input) via existing ThreadPoolExecutor
 - Output: "Expert Perspectives" section appended to report, or separate sidecar document
 - `--with-experts` flag (opt-in, adds ~$0.10-0.20 for 3-4 Grok passes)
-- Expert findings feed back into cross-run memory as tagged claims
 
-**Connection to Deepr:** Expert perspectives are the read-only version of what Deepr experts do. A Primr expert pass produces a one-shot assessment; a Deepr expert accumulates those assessments across sessions and fills its own gaps. Primr expert passes can seed Deepr experts with initial domain knowledge.
+#### v1.23.0 — Narrative Evolution
 
-#### v1.22.0 — POV and Narrative Evolution
-
-Goal: Make Primr the system of record for how thinking evolves about a company.
+Make Primr the system of record for how thinking evolves about a company.
 
 - Versioned research artifacts
 - Explicit "what changed and why" sections
-- Optional narrative framing outputs
 - Diff-style comparison between runs: what shifted in confidence, what new evidence appeared
 - Timeline view: how understanding of a company evolved across runs
 
-This feeds Deepr's expert knowledge tracking — experts don't just know facts, they know how understanding has changed over time.
-
-### Phase 6: Release
-
 #### v2.0.0 — Public Release
 
-Goal: Make Primr available to the broader community via PyPI.
+Make Primr available to the broader community via PyPI.
 
 **Prerequisites:**
 - v1.8.1 Content Sanitization Layer (complete - security requirement satisfied)
@@ -380,6 +277,19 @@ Goal: Make Primr available to the broader community via PyPI.
 - ~~GitHub Actions CI/CD for automated testing~~ (done - lint, type check, tests run on every push)
 - Contribution workflow for external contributors
 - Documentation site
+
+---
+
+## Model Adaptability
+
+AI models are released frequently. Primr's strategy for staying current without chasing hype:
+
+1. **Eval harness** — `primr eval` runs a fixed company corpus across profiles and generates a scorecard (cost, runtime, citation density, section completeness, confidence-label coverage)
+2. **Data-driven adoption** — A candidate model is adopted when: trust gate passes, mean decision-utility score >= 80% of baseline, and cost meets budget targets
+3. **Model registry** — New models are registered in `src/primr/config/models.py` with pricing, context limits, and capability flags. Task-specific aliases route the right model to the right job.
+4. **No lock-in** — The pipeline is model-agnostic by design. Grok for analysis, Gemini Flash for scraping, Deep Research for autonomous search — each can be swapped independently via the eval process.
+
+When a new model drops, the workflow is: register it → run eval → compare scorecard → adopt or skip. No gut decisions.
 
 ---
 
@@ -394,9 +304,9 @@ The QA feedback suggested replacing the linear pipeline with a DAG orchestration
 - [Community consensus](https://community.latenode.com/t/coordinating-multiple-ai-agents-for-scraping-validation-and-reporting-does-the-complexity-actually-pay-off/60040): keep simple pipelines simple; multi-agent DAGs only justified for horizontal scaling or dynamic replanning.
 
 **What Primr actually needs:**
-The real bottlenecks are sequential page scraping and sequential search queries — both fixed with `asyncio.gather()` in v1.17.0, no framework required. The verification agent (v1.18.0) is a single new pipeline stage, not a graph node. Phase overlap (external search starting after homepage instead of after all pages) is a scheduling optimization, not an architectural change.
+The real bottlenecks are sequential page scraping and sequential search queries — both fixable with `asyncio.gather()`, no framework required. The verification agent is a single pipeline stage (now implemented via `--verify`), not a graph node. Phase overlap (external search starting after homepage instead of after all pages) is a scheduling optimization, not an architectural change.
 
-**The decision:** Invest in targeted parallelism (v1.17.0) and a verification stage (v1.18.0) rather than a DAG framework. This matches how the best production research systems actually work — simple orchestration with parallel execution where it matters — while keeping Primr maintainable as a solo project.
+**The decision:** Invest in targeted parallelism and a verification stage rather than a DAG framework. This matches how the best production research systems actually work — simple orchestration with parallel execution where it matters — while keeping Primr maintainable as a solo project.
 
 ## Scale Readiness (Implemented in v1.6.0)
 
@@ -412,7 +322,7 @@ See [docs/CLOUD_DEPLOYMENT.md](docs/CLOUD_DEPLOYMENT.md) for deployment guide.
 
 ## Explicitly Deferred (By Design)
 
-These are conscious non-goals for now:
+These are conscious non-goals:
 
 **Web Interface**
 - Browser-based submission
@@ -421,6 +331,27 @@ These are conscious non-goals for now:
 **Collaboration and Sharing**
 - Accounts, permissions, comments
 - Sharing reports externally
+
+**Real-Time Monitoring**
+- Always-on company watching, webhooks, alerting
+- Primr is a job-based tool: you run it, get a brief, done
+
+**Quantum / Blockchain / Web3**
+- Quantum computing hooks for financial modeling
+- Blockchain-based citation verification
+- These add complexity with zero practical benefit for company research
+
+**Voice / Conversational Modes**
+- Interactive voice querying of reports
+- Chatbot interfaces
+
+**Generic Scraping Framework**
+- Primr's scraper exists to serve the research pipeline, not as a standalone tool
+- Not competing with Scrapy, Crawl4AI, or similar
+
+**Plugin / Extension Marketplace**
+- Community-contributed strategy types can be added via YAML PRs
+- No plugin architecture or marketplace planned
 
 ## TODO: README Assets
 
