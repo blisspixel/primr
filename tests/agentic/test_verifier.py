@@ -23,7 +23,6 @@ from src.primr.agentic.subagents.verifier import (
     VerifierSubagent,
 )
 
-
 # =============================================================================
 # Helpers
 # =============================================================================
@@ -211,7 +210,7 @@ class TestVerifierSubagent:
 
     def test_no_report_path_raises(self):
         """Missing report_path should raise SubagentError."""
-        from primr.agentic.errors import SubagentError as SE
+        from primr.agentic.errors import SubagentError
 
         context = SubagentContext(
             company_name="TestCo",
@@ -220,12 +219,12 @@ class TestVerifierSubagent:
             parent_results={},
         )
         verifier = VerifierSubagent(context)
-        with pytest.raises(SE, match="No report_path"):
+        with pytest.raises(SubagentError, match="No report_path"):
             asyncio.run(verifier.execute())
 
     def test_nonexistent_report_raises(self):
         """Nonexistent report path should raise SubagentError."""
-        from primr.agentic.errors import SubagentError as SE
+        from primr.agentic.errors import SubagentError
 
         context = SubagentContext(
             company_name="TestCo",
@@ -234,7 +233,7 @@ class TestVerifierSubagent:
             parent_results={"report_path": Path("/nonexistent/report.txt")},
         )
         verifier = VerifierSubagent(context)
-        with pytest.raises(SE, match="not found"):
+        with pytest.raises(SubagentError, match="not found"):
             asyncio.run(verifier.execute())
 
     def test_empty_report_returns_zero_trust(self):
@@ -766,9 +765,10 @@ class TestEndToEnd:
         mock_hits = [{"title": "Hit", "url": "https://example.com"}]
 
         import primr.ai.llm as llm_mod
-        with patch.object(llm_mod, "llm", side_effect=mock_llm):
-            with patch("primr.data.search_utils.search_web", return_value=mock_hits):
-                result = asyncio.run(verifier.execute())
+        with patch.object(llm_mod, "llm", side_effect=mock_llm), patch(
+            "primr.data.search_utils.search_web", return_value=mock_hits
+        ):
+            result = asyncio.run(verifier.execute())
 
         assert result.is_success
         assert result.status.value == "completed"
@@ -823,9 +823,10 @@ class TestEndToEnd:
             return extraction_response if call_idx == 1 else classification_response
 
         import primr.ai.llm as llm_mod
-        with patch.object(llm_mod, "llm", side_effect=mock_llm):
-            with patch("primr.data.search_utils.search_web", return_value=[]):
-                asyncio.run(verifier.execute())
+        with patch.object(llm_mod, "llm", side_effect=mock_llm), patch(
+            "primr.data.search_utils.search_web", return_value=[]
+        ):
+            asyncio.run(verifier.execute())
 
         json_path = report_path.parent / "verification.json"
         assert json_path.exists()

@@ -57,24 +57,20 @@ from primr.core.deep_research_runner import (
 # =============================================================================
 
 __all__ = [
-    # Re-exported types
     "CloudVendor",
     "DeepResearchConfig",
     "DeepResearchMode",
     "consolidate_working_folder",
-    # Workspace management
     "create_working_folder",
     "ensure_valid_url",
     "generate_initial_overview",
     "get_user_input",
+    "improve_output_file",
     "main",
-    # Main entry points
     "perform_research",
-    # Utility
     "process_csv",
     "research_section",
     "run_doctor",
-    # Structured research
     "run_research",
     "save_section_output",
     "validate_context_files",
@@ -1580,16 +1576,124 @@ def _clean_fast_report_output(report_content: str) -> str:
     # Also strip [cross-ref: ...] tags — internal analysis references
     report_content = re.sub(r"\s*\[cross-ref:[^\]]*\]", "", report_content, flags=re.IGNORECASE)
 
-    # 4. Strip LLM meta-annotations like [Word count: 1028]
+    # 4. Strip internal citation inventory/debug notes that should never ship.
+    report_content = re.sub(
+        r"\n?\[citation inventory[^\]]*\]\n?",
+        "\n",
+        report_content,
+        flags=re.IGNORECASE,
+    )
+
+    # 5. Strip LLM meta-annotations like [Word count: 1028]
     report_content = re.sub(r"\[Word count:\s*[\d,]+\]", "", report_content, flags=re.IGNORECASE)
 
-    # 5. Clean up double spaces left by stripped citations/tags
+    # 6. Clean up double spaces left by stripped citations/tags
     report_content = re.sub(r"  +", " ", report_content)
 
-    # 6. Clean up excess blank lines (3+ newlines → 2)
+    # 7. Clean up excess blank lines (3+ newlines -> 2)
     report_content = re.sub(r"\n{3,}", "\n\n", report_content)
 
     return report_content.strip() + "\n"
+_INTERNAL_REFERENCE_TERMS = (
+    "analysis context",
+    "vendor-research",
+    "workbook",
+    "company report",
+    "industry baseline",
+    "market analysis",
+    "itr on website",
+    "itron website",
+    "insights.txt",
+    "workbook.md",
+)
+
+
+def _strip_internal_source_placeholders(content: str) -> str:
+    """Remove non-auditable internal source placeholders from final outputs."""
+    if not content.strip():
+        return content
+
+    confidence_bracket = re.compile(r"\[(Confirmed|Reported|Estimated|Hypothesis):\s*([^\]]+)\]", re.IGNORECASE)
+
+    def _drop_if_internal(match: re.Match[str]) -> str:
+        source_text = match.group(2).lower()
+        if any(term in source_text for term in _INTERNAL_REFERENCE_TERMS):
+            return ""
+        return match.group(0)
+
+    cleaned = confidence_bracket.sub(_drop_if_internal, content)
+    cleaned = re.sub(r"\[(?:Reported|Confirmed|Estimated|Hypothesis):\s*\]", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\[citation inventory[^\]]*\]", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    return cleaned
+
+
+def _strategy_money_to_millions(value: float, unit: str) -> float:
+    unit = unit.upper()
+    if unit == "B":
+        return value * 1000.0
+    if unit == "K":
+        return value / 1000.0
+    return value
+
+
+def _compute_strategy_qa_metrics(strategy_content: str) -> dict[str, int | float | bool]:
+    """Deterministic QA checks for strategy outputs."""
+    if not strategy_content.strip():
+        return {
+            "placeholder_refs": 0,
+            "source_urls": 0,
+            "budget_totals_found": 0,
+            "budget_inconsistent": False,
+            "qa_gate_passed": False,
+        }
+
+    lower = strategy_content.lower()
+    placeholder_refs = sum(1 for term in _INTERNAL_REFERENCE_TERMS if term in lower)
+    source_urls = len(re.findall(r"\[Source:\s*https?://[^\]\s]+", strategy_content, re.IGNORECASE))
+
+    totals: list[float] = []
+    for m in re.finditer(r"Total\s*:?\s*\$([0-9]+(?:\.[0-9]+)?)\s*([KMB])", strategy_content, re.IGNORECASE):
+        totals.append(_strategy_money_to_millions(float(m.group(1)), m.group(2)))
+
+    for m in re.finditer(
+        r"Year 1 investment\s*\(?[^)]*\)?\s*:?\s*\$([0-9]+(?:\.[0-9]+)?)(?:\s*-\s*([0-9]+(?:\.[0-9]+)?))?\s*([KMB])",
+        strategy_content,
+        re.IGNORECASE,
+    ):
+        low = _strategy_money_to_millions(float(m.group(1)), m.group(3))
+        high = _strategy_money_to_millions(float(m.group(2)), m.group(3)) if m.group(2) else low
+        totals.append((low + high) / 2.0)
+
+    budget_inconsistent = False
+    if len(totals) >= 2:
+        min_total = min(totals)
+        max_total = max(totals)
+        if min_total > 0 and ((max_total - min_total) / min_total) > 0.05:
+            budget_inconsistent = True
+
+    qa_passed = bool(
+        placeholder_refs == 0
+        and source_urls >= 2
+        and not budget_inconsistent
+    )
+    return {
+        "placeholder_refs": placeholder_refs,
+        "source_urls": source_urls,
+        "budget_totals_found": len(totals),
+        "budget_inconsistent": budget_inconsistent,
+        "qa_gate_passed": qa_passed,
+    }
+
+
+def _clean_strategy_output(strategy_content: str) -> str:
+    """Final deterministic cleanup for strategy artifacts."""
+    if not strategy_content.strip():
+        return strategy_content
+    cleaned = _clean_fast_report_output(strategy_content)
+    cleaned = _strip_internal_source_placeholders(cleaned)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    return cleaned.strip() + "\n"
 
 
 def _normalize_fast_citations(report_content: str) -> str:
@@ -2928,6 +3032,9 @@ def perform_fast_research(
     strategy_types: list[str] | None = None,
     max_scrape_time: int | None = None,
     discovery_notes_content: str | None = None,
+    *,
+    folder_path: str | None = None,
+    resume_local: bool = False,
 ) -> str | None:
     """
     Fast research mode using Grok 4.1 with accordion-style batch writing.
@@ -2951,7 +3058,7 @@ def perform_fast_research(
     reset_grok_session()
 
     display_name = company_name or (urlparse(website or "").netloc if website else "")
-    folder_path = create_working_folder(company_name, website)
+    folder_path = folder_path or create_working_folder(company_name, website)
 
     try:
         has_strategies = ai_strategy or bool(strategy_types)
@@ -3213,13 +3320,19 @@ def perform_fast_research(
             external_sources_raw,
         )
 
-        with console.timed_operation("Generating analysis workbook via Grok"):
-            analysis_workbook = grok_llm(
-                analysis_prompt,
-                max_tokens=18_000,
-                temperature=0.5,
-                system_prompt=analysis_system,
-            )
+        try:
+            with console.timed_operation("Generating analysis workbook via Grok"):
+                analysis_workbook = grok_llm(
+                    analysis_prompt,
+                    max_tokens=18_000,
+                    temperature=0.5,
+                    system_prompt=analysis_system,
+                )
+        except Exception as analysis_err:
+            console.warn(f"Analysis workbook generation failed: {analysis_err}")
+            console.info("Continuing with collected insights as fallback workbook")
+            log_structured("warning", "Fast mode analysis fallback used", error=str(analysis_err))
+            analysis_workbook = combined_insights
 
         if not analysis_workbook or not analysis_workbook.strip():
             console.warn("Analysis workbook empty — falling back to insights for report")
@@ -3696,6 +3809,15 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
                             log_structured("warning", "Strategy enrichment failed, keeping original",
                                            vendor=vendor, error=str(enrich_err))
 
+                        strategy_content = _clean_strategy_output(strategy_content)
+                        strategy_qa = _compute_strategy_qa_metrics(strategy_content)
+                        qa_gate = "PASS" if strategy_qa["qa_gate_passed"] else "WARN"
+                        console.info(
+                            f"Strategy QA: placeholders={strategy_qa['placeholder_refs']}, "
+                            f"sources={strategy_qa['source_urls']}, "
+                            f"budget={'OK' if not strategy_qa['budget_inconsistent'] else 'WARN'}, gate={qa_gate}"
+                        )
+
                         strategy_path = _save_strategy_output(
                             strategy_content, company_name or display_name, vendor,
                             strategy_label="AI_Strategy",
@@ -3803,6 +3925,15 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
                         except Exception as enrich_err:
                             log_structured("warning", "Strategy enrichment failed, keeping original",
                                            strategy=stype, error=str(enrich_err))
+
+                        strategy_content = _clean_strategy_output(strategy_content)
+                        strategy_qa = _compute_strategy_qa_metrics(strategy_content)
+                        qa_gate = "PASS" if strategy_qa["qa_gate_passed"] else "WARN"
+                        console.info(
+                            f"Strategy QA: placeholders={strategy_qa['placeholder_refs']}, "
+                            f"sources={strategy_qa['source_urls']}, "
+                            f"budget={'OK' if not strategy_qa['budget_inconsistent'] else 'WARN'}, gate={qa_gate}"
+                        )
 
                         strategy_path = _save_strategy_output(
                             strategy_content, company_name or display_name, "agnostic",
@@ -4065,6 +4196,8 @@ def perform_research(
                 strategy_types=strategies,
                 max_scrape_time=max_scrape_time,
                 discovery_notes_content=discovery_notes_content,
+                folder_path=folder_path,
+                resume_local=resume_local,
             )
             if fast_path:
                 _update_run_state(folder_path, status="completed", current_phase="complete", completed_at=datetime.now().isoformat())
@@ -6879,6 +7012,69 @@ def _run_verification(
     return None
 
 
+
+def improve_output_file(file_path: str, *, in_place: bool = False, use_agentic: bool = False) -> str | None:
+    """Improve an existing markdown/text output artifact with deterministic + optional agentic QA cleanup."""
+    path = Path(file_path)
+    if not path.exists() or not path.is_file():
+        console.error(f"Improve failed: file not found: {file_path}")
+        return None
+
+    if path.suffix.lower() not in {".md", ".txt"}:
+        console.error("Improve supports .md or .txt files. Convert DOCX/PDF to markdown/text first.")
+        return None
+
+    try:
+        content = path.read_text(encoding="utf-8")
+    except Exception as e:
+        console.error(f"Improve failed: could not read file: {e}")
+        return None
+
+    is_strategy = "# AI Strategy:" in content or "_AI_Strategy_" in path.name
+
+    if is_strategy:
+        improved = content
+        if use_agentic:
+            cv = _strategy_cross_validate("Company", improved, "agnostic", [])
+            if cv.get("weak_sections") or cv.get("issues"):
+                improved = _strategy_polish("Company", "agnostic", improved)
+        improved = _clean_strategy_output(improved)
+        qa = _compute_strategy_qa_metrics(improved)
+        console.info(
+            "Improve QA (strategy): "
+            f"placeholders={qa['placeholder_refs']}, "
+            f"sources={qa['source_urls']}, "
+            f"budget={'OK' if not qa['budget_inconsistent'] else 'WARN'}, "
+            f"gate={'PASS' if qa['qa_gate_passed'] else 'WARN'}"
+        )
+    else:
+        improved = content
+        if use_agentic:
+            cv = _fast_cross_validate("Company", None, improved, [])
+            if cv.get("weak_sections") or cv.get("contradictions"):
+                improved = _polish_fast_report_for_trust("Company", None, improved, [])
+        improved = _normalize_fast_citations(improved)
+        improved = _clean_fast_report_output(improved)
+        improved = _strip_internal_source_placeholders(improved)
+        improved = _enforce_fast_section_quality_guards(improved)
+        qa = _compute_fast_report_qa_metrics(improved)
+        console.info(
+            "Improve QA (report): "
+            f"labels={qa['confidence_labels']}, "
+            f"cites={qa['citations_used']}/{qa['citations_defined']}, "
+            f"validate={qa['sections_with_validate']}/{qa['section_count']}, "
+            f"gate={'PASS' if qa['qa_gate_passed'] else 'WARN'}"
+        )
+
+    out_path = path if in_place else path.with_name(f"{path.stem}_improved{path.suffix}")
+    try:
+        out_path.write_text(improved, encoding="utf-8")
+    except Exception as e:
+        console.error(f"Improve failed: could not write output: {e}")
+        return None
+
+    return str(out_path)
+
 def process_csv(
     file_path: str,
     mode: str = "complete",
@@ -7385,3 +7581,11 @@ def _legacy_main_removed():
 
 if __name__ == "__main__":
     main()
+
+
+
+
+
+
+
+

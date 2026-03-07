@@ -42,7 +42,9 @@ Manual research takes hours. Primr typically runs in about 30 minutes and costs 
 | `--mode scrape` | Crawl site + extract insights only | 5-10 min | $0.10 |
 | `--mode deep` | Gemini Deep Research on external sources only | 10-15 min | $2.50 |
 
-The default `primr` command auto-detects: when `XAI_API_KEY` is set, it uses Grok 4.1 (fast, cheap, high quality). Without it, falls back to Gemini. Use `--premium` to explicitly request the Gemini + Deep Research pipeline for maximum depth.
+The default `primr` command auto-detects: when `XAI_API_KEY` is set, it uses the Grok 4.1 standard pipeline (fastest standard quality profile, cheap, high quality). Without it, falls back to Gemini. Use `--premium` to explicitly request the Gemini + Deep Research pipeline for maximum depth.
+
+Naming note: historical references to "fast mode" in logs/code refer to this standard Grok pipeline. A separate true quick mode target (under 5 minutes) is planned as a future profile.
 
 **Strategy types** (use `primr --list-strategies` for details): `ai` (default), `customer_experience`, `modern_security_compliance`, `data_fabric_strategy`. Strategy types are defined by YAML configs in `src/primr/prompts/strategies/` and auto-discovered at runtime.
 
@@ -141,6 +143,9 @@ primr "Company" https://company.com --premium --lite     # Cheaper premium strat
 primr "Company" https://company.com --skip-scrape-validation      # Continue even if scrape quality is low
 primr "Company" https://company.com --resume-local                # Reuse latest incomplete local run folder
 primr --resume-latest                                              # Recover completed cloud jobs and finalize MD/DOCX
+primr --improve "output/Company_Strategic_Overview_03-06-2026.md"          # Improve an existing output file
+primr improve "output/Company_AI_Strategy_AZURE_03-06-2026.md" --improve-agentic  # Agentic+deterministic post-pass
+primr --banner                                                           # Show startup banner only
 ```
 
 ### What a run looks like
@@ -201,7 +206,7 @@ Fast QA: labels=310, cites=12/12, validate=23/23, gate=PASS
 ✓ Report ready
   output/ExampleCo_Strategic_Overview_03-03-2026.docx
 
-Mode: Fast (Grok 4.1)
+Mode: Standard (Grok 4.1)
 Chapters: 23
 Citations: 48
 Duration: 35m
@@ -229,8 +234,54 @@ type working\\Company_Name\\YYYY-MM-DD_HHMM\\_run_state.json
 Recovery behavior:
 - Deep Research / AI Strategy jobs run in the cloud and can be recovered after reboot.
 - `--resume-latest` finalizes recovered outputs to canonical filenames (`.md/.txt/.docx`).
-- `--resume-local` reuses the latest incomplete working folder for the same company and skips pages already saved in `_raw_scrapes`.
+- `--resume-local` reuses the latest incomplete working folder for the same company and skips pages already saved in `_raw_scrapes` (same run folder is reused for standard/Grok mode).
 - Local scrape progress is logged in `_raw_scrapes/_scrape_trace.log` and summarized in `_run_state.json`.
+
+
+### Improve Existing Outputs
+
+Use `primr improve` (or `--improve`) to run a post-generation quality pass on existing `.md` / `.txt` outputs.
+
+```bash
+# Deterministic cleanup + QA metrics
+primr improve "output/Company_Strategic_Overview_03-06-2026.md"
+
+# Add an agentic review pass first (find weak sections, then tighten)
+primr improve "output/Company_AI_Strategy_AZURE_03-06-2026.md" --improve-agentic
+
+# Overwrite the original file instead of writing *_improved
+primr improve "output/Company_Strategic_Overview_03-06-2026.md" --in-place
+```
+
+What this does:
+- Removes internal placeholder/source artifacts that should not ship (`Analysis Context`, `vendor-research`, `citation inventory`, etc.)
+- Normalizes and validates citations for reports
+- Applies strategy consistency checks (including budget-total mismatch detection)
+- Prints deterministic QA summary (`gate=PASS|WARN`) before writing output
+
+### Startup Banner
+
+Primr now shows a short startup banner by default in interactive terminals. It is skipped automatically in non-interactive/CI contexts and when `NO_COLOR` disables styling.
+
+```bash
+# Show banner only, then exit
+primr --banner
+
+# Choose mode explicitly
+primr --banner static
+primr --banner animated
+
+# Disable once
+primr --no-banner
+
+# Disable globally (env)
+set PRIMR_NO_BANNER=1
+```
+
+Env controls:
+- `PRIMR_BANNER=auto|off|static|animated`
+- `PRIMR_NO_BANNER=1`
+- `PRIMR_BANNER_DURATION_MS=250..3000` (animated mode)
 
 ### What the output looks like
 
@@ -275,7 +326,7 @@ primr --batch companies_utilities_enriched.csv --mode scrape
 - Shows cost estimate and asks for confirmation before starting (use `--skip-confirm` to bypass)
 - **Resume:** re-run the same command to skip companies that already have reports from today
 - Cooldown between companies (10s for scrape, 60s for deep/full) to avoid API quota issues
-- Progressive retry with backoff on rate-limit errors (immediate -> 2 min -> 5 min)
+- Exponential retry with jitter on transient API failures (429, 5xx, service unavailable, timeouts)
 - Pauses and asks after 3 consecutive failures - option to wait 10 minutes or stop
 - Deduplicates companies by name (case-insensitive)
 
@@ -405,13 +456,17 @@ Scale-to-zero ephemeral containers, event-driven queues, production observabilit
 python -m pytest tests/ -x --tb=short                    # Run tests
 python -m pytest tests/a2a/ -v --tb=short                # A2A tests only (requires pip install .[a2a])
 pytest -q tests/test_core/test_resume_recovery.py tests/test_core/test_research_agent_resume.py tests/test_data/test_scrape_resume.py --cov=primr.core.cli --cov=primr.core.research_agent --cov=primr.data.scrape --cov-fail-under=13 --cov-report=term  # Recovery regression gate
-ruff check src/                                           # Lint
+ruff check .                                              # Lint (full repo)
 mypy src/primr --ignore-missing-imports                  # Type check
 ```
 
 4,500+ tests including property-based testing (Hypothesis), full ruff and mypy compliance, OpenTelemetry tracing, and typed error hierarchy with automatic retry classification. CI runs lint, type check, and tests on every push via GitHub Actions.
 
 Recent hardening includes shared deep-research parsing/polling/execution modules, a shared AI error policy module across sync/async clients, reduced noisy integration-runtime warnings for constrained Playwright/network test environments, and A2A protocol integration with 165+ dedicated tests.
+
+**Validation snapshot (March 6, 2026):**
+- `ruff check .` passes
+- `python -m pytest -q` passes: `4877 passed, 28 skipped` (~20 minutes on this machine)
 
 ## Documentation
 
@@ -449,3 +504,5 @@ This software is provided as-is by a solo developer. The author is not liable fo
 ## License
 
 MIT
+
+

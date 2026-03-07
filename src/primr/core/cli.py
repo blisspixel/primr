@@ -25,6 +25,7 @@ from typing import Any, Protocol
 
 from primr.config.config import LOGS_DIR, OUTPUT_DIR, WORKING_DIR
 from primr.config.models import PrimrModels
+from primr.utils.banner import maybe_show_startup_banner
 from primr.utils.console import console
 from primr.utils.logging_config import get_logger
 
@@ -61,6 +62,7 @@ class Command(Enum):
     MEMORY = "memory"
     ORCHESTRATE = "orchestrate"
     ROADMAP = "roadmap"
+    IMPROVE = "improve"
 
 
 # =============================================================================
@@ -108,6 +110,11 @@ class CLIConfig:
     no_qa: bool = False  # Disable automatic quality assessment
     verify: bool = False  # Run post-QA claim verification
     skip_scrape_validation: bool = False  # Continue even when scrape quality is too low
+    improve_path: str | None = None
+    improve_in_place: bool = False
+    improve_agentic: bool = False
+    banner_mode: str = "auto"
+    banner_explicit: bool = False
     # Agentic architecture options
     memory_company: str | None = None
     memory_list: bool = False
@@ -212,6 +219,16 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
     # Build context files tuple
     context_files = tuple(getattr(parsed, 'context', None) or [])
 
+    banner_arg = getattr(parsed, "banner", None)
+    no_banner = getattr(parsed, "no_banner", False)
+    banner_explicit = banner_arg is not None or no_banner
+    if no_banner:
+        banner_mode = "off"
+    elif banner_arg is None:
+        banner_mode = "auto"
+    else:
+        banner_mode = banner_arg
+
     # Batch commands default to requiring confirmation; everything else skips it.
     # --skip-confirm explicitly skips confirmation for any command.
     is_batch = bool(getattr(parsed, 'batch', None) or parsed.csv)
@@ -249,6 +266,11 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         ai_strategy_only_path=getattr(parsed, 'ai_strategy_only', None),
         discovery_notes_path=getattr(parsed, 'discovery_notes', None),
         strategy_type=getattr(parsed, 'strategy_type', 'ai'),
+        improve_path=(getattr(parsed, 'improve', None) or (parsed.website if (parsed.company and str(parsed.company).lower() == 'improve') else None)),
+        improve_in_place=getattr(parsed, 'in_place', False),
+        improve_agentic=getattr(parsed, 'improve_agentic', False),
+        banner_mode=banner_mode,
+        banner_explicit=banner_explicit,
         resume_latest=getattr(parsed, 'resume_latest', False),
         resume_local=getattr(parsed, 'resume_local', False),
         lite_strategy=getattr(parsed, 'lite_strategy', False),
@@ -306,7 +328,7 @@ def main(args: list[str] | None = None) -> int:
     utility_commands = {
         Command.DOCTOR, Command.LIST_RECENT, Command.CLEAN_TEMP,
         Command.CHECK_JOBS, Command.CLEAR_JOBS, Command.LIST_STRATEGIES,
-        Command.SHOW_USAGE, Command.ENRICH, Command.EVAL,
+        Command.SHOW_USAGE, Command.ENRICH, Command.EVAL, Command.IMPROVE,
     }
     include_api_keys = config.command not in utility_commands
     if config.command == Command.EVAL and config.eval_run_missing:
@@ -336,6 +358,16 @@ def main(args: list[str] | None = None) -> int:
         from primr.utils.console import Console, set_console
         set_console(Console(verbose=True))
 
+    maybe_show_startup_banner(
+        mode=config.banner_mode,
+        quiet=config.quiet,
+        explicit=config.banner_explicit,
+    )
+
+    # Allow explicit "primr --banner" as a no-op command.
+    if config.banner_explicit and config.command == Command.RESEARCH and not config.has_company_info:
+        return 0
+
     # Dispatch to appropriate handler
     handlers = {
         Command.DOCTOR: _handle_doctor,
@@ -362,6 +394,7 @@ def main(args: list[str] | None = None) -> int:
         Command.MEMORY: _handle_memory,
         Command.ORCHESTRATE: _handle_orchestrate,
         Command.ROADMAP: _handle_roadmap,
+        Command.IMPROVE: _handle_improve,
     }
 
     handler = handlers.get(config.command, _handle_research)
@@ -508,6 +541,9 @@ Examples:
   primr doctor                                       # System diagnostics
   primr --qa "Acme Corp"                             # Show detailed QA analysis
   primr --qa-recent 5                                # Show QA summary for recent reports
+  primr improve "output/Company_Strategic_Overview_03-06-2026.md"   # Improve one output
+  primr improve "output/Company_AI_Strategy_AZURE_03-06-2026.md" --improve-agentic
+  primr --banner                                     # Show startup banner only
 
 AI Strategy Retry (when main report succeeded but AI strategy failed):
   primr --ai-strategy-only "output/Company_Strategic_Overview_01-09-2026.md"
@@ -579,6 +615,19 @@ Accordion Method Test (for development):
     )
     parser.add_argument("--quiet", "-q", action="store_true", help="Minimal output")
     parser.add_argument("--verbose", "-v", action="store_true", help="Detailed output")
+    parser.add_argument(
+        "--banner",
+        nargs="?",
+        const="animated",
+        choices=["auto", "off", "static", "animated"],
+        default=None,
+        help="Control startup banner (default: auto for interactive terminals)"
+    )
+    parser.add_argument(
+        "--no-banner",
+        action="store_true",
+        help="Disable startup banner"
+    )
     parser.add_argument(
         "--citation-style",
         type=str,
@@ -679,6 +728,22 @@ Accordion Method Test (for development):
         help="Analyze quality of an existing report file"
     )
 
+    parser.add_argument(
+        "--improve",
+        type=str,
+        metavar="PATH",
+        help="Improve an existing .md/.txt report or strategy output"
+    )
+    parser.add_argument(
+        "--in-place",
+        action="store_true",
+        help="When used with --improve, overwrite the input file"
+    )
+    parser.add_argument(
+        "--improve-agentic",
+        action="store_true",
+        help="With --improve, run an agentic review pass before deterministic cleanup"
+    )
     # QA review
     parser.add_argument(
         "--qa",
@@ -876,6 +941,7 @@ _POSITIONAL_COMMANDS: dict[str, Command] = {
     "memory": Command.MEMORY,
     "orchestrate": Command.ORCHESTRATE,
     "roadmap": Command.ROADMAP,
+    "improve": Command.IMPROVE,
 }
 
 # (attr_name, command) — checked with getattr(args, attr, None) for truthiness
@@ -885,6 +951,7 @@ _FLAG_COMMANDS: list[tuple[str, Command]] = [
     ("orchestrate", Command.ORCHESTRATE),
     ("roadmap", Command.ROADMAP),
     ("roadmap_version", Command.ROADMAP),
+    ("improve", Command.IMPROVE),
     ("eval_mode", Command.EVAL),
     ("ai_strategy_only", Command.AI_STRATEGY_ONLY),
     # qa_recent handled separately (is not None check)
@@ -1177,6 +1244,25 @@ def _handle_analyze_report(config: CLIConfig) -> int:
         return 1
 
 
+
+def _handle_improve(config: CLIConfig) -> int:
+    """Handle output improvement command."""
+    from primr.core.research_agent import improve_output_file
+
+    improve_path = config.improve_path
+    if not improve_path:
+        console.error("Path is required for improve")
+        console.info('Usage: primr --improve "path/to/output.md" [--in-place]')
+        console.info('   or: primr improve "path/to/output.md" [--in-place]')
+        return 1
+
+    result_path = improve_output_file(improve_path, in_place=config.improve_in_place, use_agentic=config.improve_agentic)
+    if not result_path:
+        return 1
+
+    action = "Updated" if config.improve_in_place else "Improved"
+    console.success_box(f"{action} output", result_path)
+    return 0
 def _handle_qa(config: CLIConfig) -> int:
     """Handle QA review command."""
     if not config.qa_company:
@@ -3313,3 +3399,11 @@ def _ensure_valid_url(website: str | None) -> str | None:
 
 if __name__ == "__main__":
     sys.exit(main())
+
+
+
+
+
+
+
+

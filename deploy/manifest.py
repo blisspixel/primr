@@ -18,12 +18,13 @@ import hashlib
 import json
 import os
 import tempfile
-from dataclasses import dataclass, field, asdict
-from datetime import datetime, timezone
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from datetime import datetime
+
     from deploy.runner import JobSpec, StructuredLogger
 
 # Version for manifest
@@ -39,7 +40,6 @@ EXPECTED_ARTIFACTS = {
 
 class ManifestAlreadyExistsError(Exception):
     """Raised when attempting to write a manifest that already exists."""
-    pass
 
 
 @dataclass
@@ -47,15 +47,15 @@ class ArtifactMeta:
     """Metadata for a single artifact."""
     size_bytes: int
     checksum_sha256: str
-    
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "size_bytes": self.size_bytes,
             "checksum_sha256": self.checksum_sha256,
         }
-    
+
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "ArtifactMeta":
+    def from_dict(cls, data: dict[str, Any]) -> ArtifactMeta:
         return cls(
             size_bytes=data.get("size_bytes", 0),
             checksum_sha256=data.get("checksum_sha256", ""),
@@ -69,7 +69,7 @@ class JobTiming:
     started_at: str | None = None
     completed_at: str | None = None
     duration_seconds: int | None = None
-    
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "submitted_at": self.submitted_at,
@@ -77,9 +77,9 @@ class JobTiming:
             "completed_at": self.completed_at,
             "duration_seconds": self.duration_seconds,
         }
-    
+
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "JobTiming":
+    def from_dict(cls, data: dict[str, Any]) -> JobTiming:
         return cls(
             submitted_at=data.get("submitted_at", ""),
             started_at=data.get("started_at"),
@@ -95,7 +95,7 @@ class JobCost:
     actual_compute_usd: float | None = None
     actual_llm_usd: float | None = None
     actual_known: bool = False
-    
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "estimated_usd": self.estimated_usd,
@@ -103,9 +103,9 @@ class JobCost:
             "actual_llm_usd": self.actual_llm_usd,
             "actual_known": self.actual_known,
         }
-    
+
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "JobCost":
+    def from_dict(cls, data: dict[str, Any]) -> JobCost:
         return cls(
             estimated_usd=data.get("estimated_usd", 0.0),
             actual_compute_usd=data.get("actual_compute_usd"),
@@ -121,7 +121,7 @@ class JobInputs:
     company_url: str
     mode: str
     options: dict[str, Any] = field(default_factory=dict)
-    
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "company_name": self.company_name,
@@ -129,9 +129,9 @@ class JobInputs:
             "mode": self.mode,
             "options": self.options,
         }
-    
+
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "JobInputs":
+    def from_dict(cls, data: dict[str, Any]) -> JobInputs:
         return cls(
             company_name=data.get("company_name", ""),
             company_url=data.get("company_url", ""),
@@ -145,15 +145,15 @@ class JobVersions:
     """Version information for a job."""
     primr: str
     runner: str
-    
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "primr": self.primr,
             "runner": self.runner,
         }
-    
+
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "JobVersions":
+    def from_dict(cls, data: dict[str, Any]) -> JobVersions:
         return cls(
             primr=data.get("primr", "unknown"),
             runner=data.get("runner", RUNNER_VERSION),
@@ -164,7 +164,7 @@ class JobVersions:
 class JobManifest:
     """
     Complete job manifest capturing all job metadata.
-    
+
     The manifest is written LAST after all artifacts are complete.
     Its presence signals job completion (manifest-as-commit semantics).
     """
@@ -182,7 +182,7 @@ class JobManifest:
     versions: JobVersions
     error: str | None = None
     manifest_written_by: str = "runner"
-    
+
     def to_dict(self) -> dict[str, Any]:
         """Convert manifest to dictionary for JSON serialization."""
         return {
@@ -201,18 +201,18 @@ class JobManifest:
             "error": self.error,
             "manifest_written_by": self.manifest_written_by,
         }
-    
+
     def to_json(self, indent: int = 2) -> str:
         """Convert manifest to JSON string."""
         return json.dumps(self.to_dict(), indent=indent)
-    
+
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "JobManifest":
+    def from_dict(cls, data: dict[str, Any]) -> JobManifest:
         """Create manifest from dictionary."""
         artifacts = {}
         for name, meta in data.get("artifacts", {}).items():
             artifacts[name] = ArtifactMeta.from_dict(meta)
-        
+
         return cls(
             job_id=data.get("job_id", ""),
             idempotency_key=data.get("idempotency_key", ""),
@@ -229,9 +229,9 @@ class JobManifest:
             error=data.get("error"),
             manifest_written_by=data.get("manifest_written_by", "runner"),
         )
-    
+
     @classmethod
-    def load(cls, path: Path) -> "JobManifest | None":
+    def load(cls, path: Path) -> JobManifest | None:
         """Load manifest from file, returns None if not found."""
         if not path.exists():
             return None
@@ -259,15 +259,15 @@ def get_file_size(file_path: Path) -> int:
 def scan_artifacts(output_dir: Path) -> dict[str, ArtifactMeta]:
     """
     Scan output directory for artifacts and compute checksums.
-    
+
     Args:
         output_dir: Directory containing job artifacts
-        
+
     Returns:
         Dictionary mapping artifact name to metadata
     """
     artifacts = {}
-    
+
     # Scan for known artifact files
     artifact_patterns = [
         "scraped_content.txt",
@@ -277,7 +277,7 @@ def scan_artifacts(output_dir: Path) -> dict[str, ArtifactMeta]:
         "report.md",
         "events.jsonl",
     ]
-    
+
     for pattern in artifact_patterns:
         file_path = output_dir / pattern
         if file_path.exists():
@@ -285,7 +285,7 @@ def scan_artifacts(output_dir: Path) -> dict[str, ArtifactMeta]:
                 size_bytes=get_file_size(file_path),
                 checksum_sha256=compute_checksum(file_path),
             )
-    
+
     # Also scan for any .txt files in the output directory
     for file_path in output_dir.glob("*.txt"):
         name = file_path.name
@@ -294,7 +294,7 @@ def scan_artifacts(output_dir: Path) -> dict[str, ArtifactMeta]:
                 size_bytes=get_file_size(file_path),
                 checksum_sha256=compute_checksum(file_path),
             )
-    
+
     return artifacts
 
 
@@ -315,12 +315,12 @@ def format_timestamp(dt: datetime) -> str:
 def estimate_cost(mode: str, duration_seconds: int | None) -> JobCost:
     """
     Estimate job cost based on mode and duration.
-    
+
     Cost estimates are rough approximations:
     - scrape: ~$0.01-0.05 (minimal LLM usage)
     - deep: ~$0.50-1.50 (moderate LLM usage)
     - full: ~$1.00-3.00 (heavy LLM usage)
-    
+
     Compute cost is based on Fargate pricing (~$0.04/vCPU-hour, ~$0.004/GB-hour)
     """
     # Base estimates by mode
@@ -330,7 +330,7 @@ def estimate_cost(mode: str, duration_seconds: int | None) -> JobCost:
         "full": 2.00,
     }
     estimated_usd = mode_estimates.get(mode, 2.00)
-    
+
     # Compute actual compute cost if duration known
     actual_compute_usd = None
     if duration_seconds:
@@ -338,7 +338,7 @@ def estimate_cost(mode: str, duration_seconds: int | None) -> JobCost:
         vcpu_hours = (duration_seconds / 3600) * 2
         gb_hours = (duration_seconds / 3600) * 4
         actual_compute_usd = round(vcpu_hours * 0.04 + gb_hours * 0.004, 4)
-    
+
     return JobCost(
         estimated_usd=estimated_usd,
         actual_compute_usd=actual_compute_usd,
@@ -348,7 +348,7 @@ def estimate_cost(mode: str, duration_seconds: int | None) -> JobCost:
 
 
 def build_manifest(
-    job_spec: "JobSpec",
+    job_spec: JobSpec,
     output_dir: Path,
     status: str,
     error: str | None,
@@ -358,7 +358,7 @@ def build_manifest(
 ) -> JobManifest:
     """
     Build a job manifest from job spec and execution results.
-    
+
     Args:
         job_spec: Job specification
         output_dir: Directory containing job artifacts
@@ -367,7 +367,7 @@ def build_manifest(
         submitted_at: When job was submitted
         started_at: When job started running
         completed_at: When job completed
-        
+
     Returns:
         JobManifest instance
     """
@@ -375,13 +375,13 @@ def build_manifest(
     duration_seconds = None
     if started_at and completed_at:
         duration_seconds = int((completed_at - started_at).total_seconds())
-    
+
     # Scan artifacts
     artifacts = scan_artifacts(output_dir)
-    
+
     # Get expected artifacts for mode
     expected = EXPECTED_ARTIFACTS.get(job_spec.mode, EXPECTED_ARTIFACTS["full"])
-    
+
     # Build timing
     timing = JobTiming(
         submitted_at=format_timestamp(submitted_at),
@@ -389,10 +389,10 @@ def build_manifest(
         completed_at=format_timestamp(completed_at),
         duration_seconds=duration_seconds,
     )
-    
+
     # Estimate cost
     cost = estimate_cost(job_spec.mode, duration_seconds)
-    
+
     # Build inputs
     inputs = JobInputs(
         company_name=job_spec.company_name,
@@ -400,13 +400,13 @@ def build_manifest(
         mode=job_spec.mode,
         options=job_spec.options,
     )
-    
+
     # Build versions
     versions = JobVersions(
         primr=get_primr_version(),
         runner=RUNNER_VERSION,
     )
-    
+
     return JobManifest(
         job_id=job_spec.job_id,
         idempotency_key=job_spec.options.get("idempotency_key", ""),
@@ -428,20 +428,20 @@ def build_manifest(
 def write_manifest_local(output_dir: Path, manifest: JobManifest) -> None:
     """
     Write manifest atomically to local filesystem.
-    
+
     Uses temp file + rename for atomicity.
     Raises ManifestAlreadyExistsError if manifest already exists.
-    
+
     Args:
         output_dir: Directory to write manifest to
         manifest: Manifest to write
     """
     manifest_path = output_dir / "manifest.json"
-    
+
     # Check if manifest already exists (conditional create)
     if manifest_path.exists():
         raise ManifestAlreadyExistsError(f"Manifest already exists: {manifest_path}")
-    
+
     # Write to temp file first
     fd, temp_path = tempfile.mkstemp(
         suffix=".json",
@@ -452,13 +452,13 @@ def write_manifest_local(output_dir: Path, manifest: JobManifest) -> None:
         os.close(fd)
         temp_file = Path(temp_path)
         temp_file.write_text(manifest.to_json())
-        
+
         # Atomic rename (POSIX guarantees atomicity for rename on same filesystem)
         # Check again before rename (race condition window is small but exists)
         if manifest_path.exists():
             temp_file.unlink()
             raise ManifestAlreadyExistsError(f"Manifest already exists: {manifest_path}")
-        
+
         temp_file.rename(manifest_path)
     except Exception:
         # Clean up temp file on error
@@ -472,18 +472,18 @@ def write_manifest_local(output_dir: Path, manifest: JobManifest) -> None:
 def write_manifest_safe(
     output_dir: Path,
     manifest: JobManifest,
-    logger: "StructuredLogger | None" = None,
+    logger: StructuredLogger | None = None,
 ) -> bool:
     """
     Write manifest with late-writer protection.
-    
+
     Returns True if written, False if already exists.
-    
+
     Args:
         output_dir: Directory to write manifest to
         manifest: Manifest to write
         logger: Optional structured logger
-        
+
     Returns:
         True if manifest was written, False if it already existed
     """

@@ -37,21 +37,20 @@ import subprocess
 import sys
 import tempfile
 import threading
-import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Protocol, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from deploy.storage import ArtifactStore
 
 # Import observability utilities
 from deploy.observability import (
-    redact_sensitive,
-    redact_dict,
-    Tracer,
     MetricsCollector,
+    Tracer,
+    redact_dict,
+    redact_sensitive,
 )
 
 # Version for manifest
@@ -116,7 +115,7 @@ class JobSpec:
             self.timeout_seconds = MAX_TIMEOUT_SECONDS
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "JobSpec":
+    def from_dict(cls, data: dict[str, Any]) -> JobSpec:
         """Create JobSpec from dictionary."""
         return cls(
             job_id=data.get("job_id", ""),
@@ -152,10 +151,10 @@ class JobSpec:
 def parse_job_spec() -> JobSpec:
     """
     Parse job specification from JOB_SPEC env var or /job/spec.json.
-    
+
     Returns:
         JobSpec instance
-        
+
     Raises:
         ValueError: If job spec is invalid or missing
     """
@@ -311,9 +310,8 @@ class StructuredLogger:
             "event": event,
             **redacted_kwargs,
         }
-        with self._lock:
-            with open(self.log_file, "a", encoding="utf-8") as f:
-                f.write(json.dumps(entry) + "\n")
+        with self._lock, open(self.log_file, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry) + "\n")
 
     def info(self, event: str, **kwargs: Any) -> None:
         self.log("info", event, **kwargs)
@@ -331,14 +329,14 @@ class EventWriter:
     def __init__(
         self,
         events_file: Path | None = None,
-        store: "ArtifactStore | None" = None,
+        store: ArtifactStore | None = None,
         job_id: str | None = None,
     ) -> None:
         """
         Initialize event writer.
-        
+
         Can write to either a local file or an artifact store.
-        
+
         Args:
             events_file: Local file path (for local mode)
             store: Artifact store (for cloud mode)
@@ -370,9 +368,8 @@ class EventWriter:
                 logger.warning({"event": "event_write_failed", "error": str(e)})
         elif self.events_file:
             # Write to local file
-            with self._lock:
-                with open(self.events_file, "a", encoding="utf-8") as f:
-                    f.write(json.dumps(entry) + "\n")
+            with self._lock, open(self.events_file, "a", encoding="utf-8") as f:
+                f.write(json.dumps(entry) + "\n")
 
 
 class HeartbeatWriter:
@@ -382,13 +379,13 @@ class HeartbeatWriter:
         self,
         heartbeat_file: Path | None,
         job_spec: JobSpec,
-        store: "ArtifactStore | None" = None,
+        store: ArtifactStore | None = None,
     ) -> None:
         """
         Initialize heartbeat writer.
-        
+
         Can write to either a local file or an artifact store.
-        
+
         Args:
             heartbeat_file: Local file path (for local mode, can be None if using store)
             job_spec: Job specification
@@ -462,11 +459,11 @@ class HeartbeatWriter:
 def build_primr_command(job_spec: JobSpec, output_dir: Path) -> list[str]:
     """
     Build the primr CLI command from job spec.
-    
+
     Args:
         job_spec: Job specification
         output_dir: Directory for output artifacts
-        
+
     Returns:
         Command as list of strings
     """
@@ -505,13 +502,13 @@ def run_primr(
 ) -> tuple[int, str | None]:
     """
     Execute primr CLI and capture output.
-    
+
     Args:
         job_spec: Job specification
         output_dir: Directory for output artifacts
         event_writer: Writer for progress events
         struct_logger: Structured logger
-        
+
     Returns:
         Tuple of (exit_code, error_message)
     """
@@ -601,11 +598,11 @@ def run_primr(
 def map_exit_code(primr_exit: int, error: str | None) -> int:
     """
     Map primr exit code to runner exit code.
-    
+
     Args:
         primr_exit: Exit code from primr
         error: Error message if any
-        
+
     Returns:
         Runner exit code
     """
@@ -623,13 +620,13 @@ def map_exit_code(primr_exit: int, error: str | None) -> int:
 def main() -> int:
     """
     Main entry point for the job runner.
-    
+
     Returns:
         Exit code (0=success, 1=failure, 130=cancelled)
     """
     # Import manifest and storage modules
-    from deploy.manifest import JobManifest, build_manifest, ManifestAlreadyExistsError
-    from deploy.storage import create_store, LocalStore
+    from deploy.manifest import ManifestAlreadyExistsError, build_manifest
+    from deploy.storage import LocalStore, create_store
 
     # Setup logging
     logging.basicConfig(
@@ -839,13 +836,13 @@ def main() -> int:
 
 def _upload_artifacts_to_store(
     output_dir: Path,
-    store: "ArtifactStore",
+    store: ArtifactStore,
     job_id: str,
     struct_logger: StructuredLogger,
 ) -> None:
     """
     Upload local artifacts to the artifact store.
-    
+
     Used when running with cloud stores (S3, GCS, Azure Blob).
     """
     # Upload all files in output directory

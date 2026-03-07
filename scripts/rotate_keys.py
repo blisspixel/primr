@@ -18,9 +18,9 @@ Requirements:
 """
 
 import argparse
+import re
 import subprocess
 import sys
-import re
 from pathlib import Path
 
 
@@ -28,7 +28,7 @@ def run_gcloud(args: list[str], capture: bool = True) -> tuple[int, str, str]:
     """Run a gcloud command and return (returncode, stdout, stderr)."""
     try:
         result = subprocess.run(
-            ["gcloud"] + args,
+            ["gcloud", *args],
             capture_output=capture,
             text=True,
         )
@@ -68,7 +68,7 @@ def list_api_keys() -> list[dict]:
     if code != 0:
         print(f"❌ Failed to list keys: {err}")
         return []
-    
+
     keys = []
     for line in out.split("\n"):
         if line:
@@ -101,18 +101,18 @@ def create_api_key(display_name: str, restrict_to_api: str | None = None) -> tup
         f"--display-name={display_name}",
         "--format=value(name)"
     ]
-    
+
     print(f"Creating new key '{display_name}'...")
     code, key_id, err = run_gcloud(args)
     if code != 0:
         print(f"❌ Failed to create key: {err}")
         return None
-    
+
     # Get the key string
     key_string = get_key_string(key_id)
     if not key_string:
         return None
-    
+
     # Optionally restrict to specific API
     if restrict_to_api:
         print(f"Restricting key to {restrict_to_api}...")
@@ -122,7 +122,7 @@ def create_api_key(display_name: str, restrict_to_api: str | None = None) -> tup
         ])
         if code != 0:
             print(f"⚠ Warning: Failed to restrict key: {err}")
-    
+
     return key_id, key_string
 
 
@@ -141,10 +141,10 @@ def update_env_file(key_name: str, new_value: str) -> bool:
     if not env_path.exists():
         print("❌ .env file not found")
         return False
-    
+
     content = env_path.read_text()
     pattern = rf'^{re.escape(key_name)}=.*$'
-    
+
     if re.search(pattern, content, re.MULTILINE):
         new_content = re.sub(pattern, f"{key_name}={new_value}", content, flags=re.MULTILINE)
         env_path.write_text(new_content)
@@ -160,7 +160,7 @@ def update_env_file(key_name: str, new_value: str) -> bool:
 def rotate_search_key(old_key_id: str | None = None) -> bool:
     """Rotate the Google Custom Search API key."""
     print("\n=== Rotating Search API Key ===\n")
-    
+
     # Create new key
     result = create_api_key(
         "primr-search",
@@ -168,14 +168,14 @@ def rotate_search_key(old_key_id: str | None = None) -> bool:
     )
     if not result:
         return False
-    
+
     new_key_id, new_key_string = result
     print(f"✓ Created new key: {new_key_id[-12:]}")
-    
+
     # Update .env
     if not update_env_file("SEARCH_API_KEY", new_key_string):
         print("⚠ Remember to manually update SEARCH_API_KEY in .env")
-    
+
     # Delete old key if provided
     if old_key_id:
         print(f"Deleting old key: {old_key_id[-12:]}...")
@@ -183,7 +183,7 @@ def rotate_search_key(old_key_id: str | None = None) -> bool:
             print("✓ Old key deleted")
         else:
             print("⚠ Failed to delete old key - delete manually")
-    
+
     print("\n✓ Search API key rotated successfully")
     return True
 
@@ -193,15 +193,15 @@ def interactive_mode():
     print("=" * 50)
     print("Primr API Key Rotation Utility")
     print("=" * 50)
-    
+
     # Check prerequisites
     if not check_gcloud_auth():
         return 1
-    
+
     project = get_project()
     if not project:
         return 1
-    
+
     print("\n--- Current API Keys ---")
     keys = list_api_keys()
     if keys:
@@ -209,7 +209,7 @@ def interactive_mode():
             print(f"  [{i+1}] {key['name']} (created: {key['created'][:10]})")
     else:
         print("  No keys found")
-    
+
     print("\n--- Options ---")
     print("  [1] Rotate Search API key (creates new, updates .env, deletes old)")
     print("  [2] Create new Search API key only")
@@ -217,9 +217,9 @@ def interactive_mode():
     print("  [4] Exit")
     print("\n⚠ Gemini API keys must be rotated manually at:")
     print("   https://aistudio.google.com/apikey")
-    
+
     choice = input("\nChoice [1-4]: ").strip()
-    
+
     if choice == "1":
         # Find existing search key
         search_keys = [k for k in keys if "search" in k["name"].lower()]
@@ -228,21 +228,21 @@ def interactive_mode():
             print(f"\nFound existing search key: {search_keys[0]['name']}")
             if input("Delete after rotation? [y/N]: ").lower() == "y":
                 old_key_id = search_keys[0]["id"]
-        
+
         return 0 if rotate_search_key(old_key_id) else 1
-    
+
     elif choice == "2":
         result = create_api_key("primr-search", "customsearch.googleapis.com")
         if result:
             _, key_string = result
-            print(f"\n✓ New key created!")
+            print("\n✓ New key created!")
             print(f"  Add to .env: SEARCH_API_KEY={key_string}")
             return 0
         return 1
-    
+
     elif choice == "3":
         return 0
-    
+
     else:
         print("Exiting.")
         return 0
@@ -264,16 +264,16 @@ Note: Gemini API keys must be rotated manually at https://aistudio.google.com/ap
     parser.add_argument("--search", action="store_true", help="Rotate Search API key")
     parser.add_argument("--list", action="store_true", help="List existing API keys")
     parser.add_argument("--delete", metavar="KEY_ID", help="Delete a specific key by ID")
-    
+
     args = parser.parse_args()
-    
+
     # Check gcloud first
     code, _, err = run_gcloud(["--version"])
     if code != 0:
         print("❌ gcloud CLI not found")
         print("   Install from: https://cloud.google.com/sdk/docs/install")
         return 1
-    
+
     if args.list:
         if not check_gcloud_auth() or not get_project():
             return 1
@@ -281,17 +281,17 @@ Note: Gemini API keys must be rotated manually at https://aistudio.google.com/ap
         for key in list_api_keys():
             print(f"  {key['name']}: {key['id']}")
         return 0
-    
+
     if args.delete:
         if not check_gcloud_auth() or not get_project():
             return 1
         return 0 if delete_api_key(args.delete) else 1
-    
+
     if args.search:
         if not check_gcloud_auth() or not get_project():
             return 1
         return 0 if rotate_search_key() else 1
-    
+
     # Default: interactive mode
     return interactive_mode()
 

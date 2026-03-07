@@ -7,6 +7,7 @@ Set SEARCH_PROVIDER env var to control: "auto" (default=DDG), "ddg", or "google"
 
 import os
 import time
+from datetime import datetime
 from urllib.parse import urlparse
 
 import requests
@@ -132,12 +133,15 @@ def generate_external_search_queries(
         List of up to max_queries search queries covering news, funding, tech,
         leadership, competitive landscape, industry analysis, and financials.
     """
+    domain = ""
     domain_hint = ""
     if website:
         domain = urlparse(website).netloc.replace("www.", "")
         domain_hint = f"\nTheir website is: {domain}"
 
     max_queries = max(1, max_queries)
+    current_year = datetime.now().year
+
     prompt = f"""Generate {max_queries} web search queries to research {company_name} for a business intelligence brief.{domain_hint}
 
 Cover these angles:
@@ -156,27 +160,60 @@ Rules:
 - Plain Google-style queries, no quotes or OR operators
 - Include the company name in each query
 - Make queries specific enough to find high-quality sources
+- Include at least 3 queries specifically focused on latest updates and announcements
 - Include at least 2 queries specifically about industry trends and outlook
 - Include at least 1 query about executives, board members, or leadership team"""
 
     try:
         response = llm(prompt.strip(), model_type="fast", streaming=False).strip()
-        queries = [line.strip() for line in response.split("\n") if line.strip() and len(line.strip()) > 5]
+        raw_queries = [line.strip() for line in response.split("\n") if line.strip() and len(line.strip()) > 5]
     except Exception as e:
         logger.warning(f"LLM query generation failed: {e}")
-        queries = []
+        raw_queries = []
 
-    # Ensure minimum coverage with fallbacks
-    if len(queries) < 3:
-        queries = [
-            f"{company_name} news announcements",
-            f"{company_name} technology strategy",
-            f"{company_name} leadership executive team",
-        ]
+    # Normalize and deduplicate LLM output
+    llm_queries: list[str] = []
+    seen_queries: set[str] = set()
+    for line in raw_queries:
+        cleaned = line.strip("1234567890.- ").replace('"', '').replace(" OR ", " ")
+        if company_name.lower() not in cleaned.lower():
+            cleaned = f"{company_name} {cleaned}".strip()
+        key = cleaned.lower()
+        if cleaned and key not in seen_queries:
+            seen_queries.add(key)
+            llm_queries.append(cleaned)
 
-    return queries[:max_queries]
+    # Force a recency lane so each run includes current-event coverage.
+    recency_queries = [
+        f"{company_name} latest news {current_year}",
+        f"{company_name} press release {current_year}",
+        f"{company_name} announcements {current_year}",
+        f"{company_name} partnerships acquisitions {current_year}",
+    ]
+    if domain:
+        recency_queries.append(f"{company_name} {domain} newsroom")
 
+    coverage_fallbacks = [
+        f"{company_name} leadership executive team",
+        f"{company_name} financial performance revenue earnings",
+        f"{company_name} industry outlook trends",
+        f"{company_name} analyst coverage market position",
+    ]
 
+    combined = recency_queries + llm_queries + coverage_fallbacks
+    final_queries: list[str] = []
+    final_seen: set[str] = set()
+
+    for query in combined:
+        key = query.lower().strip()
+        if not key or key in final_seen:
+            continue
+        final_seen.add(key)
+        final_queries.append(query.strip())
+        if len(final_queries) >= max_queries:
+            break
+
+    return final_queries
 # =============================================================================
 # DuckDuckGo search (default provider)
 # =============================================================================

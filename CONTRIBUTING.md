@@ -87,9 +87,9 @@ Feature requests are welcome! Please:
 - Describe the use case and expected behavior
 - Explain why this would be useful
 
-## Code of Conduct
+## Collaboration
 
-Please read and follow our [Code of Conduct](CODE_OF_CONDUCT.md).
+Keep collaboration respectful and focused on technical quality.
 
 ## Questions?
 
@@ -98,3 +98,5 @@ Feel free to open an issue for questions or discussions about the project.
 ## License
 
 By contributing, you agree that your contributions will be licensed under the MIT License.
+
+
