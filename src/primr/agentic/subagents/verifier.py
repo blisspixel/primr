@@ -356,7 +356,7 @@ class VerifierSubagent(Subagent[VerificationResult]):
                 )
                 return claim_text, hits if isinstance(hits, list) else []
             except Exception as e:
-                logger.debug(f"Search failed for '{query[:50]}...': {e}")
+                logger.warning(f"Search failed for '{query[:50]}...': {e}")
                 return claim_text, []
 
         with ThreadPoolExecutor(max_workers=self.SEARCH_WORKERS) as executor:

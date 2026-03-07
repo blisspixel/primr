@@ -153,7 +153,7 @@ def _parse_sitemap_recursive(
         finally:
             rate_limiter.release(host)
     except Exception as e:
-        logger.debug(f"Failed to fetch sitemap {sitemap_url}: {e}")
+        logger.warning(f"Failed to fetch sitemap {sitemap_url}: {e}")
         return []
 
     # Handle gzipped content
@@ -161,7 +161,7 @@ def _parse_sitemap_recursive(
         try:
             content = gzip.decompress(content)
         except Exception as e:
-            logger.debug(f"Failed to decompress gzipped sitemap: {e}")
+            logger.warning(f"Failed to decompress gzipped sitemap: {e}")
             return []
 
     # Check size
@@ -182,7 +182,7 @@ def _parse_sitemap_recursive(
         try:
             root = ET.fromstring(content)
         except ET.ParseError as parse_err:
-            logger.debug(f"Failed to parse sitemap XML: {parse_err}")
+            logger.warning(f"Failed to parse sitemap XML: {parse_err}")
             return []
 
     links: list[DiscoveredLink] = []
@@ -311,7 +311,7 @@ def verify_urls_exist(
             finally:
                 rate_limiter.release(host)
         except Exception as e:
-            logger.debug(f"Failed to verify {link.url}: {e}")
+            logger.warning(f"Failed to verify {link.url}: {e}")
         return None
 
     # Use thread pool for concurrent verification
@@ -406,7 +406,8 @@ def extract_links_from_html(
     """
     try:
         text = html_content.decode("utf-8", errors="ignore")
-    except Exception:
+    except (UnicodeDecodeError, AttributeError) as e:
+        logger.warning("HTML decode failed in extract_links_from_html: %s", e)
         return []
 
     links = []
@@ -689,7 +690,7 @@ def extract_links_from_homepage(
             finally:
                 rate_limiter.release(host)
         except Exception as e:
-            logger.debug(f"Failed to fetch homepage {base_url}: {e}")
+            logger.warning(f"Failed to fetch homepage {base_url}: {e}")
 
     if not html_content:
         return []
