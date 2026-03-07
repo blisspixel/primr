@@ -1,7 +1,7 @@
 """Tests for A2A agent executor."""
 
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -119,7 +119,7 @@ class TestPrimrAgentExecutor:
     def event_queue(self):
         """Create a mock EventQueue."""
         queue = MagicMock()
-        queue.enqueue_event = MagicMock()
+        queue.enqueue_event = AsyncMock()
         return queue
 
     @pytest.fixture
@@ -283,3 +283,4 @@ def _get_event_text(event) -> str:
                     return root.text
 
     return ""
+
