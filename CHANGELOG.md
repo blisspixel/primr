@@ -5,6 +5,31 @@ All notable changes to Primr will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Startup Banner** — Big blocky ASCII art PRIMR logo with horizontal gradient (cyan→blue→purple→magenta)
+  - 5-layer terminal fallback: truecolor → 256-color → 4-bit ANSI → no-color → ASCII
+  - Left-to-right reveal animation with tagline fade-in
+  - Cross-platform: Windows Terminal, macOS, Linux, ConHost, SSH
+  - Respects `NO_COLOR`, `--no-banner`, non-TTY, and screen reader environments
+  - Help hint: "Type primr --help for commands"
+
+### Fixed
+- **Silent Failure Audit (Round 1)** — 20+ bare `except: pass` and DEBUG-level error handlers upgraded to WARNING across 15 modules:
+  - JWT auth decode failures now logged at WARNING (was silent)
+  - A2A auth middleware failures now logged at ERROR with stack trace
+  - Research agent: 6 silent exception swallows now log at WARNING
+  - Content extraction: 6 decode/extraction failures now visible
+  - HTTP client HEAD request failures upgraded from DEBUG
+  - Job store corrupted journal now logged with details
+  - Narrowed broad `except Exception` to specific types where safe
+- **Silent Failure Audit (Round 2)** — 25 more patterns fixed across 8 modules:
+  - Scraper: 9 failure paths upgraded from DEBUG to WARNING
+  - Link discovery: 5 fetch/parse failures now visible, bare `except: return []` narrowed to specific types
+  - Security URL parsing: 3 bare `except Exception` blocks now log with URL context
+  - Deep research cache cleanup, model eval JSON parsing, CLI corrupt state files — all now WARNING
+
 ## [1.6.0] - 2026-02-03
 
 ### Added
