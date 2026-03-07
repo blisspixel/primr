@@ -454,7 +454,7 @@ class AdaptiveScraper:
                 response_time = time.time() - start_time
                 self._learner.record_attempt(url, tier, False, response_time)
                 last_error = str(e)[:100]
-                logger.debug(f"Tier {tier} exception for {url}: {last_error}")
+                logger.warning("Tier %s exception for %s: %s", tier, url, last_error)
 
         return None, last_error or "All tiers failed"
 

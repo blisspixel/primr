@@ -132,7 +132,7 @@ def extract_search_queries_count(interaction: Any) -> int:
                             if isinstance(queries, list):
                                 return len(queries)
     except Exception as e:
-        logger.debug("Failed to count search queries: %s", e)
+        logger.warning("Failed to count search queries: %s", e)
         return 0
 
     return 0

@@ -244,7 +244,7 @@ class PrimrTokenVerifier:
             )
 
         except Exception as e:
-            logger.debug(f"JWT verification failed: {e}")
+            logger.warning("JWT verification failed: %s", e)
             return None
 
     def _decode_jwt_part(self, part_b64: str) -> dict | None:
@@ -260,7 +260,8 @@ class PrimrTokenVerifier:
 
             part_bytes = base64.urlsafe_b64decode(part_b64)
             return json.loads(part_bytes)
-        except Exception:
+        except (ValueError, Exception) as e:
+            logger.warning("Failed to decode JWT part: %s", e)
             return None
 
     def _verify_jwt_signature(

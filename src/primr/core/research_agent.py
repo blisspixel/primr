@@ -3145,8 +3145,8 @@ def perform_fast_research(
             for future in as_completed(futures):
                 try:
                     all_search_results.extend(future.result())
-                except Exception:
-                    pass  # individual query failure is non-fatal
+                except Exception as e:
+                    logger.warning("External search query failed: %s", e)
                 _queries_done += 1
                 console.status(f"Searching external sources ({_queries_done}/{len(external_queries)} queries, {len(all_search_results)} results)")
 
@@ -3244,8 +3244,8 @@ def perform_fast_research(
                 for future in as_completed(futures):
                     try:
                         gap_search_results.extend(future.result())
-                    except Exception:
-                        pass  # individual gap query failure is non-fatal
+                    except Exception as e:
+                        logger.warning("Gap search query failed: %s", e)
                     _gap_queries_done += 1
                     console.status(f"Searching for gap-filling sources ({_gap_queries_done}/{len(gap_queries)} queries, {len(gap_search_results)} results)")
 
@@ -3747,8 +3747,8 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
                                     artifact_content = fh.read()[:artifact_limit]
                                     if artifact_content.strip():
                                         context_parts.append(f"--- {artifact_name} ---\n{artifact_content}")
-                            except Exception:
-                                pass
+                            except Exception as e:
+                                logger.warning("Failed to read artifact %s: %s", artifact_name, e)
 
                     vendor_doc_paths = _get_or_generate_vendor_research(vendor) if vendor.lower() != "agnostic" else []
                     for vdp in vendor_doc_paths:
@@ -3756,8 +3756,8 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
                             try:
                                 with open(vdp, encoding="utf-8") as fh:
                                     context_parts.append(f"--- {os.path.basename(vdp)} ---\n{fh.read()[:30_000]}")
-                            except Exception:
-                                pass
+                            except Exception as e:
+                                logger.warning("Failed to read vendor doc %s: %s", vdp, e)
 
                     combined_strategy_prompt = (
                         "Use the following context documents to inform your analysis:\n\n"
@@ -3873,8 +3873,8 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
                                     artifact_content = fh.read()[:artifact_limit]
                                     if artifact_content.strip():
                                         yaml_context_parts.append(f"--- {artifact_name} ---\n{artifact_content}")
-                            except Exception:
-                                pass
+                            except Exception as e:
+                                logger.warning("Failed to read artifact %s: %s", artifact_name, e)
 
                     combined_prompt = (
                         "Use the following context documents to inform your analysis:\n\n"
@@ -7205,7 +7205,8 @@ def _get_qa_grade_for_report(report_path: str) -> int | None:
 
         return None
 
-    except Exception:
+    except Exception as e:
+        logger.warning("Failed to extract QA score: %s", e)
         return None
 
 

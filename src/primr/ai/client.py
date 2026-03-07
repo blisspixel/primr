@@ -134,7 +134,7 @@ class AIClient:
             try:
                 close_fn()
             except Exception as e:
-                logger.debug("Failed to close AI client with close(): %s", e)
+                logger.warning("Failed to close AI client with close(): %s", e)
             return
 
         aclose_fn = getattr(self._client, "aclose", None)
@@ -149,7 +149,7 @@ class AIClient:
                     else:
                         self._pending_close_tasks.append(loop.create_task(coro))
             except Exception as e:
-                logger.debug("Failed to close AI client with aclose(): %s", e)
+                logger.warning("Failed to close AI client with aclose(): %s", e)
 
     def __enter__(self) -> "AIClient":
         return self

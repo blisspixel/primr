@@ -90,7 +90,10 @@ class PrimrA2AServer:
                 app = auth_middleware(app)
                 logger.info("A2A server: authentication enabled")
             except Exception:
-                logger.warning("A2A server: auth middleware setup failed, running without auth")
+                logger.error(
+                    "A2A server: auth middleware setup failed, running WITHOUT auth",
+                    exc_info=True,
+                )
 
         return app
 

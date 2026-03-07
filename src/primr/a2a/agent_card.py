@@ -133,7 +133,8 @@ def build_agent_card(
     if version is None:
         try:
             version = pkg_version("primr")
-        except Exception:
+        except Exception as e:
+            logger.warning("Failed to get primr version from package metadata: %s", e)
             version = "0.0.0"
 
     url = f"http://{host}:{port}/"

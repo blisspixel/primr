@@ -422,7 +422,7 @@ class TelemetrySystem:
                 try:
                     self._record_exception_on_span(span, e)
                 except Exception:
-                    logger.debug("Failed to record exception on span", exc_info=True)
+                    logger.warning("Failed to record exception on span", exc_info=True)
                 raise
 
     @asynccontextmanager
@@ -479,7 +479,7 @@ class TelemetrySystem:
                     try:
                         self._record_exception_on_span(span, e)
                     except Exception:
-                        logger.debug("Failed to record exception on span", exc_info=True)
+                        logger.warning("Failed to record exception on span", exc_info=True)
                     raise
         finally:
             reset_async_correlation_id(token)
