@@ -1,10 +1,12 @@
 # Primr Roadmap
 
-Current State: v1.12.1 (February 2026, plus unreleased hardening and mode changes; repo validation refreshed March 6, 2026)
+Current State: v1.16.0 (March 2026)
 
 Primr is a CLI-first, local research tool for company intelligence and strategic analysis. It aims to accelerate research workflows while being transparent about uncertainty.
 
-The design is intentionally opinionated and local-first. This roadmap reflects completed work and planned improvements. Some features work better than others, and the tool continues to evolve based on actual usage.
+The design is intentionally opinionated and local-first. This roadmap reflects planned improvements ordered to build toward Primr's role as research infrastructure — the foundation that tools like [Deepr](https://github.com/blisspixel/deepr) route through for company intelligence.
+
+For completed work, see the [Changelog](#changelog) at the bottom of this file, or check [GitHub releases](https://github.com/blisspixel/primr/releases) for the latest.
 
 ## What's Working Today
 
@@ -24,564 +26,56 @@ The design is intentionally opinionated and local-first. This roadmap reflects c
 
 **Deep Mode**: Gemini Deep Research Agent with autonomous multi-step search and synthesis
 
-**Pro Models**: Gemini 3.1 Pro for section writing and analysis in premium mode.
+**Standard Mode** (default when `XAI_API_KEY` set): Grok 4.1 pipeline with research deepening, parallel section writing, cross-validation, coherence pass, and strategy enrichment. ~30 min, ~$0.55.
 
-**Standard Mode** (default when `XAI_API_KEY` set): Grok 4.1 pipeline with research deepening, parallel section writing, cross-validation, coherence pass, and strategy enrichment. ~30 min, ~$0.55. Formerly called "fast mode."
+**Premium Mode** (`--premium`): Gemini + Deep Research pipeline for maximum depth. ~50-75 min, ~$5.
 
-**Premium Mode** (`--premium`): Gemini + Deep Research pipeline for maximum depth. ~50-75 min, ~$5. Formerly the default "full" mode.
+### AI Strategy & Report Generation
 
-**Full Mode**: Auto-detects — uses standard (Grok) when `XAI_API_KEY` is set, otherwise falls back to Gemini pipeline
-
-### Resource Management (v1.3.1)
-
-- Automatic cleanup of Gemini File Search Stores after each run
-- `primr doctor` checks for orphaned resources that could incur costs
-- Manual cleanup script: `"<python-executable>" scripts/check_gemini_resources.py --delete-stores --force-empty`
-  - Example on Windows: `"C:\Users\you\AppData\Local\Programs\Python\Python313\python.exe" scripts/check_gemini_resources.py --delete-stores --force-empty`
-
-### Report Generation
-
-- TXT, DOCX, and PDF outputs
-- Citation styles: numbered, inline, sidecar
-- Automatic citation URL resolution
-- Structured report sectioning
-
-### AI Strategy
-
-- AI strategy and roadmap generation
-- Multi-vendor support: `--cloud-vendor aws azure` generates separate strategy documents per vendor in a single run
+- AI strategy and roadmap generation with multi-vendor support (`--cloud-vendor aws azure`)
 - Cloud vendor options: Azure, AWS, GCP, agnostic, private (NVIDIA/on-prem)
 - Multiple strategy types: AI, Customer Experience, Security, Data Fabric
-- Vendor-tagged output filenames (e.g., `Company_AI_Strategy_AWS_02-11-2026.docx`)
-- Strategy enrichment: cross-validation, evidence search, section regeneration, and polish pass (same quality treatment as reports)
+- Strategy enrichment: cross-validation, evidence search, section regeneration, and polish pass
+- TXT, DOCX, and PDF outputs with citation styles
+- 23-section reports with adaptive section selection, deduplication, and cross-validation
+
+### Agent Integration
+
+- MCP server (stdio + HTTP with JWT auth)
+- A2A protocol (standalone or co-hosted with MCP)
+- OpenClaw integration with skills and workflows
+- Claude Skills directory
 
 ### Operational Maturity
 
-- Cost estimation with confirmation (--dry-run)
-- Usage tracking and job recovery
-- System diagnostics (primr doctor)
-- Test coverage
-- Cross-platform runtime support (Windows, macOS, Linux) for CLI, scraping, and report generation
-
-### Cloud Deployment (v1.6.0)
-
-- Serverless job execution on AWS, Azure, GCP
-- Job-based ephemeral containers (scale to zero)
-- Event-driven queue boundary
-- Production-grade observability and monitoring
+- Cost estimation, usage tracking, job recovery, crash/reboot recovery
+- System diagnostics (`primr doctor`)
+- 4,500+ tests, full ruff and mypy compliance
+- Serverless cloud deployment (AWS, Azure, GCP)
+- Agentic architecture: hypothesis tracking, subagents, hooks, orchestrator
+- Content sanitization for prompt injection protection
 
 ## Design Philosophy
-
-Primr is designed around a few core principles:
 
 - Structured output over raw data — briefs you can act on, not link dumps
 - Hypothesis generation over premature conclusions — confidence levels on every claim
 - Transparency about uncertainty — what's confirmed, what's inferred, what's speculation
-- Deterministic verification before AI judgment — check structure, citations, and epistemic labels with code before asking a model to score prose quality (validated by SkillsBench research, arXiv:2602.12670)
+- Deterministic verification before AI judgment — check structure, citations, and epistemic labels with code before asking a model to score prose quality
 - Local-first, CLI-first — your data stays on your machine
 
-Primr is intentionally not designed as:
+Primr is intentionally not designed as a generic web scraper, a SaaS collaboration platform, or a presentation builder.
 
-- A generic web scraper
-- A SaaS collaboration platform
-- A presentation builder
+---
 
-These design constraints help maintain focus on the core purpose: turning a URL into useful intelligence.
+## Planned Work
 
-## Completed Work
+Ordered to build toward Primr as research infrastructure: first make output better and cheaper, then add trust and speed, then enable compounding knowledge and expert-level intelligence. Each layer feeds the next — and feeds Deepr's routing, expert learning, and batch orchestration.
 
-### v1.0.0 - Primr Release (Complete)
+### Phase 1: Quality Foundation
 
-- Rebrand from company_researcher to primr
-- CLI usage: primr "Company" https://company.com
-- Simplified research modes: scrape, deep, full
-- primr doctor system diagnostics
-- pip-installable via pyproject.toml
+Make individual reports better and prove it with data.
 
-### v1.1.0 - Link Discovery and Scraping Improvements (Complete)
-
-- Browser-first homepage discovery
-- Section expansion for news/blog/press content
-- LLM link selection for valuable pages
-- Citation URL resolution
-
-### v1.1.1 - Content Extraction and Quality Validation (Complete)
-
-- Reader-mode extraction
-- Content quality validation
-- Browser block detection
-- Vision tier implementation
-
-### v1.2.0 - Stability and Maintainability (Complete)
-
-- Test coverage hardening (146 new tests)
-- External source validation with LLM company identification
-- Structured content extraction with quality scoring
-- AI Strategy retry/resume capability
-- Security review (XXE, SSRF fixes)
-- CLI output improvements
-
-### v1.4.0 - MCP Server for AI Agent Integration (Complete)
-
-- Full Model Context Protocol (MCP) server implementation
-- Two transport modes: stdio (for Claude Desktop) and streamable HTTP
-- 8 tools for research operations
-- Security middleware with path traversal, SSRF, and rate limit protection
-- JWT authentication for HTTP mode
-
-### v1.4.1 - Open Claw Integration (Complete)
-
-- Full Open Claw integration with skills, workflows, and adapters
-- Approval gates for cost-incurring operations
-- Run manifest generation for audit trail
-
-### v1.5.0 - Code Quality Improvements (Complete)
-
-- Typed error hierarchy with automatic retry classification
-- Circuit breaker with per-host failure tracking
-- OpenTelemetry integration for distributed tracing
-- Configuration validation with early startup checks
-- State machine specifications for tier escalation and job lifecycle
-- Unified async/sync boundary handling
-- 282 property-based tests
-- Documentation: CONCURRENCY.md, docs/STATE_MACHINES.md, docs/MIGRATION.md
-
-### v1.5.1 - Code Quality Fixes (Complete)
-
-- Fixed dead code and unreachable statements
-- Fixed Python 3.10 compatibility in MCP server
-- Fixed exception chaining across modules
-- Fixed ambiguous variable names and duplicate definitions
-- Full ruff compliance (all checks pass)
-- 1526 tests passing
-
-### v1.6.0 - Serverless Cloud Deployment (Complete)
-
-Goal: Enable scalable cloud deployment with job-based ephemeral execution.
-
-**Core Infrastructure:**
-- Job runner contract with manifest-as-commit pattern
-- Artifact storage abstraction (S3, Blob, GCS)
-- Control plane API (submit, status, cancel, results)
-- Event-driven queue boundary (SQS FIFO, Service Bus, Pub/Sub)
-- State reconciliation for stuck/orphaned jobs
-
-**AWS (Primary - Production Ready):**
-- Lambda control plane + Fargate job runner
-- ECR lifecycle policy (keep last 10 images)
-- S3 lifecycle rules (IA transition, version cleanup)
-- SQS dead-letter queue for failed messages
-- Step Functions with least-privilege IAM roles
-- X-Ray tracing on reconciler Lambda
-- CloudWatch alarms: Lambda errors, DynamoDB throttling, DLQ messages, queue age
-
-**Azure (Reference Implementation):**
-- Container Apps control plane + Container Apps Jobs runner
-- Cosmos DB autoscale (400-4000 RU/s)
-- Managed identity with RBAC roles (Cosmos DB, Storage, Key Vault)
-- Application Insights for monitoring and tracing
-
-**GCP (Reference Implementation):**
-- Cloud Run control plane + Cloud Run Jobs runner
-- Dedicated service account (not default App Engine SA)
-- Least-privilege IAM roles (Firestore user, GCS viewer, Run invoker)
-- Firestore composite indexes for efficient reconciler queries
-- Cloud Scheduler with dedicated service account for OIDC auth
-
-**Security:**
-- Comprehensive SSRF protection (RFC1918, metadata IPs, DNS rebinding)
-- Per-API-key rate limiting and quota enforcement
-- Secrets management via cloud secret managers (runner only)
-- Control plane requires NO LLM keys
-
-**Observability:**
-- OpenTelemetry tracing with job_id correlation
-- Structured JSON logging with sensitive data redaction
-- Metrics: job duration, queue depth, success/failure rates
-
-### v1.7.0 - Agentic Architecture (Complete)
-
-Goal: Enable AI agents to drive research workflows with persistent memory and governance.
-
-**Research Memory:**
-- Hypothesis tracking with confidence levels (untested, validated, invalidated, confirmed)
-- YAML persistence with file-per-company storage
-- Expiration filtering and topic-based queries
-- Cross-session learning and hypothesis evolution
-
-**Roadmap API:**
-- Programmatic access to ROADMAP.md for agent planning
-- Version queries, dependency graphs, status filtering
-- Cache invalidation based on file modification time
-- JSON serialization for MCP integration
-
-**Hook System:**
-- Pre/post execution hooks for governance
-- CostGuardHook: Budget enforcement with tracking
-- SSRFGuardHook: URL validation using security module
-- QAGateHook: Quality threshold enforcement
-- Configurable error handling (log, raise, skip)
-
-**Subagent Architecture:**
-- Context-isolated subagents for pipeline stages
-- ScraperSubagent: Delegates to fetch_web_content
-- AnalystSubagent: Insight synthesis and hypothesis generation
-- WriterSubagent: Report generation with citations
-- QASubagent: Quality assessment and feedback
-
-**Research Orchestrator:**
-- Coordinates subagent lifecycle (scrape -> analyze -> write -> qa)
-- Context derivation between stages
-- Hook integration for governance
-- Partial result recovery on failure
-
-**MCP Server Extensions:**
-- `query_roadmap` tool for version/feature queries
-- `get_hypotheses` and `save_hypothesis` tools
-- `primr://roadmap`, `primr://memory/{company}`, `primr://context` resources
-
-**Skills Directory:**
-- `company-research`: Full pipeline workflow
-- `scrape-strategy`: Tier selection heuristics
-- `hypothesis-tracking`: Confidence management
-- `qa-iteration`: Section refinement workflow
-- Design principles: focused > monolithic (94-116 lines, 2-5 tools each), human-curated only, don't skill what the model already knows (validated by SkillsBench, arXiv:2602.12670)
-
-**CLAUDE.md Context Map:**
-- Quick-start section for common agent tasks
-- Architecture pointers and verification commands
-- Negative constraints (what agents should NOT do)
-- Token budget under 2000 tokens
-
-**Property Tests:**
-- 112 property-based tests validating correctness
-- Hypothesis round-trip, expiration filtering, query filtering
-- Hook execution order, blocking behavior, error handling
-- Orchestrator lifecycle, context isolation, failure handling
-
-### v1.8.1 - Content Sanitization Layer (Complete)
-
-Goal: Protect against prompt injection from scraped web content.
-
-**Security Critical**: Required before v2.0.0 public release.
-
-**Content Sanitizer:**
-- `ContentSanitizer` class in `src/primr/utils/content_sanitizer.py`
-- Three modes: BLOCK (reject), STRIP (remove patterns), WARN (log only)
-- Detection of control characters, Unicode normalization issues
-- 20+ prompt injection detection patterns
-
-**Detection Patterns:**
-- Instruction override attempts ("ignore previous instructions")
-- System prompt markers (SYSTEM:, [SYSTEM], <system>)
-- Role manipulation ("you are now", "act as", "pretend to be")
-- Output format manipulation ("output only", "respond exclusively")
-- Jailbreak patterns (DAN mode, bypass mode)
-- Hidden HTML comment instructions
-- Prompt leaking attempts ("show me your system prompt")
-- Conversation injection (User:, Human:)
-- Context manipulation ("from now on")
-
-**Integration:**
-- Integrated at summarization layer before LLM calls
-- `ContentSanitizationHook` for agentic pipeline governance
-- 75 comprehensive tests including property-based tests
-
-### v1.11.0 - Interactive Research Mode (Complete)
-
-Goal: Enable human-in-the-loop decisions during research.
-
-**Orchestrator Enhancements:**
-- `OrchestratorState.PAUSED` state for pipeline pause/resume
-- `user_input_callback` in OrchestratorConfig for user interaction
-- `enable_interactive`, `pause_on_error`, `pause_between_stages` config options
-- `pause()` and `resume()` methods on orchestrator
-- `_request_user_input()`, `_handle_stage_transition()`, `_handle_error_recovery()` methods
-- `user_decisions` tracking in OrchestratorResult
-
-**Hook System Enhancements:**
-- `HookType.ERROR_RECOVERY` for error handling hooks
-- `run_error_recovery_hooks()` method in HookSystem
-- `InteractiveErrorRecoveryHook` for user-driven error recovery
-- `mutable_data` and `user_input_callback` fields in HookContext
-
-**Expanded External Search Coverage:**
-- LLM-generated search queries (7 targeted queries per company) replace 2 hardcoded queries
-- Target raised from 3 to 8 validated external sources
-- Covers news, funding, technology stack, leadership, competitive landscape, industry analysis, and financial performance
-- Hardcoded queries retained as fallbacks (news, funding, financials)
-- CLI preflight respects SEARCH_PROVIDER setting (no longer requires Google API keys when using DuckDuckGo)
-
-**MCP Progress Subscriptions:**
-- `wait_for_status_change(job_id, timeout)` tool for real-time progress updates
-- Replaces polling-based `check_jobs` pattern for better UX
-- Asyncio.Event-based state change notification in job store
-
-**Use Cases:**
-- Approve high-cost operations before execution
-- Choose between research directions at decision points
-- Provide domain expertise when AI is uncertain
-- Review and edit hypotheses mid-pipeline
-- Handle recoverable errors with user guidance
-
-### v1.11.1 - Deep Research Progress and Failure Recovery (Complete)
-
-Goal: Fix silent progress and silent failures during Deep Research phase.
-
-**Progress Visibility:**
-- Progress callback now shows periodic updates every 2 minutes even when phase name is unchanged (was going silent after "Finalizing" phase)
-- Sub-status messages (e.g., "Uploading Stage 1 context") now forwarded to console instead of being silently filtered
-- Heartbeat interval reduced from 90s to 30s for more frequent activity indication
-- Heartbeat display uses terminal width instead of hardcoded 60 characters (fixes partial overwrite artifacts)
-- Diagnostic logging every 5 polls in deep research polling loop
-
-**Failure Recovery:**
-- Full exception tracebacks now logged in orchestrator (were being discarded)
-- Partial results from structured phase preserved when deep research fails (were being thrown away)
-- Prominent failure message with actionable tips shown to user on failure
-- Working folder retains scraped data and partial sections instead of appearing empty
-
-### v1.11.2 - Scraping Performance and UI Polish (Complete)
-
-Goal: Improve scraping throughput with shared browser sessions, add ETA progress, and clean up console output.
-
-**Scraping Performance:**
-- SharedBrowser: Single browser instance shared across all pages in a scraping session (reduces memory and startup overhead)
-- ETA progress: Real-time estimated time remaining during scraping (`Scraping 23/50 /about [15s elapsed, ~2m left]`)
-- DOM protections: Graceful handling of dynamic DOM mutations during content extraction
-
-**Console UI Polish:**
-- Removed heartbeat that was firing during Phase 1 scraping (overlapped with existing progress updates)
-- Suppressed experimental API warnings from Genai SDK during Deep Research interactions
-- Downgraded expected SSRF blocks and content sanitization from WARNING to INFO log level (no longer clutters stderr)
-- Fixed phase numbering jump (2 -> 5 now correctly goes 2 -> 3 in complete mode)
-- Removed internal jargon message "Running structured research pipeline..." from console output
-- Fixed "Sections" label -> "Chapters" for consistency with report structure
-- Fixed citation count always showing 0 (broken import path; now counts `[cite: N]` patterns from generated content)
-
-### v1.12.0 - Multi-Cloud-Vendor AI Strategy (Complete)
-
-Goal: Generate separate AI strategy documents for multiple cloud vendors in a single run.
-
-**Multi-Vendor CLI:**
-- `--cloud-vendor` now accepts multiple values: `--cloud-vendor aws azure`
-- Deduplicates vendors while preserving order
-- Backward compatible: single vendor still works the same way
-
-**Efficient Pipeline:**
-- Scraping and deep research run once (vendor-agnostic)
-- Only the AI strategy step loops per vendor
-- Cost estimator accounts for multiple vendor runs
-
-**Vendor-Tagged Output:**
-- Filenames include vendor tag: `Company_AI_Strategy_AWS_02-11-2026.docx`
-- Each vendor gets its own vendor research context
-- Phase banners show vendor name for multi-vendor runs
-
-**Backward Compatibility:**
-- `CLIConfig.cloud_vendor` property still returns first vendor for existing code
-- Single-vendor usage unchanged
-- MCP server unchanged (future work)
-
-### v1.12.1 - Scraping Robustness and Bug Fixes (Complete)
-
-Goal: Improve content handling, scraping throughput, and fix resource management bugs.
-
-**Content-Type Routing:**
-- Orchestrator detects content type from HTTP headers and magic bytes (HTML, PDF, JSON, XML, binary)
-- PDF content routed to Gemini LLM extraction with PyMuPDF fallback
-- Binary content (images, fonts) rejected early instead of crashing BeautifulSoup
-- BeautifulSoup wrapped in try/except for malformed HTML resilience
-
-**Scraping Performance:**
-- Background file I/O: Raw scrape files written via ThreadPoolExecutor (non-blocking)
-- Structured content caching: Avoids duplicate HTML extraction between scraping and boilerplate learning phases
-- Removed inter-page random delay (rate limiter already handles pacing)
-- Smart page timeout: Reduced from 45s to 25s when best_tier is known for a host
-
-**Bug Fixes:**
-- Fixed ThreadPoolExecutor resource leak in scraping loop (try/finally ensures shutdown)
-- Fixed MCP company name extraction truncating multi-word names (`"ExampleCo_Company_..."` -> `"ExampleCo"` instead of `"ExampleCo Company"`)
-
-### Post-v1.12.1 - Reliability, Maintainability, and Model Updates (Unreleased)
-
-Goal: Reduce noisy integration-runtime warnings, improve maintainability in AI runtime modules, and register new Gemini models.
-
-**Deep Research Refactor:**
-- Extracted shared deep research parsing helpers to `src/primr/ai/deep_research_parsing.py`
-- Extracted adaptive polling policy helpers to `src/primr/ai/deep_research_polling.py`
-- Extracted shared polling execution engine to `src/primr/ai/deep_research_execution.py`
-- Refactored polling loops in deep research clients/orchestrators to use shared execution logic
-- Enforced `store=True` for background Deep Research interactions to support durable async recovery after local process interruption
-- Improved `primr --check-jobs` diagnostics to separate provider terminal failures from local status-check connectivity errors
-- Added `primr --resume-latest` / `--resume-jobs` one-shot recovery flow to finalize canonical MD/TXT/DOCX outputs from completed cloud jobs
-- Added `--resume-local` to reuse latest incomplete local working folders for the same company
-- Added richer pending-job metadata capture (company/vendor/report kind) so recovered files use business-safe names instead of generic `recovered_*`
-- Added per-run `_run_state.json` phase/status timeline in each working folder for reboot-safe local state inspection
-
-**AI Error Policy Refactor:**
-- Extracted shared error classification policy to `src/primr/ai/error_policy.py`
-- Unified sync/async AI client retry classification through the shared policy module
-
-**Flaky/Integration Warning Reduction:**
-- Added a dedicated pass to reduce noisy integration-runtime warnings in constrained environments
-- Hardened handling around Playwright subprocess permission constraints in tests
-- Hardened handling around network-restricted AI integration tests to avoid misleading warning noise
-
-**Scraping Reliability Hardening:**
-- Added adaptive lazy-load scrolling for Playwright tiers (up to 20 steps, early stop when page height stabilizes)
-- Added strict scrape-quality validation gate in scrape/full pipelines (fail fast on thin extraction)
-- Added explicit override flag: `--skip-scrape-validation`
-- Added `_raw_scrapes/_scrape_trace.log` with per-page `OK/FAIL/DUP` outcomes for debugging
-- Updated progress line to show attempted pages and successful pages separately (e.g., `Scraping 23/50 (ok 17) ...`)
-- Added external search caps via config: `MAX_EXTERNAL_SEARCH_QUERIES`, `MAX_EXTERNAL_SOURCES`
-
-**Gemini 3.1 Pro Preview (February 2026):**
-- Registered `gemini-3.1-pro-preview` and `gemini-3.1-pro-preview-customtools` in ModelRegistry
-- Now the default Pro model (cost delta ~$0.28/run vs 3.0 Pro — negligible since DR dominates cost)
-- Override via `AI_REASONING_MODEL=gemini-3-pro-preview` to revert
-- Improvements: better thinking, token efficiency, factual consistency, agentic workflow optimization
-- Tiered pricing: $2/$12 per 1M (prompts <=200k) | $4/$18 per 1M (prompts >200k)
-- `customtools` variant optimized for tool-heavy workflows (prioritizes custom tools over bash)
-
-**Tiered Pricing Support:**
-- `ModelConfig` now supports tiered pricing via optional fields: `cost_per_1m_input_tokens_high`, `cost_per_1m_output_tokens_high`, `tier_threshold_tokens`
-- `has_tiered_pricing` property on `ModelConfig` for easy detection
-- `PrimrModels.calculate_cost()` accepts optional `prompt_tokens` — uses high tier when prompt exceeds threshold
-- `PrimrModels.calculate_cost_conservative()` — always uses highest tier for tiered models (for pre-run estimates)
-- `PrimrModels.get_active_pro_model()` — reads the active Pro model from settings (honours `AI_REASONING_MODEL`)
-- Cost estimator uses conservative (high-tier) pricing when a tiered model is active; adds note to estimates
-- Usage tracker uses active Pro model pricing instead of hardcoded default
-- AI client fallback pricing uses active Pro model instead of hardcoded default
-
-**Validation:**
-- Added targeted tests for new helper modules:
-  - `tests/test_ai/test_deep_research_parsing.py`
-  - `tests/test_ai/test_deep_research_polling.py`
-  - `tests/test_ai/test_error_policy.py`
-- Targeted deep-research and AI suites pass after refactor
-- Full repo lint passes: `ruff check .`
-- Full test suite passes: `python -m pytest -q` -> `4877 passed, 28 skipped` (March 6, 2026)
-
-**Versioned Eval Workflow (Initial):**
-- Added `primr --eval` command for offline, versioned profile comparison (`full`, `lite`, `fast`)
-- Generates scorecards at `output/evals/<eval-id>/scorecard.md` and `scorecard.csv`
-- Tracks per-profile trust, decision utility, reuse quality, utility-per-dollar, and cost ratios against baseline
-- Adds a deterministic trust gate (citation coverage + section completeness + confidence labels) before profile pass/fail
-- Auto-stages existing local reports into eval profile folders (no API spend), with optional company targeting (`--eval-company`)
-- Writes `staging_manifest.json` to preserve exactly which artifacts were compared
-- Optional `--eval-run-missing` can execute missing runs, gated by explicit caps:
-  - `--eval-max-new-runs`
-  - `--eval-max-estimated-cost`
-
-### Fast Mode Default + Quality Improvements (Unreleased)
-
-Goal: Make the Grok 4.1 pipeline the default and improve report quality.
-
-**Motivation:** Fast mode now matches full mode on QA score (89 vs 89), has more external sources (38 vs 8), similar page count (~40 vs ~39), and costs 88% less ($0.57 vs $5.00). The quality gap has closed enough to make fast mode the default.
-
-**Mode Renaming:**
-- Default `primr` command now auto-detects: uses Grok 4.1 when `XAI_API_KEY` is set, falls back to Gemini otherwise
-- Added `--premium` flag to explicitly request Gemini + Deep Research pipeline
-- `--fast` retained for backward compatibility (no-op when `XAI_API_KEY` already set)
-- MCP server tools accept `"premium"` mode alongside `"scrape"`, `"deep"`, `"full"`
-- Pipeline runner auto-dispatches to fast pipeline for `"full"` mode when `XAI_API_KEY` available
-- Cost estimator labels updated: "standard (Grok 4.1)" for default, "premium" for Gemini+DR
-
-**Quality Improvements:**
-- **Coherence pass fix**: Rewrote prompt to be surgical (cross-references only, not content deletion). Added explicit 95% word budget, acceptable/unacceptable edit examples. Increased `max_tokens` from 25K to 32K. Tightened guard threshold from 0.85 to 0.92.
-- **Executive summary written last**: Exec summary now written after all other sections, with full report context for true synthesis. Previously written first with zero prior context.
-- **Parallel external source search**: Phase 1 and Phase 2 search loops parallelized with `ThreadPoolExecutor(max_workers=3)`. Expected speedup: Phase 1 from ~14 min to ~5-6 min, Phase 2 from ~8 min to ~3-4 min.
-- **Robust cross-validation JSON parsing**: On parse failure, retries with tighter prompt including failed response. Falls back to regex extraction of title/reason fields as last resort.
-- **Framework section word targets**: Raised from 600 to 800 words (sections were consistently producing 700-900 anyway).
-
-**Strategy Enrichment Pass:**
-- Strategy documents now go through the same quality treatment as reports: cross-validation to identify weak sections, targeted DDG search for evidence, section regeneration with new evidence, and a polish pass for coherence and evidence discipline
-- Cross-validation tuned for strategy-specific weaknesses: unsupported vendor claims, generic recommendations, missing company-specific details
-- Up to 2 weak sections identified and re-written per strategy document
-- Polish pass deduplicates, standardizes vendor references, adds confidence labels, and checks specificity
-- Guarded at every step: CV failure skips enrichment, regen failure keeps original section, polish failure keeps unpolished content
-- Strategy `max_tokens` raised from 16K to 32K (Grok supports 131K; strategies were being truncated)
-- Strategy context enriched with `insights.txt`, `gap_analysis.md`, and `analysis_workbook.md` from earlier pipeline phases
-- Per-vendor strategy cost: ~$0.03 to ~$0.07. Per-vendor time: 2-3 min to 3-6 min
-- Phase 6 banner updated from "2-5 min" to "3-8 min"
-
-
-**Output Improve Mode (Baked-In + Standalone):**
-- Added deterministic output cleanup in the default fast pipeline to remove internal source placeholders and non-shippable citation artifacts before final save
-- Added strategy QA checks for placeholder references, source URL coverage, and budget-total consistency before writing strategy outputs
-- Added standalone post-pass command: `primr improve <path>` (or `--improve <path>`) for existing `.md` / `.txt` outputs
-- `--improve-agentic` runs an agentic review pass first (find weak sections / contradictions), then deterministic cleanup and QA gating
-- `--in-place` allows safe overwrite when explicitly requested
-
-**Startup Banner Polish (Default-On):**
-- Added a short startup banner that runs by default on interactive terminals
-- Added CLI controls: `--banner [auto|off|static|animated]` and `--no-banner`
-- Added explicit no-op path for `primr --banner` (show banner, then exit)
-- Added environment controls: `PRIMR_BANNER`, `PRIMR_NO_BANNER`, `PRIMR_BANNER_DURATION_MS`
-
-**All Strategy Types in Fast Mode:**
-- `--strategy-type` now works during research runs (not just `--ai-strategy-only`)
-- Non-AI strategy types (customer_experience, modern_security_compliance, data_fabric_strategy) run via Grok in Phase 6, using YAML-based prompts
-- Strategy YAML configs auto-discovered at runtime from `src/primr/prompts/strategies/`
-- `--list-strategies` dynamically reads YAML metadata (name, description, expected pages)
-- `_save_strategy_output` uses strategy-specific filenames from YAML `output_filename` field
-
-**Files Modified:**
-- `src/primr/core/research_agent.py` — coherence prompt, exec summary last, parallel search, cross-val retry, word targets, premium_mode dispatch, generalized Phase 6 for all strategy types, strategy enrichment pass (cross-validate, evidence search, regen, polish), deterministic output cleanup, strategy QA metrics, standalone improve API
-- `src/primr/core/cli.py` — `--premium` flag, `CLIConfig.premium_mode`, `MODE_MAP`, auto-detect logic, dynamic `--strategy-type` choices/help from YAML, dynamic `--list-strategies`, `improve` command (`--improve`, `--improve-agentic`, `--in-place`), startup banner flags (`--banner`, `--no-banner`) and explicit `--banner` no-op path
-- `src/primr/utils/cost_estimator.py` — `premium_mode` param, display labels
-- `src/primr/mcp_server/types.py` — `PREMIUM` enum member
-- `src/primr/mcp_server/tools.py` — tool schema enums + descriptions
-- `src/primr/mcp_server/pipeline_runner.py` — fast mode dispatch for "full"
-- `CLAUDE.md` — updated examples, costs, MCP docs
-- `tests/test_core/test_improve_output.py` — strategy QA + improve command behavior
-- `src/primr/utils/banner.py` — terminal-aware startup banner rendering + mode resolution
-- `tests/test_utils/test_banner.py` — banner mode/environment behavior tests
-
-### Agentic Pipeline + Report Quality + New Sections (Unreleased)
-
-Goal: Make the pipeline more agentic, fix quality bugs, improve UX, and add new report sections.
-
-**Bug Fixes:**
-- **Duplicate section elimination**: Section writing now deduplicates by title — if Grok hallucinates a section that already exists, it is dropped with a warning instead of appearing twice in the report
-- **Coherence pass rewrite**: Prompt completely rewritten to be minimally invasive (terminology, cross-references, transitions only). Guard threshold raised from 0.92 to 0.96. Eliminates the catastrophic word-loss bug (19,000 → 1,300 words)
-- **Contradiction resolution**: Contradictions detected during cross-validation are now resolved by standardizing conflicting values across sections, preferring best-sourced data. Previously only logged
-
-**UX Improvements:**
-- **Domain in progress**: "Scanning website" now shows the actual domain (e.g., "Scanning northgatemarket.com"). Phase subtitle also shows the domain
-- **Cleaner mode message**: "Using fast mode (Grok 4.1) — XAI_API_KEY detected..." replaced with "Using Grok 4.1 · for deeper research add --premium"
-- **Search sub-progress**: External source search and gap-filling search now show live progress (queries completed, results found, sources validated) instead of a static spinner during 15+ minute phases
-
-**Agentic Behavior:**
-- **Adaptive search depth**: After scraping, assesses data richness. Rich websites (>200K chars, 30+ pages) get reduced external search (10 queries, 20 sources). Thin websites (<20K chars, <5 pages) get increased search (15 queries, 40 sources)
-- **Source quality filtering**: LLM reviews all collected external sources and drops low-relevance ones. Prefers 5 high-quality sources over 25 mediocre ones, especially for less prominent companies
-- **Dynamic section selection**: Before writing, checks if analysis workbook contains evidence keywords for each section. Sections with zero evidence signals (e.g., Financial Profile when no financial data found) are skipped with a notice
-
-**New Report Sections (23 total, up from 21):**
-- **Industry Outlook** (part 2): Near-term (6-12mo), medium-term (1-3yr), long-term (3-5yr) industry trends with positioning assessment. Includes timeline table
-- **Strategic Leadership Perspective** (part 4): Simulated board meeting — builds executive personas from public data, debates findings from CEO/CFO/CTO/board perspectives, identifies alignment and tension points
-
-**Stronger QA Gate:**
-- Fast QA now checks for duplicate section headings and thin sections (<100 words) in addition to confidence labels, citations, and validation prompts
-- QA gate fails if duplicates or thin sections detected
-- Display includes `dupes=` and `thin=` counts when issues found
-
-**Search Query Improvements:**
-- External search queries now explicitly target industry trends/outlook and executive/board information
-- Ensures at least 2 industry trend queries and 1 leadership query per run
-
-**Files Modified:**
-- `src/primr/core/research_agent.py` — duplicate dedup, coherence rewrite, domain progress, sub-progress, adaptive depth, source quality filter, contradiction resolution, dynamic sections, QA gate
-- `src/primr/core/cli.py` — cleaner mode message
-- `src/primr/data/search_utils.py` — industry/leadership search queries
-- `src/primr/prompts/company_overview.yaml` — Industry Outlook, Strategic Leadership Perspective sections
-- `README.md` — updated sample output
-- Tests updated for 23-section count
-
-## Near-Term Roadmap
-
-### v1.13.0 - QA-Driven Report Iteration (Planned)
+#### v1.13.0 — QA-Driven Report Iteration
 
 Goal: Use QA feedback to iteratively improve weak sections until reports hit 90+.
 
@@ -603,12 +97,14 @@ Added code-level quality checks that run before (or instead of) AI-based scoring
 3. Re-run just those sections with targeted improvements
 4. Repeat until grade >= 90
 
+Learny validated this pattern: their quality loop (grade -> specific feedback -> regenerate) across 286 documents achieved 98.6% A-grade. The key insight: feedback must be *specific* ("section X lacks quantified metrics") not generic ("improve quality").
+
 Implementation:
 - `primr refine "Company"` command to re-run weak sections
 - QA identifies specific sections needing work
 - Section-level regeneration without full pipeline re-run
 
-### v1.13.1 - Versioned Model Evaluation Harness (Planned)
+#### v1.13.1 — Versioned Model Evaluation Harness
 
 Goal: Make model/profile upgrades measurable and repeatable before changing defaults.
 
@@ -619,13 +115,7 @@ Problem this solves:
 Planned capabilities:
 - `primr eval` workflow to run a fixed company corpus across profiles (for example `full`, `full --lite`, `--fast`)
 - Versioned evaluation IDs (for example `eval-2026-02-r1`) with immutable run manifests
-- Aggregated scorecard per profile:
-  - Cost (estimated and actual)
-  - Runtime
-  - Document length (words/pages)
-  - Citation density
-  - Required-section completeness
-  - Confidence-label coverage
+- Aggregated scorecard per profile: cost, runtime, document length, citation density, required-section completeness, confidence-label coverage
 - Side-by-side comparison output (Markdown + CSV) for baseline vs candidate profiles
 - Configurable acceptance gates (example: quality >= 80% baseline and cost <= 20% baseline)
 - CI guard for regression detection on a lightweight fixture corpus
@@ -634,14 +124,14 @@ Success criteria:
 - Model default changes are backed by saved scorecards, not one-off manual judgment
 - Users can answer "is this new model worth it?" in one command with reproducible evidence
 
-### v1.13.1b - True Quick Mode (Planned)
+#### v1.13.1b — True Quick Mode
 
-Goal: Add a real quick profile that finishes in under 5 minutes for most companies, distinct from the current standard Grok pipeline.
+Goal: Add a real quick profile that finishes in under 5 minutes for most companies. This becomes the cheap routing tier that Deepr auto-routes to for simple lookups.
 
 Scope:
-- New CLI profile (for example `--quick`) with explicit runtime budget and reduced token/search footprint
+- New CLI profile (`--quick`) with explicit runtime budget and reduced token/search footprint
 - Tight phase budget: fewer sections, capped external queries, and smaller synthesis context
-- Quality floor + graceful fallback when evidence is thin (never hard-crash on transient provider issues)
+- Quality floor + graceful fallback when evidence is thin
 - Eval-harness benchmark vs standard mode for utility-per-minute and utility-per-dollar
 
 Success criteria:
@@ -649,7 +139,11 @@ Success criteria:
 - Produces a usable briefing artifact with citations and explicit confidence labels
 - Users can choose between `quick` (speed), `standard` (balanced), and `premium` (depth) tiers
 
-### v1.13.2 - OpenAI Deep Research Integration (Planned)
+### Phase 2: Multi-Provider & Speed
+
+More provider options and faster execution. These directly feed Deepr's auto-routing — more providers means smarter routing decisions.
+
+#### v1.13.2 — OpenAI Deep Research Integration
 
 Goal: Add OpenAI's Deep Research API as an alternative research backend, giving users a third provider option alongside Grok and Gemini.
 
@@ -668,7 +162,7 @@ Goal: Add OpenAI's Deep Research API as an alternative research backend, giving 
 
 **Decision:** Which tier(s) OpenAI DR best serves (quick, standard, premium) will be determined by eval results from v1.13.1, not by assumption.
 
-### v1.13.3 - Cross-Provider Eval and Tier Optimization (Planned)
+#### v1.13.3 — Cross-Provider Eval and Tier Optimization
 
 Goal: Extend the eval harness to compare all available providers and determine the best default for each research tier.
 
@@ -685,57 +179,7 @@ Goal: Extend the eval harness to compare all available providers and determine t
 - `primr eval` can answer "which provider should be my default?" with evidence
 - Tier defaults (quick/standard/premium) are backed by saved scorecards across providers
 
-## Medium-Term Roadmap
-
-### v1.14.0 - Refinement and Learning Loop (Planned)
-
-Goal: Support post-discovery learning without re-running everything from scratch.
-
-- `primr refine` command accepting new information, notes, and follow-up findings
-- Re-synthesize insights with updated confidence and revised hypotheses
-- Outputs evolve as understanding deepens
-
-### v1.15.0 - POV and Narrative Evolution (Planned)
-
-Goal: Make Primr the system of record for how thinking evolves.
-
-- Versioned research artifacts
-- Explicit "what changed and why" sections
-- Optional narrative framing outputs
-
-### v1.16.0 - A2A Protocol Integration (Complete)
-
-Goal: Enable Primr to participate in the Agent-to-Agent (A2A) mesh — both as a callable research agent and as a client that delegates to external agents.
-
-**A2A Server (Primr as an A2A agent):**
-- AgentCard served at `/.well-known/agent.json` with 5 skills, input/output modes, and bearer auth
-- `PrimrAgentExecutor` bridges A2A messages to Primr's pipeline runner
-- Skills: `estimate_research`, `research_company` (SSE streaming), `check_jobs`, `run_qa`, `system_health`
-- `PrimrTaskStore` maps A2A task IDs to Primr job IDs via `SingleJobStore`
-- Standalone `primr-a2a` CLI or `primr-mcp --http --a2a` co-hosted mode
-- Auth middleware reused from MCP server (`PrimrTokenVerifier`)
-
-**A2A Client (Primr calls external agents):**
-- `delegate_to_agent` MCP tool for calling external A2A agents (guarded by ImportError)
-- `A2AClient` with httpx: discover, send_message, send_message_streaming, get_task, cancel_task
-- Agent discovery via `/.well-known/agent.json`
-- `A2AExternalAgentHook` for SSRF validation and cost budget on delegations
-- `A2AContentSanitizationHook` for prompt injection protection on external responses
-
-**Governance:**
-- SSRF protection via `URLValidator` on all delegation URLs
-- Per-delegation cost budget tracking with configurable max
-- Content sanitization on all external agent responses
-- JSON response validation (catches non-JSON 200 responses)
-
-**Testing:**
-- 165 tests in `tests/a2a/` (unit, integration, edge cases, property-based)
-- 76% code coverage across 9 source modules
-- CI job with `pip install .[a2a]` for SDK-dependent tests
-
-**Optional dependency:** `pip install primr[a2a]` (a2a-sdk >=0.3.20,<0.4.0). Existing installs unaffected.
-
-### v1.17.0 - Pipeline Overlap and Scraper Observability (Planned)
+#### v1.17.0 — Pipeline Overlap and Scraper Observability
 
 Goal: Reduce end-to-end runtime by overlapping independent pipeline phases, and add per-tier metrics for data-driven scraper tuning.
 
@@ -745,12 +189,12 @@ Goal: Reduce end-to-end runtime by overlapping independent pipeline phases, and 
 - Per-host rate limiting: 2 concurrent/host, 20 req/min/host, with 0-1.5s random jitter
 
 **Why same-host scraping stays sequential:**
-All 50 pages in a run come from one company website. Blasting concurrent requests to the same host is a bot detection signal. The current approach — sequential with per-host jitter (0-1.5s random delays), sticky tier optimization, and circuit breakers — mimics human browsing: one page every 2-5 seconds with natural variance. The rate limiter already caps at 2 concurrent per host, but in practice sequential-with-jitter is what avoids WAF blocks, Cloudflare challenges, and fingerprint-based bot detection. This is an intentional design choice, not a limitation.
+All 50 pages in a run come from one company website. Blasting concurrent requests to the same host is a bot detection signal. The current approach — sequential with per-host jitter (0-1.5s random delays), sticky tier optimization, and circuit breakers — mimics human browsing. The rate limiter already caps at 2 concurrent per host, but in practice sequential-with-jitter is what avoids WAF blocks, Cloudflare challenges, and fingerprint-based bot detection. This is an intentional design choice, not a limitation.
 
 **Phase Overlap (the real runtime win):**
-- Current: scrape all 50 pages → THEN start external search → THEN summarize
+- Current: scrape all 50 pages -> THEN start external search -> THEN summarize
 - Upgrade: start external search after homepage content is available (don't wait for all 50 pages)
-- External searches hit different hosts (DDG, news sites, press releases) — safe to run alongside primary site scraping without triggering bot detection
+- External searches hit different hosts (DDG, news sites, press releases) — safe to run alongside primary site scraping
 - Insight extraction can begin on early pages while later pages are still scraping
 - Simple scheduling with `asyncio.gather()` — no orchestration framework needed
 - Pattern from [Anthropic's multi-agent research system](https://www.anthropic.com/engineering/multi-agent-research-system): parallelism at the execution level, not the architecture level
@@ -758,7 +202,7 @@ All 50 pages in a run come from one company website. Blasting concurrent request
 
 **Completion Guarantees:**
 - All overlapped phases must complete before downstream stages start (no partial results)
-- `asyncio.gather(return_exceptions=True)` with explicit error handling — a failed external search doesn't block scraping and vice versa
+- `asyncio.gather(return_exceptions=True)` with explicit error handling
 - Run state tracks per-phase completion status for crash recovery
 - Progress display updated to show concurrent phases (e.g., "Scraping 23/50 | Searching 4/10")
 
@@ -770,10 +214,14 @@ All 50 pages in a run come from one company website. Blasting concurrent request
 
 **OpenTelemetry Spans:**
 - Add spans per scrape tier attempt and per search query
-- Trace scraping → extraction → summarization flow end-to-end
+- Trace scraping -> extraction -> summarization flow end-to-end
 - Compatible with existing OTel setup
 
-### v1.18.0 - Verification Agent and Trust Scoring (Planned)
+### Phase 3: Trust & Richer Data
+
+Verify claims independently and extract more from visual content. Trust scoring feeds Deepr's source trust decisions and expert confidence tracking.
+
+#### v1.18.0 — Verification Agent and Trust Scoring
 
 Goal: Add a post-QA "skeptic" pass that actively disputes claims using fresh web searches, producing auditable trust scores.
 
@@ -793,10 +241,10 @@ Goal: Add a post-QA "skeptic" pass that actively disputes claims using fresh web
 
 **Implementation:**
 - New `VerifierSubagent` in agentic/subagents.py
-- Orchestrator stage: `IDLE → SCRAPING → ANALYZING → WRITING → QA → VERIFYING → COMPLETED`
+- Orchestrator stage: `IDLE -> SCRAPING -> ANALYZING -> WRITING -> QA -> VERIFYING -> COMPLETED`
 - Hooks: `VerificationGateHook` can block output if trust < configurable threshold
 
-### v1.19.0 - First-Class VLM Extraction (Planned)
+#### v1.19.0 — First-Class VLM Extraction
 
 Goal: Promote vision extraction from fallback tier to first-class path for data-dense pages (charts, tables, IR decks, org charts).
 
@@ -818,11 +266,17 @@ Goal: Promote vision extraction from fallback tier to first-class path for data-
 - `--vlm-budget N` flag to cap VLM calls per run (default: 10 pages)
 - Cost estimator updated with VLM pricing
 
-### v1.20.0 - Cross-Run Research Memory (Planned)
+### Phase 4: Compounding Knowledge
+
+Make research compound across runs. This is where Learny's patterns pay off most — and where Primr becomes the knowledge layer that Deepr experts build on.
+
+#### v1.20.0 — Cross-Run Research Memory
 
 Goal: Make research compound across runs by persisting extracted claims, citations, and hypotheses in a searchable store.
 
 **Motivation:** Currently each run starts fresh. If you research 50 companies in the same industry, each run rediscovers the same industry context. Cross-run memory enables meta-research ("show AI strategy evolution across all fintech targets") and few-shot learning for new verticals.
+
+Learny proved this pattern at scale: their Stage 3 builds a corpus-wide knowledge base from ALL documents, then every subsequent analysis has full context. The same principle applies across Primr runs — industry context discovered in run 1 should inform run 50.
 
 **Implementation:**
 - SQLite-backed claim store (no external dependencies like Neo4j/Redis)
@@ -841,22 +295,77 @@ Goal: Make research compound across runs by persisting extracted claims, citatio
 - `primr memory clear` to reset
 - No data leaves the machine unless user explicitly exports
 
-### Why Not a Research DAG / LangGraph-Style Orchestration?
+#### v1.20.1 — Industry Knowledge Base for Batch Runs
 
-The QA feedback suggested replacing the linear pipeline with a DAG orchestration layer (LangGraph-style). After researching production experiences, we decided against this:
+Goal: When researching multiple companies in the same industry, build shared industry context first, then analyze each company with that context.
 
-**What the research shows:**
-- [Anthropic's own multi-agent research system](https://www.anthropic.com/engineering/multi-agent-research-system) does NOT use a DAG — it's a simple orchestrator-worker pattern (lead agent spawns 3-5 subagents in parallel, waits, synthesizes). They got 90% speed improvement purely from parallelism, not graph orchestration.
-- Multi-agent systems use ~15× more tokens than single-agent ([LangChain State of Agents](https://www.langchain.com/state-of-agent-engineering)), which directly conflicts with Primr's $0.55 value proposition.
-- [Production teams report](https://dev.to/isaachagoel/read-this-before-building-ai-agents-lessons-from-the-trenches-333i) the golden rule: "Can I code this without losing functionality?" Mechanical tasks (scraping, search) should be code, not agent orchestration.
-- [Community consensus](https://community.latenode.com/t/coordinating-multiple-ai-agents-for-scraping-validation-and-reporting-does-the-complexity-actually-pay-off/60040): keep simple pipelines simple; multi-agent DAGs only justified for horizontal scaling or dynamic replanning.
+**Motivation:** Direct port of Learny's most powerful pattern. Learny's Stage 3 (Synthesis) builds a knowledge base from ALL extracted facts before any individual analysis runs. For Primr batch runs, this means: scrape all companies first, build an industry synthesis (themes, trends, common tech stacks, competitive dynamics), then inject that context into each company's analysis.
 
-**What Primr actually needs:**
-The real bottlenecks are sequential page scraping and sequential search queries — both fixed with `asyncio.gather()` in v1.17.0, no framework required. The verification agent (v1.18.0) is a single new pipeline stage, not a graph node. Phase overlap (external search starting after homepage instead of after all pages) is a scheduling optimization, not an architectural change.
+A company's positioning makes more sense when you know what the industry looks like. "Company X uses Kubernetes" is unremarkable if every company in the batch does. "Company X still runs bare-metal" is remarkable if nobody else does.
 
-**The decision:** Invest in targeted parallelism (v1.17.0) and a verification stage (v1.18.0) rather than a DAG framework. This matches how the best production research systems actually work — simple orchestration with parallel execution where it matters — while keeping Primr maintainable as a solo project.
+**Implementation:**
+- `--batch companies.csv --industry-context` flag
+- Phase 0: scrape all companies (existing batch behavior)
+- Phase 0.5 (new): synthesize industry-wide patterns from all scrape results
+  - Themes, trends, common tech stacks, competitive dynamics
+  - Cost: one extra synthesis call (~$0.05), reused across all company analyses
+- Phase 1+: each company analysis receives industry context as additional input
+- Industry synthesis saved as a reusable artifact
 
-### v2.0.0 - Public Release (Planned)
+**Stage Invariants (from Learny):**
+- Industry synthesis may identify patterns and contradictions but may NOT introduce claims not present in scraped data
+- Individual company analysis may interpret with industry context but must cite specific scraped content
+- These invariants prevent hallucination propagation across the batch
+
+#### v1.14.0 — Refinement and Learning Loop
+
+Goal: Support post-discovery learning without re-running everything from scratch. This is the primitive that enables Deepr experts to learn over time.
+
+- `primr refine` command accepting new information, notes, and follow-up findings
+- Re-synthesize insights with updated confidence and revised hypotheses
+- Outputs evolve as understanding deepens
+- Cross-run memory (v1.20.0) stores the evolution
+
+### Phase 5: Expert-Level Intelligence
+
+Add perspective and narrative depth. These features directly feed Deepr's expert system — expert personas become Deepr domain experts, and narrative evolution becomes expert knowledge tracking.
+
+#### v1.21.0 — Expert Perspective Passes
+
+Goal: After standard pipeline, run parallel "expert review" passes that scrutinize findings from specific domain perspectives.
+
+**Motivation:** Learny generates multi-perspective insights (business leaders, architects, developers, product teams) for every document. Primr can do the same: the report is the shared artifact, and each expert persona is a prompt that reviews it from a specific angle.
+
+**Expert Personas:**
+- **CFO perspective**: scrutinize financial claims, flag unsupported revenue estimates, assess unit economics
+- **CTO perspective**: evaluate technology stack claims, assess technical moat, identify build-vs-buy signals
+- **Competitive analyst**: compare findings against known competitors (from memory if available), identify positioning gaps
+- **Risk analyst**: identify regulatory, market, and execution risks
+
+**Implementation:**
+- Each expert is a prompt persona + the same report, producing a short addendum
+- Spawn 3-4 parallel expert reviews (different prompts, same input) via existing ThreadPoolExecutor
+- Output: "Expert Perspectives" section appended to report, or separate sidecar document
+- `--with-experts` flag (opt-in, adds ~$0.10-0.20 for 3-4 Grok passes)
+- Expert findings feed back into cross-run memory as tagged claims
+
+**Connection to Deepr:** Expert perspectives are the read-only version of what Deepr experts do. A Primr expert pass produces a one-shot assessment; a Deepr expert accumulates those assessments across sessions and fills its own gaps. Primr expert passes can seed Deepr experts with initial domain knowledge.
+
+#### v1.15.0 — POV and Narrative Evolution
+
+Goal: Make Primr the system of record for how thinking evolves about a company.
+
+- Versioned research artifacts
+- Explicit "what changed and why" sections
+- Optional narrative framing outputs
+- Diff-style comparison between runs: what shifted in confidence, what new evidence appeared
+- Timeline view: how understanding of a company evolved across runs
+
+This feeds Deepr's expert knowledge tracking — experts don't just know facts, they know how understanding has changed over time.
+
+### Phase 6: Release
+
+#### v2.0.0 — Public Release
 
 Goal: Make Primr available to the broader community via PyPI.
 
@@ -870,6 +379,23 @@ Goal: Make Primr available to the broader community via PyPI.
 - Contribution workflow for external contributors
 - Documentation site
 
+---
+
+## Why Not a Research DAG / LangGraph-Style Orchestration?
+
+The QA feedback suggested replacing the linear pipeline with a DAG orchestration layer (LangGraph-style). After researching production experiences, we decided against this:
+
+**What the research shows:**
+- [Anthropic's own multi-agent research system](https://www.anthropic.com/engineering/multi-agent-research-system) does NOT use a DAG — it's a simple orchestrator-worker pattern (lead agent spawns 3-5 subagents in parallel, waits, synthesizes). They got 90% speed improvement purely from parallelism, not graph orchestration.
+- Multi-agent systems use ~15x more tokens than single-agent ([LangChain State of Agents](https://www.langchain.com/state-of-agent-engineering)), which directly conflicts with Primr's $0.55 value proposition.
+- [Production teams report](https://dev.to/isaachagoel/read-this-before-building-ai-agents-lessons-from-the-trenches-333i) the golden rule: "Can I code this without losing functionality?" Mechanical tasks (scraping, search) should be code, not agent orchestration.
+- [Community consensus](https://community.latenode.com/t/coordinating-multiple-ai-agents-for-scraping-validation-and-reporting-does-the-complexity-actually-pay-off/60040): keep simple pipelines simple; multi-agent DAGs only justified for horizontal scaling or dynamic replanning.
+
+**What Primr actually needs:**
+The real bottlenecks are sequential page scraping and sequential search queries — both fixed with `asyncio.gather()` in v1.17.0, no framework required. The verification agent (v1.18.0) is a single new pipeline stage, not a graph node. Phase overlap (external search starting after homepage instead of after all pages) is a scheduling optimization, not an architectural change.
+
+**The decision:** Invest in targeted parallelism (v1.17.0) and a verification stage (v1.18.0) rather than a DAG framework. This matches how the best production research systems actually work — simple orchestration with parallel execution where it matters — while keeping Primr maintainable as a solo project.
+
 ## Scale Readiness (Implemented in v1.6.0)
 
 Primr now supports serverless cloud deployment for organizational adoption:
@@ -882,14 +408,6 @@ Primr now supports serverless cloud deployment for organizational adoption:
 
 See [docs/CLOUD_DEPLOYMENT.md](docs/CLOUD_DEPLOYMENT.md) for deployment guide.
 
-## TODO: README Assets
-
-These require running the tool and capturing output manually:
-
-- [ ] Record a terminal GIF of a real research run (asciinema or vhs) for the top of the README
-- [ ] Screenshot a DOCX report to show the formatted output
-- [ ] Update `docs/images/primr-demo.png` with a current screenshot (existing one is from an older version)
-
 ## Explicitly Deferred (By Design)
 
 These are conscious non-goals for now:
@@ -901,6 +419,14 @@ These are conscious non-goals for now:
 **Collaboration and Sharing**
 - Accounts, permissions, comments
 - Sharing reports externally
+
+## TODO: README Assets
+
+These require running the tool and capturing output manually:
+
+- [ ] Record a terminal GIF of a real research run (asciinema or vhs) for the top of the README
+- [ ] Screenshot a DOCX report to show the formatted output
+- [ ] Update `docs/images/primr-demo.png` with a current screenshot (existing one is from an older version)
 
 ## Usage Reference
 
@@ -943,37 +469,158 @@ cd deploy/aws && ./deploy.sh -d prod deploy
 cd deploy/aws && ./deploy.sh -d prod destroy
 ```
 
-## Version History
+---
+
+## Changelog
+
+For the latest changes, check [GitHub releases](https://github.com/blisspixel/primr/releases).
 
 | Version | Date | Highlights |
 |---------|------|------------|
-| 0.1.0 | Nov 2025 | Core research pipeline |
-| 0.2.0 | Nov 2025 | Deep Research integration |
-| 0.3.0 | Dec 2025 | Full mode (two-step) |
-| 0.4.0 | Dec 2025 | AI Strategy generation |
-| 0.5.0 | Dec 2025 | Cost tracking, job recovery |
-| 1.0.0 | Dec 2025 | Rebrand to Primr, pip installable |
-| 1.1.0 | Jan 2026 | Browser-first discovery, LLM link selection |
-| 1.1.1 | Jan 2026 | Reader-mode extraction, vision tier |
-| 1.2.0 | Jan 2026 | Test coverage, security review |
-| 1.3.0 | Jan 2026 | Python 3.11+ requirement |
-| 1.3.1 | Jan 2026 | Resource cleanup, File Search Store billing fix |
-| 1.4.0 | Feb 2026 | MCP Server for AI agent integration |
-| 1.4.1 | Feb 2026 | Open Claw integration |
-| 1.5.0 | Feb 2026 | Code quality improvements |
-| 1.5.1 | Feb 2026 | Code quality fixes, full ruff compliance |
-| 1.6.0 | Feb 2026 | Serverless cloud deployment (AWS/Azure/GCP) |
-| 1.7.0 | Feb 2026 | Agentic architecture (memory, hooks, orchestrator) |
-| 1.8.1 | Feb 2026 | Content sanitization for prompt injection protection |
-| 1.11.0 | Feb 2026 | Interactive research mode (pause/resume, user callbacks) |
-| 1.11.1 | Feb 2026 | Deep Research progress visibility and failure recovery |
-| 1.11.2 | Feb 2026 | SharedBrowser, ETA progress, UI polish |
-| 1.12.0 | Feb 2026 | Multi-cloud-vendor AI strategy |
-| 1.12.1 | Feb 2026 | Scraping robustness, PDF routing, bug fixes |
-| unreleased | Feb 2026 | Deep-research refactor, scrape reliability hardening, shared error policy, warning reduction |
-| unreleased | Mar 2026 | Fast mode as default, `--premium` flag, quality improvements (coherence, exec summary, parallel search, cross-val), strategy enrichment pass |
-| unreleased | Mar 2026 | A2A protocol integration (client, server, executor, hooks, 165 tests) |
 | unreleased | Mar 2026 | Private cloud vendor (NVIDIA-first, on-prem AI strategy) |
+| unreleased | Mar 2026 | A2A protocol integration (client, server, executor, hooks, 165 tests) |
+| unreleased | Mar 2026 | Fast mode as default, `--premium` flag, quality improvements, strategy enrichment, startup banner, all strategy types in fast mode, output improve mode |
+| unreleased | Mar 2026 | Agentic pipeline, report quality fixes (duplicate elimination, coherence rewrite, contradiction resolution), adaptive search depth, source quality filtering, dynamic section selection, 2 new report sections (23 total), stronger QA gate |
+| unreleased | Feb 2026 | Deep-research refactor, scrape reliability hardening, shared error policy, warning reduction, eval workflow, Gemini 3.1 Pro, tiered pricing |
+| 1.12.1 | Feb 2026 | Scraping robustness, PDF routing, bug fixes |
+| 1.12.0 | Feb 2026 | Multi-cloud-vendor AI strategy |
+| 1.11.2 | Feb 2026 | SharedBrowser, ETA progress, UI polish |
+| 1.11.1 | Feb 2026 | Deep Research progress visibility and failure recovery |
+| 1.11.0 | Feb 2026 | Interactive research mode, expanded external search, MCP progress subscriptions |
+| 1.8.1 | Feb 2026 | Content sanitization for prompt injection protection |
+| 1.7.0 | Feb 2026 | Agentic architecture (memory, hooks, orchestrator, subagents, skills, property tests) |
+| 1.6.0 | Feb 2026 | Serverless cloud deployment (AWS/Azure/GCP) |
+| 1.5.1 | Feb 2026 | Code quality fixes, full ruff compliance |
+| 1.5.0 | Feb 2026 | Typed error hierarchy, circuit breaker, OpenTelemetry, property tests |
+| 1.4.1 | Feb 2026 | Open Claw integration |
+| 1.4.0 | Feb 2026 | MCP Server for AI agent integration |
+| 1.3.1 | Jan 2026 | Resource cleanup, File Search Store billing fix |
+| 1.3.0 | Jan 2026 | Python 3.11+ requirement |
+| 1.2.0 | Jan 2026 | Test coverage, security review |
+| 1.1.1 | Jan 2026 | Reader-mode extraction, vision tier |
+| 1.1.0 | Jan 2026 | Browser-first discovery, LLM link selection |
+| 1.0.0 | Dec 2025 | Rebrand to Primr, pip installable |
+| 0.5.0 | Dec 2025 | Cost tracking, job recovery |
+| 0.4.0 | Dec 2025 | AI Strategy generation |
+| 0.3.0 | Dec 2025 | Full mode (two-step) |
+| 0.2.0 | Nov 2025 | Deep Research integration |
+| 0.1.0 | Nov 2025 | Core research pipeline |
+
+<details>
+<summary><strong>Detailed changelog for unreleased work</strong></summary>
+
+### Post-v1.12.1 — Reliability, Maintainability, and Model Updates
+
+**Deep Research Refactor:**
+- Extracted shared deep research parsing helpers to `src/primr/ai/deep_research_parsing.py`
+- Extracted adaptive polling policy helpers to `src/primr/ai/deep_research_polling.py`
+- Extracted shared polling execution engine to `src/primr/ai/deep_research_execution.py`
+- Refactored polling loops in deep research clients/orchestrators to use shared execution logic
+- Enforced `store=True` for background Deep Research interactions to support durable async recovery
+- Improved `primr --check-jobs` diagnostics to separate provider terminal failures from local status-check connectivity errors
+- Added `primr --resume-latest` / `--resume-jobs` one-shot recovery flow
+- Added `--resume-local` to reuse latest incomplete local working folders
+- Added richer pending-job metadata capture (company/vendor/report kind)
+- Added per-run `_run_state.json` phase/status timeline
+
+**AI Error Policy Refactor:**
+- Extracted shared error classification policy to `src/primr/ai/error_policy.py`
+- Unified sync/async AI client retry classification through the shared policy module
+
+**Flaky/Integration Warning Reduction:**
+- Hardened handling around Playwright subprocess permission constraints in tests
+- Hardened handling around network-restricted AI integration tests
+
+**Scraping Reliability Hardening:**
+- Adaptive lazy-load scrolling for Playwright tiers (up to 20 steps, early stop when page height stabilizes)
+- Strict scrape-quality validation gate with `--skip-scrape-validation` override
+- `_raw_scrapes/_scrape_trace.log` with per-page `OK/FAIL/DUP` outcomes
+- External search caps: `MAX_EXTERNAL_SEARCH_QUERIES`, `MAX_EXTERNAL_SOURCES`
+
+**Gemini 3.1 Pro Preview:**
+- Registered `gemini-3.1-pro-preview` and `gemini-3.1-pro-preview-customtools` in ModelRegistry
+- Tiered pricing support in `ModelConfig`
+
+**Versioned Eval Workflow (Initial):**
+- `primr --eval` command for offline, versioned profile comparison
+- Scorecards at `output/evals/<eval-id>/scorecard.md` and `scorecard.csv`
+- Auto-stages existing local reports (no API spend)
+- Optional `--eval-run-missing` with explicit spend caps
+
+### Fast Mode Default + Quality Improvements
+
+**Mode Renaming:**
+- Default `primr` command auto-detects: Grok 4.1 when `XAI_API_KEY` set, Gemini fallback
+- `--premium` flag for Gemini + Deep Research
+- MCP server accepts `"premium"` mode
+
+**Quality Improvements:**
+- Coherence pass rewritten to be surgical (cross-references only, not content deletion)
+- Executive summary written last (after all other sections, with full report context)
+- Parallel external source search (`ThreadPoolExecutor(max_workers=3)`)
+- Robust cross-validation JSON parsing with retry and regex fallback
+- Framework section word targets raised from 600 to 800
+
+**Strategy Enrichment Pass:**
+- Cross-validation, targeted DDG search, section regeneration, polish pass
+- Strategy `max_tokens` raised from 16K to 32K
+- Strategy context enriched with insights, gap analysis, and analysis workbook
+
+**Output Improve Mode:**
+- Deterministic output cleanup in default pipeline
+- `primr improve <path>` standalone command
+- `--improve-agentic` for agentic review + deterministic cleanup
+- `--in-place` for safe overwrite
+
+**Startup Banner:**
+- Default-on for interactive terminals
+- CLI: `--banner [auto|off|static|animated]`, `--no-banner`
+- Env: `PRIMR_BANNER`, `PRIMR_NO_BANNER`, `PRIMR_BANNER_DURATION_MS`
+
+**All Strategy Types in Fast Mode:**
+- `--strategy-type` works during research runs
+- YAML-based strategy configs auto-discovered at runtime
+
+### Agentic Pipeline + Report Quality + New Sections
+
+**Bug Fixes:**
+- Duplicate section elimination
+- Coherence pass rewrite (guard threshold 0.92 -> 0.96, eliminates catastrophic word-loss)
+- Contradiction resolution during cross-validation
+
+**UX Improvements:**
+- Domain shown in progress
+- Cleaner mode message
+- Search sub-progress (live queries/results/validated counts)
+
+**Agentic Behavior:**
+- Adaptive search depth based on data richness
+- Source quality filtering (LLM reviews, drops low-relevance)
+- Dynamic section selection (skips sections with zero evidence signals)
+
+**New Report Sections (23 total):**
+- Industry Outlook (near/medium/long-term trends)
+- Strategic Leadership Perspective (simulated board meeting)
+
+**Stronger QA Gate:**
+- Checks for duplicate headings and thin sections
+- `dupes=` and `thin=` counts in display
+
+### A2A Protocol Integration (v1.16.0)
+
+**A2A Server:**
+- AgentCard at `/.well-known/agent.json` with 5 skills
+- `PrimrAgentExecutor` bridges A2A to pipeline runner
+- Standalone `primr-a2a` or co-hosted `primr-mcp --http --a2a`
+
+**A2A Client:**
+- `delegate_to_agent` MCP tool
+- `A2AClient` with httpx: discover, send, stream, get, cancel
+- Governance hooks: SSRF, cost budget, content sanitization
+
+**Testing:** 165 tests, 76% coverage across 9 modules
+
+</details>
 
 ## Final Note
 
@@ -990,7 +637,3 @@ Primr is a tool for understanding companies. The focus is on useful output, not 
 **No Warranty**: This software is provided "as is" without warranty of any kind. The authors are not liable for any damages, costs, or legal issues arising from use of this software.
 
 **Intended Use**: Primr is designed for legitimate research purposes — understanding companies, evaluating opportunities, and making informed decisions. It is not intended for competitive intelligence gathering that violates laws or ethical standards, mass surveillance, or any malicious purpose.
-
-
-
-
