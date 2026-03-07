@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.12.1 (February 2026, plus unreleased hardening and mode changes)
+Current State: v1.12.1 (February 2026, plus unreleased hardening and mode changes; repo validation refreshed March 6, 2026)
 
 Primr is a CLI-first, local research tool for company intelligence and strategic analysis. It aims to accelerate research workflows while being transparent about uncertainty.
 
@@ -460,6 +460,8 @@ Goal: Reduce noisy integration-runtime warnings, improve maintainability in AI r
   - `tests/test_ai/test_deep_research_polling.py`
   - `tests/test_ai/test_error_policy.py`
 - Targeted deep-research and AI suites pass after refactor
+- Full repo lint passes: `ruff check .`
+- Full test suite passes: `python -m pytest -q` -> `4877 passed, 28 skipped` (March 6, 2026)
 
 **Versioned Eval Workflow (Initial):**
 - Added `primr --eval` command for offline, versioned profile comparison (`full`, `lite`, `fast`)
@@ -504,6 +506,20 @@ Goal: Make the Grok 4.1 pipeline the default and improve report quality.
 - Per-vendor strategy cost: ~$0.03 to ~$0.07. Per-vendor time: 2-3 min to 3-6 min
 - Phase 6 banner updated from "2-5 min" to "3-8 min"
 
+
+**Output Improve Mode (Baked-In + Standalone):**
+- Added deterministic output cleanup in the default fast pipeline to remove internal source placeholders and non-shippable citation artifacts before final save
+- Added strategy QA checks for placeholder references, source URL coverage, and budget-total consistency before writing strategy outputs
+- Added standalone post-pass command: `primr improve <path>` (or `--improve <path>`) for existing `.md` / `.txt` outputs
+- `--improve-agentic` runs an agentic review pass first (find weak sections / contradictions), then deterministic cleanup and QA gating
+- `--in-place` allows safe overwrite when explicitly requested
+
+**Startup Banner Polish (Default-On):**
+- Added a short startup banner that runs by default on interactive terminals
+- Added CLI controls: `--banner [auto|off|static|animated]` and `--no-banner`
+- Added explicit no-op path for `primr --banner` (show banner, then exit)
+- Added environment controls: `PRIMR_BANNER`, `PRIMR_NO_BANNER`, `PRIMR_BANNER_DURATION_MS`
+
 **All Strategy Types in Fast Mode:**
 - `--strategy-type` now works during research runs (not just `--ai-strategy-only`)
 - Non-AI strategy types (customer_experience, modern_security_compliance, data_fabric_strategy) run via Grok in Phase 6, using YAML-based prompts
@@ -512,13 +528,16 @@ Goal: Make the Grok 4.1 pipeline the default and improve report quality.
 - `_save_strategy_output` uses strategy-specific filenames from YAML `output_filename` field
 
 **Files Modified:**
-- `src/primr/core/research_agent.py` — coherence prompt, exec summary last, parallel search, cross-val retry, word targets, premium_mode dispatch, generalized Phase 6 for all strategy types, strategy enrichment pass (cross-validate, evidence search, regen, polish)
-- `src/primr/core/cli.py` — `--premium` flag, `CLIConfig.premium_mode`, `MODE_MAP`, auto-detect logic, dynamic `--strategy-type` choices/help from YAML, dynamic `--list-strategies`
+- `src/primr/core/research_agent.py` — coherence prompt, exec summary last, parallel search, cross-val retry, word targets, premium_mode dispatch, generalized Phase 6 for all strategy types, strategy enrichment pass (cross-validate, evidence search, regen, polish), deterministic output cleanup, strategy QA metrics, standalone improve API
+- `src/primr/core/cli.py` — `--premium` flag, `CLIConfig.premium_mode`, `MODE_MAP`, auto-detect logic, dynamic `--strategy-type` choices/help from YAML, dynamic `--list-strategies`, `improve` command (`--improve`, `--improve-agentic`, `--in-place`), startup banner flags (`--banner`, `--no-banner`) and explicit `--banner` no-op path
 - `src/primr/utils/cost_estimator.py` — `premium_mode` param, display labels
 - `src/primr/mcp_server/types.py` — `PREMIUM` enum member
 - `src/primr/mcp_server/tools.py` — tool schema enums + descriptions
 - `src/primr/mcp_server/pipeline_runner.py` — fast mode dispatch for "full"
 - `CLAUDE.md` — updated examples, costs, MCP docs
+- `tests/test_core/test_improve_output.py` — strategy QA + improve command behavior
+- `src/primr/utils/banner.py` — terminal-aware startup banner rendering + mode resolution
+- `tests/test_utils/test_banner.py` — banner mode/environment behavior tests
 
 ### Agentic Pipeline + Report Quality + New Sections (Unreleased)
 
@@ -614,6 +633,21 @@ Planned capabilities:
 Success criteria:
 - Model default changes are backed by saved scorecards, not one-off manual judgment
 - Users can answer "is this new model worth it?" in one command with reproducible evidence
+
+### v1.13.1b - True Quick Mode (Planned)
+
+Goal: Add a real quick profile that finishes in under 5 minutes for most companies, distinct from the current standard Grok pipeline.
+
+Scope:
+- New CLI profile (for example `--quick`) with explicit runtime budget and reduced token/search footprint
+- Tight phase budget: fewer sections, capped external queries, and smaller synthesis context
+- Quality floor + graceful fallback when evidence is thin (never hard-crash on transient provider issues)
+- Eval-harness benchmark vs standard mode for utility-per-minute and utility-per-dollar
+
+Success criteria:
+- Median runtime < 5 minutes on eval corpus
+- Produces a usable briefing artifact with citations and explicit confidence labels
+- Users can choose between `quick` (speed), `standard` (balanced), and `premium` (depth) tiers
 
 ### v1.13.2 - OpenAI Deep Research Integration (Planned)
 
@@ -956,3 +990,7 @@ Primr is a tool for understanding companies. The focus is on useful output, not 
 **No Warranty**: This software is provided "as is" without warranty of any kind. The authors are not liable for any damages, costs, or legal issues arising from use of this software.
 
 **Intended Use**: Primr is designed for legitimate research purposes — understanding companies, evaluating opportunities, and making informed decisions. It is not intended for competitive intelligence gathering that violates laws or ethical standards, mass surveillance, or any malicious purpose.
+
+
+
+

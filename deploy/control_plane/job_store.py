@@ -21,9 +21,7 @@ from __future__ import annotations
 import hashlib
 import json
 import threading
-import time
-from abc import ABC, abstractmethod
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Protocol, runtime_checkable
@@ -43,17 +41,14 @@ class JobStatus(str, Enum):
 
 class ConflictError(Exception):
     """Raised when idempotency key is reused with different inputs."""
-    pass
 
 
 class NotFoundError(Exception):
     """Raised when job is not found."""
-    pass
 
 
 class ConditionalCheckFailedError(Exception):
     """Raised when conditional write fails (job already exists)."""
-    pass
 
 
 def utc_now() -> datetime:
@@ -71,15 +66,15 @@ class CostEstimate:
     """Cost and time estimate for a job."""
     cost_usd: float
     duration_minutes: int
-    
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "cost_usd": self.cost_usd,
             "duration_minutes": self.duration_minutes,
         }
-    
+
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "CostEstimate":
+    def from_dict(cls, data: dict[str, Any]) -> CostEstimate:
         return cls(
             cost_usd=data.get("cost_usd", 0.0),
             duration_minutes=data.get("duration_minutes", 0),
@@ -93,7 +88,7 @@ class JobInputs:
     company_url: str
     mode: str
     options: dict[str, Any] = field(default_factory=dict)
-    
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "company_name": self.company_name,
@@ -101,9 +96,9 @@ class JobInputs:
             "mode": self.mode,
             "options": self.options,
         }
-    
+
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "JobInputs":
+    def from_dict(cls, data: dict[str, Any]) -> JobInputs:
         return cls(
             company_name=data.get("company_name", ""),
             company_url=data.get("company_url", ""),
@@ -118,16 +113,16 @@ class JobTiming:
     submitted_at: str
     started_at: str | None = None
     completed_at: str | None = None
-    
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "submitted_at": self.submitted_at,
             "started_at": self.started_at,
             "completed_at": self.completed_at,
         }
-    
+
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "JobTiming":
+    def from_dict(cls, data: dict[str, Any]) -> JobTiming:
         return cls(
             submitted_at=data.get("submitted_at", ""),
             started_at=data.get("started_at"),
@@ -139,7 +134,7 @@ class JobTiming:
 class JobRecord:
     """
     Job record for state persistence.
-    
+
     Uniqueness constraint: (deployment, api_key_hash, idempotency_key)
     """
     job_id: str
@@ -158,7 +153,7 @@ class JobRecord:
     error_message: str | None = None
     ttl: int = 0  # Unix timestamp for auto-expiry
     no_runner_manifest: bool = False  # True if runner couldn't write manifest
-    
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
@@ -179,9 +174,9 @@ class JobRecord:
             "ttl": self.ttl,
             "no_runner_manifest": self.no_runner_manifest,
         }
-    
+
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "JobRecord":
+    def from_dict(cls, data: dict[str, Any]) -> JobRecord:
         """Create from dictionary."""
         return cls(
             job_id=data.get("job_id", ""),
@@ -211,7 +206,7 @@ def canonicalize_inputs(
 ) -> JobInputs:
     """
     Normalize inputs for consistent hashing and comparison.
-    
+
     - Strips whitespace from company_name
     - Normalizes URL (lowercase host, remove trailing slash)
     - Sorts options dictionary
@@ -221,7 +216,7 @@ def canonicalize_inputs(
     normalized_url = f"{parsed.scheme}://{parsed.netloc.lower()}{parsed.path.rstrip('/')}"
     if parsed.query:
         normalized_url += f"?{parsed.query}"
-    
+
     return JobInputs(
         company_name=company_name.strip(),
         company_url=normalized_url,
@@ -239,7 +234,7 @@ def hash_inputs(inputs: JobInputs) -> str:
 def hash_job_id(deployment: str, idempotency_key: str, api_key: str) -> str:
     """
     Derive deterministic job_id from (deployment, idempotency_key, api_key).
-    
+
     This prevents collisions across environments and tenants.
     """
     data = f"{deployment}:{idempotency_key}:{api_key}"
@@ -263,24 +258,24 @@ def get_expected_artifacts(mode: str) -> list[str]:
 @runtime_checkable
 class JobStore(Protocol):
     """Protocol for job state persistence."""
-    
+
     def get(self, job_id: str) -> JobRecord | None:
         """Get job by ID, returns None if not found."""
         ...
-    
+
     def put_if_not_exists(self, job: JobRecord) -> None:
         """
         Create job with conditional write (fails if exists).
-        
+
         Raises:
             ConditionalCheckFailedError: If job already exists
         """
         ...
-    
+
     def update(self, job: JobRecord) -> None:
         """Update existing job."""
         ...
-    
+
     def query_by_status(
         self,
         status: list[JobStatus],
@@ -293,33 +288,33 @@ class JobStore(Protocol):
 class InMemoryJobStore:
     """
     In-memory job store for testing.
-    
+
     Thread-safe implementation using locks.
     """
-    
+
     def __init__(self) -> None:
         self._jobs: dict[str, JobRecord] = {}
         self._lock = threading.Lock()
-    
+
     def get(self, job_id: str) -> JobRecord | None:
         """Get job by ID."""
         with self._lock:
             return self._jobs.get(job_id)
-    
+
     def put_if_not_exists(self, job: JobRecord) -> None:
         """Create job with conditional write."""
         with self._lock:
             if job.job_id in self._jobs:
                 raise ConditionalCheckFailedError(f"Job {job.job_id} already exists")
             self._jobs[job.job_id] = job
-    
+
     def update(self, job: JobRecord) -> None:
         """Update existing job."""
         with self._lock:
             if job.job_id not in self._jobs:
                 raise NotFoundError(f"Job {job.job_id} not found")
             self._jobs[job.job_id] = job
-    
+
     def query_by_status(
         self,
         status: list[JobStatus],
@@ -339,7 +334,7 @@ class InMemoryJobStore:
                             continue
                     results.append(job)
             return results
-    
+
     def clear(self) -> None:
         """Clear all jobs (for testing)."""
         with self._lock:
@@ -349,10 +344,10 @@ class InMemoryJobStore:
 class DynamoDBStore:
     """
     AWS DynamoDB job store.
-    
+
     Uses ConditionExpression="attribute_not_exists(job_id)" for conditional writes.
     """
-    
+
     def __init__(
         self,
         table_name: str,
@@ -361,7 +356,7 @@ class DynamoDBStore:
     ) -> None:
         """
         Initialize DynamoDB store.
-        
+
         Args:
             table_name: DynamoDB table name
             region: AWS region (optional)
@@ -370,7 +365,7 @@ class DynamoDBStore:
         self.table_name = table_name
         self.region = region
         self._client = client
-    
+
     @property
     def client(self) -> Any:
         """Get or create boto3 DynamoDB client."""
@@ -378,7 +373,7 @@ class DynamoDBStore:
             import boto3
             self._client = boto3.client("dynamodb", region_name=self.region)
         return self._client
-    
+
     def _to_dynamodb_item(self, job: JobRecord) -> dict[str, Any]:
         """Convert JobRecord to DynamoDB item format."""
         item = {
@@ -401,13 +396,13 @@ class DynamoDBStore:
         if job.error_message:
             item["error_message"] = {"S": job.error_message}
         return item
-    
+
     def _from_dynamodb_item(self, item: dict[str, Any]) -> JobRecord:
         """Convert DynamoDB item to JobRecord."""
         expected = item.get("expected_artifacts", {}).get("SS", [])
         if expected == ["_empty"]:
             expected = []
-        
+
         return JobRecord(
             job_id=item["job_id"]["S"],
             deployment=item["deployment"]["S"],
@@ -425,7 +420,7 @@ class DynamoDBStore:
             error_message=item.get("error_message", {}).get("S"),
             ttl=int(item["ttl"]["N"]),
         )
-    
+
     def get(self, job_id: str) -> JobRecord | None:
         """Get job by ID."""
         try:
@@ -439,7 +434,7 @@ class DynamoDBStore:
             return self._from_dynamodb_item(item)
         except Exception:
             return None
-    
+
     def put_if_not_exists(self, job: JobRecord) -> None:
         """Create job with conditional write."""
         try:
@@ -452,14 +447,14 @@ class DynamoDBStore:
             if "ConditionalCheckFailedException" in str(type(e)):
                 raise ConditionalCheckFailedError(f"Job {job.job_id} already exists") from e
             raise
-    
+
     def update(self, job: JobRecord) -> None:
         """Update existing job."""
         self.client.put_item(
             TableName=self.table_name,
             Item=self._to_dynamodb_item(job),
         )
-    
+
     def query_by_status(
         self,
         status: list[JobStatus],
@@ -468,7 +463,7 @@ class DynamoDBStore:
         """Query jobs by status using scan (GSI recommended for production)."""
         results = []
         status_values = [s.value for s in status]
-        
+
         # Note: In production, use a GSI on status for efficient queries
         paginator = self.client.get_paginator("scan")
         for page in paginator.paginate(TableName=self.table_name):
@@ -482,17 +477,17 @@ class DynamoDBStore:
                         if started >= started_before:
                             continue
                     results.append(job)
-        
+
         return results
 
 
 class CosmosStore:
     """
     Azure Cosmos DB job store.
-    
+
     Uses etag for conditional writes.
     """
-    
+
     def __init__(
         self,
         database_name: str,
@@ -502,7 +497,7 @@ class CosmosStore:
     ) -> None:
         """
         Initialize Cosmos DB store.
-        
+
         Args:
             database_name: Cosmos DB database name
             container_name: Container name
@@ -513,7 +508,7 @@ class CosmosStore:
         self.container_name = container_name
         self.connection_string = connection_string
         self._container = container
-    
+
     @property
     def container(self) -> Any:
         """Get or create Cosmos DB container client."""
@@ -523,7 +518,7 @@ class CosmosStore:
             database = client.get_database_client(self.database_name)
             self._container = database.get_container_client(self.container_name)
         return self._container
-    
+
     def get(self, job_id: str) -> JobRecord | None:
         """Get job by ID."""
         try:
@@ -531,24 +526,24 @@ class CosmosStore:
             return JobRecord.from_dict(item)
         except Exception:
             return None
-    
+
     def put_if_not_exists(self, job: JobRecord) -> None:
         """Create job with conditional write."""
         from azure.cosmos.exceptions import CosmosResourceExistsError
-        
+
         try:
             item = job.to_dict()
             item["id"] = job.job_id  # Cosmos DB requires 'id' field
             self.container.create_item(body=item)
         except CosmosResourceExistsError as e:
             raise ConditionalCheckFailedError(f"Job {job.job_id} already exists") from e
-    
+
     def update(self, job: JobRecord) -> None:
         """Update existing job."""
         item = job.to_dict()
         item["id"] = job.job_id
         self.container.upsert_item(body=item)
-    
+
     def query_by_status(
         self,
         status: list[JobStatus],
@@ -557,7 +552,7 @@ class CosmosStore:
         """Query jobs by status."""
         status_values = [f"'{s.value}'" for s in status]
         query = f"SELECT * FROM c WHERE c.status IN ({', '.join(status_values)})"
-        
+
         results = []
         for item in self.container.query_items(query=query, enable_cross_partition_query=True):
             job = JobRecord.from_dict(item)
@@ -568,17 +563,17 @@ class CosmosStore:
                 if started >= started_before:
                     continue
             results.append(job)
-        
+
         return results
 
 
 class FirestoreStore:
     """
     Google Cloud Firestore job store.
-    
+
     Uses transaction with create() for conditional writes.
     """
-    
+
     def __init__(
         self,
         collection_name: str,
@@ -587,7 +582,7 @@ class FirestoreStore:
     ) -> None:
         """
         Initialize Firestore store.
-        
+
         Args:
             collection_name: Firestore collection name
             project: GCP project ID
@@ -596,7 +591,7 @@ class FirestoreStore:
         self.collection_name = collection_name
         self.project = project
         self._db = db
-    
+
     @property
     def db(self) -> Any:
         """Get or create Firestore client."""
@@ -604,28 +599,27 @@ class FirestoreStore:
             from google.cloud import firestore
             self._db = firestore.Client(project=self.project)
         return self._db
-    
+
     def get(self, job_id: str) -> JobRecord | None:
         """Get job by ID."""
         doc = self.db.collection(self.collection_name).document(job_id).get()
         if not doc.exists:
             return None
         return JobRecord.from_dict(doc.to_dict())
-    
+
     def put_if_not_exists(self, job: JobRecord) -> None:
         """Create job with conditional write using transaction."""
-        from google.cloud.firestore_v1.base_document import DocumentSnapshot
         from google.api_core.exceptions import AlreadyExists
-        
+
         doc_ref = self.db.collection(self.collection_name).document(job.job_id)
-        
+
         @self.db.transactional
         def create_in_transaction(transaction):
             doc = doc_ref.get(transaction=transaction)
             if doc.exists:
                 raise ConditionalCheckFailedError(f"Job {job.job_id} already exists")
             transaction.set(doc_ref, job.to_dict())
-        
+
         try:
             transaction = self.db.transaction()
             create_in_transaction(transaction)
@@ -633,11 +627,11 @@ class FirestoreStore:
             raise
         except AlreadyExists as e:
             raise ConditionalCheckFailedError(f"Job {job.job_id} already exists") from e
-    
+
     def update(self, job: JobRecord) -> None:
         """Update existing job."""
         self.db.collection(self.collection_name).document(job.job_id).set(job.to_dict())
-    
+
     def query_by_status(
         self,
         status: list[JobStatus],
@@ -646,7 +640,7 @@ class FirestoreStore:
         """Query jobs by status."""
         status_values = [s.value for s in status]
         query = self.db.collection(self.collection_name).where("status", "in", status_values)
-        
+
         results = []
         for doc in query.stream():
             job = JobRecord.from_dict(doc.to_dict())
@@ -657,5 +651,5 @@ class FirestoreStore:
                 if started >= started_before:
                     continue
             results.append(job)
-        
+
         return results

@@ -607,3 +607,8 @@ class TestNormalizeCitationsBareDomains:
         # Only one URL entry in Sources section
         sources_section = result.split("## Sources")[1]
         assert sources_section.count("https://example.com/page") == 1
+
+
+
+
+

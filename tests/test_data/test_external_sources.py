@@ -8,6 +8,7 @@ These tests ensure the external source pipeline is bulletproof:
 4. LLM validation correctly identifies the target company
 5. Errors are handled gracefully without silent failures
 """
+from datetime import datetime
 from unittest.mock import Mock, patch
 
 import pytest
@@ -745,3 +746,42 @@ class TestSearchProviderDispatch:
         """search_google backward compatibility alias should work."""
         from primr.data.search_utils import search_google, search_web
         assert search_google is search_web
+
+
+class TestExternalQueryGeneration:
+    """Test external query generation includes recency and fallback coverage."""
+
+    def test_external_queries_force_latest_news_lane(self):
+        """Generated queries should always include explicit latest-news coverage."""
+        from primr.data.search_utils import generate_external_search_queries
+
+        with patch('primr.data.search_utils.llm', return_value='Acme Corp smart grid strategy\nAcme Corp executive interview\n'):
+            queries = generate_external_search_queries(
+                company_name='Acme Corp',
+                website='https://acme.com',
+                max_queries=8,
+            )
+
+        current_year = datetime.now().year
+        assert any('latest news' in q.lower() for q in queries)
+        assert any(str(current_year) in q for q in queries)
+        assert all('acme corp' in q.lower() for q in queries)
+
+    def test_external_queries_fallback_when_llm_fails(self):
+        """Fallback queries should still include recency and coverage dimensions."""
+        from primr.data.search_utils import generate_external_search_queries
+
+        with patch('primr.data.search_utils.llm', side_effect=Exception('query failure')):
+            queries = generate_external_search_queries(
+                company_name='Acme Corp',
+                website='https://acme.com',
+                max_queries=6,
+            )
+
+        assert len(queries) == 6
+        assert queries[0].lower().startswith('acme corp latest news')
+        assert any('leadership' in q.lower() for q in queries)
+        assert any('press release' in q.lower() or 'announcements' in q.lower() for q in queries)
+
+
+

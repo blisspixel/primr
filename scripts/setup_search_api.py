@@ -20,7 +20,6 @@ Usage:
 
 import argparse
 import json
-import os
 import re
 import subprocess
 import sys
@@ -56,7 +55,7 @@ GCLOUD_CMD = _find_gcloud()
 
 def run_gcloud(args: list[str], *, check: bool = True, capture: bool = True) -> str:
     """Run a gcloud command and return stdout."""
-    cmd = [GCLOUD_CMD] + args
+    cmd = [GCLOUD_CMD, *args]
     result = subprocess.run(
         cmd,
         capture_output=capture,
@@ -110,10 +109,10 @@ def enable_api(project_id: str) -> None:
         f"--filter=config.name:{CUSTOM_SEARCH_SERVICE}",
     ])
     if CUSTOM_SEARCH_SERVICE in enabled:
-        print(f"  Custom Search API: already enabled")
+        print("  Custom Search API: already enabled")
         return
 
-    print(f"  Enabling Custom Search API...", end=" ", flush=True)
+    print("  Enabling Custom Search API...", end=" ", flush=True)
     run_gcloud([
         "services", "enable", CUSTOM_SEARCH_SERVICE,
         f"--project={project_id}",
@@ -188,7 +187,7 @@ def create_api_key(project_id: str) -> str:
     match = re.search(r"keyString:\s*(.+)", key_string_raw)
     key_string = match.group(1).strip() if match else key_string_raw.strip()
 
-    print(f"  Key created and restricted to Custom Search API only")
+    print("  Key created and restricted to Custom Search API only")
     return key_string
 
 
@@ -196,19 +195,13 @@ def create_search_engine(api_key: str) -> str:
     """Create a Programmable Search Engine via the CSE API. Returns the search engine ID (cx)."""
     try:
         import httpx
-    except ImportError:
+    except ImportError as err:
         # Fall back to urllib
-        import urllib.request
-        import urllib.error
 
-        url = (
-            "https://customsearch.googleapis.com/customsearch/v1/siterestrict"
-            f"?key={api_key}&q=test&num=1"
-        )
         # We can't create a CSE via the search API alone.
         # Use the cse.url.list endpoint to see if any exist.
         # Fall through to manual instructions.
-        raise ImportError("httpx not available")
+        raise ImportError("httpx not available") from err
 
     # The Programmable Search Engine can be created via the
     # www.googleapis.com/customsearch/v1/cse endpoint, but that requires OAuth.
@@ -324,7 +317,7 @@ def update_env_file(key_name: str, key_value: str) -> None:
         example = PROJECT_ROOT / ".env.example"
         if example.exists():
             ENV_FILE.write_text(example.read_text())
-            print(f"  Created .env from .env.example")
+            print("  Created .env from .env.example")
         else:
             ENV_FILE.write_text("")
 
@@ -390,27 +383,27 @@ def main():
     check_gcloud()
 
     # Step 2: Verify project
-    print(f"\n[2/5] Verifying project")
+    print("\n[2/5] Verifying project")
     verify_project(args.project)
 
     if args.dry_run:
         print(f"\n[3/5] Would enable: {CUSTOM_SEARCH_SERVICE}")
-        print(f"\n[4/5] Would create API key restricted to Custom Search")
-        print(f"\n[5/5] Would update .env with SEARCH_API_KEY and SEARCH_ENGINE_ID")
+        print("\n[4/5] Would create API key restricted to Custom Search")
+        print("\n[5/5] Would update .env with SEARCH_API_KEY and SEARCH_ENGINE_ID")
         print("\nDry run complete. Run without --dry-run to apply.")
         return
 
     # Step 3: Enable API
-    print(f"\n[3/5] Custom Search API")
+    print("\n[3/5] Custom Search API")
     enable_api(args.project)
 
     # Step 4: Create API key
-    print(f"\n[4/5] API Key")
+    print("\n[4/5] API Key")
     api_key = create_api_key(args.project)
     update_env_file("SEARCH_API_KEY", api_key)
 
     # Step 5: Search Engine ID
-    print(f"\n[5/5] Search Engine ID")
+    print("\n[5/5] Search Engine ID")
     cx = ""
 
     if not args.skip_cse:

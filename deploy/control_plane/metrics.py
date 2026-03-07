@@ -14,11 +14,9 @@ from __future__ import annotations
 
 import json
 import threading
-import time
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any
 
 
 def format_timestamp(dt: datetime) -> str:
@@ -41,29 +39,29 @@ class MetricValue:
 
 class Counter:
     """Thread-safe counter metric."""
-    
+
     def __init__(self, name: str, description: str = "") -> None:
         self.name = name
         self.description = description
         self._values: dict[str, float] = defaultdict(float)
         self._lock = threading.Lock()
-    
+
     def _label_key(self, labels: dict[str, str]) -> str:
         """Create a hashable key from labels."""
         return json.dumps(sorted(labels.items()))
-    
+
     def inc(self, labels: dict[str, str] | None = None, value: float = 1.0) -> None:
         """Increment the counter."""
         key = self._label_key(labels or {})
         with self._lock:
             self._values[key] += value
-    
+
     def get(self, labels: dict[str, str] | None = None) -> float:
         """Get current counter value."""
         key = self._label_key(labels or {})
         with self._lock:
             return self._values.get(key, 0.0)
-    
+
     def get_all(self) -> list[MetricValue]:
         """Get all counter values."""
         with self._lock:
@@ -80,41 +78,41 @@ class Counter:
 
 class Gauge:
     """Thread-safe gauge metric."""
-    
+
     def __init__(self, name: str, description: str = "") -> None:
         self.name = name
         self.description = description
         self._values: dict[str, float] = {}
         self._lock = threading.Lock()
-    
+
     def _label_key(self, labels: dict[str, str]) -> str:
         """Create a hashable key from labels."""
         return json.dumps(sorted(labels.items()))
-    
+
     def set(self, value: float, labels: dict[str, str] | None = None) -> None:
         """Set the gauge value."""
         key = self._label_key(labels or {})
         with self._lock:
             self._values[key] = value
-    
+
     def inc(self, labels: dict[str, str] | None = None, value: float = 1.0) -> None:
         """Increment the gauge."""
         key = self._label_key(labels or {})
         with self._lock:
             self._values[key] = self._values.get(key, 0.0) + value
-    
+
     def dec(self, labels: dict[str, str] | None = None, value: float = 1.0) -> None:
         """Decrement the gauge."""
         key = self._label_key(labels or {})
         with self._lock:
             self._values[key] = self._values.get(key, 0.0) - value
-    
+
     def get(self, labels: dict[str, str] | None = None) -> float:
         """Get current gauge value."""
         key = self._label_key(labels or {})
         with self._lock:
             return self._values.get(key, 0.0)
-    
+
     def get_all(self) -> list[MetricValue]:
         """Get all gauge values."""
         with self._lock:
@@ -131,10 +129,10 @@ class Gauge:
 
 class Histogram:
     """Thread-safe histogram metric for latency tracking."""
-    
+
     # Default buckets for latency in seconds
     DEFAULT_BUCKETS = (0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0)
-    
+
     def __init__(
         self,
         name: str,
@@ -148,11 +146,11 @@ class Histogram:
         self._sums: dict[str, float] = defaultdict(float)
         self._totals: dict[str, int] = defaultdict(int)
         self._lock = threading.Lock()
-    
+
     def _label_key(self, labels: dict[str, str]) -> str:
         """Create a hashable key from labels."""
         return json.dumps(sorted(labels.items()))
-    
+
     def observe(self, value: float, labels: dict[str, str] | None = None) -> None:
         """Record an observation."""
         key = self._label_key(labels or {})
@@ -162,19 +160,19 @@ class Histogram:
             for bucket in self.buckets:
                 if value <= bucket:
                     self._counts[key][bucket] += 1
-    
+
     def get_sum(self, labels: dict[str, str] | None = None) -> float:
         """Get sum of all observations."""
         key = self._label_key(labels or {})
         with self._lock:
             return self._sums.get(key, 0.0)
-    
+
     def get_count(self, labels: dict[str, str] | None = None) -> int:
         """Get count of all observations."""
         key = self._label_key(labels or {})
         with self._lock:
             return self._totals.get(key, 0)
-    
+
     def get_bucket_counts(self, labels: dict[str, str] | None = None) -> dict[float, int]:
         """Get bucket counts."""
         key = self._label_key(labels or {})
@@ -185,10 +183,10 @@ class Histogram:
 class ControlPlaneMetrics:
     """
     Metrics collector for the control plane.
-    
+
     Provides pre-defined metrics for common operations.
     """
-    
+
     def __init__(self) -> None:
         # Request metrics
         self.requests_total = Counter(
@@ -199,7 +197,7 @@ class ControlPlaneMetrics:
             "control_plane_request_duration_seconds",
             "Request duration in seconds",
         )
-        
+
         # Job metrics
         self.jobs_submitted = Counter(
             "control_plane_jobs_submitted_total",
@@ -213,19 +211,19 @@ class ControlPlaneMetrics:
             "control_plane_jobs_active",
             "Number of currently active jobs",
         )
-        
+
         # Queue metrics
         self.queue_depth = Gauge(
             "control_plane_queue_depth",
             "Current queue depth",
         )
-        
+
         # Rate limit metrics
         self.rate_limit_hits = Counter(
             "control_plane_rate_limit_hits_total",
             "Number of rate limit hits",
         )
-    
+
     def record_request(
         self,
         endpoint: str,
@@ -241,32 +239,32 @@ class ControlPlaneMetrics:
         }
         self.requests_total.inc(labels)
         self.request_duration.observe(duration_seconds, labels)
-    
+
     def record_job_submitted(self, mode: str, deployment: str) -> None:
         """Record a job submission."""
         labels = {"mode": mode, "deployment": deployment}
         self.jobs_submitted.inc(labels)
         self.jobs_active.inc(labels)
-    
+
     def record_job_completed(self, mode: str, deployment: str, status: str) -> None:
         """Record a job completion."""
         labels = {"mode": mode, "deployment": deployment, "status": status}
         self.jobs_completed.inc(labels)
         self.jobs_active.dec({"mode": mode, "deployment": deployment})
-    
+
     def set_queue_depth(self, depth: int, deployment: str) -> None:
         """Set current queue depth."""
         self.queue_depth.set(float(depth), {"deployment": deployment})
-    
+
     def record_rate_limit_hit(self, api_key_hash: str) -> None:
         """Record a rate limit hit."""
         # Don't include full hash in metrics for privacy
         self.rate_limit_hits.inc({"key_prefix": api_key_hash[:8]})
-    
+
     def to_prometheus(self) -> str:
         """Export metrics in Prometheus format."""
         lines = []
-        
+
         # Helper to format metric lines
         def format_metric(name: str, values: list[MetricValue], metric_type: str) -> None:
             lines.append(f"# TYPE {name} {metric_type}")
@@ -276,19 +274,19 @@ class ControlPlaneMetrics:
                     lines.append(f"{name}{{{label_str}}} {v.value}")
                 else:
                     lines.append(f"{name} {v.value}")
-        
+
         # Export counters
         format_metric(self.requests_total.name, self.requests_total.get_all(), "counter")
         format_metric(self.jobs_submitted.name, self.jobs_submitted.get_all(), "counter")
         format_metric(self.jobs_completed.name, self.jobs_completed.get_all(), "counter")
         format_metric(self.rate_limit_hits.name, self.rate_limit_hits.get_all(), "counter")
-        
+
         # Export gauges
         format_metric(self.jobs_active.name, self.jobs_active.get_all(), "gauge")
         format_metric(self.queue_depth.name, self.queue_depth.get_all(), "gauge")
-        
+
         return "\n".join(lines)
-    
+
     def to_json(self) -> str:
         """Export metrics as JSON."""
         data = {
