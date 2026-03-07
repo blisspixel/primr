@@ -42,6 +42,7 @@ dependencies = [
     "pytesseract",
     "markdown",
     "colorama",
+    "rich>=13.0.0",
     "python-dotenv",
     "httpx[http2]",
     "playwright",
