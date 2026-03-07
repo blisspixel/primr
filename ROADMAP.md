@@ -4,7 +4,7 @@ Current State: v1.16.0 (March 2026)
 
 Primr is a CLI-first, local research tool for company intelligence and strategic analysis. It aims to accelerate research workflows while being transparent about uncertainty.
 
-The design is intentionally opinionated and local-first. This roadmap reflects planned improvements ordered by practical impact — first make runs faster and cheaper, then expand provider options and data extraction, then enable compounding knowledge across runs.
+The design is intentionally opinionated and local-first. This roadmap reflects planned improvements ordered by practical impact — first make runs faster and cheaper, then make reports better, then expand extraction and provider choices, then enable compounding knowledge across runs.
 
 For completed work, see the [Changelog](#changelog) at the bottom of this file, or check [GitHub releases](https://github.com/blisspixel/primr/releases) for the latest.
 
@@ -28,7 +28,7 @@ For completed work, see the [Changelog](#changelog) at the bottom of this file, 
 
 **Deep Mode**: Gemini Deep Research Agent with autonomous multi-step search and synthesis
 
-**Standard Mode** (default when `XAI_API_KEY` set): Grok 4.1 pipeline with research deepening, parallel section writing, cross-validation, coherence pass, and strategy enrichment. ~30 min, ~$0.55.
+**Standard Mode** (default when `XAI_API_KEY` set): Grok 4.1 pipeline with research deepening, parallel section writing, cross-validation, coherence pass, and strategy enrichment. ~35-45 min, ~$0.55.
 
 **Premium Mode** (`--premium`): Gemini + Deep Research pipeline for maximum depth. ~50-75 min, ~$5.
 

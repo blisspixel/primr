@@ -10,13 +10,13 @@ Runs as a CLI, an MCP server, an OpenClaw integration, and a Claude Skill.
 primr "ExampleCo" https://example.co
 ```
 
-About 30 minutes later: competitive positioning, technology stack, strategic initiatives, and external validation, all cited. ~$0.55 in API costs.
+About 35-45 minutes later: competitive positioning, technology stack, strategic initiatives, and external validation, all cited. ~$0.55 in API costs.
 
 ## Why This Exists
 
 Company research is tedious. You visit the website, click around, search the company, read articles, synthesize it all, write it up. That process easily takes 1-2 hours per company and the output is usually unstructured notes.
 
-Primr does that entire workflow autonomously in about 30 minutes for about $0.55 in API costs. The output is a structured, cited intelligence brief — competitive positioning, technology stack, strategic initiatives, financial profile, and external validation. Whether you're researching a potential employer, evaluating an investment, preparing for a partnership, doing competitive analysis, or running due diligence, a single run replaces hours of manual work.
+Primr does that entire workflow autonomously in about 35-45 minutes for about $0.55 in API costs. The output is a structured, cited intelligence brief — competitive positioning, technology stack, strategic initiatives, financial profile, and external validation. Whether you're researching a potential employer, evaluating an investment, preparing for a partnership, doing competitive analysis, or running due diligence, a single run replaces hours of manual work.
 
 ## What Makes It Different
 
@@ -26,15 +26,15 @@ Primr does that entire workflow autonomously in about 30 minutes for about $0.55
 - **Cost controls built in**: `--dry-run` estimates, usage tracking, and governance hooks for budget limits.
 - **Agent-native interfaces**: CLI, MCP server, OpenClaw integration, and Claude Skills, all first-class.
 
-Manual research takes hours. Primr typically runs in about 30 minutes and costs about $0.55 in API usage (varies by depth and site complexity). The output is structured, cited, and ready to use.
+Manual research takes hours. Primr typically runs in about 35-45 minutes and costs about $0.55 in API usage (varies by depth and site complexity). The output is structured, cited, and ready to use.
 
 ## Modes
 
 | Mode | What it does | Time | Cost |
 |------|--------------|------|------|
-| Default | Grok 4.1 pipeline + AI Strategy (auto when `XAI_API_KEY` set) | ~30 min | ~$0.55 |
-| Default + multi-vendor | Add `--cloud-vendor aws azure` | ~35-40 min | ~$0.60 |
-| Default + strategy type | Add `--strategy-type customer_experience` | ~35-40 min | ~$0.60 |
+| Default | Grok 4.1 pipeline + AI Strategy (auto when `XAI_API_KEY` set) | ~35-45 min | ~$0.55 |
+| Default + multi-vendor | Add `--cloud-vendor aws azure` | ~45-55 min | ~$0.60 |
+| Default + strategy type | Add `--strategy-type customer_experience` | ~35-45 min | ~$0.60 |
 | Default `--no-ai-strategy` | Grok 4.1 report only, no strategy | ~25 min | ~$0.40 |
 | `--premium` | Gemini + Deep Research + AI Strategy | 50-75 min | ~$5 |
 | `--premium` + multi-vendor | Add `--cloud-vendor aws azure` | 75-120 min | $6-9 |
@@ -356,7 +356,7 @@ Playwright tiers now perform adaptive lazy-load scrolling (up to 20 steps by def
 | Gemini 3.1 Pro | `--premium` mode: section writing, analysis | $2/$12 (≤200k) · $4/$18 (>200k) |
 | Deep Research Agent | `--premium` mode: autonomous research | ~$2.50/task (flat) |
 
-**Why Grok 4.1 is the default:** Primr originally ran everything through Google's Deep Research API + Gemini 3.1 Pro — excellent research quality, but the Deep Research API runs ~$2.50 per task, pushing full runs to ~$5 and 50-75 minutes. When xAI released Grok 4.1, testing showed it handles company research comparably: strong at search-grounded analysis, solid structured output, and reliable citation handling. Switching the default pipeline to Grok 4.1 dropped costs to ~$0.55 (~90% cheaper) and runtime to ~30 minutes with similar report quality. Gemini Flash is still used for scraping in both modes. The full Gemini + Deep Research pipeline remains available via `--premium` when maximum research depth justifies the cost. [Full config reference](docs/CONFIG.md).
+**Why Grok 4.1 is the default:** Primr originally ran everything through Google's Deep Research API + Gemini 3.1 Pro — excellent research quality, but the Deep Research API runs ~$2.50 per task, pushing full runs to ~$5 and 50-75 minutes. When xAI released Grok 4.1, testing showed it handles company research comparably: strong at search-grounded analysis, solid structured output, and reliable citation handling. Switching the default pipeline to Grok 4.1 dropped costs to ~$0.55 (~90% cheaper) and runtime to ~35-45 minutes with similar report quality. Gemini Flash is still used for scraping in both modes. The full Gemini + Deep Research pipeline remains available via `--premium` when maximum research depth justifies the cost. [Full config reference](docs/CONFIG.md).
 
 **Agentic Architecture**
 - Hypothesis tracking with confidence levels across sessions
