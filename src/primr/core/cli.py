@@ -472,7 +472,7 @@ def _discover_strategies() -> list[dict[str, str]]:
 
     from pathlib import Path
 
-    import yaml
+    import yaml  # type: ignore[import-untyped]
 
     strategies_dir = Path(__file__).parent.parent / "prompts" / "strategies"
     results: list[dict[str, str]] = [
@@ -2717,7 +2717,7 @@ def _handle_list_strategies(config: CLIConfig) -> int:
     """List available strategy documents (dynamically from YAML configs)."""
     from pathlib import Path
 
-    import yaml
+    import yaml  # type: ignore[import-untyped]
 
     console.banner("Available Strategy Documents")
 

@@ -582,7 +582,11 @@ def fetch_web_content(
                         f"success_rate={success_rate:.2f}, avg_chars={avg_chars}"
                     ),
                 )
-                if success_rate < SCRAPE_PILOT_MIN_SUCCESS_RATE or avg_chars < SCRAPE_PILOT_MIN_CHARS:
+                high_success_relief_rate = max(SCRAPE_PILOT_MIN_SUCCESS_RATE, 0.90)
+                low_content_with_low_success = (
+                    avg_chars < SCRAPE_PILOT_MIN_CHARS and success_rate < high_success_relief_rate
+                )
+                if success_rate < SCRAPE_PILOT_MIN_SUCCESS_RATE or low_content_with_low_success:
                     console.clear_line()
                     console.fail(
                         "Pilot scrape validation failed "
@@ -591,8 +595,9 @@ def fetch_web_content(
                     console.muted(
                         "  Defensive stop: initial sample quality too low to trust full crawl"
                     )
+                    console.muted("  Re-run with --skip-scrape-validation to continue anyway")
                     console.muted(
-                        "  Override thresholds via SCRAPE_PILOT_* env vars if needed"
+                        "  Or tune SCRAPE_PILOT_* env vars (ex: SCRAPE_PILOT_MIN_CHARS=700)"
                     )
                     return True  # signal pilot abort
 
@@ -1183,4 +1188,5 @@ def extract_clean_text(soup_or_bytes):
     else:
         # It's bytes, use new function
         return _extract_text(soup_or_bytes)
+
 
