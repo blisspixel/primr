@@ -143,6 +143,7 @@ primr "Company" https://company.com --premium --lite     # Cheaper premium strat
 primr "Company" https://company.com --skip-scrape-validation      # Continue even if scrape quality is low
 primr "Company" https://company.com --resume-local                # Reuse latest incomplete local run folder
 primr --resume-latest                                              # Recover completed cloud jobs and finalize MD/DOCX
+primr --ai-strategy-only "output/Company_Strategic_Overview_03-06-2026.md" --cloud-vendor aws  # Reuse an existing report to generate only a missing strategy
 primr --improve "output/Company_Strategic_Overview_03-06-2026.md"          # Improve an existing output file
 primr improve "output/Company_AI_Strategy_AZURE_03-06-2026.md" --improve-agentic  # Agentic+deterministic post-pass
 primr --banner                                                           # Show startup banner only
@@ -206,6 +207,7 @@ Fast QA: labels=310, cites=12/12, validate=23/23, gate=PASS
 ✓ Report ready
   output/ExampleCo_Strategic_Overview_03-03-2026.docx
 
+Artifact Gate: PASS
 Mode: Standard (Grok 4.1)
 Chapters: 23
 Citations: 48
@@ -257,6 +259,9 @@ What this does:
 - Removes internal placeholder/source artifacts that should not ship (`Analysis Context`, `vendor-research`, `citation inventory`, etc.)
 - Normalizes and validates citations for reports
 - Applies strategy consistency checks (including budget-total mismatch detection)
+- Runs a deterministic salvage pass before blocking output, so recoverable markdown issues are auto-cleaned
+- Applies an artifact shipping gate before DOCX render and validates the rendered DOCX text afterward
+- Holds back dirty DOCX files but still saves `.md` / `.txt` plus a validation sidecar when issues remain
 - Prints deterministic QA summary (`gate=PASS|WARN`) before writing output
 
 ### Startup Banner
@@ -381,6 +386,9 @@ GEMINI_API_KEY=       # https://aistudio.google.com/apikey
 # Optional - scrape quality gate (fail fast when website extraction is too thin)
 # MIN_SCRAPED_PAGES=3
 # MIN_SCRAPED_CHARS=6000
+# SCRAPE_PILOT_COUNT=10
+# SCRAPE_PILOT_MIN_SUCCESS_RATE=0.70
+# SCRAPE_PILOT_MIN_CHARS=700
 
 # Optional - external search volume caps
 # MAX_EXTERNAL_SEARCH_QUERIES=5
@@ -394,7 +402,7 @@ GEMINI_API_KEY=       # https://aistudio.google.com/apikey
 
 Web search uses DuckDuckGo by default - no search API key needed. Google Custom Search is available as an optional fallback for users with existing whole-web CSEs.
 When `XAI_API_KEY` is set, Primr automatically uses the Grok 4.1 pipeline (faster, cheaper, same quality). Use `--premium` to force Gemini + Deep Research.
-If scrape validation blocks a run you intentionally want to continue, pass `--skip-scrape-validation`.
+If scrape validation blocks a run you intentionally want to continue, pass `--skip-scrape-validation` or lower `SCRAPE_PILOT_MIN_CHARS` (default `700`) for terse websites.
 Deep Research background jobs are created with persistent storage enabled, so `primr --check-jobs` can recover completed cloud work after local interruptions. Job checks now distinguish local connectivity issues (`CHECK ERROR`) from provider terminal failures.
 For one-shot recovery after crashes/reboots, use `primr --resume-latest` (or `--resume-jobs`) to fetch completed jobs and finalize canonical output filenames automatically.
 
@@ -504,5 +512,4 @@ This software is provided as-is by a solo developer. The author is not liable fo
 ## License
 
 MIT
-
 
