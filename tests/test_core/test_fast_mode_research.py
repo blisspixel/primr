@@ -9,6 +9,7 @@ import json
 
 from primr.core.research_agent import (
     _clean_fast_report_output,
+    _compute_fast_report_qa_metrics,
     _fast_cross_validate,
     _fast_gap_analysis,
     _fast_regenerate_section,
@@ -568,6 +569,18 @@ class TestCleanFastReportOutput:
         result = _clean_fast_report_output(content)
         assert "\n\n\n" not in result
 
+    def test_strips_workbook_and_external_source_artifacts(self):
+        content = (
+            "## Section\n\n"
+            "Claim [Workbook: Financial Profile] and [workbook section 3] and [Workbook §7].\n"
+            "Noise [External Sources].\n"
+        )
+        result = _clean_fast_report_output(content)
+        assert "[Workbook:" not in result
+        assert "[workbook section" not in result
+        assert "[Workbook §" not in result
+        assert "[External Sources]" not in result
+
     def test_empty_input_returns_unchanged(self):
         assert _clean_fast_report_output("") == ""
         assert _clean_fast_report_output("   ") == "   "
@@ -612,3 +625,47 @@ class TestNormalizeCitationsBareDomains:
 
 
 
+
+
+class TestFastReportQaMetrics:
+    """Tests for contradiction-aware fast report QA."""
+
+    def test_unresolved_contradictions_force_warn_gate(self):
+        content = (
+            "## Executive Summary\n\n"
+            "Claim (Reported) [cite: 1].\n\n"
+            "What to validate: Confirm revenue.\n\n"
+            "## Sources\n\n"
+            "[cite: 1] https://example.com/source\n"
+        )
+        metrics = _compute_fast_report_qa_metrics(content, unresolved_contradictions=2)
+        assert metrics["unresolved_contradictions"] == 2
+        assert metrics["qa_gate_passed"] is False
+
+
+
+
+def test_clean_fast_report_output_strips_analysis_and_internal_model_artifacts():
+    content = (
+        "## Section\n\n"
+        "Claim [Analysis Workbook: 4] and [Analysis: 2].\n"
+        "Uses vendor-research-aws-2026-03.txt and Internal ROI Model with Internal Analysis.\n"
+    )
+    result = _clean_fast_report_output(content)
+    assert "[Analysis Workbook" not in result
+    assert "[Analysis:" not in result
+    assert "vendor-research-aws-2026-03.txt" not in result
+    assert "Internal ROI Model" not in result
+    assert "Internal Analysis" not in result
+
+
+def test_compute_fast_report_qa_metrics_fails_with_zero_citations():
+    content = (
+        "## Executive Summary\n\n"
+        "Claim (Reported).\n\n"
+        "What to validate: Confirm revenue.\n"
+    )
+    metrics = _compute_fast_report_qa_metrics(content)
+    assert metrics["citations_used"] == 0
+    assert metrics["citations_defined"] == 0
+    assert metrics["qa_gate_passed"] is False

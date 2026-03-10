@@ -1584,6 +1584,19 @@ def _clean_fast_report_output(report_content: str) -> str:
         flags=re.IGNORECASE,
     )
 
+    # 4b. Strip internal workbook/external-source references that are useful
+    # during generation but should not appear in shipped artifacts.
+    report_content = re.sub(r"\[Workbook:[^\]]*\]", "", report_content, flags=re.IGNORECASE)
+    report_content = re.sub(r"\[workbook section[^\]]*\]", "", report_content, flags=re.IGNORECASE)
+    report_content = re.sub(r"\[Workbook §[^\]]*\]", "", report_content, flags=re.IGNORECASE)
+    report_content = re.sub(r"\[Analysis Workbook[^\]]*\]", "", report_content, flags=re.IGNORECASE)
+    report_content = re.sub(r"\[Analysis:[^\]]*\]", "", report_content, flags=re.IGNORECASE)
+    report_content = re.sub(r"\[External Sources\]", "", report_content, flags=re.IGNORECASE)
+    report_content = re.sub(r"vendor-research-[\w.-]+\.txt", "", report_content, flags=re.IGNORECASE)
+    report_content = re.sub(r"\bInternal ROI Model\b", "", report_content, flags=re.IGNORECASE)
+    report_content = re.sub(r"\bInternal Analysis\b", "", report_content, flags=re.IGNORECASE)
+    report_content = re.sub(r"\bAnalysis Workbook\b", "", report_content, flags=re.IGNORECASE)
+
     # 5. Strip LLM meta-annotations like [Word count: 1028]
     report_content = re.sub(r"\[Word count:\s*[\d,]+\]", "", report_content, flags=re.IGNORECASE)
 
@@ -1596,6 +1609,9 @@ def _clean_fast_report_output(report_content: str) -> str:
     return report_content.strip() + "\n"
 _INTERNAL_REFERENCE_TERMS = (
     "analysis context",
+    "analysis workbook",
+    "internal analysis",
+    "internal roi model",
     "vendor-research",
     "workbook",
     "company report",
@@ -1650,14 +1666,16 @@ def _compute_strategy_qa_metrics(strategy_content: str) -> dict[str, int | float
 
     lower = strategy_content.lower()
     placeholder_refs = sum(1 for term in _INTERNAL_REFERENCE_TERMS if term in lower)
-    source_urls = len(re.findall(r"\[Source:\s*https?://[^\]\s]+", strategy_content, re.IGNORECASE))
+    raw_source_urls = len(re.findall(r"\[Source:\s*https?://[^\]\s]+", strategy_content, re.IGNORECASE))
+    cite_refs = {int(n) for n in re.findall(r"cite:\s*(\d+)", strategy_content, re.IGNORECASE)}
+    source_urls = max(raw_source_urls, len(cite_refs))
 
     totals: list[float] = []
     for m in re.finditer(r"Total\s*:?\s*\$([0-9]+(?:\.[0-9]+)?)\s*([KMB])", strategy_content, re.IGNORECASE):
         totals.append(_strategy_money_to_millions(float(m.group(1)), m.group(2)))
 
     for m in re.finditer(
-        r"Year 1 investment\s*\(?[^)]*\)?\s*:?\s*\$([0-9]+(?:\.[0-9]+)?)(?:\s*-\s*([0-9]+(?:\.[0-9]+)?))?\s*([KMB])",
+        r"Year 1 investment\s*\(?[^\n)]*\)?\s*:?\s*\$([0-9]+(?:\.[0-9]+)?)(?:\s*-\s*([0-9]+(?:\.[0-9]+)?))?\s*([KMB])",
         strategy_content,
         re.IGNORECASE,
     ):
@@ -1691,6 +1709,7 @@ def _clean_strategy_output(strategy_content: str) -> str:
     if not strategy_content.strip():
         return strategy_content
     cleaned = _clean_fast_report_output(strategy_content)
+    cleaned = _normalize_fast_citations(cleaned)
     cleaned = _strip_internal_source_placeholders(cleaned)
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
     return cleaned.strip() + "\n"
@@ -1883,11 +1902,14 @@ def _enforce_fast_section_quality_guards(report_content: str) -> str:
     return "\n\n".join(part for part in rebuilt if part).strip() + "\n"
 
 
-def _compute_fast_report_qa_metrics(report_content: str) -> dict[str, int | float | bool]:
+def _compute_fast_report_qa_metrics(
+    report_content: str,
+    unresolved_contradictions: int = 0,
+) -> dict[str, int | float | bool]:
     """Compute lightweight local QA metrics for fast reports.
 
     Checks: confidence labels, citations, validation prompts, duplicate
-    sections, and thin sections.
+    sections, thin sections, and unresolved contradiction carry-through.
     """
     confidence_labels = len(
         re.findall(r"\((Confirmed|Reported|Estimated|Hypothesis)[^)]*\)", report_content, re.IGNORECASE)
@@ -1926,10 +1948,13 @@ def _compute_fast_report_qa_metrics(report_content: str) -> dict[str, int | floa
     # QA gate: stricter — also checks for duplicates and thin sections
     qa_passed = bool(
         confidence_labels >= 8
+        and len(cited_numbers) > 0
+        and len(defined) > 0
         and len(missing) == 0
         and with_validate >= max(1, len(content_sections))
         and duplicate_sections == 0
         and thin_sections == 0
+        and unresolved_contradictions == 0
     )
 
     return {
@@ -1942,6 +1967,7 @@ def _compute_fast_report_qa_metrics(report_content: str) -> dict[str, int | floa
         "sections_with_validate": with_validate,
         "duplicate_sections": duplicate_sections,
         "thin_sections": thin_sections,
+        "unresolved_contradictions": unresolved_contradictions,
         "qa_gate_passed": qa_passed,
     }
 
@@ -3542,6 +3568,7 @@ def perform_fast_research(
 
         weak_sections = cv_result.get("weak_sections", [])
         contradictions = cv_result.get("contradictions", [])
+        unresolved_contradictions = len(contradictions)
         sections_enriched = 0
         cv_search_count = 0
 
@@ -3671,6 +3698,7 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
                     original_words = len(report_content.split())
                     if resolved_words >= int(original_words * 0.95):
                         report_content = resolved
+                        unresolved_contradictions = 0
                         console.ok(f"Resolved {len(contradictions)} contradiction(s)")
                     else:
                         logger.warning("Contradiction resolution dropped too many words (%d → %d), keeping original",
@@ -3697,7 +3725,10 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
         report_content = _normalize_fast_citations(report_content)
         report_content = _clean_fast_report_output(report_content)
         report_content = _enforce_fast_section_quality_guards(report_content)
-        qa_metrics = _compute_fast_report_qa_metrics(report_content)
+        qa_metrics = _compute_fast_report_qa_metrics(
+            report_content,
+            unresolved_contradictions=unresolved_contradictions,
+        )
         qa_parts = [
             f"labels={qa_metrics['confidence_labels']}",
             f"cites={qa_metrics['citations_used']}/{qa_metrics['citations_defined']}",
@@ -3707,11 +3738,25 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
             qa_parts.append(f"dupes={qa_metrics['duplicate_sections']}")
         if qa_metrics.get("thin_sections", 0) > 0:
             qa_parts.append(f"thin={qa_metrics['thin_sections']}")
+        if qa_metrics.get("unresolved_contradictions", 0) > 0:
+            qa_parts.append(f"contradictions={qa_metrics['unresolved_contradictions']}")
         qa_parts.append(f"gate={'PASS' if qa_metrics['qa_gate_passed'] else 'WARN'}")
         console.info("Fast QA: " + ", ".join(qa_parts))
 
         # Save report via existing output pipeline
-        docx_path = _convert_deep_research_to_docx(report_content, company_name or display_name, website)
+        report_gate_issues = []
+        if unresolved_contradictions > 0:
+            report_gate_issues.append(f"unresolved_contradictions: {unresolved_contradictions}")
+        if qa_metrics["citations_used"] == 0 or qa_metrics["citations_defined"] == 0:
+            report_gate_issues.append(
+                f"citation_integrity: {qa_metrics['citations_used']}/{qa_metrics['citations_defined']}"
+            )
+        docx_path = _convert_deep_research_to_docx(
+            report_content,
+            company_name or display_name,
+            website,
+            gate_issues=report_gate_issues,
+        )
 
         # Also save raw markdown for AI strategy context
         raw_md_path = os.path.join(folder_path, "report.md")
@@ -3959,6 +4004,8 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
 
         if docx_path:
             console.success_box("Report ready", str(Path(docx_path).resolve()))
+        else:
+            console.warn("Report DOCX held back by artifact gate; review the saved MD/TXT artifacts")
 
         for strat_key, strategy_path in strategy_paths.items():
             # AI strategy keys: "ai" or "ai_azure" — show vendor suffix
@@ -3967,7 +4014,11 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
                 label = f"AI Strategy{vendor_suffix}"
             else:
                 label = strat_key.replace("_", " ").title()
-            console.success_box(label, str(Path(strategy_path).resolve()))
+            resolved_strategy_path = Path(strategy_path).resolve()
+            if str(resolved_strategy_path).lower().endswith(".docx"):
+                console.success_box(label, str(resolved_strategy_path))
+            else:
+                console.warn(f"{label} DOCX held back by artifact gate; saved {resolved_strategy_path.name} instead")
 
         # Cost summary from Grok session usage
         grok_usage = get_grok_session_usage()
@@ -3985,6 +4036,9 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
 
         actual_cost = grok_cost + flash_cost
 
+        artifacts_passed = bool(docx_path) and all(
+            str(path).lower().endswith(".docx") for path in strategy_paths.values()
+        )
         summary_items = [
             ("Mode", "fast (Grok 4.1)"),
             ("Pages", str(pages_scraped)),
@@ -3992,6 +4046,7 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
             ("Duration", time_str),
             ("Grok tokens", f"{grok_usage['input_tokens']:,} in / {grok_usage['output_tokens']:,} out"),
             ("Actual Cost", f"~${actual_cost:.2f}"),
+            ("Artifact Gate", "PASS" if artifacts_passed else "WARN"),
         ]
         if strategy_paths:
             strat_labels = []
@@ -4057,6 +4112,11 @@ def _save_strategy_output(
     display_label = strategy_label.replace("_", " ")
 
     try:
+        strategy_content, markdown_validation, salvaged = _salvage_markdown_for_shipping(
+            strategy_content,
+            kind="strategy",
+        )
+
         md_path = Path(OUTPUT_DIR) / f"{base_name}.md"
         with open(md_path, "w", encoding="utf-8") as f:
             f.write(strategy_content)
@@ -4064,6 +4124,26 @@ def _save_strategy_output(
         txt_path = Path(OUTPUT_DIR) / f"{base_name}.txt"
         with open(txt_path, "w", encoding="utf-8") as f:
             f.write(strategy_content)
+        if salvaged:
+            console.info(f"Adaptive salvage cleaned {display_label} markdown before shipping")
+
+        strategy_gate_issues = list(markdown_validation["issues"])
+        strategy_gate_errors = list(markdown_validation["errors"])
+        strategy_qa = _compute_strategy_qa_metrics(strategy_content)
+        if strategy_qa["budget_inconsistent"]:
+            strategy_gate_issues.append("budget_inconsistent")
+        if strategy_gate_issues:
+            report_path = _write_output_validation_report(
+                md_path,
+                "markdown",
+                strategy_gate_issues,
+                strategy_gate_errors,
+            )
+            console.warn(
+                "DOCX shipping gate failed for strategy markdown; saved MD/TXT only"
+                + (f" ({report_path.name})" if report_path else "")
+            )
+            return str(md_path)
 
         docx_path = Path(OUTPUT_DIR) / f"{base_name}.docx"
         try:
@@ -4076,6 +4156,36 @@ def _save_strategy_output(
         except Exception as e:
             logger.warning(f"DOCX conversion failed: {e}")
             return str(md_path)
+
+        docx_validation = _validate_output_docx(docx_path)
+        if not docx_validation["passed"]:
+            report_path = _write_output_validation_report(
+                docx_path,
+                "docx",
+                docx_validation["issues"],
+                docx_validation["errors"],
+            )
+            try:
+                docx_path.unlink(missing_ok=True)
+            except Exception as cleanup_err:
+                logger.warning("Failed to remove blocked strategy DOCX %s: %s", docx_path, cleanup_err)
+            console.warn(
+                "DOCX shipping gate failed for rendered strategy; saved MD/TXT only"
+                + (f" ({report_path.name})" if report_path else "")
+            )
+            return str(md_path)
+
+        if docx_validation["errors"]:
+            report_path = _write_output_validation_report(
+                docx_path,
+                "docx",
+                docx_validation["issues"],
+                docx_validation["errors"],
+            )
+            console.warn(
+                "DOCX validator encountered non-fatal errors; shipping strategy DOCX"
+                + (f" ({report_path.name})" if report_path else "")
+            )
 
         return str(docx_path)
     except Exception as e:
@@ -4993,10 +5103,144 @@ def perform_deep_research(
                 logger.debug(f"Post-run resource cleanup failed (non-fatal): {cleanup_err}")
 
 
+
+_FORBIDDEN_OUTPUT_PATTERNS: tuple[tuple[str, str], ...] = (
+    ("raw_source_tag", r"\[Source:\s*(?:https?://)?[^\]\s]+"),
+    ("workbook_ref", r"\[Workbook:[^\]]*\]"),
+    ("workbook_section_ref", r"\[workbook section[^\]]*\]"),
+    ("workbook_section_symbol", r"\[Workbook §[^\]]*\]"),
+    ("analysis_workbook_ref", r"\[Analysis Workbook[^\]]*\]"),
+    ("analysis_ref", r"\[Analysis:[^\]]*\]"),
+    ("external_sources_ref", r"\[External Sources\]"),
+    ("citation_inventory", r"\[citation inventory[^\]]*\]"),
+    ("vendor_research_file", r"vendor-research-[\w.-]+\.txt"),
+    ("internal_roi_model", r"\bInternal ROI Model\b"),
+    ("internal_analysis", r"\bInternal Analysis\b"),
+)
+
+
+def _scan_forbidden_output_patterns(text: str) -> list[str]:
+    issues: list[str] = []
+    for label, pattern in _FORBIDDEN_OUTPUT_PATTERNS:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            issues.append(f"{label}: {match.group(0)[:120]}")
+
+    lower = text.lower()
+    for term in ("analysis context", "vendor-research"):
+        if term in lower:
+            issues.append(f"internal_term: {term}")
+
+    return issues
+
+
+def _write_output_validation_report(base_path: Path, phase: str, issues: list[str], errors: list[str]) -> Path | None:
+    if not issues and not errors:
+        return None
+
+    report_path = base_path.with_name(f"{base_path.stem}_{phase}_validation.txt")
+    lines = [f"Artifact validation report ({phase})", ""]
+    if issues:
+        lines.append("Issues:")
+        lines.extend(f"- {item}" for item in issues)
+        lines.append("")
+    if errors:
+        lines.append("Validator errors:")
+        lines.extend(f"- {item}" for item in errors)
+        lines.append("")
+    report_path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+    return report_path
+
+
+def _validate_output_markdown(markdown_content: str) -> dict[str, list[str] | bool]:
+    try:
+        issues = _scan_forbidden_output_patterns(markdown_content)
+        return {"passed": len(issues) == 0, "issues": issues, "errors": []}
+    except Exception as exc:
+        logger.warning("Markdown artifact validation failed: %s", exc)
+        return {"passed": True, "issues": [], "errors": [str(exc)]}
+
+
+def _extract_docx_text(document: Any) -> str:
+    parts: list[str] = []
+    for para in document.paragraphs:
+        if para.text:
+            parts.append(para.text)
+    for table in document.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                if cell.text:
+                    parts.append(cell.text)
+    return "\n".join(parts)
+
+
+def _prepare_report_markdown_for_shipping(markdown_content: str) -> str:
+    """Apply deterministic cleanup before report artifact validation/shipping."""
+    prepared = _normalize_fast_citations(markdown_content)
+    prepared = _clean_fast_report_output(prepared)
+    prepared = _strip_internal_source_placeholders(prepared)
+    prepared = _enforce_fast_section_quality_guards(prepared)
+    return prepared
+
+
+def _prepare_strategy_markdown_for_shipping(strategy_content: str) -> str:
+    """Apply deterministic cleanup before strategy artifact validation/shipping."""
+    return _clean_strategy_output(strategy_content)
+
+
+def _prepare_markdown_for_shipping(content: str, kind: str) -> str:
+    if kind == "strategy":
+        return _prepare_strategy_markdown_for_shipping(content)
+    return _prepare_report_markdown_for_shipping(content)
+
+
+def _salvage_markdown_for_shipping(
+    markdown_content: str,
+    kind: str,
+) -> tuple[str, dict[str, list[str] | bool], bool]:
+    """Run one deterministic salvage pass before blocking artifact shipping."""
+    validation = _validate_output_markdown(markdown_content)
+    if validation["passed"]:
+        return markdown_content, validation, False
+
+    prepared = _prepare_markdown_for_shipping(markdown_content, kind)
+    if prepared == markdown_content:
+        return markdown_content, validation, False
+
+    prepared_validation = _validate_output_markdown(prepared)
+    if prepared_validation["passed"]:
+        return prepared, prepared_validation, True
+
+    if len(prepared_validation["issues"]) < len(validation["issues"]):
+        return prepared, prepared_validation, True
+
+    return markdown_content, validation, False
+
+
+def _validate_output_docx(docx_path: Path) -> dict[str, list[str] | bool]:
+    try:
+        from docx import Document
+        from primr.output.markdown_parser import ArtifactDetector
+
+        document = Document(docx_path)
+        detector = ArtifactDetector()
+        artifacts = detector.scan_document(document)
+        issues = [
+            f"markdown_artifact:{artifact['type']}:{artifact['match']}"
+            for artifact in artifacts[:10]
+        ]
+        issues.extend(_scan_forbidden_output_patterns(_extract_docx_text(document)))
+        return {"passed": len(issues) == 0, "issues": issues, "errors": []}
+    except Exception as exc:
+        logger.warning("DOCX artifact validation failed: %s", exc)
+        return {"passed": True, "issues": [], "errors": [str(exc)]}
+
+
 def _convert_deep_research_to_docx(
     markdown_content: str,
     company_name: str,
-    website: str | None
+    website: str | None,
+    gate_issues: list[str] | None = None,
 ) -> str | None:
     """
     Convert Deep Research markdown output to all output formats.
@@ -5025,6 +5269,11 @@ def _convert_deep_research_to_docx(
     base_name = f"{company_name}_Strategic_Overview_{date_str}"
 
     try:
+        markdown_content, markdown_validation, salvaged = _salvage_markdown_for_shipping(
+            markdown_content,
+            kind="report",
+        )
+
         # Save markdown (.md)
         md_path = Path(OUTPUT_DIR) / f"{base_name}.md"
         with open(md_path, "w", encoding="utf-8") as f:
@@ -5036,12 +5285,30 @@ def _convert_deep_research_to_docx(
         with open(txt_path, "w", encoding="utf-8") as f:
             f.write(markdown_content)
         console.ok(f"TXT saved: {base_name}.txt", show_time=False)
+        if salvaged:
+            console.info("Adaptive salvage cleaned report markdown before shipping")
 
         # Build subtitle with date and website
         subtitle_parts = [datetime.now().strftime("%B %d, %Y")]
         if website:
             subtitle_parts.append(website)
         subtitle = " | ".join(subtitle_parts)
+
+        combined_markdown_issues = list(markdown_validation["issues"])
+        if gate_issues:
+            combined_markdown_issues.extend(gate_issues)
+        if combined_markdown_issues:
+            report_path = _write_output_validation_report(
+                md_path,
+                "markdown",
+                combined_markdown_issues,
+                markdown_validation["errors"],
+            )
+            console.warn(
+                "DOCX shipping gate failed for report markdown; saved MD/TXT only"
+                + (f" ({report_path.name})" if report_path else "")
+            )
+            return None
 
         # Convert to DOCX
         docx_path = Path(OUTPUT_DIR) / f"{base_name}.docx"
@@ -5063,6 +5330,36 @@ def _convert_deep_research_to_docx(
                 output_path=docx_path,
                 title=f"Strategic Company Overview: {company_name}",
                 subtitle=subtitle
+            )
+
+        docx_validation = _validate_output_docx(docx_path)
+        if not docx_validation["passed"]:
+            report_path = _write_output_validation_report(
+                docx_path,
+                "docx",
+                docx_validation["issues"],
+                docx_validation["errors"],
+            )
+            try:
+                docx_path.unlink(missing_ok=True)
+            except Exception as cleanup_err:
+                logger.warning("Failed to remove blocked DOCX %s: %s", docx_path, cleanup_err)
+            console.warn(
+                "DOCX shipping gate failed for rendered report; saved MD/TXT only"
+                + (f" ({report_path.name})" if report_path else "")
+            )
+            return None
+
+        if docx_validation["errors"]:
+            report_path = _write_output_validation_report(
+                docx_path,
+                "docx",
+                docx_validation["issues"],
+                docx_validation["errors"],
+            )
+            console.warn(
+                "DOCX validator encountered non-fatal errors; shipping report DOCX"
+                + (f" ({report_path.name})" if report_path else "")
             )
 
         console.ok(f"DOCX saved: {docx_path.name}", show_time=False)

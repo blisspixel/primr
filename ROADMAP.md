@@ -450,6 +450,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 |---------|------|------------|
 | unreleased | Mar 2026 | Private cloud vendor (NVIDIA-first, on-prem AI strategy) |
 | unreleased | Mar 2026 | A2A protocol integration (client, server, executor, hooks, 165 tests) |
+| unreleased | Mar 2026 | Adaptive output shipping gate, deterministic salvage pass, DOCX pre/post validation, strategy-only reruns from existing report markdown |
 | unreleased | Mar 2026 | Fast mode as default, `--premium` flag, quality improvements, strategy enrichment, startup banner, all strategy types in fast mode, output improve mode |
 | unreleased | Mar 2026 | Agentic pipeline, report quality fixes (duplicate elimination, coherence rewrite, contradiction resolution), adaptive search depth, source quality filtering, dynamic section selection, 2 new report sections (23 total), stronger QA gate |
 | unreleased | Feb 2026 | Deep-research refactor, scrape reliability hardening, shared error policy, warning reduction, eval workflow, Gemini 3.1 Pro, tiered pricing |
