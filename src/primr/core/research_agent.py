@@ -5220,6 +5220,7 @@ def _salvage_markdown_for_shipping(
 def _validate_output_docx(docx_path: Path) -> dict[str, list[str] | bool]:
     try:
         from docx import Document
+
         from primr.output.markdown_parser import ArtifactDetector
 
         document = Document(docx_path)
