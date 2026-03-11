@@ -152,6 +152,8 @@ class TraceLogger:
                 "reason": result.validation.reason,
                 "content_density": result.validation.content_density,
                 "is_duplicate_template": result.validation.is_duplicate_template,
+                "content_class": result.validation.content_class,
+                "counts_as_full_page": result.validation.counts_as_full_page,
             }
 
         entry = TraceEntry(

@@ -53,6 +53,22 @@ class TestValidateContent:
         assert result.valid is False
         assert "short" in result.reason.lower()
 
+    def test_structured_short_contact_page_is_valid(self):
+        """Short contact-style pages should be preserved."""
+        text = """
+        Contact Us
+        Office of Citizen Services
+        501 South Calhoun Street
+        Tallahassee, Florida 32399-2500
+        850-488-7052
+        """
+
+        result = validate_content(text, "https://example.com/contact-us")
+
+        assert result.valid is True
+        assert result.content_class == "structured_short"
+        assert result.counts_as_full_page is False
+
     def test_invalid_low_density(self):
         """Should invalidate content with low density."""
         # Create content with many repeated lines

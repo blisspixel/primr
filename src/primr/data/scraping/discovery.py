@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from urllib.parse import urljoin, urlparse
 
 from .config import COMMON_PAGE_PATTERNS, SitemapConfig
+from .org_profile import classify_organization_type
 from .net import extract_host, head_exists, is_same_domain, make_request
 from .rate_limiter import NoOpRateLimiter, RateLimiter
 
@@ -245,25 +246,72 @@ def _is_gzipped(content: bytes) -> bool:
 # Common URL Guessing
 # =============================================================================
 
-def guess_common_urls(base_url: str) -> list[DiscoveredLink]:
-    """
-    Generate common business page URLs based on patterns.
+ORG_SPECIFIC_PAGE_PATTERNS: dict[str, tuple[str, ...]] = {
+    "government": (
+        "/fdc/about",
+        "/about",
+        "/about-us",
+        "/leadership",
+        "/programs",
+        "/facilities",
+        "/institutions",
+        "/office-of-the-secretary",
+        "/budget",
+        "/annual-report",
+        "/reports",
+        "/newsroom",
+        "/press-releases",
+        "/procurement",
+        "/technology",
+    ),
+    "nonprofit": (
+        "/mission",
+        "/programs",
+        "/impact",
+        "/annual-report",
+        "/board",
+        "/leadership",
+        "/partners",
+    ),
+    "education": (
+        "/academics",
+        "/research",
+        "/departments",
+        "/administration",
+        "/leadership",
+        "/about",
+        "/news",
+    ),
+    "healthcare": (
+        "/services",
+        "/locations",
+        "/providers",
+        "/specialties",
+        "/about",
+        "/leadership",
+        "/news",
+    ),
+}
 
-    Uses COMMON_PAGE_PATTERNS (60+ patterns) to generate URLs
-    that commonly exist on business websites.
 
-    Args:
-        base_url: Base URL of the website (e.g., "https://example.com")
-
-    Returns:
-        List of DiscoveredLink objects for guessed URLs
-    """
-    # Normalize base URL
+def guess_common_urls(base_url: str, organization_type: str = "commercial") -> list[DiscoveredLink]:
+    """Generate common URLs, biased toward the inferred organization type."""
     parsed = urlparse(base_url)
     base = f"{parsed.scheme}://{parsed.netloc}"
 
-    links = []
+    ordered_patterns: list[str] = []
+    seen_patterns: set[str] = set()
+    for pattern in ORG_SPECIFIC_PAGE_PATTERNS.get(organization_type, ()):
+        if pattern not in seen_patterns:
+            ordered_patterns.append(pattern)
+            seen_patterns.add(pattern)
     for pattern in COMMON_PAGE_PATTERNS:
+        if pattern not in seen_patterns:
+            ordered_patterns.append(pattern)
+            seen_patterns.add(pattern)
+
+    links = []
+    for pattern in ordered_patterns:
         url = urljoin(base, pattern)
         links.append(DiscoveredLink(
             url=url,
@@ -352,8 +400,14 @@ LINK_INCLUDE_PATTERNS = [
 LINK_EXCLUDE_PATTERNS = [
     r"\.pdf$",
     r"\.jpg$",
+    r"\.jpeg$",
     r"\.png$",
     r"\.gif$",
+    r"\.svg$",
+    r"\.ico$",
+    r"\.webmanifest$",
+    r"\.xml$",
+    r"\.json$",
     r"\.css$",
     r"\.js$",
     r"/login",
@@ -371,6 +425,34 @@ LINK_EXCLUDE_PATTERNS = [
     r"^data:",
     r"^blob:",
 ]
+
+NON_CONTENT_PATH_PATTERNS = [
+    r"/favicons?(?:/|$)",
+    r"/favicon(?:\.|$)",
+    r"/search(?:$|[/?#])",
+    r"/manifest(?:\.|$)",
+    r"/site\.webmanifest$",
+]
+
+
+def is_probably_content_url(url: str) -> bool:
+    """Return False for assets or utility pages that should not enter research selection."""
+    try:
+        parsed = urlparse(url)
+    except ValueError:
+        return False
+
+    normalized = f"{parsed.path or '/'}"
+    if parsed.query:
+        normalized += f"?{parsed.query}"
+    normalized = normalized.lower()
+
+    if any(re.search(pattern, normalized, re.IGNORECASE) for pattern in LINK_EXCLUDE_PATTERNS):
+        return False
+    if any(re.search(pattern, normalized, re.IGNORECASE) for pattern in NON_CONTENT_PATH_PATTERNS):
+        return False
+    return True
+
 
 # Patterns that look like internal paths (for JS extraction)
 PATH_LIKE_PATTERNS = [
@@ -426,6 +508,9 @@ def extract_links_from_html(
 
         # Resolve relative URLs
         full_url = urljoin(base_url, href)
+
+        if not is_probably_content_url(full_url):
+            return
 
         # Validate it's a proper HTTP URL
         parsed = urlparse(full_url)
@@ -592,6 +677,22 @@ HIGH_VALUE_KEYWORDS = [
     "news", "press", "announcement",
 ]
 
+ORG_HIGH_VALUE_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "government": (
+        "mission", "program", "facility", "institution", "budget", "report",
+        "audit", "rule", "statute", "leadership", "secretary", "procurement",
+    ),
+    "nonprofit": (
+        "mission", "program", "impact", "donate", "board", "annual-report",
+    ),
+    "education": (
+        "academics", "research", "department", "faculty", "administration", "grants",
+    ),
+    "healthcare": (
+        "patient", "care", "provider", "location", "service", "specialty",
+    ),
+}
+
 # Keywords that indicate lower-value pages
 LOW_VALUE_KEYWORDS = [
     "privacy", "terms", "legal", "cookie", "gdpr",
@@ -601,7 +702,10 @@ LOW_VALUE_KEYWORDS = [
 ]
 
 
-def score_links_heuristically(links: list[DiscoveredLink]) -> list[DiscoveredLink]:
+def score_links_heuristically(
+    links: list[DiscoveredLink],
+    organization_type: str = "commercial",
+) -> list[DiscoveredLink]:
     """
     Score links based on URL patterns, anchor text, and sitemap priority.
 
@@ -613,12 +717,15 @@ def score_links_heuristically(links: list[DiscoveredLink]) -> list[DiscoveredLin
     Returns:
         Same list with score field populated, sorted by score descending
     """
+    org_keywords = list(ORG_HIGH_VALUE_KEYWORDS.get(organization_type, ()))
+    all_high_value_keywords = HIGH_VALUE_KEYWORDS + org_keywords
+
     for link in links:
         score = 0.0
         url_lower = link.url.lower()
 
         # URL pattern scoring
-        for keyword in HIGH_VALUE_KEYWORDS:
+        for keyword in all_high_value_keywords:
             if keyword in url_lower:
                 score += 10.0
 
@@ -626,10 +733,15 @@ def score_links_heuristically(links: list[DiscoveredLink]) -> list[DiscoveredLin
             if keyword in url_lower:
                 score -= 5.0
 
+        if organization_type == "government" and any(token in url_lower for token in ("pricing", "plans", "case-study", "customers")):
+            score -= 8.0
+        elif organization_type != "government" and any(token in url_lower for token in ("budget", "statute", "rule", "procurement")):
+            score += 1.5
+
         # Anchor text scoring
         if link.anchor_text:
             anchor_lower = link.anchor_text.lower()
-            for keyword in HIGH_VALUE_KEYWORDS:
+            for keyword in all_high_value_keywords:
                 if keyword in anchor_lower:
                     score += 5.0
 
@@ -717,6 +829,7 @@ def discover_links(
     min_links_to_skip_verify: int = 15,
     min_links_before_sitemap: int = 20,
     homepage_html: bytes | None = None,
+    organization_type: str | None = None,
 ) -> list[DiscoveredLink]:
     """
     Discover links using all available strategies.
@@ -758,17 +871,26 @@ def discover_links(
     else:
         logger.debug("No links extracted from homepage")
 
+    inferred_org_type = organization_type
+    if inferred_org_type is None:
+        homepage_text = homepage_html.decode("utf-8", errors="ignore") if homepage_html else None
+        inferred_org_type = classify_organization_type(base_url, homepage_text=homepage_text).organization_type
+
     # 2. Guessed URLs - only if we have few links
     if len(all_links) < min_links_before_sitemap:
-        guessed_links = guess_common_urls(base_url)
+        guessed_links: list[DiscoveredLink] = []
+        if inferred_org_type == "government":
+            logger.debug("Skipping guessed URL patterns for government site; relying on homepage links and sitemap")
+        else:
+            guessed_links = guess_common_urls(base_url, organization_type=inferred_org_type)
 
-        if verify_guessed and len(all_links) < min_links_to_skip_verify:
-            logger.debug(f"Verifying {len(guessed_links)} common URL patterns")
-            guessed_links = verify_urls_exist(guessed_links, rate_limiter)
-            logger.debug(f"Found {len(guessed_links)} verified URLs")
-        elif verify_guessed:
-            logger.debug(f"Skipping URL verification - already have {len(all_links)} links")
-            guessed_links = []  # Don't add unverified guesses
+            if verify_guessed and len(all_links) < min_links_to_skip_verify:
+                logger.debug(f"Verifying {len(guessed_links)} common URL patterns")
+                guessed_links = verify_urls_exist(guessed_links, rate_limiter)
+                logger.debug(f"Found {len(guessed_links)} verified URLs")
+            elif verify_guessed:
+                logger.debug(f"Skipping URL verification - already have {len(all_links)} links")
+                guessed_links = []  # Don't add unverified guesses
 
         add_links(guessed_links)
 
@@ -786,7 +908,7 @@ def discover_links(
 
     # Score and sort
     logger.debug(f"Scoring {len(all_links)} total links")
-    scored_links = score_links_heuristically(all_links)
+    scored_links = score_links_heuristically(all_links, organization_type=inferred_org_type)
 
     logger.debug(f"Discovered {len(scored_links)} total links for {base_url}")
     return scored_links

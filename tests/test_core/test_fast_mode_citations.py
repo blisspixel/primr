@@ -47,3 +47,19 @@ def test_normalize_fast_citations_preserves_existing_defs_and_drops_orphans():
     assert "[cite: 9]" not in body
     assert "[cite: 1]" in body
     assert "[cite: 1] https://example.com/known" in normalized
+
+
+def test_normalize_fast_citations_strips_multiword_source_tags():
+    """Multi-word [Source: ...] tags (not URLs) should be stripped entirely."""
+    content = (
+        "## Strategy\n\n"
+        "Azure is the leader [Source: Microsoft Azure].\n"
+        "Also see [Source: Company Website].\n"
+        "URL cite [Source: https://example.com/a].\n"
+    )
+
+    normalized = _normalize_fast_citations(content)
+
+    assert "[Source:" not in normalized
+    assert "Microsoft Azure" not in normalized or "[Source: Microsoft Azure]" not in normalized
+    assert "[cite: 1] https://example.com/a" in normalized
