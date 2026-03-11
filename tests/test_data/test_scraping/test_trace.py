@@ -121,6 +121,8 @@ class TestTraceLogger:
                     valid=True,
                     content_density=0.75,
                     is_duplicate_template=False,
+                    content_class="structured_short",
+                    counts_as_full_page=False,
                 ),
             )
 
@@ -135,6 +137,8 @@ class TestTraceLogger:
             assert entry["validation_result"] is not None
             assert entry["validation_result"]["valid"] is True
             assert entry["validation_result"]["content_density"] == 0.75
+            assert entry["validation_result"]["content_class"] == "structured_short"
+            assert entry["validation_result"]["counts_as_full_page"] is False
 
     def test_log_multiple_attempts(self):
         """Should log all tier attempts."""

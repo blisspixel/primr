@@ -11,9 +11,12 @@ from primr.data.scraping.discovery import (
     extract_links_from_html,
     fetch_sitemap_links,
     guess_common_urls,
+    is_probably_content_url,
     score_links_heuristically,
     verify_urls_exist,
 )
+from primr.data.scraping.org_profile import classify_organization_type
+from primr.data.scraping.net import is_same_domain
 
 
 class TestDiscoveredLink:
@@ -77,6 +80,55 @@ class TestGuessCommonUrls:
         assert "https://example.com/investors" in urls
 
 
+    def test_government_guessing_prioritizes_public_sector_patterns(self):
+        """Government sites should get government-specific guesses first."""
+        links = guess_common_urls("https://www.fdc.myflorida.com", organization_type="government")
+        urls = [link.url for link in links[:12]]
+
+        assert any(url.endswith("/budget") for url in urls)
+        assert any(url.endswith("/reports") for url in urls)
+
+
+class TestOrganizationProfile:
+    """Tests for org-type classification helper."""
+
+    def test_classifies_government_from_domain_and_text(self):
+        profile = classify_organization_type(
+            "https://www.fdc.myflorida.com/",
+            homepage_text="Florida Department of Corrections annual report and public records",
+            company_name="Florida Department of Corrections",
+        )
+
+        assert profile.organization_type == "government"
+        assert profile.confidence > 0.5
+
+
+class TestScopeHelpers:
+    """Tests for same-domain scope handling."""
+
+    def test_is_same_domain_treats_www_variant_as_same_site(self):
+        assert is_same_domain(
+            "https://www.fdc.myflorida.com/",
+            "https://fdc.myflorida.com/about/organization-chart",
+        )
+
+
+class TestContentUrlFiltering:
+    """Tests for filtering non-content URLs from discovery/selection."""
+
+    def test_rejects_favicon_asset(self):
+        assert not is_probably_content_url("https://example.com/favicons/favicon.ico")
+
+    def test_rejects_webmanifest_asset(self):
+        assert not is_probably_content_url("https://example.com/favicons/site.webmanifest")
+
+    def test_rejects_search_page(self):
+        assert not is_probably_content_url("https://example.com/search")
+
+    def test_accepts_normal_content_page(self):
+        assert is_probably_content_url("https://example.com/about")
+
+
 class TestExtractLinksFromHtml:
     """Tests for extract_links_from_html function."""
 
@@ -132,6 +184,8 @@ class TestExtractLinksFromHtml:
         html = b"""
         <a href="/doc.pdf">PDF</a>
         <a href="/image.jpg">Image</a>
+        <a href="/favicons/favicon.ico">Icon</a>
+        <a href="/favicons/site.webmanifest">Manifest</a>
         <a href="/about">About</a>
         """
         links = extract_links_from_html(html, "https://example.com")
@@ -243,6 +297,18 @@ class TestScoreLinksHeuristically:
         deep = next(lnk for lnk in scored if lnk.url.count("/") > 5)
 
         assert shallow.score > deep.score
+
+
+    def test_government_scoring_penalizes_commercial_paths(self):
+        """Government scoring should avoid commercial-looking pages."""
+        links = [
+            DiscoveredLink(url="https://agency.example/budget", source="html"),
+            DiscoveredLink(url="https://agency.example/pricing", source="html"),
+        ]
+
+        scored = score_links_heuristically(links, organization_type="government")
+
+        assert scored[0].url.endswith("/budget")
 
 
 class TestFetchSitemapLinks:

@@ -93,6 +93,11 @@ from .discovery import (
     score_links_heuristically,
     verify_urls_exist,
 )
+from .org_profile import (
+    OrganizationProfile,
+    classify_organization_type,
+    get_focus_areas_for_org_type,
+)
 
 # HTTP clients
 from .http_clients import (
@@ -217,6 +222,7 @@ __all__ = [
     "ContentBlock",
     # Discovery
     "DiscoveredLink",
+    "OrganizationProfile",
     # Models
     "ErrorType",
     "ExtractionMetrics",
@@ -245,6 +251,7 @@ __all__ = [
     "ValidationResult",
     "check_success_signal",
     "clear_block_templates",
+    "classify_organization_type",
     "compute_link_density",
     "detect_challenge_page",
     "detect_consent_wall",
@@ -262,6 +269,7 @@ __all__ = [
     "extract_main_content",
     "extract_structured_content",
     "extract_text_from_pdf_via_llm",
+    "get_focus_areas_for_org_type",
     "extract_with_boilerplate_learning",
     "fetch_sitemap_links",
     "find_main_content",

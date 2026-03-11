@@ -81,6 +81,22 @@ def _normalise_path(url: str) -> str:
     return parsed.path.rstrip("/").lower()
 
 
+def _equivalent_paths(path: str) -> set[str]:
+    """Return acceptable path variants for canonical/final URL comparison."""
+    variants = {path}
+    if path.startswith("/fdc/"):
+        variants.add(path[4:])
+    elif path.startswith("/fdc"):
+        variants.add(path[4:] or "/")
+    elif path and path != "/":
+        variants.add("/fdc" + path)
+    return {variant.rstrip("/") or "/" for variant in variants}
+
+
+def _paths_match(requested_path: str, candidate_path: str) -> bool:
+    return bool(_equivalent_paths(requested_path) & _equivalent_paths(candidate_path))
+
+
 def _detect_wrong_page(
     requested_url: str,
     raw_content: bytes,
@@ -110,13 +126,13 @@ def _detect_wrong_page(
     if match:
         canonical = match.group(1) or match.group(2)
         canonical_path = _normalise_path(canonical)
-        if canonical_path and canonical_path != requested_path:
+        if canonical_path and not _paths_match(requested_path, canonical_path):
             return True, canonical
 
     # Check final URL after redirect
     if final_url:
         final_path = _normalise_path(final_url)
-        if final_path and final_path != requested_path:
+        if final_path and not _paths_match(requested_path, final_path):
             return True, final_url
 
     return False, None
@@ -615,9 +631,17 @@ class ScrapeOrchestrator:
                         last_error_type = error_key
                     continue
 
-            # Check content quality - if garbage, try next tier
+            validation = validate_content(extracted, url) if extracted else None
+
+            # Check content quality - if garbage, try next tier unless richer
+            # validation says this is a useful structured short page.
             is_quality, quality_reason = is_quality_content(extracted)
-            if not is_quality:
+            allow_structured_short = bool(
+                validation
+                and validation.valid
+                and validation.content_class == "structured_short"
+            )
+            if not is_quality and not allow_structured_short:
                 logger.debug(f"Content quality failed on {tier.name} for {url}: {quality_reason}")
                 last_result = ScrapeResult(
                     url=url,
@@ -645,13 +669,17 @@ class ScrapeOrchestrator:
                     last_error_type = error_key
                 self._random_delay()
                 continue
+            if allow_structured_short and not is_quality:
+                logger.debug(
+                    "Accepting structured short page on %s for %s: %s",
+                    tier.name,
+                    url,
+                    validation.reason,
+                )
 
             # Cache extracted text
             if extracted:
                 self.cache.set_extracted(url, extracted)
-
-            # Validate content (informational only)
-            validation = validate_content(extracted, url) if extracted else None
 
             # Content is confirmed usable — now promote this tier as best
             host_state.best_tier = tier.name

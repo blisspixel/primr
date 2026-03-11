@@ -6,6 +6,7 @@ import primr.output.output_utils as output_utils
 from primr.core.research_agent import (
     _clean_strategy_output,
     _compute_strategy_qa_metrics,
+    _ensure_strategy_source_inventory,
     _convert_deep_research_to_docx,
     _save_strategy_output,
     _validate_output_docx,
@@ -199,3 +200,24 @@ def test_save_strategy_output_salvages_internal_vendor_reference(tmp_path: Path,
     assert md_files
     md_text = md_files[0].read_text(encoding="utf-8")
     assert "vendor-research-aws-2026-03.txt" not in md_text
+
+
+def test_ensure_strategy_source_inventory_appends_sources_when_missing():
+    content = "## AI Strategy\n\nRecommendation without citations.\n"
+    improved = _ensure_strategy_source_inventory(
+        content,
+        ["https://example.com/a", "https://example.com/b"],
+    )
+    assert "## Sources" in improved
+    assert "[cite: 1] https://example.com/a" in improved
+    assert "[cite: 2] https://example.com/b" in improved
+
+
+def test_ensure_strategy_source_inventory_preserves_existing_citations():
+    content = (
+        "## AI Strategy\n\nClaim [cite: 1].\n\n## Sources\n\n"
+        "[cite: 1] https://example.com/a\n"
+    )
+    improved = _ensure_strategy_source_inventory(content, ["https://example.com/a", "https://example.com/b"])
+    assert improved.count("[cite: 1] https://example.com/a") == 1
+    assert "[cite: 2] https://example.com/b" in improved

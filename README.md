@@ -1,8 +1,8 @@
 # Primr
 
-**Turn any company URL into a strategic intelligence brief.**
+**Turn any company or organization URL into a strategic intelligence brief.**
 
-Primr extracts primary-source data from company websites using adaptive scraping that handles modern site architectures, then synthesizes external research into structured briefs using AI-powered research and synthesis (Grok 4.1 by default, or Gemini Deep Research via `--premium`).
+Primr extracts primary-source data from company and organization websites using adaptive, org-aware scraping that handles modern site architectures, then synthesizes external research into structured briefs using AI-powered research and synthesis (Grok 4.1 by default, or Gemini Deep Research via `--premium`).
 
 Runs as a CLI, an MCP server, an OpenClaw integration, and a Claude Skill.
 
@@ -21,7 +21,8 @@ Primr does that entire workflow autonomously in about 35-45 minutes for about $0
 ## What Makes It Different
 
 - **Adaptive scraping**: 8 retrieval methods from browser rendering to TLS fingerprinting to screenshot+vision extraction, with per-host optimization. Starts with full browser rendering (what works on 95%+ of modern sites) and falls back through increasingly specialized methods.
-- **Fail-fast scrape quality gate**: Full/scrape modes now abort when site extraction is too thin (override with `--skip-scrape-validation`).
+- **Org-aware site selection**: Link discovery and prioritization now adapt for commercial companies, government sites, nonprofits, education, and healthcare organizations instead of assuming every site looks like a SaaS company.
+- **Fail-fast scrape quality gate**: Full/scrape modes now abort when site extraction is too thin, while still preserving short structured pages like contact, leadership, and org-chart references when they carry useful signal (override with `--skip-scrape-validation`).
 - **Autonomous external research**: Gemini Deep Research for comprehensive analysis, Grok 4.1 for fast turnaround — both plan queries, follow leads, cross-validate sources, and synthesize findings.
 - **Cost controls built in**: `--dry-run` estimates, usage tracking, and governance hooks for budget limits.
 - **Agent-native interfaces**: CLI, MCP server, OpenClaw integration, and Claude Skills, all first-class.
@@ -402,7 +403,7 @@ GEMINI_API_KEY=       # https://aistudio.google.com/apikey
 
 Web search uses DuckDuckGo by default - no search API key needed. Google Custom Search is available as an optional fallback for users with existing whole-web CSEs.
 When `XAI_API_KEY` is set, Primr automatically uses the Grok 4.1 pipeline (faster, cheaper, same quality). Use `--premium` to force Gemini + Deep Research.
-If scrape validation blocks a run you intentionally want to continue, pass `--skip-scrape-validation` or lower `SCRAPE_PILOT_MIN_CHARS` (default `700`) for terse websites.
+If scrape validation blocks a run you intentionally want to continue, pass `--skip-scrape-validation` or lower `SCRAPE_PILOT_MIN_CHARS` (default `700`) for terse websites. Primr now constrains LLM link selection to the discovered URL set, filters obvious non-content URLs like favicons/manifests/search endpoints, and preserves short structured pages when they carry useful signal. Strategy outputs also add a deterministic `## Sources` appendix when the model does not emit explicit source URLs on its own.
 Deep Research background jobs are created with persistent storage enabled, so `primr --check-jobs` can recover completed cloud work after local interruptions. Job checks now distinguish local connectivity issues (`CHECK ERROR`) from provider terminal failures.
 For one-shot recovery after crashes/reboots, use `primr --resume-latest` (or `--resume-jobs`) to fetch completed jobs and finalize canonical output filenames automatically.
 

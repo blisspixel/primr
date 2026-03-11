@@ -28,6 +28,8 @@ from primr.data.scraping import (
     ScrapeOrchestrator,
     ScrapeResult,
 )
+from primr.data.scraping.org_profile import classify_organization_type
+from primr.data.scraping.discovery import is_probably_content_url
 from primr.data.scraping import (
     extract_links_from_html as _extract_links_from_html_new,
 )
@@ -43,6 +45,53 @@ logger = get_logger("scrape")
 # =============================================================================
 # Console Output Helpers
 # =============================================================================
+
+_USEFUL_SINGLE_SEGMENT_PATHS = {
+    "about", "team", "news", "press", "blog", "careers", "jobs", "contact",
+    "leadership", "programs", "services", "products", "solutions", "platform",
+    "resources", "faq", "support", "help", "docs", "documentation", "ir",
+}
+
+
+def _looks_like_low_signal_wrapper_url(url: str, website: str) -> bool:
+    """Drop bare wrapper paths like /acme or /fdc when they mirror the host label."""
+    try:
+        parsed_url = urlparse(url)
+        parsed_site = urlparse(website)
+    except ValueError:
+        return False
+
+    path_parts = [part for part in parsed_url.path.lower().split("/") if part]
+    if len(path_parts) != 1:
+        return False
+
+    segment = path_parts[0]
+    if segment in _USEFUL_SINGLE_SEGMENT_PATHS or "-" in segment:
+        return False
+
+    host_labels = [label for label in parsed_site.netloc.lower().replace("www.", "").split(".") if label]
+    return segment in host_labels[:2]
+
+
+
+def _filter_selected_urls(urls: list[str], website: str) -> list[str]:
+    """Drop obvious non-content URLs before they count toward the scrape set."""
+    filtered: list[str] = []
+    homepage_normalized = normalize_url(website)
+    for url in urls:
+        normalized = normalize_url(url)
+        if normalized == homepage_normalized:
+            logger.debug("Dropping homepage self-link from scrape set: %s", url)
+            continue
+        if not is_probably_content_url(url):
+            logger.debug("Dropping non-content URL from scrape set: %s", url)
+            continue
+        if _looks_like_low_signal_wrapper_url(url, website):
+            logger.debug("Dropping low-signal wrapper URL from scrape set: %s", url)
+            continue
+        filtered.append(url)
+    return filtered
+
 
 def out_step(msg):
     console.step(msg)
@@ -367,6 +416,36 @@ def fetch_web_content(
         homepage_html = result.raw_content
         _append_trace("OK", website, f"homepage via {homepage_tier or result.tier}")
 
+    homepage_text = extract_main_content(homepage_html) if homepage_html else ""
+    organization_profile = classify_organization_type(
+        website,
+        homepage_text=homepage_text,
+        company_name=company_name,
+    )
+    organization_type = organization_profile.organization_type
+
+    if working_folder:
+        run_state_path = os.path.join(working_folder, "_run_state.json")
+        state = {}
+        if os.path.exists(run_state_path):
+            try:
+                import json
+                with open(run_state_path, encoding="utf-8") as f:
+                    loaded = json.load(f)
+                if isinstance(loaded, dict):
+                    state = loaded
+            except Exception:
+                state = {}
+        state["organization_type"] = organization_type
+        state["organization_type_confidence"] = organization_profile.confidence
+        state["organization_type_signals"] = list(organization_profile.signals)
+        try:
+            import json
+            with open(run_state_path, "w", encoding="utf-8") as f:
+                json.dump(state, f, indent=2)
+        except Exception as e:
+            logger.warning(f"Failed to persist organization type: {e}")
+
     # Tell orchestrator what tier worked for this host (sticky tier)
     # This prevents wasteful tier escalation on subsequent pages
     if homepage_tier and homepage_tier != "resume-local":
@@ -378,7 +457,7 @@ def fetch_web_content(
 
     resume_selected_urls = resume_selected_urls_prefetch
     if resume_selected_urls:
-        selected_urls = resume_selected_urls
+        selected_urls = _filter_selected_urls(resume_selected_urls, website)
         total_found = len(selected_urls)
         in_scope_count = len(selected_urls)
         _append_trace("RESUME", website, f"loaded {len(selected_urls)} selected links from manifest")
@@ -392,6 +471,7 @@ def fetch_web_content(
             homepage_html=homepage_html,
             verify_guessed=True,  # Verify guessed URLs exist
             min_links_before_sitemap=20,  # Check sitemap if < 20 links
+            organization_type=organization_type,
         )
 
         # Filter to in-scope links (same domain + subdomains)
@@ -409,7 +489,9 @@ def fetch_web_content(
             company_name=company_name,
             website=website,
             max_links=max_pages or 100,  # Let LLM decide, but cap at 100 for sanity
+            organization_type=organization_type,
         )
+        selected_urls = _filter_selected_urls(selected_urls, website)
         console.clear_line()
         total_found = len(selected_urls)
 
@@ -431,6 +513,7 @@ def fetch_web_content(
             with open(selected_links_file, "w", encoding="utf-8") as f:
                 f.write(f"# Selected links for {company_name}\n")
                 f.write(f"# Website: {website}\n")
+                f.write(f"# Organization type: {organization_type}\n")
                 f.write(f"# Selected count: {len(pages_to_scrape)} (excluding homepage)\n\n")
                 for idx, link in enumerate(pages_to_scrape, start=1):
                     f.write(f"{idx:03d}. {link}\n")
