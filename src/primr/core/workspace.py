@@ -198,6 +198,28 @@ def _read_file_content(file_path: Path) -> tuple[str, int]:
         return "", 0
 
 
+def _append_primary_report(lines: list[str], deep_research_file: Path, total_size: int) -> int:
+    """Append the primary strategic report to the consolidated context."""
+    content, size = _read_file_content(deep_research_file)
+    total_size += size
+    if content:
+        lines.extend(
+            [
+                "# STRATEGIC COMPANY REPORT (PRIMARY SOURCE)",
+                "",
+                "This comprehensive analysis is your PRIMARY source. Read it thoroughly.",
+                "Every AI recommendation should connect to insights from this report.",
+                "",
+                content,
+                "",
+                "---",
+                "",
+            ]
+        )
+        logger.info(f"Included strategic report ({size:,} chars)")
+    return total_size
+
+
 def consolidate_working_folder(folder_path: str | Path) -> str:
     """
     Consolidate research files from a working folder into a single context file.
@@ -240,23 +262,7 @@ def consolidate_working_folder(folder_path: str | Path) -> str:
 
     # PRIMARY: Include strategic report first
     if has_deep_research:
-        content, size = _read_file_content(deep_research_file)
-        total_size += size
-        if content:
-            lines.extend(
-                [
-                    "# STRATEGIC COMPANY REPORT (PRIMARY SOURCE)",
-                    "",
-                    "This comprehensive analysis is your PRIMARY source. Read it thoroughly.",
-                    "Every AI recommendation should connect to insights from this report.",
-                    "",
-                    content,
-                    "",
-                    "---",
-                    "",
-                ]
-            )
-            logger.info(f"Included strategic report ({size:,} chars)")
+        total_size = _append_primary_report(lines, deep_research_file, total_size)
 
     # SECONDARY: Include key supporting files only
     if txt_files:
