@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
-
 ORGANIZATION_TYPES = {
     "commercial",
     "government",
@@ -102,7 +101,7 @@ def classify_organization_type(
     netloc = parsed.netloc.lower()
     text = " ".join(part for part in (company_name or "", homepage_text or "") if part).lower()
 
-    scores = {org_type: 0.0 for org_type in ORGANIZATION_TYPES}
+    scores = dict.fromkeys(ORGANIZATION_TYPES, 0.0)
     signals: list[str] = []
 
     for org_type, suffixes in _DOMAIN_HINTS.items():

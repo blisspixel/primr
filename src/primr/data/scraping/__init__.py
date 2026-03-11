@@ -93,11 +93,6 @@ from .discovery import (
     score_links_heuristically,
     verify_urls_exist,
 )
-from .org_profile import (
-    OrganizationProfile,
-    classify_organization_type,
-    get_focus_areas_for_org_type,
-)
 
 # HTTP clients
 from .http_clients import (
@@ -130,6 +125,11 @@ from .net import (
 # Orchestrator
 from .orchestrator import (
     ScrapeOrchestrator,
+)
+from .org_profile import (
+    OrganizationProfile,
+    classify_organization_type,
+    get_focus_areas_for_org_type,
 )
 
 # Profiles
@@ -222,7 +222,6 @@ __all__ = [
     "ContentBlock",
     # Discovery
     "DiscoveredLink",
-    "OrganizationProfile",
     # Models
     "ErrorType",
     "ExtractionMetrics",
@@ -232,6 +231,7 @@ __all__ = [
     "HttpHeaderProfile",
     "LRUCache",
     "NoOpRateLimiter",
+    "OrganizationProfile",
     "QualityScore",
     # Config
     "RateLimitConfig",
@@ -250,8 +250,8 @@ __all__ = [
     "TraceLogger",
     "ValidationResult",
     "check_success_signal",
-    "clear_block_templates",
     "classify_organization_type",
+    "clear_block_templates",
     "compute_link_density",
     "detect_challenge_page",
     "detect_consent_wall",
@@ -269,7 +269,6 @@ __all__ = [
     "extract_main_content",
     "extract_structured_content",
     "extract_text_from_pdf_via_llm",
-    "get_focus_areas_for_org_type",
     "extract_with_boilerplate_learning",
     "fetch_sitemap_links",
     "find_main_content",
@@ -278,6 +277,7 @@ __all__ = [
     "get_clean_text_for_summarization",
     # Network helpers
     "get_default_headers",
+    "get_focus_areas_for_org_type",
     "get_meta_description",
     "get_page_title",
     "get_random_context_profile",
