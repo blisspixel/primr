@@ -81,6 +81,8 @@ class TestValidationResult:
         assert result.valid is True
         assert result.content_density == 0.75
         assert result.is_duplicate_template is False
+        assert result.content_class == "full_content"
+        assert result.counts_as_full_page is True
 
     def test_invalid_result(self):
         """ValidationResult for invalid content."""

@@ -19,6 +19,51 @@ def clear_seen_templates() -> None:
     _seen_templates = set()
 
 
+STRUCTURED_SHORT_URL_PATTERNS = (
+    r"/contact(?:$|[/?-])",
+    r"/organization-chart(?:$|[/?-])",
+    r"/leadership(?:$|[/?-])",
+    r"/team(?:$|[/?-])",
+    r"/locations?(?:$|[/?-])",
+    r"/visiting-information(?:$|[/?-])",
+    r"/office-of-",
+    r"/directory(?:$|[/?-])",
+    r"/hours(?:$|[/?-])",
+)
+
+_STRUCTURED_SHORT_TEXT_PATTERNS = (
+    r"contact us",
+    r"organization chart",
+    r"office of",
+    r"phone",
+    r"email",
+    r"address",
+    r"hours",
+)
+
+
+def _looks_like_structured_short_page(url: str, text: str) -> bool:
+    """Return True for short pages that are still useful reference pages."""
+    lower_url = url.lower()
+    lower_text = text.lower()
+
+    url_match = any(re.search(pattern, lower_url) for pattern in STRUCTURED_SHORT_URL_PATTERNS)
+    if not url_match:
+        return False
+
+    signals = 0
+    if any(re.search(pattern, lower_text) for pattern in _STRUCTURED_SHORT_TEXT_PATTERNS):
+        signals += 1
+    if re.search(r"\d{3}[-.)\s]?\d{3}[-.\s]?\d{4}", text):
+        signals += 1
+    if re.search(r"[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}", lower_text):
+        signals += 1
+    if len([line for line in text.splitlines() if line.strip()]) >= 3:
+        signals += 1
+
+    return signals >= 2
+
+
 def _compute_content_hash(text: str) -> str:
     """Compute hash of content structure for duplicate detection."""
     # Normalize whitespace
@@ -59,9 +104,10 @@ def validate_content(extracted_text: str, url: str) -> ValidationResult:
         )
 
     text = extracted_text.strip()
+    is_structured_short = _looks_like_structured_short_page(url, text)
 
     # Check minimum length
-    if len(text) < 100:
+    if len(text) < 100 and not is_structured_short:
         return ValidationResult(
             valid=False,
             reason=f"Content too short ({len(text)} chars)",
@@ -73,6 +119,16 @@ def validate_content(extracted_text: str, url: str) -> ValidationResult:
 
     # Check for duplicate template
     is_duplicate = detect_duplicate_template(text)
+
+    if is_structured_short and not is_duplicate:
+        return ValidationResult(
+            valid=True,
+            reason="Structured short page",
+            content_density=density,
+            is_duplicate_template=False,
+            content_class="structured_short",
+            counts_as_full_page=False,
+        )
 
     # Determine validity
     if density < 0.2:
@@ -95,6 +151,8 @@ def validate_content(extracted_text: str, url: str) -> ValidationResult:
         valid=True,
         content_density=density,
         is_duplicate_template=False,
+        content_class="full_content",
+        counts_as_full_page=True,
     )
 
 

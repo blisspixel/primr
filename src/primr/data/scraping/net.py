@@ -182,23 +182,24 @@ def extract_host(url: str) -> str:
 
 def is_same_domain(url1: str, url2: str) -> bool:
     """
-    Check if two URLs are on the same domain.
+    Check if two URLs are on the same site.
 
-    Compares the registered domain (ignores subdomains).
-
-    Args:
-        url1: First URL
-        url2: Second URL
-
-    Returns:
-        True if same domain, False otherwise
+    Treats www/non-www variants as the same site and allows subdomains,
+    matching the broader in-scope policy used elsewhere in discovery.
     """
     host1 = extract_host(url1)
     host2 = extract_host(url2)
 
-    # Simple comparison - could be enhanced with tldextract
-    # For now, compare full host
-    return host1 == host2
+    if not host1 or not host2:
+        return False
+
+    host1 = host1.replace("www.", "")
+    host2 = host2.replace("www.", "")
+
+    if host1 == host2:
+        return True
+
+    return bool(host1.endswith("." + host2) or host2.endswith("." + host1))
 
 
 def is_in_scope(url: str, target_url: str) -> bool:

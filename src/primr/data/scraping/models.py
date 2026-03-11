@@ -49,6 +49,8 @@ class ValidationResult:
     reason: str | None = None
     content_density: float | None = None
     is_duplicate_template: bool = False
+    content_class: str = "full_content"
+    counts_as_full_page: bool = True
 
 
 @dataclass
