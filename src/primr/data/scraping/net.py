@@ -183,10 +183,10 @@ def extract_host(url: str) -> str:
 
 def is_same_domain(url1: str, url2: str) -> bool:
     """
-    Check if two URLs are on the same site.
+    Check if two URLs share the same normalized host.
 
-    Treats www/non-www variants as the same site and allows subdomains,
-    matching the broader in-scope policy used elsewhere in discovery.
+    Treats www/non-www variants as the same site, but does not collapse
+    other subdomains. Broader subdomain scoping belongs in is_in_scope.
     """
     host1 = extract_host(url1)
     host2 = extract_host(url2)
@@ -196,11 +196,7 @@ def is_same_domain(url1: str, url2: str) -> bool:
 
     host1 = host1.replace("www.", "")
     host2 = host2.replace("www.", "")
-
-    if host1 == host2:
-        return True
-
-    return bool(host1.endswith("." + host2) or host2.endswith("." + host1))
+    return host1 == host2
 
 
 def is_in_scope(url: str, target_url: str) -> bool:
