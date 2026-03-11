@@ -37,7 +37,7 @@ EXCLUDED_SITES = [
 ]
 
 
-def test_google_search(query, retries=3, retry_delay=5, max_results=30):  # noqa: PT028
+def run_google_search(query, retries=3, retry_delay=5, max_results=30):
     """Tests Google Custom Search API for a given query with detailed debugging."""
 
     print(Fore.YELLOW + f"\n[INFO] Searching Google API for: {query}" + Style.RESET_ALL)
@@ -126,4 +126,4 @@ if __name__ == "__main__":
 
     for query in test_queries:
         print("\n" + "-" * 60)
-        test_google_search(query)
+        run_google_search(query)
