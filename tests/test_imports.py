@@ -60,12 +60,14 @@ def test_module_imports_without_error(module_name: str):
 def test_main_package_exports():
     """Verify main package can be imported."""
     import primr
+
     assert hasattr(primr, "__version__")
 
 
 def test_config_exports():
     """Verify config module exports expected values."""
     from primr.config.config import GEMINI_API_KEY, OUTPUT_DIR, PROJECT_ROOT, WORKING_DIR
+
     assert GEMINI_API_KEY is not None
     assert OUTPUT_DIR is not None
     assert WORKING_DIR is not None
@@ -75,5 +77,6 @@ def test_config_exports():
 def test_sections_config_exports():
     """Verify sections_config exports SECTION_KEY_MAP."""
     from primr.config.sections_config import SECTION_KEY_MAP
+
     assert isinstance(SECTION_KEY_MAP, dict)
     assert len(SECTION_KEY_MAP) > 0

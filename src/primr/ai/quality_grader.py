@@ -4,6 +4,7 @@ Enhanced Quality Grader for consulting-tier reports.
 Evaluates section quality, checks for filler content, validates formatting,
 and triggers refinement when needed.
 """
+
 import re
 
 from primr.core.report_models import QualityScore, SectionContent
@@ -71,11 +72,7 @@ class QualityGrader:
         """
         self.refinement_threshold = refinement_threshold
 
-    def grade_section(
-        self,
-        content: SectionContent,
-        section_type: str = "default"
-    ) -> QualityScore:
+    def grade_section(self, content: SectionContent, section_type: str = "default") -> QualityScore:
         """
         Grade a section's quality.
 
@@ -133,9 +130,8 @@ class QualityGrader:
             score=score,
             issues=issues,
             suggestions=suggestions,
-            needs_refinement=score < self.refinement_threshold
+            needs_refinement=score < self.refinement_threshold,
         )
-
 
     def _check_filler_content(self, text: str) -> list[str]:
         """
@@ -178,10 +174,20 @@ class QualityGrader:
 
         # Generic phrases that reduce specificity
         generic_phrases = [
-            "various", "several", "many", "some", "numerous",
-            "significant", "substantial", "considerable",
-            "industry-leading", "best-in-class", "world-class",
-            "innovative", "cutting-edge", "state-of-the-art",
+            "various",
+            "several",
+            "many",
+            "some",
+            "numerous",
+            "significant",
+            "substantial",
+            "considerable",
+            "industry-leading",
+            "best-in-class",
+            "world-class",
+            "innovative",
+            "cutting-edge",
+            "state-of-the-art",
         ]
 
         specific_count = 0
@@ -251,7 +257,9 @@ class QualityGrader:
 
         for section in sections:
             # Extract potential facts (numbers, percentages)
-            numbers = re.findall(r"(\$?[\d,]+(?:\.\d+)?)\s*(million|billion|M|B|%)?", section.content)
+            numbers = re.findall(
+                r"(\$?[\d,]+(?:\.\d+)?)\s*(million|billion|M|B|%)?", section.content
+            )
 
             for match in numbers:
                 value, unit = match
@@ -274,7 +282,9 @@ class QualityGrader:
             for topic in key_topics:
                 if topic not in exec_summary.content.lower():
                     if any(topic in title for title in section_titles):
-                        issues.append(f"Executive summary may not adequately cover {topic} analysis")
+                        issues.append(
+                            f"Executive summary may not adequately cover {topic} analysis"
+                        )
 
         return issues
 

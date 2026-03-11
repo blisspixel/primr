@@ -54,6 +54,7 @@ logger = logging.getLogger(__name__)
 # DATA CLASSES
 # =============================================================================
 
+
 @dataclass
 class VerifiableClaim:
     """A claim extracted from a research report."""
@@ -132,6 +133,7 @@ class VerificationResult:
 # =============================================================================
 # VERIFIER SUBAGENT
 # =============================================================================
+
 
 class VerifierSubagent(Subagent[VerificationResult]):
     """
@@ -308,18 +310,20 @@ class VerifierSubagent(Subagent[VerificationResult]):
                 return []
 
             claims = []
-            for item in claims_data[:self._max_claims]:
+            for item in claims_data[: self._max_claims]:
                 if not isinstance(item, dict):
                     continue
-                claims.append(VerifiableClaim(
-                    claim_text=str(item.get("claim_text", "")),
-                    section=str(item.get("section", "unknown")),
-                    importance=min(5, max(1, int(item.get("importance", 3)))),
-                ))
+                claims.append(
+                    VerifiableClaim(
+                        claim_text=str(item.get("claim_text", "")),
+                        section=str(item.get("section", "unknown")),
+                        importance=min(5, max(1, int(item.get("importance", 3)))),
+                    )
+                )
 
             # Sort by importance (highest first)
             claims.sort(key=lambda c: c.importance, reverse=True)
-            return claims[:self._max_claims]
+            return claims[: self._max_claims]
 
         except Exception as e:
             logger.warning(f"Claim extraction failed: {e}")
@@ -388,18 +392,19 @@ class VerifierSubagent(Subagent[VerificationResult]):
 
         # Process in batches
         for i in range(0, len(claims), self.CLASSIFICATION_BATCH_SIZE):
-            batch = claims[i:i + self.CLASSIFICATION_BATCH_SIZE]
+            batch = claims[i : i + self.CLASSIFICATION_BATCH_SIZE]
             batch_data = []
             for claim in batch:
                 hits = search_results.get(claim.claim_text, [])
                 hit_summaries = [
-                    {"title": h.get("title", ""), "url": h.get("url", "")}
-                    for h in hits[:5]
+                    {"title": h.get("title", ""), "url": h.get("url", "")} for h in hits[:5]
                 ]
-                batch_data.append({
-                    "claim_text": claim.claim_text,
-                    "search_results": hit_summaries,
-                })
+                batch_data.append(
+                    {
+                        "claim_text": claim.claim_text,
+                        "search_results": hit_summaries,
+                    }
+                )
 
             prompt = prompt_template.format(
                 claims_with_results=json.dumps(batch_data, indent=2),
@@ -418,31 +423,37 @@ class VerifierSubagent(Subagent[VerificationResult]):
                         status = cls.get("status", "unverified")
                         if status not in ("verified", "unverified", "contradicted"):
                             status = "unverified"
-                        all_verifications.append(ClaimVerification(
-                            claim=claim,
-                            status=status,
-                            supporting_sources=cls.get("supporting_sources", []),
-                            explanation=cls.get("explanation", ""),
-                            search_query=next(
-                                (q for c, q in self._build_search_queries([claim])),
-                                "",
-                            ),
-                        ))
+                        all_verifications.append(
+                            ClaimVerification(
+                                claim=claim,
+                                status=status,
+                                supporting_sources=cls.get("supporting_sources", []),
+                                explanation=cls.get("explanation", ""),
+                                search_query=next(
+                                    (q for c, q in self._build_search_queries([claim])),
+                                    "",
+                                ),
+                            )
+                        )
                     else:
-                        all_verifications.append(ClaimVerification(
-                            claim=claim,
-                            status="unverified",
-                            explanation="Classification failed for this claim",
-                        ))
+                        all_verifications.append(
+                            ClaimVerification(
+                                claim=claim,
+                                status="unverified",
+                                explanation="Classification failed for this claim",
+                            )
+                        )
 
             except Exception as e:
                 logger.warning(f"Classification batch failed: {e}")
                 for claim in batch:
-                    all_verifications.append(ClaimVerification(
-                        claim=claim,
-                        status="unverified",
-                        explanation=f"Classification error: {e}",
-                    ))
+                    all_verifications.append(
+                        ClaimVerification(
+                            claim=claim,
+                            status="unverified",
+                            explanation=f"Classification error: {e}",
+                        )
+                    )
 
         return all_verifications
 
@@ -463,7 +474,7 @@ class VerifierSubagent(Subagent[VerificationResult]):
         """Parse JSON from LLM response, handling markdown fencing."""
         text = response.strip()
         # Strip markdown code fences
-        match = re.search(r'```(?:json)?\s*\n?(.*?)```', text, re.DOTALL)
+        match = re.search(r"```(?:json)?\s*\n?(.*?)```", text, re.DOTALL)
         if match:
             text = match.group(1).strip()
         return json.loads(text)

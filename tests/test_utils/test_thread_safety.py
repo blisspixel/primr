@@ -127,10 +127,11 @@ class TestFileWriteThreadSafety:
         **Validates: Requirements 8.3**
         """
         with tempfile.TemporaryDirectory() as tmpdir:
+
             def write_section(section_id: int):
                 filepath = Path(tmpdir) / f"section_{section_id}.txt"
                 content = f"Section {section_id} content\n" * 100
-                with open(filepath, 'w', encoding='utf-8') as f:
+                with open(filepath, "w", encoding="utf-8") as f:
                     f.write(content)
                 return filepath
 
@@ -142,7 +143,7 @@ class TestFileWriteThreadSafety:
             # Verify all files exist and have correct content
             for i, path in enumerate(paths):
                 assert path.exists()
-                content = path.read_text(encoding='utf-8')
+                content = path.read_text(encoding="utf-8")
                 expected = f"Section {i} content\n" * 100
                 assert content == expected, f"Section {i} content corrupted"
 
@@ -157,7 +158,7 @@ class TestFileWriteThreadSafety:
             def append_content(thread_id: int):
                 for i in range(10):
                     line = f"Thread-{thread_id}-Line-{i}\n"
-                    with lock, open(filepath, 'a', encoding='utf-8') as f:
+                    with lock, open(filepath, "a", encoding="utf-8") as f:
                         f.write(line)
 
             threads = []
@@ -170,8 +171,8 @@ class TestFileWriteThreadSafety:
                 t.join()
 
             # Verify all lines are present
-            content = filepath.read_text(encoding='utf-8')
-            lines = content.strip().split('\n')
+            content = filepath.read_text(encoding="utf-8")
+            lines = content.strip().split("\n")
 
             # Should have 50 lines (5 threads * 10 lines each)
             assert len(lines) == 50
@@ -184,7 +185,7 @@ class TestFileWriteThreadSafety:
             def write_unique_file(file_id: int):
                 filepath = Path(tmpdir) / f"file_{file_id}.txt"
                 unique_content = f"Unique content for file {file_id}: {'x' * 1000}"
-                with open(filepath, 'w', encoding='utf-8') as f:
+                with open(filepath, "w", encoding="utf-8") as f:
                     f.write(unique_content)
                 results[file_id] = unique_content
 
@@ -196,7 +197,7 @@ class TestFileWriteThreadSafety:
             # Verify each file has its unique content
             for file_id, expected_content in results.items():
                 filepath = Path(tmpdir) / f"file_{file_id}.txt"
-                actual_content = filepath.read_text(encoding='utf-8')
+                actual_content = filepath.read_text(encoding="utf-8")
                 assert actual_content == expected_content
 
 
@@ -262,7 +263,7 @@ def test_property_file_write_thread_safety(num_files: int, content_size: int):
             filepath = Path(tmpdir) / f"section_{file_id}.txt"
             content = f"File {file_id}: " + "x" * content_size
             expected_contents[file_id] = content
-            with open(filepath, 'w', encoding='utf-8') as f:
+            with open(filepath, "w", encoding="utf-8") as f:
                 f.write(content)
 
         with ThreadPoolExecutor(max_workers=num_files) as executor:
@@ -274,7 +275,7 @@ def test_property_file_write_thread_safety(num_files: int, content_size: int):
         for file_id, expected in expected_contents.items():
             filepath = Path(tmpdir) / f"section_{file_id}.txt"
             assert filepath.exists()
-            actual = filepath.read_text(encoding='utf-8')
+            actual = filepath.read_text(encoding="utf-8")
             assert actual == expected, f"File {file_id} corrupted"
 
 

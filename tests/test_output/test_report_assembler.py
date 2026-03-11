@@ -3,6 +3,7 @@ Tests for the Report Assembler.
 
 **Feature: consulting-tier-report**
 """
+
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -19,21 +20,21 @@ from primr.core.report_models import (
 from primr.output.report_assembler import ReportAssembler
 
 
-def create_source_citation(url: str = "https://example.com", title: str = "Test Source") -> SourceCitation:
+def create_source_citation(
+    url: str = "https://example.com", title: str = "Test Source"
+) -> SourceCitation:
     """Create a test source citation."""
     return SourceCitation(
         url=url,
         title=title,
         source_type=SourceType.COMPANY_WEBSITE,
         accessed_at=datetime.now(),
-        excerpt="Sample excerpt from the source."
+        excerpt="Sample excerpt from the source.",
     )
 
 
 def create_section(
-    title: str = "Test Section",
-    content: str = "Test content",
-    sources: list | None = None
+    title: str = "Test Section", content: str = "Test content", sources: list | None = None
 ) -> SectionContent:
     """Create a test section."""
     if sources is None:
@@ -49,7 +50,7 @@ def create_insight() -> Insight:
         evidence=["Evidence 1"],
         confidence=ConfidenceLevel.VERIFIED,
         category=InsightCategory.STRATEGIC,
-        sources=["https://example.com"]
+        sources=["https://example.com"],
     )
 
 
@@ -63,17 +64,17 @@ class TestReportAssemblerSourcesAppendix:
         # Create sections with different sources
         exec_summary = create_section(
             title="Executive Summary",
-            sources=[create_source_citation("https://source1.com", "Source 1")]
+            sources=[create_source_citation("https://source1.com", "Source 1")],
         )
 
         sections = [
             create_section(
                 title="Section 1",
-                sources=[create_source_citation("https://source2.com", "Source 2")]
+                sources=[create_source_citation("https://source2.com", "Source 2")],
             ),
             create_section(
                 title="Section 2",
-                sources=[create_source_citation("https://source3.com", "Source 3")]
+                sources=[create_source_citation("https://source3.com", "Source 3")],
             ),
         ]
 
@@ -84,7 +85,7 @@ class TestReportAssemblerSourcesAppendix:
             executive_summary=exec_summary,
             sections=sections,
             insights=[create_insight()],
-            research_duration=60.0
+            research_duration=60.0,
         )
 
         # Check all sources are in appendix
@@ -107,7 +108,7 @@ class TestReportAssemblerSourcesAppendix:
             executive_summary=exec_summary,
             sections=sections,
             insights=[],
-            research_duration=60.0
+            research_duration=60.0,
         )
 
         for source in report.sources_appendix:
@@ -130,7 +131,7 @@ class TestReportAssemblerSourcesAppendix:
             executive_summary=exec_summary,
             sections=sections,
             insights=[],
-            research_duration=60.0
+            research_duration=60.0,
         )
 
         # Should only have one instance of the source
@@ -164,14 +165,14 @@ class TestReportAssemblerConfidenceMarking:
         confidence_note = ConfidenceNote(
             statement="Revenue estimate",
             confidence=ConfidenceLevel.ESTIMATED,
-            basis="Based on employee count"
+            basis="Based on employee count",
         )
 
         exec_summary = SectionContent(
             title="Executive Summary",
             content="Summary content",
             sources=[create_source_citation()],
-            confidence_notes=[confidence_note]
+            confidence_notes=[confidence_note],
         )
 
         sections = [create_section()]
@@ -183,7 +184,7 @@ class TestReportAssemblerConfidenceMarking:
             executive_summary=exec_summary,
             sections=sections,
             insights=[],
-            research_duration=60.0
+            research_duration=60.0,
         )
 
         assert len(report.executive_summary.confidence_notes) > 0
@@ -196,14 +197,14 @@ class TestReportAssemblerConfidenceMarking:
         confidence_note = ConfidenceNote(
             statement="Revenue estimate",
             confidence=ConfidenceLevel.ESTIMATED,
-            basis="Based on employee count"
+            basis="Based on employee count",
         )
 
         section = SectionContent(
             title="Financial Overview",
             content="Financial content",
             sources=[create_source_citation()],
-            confidence_notes=[confidence_note]
+            confidence_notes=[confidence_note],
         )
 
         exec_summary = create_section(title="Executive Summary")
@@ -215,7 +216,7 @@ class TestReportAssemblerConfidenceMarking:
             executive_summary=exec_summary,
             sections=[section],
             insights=[],
-            research_duration=60.0
+            research_duration=60.0,
         )
 
         markdown = assembler.to_markdown(report)
@@ -245,7 +246,7 @@ class TestReportAssemblerAssembly:
             executive_summary=exec_summary,
             sections=sections,
             insights=insights,
-            research_duration=120.0
+            research_duration=120.0,
         )
 
         assert report.metadata.company_name == "Test Company"
@@ -293,7 +294,7 @@ class TestReportAssemblerMarkdown:
             executive_summary=exec_summary,
             sections=sections,
             insights=[],
-            research_duration=60.0
+            research_duration=60.0,
         )
 
         markdown = assembler.to_markdown(report)
@@ -316,7 +317,7 @@ class TestReportAssemblerMarkdown:
             executive_summary=exec_summary,
             sections=[],
             insights=[],
-            research_duration=60.0
+            research_duration=60.0,
         )
 
         markdown = assembler.to_markdown(report)
@@ -342,7 +343,7 @@ class TestReportAssemblerValidation:
             executive_summary=exec_summary,
             sections=sections,
             insights=[],
-            research_duration=60.0
+            research_duration=60.0,
         )
 
         is_valid, issues = assembler.validate_report(report)
@@ -363,7 +364,7 @@ class TestReportAssemblerValidation:
             executive_summary=exec_summary,
             sections=[create_section()],
             insights=[],
-            research_duration=60.0
+            research_duration=60.0,
         )
 
         is_valid, issues = assembler.validate_report(report)
@@ -384,7 +385,7 @@ class TestReportAssemblerValidation:
             executive_summary=exec_summary,
             sections=[create_section()],
             insights=[],
-            research_duration=60.0
+            research_duration=60.0,
         )
 
         is_valid, issues = assembler.validate_report(report)
@@ -405,7 +406,7 @@ class TestReportAssemblerValidation:
             executive_summary=exec_summary,
             sections=[],  # No sections
             insights=[],
-            research_duration=60.0
+            research_duration=60.0,
         )
 
         is_valid, issues = assembler.validate_report(report)
@@ -427,7 +428,7 @@ class TestReportAssemblerValidation:
             executive_summary=exec_summary,
             sections=sections,
             insights=[],
-            research_duration=60.0
+            research_duration=60.0,
         )
 
         is_valid, issues = assembler.validate_report(report)
@@ -456,8 +457,9 @@ class TestReportAssemblerPdfExport:
             return True
 
         target_pdf = tmp_path / "Example_Report.PDF"
-        with patch.object(assembler, "export_docx", side_effect=_fake_export_docx), patch(
-            "subprocess.run", side_effect=FileNotFoundError("soffice not found")
+        with (
+            patch.object(assembler, "export_docx", side_effect=_fake_export_docx),
+            patch("subprocess.run", side_effect=FileNotFoundError("soffice not found")),
         ):
             ok = assembler.export_pdf(report, str(target_pdf))
 
@@ -489,8 +491,9 @@ class TestReportAssemblerPdfExport:
             return Mock(returncode=0)
 
         target_pdf = tmp_path / "final-output.pdf"
-        with patch.object(assembler, "export_docx", side_effect=_fake_export_docx), patch(
-            "subprocess.run", side_effect=_fake_soffice_run
+        with (
+            patch.object(assembler, "export_docx", side_effect=_fake_export_docx),
+            patch("subprocess.run", side_effect=_fake_soffice_run),
         ):
             ok = assembler.export_pdf(report, str(target_pdf))
 

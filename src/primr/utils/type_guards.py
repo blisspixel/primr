@@ -127,9 +127,7 @@ class ValidationResult(Generic[T]):
         if self.is_invalid:
             error = self.errors[0]
             raise TypeValidationError(
-                expected=error.expected,
-                actual=error.actual,
-                field=error.field
+                expected=error.expected, actual=error.actual, field=error.field
             )
         return self.value  # type: ignore[return-value]
 
@@ -151,15 +149,11 @@ class ValidationResult(Generic[T]):
         expected: str,
         actual: str,
         message: str = "",
-        suggestion: str | None = None
+        suggestion: str | None = None,
     ) -> "ValidationResult[T]":
         """Create a failed validation result with a single error."""
         error = ValidationError(
-            field=field,
-            expected=expected,
-            actual=actual,
-            message=message,
-            suggestion=suggestion
+            field=field, expected=expected, actual=actual, message=message, suggestion=suggestion
         )
         return cls(errors=[error])
 
@@ -169,16 +163,18 @@ class ValidationResult(Generic[T]):
         expected: str,
         actual: str,
         message: str = "",
-        suggestion: str | None = None
+        suggestion: str | None = None,
     ) -> "ValidationResult[T]":
         """Add an error to this result (mutates and returns self)."""
-        self.errors.append(ValidationError(
-            field=field,
-            expected=expected,
-            actual=actual,
-            message=message,
-            suggestion=suggestion
-        ))
+        self.errors.append(
+            ValidationError(
+                field=field,
+                expected=expected,
+                actual=actual,
+                message=message,
+                suggestion=suggestion,
+            )
+        )
         return self
 
     def add_warning(self, message: str) -> "ValidationResult[T]":
@@ -220,12 +216,7 @@ class TypeValidationError(ValueError):
         field: Optional field name where validation failed
     """
 
-    def __init__(
-        self,
-        expected: str,
-        actual: str,
-        field: str | None = None
-    ):
+    def __init__(self, expected: str, actual: str, field: str | None = None):
         self.expected = expected
         self.actual = actual
         self.field = field
@@ -288,8 +279,7 @@ def _check_type(value: Any, expected_type: type) -> bool:
         if args and len(args) == 2:
             key_type, val_type = args
             return all(
-                _check_type(k, key_type) and _check_type(v, val_type)
-                for k, v in value.items()
+                _check_type(k, key_type) and _check_type(v, val_type) for k, v in value.items()
             )
         return True
 
@@ -308,11 +298,7 @@ def _check_type(value: Any, expected_type: type) -> bool:
     return isinstance(value, expected_type)
 
 
-def validate_type(
-    value: Any,
-    expected_type: type[T],
-    field_name: str | None = None
-) -> T:
+def validate_type(value: Any, expected_type: type[T], field_name: str | None = None) -> T:
     """
     Validate that value matches expected type at runtime.
 
@@ -342,9 +328,7 @@ def validate_type(
         return value  # type: ignore[no-any-return]
 
     raise TypeValidationError(
-        expected=_get_type_name(expected_type),
-        actual=type(value).__name__,
-        field=field_name
+        expected=_get_type_name(expected_type), actual=type(value).__name__, field=field_name
     )
 
 
@@ -373,23 +357,17 @@ def validate_dataclass(instance: Any, cls: type[T]) -> T:
         User(name='Alice', age=30)
     """
     if not is_dataclass(cls):
-        raise TypeValidationError(
-            expected="dataclass type",
-            actual=type(cls).__name__,
-            field="cls"
-        )
+        raise TypeValidationError(expected="dataclass type", actual=type(cls).__name__, field="cls")
 
     if not isinstance(instance, cls):
-        raise TypeValidationError(
-            expected=cls.__name__,
-            actual=type(instance).__name__
-        )
+        raise TypeValidationError(expected=cls.__name__, actual=type(instance).__name__)
 
     # Validate each field
     type_hints = {}
     try:
         # Get type hints from the class
         import typing
+
         type_hints = typing.get_type_hints(cls)
     except Exception:
         # Fall back to field annotations if get_type_hints fails
@@ -409,16 +387,14 @@ def validate_dataclass(instance: Any, cls: type[T]) -> T:
             raise TypeValidationError(
                 expected=e.expected,
                 actual=e.actual,
-                field=f"{cls.__name__}.{e.field or field.name}"
+                field=f"{cls.__name__}.{e.field or field.name}",
             ) from e
 
     return instance
 
 
 def validate_api_response(
-    response: Any,
-    required_fields: list[str],
-    field_types: dict[str, type] | None = None
+    response: Any, required_fields: list[str], field_types: dict[str, type] | None = None
 ) -> dict:
     """
     Validate API response has required fields and optionally check types.
@@ -444,20 +420,12 @@ def validate_api_response(
     """
     # Check response is a dict
     if not isinstance(response, dict):
-        raise TypeValidationError(
-            expected="dict",
-            actual=type(response).__name__,
-            field="response"
-        )
+        raise TypeValidationError(expected="dict", actual=type(response).__name__, field="response")
 
     # Check required fields exist
     missing = [f for f in required_fields if f not in response]
     if missing:
-        raise TypeValidationError(
-            expected=f"fields {missing}",
-            actual="missing",
-            field="response"
-        )
+        raise TypeValidationError(expected=f"fields {missing}", actual="missing", field="response")
 
     # Validate field types if specified
     if field_types:
@@ -496,9 +464,7 @@ def is_valid_type(value: Any, expected_type: type) -> bool:
 
 
 def validate_type_safe(
-    value: Any,
-    expected_type: type[T],
-    field_name: str = "value"
+    value: Any, expected_type: type[T], field_name: str = "value"
 ) -> ValidationResult[T]:
     """
     Validate type without raising, returning ValidationResult.
@@ -525,16 +491,12 @@ def validate_type_safe(
         return ValidationResult.ok(value)
 
     return ValidationResult.err(
-        field=field_name,
-        expected=_get_type_name(expected_type),
-        actual=type(value).__name__
+        field=field_name, expected=_get_type_name(expected_type), actual=type(value).__name__
     )
 
 
 def validate_api_response_safe(
-    response: Any,
-    schema: APIResponseSchema,
-    prefix: str = ""
+    response: Any, schema: APIResponseSchema, prefix: str = ""
 ) -> ValidationResult[dict[str, Any]]:
     """
     Validate API response against schema, collecting all errors.
@@ -570,7 +532,7 @@ def validate_api_response_safe(
             field=prefix or "response",
             expected="dict",
             actual=type(response).__name__,
-            suggestion="API response must be a JSON object"
+            suggestion="API response must be a JSON object",
         )
 
     # Check required fields
@@ -580,7 +542,7 @@ def validate_api_response_safe(
                 field=field_path(field_name),
                 expected="present",
                 actual="missing",
-                message=f"Required field '{field_name}' is missing"
+                message=f"Required field '{field_name}' is missing",
             )
 
     # Check field types
@@ -591,7 +553,7 @@ def validate_api_response_safe(
                 result.add_error(
                     field=field_path(field_name),
                     expected=_get_type_name(expected_type),
-                    actual=type(value).__name__
+                    actual=type(value).__name__,
                 )
 
     # Run custom validators
@@ -603,23 +565,21 @@ def validate_api_response_safe(
                         field=field_path(field_name),
                         expected="valid value",
                         actual=str(response[field_name])[:50],
-                        message=f"Custom validation failed for '{field_name}'"
+                        message=f"Custom validation failed for '{field_name}'",
                     )
             except Exception as e:
                 result.add_error(
                     field=field_path(field_name),
                     expected="valid value",
                     actual="error",
-                    message=f"Validator raised: {e}"
+                    message=f"Validator raised: {e}",
                 )
 
     # Validate nested schemas
     for field_name, nested_schema in schema.nested_schemas.items():
         if field_name in response:
             nested_result = validate_api_response_safe(
-                response[field_name],
-                nested_schema,
-                prefix=field_path(field_name)
+                response[field_name], nested_schema, prefix=field_path(field_name)
             )
             result.errors.extend(nested_result.errors)
             result.warnings.extend(nested_result.warnings)
@@ -635,7 +595,7 @@ def validate_in_range(
     value: int | float,
     min_val: int | float | None = None,
     max_val: int | float | None = None,
-    field_name: str = "value"
+    field_name: str = "value",
 ) -> ValidationResult[int | float]:
     """
     Validate a numeric value is within a range.
@@ -657,9 +617,7 @@ def validate_in_range(
     """
     if not isinstance(value, int | float):
         return ValidationResult.err(
-            field=field_name,
-            expected="number",
-            actual=type(value).__name__
+            field=field_name, expected="number", actual=type(value).__name__
         )
 
     if min_val is not None and value < min_val:
@@ -667,7 +625,7 @@ def validate_in_range(
             field=field_name,
             expected=f">= {min_val}",
             actual=str(value),
-            suggestion=f"Value must be at least {min_val}"
+            suggestion=f"Value must be at least {min_val}",
         )
 
     if max_val is not None and value > max_val:
@@ -675,16 +633,13 @@ def validate_in_range(
             field=field_name,
             expected=f"<= {max_val}",
             actual=str(value),
-            suggestion=f"Value must be at most {max_val}"
+            suggestion=f"Value must be at most {max_val}",
         )
 
     return ValidationResult.ok(value)
 
 
-def validate_non_empty_string(
-    value: Any,
-    field_name: str = "value"
-) -> ValidationResult[str]:
+def validate_non_empty_string(value: Any, field_name: str = "value") -> ValidationResult[str]:
     """
     Validate value is a non-empty string.
 
@@ -703,9 +658,7 @@ def validate_non_empty_string(
     """
     if not isinstance(value, str):
         return ValidationResult.err(
-            field=field_name,
-            expected="string",
-            actual=type(value).__name__
+            field=field_name, expected="string", actual=type(value).__name__
         )
 
     if not value.strip():
@@ -713,11 +666,10 @@ def validate_non_empty_string(
             field=field_name,
             expected="non-empty string",
             actual="empty string",
-            suggestion="Provide a non-empty value"
+            suggestion="Provide a non-empty value",
         )
 
     return ValidationResult.ok(value)
-
 
 
 # =============================================================================
@@ -751,15 +703,11 @@ class ConfigSchema:
     optional_keys: dict[str, Any] = field(default_factory=dict)
     type_hints: dict[str, type] = field(default_factory=dict)
     validators: dict[str, Callable[[Any], bool]] = field(default_factory=dict)
-    ranges: dict[str, tuple[int | float | None, int | float | None]] = field(
-        default_factory=dict
-    )
+    ranges: dict[str, tuple[int | float | None, int | float | None]] = field(default_factory=dict)
 
 
 def validate_config(
-    config: dict[str, Any],
-    schema: ConfigSchema,
-    prefix: str = ""
+    config: dict[str, Any], schema: ConfigSchema, prefix: str = ""
 ) -> ValidationResult[dict[str, Any]]:
     """
     Validate configuration dictionary against schema.
@@ -800,7 +748,7 @@ def validate_config(
             field=prefix or "config",
             expected="dict",
             actual=type(config).__name__,
-            suggestion="Configuration must be a dictionary"
+            suggestion="Configuration must be a dictionary",
         )
 
     # Check required keys
@@ -810,7 +758,7 @@ def validate_config(
                 field=field_path(key),
                 expected="present",
                 actual="missing",
-                message=f"Required configuration key '{key}' is missing"
+                message=f"Required configuration key '{key}' is missing",
             )
         else:
             validated_config[key] = config[key]
@@ -836,7 +784,7 @@ def validate_config(
                 result.add_error(
                     field=field_path(key),
                     expected=_get_type_name(expected_type),
-                    actual=type(value).__name__
+                    actual=type(value).__name__,
                 )
 
     # Check ranges
@@ -849,14 +797,14 @@ def validate_config(
                         field=field_path(key),
                         expected=f">= {min_val}",
                         actual=str(value),
-                        suggestion=f"Value must be at least {min_val}"
+                        suggestion=f"Value must be at least {min_val}",
                     )
                 if max_val is not None and value > max_val:
                     result.add_error(
                         field=field_path(key),
                         expected=f"<= {max_val}",
                         actual=str(value),
-                        suggestion=f"Value must be at most {max_val}"
+                        suggestion=f"Value must be at most {max_val}",
                     )
 
     # Run custom validators
@@ -868,14 +816,14 @@ def validate_config(
                         field=field_path(key),
                         expected="valid value",
                         actual=str(validated_config[key])[:50],
-                        message=f"Custom validation failed for '{key}'"
+                        message=f"Custom validation failed for '{key}'",
                     )
             except Exception as e:
                 result.add_error(
                     field=field_path(key),
                     expected="valid value",
                     actual="error",
-                    message=f"Validator raised: {e}"
+                    message=f"Validator raised: {e}",
                 )
 
     # Set value if valid
@@ -902,18 +850,14 @@ def validate_api_key_format(key: str, key_name: str = "api_key") -> ValidationRe
         True
     """
     if not isinstance(key, str):
-        return ValidationResult.err(
-            field=key_name,
-            expected="string",
-            actual=type(key).__name__
-        )
+        return ValidationResult.err(field=key_name, expected="string", actual=type(key).__name__)
 
     if not key.strip():
         return ValidationResult.err(
             field=key_name,
             expected="non-empty API key",
             actual="empty string",
-            suggestion=f"Set {key_name} in your .env file or environment"
+            suggestion=f"Set {key_name} in your .env file or environment",
         )
 
     # Basic format checks (not exhaustive, just sanity checks)
@@ -922,7 +866,7 @@ def validate_api_key_format(key: str, key_name: str = "api_key") -> ValidationRe
             field=key_name,
             expected="API key (10+ characters)",
             actual=f"string of length {len(key)}",
-            suggestion="API keys are typically longer. Check for truncation."
+            suggestion="API keys are typically longer. Check for truncation.",
         )
 
     if " " in key:
@@ -930,7 +874,7 @@ def validate_api_key_format(key: str, key_name: str = "api_key") -> ValidationRe
             field=key_name,
             expected="API key without spaces",
             actual="string with spaces",
-            suggestion="Remove any spaces from the API key"
+            suggestion="Remove any spaces from the API key",
         )
 
     return ValidationResult.ok(key)

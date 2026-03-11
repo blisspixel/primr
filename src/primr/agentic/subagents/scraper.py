@@ -53,6 +53,7 @@ logger = logging.getLogger(__name__)
 # RESULT DATA CLASS
 # =============================================================================
 
+
 @dataclass
 class ScrapeResult:
     """
@@ -98,6 +99,7 @@ class ScrapeResult:
 # =============================================================================
 # SCRAPER SUBAGENT
 # =============================================================================
+
 
 class ScraperSubagent(Subagent[ScrapeResult]):
     """
@@ -192,8 +194,7 @@ class ScraperSubagent(Subagent[ScrapeResult]):
                 metrics={
                     "duration_seconds": duration,
                     "pages_per_second": (
-                        scrape_result.pages_scraped / duration
-                        if duration > 0 else 0
+                        scrape_result.pages_scraped / duration if duration > 0 else 0
                     ),
                     "success_rate": scrape_result.success_rate,
                 },
@@ -203,9 +204,7 @@ class ScraperSubagent(Subagent[ScrapeResult]):
             duration = time.time() - start_time
             self._status = SubagentStatus.FAILED
 
-            logger.error(
-                f"ScraperSubagent failed for {self.company_name}: {e}"
-            )
+            logger.error(f"ScraperSubagent failed for {self.company_name}: {e}")
 
             return SubagentResult(
                 status=self._status,
@@ -259,9 +258,7 @@ class ScraperSubagent(Subagent[ScrapeResult]):
 
         except ImportError:
             # Scrape module not available - return mock result for testing
-            logger.warning(
-                "primr.data.scrape not available, returning mock result"
-            )
+            logger.warning("primr.data.scrape not available, returning mock result")
             corpus_path = self.working_dir / "corpus"
             corpus_path.mkdir(parents=True, exist_ok=True)
 

@@ -55,6 +55,7 @@ if TYPE_CHECKING:
 # FIXTURES
 # =============================================================================
 
+
 @pytest.fixture
 def job_store() -> InMemoryJobStore:
     """Create a fresh in-memory job store."""
@@ -108,6 +109,7 @@ def client(
 # =============================================================================
 # JOB STORE TESTS
 # =============================================================================
+
 
 class TestJobStore:
     """Tests for InMemoryJobStore."""
@@ -220,6 +222,7 @@ class TestJobStore:
 # IDEMPOTENCY TESTS
 # =============================================================================
 
+
 class TestIdempotency:
     """Tests for idempotency logic."""
 
@@ -319,6 +322,7 @@ class TestIdempotency:
 # CONCURRENT SUBMISSION TESTS
 # =============================================================================
 
+
 class TestConcurrentSubmission:
     """Tests for concurrent submission handling."""
 
@@ -372,6 +376,7 @@ class TestConcurrentSubmission:
 # =============================================================================
 # QUOTA ENFORCEMENT TESTS
 # =============================================================================
+
 
 class TestQuotaEnforcement:
     """Tests for quota enforcement."""
@@ -466,6 +471,7 @@ class TestQuotaEnforcement:
 # =============================================================================
 # JOB STATE TRANSITION TESTS
 # =============================================================================
+
 
 class TestJobStateTransitions:
     """Tests for job state transitions including cancellation."""
@@ -569,7 +575,9 @@ class TestJobStateTransitions:
 
         assert result.result == CancellationResult.ALREADY_COMPLETED
 
-    def test_pending_approval_to_queued(self, client: TestClient, job_store: InMemoryJobStore) -> None:
+    def test_pending_approval_to_queued(
+        self, client: TestClient, job_store: InMemoryJobStore
+    ) -> None:
         """PENDING_APPROVAL job should transition to QUEUED on approval."""
         # Create a pending job
         request = {
@@ -604,6 +612,7 @@ class TestJobStateTransitions:
 # =============================================================================
 # STATUS ENDPOINT TESTS
 # =============================================================================
+
 
 class TestStatusEndpoint:
     """Tests for /status endpoint."""
@@ -644,7 +653,12 @@ class TestStatusEndpoint:
         # Write events.jsonl
         events = [
             {"ts": "2024-01-01T00:01:00Z", "stage": "scrape", "percent": 20, "message": "Scraping"},
-            {"ts": "2024-01-01T00:02:00Z", "stage": "insights", "percent": 50, "message": "Extracting"},
+            {
+                "ts": "2024-01-01T00:02:00Z",
+                "stage": "insights",
+                "percent": 50,
+                "message": "Extracting",
+            },
         ]
         events_content = "\n".join(json.dumps(e) for e in events)
         artifact_store.put("status-test-1/events.jsonl", events_content.encode())
@@ -662,6 +676,7 @@ class TestStatusEndpoint:
 # =============================================================================
 # RESULTS ENDPOINT TESTS
 # =============================================================================
+
 
 class TestResultsEndpoint:
     """Tests for /results endpoint."""
@@ -774,6 +789,7 @@ class TestResultsEndpoint:
 # CANONICALIZATION TESTS
 # =============================================================================
 
+
 class TestCanonicalization:
     """Tests for input canonicalization."""
 
@@ -830,6 +846,7 @@ class TestCanonicalization:
 # =============================================================================
 # QUEUE TESTS
 # =============================================================================
+
 
 class TestQueue:
     """Tests for InMemoryQueue."""
@@ -896,6 +913,7 @@ class TestQueue:
 # COST ESTIMATION TESTS
 # =============================================================================
 
+
 class TestCostEstimation:
     """Tests for cost estimation."""
 
@@ -921,6 +939,7 @@ class TestCostEstimation:
 # =============================================================================
 # EXPECTED ARTIFACTS TESTS
 # =============================================================================
+
 
 class TestExpectedArtifacts:
     """Tests for expected artifacts by mode."""

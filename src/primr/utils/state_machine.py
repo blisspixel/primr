@@ -33,6 +33,7 @@ if TYPE_CHECKING:
 # EXCEPTIONS
 # =============================================================================
 
+
 class InvalidTransitionError(Exception):
     """
     Raised when an invalid state transition is attempted.
@@ -56,7 +57,9 @@ class InvalidTransitionError(Exception):
 
         if message is None:
             if to_state:
-                message = f"Invalid transition: {from_state.value} -> {to_state.value} via '{trigger}'"
+                message = (
+                    f"Invalid transition: {from_state.value} -> {to_state.value} via '{trigger}'"
+                )
             else:
                 message = f"No transition defined from {from_state.value} via '{trigger}'"
 
@@ -66,6 +69,7 @@ class InvalidTransitionError(Exception):
 # =============================================================================
 # DATA CLASSES
 # =============================================================================
+
 
 @dataclass
 class Transition:
@@ -78,6 +82,7 @@ class Transition:
         trigger: Event that triggers this transition
         guard: Optional function that must return True for transition to proceed
     """
+
     from_state: Enum
     to_state: Enum
     trigger: str
@@ -96,6 +101,7 @@ class StateChangeEvent:
         timestamp: When the transition occurred
         context: Additional context data
     """
+
     from_state: Enum
     to_state: Enum
     trigger: str
@@ -116,6 +122,7 @@ class StateChangeEvent:
 # =============================================================================
 # GENERIC STATE MACHINE
 # =============================================================================
+
 
 class StateMachine:
     """
@@ -190,10 +197,7 @@ class StateMachine:
 
     def get_available_triggers(self) -> list[str]:
         """Get list of valid triggers from current state."""
-        return [
-            trigger for (state, trigger) in self._transitions
-            if state == self._state
-        ]
+        return [trigger for (state, trigger) in self._transitions if state == self._state]
 
     def transition(self, trigger: str, **context: Any) -> StateChangeEvent:
         """
@@ -280,6 +284,7 @@ class StateMachine:
 # TIER ESCALATION STATE MACHINE
 # =============================================================================
 
+
 class TierState(Enum):
     """
     States for scraping tier escalation.
@@ -298,6 +303,7 @@ class TierState(Enum):
           BLOCKED --> IDLE
     ```
     """
+
     IDLE = "idle"
     ATTEMPTING = "attempting"
     ESCALATING = "escalating"
@@ -335,6 +341,7 @@ def create_tier_state_machine() -> StateMachine:
 # JOB LIFECYCLE STATE MACHINE
 # =============================================================================
 
+
 class JobState(Enum):
     """
     States for job lifecycle.
@@ -352,6 +359,7 @@ class JobState(Enum):
         +--> CANCELLED
     ```
     """
+
     PENDING = "pending"
     RUNNING = "running"
     PAUSED = "paused"

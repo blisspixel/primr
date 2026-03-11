@@ -42,8 +42,7 @@ def test_module_exists_in_package(original_name: str):
     new_path = ORIGINAL_MODULES[original_name]
     full_path = SRC_DIR / new_path
 
-    assert full_path.exists(), \
-        f"Module {original_name} should be at {new_path} but was not found"
+    assert full_path.exists(), f"Module {original_name} should be at {new_path} but was not found"
 
 
 def test_all_modules_moved():

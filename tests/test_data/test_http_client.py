@@ -28,6 +28,7 @@ from primr.utils.errors import ScrapingError
 # HELPER FUNCTIONS TESTS
 # =============================================================================
 
+
 class TestHelperFunctions:
     """Tests for helper functions."""
 
@@ -67,6 +68,7 @@ class TestHelperFunctions:
 # HTTP CLIENT CONFIG TESTS
 # =============================================================================
 
+
 class TestHTTPClientConfig:
     """Tests for HTTPClientConfig."""
 
@@ -83,11 +85,7 @@ class TestHTTPClientConfig:
     def test_custom_config(self):
         """Test custom configuration."""
         config = HTTPClientConfig(
-            pool_connections=5,
-            pool_maxsize=10,
-            max_retries=5,
-            timeout=60.0,
-            verify_ssl=False
+            pool_connections=5, pool_maxsize=10, max_retries=5, timeout=60.0, verify_ssl=False
         )
 
         assert config.pool_connections == 5
@@ -98,6 +96,7 @@ class TestHTTPClientConfig:
 # =============================================================================
 # HTTP CLIENT TESTS
 # =============================================================================
+
 
 class TestHTTPClient:
     """Tests for HTTPClient class."""
@@ -121,7 +120,7 @@ class TestHTTPClient:
             assert client._session is not None
         # Session should be closed after context
 
-    @patch('requests.Session.get')
+    @patch("requests.Session.get")
     def test_get_success(self, mock_get):
         """Test successful GET request."""
         mock_response = Mock()
@@ -136,7 +135,7 @@ class TestHTTPClient:
             assert response.status_code == 200
             mock_get.assert_called_once()
 
-    @patch('requests.Session.get')
+    @patch("requests.Session.get")
     def test_get_with_custom_headers(self, mock_get):
         """Test GET request with custom headers."""
         mock_response = Mock()
@@ -145,15 +144,12 @@ class TestHTTPClient:
         mock_get.return_value = mock_response
 
         with HTTPClient() as client:
-            client.get(
-                "https://example.com",
-                headers={"X-Custom": "value"}
-            )
+            client.get("https://example.com", headers={"X-Custom": "value"})
 
             call_kwargs = mock_get.call_args[1]
             assert "X-Custom" in call_kwargs["headers"]
 
-    @patch('requests.Session.get')
+    @patch("requests.Session.get")
     def test_get_with_timeout(self, mock_get):
         """Test GET request with custom timeout."""
         mock_response = Mock()
@@ -167,7 +163,7 @@ class TestHTTPClient:
             call_kwargs = mock_get.call_args[1]
             assert call_kwargs["timeout"] == 10.0
 
-    @patch('requests.Session.get')
+    @patch("requests.Session.get")
     def test_get_failure_raises_scraping_error(self, mock_get):
         """Test that request failure raises ScrapingError."""
         mock_get.side_effect = requests.RequestException("Connection failed")
@@ -178,7 +174,7 @@ class TestHTTPClient:
 
             assert "Connection failed" in str(exc_info.value)
 
-    @patch('requests.Session.get')
+    @patch("requests.Session.get")
     def test_get_text_success(self, mock_get):
         """Test get_text returns text content."""
         mock_response = Mock()
@@ -193,7 +189,7 @@ class TestHTTPClient:
 
             assert text == "Page content"
 
-    @patch('requests.Session.get')
+    @patch("requests.Session.get")
     def test_get_text_failure_returns_none(self, mock_get):
         """Test get_text returns None on failure."""
         mock_get.side_effect = requests.RequestException("Failed")
@@ -203,7 +199,7 @@ class TestHTTPClient:
 
             assert text is None
 
-    @patch('primr.data.http_client.HTTPClient.get')
+    @patch("primr.data.http_client.HTTPClient.get")
     def test_get_json_success(self, mock_get):
         """Test get_json returns parsed JSON."""
         mock_response = Mock()
@@ -217,7 +213,7 @@ class TestHTTPClient:
 
             assert data == {"key": "value"}
 
-    @patch('requests.Session.get')
+    @patch("requests.Session.get")
     def test_get_json_invalid_json_returns_none(self, mock_get):
         """Test get_json returns None for invalid JSON."""
         mock_response = Mock()
@@ -231,7 +227,7 @@ class TestHTTPClient:
 
             assert data is None
 
-    @patch('requests.Session.head')
+    @patch("requests.Session.head")
     def test_head_success(self, mock_head):
         """Test HEAD request."""
         mock_response = Mock()
@@ -243,7 +239,7 @@ class TestHTTPClient:
 
             assert response.status_code == 200
 
-    @patch('requests.Session.head')
+    @patch("requests.Session.head")
     def test_head_failure_returns_none(self, mock_head):
         """Test HEAD request failure returns None."""
         mock_head.side_effect = requests.RequestException("Failed")
@@ -258,10 +254,11 @@ class TestHTTPClient:
 # STATISTICS TESTS
 # =============================================================================
 
+
 class TestHTTPClientStats:
     """Tests for HTTP client statistics."""
 
-    @patch('requests.Session.get')
+    @patch("requests.Session.get")
     def test_stats_tracking(self, mock_get):
         """Test that statistics are tracked."""
         mock_response = Mock()
@@ -280,7 +277,7 @@ class TestHTTPClientStats:
             assert stats["failed"] == 0
             assert stats["success_rate"] == 1.0
 
-    @patch('requests.Session.get')
+    @patch("requests.Session.get")
     def test_stats_with_failures(self, mock_get):
         """Test statistics with failures."""
         mock_response = Mock()
@@ -288,10 +285,7 @@ class TestHTTPClientStats:
         mock_response.url = "https://example.com"  # Set final URL for SSRF check
 
         # First call succeeds, second fails
-        mock_get.side_effect = [
-            mock_response,
-            requests.RequestException("Failed")
-        ]
+        mock_get.side_effect = [mock_response, requests.RequestException("Failed")]
 
         with HTTPClient() as client:
             client.get("https://example.com")
@@ -307,7 +301,7 @@ class TestHTTPClientStats:
             assert stats["failed"] == 1
             assert stats["success_rate"] == 0.5
 
-    @patch('requests.Session.get')
+    @patch("requests.Session.get")
     def test_reset_stats(self, mock_get):
         """Test resetting statistics."""
         mock_response = Mock()
@@ -328,6 +322,7 @@ class TestHTTPClientStats:
 # =============================================================================
 # SINGLETON TESTS
 # =============================================================================
+
 
 class TestSingleton:
     """Tests for singleton access."""
@@ -383,6 +378,7 @@ class TestSingleton:
 # CONVENIENCE FUNCTION TESTS
 # =============================================================================
 
+
 class TestConvenienceFunctions:
     """Tests for convenience functions."""
 
@@ -394,7 +390,7 @@ class TestConvenienceFunctions:
         """Clean up after each test."""
         reset_http_client()
 
-    @patch.object(HTTPClient, 'get')
+    @patch.object(HTTPClient, "get")
     def test_http_get(self, mock_get):
         """Test http_get convenience function."""
         mock_response = Mock()
@@ -406,7 +402,7 @@ class TestConvenienceFunctions:
         assert response.status_code == 200
         mock_get.assert_called_once()
 
-    @patch.object(HTTPClient, 'get_text')
+    @patch.object(HTTPClient, "get_text")
     def test_http_get_text(self, mock_get_text):
         """Test http_get_text convenience function."""
         mock_get_text.return_value = "Page content"
@@ -415,7 +411,7 @@ class TestConvenienceFunctions:
 
         assert text == "Page content"
 
-    @patch.object(HTTPClient, 'get_json')
+    @patch.object(HTTPClient, "get_json")
     def test_http_get_json(self, mock_get_json):
         """Test http_get_json convenience function."""
         mock_get_json.return_value = {"key": "value"}
@@ -428,6 +424,7 @@ class TestConvenienceFunctions:
 # =============================================================================
 # CONNECTION POOLING TESTS
 # =============================================================================
+
 
 class TestConnectionPooling:
     """Tests for connection pooling behavior."""
@@ -450,7 +447,7 @@ class TestConnectionPooling:
             # The exact attribute varies by requests version
             assert adapter is not None
             # Verify it's an HTTPAdapter with pooling
-            assert hasattr(adapter, 'poolmanager') or hasattr(adapter, 'config')
+            assert hasattr(adapter, "poolmanager") or hasattr(adapter, "config")
 
     def test_retry_configuration(self):
         """Test that retry is configured."""
@@ -466,6 +463,7 @@ class TestConnectionPooling:
 # =============================================================================
 # INTEGRATION TESTS
 # =============================================================================
+
 
 class TestIntegration:
     """Integration tests (may require network)."""

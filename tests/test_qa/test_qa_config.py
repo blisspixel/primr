@@ -54,7 +54,7 @@ class TestQAConfigManager:
                 max_tokens=4096,
                 supports_json_mode=True,
                 recommended_for=["testing"],
-                available=True
+                available=True,
             )
 
             success = config_manager.add_custom_model(custom_model)
@@ -82,7 +82,7 @@ class TestQAConfigManager:
             config_path = Path(temp_dir) / "qa_config.json"
 
             # Create invalid JSON config file
-            with open(config_path, 'w') as f:
+            with open(config_path, "w") as f:
                 f.write("{ invalid json }")
 
             # Should handle invalid JSON gracefully
@@ -123,7 +123,7 @@ class TestQAConfigManager:
                 name="unavailable-model",
                 display_name="Unavailable Model",
                 provider="test",
-                available=False
+                available=False,
             )
             config_manager.add_custom_model(unavailable_model)
 
@@ -156,7 +156,7 @@ class TestQAConfigManager:
                 display_name="Paid Model",
                 provider="test",
                 cost_per_1k_tokens=0.01,  # $0.01 per 1k tokens
-                available=True
+                available=True,
             )
             config_manager.add_custom_model(paid_model)
 
@@ -206,7 +206,7 @@ class TestQAConfigManager:
                 display_name="Test Persist Model",
                 provider="test",
                 cost_per_1k_tokens=0.001,
-                available=True
+                available=True,
             )
             config_manager1.add_custom_model(custom_model)
             config_manager1.set_default_model("test-persist-model")
@@ -226,10 +226,10 @@ class TestQAConfigManager:
             with open(config_path) as f:
                 config_data = json.load(f)
 
-            assert config_data['default_model'] == "test-persist-model"
-            assert config_data['max_retries'] == 5
-            assert 'models' in config_data
-            assert len(config_data['models']) > 0
+            assert config_data["default_model"] == "test-persist-model"
+            assert config_data["max_retries"] == 5
+            assert "models" in config_data
+            assert len(config_data["models"]) > 0
 
     def test_configuration_summary(self):
         """
@@ -244,21 +244,26 @@ class TestQAConfigManager:
 
             # Should contain expected keys
             expected_keys = [
-                'default_model', 'enabled_by_default', 'total_models',
-                'available_models', 'model_names', 'config_path',
-                'max_retries', 'timeout_seconds'
+                "default_model",
+                "enabled_by_default",
+                "total_models",
+                "available_models",
+                "model_names",
+                "config_path",
+                "max_retries",
+                "timeout_seconds",
             ]
 
             for key in expected_keys:
                 assert key in summary, f"Summary should contain {key}"
 
             # Should have reasonable values
-            assert isinstance(summary['total_models'], int)
-            assert summary['total_models'] > 0
-            assert isinstance(summary['available_models'], int)
-            assert isinstance(summary['model_names'], list)
-            assert len(summary['model_names']) > 0
-            assert summary['default_model'] in summary['model_names']
+            assert isinstance(summary["total_models"], int)
+            assert summary["total_models"] > 0
+            assert isinstance(summary["available_models"], int)
+            assert isinstance(summary["model_names"], list)
+            assert len(summary["model_names"]) > 0
+            assert summary["default_model"] in summary["model_names"]
 
     def test_global_config_manager(self):
         """

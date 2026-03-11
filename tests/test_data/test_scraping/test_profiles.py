@@ -1,6 +1,5 @@
 """Tests for scraping profiles - Property 6: Profile Separation and Consistency."""
 
-
 from primr.data.scraping.profiles import (
     CONTEXT_PROFILES,
     HTTP_PROFILES,
@@ -29,10 +28,12 @@ class TestHttpHeaderProfiles:
         """Windows profiles must have Windows-consistent sec-ch-ua-platform."""
         for profile in HTTP_PROFILES:
             if "windows" in profile.name.lower():
-                assert profile.sec_ch_ua_platform is not None, \
+                assert profile.sec_ch_ua_platform is not None, (
                     f"Windows profile {profile.name} missing sec_ch_ua_platform"
-                assert "Windows" in profile.sec_ch_ua_platform, \
+                )
+                assert "Windows" in profile.sec_ch_ua_platform, (
                     f"Windows profile {profile.name} has non-Windows platform: {profile.sec_ch_ua_platform}"
+                )
 
     def test_mac_profiles_have_mac_platform(self):
         """Mac profiles must have macOS-consistent sec-ch-ua-platform."""
@@ -40,26 +41,33 @@ class TestHttpHeaderProfiles:
             if "mac" in profile.name.lower() and "safari" not in profile.name.lower():
                 # Chrome/Edge on Mac should have sec-ch-ua
                 if profile.sec_ch_ua is not None:
-                    assert profile.sec_ch_ua_platform is not None, \
+                    assert profile.sec_ch_ua_platform is not None, (
                         f"Mac profile {profile.name} missing sec_ch_ua_platform"
-                    assert "macOS" in profile.sec_ch_ua_platform or "Mac" in profile.sec_ch_ua_platform, \
+                    )
+                    assert (
+                        "macOS" in profile.sec_ch_ua_platform or "Mac" in profile.sec_ch_ua_platform
+                    ), (
                         f"Mac profile {profile.name} has non-Mac platform: {profile.sec_ch_ua_platform}"
+                    )
 
     def test_safari_profiles_have_no_sec_ch_ua(self):
         """Safari profiles should not have sec-ch-ua (Safari doesn't send it)."""
         for profile in HTTP_PROFILES:
             if "safari" in profile.name.lower() and "chrome" not in profile.user_agent.lower():
-                assert profile.sec_ch_ua is None, \
+                assert profile.sec_ch_ua is None, (
                     f"Safari profile {profile.name} should not have sec_ch_ua"
+                )
 
     def test_chrome_profiles_have_sec_ch_ua(self):
         """Chrome profiles must have sec-ch-ua headers."""
         for profile in HTTP_PROFILES:
             if "chrome" in profile.name.lower():
-                assert profile.sec_ch_ua is not None, \
+                assert profile.sec_ch_ua is not None, (
                     f"Chrome profile {profile.name} missing sec_ch_ua"
-                assert "Chrome" in profile.sec_ch_ua or "Chromium" in profile.sec_ch_ua, \
+                )
+                assert "Chrome" in profile.sec_ch_ua or "Chromium" in profile.sec_ch_ua, (
                     f"Chrome profile {profile.name} has invalid sec_ch_ua"
+                )
 
     def test_profile_names_are_unique(self):
         """All profile names must be unique."""
@@ -81,28 +89,34 @@ class TestBrowserContextProfiles:
             assert profile.viewport_height > 0, f"Profile {profile.name} has invalid height"
             assert profile.locale, f"Profile {profile.name} missing locale"
             assert profile.timezone, f"Profile {profile.name} missing timezone"
-            assert profile.color_scheme in ("light", "dark"), \
+            assert profile.color_scheme in ("light", "dark"), (
                 f"Profile {profile.name} has invalid color_scheme"
+            )
 
     def test_viewports_are_realistic(self):
         """Viewport sizes should be realistic desktop resolutions."""
         for profile in CONTEXT_PROFILES:
             # Minimum reasonable desktop size
-            assert profile.viewport_width >= 1024, \
+            assert profile.viewport_width >= 1024, (
                 f"Profile {profile.name} width too small: {profile.viewport_width}"
-            assert profile.viewport_height >= 600, \
+            )
+            assert profile.viewport_height >= 600, (
                 f"Profile {profile.name} height too small: {profile.viewport_height}"
+            )
             # Maximum reasonable size
-            assert profile.viewport_width <= 4096, \
+            assert profile.viewport_width <= 4096, (
                 f"Profile {profile.name} width too large: {profile.viewport_width}"
-            assert profile.viewport_height <= 2160, \
+            )
+            assert profile.viewport_height <= 2160, (
                 f"Profile {profile.name} height too large: {profile.viewport_height}"
+            )
 
     def test_timezones_are_valid_format(self):
         """Timezones should be in IANA format (e.g., America/New_York)."""
         for profile in CONTEXT_PROFILES:
-            assert "/" in profile.timezone, \
+            assert "/" in profile.timezone, (
                 f"Profile {profile.name} timezone not in IANA format: {profile.timezone}"
+            )
 
     def test_at_least_three_profiles(self):
         """Should have at least 3 context profiles for diversity."""
@@ -120,11 +134,11 @@ class TestStealthPatches:
     def test_stealth_script_is_valid_javascript(self):
         """Stealth script should look like valid JavaScript."""
         # Basic sanity checks
-        assert ";" in STEALTH_SCRIPT or "=>" in STEALTH_SCRIPT, \
+        assert ";" in STEALTH_SCRIPT or "=>" in STEALTH_SCRIPT, (
             "STEALTH_SCRIPT doesn't look like JavaScript"
+        )
         # Should have key anti-detection features
-        assert "webdriver" in STEALTH_SCRIPT.lower(), \
-            "STEALTH_SCRIPT missing webdriver detection"
+        assert "webdriver" in STEALTH_SCRIPT.lower(), "STEALTH_SCRIPT missing webdriver detection"
 
     def test_get_stealth_script_returns_script(self):
         """get_stealth_script() returns the stealth script."""

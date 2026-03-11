@@ -31,6 +31,7 @@ PROMPTS_DIR = Path(__file__).parent
 @dataclass
 class SectionConfig:
     """Configuration for a single prompt section."""
+
     id: str
     name: str
     part: int
@@ -44,6 +45,7 @@ class SectionConfig:
 @dataclass
 class PromptConfig:
     """Complete prompt configuration loaded from YAML."""
+
     meta: dict[str, Any]
     document_purpose: str
     epistemic_rules: dict[str, str]

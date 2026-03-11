@@ -16,19 +16,23 @@ logger = logging.getLogger(__name__)
 @dataclass
 class QAModelConfig:
     """Configuration for a QA model."""
+
     name: str
     display_name: str
     provider: str  # e.g., "google", "openai", "anthropic"
     cost_per_1k_tokens: float = 0.0
     max_tokens: int = 8192
     supports_json_mode: bool = False
-    recommended_for: list[str] = field(default_factory=list)  # e.g., ["general", "technical", "financial"]
+    recommended_for: list[str] = field(
+        default_factory=list
+    )  # e.g., ["general", "technical", "financial"]
     available: bool = True
 
 
 @dataclass
 class QASystemConfig:
     """Complete QA system configuration."""
+
     default_model: str = PrimrModels.QA_MODEL
     enabled_by_default: bool = True
     save_detailed_reports: bool = True
@@ -55,7 +59,7 @@ class QASystemConfig:
                 max_tokens=65536,
                 supports_json_mode=True,
                 recommended_for=["general", "fast", "analysis"],
-                available=True
+                available=True,
             ),
             PrimrModels.REASONING_MODEL: QAModelConfig(
                 name=PrimrModels.REASONING_MODEL,
@@ -65,7 +69,7 @@ class QASystemConfig:
                 max_tokens=65536,
                 supports_json_mode=True,
                 recommended_for=["complex", "detailed", "technical"],
-                available=True
+                available=True,
             ),
         }
 
@@ -87,22 +91,22 @@ class QAConfigManager:
         """Load configuration from file or create default."""
         if self.config_path.exists():
             try:
-                with open(self.config_path, encoding='utf-8') as f:
+                with open(self.config_path, encoding="utf-8") as f:
                     config_data = json.load(f)
 
                 # Convert model configs
                 models = {}
-                for name, model_data in config_data.get('models', {}).items():
+                for name, model_data in config_data.get("models", {}).items():
                     models[name] = QAModelConfig(**model_data)
 
                 config = QASystemConfig(
-                    default_model=config_data.get('default_model', PrimrModels.QA_MODEL),
-                    enabled_by_default=config_data.get('enabled_by_default', True),
-                    save_detailed_reports=config_data.get('save_detailed_reports', True),
-                    max_retries=config_data.get('max_retries', 3),
-                    retry_base_delay=config_data.get('retry_base_delay', 2.0),
-                    timeout_seconds=config_data.get('timeout_seconds', 120),
-                    models=models
+                    default_model=config_data.get("default_model", PrimrModels.QA_MODEL),
+                    enabled_by_default=config_data.get("enabled_by_default", True),
+                    save_detailed_reports=config_data.get("save_detailed_reports", True),
+                    max_retries=config_data.get("max_retries", 3),
+                    retry_base_delay=config_data.get("retry_base_delay", 2.0),
+                    timeout_seconds=config_data.get("timeout_seconds", 120),
+                    models=models,
                 )
 
                 logger.info(f"Loaded QA configuration from {self.config_path}")
@@ -127,28 +131,28 @@ class QAConfigManager:
 
             # Convert to serializable format
             config_data = {
-                'default_model': self.config.default_model,
-                'enabled_by_default': self.config.enabled_by_default,
-                'save_detailed_reports': self.config.save_detailed_reports,
-                'max_retries': self.config.max_retries,
-                'retry_base_delay': self.config.retry_base_delay,
-                'timeout_seconds': self.config.timeout_seconds,
-                'models': {}
+                "default_model": self.config.default_model,
+                "enabled_by_default": self.config.enabled_by_default,
+                "save_detailed_reports": self.config.save_detailed_reports,
+                "max_retries": self.config.max_retries,
+                "retry_base_delay": self.config.retry_base_delay,
+                "timeout_seconds": self.config.timeout_seconds,
+                "models": {},
             }
 
             for name, model in self.config.models.items():
-                config_data['models'][name] = {
-                    'name': model.name,
-                    'display_name': model.display_name,
-                    'provider': model.provider,
-                    'cost_per_1k_tokens': model.cost_per_1k_tokens,
-                    'max_tokens': model.max_tokens,
-                    'supports_json_mode': model.supports_json_mode,
-                    'recommended_for': model.recommended_for,
-                    'available': model.available
+                config_data["models"][name] = {
+                    "name": model.name,
+                    "display_name": model.display_name,
+                    "provider": model.provider,
+                    "cost_per_1k_tokens": model.cost_per_1k_tokens,
+                    "max_tokens": model.max_tokens,
+                    "supports_json_mode": model.supports_json_mode,
+                    "recommended_for": model.recommended_for,
+                    "available": model.available,
                 }
 
-            with open(self.config_path, 'w', encoding='utf-8') as f:
+            with open(self.config_path, "w", encoding="utf-8") as f:
                 json.dump(config_data, f, indent=2)
 
             logger.info(f"Saved QA configuration to {self.config_path}")
@@ -189,10 +193,7 @@ class QAConfigManager:
         Returns:
             List of recommended model configurations
         """
-        return [
-            model for model in self.get_available_models()
-            if use_case in model.recommended_for
-        ]
+        return [model for model in self.get_available_models() if use_case in model.recommended_for]
 
     def validate_model(self, model_name: str) -> tuple[bool, str]:
         """
@@ -281,14 +282,14 @@ class QAConfigManager:
         available_models = self.get_available_models()
 
         return {
-            'default_model': self.config.default_model,
-            'enabled_by_default': self.config.enabled_by_default,
-            'total_models': len(self.config.models),
-            'available_models': len(available_models),
-            'model_names': [model.name for model in available_models],
-            'config_path': str(self.config_path),
-            'max_retries': self.config.max_retries,
-            'timeout_seconds': self.config.timeout_seconds
+            "default_model": self.config.default_model,
+            "enabled_by_default": self.config.enabled_by_default,
+            "total_models": len(self.config.models),
+            "available_models": len(available_models),
+            "model_names": [model.name for model in available_models],
+            "config_path": str(self.config_path),
+            "max_retries": self.config.max_retries,
+            "timeout_seconds": self.config.timeout_seconds,
         }
 
 

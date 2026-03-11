@@ -35,6 +35,7 @@ logger = logging.getLogger(__name__)
 # DATA CLASSES
 # =============================================================================
 
+
 @dataclass
 class BenchmarkResult:
     """
@@ -52,6 +53,7 @@ class BenchmarkResult:
         timestamp: When the benchmark was run
         metadata: Additional benchmark-specific data
     """
+
     name: str
     duration_seconds: float
     iterations: int
@@ -108,6 +110,7 @@ class RegressionWarning:
         threshold: Threshold that was exceeded
         message: Human-readable warning message
     """
+
     benchmark_name: str
     baseline_value: float
     current_value: float
@@ -119,6 +122,7 @@ class RegressionWarning:
 # =============================================================================
 # BENCHMARK RUNNER
 # =============================================================================
+
 
 class BenchmarkRunner:
     """
@@ -217,6 +221,7 @@ class BenchmarkRunner:
 # =============================================================================
 # RESULT STORAGE
 # =============================================================================
+
 
 class BenchmarkStore:
     """
@@ -344,6 +349,7 @@ class BenchmarkStore:
 # REGRESSION DETECTION
 # =============================================================================
 
+
 class RegressionDetector:
     """
     Detects performance regressions by comparing against baselines.
@@ -390,18 +396,20 @@ class RegressionDetector:
             pct_change = ((current.mean_time - baseline.mean_time) / baseline.mean_time) * 100
 
             if pct_change > self.threshold_percent:
-                warnings.append(RegressionWarning(
-                    benchmark_name=current.name,
-                    baseline_value=baseline.mean_time,
-                    current_value=current.mean_time,
-                    percentage_change=pct_change,
-                    threshold=self.threshold_percent,
-                    message=(
-                        f"Performance regression in '{current.name}': "
-                        f"mean time increased by {pct_change:.1f}% "
-                        f"(baseline: {baseline.mean_time:.4f}s, current: {current.mean_time:.4f}s)"
-                    ),
-                ))
+                warnings.append(
+                    RegressionWarning(
+                        benchmark_name=current.name,
+                        baseline_value=baseline.mean_time,
+                        current_value=current.mean_time,
+                        percentage_change=pct_change,
+                        threshold=self.threshold_percent,
+                        message=(
+                            f"Performance regression in '{current.name}': "
+                            f"mean time increased by {pct_change:.1f}% "
+                            f"(baseline: {baseline.mean_time:.4f}s, current: {current.mean_time:.4f}s)"
+                        ),
+                    )
+                )
 
         # Check p95 latency
         baseline_p95 = baseline.percentiles.get("p95", 0)
@@ -411,18 +419,20 @@ class RegressionDetector:
             pct_change_p95 = ((current_p95 - baseline_p95) / baseline_p95) * 100
 
             if pct_change_p95 > self.threshold_percent:
-                warnings.append(RegressionWarning(
-                    benchmark_name=current.name,
-                    baseline_value=baseline_p95,
-                    current_value=current_p95,
-                    percentage_change=pct_change_p95,
-                    threshold=self.threshold_percent,
-                    message=(
-                        f"P95 latency regression in '{current.name}': "
-                        f"increased by {pct_change_p95:.1f}% "
-                        f"(baseline: {baseline_p95:.4f}s, current: {current_p95:.4f}s)"
-                    ),
-                ))
+                warnings.append(
+                    RegressionWarning(
+                        benchmark_name=current.name,
+                        baseline_value=baseline_p95,
+                        current_value=current_p95,
+                        percentage_change=pct_change_p95,
+                        threshold=self.threshold_percent,
+                        message=(
+                            f"P95 latency regression in '{current.name}': "
+                            f"increased by {pct_change_p95:.1f}% "
+                            f"(baseline: {baseline_p95:.4f}s, current: {current_p95:.4f}s)"
+                        ),
+                    )
+                )
 
         return warnings
 
@@ -430,6 +440,7 @@ class RegressionDetector:
 # =============================================================================
 # BENCHMARK SUITE
 # =============================================================================
+
 
 class BenchmarkSuite:
     """
@@ -498,9 +509,11 @@ class BenchmarkSuite:
         Returns:
             Decorator function
         """
+
         def decorator(func: Callable) -> Callable:
             self.register(name, func, iterations, metadata)
             return func
+
         return decorator
 
     def run(self, name: str) -> BenchmarkResult:
@@ -589,6 +602,7 @@ class BenchmarkSuite:
 # BUILT-IN BENCHMARKS
 # =============================================================================
 
+
 def create_primr_benchmark_suite(storage_path: Path | str = "benchmarks") -> BenchmarkSuite:
     """
     Create a benchmark suite with Primr-specific benchmarks.
@@ -606,6 +620,7 @@ def create_primr_benchmark_suite(storage_path: Path | str = "benchmarks") -> Ben
     def benchmark_prompt_composition():
         """Benchmark prompt composition from YAML."""
         from primr.prompts import build_company_overview_prompt
+
         return build_company_overview_prompt("Test Company", website_url="https://test.com")
 
     # JSON serialization benchmark

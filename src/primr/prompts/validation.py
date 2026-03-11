@@ -27,6 +27,7 @@ from pydantic import BaseModel, Field, ValidationError, field_validator
 
 class SchemaVersion(str, Enum):
     """Supported schema versions for prompt configurations."""
+
     V1_0 = "1.0"
     V1_1 = "1.1"
     V2_0 = "2.0"
@@ -38,6 +39,7 @@ CURRENT_SCHEMA_VERSION = SchemaVersion.V2_0
 
 class SectionPosition(str, Enum):
     """Position of a section in the narrative flow."""
+
     OPENING = "opening"
     MIDDLE = "middle"
     CLOSING = "closing"
@@ -50,6 +52,7 @@ class SectionSpecModel(BaseModel):
 
     Validates the structure of individual sections in a prompt configuration.
     """
+
     id: str = Field(..., min_length=1, description="Unique section identifier")
     name: str = Field(..., min_length=1, description="Section display name")
     part: int = Field(..., ge=1, le=5, description="Report part number (1-5)")
@@ -68,11 +71,10 @@ class PromptMetaModel(BaseModel):
 
     Validates the meta section of a prompt configuration.
     """
+
     name: str = Field(..., min_length=1, description="Prompt name")
     version: str = Field(
-        ...,
-        pattern=r"^\d+\.\d+\.\d+$",
-        description="Semantic version (e.g., 1.0.0)"
+        ..., pattern=r"^\d+\.\d+\.\d+$", description="Semantic version (e.g., 1.0.0)"
     )
     description: str = Field(default="", description="Prompt description")
     expected_pages: str = Field(default="", description="Expected page count")
@@ -88,6 +90,7 @@ class PromptConfigModel(BaseModel):
 
     Validates the entire structure of a prompt YAML configuration file.
     """
+
     meta: PromptMetaModel
     document_purpose: str = Field(..., min_length=10, description="Document purpose statement")
     sections: list[SectionSpecModel] = Field(..., min_length=1, description="Report sections")
@@ -105,7 +108,9 @@ class PromptConfigModel(BaseModel):
 
     @field_validator("sections")
     @classmethod
-    def validate_unique_section_ids(cls, sections: list[SectionSpecModel]) -> list[SectionSpecModel]:
+    def validate_unique_section_ids(
+        cls, sections: list[SectionSpecModel]
+    ) -> list[SectionSpecModel]:
         """Ensure all section IDs are unique."""
         ids = _collect_all_section_ids(sections)
         if len(ids) != len(set(ids)):
@@ -130,6 +135,7 @@ class SchemaVersionError(Exception):
 
     Provides migration guidance in the error message.
     """
+
     def __init__(self, message: str, current_version: str, unsupported_version: str | None = None):
         super().__init__(message)
         self.current_version = current_version

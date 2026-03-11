@@ -20,6 +20,7 @@ from primr.ai.ai_strategy import (
 # Unit Tests
 # =============================================================================
 
+
 class TestAIStrategyAnalyzer:
     """Unit tests for AIStrategyAnalyzer class."""
 
@@ -33,11 +34,7 @@ class TestAIStrategyAnalyzer:
     def test_analyze_with_azure_vendor(self):
         """Azure vendor returns Azure-specific technologies."""
         analyzer = AIStrategyAnalyzer()
-        opportunities = analyzer.analyze(
-            "Acme Corp",
-            "technology",
-            cloud_vendor=CloudVendor.AZURE
-        )
+        opportunities = analyzer.analyze("Acme Corp", "technology", cloud_vendor=CloudVendor.AZURE)
 
         # All technologies should be from Azure catalog
         azure_techs = set()
@@ -51,11 +48,7 @@ class TestAIStrategyAnalyzer:
     def test_analyze_with_aws_vendor(self):
         """AWS vendor returns AWS-specific technologies."""
         analyzer = AIStrategyAnalyzer()
-        opportunities = analyzer.analyze(
-            "Acme Corp",
-            "retail",
-            cloud_vendor=CloudVendor.AWS
-        )
+        opportunities = analyzer.analyze("Acme Corp", "retail", cloud_vendor=CloudVendor.AWS)
 
         aws_techs = set()
         for cat_techs in VENDOR_TECHNOLOGIES[CloudVendor.AWS].values():
@@ -68,11 +61,7 @@ class TestAIStrategyAnalyzer:
     def test_analyze_with_gcp_vendor(self):
         """GCP vendor returns GCP-specific technologies."""
         analyzer = AIStrategyAnalyzer()
-        opportunities = analyzer.analyze(
-            "Acme Corp",
-            "manufacturing",
-            cloud_vendor=CloudVendor.GCP
-        )
+        opportunities = analyzer.analyze("Acme Corp", "manufacturing", cloud_vendor=CloudVendor.GCP)
 
         gcp_techs = set()
         for cat_techs in VENDOR_TECHNOLOGIES[CloudVendor.GCP].values():
@@ -112,11 +101,7 @@ class TestAIStrategyAnalyzer:
     def test_agnostic_vendor_works(self):
         """Agnostic vendor returns generic technologies."""
         analyzer = AIStrategyAnalyzer()
-        opportunities = analyzer.analyze(
-            "Acme Corp",
-            "retail",
-            cloud_vendor=CloudVendor.AGNOSTIC
-        )
+        opportunities = analyzer.analyze("Acme Corp", "retail", cloud_vendor=CloudVendor.AGNOSTIC)
 
         assert len(opportunities) == 5
         # Should have generic tech names
@@ -142,11 +127,7 @@ class TestConvenienceFunction:
 
     def test_analyze_ai_strategy_with_vendor_string(self):
         """Convenience function accepts vendor as string."""
-        opportunities = analyze_ai_strategy(
-            "Acme Corp",
-            "technology",
-            cloud_vendor="azure"
-        )
+        opportunities = analyze_ai_strategy("Acme Corp", "technology", cloud_vendor="azure")
 
         assert len(opportunities) == 5
         # Should have Azure technologies
@@ -171,7 +152,7 @@ class TestAIOpportunity:
             technologies=["Tech1", "Tech2"],
             business_impact="High impact",
             implementation_complexity="Medium",
-            estimated_timeline="3 months"
+            estimated_timeline="3 months",
         )
 
         d = opp.to_dict()
@@ -185,6 +166,7 @@ class TestAIOpportunity:
 # Property-Based Tests
 # =============================================================================
 
+
 class TestAIOpportunityCount:
     """
     **Feature: consulting-tier-report, Property 21: AI Opportunity Count**
@@ -195,8 +177,12 @@ class TestAIOpportunityCount:
 
     @settings(max_examples=50, suppress_health_check=[HealthCheck.too_slow])
     @given(
-        company=st.text(min_size=1, max_size=50, alphabet=st.characters(whitelist_categories=['L', 'N', 'S'])),
-        industry=st.sampled_from(["healthcare", "retail", "technology", "manufacturing", "financial", ""])
+        company=st.text(
+            min_size=1, max_size=50, alphabet=st.characters(whitelist_categories=["L", "N", "S"])
+        ),
+        industry=st.sampled_from(
+            ["healthcare", "retail", "technology", "manufacturing", "financial", ""]
+        ),
     )
     def test_always_returns_five_opportunities(self, company, industry):
         """Analyzer always returns exactly 5 opportunities."""
@@ -220,8 +206,12 @@ class TestAIOpportunityStructure:
 
     @settings(max_examples=50, suppress_health_check=[HealthCheck.too_slow])
     @given(
-        company=st.text(min_size=1, max_size=30, alphabet=st.characters(whitelist_categories=['L'])),
-        vendor=st.sampled_from([CloudVendor.AZURE, CloudVendor.AWS, CloudVendor.GCP, CloudVendor.AGNOSTIC])
+        company=st.text(
+            min_size=1, max_size=30, alphabet=st.characters(whitelist_categories=["L"])
+        ),
+        vendor=st.sampled_from(
+            [CloudVendor.AZURE, CloudVendor.AWS, CloudVendor.GCP, CloudVendor.AGNOSTIC]
+        ),
     )
     def test_all_opportunities_have_required_fields(self, company, vendor):
         """Every opportunity has all required fields populated."""
@@ -255,8 +245,10 @@ class TestVendorTechnologyAlignment:
 
     @settings(max_examples=30, suppress_health_check=[HealthCheck.too_slow])
     @given(
-        company=st.text(min_size=3, max_size=20, alphabet=st.characters(whitelist_categories=['L'])),
-        industry=st.sampled_from(["healthcare", "retail", "technology", "manufacturing"])
+        company=st.text(
+            min_size=3, max_size=20, alphabet=st.characters(whitelist_categories=["L"])
+        ),
+        industry=st.sampled_from(["healthcare", "retail", "technology", "manufacturing"]),
     )
     def test_azure_technologies_only(self, company, industry):
         """Azure vendor only returns Azure technologies."""
@@ -276,8 +268,10 @@ class TestVendorTechnologyAlignment:
 
     @settings(max_examples=30, suppress_health_check=[HealthCheck.too_slow])
     @given(
-        company=st.text(min_size=3, max_size=20, alphabet=st.characters(whitelist_categories=['L'])),
-        industry=st.sampled_from(["healthcare", "retail", "technology", "manufacturing"])
+        company=st.text(
+            min_size=3, max_size=20, alphabet=st.characters(whitelist_categories=["L"])
+        ),
+        industry=st.sampled_from(["healthcare", "retail", "technology", "manufacturing"]),
     )
     def test_aws_technologies_only(self, company, industry):
         """AWS vendor only returns AWS technologies."""
@@ -297,8 +291,10 @@ class TestVendorTechnologyAlignment:
 
     @settings(max_examples=30, suppress_health_check=[HealthCheck.too_slow])
     @given(
-        company=st.text(min_size=3, max_size=20, alphabet=st.characters(whitelist_categories=['L'])),
-        industry=st.sampled_from(["healthcare", "retail", "technology", "manufacturing"])
+        company=st.text(
+            min_size=3, max_size=20, alphabet=st.characters(whitelist_categories=["L"])
+        ),
+        industry=st.sampled_from(["healthcare", "retail", "technology", "manufacturing"]),
     )
     def test_gcp_technologies_only(self, company, industry):
         """GCP vendor only returns GCP technologies."""

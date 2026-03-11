@@ -35,6 +35,7 @@ logger = get_logger("ai.accordion_test")
 @dataclass
 class AccordionTestConfig:
     """Configuration for standalone Accordion Method test."""
+
     topic: str
     target_pages: int = 30  # Quality content typically produces 30-40 pages
     section_delay_seconds: int = 10  # Short delay for Gemini Pro calls
@@ -44,6 +45,7 @@ class AccordionTestConfig:
 @dataclass
 class AccordionTestResult:
     """Result from standalone Accordion Method test."""
+
     content: str
     word_count: int
     page_estimate: float
@@ -71,7 +73,7 @@ Focus on:
 - Any counterintuitive or underappreciated findings
 
 Write with analytical rigor. Every sentence should add insight.
-This sets the tone for the entire report - be direct and substantive."""
+This sets the tone for the entire report - be direct and substantive.""",
     },
     {
         "id": "current_state",
@@ -85,7 +87,7 @@ Cover:
 - Capability gaps between theory and practice
 
 Include specific data, cite landmark developments.
-Build naturally from the executive summary's framing."""
+Build naturally from the executive summary's framing.""",
     },
     {
         "id": "key_trends",
@@ -99,7 +101,7 @@ For each major trend:
 - How do trends interact or create feedback loops?
 
 Identify inflection points where the field's trajectory changed.
-Connect back to the current state analysis."""
+Connect back to the current state analysis.""",
     },
     {
         "id": "technology_innovation",
@@ -114,7 +116,7 @@ Cover:
 - Innovation ecosystem: funding, talent, IP landscape
 
 Include performance metrics and cost curves.
-This section should feel like a natural progression from trends."""
+This section should feel like a natural progression from trends.""",
     },
     {
         "id": "challenges_barriers",
@@ -128,7 +130,7 @@ For each challenge:
 - Second-order effects if NOT solved?
 
 Distinguish: technical, economic, institutional, knowledge gaps.
-Connect to the technology landscape just discussed."""
+Connect to the technology landscape just discussed.""",
     },
     {
         "id": "market_economics",
@@ -143,7 +145,7 @@ Cover:
 - Investment thesis and where capital is flowing
 
 Include specific data: market sizes, growth rates, investment figures.
-This flows from challenges into economic implications."""
+This flows from challenges into economic implications.""",
     },
     {
         "id": "regional_dynamics",
@@ -160,7 +162,7 @@ International dynamics:
 - Key bilateral relationships and tensions
 - Implications of different geopolitical scenarios
 
-Connect economic analysis to regional strategies."""
+Connect economic analysis to regional strategies.""",
     },
     {
         "id": "future_outlook",
@@ -178,7 +180,7 @@ For the most likely trajectory:
 - Biggest risks to baseline forecast
 
 Include specific predictions with timeframes.
-Build on all previous analysis."""
+Build on all previous analysis.""",
     },
     {
         "id": "stakeholder_ecosystem",
@@ -196,7 +198,7 @@ Power dynamics:
 - Key decision points and who controls them?
 - Coalitions forming and what would shift balance?
 
-Identify key individuals/institutions shaping the field."""
+Identify key individuals/institutions shaping the field.""",
     },
     {
         "id": "recommendations",
@@ -210,7 +212,7 @@ For each stakeholder type, provide recommendations that are:
 - Prioritized (what matters most)
 
 Include contrarian recommendations where evidence supports.
-What should stakeholders STOP doing?"""
+What should stakeholders STOP doing?""",
     },
     {
         "id": "synthesis",
@@ -226,7 +228,7 @@ NOT a summary. A synthesis:
 End with "so what" - why should a busy expert care?
 What should they think or do differently?
 
-Tie back to the executive summary's thesis."""
+Tie back to the executive summary's thesis.""",
     },
 ]
 
@@ -336,7 +338,9 @@ class AccordionTestRunner:
 
                 section_num = i + 1
                 if on_progress:
-                    on_progress(f"[{section_num}/{len(RESEARCH_SECTIONS)}] Writing: {section['title']}...")
+                    on_progress(
+                        f"[{section_num}/{len(RESEARCH_SECTIONS)}] Writing: {section['title']}..."
+                    )
 
                 # Delay between calls (except first)
                 if i > 0:
@@ -361,32 +365,38 @@ class AccordionTestRunner:
 
                 if result["success"] and result["content"]:
                     words = len(result["content"].split())
-                    written_sections.append({
-                        "id": section["id"],
-                        "title": section["title"],
-                        "content": result["content"],
-                        "words": words,
-                    })
-                    section_details.append({
-                        "id": section["id"],
-                        "title": section["title"],
-                        "words": words,
-                        "success": True,
-                        "duration": time.time() - section_start,
-                    })
+                    written_sections.append(
+                        {
+                            "id": section["id"],
+                            "title": section["title"],
+                            "content": result["content"],
+                            "words": words,
+                        }
+                    )
+                    section_details.append(
+                        {
+                            "id": section["id"],
+                            "title": section["title"],
+                            "words": words,
+                            "success": True,
+                            "duration": time.time() - section_start,
+                        }
+                    )
                     consecutive_failures = 0
 
                     if on_progress:
                         on_progress(f"✓ Written: {words:,} words")
                 else:
                     consecutive_failures += 1
-                    section_details.append({
-                        "id": section["id"],
-                        "title": section["title"],
-                        "words": 0,
-                        "success": False,
-                        "duration": time.time() - section_start,
-                    })
+                    section_details.append(
+                        {
+                            "id": section["id"],
+                            "title": section["title"],
+                            "words": 0,
+                            "success": False,
+                            "duration": time.time() - section_start,
+                        }
+                    )
                     if on_progress:
                         on_progress(f"✗ Failed: {result.get('error', 'Unknown')}")
 
@@ -427,13 +437,15 @@ class AccordionTestRunner:
                 on_progress(f"Total words: {final_words:,}")
                 on_progress(f"Estimated pages: {final_pages:.1f}")
                 on_progress(f"Sections completed: {len(written_sections)}/{len(RESEARCH_SECTIONS)}")
-                on_progress(f"Duration: {duration/60:.1f} minutes")
+                on_progress(f"Duration: {duration / 60:.1f} minutes")
                 on_progress(f"API calls: {self._api_call_count}")
                 on_progress(f"Output: {output_path}")
                 on_progress("")
 
                 if final_pages >= config.target_pages:
-                    on_progress(f"✓ Target met: {final_pages:.1f} pages (target: {config.target_pages})")
+                    on_progress(
+                        f"✓ Target met: {final_pages:.1f} pages (target: {config.target_pages})"
+                    )
                 else:
                     on_progress(f"Note: {final_pages:.1f} pages (target: {config.target_pages})")
 
@@ -451,7 +463,9 @@ class AccordionTestRunner:
 
         except Exception as e:
             logger.error(f"Accordion test error: {e}")
-            partial = self._assemble_report(config.topic, written_sections) if written_sections else ""
+            partial = (
+                self._assemble_report(config.topic, written_sections) if written_sections else ""
+            )
 
             return AccordionTestResult(
                 content=partial,
@@ -465,7 +479,6 @@ class AccordionTestRunner:
                 error=str(e),
                 section_details=section_details,
             )
-
 
     def _build_dossier_prompt(self, topic: str) -> str:
         """Build prompt for Phase 1: Research Dossier."""
@@ -573,10 +586,10 @@ Set up themes that later sections will develop."""
 **{topic}**
 
 # YOUR SECTION
-**{section['title']}**
+**{section["title"]}**
 
 # SECTION REQUIREMENTS
-{section['instructions']}
+{section["instructions"]}
 
 # RESEARCH DOSSIER (Source Material)
 Use these facts as your foundation. Expand with analysis and insight.
@@ -605,7 +618,7 @@ This section should feel like part of ONE document, not a standalone piece.
 - Connect to themes from previous sections
 - Set up points that later sections will develop
 
-Write the **{section['title']}** section now:"""
+Write the **{section["title"]}** section now:"""
 
     async def _write_section_gemini(self, prompt: str) -> dict:
         """Write a section using Gemini 3 Flash."""
@@ -613,12 +626,13 @@ Write the **{section['title']}** section now:"""
 
         try:
             from primr.config.models import PrimrModels
+
             response = self._client.models.generate_content(
                 model=PrimrModels.FLASH_MODEL,
                 contents=prompt,
             )
 
-            content = response.text if hasattr(response, 'text') else str(response)
+            content = response.text if hasattr(response, "text") else str(response)
 
             return {
                 "success": True,
@@ -683,7 +697,7 @@ Write the **{section['title']}** section now:"""
 
                     words = len(content.split())
                     if on_progress:
-                        on_progress(f"Research complete: {words:,} words in {elapsed/60:.1f} min")
+                        on_progress(f"Research complete: {words:,} words in {elapsed / 60:.1f} min")
 
                     return {
                         "success": True,
@@ -731,12 +745,14 @@ Write the **{section['title']}** section now:"""
 
         # Sections - clean flow
         for i, section in enumerate(sections):
-            lines.extend([
-                f"## {section['title']}",
-                "",
-                section["content"],
-                "",
-            ])
+            lines.extend(
+                [
+                    f"## {section['title']}",
+                    "",
+                    section["content"],
+                    "",
+                ]
+            )
             # Subtle separator every 5 sections
             if i > 0 and (i + 1) % 5 == 0 and i < len(sections) - 1:
                 lines.append("---")
@@ -748,6 +764,7 @@ Write the **{section['title']}** section now:"""
 # =============================================================================
 # CLI INTEGRATION
 # =============================================================================
+
 
 async def run_accordion_test_async(
     topic: str,

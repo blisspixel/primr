@@ -138,7 +138,9 @@ class TestConditionFields:
                 # Check if this step references previous step outputs
                 step_str = str(step)
                 if "$approval" in step_str or "$research" in step_str or "$monitor" in step_str:
-                    assert "condition" in step, f"Step {step['id']} references previous output but has no condition"
+                    assert "condition" in step, (
+                        f"Step {step['id']} references previous output but has no condition"
+                    )
 
 
 class TestErrorHandlers:

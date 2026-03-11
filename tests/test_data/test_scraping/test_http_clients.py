@@ -170,6 +170,7 @@ class TestScrapeWithCurlCffi:
         with patch.dict("sys.modules", {"curl_cffi": Mock(requests=mock_requests)}):
             # Need to reimport to pick up the mock
             from primr.data.scraping import http_clients
+
             result = http_clients.scrape_with_curl_cffi("https://example.com")
 
         assert isinstance(result, ScrapeResult)
@@ -188,10 +189,8 @@ class TestScrapeWithCurlCffi:
 
         with patch.dict("sys.modules", {"curl_cffi": Mock(requests=mock_requests)}):
             from primr.data.scraping import http_clients
-            http_clients.scrape_with_curl_cffi(
-                "https://example.com",
-                impersonate="chrome119"
-            )
+
+            http_clients.scrape_with_curl_cffi("https://example.com", impersonate="chrome119")
 
         # Verify impersonate was passed
         call_kwargs = mock_requests.get.call_args[1]

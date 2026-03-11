@@ -18,6 +18,7 @@ from typing import Any
 
 try:
     from google import genai as _google_genai
+
     _GENAI_IMPORT_ERROR: Exception | None = None
 except Exception as import_error:
     _GENAI_IMPORT_ERROR = import_error
@@ -45,7 +46,10 @@ logger = get_logger("ai.report_aggregator")
 def _require_genai_dependency() -> None:
     if _GENAI_IMPORT_ERROR is None:
         return
-    if _FALLBACK_CLIENT_CLASS is not None and getattr(genai, "Client", None) is not _FALLBACK_CLIENT_CLASS:
+    if (
+        _FALLBACK_CLIENT_CLASS is not None
+        and getattr(genai, "Client", None) is not _FALLBACK_CLIENT_CLASS
+    ):
         return
     raise RuntimeError(
         "google.genai is not available. Install compatible dependencies "
@@ -137,8 +141,7 @@ class ReportAggregator:
 
         if failed_chapters:
             logger.warning(
-                f"{len(failed_chapters)} chapters failed: "
-                f"{[ch.title for ch in failed_chapters]}"
+                f"{len(failed_chapters)} chapters failed: {[ch.title for ch in failed_chapters]}"
             )
 
         # Generate table of contents
@@ -162,12 +165,14 @@ class ReportAggregator:
                 )
 
         # Combine all parts
-        full_content = "\n\n".join([
-            header,
-            toc,
-            "---\n",
-            "\n\n---\n\n".join(chapter_contents),
-        ])
+        full_content = "\n\n".join(
+            [
+                header,
+                toc,
+                "---\n",
+                "\n\n---\n\n".join(chapter_contents),
+            ]
+        )
 
         # Optional: Smooth transitions between chapters
         if smooth_transitions and len(successful_chapters) > 1:
@@ -240,11 +245,9 @@ This comprehensive strategic overview was generated using Primr's Recursive Hier
 
             # Create anchor link
             anchor = chapter.title.lower().replace(" ", "-").replace("&", "and")
-            anchor = re.sub(r'[^a-z0-9-]', '', anchor)
+            anchor = re.sub(r"[^a-z0-9-]", "", anchor)
 
-            lines.append(
-                f"{chapter.chapter_number}. [{chapter.title}](#{anchor})"
-            )
+            lines.append(f"{chapter.chapter_number}. [{chapter.title}](#{anchor})")
 
         return "\n".join(lines)
 
@@ -257,12 +260,7 @@ This comprehensive strategic overview was generated using Primr's Recursive Hier
             content = f"## {chapter.chapter_number}. {chapter.title}\n\n{content}"
         else:
             # Update existing header to include chapter number
-            content = re.sub(
-                r'^##\s*',
-                f'## {chapter.chapter_number}. ',
-                content.strip(),
-                count=1
-            )
+            content = re.sub(r"^##\s*", f"## {chapter.chapter_number}. ", content.strip(), count=1)
 
         return content
 
@@ -277,15 +275,17 @@ This comprehensive strategic overview was generated using Primr's Recursive Hier
         citation_num = 1
         for chapter in chapters:
             for citation in chapter.citations:
-                url = citation.get('url', '')
+                url = citation.get("url", "")
                 if url and url not in seen_urls:
                     seen_urls.add(url)
-                    all_citations.append({
-                        'number': str(citation_num),
-                        'title': citation.get('title', f'Source {citation_num}'),
-                        'url': url,
-                        'chapter': chapter.title,
-                    })
+                    all_citations.append(
+                        {
+                            "number": str(citation_num),
+                            "title": citation.get("title", f"Source {citation_num}"),
+                            "url": url,
+                            "chapter": chapter.title,
+                        }
+                    )
                     citation_num += 1
 
         return all_citations
@@ -323,9 +323,7 @@ Document:
 
         try:
             response = self._client.models.generate_content(
-                model=self.SMOOTHING_MODEL,
-                contents=prompt,
-                config={"temperature": 0.2}
+                model=self.SMOOTHING_MODEL, contents=prompt, config={"temperature": 0.2}
             )
 
             smoothed = response.text or content

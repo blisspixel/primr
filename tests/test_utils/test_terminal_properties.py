@@ -30,15 +30,14 @@ class TestColorAdaptation:
 
     def test_no_color_when_no_color_env_set(self):
         """NO_COLOR environment variable disables colors."""
-        with patch.dict(os.environ, {"NO_COLOR": "1"}), patch('sys.stdout') as mock_stdout:
+        with patch.dict(os.environ, {"NO_COLOR": "1"}), patch("sys.stdout") as mock_stdout:
             mock_stdout.isatty.return_value = True
             mock_stdout.encoding = "utf-8"
 
             clear_terminal_cache()
             caps = TerminalCapabilities.detect()
 
-            assert not caps.supports_color, \
-                    "Colors should be disabled when NO_COLOR is set"
+            assert not caps.supports_color, "Colors should be disabled when NO_COLOR is set"
 
     def test_no_color_when_term_dumb(self):
         """TERM=dumb disables colors."""
@@ -47,39 +46,39 @@ class TestColorAdaptation:
         env_clean = {k: v for k, v in os.environ.items() if k != "NO_COLOR"}
         env_clean.update(env)
 
-        with patch.dict(os.environ, env_clean, clear=True), patch('sys.stdout') as mock_stdout:
+        with patch.dict(os.environ, env_clean, clear=True), patch("sys.stdout") as mock_stdout:
             mock_stdout.isatty.return_value = True
             mock_stdout.encoding = "utf-8"
 
             clear_terminal_cache()
             caps = TerminalCapabilities.detect()
 
-            assert not caps.supports_color, \
-                "Colors should be disabled when TERM=dumb"
+            assert not caps.supports_color, "Colors should be disabled when TERM=dumb"
 
     def test_no_color_when_piped(self):
         """Piped output (non-TTY) disables colors."""
-        with patch('sys.stdout') as mock_stdout:
+        with patch("sys.stdout") as mock_stdout:
             mock_stdout.isatty.return_value = False
             mock_stdout.encoding = "utf-8"
 
             clear_terminal_cache()
             caps = TerminalCapabilities.detect()
 
-            assert not caps.supports_color, \
-                "Colors should be disabled when output is piped"
+            assert not caps.supports_color, "Colors should be disabled when output is piped"
 
     def test_force_color_overrides_no_color(self):
         """FORCE_COLOR overrides NO_COLOR."""
-        with patch.dict(os.environ, {"NO_COLOR": "1", "FORCE_COLOR": "1"}), patch('sys.stdout') as mock_stdout:
+        with (
+            patch.dict(os.environ, {"NO_COLOR": "1", "FORCE_COLOR": "1"}),
+            patch("sys.stdout") as mock_stdout,
+        ):
             mock_stdout.isatty.return_value = True
             mock_stdout.encoding = "utf-8"
 
             clear_terminal_cache()
             caps = TerminalCapabilities.detect()
 
-            assert caps.supports_color, \
-                "FORCE_COLOR should override NO_COLOR"
+            assert caps.supports_color, "FORCE_COLOR should override NO_COLOR"
 
     @given(st.booleans())
     @settings(max_examples=100)
@@ -102,10 +101,16 @@ class TestColorAdaptation:
             assert theme.BOLD == "", "Should not have BOLD when disabled"
             assert theme.RESET == "", "Should not have RESET when disabled"
 
-    @given(st.text(min_size=1, max_size=50, alphabet=st.characters(
-        blacklist_categories=('Cs',),
-        blacklist_characters='\x1b'  # Exclude escape character to avoid ANSI in input
-    )))
+    @given(
+        st.text(
+            min_size=1,
+            max_size=50,
+            alphabet=st.characters(
+                blacklist_categories=("Cs",),
+                blacklist_characters="\x1b",  # Exclude escape character to avoid ANSI in input
+            ),
+        )
+    )
     @settings(max_examples=100)
     def test_no_ansi_codes_in_plain_theme_output(self, text: str):
         """Plain theme output contains no ANSI codes."""
@@ -114,14 +119,12 @@ class TestColorAdaptation:
         # Colorize should return plain text
         for status in ["success", "warning", "error", "info", "muted"]:
             result = theme.colorize(text, status)
-            assert "\033[" not in result, \
-                f"Plain theme should not add ANSI codes for {status}"
-            assert result == text, \
-                "Plain theme colorize should return original text"
+            assert "\033[" not in result, f"Plain theme should not add ANSI codes for {status}"
+            assert result == text, "Plain theme colorize should return original text"
 
     @given(
-        st.text(min_size=1, max_size=50, alphabet=st.characters(blacklist_categories=('Cs',))),
-        st.sampled_from(["success", "warning", "error", "info", "muted"])
+        st.text(min_size=1, max_size=50, alphabet=st.characters(blacklist_categories=("Cs",))),
+        st.sampled_from(["success", "warning", "error", "info", "muted"]),
     )
     @settings(max_examples=100)
     def test_color_theme_adds_ansi_codes(self, text: str, status: str):
@@ -131,14 +134,11 @@ class TestColorAdaptation:
         result = theme.colorize(text, status)
 
         # Should contain ANSI escape sequence
-        assert "\033[" in result, \
-            f"Color theme should add ANSI codes for {status}"
+        assert "\033[" in result, f"Color theme should add ANSI codes for {status}"
         # Should contain original text
-        assert text in result, \
-            "Colorized text should contain original"
+        assert text in result, "Colorized text should contain original"
         # Should end with reset
-        assert result.endswith("\033[0m"), \
-            "Colorized text should end with reset"
+        assert result.endswith("\033[0m"), "Colorized text should end with reset"
 
 
 class TestTerminalCapabilitiesDetection:
@@ -163,40 +163,25 @@ class TestTerminalCapabilitiesDetection:
     def test_should_use_color_requires_interactive(self):
         """Color requires interactive terminal."""
         # Interactive with color support
-        caps = TerminalCapabilities.for_testing(
-            supports_color=True,
-            is_interactive=True
-        )
+        caps = TerminalCapabilities.for_testing(supports_color=True, is_interactive=True)
         assert caps.should_use_color()
 
         # Non-interactive (piped) should not use color
-        caps = TerminalCapabilities.for_testing(
-            supports_color=True,
-            is_interactive=False
-        )
+        caps = TerminalCapabilities.for_testing(supports_color=True, is_interactive=False)
         assert not caps.should_use_color()
 
     def test_should_update_in_place_requires_cursor_and_interactive(self):
         """In-place updates require cursor support and interactive."""
         # Full support
-        caps = TerminalCapabilities.for_testing(
-            supports_cursor=True,
-            is_interactive=True
-        )
+        caps = TerminalCapabilities.for_testing(supports_cursor=True, is_interactive=True)
         assert caps.should_update_in_place()
 
         # No cursor support
-        caps = TerminalCapabilities.for_testing(
-            supports_cursor=False,
-            is_interactive=True
-        )
+        caps = TerminalCapabilities.for_testing(supports_cursor=False, is_interactive=True)
         assert not caps.should_update_in_place()
 
         # Not interactive
-        caps = TerminalCapabilities.for_testing(
-            supports_cursor=True,
-            is_interactive=False
-        )
+        caps = TerminalCapabilities.for_testing(supports_cursor=True, is_interactive=False)
         assert not caps.should_update_in_place()
 
 
@@ -205,11 +190,7 @@ class TestThemeTerminalIntegration:
 
     @given(st.booleans(), st.booleans())
     @settings(max_examples=100)
-    def test_get_theme_matches_capabilities(
-        self,
-        supports_color: bool,
-        supports_unicode: bool
-    ):
+    def test_get_theme_matches_capabilities(self, supports_color: bool, supports_unicode: bool):
         """get_theme returns theme matching capabilities."""
         theme = get_theme(supports_color, supports_unicode)
 

@@ -38,8 +38,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-P = ParamSpec('P')
-T = TypeVar('T')
+P = ParamSpec("P")
+T = TypeVar("T")
 
 # Default thread pool for blocking operations
 _default_executor: ThreadPoolExecutor | None = None
@@ -51,8 +51,7 @@ def _get_default_executor() -> ThreadPoolExecutor:
     global _default_executor
     if _default_executor is None:
         _default_executor = ThreadPoolExecutor(
-            max_workers=_executor_max_workers,
-            thread_name_prefix="primr-async-"
+            max_workers=_executor_max_workers, thread_name_prefix="primr-async-"
         )
     return _default_executor
 
@@ -92,6 +91,7 @@ def shutdown_executor(wait: bool = True) -> None:
 # =============================================================================
 # SYNC -> ASYNC: Running async code from sync context
 # =============================================================================
+
 
 def run_sync(coro: Awaitable[T]) -> T:
     """
@@ -165,6 +165,7 @@ def run_sync_new_loop(coro: Awaitable[T]) -> T:
         # A loop is already running in this thread — we can't call
         # run_until_complete here, so delegate to a worker thread.
         from concurrent.futures import ThreadPoolExecutor
+
         with ThreadPoolExecutor(max_workers=1) as pool:
             return pool.submit(asyncio.run, coro).result()  # type: ignore[arg-type]
     except RuntimeError:
@@ -181,11 +182,8 @@ def run_sync_new_loop(coro: Awaitable[T]) -> T:
 # ASYNC -> SYNC: Running sync code from async context
 # =============================================================================
 
-async def run_async(
-    func: Callable[P, T],
-    *args: P.args,
-    **kwargs: P.kwargs
-) -> T:
+
+async def run_async(func: Callable[P, T], *args: P.args, **kwargs: P.kwargs) -> T:
     """
     Run a blocking sync function from async code without blocking the event loop.
 
@@ -218,10 +216,7 @@ async def run_async(
 
 
 async def run_async_with_timeout(
-    func: Callable[P, T],
-    timeout: float,
-    *args: P.args,
-    **kwargs: P.kwargs
+    func: Callable[P, T], timeout: float, *args: P.args, **kwargs: P.kwargs
 ) -> T:
     """
     Run a blocking sync function with a timeout.
@@ -244,15 +239,13 @@ async def run_async_with_timeout(
         except asyncio.TimeoutError:
             logger.warning("Operation timed out")
     """
-    return await asyncio.wait_for(
-        run_async(func, *args, **kwargs),
-        timeout=timeout
-    )
+    return await asyncio.wait_for(run_async(func, *args, **kwargs), timeout=timeout)
 
 
 # =============================================================================
 # FUNCTION WRAPPERS
 # =============================================================================
+
 
 def ensure_async(func: Callable[P, T]) -> Callable[P, Awaitable[T]]:
     """
@@ -276,9 +269,11 @@ def ensure_async(func: Callable[P, T]) -> Callable[P, Awaitable[T]]:
         # Now can be awaited
         result = await blocking_operation(5)
     """
+
     @functools.wraps(func)
     async def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
         return await run_async(func, *args, **kwargs)
+
     return wrapper
 
 
@@ -304,15 +299,18 @@ def ensure_sync(func: Callable[P, Awaitable[T]]) -> Callable[P, T]:
         # Now can be called from sync code
         result = async_operation(5)
     """
+
     @functools.wraps(func)
     def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
         return run_sync(func(*args, **kwargs))
+
     return wrapper
 
 
 # =============================================================================
 # CONTEXT MANAGERS
 # =============================================================================
+
 
 @contextmanager
 def sync_context():
@@ -384,12 +382,7 @@ class AsyncBridge:
         """
         return run_sync(coro)
 
-    async def run_blocking(
-        self,
-        func: Callable[P, T],
-        *args: P.args,
-        **kwargs: P.kwargs
-    ) -> T:
+    async def run_blocking(self, func: Callable[P, T], *args: P.args, **kwargs: P.kwargs) -> T:
         """
         Run a blocking function from async context.
 
@@ -415,6 +408,7 @@ class AsyncBridge:
 # UTILITIES
 # =============================================================================
 
+
 def is_async_context() -> bool:
     """
     Check if currently running in an async context.
@@ -435,10 +429,7 @@ def is_async_context() -> bool:
         return False
 
 
-async def gather_with_concurrency(
-    limit: int,
-    *coros: Awaitable[T]
-) -> list[T]:
+async def gather_with_concurrency(limit: int, *coros: Awaitable[T]) -> list[T]:
     """
     Run coroutines with a concurrency limit.
 

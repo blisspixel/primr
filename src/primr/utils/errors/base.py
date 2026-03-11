@@ -49,6 +49,7 @@ EXCEPTION_TYPE_GUIDANCE: dict[str, str] = {
 # RETRY CONFIGURATION
 # =============================================================================
 
+
 @dataclass
 class RetryConfig:
     """
@@ -112,7 +113,7 @@ def calculate_backoff_delay(attempt: int, config: RetryConfig) -> float:
         >>> delay = calculate_backoff_delay(2, config)  # ~4.0 +/- 10%
     """
     # Calculate base exponential delay
-    base_delay = config.base_delay * (config.exponential_base ** attempt)
+    base_delay = config.base_delay * (config.exponential_base**attempt)
 
     # Cap at max_delay
     capped_delay = min(base_delay, config.max_delay)
@@ -134,13 +135,14 @@ def is_rate_limit_error(error: Exception) -> bool:
 def calculate_retry_delay(attempt: int, *, is_rate_limited: bool) -> float:
     """Calculate retry delay, using longer backoff for rate-limit errors."""
     if is_rate_limited:
-        return min(2 ** attempt * 5, 60)  # 5s, 10s, 20s, max 60s
-    return float(2 ** attempt)  # 1s, 2s, 4s
+        return min(2**attempt * 5, 60)  # 5s, 10s, 20s, max 60s
+    return float(2**attempt)  # 1s, 2s, 4s
 
 
 # =============================================================================
 # CORRELATION ID HELPER
 # =============================================================================
+
 
 def get_correlation_id() -> str:
     """
@@ -157,6 +159,7 @@ def get_correlation_id() -> str:
     # Try to import from observability module (preferred — has full context)
     try:
         from primr.utils.observability import get_correlation_id as obs_get_correlation_id
+
         return obs_get_correlation_id()
     except ImportError:
         pass

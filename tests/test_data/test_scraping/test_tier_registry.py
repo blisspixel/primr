@@ -1,6 +1,5 @@
 """Tests for tier registry."""
 
-
 from primr.data.scraping.models import ScrapeTier
 from primr.data.scraping.tier_registry import (
     DEFAULT_TIERS,

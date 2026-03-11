@@ -23,6 +23,7 @@ from primr.prompts.composer import PromptComposer
 # Expected Section Configuration
 # =============================================================================
 
+
 # Get actual section IDs from company_overview.yaml dynamically
 def get_expected_section_ids():
     """Get section IDs from the actual config."""
@@ -172,19 +173,20 @@ More content.
 Even more content.
 """
 
-        with tempfile.NamedTemporaryFile(suffix='.docx', delete=False) as f:
+        with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
             output_path = Path(f.name)
 
         try:
             markdown_to_docx(markdown, output_path)
 
             from docx import Document
+
             doc = Document(output_path)
 
             # Check that headings exist with correct styles
             heading_styles = []
             for para in doc.paragraphs:
-                if para.style.name.startswith('Heading'):
+                if para.style.name.startswith("Heading"):
                     heading_styles.append(para.style.name)
 
             # Should have multiple heading levels
@@ -203,13 +205,14 @@ Even more content.
 #### H4 Minor
 """
 
-        with tempfile.NamedTemporaryFile(suffix='.docx', delete=False) as f:
+        with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
             output_path = Path(f.name)
 
         try:
             markdown_to_docx(markdown, output_path, title="Test")
 
             from docx import Document
+
             doc = Document(output_path)
 
             # Document should be created successfully
@@ -225,13 +228,14 @@ class TestDOCXContentPreservation:
         """Bold text is preserved in DOCX."""
         markdown = "This is **bold text** in a paragraph."
 
-        with tempfile.NamedTemporaryFile(suffix='.docx', delete=False) as f:
+        with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
             output_path = Path(f.name)
 
         try:
             markdown_to_docx(markdown, output_path)
 
             from docx import Document
+
             doc = Document(output_path)
 
             # Find paragraph with bold text
@@ -255,13 +259,14 @@ class TestDOCXContentPreservation:
 * Third item
 """
 
-        with tempfile.NamedTemporaryFile(suffix='.docx', delete=False) as f:
+        with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
             output_path = Path(f.name)
 
         try:
             markdown_to_docx(markdown, output_path)
 
             from docx import Document
+
             doc = Document(output_path)
 
             # Check content is present
@@ -342,13 +347,14 @@ def test_property_heading_hierarchy_preserved(heading_levels: list[int]):
 
     markdown = "\n".join(lines)
 
-    with tempfile.NamedTemporaryFile(suffix='.docx', delete=False) as f:
+    with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
         output_path = Path(f.name)
 
     try:
         markdown_to_docx(markdown, output_path)
 
         from docx import Document
+
         doc = Document(output_path)
 
         # Document should be created successfully
@@ -364,7 +370,9 @@ def test_property_heading_hierarchy_preserved(heading_levels: list[int]):
 
 @given(
     text=st.text(
-        alphabet=st.sampled_from("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .,!?"),
+        alphabet=st.sampled_from(
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .,!?"
+        ),
         min_size=10,
         max_size=200,
     )
@@ -379,13 +387,14 @@ def test_property_content_not_lost_in_conversion(text: str):
     """
     markdown = f"## Test Section\n\n{text}"
 
-    with tempfile.NamedTemporaryFile(suffix='.docx', delete=False) as f:
+    with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
         output_path = Path(f.name)
 
     try:
         markdown_to_docx(markdown, output_path)
 
         from docx import Document
+
         doc = Document(output_path)
 
         # Extract all text from document

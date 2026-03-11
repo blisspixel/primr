@@ -13,9 +13,10 @@ Examples:
     python tests/manual/test_external_source_relevance.py "Softchoice" "https://www.softchoice.com"
     python tests/manual/test_external_source_relevance.py "EverTrue" "https://www.evertrue.com"
 """
+
 import sys
 
-sys.path.insert(0, 'src')
+sys.path.insert(0, "src")
 
 from urllib.parse import urlparse
 
@@ -28,9 +29,9 @@ def test_relevance(company_name: str, website: str):
 
     target_domain = urlparse(website).netloc.lower().replace("www.", "")
 
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print("EXTERNAL SOURCE RELEVANCE TEST")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"Company: {company_name}")
     print(f"Website: {website}")
     print(f"Domain:  {target_domain}")
@@ -71,22 +72,19 @@ def test_relevance(company_name: str, website: str):
     print()
 
     # Run our actual validation function
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print("RUNNING scrape_external_sources_validated()...")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print()
 
     validated = scrape_external_sources_validated(
-        filtered,
-        company_name=company_name,
-        website=website,
-        max_sources=3
+        filtered, company_name=company_name, website=website, max_sources=3
     )
 
     print()
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print("RESULTS")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     if validated:
         print(f"✓ Validated {len(validated)} source(s):")

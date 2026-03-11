@@ -33,6 +33,7 @@ logger = get_logger("adaptive_scraper")
 @dataclass
 class DomainProfile:
     """Profile of scraping behavior for a domain."""
+
     domain: str
     preferred_tier: str = "requests"
     avg_response_time: float = 0.0
@@ -50,12 +51,7 @@ class DomainProfile:
     total_attempts: int = 0
     total_successes: int = 0
 
-    def record_attempt(
-        self,
-        tier: str,
-        success: bool,
-        response_time: float
-    ) -> None:
+    def record_attempt(self, tier: str, success: bool, response_time: float) -> None:
         """Record a scraping attempt."""
         self.total_attempts += 1
 
@@ -249,13 +245,7 @@ class DomainLearner:
                 self._profiles[domain] = DomainProfile(domain=domain)
             return self._profiles[domain]
 
-    def record_attempt(
-        self,
-        url: str,
-        tier: str,
-        success: bool,
-        response_time: float
-    ) -> None:
+    def record_attempt(self, url: str, tier: str, success: bool, response_time: float) -> None:
         """
         Record a scraping attempt.
 
@@ -355,7 +345,7 @@ class AdaptiveScraper:
     def __init__(
         self,
         learner: DomainLearner | None = None,
-        scrape_functions: dict[str, Callable[..., tuple[str | None, str | None]]] | None = None
+        scrape_functions: dict[str, Callable[..., tuple[str | None, str | None]]] | None = None,
     ):
         """
         Initialize adaptive scraper.
@@ -392,10 +382,7 @@ class AdaptiveScraper:
         }
 
     def scrape(
-        self,
-        url: str,
-        force_tier: str | None = None,
-        max_tiers: int = 3
+        self, url: str, force_tier: str | None = None, max_tiers: int = 3
     ) -> tuple[str | None, str]:
         """
         Scrape a URL using adaptive tier selection.
@@ -474,6 +461,7 @@ class AdaptiveScraper:
 # =============================================================================
 # SINGLETON ACCESS
 # =============================================================================
+
 
 @functools.lru_cache(maxsize=1)
 def get_domain_learner() -> DomainLearner:

@@ -18,6 +18,7 @@ Usage:
     # Check if current month's research exists
     is_current = is_vendor_research_current("azure")
 """
+
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
@@ -35,9 +36,11 @@ logger = get_logger("vendor_research")
 # DATACLASSES
 # =============================================================================
 
+
 @dataclass(frozen=True)
 class VendorResearchFile:
     """Metadata about a vendor research file."""
+
     path: Path
     vendor: str
     month: str
@@ -58,6 +61,7 @@ class VendorResearchFile:
 @dataclass
 class VendorResearchResult:
     """Result of vendor research retrieval/generation."""
+
     files: tuple[VendorResearchFile, ...]
     generated: bool
     duration_seconds: float
@@ -72,6 +76,7 @@ class VendorResearchResult:
 # PROTOCOLS
 # =============================================================================
 
+
 class VendorPromptBuilder(Protocol):
     """Protocol for vendor-specific prompt construction."""
 
@@ -83,6 +88,7 @@ class VendorPromptBuilder(Protocol):
 # =============================================================================
 # PUBLIC INTERFACE
 # =============================================================================
+
 
 def get_vendor_research_path(vendor: str, month: str | None = None) -> Path:
     """
@@ -144,9 +150,7 @@ def is_vendor_research_current(vendor: str) -> bool:
 
 
 def get_or_generate_vendor_research_sync(
-    vendor: str,
-    force_refresh: bool = False,
-    on_progress: Callable[[str], None] | None = None
+    vendor: str, force_refresh: bool = False, on_progress: Callable[[str], None] | None = None
 ) -> list[str]:
     """
     Get vendor research files, generating if needed (synchronous).
@@ -188,9 +192,7 @@ def get_or_generate_vendor_research_sync(
 
 
 async def get_or_generate_vendor_research(
-    vendor: str,
-    force_refresh: bool = False,
-    on_progress: Callable[[str], None] | None = None
+    vendor: str, force_refresh: bool = False, on_progress: Callable[[str], None] | None = None
 ) -> VendorResearchResult:
     """
     Get vendor research files, generating if needed (async).
@@ -209,6 +211,7 @@ async def get_or_generate_vendor_research(
         VendorResearchResult with file paths
     """
     import time
+
     start_time = time.time()
     files = []
     generated = False
@@ -217,12 +220,9 @@ async def get_or_generate_vendor_research(
     if vendor.lower() == "azure":
         manual_path = get_manual_research_path(vendor)
         if manual_path:
-            files.append(VendorResearchFile(
-                path=manual_path,
-                vendor=vendor,
-                month="manual",
-                is_manual=True
-            ))
+            files.append(
+                VendorResearchFile(path=manual_path, vendor=vendor, month="manual", is_manual=True)
+            )
 
     # Check for current month's auto-generated research
     current_month = datetime.now().strftime("%Y-%m")
@@ -230,12 +230,11 @@ async def get_or_generate_vendor_research(
 
     if research_path.exists() and not force_refresh:
         # Reuse existing research from this month
-        files.append(VendorResearchFile(
-            path=research_path,
-            vendor=vendor,
-            month=current_month,
-            is_manual=False
-        ))
+        files.append(
+            VendorResearchFile(
+                path=research_path, vendor=vendor, month=current_month, is_manual=False
+            )
+        )
         console.info(f"Using existing vendor research: {research_path.name}")
         logger.info(f"Reusing vendor research file: {research_path}")
     elif not files or force_refresh:
@@ -244,24 +243,20 @@ async def get_or_generate_vendor_research(
         # 2. Force refresh requested
         result = await generate_vendor_research(vendor, on_progress)
         if result:
-            files.append(VendorResearchFile(
-                path=Path(result),
-                vendor=vendor,
-                month=current_month,
-                is_manual=False
-            ))
+            files.append(
+                VendorResearchFile(
+                    path=Path(result), vendor=vendor, month=current_month, is_manual=False
+                )
+            )
             generated = True
 
     return VendorResearchResult(
-        files=tuple(files),
-        generated=generated,
-        duration_seconds=time.time() - start_time
+        files=tuple(files), generated=generated, duration_seconds=time.time() - start_time
     )
 
 
 def generate_vendor_research_sync(
-    vendor: str,
-    on_progress: Callable[[str], None] | None = None
+    vendor: str, on_progress: Callable[[str], None] | None = None
 ) -> str | None:
     """
     Generate fresh vendor AI research using Deep Research (synchronous).
@@ -279,8 +274,7 @@ def generate_vendor_research_sync(
 
 
 async def generate_vendor_research(
-    vendor: str,
-    on_progress: Callable[[str], None] | None = None
+    vendor: str, on_progress: Callable[[str], None] | None = None
 ) -> str | None:
     """
     Generate fresh vendor AI research using Deep Research (async).
@@ -323,7 +317,7 @@ async def generate_vendor_research(
             query=prompt,
             output_format=None,
             on_progress=progress_callback,
-            timeout=1800  # 30 min timeout
+            timeout=1800,  # 30 min timeout
         )
 
         if result.status != ResearchStatus.COMPLETED or not result.content:
@@ -338,10 +332,13 @@ async def generate_vendor_research(
 
         # Deep Research is a flat per-task cost (API doesn't expose tokens)
         from primr.config.models import DEEP_RESEARCH_COST
+
         actual_cost = DEEP_RESEARCH_COST.standard_task_cost
         duration_str = f"{result.duration_seconds / 60:.1f}m"
 
-        console.ok(f"Vendor research saved: {research_path.name} ({duration_str}, ~${actual_cost:.2f})")
+        console.ok(
+            f"Vendor research saved: {research_path.name} ({duration_str}, ~${actual_cost:.2f})"
+        )
         return str(research_path)
 
     except Exception as e:
@@ -353,6 +350,7 @@ async def generate_vendor_research(
 # =============================================================================
 # INTERNAL FUNCTIONS
 # =============================================================================
+
 
 def _validate_vendor_research_preflight(vendor: str) -> list[str]:
     """Validate prerequisites for vendor research generation."""
@@ -389,23 +387,23 @@ def _get_vendor_metadata(vendor: str) -> dict[str, str]:
         "azure": {
             "name": "Microsoft Azure",
             "conference": "Microsoft Ignite, Microsoft Build",
-            "platform": "Azure OpenAI Service and Azure AI Foundry"
+            "platform": "Azure OpenAI Service and Azure AI Foundry",
         },
         "aws": {
             "name": "Amazon Web Services (AWS)",
             "conference": "AWS re:Invent, AWS Summit",
-            "platform": "Amazon Bedrock"
+            "platform": "Amazon Bedrock",
         },
         "gcp": {
             "name": "Google Cloud Platform (GCP)",
             "conference": "Google Cloud Next, Google I/O",
-            "platform": "Vertex AI"
+            "platform": "Vertex AI",
         },
         "agnostic": {
             "name": "the AI Industry (cross-vendor)",
             "conference": "NeurIPS, major vendor conferences",
-            "platform": "major model providers and cloud platforms"
-        }
+            "platform": "major model providers and cloud platforms",
+        },
     }
     return metadata.get(vendor.lower(), metadata["agnostic"])
 
@@ -421,7 +419,7 @@ def _build_vendor_prompt(vendor: str) -> str:
 OUTPUT FORMAT (Start the document with this exact header)
 =============================================================================
 
-# {meta['name']} AI Services and Capabilities
+# {meta["name"]} AI Services and Capabilities
 
 **Prepared by:** Primr Research System
 **Date:** {current_date}
@@ -439,19 +437,19 @@ You MUST use live web search to find the latest information.
 Do NOT rely on potentially outdated training data.
 
 RESEARCH GOAL:
-Many companies are interested in adopting AI in {current_date}. For {meta['name']},
+Many companies are interested in adopting AI in {current_date}. For {meta["name"]},
 I need a comprehensive overview of the latest AI services, capabilities, and best
 practices that we should keep in mind when advising enterprise customers on AI strategy.
 
-Search for the latest updates from {meta['conference']} and recent announcements.
+Search for the latest updates from {meta["conference"]} and recent announcements.
 
 SECTION STRUCTURE:
 
 ## Executive Summary
-Key themes and strategic direction for {meta['name']} AI in {current_date}.
+Key themes and strategic direction for {meta["name"]} AI in {current_date}.
 
 ## Foundation Models and AI Services
-For {meta['platform']}, provide:
+For {meta["platform"]}, provide:
 - Which models are available (provider, model family, version)
 - What is new in the past 6 months
 - GA vs Preview status for each model

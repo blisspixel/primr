@@ -75,6 +75,7 @@ def orchestrator_configs(draw) -> OrchestratorConfig:
 # PROPERTY 13: Orchestrator Lifecycle Management
 # =============================================================================
 
+
 # Feature: agentic-architecture, Property 13: Orchestrator Lifecycle Management
 def test_orchestrator_initial_state():
     """
@@ -115,11 +116,13 @@ def test_orchestrator_state_transitions(company_name: str, company_url: str):
         assert orchestrator.state == OrchestratorState.IDLE
 
         # Run research
-        result = asyncio.run(orchestrator.research(
-            company_name=company_name,
-            company_url=company_url,
-            mode="full",
-        ))
+        result = asyncio.run(
+            orchestrator.research(
+                company_name=company_name,
+                company_url=company_url,
+                mode="full",
+            )
+        )
 
         # Final state should be COMPLETED or FAILED
         assert orchestrator.state in (
@@ -152,11 +155,13 @@ def test_orchestrator_stage_results_tracking(
         config = OrchestratorConfig(output_dir=Path(tmpdir))
         orchestrator = ResearchOrchestrator(config=config)
 
-        result = asyncio.run(orchestrator.research(
-            company_name=company_name,
-            company_url=company_url,
-            mode=mode,
-        ))
+        result = asyncio.run(
+            orchestrator.research(
+                company_name=company_name,
+                company_url=company_url,
+                mode=mode,
+            )
+        )
 
         # Scrape stage should always be present for both modes
         if mode in ("scrape", "full"):
@@ -170,6 +175,7 @@ def test_orchestrator_stage_results_tracking(
 # =============================================================================
 # PROPERTY 14: Orchestrator Context Isolation
 # =============================================================================
+
 
 # Feature: agentic-architecture, Property 14: Orchestrator Context Isolation
 @given(
@@ -190,25 +196,25 @@ def test_orchestrator_context_isolation(company_name: str, company_url: str):
         config = OrchestratorConfig(output_dir=Path(tmpdir))
         orchestrator = ResearchOrchestrator(config=config)
 
-        result = asyncio.run(orchestrator.research(
-            company_name=company_name,
-            company_url=company_url,
-            mode="full",
-        ))
+        result = asyncio.run(
+            orchestrator.research(
+                company_name=company_name,
+                company_url=company_url,
+                mode="full",
+            )
+        )
 
         # If analysis succeeded, it should have received corpus_path
         if "analyze" in result.stage_results:
             analyze_result = result.stage_results["analyze"]
             # The analyst should have produced hypotheses or failed
-            assert (
-                analyze_result.is_success or
-                analyze_result.is_failure
-            )
+            assert analyze_result.is_success or analyze_result.is_failure
 
 
 # =============================================================================
 # PROPERTY 15: Orchestrator Failure Handling
 # =============================================================================
+
 
 # Feature: agentic-architecture, Property 15: Orchestrator Failure Handling
 @given(config=orchestrator_configs())
@@ -251,11 +257,13 @@ def test_orchestrator_partial_results(company_name: str, company_url: str):
         )
         orchestrator = ResearchOrchestrator(config=config)
 
-        result = asyncio.run(orchestrator.research(
-            company_name=company_name,
-            company_url=company_url,
-            mode="full",
-        ))
+        result = asyncio.run(
+            orchestrator.research(
+                company_name=company_name,
+                company_url=company_url,
+                mode="full",
+            )
+        )
 
         # Even on failure, completed stages should be tracked
         assert isinstance(result.completed_stages, list)
@@ -282,11 +290,13 @@ def test_orchestrator_error_capture(company_name: str, company_url: str):
         config = OrchestratorConfig(output_dir=Path(tmpdir))
         orchestrator = ResearchOrchestrator(config=config)
 
-        result = asyncio.run(orchestrator.research(
-            company_name=company_name,
-            company_url=company_url,
-            mode="full",
-        ))
+        result = asyncio.run(
+            orchestrator.research(
+                company_name=company_name,
+                company_url=company_url,
+                mode="full",
+            )
+        )
 
         # Errors list should be populated for failed stages
         if result.is_failure:
@@ -298,6 +308,7 @@ def test_orchestrator_error_capture(company_name: str, company_url: str):
 # =============================================================================
 # ORCHESTRATOR RESULT TESTS
 # =============================================================================
+
 
 # Feature: agentic-architecture, OrchestratorResult properties
 @given(state=orchestrator_states)
@@ -349,6 +360,7 @@ def test_orchestrator_result_serialization(
 # ORCHESTRATOR CONFIG TESTS
 # =============================================================================
 
+
 # Feature: agentic-architecture, OrchestratorConfig defaults
 def test_orchestrator_config_defaults():
     """OrchestratorConfig has sensible defaults."""
@@ -374,6 +386,7 @@ def test_orchestrator_config_path_conversion():
 # ADDITIONAL UNIT TESTS
 # =============================================================================
 
+
 def test_orchestrator_reset():
     """Orchestrator reset returns to IDLE state."""
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -381,11 +394,13 @@ def test_orchestrator_reset():
         orchestrator = ResearchOrchestrator(config=config)
 
         # Run research to change state
-        asyncio.run(orchestrator.research(
-            company_name="Test",
-            company_url="https://test.com",
-            mode="scrape",
-        ))
+        asyncio.run(
+            orchestrator.research(
+                company_name="Test",
+                company_url="https://test.com",
+                mode="scrape",
+            )
+        )
 
         # State should have changed
         assert orchestrator.state != OrchestratorState.IDLE
@@ -410,11 +425,13 @@ def test_orchestrator_with_memory():
             memory=memory,
         )
 
-        result = asyncio.run(orchestrator.research(
-            company_name="Test Corp",
-            company_url="https://test.com",
-            mode="full",
-        ))
+        result = asyncio.run(
+            orchestrator.research(
+                company_name="Test Corp",
+                company_url="https://test.com",
+                mode="full",
+            )
+        )
 
         # Hypotheses should be tracked
         assert isinstance(result.hypotheses, list)
@@ -434,11 +451,13 @@ def test_orchestrator_with_hooks():
             hook_system=hooks,
         )
 
-        result = asyncio.run(orchestrator.research(
-            company_name="Test",
-            company_url="https://test.com",
-            mode="scrape",
-        ))
+        result = asyncio.run(
+            orchestrator.research(
+                company_name="Test",
+                company_url="https://test.com",
+                mode="scrape",
+            )
+        )
 
         # Should complete (hooks don't block by default)
         assert result.state in (
@@ -453,11 +472,13 @@ def test_orchestrator_result_duration():
         config = OrchestratorConfig(output_dir=Path(tmpdir))
         orchestrator = ResearchOrchestrator(config=config)
 
-        result = asyncio.run(orchestrator.research(
-            company_name="Test",
-            company_url="https://test.com",
-            mode="scrape",
-        ))
+        result = asyncio.run(
+            orchestrator.research(
+                company_name="Test",
+                company_url="https://test.com",
+                mode="scrape",
+            )
+        )
 
         # Duration should be positive
         assert result.duration_seconds >= 0
@@ -498,6 +519,7 @@ def test_orchestrator_working_dir_creation():
 # v1.11.0 INTERACTIVE MODE TESTS
 # =============================================================================
 
+
 def test_orchestrator_state_paused_exists():
     """OrchestratorState.PAUSED is available (v1.11.0)."""
     assert OrchestratorState.PAUSED.value == "paused"
@@ -522,6 +544,7 @@ def test_orchestrator_config_interactive_validation():
 
 def test_orchestrator_config_interactive_with_callback():
     """OrchestratorConfig accepts user_input_callback (v1.11.0)."""
+
     async def callback(prompt: str, options: list[str] | None) -> str:
         return "continue"
 
@@ -627,6 +650,7 @@ def test_orchestrator_pause_resume():
 def test_orchestrator_user_decisions_tracking():
     """Orchestrator tracks user_decisions (v1.11.0)."""
     with tempfile.TemporaryDirectory() as tmpdir:
+
         async def callback(prompt: str, options: list[str] | None) -> str:
             return "continue"
 
@@ -669,12 +693,14 @@ def test_orchestrator_reset_clears_interactive_state():
 
 
 @given(
-    state=st.sampled_from([
-        OrchestratorState.IDLE,
-        OrchestratorState.COMPLETED,
-        OrchestratorState.FAILED,
-        OrchestratorState.PAUSED,
-    ]),
+    state=st.sampled_from(
+        [
+            OrchestratorState.IDLE,
+            OrchestratorState.COMPLETED,
+            OrchestratorState.FAILED,
+            OrchestratorState.PAUSED,
+        ]
+    ),
 )
 @settings(max_examples=10, deadline=None)
 def test_orchestrator_pause_only_from_active_states(state: OrchestratorState):
@@ -692,12 +718,14 @@ def test_orchestrator_pause_only_from_active_states(state: OrchestratorState):
 
 
 @given(
-    state=st.sampled_from([
-        OrchestratorState.SCRAPING,
-        OrchestratorState.ANALYZING,
-        OrchestratorState.WRITING,
-        OrchestratorState.QA,
-    ]),
+    state=st.sampled_from(
+        [
+            OrchestratorState.SCRAPING,
+            OrchestratorState.ANALYZING,
+            OrchestratorState.WRITING,
+            OrchestratorState.QA,
+        ]
+    ),
 )
 @settings(max_examples=10, deadline=None)
 def test_orchestrator_pause_from_active_states(state: OrchestratorState):
@@ -712,4 +740,3 @@ def test_orchestrator_pause_from_active_states(state: OrchestratorState):
         assert result is True
         assert orchestrator.state == OrchestratorState.PAUSED
         assert orchestrator._paused_at_stage == state.value
-

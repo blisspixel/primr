@@ -116,8 +116,21 @@ def _normalize_company_key(company: str) -> str:
 
 def _tokenize_company(company: str) -> set[str]:
     legal_suffixes = {
-        "inc", "incorporated", "corp", "corporation", "co", "company",
-        "llc", "ltd", "limited", "plc", "lp", "llp", "gmbh", "sa", "ag",
+        "inc",
+        "incorporated",
+        "corp",
+        "corporation",
+        "co",
+        "company",
+        "llc",
+        "ltd",
+        "limited",
+        "plc",
+        "lp",
+        "llp",
+        "gmbh",
+        "sa",
+        "ag",
     }
     tokens = {t for t in re.findall(r"[a-z0-9]+", company.lower()) if t}
     stripped = {t for t in tokens if t not in legal_suffixes}
@@ -171,41 +184,59 @@ def _find_profile_reports(profile_dir: Path, profile: str) -> list[ReportMetrics
         score = 0.0
         score += min(30.0, (citations["citation_coverage"] * 30.0))
         score += min(20.0, (key_found / max(1, key_total)) * 20.0)
-        score += 20.0 if citation_density["meets_threshold"] else min(20.0, citation_density["density_per_1000_words"] * 5.0)
-        score += 15.0 if confidence["meets_threshold"] else min(15.0, confidence["total_labels"] * 2.0)
-        score += 15.0 if hypothesis["meets_threshold"] else min(15.0, hypothesis["total_signals"] * 3.0)
+        score += (
+            20.0
+            if citation_density["meets_threshold"]
+            else min(20.0, citation_density["density_per_1000_words"] * 5.0)
+        )
+        score += (
+            15.0 if confidence["meets_threshold"] else min(15.0, confidence["total_labels"] * 2.0)
+        )
+        score += (
+            15.0 if hypothesis["meets_threshold"] else min(15.0, hypothesis["total_signals"] * 3.0)
+        )
         quality_score = round(min(100.0, score), 2)
 
         section_ratio = key_found / max(1, key_total)
         citation_coverage = float(citations["citation_coverage"])
         confidence_ok = bool(confidence["meets_threshold"])
         trust_score = round(
-            (citation_coverage * 50.0) +
-            (section_ratio * 30.0) +
-            (20.0 if confidence_ok else 10.0),
+            (citation_coverage * 50.0) + (section_ratio * 30.0) + (20.0 if confidence_ok else 10.0),
             2,
         )
-        trust_gate_passed = (
-            citation_coverage >= 0.6
-            and section_ratio >= 0.75
-            and confidence_ok
-        )
+        trust_gate_passed = citation_coverage >= 0.6 and section_ratio >= 0.75 and confidence_ok
 
         lower = content.lower()
         actionability_markers = [
-            "next steps", "recommendation", "action", "roadmap",
-            "timeline", "owner", "priority", "milestone",
+            "next steps",
+            "recommendation",
+            "action",
+            "roadmap",
+            "timeline",
+            "owner",
+            "priority",
+            "milestone",
         ]
         risk_markers = ["risk", "tradeoff", "constraint", "mitigation", "assumption"]
         probe_markers = [
-            "key question", "discovery question", "worth validating",
-            "hypothesis", "unknown", "to validate",
+            "key question",
+            "discovery question",
+            "worth validating",
+            "hypothesis",
+            "unknown",
+            "to validate",
         ]
         action_hits = sum(lower.count(m) for m in actionability_markers)
         risk_hits = sum(lower.count(m) for m in risk_markers)
         probe_hits = sum(lower.count(m) for m in probe_markers)
         decision_utility = round(
-            min(100.0, (action_hits * 5.0) + (risk_hits * 3.0) + (probe_hits * 2.0) + (section_ratio * 20.0)),
+            min(
+                100.0,
+                (action_hits * 5.0)
+                + (risk_hits * 3.0)
+                + (probe_hits * 2.0)
+                + (section_ratio * 20.0),
+            ),
             2,
         )
 
@@ -213,7 +244,13 @@ def _find_profile_reports(profile_dir: Path, profile: str) -> list[ReportMetrics
         bullet_count = len(re.findall(r"^\s*[-*]\s+", content, flags=re.MULTILINE))
         table_count = content.count("|---")
         reuse_quality = round(
-            min(100.0, (heading_count * 2.5) + (bullet_count * 0.6) + (table_count * 8.0) + (confidence["total_labels"] * 0.3)),
+            min(
+                100.0,
+                (heading_count * 2.5)
+                + (bullet_count * 0.6)
+                + (table_count * 8.0)
+                + (confidence["total_labels"] * 0.3),
+            ),
             2,
         )
 
@@ -468,8 +505,7 @@ def auto_stage_existing_reports(
             if profile == "fast":
                 target_key = _normalize_company_key(target)
                 has_fast_history = any(
-                    _company_similarity(target_key, key) >= 0.5
-                    for key in fast_company_keys
+                    _company_similarity(target_key, key) >= 0.5 for key in fast_company_keys
                 )
                 if not has_fast_history:
                     continue
@@ -480,11 +516,13 @@ def auto_stage_existing_reports(
             staged_path = profile_dir / staged_name
             shutil.copy2(selected, staged_path)
             staged[profile].append(staged_path)
-            profile_entries.append({
-                "company": target,
-                "source_path": str(selected),
-                "staged_path": str(staged_path),
-            })
+            profile_entries.append(
+                {
+                    "company": target,
+                    "source_path": str(selected),
+                    "staged_path": str(staged_path),
+                }
+            )
         manifest_profiles[profile] = profile_entries
 
     (eval_dir / "staging_manifest.json").write_text(
@@ -522,7 +560,11 @@ def _decision_table(
         quality_ratio = summary.avg_quality / max(1e-9, base.avg_quality)
         utility_ratio = summary.avg_decision_utility / max(1e-9, base.avg_decision_utility)
         cost_ratio = summary.estimated_cost_usd / max(1e-9, base.estimated_cost_usd)
-        status = "PASS" if utility_ratio >= quality_ratio_threshold and cost_ratio <= cost_ratio_threshold else "FAIL"
+        status = (
+            "PASS"
+            if utility_ratio >= quality_ratio_threshold and cost_ratio <= cost_ratio_threshold
+            else "FAIL"
+        )
         rows.append(
             f"{summary.profile}: {status} "
             f"(utility_ratio={utility_ratio:.2f}, quality_ratio={quality_ratio:.2f}, "
@@ -554,7 +596,9 @@ def evaluate_outputs(
         baseline_companies = [m.company for m in metrics_by_profile.get(baseline, [])]
         target_companies = list(dict.fromkeys(baseline_companies))
 
-    allowed_keys = {_normalize_company_key(c) for c in target_companies} if target_companies else set()
+    allowed_keys = (
+        {_normalize_company_key(c) for c in target_companies} if target_companies else set()
+    )
 
     all_metrics: list[ReportMetrics] = []
     profile_summaries: list[ProfileSummary] = []
@@ -562,14 +606,17 @@ def evaluate_outputs(
         profile_metrics = metrics_by_profile.get(profile, [])
         if allowed_keys:
             profile_metrics = [
-                m for m in profile_metrics
-                if _normalize_company_key(m.company) in allowed_keys
+                m for m in profile_metrics if _normalize_company_key(m.company) in allowed_keys
             ]
         profile_summaries.append(_summarize_profile(profile, profile_metrics))
         all_metrics.extend(profile_metrics)
 
-    missing_pairs = _compute_missing_pairs(target_companies, profiles, all_metrics) if target_companies else []
-    decisions = _decision_table(profile_summaries, baseline, quality_ratio_threshold, cost_ratio_threshold)
+    missing_pairs = (
+        _compute_missing_pairs(target_companies, profiles, all_metrics) if target_companies else []
+    )
+    decisions = _decision_table(
+        profile_summaries, baseline, quality_ratio_threshold, cost_ratio_threshold
+    )
 
     scorecard_md = eval_dir / "scorecard.md"
     scorecard_csv = eval_dir / "scorecard.csv"
@@ -831,7 +878,7 @@ Candidate report excerpt:
                 start = raw.find("{")
                 end = raw.rfind("}")
                 if start >= 0 and end > start:
-                    payload = json.loads(raw[start:end + 1])
+                    payload = json.loads(raw[start : end + 1])
                     b_obj = payload.get("baseline_aspects", {})
                     c_obj = payload.get("candidate_aspects", {})
                     for k in aspect_keys:
@@ -851,12 +898,10 @@ Candidate report excerpt:
             continue
 
         baseline_aspects = {
-            k: round(baseline_aspect_sum[k] / effective_passes, 2)
-            for k in aspect_keys
+            k: round(baseline_aspect_sum[k] / effective_passes, 2) for k in aspect_keys
         }
         candidate_aspects = {
-            k: round(candidate_aspect_sum[k] / effective_passes, 2)
-            for k in aspect_keys
+            k: round(candidate_aspect_sum[k] / effective_passes, 2) for k in aspect_keys
         }
 
         base_score = round(sum(baseline_aspects[k] * weights[k] for k in aspect_keys), 2)
@@ -868,8 +913,10 @@ Candidate report excerpt:
         rationale = " | ".join(rationale_parts)[:600]
 
         winner_profile = (
-            baseline_profile if winner == "baseline"
-            else candidate_profile if winner == "candidate"
+            baseline_profile
+            if winner == "baseline"
+            else candidate_profile
+            if winner == "candidate"
             else "tie"
         )
         rows.append(
@@ -944,15 +991,25 @@ def write_fast_feedback_guidance(
     ]
 
     if avg_citations < 18 or avg_citation_density < 1.2:
-        rules.append("Increase citation density by grounding major claims with external or primary-source citations.")
+        rules.append(
+            "Increase citation density by grounding major claims with external or primary-source citations."
+        )
     if avg_confidence < 24:
-        rules.append("Improve uncertainty calibration by labeling non-obvious claims with confidence tags.")
+        rules.append(
+            "Improve uncertainty calibration by labeling non-obvious claims with confidence tags."
+        )
     if avg_words < 7200:
-        rules.append("Increase analytical depth: include more concrete evidence, tradeoffs, and decision implications per section.")
+        rules.append(
+            "Increase analytical depth: include more concrete evidence, tradeoffs, and decision implications per section."
+        )
     if fast_summary.avg_decision_utility < 90:
-        rules.append("Strengthen decision utility: prioritize recommendations, risks, constraints, and next-step diagnostics.")
+        rules.append(
+            "Strengthen decision utility: prioritize recommendations, risks, constraints, and next-step diagnostics."
+        )
     if fast_summary.avg_trust < 92:
-        rules.append("Tighten trust discipline: avoid precise estimates unless directly sourced; otherwise state assumptions explicitly.")
+        rules.append(
+            "Tighten trust discipline: avoid precise estimates unless directly sourced; otherwise state assumptions explicitly."
+        )
 
     judge_insights: list[str] = []
     for row in judge_rows or []:
@@ -964,7 +1021,9 @@ def write_fast_feedback_guidance(
             continue
         for aspect, score in aspects.items():
             if score < 80:
-                judge_insights.append(f"Raise `{aspect}` quality (current LLM judge score: {score:.1f}).")
+                judge_insights.append(
+                    f"Raise `{aspect}` quality (current LLM judge score: {score:.1f})."
+                )
         if row.rationale:
             judge_insights.append(f"Judge note ({row.company}): {row.rationale}")
 

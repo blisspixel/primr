@@ -27,6 +27,7 @@ from src.primr.mcp_server.versioning import (
 # Strategies
 # =============================================================================
 
+
 @st.composite
 def semantic_version_strategy(draw):
     """Generate valid semantic versions."""
@@ -49,31 +50,38 @@ def version_string_strategy(draw):
 @st.composite
 def tool_name_strategy(draw):
     """Generate valid tool names."""
-    return draw(st.sampled_from([
-        "estimate_run",
-        "research_company",
-        "generate_strategy",
-        "check_jobs",
-        "run_qa",
-        "doctor",
-        "clear_jobs",
-        "cancel_job",
-    ]))
+    return draw(
+        st.sampled_from(
+            [
+                "estimate_run",
+                "research_company",
+                "generate_strategy",
+                "check_jobs",
+                "run_qa",
+                "doctor",
+                "clear_jobs",
+                "cancel_job",
+            ]
+        )
+    )
 
 
 @st.composite
 def field_name_strategy(draw):
     """Generate valid field names."""
-    return draw(st.text(
-        min_size=1,
-        max_size=30,
-        alphabet=st.characters(whitelist_categories=("L", "N"), whitelist_characters="_"),
-    ))
+    return draw(
+        st.text(
+            min_size=1,
+            max_size=30,
+            alphabet=st.characters(whitelist_categories=("L", "N"), whitelist_characters="_"),
+        )
+    )
 
 
 # =============================================================================
 # Property 30: Tool Schema Version Presence
 # =============================================================================
+
 
 class TestToolSchemaVersionPresence:
     """Tests for Property 30: Tool Schema Version Presence.
@@ -167,6 +175,7 @@ class TestToolSchemaVersionPresence:
 # =============================================================================
 # Property 31: Deprecation Warning Inclusion
 # =============================================================================
+
 
 class TestDeprecationWarningInclusion:
     """Tests for Property 31: Deprecation Warning Inclusion.
@@ -304,6 +313,7 @@ class TestDeprecationWarningInclusion:
 # Additional Property Tests for Versioning
 # =============================================================================
 
+
 class TestVersioningInvariants:
     """Additional invariant tests for versioning system."""
 
@@ -425,7 +435,9 @@ class TestMigrationGuide:
         from_version=semantic_version_strategy(),
         to_version=semantic_version_strategy(),
     )
-    def test_migration_guide_generation(self, from_version: SemanticVersion, to_version: SemanticVersion):
+    def test_migration_guide_generation(
+        self, from_version: SemanticVersion, to_version: SemanticVersion
+    ):
         """Verify migration guide is generated correctly."""
         registry = MCPVersionRegistry()
         guide = registry.get_migration_guide(from_version, to_version)

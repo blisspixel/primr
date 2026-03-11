@@ -107,15 +107,9 @@ class TestSharedComponentLoaderWithTempDir:
                 "personas": {"test_persona": "Test persona content"},
             }
 
-            (shared_dir / "epistemic_rules.yaml").write_text(
-                yaml.dump(epistemic), encoding="utf-8"
-            )
-            (shared_dir / "formatting.yaml").write_text(
-                yaml.dump(formatting), encoding="utf-8"
-            )
-            (shared_dir / "personas.yaml").write_text(
-                yaml.dump(personas), encoding="utf-8"
-            )
+            (shared_dir / "epistemic_rules.yaml").write_text(yaml.dump(epistemic), encoding="utf-8")
+            (shared_dir / "formatting.yaml").write_text(yaml.dump(formatting), encoding="utf-8")
+            (shared_dir / "personas.yaml").write_text(yaml.dump(personas), encoding="utf-8")
 
             loader = SharedComponentLoader(shared_dir)
             components = loader.load()
@@ -148,9 +142,7 @@ class TestSharedComponentLoaderWithTempDir:
 
             # Create only epistemic rules, skip others
             epistemic = {"rules": {"test_rule": "Test rule content"}}
-            (shared_dir / "epistemic_rules.yaml").write_text(
-                yaml.dump(epistemic), encoding="utf-8"
-            )
+            (shared_dir / "epistemic_rules.yaml").write_text(yaml.dump(epistemic), encoding="utf-8")
 
             loader = SharedComponentLoader(shared_dir)
             components = loader.load()
@@ -227,9 +219,7 @@ class TestSharedComponentLoaderProperties:
         with tempfile.TemporaryDirectory() as tmpdir:
             shared_dir = Path(tmpdir)
             epistemic = {"rules": rules}
-            (shared_dir / "epistemic_rules.yaml").write_text(
-                yaml.dump(epistemic), encoding="utf-8"
-            )
+            (shared_dir / "epistemic_rules.yaml").write_text(yaml.dump(epistemic), encoding="utf-8")
 
             loader = SharedComponentLoader(shared_dir)
             components = loader.load()
@@ -285,9 +275,7 @@ class TestFormattingRulesProperties:
         with tempfile.TemporaryDirectory() as tmpdir:
             shared_dir = Path(tmpdir)
             formatting = {"rules": rules}
-            (shared_dir / "formatting.yaml").write_text(
-                yaml.dump(formatting), encoding="utf-8"
-            )
+            (shared_dir / "formatting.yaml").write_text(yaml.dump(formatting), encoding="utf-8")
 
             loader = SharedComponentLoader(shared_dir)
             components = loader.load()

@@ -20,7 +20,16 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 EXPECTED_ARGS = ["--company", "--website", "--csv"]
 
 # Research modes (new names + old names for backwards compatibility)
-RESEARCH_MODES = ["scrape", "deep", "full", "parallel", "structured", "deep-research", "complete", "hybrid"]
+RESEARCH_MODES = [
+    "scrape",
+    "deep",
+    "full",
+    "parallel",
+    "structured",
+    "deep-research",
+    "complete",
+    "hybrid",
+]
 
 
 def test_cli_entry_point_exists():
@@ -28,6 +37,7 @@ def test_cli_entry_point_exists():
     # The CLI is now installed via pyproject.toml entry point
     # Check that the main function exists
     from primr.core.research_agent import main
+
     assert callable(main), "main() function should be callable"
 
 
@@ -88,6 +98,7 @@ def test_cli_args_are_supported(arg: str):
 # MODE FLAG TESTS
 # =============================================================================
 
+
 def test_cli_mode_flag_exists():
     """Verify --mode flag is supported."""
 
@@ -95,12 +106,7 @@ def test_cli_mode_flag_exists():
     parser.add_argument("--company", type=str)
     parser.add_argument("--website", type=str)
     parser.add_argument("--csv", type=str)
-    parser.add_argument(
-        "--mode", "-m",
-        type=str,
-        choices=RESEARCH_MODES,
-        default="structured"
-    )
+    parser.add_argument("--mode", "-m", type=str, choices=RESEARCH_MODES, default="structured")
 
     # Test default mode
     args = parser.parse_args(["--company", "TestCo"])

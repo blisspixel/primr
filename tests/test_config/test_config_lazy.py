@@ -27,13 +27,14 @@ class TestLazyAPIKeyValidation:
     configured, the System SHALL return the key value.
     """
 
-    @given(st.text(min_size=1, max_size=100, alphabet=st.characters(blacklist_categories=('Cs',))))
+    @given(st.text(min_size=1, max_size=100, alphabet=st.characters(blacklist_categories=("Cs",))))
     @settings(max_examples=50, deadline=None)
     def test_gemini_key_returned_when_configured(self, key: str):
         """When Gemini API key is configured, accessor returns it."""
         assume(key.strip())  # Non-empty after stripping
 
         import primr.config.config as config_module
+
         original = config_module._gemini_api_key
 
         try:
@@ -64,13 +65,14 @@ class TestLazyAPIKeyValidation:
             # Restore original value
             config_module._gemini_api_key = original
 
-    @given(st.text(min_size=1, max_size=100, alphabet=st.characters(blacklist_categories=('Cs',))))
+    @given(st.text(min_size=1, max_size=100, alphabet=st.characters(blacklist_categories=("Cs",))))
     @settings(max_examples=50, deadline=None)
     def test_search_key_returned_when_configured(self, key: str):
         """When Search API key is configured, accessor returns it."""
         assume(key.strip())
 
         import primr.config.config as config_module
+
         original = config_module._search_api_key
 
         try:
@@ -97,13 +99,14 @@ class TestLazyAPIKeyValidation:
         finally:
             config_module._search_api_key = original
 
-    @given(st.text(min_size=1, max_size=100, alphabet=st.characters(blacklist_categories=('Cs',))))
+    @given(st.text(min_size=1, max_size=100, alphabet=st.characters(blacklist_categories=("Cs",))))
     @settings(max_examples=50, deadline=None)
     def test_search_engine_id_returned_when_configured(self, engine_id: str):
         """When Search Engine ID is configured, accessor returns it."""
         assume(engine_id.strip())
 
         import primr.config.config as config_module
+
         original = config_module._search_engine_id
 
         try:

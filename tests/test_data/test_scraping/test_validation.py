@@ -1,6 +1,5 @@
 """Tests for content validation."""
 
-
 from primr.data.scraping.validation import (
     clear_seen_templates,
     detect_duplicate_template,

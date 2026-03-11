@@ -20,31 +20,24 @@ from primr.data.content_extractor import (
 # EXTRACTED TABLE TESTS
 # =============================================================================
 
+
 class TestExtractedTable:
     """Tests for ExtractedTable dataclass."""
 
     def test_column_count(self):
         """Test column count calculation."""
-        table = ExtractedTable(
-            headers=["A", "B", "C"],
-            rows=[["1", "2", "3"]]
-        )
+        table = ExtractedTable(headers=["A", "B", "C"], rows=[["1", "2", "3"]])
         assert table.column_count == 3
 
     def test_row_count(self):
         """Test row count calculation."""
-        table = ExtractedTable(
-            headers=["A", "B"],
-            rows=[["1", "2"], ["3", "4"], ["5", "6"]]
-        )
+        table = ExtractedTable(headers=["A", "B"], rows=[["1", "2"], ["3", "4"], ["5", "6"]])
         assert table.row_count == 3
 
     def test_to_dict(self):
         """Test conversion to dictionary."""
         table = ExtractedTable(
-            headers=["Name", "Value"],
-            rows=[["Item", "100"]],
-            caption="Test Table"
+            headers=["Name", "Value"], rows=[["Item", "100"]], caption="Test Table"
         )
 
         d = table.to_dict()
@@ -58,46 +51,34 @@ class TestExtractedTable:
 # FINANCIAL FIGURE TESTS
 # =============================================================================
 
+
 class TestFinancialFigure:
     """Tests for FinancialFigure dataclass."""
 
     def test_normalized_value_million(self):
         """Test normalizing million values."""
         figure = FinancialFigure(
-            value=5.0,
-            raw_text="$5 million",
-            unit="USD",
-            scale="million",
-            context=""
+            value=5.0, raw_text="$5 million", unit="USD", scale="million", context=""
         )
         assert figure.normalized_value == 5_000_000
 
     def test_normalized_value_billion(self):
         """Test normalizing billion values."""
         figure = FinancialFigure(
-            value=2.5,
-            raw_text="$2.5 billion",
-            unit="USD",
-            scale="billion",
-            context=""
+            value=2.5, raw_text="$2.5 billion", unit="USD", scale="billion", context=""
         )
         assert figure.normalized_value == 2_500_000_000
 
     def test_normalized_value_no_scale(self):
         """Test value without scale."""
-        figure = FinancialFigure(
-            value=100.0,
-            raw_text="$100",
-            unit="USD",
-            scale="",
-            context=""
-        )
+        figure = FinancialFigure(value=100.0, raw_text="$100", unit="USD", scale="", context="")
         assert figure.normalized_value == 100.0
 
 
 # =============================================================================
 # TABLE EXTRACTION TESTS
 # =============================================================================
+
 
 class TestTableExtraction:
     """Tests for table extraction."""
@@ -181,6 +162,7 @@ class TestTableExtraction:
 # LIST EXTRACTION TESTS
 # =============================================================================
 
+
 class TestListExtraction:
     """Tests for list extraction."""
 
@@ -236,6 +218,7 @@ class TestListExtraction:
 # =============================================================================
 # FINANCIAL FIGURE EXTRACTION TESTS
 # =============================================================================
+
 
 class TestFinancialFigureExtraction:
     """Tests for financial figure extraction."""
@@ -295,6 +278,7 @@ class TestFinancialFigureExtraction:
 # QUOTE EXTRACTION TESTS
 # =============================================================================
 
+
 class TestQuoteExtraction:
     """Tests for quote extraction."""
 
@@ -333,6 +317,7 @@ class TestQuoteExtraction:
 # HEADING EXTRACTION TESTS
 # =============================================================================
 
+
 class TestHeadingExtraction:
     """Tests for heading extraction."""
 
@@ -357,6 +342,7 @@ class TestHeadingExtraction:
 # =============================================================================
 # METADATA EXTRACTION TESTS
 # =============================================================================
+
 
 class TestMetadataExtraction:
     """Tests for metadata extraction."""
@@ -387,6 +373,7 @@ class TestMetadataExtraction:
 # =============================================================================
 # EXTRACT ALL TESTS
 # =============================================================================
+
 
 class TestExtractAll:
     """Tests for extract_all method."""
@@ -429,6 +416,7 @@ class TestExtractAll:
 # SINGLETON TESTS
 # =============================================================================
 
+
 class TestSingleton:
     """Tests for singleton access."""
 
@@ -459,6 +447,7 @@ class TestSingleton:
 # =============================================================================
 # CONVENIENCE FUNCTION TESTS
 # =============================================================================
+
 
 class TestConvenienceFunctions:
     """Tests for convenience functions."""

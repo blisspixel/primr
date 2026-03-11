@@ -16,6 +16,7 @@ Usage:
     if not result.valid:
         print(result.errors)
 """
+
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -29,6 +30,7 @@ load_dotenv()
 # =============================================================================
 # PROJECT ROOT DETECTION
 # =============================================================================
+
 
 def get_project_root() -> Path:
     """
@@ -86,7 +88,7 @@ def get_gemini_api_key() -> str:
     if not _gemini_api_key:
         raise ConfigurationError(
             "GEMINI_API_KEY not configured",
-            guidance="Add GEMINI_API_KEY=your_key to your .env file or environment"
+            guidance="Add GEMINI_API_KEY=your_key to your .env file or environment",
         )
     return _gemini_api_key
 
@@ -101,7 +103,7 @@ def get_search_api_key() -> str:
     if not _search_api_key:
         raise ConfigurationError(
             "SEARCH_API_KEY not configured",
-            guidance="Add SEARCH_API_KEY=your_key to your .env file or environment"
+            guidance="Add SEARCH_API_KEY=your_key to your .env file or environment",
         )
     return _search_api_key
 
@@ -116,7 +118,7 @@ def get_search_engine_id() -> str:
     if not _search_engine_id:
         raise ConfigurationError(
             "SEARCH_ENGINE_ID not configured",
-            guidance="Add SEARCH_ENGINE_ID=your_id to your .env file or environment"
+            guidance="Add SEARCH_ENGINE_ID=your_id to your .env file or environment",
         )
     return _search_engine_id
 
@@ -125,9 +127,11 @@ def get_search_engine_id() -> str:
 # EXPLICIT VALIDATION
 # =============================================================================
 
+
 @dataclass
 class ConfigValidationResult:
     """Result of configuration validation."""
+
     valid: bool
     errors: tuple[str, ...]
     warnings: tuple[str, ...]
@@ -180,9 +184,7 @@ def validate_config(include_optional: bool = False) -> ConfigValidationResult:
             errors.append(f"{dir_name} is not writable: {path} - {e}")
 
     return ConfigValidationResult(
-        valid=len(errors) == 0,
-        errors=tuple(errors),
-        warnings=tuple(warnings)
+        valid=len(errors) == 0, errors=tuple(errors), warnings=tuple(warnings)
     )
 
 
@@ -196,7 +198,7 @@ def require_valid_config() -> None:
     if not result.valid:
         raise ConfigurationError(
             "Configuration validation failed",
-            guidance="Errors:\n  - " + "\n  - ".join(result.errors)
+            guidance="Errors:\n  - " + "\n  - ".join(result.errors),
         )
 
 

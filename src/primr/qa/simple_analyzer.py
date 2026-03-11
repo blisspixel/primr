@@ -17,17 +17,18 @@ logger = logging.getLogger(__name__)
 # Quality dimensions scored by the LLM on a 1-5 scale, then converted to 0-100.
 # Weights must sum to 1.0.
 QA_DIMENSIONS: dict[str, float] = {
-    "company_understanding": 0.20,    # How well the report explains the business model
-    "analytical_depth": 0.25,         # Hypothesis-driven vs descriptive
+    "company_understanding": 0.20,  # How well the report explains the business model
+    "analytical_depth": 0.25,  # Hypothesis-driven vs descriptive
     "actionable_intelligence": 0.25,  # Specific engagement opportunities
-    "evidence_quality": 0.15,         # Citations, sourcing, precision
-    "structure_clarity": 0.15,        # Organization, no repetition, flow
+    "evidence_quality": 0.15,  # Citations, sourcing, precision
+    "structure_clarity": 0.15,  # Organization, no repetition, flow
 }
 
 
 @dataclass
 class SimpleQAResult:
     """Simple QA result focused on practical assessment."""
+
     ready_for_use: bool
     confidence_level: Literal["high", "medium", "low"]
     key_strengths: list[str]
@@ -44,7 +45,11 @@ class SimpleQAAnalyzer:
     def __init__(self, model_name: str = PrimrModels.QA_MODEL):
         """Initialize with QA model configuration."""
         self.model_name = model_name
-        self.fallback_model = PrimrModels.get_fallback_models(model_name)[0] if PrimrModels.get_fallback_models(model_name) else PrimrModels.REASONING_MODEL
+        self.fallback_model = (
+            PrimrModels.get_fallback_models(model_name)[0]
+            if PrimrModels.get_fallback_models(model_name)
+            else PrimrModels.REASONING_MODEL
+        )
         self.error_handler = QAErrorHandler()
         self.json_parser = SimpleJSONParser()
         self._setup_ai_client()
@@ -53,6 +58,7 @@ class SimpleQAAnalyzer:
         """Setup AI client for QA analysis."""
         try:
             from ..ai.client import get_client
+
             self.ai_client = get_client()
             logger.info(f"Simple QA analyzer initialized with model: {self.model_name}")
         except Exception as e:
@@ -93,14 +99,18 @@ class SimpleQAAnalyzer:
                 return result
 
             # If both models fail completely, return diagnostic result
-            return self._create_error_result("Both primary and fallback models failed after retries")
+            return self._create_error_result(
+                "Both primary and fallback models failed after retries"
+            )
 
         except Exception as e:
             error_msg = self.error_handler.handle_analysis_error(e, report.company_name)
             logger.error(f"Simple QA assessment failed: {error_msg}")
             return self._create_error_result(error_msg)
 
-    def _try_assessment_with_retry(self, prompt: str, company_name: str, is_primary: bool = True, max_retries: int = 3) -> SimpleQAResult | None:
+    def _try_assessment_with_retry(
+        self, prompt: str, company_name: str, is_primary: bool = True, max_retries: int = 3
+    ) -> SimpleQAResult | None:
         """
         Try assessment with exponential backoff retry logic.
 
@@ -119,54 +129,75 @@ class SimpleQAAnalyzer:
 
         for attempt in range(max_retries):
             try:
-                logger.debug(f"Assessment attempt {attempt + 1}/{max_retries} using {model_type} model for {company_name}")
+                logger.debug(
+                    f"Assessment attempt {attempt + 1}/{max_retries} using {model_type} model for {company_name}"
+                )
 
                 response = self.ai_client.generate(
-                    prompt,
-                    model_type="research",
-                    thinking_level="high",
-                    temperature=0.3
+                    prompt, model_type="research", thinking_level="high", temperature=0.3
                 )
 
                 if response and len(response.strip()) > 20:
                     result = self._parse_json_response(response)
                     if result.parsing_success:
-                        logger.info(f"QA assessment completed using {model_type} model for {company_name} (attempt {attempt + 1})")
+                        logger.info(
+                            f"QA assessment completed using {model_type} model for {company_name} (attempt {attempt + 1})"
+                        )
                         return result
                     elif attempt == max_retries - 1:
                         # On final attempt, return even parsing failures
-                        logger.warning(f"Final attempt with {model_type} model had parsing issues for {company_name}")
+                        logger.warning(
+                            f"Final attempt with {model_type} model had parsing issues for {company_name}"
+                        )
                         return result
                 else:
-                    logger.warning(f"Empty or short response from {model_type} model for {company_name} (attempt {attempt + 1})")
+                    logger.warning(
+                        f"Empty or short response from {model_type} model for {company_name} (attempt {attempt + 1})"
+                    )
 
             except Exception as e:
                 error_str = str(e).lower()
 
                 # Check for rate limiting
-                if "429" in error_str or "rate limit" in error_str or "resource_exhausted" in error_str:
+                if (
+                    "429" in error_str
+                    or "rate limit" in error_str
+                    or "resource_exhausted" in error_str
+                ):
                     if attempt < max_retries - 1:
                         # Exponential backoff for rate limits: 5s, 10s, 20s
-                        delay = min(5 * (2 ** attempt), 60)
-                        logger.warning(f"Rate limit hit with {model_type} model for {company_name}, retrying in {delay}s (attempt {attempt + 1}/{max_retries})")
+                        delay = min(5 * (2**attempt), 60)
+                        logger.warning(
+                            f"Rate limit hit with {model_type} model for {company_name}, retrying in {delay}s (attempt {attempt + 1}/{max_retries})"
+                        )
                         time.sleep(delay)
                         continue
                     else:
-                        logger.error(f"Rate limit exceeded for {model_type} model after {max_retries} attempts for {company_name}")
-                        return self._create_error_result(f"Rate limit exceeded for {model_type} model")
+                        logger.error(
+                            f"Rate limit exceeded for {model_type} model after {max_retries} attempts for {company_name}"
+                        )
+                        return self._create_error_result(
+                            f"Rate limit exceeded for {model_type} model"
+                        )
 
                 # Check for quota exhaustion (stop immediately)
                 if "quota" in error_str and "exceeded" in error_str:
                     logger.error(f"API quota exhausted for {model_type} model for {company_name}")
-                    return self._create_error_result("API quota exhausted - upgrade plan or wait for reset")
+                    return self._create_error_result(
+                        "API quota exhausted - upgrade plan or wait for reset"
+                    )
 
                 # For other errors, retry with shorter backoff
                 if attempt < max_retries - 1:
-                    delay = min(2 ** attempt, 10)  # 1s, 2s, 4s (max 10s)
-                    logger.warning(f"{model_type} model error for {company_name}: {e}, retrying in {delay}s (attempt {attempt + 1}/{max_retries})")
+                    delay = min(2**attempt, 10)  # 1s, 2s, 4s (max 10s)
+                    logger.warning(
+                        f"{model_type} model error for {company_name}: {e}, retrying in {delay}s (attempt {attempt + 1}/{max_retries})"
+                    )
                     time.sleep(delay)
                 else:
-                    logger.error(f"{model_type} model failed after {max_retries} attempts for {company_name}: {e}")
+                    logger.error(
+                        f"{model_type} model failed after {max_retries} attempts for {company_name}: {e}"
+                    )
 
         return None
 
@@ -285,11 +316,11 @@ ASSESSMENT GUIDELINES:
     def _count_inline_citations(self, content: str) -> int:
         """Count inline citations like [cite: 1, 2, 3] in the content."""
 
-        inline_pattern = r'\[cite:\s*([\d,\s]+)\]'
+        inline_pattern = r"\[cite:\s*([\d,\s]+)\]"
         all_nums = set()
 
         for match in re.finditer(inline_pattern, content):
-            nums = [n.strip() for n in match.group(1).split(',')]
+            nums = [n.strip() for n in match.group(1).split(",")]
             all_nums.update(nums)
 
         return len(all_nums)
@@ -299,12 +330,25 @@ ASSESSMENT GUIDELINES:
         content_lower = report.content.lower()
 
         # Check for strategy/vision indicators
-        strategy_indicators = ['ai strategy', 'strategic roadmap', 'vision', 'future state', 'transformation', 'digital strategy']
+        strategy_indicators = [
+            "ai strategy",
+            "strategic roadmap",
+            "vision",
+            "future state",
+            "transformation",
+            "digital strategy",
+        ]
         if any(indicator in content_lower for indicator in strategy_indicators):
             return "AI Strategy Report"
 
         # Check for comprehensive research indicators
-        research_indicators = ['market analysis', 'competitive landscape', 'swot analysis', 'financial overview', 'strategic overview']
+        research_indicators = [
+            "market analysis",
+            "competitive landscape",
+            "swot analysis",
+            "financial overview",
+            "strategic overview",
+        ]
         research_count = sum(1 for indicator in research_indicators if indicator in content_lower)
 
         if research_count >= 3:
@@ -313,7 +357,7 @@ ASSESSMENT GUIDELINES:
         # Default based on section count and length
         if len(report.sections) > 50 and len(report.content) > 50000:
             return "Comprehensive Strategic Analysis"
-        elif 'strategy' in content_lower:
+        elif "strategy" in content_lower:
             return "Strategic Report"
         else:
             return "Business Analysis Report"
@@ -349,13 +393,13 @@ Key questions:
 
             if data:
                 # Successfully parsed JSON
-                scores = self._validate_and_convert_scores(data.get('scores'))
+                scores = self._validate_and_convert_scores(data.get("scores"))
                 return SimpleQAResult(
-                    ready_for_use=bool(data['ready_for_use']),
-                    confidence_level=data['confidence_level'],
-                    key_strengths=data['key_strengths'],
-                    areas_for_improvement=data['areas_for_improvement'],
-                    recommendation=str(data['recommendation']),
+                    ready_for_use=bool(data["ready_for_use"]),
+                    confidence_level=data["confidence_level"],
+                    key_strengths=data["key_strengths"],
+                    areas_for_improvement=data["areas_for_improvement"],
+                    recommendation=str(data["recommendation"]),
                     parsing_success=True,
                     scores=scores,
                 )
@@ -363,14 +407,14 @@ Key questions:
                 # JSON parsing failed, use regex fallback
                 logger.warning("JSON parsing failed, using regex fallback")
                 fallback_data = self.json_parser.extract_with_regex_fallback(response)
-                scores = self._validate_and_convert_scores(fallback_data.get('scores'))
+                scores = self._validate_and_convert_scores(fallback_data.get("scores"))
 
                 return SimpleQAResult(
-                    ready_for_use=bool(fallback_data['ready_for_use']),
-                    confidence_level=fallback_data['confidence_level'],
-                    key_strengths=fallback_data['key_strengths'],
-                    areas_for_improvement=fallback_data['areas_for_improvement'],
-                    recommendation=str(fallback_data['recommendation']),
+                    ready_for_use=bool(fallback_data["ready_for_use"]),
+                    confidence_level=fallback_data["confidence_level"],
+                    key_strengths=fallback_data["key_strengths"],
+                    areas_for_improvement=fallback_data["areas_for_improvement"],
+                    recommendation=str(fallback_data["recommendation"]),
                     parsing_success=False,
                     scores=scores,
                 )
@@ -411,7 +455,7 @@ Key questions:
             key_strengths=["Unable to parse assessment details"],
             areas_for_improvement=["QA response format needs improvement"],
             recommendation="Manual review recommended due to parsing issues",
-            parsing_success=False
+            parsing_success=False,
         )
 
     def _create_error_result(self, error_message: str) -> SimpleQAResult:
@@ -444,5 +488,5 @@ Key questions:
             areas_for_improvement=diagnostic_info,
             recommendation=recommendation,
             parsing_success=False,
-            error_message=error_message
+            error_message=error_message,
         )

@@ -22,6 +22,7 @@ from primr.utils.resources import (
 # UNIT TESTS - managed_temp_file
 # =============================================================================
 
+
 class TestManagedTempFile:
     """Tests for managed_temp_file context manager."""
 
@@ -109,6 +110,7 @@ class TestManagedTempDir:
 # =============================================================================
 # UNIT TESTS - BoundedCache
 # =============================================================================
+
 
 class TestBoundedCache:
     """Tests for BoundedCache class."""
@@ -301,6 +303,7 @@ class TestCacheMetrics:
 # PROPERTY-BASED TESTS
 # =============================================================================
 
+
 class TestTempFileCleanupProperty:
     """
     Property-based tests for temp file cleanup.
@@ -388,10 +391,7 @@ class TestLRUCacheEvictionProperty:
         assert "new_key" in cache
         assert len(cache) == max_size
 
-    @given(
-        st.integers(min_value=2, max_value=10),
-        st.integers(min_value=0, max_value=5)
-    )
+    @given(st.integers(min_value=2, max_value=10), st.integers(min_value=0, max_value=5))
     @settings(max_examples=100)
     def test_access_updates_lru_order(self, max_size: int, access_index: int):
         """Accessing an item should update its LRU position."""
@@ -427,14 +427,10 @@ class TestCacheHitRateLoggingProperty:
 
     @given(
         st.lists(st.text(alphabet="abcde", min_size=1, max_size=3), min_size=1, max_size=20),
-        st.lists(st.text(alphabet="abcde", min_size=1, max_size=3), min_size=1, max_size=20)
+        st.lists(st.text(alphabet="abcde", min_size=1, max_size=3), min_size=1, max_size=20),
     )
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
-    def test_metrics_track_all_operations(
-        self,
-        keys_to_set: list[str],
-        keys_to_get: list[str]
-    ):
+    def test_metrics_track_all_operations(self, keys_to_set: list[str], keys_to_get: list[str]):
         """Metrics should track all get operations."""
         cache = BoundedCache(max_size=100)
 
@@ -497,7 +493,7 @@ class _SingletonForTesting(ThreadSafeSingleton):
     def __init__(self):
         self.value = 0
         self.init_count = 0
-        _SingletonForTesting._init_counter = getattr(_SingletonForTesting, '_init_counter', 0) + 1
+        _SingletonForTesting._init_counter = getattr(_SingletonForTesting, "_init_counter", 0) + 1
 
 
 class TestThreadSafeSingleton:
@@ -608,7 +604,6 @@ class TestThreadSafeSingletonProperty:
         assert _SingletonForTesting._init_counter == 1
 
 
-
 class TestConcurrentStateModificationProperty:
     """
     Property-based tests for concurrent state modification safety.
@@ -620,16 +615,9 @@ class TestConcurrentStateModificationProperty:
     not corrupt the state or cause data races.
     """
 
-    @given(
-        st.integers(min_value=2, max_value=10),
-        st.integers(min_value=5, max_value=20)
-    )
+    @given(st.integers(min_value=2, max_value=10), st.integers(min_value=5, max_value=20))
     @settings(max_examples=50)
-    def test_concurrent_cache_writes_no_corruption(
-        self,
-        num_threads: int,
-        ops_per_thread: int
-    ):
+    def test_concurrent_cache_writes_no_corruption(self, num_threads: int, ops_per_thread: int):
         """Concurrent cache writes should not corrupt state."""
         cache = BoundedCache(max_size=50)
         errors: list[Exception] = []
@@ -642,10 +630,7 @@ class TestConcurrentStateModificationProperty:
             except Exception as e:
                 errors.append(e)
 
-        threads = [
-            threading.Thread(target=writer, args=(i,))
-            for i in range(num_threads)
-        ]
+        threads = [threading.Thread(target=writer, args=(i,)) for i in range(num_threads)]
 
         for t in threads:
             t.start()
@@ -656,15 +641,10 @@ class TestConcurrentStateModificationProperty:
         # Cache should not exceed max_size
         assert len(cache) <= 50
 
-    @given(
-        st.integers(min_value=2, max_value=10),
-        st.integers(min_value=5, max_value=20)
-    )
+    @given(st.integers(min_value=2, max_value=10), st.integers(min_value=5, max_value=20))
     @settings(max_examples=50)
     def test_concurrent_cache_reads_writes_no_corruption(
-        self,
-        num_threads: int,
-        ops_per_thread: int
+        self, num_threads: int, ops_per_thread: int
     ):
         """Concurrent reads and writes should not corrupt state."""
         cache = BoundedCache(max_size=100)
@@ -687,10 +667,7 @@ class TestConcurrentStateModificationProperty:
             except Exception as e:
                 errors.append(e)
 
-        threads = [
-            threading.Thread(target=reader_writer, args=(i,))
-            for i in range(num_threads)
-        ]
+        threads = [threading.Thread(target=reader_writer, args=(i,)) for i in range(num_threads)]
 
         for t in threads:
             t.start()
@@ -739,10 +716,7 @@ class TestProgressCallbackThreadSafetyProperty:
             except Exception as e:
                 errors.append(e)
 
-        threads = [
-            threading.Thread(target=caller, args=(i,))
-            for i in range(num_threads)
-        ]
+        threads = [threading.Thread(target=caller, args=(i,)) for i in range(num_threads)]
 
         for t in threads:
             t.start()
@@ -773,10 +747,7 @@ class TestProgressCallbackThreadSafetyProperty:
             with completed_lock:
                 completed.append(thread_id)
 
-        threads = [
-            threading.Thread(target=caller, args=(i,))
-            for i in range(num_threads)
-        ]
+        threads = [threading.Thread(target=caller, args=(i,)) for i in range(num_threads)]
 
         for t in threads:
             t.start()

@@ -32,11 +32,14 @@ class TestAPIConfig:
 
     def test_loads_from_environment(self):
         """Should load API keys from environment."""
-        with patch.dict(os.environ, {
-            "GEMINI_API_KEY": "test-gemini-key",
-            "SEARCH_API_KEY": "test-search-key",
-            "SEARCH_ENGINE_ID": "test-engine-id",
-        }):
+        with patch.dict(
+            os.environ,
+            {
+                "GEMINI_API_KEY": "test-gemini-key",
+                "SEARCH_API_KEY": "test-search-key",
+                "SEARCH_ENGINE_ID": "test-engine-id",
+            },
+        ):
             config = APIConfig()
             assert config.gemini_key == "test-gemini-key"
             assert config.search_key == "test-search-key"
@@ -122,11 +125,7 @@ class TestScrapingConfig:
 
     def test_custom_values(self):
         """Should accept custom values."""
-        config = ScrapingConfig(
-            max_retries=5,
-            timeout=30,
-            excluded_sites=["custom.com"]
-        )
+        config = ScrapingConfig(max_retries=5, timeout=30, excluded_sites=["custom.com"])
 
         assert config.max_retries == 5
         assert config.timeout == 30
@@ -145,10 +144,13 @@ class TestAIConfig:
 
     def test_loads_models_from_env(self):
         """Should load model names from environment."""
-        with patch.dict(os.environ, {
-            "AI_RESEARCH_MODEL": "custom-research-model",
-            "AI_REPORT_MODEL": "custom-report-model",
-        }):
+        with patch.dict(
+            os.environ,
+            {
+                "AI_RESEARCH_MODEL": "custom-research-model",
+                "AI_REPORT_MODEL": "custom-report-model",
+            },
+        ):
             config = AIConfig()
             # Note: default_factory runs at class definition, so we need fresh instance
             # This test verifies the mechanism exists

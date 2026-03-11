@@ -49,6 +49,7 @@ if TYPE_CHECKING:
 # ENUMS
 # =============================================================================
 
+
 class SubagentStatus(Enum):
     """
     Lifecycle status of a subagent.
@@ -73,6 +74,7 @@ class SubagentStatus(Enum):
 # =============================================================================
 # DATA CLASSES
 # =============================================================================
+
 
 @dataclass
 class SubagentContext:
@@ -218,6 +220,7 @@ class SubagentResult(Generic[T]):
 # ABSTRACT BASE CLASS
 # =============================================================================
 
+
 class Subagent(ABC, Generic[T]):
     """
     Abstract base class for specialized research subagents.
@@ -328,7 +331,5 @@ class Subagent(ABC, Generic[T]):
 
     def __repr__(self) -> str:
         return (
-            f"{self.__class__.__name__}("
-            f"company={self.company_name!r}, "
-            f"status={self._status.value})"
+            f"{self.__class__.__name__}(company={self.company_name!r}, status={self._status.value})"
         )

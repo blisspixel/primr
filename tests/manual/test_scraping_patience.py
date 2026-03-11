@@ -16,9 +16,9 @@ from primr.data.scrape import fetch_web_content
 def test_scraping_patience():
     """Test scraping with 3 pages to verify patience and diagnostics."""
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Testing Scraping Patience - 3 Pages Max")
-    print("="*60 + "\n")
+    print("=" * 60 + "\n")
 
     # Test with a real site
     website = "https://stripe.com"
@@ -40,12 +40,12 @@ def test_scraping_patience():
 
     elapsed = time.time() - start
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Results")
-    print("="*60)
+    print("=" * 60)
     print(f"Pages scraped: {len(scraped_content)}")
     print(f"Time elapsed: {elapsed:.1f}s")
-    print(f"Avg per page: {elapsed/max(len(scraped_content), 1):.1f}s")
+    print(f"Avg per page: {elapsed / max(len(scraped_content), 1):.1f}s")
 
     # Show sample content
     if scraped_content:
@@ -55,9 +55,9 @@ def test_scraping_patience():
         print(f"  Length: {len(first_content)} chars")
         print(f"  Preview: {first_content[:200]}...")
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Verification")
-    print("="*60)
+    print("=" * 60)
 
     # Verify we got content
     assert len(scraped_content) > 0, "Should have scraped at least 1 page"
@@ -70,6 +70,7 @@ def test_scraping_patience():
 
     print("\nTest PASSED - Scraping works with patience and quality")
     print("Check logs/research_*.log for detailed diagnostics")
+
 
 if __name__ == "__main__":
     test_scraping_patience()

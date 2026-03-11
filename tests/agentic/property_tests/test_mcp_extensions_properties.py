@@ -24,6 +24,7 @@ from hypothesis import strategies as st
 # PROPERTY 20: MCP Resource JSON Validity
 # =============================================================================
 
+
 def test_roadmap_resource_json_validity():
     """
     Roadmap resource returns valid JSON.
@@ -123,6 +124,7 @@ def test_context_resource_structure():
 # =============================================================================
 # PROPERTY 21: Backward Compatibility
 # =============================================================================
+
 
 def test_agentic_tools_list_includes_base_tools():
     """
@@ -231,6 +233,7 @@ def test_resource_mime_types():
 # =============================================================================
 # ADDITIONAL UNIT TESTS
 # =============================================================================
+
 
 def test_query_roadmap_version_extraction():
     """

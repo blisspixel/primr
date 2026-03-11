@@ -31,31 +31,27 @@ SECRET_PATTERNS = [
     (r"AKIA[0-9A-Z]{16}", "AWS Access Key ID"),
     (r"aws_secret_access_key\s*=\s*['\"][^'\"]+['\"]", "AWS Secret Access Key assignment"),
     (r"['\"][A-Za-z0-9/+=]{40}['\"]", "Potential AWS Secret Key (40 char base64)"),
-
     # Azure
-    (r"DefaultEndpointsProtocol=https;AccountName=[^;]+;AccountKey=[^;]+", "Azure Storage Connection String"),
+    (
+        r"DefaultEndpointsProtocol=https;AccountName=[^;]+;AccountKey=[^;]+",
+        "Azure Storage Connection String",
+    ),
     (r"['\"][A-Za-z0-9+/]{86}==['\"]", "Potential Azure Key (88 char base64)"),
-
     # GCP
     (r'"type"\s*:\s*"service_account"', "GCP Service Account JSON"),
     (r'"private_key"\s*:\s*"-----BEGIN', "GCP Private Key"),
-
     # Generic API Keys
     (r"api[_-]?key\s*[=:]\s*['\"][a-zA-Z0-9_-]{20,}['\"]", "Generic API Key assignment"),
     (r"secret[_-]?key\s*[=:]\s*['\"][a-zA-Z0-9_-]{20,}['\"]", "Generic Secret Key assignment"),
     (r"password\s*[=:]\s*['\"][^'\"]{8,}['\"]", "Hardcoded password"),
     (r"token\s*[=:]\s*['\"][a-zA-Z0-9_-]{20,}['\"]", "Hardcoded token"),
-
     # OpenAI / LLM Keys
     (r"sk-[a-zA-Z0-9]{48}", "OpenAI API Key"),
     (r"sk-proj-[a-zA-Z0-9_-]{48,}", "OpenAI Project API Key"),
-
     # Anthropic
     (r"sk-ant-[a-zA-Z0-9_-]{40,}", "Anthropic API Key"),
-
     # Google AI
     (r"AIza[0-9A-Za-z_-]{35}", "Google API Key"),
-
     # Private Keys
     (r"-----BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----", "Private Key"),
     (r"-----BEGIN CERTIFICATE-----", "Certificate (may contain private data)"),
@@ -92,6 +88,7 @@ ALLOWED_PATTERNS = [
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
+
 
 def get_deploy_files() -> Iterator[Path]:
     """Get all files in the deploy directory."""
@@ -157,6 +154,7 @@ def scan_file_for_secrets(file_path: Path) -> list[tuple[int, str, str, str]]:
 # PROPERTY TESTS
 # =============================================================================
 
+
 class TestNoHardcodedSecrets:
     """
     Property 1: No Hardcoded Secrets
@@ -181,9 +179,7 @@ class TestNoHardcodedSecrets:
                 # Check if it's in a comment or allowed context
                 for line in content.split("\n"):
                     if match in line and not is_allowed_match(line, match):
-                        pytest.fail(
-                            f"Potential AWS Access Key ID found in {file_path}: {match}"
-                        )
+                        pytest.fail(f"Potential AWS Access Key ID found in {file_path}: {match}")
 
     def test_no_openai_keys(self) -> None:
         """No OpenAI API keys should be hardcoded."""
@@ -258,9 +254,7 @@ class TestNoHardcodedSecrets:
                     # Check if it's in a comment or example
                     for line in content.split("\n"):
                         if re.search(pattern, line) and not is_allowed_match(line, ""):
-                            pytest.fail(
-                                f"Connection string with credentials found in {file_path}"
-                            )
+                            pytest.fail(f"Connection string with credentials found in {file_path}")
 
     def test_no_hardcoded_passwords(self) -> None:
         """No hardcoded passwords should be present."""
@@ -275,9 +269,7 @@ class TestNoHardcodedSecrets:
             for line in content.split("\n"):
                 if re.search(pattern, line, re.IGNORECASE):
                     if not is_allowed_match(line, ""):
-                        pytest.fail(
-                            f"Hardcoded password found in {file_path}: {line[:50]}..."
-                        )
+                        pytest.fail(f"Hardcoded password found in {file_path}: {line[:50]}...")
 
     def test_comprehensive_secret_scan(self) -> None:
         """

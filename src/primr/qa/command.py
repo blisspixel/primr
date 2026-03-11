@@ -29,16 +29,19 @@ class QACommand:
         # Check if verbose mode is enabled globally
         try:
             from primr.utils.console import console
-            verbose_mode = hasattr(console, 'verbose') and console.verbose
+
+            verbose_mode = hasattr(console, "verbose") and console.verbose
         except Exception:
             verbose_mode = False
 
-        self.qa_integration = QAIntegration(QAOptions(
-            enabled=True,
-            save_detailed=True,
-            model=PrimrModels.QA_MODEL,
-            verbose_cli=verbose_mode
-        ))
+        self.qa_integration = QAIntegration(
+            QAOptions(
+                enabled=True,
+                save_detailed=True,
+                model=PrimrModels.QA_MODEL,
+                verbose_cli=verbose_mode,
+            )
+        )
         self.report_loader = ReportLoader()
         self._output_dir = output_dir  # For test isolation
 
@@ -48,6 +51,7 @@ class QACommand:
         if self._output_dir is not None:
             return self._output_dir
         from primr.config.config import OUTPUT_DIR
+
         return Path(OUTPUT_DIR)
 
     @output_dir.setter
@@ -82,10 +86,7 @@ class QACommand:
             print()
 
             # Run QA analysis
-            qa_result = self.qa_integration.run_post_generation_qa(
-                Path(report_path),
-                company_name
-            )
+            qa_result = self.qa_integration.run_post_generation_qa(Path(report_path), company_name)
 
             if not qa_result:
                 print("QA analysis failed or is disabled")
@@ -134,7 +135,7 @@ class QACommand:
 
             # Extract company name from filename
             filename = report_file.stem
-            company_name = filename.split('_')[0] if '_' in filename else "Unknown Company"
+            company_name = filename.split("_")[0] if "_" in filename else "Unknown Company"
 
             print("\nQA Analysis for Report File")
             print("=" * 60)
@@ -143,10 +144,7 @@ class QACommand:
             print()
 
             # Run QA analysis
-            qa_result = self.qa_integration.run_post_generation_qa(
-                report_file,
-                company_name
-            )
+            qa_result = self.qa_integration.run_post_generation_qa(report_file, company_name)
 
             if not qa_result:
                 print("QA analysis failed or is disabled")
@@ -229,7 +227,7 @@ class QACommand:
         patterns = [
             f"{company_name}_*.docx",
             f"{company_name.replace(' ', '_')}_*.docx",
-            f"{company_name.replace(' ', '')}_*.docx"
+            f"{company_name.replace(' ', '')}_*.docx",
         ]
 
         all_files = []
@@ -252,7 +250,7 @@ class QACommand:
         patterns = [
             f"{company_name}_QA_Report_*.txt",
             f"{company_name.replace(' ', '_')}_QA_Report_*.txt",
-            f"{company_name.replace(' ', '')}_QA_Report_*.txt"
+            f"{company_name.replace(' ', '')}_QA_Report_*.txt",
         ]
 
         all_files = []
@@ -283,8 +281,8 @@ class QACommand:
         for filepath in report_files:
             filename = os.path.basename(filepath)
             # Extract company name (everything before the first underscore)
-            if '_' in filename:
-                company = filename.split('_')[0]
+            if "_" in filename:
+                company = filename.split("_")[0]
                 companies.add(company)
 
         if companies:
@@ -296,7 +294,7 @@ class QACommand:
     def _display_detailed_analysis(self, qa_file_path: str) -> None:
         """Display the contents of a detailed QA analysis file."""
         try:
-            with open(qa_file_path, encoding='utf-8') as f:
+            with open(qa_file_path, encoding="utf-8") as f:
                 content = f.read()
 
             print("\nDETAILED QA ANALYSIS")

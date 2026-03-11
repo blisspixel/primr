@@ -12,7 +12,15 @@ from primr.utils.logging_config import get_logger
 logger = get_logger("grading")
 
 
-def grade_report(section_text, section_name, company_name, company_website, draft_overview, scraped_insights, retries=MAX_RETRIES):
+def grade_report(
+    section_text,
+    section_name,
+    company_name,
+    company_website,
+    draft_overview,
+    scraped_insights,
+    retries=MAX_RETRIES,
+):
     """
     Grades a section of a business research report.
     Returns (score, needs_research, reason).
@@ -62,7 +70,9 @@ def grade_report(section_text, section_name, company_name, company_website, draf
                 raise ValueError("Invalid score extracted from AI response.")
 
             needs_research = score < GRADE_THRESHOLD_FOR_RESEARCH_REFINEMENT
-            logger.info(f"Graded '{section_name}': {score}/100 (refinement: {'yes' if needs_research else 'no'})")
+            logger.info(
+                f"Graded '{section_name}': {score}/100 (refinement: {'yes' if needs_research else 'no'})"
+            )
 
             return score, needs_research, reason
 

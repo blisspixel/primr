@@ -6,7 +6,6 @@ config.py loads early (constants only), tier_registry.py loads late
 (after all tier modules are defined).
 """
 
-
 from .browsers import (
     scrape_with_drissionpage,
     scrape_with_drissionpage_stealth,
@@ -57,7 +56,6 @@ DEFAULT_TIERS: list[ScrapeTier] = [
         timeout=DEFAULT_TIMEOUT_PLAYWRIGHT,
         requires="playwright",
     ),
-
     # Tier 2: Browser with content expansion (lazy-loaded, accordions)
     ScrapeTier(
         name="playwright_aggressive",
@@ -65,7 +63,6 @@ DEFAULT_TIERS: list[ScrapeTier] = [
         timeout=DEFAULT_TIMEOUT_PLAYWRIGHT_AGGRESSIVE,
         requires="playwright",
     ),
-
     # Tier 3: TLS fingerprint impersonation (some bot detection)
     ScrapeTier(
         name="curl_cffi",
@@ -73,7 +70,6 @@ DEFAULT_TIERS: list[ScrapeTier] = [
         timeout=DEFAULT_TIMEOUT_CURL_CFFI,
         requires="curl_cffi",
     ),
-
     # Tier 4: Stealth browser (Cloudflare/heavy protection)
     ScrapeTier(
         name="drissionpage_stealth",
@@ -81,7 +77,6 @@ DEFAULT_TIERS: list[ScrapeTier] = [
         timeout=DEFAULT_TIMEOUT_DRISSION_STEALTH,
         requires="DrissionPage",
     ),
-
     # Tier 5: Driverless browser (CDP fallback)
     ScrapeTier(
         name="drissionpage",
@@ -89,7 +84,6 @@ DEFAULT_TIERS: list[ScrapeTier] = [
         timeout=DEFAULT_TIMEOUT_DRISSION,
         requires="DrissionPage",
     ),
-
     # Tier 6: Vision AI - THE NUCLEAR OPTION
     # Screenshot + Gemini extraction. Costs ~$0.01-0.02 per page but works
     # on almost anything that renders in a browser. Worth every penny.
@@ -99,7 +93,6 @@ DEFAULT_TIERS: list[ScrapeTier] = [
         timeout=DEFAULT_TIMEOUT_VISION,
         requires=None,  # Only requires GEMINI_API_KEY which we already need
     ),
-
     # Tier 7: HTTP/2 (simple sites fallback - rare in 2026)
     ScrapeTier(
         name="httpx",
@@ -107,7 +100,6 @@ DEFAULT_TIERS: list[ScrapeTier] = [
         timeout=DEFAULT_TIMEOUT_HTTPX,
         requires="httpx",
     ),
-
     # Tier 8: Basic HTTP (last resort - almost never works on modern sites)
     ScrapeTier(
         name="requests",

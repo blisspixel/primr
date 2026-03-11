@@ -12,50 +12,44 @@ class ContentPatternDetector:
     """Detects semantic patterns in content for intelligent formatting."""
 
     # Pattern: Plain text line followed by bullets = sub-heading
-    SUB_HEADING_PATTERN = re.compile(r'^([A-Z][^*\-•\n]+)\n\s*[*\-•]', re.MULTILINE)
+    SUB_HEADING_PATTERN = re.compile(r"^([A-Z][^*\-•\n]+)\n\s*[*\-•]", re.MULTILINE)
 
     # Pattern: "Label: content" = inline header (bold the label)
     # Excludes URLs (http:, https:, ftp:) and times (10:30)
-    INLINE_HEADER_PATTERN = re.compile(r'^([A-Z][A-Za-z\s&]{2,40}):\s*(.+)$')
+    INLINE_HEADER_PATTERN = re.compile(r"^([A-Z][A-Za-z\s&]{2,40}):\s*(.+)$")
 
     # Pattern: Financial figures for highlighting
-    FINANCIAL_PATTERN = re.compile(r'\$[\d,]+(?:\.\d+)?[BMK]?|\d+(?:\.\d+)?%')
+    FINANCIAL_PATTERN = re.compile(r"\$[\d,]+(?:\.\d+)?[BMK]?|\d+(?:\.\d+)?%")
 
     # Patterns for extracting key metrics
     # These patterns are designed to extract meaningful data, not random numbers
     METRIC_PATTERNS = {
-        'revenue': re.compile(
-            r'(?:Annual |Quarterly |Total )?Revenue[^:]*:\s*\$?([\d,]+(?:\.\d+)?[BMK]?)',
-            re.IGNORECASE
+        "revenue": re.compile(
+            r"(?:Annual |Quarterly |Total )?Revenue[^:]*:\s*\$?([\d,]+(?:\.\d+)?[BMK]?)",
+            re.IGNORECASE,
         ),
-        'profit_margin': re.compile(
-            r'(?:Gross |Net |Operating )?Profit Margin[^:]*:\s*([\d.]+%)',
-            re.IGNORECASE
+        "profit_margin": re.compile(
+            r"(?:Gross |Net |Operating )?Profit Margin[^:]*:\s*([\d.]+%)", re.IGNORECASE
         ),
         # Employee patterns - look for meaningful employee counts (100+)
         # Prioritize patterns like "over X employees", "X+ employees", "approximately X employees"
-        'employees': re.compile(
-            r'(?:over|approximately|about|~|more than)\s*([\d,]+)\s*(?:full[- ]?time\s+)?employees?'
-            r'|([\d,]+)\s*(?:full[- ]?time\s+)?employees?'
-            r'|employees?[^:]*:\s*~?(?:over\s+|approximately\s+|about\s+)?([\d,]+)',
-            re.IGNORECASE
+        "employees": re.compile(
+            r"(?:over|approximately|about|~|more than)\s*([\d,]+)\s*(?:full[- ]?time\s+)?employees?"
+            r"|([\d,]+)\s*(?:full[- ]?time\s+)?employees?"
+            r"|employees?[^:]*:\s*~?(?:over\s+|approximately\s+|about\s+)?([\d,]+)",
+            re.IGNORECASE,
         ),
-        'founded': re.compile(
-            r'Founded[^:]*:\s*(\d{4})',
-            re.IGNORECASE
+        "founded": re.compile(r"Founded[^:]*:\s*(\d{4})", re.IGNORECASE),
+        "ticker": re.compile(
+            r"(?:Ticker|Stock Symbol|NYSE|NASDAQ)[^:]*:\s*([A-Z]{1,5})", re.IGNORECASE
         ),
-        'ticker': re.compile(
-            r'(?:Ticker|Stock Symbol|NYSE|NASDAQ)[^:]*:\s*([A-Z]{1,5})',
-            re.IGNORECASE
-        ),
-        'headquarters': re.compile(
-            r'(?:Headquarters|HQ|Head Office)[^:]*:\s*([^,\n]+(?:,\s*[A-Z]{2})?)',
-            re.IGNORECASE
+        "headquarters": re.compile(
+            r"(?:Headquarters|HQ|Head Office)[^:]*:\s*([^,\n]+(?:,\s*[A-Z]{2})?)", re.IGNORECASE
         ),
     }
 
     # URL prefixes to exclude from inline header detection
-    URL_PREFIXES = {'http', 'https', 'ftp', 'mailto', 'tel'}
+    URL_PREFIXES = {"http", "https", "ftp", "mailto", "tel"}
 
     def detect_sub_headings(self, content: str) -> list[tuple[int, str]]:
         """
@@ -70,7 +64,7 @@ class ContentPatternDetector:
             List of (line_number, sub_heading_text) tuples
         """
         sub_headings = []
-        lines = content.split('\n')
+        lines = content.split("\n")
 
         for i, line in enumerate(lines):
             stripped = line.strip()
@@ -78,19 +72,20 @@ class ContentPatternDetector:
                 continue
 
             # Check if this line is plain text (not a bullet, heading, etc.)
-            if (stripped and
-                not stripped.startswith('#') and
-                not stripped.startswith('*') and
-                not stripped.startswith('-') and
-                not stripped.startswith('•') and
-                not re.match(r'^\d+[.)]\s', stripped)):
-
+            if (
+                stripped
+                and not stripped.startswith("#")
+                and not stripped.startswith("*")
+                and not stripped.startswith("-")
+                and not stripped.startswith("•")
+                and not re.match(r"^\d+[.)]\s", stripped)
+            ):
                 # Check if next non-empty line is a bullet
                 for j in range(i + 1, len(lines)):
                     next_line = lines[j].strip()
                     if not next_line:
                         continue
-                    if (next_line.startswith(('*', '-', '•'))):
+                    if next_line.startswith(("*", "-", "•")):
                         sub_headings.append((i, stripped))
                     break
 
@@ -130,7 +125,7 @@ class ContentPatternDetector:
         metrics = {}
 
         for metric_name, pattern in self.METRIC_PATTERNS.items():
-            if metric_name == 'employees':
+            if metric_name == "employees":
                 # Special handling for employees - find the largest meaningful number
                 # to avoid picking up random small numbers
                 best_count = None
@@ -140,7 +135,7 @@ class ContentPatternDetector:
                         if group:
                             # Parse the number, removing commas
                             try:
-                                count = int(group.replace(',', ''))
+                                count = int(group.replace(",", ""))
                                 # Only consider counts >= 10 as meaningful
                                 # (avoids "3 employees" type false positives)
                                 if count >= 10:
@@ -151,7 +146,7 @@ class ContentPatternDetector:
                             break
                 if best_count:
                     # Format with commas for display
-                    metrics['employees'] = f"{best_count:,}"
+                    metrics["employees"] = f"{best_count:,}"
             else:
                 search_match = pattern.search(content)
                 if search_match:
@@ -182,9 +177,18 @@ class ContentPatternDetector:
             True if risk keywords found
         """
         risk_keywords = [
-            'risk', 'threat', 'challenge', 'concern', 'weakness',
-            'vulnerability', 'decline', 'loss', 'competition',
-            'regulatory', 'compliance', 'uncertainty'
+            "risk",
+            "threat",
+            "challenge",
+            "concern",
+            "weakness",
+            "vulnerability",
+            "decline",
+            "loss",
+            "competition",
+            "regulatory",
+            "compliance",
+            "uncertainty",
         ]
         text_lower = text.lower()
         return any(keyword in text_lower for keyword in risk_keywords)
@@ -200,9 +204,17 @@ class ContentPatternDetector:
             True if opportunity keywords found
         """
         opportunity_keywords = [
-            'opportunity', 'growth', 'expansion', 'potential',
-            'strength', 'advantage', 'innovation', 'market share',
-            'increase', 'improve', 'optimize'
+            "opportunity",
+            "growth",
+            "expansion",
+            "potential",
+            "strength",
+            "advantage",
+            "innovation",
+            "market share",
+            "increase",
+            "improve",
+            "optimize",
         ]
         text_lower = text.lower()
         return any(keyword in text_lower for keyword in opportunity_keywords)

@@ -32,32 +32,53 @@ from primr.utils.state_machine import (
 # =============================================================================
 
 # Strategy for generating job IDs
-job_id_strategy = st.from_regex(r'job-[a-z0-9]{6,12}', fullmatch=True)
+job_id_strategy = st.from_regex(r"job-[a-z0-9]{6,12}", fullmatch=True)
 
 # Strategy for tier state triggers
-tier_trigger_strategy = st.sampled_from([
-    "start_scrape", "scrape_success", "soft_block", "all_tiers_exhausted",
-    "hard_block", "try_next_tier", "no_more_tiers", "reset"
-])
+tier_trigger_strategy = st.sampled_from(
+    [
+        "start_scrape",
+        "scrape_success",
+        "soft_block",
+        "all_tiers_exhausted",
+        "hard_block",
+        "try_next_tier",
+        "no_more_tiers",
+        "reset",
+    ]
+)
 
 # Strategy for job state triggers
-job_trigger_strategy = st.sampled_from([
-    "start", "cancel", "pause", "complete", "fail", "resume"
-])
+job_trigger_strategy = st.sampled_from(["start", "cancel", "pause", "complete", "fail", "resume"])
 
 # Strategy for invalid triggers
 invalid_trigger_strategy = st.text(min_size=1, max_size=20).filter(
-    lambda x: x not in [
-        "start_scrape", "scrape_success", "soft_block", "all_tiers_exhausted",
-        "hard_block", "try_next_tier", "no_more_tiers", "reset",
-        "start", "cancel", "pause", "complete", "fail", "resume"
-    ]
+    lambda x: (
+        x
+        not in [
+            "start_scrape",
+            "scrape_success",
+            "soft_block",
+            "all_tiers_exhausted",
+            "hard_block",
+            "try_next_tier",
+            "no_more_tiers",
+            "reset",
+            "start",
+            "cancel",
+            "pause",
+            "complete",
+            "fail",
+            "resume",
+        ]
+    )
 )
 
 
 # =============================================================================
 # PROPERTY 22: VALID TRANSITION ACCEPTANCE
 # =============================================================================
+
 
 class TestValidTransitionAcceptance:
     """
@@ -187,6 +208,7 @@ class TestValidTransitionAcceptance:
 # PROPERTY 23: INVALID TRANSITION REJECTION
 # =============================================================================
 
+
 class TestInvalidTransitionRejection:
     """
     **Property 23: Invalid Transition Rejection**
@@ -282,6 +304,7 @@ class TestInvalidTransitionRejection:
 # =============================================================================
 # PROPERTY 24: TRANSITION EVENT EMISSION
 # =============================================================================
+
 
 class TestTransitionEventEmission:
     """
@@ -413,6 +436,7 @@ class TestTransitionEventEmission:
 # PROPERTY 25: STATE PERSISTENCE ROUND-TRIP
 # =============================================================================
 
+
 class TestStatePersistenceRoundTrip:
     """
     **Property 25: State Persistence Round-Trip**
@@ -539,6 +563,7 @@ class TestStatePersistenceRoundTrip:
 # =============================================================================
 # ADDITIONAL STATE MACHINE TESTS
 # =============================================================================
+
 
 class TestStateMachineHelpers:
     """Tests for state machine helper methods."""

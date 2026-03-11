@@ -32,8 +32,11 @@ DEFAULT_MOCK_CONTENT = b"""<!DOCTYPE html>
 </html>"""
 
 
-def make_mock_tier(name: str, success: bool = True, content: bytes = DEFAULT_MOCK_CONTENT) -> ScrapeTier:
+def make_mock_tier(
+    name: str, success: bool = True, content: bytes = DEFAULT_MOCK_CONTENT
+) -> ScrapeTier:
     """Create a mock tier for testing."""
+
     def scrape_fn(url: str, timeout: int) -> ScrapeResult:
         if success:
             return ScrapeResult(
@@ -261,6 +264,7 @@ class TestHardBlockHandling:
 
     def test_stops_on_hard_block(self):
         """Should stop escalation on hard block."""
+
         def tier1_fn(url, timeout):
             return ScrapeResult(
                 url=url,
@@ -289,6 +293,7 @@ class TestHardBlockHandling:
 
     def test_marks_host_as_blocked(self):
         """Should mark host as blocked after hard block."""
+
         def tier_fn(url, timeout):
             return ScrapeResult(
                 url=url,
@@ -556,12 +561,12 @@ class TestOrchestratorStats:
         assert "cache_stats" in stats
 
 
-
 class TestGoldenRunTrace:
     """Golden-run trace test for orchestrator."""
 
     def test_golden_run_trace_format(self):
         """Test trace output format with fake tiers."""
+
         # Create two fake tiers - first fails, second succeeds
         def tier1_fn(url, timeout):
             return ScrapeResult(
@@ -571,13 +576,15 @@ class TestGoldenRunTrace:
                 error="Soft block detected",
                 tier="tier1",
                 elapsed_ms=50,
-                attempts=[Attempt(
-                    tier="tier1",
-                    success=False,
-                    error="Soft block detected",
-                    error_type=ErrorType.SOFT_BLOCK,
-                    elapsed_ms=50,
-                )],
+                attempts=[
+                    Attempt(
+                        tier="tier1",
+                        success=False,
+                        error="Soft block detected",
+                        error_type=ErrorType.SOFT_BLOCK,
+                        elapsed_ms=50,
+                    )
+                ],
             )
 
         def tier2_fn(url, timeout):
@@ -589,12 +596,14 @@ class TestGoldenRunTrace:
                 http_status=200,
                 content_type="text/html",
                 elapsed_ms=100,
-                attempts=[Attempt(
-                    tier="tier2",
-                    success=True,
-                    elapsed_ms=100,
-                    http_status=200,
-                )],
+                attempts=[
+                    Attempt(
+                        tier="tier2",
+                        success=True,
+                        elapsed_ms=100,
+                        http_status=200,
+                    )
+                ],
             )
 
         tier1 = ScrapeTier(name="tier1", scrape_fn=tier1_fn, timeout=10)
@@ -622,6 +631,7 @@ class TestGoldenRunTrace:
 
             # Read and verify trace file
             import json
+
             trace_path = trace_logger.get_path()
             assert trace_path.exists()
 

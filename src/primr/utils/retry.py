@@ -33,13 +33,14 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-P = ParamSpec('P')
-T = TypeVar('T')
+P = ParamSpec("P")
+T = TypeVar("T")
 
 
 # =============================================================================
 # RETRY POLICY CONFIGURATION
 # =============================================================================
+
 
 @dataclass
 class RetryPolicy:
@@ -76,9 +77,9 @@ class RetryPolicy:
     max_delay: float = 60.0
     exponential_base: float = 2.0
     jitter_factor: float = 0.1
-    retryable_categories: set[str] = field(default_factory=lambda: {
-        "transient", "rate_limit", "quota", "network"
-    })
+    retryable_categories: set[str] = field(
+        default_factory=lambda: {"transient", "rate_limit", "quota", "network"}
+    )
 
     def __post_init__(self) -> None:
         """Validate configuration values."""
@@ -97,6 +98,7 @@ class RetryPolicy:
 # =============================================================================
 # RETRY ATTEMPT TRACKING
 # =============================================================================
+
 
 @dataclass
 class RetryAttempt:
@@ -135,6 +137,7 @@ class RetryAttempt:
 # TELEMETRY PROTOCOL (Optional Dependency)
 # =============================================================================
 
+
 class TelemetryProtocol:
     """
     Protocol for telemetry system integration.
@@ -143,18 +146,14 @@ class TelemetryProtocol:
     metrics without requiring a hard dependency on the telemetry module.
     """
 
-    def emit_metric(
-        self,
-        name: str,
-        value: float,
-        tags: dict[str, str] | None = None
-    ) -> None:
+    def emit_metric(self, name: str, value: float, tags: dict[str, str] | None = None) -> None:
         """Emit a metric with optional tags."""
 
 
 # =============================================================================
 # RETRY POLICY MANAGER
 # =============================================================================
+
 
 class RetryPolicyManager:
     """
@@ -188,9 +187,7 @@ class RetryPolicyManager:
     """
 
     def __init__(
-        self,
-        policy: RetryPolicy | None = None,
-        telemetry: TelemetryProtocol | None = None
+        self, policy: RetryPolicy | None = None, telemetry: TelemetryProtocol | None = None
     ):
         """
         Initialize RetryPolicyManager.
@@ -279,7 +276,7 @@ class RetryPolicyManager:
             return max(0.0, delta)
 
         # Calculate exponential backoff with jitter
-        delay = self.policy.base_delay * (self.policy.exponential_base ** attempt)
+        delay = self.policy.base_delay * (self.policy.exponential_base**attempt)
         delay = min(delay, self.policy.max_delay)
 
         # Add jitter: random value in range [-jitter, +jitter]
@@ -288,12 +285,7 @@ class RetryPolicyManager:
 
         return max(0.0, delay + jitter)
 
-    def _record_attempt(
-        self,
-        attempt: int,
-        error: PrimrError,
-        delay: float
-    ) -> None:
+    def _record_attempt(self, attempt: int, error: PrimrError, delay: float) -> None:
         """
         Record a retry attempt for history tracking.
 
@@ -311,12 +303,7 @@ class RetryPolicyManager:
         )
         self._attempts.append(record)
 
-    def _emit_retry_metric(
-        self,
-        error: PrimrError,
-        attempt: int,
-        delay: float
-    ) -> None:
+    def _emit_retry_metric(self, error: PrimrError, attempt: int, delay: float) -> None:
         """
         Emit metrics for a retry attempt.
 
@@ -339,7 +326,7 @@ class RetryPolicyManager:
                     "error_category": error.category,
                     "attempt": str(attempt),
                     "delay_seconds": f"{delay:.2f}",
-                }
+                },
             )
         except Exception as e:
             # Don't let telemetry errors affect retry logic
@@ -355,16 +342,9 @@ class RetryPolicyManager:
         **Validates: Requirements 2.8**
         """
         if self._attempts:
-            error.context["retry_history"] = [
-                attempt.to_dict() for attempt in self._attempts
-            ]
+            error.context["retry_history"] = [attempt.to_dict() for attempt in self._attempts]
 
-    async def execute_with_retry(
-        self,
-        operation: Callable[..., T],
-        *args: Any,
-        **kwargs: Any
-    ) -> T:
+    async def execute_with_retry(self, operation: Callable[..., T], *args: Any, **kwargs: Any) -> T:
         """
         Execute operation with automatic retry on transient errors.
 
@@ -432,12 +412,7 @@ class RetryPolicyManager:
 
         raise RuntimeError("Unexpected state: no exception captured")
 
-    def execute_with_retry_sync(
-        self,
-        operation: Callable[..., T],
-        *args: Any,
-        **kwargs: Any
-    ) -> T:
+    def execute_with_retry_sync(self, operation: Callable[..., T], *args: Any, **kwargs: Any) -> T:
         """
         Execute operation with automatic retry on transient errors (sync version).
 

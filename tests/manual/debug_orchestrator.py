@@ -1,4 +1,5 @@
 """Debug orchestrator behavior on Stripe pricing."""
+
 import sys
 from pathlib import Path
 
@@ -11,7 +12,7 @@ orchestrator = get_orchestrator(enable_vision=False, use_cache=False)
 
 # Scrape Stripe pricing
 print("Scraping https://stripe.com/pricing via orchestrator...")
-result = orchestrator.scrape_url('https://stripe.com/pricing')
+result = orchestrator.scrape_url("https://stripe.com/pricing")
 
 print("\nResult:")
 print(f"  Success: {result.success}")

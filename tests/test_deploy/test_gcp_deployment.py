@@ -90,6 +90,7 @@ class TestGCPServiceConfig:
     def test_is_valid_yaml(self, gcp_dir: Path) -> None:
         """service.yaml should be valid YAML."""
         import yaml
+
         content = (gcp_dir / "service.yaml").read_text()
         config = yaml.safe_load(content)
         assert isinstance(config, dict)
@@ -106,6 +107,7 @@ class TestGCPJobConfig:
     def test_is_valid_yaml(self, gcp_dir: Path) -> None:
         """job.yaml should be valid YAML."""
         import yaml
+
         content = (gcp_dir / "job.yaml").read_text()
         config = yaml.safe_load(content)
         assert isinstance(config, dict)

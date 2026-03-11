@@ -48,7 +48,7 @@ class TerminalCapabilities:
             TerminalCapabilities with detected values
         """
         # Check if stdout is a TTY (interactive terminal)
-        is_tty = hasattr(sys.stdout, 'isatty') and sys.stdout.isatty()
+        is_tty = hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
 
         # Check for NO_COLOR environment variable (standard)
         # https://no-color.org/
@@ -64,13 +64,13 @@ class TerminalCapabilities:
         supports_color = force_color or (is_tty and not no_color_env and not term_dumb)
 
         # Unicode support: check stdout encoding
-        encoding = getattr(sys.stdout, 'encoding', None) or ''
-        supports_unicode = 'utf' in encoding.lower()
+        encoding = getattr(sys.stdout, "encoding", None) or ""
+        supports_unicode = "utf" in encoding.lower()
 
         # Also check LANG/LC_ALL for Unicode hints
         if not supports_unicode:
             lang = os.environ.get("LANG", "") + os.environ.get("LC_ALL", "")
-            supports_unicode = 'utf' in lang.lower()
+            supports_unicode = "utf" in lang.lower()
 
         # Cursor movement: need TTY and not dumb terminal
         supports_cursor = is_tty and not term_dumb

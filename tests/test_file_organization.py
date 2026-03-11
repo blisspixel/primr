@@ -28,13 +28,11 @@ def test_no_test_files_in_root():
     root_files = list(PROJECT_ROOT.glob("test_*.py"))
 
     # Filter out any that might be intentionally in root
-    unexpected_test_files = [
-        f for f in root_files
-        if f.name in ROOT_TEST_FILES_TO_MOVE
-    ]
+    unexpected_test_files = [f for f in root_files if f.name in ROOT_TEST_FILES_TO_MOVE]
 
-    assert len(unexpected_test_files) == 0, \
+    assert len(unexpected_test_files) == 0, (
         f"Test files still in root: {[f.name for f in unexpected_test_files]}"
+    )
 
 
 def test_tests_directory_exists():

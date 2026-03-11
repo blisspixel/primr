@@ -27,7 +27,7 @@ from primr.utils.benchmarks import (
 # =============================================================================
 
 # Strategy for benchmark names
-benchmark_name_strategy = st.from_regex(r'[a-z][a-z0-9_]{2,20}', fullmatch=True)
+benchmark_name_strategy = st.from_regex(r"[a-z][a-z0-9_]{2,20}", fullmatch=True)
 
 # Strategy for positive floats (timing values)
 positive_float_strategy = st.floats(min_value=0.0001, max_value=10.0, allow_nan=False)
@@ -66,6 +66,7 @@ def generate_benchmark_result(
 # =============================================================================
 # PROPERTY 26: BENCHMARK RESULT STORAGE
 # =============================================================================
+
 
 class TestBenchmarkResultStorage:
     """
@@ -200,6 +201,7 @@ class TestBenchmarkResultStorage:
 # PROPERTY 27: REGRESSION DETECTION
 # =============================================================================
 
+
 class TestRegressionDetection:
     """
     **Property 27: Regression Detection**
@@ -245,9 +247,7 @@ class TestRegressionDetection:
         baseline_time=positive_float_strategy,
     )
     @settings(max_examples=50, suppress_health_check=[HealthCheck.too_slow])
-    def test_no_regression_when_under_threshold(
-        self, threshold: float, baseline_time: float
-    ):
+    def test_no_regression_when_under_threshold(self, threshold: float, baseline_time: float):
         """No regression should be detected when under threshold."""
         # Feature: phd-level-excellence, Property 27: Regression Detection
 
@@ -270,9 +270,7 @@ class TestRegressionDetection:
         baseline_time=positive_float_strategy,
     )
     @settings(max_examples=50, suppress_health_check=[HealthCheck.too_slow])
-    def test_no_regression_when_performance_improves(
-        self, threshold: float, baseline_time: float
-    ):
+    def test_no_regression_when_performance_improves(self, threshold: float, baseline_time: float):
         """No regression should be detected when performance improves."""
         # Feature: phd-level-excellence, Property 27: Regression Detection
 
@@ -342,6 +340,7 @@ class TestRegressionDetection:
 # =============================================================================
 # BENCHMARK SUITE TESTS
 # =============================================================================
+
 
 class TestBenchmarkSuite:
     """Tests for the BenchmarkSuite class."""
@@ -434,6 +433,7 @@ class TestBenchmarkSuite:
 # =============================================================================
 # BENCHMARK RUNNER TESTS
 # =============================================================================
+
 
 class TestBenchmarkRunner:
     """Tests for the BenchmarkRunner class."""

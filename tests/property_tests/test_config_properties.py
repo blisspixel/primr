@@ -29,26 +29,24 @@ from primr.prompts.validation import (
 # =============================================================================
 
 # Strategy for generating valid section IDs (non-empty alphanumeric with underscores)
-section_id_strategy = st.from_regex(r'[a-z][a-z0-9_]{0,29}', fullmatch=True)
+section_id_strategy = st.from_regex(r"[a-z][a-z0-9_]{0,29}", fullmatch=True)
 
 # Strategy for generating valid section names
 section_name_strategy = st.text(
-    alphabet=st.characters(whitelist_categories=('L', 'N', 'P', 'Z')),
-    min_size=1,
-    max_size=50
+    alphabet=st.characters(whitelist_categories=("L", "N", "P", "Z")), min_size=1, max_size=50
 ).filter(lambda x: x.strip())
 
 # Strategy for generating valid part numbers (1-5)
 part_number_strategy = st.integers(min_value=1, max_value=5)
 
 # Strategy for generating valid semantic versions
-version_strategy = st.from_regex(r'\d{1,3}\.\d{1,3}\.\d{1,3}', fullmatch=True)
+version_strategy = st.from_regex(r"\d{1,3}\.\d{1,3}\.\d{1,3}", fullmatch=True)
 
 # Strategy for generating valid schema versions
 schema_version_strategy = st.sampled_from([v.value for v in SchemaVersion])
 
 # Strategy for generating invalid schema versions
-invalid_schema_version_strategy = st.from_regex(r'\d+\.\d+', fullmatch=True).filter(
+invalid_schema_version_strategy = st.from_regex(r"\d+\.\d+", fullmatch=True).filter(
     lambda x: x not in [v.value for v in SchemaVersion]
 )
 
@@ -57,32 +55,28 @@ position_strategy = st.sampled_from([p.value for p in SectionPosition])
 
 # Strategy for generating document purposes (min 10 chars)
 document_purpose_strategy = st.text(
-    alphabet=st.characters(whitelist_categories=('L', 'N', 'P', 'Z')),
-    min_size=10,
-    max_size=500
+    alphabet=st.characters(whitelist_categories=("L", "N", "P", "Z")), min_size=10, max_size=500
 ).filter(lambda x: len(x.strip()) >= 10)
 
 # Strategy for generating covers lists
 covers_strategy = st.lists(
-    st.text(min_size=1, max_size=100).filter(lambda x: x.strip()),
-    min_size=0,
-    max_size=5
+    st.text(min_size=1, max_size=100).filter(lambda x: x.strip()), min_size=0, max_size=5
 )
 
 # Strategy for generating epistemic rules
 epistemic_rules_strategy = st.dictionaries(
-    st.from_regex(r'[a-z_]{1,20}', fullmatch=True),
+    st.from_regex(r"[a-z_]{1,20}", fullmatch=True),
     st.text(min_size=1, max_size=200),
     min_size=0,
-    max_size=5
+    max_size=5,
 )
 
 # Strategy for generating formatting rules
 formatting_strategy = st.dictionaries(
-    st.from_regex(r'[a-z_]{1,20}', fullmatch=True),
+    st.from_regex(r"[a-z_]{1,20}", fullmatch=True),
     st.text(min_size=1, max_size=200),
     min_size=0,
-    max_size=5
+    max_size=5,
 )
 
 
@@ -148,6 +142,7 @@ def generate_valid_config(
 # =============================================================================
 # PROPERTY 16: VALID CONFIG ACCEPTANCE
 # =============================================================================
+
 
 class TestValidConfigAcceptance:
     """
@@ -216,7 +211,6 @@ class TestValidConfigAcceptance:
         assert result.sections[0].name == section_name
         assert result.sections[0].part == part
 
-
     @given(
         num_sections=st.integers(min_value=1, max_value=10),
     )
@@ -243,9 +237,7 @@ class TestValidConfigAcceptance:
         meta_version=version_strategy,
     )
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
-    def test_config_without_optional_fields_accepted(
-        self, meta_name: str, meta_version: str
-    ):
+    def test_config_without_optional_fields_accepted(self, meta_name: str, meta_version: str):
         """Configurations without optional fields should be accepted."""
         # Feature: phd-level-excellence, Property 16: Valid Config Acceptance
 
@@ -291,6 +283,7 @@ class TestValidConfigAcceptance:
 # =============================================================================
 # PROPERTY 17: INVALID CONFIG REJECTION WITH DETAILS
 # =============================================================================
+
 
 class TestInvalidConfigRejection:
     """
@@ -461,9 +454,11 @@ class TestInvalidConfigRejection:
         # Feature: phd-level-excellence, Property 17: Invalid Config Rejection with Details
 
         # Skip versions that accidentally match the pattern
-        assume(not invalid_version or not all(
-            part.isdigit() for part in invalid_version.split(".")
-        ) or invalid_version.count(".") != 2)
+        assume(
+            not invalid_version
+            or not all(part.isdigit() for part in invalid_version.split("."))
+            or invalid_version.count(".") != 2
+        )
 
         config = {
             "meta": {
@@ -632,6 +627,7 @@ class TestInvalidConfigRejection:
 # PROPERTY 18: SCHEMA VERSION VALIDATION
 # =============================================================================
 
+
 class TestSchemaVersionValidation:
     """
     **Property 18: Schema Version Validation**
@@ -644,7 +640,7 @@ class TestSchemaVersionValidation:
     """
 
     @given(
-        invalid_version=st.from_regex(r'\d+\.\d+', fullmatch=True).filter(
+        invalid_version=st.from_regex(r"\d+\.\d+", fullmatch=True).filter(
             lambda x: x not in [v.value for v in SchemaVersion]
         ),
     )
@@ -824,6 +820,7 @@ class TestSchemaVersionValidation:
 # JSON SCHEMA EXPORT TESTS
 # =============================================================================
 
+
 class TestJsonSchemaExport:
     """Tests for JSON Schema export functionality."""
 
@@ -866,6 +863,4 @@ class TestJsonSchemaExport:
         defs = schema.get("$defs", {})
 
         # Should include SectionSpecModel definition
-        assert "SectionSpecModel" in defs or any(
-            "section" in key.lower() for key in defs
-        )
+        assert "SectionSpecModel" in defs or any("section" in key.lower() for key in defs)

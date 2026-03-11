@@ -26,8 +26,8 @@ from primr.utils.cost_estimator import (
 # Updated Feb 2026 for blended Flash+Pro + Deep Research per-task pricing
 TYPICAL_ACTUAL_COSTS = {
     "deep-research": {
-        "min_cost": 1.50,   # Minimum observed (cheap DR task)
-        "max_cost": 4.00,   # Maximum observed (complex DR task)
+        "min_cost": 1.50,  # Minimum observed (cheap DR task)
+        "max_cost": 4.00,  # Maximum observed (complex DR task)
         "typical_cost": 2.50,  # Standard task cost
     },
     "complete": {
@@ -65,7 +65,9 @@ class TestFullModeEstimate:
         # Complete mode should have more tokens than deep-research (which has 0 tokens)
         assert complete_estimate.estimated_input_tokens > deep_estimate.estimated_input_tokens
         # Complete mode tokens >= structured (same scraping + writing, plus DR task)
-        assert complete_estimate.estimated_input_tokens >= structured_estimate.estimated_input_tokens
+        assert (
+            complete_estimate.estimated_input_tokens >= structured_estimate.estimated_input_tokens
+        )
 
         # Complete mode cost should be higher than either alone
         assert complete_estimate.total_cost > deep_estimate.total_cost
@@ -98,7 +100,9 @@ class TestAIStrategyCost:
         assert ai_estimate.total_cost > base_estimate.total_cost
 
         # The difference should be meaningful (at least 10% increase)
-        cost_increase = (ai_estimate.total_cost - base_estimate.total_cost) / base_estimate.total_cost
+        cost_increase = (
+            ai_estimate.total_cost - base_estimate.total_cost
+        ) / base_estimate.total_cost
         assert cost_increase >= 0.10, "AI strategy should add at least 10% to cost"
 
     def test_ai_strategy_cost_for_all_modes(self):
@@ -109,8 +113,7 @@ class TestAIStrategyCost:
             base = estimate_cost(mode, include_ai_strategy=False)
             with_ai = estimate_cost(mode, include_ai_strategy=True)
 
-            assert with_ai.total_cost > base.total_cost, \
-                f"AI strategy should add cost for {mode}"
+            assert with_ai.total_cost > base.total_cost, f"AI strategy should add cost for {mode}"
 
 
 class TestCostAccuracyBounds:
@@ -130,10 +133,12 @@ class TestCostAccuracyBounds:
         lower_bound = typical * 0.5
         upper_bound = typical * 1.5
 
-        assert estimate.total_cost >= lower_bound, \
+        assert estimate.total_cost >= lower_bound, (
             f"Estimate ${estimate.total_cost:.2f} below lower bound ${lower_bound:.2f}"
-        assert estimate.total_cost <= upper_bound, \
+        )
+        assert estimate.total_cost <= upper_bound, (
             f"Estimate ${estimate.total_cost:.2f} above upper bound ${upper_bound:.2f}"
+        )
 
     def test_estimates_are_reasonable(self):
         """All mode estimates should be in reasonable ranges."""
@@ -213,7 +218,12 @@ def test_property_cost_calculation_consistent(mode: str):
     """
     estimate = estimate_cost(mode)
 
-    calculated_total = estimate.input_cost + estimate.output_cost + estimate.search_cost + estimate.deep_research_cost
+    calculated_total = (
+        estimate.input_cost
+        + estimate.output_cost
+        + estimate.search_cost
+        + estimate.deep_research_cost
+    )
 
     # Allow small floating point tolerance
     assert abs(estimate.total_cost - calculated_total) < 0.01
@@ -244,14 +254,12 @@ def test_property_token_cost_relationship(mode: str):
         pro_inp_price = active_pro.cost_per_1m_input_tokens
         pro_out_price = active_pro.cost_per_1m_output_tokens
 
-    expected_input_cost = (
-        (m["flash_input_tokens"] / 1_000_000) * GEMINI_3_FLASH_INPUT_PRICE
-        + (m["pro_input_tokens"] / 1_000_000) * pro_inp_price
-    )
-    expected_output_cost = (
-        (m["flash_output_tokens"] / 1_000_000) * GEMINI_3_FLASH_OUTPUT_PRICE
-        + (m["pro_output_tokens"] / 1_000_000) * pro_out_price
-    )
+    expected_input_cost = (m["flash_input_tokens"] / 1_000_000) * GEMINI_3_FLASH_INPUT_PRICE + (
+        m["pro_input_tokens"] / 1_000_000
+    ) * pro_inp_price
+    expected_output_cost = (m["flash_output_tokens"] / 1_000_000) * GEMINI_3_FLASH_OUTPUT_PRICE + (
+        m["pro_output_tokens"] / 1_000_000
+    ) * pro_out_price
 
     assert abs(estimate.input_cost - expected_input_cost) < 0.001
     assert abs(estimate.output_cost - expected_output_cost) < 0.001

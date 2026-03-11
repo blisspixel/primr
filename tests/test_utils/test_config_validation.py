@@ -32,6 +32,7 @@ from primr.utils.config_validation import (
 # FIXTURES
 # =============================================================================
 
+
 @pytest.fixture(autouse=True)
 def reset_config_fixture():
     """Reset config cache before and after each test."""
@@ -44,6 +45,7 @@ def reset_config_fixture():
 # API KEYS CONFIG TESTS
 # =============================================================================
 
+
 class TestAPIKeysConfig:
     """Tests for APIKeysConfig validation."""
 
@@ -51,9 +53,7 @@ class TestAPIKeysConfig:
         """Should report error for missing Gemini API key."""
         with patch.dict(os.environ, {}, clear=True):
             config = APIKeysConfig(
-                gemini_api_key=None,
-                search_api_key="test",
-                search_engine_id="test"
+                gemini_api_key=None, search_api_key="test", search_engine_id="test"
             )
             errors = config.validate()
 
@@ -63,9 +63,7 @@ class TestAPIKeysConfig:
     def test_validates_short_api_key(self):
         """Should report error for suspiciously short API key."""
         config = APIKeysConfig(
-            gemini_api_key="short",
-            search_api_key="test",
-            search_engine_id="test"
+            gemini_api_key="short", search_api_key="test", search_engine_id="test"
         )
         errors = config.validate()
 
@@ -75,9 +73,7 @@ class TestAPIKeysConfig:
     def test_warnings_for_optional_keys(self):
         """Should report warnings for missing optional keys."""
         config = APIKeysConfig(
-            gemini_api_key="valid_api_key_here",
-            search_api_key=None,
-            search_engine_id=None
+            gemini_api_key="valid_api_key_here", search_api_key=None, search_engine_id=None
         )
         warnings = config.get_warnings()
 
@@ -90,7 +86,7 @@ class TestAPIKeysConfig:
         config = APIKeysConfig(
             gemini_api_key="valid_api_key_here_long_enough",
             search_api_key="search_key",
-            search_engine_id="engine_id"
+            search_engine_id="engine_id",
         )
         errors = config.validate()
 
@@ -100,6 +96,7 @@ class TestAPIKeysConfig:
 # =============================================================================
 # TIMEOUTS CONFIG TESTS
 # =============================================================================
+
 
 class TestTimeoutsConfig:
     """Tests for TimeoutsConfig validation."""
@@ -139,6 +136,7 @@ class TestTimeoutsConfig:
 # =============================================================================
 # RETRY CONFIG TESTS
 # =============================================================================
+
 
 class TestRetryConfig:
     """Tests for RetryConfig validation."""
@@ -180,6 +178,7 @@ class TestRetryConfig:
 # SCRAPING CONFIG TESTS
 # =============================================================================
 
+
 class TestScrapingConfig:
     """Tests for ScrapingConfig validation."""
 
@@ -211,6 +210,7 @@ class TestScrapingConfig:
 # =============================================================================
 # AI CONFIG TESTS
 # =============================================================================
+
 
 class TestAIConfig:
     """Tests for AIConfig validation."""
@@ -252,6 +252,7 @@ class TestAIConfig:
 # PATHS CONFIG TESTS
 # =============================================================================
 
+
 class TestPathsConfig:
     """Tests for PathsConfig validation."""
 
@@ -270,6 +271,7 @@ class TestPathsConfig:
         """Should report error for unwritable directory."""
         # Skip this test on Windows where path validation behaves differently
         import sys
+
         if sys.platform == "win32":
             pytest.skip("Path validation differs on Windows")
 
@@ -284,6 +286,7 @@ class TestPathsConfig:
 # =============================================================================
 # PRIMR CONFIG TESTS
 # =============================================================================
+
 
 class TestPrimrConfig:
     """Tests for main PrimrConfig class."""
@@ -333,6 +336,7 @@ class TestPrimrConfig:
 # =============================================================================
 # MODULE FUNCTION TESTS
 # =============================================================================
+
 
 class TestModuleFunctions:
     """Tests for module-level functions."""
@@ -387,6 +391,7 @@ class TestModuleFunctions:
 # CONFIG ERROR TESTS
 # =============================================================================
 
+
 class TestConfigError:
     """Tests for ConfigError class."""
 
@@ -403,11 +408,7 @@ class TestConfigError:
 
     def test_str_includes_suggestion_when_present(self):
         """ConfigError str should include suggestion when present."""
-        error = ConfigError(
-            field="test",
-            message="msg",
-            suggestion="try this"
-        )
+        error = ConfigError(field="test", message="msg", suggestion="try this")
         assert "try this" in str(error)
 
 
@@ -422,8 +423,7 @@ class TestConfigValidationResult:
     def test_str_shows_errors_when_present(self):
         """ConfigValidationResult str should show errors when present."""
         result = ConfigValidationResult(
-            valid=False,
-            errors=[ConfigError(field="test", message="error")]
+            valid=False, errors=[ConfigError(field="test", message="error")]
         )
         assert "error" in str(result).lower()
         assert "test" in str(result)
@@ -431,7 +431,6 @@ class TestConfigValidationResult:
     def test_str_shows_warnings_when_present(self):
         """ConfigValidationResult str should show warnings when present."""
         result = ConfigValidationResult(
-            valid=True,
-            warnings=[ConfigError(field="warn", message="warning")]
+            valid=True, warnings=[ConfigError(field="warn", message="warning")]
         )
         assert "warning" in str(result).lower()

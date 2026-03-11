@@ -176,10 +176,7 @@ def _precompute_gradient(max_width: int) -> list[str]:
     for col in range(max_width):
         col_ratio = col / max(1, max_width - 1)
         hue = _START_HUE + (_END_HUE - _START_HUE) * col_ratio
-        r, g, b = [
-            int(v * 255)
-            for v in colorsys.hsv_to_rgb(hue % 1.0, 0.85, 0.92)
-        ]
+        r, g, b = [int(v * 255) for v in colorsys.hsv_to_rgb(hue % 1.0, 0.85, 0.92)]
         codes.append(f"\033[1;38;2;{r};{g};{b}m")
     return codes
 
@@ -208,11 +205,7 @@ def _render_ansi_frame(
                 continue
 
             col_ratio = col / max(1, max_width - 1)
-            code = (
-                gradient_codes[col]
-                if col_ratio <= sweep_progress
-                else muted_code
-            )
+            code = gradient_codes[col] if col_ratio <= sweep_progress else muted_code
 
             if code != last_code:
                 parts.append(code)
@@ -267,10 +260,7 @@ def colorize_banner(
 
             if col_ratio <= sweep_progress:
                 hue = start_hue + (end_hue - start_hue) * col_ratio
-                r, g, b = [
-                    int(v * 255)
-                    for v in colorsys.hsv_to_rgb(hue % 1.0, 0.85, 0.92)
-                ]
+                r, g, b = [int(v * 255) for v in colorsys.hsv_to_rgb(hue % 1.0, 0.85, 0.92)]
                 parts.append(f"[bold rgb({r},{g},{b})]{escape(ch)}[/]")
             else:
                 parts.append(f"[{muted_color}]{escape(ch)}[/{muted_color}]")
@@ -295,7 +285,9 @@ def render_banner_static(art: str) -> str:
 
 def _print_tagline(ctx: BannerContext) -> None:
     """Print the tagline and help hint below the banner."""
-    flow = "URL \u2192 brief \u2192 strategy" if ctx.supports_unicode else "URL -> brief -> strategy"
+    flow = (
+        "URL \u2192 brief \u2192 strategy" if ctx.supports_unicode else "URL -> brief -> strategy"
+    )
     sep = "\u00b7" if ctx.supports_unicode else "-"
     if ctx.supports_color:
         print(f"  {_DIM}{_TAGLINE}  {sep}  {flow}{_ANSI_RESET}")
@@ -376,11 +368,7 @@ def _animate_sweep(
     for f in range(total_frames + 1):
         progress = f / total_frames
         eased = _ease_in_out_cubic(progress)
-        frames.append(
-            _render_ansi_frame(
-                lines, max_width, eased, gradient_codes, muted_code
-            )
-        )
+        frames.append(_render_ansi_frame(lines, max_width, eased, gradient_codes, muted_code))
 
     out = console.file or sys.stdout
     cursor_up = f"\033[{num_lines - 1}A\r"

@@ -6,6 +6,7 @@ Verifies:
 - Heartbeat interval is 90 seconds
 - Console methods work correctly
 """
+
 import re
 
 import pytest
@@ -15,8 +16,8 @@ from primr.utils.console import Console
 
 def strip_ansi(text: str) -> str:
     """Remove ANSI escape codes from text."""
-    ansi_escape = re.compile(r'\x1b\[[0-9;]*m')
-    return ansi_escape.sub('', text)
+    ansi_escape = re.compile(r"\x1b\[[0-9;]*m")
+    return ansi_escape.sub("", text)
 
 
 class TestPhaseBarners:
@@ -81,7 +82,7 @@ class TestConsoleMessages:
         captured = capsys.readouterr()
         output = strip_ansi(captured.out)
         # Modern design uses ✓ (Unicode) or + (ASCII fallback)
-        assert ("✓ Task complete" in output or "+ Task complete" in output)
+        assert "✓ Task complete" in output or "+ Task complete" in output
 
     def test_status_message_format(self, capsys):
         """Status messages should be dimmed."""
@@ -113,20 +114,17 @@ class TestPhaseComplete:
         captured = capsys.readouterr()
         output = strip_ansi(captured.out)
         # Modern design uses ✓ (Unicode) or + (ASCII fallback)
-        assert ("✓ Data Collection" in output or "+ Data Collection" in output)
+        assert "✓ Data Collection" in output or "+ Data Collection" in output
 
     def test_phase_complete_with_stats(self, capsys):
         """Phase complete should show stats."""
         console = Console()
-        console.phase_complete("Analysis", stats=[
-            ("Pages", "15"),
-            ("Sources", "3")
-        ])
+        console.phase_complete("Analysis", stats=[("Pages", "15"), ("Sources", "3")])
 
         captured = capsys.readouterr()
         output = strip_ansi(captured.out)
         # Modern design uses ✓ (Unicode) or + (ASCII fallback)
-        assert ("✓ Analysis" in output or "+ Analysis" in output)
+        assert "✓ Analysis" in output or "+ Analysis" in output
         assert "Pages: 15" in output
         assert "Sources: 3" in output
 
@@ -159,14 +157,14 @@ class TestBackwardCompatibility:
         console = Console()
 
         # Verify key methods exist
-        assert hasattr(console, 'phase_banner')
-        assert hasattr(console, 'phase_complete')
-        assert hasattr(console, 'done')
-        assert hasattr(console, 'status')
-        assert hasattr(console, 'warn')
-        assert hasattr(console, 'error')
-        assert hasattr(console, 'info')
-        assert hasattr(console, 'heartbeat')
+        assert hasattr(console, "phase_banner")
+        assert hasattr(console, "phase_complete")
+        assert hasattr(console, "done")
+        assert hasattr(console, "status")
+        assert hasattr(console, "warn")
+        assert hasattr(console, "error")
+        assert hasattr(console, "info")
+        assert hasattr(console, "heartbeat")
 
 
 if __name__ == "__main__":

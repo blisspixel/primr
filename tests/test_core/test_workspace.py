@@ -23,11 +23,7 @@ class TestWorkspaceConfig:
         """Folder name derived from company name with spaces replaced."""
         from primr.core.workspace import WorkspaceConfig
 
-        config = WorkspaceConfig(
-            base_dir=Path("/tmp"),
-            company_name="Acme Corp",
-            website=None
-        )
+        config = WorkspaceConfig(base_dir=Path("/tmp"), company_name="Acme Corp", website=None)
 
         assert config.folder_name == "Acme_Corp"
 
@@ -36,9 +32,7 @@ class TestWorkspaceConfig:
         from primr.core.workspace import WorkspaceConfig
 
         config = WorkspaceConfig(
-            base_dir=Path("/tmp"),
-            company_name="",
-            website="https://www.example.com"
+            base_dir=Path("/tmp"), company_name="", website="https://www.example.com"
         )
 
         assert config.folder_name == "example_com"
@@ -47,11 +41,7 @@ class TestWorkspaceConfig:
         """Default folder name when neither company nor website provided."""
         from primr.core.workspace import WorkspaceConfig
 
-        config = WorkspaceConfig(
-            base_dir=Path("/tmp"),
-            company_name="",
-            website=None
-        )
+        config = WorkspaceConfig(base_dir=Path("/tmp"), company_name="", website=None)
 
         assert config.folder_name == "Unknown_Company"
 
@@ -60,9 +50,7 @@ class TestWorkspaceConfig:
         from primr.core.workspace import WorkspaceConfig
 
         config = WorkspaceConfig(
-            base_dir=Path("/tmp/working"),
-            company_name="Acme Corp",
-            website=None
+            base_dir=Path("/tmp/working"), company_name="Acme Corp", website=None
         )
 
         assert config.folder_path == Path("/tmp/working/Acme_Corp")
@@ -78,6 +66,7 @@ class TestCreateWorkingFolder:
         with tempfile.TemporaryDirectory() as tmpdir:
             # Temporarily override WORKING_DIR
             import primr.core.workspace as ws
+
             original_dir = ws.WORKING_DIR
             ws.WORKING_DIR = tmpdir
 
@@ -94,6 +83,7 @@ class TestCreateWorkingFolder:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             import primr.core.workspace as ws
+
             original_dir = ws.WORKING_DIR
             ws.WORKING_DIR = tmpdir
 
@@ -114,6 +104,7 @@ class TestWorkingFolderContextManager:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             import primr.core.workspace as ws
+
             original_dir = ws.WORKING_DIR
             ws.WORKING_DIR = tmpdir
 
@@ -130,6 +121,7 @@ class TestWorkingFolderContextManager:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             import primr.core.workspace as ws
+
             original_dir = ws.WORKING_DIR
             ws.WORKING_DIR = tmpdir
 
@@ -203,7 +195,10 @@ class TestConsolidateWorkingFolder:
         """Raises ValueError when folder has no research files (.txt or .md)."""
         from primr.core.workspace import consolidate_working_folder
 
-        with tempfile.TemporaryDirectory() as tmpdir, pytest.raises(ValueError, match="No research files"):
+        with (
+            tempfile.TemporaryDirectory() as tmpdir,
+            pytest.raises(ValueError, match="No research files"),
+        ):
             consolidate_working_folder(tmpdir)
 
 

@@ -30,6 +30,7 @@ logger = get_logger("parallel_scraper")
 @dataclass
 class DomainState:
     """Tracks state for a single domain."""
+
     last_request: float = 0.0
     failure_count: int = 0
     success_count: int = 0
@@ -47,6 +48,7 @@ class DomainState:
 @dataclass
 class ScrapeResult:
     """Result of scraping a single URL."""
+
     url: str
     content: str | None = None
     error: str | None = None
@@ -145,10 +147,7 @@ class CircuitBreaker:
     """
 
     def __init__(
-        self,
-        failure_threshold: int = 3,
-        reset_timeout: float = 60.0,
-        half_open_requests: int = 1
+        self, failure_threshold: int = 3, reset_timeout: float = 60.0, half_open_requests: int = 1
     ):
         """
         Initialize circuit breaker.
@@ -228,17 +227,12 @@ class CircuitBreaker:
             if state.failure_count >= self._failure_threshold:
                 state.is_open = False
                 self._open_time[domain] = time.time()
-                logger.warning(
-                    f"Circuit opened for {domain} after {state.failure_count} failures"
-                )
+                logger.warning(f"Circuit opened for {domain} after {state.failure_count} failures")
 
     def get_open_circuits(self) -> list[str]:
         """Get list of domains with open circuits."""
         with self._lock:
-            return [
-                domain for domain, state in self._domains.items()
-                if not state.is_open
-            ]
+            return [domain for domain, state in self._domains.items() if not state.is_open]
 
 
 class ParallelScraper:
@@ -259,7 +253,7 @@ class ParallelScraper:
         max_workers: int = 5,
         rate_limit_delay: float = 1.0,
         circuit_breaker_threshold: int = 3,
-        scrape_function: Callable[[str], tuple[str | None, str]] | None = None
+        scrape_function: Callable[[str], tuple[str | None, str]] | None = None,
     ):
         """
         Initialize parallel scraper.
@@ -272,16 +266,13 @@ class ParallelScraper:
         """
         self._max_workers = max_workers
         self._rate_limiter = RateLimiter(min_delay=rate_limit_delay)
-        self._circuit_breaker = CircuitBreaker(
-            failure_threshold=circuit_breaker_threshold
-        )
+        self._circuit_breaker = CircuitBreaker(failure_threshold=circuit_breaker_threshold)
         self._scrape_function = scrape_function
         self._lock = threading.Lock()
         self._results: list[ScrapeResult] = []
 
         logger.debug(
-            f"ParallelScraper initialized: workers={max_workers}, "
-            f"rate_limit={rate_limit_delay}s"
+            f"ParallelScraper initialized: workers={max_workers}, rate_limit={rate_limit_delay}s"
         )
 
     def _get_scrape_function(self):
@@ -291,6 +282,7 @@ class ParallelScraper:
 
         # Lazy import to avoid circular dependency
         from primr.data.scrape import scrape_page
+
         return scrape_page
 
     def _scrape_single(self, url: str) -> ScrapeResult:
@@ -308,11 +300,7 @@ class ParallelScraper:
         # Check circuit breaker
         if self._circuit_breaker.is_open(url):
             logger.debug(f"Circuit open, skipping {url}")
-            return ScrapeResult(
-                url=url,
-                error="Circuit breaker open",
-                duration=0.0
-            )
+            return ScrapeResult(url=url, error="Circuit breaker open", duration=0.0)
 
         # Rate limit
         self._rate_limiter.wait_for_domain(url)
@@ -326,36 +314,21 @@ class ParallelScraper:
                 self._rate_limiter.record_success(url)
                 self._circuit_breaker.record_success(url)
                 logger.debug(f"Scraped {url}: {len(content)} chars in {duration:.1f}s")
-                return ScrapeResult(
-                    url=url,
-                    content=content,
-                    tier=tier,
-                    duration=duration
-                )
+                return ScrapeResult(url=url, content=content, tier=tier, duration=duration)
             else:
                 self._rate_limiter.record_failure(url)
                 self._circuit_breaker.record_failure(url)
-                return ScrapeResult(
-                    url=url,
-                    error=tier or "No content",
-                    duration=duration
-                )
+                return ScrapeResult(url=url, error=tier or "No content", duration=duration)
 
         except Exception as e:
             duration = time.time() - start_time
             self._rate_limiter.record_failure(url)
             self._circuit_breaker.record_failure(url)
             logger.warning(f"Scrape failed for {url}: {e}")
-            return ScrapeResult(
-                url=url,
-                error=str(e)[:100],
-                duration=duration
-            )
+            return ScrapeResult(url=url, error=str(e)[:100], duration=duration)
 
     def scrape_urls(
-        self,
-        urls: list[str],
-        progress_callback: ProgressCallback | None = None
+        self, urls: list[str], progress_callback: ProgressCallback | None = None
     ) -> list[ScrapeResult]:
         """
         Scrape multiple URLs in parallel.
@@ -380,10 +353,7 @@ class ParallelScraper:
 
         with ThreadPoolExecutor(max_workers=self._max_workers) as executor:
             # Submit all tasks
-            future_to_url = {
-                executor.submit(self._scrape_single, url): url
-                for url in unique_urls
-            }
+            future_to_url = {executor.submit(self._scrape_single, url): url for url in unique_urls}
 
             # Collect results as they complete
             for future in as_completed(future_to_url):
@@ -401,16 +371,12 @@ class ParallelScraper:
 
         # Log summary
         successful = sum(1 for r in results if r.success)
-        logger.debug(
-            f"Parallel scrape complete: {successful}/{total} successful"
-        )
+        logger.debug(f"Parallel scrape complete: {successful}/{total} successful")
 
         return results
 
     def scrape_urls_dict(
-        self,
-        urls: list[str],
-        progress_callback: ProgressCallback | None = None
+        self, urls: list[str], progress_callback: ProgressCallback | None = None
     ) -> dict[str, str]:
         """
         Scrape multiple URLs and return as dictionary.
@@ -423,11 +389,7 @@ class ParallelScraper:
             Dictionary mapping URL to content (only successful scrapes)
         """
         results = self.scrape_urls(urls, progress_callback)
-        return {
-            r.url: r.content
-            for r in results
-            if r.success and r.content
-        }
+        return {r.url: r.content for r in results if r.success and r.content}
 
     def get_stats(self) -> dict[str, Any]:
         """Get scraping statistics."""
@@ -444,10 +406,7 @@ class ParallelScraper:
 _default_scraper: ParallelScraper | None = None
 
 
-def get_parallel_scraper(
-    max_workers: int = 5,
-    rate_limit_delay: float = 1.0
-) -> ParallelScraper:
+def get_parallel_scraper(max_workers: int = 5, rate_limit_delay: float = 1.0) -> ParallelScraper:
     """
     Get or create the default parallel scraper.
 
@@ -461,16 +420,13 @@ def get_parallel_scraper(
     global _default_scraper
     if _default_scraper is None:
         _default_scraper = ParallelScraper(
-            max_workers=max_workers,
-            rate_limit_delay=rate_limit_delay
+            max_workers=max_workers, rate_limit_delay=rate_limit_delay
         )
     return _default_scraper
 
 
 def scrape_urls_parallel(
-    urls: list[str],
-    max_workers: int = 5,
-    progress_callback: ProgressCallback | None = None
+    urls: list[str], max_workers: int = 5, progress_callback: ProgressCallback | None = None
 ) -> dict[str, str]:
     """
     Convenience function to scrape URLs in parallel.

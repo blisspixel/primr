@@ -29,14 +29,13 @@ from primr.data.cache import (
 # FIXTURES
 # =============================================================================
 
+
 @pytest.fixture
 def temp_cache():
     """Create a cache with a temporary database."""
     with tempfile.TemporaryDirectory() as tmpdir:
         config = CacheConfig(
-            db_path=str(Path(tmpdir) / "test_cache.db"),
-            default_ttl_hours=1,
-            max_entries=100
+            db_path=str(Path(tmpdir) / "test_cache.db"), default_ttl_hours=1, max_entries=100
         )
         cache = ContentCache(config=config)
         yield cache
@@ -55,6 +54,7 @@ def populated_cache(temp_cache):
 # CACHE CONFIG TESTS
 # =============================================================================
 
+
 class TestCacheConfig:
     """Tests for CacheConfig."""
 
@@ -68,10 +68,7 @@ class TestCacheConfig:
 
     def test_custom_config(self):
         """Test custom configuration."""
-        config = CacheConfig(
-            default_ttl_hours=48,
-            max_entries=5000
-        )
+        config = CacheConfig(default_ttl_hours=48, max_entries=5000)
 
         assert config.default_ttl_hours == 48
         assert config.max_entries == 5000
@@ -80,6 +77,7 @@ class TestCacheConfig:
 # =============================================================================
 # CACHE ENTRY TESTS
 # =============================================================================
+
 
 class TestCacheEntry:
     """Tests for CacheEntry dataclass."""
@@ -92,7 +90,7 @@ class TestCacheEntry:
             tier="requests",
             created_at=datetime.now(),
             expires_at=datetime.now() + timedelta(hours=1),
-            size=100
+            size=100,
         )
 
         assert not entry.is_expired
@@ -105,7 +103,7 @@ class TestCacheEntry:
             tier="requests",
             created_at=datetime.now() - timedelta(hours=2),
             expires_at=datetime.now() - timedelta(hours=1),
-            size=100
+            size=100,
         )
 
         assert entry.is_expired
@@ -118,7 +116,7 @@ class TestCacheEntry:
             tier="requests",
             created_at=datetime.now() - timedelta(hours=2),
             expires_at=datetime.now() + timedelta(hours=1),
-            size=100
+            size=100,
         )
 
         assert 1.9 < entry.age_hours < 2.1
@@ -127,6 +125,7 @@ class TestCacheEntry:
 # =============================================================================
 # CACHE STATS TESTS
 # =============================================================================
+
 
 class TestCacheStats:
     """Tests for CacheStats dataclass."""
@@ -140,7 +139,7 @@ class TestCacheStats:
             miss_count=20,
             expired_count=0,
             oldest_entry=None,
-            newest_entry=None
+            newest_entry=None,
         )
 
         assert stats.hit_rate == 0.8
@@ -154,7 +153,7 @@ class TestCacheStats:
             miss_count=0,
             expired_count=0,
             oldest_entry=None,
-            newest_entry=None
+            newest_entry=None,
         )
 
         assert stats.hit_rate == 0.0
@@ -163,6 +162,7 @@ class TestCacheStats:
 # =============================================================================
 # CONTENT CACHE TESTS
 # =============================================================================
+
 
 class TestContentCache:
     """Tests for ContentCache class."""
@@ -235,24 +235,27 @@ class TestContentCache:
         # Set with very short TTL
         CacheConfig(
             db_path=temp_cache._config.db_path,
-            default_ttl_hours=0  # Immediate expiration
+            default_ttl_hours=0,  # Immediate expiration
         )
 
         # Manually insert expired entry
         with temp_cache._get_connection() as conn:
             past = (datetime.now() - timedelta(hours=1)).isoformat()
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT INTO cache (key, url, content, tier, created_at, expires_at, size)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (
-                temp_cache._get_key("https://expired.com"),
-                "https://expired.com",
-                "Expired content",
-                "requests",
-                past,
-                past,
-                100
-            ))
+            """,
+                (
+                    temp_cache._get_key("https://expired.com"),
+                    "https://expired.com",
+                    "Expired content",
+                    "requests",
+                    past,
+                    past,
+                    100,
+                ),
+            )
             conn.commit()
 
         content = temp_cache.get("https://expired.com")
@@ -263,18 +266,21 @@ class TestContentCache:
         # Insert expired entry
         with temp_cache._get_connection() as conn:
             past = (datetime.now() - timedelta(hours=1)).isoformat()
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT INTO cache (key, url, content, tier, created_at, expires_at, size)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (
-                "expired_key",
-                "https://expired.com",
-                "Expired content",
-                "requests",
-                past,
-                past,
-                100
-            ))
+            """,
+                (
+                    "expired_key",
+                    "https://expired.com",
+                    "Expired content",
+                    "requests",
+                    past,
+                    past,
+                    100,
+                ),
+            )
             conn.commit()
 
         # Add valid entry
@@ -290,6 +296,7 @@ class TestContentCache:
 # =============================================================================
 # STATISTICS TESTS
 # =============================================================================
+
 
 class TestCacheStatistics:
     """Tests for cache statistics."""
@@ -347,6 +354,7 @@ class TestCacheStatistics:
 # DOMAIN OPERATIONS TESTS
 # =============================================================================
 
+
 class TestDomainOperations:
     """Tests for domain-based operations."""
 
@@ -378,11 +386,13 @@ class TestDomainOperations:
 # CACHE WARMING TESTS
 # =============================================================================
 
+
 class TestCacheWarming:
     """Tests for cache warming."""
 
     def test_warm_cache(self, temp_cache):
         """Test warming cache with URLs."""
+
         def mock_scrape(url):
             return f"Content from {url}", "mock"
 
@@ -397,6 +407,7 @@ class TestCacheWarming:
         temp_cache.set("https://existing.com", "Existing content")
 
         scrape_calls = []
+
         def mock_scrape(url):
             scrape_calls.append(url)
             return f"Content from {url}", "mock"
@@ -410,6 +421,7 @@ class TestCacheWarming:
 
     def test_warm_handles_failures(self, temp_cache):
         """Test that warming handles scrape failures."""
+
         def mock_scrape(url):
             if "fail" in url:
                 raise Exception("Scrape failed")
@@ -426,6 +438,7 @@ class TestCacheWarming:
 # THREAD SAFETY TESTS
 # =============================================================================
 
+
 class TestThreadSafety:
     """Tests for thread safety."""
 
@@ -440,10 +453,7 @@ class TestThreadSafety:
             except Exception as e:
                 errors.append(e)
 
-        threads = [
-            threading.Thread(target=write_entries, args=(i * 100, 100))
-            for i in range(5)
-        ]
+        threads = [threading.Thread(target=write_entries, args=(i * 100, 100)) for i in range(5)]
 
         for t in threads:
             t.start()
@@ -469,10 +479,7 @@ class TestThreadSafety:
             except Exception as e:
                 errors.append(e)
 
-        threads = [
-            threading.Thread(target=read_entries, args=(100,))
-            for _ in range(5)
-        ]
+        threads = [threading.Thread(target=read_entries, args=(100,)) for _ in range(5)]
 
         for t in threads:
             t.start()
@@ -486,6 +493,7 @@ class TestThreadSafety:
 # =============================================================================
 # SINGLETON TESTS
 # =============================================================================
+
 
 class TestSingleton:
     """Tests for singleton access."""
@@ -517,6 +525,7 @@ class TestSingleton:
 # =============================================================================
 # CONVENIENCE FUNCTION TESTS
 # =============================================================================
+
 
 class TestConvenienceFunctions:
     """Tests for convenience functions."""

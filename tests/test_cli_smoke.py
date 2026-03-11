@@ -133,9 +133,9 @@ class TestCLISmokeTests:
             # Known Windows encoding issue with Unicode characters
             if "UnicodeEncodeError" in stderr or "charmap" in stderr:
                 pytest.skip("Windows Unicode encoding issue with usage display")
-        assert result.returncode == 0, f"--show-usage failed: {result.stderr.decode(errors='replace')}"
-
-
+        assert result.returncode == 0, (
+            f"--show-usage failed: {result.stderr.decode(errors='replace')}"
+        )
 
 
 # =============================================================================
@@ -178,17 +178,42 @@ invalid_flag_strategy = st.text(
     min_size=3,
     max_size=20,
 ).filter(
-    lambda x: x not in {
-        "help", "version", "mode", "quiet", "verbose", "csv",
-        "dry-run", "show-usage", "list-recent", "clean-temp",
-        "check-quota", "check-jobs", "open",
-        "output-dir", "context", "context-folder", "confirm",
-        "ai-strategy", "no-ai-strategy", "cloud-vendor",
-        "citation-style", "refresh-vendor-research",
-        "generate-vendor-research", "strategy", "strategy-only",
-        "no-qa", "qa", "qa-recent", "test-accordion", "accordion-pages",
-        "analyze-report",
-    }
+    lambda x: (
+        x
+        not in {
+            "help",
+            "version",
+            "mode",
+            "quiet",
+            "verbose",
+            "csv",
+            "dry-run",
+            "show-usage",
+            "list-recent",
+            "clean-temp",
+            "check-quota",
+            "check-jobs",
+            "open",
+            "output-dir",
+            "context",
+            "context-folder",
+            "confirm",
+            "ai-strategy",
+            "no-ai-strategy",
+            "cloud-vendor",
+            "citation-style",
+            "refresh-vendor-research",
+            "generate-vendor-research",
+            "strategy",
+            "strategy-only",
+            "no-qa",
+            "qa",
+            "qa-recent",
+            "test-accordion",
+            "accordion-pages",
+            "analyze-report",
+        }
+    )
 )
 
 

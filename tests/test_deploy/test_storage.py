@@ -27,6 +27,7 @@ def _has_module(name: str) -> bool:
     except (ModuleNotFoundError, ValueError):
         return False
 
+
 from deploy.manifest import (
     JobCost,
     JobInputs,
@@ -379,7 +380,9 @@ class TestS3StoreMocked:
     def test_presign_generates_url(self):
         """Test that presign generates presigned URL."""
         mock_client = MagicMock()
-        mock_client.generate_presigned_url.return_value = "https://s3.amazonaws.com/test-bucket/prod/job-123/artifact.txt?signature=abc"
+        mock_client.generate_presigned_url.return_value = (
+            "https://s3.amazonaws.com/test-bucket/prod/job-123/artifact.txt?signature=abc"
+        )
 
         store = S3Store("test-bucket", "prod", client=mock_client)
 
@@ -470,7 +473,9 @@ class TestGCSStoreMocked:
         """Test that presign generates signed URL."""
         mock_bucket = MagicMock()
         mock_blob = MagicMock()
-        mock_blob.generate_signed_url.return_value = "https://storage.googleapis.com/test-bucket/prod/job-123/artifact.txt?signature=abc"
+        mock_blob.generate_signed_url.return_value = (
+            "https://storage.googleapis.com/test-bucket/prod/job-123/artifact.txt?signature=abc"
+        )
         mock_bucket.blob.return_value = mock_blob
 
         store = GCSStore("test-bucket", "prod", bucket=mock_bucket)

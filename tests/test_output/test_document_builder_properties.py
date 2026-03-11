@@ -22,45 +22,60 @@ class TestChapterGrouping:
     def test_all_sections_have_chapter_assignment(self):
         """Every section in CHAPTER_CONFIG has a valid chapter assignment."""
         for chapter_name, chapter_data in CHAPTER_CONFIG.items():
-            sections = chapter_data.get('sections', [])
+            sections = chapter_data.get("sections", [])
             assert len(sections) > 0, f"Chapter '{chapter_name}' has no sections"
 
             for _section_title, section_key in sections:
                 chapter, num = get_chapter_for_section(section_key)
-                assert chapter == chapter_name, \
+                assert chapter == chapter_name, (
                     f"Section '{section_key}' should be in '{chapter_name}' but got '{chapter}'"
+                )
 
     def test_section_numbers_are_sequential(self):
         """Section numbers within each chapter are sequential."""
         for chapter_num, (_chapter_name, chapter_data) in enumerate(CHAPTER_CONFIG.items(), 1):
-            sections = chapter_data.get('sections', [])
+            sections = chapter_data.get("sections", [])
 
             for section_idx, (_section_title, section_key) in enumerate(sections, 1):
                 expected_num = f"{chapter_num}.{section_idx}"
                 actual_num = get_section_number(section_key)
-                assert actual_num == expected_num, \
+                assert actual_num == expected_num, (
                     f"Section '{section_key}' should be '{expected_num}' but got '{actual_num}'"
+                )
 
     def test_chapter_config_has_five_chapters(self):
         """CHAPTER_CONFIG has exactly 5 chapters as per design."""
         assert len(CHAPTER_CONFIG) == 5, f"Expected 5 chapters, got {len(CHAPTER_CONFIG)}"
 
     @settings(max_examples=50)
-    @given(section_key=st.sampled_from([
-        'mission_vision', 'company_history', 'key_achievements',
-        'detailed_products_services', 'unique_selling_proposition',
-        'target_audience', 'main_types_of_users',
-        'financial_overview', 'business_drivers_and_kpis',
-        'primary_apps_sources_of_data',
-        'industry_insights', 'potential_business_value', 'potential_business_drivers',
-        'board_of_directors_concerns', 'value_theory', 'strategic_recommendations'
-    ]))
+    @given(
+        section_key=st.sampled_from(
+            [
+                "mission_vision",
+                "company_history",
+                "key_achievements",
+                "detailed_products_services",
+                "unique_selling_proposition",
+                "target_audience",
+                "main_types_of_users",
+                "financial_overview",
+                "business_drivers_and_kpis",
+                "primary_apps_sources_of_data",
+                "industry_insights",
+                "potential_business_value",
+                "potential_business_drivers",
+                "board_of_directors_concerns",
+                "value_theory",
+                "strategic_recommendations",
+            ]
+        )
+    )
     def test_get_section_number_returns_valid_format(self, section_key):
         """get_section_number returns valid X.Y format for all sections."""
         section_num = get_section_number(section_key)
 
         assert section_num, f"Section '{section_key}' has no number"
-        parts = section_num.split('.')
+        parts = section_num.split(".")
         assert len(parts) == 2, f"Section number '{section_num}' should be X.Y format"
         assert parts[0].isdigit(), "Chapter number should be digit"
         assert parts[1].isdigit(), "Section number should be digit"
@@ -82,12 +97,12 @@ class TestNestedListIndentation:
         from primr.output.markdown_parser import MarkdownParser
 
         parser = MarkdownParser()
-        indent = '    ' * indent_level
+        indent = "    " * indent_level
         line = f"{indent}* Test bullet"
 
         result = parser.parse_line(line)
 
-        assert result.type == 'bullet'
+        assert result.type == "bullet"
         assert result.level == indent_level
 
     def test_nested_bullets_maintain_hierarchy(self):
@@ -104,7 +119,7 @@ class TestNestedListIndentation:
         blocks = parser.parse_content(content)
 
         # Should be one bullet_list block
-        bullet_blocks = [b for b in blocks if b.type == 'bullet_list']
+        bullet_blocks = [b for b in blocks if b.type == "bullet_list"]
         assert len(bullet_blocks) == 1
 
         # Check levels
@@ -127,14 +142,14 @@ class TestDefensiveParsing:
 
         # Content with various edge cases that might break parsing
         malformed_sections = {
-            'company_overview': '# Broken\n\n```unclosed code block\nsome code',
-            'detailed_products_services': '| broken | table\n| no | closing',
-            'mission_vision': '**unclosed bold\n\n*unclosed italic',
-            'financial_overview': '\x00\x01\x02 binary garbage \xff\xfe',
+            "company_overview": "# Broken\n\n```unclosed code block\nsome code",
+            "detailed_products_services": "| broken | table\n| no | closing",
+            "mission_vision": "**unclosed bold\n\n*unclosed italic",
+            "financial_overview": "\x00\x01\x02 binary garbage \xff\xfe",
         }
 
         # Should not raise any exception
-        builder = DocumentBuilder('Test Company', malformed_sections)
+        builder = DocumentBuilder("Test Company", malformed_sections)
         document = builder.build()
 
         # Document should still be created
@@ -146,12 +161,12 @@ class TestDefensiveParsing:
         from primr.output.document_builder import DocumentBuilder
 
         empty_sections = {
-            'company_overview': '',
-            'detailed_products_services': '   ',
-            'mission_vision': '\n\n\n',
+            "company_overview": "",
+            "detailed_products_services": "   ",
+            "mission_vision": "\n\n\n",
         }
 
-        builder = DocumentBuilder('Test Company', empty_sections)
+        builder = DocumentBuilder("Test Company", empty_sections)
         document = builder.build()
 
         assert document is not None
@@ -162,11 +177,11 @@ class TestDefensiveParsing:
 
         # Mix of valid and None content
         sections = {
-            'company_overview': 'Valid content here',
-            'detailed_products_services': None,
+            "company_overview": "Valid content here",
+            "detailed_products_services": None,
         }
 
-        builder = DocumentBuilder('Test Company', sections)
+        builder = DocumentBuilder("Test Company", sections)
         document = builder.build()
 
         assert document is not None
@@ -177,10 +192,10 @@ class TestDefensiveParsing:
         """DocumentBuilder never crashes on arbitrary text input."""
         from primr.output.document_builder import DocumentBuilder
 
-        sections = {'company_overview': content}
+        sections = {"company_overview": content}
 
         # Should never raise
-        builder = DocumentBuilder('Test Company', sections)
+        builder = DocumentBuilder("Test Company", sections)
         document = builder.build()
 
         assert document is not None

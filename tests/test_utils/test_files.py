@@ -318,29 +318,33 @@ class TestOpenWithDefaultApp:
     def test_windows_uses_startfile(self, tmp_path):
         path = tmp_path / "report.txt"
         path.write_text("ok", encoding="utf-8")
-        with patch("primr.utils.files.platform.system", return_value="Windows"), patch(
-            "primr.utils.files.os.startfile", create=True
-        ) as mock_startfile:
+        with (
+            patch("primr.utils.files.platform.system", return_value="Windows"),
+            patch("primr.utils.files.os.startfile", create=True) as mock_startfile,
+        ):
             open_with_default_app(path)
         mock_startfile.assert_called_once()
 
     def test_darwin_uses_open_command(self, tmp_path):
         path = tmp_path / "report.txt"
         path.write_text("ok", encoding="utf-8")
-        with patch("primr.utils.files.platform.system", return_value="Darwin"), patch(
-            "primr.utils.files.shutil.which", return_value="/usr/bin/open"
-        ), patch("primr.utils.files.subprocess.run") as mock_run:
+        with (
+            patch("primr.utils.files.platform.system", return_value="Darwin"),
+            patch("primr.utils.files.shutil.which", return_value="/usr/bin/open"),
+            patch("primr.utils.files.subprocess.run") as mock_run,
+        ):
             open_with_default_app(path)
         mock_run.assert_called_once()
 
     def test_linux_falls_back_to_webbrowser(self, tmp_path):
         path = tmp_path / "report.txt"
         path.write_text("ok", encoding="utf-8")
-        with patch("primr.utils.files.platform.system", return_value="Linux"), patch(
-            "primr.utils.files.shutil.which", return_value=None
-        ), patch("primr.utils.files.webbrowser.open", return_value=True) as mock_browser, patch(
-            "primr.utils.files.subprocess.run"
-        ) as mock_run:
+        with (
+            patch("primr.utils.files.platform.system", return_value="Linux"),
+            patch("primr.utils.files.shutil.which", return_value=None),
+            patch("primr.utils.files.webbrowser.open", return_value=True) as mock_browser,
+            patch("primr.utils.files.subprocess.run") as mock_run,
+        ):
             open_with_default_app(path)
         mock_run.assert_not_called()
         mock_browser.assert_called_once()

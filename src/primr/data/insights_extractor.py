@@ -28,8 +28,7 @@ def generate_ai_response(prompt, retries=MAX_RETRIES, min_length=200):
     while attempt < retries:
         try:
             response = _client.models.generate_content(
-                model=PrimrModels.FAST_MODEL,
-                contents=prompt
+                model=PrimrModels.FAST_MODEL, contents=prompt
             )
 
             if not response or not hasattr(response, "text"):
@@ -104,11 +103,7 @@ def extract_insights(search_results, scraped_content):
             if topic not in structured_insights:
                 structured_insights[topic] = []
 
-            structured_insights[topic].append({
-                "source": title,
-                "url": url,
-                "insights": summary
-            })
+            structured_insights[topic].append({"source": title, "url": url, "insights": summary})
 
             combined_summaries += f"- **{title}** ({url}): {summary}\n"
 

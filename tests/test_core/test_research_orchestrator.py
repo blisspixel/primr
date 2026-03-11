@@ -43,11 +43,7 @@ class TestResearchConfig:
 
     def test_custom_config(self):
         """Create config with custom values."""
-        config = ResearchConfig(
-            mode=ResearchMode.DEEP_RESEARCH,
-            timeout=1800,
-            poll_interval=5
-        )
+        config = ResearchConfig(mode=ResearchMode.DEEP_RESEARCH, timeout=1800, poll_interval=5)
 
         assert config.mode == ResearchMode.DEEP_RESEARCH
         assert config.timeout == 1800
@@ -64,7 +60,7 @@ class TestOrchestratorResult:
             website="https://acme.example",
             mode=ResearchMode.STRUCTURED,
             section_results={"company_overview": "Content"},
-            success=True
+            success=True,
         )
 
         assert result.success is True
@@ -79,7 +75,7 @@ class TestOrchestratorResult:
             mode=ResearchMode.DEEP_RESEARCH,
             section_results={},
             success=False,
-            error="API timeout"
+            error="API timeout",
         )
 
         assert result.success is False
@@ -88,10 +84,7 @@ class TestOrchestratorResult:
     def test_result_has_timestamp(self):
         """Result includes timestamp."""
         result = OrchestratorResult(
-            company_name="Test",
-            website=None,
-            mode=ResearchMode.STRUCTURED,
-            section_results={}
+            company_name="Test", website=None, mode=ResearchMode.STRUCTURED, section_results={}
         )
 
         assert isinstance(result.timestamp, datetime)
@@ -120,7 +113,7 @@ class TestResearchOrchestrator:
 
     def test_lazy_load_deep_research_client(self):
         """Deep research client is lazy loaded."""
-        with patch('primr.core.research_orchestrator.DeepResearchClient') as mock_client:
+        with patch("primr.core.research_orchestrator.DeepResearchClient") as mock_client:
             orchestrator = ResearchOrchestrator()
 
             # Not loaded yet
@@ -161,7 +154,9 @@ class TestHeaderMapping:
         """Map competitive headers."""
         orchestrator = ResearchOrchestrator()
 
-        assert orchestrator._map_header_to_section("competitive landscape") == "competitive_position"
+        assert (
+            orchestrator._map_header_to_section("competitive landscape") == "competitive_position"
+        )
         assert orchestrator._map_header_to_section("competition") == "competitive_position"
 
     def test_map_unknown_header(self):
@@ -193,8 +188,8 @@ Product details here.
 
         sections = orchestrator._normalize_deep_research_result(mock_result)
 
-        assert 'company_overview' in sections
-        assert 'detailed_products_services' in sections
+        assert "company_overview" in sections
+        assert "detailed_products_services" in sections
 
     def test_normalize_no_sections(self):
         """Content without sections goes to overview."""
@@ -206,8 +201,8 @@ Product details here.
 
         sections = orchestrator._normalize_deep_research_result(mock_result)
 
-        assert 'company_overview' in sections
-        assert "plain text" in sections['company_overview']
+        assert "company_overview" in sections
+        assert "plain text" in sections["company_overview"]
 
     def test_normalize_empty_content(self):
         """Empty content returns overview with empty string."""
@@ -219,7 +214,7 @@ Product details here.
 
         sections = orchestrator._normalize_deep_research_result(mock_result)
 
-        assert 'company_overview' in sections
+        assert "company_overview" in sections
 
 
 class TestSingletonAccess:
@@ -277,20 +272,21 @@ class TestCompleteMode:
         """_prepare_step1_context creates a markdown file."""
         import os
         import time
+
         orchestrator = ResearchOrchestrator()
 
         section_results = {
             "company_overview": "Test company overview content",
-            "products_services": "Test products content"
+            "products_services": "Test products content",
         }
 
         filepath = orchestrator._prepare_step1_context("TestCo", section_results)
 
         try:
             assert os.path.exists(filepath)
-            assert filepath.endswith('.txt')  # Changed from .md for MIME type compatibility
+            assert filepath.endswith(".txt")  # Changed from .md for MIME type compatibility
 
-            with open(filepath, encoding='utf-8') as f:
+            with open(filepath, encoding="utf-8") as f:
                 content = f.read()
 
             assert "TestCo" in content
@@ -310,18 +306,19 @@ class TestCompleteMode:
         """_prepare_step1_context includes all section content."""
         import os
         import time
+
         orchestrator = ResearchOrchestrator()
 
         section_results = {
             "section_a": "Content A",
             "section_b": "Content B",
-            "section_c": "Content C"
+            "section_c": "Content C",
         }
 
         filepath = orchestrator._prepare_step1_context("TestCo", section_results)
 
         try:
-            with open(filepath, encoding='utf-8') as f:
+            with open(filepath, encoding="utf-8") as f:
                 content = f.read()
 
             assert "Content A" in content
@@ -343,11 +340,11 @@ class TestCompleteMode:
 
         step1 = {
             "company_overview": "Step 1 overview (ground truth)",
-            "detailed_products_services": "Step 1 products"
+            "detailed_products_services": "Step 1 products",
         }
         step2 = {
             "company_overview": "Step 2 overview (should be ignored)",
-            "competitive_position": "Step 2 competitive analysis"
+            "competitive_position": "Step 2 competitive analysis",
         }
 
         merged = orchestrator._merge_research_results(step1, step2)
@@ -365,11 +362,11 @@ class TestCompleteMode:
 
         step1 = {
             "competitive_position": "Step 1 basic competitors",
-            "strategic_recommendations": "Step 1 basic recs"
+            "strategic_recommendations": "Step 1 basic recs",
         }
         step2 = {
             "competitive_position": "Step 2 deep competitive analysis",
-            "strategic_recommendations": "Step 2 strategic recs"
+            "strategic_recommendations": "Step 2 strategic recs",
         }
 
         merged = orchestrator._merge_research_results(step1, step2)
@@ -382,14 +379,8 @@ class TestCompleteMode:
         """Merge includes unique sections from both steps."""
         orchestrator = ResearchOrchestrator()
 
-        step1 = {
-            "company_overview": "Overview",
-            "unique_step1_section": "Only in step 1"
-        }
-        step2 = {
-            "competitive_position": "Competition",
-            "unique_step2_section": "Only in step 2"
-        }
+        step1 = {"company_overview": "Overview", "unique_step1_section": "Only in step 1"}
+        step2 = {"competitive_position": "Competition", "unique_step2_section": "Only in step 2"}
 
         merged = orchestrator._merge_research_results(step1, step2)
 
@@ -405,7 +396,7 @@ class TestCompleteMode:
         step1 = {}
         step2 = {
             "company_overview": "Step 2 overview",
-            "competitive_position": "Step 2 competition"
+            "competitive_position": "Step 2 competition",
         }
 
         merged = orchestrator._merge_research_results(step1, step2)
@@ -419,7 +410,7 @@ class TestCompleteMode:
 
         step1 = {
             "company_overview": "Step 1 overview",
-            "detailed_products_services": "Step 1 products"
+            "detailed_products_services": "Step 1 products",
         }
         step2 = {}
 

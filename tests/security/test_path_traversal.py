@@ -27,8 +27,9 @@ class TestPathTraversalProtection:
             with pytest.raises(InputValidationError) as exc_info:
                 validate_file_path(path, base_dir=Path("/safe/dir"))
             error_msg = str(exc_info.value).lower()
-            assert "traversal" in error_msg or "not allowed" in error_msg, \
+            assert "traversal" in error_msg or "not allowed" in error_msg, (
                 f"Error should mention traversal: {exc_info.value}"
+            )
 
     def test_validate_file_path_allows_safe_paths(self):
         """Test that safe paths are allowed."""

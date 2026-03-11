@@ -34,13 +34,13 @@ from primr.utils.telemetry import (
 # =============================================================================
 
 # Strategy for generating valid operation names (alphanumeric with underscores)
-operation_name_strategy = st.from_regex(r'[a-zA-Z][a-zA-Z0-9_]{0,49}', fullmatch=True)
+operation_name_strategy = st.from_regex(r"[a-zA-Z][a-zA-Z0-9_]{0,49}", fullmatch=True)
 
 # Strategy for generating phase names
 phase_strategy = st.sampled_from(["scraping", "generation", "output", "processing", None])
 
 # Strategy for generating service names (alphanumeric with dashes and underscores)
-service_name_strategy = st.from_regex(r'[a-zA-Z][a-zA-Z0-9_-]{0,29}', fullmatch=True)
+service_name_strategy = st.from_regex(r"[a-zA-Z][a-zA-Z0-9_-]{0,29}", fullmatch=True)
 
 # Strategy for generating sampling rates
 sampling_rate_strategy = st.floats(min_value=0.0, max_value=1.0, allow_nan=False)
@@ -50,36 +50,45 @@ exporter_type_strategy = st.sampled_from([e.value for e in ExporterType])
 
 # Strategy for generating span attributes (JSON-serializable)
 json_value_strategy = st.recursive(
-    st.none() | st.booleans() | st.integers(min_value=-1000000, max_value=1000000) |
-    st.floats(allow_nan=False, allow_infinity=False, min_value=-1e6, max_value=1e6) |
-    st.text(max_size=50),
-    lambda children: st.lists(children, max_size=3) | st.dictionaries(
-        st.from_regex(r'[a-zA-Z_][a-zA-Z0-9_]{0,19}', fullmatch=True),
-        children,
-        max_size=3
+    st.none()
+    | st.booleans()
+    | st.integers(min_value=-1000000, max_value=1000000)
+    | st.floats(allow_nan=False, allow_infinity=False, min_value=-1e6, max_value=1e6)
+    | st.text(max_size=50),
+    lambda children: (
+        st.lists(children, max_size=3)
+        | st.dictionaries(
+            st.from_regex(r"[a-zA-Z_][a-zA-Z0-9_]{0,19}", fullmatch=True), children, max_size=3
+        )
     ),
-    max_leaves=5
+    max_leaves=5,
 )
 
 attributes_strategy = st.dictionaries(
-    st.from_regex(r'[a-zA-Z_][a-zA-Z0-9_]{0,19}', fullmatch=True),
-    json_value_strategy,
-    max_size=5
+    st.from_regex(r"[a-zA-Z_][a-zA-Z0-9_]{0,19}", fullmatch=True), json_value_strategy, max_size=5
 )
 
 # Strategy for generating correlation IDs (8 alphanumeric characters)
-correlation_id_strategy = st.from_regex(r'[a-zA-Z0-9]{8}', fullmatch=True)
+correlation_id_strategy = st.from_regex(r"[a-zA-Z0-9]{8}", fullmatch=True)
 
 # Strategy for generating event names
-event_name_strategy = st.sampled_from([
-    "api_call", "cache_hit", "cache_miss", "tier_escalation",
-    "request_start", "request_end", "error_occurred"
-])
+event_name_strategy = st.sampled_from(
+    [
+        "api_call",
+        "cache_hit",
+        "cache_miss",
+        "tier_escalation",
+        "request_start",
+        "request_end",
+        "error_occurred",
+    ]
+)
 
 
 # =============================================================================
 # PROPERTY 11: SPAN ATTRIBUTE COMPLETENESS
 # =============================================================================
+
 
 class TestSpanAttributeCompleteness:
     """
@@ -93,9 +102,7 @@ class TestSpanAttributeCompleteness:
     """
 
     @given(
-        operation_name=operation_name_strategy,
-        phase=phase_strategy,
-        attributes=attributes_strategy
+        operation_name=operation_name_strategy, phase=phase_strategy, attributes=attributes_strategy
     )
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_span_has_correlation_id_and_operation_name_disabled(
@@ -117,9 +124,7 @@ class TestSpanAttributeCompleteness:
             span.add_event("test_event")
 
     @given(
-        operation_name=operation_name_strategy,
-        phase=phase_strategy,
-        attributes=attributes_strategy
+        operation_name=operation_name_strategy, phase=phase_strategy, attributes=attributes_strategy
     )
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_span_with_phase_includes_phase_attribute(
@@ -139,10 +144,7 @@ class TestSpanAttributeCompleteness:
             if phase is not None:
                 span.set_attribute("phase", phase)
 
-    @given(
-        operation_name=operation_name_strategy,
-        attributes=attributes_strategy
-    )
+    @given(operation_name=operation_name_strategy, attributes=attributes_strategy)
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_span_inherits_correlation_id_from_context(
         self, operation_name: str, attributes: dict[str, Any]
@@ -162,14 +164,9 @@ class TestSpanAttributeCompleteness:
                 assert actual_correlation_id == expected_correlation_id
 
     @pytest.mark.skipif(not is_otel_available(), reason="OpenTelemetry not installed")
-    @given(
-        operation_name=operation_name_strategy,
-        phase=phase_strategy
-    )
+    @given(operation_name=operation_name_strategy, phase=phase_strategy)
     @settings(max_examples=50, suppress_health_check=[HealthCheck.too_slow])
-    def test_span_attributes_with_otel_enabled(
-        self, operation_name: str, phase: str | None
-    ):
+    def test_span_attributes_with_otel_enabled(self, operation_name: str, phase: str | None):
         """
         When OpenTelemetry is available and enabled, spans should have proper attributes.
         """
@@ -188,6 +185,7 @@ class TestSpanAttributeCompleteness:
 # PROPERTY 12: ERROR RECORDING IN SPANS
 # =============================================================================
 
+
 class TestErrorRecordingInSpans:
     """
     **Property 12: Error Recording in Spans**
@@ -201,12 +199,10 @@ class TestErrorRecordingInSpans:
 
     @given(
         operation_name=operation_name_strategy,
-        error_message=st.text(min_size=1, max_size=100).filter(lambda x: x.strip())
+        error_message=st.text(min_size=1, max_size=100).filter(lambda x: x.strip()),
     )
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
-    def test_exception_is_recorded_in_span_disabled(
-        self, operation_name: str, error_message: str
-    ):
+    def test_exception_is_recorded_in_span_disabled(self, operation_name: str, error_message: str):
         """
         Exceptions raised within a span should be recorded.
         When telemetry is disabled, the exception should still propagate.
@@ -222,12 +218,10 @@ class TestErrorRecordingInSpans:
 
     @given(
         operation_name=operation_name_strategy,
-        error_message=st.text(min_size=1, max_size=100).filter(lambda x: x.strip())
+        error_message=st.text(min_size=1, max_size=100).filter(lambda x: x.strip()),
     )
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
-    def test_exception_type_is_preserved(
-        self, operation_name: str, error_message: str
-    ):
+    def test_exception_type_is_preserved(self, operation_name: str, error_message: str):
         """
         The exception type should be preserved when raised within a span.
         """
@@ -242,10 +236,10 @@ class TestErrorRecordingInSpans:
 
     @given(
         operation_name=operation_name_strategy,
-        error_types=st.sampled_from([
-            ValueError, TypeError, RuntimeError, KeyError, AttributeError
-        ]),
-        error_message=st.text(min_size=1, max_size=50).filter(lambda x: x.strip())
+        error_types=st.sampled_from(
+            [ValueError, TypeError, RuntimeError, KeyError, AttributeError]
+        ),
+        error_message=st.text(min_size=1, max_size=50).filter(lambda x: x.strip()),
     )
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_various_exception_types_are_handled(
@@ -263,12 +257,10 @@ class TestErrorRecordingInSpans:
     @pytest.mark.skipif(not is_otel_available(), reason="OpenTelemetry not installed")
     @given(
         operation_name=operation_name_strategy,
-        error_message=st.text(min_size=1, max_size=50).filter(lambda x: x.strip())
+        error_message=st.text(min_size=1, max_size=50).filter(lambda x: x.strip()),
     )
     @settings(max_examples=50, suppress_health_check=[HealthCheck.too_slow])
-    def test_exception_recorded_with_otel_enabled(
-        self, operation_name: str, error_message: str
-    ):
+    def test_exception_recorded_with_otel_enabled(self, operation_name: str, error_message: str):
         """
         When OpenTelemetry is enabled, exceptions should be recorded on the span.
         """
@@ -283,6 +275,7 @@ class TestErrorRecordingInSpans:
 # =============================================================================
 # PROPERTY 13: ASYNC CONTEXT PROPAGATION
 # =============================================================================
+
 
 class TestAsyncContextPropagation:
     """
@@ -323,6 +316,7 @@ class TestAsyncContextPropagation:
         """
         Correlation ID should propagate correctly using the context manager.
         """
+
         async def check_correlation_id():
             return get_async_correlation_id()
 
@@ -337,15 +331,13 @@ class TestAsyncContextPropagation:
 
         asyncio.run(run_test())
 
-    @given(
-        outer_id=correlation_id_strategy,
-        inner_id=correlation_id_strategy
-    )
+    @given(outer_id=correlation_id_strategy, inner_id=correlation_id_strategy)
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_nested_async_context_propagation(self, outer_id: str, inner_id: str):
         """
         Nested async contexts should properly manage correlation IDs.
         """
+
         async def run_test():
             async with propagate_correlation_id(outer_id):
                 assert get_async_correlation_id() == outer_id
@@ -368,6 +360,7 @@ class TestAsyncContextPropagation:
         """
         run_with_correlation_id should properly set context for coroutine.
         """
+
         async def get_id():
             return get_async_correlation_id()
 
@@ -380,14 +373,9 @@ class TestAsyncContextPropagation:
 
         asyncio.run(run_test())
 
-    @given(
-        correlation_id=correlation_id_strategy,
-        operation_name=operation_name_strategy
-    )
+    @given(correlation_id=correlation_id_strategy, operation_name=operation_name_strategy)
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
-    def test_async_span_propagates_correlation_id(
-        self, correlation_id: str, operation_name: str
-    ):
+    def test_async_span_propagates_correlation_id(self, correlation_id: str, operation_name: str):
         """
         async_span should propagate correlation_id across async boundaries.
         """
@@ -412,6 +400,7 @@ class TestAsyncContextPropagation:
         """
         Correlation ID should propagate to tasks spawned within the context.
         """
+
         async def inner_task():
             return get_async_correlation_id()
 
@@ -425,10 +414,7 @@ class TestAsyncContextPropagation:
 
         asyncio.run(run_test())
 
-    @given(
-        correlation_id=correlation_id_strategy,
-        operation_name=operation_name_strategy
-    )
+    @given(correlation_id=correlation_id_strategy, operation_name=operation_name_strategy)
     @settings(max_examples=50, suppress_health_check=[HealthCheck.too_slow])
     def test_telemetry_system_uses_async_correlation_id(
         self, correlation_id: str, operation_name: str
@@ -455,6 +441,7 @@ class TestAsyncContextPropagation:
 # ADDITIONAL TELEMETRY CONFIGURATION TESTS
 # =============================================================================
 
+
 class TestTelemetryConfiguration:
     """
     Additional tests for TelemetryConfig validation and behavior.
@@ -466,7 +453,7 @@ class TestTelemetryConfiguration:
         enabled=st.booleans(),
         service_name=service_name_strategy,
         exporter_type=exporter_type_strategy,
-        sampling_rate=sampling_rate_strategy
+        sampling_rate=sampling_rate_strategy,
     )
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_valid_config_creation(
@@ -479,7 +466,7 @@ class TestTelemetryConfiguration:
             enabled=enabled,
             service_name=service_name,
             exporter_type=exporter_type,
-            sampling_rate=sampling_rate
+            sampling_rate=sampling_rate,
         )
 
         assert config.enabled == enabled
@@ -488,7 +475,9 @@ class TestTelemetryConfiguration:
         assert config.sampling_rate == sampling_rate
 
     @given(sampling_rate=st.floats().filter(lambda x: x < 0.0 or x > 1.0))
-    @settings(max_examples=50, suppress_health_check=[HealthCheck.too_slow, HealthCheck.filter_too_much])
+    @settings(
+        max_examples=50, suppress_health_check=[HealthCheck.too_slow, HealthCheck.filter_too_much]
+    )
     def test_invalid_sampling_rate_raises_error(self, sampling_rate: float):
         """
         Invalid sampling rate should raise ValueError.
@@ -496,10 +485,14 @@ class TestTelemetryConfiguration:
         with pytest.raises(ValueError, match="sampling_rate"):
             TelemetryConfig(sampling_rate=sampling_rate)
 
-    @given(exporter_type=st.text(min_size=1, max_size=20).filter(
-        lambda x: x not in {e.value for e in ExporterType}
-    ))
-    @settings(max_examples=50, suppress_health_check=[HealthCheck.too_slow, HealthCheck.filter_too_much])
+    @given(
+        exporter_type=st.text(min_size=1, max_size=20).filter(
+            lambda x: x not in {e.value for e in ExporterType}
+        )
+    )
+    @settings(
+        max_examples=50, suppress_health_check=[HealthCheck.too_slow, HealthCheck.filter_too_much]
+    )
     def test_invalid_exporter_type_raises_error(self, exporter_type: str):
         """
         Invalid exporter type should raise ValueError.
@@ -541,6 +534,7 @@ class TestTelemetryConfiguration:
 # RECORD EVENT TESTS
 # =============================================================================
 
+
 class TestRecordEvent:
     """
     Tests for record_event functionality.
@@ -548,10 +542,7 @@ class TestRecordEvent:
     **Validates: Requirements 4.5**
     """
 
-    @given(
-        event_name=event_name_strategy,
-        attributes=attributes_strategy
-    )
+    @given(event_name=event_name_strategy, attributes=attributes_strategy)
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_record_event_does_not_raise_when_disabled(
         self, event_name: str, attributes: dict[str, Any]
@@ -568,7 +559,7 @@ class TestRecordEvent:
     @given(
         operation_name=operation_name_strategy,
         event_name=event_name_strategy,
-        attributes=attributes_strategy
+        attributes=attributes_strategy,
     )
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_record_event_within_span_does_not_raise(
@@ -585,14 +576,9 @@ class TestRecordEvent:
             telemetry.record_event(event_name, attributes)
 
     @pytest.mark.skipif(not is_otel_available(), reason="OpenTelemetry not installed")
-    @given(
-        operation_name=operation_name_strategy,
-        event_name=event_name_strategy
-    )
+    @given(operation_name=operation_name_strategy, event_name=event_name_strategy)
     @settings(max_examples=50, suppress_health_check=[HealthCheck.too_slow])
-    def test_record_event_with_otel_enabled(
-        self, operation_name: str, event_name: str
-    ):
+    def test_record_event_with_otel_enabled(self, operation_name: str, event_name: str):
         """
         record_event should work when OpenTelemetry is enabled.
         """
@@ -608,6 +594,7 @@ class TestRecordEvent:
 # =============================================================================
 # NULL SPAN TESTS
 # =============================================================================
+
 
 class TestNullSpan:
     """
@@ -631,10 +618,7 @@ class TestNullSpan:
         assert span.is_recording() is False
         assert span.get_span_context() is None
 
-    @given(
-        key=st.text(min_size=1, max_size=20),
-        value=json_value_strategy
-    )
+    @given(key=st.text(min_size=1, max_size=20), value=json_value_strategy)
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_null_span_set_attribute_accepts_any_value(self, key: str, value: Any):
         """

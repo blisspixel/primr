@@ -24,6 +24,7 @@ from hypothesis import strategies as st
 # TOKEN COUNTING UTILITIES
 # =============================================================================
 
+
 def count_tokens_simple(text: str) -> int:
     """
     Simple token counter approximation.
@@ -61,34 +62,33 @@ def extract_quick_start_section(content: str) -> str:
     """
     # Find Quick Start section
     quick_start_match = re.search(
-        r'## Quick Start.*?\n(.*?)(?=\n---|\n## [^#])',
-        content,
-        re.DOTALL | re.IGNORECASE
+        r"## Quick Start.*?\n(.*?)(?=\n---|\n## [^#])", content, re.DOTALL | re.IGNORECASE
     )
 
     if quick_start_match:
         return quick_start_match.group(0)
 
     # Fallback: try to find just the header and content until next section
-    lines = content.split('\n')
+    lines = content.split("\n")
     in_quick_start = False
     quick_start_lines = []
 
     for line in lines:
-        if '## Quick Start' in line:
+        if "## Quick Start" in line:
             in_quick_start = True
             quick_start_lines.append(line)
         elif in_quick_start:
-            if line.startswith('## ') or line.strip() == '---':
+            if line.startswith("## ") or line.strip() == "---":
                 break
             quick_start_lines.append(line)
 
-    return '\n'.join(quick_start_lines)
+    return "\n".join(quick_start_lines)
 
 
 # =============================================================================
 # PROPERTY 5: Context Map Token Budget
 # =============================================================================
+
 
 # Feature: agentic-architecture, Property 5: Context Map Token Budget
 def test_context_map_token_budget():
@@ -171,9 +171,9 @@ def test_context_map_negative_constraints():
     # Critical constraints that must be documented
     critical_constraints = [
         "NEVER",  # Should have NEVER statements
-        "cost",   # Cost awareness
+        "cost",  # Cost awareness
         "single-job",  # Single job model
-        "SSRF",   # Security constraint
+        "SSRF",  # Security constraint
     ]
 
     for constraint in critical_constraints:
@@ -199,7 +199,7 @@ def test_context_map_verification_commands():
     # Required verification commands
     required_commands = [
         "primr doctor",  # System health
-        "pytest",        # Test runner
+        "pytest",  # Test runner
     ]
 
     for cmd in required_commands:
@@ -221,23 +221,18 @@ def test_context_map_progressive_disclosure():
     content = claude_md_path.read_text(encoding="utf-8")
 
     # Should have collapsible sections (HTML details/summary)
-    assert "<details>" in content, (
-        "Missing progressive disclosure: no <details> elements found"
-    )
-    assert "<summary>" in content, (
-        "Missing progressive disclosure: no <summary> elements found"
-    )
+    assert "<details>" in content, "Missing progressive disclosure: no <details> elements found"
+    assert "<summary>" in content, "Missing progressive disclosure: no <summary> elements found"
 
     # Count collapsible sections - should have at least 3
     details_count = content.count("<details>")
-    assert details_count >= 3, (
-        f"Expected at least 3 collapsible sections, found {details_count}"
-    )
+    assert details_count >= 3, f"Expected at least 3 collapsible sections, found {details_count}"
 
 
 # =============================================================================
 # PROPERTY-BASED TESTS FOR TOKEN BUDGET VARIATIONS
 # =============================================================================
+
 
 @given(
     extra_content=st.text(

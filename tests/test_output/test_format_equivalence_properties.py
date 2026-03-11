@@ -20,15 +20,22 @@ class TestProperty9ContentEquivalence:
     in TXT and DOCX formats - no content should be lost or corrupted.
     """
 
-    @given(st.text(alphabet='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 ', min_size=1, max_size=200))
+    @given(
+        st.text(
+            alphabet="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 ",
+            min_size=1,
+            max_size=200,
+        )
+    )
     @settings(max_examples=100)
     def test_strip_markdown_preserves_content(self, text):
         """Stripping markdown should preserve the actual content."""
         # Skip text that contains markdown-like patterns
         from hypothesis import assume
-        assume('**' not in text)
-        assume('__' not in text)
-        assume(not text.startswith('#'))
+
+        assume("**" not in text)
+        assume("__" not in text)
+        assume(not text.startswith("#"))
 
         # Add some markdown formatting
         formatted = f"**{text}**"
@@ -110,15 +117,21 @@ This is **bold text** and normal text.
         for content in parsed_content:
             if content.strip():
                 assert content in stripped or any(
-                    content in line for line in stripped.split('\n')
+                    content in line for line in stripped.split("\n")
                 ), f"Content '{content}' not found in stripped output"
 
-    @given(st.lists(st.text(alphabet='abcdefghijklmnopqrstuvwxyz ', min_size=1, max_size=50), min_size=1, max_size=5))
+    @given(
+        st.lists(
+            st.text(alphabet="abcdefghijklmnopqrstuvwxyz ", min_size=1, max_size=50),
+            min_size=1,
+            max_size=5,
+        )
+    )
     @settings(max_examples=50)
     def test_bullet_content_preserved(self, items):
         """Bullet list content is fully preserved."""
         # Create markdown bullet list
-        markdown = '\n'.join(f"* {item}" for item in items)
+        markdown = "\n".join(f"* {item}" for item in items)
 
         # Strip markdown
         stripped = strip_markdown_artifacts(markdown)

@@ -20,6 +20,7 @@ from typing import Any
 
 class TenantTier(Enum):
     """Tenant subscription tiers."""
+
     FREE = "free"
     STARTER = "starter"
     PROFESSIONAL = "professional"
@@ -28,6 +29,7 @@ class TenantTier(Enum):
 
 class TenantStatus(Enum):
     """Tenant account status."""
+
     ACTIVE = "active"
     SUSPENDED = "suspended"
     PENDING = "pending"
@@ -37,6 +39,7 @@ class TenantStatus(Enum):
 @dataclass
 class TenantLimits:
     """Resource limits for a tenant."""
+
     max_requests_per_day: int = 100
     max_requests_per_month: int = 1000
     max_concurrent_jobs: int = 2
@@ -92,6 +95,7 @@ class TenantLimits:
 @dataclass
 class TenantConfig:
     """Per-tenant configuration."""
+
     custom_prompts: dict[str, str] = field(default_factory=dict)
     default_output_format: str = "markdown"
     webhook_url: str | None = None
@@ -132,6 +136,7 @@ class TenantConfig:
 @dataclass
 class Tenant:
     """A tenant (organization/user) in the system."""
+
     tenant_id: str
     name: str
     tier: TenantTier
@@ -166,6 +171,7 @@ class Tenant:
 @dataclass
 class UsageRecord:
     """A usage record for tracking."""
+
     tenant_id: str
     timestamp: datetime
     request_type: str
@@ -177,6 +183,7 @@ class UsageRecord:
 @dataclass
 class UsageSummary:
     """Summary of tenant usage."""
+
     tenant_id: str
     period_start: datetime
     period_end: datetime
@@ -672,19 +679,25 @@ class TenantManager:
             "daily_requests": {
                 "used": daily_summary.total_requests,
                 "limit": tenant.limits.max_requests_per_day,
-                "remaining": max(0, tenant.limits.max_requests_per_day - daily_summary.total_requests),
+                "remaining": max(
+                    0, tenant.limits.max_requests_per_day - daily_summary.total_requests
+                ),
                 "exceeded": daily_summary.total_requests >= tenant.limits.max_requests_per_day,
             },
             "monthly_requests": {
                 "used": monthly_summary.total_requests,
                 "limit": tenant.limits.max_requests_per_month,
-                "remaining": max(0, tenant.limits.max_requests_per_month - monthly_summary.total_requests),
+                "remaining": max(
+                    0, tenant.limits.max_requests_per_month - monthly_summary.total_requests
+                ),
                 "exceeded": monthly_summary.total_requests >= tenant.limits.max_requests_per_month,
             },
             "storage_mb": {
                 "used": monthly_summary.total_storage_mb,
                 "limit": tenant.limits.max_storage_mb,
-                "remaining": max(0, tenant.limits.max_storage_mb - monthly_summary.total_storage_mb),
+                "remaining": max(
+                    0, tenant.limits.max_storage_mb - monthly_summary.total_storage_mb
+                ),
                 "exceeded": monthly_summary.total_storage_mb >= tenant.limits.max_storage_mb,
             },
         }
@@ -808,9 +821,7 @@ def record_usage(
     quantity: float,
 ) -> UsageRecord:
     """Record resource usage."""
-    return get_tenant_manager().record_usage(
-        tenant_id, request_type, resource_used, quantity
-    )
+    return get_tenant_manager().record_usage(tenant_id, request_type, resource_used, quantity)
 
 
 def check_tenant_limits(tenant_id: str) -> dict[str, Any]:

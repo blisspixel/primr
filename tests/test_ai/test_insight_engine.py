@@ -3,6 +3,7 @@ Tests for the Insight Engine.
 
 **Feature: consulting-tier-report**
 """
+
 import json
 from datetime import datetime
 from unittest.mock import patch
@@ -26,7 +27,7 @@ def create_mock_gathered_data(count: int = 5) -> list[GatheredData]:
             source_type=SourceType.COMPANY_WEBSITE,
             confidence=0.8,
             gathered_at=datetime.now(),
-            title=f"Page {i}"
+            title=f"Page {i}",
         )
         for i in range(count)
     ]
@@ -41,7 +42,7 @@ def create_mock_llm_response(insights_count: int = 5) -> str:
             "evidence": [f"Evidence point {i}.1", f"Evidence point {i}.2"],
             "confidence": "VERIFIED" if i % 2 == 0 else "INFERRED",
             "category": "STRATEGIC",
-            "sources": [f"https://source{i}.com"]
+            "sources": [f"https://source{i}.com"],
         }
         for i in range(insights_count)
     ]
@@ -58,7 +59,7 @@ def create_mock_recommendation_response(count: int = 5) -> str:
             "evidence": [f"Supporting insight {i}"],
             "confidence": "INFERRED",
             "category": "STRATEGIC",
-            "sources": []
+            "sources": [],
         }
         for i in range(count)
     ]
@@ -120,14 +121,18 @@ class TestInsightEngineExtraction:
     @patch("primr.ai.insight_engine.llm")
     def test_cleans_insight_content(self, mock_llm):
         """Should clean emojis and em-dashes from insight content."""
-        mock_response = json.dumps([{
-            "title": "Test Insight 🎉",
-            "description": "Description—with em-dash",
-            "evidence": ["Evidence 1"],
-            "confidence": "VERIFIED",
-            "category": "STRATEGIC",
-            "sources": []
-        }])
+        mock_response = json.dumps(
+            [
+                {
+                    "title": "Test Insight 🎉",
+                    "description": "Description—with em-dash",
+                    "evidence": ["Evidence 1"],
+                    "confidence": "VERIFIED",
+                    "category": "STRATEGIC",
+                    "sources": [],
+                }
+            ]
+        )
         mock_llm.return_value = mock_response
 
         engine = InsightEngine()
@@ -156,13 +161,15 @@ class TestInsightEngineRecommendations:
                 evidence=["Evidence"],
                 confidence=ConfidenceLevel.VERIFIED,
                 category=InsightCategory.STRATEGIC,
-                sources=[]
+                sources=[],
             )
         ]
 
         recommendations = engine.generate_recommendations(insights, "Test Company", count=5)
 
-        assert 3 <= len(recommendations) <= 5, f"Expected 3-5 recommendations, got {len(recommendations)}"
+        assert 3 <= len(recommendations) <= 5, (
+            f"Expected 3-5 recommendations, got {len(recommendations)}"
+        )
 
     @patch("primr.ai.insight_engine.llm")
     def test_recommendations_have_rationale(self, mock_llm):
@@ -177,7 +184,7 @@ class TestInsightEngineRecommendations:
                 evidence=["Evidence"],
                 confidence=ConfidenceLevel.VERIFIED,
                 category=InsightCategory.STRATEGIC,
-                sources=[]
+                sources=[],
             )
         ]
 
@@ -199,7 +206,7 @@ class TestInsightEngineRecommendations:
                 evidence=[],
                 confidence=ConfidenceLevel.INFERRED,
                 category=InsightCategory.STRATEGIC,
-                sources=[]
+                sources=[],
             )
         ]
 
@@ -224,16 +231,18 @@ class TestInsightEngineRisks:
     @patch("primr.ai.insight_engine.llm")
     def test_identifies_risks(self, mock_llm):
         """Should identify risks from data."""
-        mock_response = json.dumps([
-            {
-                "title": "Competitive Threat",
-                "description": "Major competitor entering market",
-                "evidence": ["News article about competitor"],
-                "confidence": "REPORTED",
-                "category": "RISK",
-                "sources": []
-            }
-        ])
+        mock_response = json.dumps(
+            [
+                {
+                    "title": "Competitive Threat",
+                    "description": "Major competitor entering market",
+                    "evidence": ["News article about competitor"],
+                    "confidence": "REPORTED",
+                    "category": "RISK",
+                    "sources": [],
+                }
+            ]
+        )
         mock_llm.return_value = mock_response
 
         engine = InsightEngine()
@@ -260,16 +269,18 @@ class TestInsightEngineOpportunities:
     @patch("primr.ai.insight_engine.llm")
     def test_identifies_opportunities(self, mock_llm):
         """Should identify opportunities from data."""
-        mock_response = json.dumps([
-            {
-                "title": "Market Expansion",
-                "description": "Opportunity to expand into new market",
-                "evidence": ["Market research data"],
-                "confidence": "INFERRED",
-                "category": "OPPORTUNITY",
-                "sources": []
-            }
-        ])
+        mock_response = json.dumps(
+            [
+                {
+                    "title": "Market Expansion",
+                    "description": "Opportunity to expand into new market",
+                    "evidence": ["Market research data"],
+                    "confidence": "INFERRED",
+                    "category": "OPPORTUNITY",
+                    "sources": [],
+                }
+            ]
+        )
         mock_llm.return_value = mock_response
 
         engine = InsightEngine()
@@ -296,16 +307,18 @@ class TestInsightEngineCompetitive:
     @patch("primr.ai.insight_engine.llm")
     def test_analyzes_competitive_position(self, mock_llm):
         """Should analyze competitive position."""
-        mock_response = json.dumps([
-            {
-                "title": "Market Leader Position",
-                "description": "Company leads in market share",
-                "evidence": ["Market data"],
-                "confidence": "REPORTED",
-                "category": "COMPETITIVE",
-                "sources": []
-            }
-        ])
+        mock_response = json.dumps(
+            [
+                {
+                    "title": "Market Leader Position",
+                    "description": "Company leads in market share",
+                    "evidence": ["Market data"],
+                    "confidence": "REPORTED",
+                    "category": "COMPETITIVE",
+                    "sources": [],
+                }
+            ]
+        )
         mock_llm.return_value = mock_response
 
         engine = InsightEngine()
@@ -356,11 +369,27 @@ class TestInsightEngineErrorHandling:
     @patch("primr.ai.insight_engine.llm")
     def test_handles_malformed_insight_data(self, mock_llm):
         """Should skip malformed insights."""
-        mock_response = json.dumps([
-            {"title": "Valid Insight", "description": "Valid", "evidence": [], "confidence": "VERIFIED", "category": "STRATEGIC", "sources": []},
-            {"title": "Missing fields"},  # Missing required fields
-            {"title": "Invalid confidence", "description": "Test", "evidence": [], "confidence": "INVALID", "category": "STRATEGIC", "sources": []}
-        ])
+        mock_response = json.dumps(
+            [
+                {
+                    "title": "Valid Insight",
+                    "description": "Valid",
+                    "evidence": [],
+                    "confidence": "VERIFIED",
+                    "category": "STRATEGIC",
+                    "sources": [],
+                },
+                {"title": "Missing fields"},  # Missing required fields
+                {
+                    "title": "Invalid confidence",
+                    "description": "Test",
+                    "evidence": [],
+                    "confidence": "INVALID",
+                    "category": "STRATEGIC",
+                    "sources": [],
+                },
+            ]
+        )
         mock_llm.return_value = mock_response
 
         engine = InsightEngine()
@@ -379,16 +408,18 @@ class TestFinancialAnalyzer:
     @patch("primr.ai.insight_engine.llm")
     def test_analyzes_financial_data(self, mock_llm):
         """Should analyze financial data and generate insights."""
-        mock_response = json.dumps([
-            {
-                "title": "Strong Revenue Growth",
-                "description": "Revenue grew 25% year-over-year to $100M",
-                "evidence": ["Q4 2024 earnings report"],
-                "confidence": "VERIFIED",
-                "category": "FINANCIAL",
-                "sources": []
-            }
-        ])
+        mock_response = json.dumps(
+            [
+                {
+                    "title": "Strong Revenue Growth",
+                    "description": "Revenue grew 25% year-over-year to $100M",
+                    "evidence": ["Q4 2024 earnings report"],
+                    "confidence": "VERIFIED",
+                    "category": "FINANCIAL",
+                    "sources": [],
+                }
+            ]
+        )
         mock_llm.return_value = mock_response
 
         from primr.ai.insight_engine import FinancialAnalyzer
@@ -396,11 +427,7 @@ class TestFinancialAnalyzer:
         engine = InsightEngine()
         analyzer = FinancialAnalyzer(engine)
 
-        financial_data = {
-            "revenue": 100000000,
-            "growth_rate": 0.25,
-            "employees": 500
-        }
+        financial_data = {"revenue": 100000000, "growth_rate": 0.25, "employees": 500}
 
         insights = analyzer.analyze_financials("Test Company", financial_data, [])
 
@@ -416,9 +443,7 @@ class TestFinancialAnalyzer:
         analyzer = FinancialAnalyzer(engine)
 
         insight = analyzer.estimate_company_size(
-            "Test Company",
-            employee_count=500,
-            funding_rounds=[{"amount": 50000000}]
+            "Test Company", employee_count=500, funding_rounds=[{"amount": 50000000}]
         )
 
         assert insight.category == InsightCategory.FINANCIAL
@@ -428,16 +453,18 @@ class TestFinancialAnalyzer:
     @patch("primr.ai.insight_engine.llm")
     def test_handles_missing_financial_data(self, mock_llm):
         """Should handle missing financial data gracefully."""
-        mock_response = json.dumps([
-            {
-                "title": "Limited Financial Visibility",
-                "description": "Financial data not publicly available",
-                "evidence": ["Private company"],
-                "confidence": "ESTIMATED",
-                "category": "FINANCIAL",
-                "sources": []
-            }
-        ])
+        mock_response = json.dumps(
+            [
+                {
+                    "title": "Limited Financial Visibility",
+                    "description": "Financial data not publicly available",
+                    "evidence": ["Private company"],
+                    "confidence": "ESTIMATED",
+                    "category": "FINANCIAL",
+                    "sources": [],
+                }
+            ]
+        )
         mock_llm.return_value = mock_response
 
         from primr.ai.insight_engine import FinancialAnalyzer
@@ -457,10 +484,19 @@ class TestCompetitorAnalyzer:
     @patch("primr.ai.insight_engine.llm")
     def test_identifies_minimum_competitors(self, mock_llm):
         """Should identify at least 5 competitors."""
-        mock_response = json.dumps([
-            {"title": f"Competitor {i}", "description": f"Analysis of competitor {i}", "evidence": [], "confidence": "REPORTED", "category": "COMPETITIVE", "sources": []}
-            for i in range(6)
-        ])
+        mock_response = json.dumps(
+            [
+                {
+                    "title": f"Competitor {i}",
+                    "description": f"Analysis of competitor {i}",
+                    "evidence": [],
+                    "confidence": "REPORTED",
+                    "category": "COMPETITIVE",
+                    "sources": [],
+                }
+                for i in range(6)
+            ]
+        )
         mock_llm.return_value = mock_response
 
         from primr.ai.insight_engine import CompetitorAnalyzer
@@ -473,7 +509,7 @@ class TestCompetitorAnalyzer:
             "Technology",
             "Enterprise software company",
             create_mock_gathered_data(),
-            min_competitors=5
+            min_competitors=5,
         )
 
         assert len(insights) >= 5, f"Expected at least 5 competitors, got {len(insights)}"
@@ -481,9 +517,18 @@ class TestCompetitorAnalyzer:
     @patch("primr.ai.insight_engine.llm")
     def test_competitors_categorized_correctly(self, mock_llm):
         """All competitor insights should be categorized as COMPETITIVE."""
-        mock_response = json.dumps([
-            {"title": "Competitor A", "description": "Analysis", "evidence": [], "confidence": "REPORTED", "category": "COMPETITIVE", "sources": []}
-        ])
+        mock_response = json.dumps(
+            [
+                {
+                    "title": "Competitor A",
+                    "description": "Analysis",
+                    "evidence": [],
+                    "confidence": "REPORTED",
+                    "category": "COMPETITIVE",
+                    "sources": [],
+                }
+            ]
+        )
         mock_llm.return_value = mock_response
 
         from primr.ai.insight_engine import CompetitorAnalyzer
@@ -492,10 +537,7 @@ class TestCompetitorAnalyzer:
         analyzer = CompetitorAnalyzer(engine)
 
         insights = analyzer.identify_competitors(
-            "Test Company",
-            "Technology",
-            "Software company",
-            []
+            "Test Company", "Technology", "Software company", []
         )
 
         for insight in insights:
@@ -509,9 +551,7 @@ class TestCompetitorAnalyzer:
         analyzer = CompetitorAnalyzer(engine)
 
         matrix = analyzer.generate_competitive_matrix(
-            "Test Company",
-            ["Competitor A", "Competitor B"],
-            ["Price", "Features", "Support"]
+            "Test Company", ["Competitor A", "Competitor B"], ["Price", "Features", "Support"]
         )
 
         assert matrix["company"] == "Test Company"

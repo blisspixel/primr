@@ -38,14 +38,16 @@ def log_chat_interaction(prompt, response, session_id="general"):
             with open(log_file_path, encoding="utf-8") as f:
                 chat_history = json.load(f)
         except json.JSONDecodeError:
-            print(Fore.RED + "[ERROR] Corrupt log file detected. Starting fresh log." + Style.RESET_ALL)
+            print(
+                Fore.RED
+                + "[ERROR] Corrupt log file detected. Starting fresh log."
+                + Style.RESET_ALL
+            )
 
     # Append new log entry
-    chat_history.append({
-        "timestamp": datetime.now().isoformat(),
-        "prompt": prompt,
-        "response": response
-    })
+    chat_history.append(
+        {"timestamp": datetime.now().isoformat(), "prompt": prompt, "response": response}
+    )
 
     # Save the updated chat log
     try:
@@ -74,23 +76,49 @@ def read_chat_logs(session_id="general"):
 if __name__ == "__main__":
     # CLI Testing Mode
     while True:
-        action = input(Fore.BLUE + "\nEnter 'log' to save AI interaction, 'read' to view logs, or 'exit': " + Style.RESET_ALL).strip().lower()
+        action = (
+            input(
+                Fore.BLUE
+                + "\nEnter 'log' to save AI interaction, 'read' to view logs, or 'exit': "
+                + Style.RESET_ALL
+            )
+            .strip()
+            .lower()
+        )
 
         if action == "log":
             prompt = input(Fore.CYAN + "Enter AI prompt: " + Style.RESET_ALL).strip()
             response = input(Fore.CYAN + "Enter AI response: " + Style.RESET_ALL).strip()
-            session = input(Fore.CYAN + "Enter session ID (default: 'general'): " + Style.RESET_ALL).strip() or "general"
+            session = (
+                input(
+                    Fore.CYAN + "Enter session ID (default: 'general'): " + Style.RESET_ALL
+                ).strip()
+                or "general"
+            )
             log_chat_interaction(prompt, response, session)
 
         elif action == "read":
-            session = input(Fore.CYAN + "Enter session ID to read logs (default: 'general'): " + Style.RESET_ALL).strip() or "general"
+            session = (
+                input(
+                    Fore.CYAN
+                    + "Enter session ID to read logs (default: 'general'): "
+                    + Style.RESET_ALL
+                ).strip()
+                or "general"
+            )
             logs = read_chat_logs(session)
             print(Fore.GREEN + f"\n[✔] Chat Logs for Session: {session}" + Style.RESET_ALL)
             for log in logs:
-                print(f"{log['timestamp']}: \n- **Prompt:** {log['prompt']}\n- **Response:** {log['response']}\n")
+                print(
+                    f"{log['timestamp']}: \n- **Prompt:** {log['prompt']}\n- **Response:** {log['response']}\n"
+                )
 
         elif action == "exit":
             break
 
         else:
-            print(Fore.RED + "[ERROR] Invalid input. Please enter 'log', 'read', or 'exit'." + Style.RESET_ALL)
+            print(
+                Fore.RED
+                + "[ERROR] Invalid input. Please enter 'log', 'read', or 'exit'."
+                + Style.RESET_ALL
+            )

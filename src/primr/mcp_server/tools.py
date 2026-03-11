@@ -124,7 +124,12 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
                         },
                         "strategy_type": {
                             "type": "string",
-                            "enum": ["ai_strategy", "customer_experience", "modern_security_compliance", "data_fabric_strategy"],
+                            "enum": [
+                                "ai_strategy",
+                                "customer_experience",
+                                "modern_security_compliance",
+                                "data_fabric_strategy",
+                            ],
                             "description": "Type of strategy to generate",
                         },
                         "cloud_vendor": {
@@ -228,6 +233,7 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
         # Add A2A delegate tool if a2a-sdk is available
         try:
             from primr.a2a.client import A2AClient  # noqa: F401
+
             base_tools.append(
                 Tool(
                     name="delegate_to_agent",
@@ -271,17 +277,20 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
 
         rate_result = mcp_server.rate_limiter.check_and_record(client_id, name)
         if not rate_result.allowed:
-            return [TextContent(
-                type="text",
-                text=json.dumps({
-                    "error": True,
-                    "error_type": "rate_limit_exceeded",
-                    "error_code": MCPErrorCode.RATE_LIMIT_EXCEEDED,
-                    "message": "Rate limit exceeded",
-                    "retry_after_seconds": rate_result.retry_after_seconds,
-                }),
-
-            )]
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps(
+                        {
+                            "error": True,
+                            "error_type": "rate_limit_exceeded",
+                            "error_code": MCPErrorCode.RATE_LIMIT_EXCEEDED,
+                            "message": "Rate limit exceeded",
+                            "retry_after_seconds": rate_result.retry_after_seconds,
+                        }
+                    ),
+                )
+            ]
 
         # Try agentic tools first
         agentic_result = await handle_agentic_tool(name, arguments, mcp_server)
@@ -341,46 +350,63 @@ async def _handle_estimate_run(
     # Validate URL
     url_result = mcp_server.url_validator.validate(company_url)
     if not url_result.valid:
-        return [TextContent(
-            type="text",
-            text=json.dumps({
-                "error": True,
-                "error_type": url_result.error_type,
-                "error_code": {
-                    "invalid_url": MCPErrorCode.INVALID_URL,
-                    "ssrf_blocked": MCPErrorCode.SSRF_BLOCKED,
-                    "url_unreachable": MCPErrorCode.URL_UNREACHABLE,
-                }.get(url_result.error_type, MCPErrorCode.INVALID_URL),
-                "message": url_result.error_message,
-            }),
-        )]
+        return [
+            TextContent(
+                type="text",
+                text=json.dumps(
+                    {
+                        "error": True,
+                        "error_type": url_result.error_type,
+                        "error_code": {
+                            "invalid_url": MCPErrorCode.INVALID_URL,
+                            "ssrf_blocked": MCPErrorCode.SSRF_BLOCKED,
+                            "url_unreachable": MCPErrorCode.URL_UNREACHABLE,
+                        }.get(url_result.error_type, MCPErrorCode.INVALID_URL),
+                        "message": url_result.error_message,
+                    }
+                ),
+            )
+        ]
 
     # Map MCP mode names to cost_estimator mode names
     import os
 
     from primr.utils.cost_estimator import estimate_cost
-    mode_mapping = {"scrape": "scrape-only", "deep": "deep-research", "full": "complete", "premium": "complete"}
+
+    mode_mapping = {
+        "scrape": "scrape-only",
+        "deep": "deep-research",
+        "full": "complete",
+        "premium": "complete",
+    }
     estimator_mode = mode_mapping.get(mode, "complete")
     verify = arguments.get("verify", False)
     premium_mode = mode == "premium"
     fast_mode = mode == "full" and bool(os.environ.get("XAI_API_KEY"))
     cost_estimate = estimate_cost(
-        estimator_mode, use_historical=False, verify=verify,
-        premium_mode=premium_mode, fast_mode=fast_mode,
+        estimator_mode,
+        use_historical=False,
+        verify=verify,
+        premium_mode=premium_mode,
+        fast_mode=fast_mode,
     )
 
     # Pages estimate (scrape-based modes get ~20 pages)
     pages = 20 if mode in ("scrape", "full", "premium") else 0
 
-    return [TextContent(
-        type="text",
-        text=json.dumps({
-            "estimated_cost_usd": round(cost_estimate.total_cost, 2),
-            "estimated_time_minutes": _parse_max_duration(cost_estimate.duration_minutes),
-            "planned_pages": pages,
-            "mode": mode,
-        }),
-    )]
+    return [
+        TextContent(
+            type="text",
+            text=json.dumps(
+                {
+                    "estimated_cost_usd": round(cost_estimate.total_cost, 2),
+                    "estimated_time_minutes": _parse_max_duration(cost_estimate.duration_minutes),
+                    "planned_pages": pages,
+                    "mode": mode,
+                }
+            ),
+        )
+    ]
 
 
 async def _handle_research_company(
@@ -415,15 +441,19 @@ async def _handle_research_company(
             "url_unreachable": MCPErrorCode.URL_UNREACHABLE,
         }.get(url_result.error_type, MCPErrorCode.INVALID_URL)
 
-        return [TextContent(
-            type="text",
-            text=json.dumps({
-                "error": True,
-                "error_type": url_result.error_type,
-                "error_code": error_code,
-                "message": url_result.error_message,
-            }),
-        )]
+        return [
+            TextContent(
+                type="text",
+                text=json.dumps(
+                    {
+                        "error": True,
+                        "error_type": url_result.error_type,
+                        "error_code": error_code,
+                        "message": url_result.error_message,
+                    }
+                ),
+            )
+        ]
 
     # Try to create job
     try:
@@ -433,20 +463,24 @@ async def _handle_research_company(
             owner_client_id=client_id,
         )
     except JobInProgressError as e:
-        return [TextContent(
-            type="text",
-            text=json.dumps({
-                "error": True,
-                "error_type": "job_in_progress",
-                "error_code": MCPErrorCode.JOB_IN_PROGRESS,
-                "message": f"Job {e.active_job_id} already in progress",
-                "active_job_id": e.active_job_id,
-            }),
-        )]
+        return [
+            TextContent(
+                type="text",
+                text=json.dumps(
+                    {
+                        "error": True,
+                        "error_type": "job_in_progress",
+                        "error_code": MCPErrorCode.JOB_IN_PROGRESS,
+                        "message": f"Job {e.active_job_id} already in progress",
+                        "active_job_id": e.active_job_id,
+                    }
+                ),
+            )
+        ]
 
     # Start background task to run research pipeline
     # Skip if _skip_background_tasks is set (for testing)
-    if not getattr(mcp_server, '_skip_background_tasks', False):
+    if not getattr(mcp_server, "_skip_background_tasks", False):
         from primr.mcp_server.pipeline_runner import PipelineRunner
 
         runner = PipelineRunner(mcp_server)
@@ -465,14 +499,18 @@ async def _handle_research_company(
 
     logger.info("Created research job %s for %s", job.job_id, company_name)
 
-    return [TextContent(
-        type="text",
-        text=json.dumps({
-            "job_id": job.job_id,
-            "accepted": True,
-            "status_uri": "primr://research/status",
-        }),
-    )]
+    return [
+        TextContent(
+            type="text",
+            text=json.dumps(
+                {
+                    "job_id": job.job_id,
+                    "accepted": True,
+                    "status_uri": "primr://research/status",
+                }
+            ),
+        )
+    ]
 
 
 async def _handle_generate_strategy(
@@ -493,27 +531,35 @@ async def _handle_generate_strategy(
     # Validate path
     path_result = mcp_server.path_validator.validate(report_path)
     if not path_result.valid:
-        return [TextContent(
-            type="text",
-            text=json.dumps({
-                "error": True,
-                "error_type": path_result.error_type,
-                "error_code": MCPErrorCode.PATH_TRAVERSAL_BLOCKED,
-                "message": path_result.error_message,
-            }),
-        )]
+        return [
+            TextContent(
+                type="text",
+                text=json.dumps(
+                    {
+                        "error": True,
+                        "error_type": path_result.error_type,
+                        "error_code": MCPErrorCode.PATH_TRAVERSAL_BLOCKED,
+                        "message": path_result.error_message,
+                    }
+                ),
+            )
+        ]
 
     # Check if file exists (only after path validation passes)
     if not path_result.resolved_path.exists():
-        return [TextContent(
-            type="text",
-            text=json.dumps({
-                "error": True,
-                "error_type": "report_not_found",
-                "error_code": MCPErrorCode.REPORT_NOT_FOUND,
-                "message": f"Report not found: {report_path}",
-            }),
-        )]
+        return [
+            TextContent(
+                type="text",
+                text=json.dumps(
+                    {
+                        "error": True,
+                        "error_type": "report_not_found",
+                        "error_code": MCPErrorCode.REPORT_NOT_FOUND,
+                        "message": f"Report not found: {report_path}",
+                    }
+                ),
+            )
+        ]
 
     # Run strategy generation
     try:
@@ -525,26 +571,34 @@ async def _handle_generate_strategy(
             cloud_vendor=cloud_vendor,
         )
 
-        return [TextContent(
-            type="text",
-            text=json.dumps({
-                "success": True,
-                "output_path": result["output_path"],
-                "strategy_type": result["strategy_type"],
-                "qa_score": result.get("qa_score"),
-            }),
-        )]
+        return [
+            TextContent(
+                type="text",
+                text=json.dumps(
+                    {
+                        "success": True,
+                        "output_path": result["output_path"],
+                        "strategy_type": result["strategy_type"],
+                        "qa_score": result.get("qa_score"),
+                    }
+                ),
+            )
+        ]
 
     except Exception as e:
         logger.exception("Strategy generation failed")
-        return [TextContent(
-            type="text",
-            text=json.dumps({
-                "error": True,
-                "error_type": "strategy_generation_failed",
-                "message": f"Strategy generation failed: {e}",
-            }),
-        )]
+        return [
+            TextContent(
+                type="text",
+                text=json.dumps(
+                    {
+                        "error": True,
+                        "error_type": "strategy_generation_failed",
+                        "message": f"Strategy generation failed: {e}",
+                    }
+                ),
+            )
+        ]
 
 
 async def _handle_check_jobs(
@@ -566,48 +620,60 @@ async def _handle_check_jobs(
         # Check specific job
         job = mcp_server.job_store.get(job_id)
         if job:
-            jobs.append({
-                "job_id": job.job_id,
-                "status": job.get_status().value,
-                "company_name": job.company_name,
-                "output_path": job.output_paths[0] if job.output_paths else None,
-                "error_type": job.error_type,
-                "error_message": job.error_message,
-            })
+            jobs.append(
+                {
+                    "job_id": job.job_id,
+                    "status": job.get_status().value,
+                    "company_name": job.company_name,
+                    "output_path": job.output_paths[0] if job.output_paths else None,
+                    "error_type": job.error_type,
+                    "error_message": job.error_message,
+                }
+            )
         else:
-            return [TextContent(
-                type="text",
-                text=json.dumps({
-                    "error": True,
-                    "error_type": "job_not_found",
-                    "error_code": MCPErrorCode.JOB_NOT_FOUND,
-                    "message": f"Job not found: {job_id}",
-                }),
-            )]
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps(
+                        {
+                            "error": True,
+                            "error_type": "job_not_found",
+                            "error_code": MCPErrorCode.JOB_NOT_FOUND,
+                            "message": f"Job not found: {job_id}",
+                        }
+                    ),
+                )
+            ]
     else:
         # Return all jobs (just the current one in single-job model)
         active = mcp_server.job_store.get_active()
         if active:
-            jobs.append({
-                "job_id": active.job_id,
-                "status": active.get_status().value,
-                "company_name": active.company_name,
-                "output_path": active.output_paths[0] if active.output_paths else None,
-            })
+            jobs.append(
+                {
+                    "job_id": active.job_id,
+                    "status": active.get_status().value,
+                    "company_name": active.company_name,
+                    "output_path": active.output_paths[0] if active.output_paths else None,
+                }
+            )
 
         terminal = mcp_server.job_store.get_latest_terminal()
         if terminal and (not active or terminal.job_id != active.job_id):
-            jobs.append({
-                "job_id": terminal.job_id,
-                "status": terminal.get_status().value,
-                "company_name": terminal.company_name,
-                "output_path": terminal.output_paths[0] if terminal.output_paths else None,
-            })
+            jobs.append(
+                {
+                    "job_id": terminal.job_id,
+                    "status": terminal.get_status().value,
+                    "company_name": terminal.company_name,
+                    "output_path": terminal.output_paths[0] if terminal.output_paths else None,
+                }
+            )
 
-    return [TextContent(
-        type="text",
-        text=json.dumps({"jobs": jobs}),
-    )]
+    return [
+        TextContent(
+            type="text",
+            text=json.dumps({"jobs": jobs}),
+        )
+    ]
 
 
 async def _handle_run_qa(
@@ -626,27 +692,35 @@ async def _handle_run_qa(
     # Validate path
     path_result = mcp_server.path_validator.validate(report_path)
     if not path_result.valid:
-        return [TextContent(
-            type="text",
-            text=json.dumps({
-                "error": True,
-                "error_type": path_result.error_type,
-                "error_code": MCPErrorCode.PATH_TRAVERSAL_BLOCKED,
-                "message": path_result.error_message,
-            }),
-        )]
+        return [
+            TextContent(
+                type="text",
+                text=json.dumps(
+                    {
+                        "error": True,
+                        "error_type": path_result.error_type,
+                        "error_code": MCPErrorCode.PATH_TRAVERSAL_BLOCKED,
+                        "message": path_result.error_message,
+                    }
+                ),
+            )
+        ]
 
     # Check if file exists
     if not path_result.resolved_path.exists():
-        return [TextContent(
-            type="text",
-            text=json.dumps({
-                "error": True,
-                "error_type": "report_not_found",
-                "error_code": MCPErrorCode.REPORT_NOT_FOUND,
-                "message": f"Report not found: {report_path}",
-            }),
-        )]
+        return [
+            TextContent(
+                type="text",
+                text=json.dumps(
+                    {
+                        "error": True,
+                        "error_type": "report_not_found",
+                        "error_code": MCPErrorCode.REPORT_NOT_FOUND,
+                        "message": f"Report not found: {report_path}",
+                    }
+                ),
+            )
+        ]
 
     # Run QA analysis
     try:
@@ -654,21 +728,27 @@ async def _handle_run_qa(
 
         result = await run_qa_analysis(str(path_result.resolved_path))
 
-        return [TextContent(
-            type="text",
-            text=json.dumps(result),
-        )]
+        return [
+            TextContent(
+                type="text",
+                text=json.dumps(result),
+            )
+        ]
 
     except Exception as e:
         logger.exception("QA analysis failed")
-        return [TextContent(
-            type="text",
-            text=json.dumps({
-                "error": True,
-                "error_type": "qa_analysis_failed",
-                "message": f"QA analysis failed: {e}",
-            }),
-        )]
+        return [
+            TextContent(
+                type="text",
+                text=json.dumps(
+                    {
+                        "error": True,
+                        "error_type": "qa_analysis_failed",
+                        "message": f"QA analysis failed: {e}",
+                    }
+                ),
+            )
+        ]
 
 
 async def _handle_doctor(
@@ -686,10 +766,12 @@ async def _handle_doctor(
 
     result = get_doctor_status()
 
-    return [TextContent(
-        type="text",
-        text=json.dumps(result),
-    )]
+    return [
+        TextContent(
+            type="text",
+            text=json.dumps(result),
+        )
+    ]
 
 
 async def _handle_clear_jobs(
@@ -714,13 +796,17 @@ async def _handle_clear_jobs(
         mcp_server.job_store.clear()
         cleared_count = 1
 
-    return [TextContent(
-        type="text",
-        text=json.dumps({
-            "success": True,
-            "cleared_count": cleared_count,
-        }),
-    )]
+    return [
+        TextContent(
+            type="text",
+            text=json.dumps(
+                {
+                    "success": True,
+                    "cleared_count": cleared_count,
+                }
+            ),
+        )
+    ]
 
 
 async def _handle_cancel_job(
@@ -740,41 +826,53 @@ async def _handle_cancel_job(
     # Get the job
     job = mcp_server.job_store.get(job_id)
     if not job:
-        return [TextContent(
-            type="text",
-            text=json.dumps({
-                "error": True,
-                "error_type": "job_not_found",
-                "error_code": MCPErrorCode.JOB_NOT_FOUND,
-                "message": f"Job not found: {job_id}",
-            }),
-        )]
+        return [
+            TextContent(
+                type="text",
+                text=json.dumps(
+                    {
+                        "error": True,
+                        "error_type": "job_not_found",
+                        "error_code": MCPErrorCode.JOB_NOT_FOUND,
+                        "message": f"Job not found: {job_id}",
+                    }
+                ),
+            )
+        ]
 
     # Check if already terminal
     if job.is_terminal():
-        return [TextContent(
-            type="text",
-            text=json.dumps({
-                "error": True,
-                "error_type": "job_already_terminal",
-                "message": f"Job {job_id} is already {job.get_status().value}",
-            }),
-        )]
+        return [
+            TextContent(
+                type="text",
+                text=json.dumps(
+                    {
+                        "error": True,
+                        "error_type": "job_already_terminal",
+                        "message": f"Job {job_id} is already {job.get_status().value}",
+                    }
+                ),
+            )
+        ]
 
     # Check authorization (in HTTP mode, only owner or admin can cancel)
     # In stdio mode, always allowed (implicit single-user)
     # Admin check would require auth context from HTTP middleware
     is_owner = job.owner_client_id is None or job.owner_client_id == client_id
     if client_id != "stdio" and not is_owner:
-        return [TextContent(
-            type="text",
-            text=json.dumps({
-                "error": True,
-                "error_type": "cancel_not_authorized",
-                "error_code": MCPErrorCode.CANCEL_NOT_AUTHORIZED,
-                "message": "Only the job owner or admin can cancel this job",
-            }),
-        )]
+        return [
+            TextContent(
+                type="text",
+                text=json.dumps(
+                    {
+                        "error": True,
+                        "error_type": "cancel_not_authorized",
+                        "error_code": MCPErrorCode.CANCEL_NOT_AUTHORIZED,
+                        "message": "Only the job owner or admin can cancel this job",
+                    }
+                ),
+            )
+        ]
 
     # Cancel the job
     job.advance_stage(ResearchStage.CANCELLED)
@@ -784,16 +882,19 @@ async def _handle_cancel_job(
 
     logger.info("Job %s cancelled by %s", job_id, client_id)
 
-    return [TextContent(
-
-        type="text",
-        text=json.dumps({
-            "success": True,
-            "job_id": job_id,
-            "status": "cancelled",
-            "message": "Job cancelled. Any partial artifacts have been preserved.",
-        }),
-    )]
+    return [
+        TextContent(
+            type="text",
+            text=json.dumps(
+                {
+                    "success": True,
+                    "job_id": job_id,
+                    "status": "cancelled",
+                    "message": "Job cancelled. Any partial artifacts have been preserved.",
+                }
+            ),
+        )
+    ]
 
 
 async def _handle_wait_for_status_change(
@@ -816,30 +917,38 @@ async def _handle_wait_for_status_change(
     # Get current job state
     job = mcp_server.job_store.get(job_id)
     if not job:
-        return [TextContent(
-            type="text",
-            text=json.dumps({
-                "error": True,
-                "error_type": "job_not_found",
-                "error_code": MCPErrorCode.JOB_NOT_FOUND,
-                "message": f"Job not found: {job_id}",
-            }),
-        )]
+        return [
+            TextContent(
+                type="text",
+                text=json.dumps(
+                    {
+                        "error": True,
+                        "error_type": "job_not_found",
+                        "error_code": MCPErrorCode.JOB_NOT_FOUND,
+                        "message": f"Job not found: {job_id}",
+                    }
+                ),
+            )
+        ]
 
     current_status = job.get_status()
 
     # If already terminal, return immediately
     if job.is_terminal():
-        return [TextContent(
-            type="text",
-            text=json.dumps({
-                "job_id": job_id,
-                "status": current_status.value,
-                "changed": False,
-                "message": "Job is already in terminal state",
-                "output_path": job.output_paths[0] if job.output_paths else None,
-            }),
-        )]
+        return [
+            TextContent(
+                type="text",
+                text=json.dumps(
+                    {
+                        "job_id": job_id,
+                        "status": current_status.value,
+                        "changed": False,
+                        "message": "Job is already in terminal state",
+                        "output_path": job.output_paths[0] if job.output_paths else None,
+                    }
+                ),
+            )
+        ]
 
     # Wait for status change
     changed, new_status = await mcp_server.job_store.wait_for_status_change(
@@ -851,14 +960,18 @@ async def _handle_wait_for_status_change(
     # Get updated job info
     job = mcp_server.job_store.get(job_id)
     if job is None:
-        return [TextContent(
-            type="text",
-            text=json.dumps({
-                "error": True,
-                "error_type": "job_not_found",
-                "message": "Job disappeared while waiting",
-            }),
-        )]
+        return [
+            TextContent(
+                type="text",
+                text=json.dumps(
+                    {
+                        "error": True,
+                        "error_type": "job_not_found",
+                        "message": "Job disappeared while waiting",
+                    }
+                ),
+            )
+        ]
 
     result = {
         "job_id": job_id,
@@ -877,10 +990,12 @@ async def _handle_wait_for_status_change(
     if not changed:
         result["message"] = f"Timeout after {timeout_seconds}s, status unchanged"
 
-    return [TextContent(
-        type="text",
-        text=json.dumps(result),
-    )]
+    return [
+        TextContent(
+            type="text",
+            text=json.dumps(result),
+        )
+    ]
 
 
 async def _handle_delegate_to_agent(
@@ -897,14 +1012,18 @@ async def _handle_delegate_to_agent(
     try:
         from primr.a2a.client import A2AClient
     except ImportError:
-        return [TextContent(
-            type="text",
-            text=json.dumps({
-                "error": True,
-                "error_type": "missing_dependency",
-                "message": "A2A support not installed. Run: pip install primr[a2a]",
-            }),
-        )]
+        return [
+            TextContent(
+                type="text",
+                text=json.dumps(
+                    {
+                        "error": True,
+                        "error_type": "missing_dependency",
+                        "message": "A2A support not installed. Run: pip install primr[a2a]",
+                    }
+                ),
+            )
+        ]
 
     agent_url = arguments.get("agent_url", "")
     message = arguments.get("message", "")
@@ -918,15 +1037,19 @@ async def _handle_delegate_to_agent(
             "ssrf_blocked": MCPErrorCode.SSRF_BLOCKED,
             "url_unreachable": MCPErrorCode.URL_UNREACHABLE,
         }.get(url_result.error_type, MCPErrorCode.INVALID_URL)
-        return [TextContent(
-            type="text",
-            text=json.dumps({
-                "error": True,
-                "error_type": url_result.error_type,
-                "error_code": error_code,
-                "message": f"Agent URL blocked: {url_result.error_message}",
-            }),
-        )]
+        return [
+            TextContent(
+                type="text",
+                text=json.dumps(
+                    {
+                        "error": True,
+                        "error_type": url_result.error_type,
+                        "error_code": error_code,
+                        "message": f"Agent URL blocked: {url_result.error_message}",
+                    }
+                ),
+            )
+        ]
 
     try:
         async with A2AClient(agent_url=agent_url) as client:
@@ -934,11 +1057,15 @@ async def _handle_delegate_to_agent(
         return [TextContent(type="text", text=json.dumps(result, indent=2, default=str))]
     except Exception as e:
         logger.exception("A2A delegation failed: %s", agent_url)
-        return [TextContent(
-            type="text",
-            text=json.dumps({
-                "error": True,
-                "error_type": "a2a_delegation_failed",
-                "message": str(e),
-            }),
-        )]
+        return [
+            TextContent(
+                type="text",
+                text=json.dumps(
+                    {
+                        "error": True,
+                        "error_type": "a2a_delegation_failed",
+                        "message": str(e),
+                    }
+                ),
+            )
+        ]

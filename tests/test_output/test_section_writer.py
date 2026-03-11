@@ -3,6 +3,7 @@ Tests for the Section Writer.
 
 **Feature: consulting-tier-report**
 """
+
 from datetime import datetime
 from unittest.mock import patch
 
@@ -26,7 +27,7 @@ def create_mock_gathered_data(count: int = 3) -> list[GatheredData]:
             source_type=SourceType.COMPANY_WEBSITE,
             confidence=0.8,
             gathered_at=datetime.now(),
-            title=f"Page {i}"
+            title=f"Page {i}",
         )
         for i in range(count)
     ]
@@ -41,7 +42,7 @@ def create_mock_insights(count: int = 5) -> list[Insight]:
             evidence=[f"Evidence point {i}.1", f"Evidence point {i}.2"],
             confidence=ConfidenceLevel.VERIFIED if i % 2 == 0 else ConfidenceLevel.INFERRED,
             category=InsightCategory.STRATEGIC,
-            sources=[f"https://source{i}.com"]
+            sources=[f"https://source{i}.com"],
         )
         for i in range(count)
     ]
@@ -87,7 +88,10 @@ class TestSectionWriterExecutiveSummary:
         content_lower = summary.content.lower()
 
         # Should have company overview/snapshot
-        has_snapshot = any(term in content_lower for term in ["snapshot", "overview", "company", "provider", "leading"])
+        has_snapshot = any(
+            term in content_lower
+            for term in ["snapshot", "overview", "company", "provider", "leading"]
+        )
         assert has_snapshot, "Missing company snapshot"
 
         # Should have strategic position
@@ -99,11 +103,15 @@ class TestSectionWriterExecutiveSummary:
         assert has_insights, "Missing key insights"
 
         # Should have risks
-        has_risks = any(term in content_lower for term in ["risk", "challenge", "threat", "competition"])
+        has_risks = any(
+            term in content_lower for term in ["risk", "challenge", "threat", "competition"]
+        )
         assert has_risks, "Missing critical risks"
 
         # Should have recommendations
-        has_recommendations = any(term in content_lower for term in ["recommend", "action", "invest", "accelerate"])
+        has_recommendations = any(
+            term in content_lower for term in ["recommend", "action", "invest", "accelerate"]
+        )
         assert has_recommendations, "Missing recommended actions"
 
     @patch("primr.output.section_writer.llm")
@@ -135,7 +143,7 @@ class TestSectionWriterExecutiveSummary:
                 evidence=["Based on employee count"],
                 confidence=ConfidenceLevel.ESTIMATED,
                 category=InsightCategory.FINANCIAL,
-                sources=[]
+                sources=[],
             )
         ]
 
@@ -230,10 +238,7 @@ class TestSectionWriterSections:
         data = create_mock_gathered_data()
 
         section = writer.write_section(
-            "Industry Analysis",
-            "Test Company",
-            "Technology industry",
-            data
+            "Industry Analysis", "Test Company", "Technology industry", data
         )
 
         assert section.title == "Industry Analysis"
@@ -261,9 +266,7 @@ class TestSectionWriterSections:
         data = create_mock_gathered_data()
 
         section = writer.write_financial_overview(
-            "Test Company",
-            {"revenue": 100000000, "growth": 0.25},
-            data
+            "Test Company", {"revenue": 100000000, "growth": 0.25}, data
         )
 
         assert section.title == "Financial Overview"
@@ -277,9 +280,7 @@ class TestSectionWriterSections:
         data = create_mock_gathered_data()
 
         section = writer.write_competitive_analysis(
-            "Test Company",
-            ["Competitor A", "Competitor B"],
-            data
+            "Test Company", ["Competitor A", "Competitor B"], data
         )
 
         assert section.title == "Competitive Analysis"

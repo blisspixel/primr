@@ -42,7 +42,7 @@ class DocumentBuilder:
         company_name: str,
         section_results: dict[str, str],
         citations: list[dict[str, str]] | None = None,
-        citation_style: CitationStyle = CitationStyle.NUMBERED
+        citation_style: CitationStyle = CitationStyle.NUMBERED,
     ):
         """
         Initialize DocumentBuilder.
@@ -123,18 +123,18 @@ class DocumentBuilder:
             Confidence level string ('high', 'medium', 'low')
         """
         if self._citation_count >= 10:
-            return 'high'
+            return "high"
         elif self._citation_count >= 3:
-            return 'medium'
+            return "medium"
         else:
-            return 'low'
+            return "low"
 
     def _get_confidence_description(self) -> str:
         """Get human-readable confidence description."""
         descriptions = {
-            'high': f"High confidence ({self._citation_count} sources)",
-            'medium': f"Medium confidence ({self._citation_count} sources)",
-            'low': f"Limited sources ({self._citation_count} citations)",
+            "high": f"High confidence ({self._citation_count} sources)",
+            "medium": f"Medium confidence ({self._citation_count} sources)",
+            "low": f"Limited sources ({self._citation_count} citations)",
         }
         return descriptions.get(self._overall_confidence, "Unknown")
 
@@ -172,21 +172,21 @@ class DocumentBuilder:
         run = paragraph.add_run()
 
         # Create PAGE field
-        fld_char_begin = OxmlElement('w:fldChar')
-        fld_char_begin.set(qn('w:fldCharType'), 'begin')
+        fld_char_begin = OxmlElement("w:fldChar")
+        fld_char_begin.set(qn("w:fldCharType"), "begin")
 
-        instr_text = OxmlElement('w:instrText')
-        instr_text.text = 'PAGE'
+        instr_text = OxmlElement("w:instrText")
+        instr_text.text = "PAGE"
 
-        fld_char_separate = OxmlElement('w:fldChar')
-        fld_char_separate.set(qn('w:fldCharType'), 'separate')
+        fld_char_separate = OxmlElement("w:fldChar")
+        fld_char_separate.set(qn("w:fldCharType"), "separate")
 
         # Placeholder text
-        text_elem = OxmlElement('w:t')
-        text_elem.text = '1'
+        text_elem = OxmlElement("w:t")
+        text_elem.text = "1"
 
-        fld_char_end = OxmlElement('w:fldChar')
-        fld_char_end.set(qn('w:fldCharType'), 'end')
+        fld_char_end = OxmlElement("w:fldChar")
+        fld_char_end.set(qn("w:fldCharType"), "end")
 
         run._r.append(fld_char_begin)
         run._r.append(instr_text)
@@ -245,27 +245,27 @@ class DocumentBuilder:
     def _generate_one_liner(self) -> str:
         """Generate one-liner summary for cover page."""
         # Extract key info from sections
-        all_content = '\n'.join(self.sections.values())
+        all_content = "\n".join(self.sections.values())
         metrics = self.detector.extract_metrics(all_content)
 
         # Try to get industry from content
-        industry = self.sections.get('industry', '')
+        industry = self.sections.get("industry", "")
         if not industry:
             # Try to extract from overview
-            overview = self.sections.get('company_overview', '')
-            if 'technology' in overview.lower():
-                industry = 'technology'
-            elif 'retail' in overview.lower():
-                industry = 'retail'
-            elif 'financial' in overview.lower() or 'bank' in overview.lower():
-                industry = 'financial services'
+            overview = self.sections.get("company_overview", "")
+            if "technology" in overview.lower():
+                industry = "technology"
+            elif "retail" in overview.lower():
+                industry = "retail"
+            elif "financial" in overview.lower() or "bank" in overview.lower():
+                industry = "financial services"
 
         # Get differentiator from competitive position
-        differentiator = ''
-        competitive = self.sections.get('competitive_position', '')
+        differentiator = ""
+        competitive = self.sections.get("competitive_position", "")
         if competitive:
             # Extract first sentence as differentiator
-            sentences = competitive.split('.')
+            sentences = competitive.split(".")
             if sentences:
                 differentiator = sentences[0].strip()[:100]  # Limit length
 
@@ -273,7 +273,7 @@ class DocumentBuilder:
             company_name=self.company_name,
             industry=industry,
             differentiator=differentiator,
-            revenue=metrics.get('revenue', '')
+            revenue=metrics.get("revenue", ""),
         )
 
         return one_liner.generate()
@@ -281,37 +281,37 @@ class DocumentBuilder:
     def _add_company_snapshot(self) -> None:
         """Add company snapshot table with extracted metrics."""
         # Extract metrics from all content
-        all_content = '\n'.join(self.sections.values())
+        all_content = "\n".join(self.sections.values())
         metrics = self.detector.extract_metrics(all_content)
 
         # Build snapshot
         snapshot = CompanySnapshot(
             company_name=self.company_name,
-            website=self.sections.get('company_website', ''),
-            industry=self.sections.get('industry', ''),
-            founded=metrics.get('founded'),
-            headquarters=metrics.get('headquarters'),
-            revenue=metrics.get('revenue'),
-            employees=metrics.get('employees'),
-            ticker=metrics.get('ticker'),
+            website=self.sections.get("company_website", ""),
+            industry=self.sections.get("industry", ""),
+            founded=metrics.get("founded"),
+            headquarters=metrics.get("headquarters"),
+            revenue=metrics.get("revenue"),
+            employees=metrics.get("employees"),
+            ticker=metrics.get("ticker"),
         )
 
         # Add heading
-        self.document.add_heading('Company Snapshot', level=1)
+        self.document.add_heading("Company Snapshot", level=1)
 
         # Add table
         self.table_builder.create_company_snapshot(snapshot)
 
         # Add financial dashboard if we have financial metrics
         financial_metrics = {}
-        if metrics.get('revenue'):
-            financial_metrics['Revenue'] = metrics['revenue']
-        if metrics.get('profit_margin'):
-            financial_metrics['Profit Margin'] = metrics['profit_margin']
-        if metrics.get('employees'):
-            financial_metrics['Employees'] = metrics['employees']
-        if metrics.get('growth_rate'):
-            financial_metrics['Growth Rate'] = metrics['growth_rate']
+        if metrics.get("revenue"):
+            financial_metrics["Revenue"] = metrics["revenue"]
+        if metrics.get("profit_margin"):
+            financial_metrics["Profit Margin"] = metrics["profit_margin"]
+        if metrics.get("employees"):
+            financial_metrics["Employees"] = metrics["employees"]
+        if metrics.get("growth_rate"):
+            financial_metrics["Growth Rate"] = metrics["growth_rate"]
 
         if financial_metrics:
             self.document.add_paragraph()
@@ -334,65 +334,60 @@ class DocumentBuilder:
         exec_summary = summary_gen.generate()
 
         # Main heading
-        self.document.add_heading('Executive Summary', level=1)
+        self.document.add_heading("Executive Summary", level=1)
 
         # DATA CONFIDENCE indicator (based on citation count)
         if self._citation_count > 0:
             confidence_para = self.document.add_paragraph()
             confidence_para.add_run("Data Confidence: ")
             self.confidence_indicator.add_to_paragraph(
-                confidence_para,
-                self._get_confidence_description(),
-                self._overall_confidence
+                confidence_para, self._get_confidence_description(), self._overall_confidence
             )
         # THE BOTTOM LINE
         if exec_summary.narrative:
-            self.document.add_heading('The Bottom Line', level=2)
+            self.document.add_heading("The Bottom Line", level=2)
 
             # Add narrative paragraphs
-            for para_text in exec_summary.narrative.split('\n\n'):
+            for para_text in exec_summary.narrative.split("\n\n"):
                 if para_text.strip():
                     para = self.document.add_paragraph(para_text.strip())
 
         # KEY INSIGHTS
         if exec_summary.key_takeaways:
-            self.document.add_heading('Key Insights', level=2)
-            self.table_builder.create_executive_highlights(
-                exec_summary.key_takeaways,
-                title=""
-            )
+            self.document.add_heading("Key Insights", level=2)
+            self.table_builder.create_executive_highlights(exec_summary.key_takeaways, title="")
 
         # WATCH OUTS (Risk Factors)
         if exec_summary.risk_factors:
-            self.document.add_heading('Watch Outs', level=2)
+            self.document.add_heading("Watch Outs", level=2)
             for risk in exec_summary.risk_factors:
-                para = self.document.add_paragraph(style='List Bullet')
+                para = self.document.add_paragraph(style="List Bullet")
                 # Add confidence indicator using DataConfidenceIndicator
-                self.confidence_indicator.add_to_paragraph(para, risk, 'medium')
+                self.confidence_indicator.add_to_paragraph(para, risk, "medium")
 
         self.document.add_page_break()
 
     def _add_table_of_contents(self) -> None:
         """Add table of contents with Word TOC field."""
-        self.document.add_heading('Table of Contents', level=1)
+        self.document.add_heading("Table of Contents", level=1)
 
         # Add TOC field (Word will populate this)
         para = self.document.add_paragraph()
         run = para.add_run()
 
         # Create TOC field
-        fld_char_begin = OxmlElement('w:fldChar')
-        fld_char_begin.set(qn('w:fldCharType'), 'begin')
+        fld_char_begin = OxmlElement("w:fldChar")
+        fld_char_begin.set(qn("w:fldCharType"), "begin")
 
-        instr_text = OxmlElement('w:instrText')
-        instr_text.set(qn('xml:space'), 'preserve')
+        instr_text = OxmlElement("w:instrText")
+        instr_text.set(qn("xml:space"), "preserve")
         instr_text.text = 'TOC \\o "1-3" \\h \\z \\u'
 
-        fld_char_separate = OxmlElement('w:fldChar')
-        fld_char_separate.set(qn('w:fldCharType'), 'separate')
+        fld_char_separate = OxmlElement("w:fldChar")
+        fld_char_separate.set(qn("w:fldCharType"), "separate")
 
-        fld_char_end = OxmlElement('w:fldChar')
-        fld_char_end.set(qn('w:fldCharType'), 'end')
+        fld_char_end = OxmlElement("w:fldChar")
+        fld_char_end.set(qn("w:fldCharType"), "end")
 
         run._r.append(fld_char_begin)
         run._r.append(instr_text)
@@ -421,7 +416,7 @@ class DocumentBuilder:
     def _add_chapter(self, chapter_num: int, title: str, chapter_data: dict) -> None:
         """Add a single chapter with its sections."""
         # Chapter heading
-        icon = chapter_data.get('icon', '')
+        icon = chapter_data.get("icon", "")
         chapter_heading = f"{chapter_num}. {title}"
         if icon:
             chapter_heading = f"{icon} {chapter_heading}"
@@ -432,28 +427,28 @@ class DocumentBuilder:
         chapter_content = []
 
         # Add sections
-        sections = chapter_data.get('sections', [])
+        sections = chapter_data.get("sections", [])
         for section_idx, (section_title, section_key) in enumerate(sections, 1):
             section_num = f"{chapter_num}.{section_idx}"
             self._add_section(section_num, section_title, section_key)
 
             # Collect content for implications
-            content = self.sections.get(section_key, '')
+            content = self.sections.get(section_key, "")
             if content:
                 chapter_content.append(content)
 
         # Add key implications box at chapter end
         if chapter_content:
             implications_box = KeyImplicationsBox(self.document, self.style_engine)
-            all_content = '\n'.join(chapter_content)
+            all_content = "\n".join(chapter_content)
             implications = implications_box.extract_implications(all_content)
             if implications:
                 implications_box.add_to_document(title, implications)
 
         # Add quick wins for Strategic Assessment chapter
-        if 'Strategic' in title and chapter_content:
+        if "Strategic" in title and chapter_content:
             quick_wins_section = QuickWinsSection(self.document, self.style_engine)
-            all_content = '\n'.join(chapter_content)
+            all_content = "\n".join(chapter_content)
             quick_wins = quick_wins_section.extract_quick_wins(all_content)
             if quick_wins:
                 quick_wins_section.add_to_document(quick_wins)
@@ -464,7 +459,7 @@ class DocumentBuilder:
 
     def _add_section(self, section_num: str, title: str, section_key: str) -> None:
         """Add a single section with its content."""
-        content = self.sections.get(section_key, '')
+        content = self.sections.get(section_key, "")
 
         if not content:
             return  # Skip empty sections
@@ -482,42 +477,43 @@ class DocumentBuilder:
         Uses the clean markdown converter for direct, simple rendering.
         """
         from primr.output.markdown_converter import render_section_content
+
         render_section_content(self.document, content)
 
     def _render_block(self, block: ContentBlock) -> None:
         """Render a single content block."""
-        if block.type == 'heading':
+        if block.type == "heading":
             for line in block.lines:
                 level = min(line.level + 2, 4)  # Offset for document hierarchy
                 self.document.add_heading(line.content, level=level)
 
-        elif block.type == 'bullet_list':
+        elif block.type == "bullet_list":
             for line in block.lines:
-                para = self.document.add_paragraph(style='List Bullet')
+                para = self.document.add_paragraph(style="List Bullet")
                 if line.level > 0:
                     para.paragraph_format.left_indent = Inches(0.25 * line.level)
                 self.parser.apply_inline_formatting(para, line.content)
 
-        elif block.type == 'numbered_list':
+        elif block.type == "numbered_list":
             for line in block.lines:
-                para = self.document.add_paragraph(style='List Number')
+                para = self.document.add_paragraph(style="List Number")
                 if line.level > 0:
                     para.paragraph_format.left_indent = Inches(0.25 * line.level)
                 self.parser.apply_inline_formatting(para, line.content)
 
-        elif block.type == 'paragraph':
+        elif block.type == "paragraph":
             # Combine text lines into paragraph
             text_parts: list[str] = []
             for line in block.lines:
-                if line.type == 'inline_header':
+                if line.type == "inline_header":
                     # Render inline header with bold label
                     if text_parts:
                         para = self.document.add_paragraph()
-                        self.parser.apply_inline_formatting(para, ' '.join(text_parts))
+                        self.parser.apply_inline_formatting(para, " ".join(text_parts))
                         text_parts = []
 
                     para = self.document.add_paragraph()
-                    header = line.metadata.get('header_text', '')
+                    header = line.metadata.get("header_text", "")
                     self.style_engine.apply_inline_header_formatting(para, header, line.content)
                 else:
                     text_parts.append(line.content)
@@ -525,16 +521,13 @@ class DocumentBuilder:
             # Flush remaining text
             if text_parts:
                 para = self.document.add_paragraph()
-                self.parser.apply_inline_formatting(para, ' '.join(text_parts))
+                self.parser.apply_inline_formatting(para, " ".join(text_parts))
 
-        elif block.type == 'table':
+        elif block.type == "table":
             # Render markdown table (common in Deep Research output)
             table_data = self.parser.parse_table_block(block)
-            if table_data['headers'] or table_data['rows']:
-                self.table_builder.create_from_markdown(
-                    table_data['headers'],
-                    table_data['rows']
-                )
+            if table_data["headers"] or table_data["rows"]:
+                self.table_builder.create_from_markdown(table_data["headers"], table_data["rows"])
                 self.document.add_paragraph()  # Spacer after table
 
     def _add_sources_appendix(self) -> None:
@@ -561,7 +554,7 @@ class DocumentBuilder:
         self.document.add_page_break()
 
         # Appendix heading
-        self.document.add_heading('Sources', level=1)
+        self.document.add_heading("Sources", level=1)
 
         # Introduction paragraph
         intro = self.document.add_paragraph()
@@ -599,7 +592,7 @@ class DocumentBuilder:
 
         # URL on new line
         if citation.url:
-            para.add_run('\n')
+            para.add_run("\n")
             url_run = para.add_run(citation.url)
             url_run.font.size = Pt(9)
             url_run.font.color.rgb = self.style_engine.SECONDARY_COLOR
@@ -618,12 +611,11 @@ class DocumentBuilder:
 
         # Add explicit citations that weren't in content
         for citation in self.citations:
-            url = citation.get('url', '')
+            url = citation.get("url", "")
             if url and url not in seen_urls:
-                sources.append({
-                    'title': citation.get('title') or citation.get('text', url),
-                    'url': url
-                })
+                sources.append(
+                    {"title": citation.get("title") or citation.get("text", url), "url": url}
+                )
                 seen_urls.add(url)
 
         return sources
@@ -638,14 +630,14 @@ class DocumentBuilder:
         num_run.font.size = Pt(10)
 
         # Title
-        title = source.get('title', 'Unknown Source')
+        title = source.get("title", "Unknown Source")
         title_run = para.add_run(title)
         title_run.font.size = Pt(10)
 
         # URL on new line
-        url = source.get('url', '')
+        url = source.get("url", "")
         if url:
-            para.add_run('\n')
+            para.add_run("\n")
             url_run = para.add_run(url)
             url_run.font.size = Pt(9)
             url_run.font.color.rgb = self.style_engine.SECONDARY_COLOR

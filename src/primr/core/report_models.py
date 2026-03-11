@@ -4,6 +4,7 @@ Core data models for consulting-tier reports.
 Provides structured types for source tracking, confidence levels,
 insights, and report sections.
 """
+
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -12,6 +13,7 @@ from typing import Any
 
 class SourceType(Enum):
     """Types of data sources for research."""
+
     COMPANY_WEBSITE = "company_website"
     NEWS_ARTICLE = "news_article"
     SEC_FILING = "sec_filing"
@@ -26,14 +28,16 @@ class SourceType(Enum):
 
 class ConfidenceLevel(Enum):
     """Confidence levels for data points."""
-    VERIFIED = "verified"      # Direct from official source
-    REPORTED = "reported"      # From credible news/reports
-    INFERRED = "inferred"      # Derived from multiple signals
-    ESTIMATED = "estimated"    # Best guess based on available data
+
+    VERIFIED = "verified"  # Direct from official source
+    REPORTED = "reported"  # From credible news/reports
+    INFERRED = "inferred"  # Derived from multiple signals
+    ESTIMATED = "estimated"  # Best guess based on available data
 
 
 class InsightCategory(Enum):
     """Categories for strategic insights."""
+
     STRATEGIC = "strategic"
     FINANCIAL = "financial"
     OPERATIONAL = "operational"
@@ -47,6 +51,7 @@ class InsightCategory(Enum):
 @dataclass
 class SourceCitation:
     """A citation to a data source."""
+
     url: str
     title: str
     source_type: SourceType
@@ -76,6 +81,7 @@ class SourceCitation:
 @dataclass
 class GatheredData:
     """Data gathered from a source during research."""
+
     content: str
     source_url: str
     source_type: SourceType
@@ -108,6 +114,7 @@ class GatheredData:
 @dataclass
 class ConfidenceNote:
     """A note about confidence level for a statement."""
+
     statement: str
     confidence: ConfidenceLevel
     basis: str  # Why this confidence level
@@ -131,6 +138,7 @@ class ConfidenceNote:
 @dataclass
 class Insight:
     """A strategic insight extracted from research data."""
+
     title: str
     description: str
     evidence: list[str]
@@ -166,6 +174,7 @@ class Insight:
 @dataclass
 class SectionContent:
     """Content for a report section."""
+
     title: str
     content: str
     sources: list[SourceCitation] = field(default_factory=list)
@@ -185,13 +194,16 @@ class SectionContent:
             title=data["title"],
             content=data["content"],
             sources=[SourceCitation.from_dict(s) for s in data.get("sources", [])],
-            confidence_notes=[ConfidenceNote.from_dict(n) for n in data.get("confidence_notes", [])],
+            confidence_notes=[
+                ConfidenceNote.from_dict(n) for n in data.get("confidence_notes", [])
+            ],
         )
 
 
 @dataclass
 class ReportMetadata:
     """Metadata about a generated report."""
+
     company_name: str
     website: str
     industry: str
@@ -224,6 +236,7 @@ class ReportMetadata:
 @dataclass
 class Report:
     """A complete research report."""
+
     metadata: ReportMetadata
     executive_summary: SectionContent
     sections: list[SectionContent]
@@ -253,6 +266,7 @@ class Report:
 @dataclass
 class QualityScore:
     """Quality assessment for a section."""
+
     score: float  # 0-10
     issues: list[str]
     suggestions: list[str]

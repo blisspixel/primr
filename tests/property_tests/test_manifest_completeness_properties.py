@@ -32,20 +32,25 @@ from deploy.runner import JobSpec
 # STRATEGIES
 # =============================================================================
 
+
 @st.composite
 def job_specs(draw: st.DrawFn) -> JobSpec:
     """Generate valid job specifications."""
-    job_id = draw(st.text(
-        alphabet="abcdefghijklmnopqrstuvwxyz0123456789",
-        min_size=8,
-        max_size=24,
-    ))
+    job_id = draw(
+        st.text(
+            alphabet="abcdefghijklmnopqrstuvwxyz0123456789",
+            min_size=8,
+            max_size=24,
+        )
+    )
     deployment = draw(st.sampled_from(["dev", "staging", "prod"]))
-    execution_id = draw(st.text(
-        alphabet="abcdefghijklmnopqrstuvwxyz0123456789-",
-        min_size=10,
-        max_size=50,
-    ))
+    execution_id = draw(
+        st.text(
+            alphabet="abcdefghijklmnopqrstuvwxyz0123456789-",
+            min_size=10,
+            max_size=50,
+        )
+    )
     attempt = draw(st.integers(min_value=1, max_value=10))
     company_name = draw(st.text(min_size=1, max_size=100).filter(lambda x: x.strip()))
     company_url = draw(st.from_regex(r"https://[a-z]+\.[a-z]+", fullmatch=True))
@@ -91,6 +96,7 @@ REQUIRED_MANIFEST_FIELDS = [
 # PROPERTY TESTS
 # =============================================================================
 
+
 class TestManifestCompleteness:
     """
     Property 3: Manifest Completeness
@@ -111,7 +117,11 @@ class TestManifestCompleteness:
             status="SUCCEEDED",
             inputs=JobInputs(company_name="Test", company_url="https://test.com", mode="full"),
             expected_artifacts=["report.md"],
-            timing=JobTiming(submitted_at="2026-01-01T00:00:00Z", started_at="2026-01-01T00:01:00Z", completed_at="2026-01-01T00:15:00Z"),
+            timing=JobTiming(
+                submitted_at="2026-01-01T00:00:00Z",
+                started_at="2026-01-01T00:01:00Z",
+                completed_at="2026-01-01T00:15:00Z",
+            ),
             cost=JobCost(estimated_usd=1.0),
             artifacts={},
             versions=JobVersions(primr="1.0.0", runner="1.0.0"),

@@ -28,19 +28,17 @@ from typing import Any, TypeVar
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar('T')
-V = TypeVar('V')
+T = TypeVar("T")
+V = TypeVar("V")
 
 
 # =============================================================================
 # SAFE DICTIONARY ACCESS
 # =============================================================================
 
+
 def safe_get(
-    data: dict[str, Any] | None,
-    key: str,
-    default: T = None,
-    expected_type: type | None = None
+    data: dict[str, Any] | None, key: str, default: T = None, expected_type: type | None = None
 ) -> T | Any:
     """
     Safely get a value from a dictionary with type validation.
@@ -80,11 +78,7 @@ def safe_get(
     return value
 
 
-def safe_get_nested(
-    data: dict[str, Any] | None,
-    *keys: str,
-    default: T = None
-) -> T | Any:
+def safe_get_nested(data: dict[str, Any] | None, *keys: str, default: T = None) -> T | Any:
     """
     Safely get a nested value from a dictionary.
 
@@ -120,11 +114,9 @@ def safe_get_nested(
 # SAFE TYPE CONVERSIONS
 # =============================================================================
 
+
 def safe_int(
-    value: Any,
-    default: int = 0,
-    min_val: int | None = None,
-    max_val: int | None = None
+    value: Any, default: int = 0, min_val: int | None = None, max_val: int | None = None
 ) -> int:
     """
     Safely convert a value to int with bounds checking.
@@ -160,10 +152,7 @@ def safe_int(
 
 
 def safe_float(
-    value: Any,
-    default: float = 0.0,
-    min_val: float | None = None,
-    max_val: float | None = None
+    value: Any, default: float = 0.0, min_val: float | None = None, max_val: float | None = None
 ) -> float:
     """
     Safely convert a value to float with bounds checking.
@@ -216,6 +205,7 @@ def safe_str(value: Any, default: str = "", max_length: int | None = None) -> st
 # =============================================================================
 # NULL SAFETY
 # =============================================================================
+
 
 def require_not_none(value: T | None, message: str = "Value cannot be None") -> T:
     """
@@ -283,11 +273,12 @@ def if_not_none(value: T | None, func: Callable[[T], V], default: V = None) -> V
 # VALIDATION HELPERS
 # =============================================================================
 
+
 def validate_bounds(
     value: int | float,
     min_val: int | float | None = None,
     max_val: int | float | None = None,
-    name: str = "value"
+    name: str = "value",
 ) -> None:
     """
     Validate a numeric value is within bounds.
@@ -342,10 +333,9 @@ def validate_type(value: Any, expected_type: type, name: str = "value") -> None:
 # SAFE OPERATIONS DECORATOR
 # =============================================================================
 
+
 def safe_operation(
-    default: T = None,
-    log_errors: bool = True,
-    reraise: tuple[type, ...] = ()
+    default: T = None, log_errors: bool = True, reraise: tuple[type, ...] = ()
 ) -> Callable:
     """
     Decorator for safe operations that catch and log exceptions.
@@ -363,6 +353,7 @@ def safe_operation(
         def parse_items(data):
             return json.loads(data)
     """
+
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         def wrapper(*args, **kwargs):
@@ -374,13 +365,16 @@ def safe_operation(
                 if log_errors:
                     logger.warning(f"{func.__name__} failed: {e}")
                 return default
+
         return wrapper
+
     return decorator
 
 
 # =============================================================================
 # RESOURCE CLEANUP
 # =============================================================================
+
 
 def safe_close(resource: Any, name: str = "resource") -> bool:
     """
@@ -397,7 +391,7 @@ def safe_close(resource: Any, name: str = "resource") -> bool:
         return True
 
     try:
-        if hasattr(resource, 'close'):
+        if hasattr(resource, "close"):
             resource.close()
         return True
     except Exception as e:

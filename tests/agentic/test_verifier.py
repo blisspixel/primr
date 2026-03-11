@@ -27,6 +27,7 @@ from src.primr.agentic.subagents.verifier import (
 # Helpers
 # =============================================================================
 
+
 def _write_report(content: str) -> Path:
     """Write content to a temp file and return its path."""
     tmp = tempfile.NamedTemporaryFile(  # noqa: SIM115
@@ -70,6 +71,7 @@ SAMPLE_REPORT = (
 # =============================================================================
 # VerificationResult tests
 # =============================================================================
+
 
 class TestVerificationResult:
     """Tests for VerificationResult data class."""
@@ -160,6 +162,7 @@ class TestVerificationResult:
 # VerifiableClaim tests
 # =============================================================================
 
+
 class TestVerifiableClaim:
     def test_to_dict(self):
         claim = VerifiableClaim("Has 500 employees", "Summary", 4)
@@ -175,6 +178,7 @@ class TestVerifiableClaim:
 # =============================================================================
 # ClaimVerification tests
 # =============================================================================
+
 
 class TestClaimVerification:
     def test_to_dict_includes_claim_fields(self):
@@ -204,6 +208,7 @@ class TestClaimVerification:
 # =============================================================================
 # VerifierSubagent — execute() edge cases
 # =============================================================================
+
 
 class TestVerifierSubagent:
     """Tests for VerifierSubagent execution."""
@@ -305,6 +310,7 @@ class TestVerifierSubagent:
 # Claim extraction parsing
 # =============================================================================
 
+
 class TestClaimExtraction:
     """Tests for JSON parsing and claim extraction logic."""
 
@@ -336,12 +342,15 @@ class TestClaimExtraction:
     def test_max_claims_cap(self):
         """Claims should be capped at max_claims."""
         verifier, _ = _make_verifier(max_claims=3)
-        claims_json = json.dumps([
-            {"claim_text": f"Claim {i}", "section": "S", "importance": i % 5 + 1}
-            for i in range(10)
-        ])
+        claims_json = json.dumps(
+            [
+                {"claim_text": f"Claim {i}", "section": "S", "importance": i % 5 + 1}
+                for i in range(10)
+            ]
+        )
 
         import primr.ai.llm as llm_mod
+
         with patch.object(llm_mod, "llm", return_value=claims_json):
             claims = asyncio.run(verifier._extract_claims("some report text"))
             assert len(claims) <= 3
@@ -349,13 +358,16 @@ class TestClaimExtraction:
     def test_priority_ordering(self):
         """Claims should be sorted by importance (highest first)."""
         verifier, _ = _make_verifier()
-        claims_json = json.dumps([
-            {"claim_text": "Low", "section": "S", "importance": 1},
-            {"claim_text": "High", "section": "S", "importance": 5},
-            {"claim_text": "Mid", "section": "S", "importance": 3},
-        ])
+        claims_json = json.dumps(
+            [
+                {"claim_text": "Low", "section": "S", "importance": 1},
+                {"claim_text": "High", "section": "S", "importance": 5},
+                {"claim_text": "Mid", "section": "S", "importance": 3},
+            ]
+        )
 
         import primr.ai.llm as llm_mod
+
         with patch.object(llm_mod, "llm", return_value=claims_json):
             claims = asyncio.run(verifier._extract_claims("some report text"))
             assert claims[0].importance == 5
@@ -365,31 +377,37 @@ class TestClaimExtraction:
     def test_importance_clamped_to_1_5(self):
         """Importance values outside 1-5 should be clamped."""
         verifier, _ = _make_verifier()
-        claims_json = json.dumps([
-            {"claim_text": "A", "section": "S", "importance": 0},
-            {"claim_text": "B", "section": "S", "importance": 99},
-            {"claim_text": "C", "section": "S", "importance": -5},
-        ])
+        claims_json = json.dumps(
+            [
+                {"claim_text": "A", "section": "S", "importance": 0},
+                {"claim_text": "B", "section": "S", "importance": 99},
+                {"claim_text": "C", "section": "S", "importance": -5},
+            ]
+        )
 
         import primr.ai.llm as llm_mod
+
         with patch.object(llm_mod, "llm", return_value=claims_json):
             claims = asyncio.run(verifier._extract_claims("text"))
             importances = {c.claim_text: c.importance for c in claims}
-            assert importances["A"] == 1   # clamped from 0
-            assert importances["B"] == 5   # clamped from 99
-            assert importances["C"] == 1   # clamped from -5
+            assert importances["A"] == 1  # clamped from 0
+            assert importances["B"] == 5  # clamped from 99
+            assert importances["C"] == 1  # clamped from -5
 
     def test_non_dict_items_skipped(self):
         """Non-dict items in the LLM response array should be silently skipped."""
         verifier, _ = _make_verifier()
-        claims_json = json.dumps([
-            {"claim_text": "Valid", "section": "S", "importance": 3},
-            "not a dict",
-            42,
-            None,
-        ])
+        claims_json = json.dumps(
+            [
+                {"claim_text": "Valid", "section": "S", "importance": 3},
+                "not a dict",
+                42,
+                None,
+            ]
+        )
 
         import primr.ai.llm as llm_mod
+
         with patch.object(llm_mod, "llm", return_value=claims_json):
             claims = asyncio.run(verifier._extract_claims("text"))
             assert len(claims) == 1
@@ -400,6 +418,7 @@ class TestClaimExtraction:
         verifier, _ = _make_verifier()
 
         import primr.ai.llm as llm_mod
+
         with patch.object(llm_mod, "llm", return_value='{"not": "a list"}'):
             claims = asyncio.run(verifier._extract_claims("text"))
             assert claims == []
@@ -409,6 +428,7 @@ class TestClaimExtraction:
         verifier, _ = _make_verifier()
 
         import primr.ai.llm as llm_mod
+
         with patch.object(llm_mod, "llm", side_effect=RuntimeError("API down")):
             claims = asyncio.run(verifier._extract_claims("text"))
             assert claims == []
@@ -416,11 +436,14 @@ class TestClaimExtraction:
     def test_missing_fields_use_defaults(self):
         """Claims with missing fields should use sensible defaults."""
         verifier, _ = _make_verifier()
-        claims_json = json.dumps([
-            {"claim_text": "Only text"},  # no section, no importance
-        ])
+        claims_json = json.dumps(
+            [
+                {"claim_text": "Only text"},  # no section, no importance
+            ]
+        )
 
         import primr.ai.llm as llm_mod
+
         with patch.object(llm_mod, "llm", return_value=claims_json):
             claims = asyncio.run(verifier._extract_claims("text"))
             assert len(claims) == 1
@@ -431,6 +454,7 @@ class TestClaimExtraction:
 # =============================================================================
 # Search query building
 # =============================================================================
+
 
 class TestSearchQueryBuilding:
     def test_builds_queries_with_company_name(self):
@@ -478,6 +502,7 @@ class TestSearchQueryBuilding:
 # Search parallelism
 # =============================================================================
 
+
 class TestSearchClaims:
     def test_individual_failure_returns_empty(self):
         """Individual search failures should return empty results, not crash."""
@@ -519,8 +544,7 @@ class TestSearchClaims:
             return [{"title": "hit", "url": "https://x.com"}]
 
         claim_queries = [
-            (VerifiableClaim(f"Claim {i}", "S", 3), f"TestCo Claim {i}")
-            for i in range(4)
+            (VerifiableClaim(f"Claim {i}", "S", 3), f"TestCo Claim {i}") for i in range(4)
         ]
 
         with patch("primr.data.search_utils.search_web", side_effect=alternating_search):
@@ -553,6 +577,7 @@ class TestSearchClaims:
 # Classification
 # =============================================================================
 
+
 class TestClassification:
     def test_batch_sizing(self):
         """Classification should process in batches of CLASSIFICATION_BATCH_SIZE."""
@@ -565,15 +590,15 @@ class TestClassification:
         def mock_llm(prompt, **kwargs):
             nonlocal call_count
             call_count += 1
-            return json.dumps([
-                {"status": "unverified", "explanation": "no data", "supporting_sources": []}
-                for _ in range(5)
-            ])
+            return json.dumps(
+                [
+                    {"status": "unverified", "explanation": "no data", "supporting_sources": []}
+                    for _ in range(5)
+                ]
+            )
 
         with patch("primr.ai.llm.llm", side_effect=mock_llm):
-            verifications = asyncio.run(
-                verifier._classify_results(claims, search_results)
-            )
+            verifications = asyncio.run(verifier._classify_results(claims, search_results))
             assert call_count == 3  # ceil(12/5)
             assert len(verifications) == 12
 
@@ -584,9 +609,7 @@ class TestClassification:
         search_results = {"Test": []}
 
         with patch("primr.ai.llm.llm", side_effect=RuntimeError("LLM down")):
-            verifications = asyncio.run(
-                verifier._classify_results(claims, search_results)
-            )
+            verifications = asyncio.run(verifier._classify_results(claims, search_results))
             assert len(verifications) == 1
             assert verifications[0].status == "unverified"
             assert "Classification error" in verifications[0].explanation
@@ -597,14 +620,12 @@ class TestClassification:
         claims = [VerifiableClaim("Test", "S", 3)]
         search_results = {"Test": []}
 
-        response = json.dumps([
-            {"status": "maybe_true", "explanation": "dunno", "supporting_sources": []}
-        ])
+        response = json.dumps(
+            [{"status": "maybe_true", "explanation": "dunno", "supporting_sources": []}]
+        )
 
         with patch("primr.ai.llm.llm", return_value=response):
-            verifications = asyncio.run(
-                verifier._classify_results(claims, search_results)
-            )
+            verifications = asyncio.run(verifier._classify_results(claims, search_results))
             assert verifications[0].status == "unverified"
 
     def test_fewer_classifications_than_claims(self):
@@ -618,14 +639,18 @@ class TestClassification:
         search_results = {c.claim_text: [] for c in claims}
 
         # Only return 1 classification for 3 claims
-        response = json.dumps([
-            {"status": "verified", "explanation": "found", "supporting_sources": ["https://x.com"]}
-        ])
+        response = json.dumps(
+            [
+                {
+                    "status": "verified",
+                    "explanation": "found",
+                    "supporting_sources": ["https://x.com"],
+                }
+            ]
+        )
 
         with patch("primr.ai.llm.llm", return_value=response):
-            verifications = asyncio.run(
-                verifier._classify_results(claims, search_results)
-            )
+            verifications = asyncio.run(verifier._classify_results(claims, search_results))
             assert len(verifications) == 3
             assert verifications[0].status == "verified"
             assert verifications[1].status == "unverified"
@@ -638,9 +663,7 @@ class TestClassification:
         search_results = {"Test": []}
 
         with patch("primr.ai.llm.llm", return_value='{"not": "a list"}'):
-            verifications = asyncio.run(
-                verifier._classify_results(claims, search_results)
-            )
+            verifications = asyncio.run(verifier._classify_results(claims, search_results))
             assert len(verifications) == 1
             assert verifications[0].status == "unverified"
 
@@ -659,9 +682,9 @@ class TestClassification:
 
         def capture_llm(prompt, **kwargs):
             captured_prompt.append(prompt)
-            return json.dumps([
-                {"status": "verified", "explanation": "found", "supporting_sources": []}
-            ])
+            return json.dumps(
+                [{"status": "verified", "explanation": "found", "supporting_sources": []}]
+            )
 
         with patch("primr.ai.llm.llm", side_effect=capture_llm):
             asyncio.run(verifier._classify_results(claims, search_results))
@@ -673,6 +696,7 @@ class TestClassification:
 # =============================================================================
 # Prompt loading
 # =============================================================================
+
 
 class TestPromptLoading:
     def test_load_claim_extraction_prompt(self):
@@ -695,6 +719,7 @@ class TestPromptLoading:
 # =============================================================================
 # JSON save
 # =============================================================================
+
 
 class TestSaveResult:
     def test_save_creates_verification_json(self):
@@ -736,6 +761,7 @@ class TestSaveResult:
 # End-to-end pipeline (mocked LLM + search)
 # =============================================================================
 
+
 class TestEndToEnd:
     def test_full_pipeline_with_mocks(self):
         """End-to-end: report → extract → search → classify → result."""
@@ -743,16 +769,28 @@ class TestEndToEnd:
         context = _make_context(report_path)
         verifier = VerifierSubagent(context, max_claims=3)
 
-        extraction_response = json.dumps([
-            {"claim_text": "Revenue was $50M", "section": "Executive Summary", "importance": 5},
-            {"claim_text": "500 employees", "section": "Executive Summary", "importance": 4},
-            {"claim_text": "Uses AWS", "section": "Key Insights", "importance": 3},
-        ])
-        classification_response = json.dumps([
-            {"status": "verified", "explanation": "Confirmed by SEC filing", "supporting_sources": ["https://sec.gov"]},
-            {"status": "unverified", "explanation": "No data found", "supporting_sources": []},
-            {"status": "contradicted", "explanation": "Uses GCP actually", "supporting_sources": ["https://cloud.google.com"]},
-        ])
+        extraction_response = json.dumps(
+            [
+                {"claim_text": "Revenue was $50M", "section": "Executive Summary", "importance": 5},
+                {"claim_text": "500 employees", "section": "Executive Summary", "importance": 4},
+                {"claim_text": "Uses AWS", "section": "Key Insights", "importance": 3},
+            ]
+        )
+        classification_response = json.dumps(
+            [
+                {
+                    "status": "verified",
+                    "explanation": "Confirmed by SEC filing",
+                    "supporting_sources": ["https://sec.gov"],
+                },
+                {"status": "unverified", "explanation": "No data found", "supporting_sources": []},
+                {
+                    "status": "contradicted",
+                    "explanation": "Uses GCP actually",
+                    "supporting_sources": ["https://cloud.google.com"],
+                },
+            ]
+        )
 
         llm_calls = []
 
@@ -765,8 +803,10 @@ class TestEndToEnd:
         mock_hits = [{"title": "Hit", "url": "https://example.com"}]
 
         import primr.ai.llm as llm_mod
-        with patch.object(llm_mod, "llm", side_effect=mock_llm), patch(
-            "primr.data.search_utils.search_web", return_value=mock_hits
+
+        with (
+            patch.object(llm_mod, "llm", side_effect=mock_llm),
+            patch("primr.data.search_utils.search_web", return_value=mock_hits),
         ):
             result = asyncio.run(verifier.execute())
 
@@ -795,6 +835,7 @@ class TestEndToEnd:
         verifier = VerifierSubagent(context)
 
         import primr.ai.llm as llm_mod
+
         with patch.object(llm_mod, "llm", side_effect=RuntimeError("LLM offline")):
             result = asyncio.run(verifier.execute())
 
@@ -808,12 +849,16 @@ class TestEndToEnd:
         context = _make_context(report_path)
         verifier = VerifierSubagent(context, max_claims=1)
 
-        extraction_response = json.dumps([
-            {"claim_text": "Revenue $50M", "section": "Summary", "importance": 5},
-        ])
-        classification_response = json.dumps([
-            {"status": "verified", "explanation": "found", "supporting_sources": []},
-        ])
+        extraction_response = json.dumps(
+            [
+                {"claim_text": "Revenue $50M", "section": "Summary", "importance": 5},
+            ]
+        )
+        classification_response = json.dumps(
+            [
+                {"status": "verified", "explanation": "found", "supporting_sources": []},
+            ]
+        )
 
         call_idx = 0
 
@@ -823,8 +868,10 @@ class TestEndToEnd:
             return extraction_response if call_idx == 1 else classification_response
 
         import primr.ai.llm as llm_mod
-        with patch.object(llm_mod, "llm", side_effect=mock_llm), patch(
-            "primr.data.search_utils.search_web", return_value=[]
+
+        with (
+            patch.object(llm_mod, "llm", side_effect=mock_llm),
+            patch("primr.data.search_utils.search_web", return_value=[]),
         ):
             asyncio.run(verifier.execute())
 
@@ -838,6 +885,7 @@ class TestEndToEnd:
 # =============================================================================
 # VerificationGateHook
 # =============================================================================
+
 
 class TestVerificationGateHook:
     def test_warns_on_low_trust(self):
@@ -949,24 +997,29 @@ class TestVerificationGateHook:
 # Orchestrator config / state integration
 # =============================================================================
 
+
 class TestOrchestratorIntegration:
     def test_verifying_state_exists(self):
         from src.primr.agentic.orchestrator import OrchestratorState
+
         assert hasattr(OrchestratorState, "VERIFYING")
         assert OrchestratorState.VERIFYING.value == "verifying"
 
     def test_enable_verification_config(self):
         from src.primr.agentic.orchestrator import OrchestratorConfig
+
         config = OrchestratorConfig(enable_verification=True)
         assert config.enable_verification is True
 
     def test_enable_verification_default_false(self):
         from src.primr.agentic.orchestrator import OrchestratorConfig
+
         config = OrchestratorConfig()
         assert config.enable_verification is False
 
     def test_verifier_exported_from_subagents(self):
         from src.primr.agentic.subagents import VerificationResult, VerifierSubagent
+
         assert VerifierSubagent is not None
         assert VerificationResult is not None
 
@@ -975,15 +1028,18 @@ class TestOrchestratorIntegration:
 # Cost estimator integration
 # =============================================================================
 
+
 class TestCostEstimatorIntegration:
     def test_verify_false_no_overhead(self):
         from src.primr.utils.cost_estimator import estimate_cost
+
         est_without = estimate_cost("scrape-only", verify=False, use_historical=False)
         est_with = estimate_cost("scrape-only", verify=True, use_historical=False)
         assert est_with.total_cost > est_without.total_cost
 
     def test_verify_adds_duration(self):
         from src.primr.utils.cost_estimator import estimate_cost
+
         est_without = estimate_cost("scrape-only", verify=False, use_historical=False)
         est_with = estimate_cost("scrape-only", verify=True, use_historical=False)
         # Duration string should differ
@@ -991,6 +1047,7 @@ class TestCostEstimatorIntegration:
 
     def test_verify_note_in_output(self):
         from src.primr.utils.cost_estimator import estimate_cost
+
         est = estimate_cost("scrape-only", verify=True, use_historical=False)
         assert any("verification" in n.lower() for n in est.notes)
 
@@ -999,13 +1056,16 @@ class TestCostEstimatorIntegration:
 # CLI integration
 # =============================================================================
 
+
 class TestCLIIntegration:
     def test_cli_config_has_verify_field(self):
         from src.primr.core.cli import CLIConfig, Command
+
         config = CLIConfig(command=Command.RESEARCH, verify=True)
         assert config.verify is True
 
     def test_cli_config_verify_default_false(self):
         from src.primr.core.cli import CLIConfig, Command
+
         config = CLIConfig(command=Command.RESEARCH)
         assert config.verify is False

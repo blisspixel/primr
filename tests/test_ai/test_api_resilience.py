@@ -264,6 +264,7 @@ class TestRetryBehavior:
         WHEN retries are exhausted
         THEN the system SHALL raise the last error
         """
+
         async def mock_execute(*args, **kwargs):
             raise mock_api_429
 
@@ -380,7 +381,6 @@ def test_property_retryable_errors_are_retried(error_type: str):
         or "timeout" in error_str
     )
     assert is_retryable, f"Error '{error_type}' should be retryable"
-
 
 
 # =============================================================================

@@ -37,6 +37,7 @@ from typing import Any
 # CONFIDENCE LEVELS
 # =============================================================================
 
+
 class ConfidenceLevel(Enum):
     """
     Confidence level for research hypotheses.
@@ -74,6 +75,7 @@ class ConfidenceLevel(Enum):
 # =============================================================================
 # HYPOTHESIS
 # =============================================================================
+
 
 @dataclass
 class Hypothesis:
@@ -197,9 +199,7 @@ class Hypothesis:
             created_at=datetime.fromisoformat(data["created_at"]),
             updated_at=datetime.fromisoformat(data["updated_at"]),
             expires_at=(
-                datetime.fromisoformat(data["expires_at"])
-                if data.get("expires_at")
-                else None
+                datetime.fromisoformat(data["expires_at"]) if data.get("expires_at") else None
             ),
             topic=data.get("topic", ""),
         )
@@ -218,6 +218,7 @@ class Hypothesis:
 # =============================================================================
 # VERSION STATUS (for Roadmap API)
 # =============================================================================
+
 
 class VersionStatus(Enum):
     """
@@ -243,6 +244,7 @@ class VersionStatus(Enum):
 # =============================================================================
 # FEATURE (for Roadmap API)
 # =============================================================================
+
 
 @dataclass
 class Feature:
@@ -288,6 +290,7 @@ class Feature:
 # =============================================================================
 # VERSION (for Roadmap API)
 # =============================================================================
+
 
 @dataclass
 class Version:

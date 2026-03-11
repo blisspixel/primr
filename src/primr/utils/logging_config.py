@@ -21,21 +21,22 @@ from typing import Any
 # LOG FORMATTERS
 # =============================================================================
 
+
 class ColoredFormatter(logging.Formatter):
     """Formatter that adds colors to console output."""
 
     COLORS = {
-        'DEBUG': '\033[36m',     # Cyan
-        'INFO': '\033[32m',      # Green
-        'WARNING': '\033[33m',   # Yellow
-        'ERROR': '\033[31m',     # Red
-        'CRITICAL': '\033[35m',  # Magenta
+        "DEBUG": "\033[36m",  # Cyan
+        "INFO": "\033[32m",  # Green
+        "WARNING": "\033[33m",  # Yellow
+        "ERROR": "\033[31m",  # Red
+        "CRITICAL": "\033[35m",  # Magenta
     }
-    RESET = '\033[0m'
+    RESET = "\033[0m"
 
     def format(self, record: logging.LogRecord) -> str:
         # Add color to levelname
-        color = self.COLORS.get(record.levelname, '')
+        color = self.COLORS.get(record.levelname, "")
         record.levelname = f"{color}{record.levelname}{self.RESET}"
         return super().format(record)
 
@@ -45,11 +46,11 @@ class StructuredFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         # Add extra context if available
-        extra = getattr(record, 'extra', {})
+        extra = getattr(record, "extra", {})
         if extra:
-            extra_str = ' | ' + ' | '.join(f"{k}={v}" for k, v in extra.items())
+            extra_str = " | " + " | ".join(f"{k}={v}" for k, v in extra.items())
         else:
-            extra_str = ''
+            extra_str = ""
 
         record.extra_str = extra_str
         return super().format(record)
@@ -59,13 +60,14 @@ class StructuredFormatter(logging.Formatter):
 # LOGGING SETUP
 # =============================================================================
 
+
 def setup_logging(
     level: str = "INFO",
     log_dir: Path | None = None,
     session_id: str | None = None,
     console_level: str = "WARNING",
     max_file_size: int = 10 * 1024 * 1024,  # 10MB
-    backup_count: int = 5
+    backup_count: int = 5,
 ) -> logging.Logger:
     """
     Configure logging for the application.
@@ -93,9 +95,7 @@ def setup_logging(
     # Console handler - errors and warnings only by default
     console_handler = logging.StreamHandler(sys.stderr)
     console_handler.setLevel(getattr(logging, console_level.upper()))
-    console_handler.setFormatter(ColoredFormatter(
-        "%(levelname)s: %(message)s"
-    ))
+    console_handler.setFormatter(ColoredFormatter("%(levelname)s: %(message)s"))
     logger.addHandler(console_handler)
 
     # File handler - everything
@@ -107,15 +107,12 @@ def setup_logging(
         log_file = log_dir / f"research_{session}.log"
 
         file_handler = RotatingFileHandler(
-            log_file,
-            maxBytes=max_file_size,
-            backupCount=backup_count,
-            encoding="utf-8"
+            log_file, maxBytes=max_file_size, backupCount=backup_count, encoding="utf-8"
         )
         file_handler.setLevel(getattr(logging, level.upper()))
-        file_handler.setFormatter(StructuredFormatter(
-            "%(asctime)s | %(name)s | %(levelname)s | %(message)s%(extra_str)s"
-        ))
+        file_handler.setFormatter(
+            StructuredFormatter("%(asctime)s | %(name)s | %(levelname)s | %(message)s%(extra_str)s")
+        )
         logger.addHandler(file_handler)
 
         logger.info(f"Logging to {log_file}")
@@ -143,6 +140,7 @@ def get_logger(name: str) -> logging.Logger:
 # =============================================================================
 # CONTEXT LOGGING
 # =============================================================================
+
 
 class LogContext:
     """
@@ -180,6 +178,7 @@ class ContextFilter(logging.Filter):
 # CONVENIENCE FUNCTIONS
 # =============================================================================
 
+
 def log_function_call(logger: logging.Logger) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """
     Decorator that logs function entry and exit.
@@ -189,6 +188,7 @@ def log_function_call(logger: logging.Logger) -> Callable[[Callable[..., Any]], 
         def process_data(data):
             ...
     """
+
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -200,5 +200,7 @@ def log_function_call(logger: logging.Logger) -> Callable[[Callable[..., Any]], 
             except Exception as e:
                 logger.error(f"Exception in {func.__name__}: {e}")
                 raise
+
         return wrapper
+
     return decorator

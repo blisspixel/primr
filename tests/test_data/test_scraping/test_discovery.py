@@ -79,7 +79,6 @@ class TestGuessCommonUrls:
         assert "https://example.com/careers" in urls
         assert "https://example.com/investors" in urls
 
-
     def test_government_guessing_prioritizes_public_sector_patterns(self):
         """Government sites should get government-specific guesses first."""
         links = guess_common_urls("https://www.fdc.myflorida.com", organization_type="government")
@@ -298,7 +297,6 @@ class TestScoreLinksHeuristically:
 
         assert shallow.score > deep.score
 
-
     def test_government_scoring_penalizes_commercial_paths(self):
         """Government scoring should avoid commercial-looking pages."""
         links = [
@@ -432,6 +430,7 @@ class TestFetchSitemapLinks:
 
     def test_respects_max_depth(self):
         """Should respect max sitemap depth."""
+
         # Create deeply nested sitemap indexes
         def mock_request(url, **kwargs):
             response = Mock()
@@ -488,7 +487,9 @@ class TestVerifyUrlsExist:
             DiscoveredLink(url="https://example.com/page", source="guess"),
         ]
 
-        with patch("primr.data.scraping.discovery.head_exists", side_effect=Exception("Network error")):
+        with patch(
+            "primr.data.scraping.discovery.head_exists", side_effect=Exception("Network error")
+        ):
             verified = verify_urls_exist(links)
 
         assert len(verified) == 0
@@ -557,7 +558,10 @@ class TestDiscoverLinks:
                 response.content = homepage_html
             return response
 
-        with patch("primr.data.scraping.discovery.make_request", side_effect=mock_request), patch("primr.data.scraping.discovery.head_exists", return_value=True):
+        with (
+            patch("primr.data.scraping.discovery.make_request", side_effect=mock_request),
+            patch("primr.data.scraping.discovery.head_exists", return_value=True),
+        ):
             links = discover_links("https://example.com", verify_guessed=False)
 
         # Should have links from multiple sources

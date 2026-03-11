@@ -26,20 +26,24 @@ from primr.ai.deep_research import (
 # =============================================================================
 
 # Strategy for generating valid direct URLs
-direct_url_strategy = st.sampled_from([
-    "https://www.example.com/page",
-    "https://forbes.com/article/123",
-    "https://businesswire.com/news/home",
-    "https://www.partstown.com/about-us",
-    "https://techcrunch.com/2024/01/15/article",
-    "https://reuters.com/business/company",
-])
+direct_url_strategy = st.sampled_from(
+    [
+        "https://www.example.com/page",
+        "https://forbes.com/article/123",
+        "https://businesswire.com/news/home",
+        "https://www.partstown.com/about-us",
+        "https://techcrunch.com/2024/01/15/article",
+        "https://reuters.com/business/company",
+    ]
+)
 
 # Strategy for generating Google redirect URLs
 google_redirect_strategy = st.builds(
     lambda suffix: f"https://vertexaisearch.cloud.google.com/grounding-api-redirect/{suffix}",
     st.text(
-        alphabet=st.sampled_from("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-"),
+        alphabet=st.sampled_from(
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-"
+        ),
         min_size=10,
         max_size=100,
     ),
@@ -97,7 +101,7 @@ class TestGoogleRedirectResolution:
         mock_response = MagicMock()
         mock_response.url = final_url
 
-        with patch.object(httpx, 'AsyncClient') as mock_client:
+        with patch.object(httpx, "AsyncClient") as mock_client:
             mock_instance = AsyncMock()
             mock_instance.head = AsyncMock(return_value=mock_response)
             mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
@@ -122,7 +126,7 @@ class TestGracefulDegradation:
         """
         redirect_url = "https://vertexaisearch.cloud.google.com/grounding-api-redirect/ABC123"
 
-        with patch.object(httpx, 'AsyncClient') as mock_client:
+        with patch.object(httpx, "AsyncClient") as mock_client:
             mock_instance = AsyncMock()
             mock_instance.head = AsyncMock(side_effect=TimeoutError())
             mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
@@ -144,7 +148,7 @@ class TestGracefulDegradation:
         """
         redirect_url = "https://vertexaisearch.cloud.google.com/grounding-api-redirect/ABC123"
 
-        with patch.object(httpx, 'AsyncClient') as mock_client:
+        with patch.object(httpx, "AsyncClient") as mock_client:
             mock_instance = AsyncMock()
             mock_instance.head = AsyncMock(side_effect=Exception("Connection refused"))
             mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
@@ -169,9 +173,9 @@ class TestCitationDeduplication:
         **Validates: Requirements 5.4**
         """
         citations = [
-            {'number': '1', 'title': 'Source A', 'url': 'https://example.com/page'},
-            {'number': '2', 'title': 'Source B', 'url': 'https://example.com/page'},  # Duplicate
-            {'number': '3', 'title': 'Source C', 'url': 'https://other.com/page'},
+            {"number": "1", "title": "Source A", "url": "https://example.com/page"},
+            {"number": "2", "title": "Source B", "url": "https://example.com/page"},  # Duplicate
+            {"number": "3", "title": "Source C", "url": "https://other.com/page"},
         ]
 
         result = await resolve_citation_urls(citations)
@@ -180,7 +184,7 @@ class TestCitationDeduplication:
         assert len(result) == 3
 
         # Extract unique URLs
-        urls = [c['url'] for c in result]
+        urls = [c["url"] for c in result]
         unique_urls = set(urls)
 
         # Should have 2 unique URLs
@@ -220,11 +224,15 @@ def test_property_direct_urls_preserved_sync(url: str):
     assert result == url
 
 
-@given(suffix=st.text(
-    alphabet=st.sampled_from("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-"),
-    min_size=10,
-    max_size=50,
-))
+@given(
+    suffix=st.text(
+        alphabet=st.sampled_from(
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-"
+        ),
+        min_size=10,
+        max_size=50,
+    )
+)
 @settings(max_examples=50, deadline=None)
 def test_property_google_redirect_detected(suffix: str):
     """
@@ -260,14 +268,16 @@ def test_property_deduplication_reduces_unique_count(num_citations: int, num_uni
 
     for i in range(num_citations):
         url = base_urls[i % num_unique]  # Cycle through base URLs
-        citations.append({
-            'number': str(i + 1),
-            'title': f'Source {i + 1}',
-            'url': url,
-        })
+        citations.append(
+            {
+                "number": str(i + 1),
+                "title": f"Source {i + 1}",
+                "url": url,
+            }
+        )
 
     # Count unique URLs
-    unique_urls = {c['url'] for c in citations}
+    unique_urls = {c["url"] for c in citations}
 
     # Unique count should be <= total count
     assert len(unique_urls) <= len(citations)
@@ -281,12 +291,14 @@ def test_property_deduplication_reduces_unique_count(num_citations: int, num_uni
 
 
 @given(
-    error_type=st.sampled_from([
-        TimeoutError(),
-        Exception("Connection refused"),
-        Exception("DNS resolution failed"),
-        Exception("SSL certificate error"),
-    ])
+    error_type=st.sampled_from(
+        [
+            TimeoutError(),
+            Exception("Connection refused"),
+            Exception("DNS resolution failed"),
+            Exception("SSL certificate error"),
+        ]
+    )
 )
 @settings(max_examples=20, deadline=None)
 def test_property_graceful_degradation_on_error(error_type: Exception):
@@ -300,7 +312,7 @@ def test_property_graceful_degradation_on_error(error_type: Exception):
     redirect_url = "https://vertexaisearch.cloud.google.com/grounding-api-redirect/ABC123"
 
     async def run_test():
-        with patch.object(httpx, 'AsyncClient') as mock_client:
+        with patch.object(httpx, "AsyncClient") as mock_client:
             mock_instance = AsyncMock()
             mock_instance.head = AsyncMock(side_effect=error_type)
             mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)

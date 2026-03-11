@@ -25,6 +25,7 @@ if TYPE_CHECKING:
 
 class ChangeType(Enum):
     """Types of company changes."""
+
     NEWS = "news"
     LEADERSHIP = "leadership"
     FINANCIAL = "financial"
@@ -39,6 +40,7 @@ class ChangeType(Enum):
 
 class ChangeSeverity(Enum):
     """Severity/importance of changes."""
+
     CRITICAL = "critical"
     HIGH = "high"
     MEDIUM = "medium"
@@ -48,6 +50,7 @@ class ChangeSeverity(Enum):
 
 class AlertStatus(Enum):
     """Status of alerts."""
+
     PENDING = "pending"
     SENT = "sent"
     ACKNOWLEDGED = "acknowledged"
@@ -57,6 +60,7 @@ class AlertStatus(Enum):
 @dataclass
 class CompanyChange:
     """A detected change for a company."""
+
     change_id: str
     company_name: str
     change_type: ChangeType
@@ -85,6 +89,7 @@ class CompanyChange:
 @dataclass
 class Alert:
     """An alert for a company change."""
+
     alert_id: str
     change_id: str
     company_name: str
@@ -98,6 +103,7 @@ class Alert:
 @dataclass
 class MonitoringConfig:
     """Configuration for company monitoring."""
+
     company_name: str
     check_interval_minutes: int = 60
     change_types: list[ChangeType] = field(default_factory=lambda: list(ChangeType))
@@ -110,6 +116,7 @@ class MonitoringConfig:
 @dataclass
 class ContentSnapshot:
     """A snapshot of company content at a point in time."""
+
     snapshot_id: str
     company_name: str
     content_hash: str
@@ -121,6 +128,7 @@ class ContentSnapshot:
 @dataclass
 class TrendPoint:
     """A data point for trend analysis."""
+
     timestamp: datetime
     metric_name: str
     value: float
@@ -236,18 +244,19 @@ class CompanyMonitor:
         """)
         conn.commit()
 
-
     def add_monitoring(self, config: MonitoringConfig) -> None:
         """Add or update monitoring configuration."""
         now = datetime.utcnow().isoformat()
-        config_json = json.dumps({
-            "check_interval_minutes": config.check_interval_minutes,
-            "change_types": [ct.value for ct in config.change_types],
-            "min_severity": config.min_severity.value,
-            "webhook_url": config.webhook_url,
-            "email_recipients": config.email_recipients,
-            "enabled": config.enabled,
-        })
+        config_json = json.dumps(
+            {
+                "check_interval_minutes": config.check_interval_minutes,
+                "change_types": [ct.value for ct in config.change_types],
+                "min_severity": config.min_severity.value,
+                "webhook_url": config.webhook_url,
+                "email_recipients": config.email_recipients,
+                "enabled": config.enabled,
+            }
+        )
 
         with self._lock:
             existing = self._fetchone(
@@ -294,7 +303,6 @@ class CompanyMonitor:
             )
             return result.rowcount > 0
 
-
     def detect_changes(
         self,
         company_name: str,
@@ -327,9 +335,7 @@ class CompanyMonitor:
             for keyword in keywords:
                 if keyword in content_lower:
                     # Extract relevant sentence
-                    title, description = self._extract_change_context(
-                        new_content, keyword
-                    )
+                    title, description = self._extract_change_context(new_content, keyword)
                     if title:
                         severity = self._determine_severity(description)
                         change = CompanyChange(
@@ -352,7 +358,6 @@ class CompanyMonitor:
             self._save_change(change)
 
         return changes
-
 
     def get_changes(
         self,
@@ -419,8 +424,14 @@ class CompanyMonitor:
             """INSERT INTO alerts
             (alert_id, change_id, company_name, status, message, created_at)
             VALUES (?, ?, ?, ?, ?, ?)""",
-            (alert.alert_id, alert.change_id, alert.company_name,
-             alert.status.value, alert.message, alert.created_at.isoformat()),
+            (
+                alert.alert_id,
+                alert.change_id,
+                alert.company_name,
+                alert.status.value,
+                alert.message,
+                alert.created_at.isoformat(),
+            ),
         )
 
         # Notify handlers
@@ -428,10 +439,11 @@ class CompanyMonitor:
             try:
                 handler(alert)
             except Exception as e:
-                logger.warning("Alert handler %s failed: %s", getattr(handler, '__name__', handler), e)
+                logger.warning(
+                    "Alert handler %s failed: %s", getattr(handler, "__name__", handler), e
+                )
 
         return alert
-
 
     def get_alerts(
         self,
@@ -510,7 +522,6 @@ class CompanyMonitor:
             "latest_change": changes[0].to_dict() if changes else None,
         }
 
-
     def _get_latest_snapshot(self, company_name: str) -> ContentSnapshot | None:
         """Get the latest snapshot for a company."""
         row = self._fetchone(
@@ -545,8 +556,14 @@ class CompanyMonitor:
             """INSERT INTO snapshots
             (snapshot_id, company_name, content_hash, content_summary, captured_at, source_urls_json)
             VALUES (?, ?, ?, ?, ?, ?)""",
-            (snapshot_id, company_name, content_hash, summary,
-             datetime.utcnow().isoformat(), json.dumps(source_urls)),
+            (
+                snapshot_id,
+                company_name,
+                content_hash,
+                summary,
+                datetime.utcnow().isoformat(),
+                json.dumps(source_urls),
+            ),
         )
 
     def _save_change(self, change: CompanyChange) -> None:
@@ -556,10 +573,17 @@ class CompanyMonitor:
             (change_id, company_name, change_type, severity, title, description,
              source_url, detected_at, metadata_json)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (change.change_id, change.company_name, change.change_type.value,
-             change.severity.value, change.title, change.description,
-             change.source_url, change.detected_at.isoformat(),
-             json.dumps(change.metadata)),
+            (
+                change.change_id,
+                change.company_name,
+                change.change_type.value,
+                change.severity.value,
+                change.title,
+                change.description,
+                change.source_url,
+                change.detected_at.isoformat(),
+                json.dumps(change.metadata),
+            ),
         )
 
     def _extract_change_context(
@@ -620,9 +644,10 @@ class CompanyMonitor:
             message=row["message"],
             created_at=datetime.fromisoformat(row["created_at"]),
             sent_at=datetime.fromisoformat(row["sent_at"]) if row["sent_at"] else None,
-            acknowledged_at=datetime.fromisoformat(row["acknowledged_at"]) if row["acknowledged_at"] else None,
+            acknowledged_at=datetime.fromisoformat(row["acknowledged_at"])
+            if row["acknowledged_at"]
+            else None,
         )
-
 
 
 # Global instance

@@ -17,6 +17,7 @@ logger = get_logger("ai.result_normalizer")
 @dataclass
 class Citation:
     """A citation extracted from research content."""
+
     text: str
     url: str
     title: str | None = None
@@ -25,6 +26,7 @@ class Citation:
 @dataclass
 class NormalizedSection:
     """A normalized section with content and metadata."""
+
     key: str
     title: str
     content: str
@@ -48,104 +50,91 @@ class ResultNormalizer:
     # Mapping from Deep Research headers to section keys
     HEADER_MAPPINGS = {
         # Executive/Overview sections
-        'executive summary': 'company_overview',
-        'company overview': 'company_overview',
-        'overview': 'company_overview',
-        'about': 'company_overview',
-        'introduction': 'company_overview',
-
+        "executive summary": "company_overview",
+        "company overview": "company_overview",
+        "overview": "company_overview",
+        "about": "company_overview",
+        "introduction": "company_overview",
         # Products/Services
-        'products & services': 'detailed_products_services',
-        'products and services': 'detailed_products_services',
-        'products': 'detailed_products_services',
-        'services': 'detailed_products_services',
-        'offerings': 'detailed_products_services',
-
+        "products & services": "detailed_products_services",
+        "products and services": "detailed_products_services",
+        "products": "detailed_products_services",
+        "services": "detailed_products_services",
+        "offerings": "detailed_products_services",
         # Financial
-        'financial analysis': 'financial_overview',
-        'financial overview': 'financial_overview',
-        'financials': 'financial_overview',
-        'financial performance': 'financial_overview',
-        'revenue': 'financial_overview',
-
+        "financial analysis": "financial_overview",
+        "financial overview": "financial_overview",
+        "financials": "financial_overview",
+        "financial performance": "financial_overview",
+        "revenue": "financial_overview",
         # Competitive
-        'competitive landscape': 'competitive_position',
-        'competitive analysis': 'competitive_position',
-        'competition': 'competitive_position',
-        'competitors': 'competitive_position',
-        'market position': 'competitive_position',
-
+        "competitive landscape": "competitive_position",
+        "competitive analysis": "competitive_position",
+        "competition": "competitive_position",
+        "competitors": "competitive_position",
+        "market position": "competitive_position",
         # Industry
-        'industry analysis': 'industry_insights',
-        'industry overview': 'industry_insights',
-        'industry': 'industry_insights',
-        'market analysis': 'industry_insights',
-        'market overview': 'industry_insights',
-
+        "industry analysis": "industry_insights",
+        "industry overview": "industry_insights",
+        "industry": "industry_insights",
+        "market analysis": "industry_insights",
+        "market overview": "industry_insights",
         # Strategic
-        'strategic assessment': 'strategic_recommendations',
-        'strategy': 'strategic_recommendations',
-        'recommendations': 'strategic_recommendations',
-        'strategic recommendations': 'strategic_recommendations',
-        'opportunities': 'strategic_recommendations',
-
+        "strategic assessment": "strategic_recommendations",
+        "strategy": "strategic_recommendations",
+        "recommendations": "strategic_recommendations",
+        "strategic recommendations": "strategic_recommendations",
+        "opportunities": "strategic_recommendations",
         # History/Background
-        'history': 'company_history',
-        'company history': 'company_history',
-        'background': 'company_history',
-        'founding': 'company_history',
-
+        "history": "company_history",
+        "company history": "company_history",
+        "background": "company_history",
+        "founding": "company_history",
         # Mission/Vision
-        'mission': 'mission_vision',
-        'vision': 'mission_vision',
-        'mission and vision': 'mission_vision',
-        'mission & vision': 'mission_vision',
-        'values': 'mission_vision',
-
+        "mission": "mission_vision",
+        "vision": "mission_vision",
+        "mission and vision": "mission_vision",
+        "mission & vision": "mission_vision",
+        "values": "mission_vision",
         # Leadership
-        'leadership': 'board_of_directors_concerns',
-        'management': 'board_of_directors_concerns',
-        'executive team': 'board_of_directors_concerns',
-        'leadership team': 'board_of_directors_concerns',
-
+        "leadership": "board_of_directors_concerns",
+        "management": "board_of_directors_concerns",
+        "executive team": "board_of_directors_concerns",
+        "leadership team": "board_of_directors_concerns",
         # Customers/Users
-        'target market': 'target_audience',
-        'target audience': 'target_audience',
-        'customers': 'main_types_of_users',
-        'users': 'main_types_of_users',
-        'customer segments': 'main_types_of_users',
-
+        "target market": "target_audience",
+        "target audience": "target_audience",
+        "customers": "main_types_of_users",
+        "users": "main_types_of_users",
+        "customer segments": "main_types_of_users",
         # Value Proposition
-        'value proposition': 'unique_selling_proposition',
-        'unique value': 'unique_selling_proposition',
-        'differentiation': 'unique_selling_proposition',
-        'competitive advantage': 'unique_selling_proposition',
-
+        "value proposition": "unique_selling_proposition",
+        "unique value": "unique_selling_proposition",
+        "differentiation": "unique_selling_proposition",
+        "competitive advantage": "unique_selling_proposition",
         # KPIs/Metrics
-        'kpis': 'business_drivers_and_kpis',
-        'key metrics': 'business_drivers_and_kpis',
-        'business drivers': 'business_drivers_and_kpis',
-        'performance metrics': 'business_drivers_and_kpis',
-
+        "kpis": "business_drivers_and_kpis",
+        "key metrics": "business_drivers_and_kpis",
+        "business drivers": "business_drivers_and_kpis",
+        "performance metrics": "business_drivers_and_kpis",
         # Risks
-        'risks': 'potential_business_value',
-        'challenges': 'potential_business_value',
-        'threats': 'potential_business_value',
-
+        "risks": "potential_business_value",
+        "challenges": "potential_business_value",
+        "threats": "potential_business_value",
         # Achievements
-        'achievements': 'key_achievements',
-        'milestones': 'key_achievements',
-        'accomplishments': 'key_achievements',
+        "achievements": "key_achievements",
+        "milestones": "key_achievements",
+        "accomplishments": "key_achievements",
     }
 
     # Citation patterns
     CITATION_PATTERNS = [
         # [Source](url)
-        re.compile(r'\[([^\]]+)\]\(([^)]+)\)'),
+        re.compile(r"\[([^\]]+)\]\(([^)]+)\)"),
         # Source: url
-        re.compile(r'Source:\s*(\S+)'),
+        re.compile(r"Source:\s*(\S+)"),
         # (Source: url)
-        re.compile(r'\(Source:\s*([^)]+)\)'),
+        re.compile(r"\(Source:\s*([^)]+)\)"),
     ]
 
     def __init__(self):
@@ -180,7 +169,7 @@ class ResultNormalizer:
 
         # If no sections were parsed, use entire content as overview
         if not normalized:
-            normalized['company_overview'] = self._clean_content(content)
+            normalized["company_overview"] = self._clean_content(content)
 
         logger.info(f"Normalized {len(normalized)} sections from Deep Research")
         return normalized
@@ -191,19 +180,19 @@ class ResultNormalizer:
         current_header: str | None = None
         current_content: list[str] = []
 
-        for line in content.split('\n'):
+        for line in content.split("\n"):
             # Check for H2 headers (## Header)
-            if line.startswith('## '):
+            if line.startswith("## "):
                 # Save previous section
                 if current_header is not None:
-                    sections[current_header] = '\n'.join(current_content)
+                    sections[current_header] = "\n".join(current_content)
 
                 # Start new section
                 current_header = line[3:].strip()
                 current_content = []
 
             # Check for H3 headers (### Header) - treat as subsection
-            elif line.startswith('### ') and current_header:
+            elif line.startswith("### ") and current_header:
                 # Include as part of current section
                 current_content.append(line)
 
@@ -212,7 +201,7 @@ class ResultNormalizer:
 
         # Save last section
         if current_header is not None:
-            sections[current_header] = '\n'.join(current_content)
+            sections[current_header] = "\n".join(current_content)
 
         return sections
 
@@ -230,8 +219,8 @@ class ResultNormalizer:
                 return section_key
 
         # Generate a key from the header
-        generated_key = header_lower.replace(' ', '_').replace('&', 'and')
-        generated_key = re.sub(r'[^a-z0-9_]', '', generated_key)
+        generated_key = header_lower.replace(" ", "_").replace("&", "and")
+        generated_key = re.sub(r"[^a-z0-9_]", "", generated_key)
 
         logger.debug(f"No mapping for header '{header}', using '{generated_key}'")
         return generated_key
@@ -242,7 +231,7 @@ class ResultNormalizer:
             return ""
 
         # Remove excessive whitespace
-        lines = content.split('\n')
+        lines = content.split("\n")
         cleaned_lines = []
         prev_empty = False
 
@@ -257,7 +246,7 @@ class ResultNormalizer:
             cleaned_lines.append(stripped)
             prev_empty = is_empty
 
-        return '\n'.join(cleaned_lines).strip()
+        return "\n".join(cleaned_lines).strip()
 
     def extract_citations(self, content: str) -> list[Citation]:
         """Extract citations from content."""
@@ -266,27 +255,22 @@ class ResultNormalizer:
         for pattern in self.CITATION_PATTERNS:
             for match in pattern.finditer(content):
                 if len(match.groups()) >= 2:
-                    citations.append(Citation(
-                        text=match.group(1),
-                        url=match.group(2)
-                    ))
+                    citations.append(Citation(text=match.group(1), url=match.group(2)))
                 elif len(match.groups()) == 1:
                     url = match.group(1)
-                    citations.append(Citation(
-                        text=url,
-                        url=url
-                    ))
+                    citations.append(Citation(text=url, url=url))
 
         return citations
 
     def get_section_title(self, section_key: str) -> str:
         """Get the display title for a section key."""
-        return self._reverse_section_map.get(section_key, section_key.replace('_', ' ').title())
+        return self._reverse_section_map.get(section_key, section_key.replace("_", " ").title())
 
 
 # =============================================================================
 # CONVENIENCE FUNCTIONS
 # =============================================================================
+
 
 def normalize_deep_research(content: str) -> dict[str, str]:
     """

@@ -15,6 +15,7 @@ from typing import Any
 
 try:
     from google import genai as _google_genai
+
     _GENAI_IMPORT_ERROR: Exception | None = None
 except Exception as import_error:
     _GENAI_IMPORT_ERROR = import_error
@@ -41,7 +42,10 @@ logger = get_logger("ai.research_executor")
 def _require_genai_dependency() -> None:
     if _GENAI_IMPORT_ERROR is None:
         return
-    if _FALLBACK_CLIENT_CLASS is not None and getattr(genai, "Client", None) is not _FALLBACK_CLIENT_CLASS:
+    if (
+        _FALLBACK_CLIENT_CLASS is not None
+        and getattr(genai, "Client", None) is not _FALLBACK_CLIENT_CLASS
+    ):
         return
     raise RuntimeError(
         "google.genai is not available. Install compatible dependencies "
@@ -147,9 +151,9 @@ class ResearchNodeExecutor:
     DEFAULT_MAX_CONCURRENT = 2
 
     # Polling configuration
-    POLL_INTERVAL_FAST = 5.0    # First 60s
+    POLL_INTERVAL_FAST = 5.0  # First 60s
     POLL_INTERVAL_NORMAL = 10.0  # 60-300s
-    POLL_INTERVAL_SLOW = 20.0    # 300s+
+    POLL_INTERVAL_SLOW = 20.0  # 300s+
 
     # Timeout per chapter (15 minutes)
     CHAPTER_TIMEOUT = 15 * 60
@@ -201,9 +205,7 @@ class ResearchNodeExecutor:
             ChapterResult with content or error
         """
         async with self._semaphore:
-            return await self._execute_chapter_internal(
-                chapter, company_name, on_progress
-            )
+            return await self._execute_chapter_internal(chapter, company_name, on_progress)
 
     async def _execute_chapter_internal(
         self,
@@ -283,7 +285,7 @@ class ResearchNodeExecutor:
                         )
 
                     elif status == "failed":
-                        error_msg = getattr(interaction, 'error', 'Unknown error')
+                        error_msg = getattr(interaction, "error", "Unknown error")
                         duration = time.time() - start_time
 
                         logger.error(f"[{chapter_id}] Failed: {error_msg}")
@@ -304,11 +306,15 @@ class ResearchNodeExecutor:
 
             except Exception as e:
                 error_str = str(e)
-                is_quota_error = "429" in error_str or "quota" in error_str.lower() or "too_many_requests" in error_str.lower()
+                is_quota_error = (
+                    "429" in error_str
+                    or "quota" in error_str.lower()
+                    or "too_many_requests" in error_str.lower()
+                )
 
                 if is_quota_error and attempt < max_retries - 1:
                     # Exponential backoff for quota errors
-                    delay = base_delay * (2 ** attempt)
+                    delay = base_delay * (2**attempt)
                     logger.warning(
                         f"[{chapter_id}] Quota limit hit, waiting {delay:.0f}s before retry "
                         f"(attempt {attempt + 1}/{max_retries})"
@@ -372,10 +378,7 @@ class ResearchNodeExecutor:
             )
 
         # Create tasks for all chapters
-        tasks = [
-            self.execute_chapter(chapter, company_name, on_progress)
-            for chapter in chapters
-        ]
+        tasks = [self.execute_chapter(chapter, company_name, on_progress) for chapter in chapters]
 
         # Execute all tasks (semaphore limits concurrency)
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -389,13 +392,15 @@ class ResearchNodeExecutor:
             if isinstance(result, Exception):
                 # Task raised an exception
                 chapter = chapters[i]
-                chapter_results.append(ChapterResult(
-                    chapter_number=chapter.chapter_number,
-                    title=chapter.title,
-                    content="",
-                    success=False,
-                    error=str(result),
-                ))
+                chapter_results.append(
+                    ChapterResult(
+                        chapter_number=chapter.chapter_number,
+                        title=chapter.title,
+                        content="",
+                        success=False,
+                        error=str(result),
+                    )
+                )
                 failed += 1
             elif isinstance(result, ChapterResult):
                 chapter_results.append(result)
@@ -428,10 +433,9 @@ class ResearchNodeExecutor:
 
         # Add file search if store is configured
         if self._file_search_store:
-            tools.append({
-                "type": "file_search",
-                "file_search_store_names": [self._file_search_store]
-            })
+            tools.append(
+                {"type": "file_search", "file_search_store_names": [self._file_search_store]}
+            )
 
         create_kwargs: dict[str, Any] = {
             "input": prompt,
@@ -451,14 +455,15 @@ class ResearchNodeExecutor:
 
     def _extract_content(self, interaction: Any) -> str:
         """Extract the text content from a completed interaction."""
-        if hasattr(interaction, 'outputs') and interaction.outputs:
-            parts = [output.text for output in interaction.outputs if getattr(output, 'text', None)]
+        if hasattr(interaction, "outputs") and interaction.outputs:
+            parts = [output.text for output in interaction.outputs if getattr(output, "text", None)]
             return "\n\n".join(parts) if parts else ""
         return ""
 
     def _extract_citations(self, interaction: Any) -> list[dict[str, str]]:
         """Extract citations from a completed interaction."""
         import re
+
         citations: list[dict[str, str]] = []
 
         content = self._extract_content(interaction)
@@ -466,26 +471,24 @@ class ResearchNodeExecutor:
             return citations
 
         # Look for Sources section
-        sources_match = re.search(r'\*\*Sources:\*\*\s*([\s\S]*?)$', content)
+        sources_match = re.search(r"\*\*Sources:\*\*\s*([\s\S]*?)$", content)
         if sources_match:
             sources_text = sources_match.group(1)
-            citation_pattern = r'(\d+)\.\s*\[([^\]]+)\]\(([^)]+)\)'
+            citation_pattern = r"(\d+)\.\s*\[([^\]]+)\]\(([^)]+)\)"
             for match in re.finditer(citation_pattern, sources_text):
-                citations.append({
-                    'number': match.group(1),
-                    'title': match.group(2),
-                    'url': match.group(3)
-                })
+                citations.append(
+                    {"number": match.group(1), "title": match.group(2), "url": match.group(3)}
+                )
 
         # Count inline citations if no sources section
         if not citations:
-            inline_pattern = r'\[cite:\s*([\d,\s]+)\]'
+            inline_pattern = r"\[cite:\s*([\d,\s]+)\]"
             all_nums = set()
             for match in re.finditer(inline_pattern, content):
-                nums = [n.strip() for n in match.group(1).split(',')]
+                nums = [n.strip() for n in match.group(1).split(",")]
                 all_nums.update(nums)
             for num in sorted(all_nums, key=lambda x: int(x) if x.isdigit() else 0):
-                citations.append({'number': num, 'title': f'Source {num}', 'url': ''})
+                citations.append({"number": num, "title": f"Source {num}", "url": ""})
 
         return citations
 

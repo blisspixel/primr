@@ -54,7 +54,9 @@ def _make_mcp_parser():
     parser.add_argument("--host", type=str, default="127.0.0.1")
     parser.add_argument("--allow-plaintext", action="store_true")
     parser.add_argument("--no-auth", action="store_true")
-    parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR"], default="INFO")
+    parser.add_argument(
+        "--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR"], default="INFO"
+    )
     parser.add_argument("--a2a", action="store_true")
     parser.add_argument("--a2a-port", type=int, default=9000)
     parser.add_argument("--journal-path", type=str, default=None)

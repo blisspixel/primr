@@ -50,10 +50,10 @@ class ExecutiveSummaryGenerator:
 
         return ExecutiveSummary(
             narrative=narrative,
-            key_takeaways=key_insights[:self.MAX_TAKEAWAYS],
+            key_takeaways=key_insights[: self.MAX_TAKEAWAYS],
             metrics_snapshot=metrics,
-            risk_factors=risk_factors[:self.MAX_RISK_FACTORS],
-            one_liner=one_liner
+            risk_factors=risk_factors[: self.MAX_RISK_FACTORS],
+            one_liner=one_liner,
         )
 
     def extract_key_insights(self) -> list[str]:
@@ -73,15 +73,15 @@ class ExecutiveSummaryGenerator:
 
         # Priority sections for insights
         priority_sections = [
-            'unique_selling_proposition',
-            'financial_overview',
-            'strategic_recommendations',
-            'value_theory',
-            'business_drivers_and_kpis',
+            "unique_selling_proposition",
+            "financial_overview",
+            "strategic_recommendations",
+            "value_theory",
+            "business_drivers_and_kpis",
         ]
 
         for section_key in priority_sections:
-            content = self.sections.get(section_key, '')
+            content = self.sections.get(section_key, "")
             if not content:
                 continue
 
@@ -109,14 +109,14 @@ class ExecutiveSummaryGenerator:
 
         # Sections likely to contain risk information
         risk_sections = [
-            'strategic_recommendations',
-            'industry_insights',
-            'potential_business_drivers',
-            'board_of_directors_concerns',
+            "strategic_recommendations",
+            "industry_insights",
+            "potential_business_drivers",
+            "board_of_directors_concerns",
         ]
 
         for section_key in risk_sections:
-            content = self.sections.get(section_key, '')
+            content = self.sections.get(section_key, "")
             if not content:
                 continue
 
@@ -133,7 +133,7 @@ class ExecutiveSummaryGenerator:
 
     def _extract_all_metrics(self) -> dict[str, str]:
         """Extract metrics from all relevant sections."""
-        all_content = '\n'.join(self.sections.values())
+        all_content = "\n".join(self.sections.values())
         return self.detector.extract_metrics(all_content)
 
     def _generate_narrative(self) -> str:
@@ -144,9 +144,9 @@ class ExecutiveSummaryGenerator:
             3-5 paragraph narrative string
         """
         # Get key content
-        usp = self.sections.get('unique_selling_proposition', '')
-        financial_overview = self.sections.get('financial_overview', '')
-        strategic = self.sections.get('strategic_recommendations', '')
+        usp = self.sections.get("unique_selling_proposition", "")
+        financial_overview = self.sections.get("financial_overview", "")
+        strategic = self.sections.get("strategic_recommendations", "")
 
         # Build narrative paragraphs
         paragraphs = []
@@ -158,7 +158,7 @@ class ExecutiveSummaryGenerator:
                 paragraphs.append(situation)
 
         # Complication: Challenges and market dynamics
-        industry = self.sections.get('industry_insights', '')
+        industry = self.sections.get("industry_insights", "")
         if industry:
             complication = self._extract_first_paragraph(industry)
             if complication:
@@ -176,7 +176,7 @@ class ExecutiveSummaryGenerator:
             if resolution:
                 paragraphs.append(resolution)
 
-        return '\n\n'.join(paragraphs) if paragraphs else ''
+        return "\n\n".join(paragraphs) if paragraphs else ""
 
     def _generate_one_liner(self) -> str:
         """
@@ -191,14 +191,14 @@ class ExecutiveSummaryGenerator:
         metrics = self._extract_all_metrics()
 
         # Get company name from sections
-        company_name = self.sections.get('company_name', 'The company')
-        industry = self.sections.get('industry', '')
+        company_name = self.sections.get("company_name", "The company")
+        industry = self.sections.get("industry", "")
 
         # Get differentiator from USP
-        usp = self.sections.get('unique_selling_proposition', '')
+        usp = self.sections.get("unique_selling_proposition", "")
         differentiator = self._extract_key_differentiator(usp)
 
-        revenue = metrics.get('revenue', '')
+        revenue = metrics.get("revenue", "")
 
         # Build one-liner
         parts = [company_name]
@@ -213,14 +213,14 @@ class ExecutiveSummaryGenerator:
             parts.append(f"generating {revenue} in annual revenue")
 
         if len(parts) > 1:
-            return ' '.join(parts) + '.'
+            return " ".join(parts) + "."
 
         return f"{company_name} provides specialized services in its market."
 
     def _split_into_sentences(self, text: str) -> list[str]:
         """Split text into sentences."""
         # Simple sentence splitting
-        sentences = re.split(r'(?<=[.!?])\s+', text)
+        sentences = re.split(r"(?<=[.!?])\s+", text)
         return [s.strip() for s in sentences if s.strip()]
 
     def _is_insight_worthy(self, sentence: str) -> bool:
@@ -238,59 +238,62 @@ class ExecutiveSummaryGenerator:
             return True
 
         # Contains specific numbers or percentages
-        return bool(re.search(r'\d+%|\$\d+|\d+\s*(million|billion|M|B|K)', sentence, re.IGNORECASE))
+        return bool(re.search(r"\d+%|\$\d+|\d+\s*(million|billion|M|B|K)", sentence, re.IGNORECASE))
 
     def _clean_sentence(self, sentence: str) -> str:
         """Clean a sentence for display."""
         # Remove markdown
-        clean = re.sub(r'\*\*(.+?)\*\*', r'\1', sentence)
-        clean = re.sub(r'__(.+?)__', r'\1', clean)
-        clean = re.sub(r'\*(.+?)\*', r'\1', clean)
+        clean = re.sub(r"\*\*(.+?)\*\*", r"\1", sentence)
+        clean = re.sub(r"__(.+?)__", r"\1", clean)
+        clean = re.sub(r"\*(.+?)\*", r"\1", clean)
         clean = clean.strip()
 
         # Truncate if too long (generous limit for narrative paragraphs)
         if len(clean) > 500:
             # Try to break at a sentence boundary
             truncated = clean[:500]
-            last_period = truncated.rfind('.')
+            last_period = truncated.rfind(".")
             if last_period > 200:
-                clean = truncated[:last_period + 1]
+                clean = truncated[: last_period + 1]
             else:
-                clean = truncated[:497] + '...'
+                clean = truncated[:497] + "..."
 
         return clean
 
     def _extract_first_paragraph(self, content: str) -> str:
         """Extract the first meaningful paragraph from content."""
-        paragraphs = content.split('\n\n')
+        paragraphs = content.split("\n\n")
         for para in paragraphs:
             clean = para.strip()
             # Skip headers and short lines
-            if clean and not clean.startswith('#') and len(clean) > 50:
+            if clean and not clean.startswith("#") and len(clean) > 50:
                 return self._clean_sentence(clean)
-        return ''
+        return ""
 
     def _extract_key_differentiator(self, usp_content: str) -> str:
         """Extract key differentiator from USP content."""
         if not usp_content:
-            return ''
+            return ""
 
         # Look for key phrases
         sentences = self._split_into_sentences(usp_content)
         for sentence in sentences:
             lower = sentence.lower()
-            if any(phrase in lower for phrase in ['unique', 'differentiat', 'speciali', 'leading', 'pioneer']):
+            if any(
+                phrase in lower
+                for phrase in ["unique", "differentiat", "speciali", "leading", "pioneer"]
+            ):
                 # Extract the key part
                 clean = self._clean_sentence(sentence)
                 if len(clean) > 100:
-                    clean = clean[:97] + '...'
+                    clean = clean[:97] + "..."
                 return clean.lower()
 
         # Fall back to first sentence
         if sentences:
             clean = self._clean_sentence(sentences[0])
             if len(clean) > 100:
-                clean = clean[:97] + '...'
+                clean = clean[:97] + "..."
             return clean.lower()
 
-        return ''
+        return ""

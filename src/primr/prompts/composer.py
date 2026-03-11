@@ -235,7 +235,9 @@ class PromptComposer:
                 if "name" not in section:
                     errors.append(f"Section {i} missing required field: name")
                 if "purpose" not in section or not section.get("purpose"):
-                    errors.append(f"Section {i} ({section.get('id', 'unknown')}) missing or empty purpose")
+                    errors.append(
+                        f"Section {i} ({section.get('id', 'unknown')}) missing or empty purpose"
+                    )
 
         return errors
 
@@ -316,91 +318,105 @@ class PromptComposer:
         current_date = context.current_date or datetime.now().strftime("%B %d, %Y")
         current_year = datetime.now().year
         current_month_year = datetime.now().strftime("%B %Y")
-        lines.extend([
-            "=" * 77,
-            "CURRENT DATE CONTEXT",
-            "=" * 77,
-            "",
-            f"REMINDER: It is {current_month_year}. Please use the latest insights and technologies for NOW and the NEAR FUTURE.",
-            "",
-            f"You are operating in {current_year}, not in your training data timeframe. When you see '{current_year}' or '{current_year + 1}', these are CURRENT or NEAR-FUTURE, not distant future.",
-            "",
-        ])
+        lines.extend(
+            [
+                "=" * 77,
+                "CURRENT DATE CONTEXT",
+                "=" * 77,
+                "",
+                f"REMINDER: It is {current_month_year}. Please use the latest insights and technologies for NOW and the NEAR FUTURE.",
+                "",
+                f"You are operating in {current_year}, not in your training data timeframe. When you see '{current_year}' or '{current_year + 1}', these are CURRENT or NEAR-FUTURE, not distant future.",
+                "",
+            ]
+        )
 
         # Add document purpose
         if config.document_purpose:
-            lines.extend([
-                "=" * 77,
-                "DOCUMENT PURPOSE",
-                "=" * 77,
-                "",
-                config.document_purpose.strip(),
-                "",
-            ])
+            lines.extend(
+                [
+                    "=" * 77,
+                    "DOCUMENT PURPOSE",
+                    "=" * 77,
+                    "",
+                    config.document_purpose.strip(),
+                    "",
+                ]
+            )
 
         # Add context instructions if available and context is present
         if context.has_stage1_context:
             context_instructions = config.raw_config.get("context_instructions", "")
             if context_instructions:
-                lines.extend([
-                    "=" * 77,
-                    "CONTEXT INSTRUCTIONS",
-                    "=" * 77,
-                    "",
-                    context_instructions.strip(),
-                    "",
-                ])
+                lines.extend(
+                    [
+                        "=" * 77,
+                        "CONTEXT INSTRUCTIONS",
+                        "=" * 77,
+                        "",
+                        context_instructions.strip(),
+                        "",
+                    ]
+                )
 
             # Add hierarchy of truth instructions
-            lines.extend([
-                "HIERARCHY OF TRUTH:",
-                "- Use the File Search Store context as authoritative for company facts",
-                "- Use web search for external market context and validation",
-                "- When internal data conflicts with web data, prefer internal data for company-specific facts",
-                "",
-            ])
+            lines.extend(
+                [
+                    "HIERARCHY OF TRUTH:",
+                    "- Use the File Search Store context as authoritative for company facts",
+                    "- Use web search for external market context and validation",
+                    "- When internal data conflicts with web data, prefer internal data for company-specific facts",
+                    "",
+                ]
+            )
 
         # Add discovery notes if provided
         if context.discovery_notes_content:
-            lines.extend([
-                "=" * 77,
-                "DISCOVERY INSIGHTS (FROM MEETINGS)",
-                "=" * 77,
-                "",
-                "The following insights were captured from discovery meetings with this company.",
-                "Use these as PRIMARY SOURCE for internal state, tech stack, and priorities.",
-                "",
-                "NOTES ARE FREEFORM - extract what's relevant for this strategy.",
-                "",
-                context.discovery_notes_content.strip(),
-                "",
-            ])
+            lines.extend(
+                [
+                    "=" * 77,
+                    "DISCOVERY INSIGHTS (FROM MEETINGS)",
+                    "=" * 77,
+                    "",
+                    "The following insights were captured from discovery meetings with this company.",
+                    "Use these as PRIMARY SOURCE for internal state, tech stack, and priorities.",
+                    "",
+                    "NOTES ARE FREEFORM - extract what's relevant for this strategy.",
+                    "",
+                    context.discovery_notes_content.strip(),
+                    "",
+                ]
+            )
 
         # Add hard requirements if present
         hard_requirements = config.raw_config.get("hard_requirements", "")
         if hard_requirements:
-            lines.extend([
-                "=" * 77,
-                "HARD REQUIREMENTS",
-                "=" * 77,
-                "",
-                hard_requirements.strip(),
-                "",
-            ])
+            lines.extend(
+                [
+                    "=" * 77,
+                    "HARD REQUIREMENTS",
+                    "=" * 77,
+                    "",
+                    hard_requirements.strip(),
+                    "",
+                ]
+            )
 
         # Add output format header
         current_date = context.current_date or datetime.now().strftime("%B %d, %Y")
-        lines.extend([
-            "=" * 77,
-            "OUTPUT FORMAT",
-            "=" * 77,
-            "",
-            f"# {config.name}: {context.company_name}",
-            "",
-            "**Prepared by:** Primr Research System  ",
-            f"**Date:** {current_date}",
-            "",
-        ])
+        lines.extend(
+            [
+                "=" * 77,
+                "OUTPUT FORMAT",
+                "=" * 77,
+                "",
+                f"# {config.name}: {context.company_name}",
+                "",
+                "**Prepared by:** Primr Research System  ",
+                f"**Date:** {current_date}",
+                "",
+            ]
+        )
 
         # Add key metrics format if present
         key_metrics = config.raw_config.get("key_metrics", {}).get("format", "")
@@ -411,12 +427,14 @@ class PromptComposer:
         lines.extend(["---", ""])
 
         # Add research instructions
-        lines.extend([
-            "=" * 77,
-            "RESEARCH INSTRUCTIONS",
-            "=" * 77,
-            "",
-        ])
+        lines.extend(
+            [
+                "=" * 77,
+                "RESEARCH INSTRUCTIONS",
+                "=" * 77,
+                "",
+            ]
+        )
 
         # Add priority source if website provided
         if context.website_url:
@@ -426,19 +444,23 @@ class PromptComposer:
         # Add writing standards if present (quality-focused guidance)
         writing_standards = config.raw_config.get("writing_standards", "")
         if writing_standards:
-            lines.extend([
-                "WRITING STANDARDS:",
-                writing_standards.strip(),
-                "",
-            ])
+            lines.extend(
+                [
+                    "WRITING STANDARDS:",
+                    writing_standards.strip(),
+                    "",
+                ]
+            )
         else:
             # Default depth requirement if no writing standards specified
-            lines.extend([
-                "DEPTH REQUIREMENT: This document must be THOROUGH. Each section needs ",
-                "substantive analysis with specific evidence, not surface-level summaries. ",
-                "Include data tables where they add clarity.",
-                "",
-            ])
+            lines.extend(
+                [
+                    "DEPTH REQUIREMENT: This document must be THOROUGH. Each section needs ",
+                    "substantive analysis with specific evidence, not surface-level summaries. ",
+                    "Include data tables where they add clarity.",
+                    "",
+                ]
+            )
 
         # Add epistemic rules (merged with overrides)
         lines.append("EPISTEMIC RULES:")
@@ -466,8 +488,7 @@ class PromptComposer:
         # Add vendor guidance if applicable
         if config.vendor_guidance and context.cloud_vendor:
             vendor_config = config.vendor_guidance.get(
-                context.cloud_vendor.lower(),
-                config.vendor_guidance.get("agnostic", {})
+                context.cloud_vendor.lower(), config.vendor_guidance.get("agnostic", {})
             )
             if vendor_config:
                 lines.extend(self._build_vendor_context(vendor_config, context))
@@ -552,10 +573,12 @@ class PromptComposer:
         lines = []
         display_name = vendor_config.get("display_name", context.cloud_vendor.upper())
 
-        lines.extend([
-            f"CLOUD VENDOR FOCUS: {display_name}",
-            "",
-        ])
+        lines.extend(
+            [
+                f"CLOUD VENDOR FOCUS: {display_name}",
+                "",
+            ]
+        )
 
         # Add key services if present
         key_services = vendor_config.get("key_services", {})

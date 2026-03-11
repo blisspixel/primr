@@ -54,6 +54,7 @@ logger = logging.getLogger(__name__)
 # ENUMS
 # =============================================================================
 
+
 class HookType(Enum):
     """Types of hooks in the system."""
 
@@ -74,6 +75,7 @@ class HookResult(Enum):
 # =============================================================================
 # DATA CLASSES
 # =============================================================================
+
 
 @dataclass
 class HookContext:
@@ -120,6 +122,7 @@ class HookResponse:
 # =============================================================================
 # HOOK BASE CLASS
 # =============================================================================
+
 
 class Hook(ABC):
     """
@@ -179,6 +182,7 @@ class Hook(ABC):
 # =============================================================================
 # HOOK SYSTEM
 # =============================================================================
+
 
 class HookSystem:
     """
@@ -304,9 +308,7 @@ class HookSystem:
             try:
                 response = await hook.execute(context)
                 if response.result == HookResult.BLOCK:
-                    logger.warning(
-                        f"Hook {hook.name} blocked stage {stage}: {response.message}"
-                    )
+                    logger.warning(f"Hook {hook.name} blocked stage {stage}: {response.message}")
                     return response
                 elif response.result == HookResult.WARN:
                     logger.warning(
@@ -369,9 +371,7 @@ class HookSystem:
             try:
                 response = await hook.execute(context)
                 if response.result == HookResult.BLOCK:
-                    logger.warning(
-                        f"Hook {hook.name} blocked session start: {response.message}"
-                    )
+                    logger.warning(f"Hook {hook.name} blocked session start: {response.message}")
                     return response
             except Exception as e:
                 self._handle_error(hook, e)
@@ -423,9 +423,7 @@ class HookSystem:
                     )
                     return response
                 elif response.result == HookResult.WARN:
-                    logger.info(
-                        f"Hook {hook.name} warned for stage {stage}: {response.message}"
-                    )
+                    logger.info(f"Hook {hook.name} warned for stage {stage}: {response.message}")
                     last_warn = response
             except Exception as e:
                 self._handle_error(hook, e)
@@ -461,10 +459,10 @@ class HookSystem:
             logger.debug(f"Hook {hook.name} skipped due to error: {error}")
 
 
-
 # =============================================================================
 # BUILT-IN HOOKS
 # =============================================================================
+
 
 class CostGuardHook(Hook):
     """
@@ -696,21 +694,19 @@ class QAGateHook(Hook):
                 self._last_feedback = []
 
                 # Word count >= 500: +15
-                if quality['word_count'] >= 500:
+                if quality["word_count"] >= 500:
                     score += 15
                 else:
-                    self._last_feedback.append(
-                        f"Report is short ({quality['word_count']} words)"
-                    )
+                    self._last_feedback.append(f"Report is short ({quality['word_count']} words)")
 
                 # Sections >= 3: +10
-                if structure['total_sections'] >= 3:
+                if structure["total_sections"] >= 3:
                     score += 10
                 else:
                     self._last_feedback.append("Report has too few sections")
 
                 # Required sections present: +10
-                if not structure['key_sections_missing']:
+                if not structure["key_sections_missing"]:
                     score += 10
                 else:
                     self._last_feedback.append(
@@ -718,7 +714,7 @@ class QAGateHook(Hook):
                     )
 
                 # Hypothesis framing meets threshold: +5
-                if hypothesis['meets_threshold']:
+                if hypothesis["meets_threshold"]:
                     score += 5
                 else:
                     self._last_feedback.append(
@@ -727,7 +723,7 @@ class QAGateHook(Hook):
                     )
 
                 # Citation density meets threshold: +5
-                if citation_density['meets_threshold']:
+                if citation_density["meets_threshold"]:
                     score += 5
                 else:
                     self._last_feedback.append(
@@ -736,8 +732,8 @@ class QAGateHook(Hook):
                     )
 
                 # Truncated sections: -5 each (max -10)
-                if section_lengths['truncated_sections']:
-                    penalty = min(10, section_lengths['truncated_count'] * 5)
+                if section_lengths["truncated_sections"]:
+                    penalty = min(10, section_lengths["truncated_count"] * 5)
                     score -= penalty
                     self._last_feedback.append(
                         f"{section_lengths['truncated_count']} truncated section(s): "
@@ -769,9 +765,7 @@ class QAGateHook(Hook):
             if score < self._min_score:
                 return HookResponse(
                     result=HookResult.WARN,
-                    message=(
-                        f"QA score {score} below threshold {self._min_score}"
-                    ),
+                    message=(f"QA score {score} below threshold {self._min_score}"),
                 )
 
             return HookResponse(result=HookResult.ALLOW)
@@ -828,9 +822,7 @@ class MemoryPersistenceHook(Hook):
         if hypotheses and company:
             try:
                 self._memory.save_hypotheses(company, hypotheses)
-                logger.debug(
-                    f"MemoryPersistence: saved {len(hypotheses)} hypotheses for {company}"
-                )
+                logger.debug(f"MemoryPersistence: saved {len(hypotheses)} hypotheses for {company}")
             except Exception as e:
                 logger.error(f"Failed to persist hypotheses: {e}")
 
@@ -1099,9 +1091,7 @@ class VerificationGateHook(Hook):
             threshold_pct = int(self._min_trust_score * 100)
             return HookResponse(
                 result=HookResult.WARN,
-                message=(
-                    f"Trust score {pct}% below threshold {threshold_pct}%"
-                ),
+                message=(f"Trust score {pct}% below threshold {threshold_pct}%"),
             )
 
         return HookResponse(result=HookResult.ALLOW)

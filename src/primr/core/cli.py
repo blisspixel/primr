@@ -16,6 +16,7 @@ Usage:
     # Parse arguments only
     config = parse_args(["Acme Corp", "https://acme.example", "--mode", "deep"])
 """
+
 import argparse
 import os
 import sys
@@ -36,8 +37,10 @@ logger = get_logger("cli")
 # ENUMS
 # =============================================================================
 
+
 class Command(Enum):
     """CLI commands."""
+
     RESEARCH = "research"
     DOCTOR = "doctor"
     LIST_RECENT = "list-recent"
@@ -69,9 +72,11 @@ class Command(Enum):
 # DATACLASSES
 # =============================================================================
 
+
 @dataclass(frozen=True)
 class CLIConfig:
     """Configuration parsed from CLI arguments."""
+
     command: Command
     company_name: str | None = None
     website: str | None = None
@@ -156,6 +161,7 @@ class CLIConfig:
 # PROTOCOLS
 # =============================================================================
 
+
 class CLIRunner(Protocol):
     """Protocol for CLI command runners."""
 
@@ -188,6 +194,7 @@ MODE_MAP = {
 # PUBLIC INTERFACE
 # =============================================================================
 
+
 def parse_args(args: list[str] | None = None) -> CLIConfig:
     """
     Parse command-line arguments.
@@ -209,7 +216,7 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
 
     # AI strategy is on by default for full modes, off for scrape-only
     # --no-ai-strategy explicitly disables it
-    if getattr(parsed, 'no_ai_strategy', False):
+    if getattr(parsed, "no_ai_strategy", False):
         ai_strategy = False
     elif mode in ("scrape-only",):
         ai_strategy = False  # Scrape mode doesn't need AI strategy
@@ -217,7 +224,7 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         ai_strategy = True
 
     # Build context files tuple
-    context_files = tuple(getattr(parsed, 'context', None) or [])
+    context_files = tuple(getattr(parsed, "context", None) or [])
 
     banner_arg = getattr(parsed, "banner", None)
     no_banner = getattr(parsed, "no_banner", False)
@@ -231,8 +238,8 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
 
     # Batch commands default to requiring confirmation; everything else skips it.
     # --skip-confirm explicitly skips confirmation for any command.
-    is_batch = bool(getattr(parsed, 'batch', None) or parsed.csv)
-    skip_confirm_flag = getattr(parsed, 'skip_confirm', False)
+    is_batch = bool(getattr(parsed, "batch", None) or parsed.csv)
+    skip_confirm_flag = getattr(parsed, "skip_confirm", False)
     skip_confirm = skip_confirm_flag if is_batch else True
 
     return CLIConfig(
@@ -240,70 +247,79 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         company_name=parsed.company,
         website=parsed.website,
         mode=mode,
-        citation_style=getattr(parsed, 'citation_style', 'numbered'),
+        citation_style=getattr(parsed, "citation_style", "numbered"),
         ai_strategy=ai_strategy,
-        cloud_vendors=tuple(dict.fromkeys(getattr(parsed, 'cloud_vendor', ['azure']))),
+        cloud_vendors=tuple(dict.fromkeys(getattr(parsed, "cloud_vendor", ["azure"]))),
         skip_confirm=skip_confirm,
         context_files=context_files,
-        context_folder=getattr(parsed, 'context_folder', None),
-        refresh_vendor_research=getattr(parsed, 'refresh_vendor_research', False),
-        generate_vendor=getattr(parsed, 'generate_vendor_research', None),
+        context_folder=getattr(parsed, "context_folder", None),
+        refresh_vendor_research=getattr(parsed, "refresh_vendor_research", False),
+        generate_vendor=getattr(parsed, "generate_vendor_research", None),
         csv_file=parsed.csv,
-        batch_file=getattr(parsed, 'batch', None),
-        industry=getattr(parsed, 'industry', None),
-        limit=getattr(parsed, 'limit', None),
-        enrich=getattr(parsed, 'enrich', False),
-        output_dir=getattr(parsed, 'output_dir', None),
-        open_after=getattr(parsed, 'open', False),
+        batch_file=getattr(parsed, "batch", None),
+        industry=getattr(parsed, "industry", None),
+        limit=getattr(parsed, "limit", None),
+        enrich=getattr(parsed, "enrich", False),
+        output_dir=getattr(parsed, "output_dir", None),
+        open_after=getattr(parsed, "open", False),
         quiet=parsed.quiet,
         verbose=parsed.verbose,
-        test_accordion_topic=getattr(parsed, 'test_accordion', None),
-        test_accordion_pages=getattr(parsed, 'accordion_pages', 50),
-        analyze_report_path=getattr(parsed, 'analyze_report', None),
-        qa_company=getattr(parsed, 'qa', None),
-        qa_recent_count=getattr(parsed, 'qa_recent', None),
-        max_scrape_time=getattr(parsed, 'max_scrape_time', None),
-        ai_strategy_only_path=getattr(parsed, 'ai_strategy_only', None),
-        discovery_notes_path=getattr(parsed, 'discovery_notes', None),
-        strategy_type=getattr(parsed, 'strategy_type', 'ai'),
-        improve_path=(getattr(parsed, 'improve', None) or (parsed.website if (parsed.company and str(parsed.company).lower() == 'improve') else None)),
-        improve_in_place=getattr(parsed, 'in_place', False),
-        improve_agentic=getattr(parsed, 'improve_agentic', False),
+        test_accordion_topic=getattr(parsed, "test_accordion", None),
+        test_accordion_pages=getattr(parsed, "accordion_pages", 50),
+        analyze_report_path=getattr(parsed, "analyze_report", None),
+        qa_company=getattr(parsed, "qa", None),
+        qa_recent_count=getattr(parsed, "qa_recent", None),
+        max_scrape_time=getattr(parsed, "max_scrape_time", None),
+        ai_strategy_only_path=getattr(parsed, "ai_strategy_only", None),
+        discovery_notes_path=getattr(parsed, "discovery_notes", None),
+        strategy_type=getattr(parsed, "strategy_type", "ai"),
+        improve_path=(
+            getattr(parsed, "improve", None)
+            or (
+                parsed.website
+                if (parsed.company and str(parsed.company).lower() == "improve")
+                else None
+            )
+        ),
+        improve_in_place=getattr(parsed, "in_place", False),
+        improve_agentic=getattr(parsed, "improve_agentic", False),
         banner_mode=banner_mode,
         banner_explicit=banner_explicit,
-        resume_latest=getattr(parsed, 'resume_latest', False),
-        resume_local=getattr(parsed, 'resume_local', False),
-        lite_strategy=getattr(parsed, 'lite_strategy', False),
-        fast_mode=getattr(parsed, 'fast_mode', False),
-        premium_mode=getattr(parsed, 'premium_mode', False),
-        no_qa=getattr(parsed, 'no_qa', False),
-        verify=getattr(parsed, 'verify', False),
-        skip_scrape_validation=getattr(parsed, 'skip_scrape_validation', False),
+        resume_latest=getattr(parsed, "resume_latest", False),
+        resume_local=getattr(parsed, "resume_local", False),
+        lite_strategy=getattr(parsed, "lite_strategy", False),
+        fast_mode=getattr(parsed, "fast_mode", False),
+        premium_mode=getattr(parsed, "premium_mode", False),
+        no_qa=getattr(parsed, "no_qa", False),
+        verify=getattr(parsed, "verify", False),
+        skip_scrape_validation=getattr(parsed, "skip_scrape_validation", False),
         # Agentic architecture options
-        memory_company=getattr(parsed, 'memory', None),
-        memory_list=getattr(parsed, 'memory_list', False),
-        orchestrate_max_cost=getattr(parsed, 'max_cost', None),
-        roadmap_version=getattr(parsed, 'roadmap_version', None),
-        eval_mode=getattr(parsed, 'eval_mode', False),
-        eval_id=getattr(parsed, 'eval_id', None),
-        eval_root=getattr(parsed, 'eval_root', "output/evals"),
-        eval_profiles=tuple(dict.fromkeys(getattr(parsed, 'eval_profiles', ['full', 'lite', 'fast']))),
-        eval_baseline=getattr(parsed, 'eval_baseline', 'full'),
-        eval_manifest=getattr(parsed, 'eval_manifest', None),
-        eval_run_missing=getattr(parsed, 'eval_run_missing', False),
-        eval_max_new_runs=getattr(parsed, 'eval_max_new_runs', 0),
-        eval_max_estimated_cost=getattr(parsed, 'eval_max_estimated_cost', 0.0),
-        eval_quality_ratio_threshold=getattr(parsed, 'eval_quality_ratio_threshold', 0.8),
-        eval_cost_ratio_threshold=getattr(parsed, 'eval_cost_ratio_threshold', 0.2),
-        eval_company=getattr(parsed, 'eval_company', None),
-        eval_source_dir=getattr(parsed, 'eval_source_dir', "output"),
-        eval_auto_stage=not getattr(parsed, 'eval_no_auto_stage', False),
-        eval_llm_judge=getattr(parsed, 'eval_llm_judge', False),
-        eval_judge_provider=getattr(parsed, 'eval_judge_provider', "grok"),
-        eval_judge_model=getattr(parsed, 'eval_judge_model', "grok-4-1-fast-reasoning"),
-        eval_judge_max_pairs=getattr(parsed, 'eval_judge_max_pairs', 1),
-        eval_judge_passes=getattr(parsed, 'eval_judge_passes', 1),
-        eval_judge_max_cost=getattr(parsed, 'eval_judge_max_cost', 0.0),
+        memory_company=getattr(parsed, "memory", None),
+        memory_list=getattr(parsed, "memory_list", False),
+        orchestrate_max_cost=getattr(parsed, "max_cost", None),
+        roadmap_version=getattr(parsed, "roadmap_version", None),
+        eval_mode=getattr(parsed, "eval_mode", False),
+        eval_id=getattr(parsed, "eval_id", None),
+        eval_root=getattr(parsed, "eval_root", "output/evals"),
+        eval_profiles=tuple(
+            dict.fromkeys(getattr(parsed, "eval_profiles", ["full", "lite", "fast"]))
+        ),
+        eval_baseline=getattr(parsed, "eval_baseline", "full"),
+        eval_manifest=getattr(parsed, "eval_manifest", None),
+        eval_run_missing=getattr(parsed, "eval_run_missing", False),
+        eval_max_new_runs=getattr(parsed, "eval_max_new_runs", 0),
+        eval_max_estimated_cost=getattr(parsed, "eval_max_estimated_cost", 0.0),
+        eval_quality_ratio_threshold=getattr(parsed, "eval_quality_ratio_threshold", 0.8),
+        eval_cost_ratio_threshold=getattr(parsed, "eval_cost_ratio_threshold", 0.2),
+        eval_company=getattr(parsed, "eval_company", None),
+        eval_source_dir=getattr(parsed, "eval_source_dir", "output"),
+        eval_auto_stage=not getattr(parsed, "eval_no_auto_stage", False),
+        eval_llm_judge=getattr(parsed, "eval_llm_judge", False),
+        eval_judge_provider=getattr(parsed, "eval_judge_provider", "grok"),
+        eval_judge_model=getattr(parsed, "eval_judge_model", "grok-4-1-fast-reasoning"),
+        eval_judge_max_pairs=getattr(parsed, "eval_judge_max_pairs", 1),
+        eval_judge_passes=getattr(parsed, "eval_judge_passes", 1),
+        eval_judge_max_cost=getattr(parsed, "eval_judge_max_cost", 0.0),
     )
 
 
@@ -326,9 +342,16 @@ def main(args: list[str] | None = None) -> int:
 
     # Validate configuration early (skip API key check for utility commands)
     utility_commands = {
-        Command.DOCTOR, Command.LIST_RECENT, Command.CLEAN_TEMP,
-        Command.CHECK_JOBS, Command.CLEAR_JOBS, Command.LIST_STRATEGIES,
-        Command.SHOW_USAGE, Command.ENRICH, Command.EVAL, Command.IMPROVE,
+        Command.DOCTOR,
+        Command.LIST_RECENT,
+        Command.CLEAN_TEMP,
+        Command.CHECK_JOBS,
+        Command.CLEAR_JOBS,
+        Command.LIST_STRATEGIES,
+        Command.SHOW_USAGE,
+        Command.ENRICH,
+        Command.EVAL,
+        Command.IMPROVE,
     }
     include_api_keys = config.command not in utility_commands
     if config.command == Command.EVAL and config.eval_run_missing:
@@ -353,9 +376,11 @@ def main(args: list[str] | None = None) -> int:
     # Configure console
     if config.quiet:
         from primr.utils.console import Console, set_console
+
         set_console(Console(quiet=True))
     elif config.verbose:
         from primr.utils.console import Console, set_console
+
         set_console(Console(verbose=True))
 
     maybe_show_startup_banner(
@@ -365,7 +390,11 @@ def main(args: list[str] | None = None) -> int:
     )
 
     # Allow explicit "primr --banner" as a no-op command.
-    if config.banner_explicit and config.command == Command.RESEARCH and not config.has_company_info:
+    if (
+        config.banner_explicit
+        and config.command == Command.RESEARCH
+        and not config.has_company_info
+    ):
         return 0
 
     # Dispatch to appropriate handler
@@ -449,7 +478,10 @@ def run_doctor() -> int:
     if all_passed and warnings_count == 0:
         console.success_box("All checks passed", "Primr is ready to use")
     elif all_passed:
-        console.success_box(f"Ready with {warnings_count} warning(s)", "Primr can run, but some features may be limited")
+        console.success_box(
+            f"Ready with {warnings_count} warning(s)",
+            "Primr can run, but some features may be limited",
+        )
     else:
         console.error("Some checks failed - fix issues above before running research")
 
@@ -476,7 +508,12 @@ def _discover_strategies() -> list[dict[str, str]]:
 
     strategies_dir = Path(__file__).parent.parent / "prompts" / "strategies"
     results: list[dict[str, str]] = [
-        {"name": "ai", "display_name": "AI Strategy", "description": "AI transformation roadmap with vendor-specific recommendations", "status": "active"},
+        {
+            "name": "ai",
+            "display_name": "AI Strategy",
+            "description": "AI transformation roadmap with vendor-specific recommendations",
+            "status": "active",
+        },
     ]
 
     if strategies_dir.exists():
@@ -494,7 +531,9 @@ def _discover_strategies() -> list[dict[str, str]]:
                     continue
                 desc = meta.get("cli_description") or meta.get("description", "")
                 display = meta.get("name", stem.replace("_", " ").title())
-                results.append({"name": stem, "display_name": display, "description": desc, "status": status})
+                results.append(
+                    {"name": stem, "display_name": display, "description": desc, "status": status}
+                )
             except Exception as e:
                 logger.warning("Failed to load strategy %s: %s", yaml_path.name, e)
                 continue
@@ -569,7 +608,7 @@ Agentic Architecture (v1.7.0):
 Accordion Method Test (for development):
   primr --test-accordion "Oceanography 2026-2030"
   primr --test-accordion "Topic" --accordion-pages 30
-"""
+""",
     )
 
     # Positional arguments
@@ -579,39 +618,37 @@ Accordion Method Test (for development):
     # Batch mode
     parser.add_argument("--csv", type=str, help="CSV file for batch processing")
     parser.add_argument(
-        "--batch",
-        type=str,
-        metavar="FILE",
-        help="Excel (.xlsx) or CSV file for batch research"
+        "--batch", type=str, metavar="FILE", help="Excel (.xlsx) or CSV file for batch research"
     )
-    parser.add_argument(
-        "--industry",
-        type=str,
-        help="Filter batch rows by industry column value"
-    )
-    parser.add_argument(
-        "--limit",
-        type=int,
-        help="Max number of companies to process in batch"
-    )
+    parser.add_argument("--industry", type=str, help="Filter batch rows by industry column value")
+    parser.add_argument("--limit", type=int, help="Max number of companies to process in batch")
     parser.add_argument(
         "--enrich",
         action="store_true",
-        help="Enrich mode: look up websites, save CSV, don't run research"
+        help="Enrich mode: look up websites, save CSV, don't run research",
     )
     parser.add_argument(
-        "--skip-confirm",
-        action="store_true",
-        help="Skip confirmation prompt for batch research"
+        "--skip-confirm", action="store_true", help="Skip confirmation prompt for batch research"
     )
 
     # Research options
     parser.add_argument(
-        "--mode", "-m",
+        "--mode",
+        "-m",
         type=str,
-        choices=["scrape", "deep", "full", "premium", "parallel", "structured", "deep-research", "complete", "hybrid"],
+        choices=[
+            "scrape",
+            "deep",
+            "full",
+            "premium",
+            "parallel",
+            "structured",
+            "deep-research",
+            "complete",
+            "hybrid",
+        ],
         default="full",
-        help="Research mode: scrape (corpus + insights), deep, full (default, uses fast mode when XAI_API_KEY set), premium (Gemini + Deep Research)"
+        help="Research mode: scrape (corpus + insights), deep, full (default, uses fast mode when XAI_API_KEY set), premium (Gemini + Deep Research)",
     )
     parser.add_argument("--quiet", "-q", action="store_true", help="Minimal output")
     parser.add_argument("--verbose", "-v", action="store_true", help="Detailed output")
@@ -621,33 +658,33 @@ Accordion Method Test (for development):
         const="animated",
         choices=["auto", "off", "static", "animated"],
         default=None,
-        help="Control startup banner (default: auto for interactive terminals)"
+        help="Control startup banner (default: auto for interactive terminals)",
     )
-    parser.add_argument(
-        "--no-banner",
-        action="store_true",
-        help="Disable startup banner"
-    )
+    parser.add_argument("--no-banner", action="store_true", help="Disable startup banner")
     parser.add_argument(
         "--citation-style",
         type=str,
         choices=["numbered", "inline", "sidecar"],
         default="numbered",
-        help="Citation style (default: numbered)"
+        help="Citation style (default: numbered)",
     )
-    parser.add_argument("--ai-strategy", action="store_true", default=True, help="Generate AI recommendations")
+    parser.add_argument(
+        "--ai-strategy", action="store_true", default=True, help="Generate AI recommendations"
+    )
     parser.add_argument("--no-ai-strategy", action="store_true", help="Disable AI strategy")
     parser.add_argument("--no-qa", action="store_true", help="Disable automatic quality assessment")
-    parser.add_argument("--verify", action="store_true", help="Run post-QA claim verification (~$0.01, 3-5 min)")
+    parser.add_argument(
+        "--verify", action="store_true", help="Run post-QA claim verification (~$0.01, 3-5 min)"
+    )
     parser.add_argument(
         "--skip-scrape-validation",
         action="store_true",
-        help="Allow run to continue even when website scraping is too thin/failing"
+        help="Allow run to continue even when website scraping is too thin/failing",
     )
     parser.add_argument(
         "--resume-local",
         action="store_true",
-        help="Reuse latest incomplete local working folder for this company and continue from checkpoints"
+        help="Reuse latest incomplete local working folder for this company and continue from checkpoints",
     )
     parser.add_argument(
         "--cloud-vendor",
@@ -655,30 +692,30 @@ Accordion Method Test (for development):
         nargs="+",
         choices=["azure", "aws", "gcp", "agnostic", "private"],
         default=["azure"],
-        help="Cloud vendor(s) for AI recommendations (can specify multiple)"
+        help="Cloud vendor(s) for AI recommendations (can specify multiple)",
     )
     parser.add_argument(
         "--lite",
         action="store_true",
         dest="lite_strategy",
-        help="Use Pro model instead of Deep Research for AI strategy (faster, cheaper, less depth)"
+        help="Use Pro model instead of Deep Research for AI strategy (faster, cheaper, less depth)",
     )
     parser.add_argument(
         "--fast",
         action="store_true",
         dest="fast_mode",
-        help="Fast mode (now the default when XAI_API_KEY is set). Explicit flag for backward compat"
+        help="Fast mode (now the default when XAI_API_KEY is set). Explicit flag for backward compat",
     )
     parser.add_argument(
         "--premium",
         action="store_true",
         dest="premium_mode",
-        help="Premium mode: Gemini + Deep Research pipeline (~$5, 50-75 min). Use for maximum depth"
+        help="Premium mode: Gemini + Deep Research pipeline (~$5, 50-75 min). Use for maximum depth",
     )
     parser.add_argument(
         "--discovery-notes",
         type=str,
-        help="Path to discovery notes file (freeform meeting insights)"
+        help="Path to discovery notes file (freeform meeting insights)",
     )
     parser.add_argument("--dry-run", action="store_true", help="Show cost estimate only")
     parser.add_argument("--show-usage", action="store_true", help="Display usage statistics")
@@ -688,22 +725,29 @@ Accordion Method Test (for development):
     parser.add_argument("--output-dir", type=str, help="Custom output directory")
     parser.add_argument("--list-recent", action="store_true", help="List recent outputs")
     parser.add_argument("--clean-temp", action="store_true", help="Clean temporary files")
-    parser.add_argument("--refresh-vendor-research", action="store_true", help="Force refresh vendor research")
-    parser.add_argument("--generate-vendor-research", type=str, choices=["azure", "aws", "gcp", "agnostic", "all"])
+    parser.add_argument(
+        "--refresh-vendor-research", action="store_true", help="Force refresh vendor research"
+    )
+    parser.add_argument(
+        "--generate-vendor-research", type=str, choices=["azure", "aws", "gcp", "agnostic", "all"]
+    )
     parser.add_argument("--check-jobs", action="store_true", help="Check pending research jobs")
     parser.add_argument(
-        "--resume-latest", "--resume-jobs",
+        "--resume-latest",
+        "--resume-jobs",
         action="store_true",
-        help="Recover completed pending jobs and finalize canonical output files"
+        help="Recover completed pending jobs and finalize canonical output files",
     )
     parser.add_argument("--clear-jobs", action="store_true", help="Clear stale pending jobs")
-    parser.add_argument("--list-strategies", action="store_true", help="List available strategy documents")
+    parser.add_argument(
+        "--list-strategies", action="store_true", help="List available strategy documents"
+    )
     parser.add_argument("--check-quota", action="store_true", help="Check API quota")
     parser.add_argument(
         "--max-scrape-time",
         type=int,
         default=None,
-        help="Max minutes for scraping phase (default: 10, env: PRIMR_MAX_SCRAPE_TIME)"
+        help="Max minutes for scraping phase (default: 10, env: PRIMR_MAX_SCRAPE_TIME)",
     )
 
     # Accordion Method test
@@ -711,13 +755,13 @@ Accordion Method Test (for development):
         "--test-accordion",
         type=str,
         metavar="TOPIC",
-        help="Test Accordion Method with a standalone topic (e.g., 'Oceanography 2026-2030')"
+        help="Test Accordion Method with a standalone topic (e.g., 'Oceanography 2026-2030')",
     )
     parser.add_argument(
         "--accordion-pages",
         type=int,
         default=50,
-        help="Target pages for Accordion test (default: 50)"
+        help="Target pages for Accordion test (default: 50)",
     )
 
     # Report analysis
@@ -725,39 +769,37 @@ Accordion Method Test (for development):
         "--analyze-report",
         type=str,
         metavar="PATH",
-        help="Analyze quality of an existing report file"
+        help="Analyze quality of an existing report file",
     )
 
     parser.add_argument(
         "--improve",
         type=str,
         metavar="PATH",
-        help="Improve an existing .md/.txt report or strategy output"
+        help="Improve an existing .md/.txt report or strategy output",
     )
     parser.add_argument(
-        "--in-place",
-        action="store_true",
-        help="When used with --improve, overwrite the input file"
+        "--in-place", action="store_true", help="When used with --improve, overwrite the input file"
     )
     parser.add_argument(
         "--improve-agentic",
         action="store_true",
-        help="With --improve, run an agentic review pass before deterministic cleanup"
+        help="With --improve, run an agentic review pass before deterministic cleanup",
     )
     # QA review
     parser.add_argument(
         "--qa",
         type=str,
         metavar="COMPANY_OR_PATH",
-        help="Show detailed QA analysis for a company report or analyze a specific file path"
+        help="Show detailed QA analysis for a company report or analyze a specific file path",
     )
     parser.add_argument(
         "--qa-recent",
         type=int,
-        nargs='?',
+        nargs="?",
         const=5,
         metavar="N",
-        help="Show QA summary for N most recent reports (default: 5)"
+        help="Show QA summary for N most recent reports (default: 5)",
     )
 
     # AI Strategy retry/resume
@@ -765,7 +807,7 @@ Accordion Method Test (for development):
         "--ai-strategy-only",
         type=str,
         metavar="REPORT_PATH",
-        help="Generate AI strategy using an existing report as context (retry failed AI strategy)"
+        help="Generate AI strategy using an existing report as context (retry failed AI strategy)",
     )
 
     # Strategy type selection
@@ -774,7 +816,7 @@ Accordion Method Test (for development):
         type=str,
         choices=_get_strategy_choices(),
         default="ai",
-        help=_get_strategy_help()
+        help=_get_strategy_help(),
     )
 
     # Agentic architecture commands
@@ -782,33 +824,25 @@ Accordion Method Test (for development):
         "--memory",
         type=str,
         metavar="COMPANY",
-        help="View research memory (hypotheses) for a company"
+        help="View research memory (hypotheses) for a company",
     )
     parser.add_argument(
-        "--memory-list",
-        action="store_true",
-        help="List all companies with research memory"
+        "--memory-list", action="store_true", help="List all companies with research memory"
     )
     parser.add_argument(
         "--orchestrate",
         action="store_true",
-        help="Run orchestrated research with subagent coordination (experimental)"
+        help="Run orchestrated research with subagent coordination (experimental)",
     )
     parser.add_argument(
-        "--max-cost",
-        type=float,
-        help="Maximum cost budget for orchestrated research (USD)"
+        "--max-cost", type=float, help="Maximum cost budget for orchestrated research (USD)"
     )
-    parser.add_argument(
-        "--roadmap",
-        action="store_true",
-        help="Show roadmap information"
-    )
+    parser.add_argument("--roadmap", action="store_true", help="Show roadmap information")
     parser.add_argument(
         "--roadmap-version",
         type=str,
         metavar="VERSION",
-        help="Show details for a specific roadmap version (e.g., 'v1.7.0')"
+        help="Show details for a specific roadmap version (e.g., 'v1.7.0')",
     )
 
     # Versioned model/profile evaluation
@@ -816,19 +850,16 @@ Accordion Method Test (for development):
         "--eval",
         action="store_true",
         dest="eval_mode",
-        help="Run versioned model/profile evaluation scorecard (offline analysis by default)"
+        help="Run versioned model/profile evaluation scorecard (offline analysis by default)",
     )
     parser.add_argument(
-        "--eval-id",
-        type=str,
-        metavar="EVAL_ID",
-        help="Evaluation run id (e.g., eval-2026-02-r1)"
+        "--eval-id", type=str, metavar="EVAL_ID", help="Evaluation run id (e.g., eval-2026-02-r1)"
     )
     parser.add_argument(
         "--eval-root",
         type=str,
         default="output/evals",
-        help="Root folder containing eval outputs (default: output/evals)"
+        help="Root folder containing eval outputs (default: output/evals)",
     )
     parser.add_argument(
         "--eval-profiles",
@@ -836,101 +867,101 @@ Accordion Method Test (for development):
         nargs="+",
         choices=["full", "lite", "fast"],
         default=["full", "lite", "fast"],
-        help="Profiles to compare (default: full lite fast)"
+        help="Profiles to compare (default: full lite fast)",
     )
     parser.add_argument(
         "--eval-baseline",
         type=str,
         choices=["full", "lite", "fast"],
         default="full",
-        help="Baseline profile for quality/cost ratio comparison (default: full)"
+        help="Baseline profile for quality/cost ratio comparison (default: full)",
     )
     parser.add_argument(
         "--eval-manifest",
         type=str,
         metavar="CSV_PATH",
-        help="CSV manifest with company/company_name and website columns (required for --eval-run-missing)"
+        help="CSV manifest with company/company_name and website columns (required for --eval-run-missing)",
     )
     parser.add_argument(
         "--eval-run-missing",
         action="store_true",
-        help="Execute missing profile/company runs (requires explicit spend guardrails)"
+        help="Execute missing profile/company runs (requires explicit spend guardrails)",
     )
     parser.add_argument(
         "--eval-max-new-runs",
         type=int,
         default=0,
-        help="Maximum number of missing runs to execute when --eval-run-missing is set (default: 0)"
+        help="Maximum number of missing runs to execute when --eval-run-missing is set (default: 0)",
     )
     parser.add_argument(
         "--eval-max-estimated-cost",
         type=float,
         default=0.0,
-        help="Hard spend cap in USD for missing runs when --eval-run-missing is set (default: 0.0)"
+        help="Hard spend cap in USD for missing runs when --eval-run-missing is set (default: 0.0)",
     )
     parser.add_argument(
         "--eval-quality-ratio-threshold",
         type=float,
         default=0.8,
-        help="Minimum quality ratio vs baseline for pass/fail (default: 0.8)"
+        help="Minimum quality ratio vs baseline for pass/fail (default: 0.8)",
     )
     parser.add_argument(
         "--eval-cost-ratio-threshold",
         type=float,
         default=0.2,
-        help="Maximum estimated cost ratio vs baseline for pass/fail (default: 0.2)"
+        help="Maximum estimated cost ratio vs baseline for pass/fail (default: 0.2)",
     )
     parser.add_argument(
         "--eval-company",
         type=str,
-        help="Target a specific company for auto-staging from existing outputs"
+        help="Target a specific company for auto-staging from existing outputs",
     )
     parser.add_argument(
         "--eval-source-dir",
         type=str,
         default="output",
-        help="Source directory to auto-stage reports from (default: output)"
+        help="Source directory to auto-stage reports from (default: output)",
     )
     parser.add_argument(
         "--eval-no-auto-stage",
         action="store_true",
-        help="Disable automatic staging from existing local outputs"
+        help="Disable automatic staging from existing local outputs",
     )
     parser.add_argument(
         "--eval-llm-judge",
         action="store_true",
-        help="Optional LLM judge overlay for eval scorecard (incurs API cost)"
+        help="Optional LLM judge overlay for eval scorecard (incurs API cost)",
     )
     parser.add_argument(
         "--eval-judge-provider",
         type=str,
         choices=["grok"],
         default="grok",
-        help="LLM judge provider (default: grok)"
+        help="LLM judge provider (default: grok)",
     )
     parser.add_argument(
         "--eval-judge-model",
         type=str,
         default="grok-4-1-fast-reasoning",
-        help="Model name for LLM judge (default: grok-4-1-fast-reasoning)"
+        help="Model name for LLM judge (default: grok-4-1-fast-reasoning)",
     )
     parser.add_argument(
         "--eval-judge-max-pairs",
         type=int,
         default=1,
-        help="Max company profile pairs to judge (default: 1)"
+        help="Max company profile pairs to judge (default: 1)",
     )
     parser.add_argument(
         "--eval-judge-passes",
         type=int,
         default=1,
-        help="Judge passes per pair for variance reduction (default: 1, cheapest)"
+        help="Judge passes per pair for variance reduction (default: 1, cheapest)",
     )
     parser.add_argument(
         "--eval-judge-max-cost",
         type=float,
         default=0.0,
-        help="Hard cost cap in USD for LLM judge pass (required when --eval-llm-judge)"
+        help="Hard cost cap in USD for LLM judge pass (required when --eval-llm-judge)",
     )
 
     return parser
@@ -985,13 +1016,13 @@ def _determine_command(args: argparse.Namespace) -> Command:
             return cmd
 
     # qa_recent uses `is not None` (0 is a valid value)
-    if getattr(args, 'qa_recent', None) is not None:
+    if getattr(args, "qa_recent", None) is not None:
         return Command.QA_RECENT
 
-    if getattr(args, 'enrich', False) and getattr(args, 'batch', None):
+    if getattr(args, "enrich", False) and getattr(args, "batch", None):
         return Command.ENRICH
 
-    if getattr(args, 'batch', None):
+    if getattr(args, "batch", None):
         return Command.BATCH
 
     if args.csv:
@@ -1003,6 +1034,7 @@ def _determine_command(args: argparse.Namespace) -> Command:
 # =============================================================================
 # INTERNAL FUNCTIONS - Command Handlers
 # =============================================================================
+
 
 def _handle_doctor(config: CLIConfig) -> int:
     """Handle doctor command."""
@@ -1053,7 +1085,7 @@ def _handle_clear_jobs(config: CLIConfig) -> int:
     console.info(f"Clearing {len(jobs)} stale job(s)...")
 
     jobs_file = os.path.join(LOGS_DIR, "pending_research_jobs.json")
-    with open(jobs_file, 'w', encoding='utf-8') as f:
+    with open(jobs_file, "w", encoding="utf-8") as f:
         json.dump({}, f)
 
     console.ok(f"Cleared {len(jobs)} pending jobs")
@@ -1063,6 +1095,7 @@ def _handle_clear_jobs(config: CLIConfig) -> int:
 def _handle_show_usage(config: CLIConfig) -> int:
     """Handle show-usage command."""
     from primr.utils.usage_tracker import get_usage_tracker
+
     tracker = get_usage_tracker()
     print(tracker.display_usage_history())
     return 0
@@ -1080,14 +1113,20 @@ def _handle_dry_run(config: CLIConfig) -> int:
     use_fast_mode = config.fast_mode
     use_premium_mode = config.premium_mode
 
-    if not use_fast_mode and not use_premium_mode and config.mode in ("complete", "structured", "hybrid"):
+    if (
+        not use_fast_mode
+        and not use_premium_mode
+        and config.mode in ("complete", "structured", "hybrid")
+    ):
         if os.environ.get("XAI_API_KEY"):
             use_fast_mode = True
 
     # Validate compatibility
     if use_fast_mode and config.mode not in ("complete", "structured", "hybrid"):
         console.error(f"--fast only works with full mode, not --mode {config.mode}")
-        console.info("Usage: primr \"Company\" https://url --fast [--cloud-vendor aws azure] --dry-run")
+        console.info(
+            'Usage: primr "Company" https://url --fast [--cloud-vendor aws azure] --dry-run'
+        )
         return 1
     if use_premium_mode and config.mode not in ("complete", "structured", "hybrid"):
         console.error(f"--premium only works with full mode, not --mode {config.mode}")
@@ -1103,7 +1142,9 @@ def _handle_dry_run(config: CLIConfig) -> int:
     print("=" * 60)
     print(f"COST ESTIMATE: {mode_label} mode")
     if config.ai_strategy and not use_fast_mode:
-        strategy_label = "AI Strategy (Pro mode)" if config.lite_strategy else "AI Strategy analysis"
+        strategy_label = (
+            "AI Strategy (Pro mode)" if config.lite_strategy else "AI Strategy analysis"
+        )
         print(f"(includes {strategy_label})")
     elif use_fast_mode and config.ai_strategy:
         print("(includes AI Strategy via Grok)")
@@ -1153,7 +1194,7 @@ def _handle_enrich(config: CLIConfig) -> int:
     """Handle batch enrich command."""
     if not config.batch_file:
         console.error("No batch file specified")
-        console.info("Usage: primr --batch \"file.xlsx\" --enrich")
+        console.info('Usage: primr --batch "file.xlsx" --enrich')
         return 1
 
     return enrich_batch(
@@ -1182,7 +1223,7 @@ def _handle_batch(config: CLIConfig) -> int:
     # Legacy --csv path
     if not config.csv_file:
         console.error("No file specified")
-        console.info("Usage: primr --batch \"file.xlsx\" --mode scrape")
+        console.info('Usage: primr --batch "file.xlsx" --mode scrape')
         return 1
 
     process_csv(
@@ -1190,7 +1231,7 @@ def _handle_batch(config: CLIConfig) -> int:
         mode=config.mode,
         citation_style=config.citation_style,
         ai_strategy=config.ai_strategy,
-        cloud_vendors=config.cloud_vendors
+        cloud_vendors=config.cloud_vendors,
     )
     return 0
 
@@ -1201,7 +1242,7 @@ def _handle_test_accordion(config: CLIConfig) -> int:
 
     if not config.test_accordion_topic:
         console.error("No topic specified for Accordion test")
-        console.info("Usage: primr --test-accordion \"Oceanography 2026-2030\"")
+        console.info('Usage: primr --test-accordion "Oceanography 2026-2030"')
         return 1
 
     console.banner("Accordion Method Test")
@@ -1217,8 +1258,7 @@ def _handle_test_accordion(config: CLIConfig) -> int:
     if result.success:
         console.blank()
         console.success_box(
-            f"Test completed: {result.page_estimate:.1f} pages",
-            f"Output: {result.output_path}"
+            f"Test completed: {result.page_estimate:.1f} pages", f"Output: {result.output_path}"
         )
         return 0
     else:
@@ -1235,6 +1275,7 @@ def _handle_analyze_report(config: CLIConfig) -> int:
 
     try:
         from report_analyzer import ReportAnalyzer  # type: ignore[import-not-found]
+
         analyzer = ReportAnalyzer(config.analyze_report_path)
         report = analyzer.generate_report()
         print(report)
@@ -1242,7 +1283,6 @@ def _handle_analyze_report(config: CLIConfig) -> int:
     except Exception as e:
         console.error(f"Analysis failed: {e}")
         return 1
-
 
 
 def _handle_improve(config: CLIConfig) -> int:
@@ -1256,19 +1296,23 @@ def _handle_improve(config: CLIConfig) -> int:
         console.info('   or: primr improve "path/to/output.md" [--in-place]')
         return 1
 
-    result_path = improve_output_file(improve_path, in_place=config.improve_in_place, use_agentic=config.improve_agentic)
+    result_path = improve_output_file(
+        improve_path, in_place=config.improve_in_place, use_agentic=config.improve_agentic
+    )
     if not result_path:
         return 1
 
     action = "Updated" if config.improve_in_place else "Improved"
     console.success_box(f"{action} output", result_path)
     return 0
+
+
 def _handle_qa(config: CLIConfig) -> int:
     """Handle QA review command."""
     if not config.qa_company:
         console.error("Company name or file path is required for QA review")
-        console.info("Usage: primr --qa \"Company Name\"")
-        console.info("   or: primr --qa \"path/to/report.docx\"")
+        console.info('Usage: primr --qa "Company Name"')
+        console.info('   or: primr --qa "path/to/report.docx"')
         return 1
 
     try:
@@ -1281,9 +1325,11 @@ def _handle_qa(config: CLIConfig) -> int:
 
         if potential_path.exists() and potential_path.is_file():
             return qa_command.analyze_report_file(config.qa_company)
-        elif (config.qa_company.endswith(('.docx', '.pdf')) or
-              '\\' in config.qa_company or
-              '/' in config.qa_company):
+        elif (
+            config.qa_company.endswith((".docx", ".pdf"))
+            or "\\" in config.qa_company
+            or "/" in config.qa_company
+        ):
             # Looks like a file path but doesn't exist
             console.error(f"File not found: {config.qa_company}")
             return 1
@@ -1301,6 +1347,7 @@ def _handle_qa_recent(config: CLIConfig) -> int:
 
     try:
         from primr.qa.command import QACommand
+
         qa_command = QACommand()
         return qa_command.show_recent_qa_summary(count)
     except Exception as e:
@@ -1318,7 +1365,9 @@ def _handle_ai_strategy_only(config: CLIConfig) -> int:
     report_path = config.ai_strategy_only_path
     if not report_path:
         console.error("Report path is required for --ai-strategy-only")
-        console.info("Usage: primr --ai-strategy-only \"path/to/report.md\" --strategy-type customer_experience")
+        console.info(
+            'Usage: primr --ai-strategy-only "path/to/report.md" --strategy-type customer_experience'
+        )
         return 1
 
     # Validate file exists
@@ -1328,14 +1377,14 @@ def _handle_ai_strategy_only(config: CLIConfig) -> int:
         return 1
 
     # Get strategy type (default to 'ai' if not specified)
-    strategy_type = getattr(config, 'strategy_type', 'ai')
+    strategy_type = getattr(config, "strategy_type", "ai")
 
     # Map strategy types to display names
     strategy_names = {
         "ai": "AI Strategy",
         "customer_experience": "Customer Experience Strategy",
         "modern_security_compliance": "Security & Compliance Strategy",
-        "data_fabric_strategy": "Data Fabric Strategy"
+        "data_fabric_strategy": "Data Fabric Strategy",
     }
     strategy_display = strategy_names.get(strategy_type, strategy_type)
 
@@ -1345,12 +1394,15 @@ def _handle_ai_strategy_only(config: CLIConfig) -> int:
     if not company_name:
         filename = path.stem
         # Try to extract from filename pattern
-        match = re.match(r'^(.+?)_(?:Strategic_Overview|AI_Strategy|Customer_Experience|Security|Data_Fabric)', filename)
+        match = re.match(
+            r"^(.+?)_(?:Strategic_Overview|AI_Strategy|Customer_Experience|Security|Data_Fabric)",
+            filename,
+        )
         if match:
-            company_name = match.group(1).replace('_', ' ')
+            company_name = match.group(1).replace("_", " ")
         else:
             # Fallback: use filename without extension
-            company_name = filename.replace('_', ' ')
+            company_name = filename.replace("_", " ")
 
     console.banner(f"{strategy_display} Generation")
     console.info(f"Company: {company_name}")
@@ -1376,7 +1428,9 @@ def _handle_ai_strategy_only(config: CLIConfig) -> int:
         )
 
         if result_path:
-            vendor_label = f" ({vendor.upper()})" if strategy_type == "ai" and len(vendors) > 1 else ""
+            vendor_label = (
+                f" ({vendor.upper()})" if strategy_type == "ai" and len(vendors) > 1 else ""
+            )
             console.blank()
             console.success_box(f"{strategy_display}{vendor_label} generated", result_path)
             result_paths.append(result_path)
@@ -1394,6 +1448,7 @@ def _handle_ai_strategy_only(config: CLIConfig) -> int:
 # =============================================================================
 # AGENTIC ARCHITECTURE HANDLERS
 # =============================================================================
+
 
 def _handle_memory(config: CLIConfig) -> int:
     """Handle research memory commands."""
@@ -1436,8 +1491,8 @@ def _handle_memory(config: CLIConfig) -> int:
             company = config.company_name
         else:
             console.error("Company name required")
-            console.info("Usage: primr memory \"Company Name\"")
-            console.info("   or: primr --memory \"Company Name\"")
+            console.info('Usage: primr memory "Company Name"')
+            console.info('   or: primr --memory "Company Name"')
             console.info("   or: primr --memory-list")
             return 1
 
@@ -1496,8 +1551,8 @@ def _handle_orchestrate(config: CLIConfig) -> int:
 
     if not company_name or not website:
         console.error("Company name and website required")
-        console.info("Usage: primr orchestrate \"Company Name\" https://company.com")
-        console.info("   or: primr \"Company Name\" https://company.com --orchestrate")
+        console.info('Usage: primr orchestrate "Company Name" https://company.com')
+        console.info('   or: primr "Company Name" https://company.com --orchestrate')
         return 1
 
     website = _ensure_valid_url(website)
@@ -1535,19 +1590,18 @@ def _handle_orchestrate(config: CLIConfig) -> int:
     console.step("Running orchestrated pipeline...")
 
     try:
-        result = asyncio.run(orchestrator.research(
-            company_name=company_name,
-            company_url=website,
-            mode="full",
-        ))
+        result = asyncio.run(
+            orchestrator.research(
+                company_name=company_name,
+                company_url=website,
+                mode="full",
+            )
+        )
 
         console.blank()
 
         if result.is_success:
-            console.success_box(
-                "Research completed",
-                f"Duration: {result.duration_seconds:.1f}s"
-            )
+            console.success_box("Research completed", f"Duration: {result.duration_seconds:.1f}s")
             if result.report_path:
                 console.info(f"Report: {result.report_path}")
             console.info(f"Hypotheses: {len(result.hypotheses)}")
@@ -1589,6 +1643,7 @@ def _handle_roadmap(config: CLIConfig) -> int:
             console.error(f"Version {version_str} not found")
             console.info("Available versions:")
             from primr.agentic.models import VersionStatus
+
             for v in api.list_by_status(VersionStatus.COMPLETED)[:5]:
                 console.info(f"  • v{v.number}")
             return 1
@@ -1620,6 +1675,7 @@ def _handle_roadmap(config: CLIConfig) -> int:
 
     # Show completed versions
     from primr.agentic.models import VersionStatus
+
     completed = api.list_by_status(VersionStatus.COMPLETED)
     if completed:
         console.step(f"Completed ({len(completed)})")
@@ -1664,7 +1720,9 @@ def _handle_eval(config: CLIConfig) -> int:
         return 1
 
     if config.eval_baseline not in config.eval_profiles:
-        console.error(f"--eval-baseline '{config.eval_baseline}' must be included in --eval-profiles")
+        console.error(
+            f"--eval-baseline '{config.eval_baseline}' must be included in --eval-profiles"
+        )
         return 1
 
     eval_root = Path(config.eval_root)
@@ -1696,7 +1754,9 @@ def _handle_eval(config: CLIConfig) -> int:
 
     if config.eval_run_missing:
         if not manifest_path:
-            console.error("--eval-run-missing requires --eval-manifest (CSV with company/company_name + website)")
+            console.error(
+                "--eval-run-missing requires --eval-manifest (CSV with company/company_name + website)"
+            )
             return 1
         if config.eval_max_new_runs <= 0:
             console.error("--eval-run-missing requires --eval-max-new-runs > 0")
@@ -1720,18 +1780,26 @@ def _handle_eval(config: CLIConfig) -> int:
             with open(manifest_path, encoding="utf-8", newline="") as f:
                 reader = csv.DictReader(f)
                 for manifest_row in reader:
-                    name = (manifest_row.get("company") or manifest_row.get("company_name") or "").strip().lower()
+                    name = (
+                        (manifest_row.get("company") or manifest_row.get("company_name") or "")
+                        .strip()
+                        .lower()
+                    )
                     website = (manifest_row.get("website") or manifest_row.get("url") or "").strip()
                     if name and website:
                         websites[name] = website
 
-            to_run = current.missing_pairs[:config.eval_max_new_runs]
+            to_run = current.missing_pairs[: config.eval_max_new_runs]
 
             def _profile_estimate(profile: str) -> float:
                 if profile == "fast":
-                    return estimate_cost("complete", include_ai_strategy=True, fast_mode=True).total_cost
+                    return estimate_cost(
+                        "complete", include_ai_strategy=True, fast_mode=True
+                    ).total_cost
                 if profile == "lite":
-                    return estimate_cost("complete", include_ai_strategy=True, lite_strategy=True).total_cost
+                    return estimate_cost(
+                        "complete", include_ai_strategy=True, lite_strategy=True
+                    ).total_cost
                 return estimate_cost("complete", include_ai_strategy=True).total_cost
 
             estimated_total = sum(_profile_estimate(profile) for _, profile in to_run)
@@ -1779,7 +1847,9 @@ def _handle_eval(config: CLIConfig) -> int:
                     latest = max(matches, key=lambda p: p.stat().st_mtime)
                     shutil.copy2(latest, profile_output / latest.name)
                 else:
-                    console.warn(f"Could not locate output artifact to copy for {company} [{profile}]")
+                    console.warn(
+                        f"Could not locate output artifact to copy for {company} [{profile}]"
+                    )
 
     eval_result = evaluate_outputs(
         eval_id=config.eval_id,
@@ -1802,7 +1872,9 @@ def _handle_eval(config: CLIConfig) -> int:
     has_any_reports = any(summary.report_count > 0 for summary in eval_result.profile_summaries)
     if not has_any_reports:
         console.warn("No reports found for this eval id yet.")
-        console.info("Place outputs under output/evals/<eval-id>/<profile>/ or run with --eval-run-missing.")
+        console.info(
+            "Place outputs under output/evals/<eval-id>/<profile>/ or run with --eval-run-missing."
+        )
     elif eval_result.missing_pairs:
         console.warn(f"Missing profile/company pairs: {len(eval_result.missing_pairs)}")
         console.info("Re-run with --eval-run-missing plus spend caps to fill gaps.")
@@ -1820,7 +1892,8 @@ def _handle_eval(config: CLIConfig) -> int:
             console.warn("No staged metrics available for LLM judge.")
             return 0
         candidates = [
-            p.profile for p in eval_result.profile_summaries
+            p.profile
+            for p in eval_result.profile_summaries
             if p.profile != config.eval_baseline and p.report_count > 0
         ]
         if not candidates:
@@ -1895,6 +1968,7 @@ def _run_preflight_checks(mode: str) -> tuple[bool, list[str]]:
     if mode in ("scrape-only", "complete", "hybrid", "structured"):
         try:
             from playwright.sync_api import sync_playwright
+
             pw = sync_playwright().start()
             try:
                 # Try to launch browser - this will fail if browsers aren't installed
@@ -1913,6 +1987,7 @@ def _run_preflight_checks(mode: str) -> tuple[bool, list[str]]:
     if gemini_key and len(gemini_key) >= 10:
         try:
             from google import genai
+
             client = genai.Client(api_key=gemini_key)
             # Minimal test - just check we can connect
             _ = client.models.generate_content(
@@ -1935,23 +2010,30 @@ def _run_preflight_checks(mode: str) -> tuple[bool, list[str]]:
         search_engine_id = os.environ.get("SEARCH_ENGINE_ID", "")
 
         if not search_key or len(search_key) < 10:
-            errors.append("SEARCH_API_KEY not configured. Get your key at: https://console.cloud.google.com/apis/credentials")
+            errors.append(
+                "SEARCH_API_KEY not configured. Get your key at: https://console.cloud.google.com/apis/credentials"
+            )
         elif not search_engine_id or len(search_engine_id) < 10:
-            errors.append("SEARCH_ENGINE_ID not configured or invalid. Get it at: https://programmablesearchengine.google.com/controlpanel/all")
+            errors.append(
+                "SEARCH_ENGINE_ID not configured or invalid. Get it at: https://programmablesearchengine.google.com/controlpanel/all"
+            )
         else:
             # Actually test the Search API with a simple query
             try:
                 import requests
+
                 test_url = "https://www.googleapis.com/customsearch/v1"
                 params: dict[str, str | int] = {
                     "q": "test",
                     "key": search_key,
                     "cx": search_engine_id,
-                    "num": 1
+                    "num": 1,
                 }
                 search_response = requests.get(test_url, params=params, timeout=10)
                 if search_response.status_code == 400:
-                    error_detail = search_response.json().get("error", {}).get("message", "Bad Request")
+                    error_detail = (
+                        search_response.json().get("error", {}).get("message", "Bad Request")
+                    )
                     errors.append(f"Google Search API config invalid: {error_detail}")
                 elif search_response.status_code == 403:
                     errors.append("Google Search API key invalid or quota exceeded")
@@ -1975,7 +2057,7 @@ def _handle_research(config: CLIConfig) -> int:
     if not config.company_name or not config.website:
         console.error("Both company name and website are required")
         console.info("")
-        console.info("Usage: primr \"Company Name\" https://company.com")
+        console.info('Usage: primr "Company Name" https://company.com')
         console.info("")
         console.info("Run 'primr doctor' to check system configuration")
         return 1
@@ -2014,7 +2096,11 @@ def _handle_research(config: CLIConfig) -> int:
     use_fast_mode = config.fast_mode
     use_premium_mode = config.premium_mode
 
-    if not use_fast_mode and not use_premium_mode and config.mode in ("complete", "structured", "hybrid"):
+    if (
+        not use_fast_mode
+        and not use_premium_mode
+        and config.mode in ("complete", "structured", "hybrid")
+    ):
         # Auto-detect: if XAI_API_KEY is set, default to fast mode
         if os.environ.get("XAI_API_KEY"):
             use_fast_mode = True
@@ -2031,7 +2117,7 @@ def _handle_research(config: CLIConfig) -> int:
     if use_fast_mode:
         if config.mode not in ("complete", "structured", "hybrid"):
             console.error(f"--fast only works with full mode, not --mode {config.mode}")
-            console.info("Usage: primr \"Company\" https://url --fast [--cloud-vendor aws azure]")
+            console.info('Usage: primr "Company" https://url --fast [--cloud-vendor aws azure]')
             return 1
         if not os.environ.get("XAI_API_KEY"):
             console.error("Fast mode requires XAI_API_KEY in your .env or environment")
@@ -2111,6 +2197,7 @@ def _handle_research(config: CLIConfig) -> int:
 # INTERNAL FUNCTIONS - Doctor Checks
 # =============================================================================
 
+
 def _check_api_keys(all_passed: bool, warnings_count: int) -> tuple[bool, int]:
     """Check API key configuration and actually test connectivity."""
     import requests
@@ -2141,8 +2228,12 @@ def _check_api_keys(all_passed: bool, warnings_count: int) -> tuple[bool, int]:
             console.info("  Get your key at: https://console.cloud.google.com/apis/credentials")
             all_passed = False
         elif not search_engine_id or len(search_engine_id) < 10:
-            console.error("SEARCH_ENGINE_ID not set or invalid (required for SEARCH_PROVIDER=google)")
-            console.info("  Get it at: https://programmablesearchengine.google.com/controlpanel/all")
+            console.error(
+                "SEARCH_ENGINE_ID not set or invalid (required for SEARCH_PROVIDER=google)"
+            )
+            console.info(
+                "  Get it at: https://programmablesearchengine.google.com/controlpanel/all"
+            )
             all_passed = False
         else:
             try:
@@ -2151,7 +2242,7 @@ def _check_api_keys(all_passed: bool, warnings_count: int) -> tuple[bool, int]:
                     "q": "test",
                     "key": search_key,
                     "cx": search_engine_id,
-                    "num": 1
+                    "num": 1,
                 }
                 response = requests.get(test_url, params=params, timeout=10)
                 if response.status_code == 200:
@@ -2159,7 +2250,9 @@ def _check_api_keys(all_passed: bool, warnings_count: int) -> tuple[bool, int]:
                 elif response.status_code == 400:
                     error_detail = response.json().get("error", {}).get("message", "Bad Request")
                     console.error(f"Google Search API config invalid: {error_detail}")
-                    console.info("  Check SEARCH_ENGINE_ID at: https://programmablesearchengine.google.com/controlpanel/all")
+                    console.info(
+                        "  Check SEARCH_ENGINE_ID at: https://programmablesearchengine.google.com/controlpanel/all"
+                    )
                     all_passed = False
                 elif response.status_code == 403:
                     console.error("Google Search API key invalid or quota exceeded")
@@ -2177,6 +2270,7 @@ def _check_api_keys(all_passed: bool, warnings_count: int) -> tuple[bool, int]:
         # DuckDuckGo mode (default) - test connectivity
         try:
             from ddgs import DDGS
+
             results = DDGS().text("test", max_results=1)
             if results:
                 console.ok("DuckDuckGo search working (no API key needed)")
@@ -2201,6 +2295,7 @@ def _check_dependencies(warnings_count: int) -> int:
     """Check required dependencies."""
     try:
         from playwright.sync_api import sync_playwright
+
         with sync_playwright():
             console.ok("Playwright browsers available")
     except Exception as e:
@@ -2256,6 +2351,7 @@ def _check_api_connectivity(all_passed: bool, warnings_count: int) -> tuple[bool
     if gemini_key:
         try:
             from google import genai
+
             client = genai.Client(api_key=gemini_key)
             response = client.models.generate_content(
                 model=PrimrModels.FAST_MODEL,
@@ -2300,6 +2396,7 @@ def _check_gemini_resources(all_passed: bool, warnings_count: int) -> tuple[bool
 
     try:
         from google import genai
+
         client = genai.Client(api_key=gemini_key)
         python_cmd = f'"{sys.executable}"'
 
@@ -2308,7 +2405,9 @@ def _check_gemini_resources(all_passed: bool, warnings_count: int) -> tuple[bool
             caches = list(client.caches.list())
             if caches:
                 console.warn(f"Found {len(caches)} orphaned cache(s) - costing money!")
-                console.info(f"  Run: {python_cmd} scripts/check_gemini_resources.py --delete-caches")
+                console.info(
+                    f"  Run: {python_cmd} scripts/check_gemini_resources.py --delete-caches"
+                )
                 warnings_count += 1
             else:
                 console.ok("No orphaned caches")
@@ -2344,6 +2443,7 @@ def _check_gemini_resources(all_passed: bool, warnings_count: int) -> tuple[bool
 # =============================================================================
 # UTILITY FUNCTIONS
 # =============================================================================
+
 
 def list_recent_outputs() -> None:
     """List recent research outputs from the output directory."""
@@ -2415,8 +2515,7 @@ def check_api_quota() -> None:
     try:
         client = genai.Client(api_key=settings.api.gemini_key)
         response = client.models.generate_content(
-            model=PrimrModels.FAST_MODEL,
-            contents="Say 'OK' in one word."
+            model=PrimrModels.FAST_MODEL, contents="Say 'OK' in one word."
         )
         if response and response.text:
             console.ok("API quota is available")
@@ -2458,23 +2557,25 @@ def check_pending_jobs() -> None:
         console.info(f"  Started: {job_info.get('started', 'Unknown')}")
 
         result = client.check_job(interaction_id)
-        status = result.get('status', 'unknown')
-        error = result.get('error')
-        error_source = result.get('error_source')
-        is_terminal = bool(result.get('terminal', False))
+        status = result.get("status", "unknown")
+        error = result.get("error")
+        error_source = result.get("error_source")
+        is_terminal = bool(result.get("terminal", False))
 
         if status == "completed":
             console.ok("  Status: COMPLETED")
-            content = result.get('content', '')
+            content = result.get("content", "")
             if content:
                 try:
                     outputs = _save_recovered_outputs(interaction_id, job_info, content)
                     console.ok(f"  Finalized MD: {outputs['md']}")
                     console.ok(f"  Finalized DOCX: {outputs['docx']}")
                 except Exception as e:
-                    job_type = job_info.get('type', 'research')
-                    output_file = os.path.join(OUTPUT_DIR, f"recovered_{job_type}_{interaction_id[:8]}.txt")
-                    with open(output_file, 'w', encoding='utf-8') as f:
+                    job_type = job_info.get("type", "research")
+                    output_file = os.path.join(
+                        OUTPUT_DIR, f"recovered_{job_type}_{interaction_id[:8]}.txt"
+                    )
+                    with open(output_file, "w", encoding="utf-8") as f:
                         f.write(content)
                     console.warn(f"  Canonical finalize failed: {e}")
                     console.ok(f"  Saved fallback TXT: {output_file}")
@@ -2523,7 +2624,9 @@ def _build_recovered_basename(interaction_id: str, job_info: dict[str, Any]) -> 
     date_str = datetime.now().strftime("%m-%d-%Y")
 
     if report_kind == "ai_strategy" or strategy_type == "ai":
-        vendor_tag = f"_{cloud_vendor.upper()}" if cloud_vendor and cloud_vendor != "agnostic" else ""
+        vendor_tag = (
+            f"_{cloud_vendor.upper()}" if cloud_vendor and cloud_vendor != "agnostic" else ""
+        )
         return f"{company_name}_AI_Strategy{vendor_tag}_{date_str}"
 
     if report_kind in {"customer_experience", "modern_security_compliance", "data_fabric_strategy"}:
@@ -2558,9 +2661,9 @@ def _save_recovered_outputs(
     txt_path = str(base_path.with_suffix(".txt"))
     docx_path = str(base_path.with_suffix(".docx"))
 
-    with open(md_path, 'w', encoding='utf-8') as f:
+    with open(md_path, "w", encoding="utf-8") as f:
         f.write(content)
-    with open(txt_path, 'w', encoding='utf-8') as f:
+    with open(txt_path, "w", encoding="utf-8") as f:
         f.write(content)
 
     metadata: dict[str, Any] = (
@@ -2676,8 +2779,10 @@ def resume_pending_jobs() -> int:
                 console.ok(f"  Finalized DOCX: {outputs['docx']}")
                 finalized += 1
             except Exception as e:
-                fallback_path = os.path.join(OUTPUT_DIR, f"recovered_deep_research_{interaction_id[:8]}.txt")
-                with open(fallback_path, 'w', encoding='utf-8') as f:
+                fallback_path = os.path.join(
+                    OUTPUT_DIR, f"recovered_deep_research_{interaction_id[:8]}.txt"
+                )
+                with open(fallback_path, "w", encoding="utf-8") as f:
                     f.write(content)
                 console.error(f"  Finalization failed: {e}")
                 console.ok(f"  Saved fallback TXT: {fallback_path}")
@@ -2706,7 +2811,9 @@ def resume_pending_jobs() -> int:
     )
 
     if check_errors > 0:
-        console.info("Network/API issue detected during resume. Re-run `primr --resume-latest` when connectivity is stable.")
+        console.info(
+            "Network/API issue detected during resume. Re-run `primr --resume-latest` when connectivity is stable."
+        )
         return 1
     if failed > 0 and finalized == 0:
         return 1
@@ -2732,13 +2839,15 @@ def _handle_list_strategies(config: CLIConfig) -> int:
     placeholders: list[dict[str, str]] = []
 
     # AI Strategy is always first (built-in)
-    active.append({
-        "name": "ai",
-        "display_name": "AI Strategy",
-        "description": "Agentic AI transformation roadmap with vendor-specific recommendations (Azure/AWS/GCP)",
-        "usage": 'primr "Company" https://example.com --cloud-vendor azure',
-        "standalone": 'primr --ai-strategy-only "report.md" --cloud-vendor azure',
-    })
+    active.append(
+        {
+            "name": "ai",
+            "display_name": "AI Strategy",
+            "description": "Agentic AI transformation roadmap with vendor-specific recommendations (Azure/AWS/GCP)",
+            "usage": 'primr "Company" https://example.com --cloud-vendor azure',
+            "standalone": 'primr --ai-strategy-only "report.md" --cloud-vendor azure',
+        }
+    )
 
     if strategies_dir.exists():
         for yaml_path in sorted(strategies_dir.glob("*.yaml")):
@@ -2795,10 +2904,18 @@ def _handle_list_strategies(config: CLIConfig) -> int:
             console.blank()
 
     console.step("How to Generate Strategies")
-    console.info('  1. During research:   primr "Company" https://example.com --strategy-type customer_experience')
-    console.info('  2. Standalone:        primr --ai-strategy-only "report.md" --strategy-type customer_experience')
-    console.info('  3. With notes:        primr --ai-strategy-only "report.md" --strategy-type ai --discovery-notes "notes.md"')
-    console.info("  4. Multi-vendor AI:   primr \"Company\" https://example.com --cloud-vendor aws azure")
+    console.info(
+        '  1. During research:   primr "Company" https://example.com --strategy-type customer_experience'
+    )
+    console.info(
+        '  2. Standalone:        primr --ai-strategy-only "report.md" --strategy-type customer_experience'
+    )
+    console.info(
+        '  3. With notes:        primr --ai-strategy-only "report.md" --strategy-type ai --discovery-notes "notes.md"'
+    )
+    console.info(
+        '  4. Multi-vendor AI:   primr "Company" https://example.com --cloud-vendor aws azure'
+    )
     console.blank()
 
     return 0
@@ -2808,13 +2925,15 @@ def _handle_list_strategies(config: CLIConfig) -> int:
 # BATCH / ENRICH FUNCTIONS
 # =============================================================================
 
+
 @dataclass(frozen=True)
 class _ColumnMap:
     """Result of LLM-based column classification."""
-    company: str          # Column name for company name (required)
-    website: str | None   # Column name for website URL
+
+    company: str  # Column name for company name (required)
+    website: str | None  # Column name for website URL
     industry: str | None  # Column name for industry/sector
-    context: list[str]    # Columns useful for company disambiguation
+    context: list[str]  # Columns useful for company disambiguation
 
 
 def _classify_columns(df) -> _ColumnMap:
@@ -2835,7 +2954,9 @@ def _classify_columns(df) -> _ColumnMap:
     # Build sample rows (up to 3) for context
     sample_lines = []
     for _, row in df.head(3).iterrows():
-        vals = {col: str(row[col]).strip() for col in columns if str(row[col]).strip().lower() != 'nan'}
+        vals = {
+            col: str(row[col]).strip() for col in columns if str(row[col]).strip().lower() != "nan"
+        }
         sample_lines.append(json.dumps(vals, ensure_ascii=False))
     samples_text = "\n".join(sample_lines)
 
@@ -2871,7 +2992,9 @@ Return JSON only, no explanation:
         result = json.loads(response)
     except json.JSONDecodeError:
         logger.warning("LLM column classification failed to parse, falling back")
-        console.warn(f"Column detection fell back to '{columns[0]}' — verify this is the company name column")
+        console.warn(
+            f"Column detection fell back to '{columns[0]}' — verify this is the company name column"
+        )
         return _ColumnMap(company=columns[0], website=None, industry=None, context=[])
 
     company_col = result.get("company_name")
@@ -2909,9 +3032,9 @@ def _read_batch_file(file_path: str):
     """Read an Excel or CSV file into a pandas DataFrame."""
     import pandas as pd
 
-    if file_path.lower().endswith(('.xlsx', '.xls')):
-        return pd.read_excel(file_path, engine='openpyxl')
-    return pd.read_csv(file_path, encoding='utf-8')
+    if file_path.lower().endswith((".xlsx", ".xls")):
+        return pd.read_excel(file_path, engine="openpyxl")
+    return pd.read_csv(file_path, encoding="utf-8")
 
 
 def _prepare_batch_df(
@@ -2983,9 +3106,7 @@ def enrich_batch(
         console.info(f"Industry filter: {industry}")
     console.blank()
 
-    df, col_map = _prepare_batch_df(
-        file_path, industry=industry, limit=limit
-    )
+    df, col_map = _prepare_batch_df(file_path, industry=industry, limit=limit)
 
     total = len(df)
     console.info(f"Found {total} companies")
@@ -2996,7 +3117,7 @@ def enrich_batch(
     seen_companies: set[str] = set()
     for idx, (_, row) in enumerate(df.iterrows(), 1):
         company_name = str(row[col_map.company]).strip()
-        if not company_name or company_name.lower() == 'nan':
+        if not company_name or company_name.lower() == "nan":
             continue
         if company_name.lower() in seen_companies:
             logger.debug(f"Skipping duplicate company: {company_name}")
@@ -3005,37 +3126,44 @@ def enrich_batch(
 
         # Use existing website if available, otherwise look up
         website = None
-        if col_map.website and str(row.get(col_map.website, '')).strip().lower() not in ('', 'nan'):
+        if col_map.website and str(row.get(col_map.website, "")).strip().lower() not in ("", "nan"):
             website = str(row[col_map.website]).strip()
         else:
             console.info(f"  [{idx}/{total}] Looking up {company_name}...")
             # Pass only LLM-selected context columns
             row_context = {
-                k: str(row[k]).strip() for k in col_map.context
-                if str(row.get(k, '')).strip().lower() not in ('', 'nan')
+                k: str(row[k]).strip()
+                for k in col_map.context
+                if str(row.get(k, "")).strip().lower() not in ("", "nan")
             }
             website = lookup_company_website(company_name, context=row_context)
 
-        ind_value = ''
-        if col_map.industry and str(row.get(col_map.industry, '')).strip().lower() != 'nan':
+        ind_value = ""
+        if col_map.industry and str(row.get(col_map.industry, "")).strip().lower() != "nan":
             ind_value = str(row[col_map.industry]).strip()
 
-        enriched.append({
-            'company_name': company_name,
-            'website': website or '',
-            'industry': ind_value,
-        })
+        enriched.append(
+            {
+                "company_name": company_name,
+                "website": website or "",
+                "industry": ind_value,
+            }
+        )
 
     # Display table
     console.blank()
     console.info(f"  {'#':>3}  {'Company':<35} {'Website':<35} {'Industry'}")
-    console.info(f"  {'---':>3}  {'-'*35} {'-'*35} {'-'*20}")
+    console.info(f"  {'---':>3}  {'-' * 35} {'-' * 35} {'-' * 20}")
     for i, row in enumerate(enriched, 1):
-        w = row['website'][:33] + '..' if len(row['website']) > 35 else row['website']
-        c = row['company_name'][:33] + '..' if len(row['company_name']) > 35 else row['company_name']
+        w = row["website"][:33] + ".." if len(row["website"]) > 35 else row["website"]
+        c = (
+            row["company_name"][:33] + ".."
+            if len(row["company_name"]) > 35
+            else row["company_name"]
+        )
         console.info(f"  {i:>3}  {c:<35} {w:<35} {row['industry']}")
 
-    found = sum(1 for r in enriched if r['website'])
+    found = sum(1 for r in enriched if r["website"])
     missing = len(enriched) - found
     console.blank()
     console.info(f"Websites found: {found}/{len(enriched)}")
@@ -3048,25 +3176,32 @@ def enrich_batch(
     base = _os.path.splitext(_os.path.basename(file_path))[0]
     suffix = f"_{industry.lower().replace(' ', '_')}" if industry else ""
     out_name = f"{base}{suffix}_enriched.csv"
-    out_path = _os.path.join('.', out_name)
+    out_path = _os.path.join(".", out_name)
 
-    pd.DataFrame(enriched).to_csv(out_path, index=False, encoding='utf-8')
+    pd.DataFrame(enriched).to_csv(out_path, index=False, encoding="utf-8")
     console.blank()
     console.ok(f"Saved: {out_path}")
 
     # Cost estimates (from cost_estimator)
     from primr.utils.cost_estimator import estimate_cost
+
     count = len(enriched)
     scrape_est = estimate_cost("scrape-only", use_historical=False)
     deep_est = estimate_cost("deep-research", use_historical=False)
     full_est = estimate_cost("complete", use_historical=False)
     console.blank()
     console.info("Cost estimates:")
-    console.info(f"  scrape mode: {count} x ${scrape_est.total_cost:.2f} = ~${count * scrape_est.total_cost:.2f}")
-    console.info(f"  deep mode:   {count} x ${deep_est.total_cost:.2f} = ~${count * deep_est.total_cost:.2f}")
-    console.info(f"  full mode:   {count} x ${full_est.total_cost:.2f} = ~${count * full_est.total_cost:.2f}")
+    console.info(
+        f"  scrape mode: {count} x ${scrape_est.total_cost:.2f} = ~${count * scrape_est.total_cost:.2f}"
+    )
+    console.info(
+        f"  deep mode:   {count} x ${deep_est.total_cost:.2f} = ~${count * deep_est.total_cost:.2f}"
+    )
+    console.info(
+        f"  full mode:   {count} x ${full_est.total_cost:.2f} = ~${count * full_est.total_cost:.2f}"
+    )
     console.blank()
-    console.info(f"Next step: primr --batch \"{out_path}\" --mode scrape")
+    console.info(f'Next step: primr --batch "{out_path}" --mode scrape')
 
     return 0
 
@@ -3100,16 +3235,14 @@ def process_batch(
         console.info(f"Industry filter: {industry}")
     console.blank()
 
-    df, col_map = _prepare_batch_df(
-        file_path, industry=industry, limit=limit
-    )
+    df, col_map = _prepare_batch_df(file_path, industry=industry, limit=limit)
 
     # Build company list with row context for disambiguation (deduplicate by name)
     companies: list[tuple[str, str | None, dict]] = []
     seen_companies: set[str] = set()
     for _, row in df.iterrows():
         company_name = str(row[col_map.company]).strip()
-        if not company_name or company_name.lower() == 'nan':
+        if not company_name or company_name.lower() == "nan":
             continue
         if company_name.lower() in seen_companies:
             logger.debug(f"Skipping duplicate company: {company_name}")
@@ -3117,12 +3250,13 @@ def process_batch(
         seen_companies.add(company_name.lower())
 
         website = None
-        if col_map.website and str(row.get(col_map.website, '')).strip().lower() not in ('', 'nan'):
+        if col_map.website and str(row.get(col_map.website, "")).strip().lower() not in ("", "nan"):
             website = str(row[col_map.website]).strip()
 
         row_context = {
-            k: str(row[k]).strip() for k in col_map.context
-            if str(row.get(k, '')).strip().lower() not in ('', 'nan')
+            k: str(row[k]).strip()
+            for k in col_map.context
+            if str(row.get(k, "")).strip().lower() not in ("", "nan")
         }
         companies.append((company_name, website, row_context))
 
@@ -3149,13 +3283,13 @@ def process_batch(
     if not skip_confirm:
         console.blank()
         response = input("Proceed? [y/N] ").strip().lower()
-        if response not in ('y', 'yes'):
+        if response not in ("y", "yes"):
             console.info("Cancelled.")
             return 0
 
     # Defensive thresholds
     max_consecutive_failures = 3
-    min_report_size_kb = 5    # Reports under 5KB are suspiciously small
+    min_report_size_kb = 5  # Reports under 5KB are suspiciously small
     max_retries_per_company = 2
     retry_wait_minutes = [0, 2, 5]  # Progressive backoff: immediate, 2min, 5min
 
@@ -3177,7 +3311,7 @@ def process_batch(
             matches = glob.glob(pattern)
             if matches:
                 # Prefer .docx > .md > .txt > anything else
-                for ext in ('.docx', '.md', '.txt'):
+                for ext in (".docx", ".md", ".txt"):
                     for m in matches:
                         if m.endswith(ext):
                             return m
@@ -3196,8 +3330,15 @@ def process_batch(
         if existing:
             size_kb = os.path.getsize(existing) / 1024
             console.info(f"[{i}/{total}] {company_name} — already done ({size_kb:.0f}KB), skipping")
-            results.append({"company": company_name, "status": "ok",
-                            "path": existing, "size_kb": size_kb, "error": None})
+            results.append(
+                {
+                    "company": company_name,
+                    "status": "ok",
+                    "path": existing,
+                    "size_kb": size_kb,
+                    "error": None,
+                }
+            )
             skipped_existing += 1
             continue
 
@@ -3209,13 +3350,20 @@ def process_batch(
             website = lookup_company_website(company_name, context=row_ctx)
             if not website:
                 console.warn(f"  No website found for {company_name}, skipping")
-                results.append({"company": company_name, "status": "skipped",
-                                "path": None, "size_kb": 0, "error": "no website found"})
+                results.append(
+                    {
+                        "company": company_name,
+                        "status": "skipped",
+                        "path": None,
+                        "size_kb": 0,
+                        "error": "no website found",
+                    }
+                )
                 consecutive_failures += 1
                 if consecutive_failures >= max_consecutive_failures:
                     console.error(f"  {max_consecutive_failures} consecutive failures — pausing")
                     resp = input("  Continue? [y/N] ").strip().lower()
-                    if resp not in ('y', 'yes'):
+                    if resp not in ("y", "yes"):
                         console.info("  Batch stopped by user.")
                         break
                     consecutive_failures = 0
@@ -3226,8 +3374,10 @@ def process_batch(
             # Progressive backoff: wait before retries (not before first attempt)
             wait_min = retry_wait_minutes[attempt] if attempt < len(retry_wait_minutes) else 5
             if attempt > 0 and wait_min > 0:
-                console.warn(f"  Retrying in {wait_min}min "
-                             f"(attempt {attempt + 1}/{max_retries_per_company + 1})...")
+                console.warn(
+                    f"  Retrying in {wait_min}min "
+                    f"(attempt {attempt + 1}/{max_retries_per_company + 1})..."
+                )
                 _time.sleep(wait_min * 60)
 
             try:
@@ -3241,45 +3391,79 @@ def process_batch(
                 )
 
                 if result_path:
-                    size_kb = os.path.getsize(result_path) / 1024 if os.path.exists(result_path) else 0
+                    size_kb = (
+                        os.path.getsize(result_path) / 1024 if os.path.exists(result_path) else 0
+                    )
                     if size_kb < min_report_size_kb:
                         console.warn(f"  Report is only {size_kb:.1f}KB — may be incomplete")
-                        results.append({"company": company_name, "status": "warning",
-                                        "path": result_path, "size_kb": size_kb, "error": "small report"})
+                        results.append(
+                            {
+                                "company": company_name,
+                                "status": "warning",
+                                "path": result_path,
+                                "size_kb": size_kb,
+                                "error": "small report",
+                            }
+                        )
                     else:
                         console.ok(f"  Done — {size_kb:.0f}KB")
-                        results.append({"company": company_name, "status": "ok",
-                                        "path": result_path, "size_kb": size_kb, "error": None})
+                        results.append(
+                            {
+                                "company": company_name,
+                                "status": "ok",
+                                "path": result_path,
+                                "size_kb": size_kb,
+                                "error": None,
+                            }
+                        )
                     consecutive_failures = 0
                     break
                 else:
                     # No report returned — not transient, don't retry
                     console.error(f"  No report generated for {company_name}")
-                    results.append({"company": company_name, "status": "failed",
-                                    "path": None, "size_kb": 0, "error": "no report returned"})
+                    results.append(
+                        {
+                            "company": company_name,
+                            "status": "failed",
+                            "path": None,
+                            "size_kb": 0,
+                            "error": "no report returned",
+                        }
+                    )
                     consecutive_failures += 1
                     break
 
             except Exception as e:
                 error_str = str(e).lower()
-                is_quota = any(s in error_str for s in ("quota", "rate", "429", "resource_exhausted"))
+                is_quota = any(
+                    s in error_str for s in ("quota", "rate", "429", "resource_exhausted")
+                )
 
                 if is_quota and attempt < max_retries_per_company:
                     continue  # Will wait at top of next iteration
 
                 console.error(f"  Failed: {company_name} — {e}")
-                results.append({"company": company_name, "status": "failed",
-                                "path": None, "size_kb": 0, "error": str(e)[:80]})
+                results.append(
+                    {
+                        "company": company_name,
+                        "status": "failed",
+                        "path": None,
+                        "size_kb": 0,
+                        "error": str(e)[:80],
+                    }
+                )
                 consecutive_failures += 1
                 break
 
         # Consecutive failure handling — likely quota exhaustion
         if consecutive_failures >= max_consecutive_failures:
-            console.error(f"\n  {max_consecutive_failures} consecutive failures — possible API quota exhaustion.")
+            console.error(
+                f"\n  {max_consecutive_failures} consecutive failures — possible API quota exhaustion."
+            )
             console.info("  [w] Wait 10 minutes and continue")
             console.info("  [s] Stop batch and show summary")
             resp = input("  Choice [w/s]: ").strip().lower()
-            if resp == 'w':
+            if resp == "w":
                 console.info("  Waiting 10 minutes for quota recovery...")
                 _time.sleep(10 * 60)
                 consecutive_failures = 0
@@ -3296,12 +3480,15 @@ def process_batch(
 
         # Cooldown between companies after any completed attempt (ok or warning)
         # Scale cooldown by mode: scrape is lighter on APIs than deep/full
-        completed = any(r["company"] == company_name and r["status"] in ("ok", "warning")
-                        for r in results)
+        completed = any(
+            r["company"] == company_name and r["status"] in ("ok", "warning") for r in results
+        )
         if completed and i < total:
             cooldown = 10 if mode == "scrape-only" else 60
             remaining = total - i
-            console.info(f"  Cooling down {cooldown}s before next company ({remaining} remaining)...")
+            console.info(
+                f"  Cooling down {cooldown}s before next company ({remaining} remaining)..."
+            )
             _time.sleep(cooldown)
 
     # Summary
@@ -3315,9 +3502,11 @@ def process_batch(
         console.info(f"  ({skipped_existing} already completed, resumed from where we left off)")
         console.blank()
     console.info(f"  {'#':>3}  {'Company':<35} {'Status':<10} {'Size':>8}  Notes")
-    console.info(f"  {'---':>3}  {'-'*35} {'-'*10} {'-'*8}  {'-'*20}")
+    console.info(f"  {'---':>3}  {'-' * 35} {'-' * 10} {'-' * 8}  {'-' * 20}")
     for i, r in enumerate(results, 1):
-        status_icon = {"ok": "ok", "warning": "!!", "failed": "FAIL", "skipped": "SKIP"}[r["status"]]
+        status_icon = {"ok": "ok", "warning": "!!", "failed": "FAIL", "skipped": "SKIP"}[
+            r["status"]
+        ]
         size_str = f"{r['size_kb']:.0f}KB" if r["size_kb"] else "-"
         note = r["error"] or ""
         c = r["company"][:33] + ".." if len(r["company"]) > 35 else r["company"]
@@ -3365,7 +3554,7 @@ def process_csv(
                         mode=mode,
                         citation_style=citation_style,
                         ai_strategy=ai_strategy,
-                        cloud_vendors=cloud_vendors
+                        cloud_vendors=cloud_vendors,
                     )
                 except Exception as e:
                     console.error(f"Failed: {company or website} - {e}")
@@ -3399,11 +3588,3 @@ def _ensure_valid_url(website: str | None) -> str | None:
 
 if __name__ == "__main__":
     sys.exit(main())
-
-
-
-
-
-
-
-

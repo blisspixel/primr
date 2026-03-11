@@ -195,19 +195,19 @@ class TestBrowserSessionSafetyMethods:
         """Should return True for same domain."""
         session = FakeBrowserSession()
 
-        assert session._url_domain_unchanged(
-            "https://example.com/page1",
-            "https://example.com/page2"
-        ) is True
+        assert (
+            session._url_domain_unchanged("https://example.com/page1", "https://example.com/page2")
+            is True
+        )
 
     def test_url_domain_unchanged_different_domain(self):
         """Should return False for different domain."""
         session = FakeBrowserSession()
 
-        assert session._url_domain_unchanged(
-            "https://example.com/page",
-            "https://other.com/page"
-        ) is False
+        assert (
+            session._url_domain_unchanged("https://example.com/page", "https://other.com/page")
+            is False
+        )
 
 
 class TestScrapeWithPlaywright:
@@ -240,21 +240,23 @@ class TestScrapeWithPlaywright:
 
         # Temporarily remove playwright from sys.modules to simulate import error
         original_modules = {}
-        playwright_modules = [k for k in sys.modules if k.startswith('playwright')]
+        playwright_modules = [k for k in sys.modules if k.startswith("playwright")]
         for mod in playwright_modules:
             original_modules[mod] = sys.modules.pop(mod)
 
         # Create a mock that raises ImportError when playwright is imported
-        with patch.dict(sys.modules, {'playwright': None, 'playwright.sync_api': None}):
+        with patch.dict(sys.modules, {"playwright": None, "playwright.sync_api": None}):
             # Force re-import by patching builtins.__import__
-            original_import = __builtins__.__import__ if hasattr(__builtins__, '__import__') else __import__
+            original_import = (
+                __builtins__.__import__ if hasattr(__builtins__, "__import__") else __import__
+            )
 
             def mock_import(name, *args, **kwargs):
-                if name.startswith('playwright'):
+                if name.startswith("playwright"):
                     raise ImportError("playwright not installed")
                 return original_import(name, *args, **kwargs)
 
-            with patch('builtins.__import__', side_effect=mock_import):
+            with patch("builtins.__import__", side_effect=mock_import):
                 result = scrape_with_playwright("https://example.com")
 
         # Restore original modules
@@ -284,10 +286,7 @@ class TestScrapeWithPlaywrightAggressive:
         mock_session = FakeBrowserSession()
 
         with patch("primr.data.scraping.browsers.PlaywrightSession", return_value=mock_session):
-            scrape_with_playwright_aggressive(
-                "https://example.com",
-                max_expand_clicks=5
-            )
+            scrape_with_playwright_aggressive("https://example.com", max_expand_clicks=5)
 
         # FakeBrowserSession limits to min(3, max_clicks)
         assert mock_session._expand_count <= 5
@@ -310,7 +309,10 @@ class TestScrapeWithDrissionpage:
 
     def test_handles_import_error(self):
         """Should handle missing DrissionPage gracefully."""
-        with patch("primr.data.scraping.browsers.DrissionPageSession", side_effect=ImportError("DrissionPage not installed")):
+        with patch(
+            "primr.data.scraping.browsers.DrissionPageSession",
+            side_effect=ImportError("DrissionPage not installed"),
+        ):
             result = scrape_with_drissionpage("https://example.com")
 
         assert result.success is False
@@ -343,7 +345,7 @@ class TestScrapeWithDrissionpageStealth:
         with patch("primr.data.scraping.browsers.DrissionPageSession", return_value=mock_session):
             result = scrape_with_drissionpage_stealth(
                 "https://example.com",
-                max_challenge_wait=1  # Short wait for test
+                max_challenge_wait=1,  # Short wait for test
             )
 
         assert result.success is False

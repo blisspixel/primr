@@ -21,9 +21,11 @@ class TestQAIntegration:
     """Property-based tests for QA integration."""
 
     @given(
-        company_name=st.text(min_size=1, max_size=100, alphabet=st.characters(min_codepoint=32, max_codepoint=126)).filter(lambda x: x.strip()),
+        company_name=st.text(
+            min_size=1, max_size=100, alphabet=st.characters(min_codepoint=32, max_codepoint=126)
+        ).filter(lambda x: x.strip()),
         content_length=st.integers(min_value=100, max_value=5000),
-        qa_enabled=st.booleans()
+        qa_enabled=st.booleans(),
     )
     def test_automatic_qa_execution_property(self, company_name, content_length, qa_enabled):
         """
@@ -38,9 +40,13 @@ class TestQAIntegration:
         """
         try:
             # Create temporary report file with UTF-8 encoding
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8') as f:
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".txt", delete=False, encoding="utf-8"
+            ) as f:
                 # Generate content of specified length
-                content = f"# Report for {company_name}\n" + "Sample content. " * (content_length // 16)
+                content = f"# Report for {company_name}\n" + "Sample content. " * (
+                    content_length // 16
+                )
                 f.write(content)
                 report_path = Path(f.name)
             # Setup QA integration with specified options (disable detailed saving for tests)
@@ -48,30 +54,31 @@ class TestQAIntegration:
             qa_integration = QAIntegration(qa_options)
 
             # Mock the analyzer to avoid actual AI calls in tests
-            with patch.object(qa_integration, 'analyzer') as mock_analyzer:
+            with patch.object(qa_integration, "analyzer") as mock_analyzer:
                 # Mock successful analysis with SimpleQAResult fields
                 from src.primr.qa.simple_analyzer import SimpleQAResult
+
                 mock_result = SimpleQAResult(
                     parsing_success=True,
                     ready_for_use=True,
                     confidence_level="high",
                     key_strengths=["Strength 1", "Strength 2", "Strength 3"],
                     areas_for_improvement=["Improvement 1"],
-                    recommendation="Good report"
+                    recommendation="Good report",
                 )
                 mock_analyzer.assess_report.return_value = mock_result
                 mock_analyzer._determine_report_type.return_value = "Business Analysis Report"
                 mock_analyzer.model_name = "test-model"
 
                 # Mock report loader
-                with patch.object(qa_integration, 'report_loader') as mock_loader:
+                with patch.object(qa_integration, "report_loader") as mock_loader:
                     mock_report_content = Mock()
                     mock_report_content.company_name = company_name
                     mock_report_content.content = content
                     mock_loader.load_report_from_path.return_value = mock_report_content
 
                     # Mock monitor to avoid file I/O issues
-                    with patch.object(qa_integration, 'monitor'):
+                    with patch.object(qa_integration, "monitor"):
                         # Execute QA
                         result = qa_integration.run_post_generation_qa(report_path, company_name)
 
@@ -102,9 +109,11 @@ class TestQAIntegration:
 
     @given(
         company_names=st.lists(
-            st.text(min_size=1, max_size=50, alphabet=st.characters(min_codepoint=32, max_codepoint=126)).filter(lambda x: x.strip()),
+            st.text(
+                min_size=1, max_size=50, alphabet=st.characters(min_codepoint=32, max_codepoint=126)
+            ).filter(lambda x: x.strip()),
             min_size=1,
-            max_size=5
+            max_size=5,
         )
     )
     @settings(suppress_health_check=[HealthCheck.too_slow], max_examples=10, deadline=None)
@@ -120,7 +129,9 @@ class TestQAIntegration:
 
         try:
             # Create temporary report file with UTF-8 encoding
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8') as f:
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".txt", delete=False, encoding="utf-8"
+            ) as f:
                 content = f"# Strategic Analysis for {company_name}\n\nThis is a test report with consistent content."
                 f.write(content)
                 report_path = Path(f.name)
@@ -128,13 +139,13 @@ class TestQAIntegration:
             qa_integration = QAIntegration(qa_options)
 
             # Mock the analyzer to return consistent results
-            with patch.object(qa_integration, 'analyzer') as mock_analyzer:
+            with patch.object(qa_integration, "analyzer") as mock_analyzer:
                 mock_analysis = Mock(spec=QAAnalysis)
                 mock_analysis.overall_score = 80  # Consistent score
                 mock_analysis.timestamp = Mock()
                 mock_analyzer.analyze_report.return_value = mock_analysis
 
-                with patch.object(qa_integration, 'report_loader') as mock_loader:
+                with patch.object(qa_integration, "report_loader") as mock_loader:
                     mock_report_content = Mock()
                     mock_report_content.company_name = company_name
                     mock_report_content.content = content
@@ -155,10 +166,7 @@ class TestQAIntegration:
             if report_path.exists():
                 os.unlink(report_path)
 
-    @given(
-        ready_for_use=st.booleans(),
-        confidence_level=st.sampled_from(["high", "medium", "low"])
-    )
+    @given(ready_for_use=st.booleans(), confidence_level=st.sampled_from(["high", "medium", "low"]))
     def test_cli_summary_format_property(self, ready_for_use, confidence_level):
         """
         Property: CLI summary format is consistent
@@ -174,7 +182,7 @@ class TestQAIntegration:
             confidence_level=confidence_level,
             key_strengths=["Strength 1"],
             areas_for_improvement=["Improvement 1"],
-            recommendation="Test recommendation"
+            recommendation="Test recommendation",
         )
 
         qa_integration = QAIntegration()
@@ -194,24 +202,26 @@ class TestQAIntegration:
         company_name = "Test Company"
 
         try:
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8') as f:
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".txt", delete=False, encoding="utf-8"
+            ) as f:
                 f.write("Test content")
                 report_path = Path(f.name)
             # Disable save_detailed to avoid creating files in real output folder
             qa_integration = QAIntegration(QAOptions(enabled=True, save_detailed=False))
 
             # Mock analyzer to throw exception
-            with patch.object(qa_integration, 'analyzer') as mock_analyzer:
+            with patch.object(qa_integration, "analyzer") as mock_analyzer:
                 mock_analyzer.assess_report.side_effect = Exception("AI service unavailable")
                 mock_analyzer._determine_report_type.return_value = "Business Analysis Report"
                 mock_analyzer.model_name = "test-model"
 
-                with patch.object(qa_integration, 'report_loader') as mock_loader:
+                with patch.object(qa_integration, "report_loader") as mock_loader:
                     mock_report_content = Mock()
                     mock_report_content.company_name = company_name
                     mock_loader.load_report_from_path.return_value = mock_report_content
 
-                    with patch.object(qa_integration, 'monitor'):
+                    with patch.object(qa_integration, "monitor"):
                         # Should not crash, should return failure result
                         result = qa_integration.run_post_generation_qa(report_path, company_name)
 

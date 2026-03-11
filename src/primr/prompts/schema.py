@@ -74,9 +74,7 @@ class SectionSpec:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "SectionSpec":
         """Create from dictionary."""
-        subsections = [
-            cls.from_dict(s) for s in data.get("subsections", [])
-        ]
+        subsections = [cls.from_dict(s) for s in data.get("subsections", [])]
         return cls(
             id=data.get("id", ""),
             name=data.get("name", ""),
@@ -189,9 +187,7 @@ class StrategyModule:
     is_builtin: bool = True
     data_sources: list[DataSource] = field(default_factory=list)
 
-    def get_context_files(
-        self, base_dir: Path, vendor: str | None = None
-    ) -> list[Path]:
+    def get_context_files(self, base_dir: Path, vendor: str | None = None) -> list[Path]:
         """
         Get paths to context files for this strategy.
 

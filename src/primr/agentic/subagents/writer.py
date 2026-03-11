@@ -58,6 +58,7 @@ logger = logging.getLogger(__name__)
 # RESULT DATA CLASS
 # =============================================================================
 
+
 @dataclass
 class WriterResult:
     """
@@ -94,6 +95,7 @@ class WriterResult:
 # =============================================================================
 # WRITER SUBAGENT
 # =============================================================================
+
 
 class WriterSubagent(Subagent[WriterResult]):
     """
@@ -177,8 +179,7 @@ class WriterSubagent(Subagent[WriterResult]):
                     "duration_seconds": duration,
                     "word_count": report_result.word_count,
                     "words_per_second": (
-                        report_result.word_count / duration
-                        if duration > 0 else 0
+                        report_result.word_count / duration if duration > 0 else 0
                     ),
                 },
             )
@@ -231,9 +232,7 @@ class WriterSubagent(Subagent[WriterResult]):
 
         except ImportError:
             # Report module not available - generate basic report
-            logger.warning(
-                "primr.output.report not available, generating basic report"
-            )
+            logger.warning("primr.output.report not available, generating basic report")
             return await self._generate_basic_report(insights_path, hypotheses)
 
     async def _generate_basic_report(
@@ -270,7 +269,11 @@ class WriterSubagent(Subagent[WriterResult]):
         if insights_path and insights_path.exists():
             insights_content = insights_path.read_text(encoding="utf-8")
             # Extract key points (simplified)
-            sections.append(insights_content[:2000] + "...\n" if len(insights_content) > 2000 else insights_content + "\n")
+            sections.append(
+                insights_content[:2000] + "...\n"
+                if len(insights_content) > 2000
+                else insights_content + "\n"
+            )
         else:
             sections.append("*No insights available.*\n")
 

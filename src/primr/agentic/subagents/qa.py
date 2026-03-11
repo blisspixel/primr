@@ -52,6 +52,7 @@ logger = logging.getLogger(__name__)
 # RESULT DATA CLASS
 # =============================================================================
 
+
 @dataclass
 class QAResult:
     """
@@ -100,6 +101,7 @@ class QAResult:
 # =============================================================================
 # QA SUBAGENT
 # =============================================================================
+
 
 class QASubagent(Subagent[QAResult]):
     """
@@ -291,18 +293,13 @@ class QASubagent(Subagent[QAResult]):
         dimension_scores["confidence_labels"] = confidence_score
 
         # Assess section lengths for truncation
-        section_length_score = self._assess_section_lengths(
-            content, feedback, sections_to_improve
-        )
+        section_length_score = self._assess_section_lengths(content, feedback, sections_to_improve)
         # Apply truncation penalty to structure score
         structure_score = max(0, structure_score - (100 - section_length_score))
         dimension_scores["structure"] = structure_score
 
         # Calculate weighted score
-        total_score = sum(
-            dimension_scores[dim] * weight
-            for dim, weight in self.DIMENSIONS.items()
-        )
+        total_score = sum(dimension_scores[dim] * weight for dim, weight in self.DIMENSIONS.items())
         score = int(total_score)
 
         return QAResult(
@@ -402,11 +399,14 @@ class QASubagent(Subagent[QAResult]):
         """
         import re
 
-        labels = len(re.findall(r'\(Hypothesis\)', content, re.IGNORECASE))
+        labels = len(re.findall(r"\(Hypothesis\)", content, re.IGNORECASE))
         phrases = 0
         for pattern in [
-            r'we hypothesize', r'to validate', r'worth validating',
-            r'hypothesis to test', r'requires validation',
+            r"we hypothesize",
+            r"to validate",
+            r"worth validating",
+            r"hypothesis to test",
+            r"requires validation",
         ]:
             phrases += len(re.findall(pattern, content, re.IGNORECASE))
 
@@ -435,8 +435,10 @@ class QASubagent(Subagent[QAResult]):
 
         total = 0
         for pattern in [
-            r'\(Confirmed[^)]*\)', r'\(Reported[^)]*\)',
-            r'\(Estimated[^)]*\)', r'\(Hypothesis\)',
+            r"\(Confirmed[^)]*\)",
+            r"\(Reported[^)]*\)",
+            r"\(Estimated[^)]*\)",
+            r"\(Hypothesis\)",
         ]:
             total += len(re.findall(pattern, content, re.IGNORECASE))
 
@@ -463,13 +465,13 @@ class QASubagent(Subagent[QAResult]):
         """
         import re
 
-        parts = re.split(r'^##\s+', content, flags=re.MULTILINE)
+        parts = re.split(r"^##\s+", content, flags=re.MULTILINE)
         truncated = []
 
         for part in parts[1:]:  # skip preamble
-            lines = part.split('\n', 1)
+            lines = part.split("\n", 1)
             title = lines[0].strip()
-            body = lines[1] if len(lines) > 1 else ''
+            body = lines[1] if len(lines) > 1 else ""
             if len(body.split()) < 50:
                 truncated.append(title)
 
@@ -478,10 +480,7 @@ class QASubagent(Subagent[QAResult]):
         score -= penalty
 
         if truncated:
-            feedback.append(
-                f"{len(truncated)} truncated section(s): "
-                + ", ".join(truncated[:3])
-            )
+            feedback.append(f"{len(truncated)} truncated section(s): " + ", ".join(truncated[:3]))
             sections_to_improve.extend(truncated)
 
         return max(0, score)

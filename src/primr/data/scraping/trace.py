@@ -19,6 +19,7 @@ TRACE_SCHEMA_VERSION = "1.0"
 @dataclass
 class TraceHeader:
     """Header written at start of trace file."""
+
     schema_version: str
     run_id: str
     company: str
@@ -33,6 +34,7 @@ class TraceEntry:
     NOTE: Internal representation uses typed Attempt objects.
     File output serializes to dicts via asdict() for JSON compatibility.
     """
+
     # Identifiers
     run_id: str
     url: str

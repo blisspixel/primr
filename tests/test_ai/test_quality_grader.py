@@ -3,6 +3,7 @@ Tests for the enhanced Quality Grader.
 
 **Feature: consulting-tier-report**
 """
+
 from datetime import datetime
 
 import pytest
@@ -14,7 +15,7 @@ from primr.core.report_models import SectionContent, SourceCitation, SourceType
 def create_section(
     title: str = "Test Section",
     content: str = "This is test content with specific details about Acme Corp's $50M revenue in 2024.",
-    sources: list | None = None
+    sources: list | None = None,
 ) -> SectionContent:
     """Create a test section."""
     if sources is None:
@@ -23,7 +24,7 @@ def create_section(
                 url="https://example.com",
                 title="Source",
                 source_type=SourceType.COMPANY_WEBSITE,
-                accessed_at=datetime.now()
+                accessed_at=datetime.now(),
             )
         ]
     return SectionContent(title=title, content=content, sources=sources)
@@ -38,8 +39,7 @@ class TestQualityGraderRefinementTrigger:
 
         # Create a low-quality section
         section = create_section(
-            content="TBD. In conclusion, this is basically a placeholder.",
-            sources=[]
+            content="TBD. In conclusion, this is basically a placeholder.", sources=[]
         )
 
         score = grader.grade_section(section)
@@ -66,9 +66,9 @@ class TestQualityGraderRefinementTrigger:
                     url="https://acme.com/investor-relations",
                     title="Acme Q4 2024 Report",
                     source_type=SourceType.COMPANY_WEBSITE,
-                    accessed_at=datetime.now()
+                    accessed_at=datetime.now(),
                 )
-            ]
+            ],
         )
 
         score = grader.grade_section(section)
@@ -259,7 +259,9 @@ class TestQualityGraderCoherence:
         sections = [
             create_section(title="Executive Summary", content="Brief overview of the company."),
             create_section(title="Financial Analysis", content="Revenue was $100M in 2024."),
-            create_section(title="Competitive Analysis", content="Main competitors include X and Y."),
+            create_section(
+                title="Competitive Analysis", content="Main competitors include X and Y."
+            ),
         ]
 
         issues = grader.check_coherence(sections)
@@ -286,11 +288,11 @@ class TestQualityGraderReportGrading:
         sections = [
             create_section(
                 title="Executive Summary",
-                content="Acme Corp achieved $100M revenue in 2024 with 20% growth."
+                content="Acme Corp achieved $100M revenue in 2024 with 20% growth.",
             ),
             create_section(
                 title="Financial Overview",
-                content="Q4 2024 revenue was $30M, gross margin 70%, net income $5M."
+                content="Q4 2024 revenue was $30M, gross margin 70%, net income $5M.",
             ),
         ]
 

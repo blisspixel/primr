@@ -27,7 +27,7 @@ def reset_singletons():
 @pytest.fixture
 def mock_genai_client():
     """Create a mock genai client."""
-    with patch('primr.ai.client.genai.Client') as mock_client_class:
+    with patch("primr.ai.client.genai.Client") as mock_client_class:
         mock_client = MagicMock()
         mock_client_class.return_value = mock_client
 
@@ -42,7 +42,7 @@ def mock_genai_client():
 @pytest.fixture
 def mock_settings():
     """Create mock settings."""
-    with patch('primr.ai.client.get_settings') as mock_get:
+    with patch("primr.ai.client.get_settings") as mock_get:
         mock_settings = MagicMock()
         mock_settings.api.gemini_key = "test-api-key"
         mock_settings.ai.flash_model = "test-flash-model"
@@ -80,7 +80,7 @@ class TestAIClient:
         client.generate("Test", model_type="research")
 
         call_args = mock_genai_client.models.generate_content.call_args
-        assert call_args.kwargs['model'] == "test-flash-model"
+        assert call_args.kwargs["model"] == "test-flash-model"
 
     def test_generate_uses_report_model(self, mock_genai_client, mock_settings):
         """Should use pro model for report type."""
@@ -88,7 +88,7 @@ class TestAIClient:
         client.generate("Test", model_type="report")
 
         call_args = mock_genai_client.models.generate_content.call_args
-        assert call_args.kwargs['model'] == "test-pro-model"
+        assert call_args.kwargs["model"] == "test-pro-model"
 
     def test_generate_retries_on_failure(self, mock_genai_client, mock_settings):
         """Should retry on failure."""
@@ -99,7 +99,7 @@ class TestAIClient:
         ]
 
         client = AIClient()
-        with patch('primr.ai.client.time.sleep'):  # Skip delays
+        with patch("primr.ai.client.time.sleep"):  # Skip delays
             result = client.generate("Test")
 
         assert result == "Success after retry"
@@ -110,7 +110,7 @@ class TestAIClient:
         mock_genai_client.models.generate_content.side_effect = Exception("Always fails")
 
         client = AIClient()
-        with patch('primr.ai.client.time.sleep'), pytest.raises(AIError) as exc_info:
+        with patch("primr.ai.client.time.sleep"), pytest.raises(AIError) as exc_info:
             client.generate("Test")
 
         assert "failed after 3 attempts" in str(exc_info.value)
@@ -121,7 +121,7 @@ class TestAIClient:
         client.generate_fast("Test")
 
         call_args = mock_genai_client.models.generate_content.call_args
-        config = call_args.kwargs['config']
+        config = call_args.kwargs["config"]
         # Compare string value since it might be an enum
         thinking_level = str(config.thinking_config.thinking_level).lower()
         assert "low" in thinking_level
@@ -130,12 +130,11 @@ class TestAIClient:
         """Should include context in prompt."""
         client = AIClient()
         client.generate_with_context(
-            "Main prompt",
-            context={"Company": "Acme Corp", "Industry": "Tech"}
+            "Main prompt", context={"Company": "Acme Corp", "Industry": "Tech"}
         )
 
         call_args = mock_genai_client.models.generate_content.call_args
-        prompt = call_args.kwargs['contents']
+        prompt = call_args.kwargs["contents"]
         assert "Main prompt" in prompt
         assert "Company" in prompt
         assert "Acme Corp" in prompt
@@ -162,9 +161,7 @@ class TestAIClientFallback:
 
     def test_uses_fallback_on_failure(self, mock_genai_client, mock_settings):
         """Should try fallback model when primary fails."""
-        mock_settings.ai.model_fallbacks = {
-            "test-flash-model": ["fallback-model"]
-        }
+        mock_settings.ai.model_fallbacks = {"test-flash-model": ["fallback-model"]}
 
         # First call fails, second succeeds
         mock_genai_client.models.generate_content.side_effect = [
@@ -173,14 +170,14 @@ class TestAIClientFallback:
         ]
 
         client = AIClient()
-        with patch('primr.ai.client.time.sleep'):
+        with patch("primr.ai.client.time.sleep"):
             result = client.generate("Test")
 
         assert result == "Fallback success"
 
         # Check that fallback model was used
         calls = mock_genai_client.models.generate_content.call_args_list
-        assert calls[1].kwargs['model'] == "fallback-model"
+        assert calls[1].kwargs["model"] == "fallback-model"
 
 
 class TestSingletonAccess:
@@ -224,7 +221,7 @@ class TestBackwardCompatibility:
         llm("Test", model_type="report")
 
         call_args = mock_genai_client.models.generate_content.call_args
-        assert call_args.kwargs['model'] == "test-pro-model"
+        assert call_args.kwargs["model"] == "test-pro-model"
 
     def test_llm_fast_function(self, mock_genai_client, mock_settings):
         """llm_fast() should work like before."""
@@ -245,7 +242,7 @@ class TestAIClientErrorHandling:
         mock_genai_client.models.generate_content.side_effect = Exception("Fail")
 
         client = AIClient()
-        with patch('primr.ai.client.time.sleep'), pytest.raises(AIError) as exc_info:
+        with patch("primr.ai.client.time.sleep"), pytest.raises(AIError) as exc_info:
             client.generate("Test")
 
         assert exc_info.value.model == "test-flash-model"
@@ -256,7 +253,7 @@ class TestAIClientErrorHandling:
         mock_genai_client.models.generate_content.side_effect = original_error
 
         client = AIClient()
-        with patch('primr.ai.client.time.sleep'), pytest.raises(AIError) as exc_info:
+        with patch("primr.ai.client.time.sleep"), pytest.raises(AIError) as exc_info:
             client.generate("Test")
 
         assert exc_info.value.cause is original_error
@@ -308,7 +305,7 @@ class TestUsageTracking:
         """Should return usage summary with cost calculation."""
         client = AIClient()
         client.total_input_tokens = 1_000_000  # 1M tokens
-        client.total_output_tokens = 500_000   # 0.5M tokens
+        client.total_output_tokens = 500_000  # 0.5M tokens
         client.call_count = 10
 
         summary = client.get_usage_summary()

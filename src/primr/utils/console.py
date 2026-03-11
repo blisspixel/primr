@@ -27,16 +27,23 @@ class _TerminalCaps:
     is_interactive: bool
 
     @classmethod
-    def for_testing(cls, supports_color=True, supports_unicode=False,
-                    supports_cursor=True, width=80, is_interactive=True):
+    def for_testing(
+        cls,
+        supports_color=True,
+        supports_unicode=False,
+        supports_cursor=True,
+        width=80,
+        is_interactive=True,
+    ):
         return cls(supports_color, supports_unicode, supports_cursor, width, is_interactive)
 
 
 def _enable_windows_ansi():
     """Enable ANSI escape sequences on Windows."""
-    if sys.platform == 'win32':
+    if sys.platform == "win32":
         try:
             import ctypes
+
             kernel32 = ctypes.windll.kernel32
             STD_OUTPUT_HANDLE = -11
             ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004
@@ -47,18 +54,19 @@ def _enable_windows_ansi():
         except (OSError, AttributeError, ValueError):
             pass  # Windows console mode not available (e.g., redirected output)
 
+
 _enable_windows_ansi()
 
 
 @lru_cache(maxsize=1)
 def _detect_terminal():
-    is_tty = hasattr(sys.stdout, 'isatty') and sys.stdout.isatty()
+    is_tty = hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
     no_color = os.environ.get("NO_COLOR") is not None
     term_dumb = os.environ.get("TERM", "").lower() == "dumb"
     force_color = os.environ.get("FORCE_COLOR") is not None
     supports_color = force_color or (is_tty and not no_color and not term_dumb)
-    encoding = getattr(sys.stdout, 'encoding', None) or ''
-    supports_unicode = 'utf' in encoding.lower()
+    encoding = getattr(sys.stdout, "encoding", None) or ""
+    supports_unicode = "utf" in encoding.lower()
     supports_cursor = is_tty and not term_dumb
     try:
         width = shutil.get_terminal_size(fallback=(80, 24)).columns
@@ -233,7 +241,9 @@ class Console:
             m = rem // 60
             return f"{h}h {m}m"
 
-    def scrape_progress(self, current, total, path, start_time=None, tier=None, eta_seconds=None, ok_count=None):
+    def scrape_progress(
+        self, current, total, path, start_time=None, tier=None, eta_seconds=None, ok_count=None
+    ):
         """Show scraping progress with clean inline updates."""
         if self.quiet:
             return
@@ -265,7 +275,7 @@ class Console:
 
         # Truncate if too long, then pad to width
         if len(line) > width:
-            line = line[:width-3] + "..."
+            line = line[: width - 3] + "..."
         line = line.ljust(width)
 
         with self._lock:
@@ -283,7 +293,6 @@ class Console:
                 # Clear by writing spaces, then return to start
                 sys.stdout.write(f"\r{' ' * width}\r")
                 sys.stdout.flush()
-
 
     # =========================================================================
     # BACKWARD COMPATIBILITY API - Maps to modern methods
@@ -397,7 +406,11 @@ class Console:
         self.clear_line()
         self._print()
         # Modern minimal design - just bold title with subtle accent
-        phase_label = f"PHASE {step_num}/{total_steps}" if total_steps and total_steps > 0 else f"PHASE {step_num}"
+        phase_label = (
+            f"PHASE {step_num}/{total_steps}"
+            if total_steps and total_steps > 0
+            else f"PHASE {step_num}"
+        )
         self._print(
             f"{self._cyan}{self._pointer}{self._reset} "
             f"{self._bold}{phase_label}{self._reset} "
@@ -483,7 +496,11 @@ class Console:
             yield lambda m: None
             return
 
-        frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"] if self._caps.supports_unicode else ["|", "/", "-", "\\"]
+        frames = (
+            ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+            if self._caps.supports_unicode
+            else ["|", "/", "-", "\\"]
+        )
         stop_event = threading.Event()
         current_msg = [message]
         line_width = min(self._caps.width - 2, 80)
@@ -498,7 +515,7 @@ class Console:
                     # Calculate visible length (excluding ANSI codes)
                     visible_len = len(frame) + 1 + len(msg_text)  # frame + space + message
                     if visible_len > line_width:
-                        msg_text = msg_text[:line_width - len(frame) - 4] + "..."
+                        msg_text = msg_text[: line_width - len(frame) - 4] + "..."
                         visible_len = len(frame) + 1 + len(msg_text)
                     # Pad based on visible length, not string length
                     pad = " " * max(0, line_width - visible_len)
@@ -537,13 +554,17 @@ class Console:
                 yield
             elapsed = self._elapsed(start)
             time_str = f" ({elapsed})" if elapsed else ""
-            self._print(f"{self._green}{self._check}{self._reset} {message}{self._dim}{time_str}{self._reset}")
+            self._print(
+                f"{self._green}{self._check}{self._reset} {message}{self._dim}{time_str}{self._reset}"
+            )
         else:
             self._print(f"{self._dim}{message}...{self._reset}")
             yield
             elapsed = self._elapsed(start)
             time_str = f" ({elapsed})" if elapsed else ""
-            self._print(f"{self._green}{self._check}{self._reset} {message}{self._dim}{time_str}{self._reset}")
+            self._print(
+                f"{self._green}{self._check}{self._reset} {message}{self._dim}{time_str}{self._reset}"
+            )
 
     @contextmanager
     def heartbeat(self, message, interval=30.0):

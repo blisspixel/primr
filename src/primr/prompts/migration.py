@@ -45,6 +45,7 @@ class MigrationStep:
         description: Human-readable description of the migration
         transform: Function that transforms the config dict
     """
+
     from_version: SchemaVersion
     to_version: SchemaVersion
     description: str
@@ -66,6 +67,7 @@ class MigrationResult:
         dry_run: Whether this was a dry-run (no files modified)
         preview: Preview of changes (for dry-run mode)
     """
+
     success: bool
     original_version: SchemaVersion
     final_version: SchemaVersion
@@ -179,10 +181,7 @@ class MigrationTool:
 
         while current != to_version:
             # Find migration from current version
-            migration = next(
-                (m for m in self._migrations if m.from_version == current),
-                None
-            )
+            migration = next((m for m in self._migrations if m.from_version == current), None)
 
             if migration is None:
                 raise MigrationError(
@@ -379,8 +378,7 @@ class MigrationTool:
         # Update sections
         if "sections" in result:
             result["sections"] = [
-                MigrationTool._migrate_section_1_1_to_2_0(section)
-                for section in result["sections"]
+                MigrationTool._migrate_section_1_1_to_2_0(section) for section in result["sections"]
             ]
 
         # Update schema version
@@ -403,8 +401,7 @@ class MigrationTool:
         else:
             # Recursively migrate subsections
             result["subsections"] = [
-                MigrationTool._migrate_section_1_1_to_2_0(sub)
-                for sub in result["subsections"]
+                MigrationTool._migrate_section_1_1_to_2_0(sub) for sub in result["subsections"]
             ]
 
         return result

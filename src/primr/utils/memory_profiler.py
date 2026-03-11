@@ -224,7 +224,7 @@ class MemoryProfiler:
         if snapshot.current_bytes > self.threshold_bytes:
             warning = MemoryWarning(
                 timestamp=snapshot.timestamp,
-                message=f"Memory usage ({snapshot.current_mb:.1f} MB) exceeds threshold ({self.threshold_bytes / (1024*1024):.1f} MB)",
+                message=f"Memory usage ({snapshot.current_mb:.1f} MB) exceeds threshold ({self.threshold_bytes / (1024 * 1024):.1f} MB)",
                 current_bytes=snapshot.current_bytes,
                 threshold_bytes=self.threshold_bytes,
                 component=snapshot.component,
@@ -398,7 +398,8 @@ class MemoryProfilerFixture:
         growing = self.profiler.get_growing_objects()
 
         problematic = [
-            r for r in growing
+            r
+            for r in growing
             if r.type_name not in allowed and r.growth_rate > self.max_growth_rate
         ]
 

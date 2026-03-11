@@ -4,30 +4,31 @@ Formatting utilities for consulting-tier reports.
 Provides functions to clean content by removing em-dashes, emojis,
 numbered headings, and formatting numbers for readability.
 """
+
 import re
 
 # Emoji regex pattern covering common emoji ranges
 EMOJI_PATTERN = re.compile(
     "["
-    "\U0001F600-\U0001F64F"  # emoticons
-    "\U0001F300-\U0001F5FF"  # symbols & pictographs
-    "\U0001F680-\U0001F6FF"  # transport & map symbols
-    "\U0001F700-\U0001F77F"  # alchemical symbols
-    "\U0001F780-\U0001F7FF"  # geometric shapes extended
-    "\U0001F800-\U0001F8FF"  # supplemental arrows-c
-    "\U0001F900-\U0001F9FF"  # supplemental symbols and pictographs
-    "\U0001FA00-\U0001FA6F"  # chess symbols
-    "\U0001FA70-\U0001FAFF"  # symbols and pictographs extended-a
-    "\U00002702-\U000027B0"  # dingbats
-    "\U000024C2-\U0001F251"  # enclosed characters
-    "\U0001F1E0-\U0001F1FF"  # flags
-    "\U00002600-\U000026FF"  # misc symbols
-    "\U00002700-\U000027BF"  # dingbats
-    "\U0000FE00-\U0000FE0F"  # variation selectors
-    "\U0001F000-\U0001F02F"  # mahjong tiles
-    "\U0001F0A0-\U0001F0FF"  # playing cards
+    "\U0001f600-\U0001f64f"  # emoticons
+    "\U0001f300-\U0001f5ff"  # symbols & pictographs
+    "\U0001f680-\U0001f6ff"  # transport & map symbols
+    "\U0001f700-\U0001f77f"  # alchemical symbols
+    "\U0001f780-\U0001f7ff"  # geometric shapes extended
+    "\U0001f800-\U0001f8ff"  # supplemental arrows-c
+    "\U0001f900-\U0001f9ff"  # supplemental symbols and pictographs
+    "\U0001fa00-\U0001fa6f"  # chess symbols
+    "\U0001fa70-\U0001faff"  # symbols and pictographs extended-a
+    "\U00002702-\U000027b0"  # dingbats
+    "\U000024c2-\U0001f251"  # enclosed characters
+    "\U0001f1e0-\U0001f1ff"  # flags
+    "\U00002600-\U000026ff"  # misc symbols
+    "\U00002700-\U000027bf"  # dingbats
+    "\U0000fe00-\U0000fe0f"  # variation selectors
+    "\U0001f000-\U0001f02f"  # mahjong tiles
+    "\U0001f0a0-\U0001f0ff"  # playing cards
     "]+",
-    flags=re.UNICODE
+    flags=re.UNICODE,
 )
 
 # Em-dash and similar dashes
@@ -43,7 +44,7 @@ NESTED_NUMBERING_PATTERN = re.compile(
     r"|[a-z]+\.[ivx]+\."  # a.i., b.ii.
     r"|[ivx]+\.[a-z]+\."  # i.a., ii.b.
     r")\s*",
-    re.MULTILINE | re.IGNORECASE
+    re.MULTILINE | re.IGNORECASE,
 )
 
 
@@ -81,6 +82,7 @@ def fix_numbered_headings(text: str) -> str:
     Converts "1. Executive Summary" to "Executive Summary"
     Converts "## 2.1 Overview" to "## Overview"
     """
+
     def replace_heading(match: re.Match[str]) -> str:
         indent = match.group(1) or ""
         hash_prefix = match.group(2) or ""
@@ -115,7 +117,11 @@ def format_number(value: float, precision: int = 1) -> str:
 
     if value >= 1_000_000_000_000:
         formatted = value / 1_000_000_000_000
-        return f"{formatted:.{precision}f}T".rstrip("0").rstrip(".")  + "T" if formatted != int(formatted) else f"{int(formatted)}T"
+        return (
+            f"{formatted:.{precision}f}T".rstrip("0").rstrip(".") + "T"
+            if formatted != int(formatted)
+            else f"{int(formatted)}T"
+        )
     elif value >= 1_000_000_000:
         formatted = value / 1_000_000_000
         if formatted == int(formatted):
@@ -156,6 +162,7 @@ def format_large_numbers_in_text(text: str) -> str:
     Converts "$50,000,000" to "$50M"
     Converts "50000000" to "50M"
     """
+
     # Pattern for currency with commas: $50,000,000
     def replace_currency(match: re.Match[str]) -> str:
         currency = match.group(1)
@@ -240,16 +247,14 @@ def normalize_text(text: str) -> str:
     Lowercases, collapses whitespace, removes punctuation variations.
     """
     # Lowercase and collapse whitespace
-    normalized = ' '.join(text.lower().split())
+    normalized = " ".join(text.lower().split())
     # Remove common punctuation that might vary
-    normalized = re.sub(r'[.,;:!?\'"()-]', '', normalized)
+    normalized = re.sub(r'[.,;:!?\'"()-]', "", normalized)
     return normalized
 
 
 def deduplicate_content(
-    content: str,
-    min_line_length: int = 20,
-    dedupe_paragraphs: bool = True
+    content: str, min_line_length: int = 20, dedupe_paragraphs: bool = True
 ) -> str:
     """
     Remove duplicate lines/paragraphs to reduce token usage.
@@ -279,7 +284,7 @@ def deduplicate_content(
     seen_lines = set()
     unique_lines = []
 
-    for line in content.split('\n'):
+    for line in content.split("\n"):
         stripped = line.strip()
 
         # Keep short lines without deduplication (headers, separators)
@@ -294,11 +299,11 @@ def deduplicate_content(
             seen_lines.add(normalized)
             unique_lines.append(line)
 
-    result = '\n'.join(unique_lines)
+    result = "\n".join(unique_lines)
 
     # Second pass: paragraph-level deduplication
     if dedupe_paragraphs:
-        paragraphs = re.split(r'\n\s*\n', result)
+        paragraphs = re.split(r"\n\s*\n", result)
         seen_paragraphs = set()
         unique_paragraphs = []
 
@@ -316,7 +321,7 @@ def deduplicate_content(
                 seen_paragraphs.add(normalized)
                 unique_paragraphs.append(para)
 
-        result = '\n\n'.join(unique_paragraphs)
+        result = "\n\n".join(unique_paragraphs)
 
     return result
 
@@ -332,13 +337,17 @@ def get_deduplication_stats(original: str, deduplicated: str) -> dict:
     Returns:
         Dict with line counts and reduction percentage
     """
-    original_lines = len(original.split('\n'))
-    deduped_lines = len(deduplicated.split('\n'))
+    original_lines = len(original.split("\n"))
+    deduped_lines = len(deduplicated.split("\n"))
     original_chars = len(original)
     deduped_chars = len(deduplicated)
 
-    line_reduction = ((original_lines - deduped_lines) / original_lines * 100) if original_lines > 0 else 0
-    char_reduction = ((original_chars - deduped_chars) / original_chars * 100) if original_chars > 0 else 0
+    line_reduction = (
+        ((original_lines - deduped_lines) / original_lines * 100) if original_lines > 0 else 0
+    )
+    char_reduction = (
+        ((original_chars - deduped_chars) / original_chars * 100) if original_chars > 0 else 0
+    )
 
     return {
         "original_lines": original_lines,

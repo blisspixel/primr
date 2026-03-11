@@ -105,69 +105,230 @@ class SentimentAnalyzer:
 
     # Positive word lists by intensity
     VERY_POSITIVE_WORDS = {
-        "excellent", "outstanding", "exceptional", "remarkable", "extraordinary",
-        "phenomenal", "incredible", "amazing", "fantastic", "superb", "brilliant",
-        "revolutionary", "groundbreaking", "transformative", "unprecedented",
+        "excellent",
+        "outstanding",
+        "exceptional",
+        "remarkable",
+        "extraordinary",
+        "phenomenal",
+        "incredible",
+        "amazing",
+        "fantastic",
+        "superb",
+        "brilliant",
+        "revolutionary",
+        "groundbreaking",
+        "transformative",
+        "unprecedented",
     }
 
     POSITIVE_WORDS = {
-        "good", "great", "strong", "positive", "successful", "growth", "profit",
-        "increase", "improve", "innovative", "leading", "best", "top", "premier",
-        "efficient", "effective", "reliable", "trusted", "quality", "value",
-        "opportunity", "advantage", "benefit", "achieve", "accomplish", "win",
-        "expand", "progress", "advance", "enhance", "optimize", "streamline",
-        "robust", "solid", "stable", "healthy", "thriving", "flourishing",
+        "good",
+        "great",
+        "strong",
+        "positive",
+        "successful",
+        "growth",
+        "profit",
+        "increase",
+        "improve",
+        "innovative",
+        "leading",
+        "best",
+        "top",
+        "premier",
+        "efficient",
+        "effective",
+        "reliable",
+        "trusted",
+        "quality",
+        "value",
+        "opportunity",
+        "advantage",
+        "benefit",
+        "achieve",
+        "accomplish",
+        "win",
+        "expand",
+        "progress",
+        "advance",
+        "enhance",
+        "optimize",
+        "streamline",
+        "robust",
+        "solid",
+        "stable",
+        "healthy",
+        "thriving",
+        "flourishing",
     }
 
     NEGATIVE_WORDS = {
-        "bad", "poor", "weak", "negative", "loss", "decline", "decrease",
-        "problem", "issue", "concern", "risk", "threat", "challenge", "difficult",
-        "fail", "failure", "struggle", "trouble", "worry", "uncertain",
-        "slow", "delay", "setback", "obstacle", "barrier", "limitation",
-        "expensive", "costly", "overpriced", "disappointing", "inadequate",
+        "bad",
+        "poor",
+        "weak",
+        "negative",
+        "loss",
+        "decline",
+        "decrease",
+        "problem",
+        "issue",
+        "concern",
+        "risk",
+        "threat",
+        "challenge",
+        "difficult",
+        "fail",
+        "failure",
+        "struggle",
+        "trouble",
+        "worry",
+        "uncertain",
+        "slow",
+        "delay",
+        "setback",
+        "obstacle",
+        "barrier",
+        "limitation",
+        "expensive",
+        "costly",
+        "overpriced",
+        "disappointing",
+        "inadequate",
     }
 
     VERY_NEGATIVE_WORDS = {
-        "terrible", "awful", "horrible", "disastrous", "catastrophic", "crisis",
-        "collapse", "crash", "bankrupt", "fraud", "scandal", "lawsuit", "violation",
-        "devastating", "critical", "severe", "alarming", "dangerous", "toxic",
+        "terrible",
+        "awful",
+        "horrible",
+        "disastrous",
+        "catastrophic",
+        "crisis",
+        "collapse",
+        "crash",
+        "bankrupt",
+        "fraud",
+        "scandal",
+        "lawsuit",
+        "violation",
+        "devastating",
+        "critical",
+        "severe",
+        "alarming",
+        "dangerous",
+        "toxic",
     }
 
     # Tone indicators
     FORMAL_INDICATORS = {
-        "pursuant", "hereby", "whereas", "therefore", "accordingly", "furthermore",
-        "notwithstanding", "aforementioned", "herein", "thereto", "shall",
+        "pursuant",
+        "hereby",
+        "whereas",
+        "therefore",
+        "accordingly",
+        "furthermore",
+        "notwithstanding",
+        "aforementioned",
+        "herein",
+        "thereto",
+        "shall",
     }
 
     PROMOTIONAL_INDICATORS = {
-        "best", "leading", "premier", "top", "exclusive", "limited", "special",
-        "amazing", "incredible", "revolutionary", "game-changing", "world-class",
-        "unmatched", "unparalleled", "cutting-edge", "state-of-the-art",
+        "best",
+        "leading",
+        "premier",
+        "top",
+        "exclusive",
+        "limited",
+        "special",
+        "amazing",
+        "incredible",
+        "revolutionary",
+        "game-changing",
+        "world-class",
+        "unmatched",
+        "unparalleled",
+        "cutting-edge",
+        "state-of-the-art",
     }
 
     TECHNICAL_INDICATORS = {
-        "algorithm", "infrastructure", "implementation", "architecture", "protocol",
-        "framework", "integration", "optimization", "scalability", "deployment",
-        "api", "sdk", "platform", "system", "module", "component", "interface",
+        "algorithm",
+        "infrastructure",
+        "implementation",
+        "architecture",
+        "protocol",
+        "framework",
+        "integration",
+        "optimization",
+        "scalability",
+        "deployment",
+        "api",
+        "sdk",
+        "platform",
+        "system",
+        "module",
+        "component",
+        "interface",
     }
 
     URGENT_INDICATORS = {
-        "urgent", "immediate", "critical", "asap", "now", "today", "deadline",
-        "emergency", "priority", "important", "essential", "must", "required",
+        "urgent",
+        "immediate",
+        "critical",
+        "asap",
+        "now",
+        "today",
+        "deadline",
+        "emergency",
+        "priority",
+        "important",
+        "essential",
+        "must",
+        "required",
     }
 
     # Negation words that flip sentiment
     NEGATION_WORDS = {
-        "not", "no", "never", "neither", "nobody", "nothing", "nowhere",
-        "hardly", "barely", "scarcely", "without", "lack", "lacking",
-        "don't", "doesn't", "didn't", "won't", "wouldn't", "couldn't",
-        "shouldn't", "isn't", "aren't", "wasn't", "weren't", "haven't",
+        "not",
+        "no",
+        "never",
+        "neither",
+        "nobody",
+        "nothing",
+        "nowhere",
+        "hardly",
+        "barely",
+        "scarcely",
+        "without",
+        "lack",
+        "lacking",
+        "don't",
+        "doesn't",
+        "didn't",
+        "won't",
+        "wouldn't",
+        "couldn't",
+        "shouldn't",
+        "isn't",
+        "aren't",
+        "wasn't",
+        "weren't",
+        "haven't",
     }
 
     # Intensifiers
     INTENSIFIERS = {
-        "very", "extremely", "highly", "incredibly", "exceptionally",
-        "remarkably", "significantly", "substantially", "considerably",
+        "very",
+        "extremely",
+        "highly",
+        "incredibly",
+        "exceptionally",
+        "remarkably",
+        "significantly",
+        "substantially",
+        "considerably",
     }
 
     def __init__(self):
@@ -313,7 +474,7 @@ class SentimentAnalyzer:
             tone_scores[Tone.URGENT] = (len(urgent_matches), list(urgent_matches))
 
         # Check for confident tone (first person + positive)
-        if re.search(r'\b(we|our|us)\b', text_lower):
+        if re.search(r"\b(we|our|us)\b", text_lower):
             confident_words = words & (self.POSITIVE_WORDS | self.VERY_POSITIVE_WORDS)
             if confident_words:
                 tone_scores[Tone.CONFIDENT] = (len(confident_words), list(confident_words))
@@ -359,39 +520,43 @@ class SentimentAnalyzer:
         for sentence in sentences:
             # Find company mentions
             company_patterns = [
-                r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+(?:Inc|Corp|LLC|Ltd)',
-                r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+(?:reported|announced|said)',
+                r"([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+(?:Inc|Corp|LLC|Ltd)",
+                r"([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+(?:reported|announced|said)",
             ]
 
             for pattern in company_patterns:
                 matches = re.findall(pattern, sentence)
                 for match in matches:
                     sentiment = self.analyze_sentiment(sentence)
-                    entities.append(EntitySentiment(
-                        entity=match,
-                        entity_type="company",
-                        sentiment=sentiment.sentiment,
-                        score=sentiment.score,
-                        context=sentence[:100],
-                    ))
+                    entities.append(
+                        EntitySentiment(
+                            entity=match,
+                            entity_type="company",
+                            sentiment=sentiment.sentiment,
+                            score=sentiment.score,
+                            context=sentence[:100],
+                        )
+                    )
 
             # Find person mentions (CEO, CFO, etc.)
             person_patterns = [
-                r'(?:CEO|CFO|CTO|President|Chairman)\s+([A-Z][a-z]+\s+[A-Z][a-z]+)',
-                r'([A-Z][a-z]+\s+[A-Z][a-z]+),?\s+(?:CEO|CFO|CTO|President)',
+                r"(?:CEO|CFO|CTO|President|Chairman)\s+([A-Z][a-z]+\s+[A-Z][a-z]+)",
+                r"([A-Z][a-z]+\s+[A-Z][a-z]+),?\s+(?:CEO|CFO|CTO|President)",
             ]
 
             for pattern in person_patterns:
                 matches = re.findall(pattern, sentence)
                 for match in matches:
                     sentiment = self.analyze_sentiment(sentence)
-                    entities.append(EntitySentiment(
-                        entity=match,
-                        entity_type="person",
-                        sentiment=sentiment.sentiment,
-                        score=sentiment.score,
-                        context=sentence[:100],
-                    ))
+                    entities.append(
+                        EntitySentiment(
+                            entity=match,
+                            entity_type="person",
+                            sentiment=sentiment.sentiment,
+                            score=sentiment.score,
+                            context=sentence[:100],
+                        )
+                    )
 
         return entities
 
@@ -450,14 +615,13 @@ class SentimentAnalyzer:
     def _tokenize(self, text: str) -> list[str]:
         """Tokenize text into words."""
         # Simple word tokenization
-        return re.findall(r'\b[a-z]+\b', text.lower())
+        return re.findall(r"\b[a-z]+\b", text.lower())
 
     def _split_sentences(self, text: str) -> list[str]:
         """Split text into sentences."""
         # Simple sentence splitting
-        sentences = re.split(r'[.!?]+', text)
+        sentences = re.split(r"[.!?]+", text)
         return [s.strip() for s in sentences if s.strip()]
-
 
 
 # =============================================================================
@@ -489,6 +653,7 @@ def reset_sentiment_analyzer() -> None:
 # =============================================================================
 # CONVENIENCE FUNCTIONS
 # =============================================================================
+
 
 def analyze_sentiment(text: str) -> SentimentResult:
     """

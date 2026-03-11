@@ -12,6 +12,7 @@ from enum import Enum
 
 class ErrorType(Enum):
     """Types of errors that can occur during scraping."""
+
     TIMEOUT = "timeout"
     SOFT_BLOCK = "soft_block"
     HARD_BLOCK = "hard_block"
@@ -23,16 +24,18 @@ class ErrorType(Enum):
 
 class BlockType(Enum):
     """Types of blocks detected during scraping."""
-    CHALLENGE = "challenge"          # Cloudflare "Just a moment", solvable
-    HARD_BLOCK = "hard_block"        # 403/Access Denied, not solvable
-    SOFT_BLOCK = "soft_block"        # 200 OK but fake content
-    CONSENT_WALL = "consent_wall"    # Cookie consent blocking content
+
+    CHALLENGE = "challenge"  # Cloudflare "Just a moment", solvable
+    HARD_BLOCK = "hard_block"  # 403/Access Denied, not solvable
+    SOFT_BLOCK = "soft_block"  # 200 OK but fake content
+    CONSENT_WALL = "consent_wall"  # Cookie consent blocking content
     TEMPLATE_BLOCK = "template_block"  # Known blocked page template
 
 
 @dataclass
 class Attempt:
     """Single tier attempt record (typed, not dict)."""
+
     tier: str
     success: bool
     error: str | None = None
@@ -45,6 +48,7 @@ class Attempt:
 @dataclass
 class ValidationResult:
     """Result of content validation (separate from soft block detection)."""
+
     valid: bool
     reason: str | None = None
     content_density: float | None = None
@@ -56,10 +60,11 @@ class ValidationResult:
 @dataclass
 class HostState:
     """Per-host trust state for optimizing tier selection."""
+
     host: str
-    cookies: dict | None = None           # Clearance cookies (cf_clearance, etc.)
+    cookies: dict | None = None  # Clearance cookies (cf_clearance, etc.)
     last_clearance_ts: datetime | None = None
-    best_tier: str | None = None          # Tier that worked best for this host
+    best_tier: str | None = None  # Tier that worked best for this host
     hard_blocked: bool = False
 
     # Per-tier success/failure tracking for circuit breaker
@@ -108,17 +113,18 @@ class HostState:
 @dataclass
 class ScrapeResult:
     """Standardized result from every tier and orchestrator."""
+
     url: str
     success: bool
-    raw_content: bytes | None = None      # Raw HTML/PDF bytes (None for vision)
-    extracted_text: str | None = None     # Clean text (filled by content.py or vision)
-    tier: str | None = None               # Which tier succeeded
+    raw_content: bytes | None = None  # Raw HTML/PDF bytes (None for vision)
+    extracted_text: str | None = None  # Clean text (filled by content.py or vision)
+    tier: str | None = None  # Which tier succeeded
     cached: bool = False
 
     # Metadata for debugging and detection
     http_status: int | None = None
-    content_type: str | None = None       # "html", "pdf", "vision_text"
-    final_url: str | None = None          # After redirects
+    content_type: str | None = None  # "html", "pdf", "vision_text"
+    final_url: str | None = None  # After redirects
     elapsed_ms: float | None = None
 
     # Session info for cookie handoff (browser tiers populate this)
@@ -139,6 +145,7 @@ class ScrapeResult:
 @dataclass
 class ScrapeTier:
     """Configuration for a single scraping tier."""
+
     name: str
     scrape_fn: Callable[[str, int], ScrapeResult]
     timeout: int

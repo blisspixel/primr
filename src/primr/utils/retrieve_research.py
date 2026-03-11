@@ -44,14 +44,16 @@ def retrieve_research(interaction_id: str) -> None:
 
         # Save to file
         output_file = f"research_{interaction_id[:20]}.md"
-        with open(output_file, 'w', encoding='utf-8') as f:
+        with open(output_file, "w", encoding="utf-8") as f:
             f.write("# Deep Research Report\n\n")
             f.write(f"**Interaction ID:** {interaction_id}\n\n")
             f.write(content)
             if citations:
                 f.write("\n\n## Sources\n\n")
                 for i, citation in enumerate(citations, 1):
-                    f.write(f"{i}. [{citation.get('title', 'Untitled')}]({citation.get('url', '')})\n")
+                    f.write(
+                        f"{i}. [{citation.get('title', 'Untitled')}]({citation.get('url', '')})\n"
+                    )
 
         print(f"\n✓ Saved to: {output_file}")
 
@@ -71,7 +73,9 @@ if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage: python retrieve_research.py <interaction_id>")
         print("\nExample:")
-        print("  python retrieve_research.py v1_ChZ4QTF4YVlERUdPLWV6N0lQblBlc1NBEhZ4QTF4YVlERUdPLWV6N0lQblBlc1NB")
+        print(
+            "  python retrieve_research.py v1_ChZ4QTF4YVlERUdPLWV6N0lQblBlc1NBEhZ4QTF4YVlERUdPLWV6N0lQblBlc1NB"
+        )
         sys.exit(1)
 
     interaction_id = sys.argv[1]

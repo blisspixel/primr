@@ -42,6 +42,7 @@ class TimeoutConfig:
         config = TimeoutConfig(connect=5.0, read=30.0, total=60.0)
         config.validate()  # Raises ValueError if invalid
     """
+
     connect: float = 10.0
     read: float = 30.0
     total: float = 60.0
@@ -83,6 +84,7 @@ class CacheConfig:
         config = CacheConfig(max_size=100, ttl_seconds=3600.0)
         config.validate()  # Raises ValueError if invalid
     """
+
     max_size: int = 100
     ttl_seconds: float | None = 3600.0
     name: str = "default"
@@ -105,6 +107,7 @@ class CacheConfig:
 # =============================================================================
 # API AND SERVICE CONFIGURATION
 # =============================================================================
+
 
 @dataclass
 class APIConfig:
@@ -173,11 +176,7 @@ class APIConfig:
 
     def is_configured(self) -> bool:
         """Check if all API keys are configured (without raising)."""
-        return bool(
-            self._gemini_key and
-            self._search_key and
-            self._search_engine_id
-        )
+        return bool(self._gemini_key and self._search_key and self._search_engine_id)
 
 
 @dataclass
@@ -191,19 +190,35 @@ class ScrapingConfig:
     min_content_length: int = 100
     min_html_length: int = 500
 
-    excluded_sites: list[str] = field(default_factory=lambda: [
-        "login", "captcha", "privacy-policy", "terms-of-service"
-    ])
+    excluded_sites: list[str] = field(
+        default_factory=lambda: ["login", "captcha", "privacy-policy", "terms-of-service"]
+    )
 
     # Soft block detection keywords
-    soft_block_indicators: list[str] = field(default_factory=lambda: [
-        "captcha", "verify you are human", "access denied", "forbidden",
-        "please enable javascript", "browser check", "checking your browser",
-        "ddos protection", "cloudflare", "just a moment", "ray id",
-        "unusual traffic", "automated access", "bot detected",
-        "enable cookies", "login required", "sign in to continue",
-        "403 forbidden", "401 unauthorized", "blocked"
-    ])
+    soft_block_indicators: list[str] = field(
+        default_factory=lambda: [
+            "captcha",
+            "verify you are human",
+            "access denied",
+            "forbidden",
+            "please enable javascript",
+            "browser check",
+            "checking your browser",
+            "ddos protection",
+            "cloudflare",
+            "just a moment",
+            "ray id",
+            "unusual traffic",
+            "automated access",
+            "bot detected",
+            "enable cookies",
+            "login required",
+            "sign in to continue",
+            "403 forbidden",
+            "401 unauthorized",
+            "blocked",
+        ]
+    )
 
     def validate(self) -> None:
         """
@@ -223,7 +238,9 @@ class ScrapingConfig:
         if self.cache_ttl_hours <= 0:
             raise ValueError(f"cache_ttl_hours must be positive, got {self.cache_ttl_hours}")
         if self.min_content_length < 0:
-            raise ValueError(f"min_content_length must be non-negative, got {self.min_content_length}")
+            raise ValueError(
+                f"min_content_length must be non-negative, got {self.min_content_length}"
+            )
         if self.min_html_length < 0:
             raise ValueError(f"min_html_length must be non-negative, got {self.min_html_length}")
 
@@ -290,7 +307,9 @@ class AIConfig:
 
         # Validate thinking level
         if self.default_thinking_level not in ("low", "high"):
-            raise ValueError(f"default_thinking_level must be 'low' or 'high', got {self.default_thinking_level}")
+            raise ValueError(
+                f"default_thinking_level must be 'low' or 'high', got {self.default_thinking_level}"
+            )
 
         # Validate grade threshold
         if not 0 <= self.grade_threshold <= 100:
@@ -310,10 +329,18 @@ class SearchConfig:
     parallel_limit: int = 2
     initial_retry_delay: int = 5
 
-    excluded_domains: list[str] = field(default_factory=lambda: [
-        "reddit.com", "quora.com", "facebook.com", "twitter.com",
-        "pinterest.com", "tiktok.com", "tumblr.com", "instagram.com"
-    ])
+    excluded_domains: list[str] = field(
+        default_factory=lambda: [
+            "reddit.com",
+            "quora.com",
+            "facebook.com",
+            "twitter.com",
+            "pinterest.com",
+            "tiktok.com",
+            "tumblr.com",
+            "instagram.com",
+        ]
+    )
 
 
 @dataclass
@@ -347,9 +374,7 @@ class PathConfig:
 class OutputConfig:
     """Report output configuration."""
 
-    supported_formats: list[str] = field(default_factory=lambda: [
-        ".txt", ".docx", ".pdf", ".md"
-    ])
+    supported_formats: list[str] = field(default_factory=lambda: [".txt", ".docx", ".pdf", ".md"])
     convert_to_pdf: bool = True
     include_sources: bool = True
     include_timestamps: bool = True
@@ -397,6 +422,7 @@ class PricingConfig:
 # MAIN SETTINGS CLASS
 # =============================================================================
 
+
 @dataclass
 class Settings:
     """
@@ -426,12 +452,8 @@ class Settings:
     cache: CacheConfig = field(default_factory=CacheConfig)
 
     # Runtime flags
-    verbose: bool = field(
-        default_factory=lambda: os.getenv("VERBOSE", "false").lower() == "true"
-    )
-    debug: bool = field(
-        default_factory=lambda: os.getenv("DEBUG", "false").lower() == "true"
-    )
+    verbose: bool = field(default_factory=lambda: os.getenv("VERBOSE", "false").lower() == "true")
+    debug: bool = field(default_factory=lambda: os.getenv("DEBUG", "false").lower() == "true")
 
     def __post_init__(self):
         # Ensure directories exist
@@ -502,9 +524,7 @@ class Settings:
 
         # Raise all errors at once
         if errors:
-            raise ValueError(
-                "Configuration validation failed:\n  - " + "\n  - ".join(errors)
-            )
+            raise ValueError("Configuration validation failed:\n  - " + "\n  - ".join(errors))
 
     @classmethod
     def from_env(cls, project_root: Path | None = None) -> "Settings":
@@ -549,10 +569,7 @@ def reset_settings() -> None:
 
 
 def configure(
-    project_root: Path | None = None,
-    verbose: bool = False,
-    debug: bool = False,
-    **overrides: Any
+    project_root: Path | None = None, verbose: bool = False, debug: bool = False, **overrides: Any
 ) -> Settings:
     """
     Configure application settings.

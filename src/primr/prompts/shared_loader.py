@@ -77,9 +77,7 @@ class SharedComponentLoader:
             return self._cache
 
         if not self._shared_dir.exists():
-            raise FileNotFoundError(
-                f"Shared components directory not found: {self._shared_dir}"
-            )
+            raise FileNotFoundError(f"Shared components directory not found: {self._shared_dir}")
 
         components = SharedComponents()
 
@@ -89,9 +87,7 @@ class SharedComponentLoader:
             epistemic_data = self._load_yaml(epistemic_path)
             components.epistemic_rules = epistemic_data.get("rules", {})
             components.strategy_rules = epistemic_data.get("strategy_rules", {})
-            logger.debug(
-                f"Loaded {len(components.epistemic_rules)} epistemic rules"
-            )
+            logger.debug(f"Loaded {len(components.epistemic_rules)} epistemic rules")
 
         # Load formatting rules
         formatting_path = self._shared_dir / "formatting.yaml"
@@ -100,18 +96,14 @@ class SharedComponentLoader:
             components.formatting_rules = formatting_data.get("rules", {})
             components.structure_rules = formatting_data.get("structure", {})
             components.table_rules = formatting_data.get("table_rules", {})
-            logger.debug(
-                f"Loaded {len(components.formatting_rules)} formatting rules"
-            )
+            logger.debug(f"Loaded {len(components.formatting_rules)} formatting rules")
 
         # Load personas
         personas_path = self._shared_dir / "personas.yaml"
         if personas_path.exists():
             personas_data = self._load_yaml(personas_path)
             components.personas = personas_data.get("personas", {})
-            components.default_persona = personas_data.get(
-                "default", "senior_consultant"
-            )
+            components.default_persona = personas_data.get("default", "senior_consultant")
             logger.debug(f"Loaded {len(components.personas)} personas")
 
         self._cache = components

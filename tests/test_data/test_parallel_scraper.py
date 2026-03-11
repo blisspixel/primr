@@ -22,6 +22,7 @@ from primr.data.parallel_scraper import (
 # RATE LIMITER TESTS
 # =============================================================================
 
+
 class TestRateLimiter:
     """Tests for RateLimiter class."""
 
@@ -116,6 +117,7 @@ class TestRateLimiter:
 # CIRCUIT BREAKER TESTS
 # =============================================================================
 
+
 class TestCircuitBreaker:
     """Tests for CircuitBreaker class."""
 
@@ -184,16 +186,14 @@ class TestCircuitBreaker:
 # SCRAPE RESULT TESTS
 # =============================================================================
 
+
 class TestScrapeResult:
     """Tests for ScrapeResult dataclass."""
 
     def test_success_result(self):
         """Test successful scrape result."""
         result = ScrapeResult(
-            url="https://example.com",
-            content="Page content",
-            tier="requests",
-            duration=1.5
+            url="https://example.com", content="Page content", tier="requests", duration=1.5
         )
         assert result.success
         assert result.content == "Page content"
@@ -201,28 +201,21 @@ class TestScrapeResult:
 
     def test_error_result(self):
         """Test error scrape result."""
-        result = ScrapeResult(
-            url="https://example.com",
-            error="Connection timeout",
-            duration=5.0
-        )
+        result = ScrapeResult(url="https://example.com", error="Connection timeout", duration=5.0)
         assert not result.success
         assert result.content is None
         assert result.error == "Connection timeout"
 
     def test_empty_content_is_failure(self):
         """Test that empty content is considered failure."""
-        result = ScrapeResult(
-            url="https://example.com",
-            content=None,
-            duration=1.0
-        )
+        result = ScrapeResult(url="https://example.com", content=None, duration=1.0)
         assert not result.success
 
 
 # =============================================================================
 # PARALLEL SCRAPER TESTS
 # =============================================================================
+
 
 class TestParallelScraper:
     """Tests for ParallelScraper class."""
@@ -240,14 +233,11 @@ class TestParallelScraper:
 
     def test_scrape_with_mock_function(self):
         """Test scraping with mock scrape function."""
+
         def mock_scrape(url: str, silent: bool = False) -> tuple[str | None, str]:
             return f"Content from {url}", "mock"
 
-        scraper = ParallelScraper(
-            max_workers=2,
-            rate_limit_delay=0.01,
-            scrape_function=mock_scrape
-        )
+        scraper = ParallelScraper(max_workers=2, rate_limit_delay=0.01, scrape_function=mock_scrape)
 
         urls = ["https://example1.com", "https://example2.com"]
         results = scraper.scrape_urls(urls)
@@ -258,16 +248,13 @@ class TestParallelScraper:
 
     def test_scrape_with_failures(self):
         """Test scraping with some failures."""
+
         def mock_scrape(url: str, silent: bool = False) -> tuple[str | None, str]:
             if "fail" in url:
                 return None, "Failed"
             return f"Content from {url}", "mock"
 
-        scraper = ParallelScraper(
-            max_workers=2,
-            rate_limit_delay=0.01,
-            scrape_function=mock_scrape
-        )
+        scraper = ParallelScraper(max_workers=2, rate_limit_delay=0.01, scrape_function=mock_scrape)
 
         urls = ["https://good.com", "https://fail.com", "https://also-good.com"]
         results = scraper.scrape_urls(urls)
@@ -280,14 +267,11 @@ class TestParallelScraper:
 
     def test_scrape_urls_dict(self):
         """Test scrape_urls_dict returns dictionary."""
+
         def mock_scrape(url: str, silent: bool = False) -> tuple[str | None, str]:
             return f"Content from {url}", "mock"
 
-        scraper = ParallelScraper(
-            max_workers=2,
-            rate_limit_delay=0.01,
-            scrape_function=mock_scrape
-        )
+        scraper = ParallelScraper(max_workers=2, rate_limit_delay=0.01, scrape_function=mock_scrape)
 
         urls = ["https://example1.com", "https://example2.com"]
         result_dict = scraper.scrape_urls_dict(urls)
@@ -305,11 +289,7 @@ class TestParallelScraper:
             call_count += 1
             return "Content", "mock"
 
-        scraper = ParallelScraper(
-            max_workers=2,
-            rate_limit_delay=0.01,
-            scrape_function=mock_scrape
-        )
+        scraper = ParallelScraper(max_workers=2, rate_limit_delay=0.01, scrape_function=mock_scrape)
 
         urls = ["https://example.com", "https://example.com", "https://example.com"]
         results = scraper.scrape_urls(urls)
@@ -320,16 +300,14 @@ class TestParallelScraper:
 
     def test_progress_callback(self):
         """Test progress callback is called."""
+
         def mock_scrape(url: str, silent: bool = False) -> tuple[str | None, str]:
             return "Content", "mock"
 
-        scraper = ParallelScraper(
-            max_workers=1,
-            rate_limit_delay=0.01,
-            scrape_function=mock_scrape
-        )
+        scraper = ParallelScraper(max_workers=1, rate_limit_delay=0.01, scrape_function=mock_scrape)
 
         progress_calls = []
+
         def progress_callback(current, total, msg):
             progress_calls.append((current, total, msg))
 
@@ -355,7 +333,7 @@ class TestParallelScraper:
             max_workers=1,
             rate_limit_delay=0.01,
             circuit_breaker_threshold=2,
-            scrape_function=mock_scrape
+            scrape_function=mock_scrape,
         )
 
         # First two failures should go through
@@ -373,16 +351,13 @@ class TestParallelScraper:
 
     def test_get_stats(self):
         """Test getting scraper statistics."""
+
         def mock_scrape(url: str, silent: bool = False) -> tuple[str | None, str]:
             if "fail" in url:
                 return None, "Failed"
             return "Content", "mock"
 
-        scraper = ParallelScraper(
-            max_workers=1,
-            rate_limit_delay=0.01,
-            scrape_function=mock_scrape
-        )
+        scraper = ParallelScraper(max_workers=1, rate_limit_delay=0.01, scrape_function=mock_scrape)
 
         urls = ["https://good.com", "https://fail.com"]
         scraper.scrape_urls(urls)
@@ -402,11 +377,7 @@ class TestParallelScraper:
             time.sleep(0.1)  # Simulate work
             return "Content", "mock"
 
-        scraper = ParallelScraper(
-            max_workers=3,
-            rate_limit_delay=0.01,
-            scrape_function=mock_scrape
-        )
+        scraper = ParallelScraper(max_workers=3, rate_limit_delay=0.01, scrape_function=mock_scrape)
 
         # Use different domains to avoid rate limiting
         urls = [
@@ -428,6 +399,7 @@ class TestParallelScraper:
 # CONVENIENCE FUNCTION TESTS
 # =============================================================================
 
+
 class TestConvenienceFunctions:
     """Tests for module-level convenience functions."""
 
@@ -448,7 +420,7 @@ class TestConvenienceFunctions:
         scraper2 = get_parallel_scraper()
         assert scraper1 is not scraper2
 
-    @patch('primr.data.parallel_scraper.ParallelScraper')
+    @patch("primr.data.parallel_scraper.ParallelScraper")
     def test_scrape_urls_parallel(self, mock_scraper_class):
         """Test scrape_urls_parallel convenience function."""
         mock_instance = MagicMock()
@@ -464,6 +436,7 @@ class TestConvenienceFunctions:
 # =============================================================================
 # THREAD SAFETY TESTS
 # =============================================================================
+
 
 class TestThreadSafety:
     """Tests for thread safety of components."""

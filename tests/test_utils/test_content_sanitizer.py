@@ -153,17 +153,20 @@ class TestControlCharacterHandling:
         assert "\n" in sanitized
         assert "\t" in sanitized
 
-    @pytest.mark.parametrize(("char", "name"), [
-        ("\x00", "null"),
-        ("\x01", "SOH"),
-        ("\x02", "STX"),
-        ("\x07", "BEL"),
-        ("\x08", "backspace"),
-        ("\x0b", "vertical tab"),
-        ("\x0c", "form feed"),
-        ("\x1b", "escape"),
-        ("\x7f", "DEL"),
-    ])
+    @pytest.mark.parametrize(
+        ("char", "name"),
+        [
+            ("\x00", "null"),
+            ("\x01", "SOH"),
+            ("\x02", "STX"),
+            ("\x07", "BEL"),
+            ("\x08", "backspace"),
+            ("\x0b", "vertical tab"),
+            ("\x0c", "form feed"),
+            ("\x1b", "escape"),
+            ("\x7f", "DEL"),
+        ],
+    )
     def test_removes_specific_control_chars(self, char: str, name: str):
         """Should remove specific control characters."""
         text = f"Before{char}After"
@@ -199,17 +202,20 @@ class TestUnicodeNormalization:
         assert "\ufeff" not in sanitized
         assert "Content with BOM" in sanitized
 
-    @pytest.mark.parametrize(("char", "name"), [
-        ("\u200b", "zero-width space"),
-        ("\u200c", "zero-width non-joiner"),
-        ("\u200d", "zero-width joiner"),
-        ("\u2060", "word joiner"),
-        ("\u2061", "function application"),
-        ("\ufeff", "BOM"),
-        ("\u202a", "LTR embedding"),
-        ("\u202b", "RTL embedding"),
-        ("\u202e", "RTL override"),
-    ])
+    @pytest.mark.parametrize(
+        ("char", "name"),
+        [
+            ("\u200b", "zero-width space"),
+            ("\u200c", "zero-width non-joiner"),
+            ("\u200d", "zero-width joiner"),
+            ("\u2060", "word joiner"),
+            ("\u2061", "function application"),
+            ("\ufeff", "BOM"),
+            ("\u202a", "LTR embedding"),
+            ("\u202b", "RTL embedding"),
+            ("\u202e", "RTL override"),
+        ],
+    )
     def test_removes_specific_unicode_chars(self, char: str, name: str):
         """Should remove specific problematic Unicode characters."""
         text = f"Before{char}After"
@@ -321,7 +327,9 @@ class TestSanitizerConfiguration:
         sanitizer = ContentSanitizer(check_unicode=False, mode=SanitizationMode.WARN)
         result = sanitizer.sanitize(text)
 
-        unicode_issues = [i for i in result.issues if i.issue_type == IssueType.UNICODE_NORMALIZATION]
+        unicode_issues = [
+            i for i in result.issues if i.issue_type == IssueType.UNICODE_NORMALIZATION
+        ]
         assert len(unicode_issues) == 0
 
     def test_disable_injection_check(self):

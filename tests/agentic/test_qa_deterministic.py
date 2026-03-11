@@ -39,34 +39,26 @@ def _make_qa_context(report_path: Path) -> SubagentContext:
 GOOD_REPORT = (
     "# Strategic Overview: TestCo\n"
     "## Executive Summary\n"
-    + "word " * 100
+    + "word "
+    * 100
     + "\n(Confirmed) Revenue grew 20%. (Reported) CEO stated expansion plans.\n"
     "(Estimated) Market share around 15%. (Hypothesis) May target enterprise.\n"
     "We hypothesize that TestCo will expand. To validate, check filings.\n"
     "Worth validating the partnership claims. Appears to be growing.\n"
     "[cite: 1] [cite: 2] [cite: 3] [Source: Annual Report]\n"
-    "## Key Insights\n"
-    + "word " * 100
-    + "\n(Hypothesis) Could enter new markets.\n"
+    "## Key Insights\n" + "word " * 100 + "\n(Hypothesis) Could enter new markets.\n"
     "[cite: 4] [cite: 5]\n"
-    "## Sources\n"
-    + "word " * 60
-    + "\nhttps://testco.com [cite: 6]\n"
+    "## Sources\n" + "word " * 60 + "\nhttps://testco.com [cite: 6]\n"
 )
 
 # Thin report with no hypothesis framing or confidence labels
-THIN_REPORT = (
-    "# Report\n"
-    "## Section One\n"
-    "Short text.\n"
-    "## Section Two\n"
-    "Also short.\n"
-)
+THIN_REPORT = "# Report\n## Section One\nShort text.\n## Section Two\nAlso short.\n"
 
 
 # =============================================================================
 # QASubagent Tests
 # =============================================================================
+
 
 class TestQASubagentDimensions:
     def test_dimensions_include_new_keys(self):
@@ -107,12 +99,7 @@ class TestQASubagentDimensions:
         assert any("confidence" in f.lower() for f in result.data.feedback)
 
     def test_truncated_sections_feedback(self):
-        content = (
-            "# Report\n"
-            "## Full Section\n" + "word " * 100 + "\n"
-            "## Stub Section\n"
-            "Tiny.\n"
-        )
+        content = "# Report\n## Full Section\n" + "word " * 100 + "\n## Stub Section\nTiny.\n"
         report_path = _write_report(content)
         ctx = _make_qa_context(report_path)
         agent = QASubagent(ctx)
@@ -124,6 +111,7 @@ class TestQASubagentDimensions:
 # =============================================================================
 # QAGateHook Tests
 # =============================================================================
+
 
 class TestQAGateHookDeterministic:
     def _run_hook(self, report_content: str) -> tuple[int | None, list[str]]:

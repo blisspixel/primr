@@ -166,8 +166,7 @@ class APIKeyAuth:
             self._keys[new_hash] = new_info
 
             logger.info(
-                f"Rotated API key: {old_info.name}, "
-                f"grace period until {grace_until.isoformat()}"
+                f"Rotated API key: {old_info.name}, grace period until {grace_until.isoformat()}"
             )
 
         # Notify callbacks
@@ -273,16 +272,14 @@ class APIKeyAuth:
 
         with self._lock:
             for info in self._keys.values():
-                if (
-                    info.is_active
-                    and info.expires_at
-                    and info.expires_at <= threshold
-                ):
-                    expiring.append({
-                        "name": info.name,
-                        "expires_at": info.expires_at.isoformat(),
-                        "days_remaining": (info.expires_at - datetime.now()).days,
-                    })
+                if info.is_active and info.expires_at and info.expires_at <= threshold:
+                    expiring.append(
+                        {
+                            "name": info.name,
+                            "expires_at": info.expires_at.isoformat(),
+                            "days_remaining": (info.expires_at - datetime.now()).days,
+                        }
+                    )
 
         return expiring
 
@@ -359,7 +356,9 @@ class APIKeyAuth:
         with self._lock:
             for key_hash, info in self._keys.items():
                 # Remove if expired
-                if (info.expires_at and now > info.expires_at) or (info.rotation_grace_until and now > info.rotation_grace_until):
+                if (info.expires_at and now > info.expires_at) or (
+                    info.rotation_grace_until and now > info.rotation_grace_until
+                ):
                     to_remove.append(key_hash)
 
             for key_hash in to_remove:
@@ -399,6 +398,7 @@ def reset_auth() -> None:
 # =============================================================================
 # CONVENIENCE FUNCTIONS
 # =============================================================================
+
 
 def verify_api_key(key: str) -> bool:
     """
