@@ -363,15 +363,12 @@ async def _gather_context(
     context_files = []
     vendor_paths = []
 
-    # Add company research if provided
     if config.company_research_path and os.path.exists(config.company_research_path):
         context_files.append(config.company_research_path)
 
-    # Get data sources from strategy YAML configuration
     registry = get_registry()
     vendor_str = config.cloud_vendor.value
 
-    # Get context files for the AI strategy, filtered by vendor
     yaml_context_files = registry.get_context_files("ai", vendor=vendor_str)
 
     for path in yaml_context_files:
@@ -386,7 +383,6 @@ async def _gather_context(
             f"Using {len(yaml_context_files)} vendor research file(s) from strategy config"
         )
 
-    # Fallback: If no YAML data sources found, use legacy vendor research
     if not yaml_context_files:
         from primr.core.vendor_research import (
             generate_vendor_research,
@@ -407,7 +403,6 @@ async def _gather_context(
                 )
                 vendor_paths = [str(p) for p in result.paths]
 
-            # Add vendor research to context
             for path in vendor_paths:
                 if path and os.path.exists(path):
                     context_files.append(path)
@@ -417,7 +412,6 @@ async def _gather_context(
                     f"Using {len(vendor_paths)} {vendor_str.upper()} research doc(s) as context"
                 )
 
-        # Always include agnostic research as additional context
         agnostic_path = (
             Path(PROJECT_ROOT)
             / "vendor-research"
