@@ -151,11 +151,14 @@ def hypothesis_lists(draw, min_size: int = 0, max_size: int = 5):
 # PROPERTY 9: Research Memory Round-Trip
 # =============================================================================
 
+
 # Feature: agentic-architecture, Property 9: Research Memory Round-Trip
 @given(
     company=company_names,
     hyps=hypothesis_lists(max_size=5),
-    notes=st.lists(st.text(min_size=1, max_size=30, alphabet=st.characters(max_codepoint=127)), max_size=3),
+    notes=st.lists(
+        st.text(min_size=1, max_size=30, alphabet=st.characters(max_codepoint=127)), max_size=3
+    ),
 )
 @settings(max_examples=30, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 def test_memory_round_trip(company: str, hyps: list[Hypothesis], notes: list[str]):
@@ -186,9 +189,7 @@ def test_memory_round_trip(company: str, hyps: list[Hypothesis], notes: list[str
         loaded = memory.get_hypotheses(company, include_expired=True)
 
         # Verify hypothesis count
-        assert len(loaded) == len(hyps), (
-            f"Expected {len(hyps)} hypotheses, got {len(loaded)}"
-        )
+        assert len(loaded) == len(hyps), f"Expected {len(hyps)} hypotheses, got {len(loaded)}"
 
         # Verify each hypothesis
         loaded_by_id = {h.id: h for h in loaded}
@@ -206,6 +207,7 @@ def test_memory_round_trip(company: str, hyps: list[Hypothesis], notes: list[str
 # =============================================================================
 # PROPERTY 10: Hypothesis Expiration Filtering
 # =============================================================================
+
 
 # Feature: agentic-architecture, Property 10: Hypothesis Expiration Filtering
 @given(
@@ -231,21 +233,25 @@ def test_expiration_filtering(company: str, num_expired: int, num_valid: int):
 
         # Create expired hypotheses
         for i in range(num_expired):
-            hypotheses_list.append(Hypothesis(
-                id=f"expired_{i}",
-                claim=f"Expired claim {i}",
-                confidence=ConfidenceLevel.UNTESTED,
-                expires_at=datetime.now() - timedelta(days=1),
-            ))
+            hypotheses_list.append(
+                Hypothesis(
+                    id=f"expired_{i}",
+                    claim=f"Expired claim {i}",
+                    confidence=ConfidenceLevel.UNTESTED,
+                    expires_at=datetime.now() - timedelta(days=1),
+                )
+            )
 
         # Create valid hypotheses (no expiration or future expiration)
         for i in range(num_valid):
-            hypotheses_list.append(Hypothesis(
-                id=f"valid_{i}",
-                claim=f"Valid claim {i}",
-                confidence=ConfidenceLevel.UNTESTED,
-                expires_at=datetime.now() + timedelta(days=30),
-            ))
+            hypotheses_list.append(
+                Hypothesis(
+                    id=f"valid_{i}",
+                    claim=f"Valid claim {i}",
+                    confidence=ConfidenceLevel.UNTESTED,
+                    expires_at=datetime.now() + timedelta(days=30),
+                )
+            )
 
         # Save all
         if hypotheses_list:
@@ -255,9 +261,7 @@ def test_expiration_filtering(company: str, num_expired: int, num_valid: int):
         result = memory.get_hypotheses(company)
 
         # Should only get valid hypotheses
-        assert len(result) == num_valid, (
-            f"Expected {num_valid} valid hypotheses, got {len(result)}"
-        )
+        assert len(result) == num_valid, f"Expected {num_valid} valid hypotheses, got {len(result)}"
 
         # All returned should be non-expired
         for h in result:
@@ -271,6 +275,7 @@ def test_expiration_filtering(company: str, num_expired: int, num_valid: int):
 # =============================================================================
 # PROPERTY 11: Hypothesis Query Filtering
 # =============================================================================
+
 
 # Feature: agentic-architecture, Property 11: Hypothesis Query Filtering
 @given(
@@ -304,20 +309,24 @@ def test_query_filtering(
         hypotheses_list = []
 
         # Matching both
-        hypotheses_list.append(Hypothesis(
-            id="match_both",
-            claim="Matches both filters",
-            confidence=target_confidence,
-            topic=target_topic,
-        ))
+        hypotheses_list.append(
+            Hypothesis(
+                id="match_both",
+                claim="Matches both filters",
+                confidence=target_confidence,
+                topic=target_topic,
+            )
+        )
 
         # Matching confidence only
-        hypotheses_list.append(Hypothesis(
-            id="match_conf",
-            claim="Matches confidence only",
-            confidence=target_confidence,
-            topic="other_topic",
-        ))
+        hypotheses_list.append(
+            Hypothesis(
+                id="match_conf",
+                claim="Matches confidence only",
+                confidence=target_confidence,
+                topic="other_topic",
+            )
+        )
 
         # Matching topic only
         other_conf = (
@@ -325,20 +334,24 @@ def test_query_filtering(
             if target_confidence != ConfidenceLevel.VALIDATED
             else ConfidenceLevel.UNTESTED
         )
-        hypotheses_list.append(Hypothesis(
-            id="match_topic",
-            claim="Matches topic only",
-            confidence=other_conf,
-            topic=target_topic,
-        ))
+        hypotheses_list.append(
+            Hypothesis(
+                id="match_topic",
+                claim="Matches topic only",
+                confidence=other_conf,
+                topic=target_topic,
+            )
+        )
 
         # Matching neither
-        hypotheses_list.append(Hypothesis(
-            id="match_none",
-            claim="Matches neither",
-            confidence=other_conf,
-            topic="other_topic",
-        ))
+        hypotheses_list.append(
+            Hypothesis(
+                id="match_none",
+                claim="Matches neither",
+                confidence=other_conf,
+                topic="other_topic",
+            )
+        )
 
         memory.save_hypotheses(company, hypotheses_list)
 
@@ -368,15 +381,18 @@ def test_query_filtering(
 # PROPERTY 12: Hypothesis Confidence Updates
 # =============================================================================
 
+
 # Feature: agentic-architecture, Property 12: Hypothesis Confidence Updates
 @given(
     company=company_names,
     initial_confidence=confidence_levels,
-    new_confidence=st.sampled_from([
-        ConfidenceLevel.VALIDATED,
-        ConfidenceLevel.INVALIDATED,
-        ConfidenceLevel.CONFIRMED,
-    ]),
+    new_confidence=st.sampled_from(
+        [
+            ConfidenceLevel.VALIDATED,
+            ConfidenceLevel.INVALIDATED,
+            ConfidenceLevel.CONFIRMED,
+        ]
+    ),
     evidence=evidence_strings,
 )
 @settings(max_examples=30, deadline=None)
@@ -438,14 +454,13 @@ def test_confidence_updates(
         )
 
         # Verify updated_at was updated
-        assert updated.updated_at >= before_update, (
-            "updated_at should be updated"
-        )
+        assert updated.updated_at >= before_update, "updated_at should be updated"
 
 
 # =============================================================================
 # ADDITIONAL UNIT TESTS
 # =============================================================================
+
 
 def test_update_nonexistent_hypothesis():
     """Updating a non-existent hypothesis returns False."""

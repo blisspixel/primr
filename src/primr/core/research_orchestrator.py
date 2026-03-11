@@ -67,11 +67,15 @@ def _cleanup_file_with_retry(filepath: str, max_retries: int = 3, delay: float =
             return True  # File doesn't exist, consider it cleaned
         except OSError as e:
             if attempt < max_retries - 1:
-                logger.debug(f"Cleanup attempt {attempt + 1} failed for {filepath}: {e}, retrying...")
+                logger.debug(
+                    f"Cleanup attempt {attempt + 1} failed for {filepath}: {e}, retrying..."
+                )
                 time.sleep(delay)
             else:
                 # Final attempt failed - log as WARNING so it's visible
-                logger.warning(f"Failed to clean up temp file after {max_retries} attempts: {filepath} - {e}")
+                logger.warning(
+                    f"Failed to clean up temp file after {max_retries} attempts: {filepath} - {e}"
+                )
                 return False
     return False
 
@@ -93,12 +97,9 @@ def temp_context_file(company_name: str, content: str) -> Generator[str, None, N
     try:
         # Create temp file with .txt extension
         safe_name = company_name.replace(" ", "_").replace("/", "_")
-        fd, filepath = tempfile.mkstemp(
-            suffix='.txt',
-            prefix=f'{safe_name}_step1_'
-        )
+        fd, filepath = tempfile.mkstemp(suffix=".txt", prefix=f"{safe_name}_step1_")
 
-        with open(filepath, 'w', encoding='utf-8') as f:
+        with open(filepath, "w", encoding="utf-8") as f:
             f.write(content)
 
         yield filepath
@@ -120,6 +121,7 @@ class ResearchMode(Enum):
         COMPLETE: Two-step sequential: structured then deep research (~30-40 min)
         HYBRID: Parallel execution of both engines (legacy, ~25 min)
     """
+
     STRUCTURED = "structured"
     DEEP_RESEARCH = "deep-research"
     COMPLETE = "complete"  # Two-step sequential: structured then deep research
@@ -129,6 +131,7 @@ class ResearchMode(Enum):
 @dataclass
 class ResearchConfig:
     """Configuration for a research task."""
+
     mode: ResearchMode = ResearchMode.STRUCTURED
     timeout: float = 3600  # 1 hour max
     poll_interval: float = 10
@@ -141,6 +144,7 @@ class ResearchConfig:
 @dataclass
 class OrchestratorResult:
     """Result from the research orchestrator."""
+
     company_name: str
     website: str | None
     mode: ResearchMode
@@ -227,10 +231,7 @@ class ResearchOrchestrator:
 
         # Use operation_context for observability
         with operation_context(
-            "research",
-            company=company_name,
-            mode=mode.value,
-            website=website or "none"
+            "research", company=company_name, mode=mode.value, website=website or "none"
         ):
             logger.info(f"Starting {mode.value} research for {company_name}")
 
@@ -255,9 +256,7 @@ class ResearchOrchestrator:
                     raise ResearchError(f"Unknown research mode: {mode}")
 
                 result.duration_seconds = asyncio.get_running_loop().time() - start_time
-                logger.info(
-                    f"Research completed in {result.duration_seconds:.0f}s"
-                )
+                logger.info(f"Research completed in {result.duration_seconds:.0f}s")
 
                 # Emit metrics on successful completion
                 self._emit_research_metrics(
@@ -267,7 +266,7 @@ class ResearchOrchestrator:
                     duration=result.duration_seconds,
                     success=True,
                     section_count=len(result.section_results),
-                    citation_count=len(result.citations)
+                    citation_count=len(result.citations),
                 )
 
                 return result
@@ -283,7 +282,7 @@ class ResearchOrchestrator:
                     mode=mode.value,
                     duration=duration,
                     success=False,
-                    error_type=type(e).__name__
+                    error_type=type(e).__name__,
                 )
 
                 return OrchestratorResult(
@@ -293,7 +292,7 @@ class ResearchOrchestrator:
                     section_results={},
                     success=False,
                     error=str(e),
-                    duration_seconds=duration
+                    duration_seconds=duration,
                 )
 
     def _emit_research_metrics(
@@ -305,7 +304,7 @@ class ResearchOrchestrator:
         success: bool,
         section_count: int = 0,
         citation_count: int = 0,
-        error_type: str | None = None
+        error_type: str | None = None,
     ) -> None:
         """
         Emit structured metrics for research operations.
@@ -329,8 +328,8 @@ class ResearchOrchestrator:
                 "company": company_name,
                 "mode": mode,
                 "sections": section_count,
-                "citations": citation_count
-            }
+                "citations": citation_count,
+            },
         )
         emit_metrics(metrics)
 
@@ -408,7 +407,7 @@ class ResearchOrchestrator:
                 website or "",
                 on_progress=on_progress,
                 fail_on_low_scrape=config.fail_on_low_scrape,
-            )
+            ),
         )
 
         return OrchestratorResult(
@@ -416,7 +415,7 @@ class ResearchOrchestrator:
             website=website,
             mode=ResearchMode.STRUCTURED,
             section_results=section_results or {},
-            success=bool(section_results)
+            success=bool(section_results),
         )
 
     async def _run_complete_research(
@@ -473,7 +472,7 @@ class ResearchOrchestrator:
                 total_steps=2,
                 title="Data Collection",
                 description="Website scraping + web search + AI analysis",
-                expected_duration="15-25 minutes"
+                expected_duration="15-25 minutes",
             )
 
             structured_result = await self._run_structured_research(
@@ -482,7 +481,9 @@ class ResearchOrchestrator:
 
             if not structured_result.success:
                 if config.fail_on_low_scrape:
-                    logger.error("Structured Pipeline failed and strict scrape validation is enabled")
+                    logger.error(
+                        "Structured Pipeline failed and strict scrape validation is enabled"
+                    )
                     console.error("Data collection failed scrape validation; aborting run.")
                     console.muted("  Override with --skip-scrape-validation to continue anyway")
                     return OrchestratorResult(
@@ -502,8 +503,8 @@ class ResearchOrchestrator:
                     "Data Collection",
                     stats=[
                         ("Sections generated", str(len(structured_result.section_results))),
-                        ("Duration", f"{int(phase1_duration // 60)}m {int(phase1_duration % 60)}s")
-                    ]
+                        ("Duration", f"{int(phase1_duration // 60)}m {int(phase1_duration % 60)}s"),
+                    ],
                 )
 
             # Prepare Stage 1 context for Deep Research
@@ -514,7 +515,7 @@ class ResearchOrchestrator:
                         company_name, structured_result.section_results
                     )
                     # Read the context file content
-                    with open(step1_context_file, encoding='utf-8') as f:
+                    with open(step1_context_file, encoding="utf-8") as f:
                         stage1_context = f.read()
                     logger.info(f"Stage 1 context prepared: {len(stage1_context)} chars")
                 except Exception as e:
@@ -531,7 +532,7 @@ class ResearchOrchestrator:
                 total_steps=2,
                 title="Deep Research",
                 description="Comprehensive report with sequential elaboration (50+ pages)",
-                expected_duration="15-30 minutes"
+                expected_duration="15-30 minutes",
             )
 
             # Use the new comprehensive report generation with sequential elaboration
@@ -559,16 +560,20 @@ class ResearchOrchestrator:
 
                 # Suggest scrape mode if quota exhausted
                 if deep_result.error and "quota" in deep_result.error.lower():
-                    console.warn("Tip: Try --mode scrape to generate report without Deep Research API")
+                    console.warn(
+                        "Tip: Try --mode scrape to generate report without Deep Research API"
+                    )
 
                 return OrchestratorResult(
                     company_name=company_name,
                     website=website,
                     mode=ResearchMode.COMPLETE,
-                    section_results=structured_result.section_results if structured_result.success else {},
+                    section_results=structured_result.section_results
+                    if structured_result.success
+                    else {},
                     success=False,
                     error=deep_result.error,
-                    duration_seconds=time_module.time() - total_start
+                    duration_seconds=time_module.time() - total_start,
                 )
 
             # Format the report (clean TOC, no failure markers)
@@ -576,7 +581,7 @@ class ResearchOrchestrator:
             formatted = formatter.format_report(
                 raw_content=deep_result.content,
                 company_name=company_name,
-                citation_style="numbered"
+                citation_style="numbered",
             )
 
             console.phase_complete(
@@ -585,8 +590,8 @@ class ResearchOrchestrator:
                     ("Word count", f"~{formatted.word_count:,}"),
                     ("Chapters", str(len(formatted.chapters))),
                     ("API calls", str(deep_result.api_calls)),
-                    ("Duration", f"{int(phase2_duration // 60)}m {int(phase2_duration % 60)}s")
-                ]
+                    ("Duration", f"{int(phase2_duration // 60)}m {int(phase2_duration % 60)}s"),
+                ],
             )
 
             # ================================================================
@@ -598,9 +603,12 @@ class ResearchOrchestrator:
             if step1_context_file:
                 try:
                     import os
+
                     os.remove(step1_context_file)
                 except Exception:
-                    logger.debug("Failed to clean up temp file %s", step1_context_file, exc_info=True)
+                    logger.debug(
+                        "Failed to clean up temp file %s", step1_context_file, exc_info=True
+                    )
 
             # Build section results for compatibility
             section_results = {
@@ -639,9 +647,12 @@ class ResearchOrchestrator:
             if step1_context_file:
                 try:
                     import os
+
                     os.remove(step1_context_file)
                 except Exception:
-                    logger.debug("Failed to clean up temp file %s", step1_context_file, exc_info=True)
+                    logger.debug(
+                        "Failed to clean up temp file %s", step1_context_file, exc_info=True
+                    )
 
             # Preserve partial results from structured phase if available
             partial_results = {}
@@ -658,7 +669,7 @@ class ResearchOrchestrator:
                 section_results=partial_results,
                 success=False,
                 error=str(e),
-                duration_seconds=time_module.time() - total_start
+                duration_seconds=time_module.time() - total_start,
             )
 
     def _summarize_context(self, section_results: dict[str, str]) -> str:
@@ -678,9 +689,12 @@ class ResearchOrchestrator:
 
         # Key sections to include in summary
         priority_sections = [
-            'company_overview', 'detailed_products_services',
-            'target_audience', 'competitive_position',
-            'financial_overview', 'industry_insights'
+            "company_overview",
+            "detailed_products_services",
+            "target_audience",
+            "competitive_position",
+            "financial_overview",
+            "industry_insights",
         ]
 
         for section in priority_sections:
@@ -689,7 +703,7 @@ class ResearchOrchestrator:
                 # Truncate long sections
                 if len(content) > 500:
                     content = content[:500] + "..."
-                title = section.replace('_', ' ').title()
+                title = section.replace("_", " ").title()
                 summary_parts.append(f"**{title}:**\n{content}")
 
         return "\n\n".join(summary_parts) if summary_parts else "Limited context available."
@@ -701,11 +715,7 @@ class ResearchOrchestrator:
     # - FileSearchStoreManager for the orchestrator patterns
     # All cleanup is done via try/finally blocks to prevent billing leaks.
 
-    def _prepare_step1_context(
-        self,
-        company_name: str,
-        section_results: dict[str, str]
-    ) -> str:
+    def _prepare_step1_context(self, company_name: str, section_results: dict[str, str]) -> str:
         """
         Convert Step 1 results to a markdown file for File Search upload.
 
@@ -728,34 +738,26 @@ class ResearchOrchestrator:
             "Use this as context for deeper strategic analysis.",
             "",
             "---",
-            ""
+            "",
         ]
 
         # Add each section
         for section_key, content in section_results.items():
             # Convert section key to readable title
-            title = section_key.replace('_', ' ').title()
-            lines.extend([
-                f"## {title}",
-                "",
-                content,
-                "",
-                "---",
-                ""
-            ])
+            title = section_key.replace("_", " ").title()
+            lines.extend([f"## {title}", "", content, "", "---", ""])
 
         # Write to temp file
-        content = '\n'.join(lines)
+        content = "\n".join(lines)
 
         # Create temp file with .txt extension (universally recognized MIME type)
         # NOTE: We must close the fd from mkstemp before opening the file by path
         fd, filepath = tempfile.mkstemp(
-            suffix='.txt',
-            prefix=f'{company_name.replace(" ", "_")}_step1_'
+            suffix=".txt", prefix=f"{company_name.replace(' ', '_')}_step1_"
         )
         os.close(fd)  # Close the fd - we'll open by path
 
-        with open(filepath, 'w', encoding='utf-8') as f:
+        with open(filepath, "w", encoding="utf-8") as f:
             f.write(content)
 
         logger.debug(f"Created Step 1 context file: {filepath}")
@@ -818,15 +820,13 @@ class ResearchOrchestrator:
                 section_results={},
                 success=False,
                 error=deep_result.error,
-                duration_seconds=total_duration
+                duration_seconds=total_duration,
             )
 
         # Format the report (resolve citation URLs, clean TOC)
         formatter = ReportFormatter()
         formatted = formatter.format_report(
-            raw_content=deep_result.content,
-            company_name=company_name,
-            citation_style="numbered"
+            raw_content=deep_result.content, company_name=company_name, citation_style="numbered"
         )
 
         # Build section results for compatibility
@@ -845,7 +845,7 @@ class ResearchOrchestrator:
             mode=ResearchMode.DEEP_RESEARCH,
             section_results=section_results,
             raw_content=formatted.markdown,  # Use formatted content with resolved URLs
-            citations=formatted.citations,   # Use resolved citations
+            citations=formatted.citations,  # Use resolved citations
             success=True,
             duration_seconds=total_duration,
             sections_written=deep_result.sections_written,
@@ -853,9 +853,7 @@ class ResearchOrchestrator:
         )
 
     def _merge_research_results(
-        self,
-        step1_sections: dict[str, str],
-        step2_sections: dict[str, str]
+        self, step1_sections: dict[str, str], step2_sections: dict[str, str]
     ) -> dict[str, str]:
         """
         Merge Step 1 (ground truth) with Step 2 (strategic layer).
@@ -876,17 +874,28 @@ class ResearchOrchestrator:
 
         # Sections where Step 1 (ground truth) takes precedence
         step1_priority = {
-            'company_overview', 'company_website', 'scraped_website_summary',
-            'detailed_products_services', 'primary_apps_sources_of_data',
-            'company_history', 'mission_vision', 'unique_selling_proposition',
-            'main_types_of_users', 'target_audience'
+            "company_overview",
+            "company_website",
+            "scraped_website_summary",
+            "detailed_products_services",
+            "primary_apps_sources_of_data",
+            "company_history",
+            "mission_vision",
+            "unique_selling_proposition",
+            "main_types_of_users",
+            "target_audience",
         }
 
         # Sections where Step 2 (strategic layer) takes precedence
         step2_priority = {
-            'competitive_position', 'industry_insights', 'strategic_recommendations',
-            'financial_overview', 'board_of_directors_concerns', 'gap_analysis',
-            'strategic_implications', 'second_order_insights'
+            "competitive_position",
+            "industry_insights",
+            "strategic_recommendations",
+            "financial_overview",
+            "board_of_directors_concerns",
+            "gap_analysis",
+            "strategic_implications",
+            "second_order_insights",
         }
 
         # Add all Step 1 sections
@@ -903,7 +912,7 @@ class ResearchOrchestrator:
                 merged[key] = content
             elif key not in step1_priority:
                 # For non-priority sections, prefer Step 2 if longer/richer
-                if len(content) > len(merged.get(key, '')):
+                if len(content) > len(merged.get(key, "")):
                     merged[key] = content
 
         return merged
@@ -930,16 +939,11 @@ class ResearchOrchestrator:
             on_progress("Running hybrid research (Deep Research + Scraping)...")
 
         # Run both in parallel
-        deep_task = self._run_deep_research(
-            company_name, website, config, on_progress
-        )
-        structured_task = self._run_structured_research(
-            company_name, website, config, on_progress
-        )
+        deep_task = self._run_deep_research(company_name, website, config, on_progress)
+        structured_task = self._run_structured_research(company_name, website, config, on_progress)
 
         deep_result, structured_result = await asyncio.gather(
-            deep_task, structured_task,
-            return_exceptions=True
+            deep_task, structured_task, return_exceptions=True
         )
 
         # Merge results
@@ -952,8 +956,10 @@ class ResearchOrchestrator:
         # Override with structured results for website-specific sections
         if isinstance(structured_result, OrchestratorResult) and structured_result.success:
             website_sections = [
-                'company_website', 'scraped_website_summary',
-                'detailed_products_services', 'primary_apps_sources_of_data'
+                "company_website",
+                "scraped_website_summary",
+                "detailed_products_services",
+                "primary_apps_sources_of_data",
             ]
             for section in website_sections:
                 if section in structured_result.section_results:
@@ -964,13 +970,10 @@ class ResearchOrchestrator:
             website=website,
             mode=ResearchMode.HYBRID,
             section_results=section_results,
-            success=bool(section_results)
+            success=bool(section_results),
         )
 
-    def _normalize_deep_research_result(
-        self,
-        result: DeepResearchResult
-    ) -> dict[str, str]:
+    def _normalize_deep_research_result(self, result: DeepResearchResult) -> dict[str, str]:
         """
         Normalize Deep Research output to section format.
 
@@ -984,12 +987,12 @@ class ResearchOrchestrator:
         current_section: str | None = None
         current_content: list[str] = []
 
-        for line in content.split('\n'):
+        for line in content.split("\n"):
             # Check for section headers
-            if line.startswith('## '):
+            if line.startswith("## "):
                 # Save previous section
                 if current_section:
-                    sections[current_section] = '\n'.join(current_content).strip()
+                    sections[current_section] = "\n".join(current_content).strip()
 
                 # Start new section
                 header = line[3:].strip().lower()
@@ -1000,11 +1003,11 @@ class ResearchOrchestrator:
 
         # Save last section
         if current_section:
-            sections[current_section] = '\n'.join(current_content).strip()
+            sections[current_section] = "\n".join(current_content).strip()
 
         # Store raw content as overview if no sections parsed
         if not sections:
-            sections['company_overview'] = content
+            sections["company_overview"] = content
 
         return sections
 
@@ -1013,28 +1016,28 @@ class ResearchOrchestrator:
         header_lower = header.lower()
 
         mappings = {
-            'executive summary': 'company_overview',
-            'company overview': 'company_overview',
-            'products & services': 'detailed_products_services',
-            'products and services': 'detailed_products_services',
-            'financial analysis': 'financial_overview',
-            'financial overview': 'financial_overview',
-            'competitive landscape': 'competitive_position',
-            'competition': 'competitive_position',
-            'industry analysis': 'industry_insights',
-            'industry': 'industry_insights',
-            'strategic assessment': 'strategic_recommendations',
-            'strategy': 'strategic_recommendations',
-            'recommendations': 'strategic_recommendations',
-            'history': 'company_history',
-            'company history': 'company_history',
-            'mission': 'mission_vision',
-            'mission and vision': 'mission_vision',
-            'leadership': 'board_of_directors_concerns',
-            'management': 'board_of_directors_concerns',
-            'target market': 'target_audience',
-            'customers': 'main_types_of_users',
-            'value proposition': 'unique_selling_proposition',
+            "executive summary": "company_overview",
+            "company overview": "company_overview",
+            "products & services": "detailed_products_services",
+            "products and services": "detailed_products_services",
+            "financial analysis": "financial_overview",
+            "financial overview": "financial_overview",
+            "competitive landscape": "competitive_position",
+            "competition": "competitive_position",
+            "industry analysis": "industry_insights",
+            "industry": "industry_insights",
+            "strategic assessment": "strategic_recommendations",
+            "strategy": "strategic_recommendations",
+            "recommendations": "strategic_recommendations",
+            "history": "company_history",
+            "company history": "company_history",
+            "mission": "mission_vision",
+            "mission and vision": "mission_vision",
+            "leadership": "board_of_directors_concerns",
+            "management": "board_of_directors_concerns",
+            "target market": "target_audience",
+            "customers": "main_types_of_users",
+            "value proposition": "unique_selling_proposition",
         }
 
         for key, section in mappings.items():
@@ -1042,7 +1045,7 @@ class ResearchOrchestrator:
                 return section
 
         # Default to a generic key based on header
-        return header_lower.replace(' ', '_').replace('&', 'and')
+        return header_lower.replace(" ", "_").replace("&", "and")
 
 
 # =============================================================================

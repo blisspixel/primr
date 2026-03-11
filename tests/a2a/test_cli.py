@@ -50,11 +50,13 @@ class TestA2ACliModuleImport:
     def test_cli_module_imports(self):
         """CLI module can be imported without errors."""
         from primr.a2a import cli
+
         assert hasattr(cli, "main")
 
     def test_cli_main_is_callable(self):
         """main() function exists and is callable."""
         from primr.a2a.cli import main
+
         assert callable(main)
 
 
@@ -67,6 +69,8 @@ def _make_parser():
     parser.add_argument("--host", type=str, default="0.0.0.0")
     parser.add_argument("--no-auth", action="store_true")
     parser.add_argument("--no-mcp", action="store_true")
-    parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR"], default="INFO")
+    parser.add_argument(
+        "--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR"], default="INFO"
+    )
     parser.add_argument("--journal-path", type=str, default=None)
     return parser

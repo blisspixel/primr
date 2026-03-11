@@ -18,6 +18,7 @@ from primr.output.citation_processor import (
 # Unit Tests
 # =============================================================================
 
+
 class TestCitationProcessor:
     """Unit tests for CitationProcessor class."""
 
@@ -36,7 +37,9 @@ class TestCitationProcessor:
     def test_multiple_links(self):
         """Transform multiple different links."""
         processor = CitationProcessor()
-        content = "See [Globex Inc](https://globex.example) and [Initech Co](https://initech.example)."
+        content = (
+            "See [Globex Inc](https://globex.example) and [Initech Co](https://initech.example)."
+        )
 
         result = processor.process_content(content)
 
@@ -101,7 +104,9 @@ class TestCitationProcessor:
     def test_generate_sources_appendix(self):
         """Generate formatted sources appendix."""
         processor = CitationProcessor()
-        processor.process_content("[Acme Corp](https://acme.example) and [Globex Inc](https://globex.example).")
+        processor.process_content(
+            "[Acme Corp](https://acme.example) and [Globex Inc](https://globex.example)."
+        )
 
         appendix = processor.generate_sources_appendix()
 
@@ -152,8 +157,7 @@ class TestConvenienceFunction:
     def test_process_citations_numbered(self):
         """Convenience function with numbered style."""
         result = process_citations(
-            "[Acme Corp](https://acme.example) is great.",
-            style=CitationStyle.NUMBERED
+            "[Acme Corp](https://acme.example) is great.", style=CitationStyle.NUMBERED
         )
 
         assert "Acme Corp [1]" in result.transformed_content
@@ -172,25 +176,26 @@ class TestConvenienceFunction:
 # Property-Based Tests
 # =============================================================================
 
+
 @st.composite
 def markdown_link(draw):
     """Generate a markdown link [text](url)."""
-    text = draw(st.text(
-        min_size=1, max_size=30,
-        alphabet=st.characters(whitelist_categories=['L', 'N', 'S'])
-    ))
+    text = draw(
+        st.text(
+            min_size=1, max_size=30, alphabet=st.characters(whitelist_categories=["L", "N", "S"])
+        )
+    )
     text = text.strip()
     assume(len(text) > 0)
-    assume('[' not in text and ']' not in text and '(' not in text and ')' not in text)
+    assume("[" not in text and "]" not in text and "(" not in text and ")" not in text)
 
-    domain = draw(st.text(
-        min_size=3, max_size=20,
-        alphabet=st.characters(whitelist_categories=['L', 'N'])
-    ))
+    domain = draw(
+        st.text(min_size=3, max_size=20, alphabet=st.characters(whitelist_categories=["L", "N"]))
+    )
     domain = domain.strip().lower()
     assume(len(domain) >= 3)
 
-    tld = draw(st.sampled_from(['.com', '.org', '.net', '.io', '.co']))
+    tld = draw(st.sampled_from([".com", ".org", ".net", ".io", ".co"]))
     url = f"https://{domain}{tld}"
 
     return f"[{text}]({url})", text, url
@@ -205,10 +210,11 @@ def content_with_links(draw):
 
     for _i in range(num_links):
         # Add some text before link
-        prefix = draw(st.text(
-            min_size=1, max_size=20,
-            alphabet=st.characters(whitelist_categories=['L', 'S'])
-        ))
+        prefix = draw(
+            st.text(
+                min_size=1, max_size=20, alphabet=st.characters(whitelist_categories=["L", "S"])
+            )
+        )
         prefix = prefix.strip()
         if prefix:
             parts.append(prefix)
@@ -275,9 +281,11 @@ class TestCitationDeduplication:
 
     @settings(max_examples=100)
     @given(
-        text1=st.text(min_size=1, max_size=20, alphabet=st.characters(whitelist_categories=['L'])),
-        text2=st.text(min_size=1, max_size=20, alphabet=st.characters(whitelist_categories=['L'])),
-        domain=st.text(min_size=3, max_size=15, alphabet=st.characters(whitelist_categories=['L', 'N']))
+        text1=st.text(min_size=1, max_size=20, alphabet=st.characters(whitelist_categories=["L"])),
+        text2=st.text(min_size=1, max_size=20, alphabet=st.characters(whitelist_categories=["L"])),
+        domain=st.text(
+            min_size=3, max_size=15, alphabet=st.characters(whitelist_categories=["L", "N"])
+        ),
     )
     def test_same_url_same_reference(self, text1, text2, domain):
         """Same URL always gets same reference number."""
@@ -285,8 +293,8 @@ class TestCitationDeduplication:
         text2 = text2.strip()
         domain = domain.strip().lower()
         assume(len(text1) > 0 and len(text2) > 0 and len(domain) >= 3)
-        assume('[' not in text1 and ']' not in text1)
-        assume('[' not in text2 and ']' not in text2)
+        assume("[" not in text1 and "]" not in text1)
+        assume("[" not in text2 and "]" not in text2)
 
         url = f"https://{domain}.com"
         content = f"[{text1}]({url}) and [{text2}]({url})"
@@ -333,7 +341,7 @@ class TestCitationRoundTrip:
         # Count unique URLs (normalized)
         unique_urls = set()
         for _, _, url in links:
-            normalized = url.rstrip('/')
+            normalized = url.rstrip("/")
             unique_urls.add(normalized)
 
         # Citations should match unique URLs
@@ -366,9 +374,7 @@ class TestSourceCitation:
     def test_to_appendix_entry_format(self):
         """Appendix entry has correct format."""
         citation = SourceCitation(
-            url="https://example.com",
-            title="Example Site",
-            reference_number=1
+            url="https://example.com", title="Example Site", reference_number=1
         )
 
         entry = citation.to_appendix_entry()
@@ -381,6 +387,7 @@ class TestSourceCitation:
 # =============================================================================
 # URL Normalization Tests
 # =============================================================================
+
 
 class TestURLNormalization:
     """Tests for comprehensive URL normalization."""
@@ -470,11 +477,27 @@ class TestURLNormalization:
         processor = CitationProcessor()
 
         tracking_params = [
-            'utm_source=x', 'utm_medium=x', 'utm_campaign=x', 'utm_term=x', 'utm_content=x',
-            'fbclid=x', 'gclid=x', 'gclsrc=x', 'dclid=x', 'msclkid=x',
-            'ref=x', 'source=x', 'ref_src=x', 'ref_url=x',
-            '_ga=x', '_gl=x', 'mc_cid=x', 'mc_eid=x',
-            'trk=x', 'trkInfo=x', 'originalReferer=x',
+            "utm_source=x",
+            "utm_medium=x",
+            "utm_campaign=x",
+            "utm_term=x",
+            "utm_content=x",
+            "fbclid=x",
+            "gclid=x",
+            "gclsrc=x",
+            "dclid=x",
+            "msclkid=x",
+            "ref=x",
+            "source=x",
+            "ref_src=x",
+            "ref_url=x",
+            "_ga=x",
+            "_gl=x",
+            "mc_cid=x",
+            "mc_eid=x",
+            "trk=x",
+            "trkInfo=x",
+            "originalReferer=x",
         ]
 
         # Create content with each tracking param

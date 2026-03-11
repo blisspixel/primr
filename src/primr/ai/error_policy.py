@@ -27,7 +27,6 @@ def is_timeout_error(error: Exception) -> bool:
     """Handle runtime timeout variants consistently."""
     if isinstance(error, TimeoutError):
         return True
-    return (
-        error.__class__.__name__ == "TimeoutError"
-        and error.__class__.__module__.startswith("asyncio")
+    return error.__class__.__name__ == "TimeoutError" and error.__class__.__module__.startswith(
+        "asyncio"
     )

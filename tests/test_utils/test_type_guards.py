@@ -22,9 +22,11 @@ from primr.utils.type_guards import (
 # TEST DATA CLASSES
 # =============================================================================
 
+
 @dataclass
 class SimpleUser:
     """Simple dataclass for testing."""
+
     name: str
     age: int
 
@@ -32,6 +34,7 @@ class SimpleUser:
 @dataclass
 class UserWithOptional:
     """Dataclass with optional field."""
+
     name: str
     email: str | None = None
 
@@ -39,6 +42,7 @@ class UserWithOptional:
 @dataclass
 class NestedData:
     """Dataclass with nested types."""
+
     items: list[str]
     metadata: dict[str, int]
 
@@ -46,6 +50,7 @@ class NestedData:
 # =============================================================================
 # UNIT TESTS - TypeValidationError
 # =============================================================================
+
 
 class TestTypeValidationError:
     """Tests for TypeValidationError exception."""
@@ -73,6 +78,7 @@ class TestTypeValidationError:
 # =============================================================================
 # UNIT TESTS - validate_type
 # =============================================================================
+
 
 class TestValidateType:
     """Tests for validate_type function."""
@@ -211,6 +217,7 @@ class TestValidateTypeUnion:
 # UNIT TESTS - validate_dataclass
 # =============================================================================
 
+
 class TestValidateDataclass:
     """Tests for validate_dataclass function."""
 
@@ -248,6 +255,7 @@ class TestValidateDataclass:
 # UNIT TESTS - validate_api_response
 # =============================================================================
 
+
 class TestValidateApiResponse:
     """Tests for validate_api_response function."""
 
@@ -274,9 +282,7 @@ class TestValidateApiResponse:
         """Should validate field types when specified."""
         response = {"id": 123, "name": "test"}
         result = validate_api_response(
-            response,
-            ["id", "name"],
-            field_types={"id": int, "name": str}
+            response, ["id", "name"], field_types={"id": int, "name": str}
         )
         assert result == response
 
@@ -284,11 +290,7 @@ class TestValidateApiResponse:
         """Should reject field with wrong type."""
         response = {"id": "not-an-int", "name": "test"}
         with pytest.raises(TypeValidationError):
-            validate_api_response(
-                response,
-                ["id"],
-                field_types={"id": int}
-            )
+            validate_api_response(response, ["id"], field_types={"id": int})
 
     def test_allows_extra_fields(self):
         """Should allow fields not in required list."""
@@ -300,6 +302,7 @@ class TestValidateApiResponse:
 # =============================================================================
 # UNIT TESTS - is_valid_type
 # =============================================================================
+
 
 class TestIsValidType:
     """Tests for is_valid_type function."""
@@ -326,6 +329,7 @@ class TestIsValidType:
 # =============================================================================
 # PROPERTY-BASED TESTS
 # =============================================================================
+
 
 class TestTypeValidatorCorrectnessProperty:
     """
@@ -437,7 +441,6 @@ class TestTypeValidatorCorrectnessProperty:
         assert is_valid_type(value, list[int]) is False
 
 
-
 class TestApiResponseValidationProperty:
     """
     Property-based tests for API response validation.
@@ -455,14 +458,11 @@ class TestApiResponseValidationProperty:
             st.text(alphabet="abcdefghij", min_size=1, max_size=5),
             st.integers(min_value=-100, max_value=100),
             min_size=0,
-            max_size=5
+            max_size=5,
         )
     )
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
-    def test_response_with_all_required_fields_accepted(
-        self,
-        response: dict[str, int]
-    ):
+    def test_response_with_all_required_fields_accepted(self, response: dict[str, int]):
         """Response containing all required fields should be accepted."""
         # Use keys from response as required fields (guaranteed to exist)
         required_fields = list(response.keys())[:3]  # Take up to 3 keys
@@ -480,20 +480,15 @@ class TestApiResponseValidationProperty:
             st.text(alphabet="abcde", min_size=1, max_size=3),
             st.integers(min_value=-100, max_value=100),
             min_size=0,
-            max_size=5
+            max_size=5,
         ),
         st.lists(
-            st.text(alphabet="fghij", min_size=1, max_size=3),
-            min_size=1,
-            max_size=3,
-            unique=True
-        )
+            st.text(alphabet="fghij", min_size=1, max_size=3), min_size=1, max_size=3, unique=True
+        ),
     )
     @settings(max_examples=100)
     def test_response_missing_required_field_rejected(
-        self,
-        response: dict[str, int],
-        required_fields: list[str]
+        self, response: dict[str, int], required_fields: list[str]
     ):
         """Response missing any required field should be rejected."""
         # Required fields use different alphabet, so they won't be in response
@@ -514,7 +509,7 @@ class TestApiResponseValidationProperty:
             st.text(alphabet="abcde", min_size=1, max_size=5),
             st.text(alphabet="xyz", min_size=1, max_size=5),
             min_size=1,
-            max_size=5
+            max_size=5,
         )
     )
     @settings(max_examples=100)
@@ -524,18 +519,14 @@ class TestApiResponseValidationProperty:
         field_name = next(iter(response.keys()))
 
         with pytest.raises(TypeValidationError):
-            validate_api_response(
-                response,
-                [field_name],
-                field_types={field_name: int}
-            )
+            validate_api_response(response, [field_name], field_types={field_name: int})
 
     @given(
         st.dictionaries(
             st.text(alphabet="abcde", min_size=1, max_size=5),
             st.integers(min_value=-100, max_value=100),
             min_size=1,
-            max_size=5
+            max_size=5,
         )
     )
     @settings(max_examples=100)
@@ -544,11 +535,7 @@ class TestApiResponseValidationProperty:
         # Pick first field and expect it to be int (which it is)
         field_name = next(iter(response.keys()))
 
-        result = validate_api_response(
-            response,
-            [field_name],
-            field_types={field_name: int}
-        )
+        result = validate_api_response(response, [field_name], field_types={field_name: int})
         assert result == response
 
 
@@ -574,11 +561,7 @@ class TestValidationError:
 
     def test_basic_error_creation(self):
         """Should create error with required fields."""
-        error = VError(
-            field="name",
-            expected="str",
-            actual="int"
-        )
+        error = VError(field="name", expected="str", actual="int")
         assert error.field == "name"
         assert error.expected == "str"
         assert error.actual == "int"
@@ -587,10 +570,7 @@ class TestValidationError:
     def test_custom_message(self):
         """Should use custom message when provided."""
         error = VError(
-            field="age",
-            expected="positive int",
-            actual="-5",
-            message="Age must be positive"
+            field="age", expected="positive int", actual="-5", message="Age must be positive"
         )
         assert error.message == "Age must be positive"
 
@@ -600,7 +580,7 @@ class TestValidationError:
             field="email",
             expected="valid email",
             actual="not-an-email",
-            suggestion="Use format: user@domain.com"
+            suggestion="Use format: user@domain.com",
         )
         assert "user@domain.com" in str(error)
 
@@ -623,11 +603,7 @@ class TestValidationResult:
 
     def test_err_result(self):
         """Should create failed result."""
-        result = ValidationResult.err(
-            field="name",
-            expected="str",
-            actual="int"
-        )
+        result = ValidationResult.err(field="name", expected="str", actual="int")
         assert result.is_invalid
         assert not result.is_valid
         assert result.value is None
@@ -695,8 +671,7 @@ class TestAPIResponseSchema:
     def test_valid_response(self):
         """Should accept valid response."""
         schema = APIResponseSchema(
-            required_fields=["id", "name"],
-            field_types={"id": int, "name": str}
+            required_fields=["id", "name"], field_types={"id": int, "name": str}
         )
         response = {"id": 1, "name": "test", "extra": "allowed"}
         result = validate_api_response_safe(response, schema)
@@ -713,10 +688,7 @@ class TestAPIResponseSchema:
 
     def test_wrong_field_type(self):
         """Should report wrong field types."""
-        schema = APIResponseSchema(
-            required_fields=["id"],
-            field_types={"id": int}
-        )
+        schema = APIResponseSchema(required_fields=["id"], field_types={"id": int})
         response = {"id": "not-an-int"}
         result = validate_api_response_safe(response, schema)
         assert result.is_invalid
@@ -724,23 +696,16 @@ class TestAPIResponseSchema:
 
     def test_custom_validator(self):
         """Should run custom validators."""
-        schema = APIResponseSchema(
-            required_fields=["age"],
-            validators={"age": lambda x: x >= 0}
-        )
+        schema = APIResponseSchema(required_fields=["age"], validators={"age": lambda x: x >= 0})
         response = {"age": -5}
         result = validate_api_response_safe(response, schema)
         assert result.is_invalid
 
     def test_nested_schema(self):
         """Should validate nested schemas."""
-        inner_schema = APIResponseSchema(
-            required_fields=["city"],
-            field_types={"city": str}
-        )
+        inner_schema = APIResponseSchema(required_fields=["city"], field_types={"city": str})
         outer_schema = APIResponseSchema(
-            required_fields=["address"],
-            nested_schemas={"address": inner_schema}
+            required_fields=["address"], nested_schemas={"address": inner_schema}
         )
         response = {"address": {"city": 123}}  # city should be str
         result = validate_api_response_safe(response, outer_schema)
@@ -749,9 +714,7 @@ class TestAPIResponseSchema:
 
     def test_collects_all_errors(self):
         """Should collect all errors, not just first."""
-        schema = APIResponseSchema(
-            required_fields=["a", "b", "c"]
-        )
+        schema = APIResponseSchema(required_fields=["a", "b", "c"])
         response = {}  # Missing all three
         result = validate_api_response_safe(response, schema)
         assert len(result.errors) == 3
@@ -830,6 +793,7 @@ class TestValidateNonEmptyString:
 # PROPERTY TESTS FOR NEW VALIDATION TYPES
 # =============================================================================
 
+
 class TestTypeGuardCorrectnessProperty:
     """
     **Feature: primr-excellence, Property 1: Type Guard Correctness**
@@ -840,15 +804,17 @@ class TestTypeGuardCorrectnessProperty:
     - Raise TypeValidationError with field, expected, and actual if it doesn't match
     """
 
-    @given(st.one_of(
-        st.text(),
-        st.integers(),
-        st.floats(allow_nan=False),
-        st.booleans(),
-        st.none(),
-        st.lists(st.text()),
-        st.dictionaries(st.text(), st.integers())
-    ))
+    @given(
+        st.one_of(
+            st.text(),
+            st.integers(),
+            st.floats(allow_nan=False),
+            st.booleans(),
+            st.none(),
+            st.lists(st.text()),
+            st.dictionaries(st.text(), st.integers()),
+        )
+    )
     @settings(max_examples=100)
     def test_validate_type_safe_never_raises(self, value):
         """validate_type_safe should never raise, always return ValidationResult."""
@@ -865,19 +831,21 @@ class TestTypeGuardCorrectnessProperty:
                 assert result.errors[0].expected is not None
                 assert result.errors[0].actual is not None
 
-    @given(st.dictionaries(
-        st.text(alphabet="abcdef", min_size=1, max_size=5),
-        st.one_of(st.text(), st.integers(), st.none()),
-        min_size=0,
-        max_size=5
-    ))
+    @given(
+        st.dictionaries(
+            st.text(alphabet="abcdef", min_size=1, max_size=5),
+            st.one_of(st.text(), st.integers(), st.none()),
+            min_size=0,
+            max_size=5,
+        )
+    )
     @settings(max_examples=100)
     def test_api_response_safe_collects_all_errors(self, response):
         """validate_api_response_safe should collect all errors, not fail fast."""
         # Create schema requiring fields that may or may not exist
         schema = APIResponseSchema(
             required_fields=["x", "y", "z"],  # Unlikely to all exist
-            field_types={"x": int, "y": str}
+            field_types={"x": int, "y": str},
         )
         result = validate_api_response_safe(response, schema)
 
@@ -916,7 +884,6 @@ class TestTypeGuardCorrectnessProperty:
             assert result.is_invalid
 
 
-
 # =============================================================================
 # TESTS FOR CONFIGURATION VALIDATION
 # =============================================================================
@@ -934,8 +901,7 @@ class TestConfigSchema:
     def test_valid_config_with_required_keys(self):
         """Should accept config with all required keys."""
         schema = ConfigSchema(
-            required_keys=["name", "value"],
-            type_hints={"name": str, "value": int}
+            required_keys=["name", "value"], type_hints={"name": str, "value": int}
         )
         config = {"name": "test", "value": 42}
         result = validate_config(config, schema)
@@ -952,10 +918,7 @@ class TestConfigSchema:
 
     def test_applies_defaults(self):
         """Should apply defaults for missing optional keys."""
-        schema = ConfigSchema(
-            required_keys=["name"],
-            optional_keys={"count": 10, "enabled": True}
-        )
+        schema = ConfigSchema(required_keys=["name"], optional_keys={"count": 10, "enabled": True})
         config = {"name": "test"}
         result = validate_config(config, schema)
         assert result.is_valid
@@ -965,10 +928,7 @@ class TestConfigSchema:
 
     def test_type_validation(self):
         """Should validate types."""
-        schema = ConfigSchema(
-            required_keys=["count"],
-            type_hints={"count": int}
-        )
+        schema = ConfigSchema(required_keys=["count"], type_hints={"count": int})
         config = {"count": "not-an-int"}
         result = validate_config(config, schema)
         assert result.is_invalid
@@ -976,10 +936,7 @@ class TestConfigSchema:
 
     def test_range_validation_min(self):
         """Should reject values below minimum."""
-        schema = ConfigSchema(
-            required_keys=["timeout"],
-            ranges={"timeout": (1, 300)}
-        )
+        schema = ConfigSchema(required_keys=["timeout"], ranges={"timeout": (1, 300)})
         config = {"timeout": 0}
         result = validate_config(config, schema)
         assert result.is_invalid
@@ -987,10 +944,7 @@ class TestConfigSchema:
 
     def test_range_validation_max(self):
         """Should reject values above maximum."""
-        schema = ConfigSchema(
-            required_keys=["timeout"],
-            ranges={"timeout": (1, 300)}
-        )
+        schema = ConfigSchema(required_keys=["timeout"], ranges={"timeout": (1, 300)})
         config = {"timeout": 500}
         result = validate_config(config, schema)
         assert result.is_invalid
@@ -998,20 +952,14 @@ class TestConfigSchema:
 
     def test_custom_validator(self):
         """Should run custom validators."""
-        schema = ConfigSchema(
-            required_keys=["email"],
-            validators={"email": lambda x: "@" in x}
-        )
+        schema = ConfigSchema(required_keys=["email"], validators={"email": lambda x: "@" in x})
         config = {"email": "not-an-email"}
         result = validate_config(config, schema)
         assert result.is_invalid
 
     def test_collects_all_errors(self):
         """Should collect all errors, not just first."""
-        schema = ConfigSchema(
-            required_keys=["a", "b", "c"],
-            type_hints={"a": int, "b": str}
-        )
+        schema = ConfigSchema(required_keys=["a", "b", "c"], type_hints={"a": int, "b": str})
         config = {"a": "wrong", "b": 123}  # Missing c, wrong types
         result = validate_config(config, schema)
         assert len(result.errors) >= 3  # Missing c + 2 type errors
@@ -1068,19 +1016,19 @@ class TestConfigValidationProperty:
     **Validates: Requirements 1.3, 10.1, 10.2, 10.3**
     """
 
-    @given(st.dictionaries(
-        st.text(alphabet="abcdef", min_size=1, max_size=5),
-        st.one_of(st.text(), st.integers(), st.booleans()),
-        min_size=0,
-        max_size=5
-    ))
+    @given(
+        st.dictionaries(
+            st.text(alphabet="abcdef", min_size=1, max_size=5),
+            st.one_of(st.text(), st.integers(), st.booleans()),
+            min_size=0,
+            max_size=5,
+        )
+    )
     @settings(max_examples=100)
     def test_validate_config_never_raises(self, config):
         """validate_config should never raise, always return ValidationResult."""
         schema = ConfigSchema(
-            required_keys=["x", "y"],
-            optional_keys={"z": "default"},
-            type_hints={"x": str}
+            required_keys=["x", "y"], optional_keys={"z": "default"}, type_hints={"x": str}
         )
         result = validate_config(config, schema)
         assert isinstance(result, ValidationResult)

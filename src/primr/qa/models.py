@@ -10,6 +10,7 @@ from pathlib import Path
 
 class IssueType(Enum):
     """Types of issues that can be identified in QA analysis."""
+
     FACTUAL = "factual"
     LOGICAL = "logical"
     COMPLETENESS = "completeness"
@@ -18,6 +19,7 @@ class IssueType(Enum):
 
 class Severity(Enum):
     """Severity levels for QA issues."""
+
     CRITICAL = "critical"
     HIGH = "high"
     MEDIUM = "medium"
@@ -27,6 +29,7 @@ class Severity(Enum):
 @dataclass
 class QAOptions:
     """Configuration for QA execution."""
+
     model: str = None  # QA model to use (defaults to PrimrModels.QA_MODEL)
     enabled: bool = True  # QA enabled by default
     verbose_cli: bool = False  # Show detailed CLI output
@@ -36,6 +39,7 @@ class QAOptions:
 @dataclass
 class ClassifiedIssue:
     """A classified QA issue."""
+
     issue_type: IssueType
     severity: Severity
     section: str
@@ -47,6 +51,7 @@ class ClassifiedIssue:
 @dataclass
 class CitationCheckResult:
     """Results of citation accuracy checking."""
+
     total_citations: int
     valid_citations: int
     broken_links: list[str]
@@ -57,6 +62,7 @@ class CitationCheckResult:
 @dataclass
 class LogicCheckResult:
     """Results of logical consistency checking."""
+
     contradictions_found: list[str]
     unsupported_leaps: list[str]
     score: int  # 0-100
@@ -65,6 +71,7 @@ class LogicCheckResult:
 @dataclass
 class CompletenessCheckResult:
     """Results of completeness assessment."""
+
     expected_sections: list[str]
     missing_sections: list[str]
     weak_sections: list[str]
@@ -74,6 +81,7 @@ class CompletenessCheckResult:
 @dataclass
 class ConfidenceAssessment:
     """Confidence assessment for different parts of the report."""
+
     section_confidence: dict[str, int]  # section -> confidence score (0-100)
     overall_confidence: int
 
@@ -81,6 +89,7 @@ class ConfidenceAssessment:
 @dataclass
 class ReportMetadata:
     """Metadata about the analyzed report."""
+
     company_name: str
     generation_date: datetime
     generation_mode: str  # scrape, deep, full
@@ -91,6 +100,7 @@ class ReportMetadata:
 @dataclass
 class ReportContent:
     """Loaded report content for analysis."""
+
     company_name: str
     content: str
     sections: dict[str, str]  # section_name -> content
@@ -102,6 +112,7 @@ class ReportContent:
 @dataclass
 class QAAnalysis:
     """Complete QA analysis results."""
+
     overall_score: int  # 0-100
     section_scores: dict[str, int]
     issues: list[ClassifiedIssue]
@@ -116,6 +127,7 @@ class QAAnalysis:
 @dataclass
 class QAResult:
     """QA execution result for CLI display."""
+
     grade: int  # 0-100 overall score
     summary: str  # Clean CLI summary
     detailed_analysis: QAAnalysis | None  # Full analysis for workspace storage
@@ -126,6 +138,7 @@ class QAResult:
 @dataclass
 class QAReport:
     """Formatted QA report for file output."""
+
     company_name: str
     analysis: QAAnalysis
     summary: str

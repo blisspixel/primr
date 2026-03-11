@@ -144,11 +144,12 @@ def _read_memory(uri: str, mcp_server: PrimrMCPServer) -> list[ReadResourceConte
     company = match.group(1)
     # URL decode the company name
     from urllib.parse import unquote
+
     company = unquote(company)
 
     try:
         # Get memory storage path from config or use default
-        memory_path = getattr(mcp_server, '_memory_path', None)
+        memory_path = getattr(mcp_server, "_memory_path", None)
         if memory_path is None:
             memory_path = Path("logs/research_memory")
 
@@ -242,7 +243,7 @@ def _extract_context_summary(content: str) -> dict:
     sections = []
 
     # Find all ## headers
-    for match in re.finditer(r'^## (.+)$', content, re.MULTILINE):
+    for match in re.finditer(r"^## (.+)$", content, re.MULTILINE):
         sections.append(match.group(1))
 
     # Count key elements
@@ -268,9 +269,7 @@ def _extract_quick_start(content: str) -> str | None:
 
     # Find Quick Start section
     match = re.search(
-        r'## Quick Start.*?\n(.*?)(?=\n---|\n## [^#])',
-        content,
-        re.DOTALL | re.IGNORECASE
+        r"## Quick Start.*?\n(.*?)(?=\n---|\n## [^#])", content, re.DOTALL | re.IGNORECASE
     )
 
     if match:

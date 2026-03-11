@@ -21,6 +21,7 @@ from primr.data.pagination import (
 # FIXTURES
 # =============================================================================
 
+
 @pytest.fixture(autouse=True)
 def reset_singleton():
     """Reset singleton before each test."""
@@ -105,6 +106,7 @@ def infinite_scroll_html():
 # PAGINATION INFO TESTS
 # =============================================================================
 
+
 class TestPaginationInfo:
     """Tests for PaginationInfo dataclass."""
 
@@ -132,6 +134,7 @@ class TestPaginationInfo:
 # =============================================================================
 # NUMBERED PAGINATION TESTS
 # =============================================================================
+
 
 class TestNumberedPagination:
     """Tests for numbered pagination detection."""
@@ -175,6 +178,7 @@ class TestNumberedPagination:
 # PATH PAGINATION TESTS
 # =============================================================================
 
+
 class TestPathPagination:
     """Tests for path-based pagination detection."""
 
@@ -198,6 +202,7 @@ class TestPathPagination:
 # =============================================================================
 # OFFSET PAGINATION TESTS
 # =============================================================================
+
 
 class TestOffsetPagination:
     """Tests for offset-based pagination detection."""
@@ -224,6 +229,7 @@ class TestOffsetPagination:
 # LOAD MORE TESTS
 # =============================================================================
 
+
 class TestLoadMore:
     """Tests for load more button detection."""
 
@@ -248,6 +254,7 @@ class TestLoadMore:
 # INFINITE SCROLL TESTS
 # =============================================================================
 
+
 class TestInfiniteScroll:
     """Tests for infinite scroll detection."""
 
@@ -261,7 +268,7 @@ class TestInfiniteScroll:
 
     def test_detect_intersection_observer(self, detector):
         """Test detection of IntersectionObserver."""
-        html = '<script>new IntersectionObserver(loadMore)</script>'
+        html = "<script>new IntersectionObserver(loadMore)</script>"
         url = "https://example.com/feed"
         info = detector.detect(html, url)
 
@@ -279,6 +286,7 @@ class TestInfiniteScroll:
 # =============================================================================
 # URL GENERATION TESTS
 # =============================================================================
+
 
 class TestUrlGeneration:
     """Tests for URL generation."""
@@ -357,6 +365,7 @@ class TestUrlGeneration:
 # CURRENT PAGE TESTS
 # =============================================================================
 
+
 class TestCurrentPage:
     """Tests for current page extraction."""
 
@@ -389,6 +398,7 @@ class TestCurrentPage:
 # SINGLETON TESTS
 # =============================================================================
 
+
 class TestSingleton:
     """Tests for singleton access."""
 
@@ -409,6 +419,7 @@ class TestSingleton:
 # =============================================================================
 # CONVENIENCE FUNCTION TESTS
 # =============================================================================
+
 
 class TestConvenienceFunctions:
     """Tests for convenience functions."""
@@ -442,6 +453,7 @@ class TestConvenienceFunctions:
 # =============================================================================
 # EDGE CASE TESTS
 # =============================================================================
+
 
 class TestEdgeCases:
     """Tests for edge cases."""

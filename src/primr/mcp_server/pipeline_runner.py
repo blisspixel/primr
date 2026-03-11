@@ -111,9 +111,7 @@ class PipelineRunner:
                 from primr.core.research_agent import perform_fast_research
 
                 # Start heartbeat task
-                heartbeat_task = asyncio.create_task(
-                    self._heartbeat_loop(job, HEARTBEAT_INTERVAL)
-                )
+                heartbeat_task = asyncio.create_task(self._heartbeat_loop(job, HEARTBEAT_INTERVAL))
                 try:
                     result_path = await asyncio.to_thread(
                         perform_fast_research,
@@ -145,9 +143,7 @@ class PipelineRunner:
             orchestrator = ResearchOrchestrator()
 
             # Start heartbeat task
-            heartbeat_task = asyncio.create_task(
-                self._heartbeat_loop(job, HEARTBEAT_INTERVAL)
-            )
+            heartbeat_task = asyncio.create_task(self._heartbeat_loop(job, HEARTBEAT_INTERVAL))
 
             try:
                 result = await orchestrator.research(
@@ -192,6 +188,7 @@ class PipelineRunner:
                 on_progress("Running claim verification...")
                 try:
                     from primr.core.research_agent import _run_verification
+
                     await asyncio.to_thread(
                         _run_verification,
                         company_name=job.company_name,
@@ -411,11 +408,14 @@ async def run_strategy_generation(
 
     # Filename pattern: "Company_Name_Strategic_Overview_MM-DD-YYYY.ext"
     filename = os.path.splitext(os.path.basename(report_path))[0]
-    match = re.match(r'^(.+?)_(?:Strategic_Overview|AI_Strategy|Customer_Experience|Security|Data_Fabric)', filename)
+    match = re.match(
+        r"^(.+?)_(?:Strategic_Overview|AI_Strategy|Customer_Experience|Security|Data_Fabric)",
+        filename,
+    )
     if match:
-        company_name = match.group(1).replace('_', ' ')
+        company_name = match.group(1).replace("_", " ")
     else:
-        company_name = filename.replace('_', ' ')
+        company_name = filename.replace("_", " ")
 
     # Map strategy type
     vendor = CloudVendor.from_string(cloud_vendor) if cloud_vendor else CloudVendor.AGNOSTIC
@@ -469,9 +469,9 @@ async def run_qa_analysis(report_path: str) -> dict:
             "clarity": analysis.clarity_score,
             "actionability": analysis.actionability_score,
         },
-        "improvement_suggestions": [
-            issue.description for issue in analysis.issues[:5]
-        ] if analysis.issues else [],
+        "improvement_suggestions": [issue.description for issue in analysis.issues[:5]]
+        if analysis.issues
+        else [],
     }
 
 
@@ -489,10 +489,7 @@ def get_doctor_status() -> dict:
     warnings = []
 
     # Check API keys
-    api_keys_configured = bool(
-        os.environ.get("GOOGLE_API_KEY") or
-        os.environ.get("GEMINI_API_KEY")
-    )
+    api_keys_configured = bool(os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY"))
     if not api_keys_configured:
         warnings.append("No API key configured (GOOGLE_API_KEY or GEMINI_API_KEY)")
 
@@ -507,6 +504,7 @@ def get_doctor_status() -> dict:
     config_valid = True
     try:
         from primr.config.config import validate_config
+
         result = validate_config()
         config_valid = result.valid
         if not config_valid:

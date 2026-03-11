@@ -31,7 +31,11 @@ class TestDetectSoftBlock:
 
         assert is_blocked is True
         assert reason is not None
-        assert "cloudflare" in reason.lower() or "just a moment" in reason.lower() or "waf" in reason.lower()
+        assert (
+            "cloudflare" in reason.lower()
+            or "just a moment" in reason.lower()
+            or "waf" in reason.lower()
+        )
 
     def test_detects_akamai_block(self):
         """Should detect Akamai blocked page."""
@@ -120,10 +124,7 @@ class TestDetectSoftBlock:
     def test_detects_redirect_to_block_page(self):
         """Should detect redirect to block page."""
         html = b"<html><body>Content</body></html>" * 100
-        is_blocked, reason = detect_soft_block(
-            html,
-            final_url="https://example.com/blocked"
-        )
+        is_blocked, reason = detect_soft_block(html, final_url="https://example.com/blocked")
 
         assert is_blocked is True
         assert "redirect" in reason.lower() or "block" in reason.lower()
@@ -288,17 +289,21 @@ class TestWAFSignatureDetection:
     def test_avoids_false_positives_in_long_content(self):
         """Should not false positive on WAF words in long content."""
         # Long content that mentions "blocked" in context
-        html = b"""
+        html = (
+            b"""
         <html>
         <head><title>News Article</title></head>
         <body>
         <h1>Company News</h1>
         <p>The road was blocked due to construction. Traffic was diverted.</p>
         <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit.</p>
-        """ + b"<p>More content here.</p>" * 200 + b"""
+        """
+            + b"<p>More content here.</p>" * 200
+            + b"""
         </body>
         </html>
         """
+        )
 
         is_blocked, reason = detect_soft_block(html)
         assert is_blocked is False, "Should not false positive on 'blocked' in long content"

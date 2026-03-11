@@ -37,9 +37,11 @@ def test_convert_docx_to_pdf_falls_back_to_soffice(tmp_path):
         pdf.write_text("pdf", encoding="utf-8")
         return None
 
-    with patch("docx2pdf.convert", side_effect=RuntimeError("docx2pdf fail")), patch(
-        "shutil.which", return_value="/usr/bin/soffice"
-    ), patch("subprocess.run", side_effect=_fake_run):
+    with (
+        patch("docx2pdf.convert", side_effect=RuntimeError("docx2pdf fail")),
+        patch("shutil.which", return_value="/usr/bin/soffice"),
+        patch("subprocess.run", side_effect=_fake_run),
+    ):
         result = convert_docx_to_pdf(docx)
 
     assert result == str(pdf)

@@ -6,7 +6,9 @@ from primr.ai import grok_client
 
 
 class _Retryable503Error(Exception):
-    def __init__(self, message: str = "503 Service temporarily unavailable", retry_after: str | None = None):
+    def __init__(
+        self, message: str = "503 Service temporarily unavailable", retry_after: str | None = None
+    ):
         super().__init__(message)
         headers = {"retry-after": retry_after} if retry_after is not None else {}
         self.response = SimpleNamespace(headers=headers)
@@ -49,10 +51,12 @@ def test_extract_retry_after_seconds_from_headers():
 
 def test_grok_llm_retries_on_503_then_succeeds(monkeypatch):
     grok_client.reset_grok_session()
-    client = _FakeClient([
-        _Retryable503Error(),
-        _FakeResponse("ok"),
-    ])
+    client = _FakeClient(
+        [
+            _Retryable503Error(),
+            _FakeResponse("ok"),
+        ]
+    )
 
     monkeypatch.setattr(grok_client, "_get_grok_client", lambda: client)
     monkeypatch.setattr(grok_client.time, "sleep", lambda *_args, **_kwargs: None)
@@ -68,10 +72,12 @@ def test_grok_llm_retries_on_503_then_succeeds(monkeypatch):
 
 def test_grok_llm_exhausts_retryable_errors(monkeypatch):
     grok_client.reset_grok_session()
-    client = _FakeClient([
-        _Retryable503Error(),
-        _Retryable503Error(),
-    ])
+    client = _FakeClient(
+        [
+            _Retryable503Error(),
+            _Retryable503Error(),
+        ]
+    )
 
     monkeypatch.setattr(grok_client, "_get_grok_client", lambda: client)
     monkeypatch.setattr(grok_client.time, "sleep", lambda *_args, **_kwargs: None)

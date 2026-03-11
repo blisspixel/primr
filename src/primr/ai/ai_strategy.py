@@ -14,6 +14,7 @@ logger = get_logger("ai.ai_strategy")
 
 class CloudVendor(Enum):
     """Cloud vendor for AI technology recommendations."""
+
     AZURE = "azure"
     AWS = "aws"
     GCP = "gcp"
@@ -23,17 +24,19 @@ class CloudVendor(Enum):
 
 class AICategory(Enum):
     """Categories of AI use cases."""
-    CONVERSATIONAL = "conversational"    # Chatbots, virtual assistants
-    AGENTIC = "agentic"                  # Autonomous task coordination
-    GEN_BI = "gen_bi"                    # Natural language data interaction
-    AUTOMATION = "automation"            # Process and decision automation
-    PRODUCTIVITY = "productivity"        # Copilot, AI-assisted development
-    ML_WORKLOADS = "ml_workloads"        # Model training, deployment
+
+    CONVERSATIONAL = "conversational"  # Chatbots, virtual assistants
+    AGENTIC = "agentic"  # Autonomous task coordination
+    GEN_BI = "gen_bi"  # Natural language data interaction
+    AUTOMATION = "automation"  # Process and decision automation
+    PRODUCTIVITY = "productivity"  # Copilot, AI-assisted development
+    ML_WORKLOADS = "ml_workloads"  # Model training, deployment
 
 
 @dataclass
 class AIOpportunity:
     """A single AI opportunity recommendation."""
+
     title: str
     description: str
     category: AICategory
@@ -63,7 +66,11 @@ VENDOR_TECHNOLOGIES: dict[CloudVendor, dict[AICategory, list[str]]] = {
         AICategory.GEN_BI: ["Microsoft Fabric", "Power BI Copilot", "Azure Synapse"],
         AICategory.AUTOMATION: ["Power Automate", "Azure Logic Apps", "AI Builder"],
         AICategory.PRODUCTIVITY: ["Microsoft 365 Copilot", "GitHub Copilot", "Azure AI Studio"],
-        AICategory.ML_WORKLOADS: ["Azure Machine Learning", "Azure OpenAI Service", "Azure AI Services"],
+        AICategory.ML_WORKLOADS: [
+            "Azure Machine Learning",
+            "Azure OpenAI Service",
+            "Azure AI Services",
+        ],
     },
     CloudVendor.AWS: {
         AICategory.CONVERSATIONAL: ["Amazon Bedrock", "Amazon Lex", "Amazon Q"],
@@ -82,7 +89,11 @@ VENDOR_TECHNOLOGIES: dict[CloudVendor, dict[AICategory, list[str]]] = {
         AICategory.ML_WORKLOADS: ["Vertex AI", "TPU", "AutoML"],
     },
     CloudVendor.AGNOSTIC: {
-        AICategory.CONVERSATIONAL: ["Large Language Models", "Conversational AI Platform", "Voice AI"],
+        AICategory.CONVERSATIONAL: [
+            "Large Language Models",
+            "Conversational AI Platform",
+            "Voice AI",
+        ],
         AICategory.AGENTIC: ["AI Agents", "Workflow Orchestration", "Multi-Agent Systems"],
         AICategory.GEN_BI: ["Natural Language BI", "Semantic Layer", "Data Visualization AI"],
         AICategory.AUTOMATION: ["Process Automation", "Decision Intelligence", "RPA with AI"],
@@ -106,7 +117,11 @@ INDUSTRY_CATEGORIES: dict[str, list[AICategory]] = {
     "retail": [AICategory.CONVERSATIONAL, AICategory.GEN_BI, AICategory.AUTOMATION],
     "manufacturing": [AICategory.AUTOMATION, AICategory.ML_WORKLOADS, AICategory.GEN_BI],
     "technology": [AICategory.PRODUCTIVITY, AICategory.AGENTIC, AICategory.ML_WORKLOADS],
-    "professional services": [AICategory.PRODUCTIVITY, AICategory.CONVERSATIONAL, AICategory.GEN_BI],
+    "professional services": [
+        AICategory.PRODUCTIVITY,
+        AICategory.CONVERSATIONAL,
+        AICategory.GEN_BI,
+    ],
     "education": [AICategory.CONVERSATIONAL, AICategory.PRODUCTIVITY, AICategory.AUTOMATION],
     "logistics": [AICategory.AUTOMATION, AICategory.ML_WORKLOADS, AICategory.GEN_BI],
     "energy": [AICategory.ML_WORKLOADS, AICategory.AUTOMATION, AICategory.GEN_BI],
@@ -139,30 +154,71 @@ class AIStrategyAnalyzer:
 
     # Keywords that indicate specific AI opportunity signals
     CONTEXT_SIGNALS = {
-        'high_customer_volume': [
-            'customer service', 'support tickets', 'call center', 'contact center',
-            'customer support', 'help desk', 'customer inquiries', 'support team',
-            'customer experience', 'cx', 'customer satisfaction', 'nps'
+        "high_customer_volume": [
+            "customer service",
+            "support tickets",
+            "call center",
+            "contact center",
+            "customer support",
+            "help desk",
+            "customer inquiries",
+            "support team",
+            "customer experience",
+            "cx",
+            "customer satisfaction",
+            "nps",
         ],
-        'data_heavy': [
-            'analytics', 'data warehouse', 'reporting', 'business intelligence',
-            'dashboard', 'metrics', 'kpi', 'data-driven', 'insights',
-            'data lake', 'big data', 'data platform'
+        "data_heavy": [
+            "analytics",
+            "data warehouse",
+            "reporting",
+            "business intelligence",
+            "dashboard",
+            "metrics",
+            "kpi",
+            "data-driven",
+            "insights",
+            "data lake",
+            "big data",
+            "data platform",
         ],
-        'automation_opportunity': [
-            'manual process', 'repetitive', 'paperwork', 'data entry',
-            'workflow', 'approval process', 'document processing',
-            'invoice', 'claims', 'onboarding', 'compliance'
+        "automation_opportunity": [
+            "manual process",
+            "repetitive",
+            "paperwork",
+            "data entry",
+            "workflow",
+            "approval process",
+            "document processing",
+            "invoice",
+            "claims",
+            "onboarding",
+            "compliance",
         ],
-        'developer_focused': [
-            'software development', 'engineering team', 'developers',
-            'code', 'api', 'platform', 'saas', 'tech stack',
-            'agile', 'devops', 'ci/cd'
+        "developer_focused": [
+            "software development",
+            "engineering team",
+            "developers",
+            "code",
+            "api",
+            "platform",
+            "saas",
+            "tech stack",
+            "agile",
+            "devops",
+            "ci/cd",
         ],
-        'ml_ready': [
-            'prediction', 'forecast', 'machine learning', 'ai',
-            'recommendation', 'personalization', 'anomaly detection',
-            'risk scoring', 'fraud detection', 'demand planning'
+        "ml_ready": [
+            "prediction",
+            "forecast",
+            "machine learning",
+            "ai",
+            "recommendation",
+            "personalization",
+            "anomaly detection",
+            "risk scoring",
+            "fraud detection",
+            "demand planning",
         ],
     }
 
@@ -245,7 +301,7 @@ class AIStrategyAnalyzer:
                 company_name=company_name,
                 industry=industry,
                 vendor=cloud_vendor,
-                context=company_context
+                context=company_context,
             )
             opportunities.append(opportunity)
 
@@ -253,9 +309,7 @@ class AIStrategyAnalyzer:
         return opportunities
 
     def _prioritize_by_signals(
-        self,
-        categories: list[AICategory],
-        signals: dict[str, bool]
+        self, categories: list[AICategory], signals: dict[str, bool]
     ) -> list[AICategory]:
         """
         Reorder categories based on detected context signals.
@@ -269,11 +323,11 @@ class AIStrategyAnalyzer:
         """
         # Map signals to categories they should prioritize
         signal_to_category = {
-            'high_customer_volume': AICategory.CONVERSATIONAL,
-            'data_heavy': AICategory.GEN_BI,
-            'automation_opportunity': AICategory.AUTOMATION,
-            'developer_focused': AICategory.PRODUCTIVITY,
-            'ml_ready': AICategory.ML_WORKLOADS,
+            "high_customer_volume": AICategory.CONVERSATIONAL,
+            "data_heavy": AICategory.GEN_BI,
+            "automation_opportunity": AICategory.AUTOMATION,
+            "developer_focused": AICategory.PRODUCTIVITY,
+            "ml_ready": AICategory.ML_WORKLOADS,
         }
 
         # Build priority list from signals
@@ -315,7 +369,7 @@ class AIStrategyAnalyzer:
         company_name: str,
         industry: str,
         vendor: CloudVendor,
-        context: str = ""
+        context: str = "",
     ) -> AIOpportunity:
         """
         Generate a specific AI opportunity with vendor-appropriate technologies.
@@ -332,8 +386,7 @@ class AIStrategyAnalyzer:
         """
         # Get technologies for this vendor and category
         technologies = VENDOR_TECHNOLOGIES.get(vendor, {}).get(
-            category,
-            VENDOR_TECHNOLOGIES[CloudVendor.AGNOSTIC][category]
+            category, VENDOR_TECHNOLOGIES[CloudVendor.AGNOSTIC][category]
         )
 
         # Generate title and description based on category
@@ -372,10 +425,7 @@ class AIStrategyAnalyzer:
         )
 
     def _get_category_content(
-        self,
-        category: AICategory,
-        company_name: str,
-        industry: str
+        self, category: AICategory, company_name: str, industry: str
     ) -> tuple:
         """Get title and description for a category."""
         industry_context = f" in {industry}" if industry else ""
@@ -386,37 +436,37 @@ class AIStrategyAnalyzer:
                 f"Deploy an AI-powered conversational assistant for {company_name} to handle "
                 f"customer inquiries, support requests, and sales conversations{industry_context}. "
                 "The solution can operate 24/7, handle multiple languages, and seamlessly escalate "
-                "complex issues to human agents."
+                "complex issues to human agents.",
             ),
             AICategory.AGENTIC: (
                 "Autonomous Workflow Orchestration",
                 f"Implement AI agents that can autonomously coordinate complex business processes "
                 f"for {company_name}. These agents can plan, execute, and adapt multi-step workflows "
-                "across systems, reducing manual coordination and accelerating process completion."
+                "across systems, reducing manual coordination and accelerating process completion.",
             ),
             AICategory.GEN_BI: (
                 "Natural Language Business Intelligence",
                 f"Enable business users at {company_name} to query data and generate insights using "
                 "natural language. Democratize analytics by allowing anyone to ask questions like "
-                "'What were our top products last quarter?' and receive instant visualizations."
+                "'What were our top products last quarter?' and receive instant visualizations.",
             ),
             AICategory.AUTOMATION: (
                 "Intelligent Process Automation",
                 f"Automate repetitive operational tasks at {company_name} using AI-powered document "
                 "processing, decision automation, and workflow optimization. Reduce manual effort "
-                "while improving accuracy and compliance."
+                "while improving accuracy and compliance.",
             ),
             AICategory.PRODUCTIVITY: (
                 "AI-Powered Productivity Suite",
                 f"Enhance employee productivity at {company_name} with AI assistants for content "
                 "creation, code development, meeting summarization, and email drafting. Enable "
-                "teams to focus on high-value work while AI handles routine tasks."
+                "teams to focus on high-value work while AI handles routine tasks.",
             ),
             AICategory.ML_WORKLOADS: (
                 "Predictive Analytics Platform",
                 f"Build custom ML models for {company_name} to enable predictive capabilities "
                 f"{industry_context}. Applications include demand forecasting, risk scoring, "
-                "anomaly detection, and recommendation systems tailored to your business needs."
+                "anomaly detection, and recommendation systems tailored to your business needs.",
             ),
         }
 

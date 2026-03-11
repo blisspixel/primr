@@ -47,10 +47,12 @@ class QARetryHandler:
         self.base_delay = base_delay
         self.max_delay = max_delay
 
-    def retry_with_backoff(self,
-                          operation: Callable[[], Any],
-                          retryable_exceptions: tuple = (Exception,),
-                          operation_name: str = "QA operation") -> Any:
+    def retry_with_backoff(
+        self,
+        operation: Callable[[], Any],
+        retryable_exceptions: tuple = (Exception,),
+        operation_name: str = "QA operation",
+    ) -> Any:
         """
         Execute operation with exponential backoff retry logic.
 
@@ -69,7 +71,9 @@ class QARetryHandler:
 
         for attempt in range(self.max_retries + 1):
             try:
-                logger.debug(f"Attempting {operation_name} (attempt {attempt + 1}/{self.max_retries + 1})")
+                logger.debug(
+                    f"Attempting {operation_name} (attempt {attempt + 1}/{self.max_retries + 1})"
+                )
                 result = operation()
 
                 if attempt > 0:
@@ -81,20 +85,26 @@ class QARetryHandler:
                 last_exception = e
 
                 if attempt < self.max_retries:
-                    delay = min(self.base_delay * (2 ** attempt), self.max_delay)
-                    logger.warning(f"{operation_name} failed (attempt {attempt + 1}): {e}. Retrying in {delay:.1f}s...")
+                    delay = min(self.base_delay * (2**attempt), self.max_delay)
+                    logger.warning(
+                        f"{operation_name} failed (attempt {attempt + 1}): {e}. Retrying in {delay:.1f}s..."
+                    )
                     time.sleep(delay)
                 else:
-                    logger.error(f"{operation_name} failed after {self.max_retries + 1} attempts: {e}")
+                    logger.error(
+                        f"{operation_name} failed after {self.max_retries + 1} attempts: {e}"
+                    )
 
         # Re-raise the last exception if all retries exhausted
         raise last_exception
 
 
-def with_retry(max_retries: int = 3,
-               base_delay: float = 1.0,
-               retryable_exceptions: tuple = (Exception,),
-               operation_name: str | None = None):
+def with_retry(
+    max_retries: int = 3,
+    base_delay: float = 1.0,
+    retryable_exceptions: tuple = (Exception,),
+    operation_name: str | None = None,
+):
     """
     Decorator for adding retry logic to functions.
 
@@ -104,6 +114,7 @@ def with_retry(max_retries: int = 3,
         retryable_exceptions: Exception types that should trigger retry
         operation_name: Name for logging (defaults to function name)
     """
+
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         def wrapper(*args, **kwargs):
@@ -113,11 +124,10 @@ def with_retry(max_retries: int = 3,
             def operation():
                 return func(*args, **kwargs)
 
-            return retry_handler.retry_with_backoff(
-                operation, retryable_exceptions, name
-            )
+            return retry_handler.retry_with_backoff(operation, retryable_exceptions, name)
 
         return wrapper
+
     return decorator
 
 
@@ -169,7 +179,9 @@ class QAErrorHandler:
             return f"Permission denied accessing file: {file_path}"
 
         if "encoding" in str(error).lower():
-            return f"File encoding error for: {file_path}. Please ensure the file is in UTF-8 format."
+            return (
+                f"File encoding error for: {file_path}. Please ensure the file is in UTF-8 format."
+            )
 
         return f"File error with '{file_path}': {error!s}"
 
@@ -215,6 +227,7 @@ def safe_qa_operation(operation_name: str = "QA operation"):
     Args:
         operation_name: Name of the operation for error messages
     """
+
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         def wrapper(*args, **kwargs):
@@ -235,4 +248,5 @@ def safe_qa_operation(operation_name: str = "QA operation"):
                 raise QAError(f"{operation_name} failed: {e!s}") from e
 
         return wrapper
+
     return decorator

@@ -164,9 +164,7 @@ class TestPromptComposerValidation:
 
     def test_validate_invalid_yaml(self):
         """Should return error for invalid YAML."""
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".yaml", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write("invalid: yaml: content: [")
             f.flush()
 
@@ -470,7 +468,6 @@ class TestVendorSpecificContentProperties:
         # Should include GCP-specific services
         assert "Google" in result.content or "GCP" in result.content
         assert "Vertex" in result.content or "Gemini" in result.content
-
 
 
 class TestCustomStrategySharedComponentsProperties:

@@ -3,6 +3,7 @@ Property tests for report data models.
 
 **Feature: consulting-tier-report**
 """
+
 from datetime import datetime
 
 from hypothesis import HealthCheck, given, settings
@@ -65,10 +66,22 @@ def insight_strategy(draw):
     return Insight(
         title=draw(st.text(min_size=1, max_size=100).filter(lambda x: x.strip())),
         description=draw(st.text(min_size=1, max_size=500).filter(lambda x: x.strip())),
-        evidence=draw(st.lists(st.text(min_size=1, max_size=200).filter(lambda x: x.strip()), min_size=1, max_size=5)),
+        evidence=draw(
+            st.lists(
+                st.text(min_size=1, max_size=200).filter(lambda x: x.strip()),
+                min_size=1,
+                max_size=5,
+            )
+        ),
         confidence=draw(confidence_level_strategy),
         category=draw(insight_category_strategy),
-        sources=draw(st.lists(st.text(min_size=1, max_size=100).filter(lambda x: x.strip()), min_size=1, max_size=5)),
+        sources=draw(
+            st.lists(
+                st.text(min_size=1, max_size=100).filter(lambda x: x.strip()),
+                min_size=1,
+                max_size=5,
+            )
+        ),
         rationale=draw(st.text(max_size=300)),
     )
 
@@ -99,8 +112,12 @@ def report_metadata_strategy(draw):
 def quality_score_strategy(draw):
     return QualityScore(
         score=draw(st.floats(min_value=0.0, max_value=10.0)),
-        issues=draw(st.lists(st.text(min_size=1, max_size=100).filter(lambda x: x.strip()), max_size=5)),
-        suggestions=draw(st.lists(st.text(min_size=1, max_size=100).filter(lambda x: x.strip()), max_size=5)),
+        issues=draw(
+            st.lists(st.text(min_size=1, max_size=100).filter(lambda x: x.strip()), max_size=5)
+        ),
+        suggestions=draw(
+            st.lists(st.text(min_size=1, max_size=100).filter(lambda x: x.strip()), max_size=5)
+        ),
         needs_refinement=draw(st.booleans()),
     )
 

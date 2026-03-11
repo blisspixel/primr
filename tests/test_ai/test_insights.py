@@ -314,9 +314,7 @@ class TestInsightAnalyzer:
             Opportunity("o1", OpportunityType.PARTNERSHIP, "Partnership", "Strategic"),
         ]
 
-        recommendations = analyzer.generate_recommendations(
-            "Test Corp", risks, opportunities
-        )
+        recommendations = analyzer.generate_recommendations("Test Corp", risks, opportunities)
 
         assert len(recommendations) > 0
         for rec in recommendations:

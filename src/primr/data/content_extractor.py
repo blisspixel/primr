@@ -28,9 +28,11 @@ logger = get_logger("content_extractor")
 # DATA CLASSES
 # =============================================================================
 
+
 @dataclass
 class ExtractedTable:
     """A table extracted from HTML."""
+
     headers: list[str]
     rows: list[list[str]]
     caption: str | None = None
@@ -60,6 +62,7 @@ class ExtractedTable:
 @dataclass
 class FinancialFigure:
     """A financial figure extracted from text."""
+
     value: float
     raw_text: str
     unit: str  # e.g., "USD", "EUR", "%"
@@ -81,6 +84,7 @@ class FinancialFigure:
 @dataclass
 class ExtractedQuote:
     """A quote extracted from text."""
+
     text: str
     speaker: str | None = None
     title: str | None = None
@@ -90,6 +94,7 @@ class ExtractedQuote:
 @dataclass
 class ExtractedList:
     """A list extracted from HTML."""
+
     items: list[str]
     list_type: str  # "ordered" or "unordered"
     title: str | None = None
@@ -98,6 +103,7 @@ class ExtractedList:
 # =============================================================================
 # CONTENT EXTRACTOR
 # =============================================================================
+
 
 class ContentExtractor:
     """
@@ -119,44 +125,39 @@ class ContentExtractor:
 
     # Currency patterns
     CURRENCY_SYMBOLS = {
-        '$': 'USD',
-        '€': 'EUR',
-        '£': 'GBP',
-        '¥': 'JPY',
-        '₹': 'INR',
+        "$": "USD",
+        "€": "EUR",
+        "£": "GBP",
+        "¥": "JPY",
+        "₹": "INR",
     }
 
     # Scale words
     SCALE_WORDS = {
-        'k': 'thousand',
-        'thousand': 'thousand',
-        'm': 'million',
-        'million': 'million',
-        'mm': 'million',
-        'b': 'billion',
-        'billion': 'billion',
-        'bn': 'billion',
-        't': 'trillion',
-        'trillion': 'trillion',
+        "k": "thousand",
+        "thousand": "thousand",
+        "m": "million",
+        "million": "million",
+        "mm": "million",
+        "b": "billion",
+        "billion": "billion",
+        "bn": "billion",
+        "t": "trillion",
+        "trillion": "trillion",
     }
 
     def __init__(self):
         """Initialize the content extractor."""
         # Compile regex patterns
         self._money_pattern = re.compile(
-            r'([$€£¥₹])\s*(\d+(?:,\d{3})*(?:\.\d+)?)\s*'
-            r'(thousand|million|billion|trillion|k|m|mm|b|bn|t)?',
-            re.IGNORECASE
+            r"([$€£¥₹])\s*(\d+(?:,\d{3})*(?:\.\d+)?)\s*"
+            r"(thousand|million|billion|trillion|k|m|mm|b|bn|t)?",
+            re.IGNORECASE,
         )
 
-        self._percent_pattern = re.compile(
-            r'(\d+(?:\.\d+)?)\s*%'
-        )
+        self._percent_pattern = re.compile(r"(\d+(?:\.\d+)?)\s*%")
 
-        self._quote_pattern = re.compile(
-            r'["""]([^"""]+)["""]',
-            re.MULTILINE
-        )
+        self._quote_pattern = re.compile(r'["""]([^"""]+)["""]', re.MULTILINE)
 
     def extract_tables(self, html: str) -> list[ExtractedTable]:
         """
@@ -171,9 +172,9 @@ class ContentExtractor:
         tables = []
 
         try:
-            soup = BeautifulSoup(html, 'html.parser')
+            soup = BeautifulSoup(html, "html.parser")
 
-            for table_elem in soup.find_all('table'):
+            for table_elem in soup.find_all("table"):
                 table = self._parse_table(table_elem)
                 if table and (table.headers or table.rows):
                     tables.append(table)
@@ -191,38 +192,31 @@ class ContentExtractor:
 
         try:
             # Get caption
-            caption_elem = table_elem.find('caption')
+            caption_elem = table_elem.find("caption")
             if caption_elem:
                 caption = caption_elem.get_text(strip=True)
 
             # Get headers from thead or first row
-            thead = table_elem.find('thead')
+            thead = table_elem.find("thead")
             if thead:
-                header_row = thead.find('tr')
+                header_row = thead.find("tr")
                 if header_row:
-                    headers = [
-                        th.get_text(strip=True)
-                        for th in header_row.find_all(['th', 'td'])
-                    ]
+                    headers = [th.get_text(strip=True) for th in header_row.find_all(["th", "td"])]
 
             # Get body rows
-            tbody = table_elem.find('tbody') or table_elem
-            for tr in tbody.find_all('tr'):
-                cells = tr.find_all(['td', 'th'])
+            tbody = table_elem.find("tbody") or table_elem
+            for tr in tbody.find_all("tr"):
+                cells = tr.find_all(["td", "th"])
                 if cells:
                     row = [cell.get_text(strip=True) for cell in cells]
 
                     # If no headers yet and this looks like a header row
-                    if not headers and all(cell.name == 'th' for cell in cells):
+                    if not headers and all(cell.name == "th" for cell in cells):
                         headers = row
                     else:
                         rows.append(row)
 
-            return ExtractedTable(
-                headers=headers,
-                rows=rows,
-                caption=caption
-            )
+            return ExtractedTable(headers=headers, rows=rows, caption=caption)
 
         except Exception as e:
             logger.warning(f"Error parsing table: {e}")
@@ -241,12 +235,12 @@ class ContentExtractor:
         lists = []
 
         try:
-            soup = BeautifulSoup(html, 'html.parser')
+            soup = BeautifulSoup(html, "html.parser")
 
-            for list_elem in soup.find_all(['ul', 'ol']):
+            for list_elem in soup.find_all(["ul", "ol"]):
                 items = [
                     li.get_text(strip=True)
-                    for li in list_elem.find_all('li', recursive=False)
+                    for li in list_elem.find_all("li", recursive=False)
                     if li.get_text(strip=True)
                 ]
 
@@ -254,14 +248,16 @@ class ContentExtractor:
                     # Try to find a title (preceding heading)
                     title = None
                     prev = list_elem.find_previous_sibling()
-                    if prev and prev.name in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
+                    if prev and prev.name in ["h1", "h2", "h3", "h4", "h5", "h6"]:
                         title = prev.get_text(strip=True)
 
-                    lists.append(ExtractedList(
-                        items=items,
-                        list_type='ordered' if list_elem.name == 'ol' else 'unordered',
-                        title=title
-                    ))
+                    lists.append(
+                        ExtractedList(
+                            items=items,
+                            list_type="ordered" if list_elem.name == "ol" else "unordered",
+                            title=title,
+                        )
+                    )
 
         except Exception as e:
             logger.warning(f"Error extracting lists: {e}")
@@ -283,26 +279,28 @@ class ContentExtractor:
         # Extract money amounts
         for match in self._money_pattern.finditer(text):
             symbol = match.group(1)
-            value_str = match.group(2).replace(',', '')
-            scale_str = match.group(3) or ''
+            value_str = match.group(2).replace(",", "")
+            scale_str = match.group(3) or ""
 
             try:
                 value = float(value_str)
-                unit = self.CURRENCY_SYMBOLS.get(symbol, 'USD')
-                scale = self.SCALE_WORDS.get(scale_str.lower(), '') if scale_str else ''
+                unit = self.CURRENCY_SYMBOLS.get(symbol, "USD")
+                scale = self.SCALE_WORDS.get(scale_str.lower(), "") if scale_str else ""
 
                 # Get context (surrounding text)
                 start = max(0, match.start() - 50)
                 end = min(len(text), match.end() + 50)
                 context = text[start:end].strip()
 
-                figures.append(FinancialFigure(
-                    value=value,
-                    raw_text=match.group(0),
-                    unit=unit,
-                    scale=scale,
-                    context=context
-                ))
+                figures.append(
+                    FinancialFigure(
+                        value=value,
+                        raw_text=match.group(0),
+                        unit=unit,
+                        scale=scale,
+                        context=context,
+                    )
+                )
 
             except ValueError:
                 continue
@@ -316,13 +314,11 @@ class ContentExtractor:
                 end = min(len(text), match.end() + 50)
                 context = text[start:end].strip()
 
-                figures.append(FinancialFigure(
-                    value=value,
-                    raw_text=match.group(0),
-                    unit='%',
-                    scale='',
-                    context=context
-                ))
+                figures.append(
+                    FinancialFigure(
+                        value=value, raw_text=match.group(0), unit="%", scale="", context=context
+                    )
+                )
 
             except ValueError:
                 continue
@@ -354,13 +350,13 @@ class ContentExtractor:
 
             # Get context after quote
             end_pos = match.end()
-            after_text = text[end_pos:end_pos + 100]
+            after_text = text[end_pos : end_pos + 100]
 
             # Look for attribution patterns
             attribution_patterns = [
-                r',?\s*said\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)',
-                r',?\s*-\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)',
-                r',?\s*according to\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)',
+                r",?\s*said\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)",
+                r",?\s*-\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)",
+                r",?\s*according to\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)",
             ]
 
             for pattern in attribution_patterns:
@@ -369,12 +365,14 @@ class ContentExtractor:
                     speaker = attr_match.group(1)
                     break
 
-            quotes.append(ExtractedQuote(
-                text=quote_text,
-                speaker=speaker,
-                title=title,
-                context=text[max(0, match.start() - 30):min(len(text), match.end() + 100)]
-            ))
+            quotes.append(
+                ExtractedQuote(
+                    text=quote_text,
+                    speaker=speaker,
+                    title=title,
+                    context=text[max(0, match.start() - 30) : min(len(text), match.end() + 100)],
+                )
+            )
 
         return quotes
 
@@ -388,16 +386,16 @@ class ContentExtractor:
         Returns:
             Dictionary of heading level -> list of headings
         """
-        headings: dict[str, list[str]] = {f'h{i}': [] for i in range(1, 7)}
+        headings: dict[str, list[str]] = {f"h{i}": [] for i in range(1, 7)}
 
         try:
-            soup = BeautifulSoup(html, 'html.parser')
+            soup = BeautifulSoup(html, "html.parser")
 
             for level in range(1, 7):
-                for heading in soup.find_all(f'h{level}'):
+                for heading in soup.find_all(f"h{level}"):
                     text = heading.get_text(strip=True)
                     if text:
-                        headings[f'h{level}'].append(text)
+                        headings[f"h{level}"].append(text)
 
         except Exception as e:
             logger.warning(f"Error extracting headings: {e}")
@@ -417,26 +415,26 @@ class ContentExtractor:
         metadata = {}
 
         try:
-            soup = BeautifulSoup(html, 'html.parser')
+            soup = BeautifulSoup(html, "html.parser")
 
             # Title
-            title = soup.find('title')
+            title = soup.find("title")
             if title:
-                metadata['title'] = title.get_text(strip=True)
+                metadata["title"] = title.get_text(strip=True)
 
             # Meta tags
-            for meta in soup.find_all('meta'):
-                name_attr = meta.get('name', meta.get('property', ''))
-                content_attr = meta.get('content', '')
+            for meta in soup.find_all("meta"):
+                name_attr = meta.get("name", meta.get("property", ""))
+                content_attr = meta.get("content", "")
                 # Convert to str (BeautifulSoup can return AttributeValueList)
-                name = str(name_attr) if name_attr else ''
-                content = str(content_attr) if content_attr else ''
+                name = str(name_attr) if name_attr else ""
+                content = str(content_attr) if content_attr else ""
 
                 if name and content:
                     # Common meta tags
-                    if name.lower() in ['description', 'keywords', 'author']:
+                    if name.lower() in ["description", "keywords", "author"]:
                         metadata[name.lower()] = content
-                    elif name.startswith('og:'):
+                    elif name.startswith("og:"):
                         metadata[name] = content
 
         except Exception as e:
@@ -456,25 +454,24 @@ class ContentExtractor:
         """
         # Get text content
         try:
-            soup = BeautifulSoup(html, 'html.parser')
-            text = soup.get_text(separator=' ', strip=True)
+            soup = BeautifulSoup(html, "html.parser")
+            text = soup.get_text(separator=" ", strip=True)
         except (ValueError, TypeError):
             text = ""
 
         return {
-            'metadata': self.extract_metadata(html),
-            'headings': self.extract_headings(html),
-            'tables': [t.to_dict() for t in self.extract_tables(html)],
-            'lists': [{'items': lst.items, 'type': lst.list_type, 'title': lst.title}
-                     for lst in self.extract_lists(html)],
-            'financial_figures': [
-                {'value': f.value, 'unit': f.unit, 'scale': f.scale, 'raw': f.raw_text}
+            "metadata": self.extract_metadata(html),
+            "headings": self.extract_headings(html),
+            "tables": [t.to_dict() for t in self.extract_tables(html)],
+            "lists": [
+                {"items": lst.items, "type": lst.list_type, "title": lst.title}
+                for lst in self.extract_lists(html)
+            ],
+            "financial_figures": [
+                {"value": f.value, "unit": f.unit, "scale": f.scale, "raw": f.raw_text}
                 for f in self.extract_financial_figures(text)
             ],
-            'quotes': [
-                {'text': q.text, 'speaker': q.speaker}
-                for q in self.extract_quotes(text)
-            ],
+            "quotes": [{"text": q.text, "speaker": q.speaker} for q in self.extract_quotes(text)],
         }
 
 

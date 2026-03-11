@@ -39,6 +39,7 @@ class TestJobIdInLatestResponse:
         import os
 
         from primr.mcp_server.resources import _read_latest_output
+
         original_cwd = os.getcwd()
         try:
             os.chdir(tmp_path)
@@ -65,6 +66,7 @@ class TestJobIdInLatestResponse:
         import os
 
         from primr.mcp_server.resources import _read_latest_output
+
         original_cwd = os.getcwd()
         try:
             os.chdir(tmp_path)

@@ -106,7 +106,9 @@ def test_auto_stage_existing_reports_for_company(tmp_path: Path):
     )
 
     _write_sample_report(source / "ExampleCo_Strategic_Overview_02-25-2026.md", "ExampleCo")
-    _write_sample_report(source / "ExampleCo Corporation_Strategic_Overview_02-25-2026.md", "ExampleCo Corporation")
+    _write_sample_report(
+        source / "ExampleCo Corporation_Strategic_Overview_02-25-2026.md", "ExampleCo Corporation"
+    )
 
     staged = auto_stage_existing_reports(
         eval_id="eval-stage-001",

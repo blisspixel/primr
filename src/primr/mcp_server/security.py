@@ -21,6 +21,8 @@ from threading import Lock
 def _utcnow() -> datetime:
     """Get current UTC time as timezone-aware datetime."""
     return datetime.now(timezone.utc)
+
+
 import contextlib
 from urllib.parse import urlparse
 
@@ -88,6 +90,7 @@ METADATA_HOSTS = {
 @dataclass
 class PathValidationResult:
     """Result of path validation."""
+
     valid: bool
     resolved_path: Path | None = None
     error_type: str | None = None
@@ -204,7 +207,9 @@ class PathValidator:
                     # Check for system directories - but skip this check if the allowed root
                     # itself is under a system directory (administrator explicitly configured it)
                     root_str = str(root)
-                    root_is_in_system_dir = any(root_str.startswith(sys_dir) for sys_dir in SYSTEM_DIRECTORIES)
+                    root_is_in_system_dir = any(
+                        root_str.startswith(sys_dir) for sys_dir in SYSTEM_DIRECTORIES
+                    )
 
                     if not root_is_in_system_dir:
                         resolved_str = str(resolved)
@@ -280,6 +285,7 @@ class PathValidator:
 @dataclass
 class URLValidationResult:
     """Result of URL validation."""
+
     valid: bool
     error_type: str | None = None
     error_message: str | None = None
@@ -359,6 +365,7 @@ class URLValidator:
         # Resolve hostname to IP
         try:
             import socket
+
             ip_addresses = socket.getaddrinfo(
                 hostname, parsed.port or (443 if parsed.scheme == "https" else 80)
             )
@@ -408,9 +415,7 @@ class URLValidator:
             resolved_ip=next(iter(resolved_ips)) if resolved_ips else None,
         )
 
-    def _log_rejection(
-        self, client_id: str, url: str, resolved_ip: str, reason: str
-    ) -> None:
+    def _log_rejection(self, client_id: str, url: str, resolved_ip: str, reason: str) -> None:
         """Log SSRF rejection attempt."""
         logger.warning(
             "SSRF blocked",
@@ -426,6 +431,7 @@ class URLValidator:
 @dataclass
 class RateLimitResult:
     """Result of rate limit check."""
+
     allowed: bool
     retry_after_seconds: int | None = None
 
@@ -433,6 +439,7 @@ class RateLimitResult:
 @dataclass
 class ClientRateState:
     """Tracks request timestamps per client for rate limiting."""
+
     requests: list[datetime] = field(default_factory=list)
 
     def prune_old(self, window: timedelta) -> None:
@@ -519,9 +526,7 @@ class RateLimiter:
                 # Calculate retry time
                 if state.requests:
                     oldest = min(state.requests)
-                    retry_after = int(
-                        (oldest + self._window - _utcnow()).total_seconds()
-                    )
+                    retry_after = int((oldest + self._window - _utcnow()).total_seconds())
                     return RateLimitResult(
                         allowed=False,
                         retry_after_seconds=max(1, retry_after),
@@ -541,9 +546,7 @@ class RateLimiter:
         with self._lock:
             self._clients[client_id][tool_name].add_request()
 
-    def check_and_record(
-        self, client_id: str, tool_name: str
-    ) -> RateLimitResult:
+    def check_and_record(self, client_id: str, tool_name: str) -> RateLimitResult:
         """
         Check if client can make request and record it if allowed.
 

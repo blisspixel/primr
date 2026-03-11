@@ -37,9 +37,11 @@ def test_resolve_banner_mode_honors_env_disable_when_not_explicit(monkeypatch):
 
 
 def test_maybe_show_startup_banner_static_path():
-    with patch("primr.utils.banner.detect_banner_context", return_value=_ctx()), \
-         patch("primr.utils.banner.render_static_banner") as mock_static, \
-         patch("primr.utils.banner.render_animated_banner") as mock_animated:
+    with (
+        patch("primr.utils.banner.detect_banner_context", return_value=_ctx()),
+        patch("primr.utils.banner.render_static_banner") as mock_static,
+        patch("primr.utils.banner.render_animated_banner") as mock_animated,
+    ):
         shown = maybe_show_startup_banner(mode="static", quiet=False, explicit=True)
         assert shown is True
         mock_static.assert_called_once()

@@ -24,9 +24,9 @@ def test_project_root_detection():
     from primr.config.config import PROJECT_ROOT as CONFIG_ROOT
 
     # Project root should contain key files
-    assert (Path(CONFIG_ROOT) / "pyproject.toml").exists() or \
-           (Path(CONFIG_ROOT) / ".env").exists(), \
-           f"Project root {CONFIG_ROOT} doesn't contain expected files"
+    assert (Path(CONFIG_ROOT) / "pyproject.toml").exists() or (
+        Path(CONFIG_ROOT) / ".env"
+    ).exists(), f"Project root {CONFIG_ROOT} doesn't contain expected files"
 
 
 def test_runtime_directories_resolve_to_project_root():
@@ -41,17 +41,16 @@ def test_runtime_directories_resolve_to_project_root():
     project_root = Path(PROJECT_ROOT)
 
     # All runtime dirs should be under project root
-    assert Path(OUTPUT_DIR).parent == project_root or \
-           Path(OUTPUT_DIR) == project_root / "output", \
-           f"OUTPUT_DIR {OUTPUT_DIR} not under project root"
+    assert Path(OUTPUT_DIR).parent == project_root or Path(OUTPUT_DIR) == project_root / "output", (
+        f"OUTPUT_DIR {OUTPUT_DIR} not under project root"
+    )
 
-    assert Path(WORKING_DIR).parent == project_root or \
-           Path(WORKING_DIR) == project_root / "working", \
-           f"WORKING_DIR {WORKING_DIR} not under project root"
+    assert (
+        Path(WORKING_DIR).parent == project_root or Path(WORKING_DIR) == project_root / "working"
+    ), f"WORKING_DIR {WORKING_DIR} not under project root"
 
     # LOGS_DIR is logs/chat_history
-    assert project_root in Path(LOGS_DIR).parents, \
-           f"LOGS_DIR {LOGS_DIR} not under project root"
+    assert project_root in Path(LOGS_DIR).parents, f"LOGS_DIR {LOGS_DIR} not under project root"
 
 
 @given(st.sampled_from(RUNTIME_DIRS))

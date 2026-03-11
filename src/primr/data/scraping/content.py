@@ -21,17 +21,38 @@ NOISE_TAGS_AGGRESSIVE = ["header", "footer", "form", "aside", "nav"]
 
 # Tags that typically contain boilerplate, not main content
 BOILERPLATE_CLASSES = [
-    "nav", "navbar", "navigation", "menu", "sidebar", "footer", "header",
-    "advertisement", "ad", "ads", "social", "share", "comment", "comments",
-    "related", "recommended", "cookie", "consent", "popup", "modal",
-    "breadcrumb", "pagination", "search", "login", "signup", "subscribe",
+    "nav",
+    "navbar",
+    "navigation",
+    "menu",
+    "sidebar",
+    "footer",
+    "header",
+    "advertisement",
+    "ad",
+    "ads",
+    "social",
+    "share",
+    "comment",
+    "comments",
+    "related",
+    "recommended",
+    "cookie",
+    "consent",
+    "popup",
+    "modal",
+    "breadcrumb",
+    "pagination",
+    "search",
+    "login",
+    "signup",
+    "subscribe",
 ]
 
 # Pre-compiled regex for word-boundary matching of boilerplate classes
 # This prevents false positives like "ddpa" matching "ad"
 BOILERPLATE_PATTERN = re.compile(
-    r'\b(' + '|'.join(re.escape(bp) for bp in BOILERPLATE_CLASSES) + r')\b',
-    re.IGNORECASE
+    r"\b(" + "|".join(re.escape(bp) for bp in BOILERPLATE_CLASSES) + r")\b", re.IGNORECASE
 )
 
 # Tags that typically contain main content
@@ -63,8 +84,18 @@ GARBAGE_PATTERNS = [
 ]
 
 NAV_HINT_TERMS = {
-    "skip", "content", "login", "products", "solutions", "integrations",
-    "resources", "careers", "contact", "demo", "assessment", "hiring",
+    "skip",
+    "content",
+    "login",
+    "products",
+    "solutions",
+    "integrations",
+    "resources",
+    "careers",
+    "contact",
+    "demo",
+    "assessment",
+    "hiring",
 }
 
 
@@ -88,12 +119,10 @@ def _is_nav_like_line(line: str) -> bool:
 
     short_ratio = sum(1 for w in words if len(w) <= 14) / len(words)
     alpha_words = [w for w in words if w.isalpha()]
-    title_ratio = (
-        sum(1 for w in alpha_words if w[:1].isupper()) / max(len(alpha_words), 1)
-    )
+    title_ratio = sum(1 for w in alpha_words if w[:1].isupper()) / max(len(alpha_words), 1)
     nav_hits = sum(1 for w in words if w.lower() in NAV_HINT_TERMS)
 
-    return (short_ratio >= 0.85 and title_ratio >= 0.55 and nav_hits >= 4)
+    return short_ratio >= 0.85 and title_ratio >= 0.55 and nav_hits >= 4
 
 
 def _is_body_like_line(line: str) -> bool:
@@ -121,7 +150,7 @@ def _trim_leading_noise(lines: list[str]) -> list[str]:
     if start > 0:
         prev = lines[start - 1].strip()
         if 4 <= len(prev) <= 80 and prev.lower() not in {"login", "request a demo"}:
-            return lines[start - 1:]
+            return lines[start - 1 :]
     return lines[start:] if start > 0 else lines
 
 
@@ -152,12 +181,12 @@ def is_quality_content(text: str, min_length: int = MIN_CONTENT_LENGTH) -> tuple
         return False, f"Too few words ({len(words)} < {MIN_WORD_COUNT})"
 
     # Check for sentences (rough heuristic)
-    sentences = len([s for s in text.split('.') if len(s.strip()) > 10])
+    sentences = len([s for s in text.split(".") if len(s.strip()) > 10])
     if sentences < MIN_SENTENCE_COUNT:
         return False, f"Too few sentences ({sentences} < {MIN_SENTENCE_COUNT})"
 
     # Check for repetitive content (same line repeated)
-    lines = [line.strip() for line in text.split('\n') if line.strip()]
+    lines = [line.strip() for line in text.split("\n") if line.strip()]
     if lines:
         unique_lines = set(lines)
         if len(unique_lines) < len(lines) * 0.5:  # Less than 50% unique
@@ -256,7 +285,7 @@ def extract_clean_text(
 
     # Reject binary/non-HTML content that would crash the parser
     sample = html[:2000]
-    control_chars = sum(1 for c in sample if ord(c) < 32 and c not in '\n\r\t')
+    control_chars = sum(1 for c in sample if ord(c) < 32 and c not in "\n\r\t")
     if len(sample) > 0 and control_chars / len(sample) > 0.05:
         return ""
 
@@ -423,6 +452,7 @@ def extract_text_from_pdf_via_llm(pdf_bytes: bytes) -> str | None:
             return extract_text_from_pdf(pdf_bytes)
 
         import base64
+
         pdf_b64 = base64.b64encode(pdf_bytes).decode("utf-8")
 
         prompt = """Extract all text content from this PDF document.
@@ -478,7 +508,7 @@ def extract_main_content(raw_html: bytes) -> str:
 
     # Reject binary/non-HTML content that would crash the parser
     sample = html[:2000]
-    control_chars = sum(1 for c in sample if ord(c) < 32 and c not in '\n\r\t')
+    control_chars = sum(1 for c in sample if ord(c) < 32 and c not in "\n\r\t")
     if len(sample) > 0 and control_chars / len(sample) > 0.05:
         return ""
 
@@ -495,7 +525,7 @@ def extract_main_content(raw_html: bytes) -> str:
     # Collect elements to remove (don't modify during iteration)
     to_remove = []
     for element in soup.find_all(True):
-        if element is None or not hasattr(element, 'get'):
+        if element is None or not hasattr(element, "get"):
             continue
         classes = element.get("class", []) or []
         element_id = element.get("id", "") or ""
@@ -521,7 +551,7 @@ def extract_main_content(raw_html: bytes) -> str:
     if not main_content:
         for tag in CONTENT_TAGS:
             for element in soup.find_all(tag):
-                if element is None or not hasattr(element, 'get'):
+                if element is None or not hasattr(element, "get"):
                     continue
                 classes = " ".join(element.get("class", []) or [])
                 element_id = element.get("id", "") or ""
@@ -588,7 +618,19 @@ def _extract_text_with_structure(element) -> str:
             if text and text not in ["\n", "\t"]:
                 # Check if parent is a block element
                 parent = child.parent
-                if parent and parent.name in ["p", "h1", "h2", "h3", "h4", "h5", "h6", "li", "div", "section", "article"]:
+                if parent and parent.name in [
+                    "p",
+                    "h1",
+                    "h2",
+                    "h3",
+                    "h4",
+                    "h5",
+                    "h6",
+                    "li",
+                    "div",
+                    "section",
+                    "article",
+                ]:
                     lines.append(text)
                 elif lines and not lines[-1].endswith(" "):
                     # Inline text - append to last line

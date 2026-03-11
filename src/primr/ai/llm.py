@@ -2,6 +2,7 @@
 LLM interface using Google Gemini API (modern SDK)
 Supports Gemini 3 Pro with thinking_level control
 """
+
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -12,6 +13,7 @@ from dotenv import load_dotenv
 try:
     from google import genai as _google_genai
     from google.genai import types as _google_types
+
     _GENAI_IMPORT_ERROR: Exception | None = None
 except Exception as import_error:
     _GENAI_IMPORT_ERROR = import_error
@@ -56,7 +58,10 @@ _client: genai.Client | None = None
 def _require_genai_dependency() -> None:
     if _GENAI_IMPORT_ERROR is None:
         return
-    if _FALLBACK_CLIENT_CLASS is not None and getattr(genai, "Client", None) is not _FALLBACK_CLIENT_CLASS:
+    if (
+        _FALLBACK_CLIENT_CLASS is not None
+        and getattr(genai, "Client", None) is not _FALLBACK_CLIENT_CLASS
+    ):
         return
     raise RuntimeError(
         "google.genai is not available. Install compatible dependencies "
@@ -91,7 +96,14 @@ def _get_model_for_type(model_type: str) -> str:
         - "summarization" -> Flash
     """
     # Flash model (cheap, fast)
-    if model_type in ("scraping", "link_selection", "filtering", "fast", "research", "summarization"):
+    if model_type in (
+        "scraping",
+        "link_selection",
+        "filtering",
+        "fast",
+        "research",
+        "summarization",
+    ):
         return PrimrModels.FLASH_MODEL
     # Pro model (expensive, smart)
     elif model_type in ("section_writing", "analysis", "reasoning", "report"):
@@ -126,7 +138,7 @@ def llm(prompt, model_type="fast", temperature=1.0, thinking_level="high", strea
     # Build config - Gemini 3 uses thinking_level instead of thinking_budget
     config_params = {
         "temperature": temperature,
-        "thinking_config": types.ThinkingConfig(thinking_level=thinking_level)
+        "thinking_config": types.ThinkingConfig(thinking_level=thinking_level),
     }
 
     while retries < MAX_RETRIES:
@@ -137,16 +149,18 @@ def llm(prompt, model_type="fast", temperature=1.0, thinking_level="high", strea
                 response = _get_client().models.generate_content(
                     model=model_name,
                     contents=prompt,
-                    config=types.GenerateContentConfig(**config_params)
+                    config=types.GenerateContentConfig(**config_params),
                 )
                 ai_response = (response.text or "").strip()
                 if not ai_response:
-                    raise RuntimeError("LLM returned empty response (possible content filter or safety block)")
+                    raise RuntimeError(
+                        "LLM returned empty response (possible content filter or safety block)"
+                    )
             else:
                 stream_response = _get_client().models.generate_content_stream(
                     model=model_name,
                     contents=prompt,
-                    config=types.GenerateContentConfig(**config_params)
+                    config=types.GenerateContentConfig(**config_params),
                 )
 
                 response_text: list[str] = []
@@ -165,18 +179,29 @@ def llm(prompt, model_type="fast", temperature=1.0, thinking_level="high", strea
 
             # Check for quota exhaustion (daily limit hit) - STOP IMMEDIATELY
             # Matches: per_day, per_model_per_day, PerDay, etc.
-            is_quota_exhausted = (
-                "resource_exhausted" in error_str and
-                ("per_day" in error_str or ("quota" in error_str and "exceeded" in error_str))
+            is_quota_exhausted = "resource_exhausted" in error_str and (
+                "per_day" in error_str or ("quota" in error_str and "exceeded" in error_str)
             )
 
             if is_quota_exhausted:
                 print(Fore.RED + "\n" + "=" * 60 + Style.RESET_ALL)
                 print(Fore.RED + "[QUOTA EXHAUSTED] Daily API limit reached." + Style.RESET_ALL)
-                print(Fore.YELLOW + "Your Gemini API quota has been exhausted for today." + Style.RESET_ALL)
+                print(
+                    Fore.YELLOW
+                    + "Your Gemini API quota has been exhausted for today."
+                    + Style.RESET_ALL
+                )
                 print(Fore.YELLOW + "Options:" + Style.RESET_ALL)
-                print(Fore.YELLOW + "  1. Wait until quota resets (usually midnight PT)" + Style.RESET_ALL)
-                print(Fore.YELLOW + "  2. Upgrade your API plan at https://ai.google.dev" + Style.RESET_ALL)
+                print(
+                    Fore.YELLOW
+                    + "  1. Wait until quota resets (usually midnight PT)"
+                    + Style.RESET_ALL
+                )
+                print(
+                    Fore.YELLOW
+                    + "  2. Upgrade your API plan at https://ai.google.dev"
+                    + Style.RESET_ALL
+                )
                 print(Fore.YELLOW + "  3. Use a different API key" + Style.RESET_ALL)
                 print(Fore.YELLOW + "  4. Check quota: primr --check-quota" + Style.RESET_ALL)
                 print(Fore.RED + "=" * 60 + "\n" + Style.RESET_ALL)
@@ -187,14 +212,26 @@ def llm(prompt, model_type="fast", temperature=1.0, thinking_level="high", strea
             # Check for temporary rate limit (retry with backoff, but limit retries)
             if "429" in str(e) or "resource_exhausted" in error_str:
                 if retries >= MAX_RETRIES:
-                    print(Fore.RED + f"[ERROR] Rate limit persists after {MAX_RETRIES} retries. Stopping." + Style.RESET_ALL)
+                    print(
+                        Fore.RED
+                        + f"[ERROR] Rate limit persists after {MAX_RETRIES} retries. Stopping."
+                        + Style.RESET_ALL
+                    )
                     raise RuntimeError(f"Rate limit exceeded after {MAX_RETRIES} retries") from e
-                wait_time = min(2 ** retries * 5, 60)  # Exponential backoff: 10s, 20s, 40s, max 60s
-                print(Fore.YELLOW + f"[RATE LIMITED] Waiting {wait_time}s before retry {retries}/{MAX_RETRIES}..." + Style.RESET_ALL)
+                wait_time = min(2**retries * 5, 60)  # Exponential backoff: 10s, 20s, 40s, max 60s
+                print(
+                    Fore.YELLOW
+                    + f"[RATE LIMITED] Waiting {wait_time}s before retry {retries}/{MAX_RETRIES}..."
+                    + Style.RESET_ALL
+                )
                 time.sleep(wait_time)
             else:
                 # Other errors: short delay
-                print(Fore.YELLOW + f"[WARNING] Gemini API Call Failed. Retrying {retries}/{MAX_RETRIES}... Error: {e}" + Style.RESET_ALL)
+                print(
+                    Fore.YELLOW
+                    + f"[WARNING] Gemini API Call Failed. Retrying {retries}/{MAX_RETRIES}... Error: {e}"
+                    + Style.RESET_ALL
+                )
                 time.sleep(2)
 
     error_message = "[ERROR] LLM API call failed after max retries."

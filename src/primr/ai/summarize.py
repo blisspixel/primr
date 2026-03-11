@@ -69,8 +69,7 @@ def _build_summary_batches(pages: list[tuple[str, str]]) -> list[list[tuple[str,
     for page in pages:
         _, text = page
         should_flush = (
-            len(current_batch) >= _BATCH_MAX_PAGES or
-            (current_chars + len(text)) > _BATCH_MAX_CHARS
+            len(current_batch) >= _BATCH_MAX_PAGES or (current_chars + len(text)) > _BATCH_MAX_CHARS
         )
         if should_flush and current_batch:
             batches.append(current_batch)
@@ -115,9 +114,7 @@ def _summarize_batch(
     batch_pages: list[tuple[str, str]],
 ) -> str:
     """Summarize several pages in one call with source-separated output."""
-    sources_block = "\n\n".join(
-        f"[Source: {source}]\n{text}" for source, text in batch_pages
-    )
+    sources_block = "\n\n".join(f"[Source: {source}]\n{text}" for source, text in batch_pages)
 
     batch_prompt = f"""Extract high-signal facts about {company_name} ({company_website or "N/A"}) from these webpages.
 
@@ -274,6 +271,8 @@ def summarize_with_retries(content, retries=MAX_RETRIES, min_length=200):
 
     # Return the last response if we got one (even if short), otherwise empty string
     if response_text:
-        logger.warning(f"Summarization returned short response ({len(response_text)} chars), using it anyway")
+        logger.warning(
+            f"Summarization returned short response ({len(response_text)} chars), using it anyway"
+        )
         return response_text
     return ""

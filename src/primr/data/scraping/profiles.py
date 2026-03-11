@@ -17,6 +17,7 @@ from dataclasses import dataclass
 @dataclass
 class HttpHeaderProfile:
     """HTTP headers that must match TLS fingerprint."""
+
     name: str
     user_agent: str
     sec_ch_ua: str | None
@@ -27,6 +28,7 @@ class HttpHeaderProfile:
 @dataclass
 class BrowserContextProfile:
     """Browser context settings (safe to set via Playwright/DrissionPage)."""
+
     name: str
     viewport_width: int
     viewport_height: int
@@ -38,6 +40,7 @@ class BrowserContextProfile:
 @dataclass
 class StealthPatch:
     """Legacy class for backward compatibility."""
+
     name: str
     script: str
     description: str
@@ -307,6 +310,7 @@ Object.defineProperty(window, 'screenY', {get: () => 0});
 # =============================================================================
 # Public API Functions
 # =============================================================================
+
 
 def get_random_http_profile() -> HttpHeaderProfile:
     """Get a random HTTP header profile for fingerprint diversity."""

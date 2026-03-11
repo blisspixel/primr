@@ -31,93 +31,109 @@ logger = get_logger("link_scorer")
 # Pages that typically contain valuable company information
 HIGH_VALUE_PATTERNS = {
     # About pages
-    r'/about': 0.9,
-    r'/about-us': 0.9,
-    r'/company': 0.85,
-    r'/who-we-are': 0.85,
-    r'/our-story': 0.8,
-    r'/history': 0.75,
-
+    r"/about": 0.9,
+    r"/about-us": 0.9,
+    r"/company": 0.85,
+    r"/who-we-are": 0.85,
+    r"/our-story": 0.8,
+    r"/history": 0.75,
     # Leadership/Team
-    r'/team': 0.85,
-    r'/leadership': 0.9,
-    r'/management': 0.85,
-    r'/executives': 0.85,
-    r'/board': 0.8,
-    r'/people': 0.7,
-
+    r"/team": 0.85,
+    r"/leadership": 0.9,
+    r"/management": 0.85,
+    r"/executives": 0.85,
+    r"/board": 0.8,
+    r"/people": 0.7,
     # Products/Services
-    r'/products': 0.85,
-    r'/services': 0.85,
-    r'/solutions': 0.8,
-    r'/offerings': 0.75,
-    r'/what-we-do': 0.8,
-    r'/capabilities': 0.75,
-
+    r"/products": 0.85,
+    r"/services": 0.85,
+    r"/solutions": 0.8,
+    r"/offerings": 0.75,
+    r"/what-we-do": 0.8,
+    r"/capabilities": 0.75,
     # Investors/Financial
-    r'/investors': 0.9,
-    r'/investor-relations': 0.9,
-    r'/financials': 0.85,
-    r'/annual-report': 0.85,
-    r'/sec-filings': 0.8,
-
+    r"/investors": 0.9,
+    r"/investor-relations": 0.9,
+    r"/financials": 0.85,
+    r"/annual-report": 0.85,
+    r"/sec-filings": 0.8,
     # News/Press
-    r'/news': 0.7,
-    r'/press': 0.75,
-    r'/media': 0.7,
-    r'/newsroom': 0.75,
-    r'/press-releases': 0.7,
-
+    r"/news": 0.7,
+    r"/press": 0.75,
+    r"/media": 0.7,
+    r"/newsroom": 0.75,
+    r"/press-releases": 0.7,
     # Careers (indicates company size/culture)
-    r'/careers': 0.6,
-    r'/jobs': 0.55,
-    r'/join': 0.5,
-
+    r"/careers": 0.6,
+    r"/jobs": 0.55,
+    r"/join": 0.5,
     # Contact (basic info)
-    r'/contact': 0.5,
-    r'/locations': 0.6,
+    r"/contact": 0.5,
+    r"/locations": 0.6,
 }
 
 # Pages to avoid (low value or problematic)
 LOW_VALUE_PATTERNS = {
-    r'/login': -0.9,
-    r'/signin': -0.9,
-    r'/signup': -0.9,
-    r'/register': -0.9,
-    r'/cart': -0.9,
-    r'/checkout': -0.9,
-    r'/account': -0.8,
-    r'/privacy': -0.5,
-    r'/terms': -0.5,
-    r'/cookie': -0.5,
-    r'/legal': -0.4,
-    r'/sitemap': -0.3,
-    r'/search': -0.6,
-    r'/tag/': -0.4,
-    r'/category/': -0.3,
-    r'/page/\d+': -0.5,
-    r'\?.*page=': -0.4,
+    r"/login": -0.9,
+    r"/signin": -0.9,
+    r"/signup": -0.9,
+    r"/register": -0.9,
+    r"/cart": -0.9,
+    r"/checkout": -0.9,
+    r"/account": -0.8,
+    r"/privacy": -0.5,
+    r"/terms": -0.5,
+    r"/cookie": -0.5,
+    r"/legal": -0.4,
+    r"/sitemap": -0.3,
+    r"/search": -0.6,
+    r"/tag/": -0.4,
+    r"/category/": -0.3,
+    r"/page/\d+": -0.5,
+    r"\?.*page=": -0.4,
 }
 
 # File extensions to avoid
 SKIP_EXTENSIONS = {
-    '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
-    '.zip', '.rar', '.tar', '.gz',
-    '.jpg', '.jpeg', '.png', '.gif', '.svg', '.webp',
-    '.mp3', '.mp4', '.avi', '.mov', '.wmv',
-    '.css', '.js', '.json', '.xml',
+    ".pdf",
+    ".doc",
+    ".docx",
+    ".xls",
+    ".xlsx",
+    ".ppt",
+    ".pptx",
+    ".zip",
+    ".rar",
+    ".tar",
+    ".gz",
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".gif",
+    ".svg",
+    ".webp",
+    ".mp3",
+    ".mp4",
+    ".avi",
+    ".mov",
+    ".wmv",
+    ".css",
+    ".js",
+    ".json",
+    ".xml",
 }
 
 
 @dataclass
 class ScoredLink:
     """A link with relevance score."""
+
     url: str
     text: str
     score: float
     reasons: list[str] = field(default_factory=list)
 
-    def __lt__(self, other: 'ScoredLink') -> bool:
+    def __lt__(self, other: "ScoredLink") -> bool:
         """Enable sorting by score (descending)."""
         return self.score > other.score
 
@@ -125,6 +141,7 @@ class ScoredLink:
 @dataclass
 class LinkInfo:
     """Information about a discovered link."""
+
     url: str
     text: str
     source_url: str | None = None
@@ -156,7 +173,7 @@ class LinkScorer:
         self,
         high_value_patterns: dict[str, float] | None = None,
         low_value_patterns: dict[str, float] | None = None,
-        skip_extensions: set[str] | None = None
+        skip_extensions: set[str] | None = None,
     ):
         """
         Initialize the link scorer.
@@ -173,10 +190,7 @@ class LinkScorer:
         self._seen_content_hashes: set[str] = set()
 
     def score_link(
-        self,
-        link: LinkInfo,
-        company_name: str | None = None,
-        base_domain: str | None = None
+        self, link: LinkInfo, company_name: str | None = None, base_domain: str | None = None
     ) -> ScoredLink:
         """
         Score a single link.
@@ -207,10 +221,7 @@ class LinkScorer:
         for ext in self._skip_extensions:
             if path.endswith(ext):
                 return ScoredLink(
-                    url=link.url,
-                    text=link.text,
-                    score=0.0,
-                    reasons=[f"Skipped extension: {ext}"]
+                    url=link.url, text=link.text, score=0.0, reasons=[f"Skipped extension: {ext}"]
                 )
 
         # Check high-value patterns
@@ -236,8 +247,16 @@ class LinkScorer:
 
         # Valuable keywords in link text
         valuable_keywords = [
-            'about', 'team', 'leadership', 'products', 'services',
-            'investors', 'news', 'press', 'contact', 'history'
+            "about",
+            "team",
+            "leadership",
+            "products",
+            "services",
+            "investors",
+            "news",
+            "press",
+            "contact",
+            "history",
         ]
         for keyword in valuable_keywords:
             if keyword in text:
@@ -256,12 +275,12 @@ class LinkScorer:
             reasons.append("Long URL")
 
         # Penalize URLs with many query parameters
-        if parsed.query and parsed.query.count('&') > 2:
+        if parsed.query and parsed.query.count("&") > 2:
             score -= 0.15
             reasons.append("Many query parameters")
 
         # Penalize deep paths
-        path_depth = path.count('/') - 1
+        path_depth = path.count("/") - 1
         if path_depth > 4:
             score -= 0.1 * (path_depth - 4)
             reasons.append(f"Deep path: {path_depth} levels")
@@ -269,18 +288,10 @@ class LinkScorer:
         # Clamp score
         score = max(0.0, min(1.0, score))
 
-        return ScoredLink(
-            url=link.url,
-            text=link.text,
-            score=score,
-            reasons=reasons
-        )
+        return ScoredLink(url=link.url, text=link.text, score=score, reasons=reasons)
 
     def score_links(
-        self,
-        links: list[LinkInfo],
-        company_name: str | None = None,
-        base_url: str | None = None
+        self, links: list[LinkInfo], company_name: str | None = None, base_url: str | None = None
     ) -> list[ScoredLink]:
         """
         Score multiple links.
@@ -309,10 +320,7 @@ class LinkScorer:
         return scored
 
     def get_top_links(
-        self,
-        scored_links: list[ScoredLink],
-        limit: int = 10,
-        min_score: float = 0.3
+        self, scored_links: list[ScoredLink], limit: int = 10, min_score: float = 0.3
     ) -> list[ScoredLink]:
         """
         Get top-scoring links.
@@ -328,10 +336,7 @@ class LinkScorer:
         filtered = [link for link in scored_links if link.score >= min_score]
         return filtered[:limit]
 
-    def deduplicate_links(
-        self,
-        links: list[LinkInfo]
-    ) -> list[LinkInfo]:
+    def deduplicate_links(self, links: list[LinkInfo]) -> list[LinkInfo]:
         """
         Remove duplicate links.
 
@@ -359,17 +364,13 @@ class LinkScorer:
         try:
             parsed = urlparse(url)
             # Remove trailing slash, fragment, and common tracking params
-            path = parsed.path.rstrip('/')
+            path = parsed.path.rstrip("/")
             normalized = f"{parsed.scheme}://{parsed.netloc}{path}"
             return normalized.lower()
         except ValueError:
             return url.lower()
 
-    def filter_same_domain(
-        self,
-        links: list[LinkInfo],
-        base_url: str
-    ) -> list[LinkInfo]:
+    def filter_same_domain(self, links: list[LinkInfo], base_url: str) -> list[LinkInfo]:
         """
         Filter links to same domain only.
 
@@ -385,15 +386,9 @@ class LinkScorer:
         except ValueError:
             return links
 
-        return [
-            link for link in links
-            if urlparse(link.url).netloc.lower() == base_domain
-        ]
+        return [link for link in links if urlparse(link.url).netloc.lower() == base_domain]
 
-    def categorize_links(
-        self,
-        scored_links: list[ScoredLink]
-    ) -> dict[str, list[ScoredLink]]:
+    def categorize_links(self, scored_links: list[ScoredLink]) -> dict[str, list[ScoredLink]]:
         """
         Categorize links by type.
 
@@ -408,30 +403,27 @@ class LinkScorer:
         for link in scored_links:
             path = urlparse(link.url).path.lower()
 
-            if any(p in path for p in ['/about', '/company', '/who-we-are']):
-                categories['about'].append(link)
-            elif any(p in path for p in ['/team', '/leadership', '/management']):
-                categories['leadership'].append(link)
-            elif any(p in path for p in ['/products', '/services', '/solutions']):
-                categories['products'].append(link)
-            elif any(p in path for p in ['/investors', '/financials']):
-                categories['investors'].append(link)
-            elif any(p in path for p in ['/news', '/press', '/media']):
-                categories['news'].append(link)
-            elif any(p in path for p in ['/careers', '/jobs']):
-                categories['careers'].append(link)
-            elif any(p in path for p in ['/contact', '/locations']):
-                categories['contact'].append(link)
+            if any(p in path for p in ["/about", "/company", "/who-we-are"]):
+                categories["about"].append(link)
+            elif any(p in path for p in ["/team", "/leadership", "/management"]):
+                categories["leadership"].append(link)
+            elif any(p in path for p in ["/products", "/services", "/solutions"]):
+                categories["products"].append(link)
+            elif any(p in path for p in ["/investors", "/financials"]):
+                categories["investors"].append(link)
+            elif any(p in path for p in ["/news", "/press", "/media"]):
+                categories["news"].append(link)
+            elif any(p in path for p in ["/careers", "/jobs"]):
+                categories["careers"].append(link)
+            elif any(p in path for p in ["/contact", "/locations"]):
+                categories["contact"].append(link)
             else:
-                categories['other'].append(link)
+                categories["other"].append(link)
 
         return dict(categories)
 
     def get_diverse_links(
-        self,
-        scored_links: list[ScoredLink],
-        per_category: int = 2,
-        total_limit: int = 15
+        self, scored_links: list[ScoredLink], per_category: int = 2, total_limit: int = 15
     ) -> list[ScoredLink]:
         """
         Get diverse links from different categories.
@@ -447,7 +439,16 @@ class LinkScorer:
         categories = self.categorize_links(scored_links)
 
         # Priority order for categories
-        priority = ['about', 'leadership', 'products', 'investors', 'news', 'contact', 'careers', 'other']
+        priority = [
+            "about",
+            "leadership",
+            "products",
+            "investors",
+            "news",
+            "contact",
+            "careers",
+            "other",
+        ]
 
         selected: list[ScoredLink] = []
         for category in priority:
@@ -481,9 +482,7 @@ def reset_link_scorer() -> None:
 
 
 def score_links(
-    links: list[LinkInfo],
-    company_name: str | None = None,
-    base_url: str | None = None
+    links: list[LinkInfo], company_name: str | None = None, base_url: str | None = None
 ) -> list[ScoredLink]:
     """Score links using the global scorer."""
     return get_link_scorer().score_links(links, company_name, base_url)
@@ -493,7 +492,7 @@ def get_best_links(
     links: list[LinkInfo],
     company_name: str | None = None,
     base_url: str | None = None,
-    limit: int = 10
+    limit: int = 10,
 ) -> list[ScoredLink]:
     """Get the best links from a list."""
     scorer = get_link_scorer()

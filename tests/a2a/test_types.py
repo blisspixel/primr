@@ -80,9 +80,11 @@ class TestA2ATaskMapping:
         assert restored.skill_id == original.skill_id
 
     def test_from_dict_missing_created_at(self):
-        mapping = A2ATaskMapping.from_dict({
-            "task_id": "t-1",
-            "job_id": "j-1",
-            "skill_id": "check",
-        })
+        mapping = A2ATaskMapping.from_dict(
+            {
+                "task_id": "t-1",
+                "job_id": "j-1",
+                "skill_id": "check",
+            }
+        )
         assert isinstance(mapping.created_at, datetime)

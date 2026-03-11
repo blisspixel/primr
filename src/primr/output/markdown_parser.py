@@ -15,30 +15,30 @@ class MarkdownParser:
     """Robust markdown parser that handles all formatting variations."""
 
     # Bullet patterns: *, -, •, followed by 1-4 spaces
-    BULLET_PATTERN = re.compile(r'^(\s*)([*\-•])\s{1,4}(.+)$')
+    BULLET_PATTERN = re.compile(r"^(\s*)([*\-•])\s{1,4}(.+)$")
 
     # Numbered list: 1. or 1) followed by space
-    NUMBERED_PATTERN = re.compile(r'^(\s*)(\d+)[.)]\s+(.+)$')
+    NUMBERED_PATTERN = re.compile(r"^(\s*)(\d+)[.)]\s+(.+)$")
 
     # Heading patterns: # to ####
-    HEADING_PATTERN = re.compile(r'^(#{1,4})\s+(.+)$')
+    HEADING_PATTERN = re.compile(r"^(#{1,4})\s+(.+)$")
 
     # Inline header: "Label: content" where Label is capitalized
     # Excludes URLs (http:, https:, ftp:) and times (10:30)
-    INLINE_HEADER_PATTERN = re.compile(r'^([A-Z][A-Za-z\s&]{2,40}):\s*(.+)$')
+    INLINE_HEADER_PATTERN = re.compile(r"^([A-Z][A-Za-z\s&]{2,40}):\s*(.+)$")
 
     # Bold patterns: **text** or __text__
-    BOLD_PATTERN = re.compile(r'\*\*(.+?)\*\*|__(.+?)__')
+    BOLD_PATTERN = re.compile(r"\*\*(.+?)\*\*|__(.+?)__")
 
     # Italic patterns: *text* or _text_ (single)
-    ITALIC_PATTERN = re.compile(r'(?<!\*)\*([^*]+)\*(?!\*)|(?<!_)_([^_]+)_(?!_)')
+    ITALIC_PATTERN = re.compile(r"(?<!\*)\*([^*]+)\*(?!\*)|(?<!_)_([^_]+)_(?!_)")
 
     # URL pattern for excluding false positive inline headers
-    URL_PREFIXES = {'http', 'https', 'ftp', 'mailto', 'tel'}
+    URL_PREFIXES = {"http", "https", "ftp", "mailto", "tel"}
 
     # Markdown table patterns (Deep Research often includes tables)
-    TABLE_ROW_PATTERN = re.compile(r'^\|(.+)\|$')
-    TABLE_SEPARATOR_PATTERN = re.compile(r'^\|[\s\-:|]+\|$')
+    TABLE_ROW_PATTERN = re.compile(r"^\|(.+)\|$")
+    TABLE_SEPARATOR_PATTERN = re.compile(r"^\|[\s\-:|]+\|$")
 
     def parse_line(self, line: str) -> ParsedLine:
         """
@@ -61,72 +61,68 @@ class MarkdownParser:
         stripped = line.rstrip()
 
         if not stripped:
-            return ParsedLine('empty', '', 0, line, {})
+            return ParsedLine("empty", "", 0, line, {})
 
         # Check heading
         if match := self.HEADING_PATTERN.match(stripped):
             level = len(match.group(1))
-            return ParsedLine('heading', match.group(2).strip(), level, line, {})
+            return ParsedLine("heading", match.group(2).strip(), level, line, {})
 
         # Check bullet (handles *, -, • with variable spacing)
         if match := self.BULLET_PATTERN.match(stripped):
             indent = len(match.group(1)) // 4  # 4 spaces = 1 level
             content = match.group(3)
-            return ParsedLine('bullet', content, indent, line,
-                            {'bullet_char': match.group(2)})
+            return ParsedLine("bullet", content, indent, line, {"bullet_char": match.group(2)})
 
         # Check numbered
         if match := self.NUMBERED_PATTERN.match(stripped):
             indent = len(match.group(1)) // 4
-            return ParsedLine('numbered', match.group(3), indent, line,
-                            {'number': match.group(2)})
+            return ParsedLine("numbered", match.group(3), indent, line, {"number": match.group(2)})
 
         # Check inline header (but not if it looks like a URL or time)
         if match := self.INLINE_HEADER_PATTERN.match(stripped):
             header, content = match.group(1), match.group(2)
             # Exclude false positives like "https:" or "10:30"
             if header.lower() not in self.URL_PREFIXES and not header.isdigit():
-                return ParsedLine('inline_header', content, 0, line,
-                                {'header_text': header})
+                return ParsedLine("inline_header", content, 0, line, {"header_text": header})
 
         # Check table row (|col1|col2|col3|) - Deep Research often includes tables
         if self.TABLE_ROW_PATTERN.match(stripped):
             # Check if it's a separator row (|---|---|)
             if self.TABLE_SEPARATOR_PATTERN.match(stripped):
-                return ParsedLine('table_separator', '', 0, line, {})
+                return ParsedLine("table_separator", "", 0, line, {})
             # Parse cells
-            cells = [c.strip() for c in stripped.strip('|').split('|')]
-            return ParsedLine('table_row', stripped, 0, line, {'cells': cells})
+            cells = [c.strip() for c in stripped.strip("|").split("|")]
+            return ParsedLine("table_row", stripped, 0, line, {"cells": cells})
 
         # Plain text fallback
-        return ParsedLine('text', stripped.lstrip(), 0, line, {})
-
+        return ParsedLine("text", stripped.lstrip(), 0, line, {})
 
     def _same_block_type(self, block_type: str, parsed: ParsedLine) -> bool:
         """Check if a parsed line belongs to the same block type."""
-        if block_type == 'paragraph' and parsed.type == 'text':
+        if block_type == "paragraph" and parsed.type == "text":
             return True
-        if block_type == 'bullet_list' and parsed.type == 'bullet':
+        if block_type == "bullet_list" and parsed.type == "bullet":
             return True
-        if block_type == 'numbered_list' and parsed.type == 'numbered':
+        if block_type == "numbered_list" and parsed.type == "numbered":
             return True
-        return bool(block_type == 'table' and parsed.type in ('table_row', 'table_separator'))
+        return bool(block_type == "table" and parsed.type in ("table_row", "table_separator"))
 
     def _get_block_type(self, parsed: ParsedLine) -> str:
         """Get the block type for a parsed line."""
-        if parsed.type == 'text':
-            return 'paragraph'
-        if parsed.type == 'bullet':
-            return 'bullet_list'
-        if parsed.type == 'numbered':
-            return 'numbered_list'
-        if parsed.type in ('heading', 'subheading'):
-            return 'heading'
-        if parsed.type == 'inline_header':
-            return 'paragraph'
-        if parsed.type in ('table_row', 'table_separator'):
-            return 'table'
-        return 'paragraph'
+        if parsed.type == "text":
+            return "paragraph"
+        if parsed.type == "bullet":
+            return "bullet_list"
+        if parsed.type == "numbered":
+            return "numbered_list"
+        if parsed.type in ("heading", "subheading"):
+            return "heading"
+        if parsed.type == "inline_header":
+            return "paragraph"
+        if parsed.type in ("table_row", "table_separator"):
+            return "table"
+        return "paragraph"
 
     def parse_content(self, content: str) -> list[ContentBlock]:
         """
@@ -141,7 +137,7 @@ class MarkdownParser:
         Returns:
             List of ContentBlock objects
         """
-        lines = content.split('\n')
+        lines = content.split("\n")
         blocks: list[ContentBlock] = []
         current_block: ContentBlock | None = None
 
@@ -151,7 +147,7 @@ class MarkdownParser:
             parsed = self.parse_line(line)
 
             # Skip empty lines but close current block
-            if parsed.type == 'empty':
+            if parsed.type == "empty":
                 if current_block and current_block.lines:
                     blocks.append(current_block)
                     current_block = None
@@ -159,23 +155,19 @@ class MarkdownParser:
                 continue
 
             # Detect sub-heading: plain text followed by bullet
-            if parsed.type == 'text' and i + 1 < len(lines):
+            if parsed.type == "text" and i + 1 < len(lines):
                 next_parsed = self.parse_line(lines[i + 1])
-                if next_parsed.type == 'bullet':
+                if next_parsed.type == "bullet":
                     # This text line is actually a sub-heading
                     parsed = ParsedLine(
-                        'subheading',
-                        parsed.content,
-                        0,
-                        parsed.raw,
-                        {'detected': True}
+                        "subheading", parsed.content, 0, parsed.raw, {"detected": True}
                     )
 
             # Headings always start a new block
-            if parsed.type in ('heading', 'subheading'):
+            if parsed.type in ("heading", "subheading"):
                 if current_block and current_block.lines:
                     blocks.append(current_block)
-                blocks.append(ContentBlock('heading', [parsed], {'level': parsed.level}))
+                blocks.append(ContentBlock("heading", [parsed], {"level": parsed.level}))
                 current_block = None
                 i += 1
                 continue
@@ -215,17 +207,17 @@ class MarkdownParser:
         rows: list[list[str]] = []
 
         for line in block.lines:
-            if line.type == 'table_separator':
+            if line.type == "table_separator":
                 continue  # Skip separator rows
-            if line.type == 'table_row':
-                cells = line.metadata.get('cells', [])
+            if line.type == "table_row":
+                cells = line.metadata.get("cells", [])
                 if not headers:
                     # First row is headers
                     headers = cells
                 else:
                     rows.append(cells)
 
-        return {'headers': headers, 'rows': rows}
+        return {"headers": headers, "rows": rows}
 
     def apply_inline_formatting(self, paragraph: Any, text: str) -> None:
         """
@@ -254,7 +246,7 @@ class MarkdownParser:
         for match in bold_matches:
             # Add text before the match
             if match.start() > last_end:
-                paragraph.add_run(text[last_end:match.start()])
+                paragraph.add_run(text[last_end : match.start()])
 
             # Add bold text (group 1 is **text**, group 2 is __text__)
             bold_text = match.group(1) or match.group(2)
@@ -280,9 +272,9 @@ class MarkdownParser:
             Plain text with formatting markers removed
         """
         # Remove bold markers
-        result = self.BOLD_PATTERN.sub(r'\1\2', text)
+        result = self.BOLD_PATTERN.sub(r"\1\2", text)
         # Remove italic markers (be careful not to remove asterisks in bold)
-        result = self.ITALIC_PATTERN.sub(r'\1\2', result)
+        result = self.ITALIC_PATTERN.sub(r"\1\2", result)
         return result
 
     def extract_bold_segments(self, text: str) -> list[tuple[str, bool]]:
@@ -307,7 +299,7 @@ class MarkdownParser:
         for match in bold_matches:
             # Add text before the match
             if match.start() > last_end:
-                segments.append((text[last_end:match.start()], False))
+                segments.append((text[last_end : match.start()], False))
 
             # Add bold text
             bold_text = match.group(1) or match.group(2)
@@ -331,15 +323,15 @@ class ArtifactDetector:
     """
 
     # Patterns that indicate unconverted markdown
-    HEADING_ARTIFACT = re.compile(r'^#{1,6}\s+', re.MULTILINE)
-    BOLD_ARTIFACT = re.compile(r'\*\*[^*]+\*\*|__[^_]+__')
-    ITALIC_ARTIFACT = re.compile(r'(?<!\*)\*[^*\n]+\*(?!\*)|(?<!_)_[^_\n]+_(?!_)')
-    BULLET_ARTIFACT = re.compile(r'^\s*[*\-•]\s{1,4}(?=[A-Za-z])', re.MULTILINE)
+    HEADING_ARTIFACT = re.compile(r"^#{1,6}\s+", re.MULTILINE)
+    BOLD_ARTIFACT = re.compile(r"\*\*[^*]+\*\*|__[^_]+__")
+    ITALIC_ARTIFACT = re.compile(r"(?<!\*)\*[^*\n]+\*(?!\*)|(?<!_)_[^_\n]+_(?!_)")
+    BULLET_ARTIFACT = re.compile(r"^\s*[*\-•]\s{1,4}(?=[A-Za-z])", re.MULTILINE)
 
     def __init__(self):
         self.artifacts_found: list[dict] = []
 
-    def scan_text(self, text: str, context: str = '') -> list[dict]:
+    def scan_text(self, text: str, context: str = "") -> list[dict]:
         """
         Scan text for markdown artifacts.
 
@@ -354,30 +346,36 @@ class ArtifactDetector:
 
         # Check for heading artifacts (## at line start)
         for match in self.HEADING_ARTIFACT.finditer(text):
-            artifacts.append({
-                'type': 'heading',
-                'match': match.group().strip(),
-                'context': context,
-                'position': match.start()
-            })
+            artifacts.append(
+                {
+                    "type": "heading",
+                    "match": match.group().strip(),
+                    "context": context,
+                    "position": match.start(),
+                }
+            )
 
         # Check for bold artifacts (**text**)
         for match in self.BOLD_ARTIFACT.finditer(text):
-            artifacts.append({
-                'type': 'bold',
-                'match': match.group(),
-                'context': context,
-                'position': match.start()
-            })
+            artifacts.append(
+                {
+                    "type": "bold",
+                    "match": match.group(),
+                    "context": context,
+                    "position": match.start(),
+                }
+            )
 
         # Check for bullet artifacts at line start
         for match in self.BULLET_ARTIFACT.finditer(text):
-            artifacts.append({
-                'type': 'bullet',
-                'match': match.group().strip(),
-                'context': context,
-                'position': match.start()
-            })
+            artifacts.append(
+                {
+                    "type": "bullet",
+                    "match": match.group().strip(),
+                    "context": context,
+                    "position": match.start(),
+                }
+            )
 
         return artifacts
 
@@ -431,4 +429,4 @@ class ArtifactDetector:
         if len(self.artifacts_found) > 10:
             summary_lines.append(f"  ... and {len(self.artifacts_found) - 10} more")
 
-        return '\n'.join(summary_lines)
+        return "\n".join(summary_lines)

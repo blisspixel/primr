@@ -34,6 +34,7 @@ from primr.utils.errors.base import CATEGORY_GUIDANCE, get_correlation_id
 # BASE ERROR CLASS
 # =============================================================================
 
+
 @dataclass
 class PrimrError(Exception, ABC):
     """
@@ -166,6 +167,7 @@ class PrimrError(Exception, ABC):
 # BASE TRANSIENT/PERMANENT CLASSES
 # =============================================================================
 
+
 @dataclass
 class TransientError(PrimrError):
     """
@@ -197,6 +199,7 @@ class PermanentError(PrimrError):
 # =============================================================================
 # SPECIFIC ERROR TYPES
 # =============================================================================
+
 
 @dataclass
 class TypedRateLimitError(TransientError):

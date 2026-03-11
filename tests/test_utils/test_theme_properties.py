@@ -63,17 +63,10 @@ class TestSymbolVocabularyConsistency:
         # Plain theme should use ASCII only
         assert indicator.isascii(), "Plain theme indicator should be ASCII"
 
-    @given(
-        st.sampled_from(STATUS_TYPES),
-        st.booleans(),
-        st.booleans()
-    )
+    @given(st.sampled_from(STATUS_TYPES), st.booleans(), st.booleans())
     @settings(max_examples=100)
     def test_indicator_deterministic(
-        self,
-        status: str,
-        supports_color: bool,
-        supports_unicode: bool
+        self, status: str, supports_color: bool, supports_unicode: bool
     ):
         """Same configuration always produces same indicator."""
         theme1 = Theme.for_terminal(supports_color, supports_unicode)
@@ -87,8 +80,7 @@ class TestSymbolVocabularyConsistency:
         indicators = [theme.get_indicator(s) for s in STATUS_TYPES]
 
         # All indicators should be unique
-        assert len(indicators) == len(set(indicators)), \
-            "Status indicators should be unique"
+        assert len(indicators) == len(set(indicators)), "Status indicators should be unique"
 
     def test_unknown_status_returns_bullet(self):
         """Unknown status types fall back to bullet indicator."""
@@ -172,7 +164,7 @@ class TestAnsiStripping:
         assert result == "success"
         assert "\033" not in result
 
-    @given(st.text(min_size=1, max_size=50, alphabet=st.characters(blacklist_categories=('Cs',))))
+    @given(st.text(min_size=1, max_size=50, alphabet=st.characters(blacklist_categories=("Cs",))))
     @settings(max_examples=100)
     def test_visible_len_matches_stripped_len(self, text: str):
         """Visible length equals length of stripped text."""
@@ -192,11 +184,7 @@ class TestThemeFactory:
 
     @given(st.booleans(), st.booleans())
     @settings(max_examples=100)
-    def test_get_theme_returns_valid_theme(
-        self,
-        supports_color: bool,
-        supports_unicode: bool
-    ):
+    def test_get_theme_returns_valid_theme(self, supports_color: bool, supports_unicode: bool):
         """Factory always returns a valid Theme instance."""
         theme = get_theme(supports_color, supports_unicode)
 

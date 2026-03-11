@@ -128,7 +128,10 @@ class TestSWOTAnalysis:
         swot = SWOTAnalysis(
             company_name="Test Corp",
             strengths=[SWOTItem(text="S1", category="strength")],
-            weaknesses=[SWOTItem(text="W1", category="weakness"), SWOTItem(text="W2", category="weakness")],
+            weaknesses=[
+                SWOTItem(text="W1", category="weakness"),
+                SWOTItem(text="W2", category="weakness"),
+            ],
         )
         summary = swot.get_summary()
         assert "Test Corp" in summary
@@ -198,9 +201,7 @@ class TestCompetitiveAnalyzer:
     def test_identify_competitors_excludes_self(self, analyzer):
         """Test that company itself is excluded."""
         content = "Acme Corp competes with Acme Corp and Rival Inc."
-        competitors = analyzer.identify_competitors(
-            "Acme Corp", "Test company", content
-        )
+        competitors = analyzer.identify_competitors("Acme Corp", "Test company", content)
         names = [c.name.lower() for c in competitors]
         assert "acme corp" not in names
 
@@ -240,8 +241,10 @@ class TestCompetitiveAnalyzer:
         competitor_content = "Rival is a regional player with limited products."
 
         comparison = analyzer.compare_companies(
-            "Acme Corp", company_content,
-            "Rival Inc", competitor_content,
+            "Acme Corp",
+            company_content,
+            "Rival Inc",
+            competitor_content,
         )
 
         assert comparison.company_name == "Acme Corp"
@@ -255,12 +258,17 @@ class TestCompetitiveAnalyzer:
         competitor_content = "Small regional company with basic products."
 
         comparison = analyzer.compare_companies(
-            "Leader Corp", company_content,
-            "Small Corp", competitor_content,
+            "Leader Corp",
+            company_content,
+            "Small Corp",
+            competitor_content,
         )
 
         # Leader should have advantages
-        assert len(comparison.competitive_advantage) > 0 or len(comparison.competitive_disadvantage) > 0
+        assert (
+            len(comparison.competitive_advantage) > 0
+            or len(comparison.competitive_disadvantage) > 0
+        )
 
     def test_analyze_market(self, analyzer, sample_content):
         """Test market analysis."""
@@ -393,8 +401,10 @@ class TestGlobalFunctions:
         """Test compare_companies convenience function."""
         reset_competitive_analyzer()
         comparison = compare_companies(
-            "Company A", "Leading innovative company",
-            "Company B", "Small regional player",
+            "Company A",
+            "Leading innovative company",
+            "Company B",
+            "Small regional player",
         )
         assert comparison.company_name == "Company A"
         assert comparison.competitor_name == "Company B"

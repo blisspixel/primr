@@ -39,7 +39,7 @@ def sanitize_text(text: str) -> str:
         return text
     # Remove NULL and control characters (except tab, newline, carriage return)
     # XML 1.0 allows: #x9 (tab), #xA (newline), #xD (carriage return), #x20-#xD7FF, etc.
-    return re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F]', '', text)
+    return re.sub(r"[\x00-\x08\x0B\x0C\x0E-\x1F]", "", text)
 
 
 def add_hyperlink(paragraph: Any, text: str, url: str) -> None:
@@ -53,20 +53,20 @@ def add_hyperlink(paragraph: Any, text: str, url: str) -> None:
     r_id = part.relate_to(
         url,
         "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink",
-        is_external=True
+        is_external=True,
     )
-    hyperlink = OxmlElement('w:hyperlink')
-    hyperlink.set(qn('r:id'), r_id)
-    new_run = OxmlElement('w:r')
-    rPr = OxmlElement('w:rPr')
-    c = OxmlElement('w:color')
-    c.set(qn('w:val'), "0563C1")
+    hyperlink = OxmlElement("w:hyperlink")
+    hyperlink.set(qn("r:id"), r_id)
+    new_run = OxmlElement("w:r")
+    rPr = OxmlElement("w:rPr")
+    c = OxmlElement("w:color")
+    c.set(qn("w:val"), "0563C1")
     rPr.append(c)
-    u = OxmlElement('w:u')
-    u.set(qn('w:val'), 'single')
+    u = OxmlElement("w:u")
+    u.set(qn("w:val"), "single")
     rPr.append(u)
     new_run.append(rPr)
-    t = OxmlElement('w:t')
+    t = OxmlElement("w:t")
     t.text = text
     new_run.append(t)
     hyperlink.append(new_run)
@@ -80,27 +80,27 @@ def parse_inline_markdown(paragraph: Any, text: str) -> None:
     if not text:
         return
     # Pattern: **bold**, *italic*, `code`, [text](url)
-    pattern = r'(\*\*.*?\*\*|\*[^*]+\*|`[^`]+`|\[[^\]]+\]\([^)]+\))'
+    pattern = r"(\*\*.*?\*\*|\*[^*]+\*|`[^`]+`|\[[^\]]+\]\([^)]+\))"
     parts = re.split(pattern, text)
     for part in parts:
         if not part:
             continue
         # Bold
-        if part.startswith('**') and part.endswith('**'):
+        if part.startswith("**") and part.endswith("**"):
             run = paragraph.add_run(part[2:-2])
             run.font.bold = True
         # Italic (single asterisk, not double)
-        elif part.startswith('*') and part.endswith('*') and not part.startswith('**'):
+        elif part.startswith("*") and part.endswith("*") and not part.startswith("**"):
             run = paragraph.add_run(part[1:-1])
             run.font.italic = True
         # Code
-        elif part.startswith('`') and part.endswith('`'):
+        elif part.startswith("`") and part.endswith("`"):
             run = paragraph.add_run(part[1:-1])
-            run.font.name = 'Consolas'
+            run.font.name = "Consolas"
             run.font.size = Pt(10)
         # Link
-        elif part.startswith('[') and '](' in part:
-            match = re.match(r'\[(.*?)\]\((.*?)\)', part)
+        elif part.startswith("[") and "](" in part:
+            match = re.match(r"\[(.*?)\]\((.*?)\)", part)
             if match:
                 add_hyperlink(paragraph, match.group(1), match.group(2))
         # Regular text
@@ -115,9 +115,9 @@ def render_table(doc: Document, table_lines: list[str]) -> None:
     rows = []
     for line in table_lines:
         # Skip separator lines (|---|---|)
-        if re.match(r'^\s*\|[\s\-:]+\|\s*$', line):
+        if re.match(r"^\s*\|[\s\-:]+\|\s*$", line):
             continue
-        cells = [cell.strip() for cell in line.split('|')]
+        cells = [cell.strip() for cell in line.split("|")]
         if cells and not cells[0]:
             cells = cells[1:]
         if cells and not cells[-1]:
@@ -129,7 +129,7 @@ def render_table(doc: Document, table_lines: list[str]) -> None:
     # Create table
     num_cols = max(len(row) for row in rows)
     table = doc.add_table(rows=len(rows), cols=num_cols)
-    table.style = 'Table Grid'
+    table.style = "Table Grid"
     for i, row_data in enumerate(rows):
         row = table.rows[i]
         for j, cell_text in enumerate(row_data):
@@ -146,9 +146,9 @@ def strip_heading_markers(text: str) -> str:
     text = sanitize_text(text)
     if not text:
         return ""
-    text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
-    text = re.sub(r'\*(.*?)\*', r'\1', text)
-    text = re.sub(r'`(.*?)`', r'\1', text)
+    text = re.sub(r"\*\*(.*?)\*\*", r"\1", text)
+    text = re.sub(r"\*(.*?)\*", r"\1", text)
+    text = re.sub(r"`(.*?)`", r"\1", text)
     return text.strip()
 
 
@@ -176,7 +176,7 @@ def strip_markdown_header_block(markdown_text: str) -> str:
     if not markdown_text:
         return markdown_text
 
-    lines = markdown_text.split('\n')
+    lines = markdown_text.split("\n")
 
     # Find where the header block ends
     # Look for: # Title, then metadata lines, then ---
@@ -187,7 +187,7 @@ def strip_markdown_header_block(markdown_text: str) -> str:
         i += 1
 
     # Check if first non-empty line is a top-level heading
-    if i < len(lines) and lines[i].strip().startswith('# '):
+    if i < len(lines) and lines[i].strip().startswith("# "):
         i += 1
 
         # Skip empty lines after heading
@@ -197,16 +197,16 @@ def strip_markdown_header_block(markdown_text: str) -> str:
         # Skip metadata lines (**Prepared by:**, **Date:**)
         while i < len(lines):
             line = lines[i].strip()
-            if (line.startswith('**') and ':**' in line) or not line:
+            if (line.startswith("**") and ":**" in line) or not line:
                 i += 1
-            elif line == '---':
+            elif line == "---":
                 i += 1
                 break
             else:
                 break
 
     # Return remaining content
-    return '\n'.join(lines[i:])
+    return "\n".join(lines[i:])
 
 
 def setup_document_styles(doc: Document) -> None:
@@ -219,8 +219,8 @@ def setup_document_styles(doc: Document) -> None:
     styles = doc.styles
 
     # Normal text style
-    normal = styles['Normal']
-    normal.font.name = 'Calibri'
+    normal = styles["Normal"]
+    normal.font.name = "Calibri"
     normal.font.size = Pt(11)
     normal.paragraph_format.space_after = Pt(8)
     normal.paragraph_format.line_spacing = 1.15
@@ -228,16 +228,16 @@ def setup_document_styles(doc: Document) -> None:
     # Heading styles with graduated spacing (less chunky than Word defaults)
     # Format: (style_name, font_size, bold, space_before, space_after)
     heading_configs = [
-        ('Heading 1', 18, True, 10, 6),   # Major sections
-        ('Heading 2', 14, True, 10, 4),   # Sub-sections
-        ('Heading 3', 12, True, 8, 4),    # Sub-sub-sections
-        ('Heading 4', 11, True, 6, 2),    # Minor headings
+        ("Heading 1", 18, True, 10, 6),  # Major sections
+        ("Heading 2", 14, True, 10, 4),  # Sub-sections
+        ("Heading 3", 12, True, 8, 4),  # Sub-sub-sections
+        ("Heading 4", 11, True, 6, 2),  # Minor headings
     ]
 
     for style_name, size, bold, before, after in heading_configs:
         if style_name in styles:
             style = styles[style_name]
-            style.font.name = 'Calibri'
+            style.font.name = "Calibri"
             style.font.size = Pt(size)
             style.font.bold = bold
             style.paragraph_format.space_before = Pt(before)
@@ -245,10 +245,7 @@ def setup_document_styles(doc: Document) -> None:
 
 
 def markdown_to_docx(
-    markdown_text: str,
-    output_path: Path,
-    title: str | None = None,
-    subtitle: str | None = None
+    markdown_text: str, output_path: Path, title: str | None = None, subtitle: str | None = None
 ) -> Path:
     """
     Convert markdown to DOCX with clean formatting.
@@ -286,7 +283,7 @@ def markdown_to_docx(
         p.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
         for run in p.runs:
             run.font.size = Pt(20)
-            run.font.name = 'Calibri'
+            run.font.name = "Calibri"
 
     if subtitle:
         p = doc.add_paragraph()
@@ -294,7 +291,7 @@ def markdown_to_docx(
         run = p.add_run(subtitle)
         run.font.size = Pt(12)  # Smaller than body, muted
         run.font.color.rgb = RGBColor(0x5F, 0x63, 0x68)
-        run.font.name = 'Calibri'
+        run.font.name = "Calibri"
 
     # Strip markdown header block if converter is adding title
     # This prevents duplicate headers
@@ -303,7 +300,7 @@ def markdown_to_docx(
         content = strip_markdown_header_block(markdown_text)
 
     # Process markdown
-    lines = content.split('\n')
+    lines = content.split("\n")
     i = 0
     in_table = False
     table_lines = []
@@ -314,13 +311,13 @@ def markdown_to_docx(
             i += 1
             continue
         # Table detection
-        if '|' in line and not in_table:
+        if "|" in line and not in_table:
             in_table = True
             table_lines = [line]
             i += 1
             continue
         if in_table:
-            if '|' in line:
+            if "|" in line:
                 table_lines.append(line)
                 i += 1
                 continue
@@ -331,41 +328,41 @@ def markdown_to_docx(
                 continue
         # H1-H4 (strip leading whitespace for detection)
         stripped = line.strip()
-        if stripped.startswith('#### '):
+        if stripped.startswith("#### "):
             heading = strip_heading_markers(stripped[5:])
             doc.add_heading(heading, level=4)
-        elif stripped.startswith('### '):
+        elif stripped.startswith("### "):
             heading = strip_heading_markers(stripped[4:])
             doc.add_heading(heading, level=3)
-        elif stripped.startswith('## '):
+        elif stripped.startswith("## "):
             heading = strip_heading_markers(stripped[3:])
             doc.add_heading(heading, level=2)
-        elif stripped.startswith('# '):
+        elif stripped.startswith("# "):
             heading = strip_heading_markers(stripped[2:])
             doc.add_heading(heading, level=1)
         # Blockquote
-        elif line.strip().startswith('> '):
+        elif line.strip().startswith("> "):
             quote_text = line.strip()[2:].strip()
             j = i + 1
-            while j < len(lines) and lines[j].strip().startswith('> '):
-                quote_text += '\n' + lines[j].strip()[2:].strip()
+            while j < len(lines) and lines[j].strip().startswith("> "):
+                quote_text += "\n" + lines[j].strip()[2:].strip()
                 j += 1
-            p = doc.add_paragraph(style='Quote')
+            p = doc.add_paragraph(style="Quote")
             parse_inline_markdown(p, quote_text)
             i = j - 1
         # Bullet point (single level only)
-        elif line.strip().startswith('- ') or line.strip().startswith('* '):
+        elif line.strip().startswith("- ") or line.strip().startswith("* "):
             bullet_text = line.strip()[2:].strip()
-            p = doc.add_paragraph(style='List Bullet')
+            p = doc.add_paragraph(style="List Bullet")
             parse_inline_markdown(p, bullet_text)
         # Numbered list
-        elif re.match(r'^\d+[.)]\s', line.strip()):
-            match = re.match(r'^\d+[.)]\s+(.*)', line.strip())
+        elif re.match(r"^\d+[.)]\s", line.strip()):
+            match = re.match(r"^\d+[.)]\s+(.*)", line.strip())
             if match:
-                p = doc.add_paragraph(style='List Number')
+                p = doc.add_paragraph(style="List Number")
                 parse_inline_markdown(p, match.group(1))
         # Horizontal rule - skip
-        elif line.strip().startswith('---'):
+        elif line.strip().startswith("---"):
             pass
         # Regular paragraph
         else:
@@ -392,7 +389,7 @@ def render_section_content(doc: Document, content: str) -> None:
         doc: Existing Document object
         content: Markdown content to render
     """
-    lines = content.split('\n')
+    lines = content.split("\n")
     i = 0
     in_table = False
     table_lines = []
@@ -403,13 +400,13 @@ def render_section_content(doc: Document, content: str) -> None:
             i += 1
             continue
         # Table detection
-        if '|' in line and not in_table:
+        if "|" in line and not in_table:
             in_table = True
             table_lines = [line]
             i += 1
             continue
         if in_table:
-            if '|' in line:
+            if "|" in line:
                 table_lines.append(line)
                 i += 1
                 continue
@@ -420,38 +417,38 @@ def render_section_content(doc: Document, content: str) -> None:
                 continue
         # H2-H4 (strip leading whitespace for detection)
         stripped = line.strip()
-        if stripped.startswith('#### '):
+        if stripped.startswith("#### "):
             heading = strip_heading_markers(stripped[5:])
             doc.add_heading(heading, level=4)
-        elif stripped.startswith('### '):
+        elif stripped.startswith("### "):
             heading = strip_heading_markers(stripped[4:])
             doc.add_heading(heading, level=3)
-        elif stripped.startswith('## '):
+        elif stripped.startswith("## "):
             heading = strip_heading_markers(stripped[3:])
             doc.add_heading(heading, level=2)
         # Blockquote
-        elif line.strip().startswith('> '):
+        elif line.strip().startswith("> "):
             quote_text = line.strip()[2:].strip()
             j = i + 1
-            while j < len(lines) and lines[j].strip().startswith('> '):
-                quote_text += '\n' + lines[j].strip()[2:].strip()
+            while j < len(lines) and lines[j].strip().startswith("> "):
+                quote_text += "\n" + lines[j].strip()[2:].strip()
                 j += 1
-            p = doc.add_paragraph(style='Quote')
+            p = doc.add_paragraph(style="Quote")
             parse_inline_markdown(p, quote_text)
             i = j - 1
         # Bullet point
-        elif line.strip().startswith('- ') or line.strip().startswith('* '):
+        elif line.strip().startswith("- ") or line.strip().startswith("* "):
             bullet_text = line.strip()[2:].strip()
-            p = doc.add_paragraph(style='List Bullet')
+            p = doc.add_paragraph(style="List Bullet")
             parse_inline_markdown(p, bullet_text)
         # Numbered list
-        elif re.match(r'^\d+[.)]\s', line.strip()):
-            match = re.match(r'^\d+[.)]\s+(.*)', line.strip())
+        elif re.match(r"^\d+[.)]\s", line.strip()):
+            match = re.match(r"^\d+[.)]\s+(.*)", line.strip())
             if match:
-                p = doc.add_paragraph(style='List Number')
+                p = doc.add_paragraph(style="List Number")
                 parse_inline_markdown(p, match.group(1))
         # Horizontal rule - skip
-        elif line.strip().startswith('---'):
+        elif line.strip().startswith("---"):
             pass
         # Regular paragraph
         else:

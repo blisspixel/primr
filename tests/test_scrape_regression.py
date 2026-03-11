@@ -218,12 +218,12 @@ class TestJSRenderedContentRegression:
 
         # Simulate a JS-heavy page that returns minimal content via HTTP
         http_result_quality = 0.1  # Very low quality
-        http_result_chars = 50     # Very few chars
+        http_result_chars = 50  # Very few chars
 
         # Check if escalation would be triggered
         should_escalate = (
-            http_result_quality < thresholds["quality_score_below"] or
-            http_result_chars < thresholds["char_count_below"]
+            http_result_quality < thresholds["quality_score_below"]
+            or http_result_chars < thresholds["char_count_below"]
         )
 
         assert should_escalate, "Low quality should trigger escalation"
@@ -484,9 +484,7 @@ class TestQualityEscalationThresholds:
             triggers_fired.append("boilerplate_ratio")
 
         # All triggers should fire for this poor content
-        assert len(triggers_fired) == 4, (
-            f"Expected all 4 triggers to fire, got {triggers_fired}"
-        )
+        assert len(triggers_fired) == 4, f"Expected all 4 triggers to fire, got {triggers_fired}"
 
     def test_no_escalation_for_good_content(self, thresholds):
         """Good content should not trigger escalation."""
@@ -510,8 +508,4 @@ class TestQualityEscalationThresholds:
             triggers_fired.append("boilerplate_ratio")
 
         # No triggers should fire for good content
-        assert len(triggers_fired) == 0, (
-            f"Expected no triggers to fire, got {triggers_fired}"
-        )
-
-
+        assert len(triggers_fired) == 0, f"Expected no triggers to fire, got {triggers_fired}"

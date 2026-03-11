@@ -23,6 +23,7 @@ from primr.output.templates import (
 # FIXTURES
 # =============================================================================
 
+
 @pytest.fixture(autouse=True)
 def reset_singleton():
     """Reset singleton before each test."""
@@ -58,6 +59,7 @@ def sample_report(template, sample_sections):
 # REPORT SECTION TESTS
 # =============================================================================
 
+
 class TestReportSection:
     """Tests for ReportSection dataclass."""
 
@@ -84,6 +86,7 @@ class TestReportSection:
 # REPORT STYLE TESTS
 # =============================================================================
 
+
 class TestReportStyle:
     """Tests for ReportStyle dataclass."""
 
@@ -108,6 +111,7 @@ class TestReportStyle:
 # REPORT METADATA TESTS
 # =============================================================================
 
+
 class TestReportMetadata:
     """Tests for ReportMetadata dataclass."""
 
@@ -128,6 +132,7 @@ class TestReportMetadata:
 # =============================================================================
 # REPORT TESTS
 # =============================================================================
+
 
 class TestReport:
     """Tests for Report dataclass."""
@@ -154,17 +159,20 @@ class TestReport:
     def test_add_section(self, sample_report):
         """Test adding a section."""
         initial_count = sample_report.section_count
-        sample_report.add_section(ReportSection(
-            section_type=SectionType.APPENDIX,
-            title="Appendix",
-            content="Additional information.",
-        ))
+        sample_report.add_section(
+            ReportSection(
+                section_type=SectionType.APPENDIX,
+                title="Appendix",
+                content="Additional information.",
+            )
+        )
         assert sample_report.section_count == initial_count + 1
 
 
 # =============================================================================
 # REPORT TEMPLATE TESTS
 # =============================================================================
+
 
 class TestReportTemplate:
     """Tests for ReportTemplate class."""
@@ -208,6 +216,7 @@ class TestReportTemplate:
 # RENDERING TESTS
 # =============================================================================
 
+
 class TestRendering:
     """Tests for report rendering."""
 
@@ -246,6 +255,7 @@ class TestRendering:
 # TABLE OF CONTENTS TESTS
 # =============================================================================
 
+
 class TestTableOfContents:
     """Tests for table of contents generation."""
 
@@ -261,13 +271,14 @@ class TestTableOfContents:
         toc = template.generate_toc(sample_report)
 
         # Title section should not be in TOC
-        lines = toc.split('\n')
+        lines = toc.split("\n")
         assert not any("Research Report]" in line for line in lines)
 
 
 # =============================================================================
 # HTML SPECIFIC TESTS
 # =============================================================================
+
 
 class TestHtmlRendering:
     """Tests for HTML-specific rendering."""
@@ -307,6 +318,7 @@ class TestHtmlRendering:
 # SINGLETON TESTS
 # =============================================================================
 
+
 class TestSingleton:
     """Tests for singleton access."""
 
@@ -327,6 +339,7 @@ class TestSingleton:
 # =============================================================================
 # CONVENIENCE FUNCTION TESTS
 # =============================================================================
+
 
 class TestConvenienceFunctions:
     """Tests for convenience functions."""
@@ -351,6 +364,7 @@ class TestConvenienceFunctions:
 # =============================================================================
 # EDGE CASE TESTS
 # =============================================================================
+
 
 class TestEdgeCases:
     """Tests for edge cases."""

@@ -67,26 +67,32 @@ class ResearchJobState:
     qa_score: int | None = None  # QA score (0-100) when available
 
     # Stage ordering for monotonic progression
-    _STAGE_ORDER: list[ResearchStage] = field(default_factory=lambda: [
-        ResearchStage.IDLE,
-        ResearchStage.ACCEPTED,
-        ResearchStage.SCRAPING,
-        ResearchStage.EXTRACTING,
-        ResearchStage.DEEP_RESEARCH,
-        ResearchStage.WRITING,
-        ResearchStage.QA,
-        ResearchStage.COMPLETED,
-    ], repr=False)
+    _STAGE_ORDER: list[ResearchStage] = field(
+        default_factory=lambda: [
+            ResearchStage.IDLE,
+            ResearchStage.ACCEPTED,
+            ResearchStage.SCRAPING,
+            ResearchStage.EXTRACTING,
+            ResearchStage.DEEP_RESEARCH,
+            ResearchStage.WRITING,
+            ResearchStage.QA,
+            ResearchStage.COMPLETED,
+        ],
+        repr=False,
+    )
 
     # Best-effort stage duration heuristics (minutes)
-    _STAGE_EXPECTED_MINUTES: dict[ResearchStage, int] = field(default_factory=lambda: {
-        ResearchStage.ACCEPTED: 1,
-        ResearchStage.SCRAPING: 8,
-        ResearchStage.EXTRACTING: 2,
-        ResearchStage.DEEP_RESEARCH: 15,
-        ResearchStage.WRITING: 10,
-        ResearchStage.QA: 3,
-    }, repr=False)
+    _STAGE_EXPECTED_MINUTES: dict[ResearchStage, int] = field(
+        default_factory=lambda: {
+            ResearchStage.ACCEPTED: 1,
+            ResearchStage.SCRAPING: 8,
+            ResearchStage.EXTRACTING: 2,
+            ResearchStage.DEEP_RESEARCH: 15,
+            ResearchStage.WRITING: 10,
+            ResearchStage.QA: 3,
+        },
+        repr=False,
+    )
 
     def heartbeat(self, progress: int | None = None) -> None:
         """
@@ -203,8 +209,12 @@ class ResearchJobState:
             "owner_client_id": self.owner_client_id,
             "current_stage": self.current_stage.value,
             "stage_progress_percent": self.stage_progress_percent,
-            "stage_started_at": self.stage_started_at.isoformat() if self.stage_started_at else None,
-            "last_heartbeat_time": self.last_heartbeat_time.isoformat() if self.last_heartbeat_time else None,
+            "stage_started_at": self.stage_started_at.isoformat()
+            if self.stage_started_at
+            else None,
+            "last_heartbeat_time": self.last_heartbeat_time.isoformat()
+            if self.last_heartbeat_time
+            else None,
             "completion_time": self.completion_time.isoformat() if self.completion_time else None,
             "output_paths": self.output_paths,
             "error_type": self.error_type,
@@ -240,9 +250,7 @@ class ResearchJobState:
             else None
         )
         job.completion_time = (
-            datetime.fromisoformat(data["completion_time"])
-            if data.get("completion_time")
-            else None
+            datetime.fromisoformat(data["completion_time"]) if data.get("completion_time") else None
         )
         job.output_paths = data.get("output_paths", [])
         job.error_type = data.get("error_type")
@@ -364,6 +372,7 @@ class SingleJobStore(JobStore):
                 self._job = ResearchJobState.from_journal_dict(data)
             except (json.JSONDecodeError, KeyError, ValueError) as e:
                 import logging
+
                 logging.getLogger(__name__).warning(
                     "Corrupted job journal at %s, starting fresh: %s", self._journal_path, e
                 )

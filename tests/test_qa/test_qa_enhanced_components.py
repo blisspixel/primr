@@ -42,9 +42,9 @@ class TestSimpleQAAnalyzer:
                 generation_date=datetime.now(),
                 generation_mode="test",
                 model_used="test-model",
-                file_path=Path("test.txt")
+                file_path=Path("test.txt"),
             ),
-            file_path=Path("test.txt")
+            file_path=Path("test.txt"),
         )
 
         prompt = analyzer._build_assessment_prompt(test_report)
@@ -76,9 +76,9 @@ class TestSimpleQAAnalyzer:
                 generation_date=datetime.now(),
                 generation_mode="test",
                 model_used="test-model",
-                file_path=Path("test.txt")
+                file_path=Path("test.txt"),
             ),
-            file_path=Path("test.txt")
+            file_path=Path("test.txt"),
         )
 
         mock_response = """{
@@ -89,7 +89,7 @@ class TestSimpleQAAnalyzer:
             "recommendation": "Report is ready for internal use"
         }"""
 
-        with patch.object(analyzer, 'ai_client') as mock_client:
+        with patch.object(analyzer, "ai_client") as mock_client:
             mock_client.generate.return_value = mock_response
 
             result = analyzer.assess_report(test_report)
@@ -116,9 +116,9 @@ class TestSimpleQAAnalyzer:
                 generation_date=datetime.now(),
                 generation_mode="test",
                 model_used="test-model",
-                file_path=Path("test.txt")
+                file_path=Path("test.txt"),
             ),
-            file_path=Path("test.txt")
+            file_path=Path("test.txt"),
         )
 
         success_response = """{
@@ -130,6 +130,7 @@ class TestSimpleQAAnalyzer:
         }"""
 
         call_count = 0
+
         def mock_generate(*args, **kwargs):
             nonlocal call_count
             call_count += 1
@@ -137,7 +138,10 @@ class TestSimpleQAAnalyzer:
                 raise Exception("Rate limit exceeded (429)")
             return success_response
 
-        with patch.object(analyzer, 'ai_client') as mock_client, patch('time.sleep'):  # Mock sleep to speed up test
+        with (
+            patch.object(analyzer, "ai_client") as mock_client,
+            patch("time.sleep"),
+        ):  # Mock sleep to speed up test
             mock_client.generate.side_effect = mock_generate
 
             result = analyzer.assess_report(test_report)
@@ -254,7 +258,7 @@ That's my analysis."""
             "confidence_level": "high",
             "key_strengths": ["Good"],
             "areas_for_improvement": ["Minor"],
-            "recommendation": "Ready"
+            "recommendation": "Ready",
         }
         assert parser._validate_qa_structure(valid_data)
 
@@ -262,7 +266,7 @@ That's my analysis."""
         invalid_data = {
             "ready_for_use": True,
             "confidence_level": "high",
-            "key_strengths": ["Good"]
+            "key_strengths": ["Good"],
             # Missing areas_for_improvement and recommendation
         }
         assert not parser._validate_qa_structure(invalid_data)
@@ -273,7 +277,7 @@ That's my analysis."""
             "confidence_level": "invalid",
             "key_strengths": ["Good"],
             "areas_for_improvement": ["Minor"],
-            "recommendation": "Ready"
+            "recommendation": "Ready",
         }
         assert not parser._validate_qa_structure(invalid_confidence)
 
@@ -310,7 +314,7 @@ class TestQAIntegration:
             key_strengths=["Excellent", "Outstanding", "Perfect"],
             areas_for_improvement=["Minor issue"],
             recommendation="Excellent work",
-            parsing_success=True
+            parsing_success=True,
         )
         high_grade = integration._calculate_numerical_grade(high_quality)
         assert 85 <= high_grade <= 100, f"Expected 85-100, got {high_grade}"
@@ -322,7 +326,7 @@ class TestQAIntegration:
             key_strengths=["Good", "Solid"],
             areas_for_improvement=["Needs work", "Could improve"],
             recommendation="Good with improvements",
-            parsing_success=True
+            parsing_success=True,
         )
         medium_grade = integration._calculate_numerical_grade(medium_quality)
         assert 65 <= medium_grade <= 80, f"Expected 65-80, got {medium_grade}"
@@ -334,7 +338,7 @@ class TestQAIntegration:
             key_strengths=[],
             areas_for_improvement=["Major issues", "Significant problems", "Needs overhaul"],
             recommendation="Not ready",
-            parsing_success=True
+            parsing_success=True,
         )
         low_grade = integration._calculate_numerical_grade(not_ready)
         assert 25 <= low_grade <= 50, f"Expected 25-50, got {low_grade}"
@@ -346,7 +350,7 @@ class TestQAIntegration:
             key_strengths=[],
             areas_for_improvement=[],
             recommendation="Parsing failed",
-            parsing_success=False
+            parsing_success=False,
         )
         failure_grade = integration._calculate_numerical_grade(parsing_failure)
         assert failure_grade == 50, f"Expected 50 for parsing failure, got {failure_grade}"
@@ -362,7 +366,7 @@ class TestQAIntegration:
             key_strengths=["Great"],
             areas_for_improvement=[],
             recommendation="Excellent",
-            parsing_success=True
+            parsing_success=True,
         )
         high_summary = integration.format_cli_summary(high_result)
         assert "Grade:" in high_summary
@@ -377,7 +381,7 @@ class TestQAIntegration:
             key_strengths=[],
             areas_for_improvement=["Issues"],
             recommendation="Needs work",
-            parsing_success=True
+            parsing_success=True,
         )
         work_summary = integration.format_cli_summary(needs_work)
         assert "Grade:" in work_summary
@@ -390,7 +394,7 @@ class TestQAIntegration:
             key_strengths=[],
             areas_for_improvement=[],
             recommendation="Failed",
-            parsing_success=False
+            parsing_success=False,
         )
         fail_summary = integration.format_cli_summary(parse_fail)
         assert "Analysis Failed" in fail_summary
@@ -414,11 +418,7 @@ class TestQAIntegration:
         assert default_integration.options.save_detailed
 
         # Custom options
-        custom_options = QAOptions(
-            enabled=False,
-            save_detailed=False,
-            model="custom-model"
-        )
+        custom_options = QAOptions(enabled=False, save_detailed=False, model="custom-model")
         custom_integration = QAIntegration(custom_options)
         assert not custom_integration.options.enabled
         assert not custom_integration.options.save_detailed
@@ -443,9 +443,9 @@ class TestErrorHandlingScenarios:
                 generation_date=datetime.now(),
                 generation_mode="test",
                 model_used="test-model",
-                file_path=Path("test.txt")
+                file_path=Path("test.txt"),
             ),
-            file_path=Path("test.txt")
+            file_path=Path("test.txt"),
         )
 
         result = analyzer.assess_report(test_report)
@@ -469,12 +469,12 @@ class TestErrorHandlingScenarios:
                 generation_date=datetime.now(),
                 generation_mode="test",
                 model_used="test-model",
-                file_path=Path("test.txt")
+                file_path=Path("test.txt"),
             ),
-            file_path=Path("test.txt")
+            file_path=Path("test.txt"),
         )
 
-        with patch.object(analyzer, 'ai_client') as mock_client:
+        with patch.object(analyzer, "ai_client") as mock_client:
             mock_client.generate.side_effect = Exception("Daily quota exceeded")
 
             result = analyzer.assess_report(test_report)
@@ -498,12 +498,15 @@ class TestErrorHandlingScenarios:
                 generation_date=datetime.now(),
                 generation_mode="test",
                 model_used="test-model",
-                file_path=Path("test.txt")
+                file_path=Path("test.txt"),
             ),
-            file_path=Path("test.txt")
+            file_path=Path("test.txt"),
         )
 
-        with patch.object(analyzer, 'ai_client') as mock_client, patch('time.sleep'):  # Mock sleep to speed up test
+        with (
+            patch.object(analyzer, "ai_client") as mock_client,
+            patch("time.sleep"),
+        ):  # Mock sleep to speed up test
             mock_client.generate.side_effect = Exception("Network timeout")
 
             result = analyzer.assess_report(test_report)

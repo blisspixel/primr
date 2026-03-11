@@ -33,7 +33,7 @@ _SKILLS: list[dict] = [
         "description": (
             "Estimate the cost, time, and page count for a company research run. "
             "Call this before starting research.\n\n"
-            "Input (JSON or natural language): {\"url\": \"https://example.com\", \"mode\": \"full\"}\n"
+            'Input (JSON or natural language): {"url": "https://example.com", "mode": "full"}\n'
             "Modes: scrape (~$0.10, 5-10 min), deep (~$2.50, 10-15 min), "
             "full (~$0.55, ~30 min, default), premium (~$5, 50-75 min)\n\n"
             "Output: JSON with estimated_cost_usd, estimated_time_minutes, estimated_pages"
@@ -52,7 +52,7 @@ _SKILLS: list[dict] = [
             "Start an asynchronous company research job. Returns a job ID for "
             "tracking. Streams progress events via SSE until completion.\n\n"
             "Input (JSON or natural language): "
-            '{\"url\": \"https://example.com\", \"name\": \"Acme Corp\", \"mode\": \"full\"}\n'
+            '{"url": "https://example.com", "name": "Acme Corp", "mode": "full"}\n'
             "Modes: scrape (website only), deep (external research), "
             "full (Grok-powered, default), premium (Gemini + Deep Research)\n\n"
             "Output: SSE stream of TaskStatusUpdateEvent, final artifact is "
@@ -85,7 +85,7 @@ _SKILLS: list[dict] = [
         "description": (
             "Run a quality assessment on a completed research report. "
             "Returns scores and improvement suggestions.\n\n"
-            "Input (JSON or natural language): {\"path\": \"/path/to/report.docx\"}\n"
+            'Input (JSON or natural language): {"path": "/path/to/report.docx"}\n'
             "If path omitted, uses the latest completed report.\n\n"
             "Output: JSON with overall_score (0-100), section_scores, "
             "improvement_suggestions, confidence_level"
@@ -170,9 +170,7 @@ def build_agent_card(
         ),
         skills=skills,
         security_schemes={
-            "bearer": SecurityScheme(
-                root=HTTPAuthSecurityScheme(scheme="bearer", type="http")
-            ),
+            "bearer": SecurityScheme(root=HTTPAuthSecurityScheme(scheme="bearer", type="http")),
         },
         security=[{"bearer": []}],
     )

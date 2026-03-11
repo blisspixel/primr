@@ -44,8 +44,10 @@ ErrorCallback = Callable[[Exception, str], None]
 # ENUMS
 # =============================================================================
 
+
 class AIModelType(str, Enum):
     """AI model types for different tasks."""
+
     RESEARCH = "research"
     REPORT = "report"
 
@@ -55,6 +57,7 @@ class AIModelType(str, Enum):
 
 class ThinkingLevel(str, Enum):
     """AI thinking depth levels."""
+
     LOW = "low"
     HIGH = "high"
 
@@ -64,6 +67,7 @@ class ThinkingLevel(str, Enum):
 
 class ScrapeTier(str, Enum):
     """Scraping method tiers in order of complexity."""
+
     REQUESTS = "requests"
     HTTPX = "httpx"
     PLAYWRIGHT = "playwright"
@@ -77,6 +81,7 @@ class ScrapeTier(str, Enum):
 
 class OutputFormat(str, Enum):
     """Supported output formats."""
+
     TXT = "txt"
     DOCX = "docx"
     PDF = "pdf"
@@ -89,6 +94,7 @@ class OutputFormat(str, Enum):
 
 class LogLevel(str, Enum):
     """Logging levels."""
+
     DEBUG = "DEBUG"
     INFO = "INFO"
     WARNING = "WARNING"
@@ -103,8 +109,10 @@ class LogLevel(str, Enum):
 # TYPED DICTS - Structured data shapes
 # =============================================================================
 
+
 class SearchResult(TypedDict):
     """A single search result from Google or other search engines."""
+
     title: str
     url: str
     snippet: str
@@ -112,6 +120,7 @@ class SearchResult(TypedDict):
 
 class SearchResultWithScore(TypedDict):
     """Search result with relevance scoring."""
+
     title: str
     url: str
     snippet: str
@@ -121,6 +130,7 @@ class SearchResultWithScore(TypedDict):
 
 class ScrapedPage(TypedDict):
     """Result of scraping a single page."""
+
     url: str
     content: str
     tier: str
@@ -130,12 +140,14 @@ class ScrapedPage(TypedDict):
 
 class ScrapedContent(TypedDict, total=False):
     """Collection of scraped content from multiple sources."""
+
     # Keys are URLs, values are content
     # Using total=False since keys are dynamic
 
 
 class LinkInfo(TypedDict):
     """Information about a discovered link."""
+
     url: str
     text: str
     relevance: float
@@ -143,6 +155,7 @@ class LinkInfo(TypedDict):
 
 class CacheMetadata(TypedDict):
     """Metadata for cached content."""
+
     url: str
     timestamp: str
     size: int
@@ -151,6 +164,7 @@ class CacheMetadata(TypedDict):
 
 class GradeResult(TypedDict):
     """Result of grading a report section."""
+
     score: float
     needs_research: bool
     feedback: str
@@ -159,6 +173,7 @@ class GradeResult(TypedDict):
 
 class ReportSection(TypedDict):
     """A section of the research report."""
+
     name: str
     key: str
     content: str
@@ -168,6 +183,7 @@ class ReportSection(TypedDict):
 
 class CompanyInfo(TypedDict, total=False):
     """Basic company information."""
+
     name: str
     website: str | None
     industry: str | None
@@ -176,6 +192,7 @@ class CompanyInfo(TypedDict, total=False):
 
 class ResearchContext(TypedDict):
     """Context passed through the research pipeline."""
+
     company_name: str
     website: str | None
     industry: str | None
@@ -187,6 +204,7 @@ class ResearchContext(TypedDict):
 
 class AIRequestConfig(TypedDict, total=False):
     """Configuration for an AI request."""
+
     model_type: str
     temperature: float
     thinking_level: str
@@ -196,6 +214,7 @@ class AIRequestConfig(TypedDict, total=False):
 
 class ScrapeConfig(TypedDict, total=False):
     """Configuration for scraping operations."""
+
     max_pages: int
     max_depth: int
     timeout: int
@@ -207,6 +226,7 @@ class ScrapeConfig(TypedDict, total=False):
 # PROTOCOLS - Interfaces for dependency injection
 # =============================================================================
 
+
 @runtime_checkable
 class AIClientProtocol(Protocol):
     """Protocol for AI client implementations."""
@@ -217,16 +237,12 @@ class AIClientProtocol(Protocol):
         model_type: str = "research",
         temperature: float = 1.0,
         thinking_level: str = "high",
-        **kwargs: Any
+        **kwargs: Any,
     ) -> str:
         """Generate content from a prompt."""
         ...
 
-    def generate_fast(
-        self,
-        prompt: str,
-        model_type: str = "research"
-    ) -> str:
+    def generate_fast(self, prompt: str, model_type: str = "research") -> str:
         """Fast generation with minimal thinking."""
         ...
 
@@ -239,11 +255,7 @@ class ScraperProtocol(Protocol):
         """Scrape content from a URL."""
         ...
 
-    def scrape_multiple(
-        self,
-        urls: list[str],
-        **kwargs: Any
-    ) -> dict[str, str]:
+    def scrape_multiple(self, urls: list[str], **kwargs: Any) -> dict[str, str]:
         """Scrape content from multiple URLs."""
         ...
 
@@ -252,11 +264,7 @@ class ScraperProtocol(Protocol):
 class SearchProtocol(Protocol):
     """Protocol for search implementations."""
 
-    def search(
-        self,
-        query: str,
-        num_results: int = 10
-    ) -> list[SearchResult]:
+    def search(self, query: str, num_results: int = 10) -> list[SearchResult]:
         """Execute a search query."""
         ...
 
@@ -332,8 +340,8 @@ class ConsoleProtocol(Protocol):
 # GENERIC TYPES
 # =============================================================================
 
-T = TypeVar('T')
-E = TypeVar('E', bound=Exception)
+T = TypeVar("T")
+E = TypeVar("E", bound=Exception)
 
 
 @dataclass
@@ -350,6 +358,7 @@ class Result(Generic[T]):
         else:
             print(result.error)
     """
+
     _value: T | None = None
     _error: Exception | None = None
 
@@ -382,12 +391,12 @@ class Result(Generic[T]):
         return self._value  # type: ignore
 
     @classmethod
-    def ok(cls, value: T) -> 'Result[T]':
+    def ok(cls, value: T) -> "Result[T]":
         """Create a success result."""
         return cls(_value=value)
 
     @classmethod
-    def err(cls, error: Exception) -> 'Result[T]':
+    def err(cls, error: Exception) -> "Result[T]":
         """Create an error result."""
         return cls(_error=error)
 
@@ -396,25 +405,26 @@ class Result(Generic[T]):
 # TYPE GUARDS
 # =============================================================================
 
+
 def is_valid_url(value: Any) -> bool:
     """Type guard to check if value is a valid URL string."""
     if not isinstance(value, str):
         return False
-    return value.startswith(('http://', 'https://'))
+    return value.startswith(("http://", "https://"))
 
 
 def is_search_result(value: Any) -> bool:
     """Type guard to check if value is a SearchResult."""
     if not isinstance(value, dict):
         return False
-    return all(k in value for k in ('title', 'url', 'snippet'))
+    return all(k in value for k in ("title", "url", "snippet"))
 
 
 def is_scraped_page(value: Any) -> bool:
     """Type guard to check if value is a ScrapedPage."""
     if not isinstance(value, dict):
         return False
-    return all(k in value for k in ('url', 'content', 'tier'))
+    return all(k in value for k in ("url", "content", "tier"))
 
 
 # =============================================================================
@@ -423,43 +433,43 @@ def is_scraped_page(value: Any) -> bool:
 
 __all__ = [
     # Type aliases
-    'URL',
+    "URL",
     # Protocols
-    'AIClientProtocol',
+    "AIClientProtocol",
     # Enums
-    'AIModelType',
-    'AIRequestConfig',
-    'CacheMetadata',
-    'CacheProtocol',
-    'CompanyInfo',
-    'ConsoleProtocol',
-    'ErrorCallback',
-    'FilePath',
-    'GradeResult',
-    'HTMLContent',
-    'JSONContent',
-    'LinkInfo',
-    'LogLevel',
-    'LoggerProtocol',
-    'OutputFormat',
-    'ProgressCallback',
-    'ReportSection',
-    'ResearchContext',
+    "AIModelType",
+    "AIRequestConfig",
+    "CacheMetadata",
+    "CacheProtocol",
+    "CompanyInfo",
+    "ConsoleProtocol",
+    "ErrorCallback",
+    "FilePath",
+    "GradeResult",
+    "HTMLContent",
+    "JSONContent",
+    "LinkInfo",
+    "LogLevel",
+    "LoggerProtocol",
+    "OutputFormat",
+    "ProgressCallback",
+    "ReportSection",
+    "ResearchContext",
     # Generic types
-    'Result',
-    'ScrapeConfig',
-    'ScrapeTier',
-    'ScrapedContent',
-    'ScrapedPage',
-    'ScraperProtocol',
-    'SearchProtocol',
+    "Result",
+    "ScrapeConfig",
+    "ScrapeTier",
+    "ScrapedContent",
+    "ScrapedPage",
+    "ScraperProtocol",
+    "SearchProtocol",
     # TypedDicts
-    'SearchResult',
-    'SearchResultWithScore',
-    'TextContent',
-    'ThinkingLevel',
-    'is_scraped_page',
-    'is_search_result',
+    "SearchResult",
+    "SearchResultWithScore",
+    "TextContent",
+    "ThinkingLevel",
+    "is_scraped_page",
+    "is_search_result",
     # Type guards
-    'is_valid_url',
+    "is_valid_url",
 ]

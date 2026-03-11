@@ -24,7 +24,7 @@ class TestPromptTemplate:
         template = PromptTemplate(
             name="test",
             template="Hello {name}, welcome to {place}!",
-            required_vars=frozenset({"name", "place"})
+            required_vars=frozenset({"name", "place"}),
         )
 
         result = template.render(name="Alice", place="Wonderland")
@@ -37,7 +37,7 @@ class TestPromptTemplate:
         template = PromptTemplate(
             name="test",
             template="Hello {name}, welcome to {place}!",
-            required_vars=frozenset({"name", "place"})
+            required_vars=frozenset({"name", "place"}),
         )
 
         with pytest.raises(PromptError) as exc_info:
@@ -51,9 +51,7 @@ class TestPromptTemplate:
         from primr.config.prompts import PromptTemplate
 
         template = PromptTemplate(
-            name="test",
-            template="Hello {name}!",
-            required_vars=frozenset({"name"})
+            name="test", template="Hello {name}!", required_vars=frozenset({"name"})
         )
 
         result = template.render(name="Alice", extra="ignored")
@@ -64,9 +62,7 @@ class TestPromptTemplate:
         from primr.config.prompts import PromptTemplate
 
         template = PromptTemplate(
-            name="test",
-            template="Hello {name}!",
-            required_vars=frozenset({"name"})
+            name="test", template="Hello {name}!", required_vars=frozenset({"name"})
         )
 
         with pytest.raises(AttributeError):
@@ -127,7 +123,7 @@ class TestPromptRegistry:
             "industry",
             company_name="Acme Corp",
             company_website="acme.example",
-            scraped_insights="Industrial products"
+            scraped_insights="Industrial products",
         )
 
         assert "Acme Corp" in result
@@ -142,9 +138,7 @@ class TestPublicInterface:
         from primr.config.prompts import generate_prompt
 
         result = generate_prompt(
-            "company_name",
-            company_name="Acme Corp",
-            company_website="acme.example"
+            "company_name", company_name="Acme Corp", company_website="acme.example"
         )
 
         assert "Acme Corp" in result

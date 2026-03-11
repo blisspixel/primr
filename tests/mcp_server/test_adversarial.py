@@ -69,8 +69,7 @@ class TestPathTraversalAttacks:
         assert not result.valid
 
     @pytest.mark.skipif(
-        __import__("sys").platform == "win32",
-        reason="Windows separator test only relevant on Unix"
+        __import__("sys").platform == "win32", reason="Windows separator test only relevant on Unix"
     )
     def test_windows_separator_on_unix(self, validator):
         """Windows path separators are blocked on Unix."""
@@ -314,6 +313,7 @@ class TestResourceExhaustion:
                 job = server.job_store.get_active()
                 if job:
                     from primr.mcp_server.types import ResearchStage
+
                     job.advance_stage(ResearchStage.CANCELLED)
                     server.job_store.update(job)
 

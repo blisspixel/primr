@@ -18,7 +18,9 @@ def test_create_working_folder_reuses_incomplete_run(tmp_path, monkeypatch):
         encoding="utf-8",
     )
 
-    result = research_agent.create_working_folder("ExampleCo", "https://example.co", reuse_incomplete=True)
+    result = research_agent.create_working_folder(
+        "ExampleCo", "https://example.co", reuse_incomplete=True
+    )
     assert result == str(reusable)
 
 
@@ -33,7 +35,9 @@ def test_create_working_folder_skips_completed_run(tmp_path, monkeypatch):
         encoding="utf-8",
     )
 
-    result = research_agent.create_working_folder("ExampleCo", "https://example.co", reuse_incomplete=True)
+    result = research_agent.create_working_folder(
+        "ExampleCo", "https://example.co", reuse_incomplete=True
+    )
     assert result != str(completed)
     assert result.startswith(str(company_root))
 
@@ -49,7 +53,9 @@ def test_create_working_folder_reuses_canceled_run(tmp_path, monkeypatch):
         encoding="utf-8",
     )
 
-    result = research_agent.create_working_folder("ExampleCo", "https://example.co", reuse_incomplete=True)
+    result = research_agent.create_working_folder(
+        "ExampleCo", "https://example.co", reuse_incomplete=True
+    )
     assert result == str(canceled)
 
 

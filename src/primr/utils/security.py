@@ -33,6 +33,7 @@ T = TypeVar("T")
 # CONSTANT-TIME COMPARISON
 # =============================================================================
 
+
 def secure_compare(a: str | bytes, b: str | bytes) -> bool:
     """
     Compare two strings/bytes in constant time to prevent timing attacks.
@@ -52,9 +53,9 @@ def secure_compare(a: str | bytes, b: str | bytes) -> bool:
             grant_access()
     """
     if isinstance(a, str):
-        a = a.encode('utf-8')
+        a = a.encode("utf-8")
     if isinstance(b, str):
-        b = b.encode('utf-8')
+        b = b.encode("utf-8")
 
     return hmac.compare_digest(a, b)
 
@@ -102,7 +103,7 @@ def verify_hashed_secret(secret: str, hashed: str) -> bool:
             authenticate()
     """
     try:
-        salt, expected_hash = hashed.split('$', 1)
+        salt, expected_hash = hashed.split("$", 1)
     except ValueError:
         return False
 
@@ -118,24 +119,24 @@ def verify_hashed_secret(secret: str, hashed: str) -> bool:
 
 # Patterns for sensitive data that should be masked in logs
 SENSITIVE_PATTERNS = [
-    (re.compile(r'(api[_-]?key\s*[=:]\s*)["\']?([a-zA-Z0-9_-]{20,})["\']?', re.I), r'\1[REDACTED]'),
-    (re.compile(r'(token\s*[=:]\s*)["\']?([a-zA-Z0-9_.-]{20,})["\']?', re.I), r'\1[REDACTED]'),
-    (re.compile(r'(password\s*[=:]\s*)["\']?([^\s"\']+)["\']?', re.I), r'\1[REDACTED]'),
-    (re.compile(r'(secret\s*[=:]\s*)["\']?([^\s"\']+)["\']?', re.I), r'\1[REDACTED]'),
-    (re.compile(r'(bearer\s+)([a-zA-Z0-9_.-]+)', re.I), r'\1[REDACTED]'),
-    (re.compile(r'(authorization\s*[=:]\s*)["\']?([^\s"\']+)["\']?', re.I), r'\1[REDACTED]'),
+    (re.compile(r'(api[_-]?key\s*[=:]\s*)["\']?([a-zA-Z0-9_-]{20,})["\']?', re.I), r"\1[REDACTED]"),
+    (re.compile(r'(token\s*[=:]\s*)["\']?([a-zA-Z0-9_.-]{20,})["\']?', re.I), r"\1[REDACTED]"),
+    (re.compile(r'(password\s*[=:]\s*)["\']?([^\s"\']+)["\']?', re.I), r"\1[REDACTED]"),
+    (re.compile(r'(secret\s*[=:]\s*)["\']?([^\s"\']+)["\']?', re.I), r"\1[REDACTED]"),
+    (re.compile(r"(bearer\s+)([a-zA-Z0-9_.-]+)", re.I), r"\1[REDACTED]"),
+    (re.compile(r'(authorization\s*[=:]\s*)["\']?([^\s"\']+)["\']?', re.I), r"\1[REDACTED]"),
     # API key patterns
-    (re.compile(r'\b(AIza[a-zA-Z0-9_-]{35})\b'), '[GOOGLE_API_KEY]'),
-    (re.compile(r'\b(sk-[a-zA-Z0-9]{48})\b'), '[OPENAI_API_KEY]'),
-    (re.compile(r'\b(ghp_[a-zA-Z0-9]{36})\b'), '[GITHUB_TOKEN]'),
+    (re.compile(r"\b(AIza[a-zA-Z0-9_-]{35})\b"), "[GOOGLE_API_KEY]"),
+    (re.compile(r"\b(sk-[a-zA-Z0-9]{48})\b"), "[OPENAI_API_KEY]"),
+    (re.compile(r"\b(ghp_[a-zA-Z0-9]{36})\b"), "[GITHUB_TOKEN]"),
     # Additional patterns for common API keys
-    (re.compile(r'\b(gho_[a-zA-Z0-9]{36})\b'), '[GITHUB_OAUTH_TOKEN]'),
-    (re.compile(r'\b(github_pat_[a-zA-Z0-9_]{22,})\b'), '[GITHUB_PAT]'),
-    (re.compile(r'\b(xox[baprs]-[a-zA-Z0-9-]+)\b'), '[SLACK_TOKEN]'),
-    (re.compile(r'\b(sk-ant-[a-zA-Z0-9-]+)\b'), '[ANTHROPIC_API_KEY]'),
-    (re.compile(r'\b(AKIA[A-Z0-9]{16})\b'), '[AWS_ACCESS_KEY]'),
+    (re.compile(r"\b(gho_[a-zA-Z0-9]{36})\b"), "[GITHUB_OAUTH_TOKEN]"),
+    (re.compile(r"\b(github_pat_[a-zA-Z0-9_]{22,})\b"), "[GITHUB_PAT]"),
+    (re.compile(r"\b(xox[baprs]-[a-zA-Z0-9-]+)\b"), "[SLACK_TOKEN]"),
+    (re.compile(r"\b(sk-ant-[a-zA-Z0-9-]+)\b"), "[ANTHROPIC_API_KEY]"),
+    (re.compile(r"\b(AKIA[A-Z0-9]{16})\b"), "[AWS_ACCESS_KEY]"),
     # JWT tokens (header.payload.signature format)
-    (re.compile(r'\beyJ[a-zA-Z0-9_-]*\.eyJ[a-zA-Z0-9_-]*\.[a-zA-Z0-9_-]+\b'), '[JWT_TOKEN]'),
+    (re.compile(r"\beyJ[a-zA-Z0-9_-]*\.eyJ[a-zA-Z0-9_-]*\.[a-zA-Z0-9_-]+\b"), "[JWT_TOKEN]"),
 ]
 
 
@@ -180,20 +181,30 @@ def mask_dict_values(data: dict, sensitive_keys: set[str] | None = None) -> dict
     """
     if sensitive_keys is None:
         sensitive_keys = {
-            'api_key', 'apikey', 'api-key',
-            'token', 'access_token', 'refresh_token',
-            'password', 'passwd', 'pwd',
-            'secret', 'secret_key',
-            'authorization', 'auth',
-            'credential', 'credentials',
-            'private_key', 'privatekey',
+            "api_key",
+            "apikey",
+            "api-key",
+            "token",
+            "access_token",
+            "refresh_token",
+            "password",
+            "passwd",
+            "pwd",
+            "secret",
+            "secret_key",
+            "authorization",
+            "auth",
+            "credential",
+            "credentials",
+            "private_key",
+            "privatekey",
         }
 
     result = {}
     for key, value in data.items():
-        key_lower = key.lower().replace('-', '_')
+        key_lower = key.lower().replace("-", "_")
         if key_lower in sensitive_keys:
-            result[key] = '[REDACTED]'
+            result[key] = "[REDACTED]"
         elif isinstance(value, dict):
             result[key] = mask_dict_values(value, sensitive_keys)
         elif isinstance(value, str):
@@ -207,6 +218,7 @@ def mask_dict_values(data: dict, sensitive_keys: set[str] | None = None) -> dict
 # =============================================================================
 # SECURITY AUDIT LOGGING
 # =============================================================================
+
 
 class SecurityAuditLogger:
     """
@@ -232,87 +244,60 @@ class SecurityAuditLogger:
         self._logger = logging.getLogger(f"security.{component}")
 
     def log_auth_success(
-        self,
-        user_id: str,
-        method: str,
-        ip: str | None = None,
-        **extra: Any
+        self, user_id: str, method: str, ip: str | None = None, **extra: Any
     ) -> None:
         """Log successful authentication."""
         self._logger.info(
             f"AUTH_SUCCESS: user={user_id}, method={method}, ip={ip or 'unknown'}",
-            extra={"event": "auth_success", "user_id": user_id, "method": method, **extra}
+            extra={"event": "auth_success", "user_id": user_id, "method": method, **extra},
         )
 
     def log_auth_failure(
-        self,
-        reason: str,
-        ip: str | None = None,
-        user_id: str | None = None,
-        **extra: Any
+        self, reason: str, ip: str | None = None, user_id: str | None = None, **extra: Any
     ) -> None:
         """Log failed authentication attempt."""
         self._logger.warning(
             f"AUTH_FAILURE: reason={reason}, ip={ip or 'unknown'}, user={user_id or 'unknown'}",
-            extra={"event": "auth_failure", "reason": reason, "ip": ip, **extra}
+            extra={"event": "auth_failure", "reason": reason, "ip": ip, **extra},
         )
 
     def log_access_denied(
-        self,
-        resource: str,
-        user_id: str | None = None,
-        reason: str | None = None,
-        **extra: Any
+        self, resource: str, user_id: str | None = None, reason: str | None = None, **extra: Any
     ) -> None:
         """Log access denied event."""
         self._logger.warning(
             f"ACCESS_DENIED: resource={resource}, user={user_id or 'unknown'}, reason={reason or 'unauthorized'}",
-            extra={"event": "access_denied", "resource": resource, **extra}
+            extra={"event": "access_denied", "resource": resource, **extra},
         )
 
-    def log_rate_limit(
-        self,
-        user_id: str,
-        endpoint: str,
-        limit: int,
-        **extra: Any
-    ) -> None:
+    def log_rate_limit(self, user_id: str, endpoint: str, limit: int, **extra: Any) -> None:
         """Log rate limit exceeded event."""
         self._logger.warning(
             f"RATE_LIMIT: user={user_id}, endpoint={endpoint}, limit={limit}",
-            extra={"event": "rate_limit", "user_id": user_id, "endpoint": endpoint, **extra}
+            extra={"event": "rate_limit", "user_id": user_id, "endpoint": endpoint, **extra},
         )
 
     def log_security_violation(
-        self,
-        violation_type: str,
-        details: str,
-        ip: str | None = None,
-        **extra: Any
+        self, violation_type: str, details: str, ip: str | None = None, **extra: Any
     ) -> None:
         """Log security violation (SSRF, path traversal, etc.)."""
         self._logger.error(
             f"SECURITY_VIOLATION: type={violation_type}, details={details}, ip={ip or 'unknown'}",
-            extra={"event": "security_violation", "type": violation_type, **extra}
+            extra={"event": "security_violation", "type": violation_type, **extra},
         )
 
-    def log_sensitive_access(
-        self,
-        resource: str,
-        user_id: str,
-        action: str,
-        **extra: Any
-    ) -> None:
+    def log_sensitive_access(self, resource: str, user_id: str, action: str, **extra: Any) -> None:
         """Log access to sensitive resources."""
         self._logger.info(
             f"SENSITIVE_ACCESS: resource={resource}, user={user_id}, action={action}",
-            extra={"event": "sensitive_access", "resource": resource, **extra}
+            extra={"event": "sensitive_access", "resource": resource, **extra},
         )
 
 
 # =============================================================================
 # INPUT SANITIZATION
 # =============================================================================
+
 
 def sanitize_log_input(value: str, max_length: int = 200) -> str:
     """
@@ -332,11 +317,11 @@ def sanitize_log_input(value: str, max_length: int = 200) -> str:
         value = str(value)
 
     # Remove control characters except newlines and tabs
-    value = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', value)
+    value = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", value)
 
     # Truncate if too long
     if len(value) > max_length:
-        value = value[:max_length] + '...[truncated]'
+        value = value[:max_length] + "...[truncated]"
 
     # Mask any sensitive data
     value = mask_sensitive_data(value)
@@ -385,11 +370,8 @@ def generate_secure_id(prefix: str = "") -> str:
 # ENVIRONMENT VARIABLE SECURITY
 # =============================================================================
 
-def get_secret_from_env(
-    name: str,
-    required: bool = True,
-    min_length: int = 0
-) -> str | None:
+
+def get_secret_from_env(name: str, required: bool = True, min_length: int = 0) -> str | None:
     """
     Securely retrieve a secret from environment variables.
 
@@ -418,12 +400,8 @@ def get_secret_from_env(
 
     if min_length > 0 and len(value) < min_length:
         if required:
-            raise ValueError(
-                f"Secret {name} is too short (minimum {min_length} characters)"
-            )
-        logger.warning(
-            f"Secret {name} is shorter than recommended ({min_length} chars)"
-        )
+            raise ValueError(f"Secret {name} is too short (minimum {min_length} characters)")
+        logger.warning(f"Secret {name} is shorter than recommended ({min_length} chars)")
 
     return value
 
@@ -431,6 +409,7 @@ def get_secret_from_env(
 # =============================================================================
 # DECORATOR FOR SECURITY LOGGING
 # =============================================================================
+
 
 def audit_security_event(event_type: str, component: str = "general"):
     """
@@ -459,12 +438,12 @@ def audit_security_event(event_type: str, component: str = "general"):
                 return result
             except Exception as e:
                 audit.log_security_violation(
-                    violation_type=event_type,
-                    details=f"{func.__name__} failed: {type(e).__name__}"
+                    violation_type=event_type, details=f"{func.__name__} failed: {type(e).__name__}"
                 )
                 raise
 
         return wrapper
+
     return decorator
 
 
@@ -488,12 +467,14 @@ _PRIVATE_IP_RANGES = [
 ]
 
 # Cloud metadata endpoints
-_METADATA_HOSTS = frozenset({
-    "169.254.169.254",
-    "169.254.170.2",
-    "metadata.google.internal",
-    "metadata.goog",
-})
+_METADATA_HOSTS = frozenset(
+    {
+        "169.254.169.254",
+        "169.254.170.2",
+        "metadata.google.internal",
+        "metadata.goog",
+    }
+)
 
 
 def is_safe_url(url: str) -> tuple[bool, str | None]:
@@ -645,21 +626,23 @@ def validate_final_url_after_redirect(final_url: str) -> tuple[bool, str | None]
 # =============================================================================
 
 # Characters that could be used for injection attacks
-_DANGEROUS_CHARS = frozenset({
-    '\x00',  # Null byte
-    '\r',    # Carriage return (log injection)
-    '\n',    # Newline (log injection)
-    '\x1b',  # Escape (ANSI injection)
-})
+_DANGEROUS_CHARS = frozenset(
+    {
+        "\x00",  # Null byte
+        "\r",  # Carriage return (log injection)
+        "\n",  # Newline (log injection)
+        "\x1b",  # Escape (ANSI injection)
+    }
+)
 
 # Patterns that could indicate injection attempts
 _INJECTION_PATTERNS = [
-    re.compile(r'<script', re.I),  # XSS
-    re.compile(r'javascript:', re.I),  # XSS
-    re.compile(r'on\w+\s*=', re.I),  # Event handlers
-    re.compile(r'\{\{.*\}\}'),  # Template injection
-    re.compile(r'\$\{.*\}'),  # Template injection
-    re.compile(r'<%.*%>'),  # Server-side template injection
+    re.compile(r"<script", re.I),  # XSS
+    re.compile(r"javascript:", re.I),  # XSS
+    re.compile(r"on\w+\s*=", re.I),  # Event handlers
+    re.compile(r"\{\{.*\}\}"),  # Template injection
+    re.compile(r"\$\{.*\}"),  # Template injection
+    re.compile(r"<%.*%>"),  # Server-side template injection
 ]
 
 
@@ -710,7 +693,7 @@ def sanitize_company_name(name: str, max_length: int = 200) -> tuple[str, str | 
             return "", "Company name contains potentially dangerous content"
 
     # Remove any remaining control characters
-    sanitized = re.sub(r'[\x00-\x1f\x7f]', '', name)
+    sanitized = re.sub(r"[\x00-\x1f\x7f]", "", name)
 
     return sanitized, None
 
@@ -763,7 +746,9 @@ def sanitize_url_input(url: str, max_length: int = 2048) -> tuple[str, str | Non
     return url, None
 
 
-def sanitize_webhook_url(url: str, allowed_schemes: set[str] | None = None) -> tuple[str, str | None]:
+def sanitize_webhook_url(
+    url: str, allowed_schemes: set[str] | None = None
+) -> tuple[str, str | None]:
     """
     Sanitize a webhook URL for safe callback.
 

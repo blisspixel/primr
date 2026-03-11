@@ -21,13 +21,13 @@ logger = get_logger("data.pagination")
 class PaginationType(Enum):
     """Types of pagination patterns."""
 
-    NUMBERED = "numbered"        # ?page=1, ?page=2
-    OFFSET = "offset"            # ?offset=0, ?offset=10
-    CURSOR = "cursor"            # ?cursor=abc123
-    PATH = "path"                # /page/1, /page/2
-    LOAD_MORE = "load_more"      # JavaScript load more button
-    INFINITE_SCROLL = "infinite" # Infinite scroll
-    NONE = "none"                # No pagination detected
+    NUMBERED = "numbered"  # ?page=1, ?page=2
+    OFFSET = "offset"  # ?offset=0, ?offset=10
+    CURSOR = "cursor"  # ?cursor=abc123
+    PATH = "path"  # /page/1, /page/2
+    LOAD_MORE = "load_more"  # JavaScript load more button
+    INFINITE_SCROLL = "infinite"  # Infinite scroll
+    NONE = "none"  # No pagination detected
 
 
 @dataclass
@@ -80,41 +80,41 @@ class PaginationDetector:
         r'rel=["\']?next["\']?',
         r'class=["\'][^"\']*next[^"\']*["\']',
         r'aria-label=["\'][^"\']*next[^"\']*["\']',
-        r'>next<',
-        r'>next\s*page<',
-        r'>\s*›\s*<',
-        r'>\s*»\s*<',
-        r'>\s*→\s*<',
+        r">next<",
+        r">next\s*page<",
+        r">\s*›\s*<",
+        r">\s*»\s*<",
+        r">\s*→\s*<",
     ]
 
     PREV_PATTERNS = [
         r'rel=["\']?prev["\']?',
         r'class=["\'][^"\']*prev[^"\']*["\']',
         r'aria-label=["\'][^"\']*prev[^"\']*["\']',
-        r'>prev<',
-        r'>previous<',
-        r'>\s*‹\s*<',
-        r'>\s*«\s*<',
-        r'>\s*←\s*<',
+        r">prev<",
+        r">previous<",
+        r">\s*‹\s*<",
+        r">\s*«\s*<",
+        r">\s*←\s*<",
     ]
 
     # Load more button patterns
     LOAD_MORE_PATTERNS = [
         r'class=["\'][^"\']*load[-_]?more[^"\']*["\']',
         r'id=["\'][^"\']*load[-_]?more[^"\']*["\']',
-        r'>load\s*more<',
-        r'>show\s*more<',
-        r'>view\s*more<',
-        r'>see\s*more<',
+        r">load\s*more<",
+        r">show\s*more<",
+        r">view\s*more<",
+        r">see\s*more<",
     ]
 
     # Infinite scroll indicators
     INFINITE_SCROLL_PATTERNS = [
-        r'infinite[-_]?scroll',
-        r'lazy[-_]?load',
-        r'scroll[-_]?load',
-        r'data-infinite',
-        r'IntersectionObserver',
+        r"infinite[-_]?scroll",
+        r"lazy[-_]?load",
+        r"scroll[-_]?load",
+        r"data-infinite",
+        r"IntersectionObserver",
     ]
 
     def __init__(self, max_pages: int = 100):
@@ -205,14 +205,20 @@ class PaginationDetector:
 
         elif pattern.pattern_type == PaginationType.PATH:
             parsed = urlparse(base_url)
-            base_path = re.sub(r'/page/\d+/?$', '', parsed.path)
+            base_path = re.sub(r"/page/\d+/?$", "", parsed.path)
 
             for i in range(pattern.start_value, pattern.start_value + num_pages):
                 new_path = f"{base_path}/page/{i}"
-                new_url = urlunparse((
-                    parsed.scheme, parsed.netloc, new_path,
-                    parsed.params, parsed.query, parsed.fragment
-                ))
+                new_url = urlunparse(
+                    (
+                        parsed.scheme,
+                        parsed.netloc,
+                        new_path,
+                        parsed.params,
+                        parsed.query,
+                        parsed.fragment,
+                    )
+                )
                 urls.append(new_url)
 
         return urls
@@ -241,11 +247,11 @@ class PaginationDetector:
             is_pagination = False
 
             # Check for page numbers in URL
-            if re.search(r'[?&](page|p|pg)=\d+', href, re.I) or re.search(r'/page/\d+', href, re.I):
+            if re.search(r"[?&](page|p|pg)=\d+", href, re.I) or re.search(r"/page/\d+", href, re.I):
                 is_pagination = True
 
             # Check for pagination classes/attributes
-            if any(p in full_match for p in ['pagination', 'pager', 'page-link']):
+            if any(p in full_match for p in ["pagination", "pager", "page-link"]):
                 is_pagination = True
 
             if is_pagination:
@@ -276,7 +282,7 @@ class PaginationDetector:
                     pass
 
         # Check path
-        path_match = re.search(r'/page/(\d+)', parsed.path)
+        path_match = re.search(r"/page/(\d+)", parsed.path)
         if path_match:
             return int(path_match.group(1))
 
@@ -357,7 +363,7 @@ class PaginationDetector:
         """Detect path-based pagination (/page/N)."""
         parsed = urlparse(current_url)
 
-        path_match = re.search(r'/page/(\d+)', parsed.path)
+        path_match = re.search(r"/page/(\d+)", parsed.path)
         if path_match:
             current_page = int(path_match.group(1))
 
@@ -376,9 +382,9 @@ class PaginationDetector:
             )
 
         # Check if path pagination links exist
-        if re.search(r'/page/\d+', html, re.I):
+        if re.search(r"/page/\d+", html, re.I):
             page_links = self.extract_page_links(html, current_url)
-            path_links = [link for link in page_links if '/page/' in link]
+            path_links = [link for link in page_links if "/page/" in link]
 
             if path_links:
                 return PaginationInfo(
@@ -442,12 +448,12 @@ class PaginationDetector:
 
         for link in page_links:
             # Extract page number from URL
-            match = re.search(r'[?&](?:page|p|pg)=(\d+)', link, re.I)
+            match = re.search(r"[?&](?:page|p|pg)=(\d+)", link, re.I)
             if match:
                 page_num = int(match.group(1))
                 max_page = max(max_page, page_num)
 
-            match = re.search(r'/page/(\d+)', link, re.I)
+            match = re.search(r"/page/(\d+)", link, re.I)
             if match:
                 page_num = int(match.group(1))
                 max_page = max(max_page, page_num)
@@ -461,11 +467,9 @@ class PaginationDetector:
         params[param] = [value]
 
         new_query = urlencode(params, doseq=True)
-        return urlunparse((
-            parsed.scheme, parsed.netloc, parsed.path,
-            parsed.params, new_query, parsed.fragment
-        ))
-
+        return urlunparse(
+            (parsed.scheme, parsed.netloc, parsed.path, parsed.params, new_query, parsed.fragment)
+        )
 
 
 # =============================================================================
@@ -497,6 +501,7 @@ def reset_pagination_detector() -> None:
 # =============================================================================
 # CONVENIENCE FUNCTIONS
 # =============================================================================
+
 
 def detect_pagination(html: str, url: str) -> PaginationInfo:
     """

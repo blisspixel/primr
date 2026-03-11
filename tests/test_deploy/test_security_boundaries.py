@@ -34,7 +34,7 @@ class TestRateLimiter:
         # Should allow burst_size requests immediately
         for i in range(5):
             result = bucket.try_acquire()
-            assert result.allowed, f"Request {i+1} should be allowed"
+            assert result.allowed, f"Request {i + 1} should be allowed"
 
         # Next request should be denied
         result = bucket.try_acquire()
@@ -137,6 +137,7 @@ class TestSSRFProtection:
     def test_ssrf_validator_exists(self) -> None:
         """SSRF validator function exists and is importable."""
         from primr.utils.validators import validate_url_for_request
+
         assert callable(validate_url_for_request)
 
     def test_ssrf_blocks_localhost(self) -> None:
@@ -347,7 +348,9 @@ class TestConcurrencyLimits:
                 api_key_hash="test_key",
                 canonical_hash=f"hash{i}",
                 status=JobStatus.RUNNING,
-                inputs=JobInputs(company_name="Test", company_url="https://test.com", mode="scrape"),
+                inputs=JobInputs(
+                    company_name="Test", company_url="https://test.com", mode="scrape"
+                ),
                 expected_artifacts=["test.txt"],
                 estimate=CostEstimate(cost_usd=0.1, duration_minutes=5),
                 timing=JobTiming(submitted_at="2024-01-01T00:00:00Z"),

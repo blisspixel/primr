@@ -30,10 +30,12 @@ class TestBoilerplateFilter:
         bp.compute_boilerplate(threshold=0.3)
 
         # These should be detected as boilerplate (appear in all 5 pages)
-        assert "welcome to our site" in bp.boilerplate_lines or \
-               any("welcome" in line for line in bp.boilerplate_lines)
-        assert "request a demo" in bp.boilerplate_lines or \
-               any("request" in line and "demo" in line for line in bp.boilerplate_lines)
+        assert "welcome to our site" in bp.boilerplate_lines or any(
+            "welcome" in line for line in bp.boilerplate_lines
+        )
+        assert "request a demo" in bp.boilerplate_lines or any(
+            "request" in line and "demo" in line for line in bp.boilerplate_lines
+        )
 
     def test_preserves_unique_content(self):
         """Unique content should not be removed."""
@@ -65,8 +67,12 @@ class TestBoilerplateFilter:
 
         # Check that CTA-like patterns are detected
         boilerplate_text = " ".join(bp.boilerplate_lines)
-        assert "request" in boilerplate_text or "demo" in boilerplate_text or \
-               "get started" in boilerplate_text or "sign up" in boilerplate_text
+        assert (
+            "request" in boilerplate_text
+            or "demo" in boilerplate_text
+            or "get started" in boilerplate_text
+            or "sign up" in boilerplate_text
+        )
 
     def test_threshold_affects_detection(self):
         """Higher threshold should detect fewer boilerplate lines."""
@@ -123,58 +129,28 @@ class TestScopePolicy:
 
     def test_same_domain_is_in_scope(self):
         """Same domain should be in scope."""
-        assert is_in_scope(
-            "https://example.com/about",
-            "https://example.com"
-        )
+        assert is_in_scope("https://example.com/about", "https://example.com")
 
     def test_subdomain_is_in_scope(self):
         """Subdomains should be in scope."""
-        assert is_in_scope(
-            "https://docs.example.com/guide",
-            "https://example.com"
-        )
-        assert is_in_scope(
-            "https://blog.example.com/post",
-            "https://example.com"
-        )
-        assert is_in_scope(
-            "https://investors.example.com/reports",
-            "https://example.com"
-        )
+        assert is_in_scope("https://docs.example.com/guide", "https://example.com")
+        assert is_in_scope("https://blog.example.com/post", "https://example.com")
+        assert is_in_scope("https://investors.example.com/reports", "https://example.com")
 
     def test_external_domain_is_out_of_scope(self):
         """External domains should be out of scope."""
-        assert not is_in_scope(
-            "https://linkedin.com/company/example",
-            "https://example.com"
-        )
-        assert not is_in_scope(
-            "https://techcrunch.com/article",
-            "https://example.com"
-        )
+        assert not is_in_scope("https://linkedin.com/company/example", "https://example.com")
+        assert not is_in_scope("https://techcrunch.com/article", "https://example.com")
 
     def test_www_prefix_handled(self):
         """www prefix should be handled correctly."""
-        assert is_in_scope(
-            "https://www.example.com/page",
-            "https://example.com"
-        )
-        assert is_in_scope(
-            "https://example.com/page",
-            "https://www.example.com"
-        )
+        assert is_in_scope("https://www.example.com/page", "https://example.com")
+        assert is_in_scope("https://example.com/page", "https://www.example.com")
 
     def test_similar_domain_is_out_of_scope(self):
         """Similar but different domains should be out of scope."""
-        assert not is_in_scope(
-            "https://example-corp.com/page",
-            "https://example.com"
-        )
-        assert not is_in_scope(
-            "https://myexample.com/page",
-            "https://example.com"
-        )
+        assert not is_in_scope("https://example-corp.com/page", "https://example.com")
+        assert not is_in_scope("https://myexample.com/page", "https://example.com")
 
 
 class TestPruneDomProtectsMainContent:

@@ -4,7 +4,6 @@ Tests for the types module.
 Tests type definitions, protocols, and type guards.
 """
 
-
 import pytest
 
 from primr.types import (
@@ -36,6 +35,7 @@ from primr.types import (
 # =============================================================================
 # ENUM TESTS
 # =============================================================================
+
 
 class TestAIModelType:
     """Tests for AIModelType enum."""
@@ -119,6 +119,7 @@ class TestLogLevel:
 # TYPED DICT TESTS
 # =============================================================================
 
+
 class TestSearchResult:
     """Tests for SearchResult TypedDict."""
 
@@ -199,11 +200,13 @@ class TestCompanyInfo:
 # PROTOCOL TESTS
 # =============================================================================
 
+
 class TestAIClientProtocol:
     """Tests for AIClientProtocol."""
 
     def test_protocol_implementation(self):
         """Test that a class can implement the protocol."""
+
         class MockAIClient:
             def generate(
                 self,
@@ -211,15 +214,11 @@ class TestAIClientProtocol:
                 model_type: str = "research",
                 temperature: float = 1.0,
                 thinking_level: str = "high",
-                **kwargs
+                **kwargs,
             ) -> str:
                 return f"Response to: {prompt}"
 
-            def generate_fast(
-                self,
-                prompt: str,
-                model_type: str = "research"
-            ) -> str:
+            def generate_fast(self, prompt: str, model_type: str = "research") -> str:
                 return f"Fast response to: {prompt}"
 
         client = MockAIClient()
@@ -233,6 +232,7 @@ class TestScraperProtocol:
 
     def test_protocol_implementation(self):
         """Test that a class can implement the protocol."""
+
         class MockScraper:
             def scrape(self, url: str, **kwargs) -> str | None:
                 return f"Content from {url}"
@@ -249,6 +249,7 @@ class TestCacheProtocol:
 
     def test_protocol_implementation(self):
         """Test that a class can implement the protocol."""
+
         class MockCache:
             def __init__(self):
                 self._data = {}
@@ -279,6 +280,7 @@ class TestLoggerProtocol:
 
     def test_protocol_implementation(self):
         """Test that a class can implement the protocol."""
+
         class MockLogger:
             def __init__(self):
                 self.messages = []
@@ -307,6 +309,7 @@ class TestConsoleProtocol:
 
     def test_protocol_implementation(self):
         """Test that a class can implement the protocol."""
+
         class MockConsole:
             def text(self, msg: str) -> None:
                 pass
@@ -330,6 +333,7 @@ class TestConsoleProtocol:
 # =============================================================================
 # RESULT TYPE TESTS
 # =============================================================================
+
 
 class TestResult:
     """Tests for Result generic type."""
@@ -384,6 +388,7 @@ class TestResult:
 # =============================================================================
 # TYPE GUARD TESTS
 # =============================================================================
+
 
 class TestIsValidUrl:
     """Tests for is_valid_url type guard."""
@@ -461,6 +466,7 @@ class TestIsScrapedPage:
 # INTEGRATION TESTS
 # =============================================================================
 
+
 class TestTypesIntegration:
     """Integration tests for types module."""
 
@@ -488,6 +494,7 @@ class TestTypesIntegration:
 
     def test_protocol_with_result(self):
         """Test protocol implementation returning Result."""
+
         class SafeScraper:
             def scrape(self, url: str, **kwargs) -> str | None:
                 return f"Content from {url}"

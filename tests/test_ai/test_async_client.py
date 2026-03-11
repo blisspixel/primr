@@ -20,6 +20,7 @@ from primr.ai.async_client import (
 # FIXTURES
 # =============================================================================
 
+
 @pytest.fixture
 def mock_settings():
     """Mock settings for testing."""
@@ -44,6 +45,7 @@ def mock_genai_client():
 # =============================================================================
 # BATCH RESULT TESTS
 # =============================================================================
+
 
 class TestBatchResult:
     """Tests for BatchResult dataclass."""
@@ -72,6 +74,7 @@ class TestBatchResult:
 # =============================================================================
 # BATCH STATS TESTS
 # =============================================================================
+
 
 class TestBatchStats:
     """Tests for BatchStats dataclass."""
@@ -110,6 +113,7 @@ class TestBatchStats:
 # =============================================================================
 # GET BATCH STATS TESTS
 # =============================================================================
+
 
 class TestGetBatchStats:
     """Tests for get_batch_stats function."""
@@ -163,6 +167,7 @@ class TestGetBatchStats:
 # ASYNC AI CLIENT TESTS
 # =============================================================================
 
+
 class TestAsyncAIClient:
     """Tests for AsyncAIClient class."""
 
@@ -212,6 +217,7 @@ class TestAsyncAIClient:
 # ASYNC CONTEXT MANAGER TESTS
 # =============================================================================
 
+
 class TestAsyncContextManager:
     """Tests for async context manager behavior."""
 
@@ -243,7 +249,9 @@ class TestAsyncContextManager:
     @pytest.mark.asyncio
     @patch("primr.ai.async_client.get_settings")
     @patch("primr.ai.async_client.genai.Client")
-    async def test_context_manager_exit_calls_aclose(self, mock_client_class, mock_get_settings, mock_settings):
+    async def test_context_manager_exit_calls_aclose(
+        self, mock_client_class, mock_get_settings, mock_settings
+    ):
         """Exit should close async SDK client when supported."""
         mock_get_settings.return_value = mock_settings
         mock_client = Mock()
@@ -261,13 +269,16 @@ class TestAsyncContextManager:
 # GENERATE TESTS
 # =============================================================================
 
+
 class TestGenerate:
     """Tests for generate method."""
 
     @pytest.mark.asyncio
     @patch("primr.ai.async_client.get_settings")
     @patch("primr.ai.async_client.genai.Client")
-    async def test_generate_success(self, mock_client_class, mock_get_settings, mock_settings, mock_genai_client):
+    async def test_generate_success(
+        self, mock_client_class, mock_get_settings, mock_settings, mock_genai_client
+    ):
         """Test successful generation."""
         mock_get_settings.return_value = mock_settings
         mock_client_class.return_value = mock_genai_client
@@ -280,7 +291,9 @@ class TestGenerate:
     @pytest.mark.asyncio
     @patch("primr.ai.async_client.get_settings")
     @patch("primr.ai.async_client.genai.Client")
-    async def test_generate_fast(self, mock_client_class, mock_get_settings, mock_settings, mock_genai_client):
+    async def test_generate_fast(
+        self, mock_client_class, mock_get_settings, mock_settings, mock_genai_client
+    ):
         """Test fast generation."""
         mock_get_settings.return_value = mock_settings
         mock_client_class.return_value = mock_genai_client
@@ -293,7 +306,9 @@ class TestGenerate:
     @pytest.mark.asyncio
     @patch("primr.ai.async_client.get_settings")
     @patch("primr.ai.async_client.genai.Client")
-    async def test_generate_strips_whitespace(self, mock_client_class, mock_get_settings, mock_settings):
+    async def test_generate_strips_whitespace(
+        self, mock_client_class, mock_get_settings, mock_settings
+    ):
         """Test that response whitespace is stripped."""
         mock_get_settings.return_value = mock_settings
 
@@ -311,7 +326,9 @@ class TestGenerate:
     @pytest.mark.asyncio
     @patch("primr.ai.async_client.get_settings")
     @patch("primr.ai.async_client.genai.Client")
-    async def test_generate_respects_timeout(self, mock_client_class, mock_get_settings, mock_settings):
+    async def test_generate_respects_timeout(
+        self, mock_client_class, mock_get_settings, mock_settings
+    ):
         """Should raise quickly when timeout is exceeded."""
         mock_get_settings.return_value = mock_settings
         mock_settings.ai.max_retries = 1
@@ -337,13 +354,16 @@ class TestGenerate:
 # BATCH GENERATION TESTS
 # =============================================================================
 
+
 class TestGenerateBatch:
     """Tests for batch generation."""
 
     @pytest.mark.asyncio
     @patch("primr.ai.async_client.get_settings")
     @patch("primr.ai.async_client.genai.Client")
-    async def test_batch_all_success(self, mock_client_class, mock_get_settings, mock_settings, mock_genai_client):
+    async def test_batch_all_success(
+        self, mock_client_class, mock_get_settings, mock_settings, mock_genai_client
+    ):
         """Test batch with all successful responses."""
         mock_get_settings.return_value = mock_settings
         mock_client_class.return_value = mock_genai_client
@@ -359,12 +379,15 @@ class TestGenerateBatch:
     @pytest.mark.asyncio
     @patch("primr.ai.async_client.get_settings")
     @patch("primr.ai.async_client.genai.Client")
-    async def test_batch_progress_callback(self, mock_client_class, mock_get_settings, mock_settings, mock_genai_client):
+    async def test_batch_progress_callback(
+        self, mock_client_class, mock_get_settings, mock_settings, mock_genai_client
+    ):
         """Test batch progress callback is called."""
         mock_get_settings.return_value = mock_settings
         mock_client_class.return_value = mock_genai_client
 
         progress_calls = []
+
         def on_progress(completed, total):
             progress_calls.append((completed, total))
 
@@ -379,7 +402,9 @@ class TestGenerateBatch:
     @pytest.mark.asyncio
     @patch("primr.ai.async_client.get_settings")
     @patch("primr.ai.async_client.genai.Client")
-    async def test_batch_with_context(self, mock_client_class, mock_get_settings, mock_settings, mock_genai_client):
+    async def test_batch_with_context(
+        self, mock_client_class, mock_get_settings, mock_settings, mock_genai_client
+    ):
         """Test batch with context template."""
         mock_get_settings.return_value = mock_settings
         mock_client_class.return_value = mock_genai_client
@@ -400,13 +425,16 @@ class TestGenerateBatch:
 # CONCURRENCY TESTS
 # =============================================================================
 
+
 class TestConcurrency:
     """Tests for concurrency control."""
 
     @pytest.mark.asyncio
     @patch("primr.ai.async_client.get_settings")
     @patch("primr.ai.async_client.genai.Client")
-    async def test_semaphore_limits_concurrency(self, mock_client_class, mock_get_settings, mock_settings):
+    async def test_semaphore_limits_concurrency(
+        self, mock_client_class, mock_get_settings, mock_settings
+    ):
         """Test that semaphore limits concurrent requests."""
         mock_get_settings.return_value = mock_settings
 
@@ -417,6 +445,7 @@ class TestConcurrency:
         def slow_generate(*args, **kwargs):
             # Sync function that simulates work - used with run_in_executor
             import time
+
             nonlocal concurrent_count, max_concurrent_seen
             concurrent_count += 1
             max_concurrent_seen = max(max_concurrent_seen, concurrent_count)
@@ -441,13 +470,16 @@ class TestConcurrency:
 # CONVENIENCE FUNCTION TESTS
 # =============================================================================
 
+
 class TestConvenienceFunctions:
     """Tests for convenience functions."""
 
     @pytest.mark.asyncio
     @patch("primr.ai.async_client.get_settings")
     @patch("primr.ai.async_client.genai.Client")
-    async def test_generate_parallel(self, mock_client_class, mock_get_settings, mock_settings, mock_genai_client):
+    async def test_generate_parallel(
+        self, mock_client_class, mock_get_settings, mock_settings, mock_genai_client
+    ):
         """Test generate_parallel function."""
         mock_get_settings.return_value = mock_settings
         mock_client_class.return_value = mock_genai_client
@@ -459,7 +491,9 @@ class TestConvenienceFunctions:
 
     @patch("primr.ai.async_client.get_settings")
     @patch("primr.ai.async_client.genai.Client")
-    def test_run_parallel_sync(self, mock_client_class, mock_get_settings, mock_settings, mock_genai_client):
+    def test_run_parallel_sync(
+        self, mock_client_class, mock_get_settings, mock_settings, mock_genai_client
+    ):
         """Test run_parallel synchronous wrapper."""
         mock_get_settings.return_value = mock_settings
         mock_client_class.return_value = mock_genai_client
@@ -474,6 +508,7 @@ class TestConvenienceFunctions:
 # ERROR HANDLING TESTS
 # =============================================================================
 
+
 class TestErrorHandling:
     """Tests for error handling."""
 
@@ -486,6 +521,7 @@ class TestErrorHandling:
         mock_settings.ai.max_retries = 1
 
         call_count = 0
+
         def generate_with_error(*args, **kwargs):
             nonlocal call_count
             call_count += 1

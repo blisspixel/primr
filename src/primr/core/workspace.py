@@ -24,6 +24,7 @@ Usage:
     # Consolidate for context
     context_file = consolidate_working_folder(folder)
 """
+
 import os
 import tempfile
 from collections.abc import Iterator
@@ -43,16 +44,18 @@ logger = get_logger("workspace")
 # =============================================================================
 
 # Supported file types for Deep Research File Search
-SUPPORTED_EXTENSIONS: frozenset[str] = frozenset({'.txt', '.pdf', '.md', '.json', '.csv'})
+SUPPORTED_EXTENSIONS: frozenset[str] = frozenset({".txt", ".pdf", ".md", ".json", ".csv"})
 
 
 # =============================================================================
 # DATACLASSES
 # =============================================================================
 
+
 @dataclass(frozen=True)
 class WorkspaceConfig:
     """Configuration for workspace operations."""
+
     base_dir: Path
     company_name: str
     website: str | None = None
@@ -75,6 +78,7 @@ class WorkspaceConfig:
 @dataclass
 class ConsolidationResult:
     """Result of folder consolidation."""
+
     output_path: Path
     files_processed: int
     total_size_bytes: int
@@ -84,6 +88,7 @@ class ConsolidationResult:
 @dataclass
 class FileValidationResult:
     """Result of file validation."""
+
     valid_files: tuple[Path, ...]
     invalid_files: tuple[tuple[Path, str], ...]  # (path, reason)
     warnings: tuple[str, ...]
@@ -97,7 +102,10 @@ class FileValidationResult:
 # PUBLIC INTERFACE
 # =============================================================================
 
-def create_working_folder(company_name: str | None, website: str | None, use_run_id: bool = True) -> str:
+
+def create_working_folder(
+    company_name: str | None, website: str | None, use_run_id: bool = True
+) -> str:
     """
     Create working folder for research artifacts.
 
@@ -151,7 +159,7 @@ def working_folder(
     company_name: str | None,
     website: str | None,
     cleanup_on_exit: bool = False,
-    use_run_id: bool = True
+    use_run_id: bool = True,
 ) -> Iterator[Path]:
     """
     Context manager for working folder operations.
@@ -173,6 +181,7 @@ def working_folder(
     finally:
         if cleanup_on_exit:
             import shutil
+
             try:
                 shutil.rmtree(folder_path)
             except Exception as e:
@@ -234,12 +243,19 @@ def consolidate_working_folder(folder_path: str | Path) -> str:
         content, size = _read_file_content(deep_research_file)
         total_size += size
         if content:
-            lines.extend([
-                "# STRATEGIC COMPANY REPORT (PRIMARY SOURCE)", "",
-                "This comprehensive analysis is your PRIMARY source. Read it thoroughly.",
-                "Every AI recommendation should connect to insights from this report.", "",
-                content, "", "---", ""
-            ])
+            lines.extend(
+                [
+                    "# STRATEGIC COMPANY REPORT (PRIMARY SOURCE)",
+                    "",
+                    "This comprehensive analysis is your PRIMARY source. Read it thoroughly.",
+                    "Every AI recommendation should connect to insights from this report.",
+                    "",
+                    content,
+                    "",
+                    "---",
+                    "",
+                ]
+            )
             logger.info(f"Included strategic report ({size:,} chars)")
 
     # SECONDARY: Include key supporting files only
@@ -254,10 +270,12 @@ def consolidate_working_folder(folder_path: str | Path) -> str:
 
     # Write consolidated file
     # NOTE: We must close the fd from mkstemp before opening the file by path
-    fd, filepath = tempfile.mkstemp(suffix='.txt', prefix=f'{company_name.replace(" ", "_")}_context_')
+    fd, filepath = tempfile.mkstemp(
+        suffix=".txt", prefix=f"{company_name.replace(' ', '_')}_context_"
+    )
     os.close(fd)  # Close the fd - we'll open by path
-    with open(filepath, 'w', encoding='utf-8') as f:
-        f.write('\n'.join(lines))
+    with open(filepath, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
 
     file_count = len(txt_files) + (1 if has_deep_research else 0)
     logger.info(f"Consolidated {file_count} files ({total_size:,} chars) into {filepath}")
@@ -330,23 +348,18 @@ def validate_context_files(file_paths: list[str | Path]) -> FileValidationResult
                 invalid_files.append((path, "File is empty"))
             else:
                 valid_files.append(path)
-        elif ext in {'.docx', '.doc'}:
-            invalid_files.append((
-                path,
-                "Word docs not directly supported. Convert to PDF or use .txt output"
-            ))
-            warnings.append(
-                "Tip: Use the _Company_Overview.txt file from output/ instead of .docx"
+        elif ext in {".docx", ".doc"}:
+            invalid_files.append(
+                (path, "Word docs not directly supported. Convert to PDF or use .txt output")
             )
-        elif ext in {'.xlsx', '.xls'}:
+            warnings.append("Tip: Use the _Company_Overview.txt file from output/ instead of .docx")
+        elif ext in {".xlsx", ".xls"}:
             invalid_files.append((path, "Excel files not supported. Export to CSV"))
         else:
             invalid_files.append((path, f"Unsupported file type: {ext}"))
 
     return FileValidationResult(
-        valid_files=tuple(valid_files),
-        invalid_files=tuple(invalid_files),
-        warnings=tuple(warnings)
+        valid_files=tuple(valid_files), invalid_files=tuple(invalid_files), warnings=tuple(warnings)
     )
 
 

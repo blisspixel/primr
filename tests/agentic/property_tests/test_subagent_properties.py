@@ -106,6 +106,7 @@ def hypotheses(draw) -> Hypothesis:
 # PROPERTY 16: Analyst Hypothesis Generation
 # =============================================================================
 
+
 # Feature: agentic-architecture, Property 16: Analyst Hypothesis Generation
 @given(
     company_name=company_names,
@@ -189,14 +190,13 @@ def test_analyst_confidence_scoring(hypotheses_list: list[Hypothesis]):
 
         # Verify all scores are in valid range
         for h_id, score in scores.items():
-            assert 0.0 <= score <= 1.0, (
-                f"Score {score} for {h_id} out of range [0, 1]"
-            )
+            assert 0.0 <= score <= 1.0, f"Score {score} for {h_id} out of range [0, 1]"
 
 
 # =============================================================================
 # PROPERTY 17: QA Score Production
 # =============================================================================
+
 
 # Feature: agentic-architecture, Property 17: QA Score Production
 @given(
@@ -243,12 +243,8 @@ def test_qa_score_production(
         result = asyncio.run(qa._basic_assessment(report_path))
 
         # Verify score is in valid range
-        assert isinstance(result.score, int), (
-            f"Score should be int, got {type(result.score)}"
-        )
-        assert 0 <= result.score <= 100, (
-            f"Score {result.score} out of range [0, 100]"
-        )
+        assert isinstance(result.score, int), f"Score should be int, got {type(result.score)}"
+        assert 0 <= result.score <= 100, f"Score {result.score} out of range [0, 100]"
 
         # Verify feedback is a list
         assert isinstance(result.feedback, list), (
@@ -283,6 +279,7 @@ def test_qa_grade_assignment(score: int):
 # =============================================================================
 # SUBAGENT LIFECYCLE TESTS
 # =============================================================================
+
 
 # Feature: agentic-architecture, Subagent lifecycle management
 @given(context=subagent_contexts())
@@ -346,6 +343,7 @@ def test_subagent_context_isolation(
 # =============================================================================
 # RESULT STRUCTURE TESTS
 # =============================================================================
+
 
 # Feature: agentic-architecture, SubagentResult structure
 @given(
@@ -433,6 +431,7 @@ def test_analysis_result_average_confidence(scores: dict[str, float]):
 # =============================================================================
 # ADDITIONAL UNIT TESTS
 # =============================================================================
+
 
 def test_subagent_context_get_parent_result():
     """SubagentContext.get_parent_result returns correct values."""
@@ -543,4 +542,3 @@ def test_subagent_repr():
         assert "ScraperSubagent" in repr_str
         assert "Acme Corp" in repr_str
         assert "idle" in repr_str
-

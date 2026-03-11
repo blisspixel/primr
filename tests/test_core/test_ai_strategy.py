@@ -7,6 +7,7 @@ Tests cover:
 - AIStrategyResult computed properties
 - Prompt building functions
 """
+
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -28,6 +29,7 @@ from primr.core.ai_strategy import (
 # =============================================================================
 # CloudVendor Enum Tests
 # =============================================================================
+
 
 class TestCloudVendor:
     """Tests for CloudVendor enum."""
@@ -73,15 +75,13 @@ class TestCloudVendor:
 # AIStrategyConfig Tests
 # =============================================================================
 
+
 class TestAIStrategyConfig:
     """Tests for AIStrategyConfig dataclass."""
 
     def test_valid_config(self):
         """Test creating valid config."""
-        config = AIStrategyConfig(
-            company_name="Acme Corp",
-            cloud_vendor=CloudVendor.AZURE
-        )
+        config = AIStrategyConfig(company_name="Acme Corp", cloud_vendor=CloudVendor.AZURE)
         assert config.company_name == "Acme Corp"
         assert config.cloud_vendor == CloudVendor.AZURE
         assert config.company_research_path is None
@@ -97,27 +97,21 @@ class TestAIStrategyConfig:
             config = AIStrategyConfig(
                 company_name="Test Co",
                 cloud_vendor=CloudVendor.AWS,
-                company_research_path=str(research_file)
+                company_research_path=str(research_file),
             )
             errors = config.validate()
             assert len(errors) == 0
 
     def test_validate_empty_company_name(self):
         """Test validation fails for empty company name."""
-        config = AIStrategyConfig(
-            company_name="",
-            cloud_vendor=CloudVendor.AZURE
-        )
+        config = AIStrategyConfig(company_name="", cloud_vendor=CloudVendor.AZURE)
         errors = config.validate()
         assert len(errors) == 1
         assert "Company name is required" in errors[0]
 
     def test_validate_whitespace_company_name(self):
         """Test validation fails for whitespace-only company name."""
-        config = AIStrategyConfig(
-            company_name="   ",
-            cloud_vendor=CloudVendor.AZURE
-        )
+        config = AIStrategyConfig(company_name="   ", cloud_vendor=CloudVendor.AZURE)
         errors = config.validate()
         assert len(errors) == 1
         assert "Company name is required" in errors[0]
@@ -127,7 +121,7 @@ class TestAIStrategyConfig:
         config = AIStrategyConfig(
             company_name="Test Co",
             cloud_vendor=CloudVendor.AZURE,
-            company_research_path="/nonexistent/path/research.md"
+            company_research_path="/nonexistent/path/research.md",
         )
         errors = config.validate()
         assert len(errors) == 1
@@ -142,7 +136,7 @@ class TestAIStrategyConfig:
             config = AIStrategyConfig(
                 company_name="Test Co",
                 cloud_vendor=CloudVendor.AZURE,
-                company_research_path=str(empty_file)
+                company_research_path=str(empty_file),
             )
             errors = config.validate()
             assert len(errors) == 1
@@ -150,10 +144,7 @@ class TestAIStrategyConfig:
 
     def test_config_is_frozen(self):
         """Test config is immutable (frozen)."""
-        config = AIStrategyConfig(
-            company_name="Test",
-            cloud_vendor=CloudVendor.AZURE
-        )
+        config = AIStrategyConfig(company_name="Test", cloud_vendor=CloudVendor.AZURE)
         with pytest.raises(AttributeError):
             config.company_name = "Changed"
 
@@ -161,6 +152,7 @@ class TestAIStrategyConfig:
 # =============================================================================
 # AIStrategyResult Tests
 # =============================================================================
+
 
 class TestAIStrategyResult:
     """Tests for AIStrategyResult dataclass."""
@@ -173,7 +165,7 @@ class TestAIStrategyResult:
             txt_path="/output/strategy.txt",
             content="# AI Strategy",
             duration_seconds=120.5,
-            vendor_research_paths=["/docs/vendor.txt"]
+            vendor_research_paths=["/docs/vendor.txt"],
         )
         assert result.success is True
         assert result.error is None
@@ -188,7 +180,7 @@ class TestAIStrategyResult:
             content="",
             duration_seconds=5.0,
             vendor_research_paths=[],
-            error="API key not configured"
+            error="API key not configured",
         )
         assert result.success is False
         assert result.error == "API key not configured"
@@ -202,7 +194,7 @@ class TestAIStrategyResult:
             txt_path="/output/strategy.txt",
             content="# Content",
             duration_seconds=60.0,
-            vendor_research_paths=[]
+            vendor_research_paths=[],
         )
         # No docx means not fully successful
         assert result.success is False
@@ -216,7 +208,7 @@ class TestAIStrategyResult:
             txt_path="/output/strategy.txt",
             content="content",
             duration_seconds=10.0,
-            vendor_research_paths=[]
+            vendor_research_paths=[],
         )
         assert len(result.output_paths) == 2
         assert None not in result.output_paths
@@ -225,6 +217,7 @@ class TestAIStrategyResult:
 # =============================================================================
 # StrategyPromptContext Tests
 # =============================================================================
+
 
 class TestStrategyPromptContext:
     """Tests for StrategyPromptContext dataclass."""
@@ -236,7 +229,7 @@ class TestStrategyPromptContext:
             cloud_vendor=CloudVendor.AZURE,
             current_date="December 2025",
             vendor_guidance="Azure guidance here",
-            vendor_name="Microsoft Azure"
+            vendor_name="Microsoft Azure",
         )
         assert context.company_name == "Test Corp"
         assert context.cloud_vendor == CloudVendor.AZURE
@@ -246,6 +239,7 @@ class TestStrategyPromptContext:
 # =============================================================================
 # Prompt Building Tests
 # =============================================================================
+
 
 class TestBuildAIStrategyPrompt:
     """Tests for build_ai_strategy_prompt function."""
@@ -290,6 +284,7 @@ class TestBuildAIStrategyPrompt:
     def test_prompt_contains_date(self):
         """Test prompt includes current date."""
         from datetime import datetime
+
         current_month = datetime.now().strftime("%B %Y")
 
         prompt = build_ai_strategy_prompt("Test", CloudVendor.AZURE)
@@ -307,6 +302,7 @@ class TestBuildAIStrategyPrompt:
 # Integration Tests (with mocks)
 # =============================================================================
 
+
 class TestGenerateAIStrategy:
     """Tests for generate_ai_strategy function."""
 
@@ -318,10 +314,7 @@ class TestGenerateAIStrategy:
             mock_api.gemini_key = None
             mock_settings.return_value.api = mock_api
 
-            result = await generate_ai_strategy(
-                company_name="Test Corp",
-                cloud_vendor="azure"
-            )
+            result = await generate_ai_strategy(company_name="Test Corp", cloud_vendor="azure")
 
             assert result.success is False
             assert "GEMINI_API_KEY" in result.error
@@ -334,10 +327,7 @@ class TestGenerateAIStrategy:
             mock_api.gemini_key = "test-key"
             mock_settings.return_value.api = mock_api
 
-            result = await generate_ai_strategy(
-                company_name="",
-                cloud_vendor="azure"
-            )
+            result = await generate_ai_strategy(company_name="", cloud_vendor="azure")
 
             assert result.success is False
             assert "Company name" in result.error
@@ -350,7 +340,7 @@ class TestGenerateAIStrategy:
 
             result = await generate_ai_strategy(
                 company_name="Test",
-                cloud_vendor="azure"  # String, not enum
+                cloud_vendor="azure",  # String, not enum
             )
 
             # Should fail at preflight, but vendor conversion should work
@@ -361,10 +351,7 @@ class TestGenerateAIStrategy:
         with patch("primr.core.ai_strategy._validate_preflight") as mock_validate:
             mock_validate.return_value = ["Preflight error"]
 
-            result = generate_ai_strategy_sync(
-                company_name="Test",
-                cloud_vendor="azure"
-            )
+            result = generate_ai_strategy_sync(company_name="Test", cloud_vendor="azure")
 
             # Should return None on failure
             assert result is None
@@ -374,6 +361,7 @@ class TestGenerateAIStrategy:
 # Property Tests
 # =============================================================================
 
+
 class TestAIStrategyProperties:
     """Property-based tests for AI strategy module."""
 
@@ -381,10 +369,7 @@ class TestAIStrategyProperties:
     @settings(deadline=None)
     def test_config_validates_non_empty_names(self, company_name):
         """Property: Non-empty company names pass validation."""
-        config = AIStrategyConfig(
-            company_name=company_name,
-            cloud_vendor=CloudVendor.AZURE
-        )
+        config = AIStrategyConfig(company_name=company_name, cloud_vendor=CloudVendor.AZURE)
         errors = config.validate()
         # Should not have "Company name is required" error
         assert not any("Company name is required" in e for e in errors)
@@ -398,7 +383,7 @@ class TestAIStrategyProperties:
 
     @given(
         st.floats(min_value=0, max_value=10000),
-        st.lists(st.text(min_size=1, max_size=50), max_size=5)
+        st.lists(st.text(min_size=1, max_size=50), max_size=5),
     )
     @settings(deadline=None)
     def test_result_duration_preserved(self, duration, paths):
@@ -409,7 +394,7 @@ class TestAIStrategyProperties:
             txt_path=None,
             content="",
             duration_seconds=duration,
-            vendor_research_paths=paths
+            vendor_research_paths=paths,
         )
         assert result.duration_seconds == duration
         assert result.vendor_research_paths == paths

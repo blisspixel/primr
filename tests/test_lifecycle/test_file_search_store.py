@@ -66,12 +66,12 @@ class TestStoreCreation:
         mock_store_manager.create_store("my_research")
 
         call_args = mock_client.file_search_stores.create.call_args
-        config = call_args.kwargs.get('config', {})
-        display_name = config.get('display_name', '')
+        config = call_args.kwargs.get("config", {})
+        display_name = config.get("display_name", "")
 
-        assert 'my_research' in display_name
+        assert "my_research" in display_name
         # Should have timestamp suffix
-        assert '_' in display_name
+        assert "_" in display_name
 
 
 class TestStoreUpload:
@@ -101,7 +101,7 @@ class TestStoreUpload:
             created_files.append(path)
             return fd, path
 
-        with patch('tempfile.mkstemp', tracking_mkstemp):
+        with patch("tempfile.mkstemp", tracking_mkstemp):
             mock_store_manager.upload_context(
                 store_name="test-store",
                 content="Test content",
@@ -380,11 +380,14 @@ class TestCleanupOrphanedResources:
         mock_client.caches.list.return_value = [mock_cache]
         mock_client.file_search_stores.list.return_value = []
 
-        with patch("primr.ai.deep_research.genai.Client", return_value=mock_client), \
-             patch("primr.ai.deep_research.get_settings") as mock_settings:
+        with (
+            patch("primr.ai.deep_research.genai.Client", return_value=mock_client),
+            patch("primr.ai.deep_research.get_settings") as mock_settings,
+        ):
             mock_settings.return_value.api.gemini_key = "test-key"
 
             from primr.ai.deep_research import cleanup_orphaned_resources
+
             result = cleanup_orphaned_resources(api_key="test-key")
 
         assert result["caches_deleted"] == 1
@@ -402,11 +405,14 @@ class TestCleanupOrphanedResources:
         mock_client.file_search_stores.list.return_value = [mock_store]
         mock_client.file_search_stores.documents.list.return_value = [mock_doc]
 
-        with patch("primr.ai.deep_research.genai.Client", return_value=mock_client), \
-             patch("primr.ai.deep_research.get_settings") as mock_settings:
+        with (
+            patch("primr.ai.deep_research.genai.Client", return_value=mock_client),
+            patch("primr.ai.deep_research.get_settings") as mock_settings,
+        ):
             mock_settings.return_value.api.gemini_key = "test-key"
 
             from primr.ai.deep_research import cleanup_orphaned_resources
+
             result = cleanup_orphaned_resources(api_key="test-key")
 
         assert result["stores_deleted"] == 1
@@ -421,11 +427,14 @@ class TestCleanupOrphanedResources:
         mock_client.caches.list.return_value = []
         mock_client.file_search_stores.list.return_value = []
 
-        with patch("primr.ai.deep_research.genai.Client", return_value=mock_client), \
-             patch("primr.ai.deep_research.get_settings") as mock_settings:
+        with (
+            patch("primr.ai.deep_research.genai.Client", return_value=mock_client),
+            patch("primr.ai.deep_research.get_settings") as mock_settings,
+        ):
             mock_settings.return_value.api.gemini_key = "test-key"
 
             from primr.ai.deep_research import cleanup_orphaned_resources
+
             result = cleanup_orphaned_resources(api_key="test-key")
 
         assert result["caches_deleted"] == 0
@@ -437,11 +446,14 @@ class TestCleanupOrphanedResources:
         mock_client.caches.list.side_effect = Exception("API down")
         mock_client.file_search_stores.list.side_effect = Exception("API down")
 
-        with patch("primr.ai.deep_research.genai.Client", return_value=mock_client), \
-             patch("primr.ai.deep_research.get_settings") as mock_settings:
+        with (
+            patch("primr.ai.deep_research.genai.Client", return_value=mock_client),
+            patch("primr.ai.deep_research.get_settings") as mock_settings,
+        ):
             mock_settings.return_value.api.gemini_key = "test-key"
 
             from primr.ai.deep_research import cleanup_orphaned_resources
+
             # Should not raise
             result = cleanup_orphaned_resources(api_key="test-key")
 

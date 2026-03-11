@@ -62,9 +62,11 @@ def _get_grok_client():
         ) from exc
 
     import os
+
     api_key = os.getenv("XAI_API_KEY")
     if not api_key:
         from primr.utils.errors import ConfigurationError
+
         raise ConfigurationError(
             "XAI_API_KEY not set. Add it to your .env file or environment. "
             "Get a key at https://console.x.ai/"
@@ -136,7 +138,7 @@ def _extract_retry_after_seconds(error: Exception) -> float | None:
 
 def _compute_backoff_delay(attempt: int, *, base: float = 5.0, cap: float = 90.0) -> float:
     """Exponential backoff with jitter for transient API failures."""
-    raw = min(cap, base * (2 ** attempt))
+    raw = min(cap, base * (2**attempt))
     jitter = random.uniform(0, raw * 0.2)
     return raw + jitter
 
@@ -190,7 +192,9 @@ def grok_llm(
             )
 
             if not response.choices:
-                raise RuntimeError("Grok returned empty response (no choices — possible content filter)")
+                raise RuntimeError(
+                    "Grok returned empty response (no choices — possible content filter)"
+                )
 
             # Track tokens only after confirming we got a valid response
             if response.usage:
@@ -210,17 +214,29 @@ def grok_llm(
             if _is_retryable_grok_error(e):
                 if attempt < retries:
                     retry_after = _extract_retry_after_seconds(e)
-                    wait = retry_after if retry_after is not None else _compute_backoff_delay(attempt)
+                    wait = (
+                        retry_after if retry_after is not None else _compute_backoff_delay(attempt)
+                    )
                     logger.warning(
                         "Transient Grok API error, retrying in %.1fs (attempt %d/%d): %s",
-                        wait, attempt + 1, retries + 1, e,
+                        wait,
+                        attempt + 1,
+                        retries + 1,
+                        e,
                     )
                     time.sleep(wait)
                     continue
-                logger.warning("Transient Grok API error on final attempt (%d/%d): %s", attempt + 1, retries + 1, e)
+                logger.warning(
+                    "Transient Grok API error on final attempt (%d/%d): %s",
+                    attempt + 1,
+                    retries + 1,
+                    e,
+                )
                 break
 
             # Non-retryable error
             raise RuntimeError(f"Grok API call failed (non-retryable): {e}") from e
 
-    raise RuntimeError(f"Grok API call failed after {retries + 1} attempts: {last_error}") from last_error
+    raise RuntimeError(
+        f"Grok API call failed after {retries + 1} attempts: {last_error}"
+    ) from last_error

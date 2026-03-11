@@ -160,32 +160,37 @@ async def _handle_query_roadmap(
             v = api.get_version(version_num)
 
             if v:
-                features_info = [
-                    {"name": f.name, "status": f.status.value}
-                    for f in v.features
-                ]
+                features_info = [{"name": f.name, "status": f.status.value} for f in v.features]
                 blockers = api.get_blockers(version_num)
 
-                return [TextContent(
-                    type="text",
-                    text=json.dumps({
-                        "version": v.number,
-                        "title": v.title,
-                        "status": v.status.value,
-                        "features": features_info,
-                        "blockers": blockers,
-                        "dependencies": v.dependencies,
-                    }),
-                )]
+                return [
+                    TextContent(
+                        type="text",
+                        text=json.dumps(
+                            {
+                                "version": v.number,
+                                "title": v.title,
+                                "status": v.status.value,
+                                "features": features_info,
+                                "blockers": blockers,
+                                "dependencies": v.dependencies,
+                            }
+                        ),
+                    )
+                ]
             else:
-                return [TextContent(
-                    type="text",
-                    text=json.dumps({
-                        "error": True,
-                        "error_type": "version_not_found",
-                        "message": f"Version {version} not found in roadmap",
-                    }),
-                )]
+                return [
+                    TextContent(
+                        type="text",
+                        text=json.dumps(
+                            {
+                                "error": True,
+                                "error_type": "version_not_found",
+                                "message": f"Version {version} not found in roadmap",
+                            }
+                        ),
+                    )
+                ]
 
         # Handle natural language queries
         query_lower = query.lower()
@@ -197,79 +202,96 @@ async def _handle_query_roadmap(
             if match:
                 version_num = match.group(1)
                 blockers = api.get_blockers(version_num)
-                return [TextContent(
-                    type="text",
-                    text=json.dumps({
-                        "version": version_num,
-                        "blockers": blockers,
-                    }),
-                )]
+                return [
+                    TextContent(
+                        type="text",
+                        text=json.dumps(
+                            {
+                                "version": version_num,
+                                "blockers": blockers,
+                            }
+                        ),
+                    )
+                ]
 
         # Status query
         if "in progress" in query_lower or "current" in query_lower:
             versions = api.list_by_status(VersionStatus.IN_PROGRESS)
-            return [TextContent(
-                type="text",
-                text=json.dumps({
-                    "status": "in_progress",
-                    "versions": [
-                        {"number": v.number, "title": v.title}
-                        for v in versions
-                    ],
-                }),
-            )]
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps(
+                        {
+                            "status": "in_progress",
+                            "versions": [{"number": v.number, "title": v.title} for v in versions],
+                        }
+                    ),
+                )
+            ]
 
         if "planned" in query_lower or "upcoming" in query_lower:
             versions = api.list_by_status(VersionStatus.PLANNED)
-            return [TextContent(
-                type="text",
-                text=json.dumps({
-                    "status": "planned",
-                    "versions": [
-                        {"number": v.number, "title": v.title}
-                        for v in versions
-                    ],
-                }),
-            )]
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps(
+                        {
+                            "status": "planned",
+                            "versions": [{"number": v.number, "title": v.title} for v in versions],
+                        }
+                    ),
+                )
+            ]
 
         if "completed" in query_lower or "done" in query_lower:
             versions = api.list_by_status(VersionStatus.COMPLETED)
-            return [TextContent(
-                type="text",
-                text=json.dumps({
-                    "status": "completed",
-                    "versions": [
-                        {"number": v.number, "title": v.title}
-                        for v in versions
-                    ],
-                }),
-            )]
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps(
+                        {
+                            "status": "completed",
+                            "versions": [{"number": v.number, "title": v.title} for v in versions],
+                        }
+                    ),
+                )
+            ]
 
         # Default: return full roadmap summary
-        return [TextContent(
-            type="text",
-            text=api.to_json(),
-        )]
+        return [
+            TextContent(
+                type="text",
+                text=api.to_json(),
+            )
+        ]
 
     except FileNotFoundError:
-        return [TextContent(
-            type="text",
-            text=json.dumps({
-                "error": True,
-                "error_type": "roadmap_not_found",
-                "message": "ROADMAP.md not found",
-            }),
-        )]
+        return [
+            TextContent(
+                type="text",
+                text=json.dumps(
+                    {
+                        "error": True,
+                        "error_type": "roadmap_not_found",
+                        "message": "ROADMAP.md not found",
+                    }
+                ),
+            )
+        ]
     except Exception as e:
         logger.exception("Roadmap query failed")
-        return [TextContent(
-            type="text",
-            text=json.dumps({
-                "error": True,
-                "error_type": "roadmap_query_failed",
-                "message": str(e),
-            }),
-        )]
+        return [
+            TextContent(
+                type="text",
+                text=json.dumps(
+                    {
+                        "error": True,
+                        "error_type": "roadmap_query_failed",
+                        "message": str(e),
+                    }
+                ),
+            )
+        ]
 
 
 async def _handle_get_hypotheses(
@@ -291,7 +313,7 @@ async def _handle_get_hypotheses(
 
     try:
         # Get memory storage path from config or use default
-        memory_path = getattr(mcp_server, '_memory_path', None)
+        memory_path = getattr(mcp_server, "_memory_path", None)
         if memory_path is None:
             memory_path = Path("logs/research_memory")
 
@@ -303,14 +325,18 @@ async def _handle_get_hypotheses(
             try:
                 confidence = ConfidenceLevel(confidence_str)
             except ValueError:
-                return [TextContent(
-                    type="text",
-                    text=json.dumps({
-                        "error": True,
-                        "error_type": "invalid_confidence",
-                        "message": f"Invalid confidence level: {confidence_str}",
-                    }),
-                )]
+                return [
+                    TextContent(
+                        type="text",
+                        text=json.dumps(
+                            {
+                                "error": True,
+                                "error_type": "invalid_confidence",
+                                "message": f"Invalid confidence level: {confidence_str}",
+                            }
+                        ),
+                    )
+                ]
 
         # Get hypotheses
         hypotheses = memory.get_hypotheses(
@@ -320,25 +346,33 @@ async def _handle_get_hypotheses(
             include_expired=include_expired,
         )
 
-        return [TextContent(
-            type="text",
-            text=json.dumps({
-                "company": company,
-                "count": len(hypotheses),
-                "hypotheses": [h.to_dict() for h in hypotheses],
-            }),
-        )]
+        return [
+            TextContent(
+                type="text",
+                text=json.dumps(
+                    {
+                        "company": company,
+                        "count": len(hypotheses),
+                        "hypotheses": [h.to_dict() for h in hypotheses],
+                    }
+                ),
+            )
+        ]
 
     except Exception as e:
         logger.exception("Get hypotheses failed")
-        return [TextContent(
-            type="text",
-            text=json.dumps({
-                "error": True,
-                "error_type": "get_hypotheses_failed",
-                "message": str(e),
-            }),
-        )]
+        return [
+            TextContent(
+                type="text",
+                text=json.dumps(
+                    {
+                        "error": True,
+                        "error_type": "get_hypotheses_failed",
+                        "message": str(e),
+                    }
+                ),
+            )
+        ]
 
 
 async def _handle_save_hypothesis(
@@ -362,7 +396,7 @@ async def _handle_save_hypothesis(
 
     try:
         # Get memory storage path from config or use default
-        memory_path = getattr(mcp_server, '_memory_path', None)
+        memory_path = getattr(mcp_server, "_memory_path", None)
         if memory_path is None:
             memory_path = Path("logs/research_memory")
 
@@ -372,14 +406,18 @@ async def _handle_save_hypothesis(
         try:
             confidence = ConfidenceLevel(confidence_str)
         except ValueError:
-            return [TextContent(
-                type="text",
-                text=json.dumps({
-                    "error": True,
-                    "error_type": "invalid_confidence",
-                    "message": f"Invalid confidence level: {confidence_str}",
-                }),
-            )]
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps(
+                        {
+                            "error": True,
+                            "error_type": "invalid_confidence",
+                            "message": f"Invalid confidence level: {confidence_str}",
+                        }
+                    ),
+                )
+            ]
 
         # Check if hypothesis exists
         existing = memory.get_hypotheses(company, include_expired=True)
@@ -395,35 +433,47 @@ async def _handle_save_hypothesis(
                     evidence,
                 )
                 if result:
-                    return [TextContent(
-                        type="text",
-                        text=json.dumps({
-                            "success": True,
-                            "action": "updated",
-                            "hypothesis_id": hypothesis_id,
-                            "confidence": confidence.value,
-                        }),
-                    )]
+                    return [
+                        TextContent(
+                            type="text",
+                            text=json.dumps(
+                                {
+                                    "success": True,
+                                    "action": "updated",
+                                    "hypothesis_id": hypothesis_id,
+                                    "confidence": confidence.value,
+                                }
+                            ),
+                        )
+                    ]
             else:
-                return [TextContent(
-                    type="text",
-                    text=json.dumps({
-                        "error": True,
-                        "error_type": "evidence_required",
-                        "message": "Evidence is required when updating hypothesis confidence",
-                    }),
-                )]
+                return [
+                    TextContent(
+                        type="text",
+                        text=json.dumps(
+                            {
+                                "error": True,
+                                "error_type": "evidence_required",
+                                "message": "Evidence is required when updating hypothesis confidence",
+                            }
+                        ),
+                    )
+                ]
         else:
             # Create new hypothesis
             if not claim:
-                return [TextContent(
-                    type="text",
-                    text=json.dumps({
-                        "error": True,
-                        "error_type": "claim_required",
-                        "message": "Claim is required for new hypotheses",
-                    }),
-                )]
+                return [
+                    TextContent(
+                        type="text",
+                        text=json.dumps(
+                            {
+                                "error": True,
+                                "error_type": "claim_required",
+                                "message": "Claim is required for new hypotheses",
+                            }
+                        ),
+                    )
+                ]
 
             new_hypothesis = Hypothesis(
                 id=hypothesis_id,
@@ -435,23 +485,31 @@ async def _handle_save_hypothesis(
 
             memory.save_hypotheses(company, [new_hypothesis])
 
-            return [TextContent(
-                type="text",
-                text=json.dumps({
-                    "success": True,
-                    "action": "created",
-                    "hypothesis_id": hypothesis_id,
-                    "confidence": confidence.value,
-                }),
-            )]
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps(
+                        {
+                            "success": True,
+                            "action": "created",
+                            "hypothesis_id": hypothesis_id,
+                            "confidence": confidence.value,
+                        }
+                    ),
+                )
+            ]
 
     except Exception as e:
         logger.exception("Save hypothesis failed")
-        return [TextContent(
-            type="text",
-            text=json.dumps({
-                "error": True,
-                "error_type": "save_hypothesis_failed",
-                "message": str(e),
-            }),
-        )]
+        return [
+            TextContent(
+                type="text",
+                text=json.dumps(
+                    {
+                        "error": True,
+                        "error_type": "save_hypothesis_failed",
+                        "message": str(e),
+                    }
+                ),
+            )
+        ]

@@ -9,6 +9,7 @@ Tests cover:
 - DeepResearchResult computed properties
 - validate_preflight function
 """
+
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -33,6 +34,7 @@ from primr.core.deep_research_runner import (
 # PreflightStatus Enum Tests
 # =============================================================================
 
+
 class TestPreflightStatus:
     """Tests for PreflightStatus enum."""
 
@@ -46,6 +48,7 @@ class TestPreflightStatus:
 # =============================================================================
 # DeepResearchMode Enum Tests
 # =============================================================================
+
 
 class TestDeepResearchMode:
     """Tests for DeepResearchMode enum."""
@@ -79,15 +82,14 @@ class TestDeepResearchMode:
 # PreflightCheck Tests
 # =============================================================================
 
+
 class TestPreflightCheck:
     """Tests for PreflightCheck dataclass."""
 
     def test_passed_check(self):
         """Test passed check properties."""
         check = PreflightCheck(
-            name="api_key",
-            status=PreflightStatus.PASSED,
-            message="API key configured"
+            name="api_key", status=PreflightStatus.PASSED, message="API key configured"
         )
         assert check.passed is True
         assert check.failed is False
@@ -98,7 +100,7 @@ class TestPreflightCheck:
             name="api_key",
             status=PreflightStatus.FAILED,
             message="API key not configured",
-            guidance="Set GEMINI_API_KEY in .env"
+            guidance="Set GEMINI_API_KEY in .env",
         )
         assert check.passed is False
         assert check.failed is True
@@ -109,7 +111,7 @@ class TestPreflightCheck:
         check = PreflightCheck(
             name="context_file",
             status=PreflightStatus.WARNING,
-            message="Large context file may slow processing"
+            message="Large context file may slow processing",
         )
         assert check.passed is False
         assert check.failed is False
@@ -118,6 +120,7 @@ class TestPreflightCheck:
 # =============================================================================
 # PreflightResult Tests
 # =============================================================================
+
 
 class TestPreflightResult:
     """Tests for PreflightResult dataclass."""
@@ -167,6 +170,7 @@ class TestPreflightResult:
 # DeepResearchConfig Tests
 # =============================================================================
 
+
 class TestDeepResearchConfig:
     """Tests for DeepResearchConfig dataclass."""
 
@@ -175,7 +179,7 @@ class TestDeepResearchConfig:
         config = DeepResearchConfig(
             company_name="Acme Corp",
             website="https://acme.com",
-            mode=DeepResearchMode.DEEP_RESEARCH
+            mode=DeepResearchMode.DEEP_RESEARCH,
         )
         assert config.company_name == "Acme Corp"
         assert config.website == "https://acme.com"
@@ -186,28 +190,20 @@ class TestDeepResearchConfig:
     def test_display_name_from_company(self):
         """Test display name uses company name when available."""
         config = DeepResearchConfig(
-            company_name="Test Corp",
-            website="https://test.com",
-            mode=DeepResearchMode.COMPLETE
+            company_name="Test Corp", website="https://test.com", mode=DeepResearchMode.COMPLETE
         )
         assert config.display_name == "Test Corp"
 
     def test_display_name_from_website(self):
         """Test display name uses website when no company name."""
         config = DeepResearchConfig(
-            company_name=None,
-            website="https://example.com",
-            mode=DeepResearchMode.COMPLETE
+            company_name=None, website="https://example.com", mode=DeepResearchMode.COMPLETE
         )
         assert config.display_name == "example.com"
 
     def test_display_name_unknown(self):
         """Test display name is Unknown when nothing provided."""
-        config = DeepResearchConfig(
-            company_name=None,
-            website=None,
-            mode=DeepResearchMode.COMPLETE
-        )
+        config = DeepResearchConfig(company_name=None, website=None, mode=DeepResearchMode.COMPLETE)
         assert config.display_name == "Unknown"
 
     def test_from_args(self):
@@ -217,7 +213,7 @@ class TestDeepResearchConfig:
             website="https://test.com",
             mode="complete",
             ai_strategy=True,
-            cloud_vendor="azure"
+            cloud_vendor="azure",
         )
         assert config.company_name == "Test"
         assert config.mode == DeepResearchMode.COMPLETE
@@ -230,16 +226,14 @@ class TestDeepResearchConfig:
             company_name="Test",
             website=None,
             mode="deep-research",
-            context_files=["file1.pdf", "file2.txt"]
+            context_files=["file1.pdf", "file2.txt"],
         )
         assert config.context_files == ("file1.pdf", "file2.txt")
 
     def test_config_is_frozen(self):
         """Test config is immutable."""
         config = DeepResearchConfig(
-            company_name="Test",
-            website=None,
-            mode=DeepResearchMode.DEEP_RESEARCH
+            company_name="Test", website=None, mode=DeepResearchMode.DEEP_RESEARCH
         )
         with pytest.raises(AttributeError):
             config.company_name = "Changed"
@@ -248,6 +242,7 @@ class TestDeepResearchConfig:
 # =============================================================================
 # DeepResearchResult Tests
 # =============================================================================
+
 
 class TestDeepResearchResult:
     """Tests for DeepResearchResult dataclass."""
@@ -260,7 +255,7 @@ class TestDeepResearchResult:
             raw_content="# Report",
             section_results={"intro": "Introduction", "summary": "Summary"},
             citations=["Source 1", "Source 2"],
-            duration_seconds=120.5
+            duration_seconds=120.5,
         )
         assert result.success is True
         assert result.section_count == 2
@@ -276,7 +271,7 @@ class TestDeepResearchResult:
             section_results={},
             citations=[],
             duration_seconds=5.0,
-            error="API key not configured"
+            error="API key not configured",
         )
         assert result.success is False
         assert result.section_count == 0
@@ -292,7 +287,7 @@ class TestDeepResearchResult:
             section_results={"intro": "text"},
             citations=[],
             duration_seconds=300.0,
-            ai_strategy_path="/output/strategy.docx"
+            ai_strategy_path="/output/strategy.docx",
         )
         assert result.success is True
         assert result.ai_strategy_path == "/output/strategy.docx"
@@ -301,6 +296,7 @@ class TestDeepResearchResult:
 # =============================================================================
 # validate_preflight Tests
 # =============================================================================
+
 
 class TestValidatePreflight:
     """Tests for validate_preflight function."""
@@ -315,7 +311,7 @@ class TestValidatePreflight:
             config = DeepResearchConfig(
                 company_name="Test Corp",
                 website="https://test.com",
-                mode=DeepResearchMode.DEEP_RESEARCH
+                mode=DeepResearchMode.DEEP_RESEARCH,
             )
             result = validate_preflight(config)
             assert result.is_valid is True
@@ -328,9 +324,7 @@ class TestValidatePreflight:
             mock_settings.return_value.api = mock_api
 
             config = DeepResearchConfig(
-                company_name=None,
-                website=None,
-                mode=DeepResearchMode.DEEP_RESEARCH
+                company_name=None, website=None, mode=DeepResearchMode.DEEP_RESEARCH
             )
             result = validate_preflight(config)
             assert result.is_valid is False
@@ -344,9 +338,7 @@ class TestValidatePreflight:
             mock_settings.return_value.api = mock_api
 
             config = DeepResearchConfig(
-                company_name="Test",
-                website=None,
-                mode=DeepResearchMode.DEEP_RESEARCH
+                company_name="Test", website=None, mode=DeepResearchMode.DEEP_RESEARCH
             )
             result = validate_preflight(config)
             assert result.is_valid is False
@@ -363,7 +355,7 @@ class TestValidatePreflight:
                 company_name="Test",
                 website=None,
                 mode=DeepResearchMode.DEEP_RESEARCH,
-                context_files=("/nonexistent/file.pdf",)
+                context_files=("/nonexistent/file.pdf",),
             )
             result = validate_preflight(config)
             assert result.is_valid is False
@@ -384,7 +376,7 @@ class TestValidatePreflight:
                     company_name="Test",
                     website=None,
                     mode=DeepResearchMode.DEEP_RESEARCH,
-                    context_files=(str(empty_file),)
+                    context_files=(str(empty_file),),
                 )
                 result = validate_preflight(config)
                 assert result.is_valid is False
@@ -405,7 +397,7 @@ class TestValidatePreflight:
                     company_name="Test",
                     website=None,
                     mode=DeepResearchMode.DEEP_RESEARCH,
-                    context_files=(str(valid_file),)
+                    context_files=(str(valid_file),),
                 )
                 result = validate_preflight(config)
                 assert result.is_valid is True
@@ -414,6 +406,7 @@ class TestValidatePreflight:
 # =============================================================================
 # Integration Tests (with mocks)
 # =============================================================================
+
 
 class TestPerformDeepResearch:
     """Tests for perform_deep_research function."""
@@ -427,9 +420,7 @@ class TestPerformDeepResearch:
             mock_settings.return_value.api = mock_api
 
             config = DeepResearchConfig(
-                company_name="Test",
-                website=None,
-                mode=DeepResearchMode.DEEP_RESEARCH
+                company_name="Test", website=None, mode=DeepResearchMode.DEEP_RESEARCH
             )
             result = await perform_deep_research(config)
             assert result.success is False
@@ -443,9 +434,7 @@ class TestPerformDeepResearch:
             mock_settings.return_value.api = mock_api
 
             config = DeepResearchConfig(
-                company_name="Test",
-                website=None,
-                mode=DeepResearchMode.DEEP_RESEARCH
+                company_name="Test", website=None, mode=DeepResearchMode.DEEP_RESEARCH
             )
             result = perform_deep_research_sync(config)
             assert result.success is False
@@ -454,6 +443,7 @@ class TestPerformDeepResearch:
 # =============================================================================
 # Property Tests
 # =============================================================================
+
 
 class TestDeepResearchProperties:
     """Property-based tests for deep research runner module."""
@@ -473,9 +463,7 @@ class TestDeepResearchProperties:
         # Can't be both passed and failed
         assert not (check.passed and check.failed)
 
-    @given(
-        st.lists(st.sampled_from(list(PreflightStatus)), min_size=0, max_size=10)
-    )
+    @given(st.lists(st.sampled_from(list(PreflightStatus)), min_size=0, max_size=10))
     @settings(deadline=None)
     def test_result_counts_match_checks(self, statuses):
         """Property: Result counts match actual checks."""
@@ -491,7 +479,9 @@ class TestDeepResearchProperties:
 
     @given(
         st.floats(min_value=0, max_value=10000),
-        st.dictionaries(st.text(min_size=1, max_size=20), st.text(min_size=1, max_size=100), max_size=10)
+        st.dictionaries(
+            st.text(min_size=1, max_size=20), st.text(min_size=1, max_size=100), max_size=10
+        ),
     )
     @settings(deadline=None)
     def test_result_section_count_matches_dict(self, duration, sections):
@@ -502,6 +492,6 @@ class TestDeepResearchProperties:
             raw_content="",
             section_results=sections,
             citations=[],
-            duration_seconds=duration
+            duration_seconds=duration,
         )
         assert result.section_count == len(sections)

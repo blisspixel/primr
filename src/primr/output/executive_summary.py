@@ -33,9 +33,9 @@ class FindingCategory(Enum):
 class ConfidenceIndicator(Enum):
     """Confidence indicators for findings."""
 
-    HIGH = "high"      # Multiple authoritative sources
+    HIGH = "high"  # Multiple authoritative sources
     MEDIUM = "medium"  # Some corroboration
-    LOW = "low"        # Single source or unverified
+    LOW = "low"  # Single source or unverified
 
 
 @dataclass
@@ -98,8 +98,7 @@ class ExecutiveSummary:
     @property
     def swot_available(self) -> bool:
         """Check if SWOT analysis is available."""
-        return bool(self.strengths or self.weaknesses or
-                   self.opportunities or self.threats)
+        return bool(self.strengths or self.weaknesses or self.opportunities or self.threats)
 
 
 class ExecutiveSummaryGenerator:
@@ -118,32 +117,84 @@ class ExecutiveSummaryGenerator:
     # Keywords for categorizing findings
     CATEGORY_KEYWORDS = {
         FindingCategory.FINANCIAL: [
-            "revenue", "profit", "earnings", "growth", "margin", "sales",
-            "billion", "million", "quarter", "fiscal", "financial",
+            "revenue",
+            "profit",
+            "earnings",
+            "growth",
+            "margin",
+            "sales",
+            "billion",
+            "million",
+            "quarter",
+            "fiscal",
+            "financial",
         ],
         FindingCategory.LEADERSHIP: [
-            "ceo", "cfo", "cto", "president", "founder", "executive",
-            "leadership", "management", "board", "director",
+            "ceo",
+            "cfo",
+            "cto",
+            "president",
+            "founder",
+            "executive",
+            "leadership",
+            "management",
+            "board",
+            "director",
         ],
         FindingCategory.PRODUCTS_SERVICES: [
-            "product", "service", "solution", "platform", "offering",
-            "launch", "release", "feature", "technology",
+            "product",
+            "service",
+            "solution",
+            "platform",
+            "offering",
+            "launch",
+            "release",
+            "feature",
+            "technology",
         ],
         FindingCategory.MARKET_POSITION: [
-            "market", "competitor", "industry", "share", "position",
-            "leader", "ranking", "segment", "sector",
+            "market",
+            "competitor",
+            "industry",
+            "share",
+            "position",
+            "leader",
+            "ranking",
+            "segment",
+            "sector",
         ],
         FindingCategory.RECENT_NEWS: [
-            "announced", "recently", "news", "update", "latest",
-            "today", "yesterday", "this week", "this month",
+            "announced",
+            "recently",
+            "news",
+            "update",
+            "latest",
+            "today",
+            "yesterday",
+            "this week",
+            "this month",
         ],
         FindingCategory.RISKS: [
-            "risk", "challenge", "threat", "concern", "issue",
-            "problem", "decline", "loss", "lawsuit", "regulation",
+            "risk",
+            "challenge",
+            "threat",
+            "concern",
+            "issue",
+            "problem",
+            "decline",
+            "loss",
+            "lawsuit",
+            "regulation",
         ],
         FindingCategory.OPPORTUNITIES: [
-            "opportunity", "growth", "expansion", "potential",
-            "emerging", "new market", "partnership", "acquisition",
+            "opportunity",
+            "growth",
+            "expansion",
+            "potential",
+            "emerging",
+            "new market",
+            "partnership",
+            "acquisition",
         ],
     }
 
@@ -234,7 +285,7 @@ class ExecutiveSummaryGenerator:
         points = []
 
         # Split into sentences
-        sentences = re.split(r'[.!?]+', content)
+        sentences = re.split(r"[.!?]+", content)
 
         # Score sentences by importance
         scored = []
@@ -251,8 +302,8 @@ class ExecutiveSummaryGenerator:
         for _score, sentence in scored[:max_points]:
             # Clean up the sentence
             point = sentence.strip()
-            if not point.endswith('.'):
-                point += '.'
+            if not point.endswith("."):
+                point += "."
             points.append(point)
 
         return points
@@ -296,7 +347,7 @@ class ExecutiveSummaryGenerator:
             overview_content = " ".join(sections.values())[:1000]
 
         # Extract first meaningful sentence
-        sentences = re.split(r'[.!?]+', overview_content)
+        sentences = re.split(r"[.!?]+", overview_content)
         for sentence in sentences:
             sentence = sentence.strip()
             if len(sentence) > 30 and company_name.lower() in sentence.lower():
@@ -357,12 +408,14 @@ class ExecutiveSummaryGenerator:
                 importance = self._score_sentence_importance(point)
                 confidence = self._estimate_confidence(point)
 
-                findings.append(KeyFinding(
-                    category=category,
-                    summary=point,
-                    confidence=confidence,
-                    importance=min(int(importance * 10), 10),
-                ))
+                findings.append(
+                    KeyFinding(
+                        category=category,
+                        summary=point,
+                        confidence=confidence,
+                        importance=min(int(importance * 10), 10),
+                    )
+                )
 
         # Sort by importance
         findings.sort(key=lambda f: f.importance, reverse=True)
@@ -385,8 +438,8 @@ class ExecutiveSummaryGenerator:
 
         # Extract strengths (positive internal)
         strength_patterns = [
-            r'strength[s]?[:\s]+([^.]+)',
-            r'(?:strong|leading|excellent|best)[^.]*(?:in|at|for)[^.]+',
+            r"strength[s]?[:\s]+([^.]+)",
+            r"(?:strong|leading|excellent|best)[^.]*(?:in|at|for)[^.]+",
         ]
         for pattern in strength_patterns:
             matches = re.findall(pattern, all_content, re.I)
@@ -396,8 +449,8 @@ class ExecutiveSummaryGenerator:
 
         # Extract weaknesses (negative internal)
         weakness_patterns = [
-            r'weakness[es]?[:\s]+([^.]+)',
-            r'(?:challenge|struggle|lack|limited)[^.]+',
+            r"weakness[es]?[:\s]+([^.]+)",
+            r"(?:challenge|struggle|lack|limited)[^.]+",
         ]
         for pattern in weakness_patterns:
             matches = re.findall(pattern, all_content, re.I)
@@ -407,8 +460,8 @@ class ExecutiveSummaryGenerator:
 
         # Extract opportunities (positive external)
         opportunity_patterns = [
-            r'opportunit(?:y|ies)[:\s]+([^.]+)',
-            r'(?:potential|emerging|growth)[^.]*(?:market|opportunity)[^.]+',
+            r"opportunit(?:y|ies)[:\s]+([^.]+)",
+            r"(?:potential|emerging|growth)[^.]*(?:market|opportunity)[^.]+",
         ]
         for pattern in opportunity_patterns:
             matches = re.findall(pattern, all_content, re.I)
@@ -418,8 +471,8 @@ class ExecutiveSummaryGenerator:
 
         # Extract threats (negative external)
         threat_patterns = [
-            r'threat[s]?[:\s]+([^.]+)',
-            r'(?:risk|competition|regulatory)[^.]+(?:threat|challenge)[^.]+',
+            r"threat[s]?[:\s]+([^.]+)",
+            r"(?:risk|competition|regulatory)[^.]+(?:threat|challenge)[^.]+",
         ]
         for pattern in threat_patterns:
             matches = re.findall(pattern, all_content, re.I)
@@ -453,15 +506,11 @@ class ExecutiveSummaryGenerator:
         # Based on market position
         market_findings = [f for f in findings if f.category == FindingCategory.MARKET_POSITION]
         if market_findings:
-            recommendations.append(
-                "Evaluate competitive positioning and market strategy"
-            )
+            recommendations.append("Evaluate competitive positioning and market strategy")
 
         # Default recommendation
         if not recommendations:
-            recommendations.append(
-                "Continue monitoring company developments and industry trends"
-            )
+            recommendations.append("Continue monitoring company developments and industry trends")
 
         return recommendations[:5]
 
@@ -499,9 +548,9 @@ class ExecutiveSummaryGenerator:
             ConfidenceIndicator.LOW: 0.3,
         }
 
-        finding_score = sum(
-            confidence_scores.get(f.confidence, 0.5) for f in findings
-        ) / len(findings)
+        finding_score = sum(confidence_scores.get(f.confidence, 0.5) for f in findings) / len(
+            findings
+        )
 
         # Bonus for multiple sources
         source_bonus = min(len(sources) * 0.05, 0.2)
@@ -530,15 +579,24 @@ class ExecutiveSummaryGenerator:
 
         # Important keywords
         important_words = [
-            "revenue", "profit", "growth", "market", "leader", "ceo",
-            "announced", "launched", "acquired", "partnership", "billion",
+            "revenue",
+            "profit",
+            "growth",
+            "market",
+            "leader",
+            "ceo",
+            "announced",
+            "launched",
+            "acquired",
+            "partnership",
+            "billion",
         ]
         for word in important_words:
             if word in sentence_lower:
                 score += 0.1
 
         # Numbers indicate specificity
-        if re.search(r'\d+', sentence):
+        if re.search(r"\d+", sentence):
             score += 0.15
 
         # Proper length
@@ -564,8 +622,8 @@ class ExecutiveSummaryGenerator:
     def _extract_industry(self, content: str) -> str | None:
         """Extract industry from content."""
         industry_patterns = [
-            r'(?:in the|operates in|industry:?)\s+([a-z]+(?:\s+[a-z]+)?)\s+(?:industry|sector)',
-            r'([a-z]+(?:\s+[a-z]+)?)\s+company',
+            r"(?:in the|operates in|industry:?)\s+([a-z]+(?:\s+[a-z]+)?)\s+(?:industry|sector)",
+            r"([a-z]+(?:\s+[a-z]+)?)\s+company",
         ]
 
         for pattern in industry_patterns:
@@ -581,19 +639,13 @@ class ExecutiveSummaryGenerator:
 
         # Revenue patterns
         revenue_match = re.search(
-            r'revenue\s+(?:of\s+)?\$?([\d.]+)\s*([BMK](?:illion)?)',
-            content, re.I
+            r"revenue\s+(?:of\s+)?\$?([\d.]+)\s*([BMK](?:illion)?)", content, re.I
         )
         if revenue_match:
-            highlights.append(
-                f"Revenue of ${revenue_match.group(1)}{revenue_match.group(2)}"
-            )
+            highlights.append(f"Revenue of ${revenue_match.group(1)}{revenue_match.group(2)}")
 
         # Growth patterns
-        growth_match = re.search(
-            r'(\d+(?:\.\d+)?)\s*%\s+(?:revenue\s+)?growth',
-            content, re.I
-        )
+        growth_match = re.search(r"(\d+(?:\.\d+)?)\s*%\s+(?:revenue\s+)?growth", content, re.I)
         if growth_match:
             highlights.append(f"{growth_match.group(1)}% growth")
 
@@ -612,20 +664,24 @@ class ExecutiveSummaryGenerator:
         ]
 
         if summary.key_findings:
-            lines.extend([
-                "## Key Findings",
-                "",
-            ])
+            lines.extend(
+                [
+                    "## Key Findings",
+                    "",
+                ]
+            )
             for finding in summary.key_findings[:5]:
                 icon = finding.confidence_icon
                 lines.append(f"- {icon} {finding.summary}")
             lines.append("")
 
         if summary.swot_available:
-            lines.extend([
-                "## SWOT Analysis",
-                "",
-            ])
+            lines.extend(
+                [
+                    "## SWOT Analysis",
+                    "",
+                ]
+            )
             if summary.strengths:
                 lines.append("**Strengths:**")
                 for s in summary.strengths[:3]:
@@ -645,10 +701,12 @@ class ExecutiveSummaryGenerator:
             lines.append("")
 
         if summary.recommendations:
-            lines.extend([
-                "## Recommendations",
-                "",
-            ])
+            lines.extend(
+                [
+                    "## Recommendations",
+                    "",
+                ]
+            )
             for rec in summary.recommendations:
                 lines.append(f"- {rec}")
             lines.append("")
@@ -672,19 +730,23 @@ class ExecutiveSummaryGenerator:
         ]
 
         if summary.key_findings:
-            lines.extend([
-                "KEY FINDINGS",
-                "-" * 20,
-            ])
+            lines.extend(
+                [
+                    "KEY FINDINGS",
+                    "-" * 20,
+                ]
+            )
             for i, finding in enumerate(summary.key_findings[:5], 1):
                 lines.append(f"{i}. {finding.summary}")
             lines.append("")
 
         if summary.recommendations:
-            lines.extend([
-                "RECOMMENDATIONS",
-                "-" * 20,
-            ])
+            lines.extend(
+                [
+                    "RECOMMENDATIONS",
+                    "-" * 20,
+                ]
+            )
             for rec in summary.recommendations:
                 lines.append(f"* {rec}")
 
@@ -726,7 +788,6 @@ class ExecutiveSummaryGenerator:
         return html
 
 
-
 # =============================================================================
 # SINGLETON ACCESS
 # =============================================================================
@@ -756,6 +817,7 @@ def reset_summary_generator() -> None:
 # =============================================================================
 # CONVENIENCE FUNCTIONS
 # =============================================================================
+
 
 def generate_executive_summary(
     company_name: str,

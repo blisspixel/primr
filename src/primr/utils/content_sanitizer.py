@@ -150,7 +150,10 @@ _INJECTION_PATTERNS = [
     ),
     # Role manipulation
     (
-        re.compile(r"(?:^|\s)(?:you\s+are\s+now|act\s+as|pretend\s+to\s+be|roleplay\s+as)\s+", re.IGNORECASE),
+        re.compile(
+            r"(?:^|\s)(?:you\s+are\s+now|act\s+as|pretend\s+to\s+be|roleplay\s+as)\s+",
+            re.IGNORECASE,
+        ),
         "Role manipulation attempt",
     ),
     (
@@ -209,7 +212,10 @@ _INJECTION_PATTERNS = [
     ),
     # End of text/conversation markers
     (
-        re.compile(r"(?:^|\s)(?:END\s+OF\s+(?:TEXT|PROMPT|CONTEXT)|<\/conversation>|<\/chat>)", re.IGNORECASE),
+        re.compile(
+            r"(?:^|\s)(?:END\s+OF\s+(?:TEXT|PROMPT|CONTEXT)|<\/conversation>|<\/chat>)",
+            re.IGNORECASE,
+        ),
         "Premature end marker",
     ),
     # Developer/debug mode attempts

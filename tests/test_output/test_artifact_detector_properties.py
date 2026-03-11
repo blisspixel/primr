@@ -22,14 +22,20 @@ class TestArtifactDetectorProperties:
         result = detector.scan_text(text)
         assert isinstance(result, list)
 
-    @given(st.text(alphabet=st.characters(whitelist_categories=('L', 'N', 'P', 'Z')), min_size=0, max_size=200))
+    @given(
+        st.text(
+            alphabet=st.characters(whitelist_categories=("L", "N", "P", "Z")),
+            min_size=0,
+            max_size=200,
+        )
+    )
     @settings(max_examples=100)
     def test_clean_text_has_no_artifacts(self, text):
         """Text without markdown patterns should have no artifacts."""
         # Filter out text that accidentally contains markdown patterns
-        assume('**' not in text)
-        assume('__' not in text)
-        assume(not any(text.lstrip().startswith(c) for c in ['#', '*', '-']))
+        assume("**" not in text)
+        assume("__" not in text)
+        assume(not any(text.lstrip().startswith(c) for c in ["#", "*", "-"]))
 
         detector = ArtifactDetector()
         artifacts = detector.scan_text(text)
@@ -48,7 +54,7 @@ class TestArtifactDetectorProperties:
 
         for text in test_cases:
             artifacts = detector.scan_text(text)
-            heading_artifacts = [a for a in artifacts if a['type'] == 'heading']
+            heading_artifacts = [a for a in artifacts if a["type"] == "heading"]
             assert len(heading_artifacts) > 0, f"Should detect heading in: {text}"
 
     def test_detects_bold_artifacts(self):
@@ -63,7 +69,7 @@ class TestArtifactDetectorProperties:
 
         for text in test_cases:
             artifacts = detector.scan_text(text)
-            bold_artifacts = [a for a in artifacts if a['type'] == 'bold']
+            bold_artifacts = [a for a in artifacts if a["type"] == "bold"]
             assert len(bold_artifacts) > 0, f"Should detect bold in: {text}"
 
     def test_detects_bullet_artifacts(self):
@@ -78,7 +84,7 @@ class TestArtifactDetectorProperties:
 
         for text in test_cases:
             artifacts = detector.scan_text(text)
-            bullet_artifacts = [a for a in artifacts if a['type'] == 'bullet']
+            bullet_artifacts = [a for a in artifacts if a["type"] == "bullet"]
             assert len(bullet_artifacts) > 0, f"Should detect bullet in: {text}"
 
     def test_no_false_positives_for_normal_text(self):
@@ -103,10 +109,10 @@ class TestArtifactDetectorProperties:
 
         assert len(artifacts) > 0
         artifact = artifacts[0]
-        assert 'type' in artifact
-        assert 'match' in artifact
-        assert 'context' in artifact
-        assert 'position' in artifact
+        assert "type" in artifact
+        assert "match" in artifact
+        assert "context" in artifact
+        assert "position" in artifact
 
     def test_get_artifact_summary_empty(self):
         """Summary for no artifacts."""
@@ -119,8 +125,8 @@ class TestArtifactDetectorProperties:
         """Summary includes artifact details."""
         detector = ArtifactDetector()
         detector.artifacts_found = [
-            {'type': 'heading', 'match': '##', 'context': 'Para 1'},
-            {'type': 'bold', 'match': '**text**', 'context': 'Para 2'},
+            {"type": "heading", "match": "##", "context": "Para 1"},
+            {"type": "bold", "match": "**text**", "context": "Para 2"},
         ]
         summary = detector.get_artifact_summary()
         assert "2 markdown artifact" in summary
@@ -172,18 +178,26 @@ Revenue: $5.2 billion
         for text in plain_texts:
             artifacts = detector.scan_text(text)
             # Filter out false positives - parsed content shouldn't have heading markers
-            heading_artifacts = [a for a in artifacts if a['type'] == 'heading']
-            [a for a in artifacts if a['type'] == 'bold']
+            heading_artifacts = [a for a in artifacts if a["type"] == "heading"]
+            [a for a in artifacts if a["type"] == "bold"]
             assert len(heading_artifacts) == 0, f"Heading artifact in parsed content: {text}"
             # Note: bold markers may still be in content for inline formatting
             # They get converted during apply_inline_formatting()
 
-    @given(st.lists(st.sampled_from([
-        "Normal text paragraph.",
-        "Revenue grew by 15% year over year.",
-        "The company was founded in 2005.",
-        "Key strengths include innovation and market position.",
-    ]), min_size=1, max_size=5))
+    @given(
+        st.lists(
+            st.sampled_from(
+                [
+                    "Normal text paragraph.",
+                    "Revenue grew by 15% year over year.",
+                    "The company was founded in 2005.",
+                    "Key strengths include innovation and market position.",
+                ]
+            ),
+            min_size=1,
+            max_size=5,
+        )
+    )
     @settings(max_examples=50)
     def test_clean_input_produces_clean_output(self, paragraphs):
         """Clean input text should produce clean output."""

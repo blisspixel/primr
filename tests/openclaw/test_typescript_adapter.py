@@ -13,7 +13,14 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-ADAPTER_PATH = Path(__file__).parent.parent.parent / "openclaw" / "skills" / "primr-research" / "scripts" / "research-status.ts"
+ADAPTER_PATH = (
+    Path(__file__).parent.parent.parent
+    / "openclaw"
+    / "skills"
+    / "primr-research"
+    / "scripts"
+    / "research-status.ts"
+)
 
 
 def check_npx_available() -> bool:
@@ -37,8 +44,7 @@ NPX_AVAILABLE = check_npx_available()
 
 # Skip all tests if npx is not available
 pytestmark = pytest.mark.skipif(
-    not NPX_AVAILABLE,
-    reason="npx not available - TypeScript adapter tests require Node.js/npx"
+    not NPX_AVAILABLE, reason="npx not available - TypeScript adapter tests require Node.js/npx"
 )
 
 
@@ -58,9 +64,11 @@ def run_adapter(input_json: str) -> tuple[str, str, int]:
 
 
 # Strategy for generating valid ResearchStatus objects
-valid_status_strategy = st.fixed_dictionaries({
-    "status": st.sampled_from(["idle", "in_progress", "completed", "failed", "cancelled"]),
-}).map(lambda d: json.dumps(d))
+valid_status_strategy = st.fixed_dictionaries(
+    {
+        "status": st.sampled_from(["idle", "in_progress", "completed", "failed", "cancelled"]),
+    }
+).map(lambda d: json.dumps(d))
 
 # Strategy for generating invalid inputs
 # Excludes null bytes (mangled by OS process arg handling) and valid JSON objects
@@ -105,12 +113,14 @@ class TestAdapterValidInput:
 
     def test_in_progress_with_details(self) -> None:
         """FR-4.1: In-progress status includes progress info."""
-        input_json = json.dumps({
-            "status": "in_progress",
-            "company_name": "Acme Corp",
-            "progress": 45,
-            "current_stage": "deep_research"
-        })
+        input_json = json.dumps(
+            {
+                "status": "in_progress",
+                "company_name": "Acme Corp",
+                "progress": 45,
+                "current_stage": "deep_research",
+            }
+        )
         stdout, _, code = run_adapter(input_json)
 
         assert code == 0
@@ -120,17 +130,22 @@ class TestAdapterValidInput:
 
     def test_completed_suggests_next_action(self) -> None:
         """FR-4.3: Completed status suggests retrieving results."""
-        input_json = json.dumps({
-            "status": "completed",
-            "company_name": "Acme Corp",
-            "artifacts": ["report.md", "insights.txt"]
-        })
+        input_json = json.dumps(
+            {
+                "status": "completed",
+                "company_name": "Acme Corp",
+                "artifacts": ["report.md", "insights.txt"],
+            }
+        )
         stdout, _, code = run_adapter(input_json)
 
         assert code == 0
         output = json.loads(stdout)
         assert "action_required" in output
-        assert "output" in output["action_required"].lower() or "qa" in output["action_required"].lower()
+        assert (
+            "output" in output["action_required"].lower()
+            or "qa" in output["action_required"].lower()
+        )
 
 
 class TestAdapterPossiblyStuckDetection:
@@ -138,24 +153,20 @@ class TestAdapterPossiblyStuckDetection:
 
     def test_possibly_stuck_flag_detected(self) -> None:
         """FR-4.2: possibly_stuck field triggers action_required."""
-        input_json = json.dumps({
-            "status": "in_progress",
-            "possibly_stuck": True
-        })
+        input_json = json.dumps({"status": "in_progress", "possibly_stuck": True})
         stdout, _, code = run_adapter(input_json)
 
         assert code == 0
         output = json.loads(stdout)
         assert "action_required" in output
-        assert "stuck" in output["action_required"].lower() or "cancel" in output["action_required"].lower()
+        assert (
+            "stuck" in output["action_required"].lower()
+            or "cancel" in output["action_required"].lower()
+        )
 
     def test_not_stuck_no_action(self) -> None:
         """FR-4.2: Normal in_progress doesn't suggest stuck action."""
-        input_json = json.dumps({
-            "status": "in_progress",
-            "possibly_stuck": False,
-            "progress": 50
-        })
+        input_json = json.dumps({"status": "in_progress", "possibly_stuck": False, "progress": 50})
         stdout, _, code = run_adapter(input_json)
 
         assert code == 0
@@ -237,10 +248,9 @@ class TestFailureActionSuggestions:
 
     def test_ssrf_error_suggests_deep_mode(self) -> None:
         """Failed with SSRF suggests deep mode."""
-        input_json = json.dumps({
-            "status": "failed",
-            "error_message": "URL blocked: SSRF protection triggered"
-        })
+        input_json = json.dumps(
+            {"status": "failed", "error_message": "URL blocked: SSRF protection triggered"}
+        )
         stdout, _, code = run_adapter(input_json)
 
         assert code == 0
@@ -250,13 +260,13 @@ class TestFailureActionSuggestions:
 
     def test_api_error_suggests_retry(self) -> None:
         """Failed with API error suggests retry."""
-        input_json = json.dumps({
-            "status": "failed",
-            "error_message": "API rate limit exceeded"
-        })
+        input_json = json.dumps({"status": "failed", "error_message": "API rate limit exceeded"})
         stdout, _, code = run_adapter(input_json)
 
         assert code == 0
         output = json.loads(stdout)
         assert "action_required" in output
-        assert "retry" in output["action_required"].lower() or "wait" in output["action_required"].lower()
+        assert (
+            "retry" in output["action_required"].lower()
+            or "wait" in output["action_required"].lower()
+        )

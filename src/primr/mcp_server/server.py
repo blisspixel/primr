@@ -103,6 +103,7 @@ class PrimrMCPServer:
 
     def _setup_signal_handlers(self) -> None:
         """Setup signal handlers for graceful shutdown."""
+
         def handle_shutdown(signum, _frame):
             logger.info("Received signal %s, initiating shutdown", signum)
             self._shutdown_event.set()
@@ -155,7 +156,9 @@ class PrimrMCPServer:
                         task.cancel()
 
                     # Wait briefly for cancellation to complete
-                    remaining_time = SHUTDOWN_TOTAL_TIMEOUT - (asyncio.get_running_loop().time() - shutdown_start)
+                    remaining_time = SHUTDOWN_TOTAL_TIMEOUT - (
+                        asyncio.get_running_loop().time() - shutdown_start
+                    )
                     if remaining_time > 0:
                         await asyncio.wait(pending, timeout=min(remaining_time, 2.0))
 
@@ -180,7 +183,6 @@ class PrimrMCPServer:
         """
         configure_stdio_logging(self.log_level)
         self._setup_signal_handlers()
-
 
         logger.info("Starting Primr MCP server (stdio transport)")
 

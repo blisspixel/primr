@@ -5,7 +5,6 @@ Defines the logical grouping of sections into chapters, fields for the
 company snapshot box, and sources for executive summary generation.
 """
 
-
 # =============================================================================
 # Sections extracted for Company Snapshot (not rendered as chapters)
 # =============================================================================
@@ -35,7 +34,7 @@ CHAPTER_CONFIG: dict[str, dict] = {
             ("Mission & Vision", "mission_vision"),
             ("Company History", "company_history"),
             ("Key Achievements", "key_achievements"),
-        ]
+        ],
     },
     "Products & Market Position": {
         "icon": None,
@@ -44,7 +43,7 @@ CHAPTER_CONFIG: dict[str, dict] = {
             ("Unique Value Proposition", "unique_selling_proposition"),
             ("Target Customers", "target_audience"),
             ("User Personas", "main_types_of_users"),
-        ]
+        ],
     },
     "Financial & Operational Analysis": {
         "icon": None,
@@ -52,7 +51,7 @@ CHAPTER_CONFIG: dict[str, dict] = {
             ("Financial Overview", "financial_overview"),
             ("Business Drivers & KPIs", "business_drivers_and_kpis"),
             ("Technology & Data Sources", "primary_apps_sources_of_data"),
-        ]
+        ],
     },
     "Industry & Competitive Landscape": {
         "icon": None,
@@ -60,7 +59,7 @@ CHAPTER_CONFIG: dict[str, dict] = {
             ("Industry Analysis", "industry_insights"),
             ("Competitive Position", "potential_business_value"),
             ("Market Drivers", "potential_business_drivers"),
-        ]
+        ],
     },
     "Strategic Assessment": {
         "icon": None,
@@ -68,7 +67,7 @@ CHAPTER_CONFIG: dict[str, dict] = {
             ("Leadership Priorities", "board_of_directors_concerns"),
             ("Value Creation Theory", "value_theory"),
             ("Strategic Recommendations", "strategic_recommendations"),
-        ]
+        ],
     },
 }
 
@@ -82,6 +81,7 @@ INTERNAL_SECTIONS: list[str] = [
 # =============================================================================
 # Helper functions for chapter configuration
 # =============================================================================
+
 
 def get_chapter_for_section(section_key: str) -> tuple[str | None, int]:
     """

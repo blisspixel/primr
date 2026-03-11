@@ -29,6 +29,7 @@ from primr.utils.async_utils import (
 # TEST FIXTURES
 # =============================================================================
 
+
 @pytest.fixture(autouse=True)
 def reset_executor():
     """Reset executor after each test."""
@@ -40,11 +41,13 @@ def reset_executor():
 # SYNC -> ASYNC TESTS
 # =============================================================================
 
+
 class TestRunSync:
     """Tests for run_sync function."""
 
     def test_run_sync_simple_coroutine(self):
         """run_sync should execute a simple coroutine (or raise if loop is running)."""
+
         async def simple():
             return 42
 
@@ -60,6 +63,7 @@ class TestRunSync:
 
     def test_run_sync_with_await(self):
         """run_sync should handle coroutines with await (or raise if loop is running)."""
+
         async def with_await():
             await asyncio.sleep(0.01)
             return "done"
@@ -74,6 +78,7 @@ class TestRunSync:
 
     def test_run_sync_preserves_exceptions(self):
         """run_sync should propagate exceptions."""
+
         async def raises():
             raise ValueError("test error")
 
@@ -110,12 +115,14 @@ class TestRunSync:
 # ASYNC -> SYNC TESTS
 # =============================================================================
 
+
 class TestRunAsync:
     """Tests for run_async function."""
 
     @pytest.mark.asyncio
     async def test_run_async_blocking_function(self):
         """run_async should run blocking functions without blocking event loop."""
+
         def blocking():
             time.sleep(0.05)
             return "done"
@@ -126,6 +133,7 @@ class TestRunAsync:
     @pytest.mark.asyncio
     async def test_run_async_with_args(self):
         """run_async should pass arguments correctly."""
+
         def add(a, b):
             return a + b
 
@@ -135,6 +143,7 @@ class TestRunAsync:
     @pytest.mark.asyncio
     async def test_run_async_with_kwargs(self):
         """run_async should pass keyword arguments correctly."""
+
         def greet(name, greeting="Hello"):
             return f"{greeting}, {name}!"
 
@@ -144,6 +153,7 @@ class TestRunAsync:
     @pytest.mark.asyncio
     async def test_run_async_preserves_exceptions(self):
         """run_async should propagate exceptions."""
+
         def raises():
             raise RuntimeError("test error")
 
@@ -153,6 +163,7 @@ class TestRunAsync:
     @pytest.mark.asyncio
     async def test_run_async_with_timeout_success(self):
         """run_async_with_timeout should complete within timeout."""
+
         def fast():
             time.sleep(0.01)
             return "done"
@@ -163,6 +174,7 @@ class TestRunAsync:
     @pytest.mark.asyncio
     async def test_run_async_with_timeout_exceeded(self):
         """run_async_with_timeout should raise on timeout."""
+
         def slow():
             time.sleep(10)
             return "done"
@@ -175,12 +187,14 @@ class TestRunAsync:
 # WRAPPER TESTS
 # =============================================================================
 
+
 class TestEnsureAsync:
     """Tests for ensure_async decorator."""
 
     @pytest.mark.asyncio
     async def test_ensure_async_wraps_sync_function(self):
         """ensure_async should make sync functions awaitable."""
+
         @ensure_async
         def sync_func(x):
             return x * 2
@@ -191,6 +205,7 @@ class TestEnsureAsync:
     @pytest.mark.asyncio
     async def test_ensure_async_preserves_name(self):
         """ensure_async should preserve function name."""
+
         @ensure_async
         def my_function():
             pass
@@ -203,6 +218,7 @@ class TestEnsureSync:
 
     def test_ensure_sync_wraps_async_function(self):
         """ensure_sync should make async functions callable from sync code."""
+
         @ensure_sync
         async def async_func(x):
             await asyncio.sleep(0.01)
@@ -213,6 +229,7 @@ class TestEnsureSync:
 
     def test_ensure_sync_preserves_name(self):
         """ensure_sync should preserve function name."""
+
         @ensure_sync
         async def my_async_function():
             pass
@@ -223,6 +240,7 @@ class TestEnsureSync:
 # =============================================================================
 # CONTEXT MANAGER TESTS
 # =============================================================================
+
 
 class TestSyncContext:
     """Tests for sync_context context manager."""
@@ -235,6 +253,7 @@ class TestSyncContext:
 
     def test_sync_context_allows_run_until_complete(self):
         """sync_context should allow running coroutines."""
+
         async def coro():
             return 42
 
@@ -276,6 +295,7 @@ class TestAsyncBridge:
 
         def get_thread_name():
             import threading
+
             return threading.current_thread().name
 
         result = await bridge.run_blocking(get_thread_name)
@@ -287,6 +307,7 @@ class TestAsyncBridge:
 # =============================================================================
 # UTILITY TESTS
 # =============================================================================
+
 
 class TestIsAsyncContext:
     """Tests for is_async_context function."""
@@ -307,6 +328,7 @@ class TestGatherWithConcurrency:
     @pytest.mark.asyncio
     async def test_gather_with_concurrency_returns_all_results(self):
         """gather_with_concurrency should return all results."""
+
         async def task(n):
             await asyncio.sleep(0.01)
             return n * 2
@@ -350,6 +372,7 @@ class TestGatherWithConcurrency:
 # =============================================================================
 # CONFIGURATION TESTS
 # =============================================================================
+
 
 class TestExecutorConfiguration:
     """Tests for executor configuration."""

@@ -91,6 +91,7 @@ def roadmap_content(draw, num_versions: int | None = None):
 # PROPERTY 1: Roadmap API Round-Trip Consistency
 # =============================================================================
 
+
 # Feature: agentic-architecture, Property 1: Roadmap API Round-Trip Consistency
 @given(content=roadmap_content())
 @settings(max_examples=20, deadline=None)
@@ -134,6 +135,7 @@ def test_roadmap_round_trip(content: str):
 # =============================================================================
 # PROPERTY 2: Roadmap Cache Invalidation
 # =============================================================================
+
 
 # Feature: agentic-architecture, Property 2: Roadmap Cache Invalidation
 def test_cache_invalidation():
@@ -190,6 +192,7 @@ def test_cache_invalidation():
 # PROPERTY 3: Roadmap Dependency Graph Acyclicity
 # =============================================================================
 
+
 # Feature: agentic-architecture, Property 3: Roadmap Dependency Graph Acyclicity
 @given(content=roadmap_content(num_versions=3))
 @settings(max_examples=20, deadline=None)
@@ -228,14 +231,13 @@ def test_dependency_graph_acyclic(content: str):
         visited: set[str] = set()
         for node in graph:
             if node not in visited:
-                assert not has_cycle(node, visited, set()), (
-                    f"Cycle detected starting from {node}"
-                )
+                assert not has_cycle(node, visited, set()), f"Cycle detected starting from {node}"
 
 
 # =============================================================================
 # PROPERTY 4: Roadmap Status Partitioning
 # =============================================================================
+
 
 # Feature: agentic-architecture, Property 4: Roadmap Status Partitioning
 @given(content=roadmap_content())
@@ -283,6 +285,7 @@ def test_status_partitioning(content: str):
 # =============================================================================
 # ADDITIONAL UNIT TESTS
 # =============================================================================
+
 
 def test_get_version_not_found():
     """Getting a non-existent version returns None."""
@@ -347,6 +350,7 @@ def test_json_serialization():
 
         # Should be valid JSON
         import json
+
         data = json.loads(json_str)
 
         assert "versions" in data

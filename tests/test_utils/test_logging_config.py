@@ -43,11 +43,7 @@ class TestSetupLogging:
 
     def test_uses_session_id_in_filename(self, tmp_path):
         """Should use session_id in log filename."""
-        setup_logging(
-            level="INFO",
-            log_dir=tmp_path,
-            session_id="test_session"
-        )
+        setup_logging(level="INFO", log_dir=tmp_path, session_id="test_session")
 
         log_file = tmp_path / "research_test_session.log"
         assert log_file.exists()
@@ -137,7 +133,7 @@ class TestColoredFormatter:
             lineno=0,
             msg="Test message",
             args=(),
-            exc_info=None
+            exc_info=None,
         )
 
         formatted = formatter.format(record)
@@ -151,9 +147,7 @@ class TestStructuredFormatter:
 
     def test_formats_basic_message(self):
         """Should format basic log message."""
-        formatter = StructuredFormatter(
-            "%(asctime)s | %(levelname)s | %(message)s%(extra_str)s"
-        )
+        formatter = StructuredFormatter("%(asctime)s | %(levelname)s | %(message)s%(extra_str)s")
 
         record = logging.LogRecord(
             name="test",
@@ -162,7 +156,7 @@ class TestStructuredFormatter:
             lineno=0,
             msg="Test message",
             args=(),
-            exc_info=None
+            exc_info=None,
         )
 
         formatted = formatter.format(record)
@@ -170,9 +164,7 @@ class TestStructuredFormatter:
 
     def test_includes_extra_context(self):
         """Should include extra context in output."""
-        formatter = StructuredFormatter(
-            "%(message)s%(extra_str)s"
-        )
+        formatter = StructuredFormatter("%(message)s%(extra_str)s")
 
         record = logging.LogRecord(
             name="test",
@@ -181,7 +173,7 @@ class TestStructuredFormatter:
             lineno=0,
             msg="Test message",
             args=(),
-            exc_info=None
+            exc_info=None,
         )
         record.extra = {"key": "value"}
 
@@ -194,11 +186,7 @@ class TestLoggingIntegration:
 
     def test_log_to_file(self, tmp_path):
         """Should write logs to file."""
-        logger = setup_logging(
-            level="DEBUG",
-            log_dir=tmp_path,
-            session_id="integration_test"
-        )
+        logger = setup_logging(level="DEBUG", log_dir=tmp_path, session_id="integration_test")
 
         logger.info("Test log message")
 
@@ -208,11 +196,7 @@ class TestLoggingIntegration:
 
     def test_child_logger_writes_to_same_file(self, tmp_path):
         """Child loggers should write to same file."""
-        setup_logging(
-            level="DEBUG",
-            log_dir=tmp_path,
-            session_id="child_test"
-        )
+        setup_logging(level="DEBUG", log_dir=tmp_path, session_id="child_test")
 
         child = get_logger("child_module")
         child.info("Child log message")

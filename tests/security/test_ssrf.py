@@ -30,8 +30,9 @@ class TestURLValidation:
             is_valid, returned_url, error_msg = validate_url_for_request(url)
             assert not is_valid, f"Should block localhost URL: {url}"
             assert error_msg is not None, f"Should have error message for: {url}"
-            assert expected_keyword in error_msg.lower() or "not allowed" in error_msg.lower(), \
+            assert expected_keyword in error_msg.lower() or "not allowed" in error_msg.lower(), (
                 f"Error message should mention {expected_keyword}/not allowed: {error_msg}"
+            )
 
     def test_validate_url_private_ips(self):
         """Test that private IP addresses are blocked."""
@@ -48,8 +49,9 @@ class TestURLValidation:
             is_valid, returned_url, error_msg = validate_url_for_request(url)
             assert not is_valid, f"Should block private IP: {url}"
             assert error_msg is not None, f"Should have error message for: {url}"
-            assert "private" in error_msg.lower(), \
+            assert "private" in error_msg.lower(), (
                 f"Error message should mention private: {error_msg}"
+            )
 
     def test_validate_url_link_local(self):
         """Test that link-local addresses are blocked."""
@@ -62,8 +64,9 @@ class TestURLValidation:
             is_valid, returned_url, error_msg = validate_url_for_request(url)
             assert not is_valid, f"Should block link-local address: {url}"
             assert error_msg is not None, f"Should have error message for: {url}"
-            assert "link-local" in error_msg.lower() or "private" in error_msg.lower(), \
+            assert "link-local" in error_msg.lower() or "private" in error_msg.lower(), (
                 f"Error message should mention link-local/private: {error_msg}"
+            )
 
     def test_validate_url_invalid_schemes(self):
         """Test that non-HTTP schemes are blocked."""
@@ -76,9 +79,12 @@ class TestURLValidation:
             is_valid, returned_url, error_msg = validate_url_for_request(url)
             assert not is_valid, f"Should block non-HTTP scheme: {url}"
             assert error_msg is not None, f"Should have error message for: {url}"
-            assert "scheme" in error_msg.lower() or "http" in error_msg.lower() or \
-                   "allowed" in error_msg.lower() or "suspicious" in error_msg.lower(), \
-                f"Error message should indicate URL is not allowed: {error_msg}"
+            assert (
+                "scheme" in error_msg.lower()
+                or "http" in error_msg.lower()
+                or "allowed" in error_msg.lower()
+                or "suspicious" in error_msg.lower()
+            ), f"Error message should indicate URL is not allowed: {error_msg}"
 
     def test_validate_url_valid_public(self):
         """Test that valid public URLs are allowed."""
@@ -119,8 +125,9 @@ class TestHTTPClientSSRF:
 
         assert not result.success, "Should fail for blocked URL"
         assert result.error is not None, "Should have error message"
-        assert "not allowed" in result.error.lower() or "localhost" in result.error.lower(), \
+        assert "not allowed" in result.error.lower() or "localhost" in result.error.lower(), (
             f"Error should mention blocking: {result.error}"
+        )
 
     def test_scrape_with_requests_blocks_private_ip(self):
         """Test that scrape_with_requests blocks private IP addresses."""
@@ -128,8 +135,9 @@ class TestHTTPClientSSRF:
 
         assert not result.success, "Should fail for blocked URL"
         assert result.error is not None, "Should have error message"
-        assert "not allowed" in result.error.lower() or "private" in result.error.lower(), \
+        assert "not allowed" in result.error.lower() or "private" in result.error.lower(), (
             f"Error should mention blocking: {result.error}"
+        )
 
     def test_scrape_with_httpx_blocks_localhost(self):
         """Test that scrape_with_httpx blocks localhost URLs."""
@@ -137,8 +145,9 @@ class TestHTTPClientSSRF:
 
         assert not result.success, "Should fail for blocked URL"
         assert result.error is not None, "Should have error message"
-        assert "not allowed" in result.error.lower() or "localhost" in result.error.lower(), \
+        assert "not allowed" in result.error.lower() or "localhost" in result.error.lower(), (
             f"Error should mention blocking: {result.error}"
+        )
 
     def test_make_request_blocks_internal_ip(self):
         """Test that make_request blocks internal IP addresses."""
@@ -146,8 +155,9 @@ class TestHTTPClientSSRF:
             make_request("http://10.0.0.1/internal")
 
         error_msg = str(exc_info.value)
-        assert "not allowed" in error_msg.lower() or "private" in error_msg.lower(), \
+        assert "not allowed" in error_msg.lower() or "private" in error_msg.lower(), (
             f"Error should mention blocking: {error_msg}"
+        )
 
     def test_head_exists_blocks_localhost(self):
         """Test that head_exists blocks localhost URLs."""
@@ -178,7 +188,9 @@ class TestRedirectSSRFProtection:
         """Test that validate_final_url_after_redirect blocks cloud metadata endpoints."""
         from primr.utils.security import validate_final_url_after_redirect
 
-        is_safe, error = validate_final_url_after_redirect("http://169.254.169.254/latest/meta-data/")
+        is_safe, error = validate_final_url_after_redirect(
+            "http://169.254.169.254/latest/meta-data/"
+        )
         assert not is_safe, "Should block metadata endpoint in final URL"
         assert error is not None
 
@@ -220,8 +232,9 @@ class TestOrchestratorSSRFProtection:
 
         assert not result.success, "Should fail for localhost URL"
         assert result.error_type == ErrorType.HARD_BLOCK, "Should be HARD_BLOCK"
-        assert "SSRF" in result.error or "blocked" in result.error.lower(), \
+        assert "SSRF" in result.error or "blocked" in result.error.lower(), (
             f"Error should mention SSRF blocking: {result.error}"
+        )
 
     def test_orchestrator_blocks_private_ip(self):
         """Test that ScrapeOrchestrator blocks private IP addresses."""
@@ -277,8 +290,9 @@ class TestHTTPClientClassSSRF:
             client.get("http://localhost:8080/admin")
 
         error_msg = str(exc_info.value).lower()
-        assert "ssrf" in error_msg or "not allowed" in error_msg or "localhost" in error_msg, \
+        assert "ssrf" in error_msg or "not allowed" in error_msg or "localhost" in error_msg, (
             f"Error should mention SSRF blocking: {exc_info.value}"
+        )
 
     def test_http_client_blocks_private_ip(self):
         """Test that HTTPClient blocks private IP addresses."""
@@ -297,8 +311,9 @@ class TestHTTPClientClassSSRF:
                 client.get(url)
 
             error_msg = str(exc_info.value).lower()
-            assert "ssrf" in error_msg or "not allowed" in error_msg or "private" in error_msg, \
+            assert "ssrf" in error_msg or "not allowed" in error_msg or "private" in error_msg, (
                 f"Error should mention SSRF blocking for {url}: {exc_info.value}"
+            )
 
     def test_http_client_blocks_metadata_endpoint(self):
         """Test that HTTPClient blocks cloud metadata endpoints."""
@@ -310,8 +325,12 @@ class TestHTTPClientClassSSRF:
             client.get("http://169.254.169.254/latest/meta-data/")
 
         error_msg = str(exc_info.value).lower()
-        assert "ssrf" in error_msg or "not allowed" in error_msg or "metadata" in error_msg or "link-local" in error_msg, \
-            f"Error should mention SSRF blocking: {exc_info.value}"
+        assert (
+            "ssrf" in error_msg
+            or "not allowed" in error_msg
+            or "metadata" in error_msg
+            or "link-local" in error_msg
+        ), f"Error should mention SSRF blocking: {exc_info.value}"
 
 
 class TestBrowserScraperRedirectSSRF:
@@ -324,8 +343,9 @@ class TestBrowserScraperRedirectSSRF:
         from primr.data.scraping.browsers import _scrape_with_playwright_impl
 
         source = inspect.getsource(_scrape_with_playwright_impl)
-        assert "validate_final_url_after_redirect" in source, \
+        assert "validate_final_url_after_redirect" in source, (
             "_scrape_with_playwright_impl should validate final URL after redirects"
+        )
 
     def test_playwright_aggressive_scraper_has_redirect_ssrf_check(self):
         """Verify scrape_with_playwright_aggressive has redirect SSRF validation code."""
@@ -334,8 +354,9 @@ class TestBrowserScraperRedirectSSRF:
         from primr.data.scraping.browsers import scrape_with_playwright_aggressive
 
         source = inspect.getsource(scrape_with_playwright_aggressive)
-        assert "validate_final_url_after_redirect" in source, \
+        assert "validate_final_url_after_redirect" in source, (
             "scrape_with_playwright_aggressive should validate final URL after redirects"
+        )
 
     def test_drissionpage_scraper_has_redirect_ssrf_check(self):
         """Verify scrape_with_drissionpage has redirect SSRF validation code."""
@@ -344,8 +365,9 @@ class TestBrowserScraperRedirectSSRF:
         from primr.data.scraping.browsers import scrape_with_drissionpage
 
         source = inspect.getsource(scrape_with_drissionpage)
-        assert "validate_final_url_after_redirect" in source, \
+        assert "validate_final_url_after_redirect" in source, (
             "scrape_with_drissionpage should validate final URL after redirects"
+        )
 
     def test_drissionpage_stealth_scraper_has_redirect_ssrf_check(self):
         """Verify scrape_with_drissionpage_stealth has redirect SSRF validation code."""
@@ -354,8 +376,9 @@ class TestBrowserScraperRedirectSSRF:
         from primr.data.scraping.browsers import scrape_with_drissionpage_stealth
 
         source = inspect.getsource(scrape_with_drissionpage_stealth)
-        assert "validate_final_url_after_redirect" in source, \
+        assert "validate_final_url_after_redirect" in source, (
             "scrape_with_drissionpage_stealth should validate final URL after redirects"
+        )
 
     def test_vision_scraper_has_redirect_ssrf_check(self):
         """Verify scrape_with_vision has redirect SSRF validation code."""
@@ -364,8 +387,9 @@ class TestBrowserScraperRedirectSSRF:
         from primr.data.scraping.browsers import scrape_with_vision
 
         source = inspect.getsource(scrape_with_vision)
-        assert "validate_final_url_after_redirect" in source, \
+        assert "validate_final_url_after_redirect" in source, (
             "scrape_with_vision should validate final URL after redirects"
+        )
 
 
 if __name__ == "__main__":

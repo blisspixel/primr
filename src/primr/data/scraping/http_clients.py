@@ -80,6 +80,7 @@ def scrape_with_requests(
         # SSRF protection: validate final URL after redirects
         final_url = str(response.url)
         from primr.utils.security import validate_final_url_after_redirect
+
         is_safe, redirect_error = validate_final_url_after_redirect(final_url)
         if not is_safe:
             attempt = Attempt(
@@ -256,6 +257,7 @@ def scrape_with_httpx(
         # SSRF protection: validate final URL after redirects
         final_url = str(response.url)
         from primr.utils.security import validate_final_url_after_redirect
+
         is_safe, redirect_error = validate_final_url_after_redirect(final_url)
         if not is_safe:
             attempt = Attempt(
@@ -435,6 +437,7 @@ def scrape_with_curl_cffi(
         # SSRF protection: validate final URL after redirects
         final_url = str(response.url)
         from primr.utils.security import validate_final_url_after_redirect
+
         is_safe, redirect_error = validate_final_url_after_redirect(final_url)
         if not is_safe:
             attempt = Attempt(

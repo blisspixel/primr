@@ -189,9 +189,7 @@ OperationContext = CorrelationContext
 
 
 @contextmanager
-def correlation_scope(
-    operation: str, **metadata: Any
-) -> Generator[CorrelationContext, None, None]:
+def correlation_scope(operation: str, **metadata: Any) -> Generator[CorrelationContext, None, None]:
     """
     Context manager for correlation tracking.
 
@@ -251,9 +249,7 @@ def correlation_scope(
 
 
 @contextmanager
-def operation_context(
-    operation: str, **metadata: Any
-) -> Generator[CorrelationContext, None, None]:
+def operation_context(operation: str, **metadata: Any) -> Generator[CorrelationContext, None, None]:
     """
     Context manager for tracking operations with correlation IDs.
 
@@ -327,6 +323,7 @@ def log_structured(
 # TIMING DECORATOR
 # =============================================================================
 
+
 def timed(func: Callable[..., T]) -> Callable[..., T]:
     """
     Decorator to log function entry, exit, and duration.
@@ -345,6 +342,7 @@ def timed(func: Callable[..., T]) -> Callable[..., T]:
             time.sleep(1)
             return "done"
     """
+
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> T:
         correlation_id = get_correlation_id()
@@ -356,15 +354,12 @@ def timed(func: Callable[..., T]) -> Callable[..., T]:
         try:
             result = func(*args, **kwargs)
             duration = time.time() - start
-            logger.debug(
-                f"Exiting {func_name} after {duration:.3f}s [{correlation_id}]"
-            )
+            logger.debug(f"Exiting {func_name} after {duration:.3f}s [{correlation_id}]")
             return result
         except Exception as e:
             duration = time.time() - start
             logger.debug(
-                f"Exiting {func_name} with error after {duration:.3f}s: {e} "
-                f"[{correlation_id}]"
+                f"Exiting {func_name} with error after {duration:.3f}s: {e} [{correlation_id}]"
             )
             raise
 
@@ -374,6 +369,7 @@ def timed(func: Callable[..., T]) -> Callable[..., T]:
 # =============================================================================
 # METRICS
 # =============================================================================
+
 
 @dataclass
 class Metrics:
@@ -391,6 +387,7 @@ class Metrics:
         correlation_id: Correlation ID for tracing
         timestamp: When the metrics were recorded
     """
+
     operation: str
     duration_seconds: float
     success: bool
@@ -418,7 +415,7 @@ class Metrics:
             "error_type": self.error_type,
             "correlation_id": self.correlation_id,
             "timestamp": self.timestamp.isoformat(),
-            **self.metadata
+            **self.metadata,
         }
 
 
@@ -437,10 +434,7 @@ def emit_metrics(metrics: Metrics) -> None:
 
 
 @contextmanager
-def tracked_operation(
-    operation: str,
-    **metadata: Any
-) -> Generator[dict[str, Any], None, None]:
+def tracked_operation(operation: str, **metadata: Any) -> Generator[dict[str, Any], None, None]:
     """
     Context manager that tracks operation and emits metrics.
 
@@ -483,7 +477,7 @@ def tracked_operation(
             cost_usd=tracker.get("cost_usd", 0.0),
             error_type=error_type,
             correlation_id=correlation_id,
-            metadata=metadata
+            metadata=metadata,
         )
         emit_metrics(metrics)
 

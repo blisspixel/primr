@@ -29,20 +29,18 @@ from primr.prompts.validation import ConfigValidator, SchemaVersionError
 # =============================================================================
 
 # Strategy for generating valid section IDs
-section_id_strategy = st.from_regex(r'[a-z][a-z0-9_]{0,19}', fullmatch=True)
+section_id_strategy = st.from_regex(r"[a-z][a-z0-9_]{0,19}", fullmatch=True)
 
 # Strategy for generating valid section names
 section_name_strategy = st.text(
-    alphabet=st.characters(whitelist_categories=('L', 'N', 'Z')),
-    min_size=1,
-    max_size=30
+    alphabet=st.characters(whitelist_categories=("L", "N", "Z")), min_size=1, max_size=30
 ).filter(lambda x: x.strip())
 
 # Strategy for generating valid part numbers (1-5)
 part_number_strategy = st.integers(min_value=1, max_value=5)
 
 # Strategy for generating valid semantic versions
-version_strategy = st.from_regex(r'\d{1,2}\.\d{1,2}\.\d{1,2}', fullmatch=True)
+version_strategy = st.from_regex(r"\d{1,2}\.\d{1,2}\.\d{1,2}", fullmatch=True)
 
 
 def generate_v1_0_section(
@@ -142,6 +140,7 @@ def generate_v2_0_config(
 # =============================================================================
 # PROPERTY 19: MIGRATION PRODUCES VALID CONFIG
 # =============================================================================
+
 
 class TestMigrationProducesValidConfig:
     """
@@ -298,6 +297,7 @@ class TestMigrationProducesValidConfig:
 # PROPERTY 20: MIGRATION BACKUP AND RESTORE
 # =============================================================================
 
+
 class TestMigrationBackupAndRestore:
     """
     **Property 20: Migration Backup and Restore**
@@ -347,9 +347,7 @@ class TestMigrationBackupAndRestore:
         meta_version=version_strategy,
     )
     @settings(max_examples=50, suppress_health_check=[HealthCheck.too_slow])
-    def test_original_file_updated_after_migration(
-        self, meta_name: str, meta_version: str
-    ):
+    def test_original_file_updated_after_migration(self, meta_name: str, meta_version: str):
         """The original file should be updated with migrated content."""
         # Feature: phd-level-excellence, Property 20: Migration Backup and Restore
 
@@ -396,7 +394,8 @@ class TestMigrationBackupAndRestore:
             assert "backup" in backup_name.lower()
             # Should have date-like pattern (YYYYMMDD)
             import re
-            assert re.search(r'\d{8}', backup_name)
+
+            assert re.search(r"\d{8}", backup_name)
 
     def test_no_backup_for_already_current_version(self):
         """No backup should be created if config is already at target version."""
@@ -422,6 +421,7 @@ class TestMigrationBackupAndRestore:
 # =============================================================================
 # PROPERTY 21: DRY-RUN IDEMPOTENCE
 # =============================================================================
+
 
 class TestDryRunIdempotence:
     """
@@ -578,6 +578,7 @@ class TestDryRunIdempotence:
 # VERSION DETECTION TESTS
 # =============================================================================
 
+
 class TestVersionDetection:
     """Tests for version detection functionality."""
 
@@ -650,6 +651,7 @@ class TestVersionDetection:
 # =============================================================================
 # MIGRATION PATH TESTS
 # =============================================================================
+
 
 class TestMigrationPath:
     """Tests for migration path calculation."""

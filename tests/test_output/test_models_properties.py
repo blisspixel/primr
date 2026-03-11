@@ -21,33 +21,42 @@ from primr.output.models import (
 # Generators for property-based testing
 # =============================================================================
 
+
 @st.composite
 def unicode_text(draw):
     """Generate text with various Unicode characters including special chars."""
-    return draw(st.text(
-        min_size=1,
-        max_size=200,
-        alphabet=st.characters(
-            whitelist_categories=['L', 'N', 'P', 'S', 'Sc', 'Sm'],
-            whitelist_characters='éèêëàâäùûüôöîïç€£¥©®™°±×÷'
+    return draw(
+        st.text(
+            min_size=1,
+            max_size=200,
+            alphabet=st.characters(
+                whitelist_categories=["L", "N", "P", "S", "Sc", "Sm"],
+                whitelist_characters="éèêëàâäùûüôöîïç€£¥©®™°±×÷",
+            ),
         )
-    ))
+    )
 
 
 @st.composite
 def parsed_line_data(draw):
     """Generate valid ParsedLine data."""
-    line_type = draw(st.sampled_from([
-        'heading', 'subheading', 'bullet', 'numbered', 'text', 'empty', 'inline_header'
-    ]))
+    line_type = draw(
+        st.sampled_from(
+            ["heading", "subheading", "bullet", "numbered", "text", "empty", "inline_header"]
+        )
+    )
     content = draw(unicode_text())
     level = draw(st.integers(min_value=0, max_value=4))
     raw = draw(st.text(min_size=0, max_size=300))
-    metadata = draw(st.dictionaries(
-        keys=st.text(min_size=1, max_size=20, alphabet=st.characters(whitelist_categories=['L'])),
-        values=st.text(min_size=0, max_size=50),
-        max_size=5
-    ))
+    metadata = draw(
+        st.dictionaries(
+            keys=st.text(
+                min_size=1, max_size=20, alphabet=st.characters(whitelist_categories=["L"])
+            ),
+            values=st.text(min_size=0, max_size=50),
+            max_size=5,
+        )
+    )
     return line_type, content, level, raw, metadata
 
 
@@ -55,20 +64,27 @@ def parsed_line_data(draw):
 def company_snapshot_data(draw):
     """Generate valid CompanySnapshot data with Unicode characters."""
     return {
-        'company_name': draw(unicode_text()),
-        'website': draw(st.text(min_size=0, max_size=100)),
-        'industry': draw(unicode_text()),
-        'founded': draw(st.one_of(st.none(), st.text(min_size=4, max_size=4, alphabet='0123456789'))),
-        'headquarters': draw(st.one_of(st.none(), unicode_text())),
-        'revenue': draw(st.one_of(st.none(), st.text(min_size=1, max_size=20))),
-        'employees': draw(st.one_of(st.none(), st.text(min_size=1, max_size=20))),
-        'ticker': draw(st.one_of(st.none(), st.text(min_size=1, max_size=10, alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZ'))),
+        "company_name": draw(unicode_text()),
+        "website": draw(st.text(min_size=0, max_size=100)),
+        "industry": draw(unicode_text()),
+        "founded": draw(
+            st.one_of(st.none(), st.text(min_size=4, max_size=4, alphabet="0123456789"))
+        ),
+        "headquarters": draw(st.one_of(st.none(), unicode_text())),
+        "revenue": draw(st.one_of(st.none(), st.text(min_size=1, max_size=20))),
+        "employees": draw(st.one_of(st.none(), st.text(min_size=1, max_size=20))),
+        "ticker": draw(
+            st.one_of(
+                st.none(), st.text(min_size=1, max_size=10, alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+            )
+        ),
     }
 
 
 # =============================================================================
 # Property Tests
 # =============================================================================
+
 
 class TestSpecialCharacterPreservation:
     """
@@ -86,11 +102,7 @@ class TestSpecialCharacterPreservation:
         line_type, content, level, raw, metadata = data
 
         parsed = ParsedLine(
-            type=line_type,
-            content=content,
-            level=level,
-            raw=raw,
-            metadata=metadata
+            type=line_type, content=content, level=level, raw=raw, metadata=metadata
         )
 
         # Verify content is preserved exactly
@@ -107,55 +119,41 @@ class TestSpecialCharacterPreservation:
         snapshot = CompanySnapshot(**data)
 
         # Verify all fields are preserved exactly
-        assert snapshot.company_name == data['company_name']
-        assert snapshot.website == data['website']
-        assert snapshot.industry == data['industry']
-        assert snapshot.founded == data['founded']
-        assert snapshot.headquarters == data['headquarters']
-        assert snapshot.revenue == data['revenue']
-        assert snapshot.employees == data['employees']
-        assert snapshot.ticker == data['ticker']
+        assert snapshot.company_name == data["company_name"]
+        assert snapshot.website == data["website"]
+        assert snapshot.industry == data["industry"]
+        assert snapshot.founded == data["founded"]
+        assert snapshot.headquarters == data["headquarters"]
+        assert snapshot.revenue == data["revenue"]
+        assert snapshot.employees == data["employees"]
+        assert snapshot.ticker == data["ticker"]
 
     @settings(max_examples=100)
     @given(content=unicode_text())
     def test_content_block_preserves_unicode(self, content):
         """ContentBlock preserves Unicode in nested ParsedLine objects."""
-        line = ParsedLine(
-            type='text',
-            content=content,
-            level=0,
-            raw=content,
-            metadata={}
-        )
-        block = ContentBlock(
-            type='paragraph',
-            lines=[line],
-            properties={}
-        )
+        line = ParsedLine(type="text", content=content, level=0, raw=content, metadata={})
+        block = ContentBlock(type="paragraph", lines=[line], properties={})
 
         # Verify content is preserved through nesting
         assert block.lines[0].content == content
         assert block.lines[0].raw == content
 
     @settings(max_examples=100)
-    @given(
-        narrative=unicode_text(),
-        takeaway=unicode_text(),
-        one_liner=unicode_text()
-    )
+    @given(narrative=unicode_text(), takeaway=unicode_text(), one_liner=unicode_text())
     def test_executive_summary_preserves_unicode(self, narrative, takeaway, one_liner):
         """ExecutiveSummary preserves Unicode in all text fields."""
         summary = ExecutiveSummary(
             narrative=narrative,
             key_takeaways=[takeaway],
-            metrics_snapshot={'key': takeaway},
+            metrics_snapshot={"key": takeaway},
             risk_factors=[takeaway],
-            one_liner=one_liner
+            one_liner=one_liner,
         )
 
         assert summary.narrative == narrative
         assert summary.key_takeaways[0] == takeaway
-        assert summary.metrics_snapshot['key'] == takeaway
+        assert summary.metrics_snapshot["key"] == takeaway
         assert summary.risk_factors[0] == takeaway
         assert summary.one_liner == one_liner
 
@@ -164,19 +162,10 @@ class TestSpecialCharacterPreservation:
     def test_chapter_content_preserves_unicode(self, title, section_title):
         """ChapterContent and SectionContent preserve Unicode in titles."""
         section = SectionContent(
-            number="1.1",
-            title=section_title,
-            key="test_key",
-            blocks=[],
-            has_content=True
+            number="1.1", title=section_title, key="test_key", blocks=[], has_content=True
         )
 
-        chapter = ChapterContent(
-            number=1,
-            title=title,
-            icon="🏢",
-            sections=[section]
-        )
+        chapter = ChapterContent(number=1, title=title, icon="🏢", sections=[section])
 
         assert chapter.title == title
         assert chapter.sections[0].title == section_title

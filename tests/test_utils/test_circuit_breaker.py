@@ -243,9 +243,7 @@ class TestCircuitBreakerConfiguration:
     def test_custom_config_success_threshold(self):
         """Custom success threshold for half-open recovery using config."""
         config = CircuitBreakerConfig(
-            failure_threshold=1,
-            timeout_seconds=0.001,
-            success_threshold=3
+            failure_threshold=1, timeout_seconds=0.001, success_threshold=3
         )
         breaker = CircuitBreaker(config)
 

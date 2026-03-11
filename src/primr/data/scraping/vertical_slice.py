@@ -183,7 +183,9 @@ def run_vertical_slice_test(
             print(f"  Extracted: {len(result1.extracted_text)} chars")
 
         if result1.validation:
-            print(f"  Validation: valid={result1.validation.valid}, density={result1.validation.content_density:.2f}")
+            print(
+                f"  Validation: valid={result1.validation.valid}, density={result1.validation.content_density:.2f}"
+            )
 
         # Second request - should hit cache
         print("  Making second request (should hit cache)...")
@@ -210,6 +212,7 @@ def run_vertical_slice_test(
     except Exception as e:
         print(f"  FAILED with exception: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 

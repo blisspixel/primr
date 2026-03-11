@@ -60,6 +60,7 @@ logger = logging.getLogger(__name__)
 # SCRAPE PATTERN
 # =============================================================================
 
+
 @dataclass
 class ScrapePattern:
     """
@@ -121,6 +122,7 @@ class ScrapePattern:
 # COMPANY MEMORY
 # =============================================================================
 
+
 @dataclass
 class CompanyMemory:
     """
@@ -151,11 +153,7 @@ class CompanyMemory:
             "hypotheses": [h.to_dict() for h in self.hypotheses],
             "scrape_patterns": [p.to_dict() for p in self.scrape_patterns],
             "research_notes": self.research_notes,
-            "last_researched": (
-                self.last_researched.isoformat()
-                if self.last_researched
-                else None
-            ),
+            "last_researched": (self.last_researched.isoformat() if self.last_researched else None),
         }
 
     @classmethod
@@ -163,14 +161,8 @@ class CompanyMemory:
         """Deserialize from dictionary."""
         return cls(
             company_name=data["company_name"],
-            hypotheses=[
-                Hypothesis.from_dict(h)
-                for h in data.get("hypotheses", [])
-            ],
-            scrape_patterns=[
-                ScrapePattern.from_dict(p)
-                for p in data.get("scrape_patterns", [])
-            ],
+            hypotheses=[Hypothesis.from_dict(h) for h in data.get("hypotheses", [])],
+            scrape_patterns=[ScrapePattern.from_dict(p) for p in data.get("scrape_patterns", [])],
             research_notes=data.get("research_notes", []),
             last_researched=(
                 datetime.fromisoformat(data["last_researched"])
@@ -183,6 +175,7 @@ class CompanyMemory:
 # =============================================================================
 # RESEARCH MEMORY
 # =============================================================================
+
 
 class ResearchMemory:
     """
@@ -255,8 +248,8 @@ class ResearchMemory:
         """
         # Convert to lowercase, replace spaces and special chars
         safe = company.lower()
-        safe = re.sub(r'[^\w\s-]', '', safe)
-        safe = re.sub(r'[\s]+', '_', safe)
+        safe = re.sub(r"[^\w\s-]", "", safe)
+        safe = re.sub(r"[\s]+", "_", safe)
         return safe
 
     def _company_path(self, company: str) -> Path:
@@ -392,10 +385,7 @@ class ResearchMemory:
         # Filter by topic
         if topic is not None:
             topic_lower = topic.lower()
-            hypotheses = [
-                h for h in hypotheses
-                if topic_lower in h.topic.lower()
-            ]
+            hypotheses = [h for h in hypotheses if topic_lower in h.topic.lower()]
 
         return hypotheses
 
@@ -549,11 +539,7 @@ class ResearchMemory:
         memory = self._load_company(company)
 
         # Filter expired hypotheses for JSON output
-        active_hypotheses = [
-            h.to_dict()
-            for h in memory.hypotheses
-            if not h.is_expired()
-        ]
+        active_hypotheses = [h.to_dict() for h in memory.hypotheses if not h.is_expired()]
 
         return json.dumps(
             {
@@ -562,9 +548,7 @@ class ResearchMemory:
                 "scrape_patterns": [p.to_dict() for p in memory.scrape_patterns],
                 "research_notes": memory.research_notes,
                 "last_researched": (
-                    memory.last_researched.isoformat()
-                    if memory.last_researched
-                    else None
+                    memory.last_researched.isoformat() if memory.last_researched else None
                 ),
             },
             indent=2,

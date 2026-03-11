@@ -58,6 +58,7 @@ try:
     from opentelemetry.trace import Span as OTelSpan
     from opentelemetry.trace import Status, StatusCode
     from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
+
     _OTEL_AVAILABLE = True
 except ImportError:
     # OpenTelemetry not installed - telemetry will be disabled
@@ -77,8 +78,10 @@ except ImportError:
 # EXPORTER TYPE ENUM
 # =============================================================================
 
+
 class ExporterType(str, Enum):
     """Supported telemetry exporter types."""
+
     CONSOLE = "console"
     OTLP = "otlp"
     JAEGER = "jaeger"
@@ -88,6 +91,7 @@ class ExporterType(str, Enum):
 # =============================================================================
 # TELEMETRY CONFIGURATION
 # =============================================================================
+
 
 @dataclass
 class TelemetryConfig:
@@ -134,6 +138,7 @@ class TelemetryConfig:
 # NULL SPAN (for when telemetry is disabled)
 # =============================================================================
 
+
 class NullSpan:
     """
     A no-op span implementation for when telemetry is disabled.
@@ -156,7 +161,7 @@ class NullSpan:
         exception: BaseException,
         attributes: dict[str, Any] | None = None,
         timestamp: int | None = None,
-        escaped: bool = False
+        escaped: bool = False,
     ) -> None:
         """No-op: Record an exception on the span."""
 
@@ -178,7 +183,7 @@ class NullSpan:
 
 # Context variable for propagating correlation_id across async boundaries
 _correlation_id_var: contextvars.ContextVar[str | None] = contextvars.ContextVar(
-    'correlation_id', default=None
+    "correlation_id", default=None
 )
 
 
@@ -218,6 +223,7 @@ def reset_async_correlation_id(token: contextvars.Token[str | None]) -> None:
 # =============================================================================
 # TELEMETRY SYSTEM
 # =============================================================================
+
 
 class TelemetrySystem:
     """
@@ -266,9 +272,11 @@ class TelemetrySystem:
 
         try:
             # Create resource with service name
-            resource = Resource.create({
-                "service.name": self.config.service_name,
-            })
+            resource = Resource.create(
+                {
+                    "service.name": self.config.service_name,
+                }
+            )
 
             # Create tracer provider
             self._provider = TracerProvider(resource=resource)
@@ -289,14 +297,11 @@ class TelemetrySystem:
 
             # Get tracer
             self._tracer = trace.get_tracer(
-                self.config.service_name,
-                schema_url="https://opentelemetry.io/schemas/1.21.0"
+                self.config.service_name, schema_url="https://opentelemetry.io/schemas/1.21.0"
             )
 
             self._initialized = True
-            logger.debug(
-                f"Telemetry initialized with {self.config.exporter_type} exporter"
-            )
+            logger.debug(f"Telemetry initialized with {self.config.exporter_type} exporter")
 
         except Exception as e:
             logger.warning(f"Failed to initialize telemetry: {e}")
@@ -316,6 +321,7 @@ class TelemetrySystem:
         elif exporter_type == ExporterType.OTLP.value:
             try:
                 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+
                 return OTLPSpanExporter(endpoint=self.config.otlp_endpoint)
             except ImportError:
                 logger.warning(
@@ -327,6 +333,7 @@ class TelemetrySystem:
         elif exporter_type == ExporterType.JAEGER.value:
             try:
                 from opentelemetry.exporter.jaeger.thrift import JaegerExporter
+
                 return JaegerExporter()
             except ImportError:
                 logger.warning(
@@ -364,9 +371,11 @@ class TelemetrySystem:
         # Fall back to observability module
         try:
             from primr.utils.observability import get_correlation_id
+
             return get_correlation_id()
         except ImportError:
             import uuid
+
             return str(uuid.uuid4())[:8]
 
     @contextmanager
@@ -505,18 +514,14 @@ class TelemetrySystem:
                 "exception.type": type(exception).__name__,
                 "exception.message": str(exception),
                 "exception.stacktrace": tb_str,
-            }
+            },
         )
 
         # Set span status to error
         if _OTEL_AVAILABLE and Status is not None and StatusCode is not None:
             span.set_status(Status(StatusCode.ERROR, str(exception)))
 
-    def record_event(
-        self,
-        name: str,
-        attributes: dict[str, Any] | None = None
-    ) -> None:
+    def record_event(self, name: str, attributes: dict[str, Any] | None = None) -> None:
         """
         Record an event on the current span.
 
@@ -547,7 +552,7 @@ class TelemetrySystem:
         input_tokens: int,
         output_tokens: int,
         operation: str | None = None,
-        cost_tracker: CostTracker | None = None
+        cost_tracker: CostTracker | None = None,
     ) -> float:
         """
         Record token usage and calculate cost, attaching attributes to the current span.
@@ -591,12 +596,14 @@ class TelemetrySystem:
         # Attach cost attributes to current span
         span = self.get_current_span()
         if span is not None and not isinstance(span, NullSpan):
-            span.set_attributes({
-                "ai.model": model,
-                "ai.input_tokens": input_tokens,
-                "ai.output_tokens": output_tokens,
-                "ai.cost_usd": cost,
-            })
+            span.set_attributes(
+                {
+                    "ai.model": model,
+                    "ai.input_tokens": input_tokens,
+                    "ai.output_tokens": output_tokens,
+                    "ai.cost_usd": cost,
+                }
+            )
             if operation:
                 span.set_attribute("ai.operation", operation)
 
@@ -610,7 +617,7 @@ class TelemetrySystem:
                 "ai.cost_usd": cost,
                 "ai.operation": operation or "unknown",
                 "correlation_id": correlation_id,
-            }
+            },
         )
 
         return cost
@@ -635,7 +642,7 @@ class TelemetrySystem:
         Should be called when the application is shutting down to ensure
         all spans are exported.
         """
-        if self._provider is not None and hasattr(self._provider, 'shutdown'):
+        if self._provider is not None and hasattr(self._provider, "shutdown"):
             try:
                 self._provider.shutdown()
             except Exception as e:
@@ -648,6 +655,7 @@ class TelemetrySystem:
 # =============================================================================
 # ASYNC CONTEXT PROPAGATION UTILITIES
 # =============================================================================
+
 
 @asynccontextmanager
 async def propagate_correlation_id(correlation_id: str) -> AsyncGenerator[None, None]:
@@ -672,10 +680,7 @@ async def propagate_correlation_id(correlation_id: str) -> AsyncGenerator[None, 
         reset_async_correlation_id(token)
 
 
-async def run_with_correlation_id(
-    correlation_id: str,
-    coro: Any
-) -> Any:
+async def run_with_correlation_id(correlation_id: str, coro: Any) -> Any:
     """
     Run a coroutine with a specific correlation_id in context.
 
@@ -752,6 +757,7 @@ def is_otel_available() -> bool:
 def _build_default_pricing() -> dict[str, tuple[float, float]]:
     """Build pricing table from ModelRegistry, plus legacy model entries."""
     from primr.config.models import PrimrModels
+
     pricing: dict[str, tuple[float, float]] = {}
     for name, config in PrimrModels.ALL_MODELS.items():
         pricing[name] = (config.cost_per_1m_input_tokens, config.cost_per_1m_output_tokens)
@@ -790,14 +796,11 @@ class CostTracker:
     """
 
     # Default pricing per 1M tokens (input_price, output_price)
-    pricing: dict[str, tuple[float, float]] = field(default_factory=lambda: _build_default_pricing())
+    pricing: dict[str, tuple[float, float]] = field(
+        default_factory=lambda: _build_default_pricing()
+    )
 
-    def calculate_cost(
-        self,
-        model: str,
-        input_tokens: int,
-        output_tokens: int
-    ) -> float:
+    def calculate_cost(self, model: str, input_tokens: int, output_tokens: int) -> float:
         """
         Calculate the cost for token usage based on model pricing.
 
@@ -839,12 +842,7 @@ class CostTracker:
         """
         return list(self.pricing.keys())
 
-    def add_model_pricing(
-        self,
-        model: str,
-        input_price: float,
-        output_price: float
-    ) -> None:
+    def add_model_pricing(self, model: str, input_price: float, output_price: float) -> None:
         """
         Add or update pricing for a model.
 

@@ -90,7 +90,7 @@ class QAAnalyzer:
             response = self.retry_handler.retry_with_backoff(
                 perform_analysis,
                 retryable_exceptions=(QAModelError, ConnectionError, TimeoutError),
-                operation_name=f"QA analysis for {report.company_name}"
+                operation_name=f"QA analysis for {report.company_name}",
             )
 
             # Parse AI response into structured analysis
@@ -197,25 +197,45 @@ Provide only the JSON response, no additional text."""
         sections_lower = [s.lower() for s in report.sections]
 
         # Check for AI strategy indicators (in content or section names)
-        if any(term in content_lower for term in ['ai strategy', 'artificial intelligence', 'machine learning', 'automation roadmap']):
+        if any(
+            term in content_lower
+            for term in [
+                "ai strategy",
+                "artificial intelligence",
+                "machine learning",
+                "automation roadmap",
+            ]
+        ):
             return "AI Strategy"
-        if any('ai strategy' in s or 'automation roadmap' in s for s in sections_lower):
+        if any("ai strategy" in s or "automation roadmap" in s for s in sections_lower):
             return "AI Strategy"
 
         # Check for general strategy indicators
-        if any(term in content_lower for term in ['strategic overview', 'strategic analysis', 'strategy']):
+        if any(
+            term in content_lower
+            for term in ["strategic overview", "strategic analysis", "strategy"]
+        ):
             return "Strategic Analysis"
 
         # Check for company overview indicators
-        if any(term in content_lower for term in ['company overview', 'company profile', 'business overview']):
+        if any(
+            term in content_lower
+            for term in ["company overview", "company profile", "business overview"]
+        ):
             return "Company Overview"
 
         # Check for financial analysis
-        if any(term in content_lower for term in ['financial analysis', 'financial overview', 'earnings', 'revenue']):
+        if any(
+            term in content_lower
+            for term in ["financial analysis", "financial overview", "earnings", "revenue"]
+        ):
             return "Financial Analysis"
 
         # Check for market research
-        if any(term in content_lower for term in ['market analysis', 'market research', 'industry analysis']):
+        if any(
+            term in content_lower
+            for term in ["market analysis", "market research", "industry analysis"]
+        ):
             return "Market Research"
 
         # Default fallback
@@ -228,25 +248,44 @@ Provide only the JSON response, no additional text."""
 
         type_specific_sections = {
             "AI Strategy": [
-                "Current State Assessment", "AI Opportunities", "Implementation Roadmap",
-                "Risk Assessment", "Resource Requirements", "Success Metrics"
+                "Current State Assessment",
+                "AI Opportunities",
+                "Implementation Roadmap",
+                "Risk Assessment",
+                "Resource Requirements",
+                "Success Metrics",
             ],
             "Strategic Analysis": [
-                "Market Position", "Competitive Landscape", "SWOT Analysis",
-                "Strategic Recommendations", "Risk Factors"
+                "Market Position",
+                "Competitive Landscape",
+                "SWOT Analysis",
+                "Strategic Recommendations",
+                "Risk Factors",
             ],
             "Company Overview": [
-                "Business Model", "Products and Services", "Financial Performance",
-                "Market Position", "Leadership Team", "Recent Developments"
+                "Business Model",
+                "Products and Services",
+                "Financial Performance",
+                "Market Position",
+                "Leadership Team",
+                "Recent Developments",
             ],
             "Financial Analysis": [
-                "Revenue Analysis", "Profitability", "Cash Flow", "Balance Sheet",
-                "Financial Ratios", "Outlook"
+                "Revenue Analysis",
+                "Profitability",
+                "Cash Flow",
+                "Balance Sheet",
+                "Financial Ratios",
+                "Outlook",
             ],
             "Market Research": [
-                "Market Size", "Growth Trends", "Competitive Analysis",
-                "Customer Segments", "Market Drivers", "Challenges"
-            ]
+                "Market Size",
+                "Growth Trends",
+                "Competitive Analysis",
+                "Customer Segments",
+                "Market Drivers",
+                "Challenges",
+            ],
         }
 
         expected = base_sections + type_specific_sections.get(report_type, [])
@@ -269,7 +308,7 @@ Provide only the JSON response, no additional text."""
             clean_name = section.replace('"', '\\"')
             template_parts.append(f'"{clean_name}": 0')
 
-        return ', '.join(template_parts)
+        return ", ".join(template_parts)
 
     def _parse_ai_response(self, response: str, report: ReportContent) -> QAAnalysis:
         """Parse AI response into structured QA analysis."""
@@ -286,8 +325,8 @@ Provide only the JSON response, no additional text."""
                     json_str = response[json_start:].strip()
             else:
                 # Extract JSON from response
-                json_start = response.find('{')
-                json_end = response.rfind('}') + 1
+                json_start = response.find("{")
+                json_end = response.rfind("}") + 1
 
                 if json_start == -1 or json_end == 0:
                     logger.warning("No JSON found in AI response, using fallback")
@@ -300,15 +339,15 @@ Provide only the JSON response, no additional text."""
 
             # Parse issues
             issues = []
-            for issue_data in data.get('issues', []):
+            for issue_data in data.get("issues", []):
                 try:
                     issue = ClassifiedIssue(
-                        issue_type=IssueType(issue_data['issue_type']),
-                        severity=Severity(issue_data['severity']),
-                        section=issue_data['section'],
-                        description=issue_data['description'],
-                        location=issue_data['location'],
-                        suggestion=issue_data.get('suggestion')
+                        issue_type=IssueType(issue_data["issue_type"]),
+                        severity=Severity(issue_data["severity"]),
+                        section=issue_data["section"],
+                        description=issue_data["description"],
+                        location=issue_data["location"],
+                        suggestion=issue_data.get("suggestion"),
                     )
                     issues.append(issue)
                 except (KeyError, ValueError) as e:
@@ -317,33 +356,43 @@ Provide only the JSON response, no additional text."""
 
             # Create analysis object with safe defaults
             analysis = QAAnalysis(
-                overall_score=data.get('overall_score', 50),
-                section_scores=data.get('section_scores', {}),
+                overall_score=data.get("overall_score", 50),
+                section_scores=data.get("section_scores", {}),
                 issues=issues,
                 citation_check=CitationCheckResult(
-                    total_citations=data.get('citation_check', {}).get('total_citations', len(report.citations)),
-                    valid_citations=data.get('citation_check', {}).get('valid_citations', 0),
-                    broken_links=data.get('citation_check', {}).get('broken_links', []),
-                    unsupported_claims=data.get('citation_check', {}).get('unsupported_claims', []),
-                    score=data.get('citation_check', {}).get('score', 50)
+                    total_citations=data.get("citation_check", {}).get(
+                        "total_citations", len(report.citations)
+                    ),
+                    valid_citations=data.get("citation_check", {}).get("valid_citations", 0),
+                    broken_links=data.get("citation_check", {}).get("broken_links", []),
+                    unsupported_claims=data.get("citation_check", {}).get("unsupported_claims", []),
+                    score=data.get("citation_check", {}).get("score", 50),
                 ),
                 logic_check=LogicCheckResult(
-                    contradictions_found=data.get('logic_check', {}).get('contradictions_found', []),
-                    unsupported_leaps=data.get('logic_check', {}).get('unsupported_leaps', []),
-                    score=data.get('logic_check', {}).get('score', 50)
+                    contradictions_found=data.get("logic_check", {}).get(
+                        "contradictions_found", []
+                    ),
+                    unsupported_leaps=data.get("logic_check", {}).get("unsupported_leaps", []),
+                    score=data.get("logic_check", {}).get("score", 50),
                 ),
                 completeness_check=CompletenessCheckResult(
-                    expected_sections=data.get('completeness_check', {}).get('expected_sections', []),
-                    missing_sections=data.get('completeness_check', {}).get('missing_sections', []),
-                    weak_sections=data.get('completeness_check', {}).get('weak_sections', []),
-                    score=data.get('completeness_check', {}).get('score', 50)
+                    expected_sections=data.get("completeness_check", {}).get(
+                        "expected_sections", []
+                    ),
+                    missing_sections=data.get("completeness_check", {}).get("missing_sections", []),
+                    weak_sections=data.get("completeness_check", {}).get("weak_sections", []),
+                    score=data.get("completeness_check", {}).get("score", 50),
                 ),
                 confidence_assessment=ConfidenceAssessment(
-                    section_confidence=data.get('confidence_assessment', {}).get('section_confidence', {}),
-                    overall_confidence=data.get('confidence_assessment', {}).get('overall_confidence', 50)
+                    section_confidence=data.get("confidence_assessment", {}).get(
+                        "section_confidence", {}
+                    ),
+                    overall_confidence=data.get("confidence_assessment", {}).get(
+                        "overall_confidence", 50
+                    ),
                 ),
                 timestamp=datetime.now(),
-                model_used=self.model_name
+                model_used=self.model_name,
             )
 
             return analysis
@@ -367,7 +416,7 @@ Provide only the JSON response, no additional text."""
                     section="QA System",
                     description="Quality analysis could not be completed due to technical issues",
                     location="QA System",
-                    suggestion="Retry QA analysis or check system configuration"
+                    suggestion="Retry QA analysis or check system configuration",
                 )
             ],
             citation_check=CitationCheckResult(
@@ -375,23 +424,18 @@ Provide only the JSON response, no additional text."""
                 valid_citations=0,
                 broken_links=[],
                 unsupported_claims=[],
-                score=50
+                score=50,
             ),
-            logic_check=LogicCheckResult(
-                contradictions_found=[],
-                unsupported_leaps=[],
-                score=50
-            ),
+            logic_check=LogicCheckResult(contradictions_found=[], unsupported_leaps=[], score=50),
             completeness_check=CompletenessCheckResult(
                 expected_sections=list(report.sections.keys()),
                 missing_sections=[],
                 weak_sections=[],
-                score=50
+                score=50,
             ),
             confidence_assessment=ConfidenceAssessment(
-                section_confidence={},
-                overall_confidence=50
+                section_confidence={}, overall_confidence=50
             ),
             timestamp=datetime.now(),
-            model_used=self.model_name
+            model_used=self.model_name,
         )

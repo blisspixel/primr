@@ -58,8 +58,21 @@ from bs4 import BeautifulSoup, Tag
 
 # Tags to always remove (noise)
 REMOVE_TAGS = [
-    "script", "style", "noscript", "meta", "link", "svg", "canvas", "iframe",
-    "template", "picture", "source", "video", "audio", "object", "embed",
+    "script",
+    "style",
+    "noscript",
+    "meta",
+    "link",
+    "svg",
+    "canvas",
+    "iframe",
+    "template",
+    "picture",
+    "source",
+    "video",
+    "audio",
+    "object",
+    "embed",
 ]
 
 # Layout regions to remove by tag
@@ -78,31 +91,66 @@ SEMANTIC_MIN_TEXT_LENGTH = 200
 # IMPORTANT: Be careful not to match content containers (e.g., "widget" matches Elementor content)
 LAYOUT_REMOVE_PATTERNS = [
     # Navigation - be specific to avoid matching content
-    r"\bnav\b", r"navbar", r"navigation", r"main-menu", r"site-menu", r"breadcrumb",
+    r"\bnav\b",
+    r"navbar",
+    r"navigation",
+    r"main-menu",
+    r"site-menu",
+    r"breadcrumb",
     # Header/Footer - match specific patterns
-    r"site-header", r"site-footer", r"masthead", r"page-header", r"page-footer",
+    r"site-header",
+    r"site-footer",
+    r"masthead",
+    r"page-header",
+    r"page-footer",
     # Sidebars - be specific
-    r"sidebar", r"side-bar",
+    r"sidebar",
+    r"side-bar",
     # CTAs and banners
-    r"\bcta\b", r"call-to-action", r"promo-banner", r"hero-banner",
+    r"\bcta\b",
+    r"call-to-action",
+    r"promo-banner",
+    r"hero-banner",
     # Modals and popups
-    r"\bmodal\b", r"\bpopup\b", r"\boverlay\b", r"lightbox", r"\bdialog\b", r"drawer",
+    r"\bmodal\b",
+    r"\bpopup\b",
+    r"\boverlay\b",
+    r"lightbox",
+    r"\bdialog\b",
+    r"drawer",
     # Social and sharing
-    r"social-share", r"share-buttons", r"follow-us",
+    r"social-share",
+    r"share-buttons",
+    r"follow-us",
     # Comments
-    r"comment-section", r"comments-area", r"disqus",
+    r"comment-section",
+    r"comments-area",
+    r"disqus",
     # Related content
-    r"related-posts", r"recommended-posts",
+    r"related-posts",
+    r"recommended-posts",
     # Cookie/consent/GDPR
-    r"cookie-banner", r"cookie-notice", r"consent-banner", r"gdpr-banner", r"privacy-banner",
+    r"cookie-banner",
+    r"cookie-notice",
+    r"consent-banner",
+    r"gdpr-banner",
+    r"privacy-banner",
     # Ads
-    r"advertisement", r"ad-container", r"sponsor-content",
+    r"advertisement",
+    r"ad-container",
+    r"sponsor-content",
     # Login/signup/subscribe - be specific
-    r"login-form", r"signup-form", r"newsletter-signup", r"subscribe-form",
+    r"login-form",
+    r"signup-form",
+    r"newsletter-signup",
+    r"subscribe-form",
     # Search
-    r"search-form", r"search-box", r"site-search",
+    r"search-form",
+    r"search-box",
+    r"site-search",
     # Back to top, pagination
-    r"back-to-top", r"scroll-to-top",
+    r"back-to-top",
+    r"scroll-to-top",
 ]
 
 # Compile patterns for efficiency
@@ -129,9 +177,11 @@ MAIN_CONTENT_SELECTORS = [
 # DATA MODELS (Output Contract)
 # =============================================================================
 
+
 @dataclass
 class ContentBlock:
     """A single content block with type information."""
+
     type: str  # h1-h6, p, li, quote, cta
     text: str
     list_type: str | None = None  # ul, ol (for li blocks)
@@ -142,6 +192,7 @@ class ContentBlock:
 @dataclass
 class ExtractionMetrics:
     """Quality metrics for extracted content."""
+
     char_count: int = 0
     word_count: int = 0
     link_density: float = 0.0  # Overall link text / total text
@@ -169,6 +220,7 @@ class ExtractionMetrics:
 @dataclass
 class QualityScore:
     """Quality assessment with score and flags."""
+
     score: float = 0.0  # 0-1, higher is better
     flags: list = field(default_factory=list)
 
@@ -182,6 +234,7 @@ class QualityScore:
 @dataclass
 class StructuredContent:
     """Full structured content from a page - the output contract."""
+
     url: str
     final_url: str | None = None
     title: str | None = None
@@ -206,12 +259,16 @@ class StructuredContent:
             "published_date": self.published_date,
             "byline": self.byline,
             "blocks": [
-                {k: v for k, v in {
-                    "type": b.type,
-                    "text": b.text,
-                    "list_type": b.list_type,
-                    "attribution": b.attribution,
-                }.items() if v is not None}
+                {
+                    k: v
+                    for k, v in {
+                        "type": b.type,
+                        "text": b.text,
+                        "list_type": b.list_type,
+                        "attribution": b.attribution,
+                    }.items()
+                    if v is not None
+                }
                 for b in self.blocks
             ],
             "text": self.text,
@@ -258,6 +315,7 @@ class StructuredContent:
 # BOILERPLATE FILTER (Cross-page fingerprinting)
 # =============================================================================
 
+
 @dataclass
 class BoilerplateFilter:
     """
@@ -300,7 +358,8 @@ class BoilerplateFilter:
         min_occurrences = max(2, int(self.page_count * threshold))
 
         self.boilerplate_lines = {
-            line for line, count in self.line_counts.items()
+            line
+            for line, count in self.line_counts.items()
             if count >= min_occurrences and line not in self.allowlist
         }
 
@@ -333,14 +392,14 @@ class BoilerplateFilter:
     def get_boilerplate_examples(self, limit: int = 20) -> list:
         """Get examples of detected boilerplate for debugging."""
         return sorted(
-            [(line, self.line_counts[line]) for line in self.boilerplate_lines],
-            key=lambda x: -x[1]
+            [(line, self.line_counts[line]) for line in self.boilerplate_lines], key=lambda x: -x[1]
         )[:limit]
 
 
 # =============================================================================
 # PASS A: DOM SANITIZATION
 # =============================================================================
+
 
 def prune_dom(soup: BeautifulSoup) -> BeautifulSoup:
     """
@@ -373,7 +432,7 @@ def prune_dom(soup: BeautifulSoup) -> BeautifulSoup:
     # Collect elements to remove (don't modify during iteration)
     to_remove = []
     for element in soup.find_all(True):
-        if element is None or not hasattr(element, 'get'):
+        if element is None or not hasattr(element, "get"):
             continue
         if id(element) in protected:
             continue
@@ -401,6 +460,7 @@ def prune_dom(soup: BeautifulSoup) -> BeautifulSoup:
 # =============================================================================
 # PASS B: MAIN CONTENT SELECTION (Container Scoring)
 # =============================================================================
+
 
 def compute_link_density(element: Tag) -> float:
     """Compute ratio of link text to total text."""
@@ -532,6 +592,7 @@ def is_cta_block(text: str, link_density: float = 0.0) -> bool:
 # METADATA EXTRACTION
 # =============================================================================
 
+
 def extract_metadata(soup: BeautifulSoup) -> dict:
     """Extract page metadata (title, description, date, etc.)."""
     metadata = {
@@ -578,7 +639,9 @@ def extract_metadata(soup: BeautifulSoup) -> dict:
     for tag, attrs in date_sources:
         element = soup.find(tag, attrs)
         if element:
-            date_val = element.get("content") or element.get("datetime") or element.get_text(strip=True)
+            date_val = (
+                element.get("content") or element.get("datetime") or element.get_text(strip=True)
+            )
             if date_val:
                 metadata["published_date"] = date_val
                 break
@@ -609,6 +672,7 @@ def extract_metadata(soup: BeautifulSoup) -> dict:
 # PASS C: STRUCTURED BLOCK EXTRACTION
 # =============================================================================
 
+
 def extract_blocks(element: Tag) -> list[ContentBlock]:
     """
     Pass C: Walk container and emit typed blocks.
@@ -633,7 +697,9 @@ def extract_blocks(element: Tag) -> list[ContentBlock]:
         blocks.append(ContentBlock(type=block_type, text=text, **kwargs))
 
     # Process direct children and key descendants
-    for child in element.find_all(["h1", "h2", "h3", "h4", "h5", "h6", "p", "ul", "ol", "blockquote", "div"]):
+    for child in element.find_all(
+        ["h1", "h2", "h3", "h4", "h5", "h6", "p", "ul", "ol", "blockquote", "div"]
+    ):
         if not isinstance(child, Tag):
             continue
 
@@ -674,7 +740,9 @@ def extract_blocks(element: Tag) -> list[ContentBlock]:
                 lines = text.split("\n")
                 if len(lines) > 1:
                     last_line = lines[-1].strip()
-                    if last_line.startswith(("—", "–", "-")) or re.match(r"^[A-Z][a-z]+\s+[A-Z]", last_line):
+                    if last_line.startswith(("—", "–", "-")) or re.match(
+                        r"^[A-Z][a-z]+\s+[A-Z]", last_line
+                    ):
                         attribution = last_line.lstrip("—–- ")
                         text = "\n".join(lines[:-1])
 
@@ -693,6 +761,7 @@ def extract_blocks(element: Tag) -> list[ContentBlock]:
 # =============================================================================
 # PASS D: TEXT NORMALIZATION + DEDUPLICATION
 # =============================================================================
+
 
 def normalize_text(text: str) -> str:
     """Normalize whitespace and clean up text."""
@@ -733,6 +802,7 @@ def remove_duplicate_lines(text: str) -> tuple[str, float]:
 # =============================================================================
 # PASS E: QUALITY SCORING
 # =============================================================================
+
 
 def compute_quality_score(
     metrics: ExtractionMetrics,
@@ -807,6 +877,7 @@ def compute_quality_score(
 # =============================================================================
 # MAIN EXTRACTION FUNCTION
 # =============================================================================
+
 
 def extract_structured_content(
     raw_html: bytes,
@@ -903,6 +974,7 @@ def extract_structured_content(
 # BATCH PROCESSING WITH BOILERPLATE LEARNING
 # =============================================================================
 
+
 def extract_with_boilerplate_learning(
     pages: list[tuple[str, bytes]],
     boilerplate_threshold: float = 0.3,
@@ -964,6 +1036,7 @@ def get_clean_text_for_summarization(
 # =============================================================================
 # QUALITY-BASED TIER ESCALATION HELPER
 # =============================================================================
+
 
 def should_escalate_tier(content: StructuredContent) -> tuple[bool, str]:
     """

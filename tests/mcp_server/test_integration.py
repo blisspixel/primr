@@ -298,7 +298,7 @@ class TestRateLimitingMultiClient:
         # Exhaust rate limit for estimate_run (30/min)
         for i in range(30):
             result = server.rate_limiter.check_and_record("client_a", "estimate_run")
-            assert result.allowed, f"Request {i+1} should be allowed"
+            assert result.allowed, f"Request {i + 1} should be allowed"
 
         # Client A is now rate limited
         result = server.rate_limiter.check_and_record("client_a", "estimate_run")
@@ -406,6 +406,7 @@ class TestGracefulShutdown:
         # Run graceful shutdown (should cancel after 5s)
         # Use a shorter timeout for testing
         from primr.mcp_server import server as server_module
+
         original_timeout = server_module.SHUTDOWN_WORK_COMPLETION_TIMEOUT
         server_module.SHUTDOWN_WORK_COMPLETION_TIMEOUT = 0.2  # 200ms for test
 

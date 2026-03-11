@@ -230,9 +230,7 @@ class TestKnowledgeGraph:
         graph.add_relationship(e1.entity_id, e2.entity_id, RelationType.PARTNER_WITH)
         graph.add_relationship(e1.entity_id, e3.entity_id, RelationType.COMPETES_WITH)
 
-        partners = graph.get_relationships(
-            e1.entity_id, relation_type=RelationType.PARTNER_WITH
-        )
+        partners = graph.get_relationships(e1.entity_id, relation_type=RelationType.PARTNER_WITH)
         assert len(partners) == 1
 
     def test_get_relationships_direction(self, graph):
@@ -265,9 +263,7 @@ class TestContentExtraction:
         # First add the company
         graph.add_entity(EntityType.COMPANY, "Acme Corp")
 
-        relationships = graph.extract_relationships_from_content(
-            sample_content, "Acme Corp"
-        )
+        relationships = graph.extract_relationships_from_content(sample_content, "Acme Corp")
 
         # Should find some relationships
         assert isinstance(relationships, list)

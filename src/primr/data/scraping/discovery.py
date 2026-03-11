@@ -27,9 +27,11 @@ logger = logging.getLogger(__name__)
 # Data Models
 # =============================================================================
 
+
 @dataclass
 class DiscoveredLink:
     """A discovered link with metadata for scoring."""
+
     url: str
     source: str  # "sitemap", "guess", "html", "homepage"
     anchor_text: str | None = None
@@ -91,7 +93,9 @@ def fetch_sitemap_links(
 
     for sitemap_url in sitemap_urls:
         if len(all_links) >= config.max_urls_per_sitemap:
-            logger.debug(f"Reached max URLs ({config.max_urls_per_sitemap}), stopping sitemap discovery")
+            logger.debug(
+                f"Reached max URLs ({config.max_urls_per_sitemap}), stopping sitemap discovery"
+            )
             break
 
         links = _parse_sitemap_recursive(
@@ -221,17 +225,27 @@ def _parse_sitemap_recursive(
 
             # Get optional metadata
             priority_elem = url_elem.find("sm:priority", SITEMAP_NS)
-            priority = float(priority_elem.text) if priority_elem is not None and priority_elem.text else None
+            priority = (
+                float(priority_elem.text)
+                if priority_elem is not None and priority_elem.text
+                else None
+            )
 
             lastmod_elem = url_elem.find("sm:lastmod", SITEMAP_NS)
-            lastmod = lastmod_elem.text.strip() if lastmod_elem is not None and lastmod_elem.text else None
+            lastmod = (
+                lastmod_elem.text.strip()
+                if lastmod_elem is not None and lastmod_elem.text
+                else None
+            )
 
-            links.append(DiscoveredLink(
-                url=url,
-                source="sitemap",
-                sitemap_priority=priority,
-                sitemap_lastmod=lastmod,
-            ))
+            links.append(
+                DiscoveredLink(
+                    url=url,
+                    source="sitemap",
+                    sitemap_priority=priority,
+                    sitemap_lastmod=lastmod,
+                )
+            )
 
     return links
 
@@ -239,7 +253,6 @@ def _parse_sitemap_recursive(
 def _is_gzipped(content: bytes) -> bool:
     """Check if content is gzipped by magic bytes."""
     return len(content) >= 2 and content[:2] == b"\x1f\x8b"
-
 
 
 # =============================================================================
@@ -313,10 +326,12 @@ def guess_common_urls(base_url: str, organization_type: str = "commercial") -> l
     links = []
     for pattern in ordered_patterns:
         url = urljoin(base, pattern)
-        links.append(DiscoveredLink(
-            url=url,
-            source="guess",
-        ))
+        links.append(
+            DiscoveredLink(
+                url=url,
+                source="guess",
+            )
+        )
 
     return links
 
@@ -449,12 +464,14 @@ def is_probably_content_url(url: str) -> bool:
 
     if any(re.search(pattern, normalized, re.IGNORECASE) for pattern in LINK_EXCLUDE_PATTERNS):
         return False
-    return not any(re.search(pattern, normalized, re.IGNORECASE) for pattern in NON_CONTENT_PATH_PATTERNS)
+    return not any(
+        re.search(pattern, normalized, re.IGNORECASE) for pattern in NON_CONTENT_PATH_PATTERNS
+    )
 
 
 # Patterns that look like internal paths (for JS extraction)
 PATH_LIKE_PATTERNS = [
-    r'^/[a-z][a-z0-9-]*(?:/[a-z0-9-]+)*/?$',  # /about, /products/cloud, etc.
+    r"^/[a-z][a-z0-9-]*(?:/[a-z0-9-]+)*/?$",  # /about, /products/cloud, etc.
 ]
 
 
@@ -535,11 +552,13 @@ def extract_links_from_html(
         if same_domain_only and not is_same_domain(base_url, full_url):
             return
 
-        links.append(DiscoveredLink(
-            url=normalized,
-            source=source_type,
-            anchor_text=anchor_text if anchor_text else None,
-        ))
+        links.append(
+            DiscoveredLink(
+                url=normalized,
+                source=source_type,
+                anchor_text=anchor_text if anchor_text else None,
+            )
+        )
 
     # ==========================================================================
     # 1. Traditional <a href="..."> links
@@ -556,8 +575,8 @@ def extract_links_from_html(
     href_to_text = {}
     for match in re.finditer(full_pattern, text, re.IGNORECASE | re.DOTALL):
         href = match.group(1).strip()
-        anchor_text = re.sub(r'<[^>]+>', ' ', match.group(2)).strip()
-        anchor_text = re.sub(r'\s+', ' ', anchor_text)
+        anchor_text = re.sub(r"<[^>]+>", " ", match.group(2)).strip()
+        anchor_text = re.sub(r"\s+", " ", anchor_text)
         if anchor_text and len(anchor_text) < 200:
             href_to_text[href] = anchor_text
 
@@ -632,7 +651,10 @@ def extract_links_from_html(
     for match in re.finditer(js_path_pattern, text):
         path = match.group(1).strip()
         # Skip if it looks like a file path or API endpoint
-        if any(ext in path.lower() for ext in ['.js', '.css', '.json', '.xml', '.svg', '.ico', '/api/', '/_', '/static/']):
+        if any(
+            ext in path.lower()
+            for ext in [".js", ".css", ".json", ".xml", ".svg", ".ico", "/api/", "/_", "/static/"]
+        ):
             continue
         # Skip very short paths (likely not navigation)
         if len(path) < 3:
@@ -657,7 +679,9 @@ def extract_links_from_html(
     for match in re.finditer(non_anchor_href, text, re.IGNORECASE):
         add_link(match.group(1).strip(), "", "non-anchor")
 
-    logger.debug(f"Extracted {len(links)} links from HTML ({len(hrefs_found)} traditional, {len(links) - len(hrefs_found)} from JS/SPA patterns)")
+    logger.debug(
+        f"Extracted {len(links)} links from HTML ({len(hrefs_found)} traditional, {len(links) - len(hrefs_found)} from JS/SPA patterns)"
+    )
 
     return links
 
@@ -668,35 +692,87 @@ def extract_links_from_html(
 
 # Keywords that indicate high-value pages for business research
 HIGH_VALUE_KEYWORDS = [
-    "about", "company", "leadership", "team", "management", "board",
-    "investor", "financial", "annual-report", "earnings",
-    "product", "service", "solution", "platform",
-    "customer", "case-study", "success",
-    "news", "press", "announcement",
+    "about",
+    "company",
+    "leadership",
+    "team",
+    "management",
+    "board",
+    "investor",
+    "financial",
+    "annual-report",
+    "earnings",
+    "product",
+    "service",
+    "solution",
+    "platform",
+    "customer",
+    "case-study",
+    "success",
+    "news",
+    "press",
+    "announcement",
 ]
 
 ORG_HIGH_VALUE_KEYWORDS: dict[str, tuple[str, ...]] = {
     "government": (
-        "mission", "program", "facility", "institution", "budget", "report",
-        "audit", "rule", "statute", "leadership", "secretary", "procurement",
+        "mission",
+        "program",
+        "facility",
+        "institution",
+        "budget",
+        "report",
+        "audit",
+        "rule",
+        "statute",
+        "leadership",
+        "secretary",
+        "procurement",
     ),
     "nonprofit": (
-        "mission", "program", "impact", "donate", "board", "annual-report",
+        "mission",
+        "program",
+        "impact",
+        "donate",
+        "board",
+        "annual-report",
     ),
     "education": (
-        "academics", "research", "department", "faculty", "administration", "grants",
+        "academics",
+        "research",
+        "department",
+        "faculty",
+        "administration",
+        "grants",
     ),
     "healthcare": (
-        "patient", "care", "provider", "location", "service", "specialty",
+        "patient",
+        "care",
+        "provider",
+        "location",
+        "service",
+        "specialty",
     ),
 }
 
 # Keywords that indicate lower-value pages
 LOW_VALUE_KEYWORDS = [
-    "privacy", "terms", "legal", "cookie", "gdpr",
-    "login", "signin", "signup", "register",
-    "cart", "checkout", "account",
-    "search", "tag", "category", "archive",
+    "privacy",
+    "terms",
+    "legal",
+    "cookie",
+    "gdpr",
+    "login",
+    "signin",
+    "signup",
+    "register",
+    "cart",
+    "checkout",
+    "account",
+    "search",
+    "tag",
+    "category",
+    "archive",
 ]
 
 
@@ -731,9 +807,13 @@ def score_links_heuristically(
             if keyword in url_lower:
                 score -= 5.0
 
-        if organization_type == "government" and any(token in url_lower for token in ("pricing", "plans", "case-study", "customers")):
+        if organization_type == "government" and any(
+            token in url_lower for token in ("pricing", "plans", "case-study", "customers")
+        ):
             score -= 8.0
-        elif organization_type != "government" and any(token in url_lower for token in ("budget", "statute", "rule", "procurement")):
+        elif organization_type != "government" and any(
+            token in url_lower for token in ("budget", "statute", "rule", "procurement")
+        ):
             score += 1.5
 
         # Anchor text scoring
@@ -767,6 +847,7 @@ def score_links_heuristically(
 # =============================================================================
 # Homepage Link Extraction
 # =============================================================================
+
 
 def extract_links_from_homepage(
     base_url: str,
@@ -818,6 +899,7 @@ def extract_links_from_homepage(
 # =============================================================================
 # Combined Discovery
 # =============================================================================
+
 
 def discover_links(
     base_url: str,
@@ -872,13 +954,17 @@ def discover_links(
     inferred_org_type = organization_type
     if inferred_org_type is None:
         homepage_text = homepage_html.decode("utf-8", errors="ignore") if homepage_html else None
-        inferred_org_type = classify_organization_type(base_url, homepage_text=homepage_text).organization_type
+        inferred_org_type = classify_organization_type(
+            base_url, homepage_text=homepage_text
+        ).organization_type
 
     # 2. Guessed URLs - only if we have few links
     if len(all_links) < min_links_before_sitemap:
         guessed_links: list[DiscoveredLink] = []
         if inferred_org_type == "government":
-            logger.debug("Skipping guessed URL patterns for government site; relying on homepage links and sitemap")
+            logger.debug(
+                "Skipping guessed URL patterns for government site; relying on homepage links and sitemap"
+            )
         else:
             guessed_links = guess_common_urls(base_url, organization_type=inferred_org_type)
 

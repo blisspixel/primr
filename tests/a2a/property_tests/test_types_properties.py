@@ -1,6 +1,5 @@
 """Property-based tests for A2A types."""
 
-
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
@@ -13,7 +12,9 @@ class TestA2ATaskMappingProperties:
     @given(
         task_id=st.text(min_size=1, max_size=50),
         job_id=st.text(min_size=1, max_size=50),
-        skill_id=st.sampled_from(["estimate_research", "research_company", "check_jobs", "run_qa", "system_health"]),
+        skill_id=st.sampled_from(
+            ["estimate_research", "research_company", "check_jobs", "run_qa", "system_health"]
+        ),
     )
     @settings(max_examples=50)
     def test_roundtrip_serialization(self, task_id, job_id, skill_id):

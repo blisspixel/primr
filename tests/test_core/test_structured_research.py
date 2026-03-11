@@ -21,8 +21,7 @@ class TestScrapedData:
         from primr.core.structured_research import ScrapedData
 
         data = ScrapedData(
-            website_pages={"page1": "content1"},
-            external_sources={"source1": "content2"}
+            website_pages={"page1": "content1"}, external_sources={"source1": "content2"}
         )
 
         assert data.all_content == {"page1": "content1", "source1": "content2"}
@@ -31,10 +30,7 @@ class TestScrapedData:
         """page_count returns number of website pages."""
         from primr.core.structured_research import ScrapedData
 
-        data = ScrapedData(
-            website_pages={"p1": "c1", "p2": "c2", "p3": "c3"},
-            external_sources={}
-        )
+        data = ScrapedData(website_pages={"p1": "c1", "p2": "c2", "p3": "c3"}, external_sources={})
 
         assert data.page_count == 3
 
@@ -42,10 +38,7 @@ class TestScrapedData:
         """source_count returns number of external sources."""
         from primr.core.structured_research import ScrapedData
 
-        data = ScrapedData(
-            website_pages={},
-            external_sources={"s1": "c1", "s2": "c2"}
-        )
+        data = ScrapedData(website_pages={}, external_sources={"s1": "c1", "s2": "c2"})
 
         assert data.source_count == 2
 
@@ -68,9 +61,7 @@ class TestAnalysisResult:
         from primr.core.structured_research import AnalysisResult
 
         result = AnalysisResult(
-            summarized_content="Summary here",
-            industry="Technology",
-            overview="Overview text"
+            summarized_content="Summary here", industry="Technology", overview="Overview text"
         )
 
         assert result.summarized_content == "Summary here"
@@ -91,7 +82,7 @@ class TestResearchContext:
             folder_path="/tmp/Acme_Corp",
             industry="Manufacturing",
             overview="Overview",
-            summarized_insights="Insights"
+            summarized_insights="Insights",
         )
 
         assert context.company_name == "Acme Corp"
@@ -109,14 +100,18 @@ class TestGetMetadataValue:
         """Returns company name for Company Name section."""
         from primr.core.structured_research import _get_metadata_value
 
-        result = _get_metadata_value("Company Name", "Acme Corp", "https://acme.example", "Manufacturing")
+        result = _get_metadata_value(
+            "Company Name", "Acme Corp", "https://acme.example", "Manufacturing"
+        )
         assert result == "Acme Corp"
 
     def test_returns_website(self):
         """Returns website for Website section."""
         from primr.core.structured_research import _get_metadata_value
 
-        result = _get_metadata_value("Website", "Acme Corp", "https://acme.example", "Manufacturing")
+        result = _get_metadata_value(
+            "Website", "Acme Corp", "https://acme.example", "Manufacturing"
+        )
         assert result == "https://acme.example"
 
     def test_returns_na_for_missing_website(self):
@@ -130,14 +125,18 @@ class TestGetMetadataValue:
         """Returns industry for Industry section."""
         from primr.core.structured_research import _get_metadata_value
 
-        result = _get_metadata_value("Industry", "Acme Corp", "https://acme.example", "Manufacturing")
+        result = _get_metadata_value(
+            "Industry", "Acme Corp", "https://acme.example", "Manufacturing"
+        )
         assert result == "Manufacturing"
 
     def test_returns_na_for_unknown_section(self):
         """Returns N/A for unknown section."""
         from primr.core.structured_research import _get_metadata_value
 
-        result = _get_metadata_value("Unknown", "Acme Corp", "https://acme.example", "Manufacturing")
+        result = _get_metadata_value(
+            "Unknown", "Acme Corp", "https://acme.example", "Manufacturing"
+        )
         assert result == "N/A"
 
 
@@ -152,17 +151,17 @@ class TestProgressReporterProtocol:
         mock_reporter = MagicMock(spec=ProgressReporter)
 
         # Should have these methods
-        assert hasattr(mock_reporter, 'report')
-        assert hasattr(mock_reporter, 'phase_start')
-        assert hasattr(mock_reporter, 'phase_complete')
+        assert hasattr(mock_reporter, "report")
+        assert hasattr(mock_reporter, "phase_start")
+        assert hasattr(mock_reporter, "phase_complete")
 
 
 class TestCollectDataPhase:
     """Tests for _collect_data phase function."""
 
-    @patch('primr.core.structured_research.fetch_web_content')
-    @patch('primr.core.structured_research.search_web')
-    @patch('primr.core.structured_research.scrape_external_sources_validated')
+    @patch("primr.core.structured_research.fetch_web_content")
+    @patch("primr.core.structured_research.search_web")
+    @patch("primr.core.structured_research.scrape_external_sources_validated")
     def test_collects_website_pages(self, mock_scrape, mock_search, mock_fetch):
         """Collects website pages when website provided."""
         from primr.core.structured_research import _collect_data
@@ -175,8 +174,8 @@ class TestCollectDataPhase:
         mock_fetch.assert_called_once()
         assert result.page_count == 1
 
-    @patch('primr.core.structured_research.fetch_web_content')
-    @patch('primr.core.structured_research.search_web')
+    @patch("primr.core.structured_research.fetch_web_content")
+    @patch("primr.core.structured_research.search_web")
     def test_skips_website_when_none(self, mock_search, mock_fetch):
         """Skips website scraping when website is None."""
         from primr.core.structured_research import _collect_data
@@ -192,9 +191,9 @@ class TestCollectDataPhase:
 class TestAnalyzeContentPhase:
     """Tests for _analyze_content phase function."""
 
-    @patch('primr.core.structured_research.summarize_scraped_content')
-    @patch('primr.core.structured_research.llm')
-    @patch('primr.core.structured_research.generate_initial_overview')
+    @patch("primr.core.structured_research.summarize_scraped_content")
+    @patch("primr.core.structured_research.llm")
+    @patch("primr.core.structured_research.generate_initial_overview")
     def test_returns_analysis_result(self, mock_overview, mock_llm, mock_summarize):
         """Returns AnalysisResult with all fields."""
         from primr.core.structured_research import ScrapedData, _analyze_content
@@ -210,9 +209,9 @@ class TestAnalyzeContentPhase:
         assert result.industry == "Technology"
         assert result.overview == "Overview"
 
-    @patch('primr.core.structured_research.summarize_scraped_content')
-    @patch('primr.core.structured_research.llm')
-    @patch('primr.core.structured_research.generate_initial_overview')
+    @patch("primr.core.structured_research.summarize_scraped_content")
+    @patch("primr.core.structured_research.llm")
+    @patch("primr.core.structured_research.generate_initial_overview")
     def test_handles_empty_summary(self, mock_overview, mock_llm, mock_summarize):
         """Handles empty summary gracefully."""
         from primr.core.structured_research import ScrapedData, _analyze_content
@@ -230,7 +229,7 @@ class TestAnalyzeContentPhase:
 class TestGenerateSectionsPhase:
     """Tests for _generate_sections phase function."""
 
-    @patch('primr.core.structured_research.research_section')
+    @patch("primr.core.structured_research.research_section")
     def test_generates_all_sections(self, mock_research):
         """Generates content for all sections."""
         from primr.core.structured_research import ResearchContext, _generate_sections
@@ -243,7 +242,7 @@ class TestGenerateSectionsPhase:
             folder_path="/tmp/Acme_Corp",
             industry="Manufacturing",
             overview="Overview",
-            summarized_insights="Insights"
+            summarized_insights="Insights",
         )
 
         result = _generate_sections(context, None)
@@ -257,39 +256,54 @@ class TestGenerateSectionsPhase:
 class TestResearchSection:
     """Tests for research_section function."""
 
-    @patch('primr.core.structured_research.save_section_output')
+    @patch("primr.core.structured_research.save_section_output")
     def test_handles_company_name_section(self, mock_save):
         """Handles Company Name section without AI."""
         from primr.core.structured_research import research_section
 
         result = research_section(
-            "Company Name", "Acme Corp", "https://acme.example",
-            "Manufacturing", "/tmp", "Overview", "Insights"
+            "Company Name",
+            "Acme Corp",
+            "https://acme.example",
+            "Manufacturing",
+            "/tmp",
+            "Overview",
+            "Insights",
         )
 
         assert result == "Acme Corp"
         mock_save.assert_called_once()
 
-    @patch('primr.core.structured_research.save_section_output')
+    @patch("primr.core.structured_research.save_section_output")
     def test_handles_website_section(self, mock_save):
         """Handles Website section without AI."""
         from primr.core.structured_research import research_section
 
         result = research_section(
-            "Website", "Acme Corp", "https://acme.example",
-            "Manufacturing", "/tmp", "Overview", "Insights"
+            "Website",
+            "Acme Corp",
+            "https://acme.example",
+            "Manufacturing",
+            "/tmp",
+            "Overview",
+            "Insights",
         )
 
         assert result == "https://acme.example"
 
-    @patch('primr.core.structured_research.save_section_output')
+    @patch("primr.core.structured_research.save_section_output")
     def test_handles_industry_section(self, mock_save):
         """Handles Industry section without AI."""
         from primr.core.structured_research import research_section
 
         result = research_section(
-            "Industry", "Acme Corp", "https://acme.example",
-            "Manufacturing", "/tmp", "Overview", "Insights"
+            "Industry",
+            "Acme Corp",
+            "https://acme.example",
+            "Manufacturing",
+            "/tmp",
+            "Overview",
+            "Insights",
         )
 
         assert result == "Manufacturing"
@@ -299,8 +313,13 @@ class TestResearchSection:
         from primr.core.structured_research import research_section
 
         result = research_section(
-            "Unknown Section XYZ", "Acme Corp", "https://acme.example",
-            "Manufacturing", "/tmp", "Overview", "Insights"
+            "Unknown Section XYZ",
+            "Acme Corp",
+            "https://acme.example",
+            "Manufacturing",
+            "/tmp",
+            "Overview",
+            "Insights",
         )
 
         assert result == ""

@@ -7,6 +7,7 @@ Tests cover:
 - parse_args function
 - Command dispatch
 """
+
 import os
 from unittest.mock import MagicMock, patch
 
@@ -26,6 +27,7 @@ from primr.core.cli import (
 # =============================================================================
 # Command Enum Tests
 # =============================================================================
+
 
 class TestCommand:
     """Tests for Command enum."""
@@ -49,6 +51,7 @@ class TestCommand:
 # =============================================================================
 # CLIConfig Tests
 # =============================================================================
+
 
 class TestCLIConfig:
     """Tests for CLIConfig dataclass."""
@@ -74,7 +77,7 @@ class TestCLIConfig:
             website="https://acme.example",
             mode="deep-research",
             ai_strategy=False,
-            cloud_vendors=("aws",)
+            cloud_vendors=("aws",),
         )
         assert config.company_name == "Acme Corp"
         assert config.website == "https://acme.example"
@@ -108,6 +111,7 @@ class TestCLIConfig:
 # MODE_MAP Tests
 # =============================================================================
 
+
 class TestModeMap:
     """Tests for mode name mapping."""
 
@@ -130,6 +134,7 @@ class TestModeMap:
 # =============================================================================
 # parse_args Tests
 # =============================================================================
+
 
 class TestParseArgs:
     """Tests for parse_args function."""
@@ -196,12 +201,18 @@ class TestParseArgs:
 
     def test_parse_eval_command(self):
         """Test parsing eval command and options."""
-        config = parse_args([
-            "--eval",
-            "--eval-id", "eval-2026-02-r1",
-            "--eval-profiles", "full", "fast",
-            "--eval-baseline", "full",
-        ])
+        config = parse_args(
+            [
+                "--eval",
+                "--eval-id",
+                "eval-2026-02-r1",
+                "--eval-profiles",
+                "full",
+                "fast",
+                "--eval-baseline",
+                "full",
+            ]
+        )
         assert config.command == Command.EVAL
         assert config.eval_mode is True
         assert config.eval_id == "eval-2026-02-r1"
@@ -210,13 +221,18 @@ class TestParseArgs:
 
     def test_parse_eval_company_and_no_auto_stage(self):
         """Test eval company targeting and auto-stage toggle."""
-        config = parse_args([
-            "--eval",
-            "--eval-id", "eval-2026-02-r1",
-            "--eval-company", "Harver",
-            "--eval-no-auto-stage",
-            "--eval-source-dir", "output",
-        ])
+        config = parse_args(
+            [
+                "--eval",
+                "--eval-id",
+                "eval-2026-02-r1",
+                "--eval-company",
+                "Harver",
+                "--eval-no-auto-stage",
+                "--eval-source-dir",
+                "output",
+            ]
+        )
         assert config.command == Command.EVAL
         assert config.eval_company == "Harver"
         assert config.eval_auto_stage is False
@@ -224,16 +240,24 @@ class TestParseArgs:
 
     def test_parse_eval_llm_judge_options(self):
         """Test eval LLM judge argument parsing."""
-        config = parse_args([
-            "--eval",
-            "--eval-id", "eval-2026-02-r1",
-            "--eval-llm-judge",
-            "--eval-judge-provider", "grok",
-            "--eval-judge-model", "grok-4-1-fast-reasoning",
-            "--eval-judge-max-pairs", "1",
-            "--eval-judge-passes", "1",
-            "--eval-judge-max-cost", "0.25",
-        ])
+        config = parse_args(
+            [
+                "--eval",
+                "--eval-id",
+                "eval-2026-02-r1",
+                "--eval-llm-judge",
+                "--eval-judge-provider",
+                "grok",
+                "--eval-judge-model",
+                "grok-4-1-fast-reasoning",
+                "--eval-judge-max-pairs",
+                "1",
+                "--eval-judge-passes",
+                "1",
+                "--eval-judge-max-cost",
+                "0.25",
+            ]
+        )
         assert config.eval_llm_judge is True
         assert config.eval_judge_provider == "grok"
         assert config.eval_judge_model == "grok-4-1-fast-reasoning"
@@ -272,6 +296,7 @@ class TestParseArgs:
         config = parse_args(["--no-banner", "Acme Corp", "acme.example"])
         assert config.banner_mode == "off"
         assert config.banner_explicit is True
+
     def test_parse_show_usage(self):
         """Test parsing show-usage flag."""
         config = parse_args(["--show-usage"])
@@ -341,7 +366,9 @@ class TestParseArgs:
 
     def test_parse_fast_with_cloud_vendors(self):
         """Test parsing --fast with --cloud-vendor aws azure."""
-        config = parse_args(["Acme Corp", "acme.example", "--fast", "--cloud-vendor", "aws", "azure"])
+        config = parse_args(
+            ["Acme Corp", "acme.example", "--fast", "--cloud-vendor", "aws", "azure"]
+        )
         assert config.fast_mode is True
         assert config.cloud_vendors == ("aws", "azure")
         assert config.ai_strategy is True
@@ -363,6 +390,7 @@ class TestParseArgs:
 # =============================================================================
 # main() Tests
 # =============================================================================
+
 
 class TestMain:
     """Tests for main function."""
@@ -392,9 +420,11 @@ class TestMain:
     def test_main_dry_run(self):
         """Test main with dry-run flag."""
         mock_validation = MagicMock(valid=True, errors=[], warnings=[])
-        with patch("primr.utils.config_validation.validate_config", return_value=mock_validation), \
-             patch("primr.utils.cost_estimator.estimate_cost") as mock_estimate, \
-             patch("primr.core.cli._run_preflight_checks", return_value=(True, [])):
+        with (
+            patch("primr.utils.config_validation.validate_config", return_value=mock_validation),
+            patch("primr.utils.cost_estimator.estimate_cost") as mock_estimate,
+            patch("primr.core.cli._run_preflight_checks", return_value=(True, [])),
+        ):
             mock_estimate.return_value = MagicMock(__str__=lambda x: "Cost estimate")
             result = main(["Acme Corp", "acme.example", "--dry-run"])
             assert result == 0
@@ -407,9 +437,11 @@ class TestMain:
     def test_main_banner_only_returns_exit_code(self):
         """Test main with explicit --banner exits cleanly without research args."""
         mock_validation = MagicMock(valid=True, errors=[], warnings=[])
-        with patch("primr.utils.config_validation.validate_config", return_value=mock_validation), \
-             patch("primr.core.cli.maybe_show_startup_banner") as mock_banner, \
-             patch("primr.core.cli._handle_research") as mock_research:
+        with (
+            patch("primr.utils.config_validation.validate_config", return_value=mock_validation),
+            patch("primr.core.cli.maybe_show_startup_banner") as mock_banner,
+            patch("primr.core.cli._handle_research") as mock_research,
+        ):
             result = main(["--banner"])
             assert result == 0
             mock_banner.assert_called_once()
@@ -420,12 +452,16 @@ class TestMain:
 # run_doctor Tests
 # =============================================================================
 
+
 class TestRunDoctor:
     """Tests for run_doctor function."""
 
     def test_doctor_returns_exit_code(self):
         """Test doctor returns appropriate exit code."""
-        with patch.dict(os.environ, {"GEMINI_API_KEY": ""}), patch("primr.core.cli._check_api_connectivity") as mock_api:
+        with (
+            patch.dict(os.environ, {"GEMINI_API_KEY": ""}),
+            patch("primr.core.cli._check_api_connectivity") as mock_api,
+        ):
             mock_api.return_value = (False, 0)
             result = run_doctor()
             # Should fail without API key
@@ -449,6 +485,7 @@ class TestRunDoctor:
 # =============================================================================
 # Property Tests
 # =============================================================================
+
 
 class TestCLIProperties:
     """Property-based tests for CLI module."""
@@ -480,5 +517,3 @@ class TestCLIProperties:
         """Property: All new mode names have mappings."""
         assert mode in MODE_MAP
         assert MODE_MAP[mode] in ["scrape-only", "deep-research", "complete", "hybrid"]
-
-

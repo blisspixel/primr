@@ -82,6 +82,7 @@ options_strategy = st.dictionaries(
 # HELPER FUNCTIONS
 # =============================================================================
 
+
 def create_job_record(
     job_store: InMemoryJobStore,
     deployment: str,
@@ -195,6 +196,7 @@ def submit_job_idempotent(
 # =============================================================================
 # PROPERTY 2.1: SAME INPUTS RETURNS SAME JOB_ID
 # =============================================================================
+
 
 class TestSameInputsReturnsSameJobId:
     """
@@ -313,6 +315,7 @@ class TestSameInputsReturnsSameJobId:
 # =============================================================================
 # PROPERTY 2.2: DIFFERENT INPUTS RETURNS 409
 # =============================================================================
+
 
 class TestDifferentInputsReturns409:
     """
@@ -498,6 +501,7 @@ class TestDifferentInputsReturns409:
 # PROPERTY 2.3: DIFFERENT DEPLOYMENT RETURNS DIFFERENT JOB_ID
 # =============================================================================
 
+
 class TestDifferentDeploymentReturnsDifferentJobId:
     """
     **Property 2.3: Different Deployment Returns Different Job ID**
@@ -605,6 +609,7 @@ class TestDifferentDeploymentReturnsDifferentJobId:
 # =============================================================================
 # PROPERTY 2.4: DIFFERENT API KEY RETURNS DIFFERENT JOB_ID
 # =============================================================================
+
 
 class TestDifferentApiKeyReturnsDifferentJobId:
     """
@@ -714,6 +719,7 @@ class TestDifferentApiKeyReturnsDifferentJobId:
 # PROPERTY 2.5: CANONICAL HASH CONSISTENCY
 # =============================================================================
 
+
 class TestCanonicalHashConsistency:
     """
     **Property 2.5: Canonical Hash Consistency**
@@ -813,6 +819,7 @@ class TestCanonicalHashConsistency:
 # =============================================================================
 # PROPERTY 2.6: JOB ID UNIQUENESS
 # =============================================================================
+
 
 class TestJobIdUniqueness:
     """

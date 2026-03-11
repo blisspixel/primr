@@ -170,12 +170,15 @@ class TestDetectSoftBlock:
 
     def test_valid_content(self):
         """Should not block valid content."""
-        text = """
+        text = (
+            """
         Welcome to Example Company. We are a leading provider of enterprise solutions.
         Our products include software, hardware, and consulting services.
         Founded in 1995, we have grown to serve over 10,000 customers worldwide.
         Contact us today to learn more about how we can help your business.
-        """ * 3  # Make it long enough
+        """
+            * 3
+        )  # Make it long enough
         is_blocked, reason = detect_soft_block(text)
         assert is_blocked is False
         assert reason is None
@@ -344,7 +347,9 @@ class TestWAFSignatures:
     def test_common_signatures_present(self):
         """Should include common block signatures."""
         # WAF_SIGNATURES is a list of tuples (pattern, description)
-        signatures_lower = [s[0].lower() if isinstance(s, tuple) else s.lower() for s in WAF_SIGNATURES]
+        signatures_lower = [
+            s[0].lower() if isinstance(s, tuple) else s.lower() for s in WAF_SIGNATURES
+        ]
         # Check for common WAF/block indicators
         has_captcha = any("captcha" in s for s in signatures_lower)
         has_cloudflare = any("cloudflare" in s for s in signatures_lower)

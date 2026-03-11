@@ -43,7 +43,7 @@ class ReportLoader:
             f"{clean_name}*AI_Strategy*.txt",
             f"*{clean_name}*Strategic_Overview*.txt",
             f"*{clean_name}*Company_Overview*.txt",
-            f"*{clean_name}*AI_Strategy*.txt"
+            f"*{clean_name}*AI_Strategy*.txt",
         ]
 
         all_matches = []
@@ -71,7 +71,7 @@ class ReportLoader:
         suffixes = [" Inc", " Inc.", " LLC", " Ltd", " Ltd.", " Corp", " Corp.", " Corporation"]
         for suffix in suffixes:
             if clean.endswith(suffix):
-                clean = clean[:-len(suffix)].strip()
+                clean = clean[: -len(suffix)].strip()
 
         # Replace problematic characters for file system and glob patterns
         clean = clean.replace("/", "_").replace("\\", "_").replace(":", "_")
@@ -81,10 +81,11 @@ class ReportLoader:
 
         # Remove any remaining problematic characters
         import re
-        clean = re.sub(r'[^\w\s\-\.]', '_', clean)
+
+        clean = re.sub(r"[^\w\s\-\.]", "_", clean)
 
         # Collapse multiple underscores and spaces
-        clean = re.sub(r'[_\s]+', '_', clean).strip('_')
+        clean = re.sub(r"[_\s]+", "_", clean).strip("_")
 
         # Ensure we have something to search with
         if not clean or len(clean.strip()) == 0:
@@ -108,13 +109,13 @@ class ReportLoader:
 
         try:
             # Handle different file formats
-            if report_path.suffix.lower() == '.txt':
+            if report_path.suffix.lower() == ".txt":
                 content = self._load_txt_file(report_path)
-            elif report_path.suffix.lower() == '.md':
+            elif report_path.suffix.lower() == ".md":
                 content = self._load_txt_file(report_path)  # Markdown is text-based
-            elif report_path.suffix.lower() == '.docx':
+            elif report_path.suffix.lower() == ".docx":
                 content = self._load_docx_file(report_path)
-            elif report_path.suffix.lower() == '.pdf':
+            elif report_path.suffix.lower() == ".pdf":
                 content = self._load_pdf_file(report_path)
             else:
                 logger.warning(f"Unsupported file format: {report_path.suffix}")
@@ -142,7 +143,7 @@ class ReportLoader:
                 sections=sections,
                 citations=citations,
                 metadata=metadata,
-                file_path=report_path
+                file_path=report_path,
             )
 
         except Exception as e:
@@ -151,7 +152,7 @@ class ReportLoader:
 
     def _load_txt_file(self, file_path: Path) -> str:
         """Load content from text file."""
-        return file_path.read_text(encoding='utf-8')
+        return file_path.read_text(encoding="utf-8")
 
     def _load_docx_file(self, file_path: Path) -> str | None:
         """Load content from DOCX file."""
@@ -170,7 +171,7 @@ class ReportLoader:
                 if paragraph.text.strip():
                     paragraphs.append(paragraph.text)
 
-            return '\n'.join(paragraphs)
+            return "\n".join(paragraphs)
 
         except Exception as e:
             logger.error(f"Failed to read DOCX file {file_path}: {e}")
@@ -189,14 +190,14 @@ class ReportLoader:
                     logger.warning("pypdf/PyPDF2 not available, cannot read PDF files")
                     return None
 
-            with open(file_path, 'rb') as file:
+            with open(file_path, "rb") as file:
                 pdf_reader = PdfReader(file)
                 text_content = []
 
                 for page in pdf_reader.pages:
                     text_content.append(page.extract_text() or "")
 
-                return '\n'.join(text_content)
+                return "\n".join(text_content)
 
         except Exception as e:
             logger.error(f"Failed to read PDF file {file_path}: {e}")
@@ -221,18 +222,18 @@ class ReportLoader:
     def _extract_company_name(self, filename: str) -> str:
         """Extract company name from filename."""
         # Remove file extension
-        name = filename.replace('.txt', '').replace('.docx', '').replace('.pdf', '')
+        name = filename.replace(".txt", "").replace(".docx", "").replace(".pdf", "")
 
         # Remove common suffixes
-        suffixes = ['_Company_Overview', '_Strategic_Overview', '_AI_Strategy']
+        suffixes = ["_Company_Overview", "_Strategic_Overview", "_AI_Strategy"]
         for suffix in suffixes:
             if suffix in name:
                 name = name.split(suffix)[0]
                 break
 
         # Remove date patterns
-        name = re.sub(r'_\d{2}-\d{2}-\d{4}.*$', '', name)
-        name = re.sub(r'_\d{8}_\d{6}.*$', '', name)
+        name = re.sub(r"_\d{2}-\d{2}-\d{4}.*$", "", name)
+        name = re.sub(r"_\d{8}_\d{6}.*$", "", name)
 
         return name.strip()
 
@@ -241,7 +242,7 @@ class ReportLoader:
         sections = {}
 
         # Split by common header patterns
-        lines = content.split('\n')
+        lines = content.split("\n")
         current_section = "Introduction"
         current_content = []
 
@@ -257,25 +258,33 @@ class ReportLoader:
             is_header = False
 
             # Markdown headers (# ## ###)
-            if line_stripped.startswith('#'):
+            if line_stripped.startswith("#"):
                 is_header = True
-                header_text = line_stripped.lstrip('#').strip()
+                header_text = line_stripped.lstrip("#").strip()
 
             # All caps headers (but not too long)
-            elif (line_stripped.isupper() and
-                  len(line_stripped) > 3 and
-                  len(line_stripped) < 100 and
-                  not line_stripped.startswith('HTTP')) or re.match(r'^\d+\.\s+[A-Z]', line_stripped) or (len(line_stripped) > 10 and
-                  line_stripped[0].isupper() and
-                  not line_stripped.endswith('.') and  # Not a sentence
-                  sum(1 for c in line_stripped if c.isupper()) >= 2):  # Avoid URLs
+            elif (
+                (
+                    line_stripped.isupper()
+                    and len(line_stripped) > 3
+                    and len(line_stripped) < 100
+                    and not line_stripped.startswith("HTTP")
+                )
+                or re.match(r"^\d+\.\s+[A-Z]", line_stripped)
+                or (
+                    len(line_stripped) > 10
+                    and line_stripped[0].isupper()
+                    and not line_stripped.endswith(".")  # Not a sentence
+                    and sum(1 for c in line_stripped if c.isupper()) >= 2
+                )
+            ):  # Avoid URLs
                 is_header = True
                 header_text = line_stripped
 
             if is_header:
                 # Save previous section
                 if current_content:
-                    sections[current_section] = '\n'.join(current_content).strip()
+                    sections[current_section] = "\n".join(current_content).strip()
 
                 # Start new section
                 current_section = header_text
@@ -285,7 +294,7 @@ class ReportLoader:
 
         # Save final section
         if current_content:
-            sections[current_section] = '\n'.join(current_content).strip()
+            sections[current_section] = "\n".join(current_content).strip()
 
         # Remove empty sections
         sections = {k: v for k, v in sections.items() if v.strip()}
@@ -297,42 +306,42 @@ class ReportLoader:
         citations = []
 
         # Look for URLs
-        url_pattern = r'https?://[^\s\])]+'
+        url_pattern = r"https?://[^\s\])]+"
         urls = re.findall(url_pattern, content)
         citations.extend(urls)
 
         # Look for numbered citations like [1], [2], etc.
-        numbered_citations = re.findall(r'\[\d+\]', content)
+        numbered_citations = re.findall(r"\[\d+\]", content)
         citations.extend(numbered_citations)
 
         # Look for inline citations like [cite: 1, 2, 3]
-        inline_pattern = r'\[cite:\s*([\d,\s]+)\]'
+        inline_pattern = r"\[cite:\s*([\d,\s]+)\]"
         inline_matches = re.findall(inline_pattern, content)
         for match in inline_matches:
             # Split comma-separated numbers and add each as a citation
-            nums = [n.strip() for n in match.split(',') if n.strip().isdigit()]
+            nums = [n.strip() for n in match.split(",") if n.strip().isdigit()]
             for num in nums:
                 citations.append(f"[cite: {num}]")
 
         # Look for bibliography sections and extract sources
         bibliography_patterns = [
-            r'(?i)(?:sources?|references?|bibliography|citations?):\s*\n(.*?)(?:\n\n|\n#|\Z)',
-            r'(?i)## (?:sources?|references?|bibliography|citations?)\s*\n(.*?)(?:\n\n|\n#|\Z)',
-            r'(?i)# (?:sources?|references?|bibliography|citations?)\s*\n(.*?)(?:\n\n|\n#|\Z)'
+            r"(?i)(?:sources?|references?|bibliography|citations?):\s*\n(.*?)(?:\n\n|\n#|\Z)",
+            r"(?i)## (?:sources?|references?|bibliography|citations?)\s*\n(.*?)(?:\n\n|\n#|\Z)",
+            r"(?i)# (?:sources?|references?|bibliography|citations?)\s*\n(.*?)(?:\n\n|\n#|\Z)",
         ]
 
         for pattern in bibliography_patterns:
             matches = re.findall(pattern, content, re.DOTALL)
             for match in matches:
                 # Split by lines and extract each source
-                lines = match.strip().split('\n')
+                lines = match.strip().split("\n")
                 for line in lines:
                     line = line.strip()
-                    if line and not line.startswith('#'):
+                    if line and not line.startswith("#"):
                         citations.append(line)
 
         # Look for document references (common in strategy reports)
-        doc_pattern = r'(?:based on|according to|as outlined in|referenced in)\s+([^.]+(?:overview|analysis|report|document|study)[^.]*)'
+        doc_pattern = r"(?:based on|according to|as outlined in|referenced in)\s+([^.]+(?:overview|analysis|report|document|study)[^.]*)"
         doc_refs = re.findall(doc_pattern, content, re.IGNORECASE)
         citations.extend(doc_refs)
 
@@ -341,10 +350,10 @@ class ReportLoader:
     def _extract_metadata(self, report_path: Path, company_name: str) -> ReportMetadata:
         """Extract metadata from report path and content."""
         # Extract date from filename
-        date_match = re.search(r'(\d{2}-\d{2}-\d{4})', report_path.name)
+        date_match = re.search(r"(\d{2}-\d{2}-\d{4})", report_path.name)
         if date_match:
             try:
-                generation_date = datetime.strptime(date_match.group(1), '%m-%d-%Y')
+                generation_date = datetime.strptime(date_match.group(1), "%m-%d-%Y")
             except ValueError:
                 generation_date = datetime.fromtimestamp(report_path.stat().st_mtime)
         else:
@@ -362,5 +371,5 @@ class ReportLoader:
             generation_date=generation_date,
             generation_mode=generation_mode,
             model_used="unknown",  # Would need to be passed from generation
-            file_path=report_path
+            file_path=report_path,
         )

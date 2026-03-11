@@ -67,8 +67,12 @@ def test_find_latest_run_state_returns_most_recent(tmp_path, monkeypatch):
     newer.mkdir(parents=True)
     older_state = older / "_run_state.json"
     newer_state = newer / "_run_state.json"
-    older_state.write_text(json.dumps({"company_name": "Old", "status": "failed"}), encoding="utf-8")
-    newer_state.write_text(json.dumps({"company_name": "New", "status": "running"}), encoding="utf-8")
+    older_state.write_text(
+        json.dumps({"company_name": "Old", "status": "failed"}), encoding="utf-8"
+    )
+    newer_state.write_text(
+        json.dumps({"company_name": "New", "status": "running"}), encoding="utf-8"
+    )
     os.utime(older_state, (100, 100))
     os.utime(newer_state, (200, 200))
 
@@ -125,7 +129,11 @@ def test_resume_pending_jobs_falls_back_to_txt_when_finalize_fails(tmp_path, mon
     monkeypatch.setattr(cli, "OUTPUT_DIR", str(tmp_path))
     monkeypatch.setattr(deep_research_module, "get_pending_jobs", lambda: jobs)
     monkeypatch.setattr(deep_research_module, "get_deep_research_client", lambda: client)
-    monkeypatch.setattr(cli, "_save_recovered_outputs", lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("docx fail")))
+    monkeypatch.setattr(
+        cli,
+        "_save_recovered_outputs",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("docx fail")),
+    )
 
     exit_code = cli.resume_pending_jobs()
 
@@ -153,7 +161,9 @@ def test_find_latest_run_state_skips_bad_newest_file(tmp_path, monkeypatch):
     newer_bad.mkdir(parents=True)
     older_state = older / "_run_state.json"
     newer_state = newer_bad / "_run_state.json"
-    older_state.write_text(json.dumps({"company_name": "ExampleCo", "status": "running"}), encoding="utf-8")
+    older_state.write_text(
+        json.dumps({"company_name": "ExampleCo", "status": "running"}), encoding="utf-8"
+    )
     newer_state.write_text("{bad-json", encoding="utf-8")
     os.utime(older_state, (100, 100))
     os.utime(newer_state, (200, 200))

@@ -16,6 +16,7 @@ from typing import Any
 
 class CompetitorType(Enum):
     """Types of competitors."""
+
     DIRECT = "direct"  # Same product/service, same market
     INDIRECT = "indirect"  # Different product, same need
     POTENTIAL = "potential"  # Could enter market
@@ -24,6 +25,7 @@ class CompetitorType(Enum):
 
 class MarketPosition(Enum):
     """Market positioning categories."""
+
     LEADER = "leader"
     CHALLENGER = "challenger"
     FOLLOWER = "follower"
@@ -33,6 +35,7 @@ class MarketPosition(Enum):
 
 class ThreatLevel(Enum):
     """Competitive threat levels."""
+
     HIGH = "high"
     MEDIUM = "medium"
     LOW = "low"
@@ -42,6 +45,7 @@ class ThreatLevel(Enum):
 @dataclass
 class SWOTItem:
     """A single SWOT item."""
+
     text: str
     category: str  # strength, weakness, opportunity, threat
     confidence: float = 0.8
@@ -52,6 +56,7 @@ class SWOTItem:
 @dataclass
 class SWOTAnalysis:
     """Complete SWOT analysis."""
+
     company_name: str
     strengths: list[SWOTItem] = field(default_factory=list)
     weaknesses: list[SWOTItem] = field(default_factory=list)
@@ -65,7 +70,9 @@ class SWOTAnalysis:
             "company_name": self.company_name,
             "strengths": [{"text": s.text, "confidence": s.confidence} for s in self.strengths],
             "weaknesses": [{"text": w.text, "confidence": w.confidence} for w in self.weaknesses],
-            "opportunities": [{"text": o.text, "confidence": o.confidence} for o in self.opportunities],
+            "opportunities": [
+                {"text": o.text, "confidence": o.confidence} for o in self.opportunities
+            ],
             "threats": [{"text": t.text, "confidence": t.confidence} for t in self.threats],
             "generated_at": self.generated_at.isoformat(),
         }
@@ -82,6 +89,7 @@ class SWOTAnalysis:
 @dataclass
 class Competitor:
     """A competitor company."""
+
     name: str
     competitor_type: CompetitorType
     market_position: MarketPosition
@@ -98,6 +106,7 @@ class Competitor:
 @dataclass
 class CompetitiveComparison:
     """Comparison between companies."""
+
     company_name: str
     competitor_name: str
     dimensions: dict[str, dict[str, Any]] = field(default_factory=dict)
@@ -109,6 +118,7 @@ class CompetitiveComparison:
 @dataclass
 class MarketAnalysis:
     """Market analysis results."""
+
     industry: str
     market_size: str | None = None
     growth_rate: str | None = None
@@ -210,7 +220,12 @@ class CompetitiveAnalyzer:
             competitors.append(competitor)
 
         # Sort by threat level
-        threat_order = {ThreatLevel.HIGH: 0, ThreatLevel.MEDIUM: 1, ThreatLevel.LOW: 2, ThreatLevel.MINIMAL: 3}
+        threat_order = {
+            ThreatLevel.HIGH: 0,
+            ThreatLevel.MEDIUM: 1,
+            ThreatLevel.LOW: 2,
+            ThreatLevel.MINIMAL: 3,
+        }
         competitors.sort(key=lambda c: threat_order.get(c.threat_level, 4))
 
         return competitors
@@ -234,14 +249,10 @@ class CompetitiveAnalyzer:
         swot = SWOTAnalysis(company_name=company_name)
 
         # Extract strengths
-        swot.strengths = self._extract_swot_items(
-            content, self.STRENGTH_PATTERNS, "strength"
-        )
+        swot.strengths = self._extract_swot_items(content, self.STRENGTH_PATTERNS, "strength")
 
         # Extract weaknesses
-        swot.weaknesses = self._extract_swot_items(
-            content, self.WEAKNESS_PATTERNS, "weakness"
-        )
+        swot.weaknesses = self._extract_swot_items(content, self.WEAKNESS_PATTERNS, "weakness")
 
         # Extract opportunities
         swot.opportunities = self._extract_swot_items(
@@ -249,9 +260,7 @@ class CompetitiveAnalyzer:
         )
 
         # Extract threats
-        swot.threats = self._extract_swot_items(
-            content, self.THREAT_PATTERNS, "threat"
-        )
+        swot.threats = self._extract_swot_items(content, self.THREAT_PATTERNS, "threat")
 
         # Add industry-specific items if industry is known
         if industry:
@@ -296,7 +305,11 @@ class CompetitiveAnalyzer:
             comparison.dimensions[dim] = {
                 "company_score": company_score,
                 "competitor_score": competitor_score,
-                "advantage": "company" if company_score > competitor_score else "competitor" if competitor_score > company_score else "tie",
+                "advantage": "company"
+                if company_score > competitor_score
+                else "competitor"
+                if competitor_score > company_score
+                else "tie",
             }
 
             if company_score > competitor_score:
@@ -309,9 +322,13 @@ class CompetitiveAnalyzer:
         disadvantages = len(comparison.competitive_disadvantage)
 
         if advantages > disadvantages:
-            comparison.overall_assessment = f"{company_name} has competitive advantages in {advantages} areas"
+            comparison.overall_assessment = (
+                f"{company_name} has competitive advantages in {advantages} areas"
+            )
         elif disadvantages > advantages:
-            comparison.overall_assessment = f"{competitor_name} has competitive advantages in {disadvantages} areas"
+            comparison.overall_assessment = (
+                f"{competitor_name} has competitive advantages in {disadvantages} areas"
+            )
         else:
             comparison.overall_assessment = "Companies are competitively balanced"
 
@@ -493,11 +510,13 @@ class CompetitiveAnalyzer:
 
                 if text and text.lower() not in seen and len(text) > 3:
                     seen.add(text.lower())
-                    items.append(SWOTItem(
-                        text=text.capitalize(),
-                        category=category,
-                        confidence=0.7,
-                    ))
+                    items.append(
+                        SWOTItem(
+                            text=text.capitalize(),
+                            category=category,
+                            confidence=0.7,
+                        )
+                    )
 
         return items[:5]  # Limit to 5 items per category
 
@@ -514,26 +533,32 @@ class CompetitiveAnalyzer:
         if "tech" in industry_lower or "software" in industry_lower:
             if "innovation" not in [s.text.lower() for s in swot.strengths]:
                 if "innovat" in content.lower():
-                    swot.strengths.append(SWOTItem(
-                        text="Technology innovation capability",
-                        category="strength",
-                        confidence=0.6,
-                    ))
+                    swot.strengths.append(
+                        SWOTItem(
+                            text="Technology innovation capability",
+                            category="strength",
+                            confidence=0.6,
+                        )
+                    )
             if not swot.threats:
-                swot.threats.append(SWOTItem(
-                    text="Rapid technology changes",
-                    category="threat",
-                    confidence=0.6,
-                ))
+                swot.threats.append(
+                    SWOTItem(
+                        text="Rapid technology changes",
+                        category="threat",
+                        confidence=0.6,
+                    )
+                )
 
         # Finance industry
         elif "financ" in industry_lower or "bank" in industry_lower:
             if not swot.threats:
-                swot.threats.append(SWOTItem(
-                    text="Regulatory compliance requirements",
-                    category="threat",
-                    confidence=0.7,
-                ))
+                swot.threats.append(
+                    SWOTItem(
+                        text="Regulatory compliance requirements",
+                        category="threat",
+                        confidence=0.7,
+                    )
+                )
 
     def _score_dimension(self, dimension: str, content: str) -> float:
         """Score a company on a dimension based on content."""

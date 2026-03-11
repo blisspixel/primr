@@ -201,7 +201,7 @@ class TestExtractMainContent:
     def test_returns_empty_for_binary_content(self):
         """Should return empty string for binary/non-HTML content."""
         # Simulate the exact crash scenario: binary garbage with control chars
-        binary_data = b'\x00\x01\x02\x03\x04\x05\x06\x07\x08' * 50
+        binary_data = b"\x00\x01\x02\x03\x04\x05\x06\x07\x08" * 50
         assert extract_main_content(binary_data) == ""
 
     def test_returns_empty_for_mixed_binary_html(self):
@@ -222,7 +222,7 @@ class TestExtractCleanTextBinary:
 
     def test_returns_empty_for_binary_content(self):
         """Should return empty string for binary data."""
-        binary_data = b'\x00\x01\x02\x03\x04\x05' * 100
+        binary_data = b"\x00\x01\x02\x03\x04\x05" * 100
         assert extract_clean_text(binary_data) == ""
 
 

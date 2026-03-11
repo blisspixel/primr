@@ -22,6 +22,7 @@ Usage:
     # Run CLI
     main()
 """
+
 # Suppress RuntimeWarning FIRST - before any other imports
 import warnings
 
@@ -266,7 +267,7 @@ def select_links_with_llm(
     # Format links for the prompt - include URL and anchor text if available
     link_list = []
     for link in links[:200]:  # Cap at 200 to avoid token limits
-        if hasattr(link, 'anchor_text') and link.anchor_text:
+        if hasattr(link, "anchor_text") and link.anchor_text:
             link_list.append(f"{link.url} ({link.anchor_text})")
         else:
             link_list.append(link.url)
@@ -400,7 +401,9 @@ def _update_run_state(folder_path: str, **updates: Any) -> None:
     _save_run_state(folder_path, state)
 
 
-def _append_run_event(folder_path: str, phase: str, status: str, message: str, **extra: Any) -> None:
+def _append_run_event(
+    folder_path: str, phase: str, status: str, message: str, **extra: Any
+) -> None:
     """Append a timeline event into run state."""
     state = _load_run_state(folder_path)
     events = state.get("events", [])
@@ -490,7 +493,7 @@ def consolidate_working_folder(folder_path: str) -> str:
         "This document contains research findings from the Structured Pipeline.",
         "",
         "---",
-        ""
+        "",
     ]
 
     # Read each file and add to document
@@ -503,27 +506,19 @@ def consolidate_working_folder(folder_path: str) -> str:
                 content = f.read().strip()
 
             if content:
-                lines.extend([
-                    f"## {section_name}",
-                    "",
-                    content,
-                    "",
-                    "---",
-                    ""
-                ])
+                lines.extend([f"## {section_name}", "", content, "", "---", ""])
         except Exception as e:
             logger.warning(f"Failed to read {txt_file}: {e}")
 
     # Write to temp file
     # NOTE: We must close the fd from mkstemp before opening the file by path
-    content = '\n'.join(lines)
+    content = "\n".join(lines)
     fd, filepath = tempfile.mkstemp(
-        suffix='.txt',
-        prefix=f'{company_name.replace(" ", "_")}_context_'
+        suffix=".txt", prefix=f"{company_name.replace(' ', '_')}_context_"
     )
     os.close(fd)  # Close the fd - we'll open by path
 
-    with open(filepath, 'w', encoding='utf-8') as f:
+    with open(filepath, "w", encoding="utf-8") as f:
         f.write(content)
 
     logger.info(f"Consolidated {len(txt_files)} files into {filepath}")
@@ -531,7 +526,7 @@ def consolidate_working_folder(folder_path: str) -> str:
 
 
 # Supported file types for Deep Research File Search
-SUPPORTED_CONTEXT_EXTENSIONS = {'.txt', '.pdf', '.md', '.json', '.csv'}
+SUPPORTED_CONTEXT_EXTENSIONS = {".txt", ".pdf", ".md", ".json", ".csv"}
 
 
 def validate_context_files(file_paths: list) -> tuple:
@@ -557,11 +552,16 @@ def validate_context_files(file_paths: list) -> tuple:
 
         if ext in SUPPORTED_CONTEXT_EXTENSIONS:
             valid_files.append(file_path)
-        elif ext in {'.docx', '.doc'}:
+        elif ext in {".docx", ".doc"}:
             # Word docs - suggest converting to PDF
-            invalid_files.append((file_path, "Word docs not directly supported. Convert to PDF or use the .txt output"))
+            invalid_files.append(
+                (
+                    file_path,
+                    "Word docs not directly supported. Convert to PDF or use the .txt output",
+                )
+            )
             warnings.append("Tip: Use the _Company_Overview.txt file from output/ instead of .docx")
-        elif ext in {'.xlsx', '.xls'}:
+        elif ext in {".xlsx", ".xls"}:
             invalid_files.append((file_path, "Excel files not supported. Export to CSV"))
         else:
             invalid_files.append((file_path, f"Unsupported file type: {ext}"))
@@ -595,14 +595,22 @@ def generate_initial_overview(company_name, website, industry, folder_path):
     return overview
 
 
-def research_section(section_name, company_name, website, industry, folder_path, overview, summarized_insights):
+def research_section(
+    section_name, company_name, website, industry, folder_path, overview, summarized_insights
+):
     section_key = SECTION_KEY_MAP.get(section_name)
 
     if not section_key or section_key not in PROMPTS:
         return ""
 
     if section_name in ["Company Name", "Website", "Industry"]:
-        value = company_name if section_name == "Company Name" else website if section_name == "Website" else industry
+        value = (
+            company_name
+            if section_name == "Company Name"
+            else website
+            if section_name == "Website"
+            else industry
+        )
         save_section_output(folder_path, section_key, value or "N/A")
         return value
 
@@ -627,7 +635,7 @@ def research_section(section_name, company_name, website, industry, folder_path,
         "potential_business_value": "N/A",
         "strategic_recommendations": "N/A",
         "scraped_website_summary": summarized_insights or "N/A",
-        "value_theory": overview
+        "value_theory": overview,
     }
 
     try:
@@ -712,20 +720,24 @@ def run_research(
         """Format seconds into readable time string."""
         if seconds < 60:
             return f"{int(seconds)}s"
-        return f"{int(seconds//60)}m {int(seconds%60)}s"
+        return f"{int(seconds // 60)}m {int(seconds % 60)}s"
 
     folder_path = create_working_folder(company_name, website)
     progress(f"> Working folder: {folder_path}")
 
     # Scrape website - saves raw scrapes incrementally to _raw_scrapes folder
     # fetch_web_content already shows completion message, no need to duplicate
-    scraped_data = fetch_web_content(website, company_name, max_pages=50, working_folder=folder_path) if website else {}
+    scraped_data = (
+        fetch_web_content(website, company_name, max_pages=50, working_folder=folder_path)
+        if website
+        else {}
+    )
 
     # Abort if website was provided but nothing could be scraped
     if website and not scraped_data:
         console.fail("Could not scrape any pages from the website - site may be blocking")
         console.muted("  The site may be rate-limiting after a recent scrape.")
-        console.muted("  Try: primr \"Company\" url --mode deep  (skips site scraping)")
+        console.muted('  Try: primr "Company" url --mode deep  (skips site scraping)')
         return None
 
     if website and fail_on_low_scrape:
@@ -776,7 +788,9 @@ def run_research(
             if results:
                 total_search_results += len(results)
                 progress(f"  Found {len(results)} results for '{query[:40]}...'")
-                filtered = [r for r in results[:5] if website.lower() not in r.get("url", "").lower()]
+                filtered = [
+                    r for r in results[:5] if website.lower() not in r.get("url", "").lower()
+                ]
                 remaining_slots = max_external_sources - len(external_data)
                 progress(f"  Validating {len(filtered)} external articles...")
                 scraped = scrape_external_sources_validated(
@@ -784,11 +798,13 @@ def run_research(
                     company_name=company_name,
                     website=website,
                     max_sources=min(2, remaining_slots),
-                    working_folder=folder_path
+                    working_folder=folder_path,
                 )
                 external_data.update(scraped)
 
-    progress(f"+ {len(external_data)} external sources validated (from {total_search_results} search results)")
+    progress(
+        f"+ {len(external_data)} external sources validated (from {total_search_results} search results)"
+    )
 
     all_scraped = {**scraped_data, **external_data}
 
@@ -816,6 +832,7 @@ def run_research(
     raw_folder = os.path.join(folder_path, "_raw_scrapes")
     if os.path.exists(raw_folder):
         import shutil
+
         try:
             shutil.rmtree(raw_folder)
             logger.debug("Cleaned up raw scrapes folder")
@@ -828,7 +845,7 @@ def run_research(
         "industry",
         company_name=company_name,
         company_website=website or "N/A",
-        scraped_insights=summarized
+        scraped_insights=summarized,
     )
     industry = llm(industry_prompt, model_type="research").strip() or "Unknown"
     progress(f"+ Industry: {industry}")
@@ -840,13 +857,24 @@ def run_research(
 
     # Research all sections
     sections = [
-        "Company Name", "Website", "Industry", "Detailed Products/Services",
-        "Unique Selling Proposition (USP)", "Mission & Vision", "Company History",
-        "Key Achievements", "Target Audience", "Financial Overview",
-        "Potential Business Drivers & KPIs", "Industry Insights",
-        "Potential Business Drivers", "Primary Apps or Sources of Data",
-        "Main Types of Users", "Board of Directors Concerns",
-        "Potential Business Value", "Strategic Recommendations"
+        "Company Name",
+        "Website",
+        "Industry",
+        "Detailed Products/Services",
+        "Unique Selling Proposition (USP)",
+        "Mission & Vision",
+        "Company History",
+        "Key Achievements",
+        "Target Audience",
+        "Financial Overview",
+        "Potential Business Drivers & KPIs",
+        "Industry Insights",
+        "Potential Business Drivers",
+        "Primary Apps or Sources of Data",
+        "Main Types of Users",
+        "Board of Directors Concerns",
+        "Potential Business Value",
+        "Strategic Recommendations",
     ]
 
     # Count non-trivial sections for progress
@@ -867,14 +895,15 @@ def run_research(
                 progress(f"  [{analysis_idx}/{total_analysis}] {section}")
 
             content = research_section(
-                section, company_name, website, industry,
-                folder_path, overview, summarized
+                section, company_name, website, industry, folder_path, overview, summarized
             )
             if content:
                 section_results[section_key] = content
 
     # Final timing for sections
-    progress(f"+ {total_analysis} sections complete ({format_time(time_module.time() - sections_start)})")
+    progress(
+        f"+ {total_analysis} sections complete ({format_time(time_module.time() - sections_start)})"
+    )
 
     console.progress_done()
     return section_results
@@ -915,7 +944,7 @@ def perform_scrape_only(
 
     if pages_scraped == 0:
         console.fail("Could not scrape any pages - site may be blocking")
-        console.muted("Try: primr \"Company\" url --mode deep")
+        console.muted('Try: primr "Company" url --mode deep')
         _update_run_state(folder_path, status="failed", current_phase="scrape")
         _append_run_event(folder_path, "scrape", "failed", "No pages scraped")
         return None
@@ -936,17 +965,15 @@ def perform_scrape_only(
         f.write(f"# URL: {website}\n")
         f.write(f"# Pages: {pages_scraped}\n\n")
         for url, content in corpus.items():
-            f.write(f"\n{'='*60}\n")
+            f.write(f"\n{'=' * 60}\n")
             f.write(f"URL: {url}\n")
-            f.write(f"{'='*60}\n")
+            f.write(f"{'=' * 60}\n")
             f.write(content[:5000] + "\n")
 
     # Extract Insights (LLM)
     console.status("Extracting insights...")
 
-    summarized = summarize_scraped_content(
-        company_name, website, corpus, folder_path
-    )
+    summarized = summarize_scraped_content(company_name, website, corpus, folder_path)
     console.clear_line()
     console.done("Insights extracted")
 
@@ -1063,7 +1090,9 @@ def _build_fast_batch_prompt(
         else "## PREVIOUS SECTIONS\n(This is the first batch — no prior sections.)"
     )
 
-    sources_text = "\n".join(f"- {url}" for url in source_urls) if source_urls else "(no external sources)"
+    sources_text = (
+        "\n".join(f"- {url}" for url in source_urls) if source_urls else "(no external sources)"
+    )
     word_target = len(sections) * 800
     feedback_guidance = _load_fast_feedback_guidance()
     feedback_block = (
@@ -1073,7 +1102,7 @@ def _build_fast_batch_prompt(
     )
 
     return f"""**Company:** {company_name}
-**Website:** {website or 'N/A'}
+**Website:** {website or "N/A"}
 **Date:** {current_date}
 **Batch:** {batch_number + 1} of {total_batches}
 
@@ -1148,12 +1177,14 @@ CITATION FORMAT (strict):
 
 # --- Section-level fast-mode helpers (individual section writing) ---
 
-_HIGH_DEPTH_SECTION_IDS = frozenset({
-    "executive_summary",
-    "competitive_landscape",
-    "company_history",
-    "engagement_opportunities",
-})
+_HIGH_DEPTH_SECTION_IDS = frozenset(
+    {
+        "executive_summary",
+        "competitive_landscape",
+        "company_history",
+        "engagement_opportunities",
+    }
+)
 
 
 def _get_section_word_target(section: "SectionConfig") -> int:
@@ -1165,7 +1196,11 @@ def _get_section_word_target(section: "SectionConfig") -> int:
     - Everything else → 800 words
     """
     depth_lower = (section.depth or "").lower()
-    if section.id in _HIGH_DEPTH_SECTION_IDS or "pages" in depth_lower or "comprehensive" in depth_lower:
+    if (
+        section.id in _HIGH_DEPTH_SECTION_IDS
+        or "pages" in depth_lower
+        or "comprehensive" in depth_lower
+    ):
         return 1_200
     if section.position == "framework":
         return 800
@@ -1228,8 +1263,7 @@ def _build_fast_section_prompt(
             # Framework sections and executive summary need full prior content
             # to synthesise insights from earlier analytical sections
             context_parts = [
-                f"**{s['title']}** (completed):\n{s['content']}"
-                for s in written_sections
+                f"**{s['title']}** (completed):\n{s['content']}" for s in written_sections
             ]
         else:
             recent = written_sections[-5:]
@@ -1248,7 +1282,9 @@ def _build_fast_section_prompt(
         else "## PREVIOUS SECTIONS\n(This is the first section — no prior sections.)"
     )
 
-    sources_text = "\n".join(f"- {url}" for url in source_urls) if source_urls else "(no external sources)"
+    sources_text = (
+        "\n".join(f"- {url}" for url in source_urls) if source_urls else "(no external sources)"
+    )
     feedback_guidance = _load_fast_feedback_guidance()
     feedback_block = (
         f"=== FAST FEEDBACK GUIDANCE (from prior evals) ===\n{feedback_guidance}\n"
@@ -1257,7 +1293,7 @@ def _build_fast_section_prompt(
     )
 
     return f"""**Company:** {company_name}
-**Website:** {website or 'N/A'}
+**Website:** {website or "N/A"}
 **Date:** {current_date}
 **Section:** {section_index + 1} of {len(all_section_names)} — {section.name}
 
@@ -1401,7 +1437,9 @@ def _write_section_with_retry(
         )
     except Exception as section_err:
         logger.warning("Section '%s' failed: %s", section.name, section_err)
-        log_structured("warning", "Fast mode section failed", section=section.name, error=str(section_err))
+        log_structured(
+            "warning", "Fast mode section failed", section=section.name, error=str(section_err)
+        )
         return None
 
     if not section_content or not section_content.strip():
@@ -1414,7 +1452,9 @@ def _write_section_with_retry(
     if parsed["words"] < word_target * 0.5:
         logger.warning(
             "Section '%s' too thin (%d/%d words), retrying",
-            section.name, parsed["words"], word_target,
+            section.name,
+            parsed["words"],
+            word_target,
         )
         retry_prompt = (
             f"IMPORTANT: Your previous attempt produced only {parsed['words']} words. "
@@ -1467,7 +1507,8 @@ def _fast_coherence_pass(
     if word_count > max_output_words:
         logger.info(
             "Skipping coherence pass: report is %d words (exceeds %d word limit for single-pass editing)",
-            word_count, max_output_words,
+            word_count,
+            max_output_words,
         )
         return report_content
 
@@ -1475,7 +1516,7 @@ def _fast_coherence_pass(
 The report was written section-by-section. Your ONLY job is light polish.
 
 Company: {company_name}
-Website: {website or 'N/A'}
+Website: {website or "N/A"}
 
 CRITICAL: Output MUST be at least 98% of the original word count. You are NOT rewriting.
 
@@ -1529,13 +1570,15 @@ Return the full markdown report. No preamble.
         if polished_words < int(original_words * 0.96):
             logger.warning(
                 "Coherence pass dropped too many words (%d → %d), using original",
-                original_words, polished_words,
+                original_words,
+                polished_words,
             )
             return report_content
         if len(polished_sections) < len(original_sections):
             logger.warning(
                 "Coherence pass lost sections (%d → %d), using original",
-                len(original_sections), len(polished_sections),
+                len(original_sections),
+                len(polished_sections),
             )
             return report_content
 
@@ -1627,7 +1670,9 @@ def _clean_fast_report_output(report_content: str) -> str:
     report_content = re.sub(r"\[Analysis Workbook[^\]]*\]", "", report_content, flags=re.IGNORECASE)
     report_content = re.sub(r"\[Analysis:[^\]]*\]", "", report_content, flags=re.IGNORECASE)
     report_content = re.sub(r"\[External Sources\]", "", report_content, flags=re.IGNORECASE)
-    report_content = re.sub(r"vendor-research-[\w.-]+\.txt", "", report_content, flags=re.IGNORECASE)
+    report_content = re.sub(
+        r"vendor-research-[\w.-]+\.txt", "", report_content, flags=re.IGNORECASE
+    )
     report_content = re.sub(r"\bInternal ROI Model\b", "", report_content, flags=re.IGNORECASE)
     report_content = re.sub(r"\bInternal Analysis\b", "", report_content, flags=re.IGNORECASE)
     report_content = re.sub(r"\bAnalysis Workbook\b", "", report_content, flags=re.IGNORECASE)
@@ -1642,6 +1687,8 @@ def _clean_fast_report_output(report_content: str) -> str:
     report_content = re.sub(r"\n{3,}", "\n\n", report_content)
 
     return report_content.strip() + "\n"
+
+
 _INTERNAL_REFERENCE_TERMS = (
     "analysis context",
     "analysis workbook",
@@ -1664,7 +1711,9 @@ def _strip_internal_source_placeholders(content: str) -> str:
     if not content.strip():
         return content
 
-    confidence_bracket = re.compile(r"\[(Confirmed|Reported|Estimated|Hypothesis):\s*([^\]]+)\]", re.IGNORECASE)
+    confidence_bracket = re.compile(
+        r"\[(Confirmed|Reported|Estimated|Hypothesis):\s*([^\]]+)\]", re.IGNORECASE
+    )
 
     def _drop_if_internal(match: re.Match[str]) -> str:
         source_text = match.group(2).lower()
@@ -1673,7 +1722,9 @@ def _strip_internal_source_placeholders(content: str) -> str:
         return match.group(0)
 
     cleaned = confidence_bracket.sub(_drop_if_internal, content)
-    cleaned = re.sub(r"\[(?:Reported|Confirmed|Estimated|Hypothesis):\s*\]", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(
+        r"\[(?:Reported|Confirmed|Estimated|Hypothesis):\s*\]", "", cleaned, flags=re.IGNORECASE
+    )
     cleaned = re.sub(r"\[citation inventory[^\]]*\]", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
     return cleaned
@@ -1701,12 +1752,16 @@ def _compute_strategy_qa_metrics(strategy_content: str) -> dict[str, int | float
 
     lower = strategy_content.lower()
     placeholder_refs = sum(1 for term in _INTERNAL_REFERENCE_TERMS if term in lower)
-    raw_source_urls = len(re.findall(r"\[Source:\s*https?://[^\]\s]+", strategy_content, re.IGNORECASE))
+    raw_source_urls = len(
+        re.findall(r"\[Source:\s*https?://[^\]\s]+", strategy_content, re.IGNORECASE)
+    )
     cite_refs = {int(n) for n in re.findall(r"cite:\s*(\d+)", strategy_content, re.IGNORECASE)}
     source_urls = max(raw_source_urls, len(cite_refs))
 
     totals: list[float] = []
-    for m in re.finditer(r"Total\s*:?\s*\$([0-9]+(?:\.[0-9]+)?)\s*([KMB])", strategy_content, re.IGNORECASE):
+    for m in re.finditer(
+        r"Total\s*:?\s*\$([0-9]+(?:\.[0-9]+)?)\s*([KMB])", strategy_content, re.IGNORECASE
+    ):
         totals.append(_strategy_money_to_millions(float(m.group(1)), m.group(2)))
 
     for m in re.finditer(
@@ -1725,11 +1780,7 @@ def _compute_strategy_qa_metrics(strategy_content: str) -> dict[str, int | float
         if min_total > 0 and ((max_total - min_total) / min_total) > 0.05:
             budget_inconsistent = True
 
-    qa_passed = bool(
-        placeholder_refs == 0
-        and source_urls >= 2
-        and not budget_inconsistent
-    )
+    qa_passed = bool(placeholder_refs == 0 and source_urls >= 2 and not budget_inconsistent)
     return {
         "placeholder_refs": placeholder_refs,
         "source_urls": source_urls,
@@ -1816,7 +1867,9 @@ def _normalize_fast_citations(report_content: str) -> str:
     normalized = multiword_source_pattern.sub("", normalized)
 
     # Replace "Sources" heading if present to avoid duplicate appendices.
-    sources_heading = re.compile(r"^##\s+(Sources|Citations|References)\s*$", re.IGNORECASE | re.MULTILINE)
+    sources_heading = re.compile(
+        r"^##\s+(Sources|Citations|References)\s*$", re.IGNORECASE | re.MULTILINE
+    )
     if sources_heading.search(normalized):
         # Remove existing appendix section content from first sources heading onward.
         lines = normalized.splitlines()
@@ -1880,7 +1933,9 @@ def _normalize_fast_citations(report_content: str) -> str:
     return normalized.rstrip() + "\n\n" + "\n".join(sources_lines) + "\n"
 
 
-def _ensure_strategy_source_inventory(strategy_content: str, source_urls: list[str], min_sources: int = 2) -> str:
+def _ensure_strategy_source_inventory(
+    strategy_content: str, source_urls: list[str], min_sources: int = 2
+) -> str:
     """Append a minimal sources inventory when strategy output lacks explicit source URLs."""
     if not strategy_content.strip() or not source_urls:
         return strategy_content
@@ -1889,7 +1944,9 @@ def _ensure_strategy_source_inventory(strategy_content: str, source_urls: list[s
     if metrics["source_urls"] >= min_sources:
         return strategy_content
 
-    existing_defs = re.findall(r"\[cite:\s*(\d+)\]\s*(https?://\S+)", strategy_content, re.IGNORECASE)
+    existing_defs = re.findall(
+        r"\[cite:\s*(\d+)\]\s*(https?://\S+)", strategy_content, re.IGNORECASE
+    )
     existing_urls = {url.strip() for _, url in existing_defs}
     next_num = max((int(num) for num, _ in existing_defs), default=0) + 1
     new_lines: list[str] = []
@@ -1911,6 +1968,8 @@ def _ensure_strategy_source_inventory(strategy_content: str, source_urls: list[s
         return strategy_content.rstrip() + "\n" + "\n".join(new_lines) + "\n"
 
     return strategy_content.rstrip() + "\n\n## Sources\n\n" + "\n".join(new_lines) + "\n"
+
+
 def _split_markdown_sections(content: str) -> tuple[str, list[tuple[str, str]]]:
     """Split markdown into preamble and (heading, body) sections."""
     lines = content.splitlines()
@@ -1985,7 +2044,9 @@ def _compute_fast_report_qa_metrics(
     sections, thin sections, and unresolved contradiction carry-through.
     """
     confidence_labels = len(
-        re.findall(r"\((Confirmed|Reported|Estimated|Hypothesis)[^)]*\)", report_content, re.IGNORECASE)
+        re.findall(
+            r"\((Confirmed|Reported|Estimated|Hypothesis)[^)]*\)", report_content, re.IGNORECASE
+        )
     )
     citation_refs = re.findall(r"\[cite:\s*(\d+)\]", report_content, re.IGNORECASE)
     cited_numbers = {int(n) for n in citation_refs}
@@ -1993,7 +2054,7 @@ def _compute_fast_report_qa_metrics(
     sources_block = ""
     match = re.search(r"^##\s+Sources\s*$", report_content, flags=re.IGNORECASE | re.MULTILINE)
     if match:
-        sources_block = report_content[match.start():]
+        sources_block = report_content[match.start() :]
     defined = {int(n) for n in re.findall(r"\[cite:\s*(\d+)\]", sources_block, re.IGNORECASE)}
     missing = sorted(cited_numbers - defined)
 
@@ -2001,7 +2062,8 @@ def _compute_fast_report_qa_metrics(
     reference_headings = {"sources", "citations", "references"}
     content_sections = [h for h, _ in sections if h.strip().lower() not in reference_headings]
     with_validate = sum(
-        1 for h, body in sections
+        1
+        for h, body in sections
         if h.strip().lower() not in reference_headings and "what to validate:" in body.lower()
     )
 
@@ -2014,7 +2076,8 @@ def _compute_fast_report_qa_metrics(
 
     # Check for thin sections (< 100 words)
     thin_sections = sum(
-        1 for h, body in sections
+        1
+        for h, body in sections
         if h.strip().lower() not in reference_headings and len(body.split()) < 100
     )
 
@@ -2065,7 +2128,9 @@ def _polish_fast_report_for_trust(
     if not report_content.strip():
         return report_content
 
-    source_block = "\n".join(f"{i}. {u}" for i, u in enumerate(source_urls, 1)) if source_urls else "(none)"
+    source_block = (
+        "\n".join(f"{i}. {u}" for i, u in enumerate(source_urls, 1)) if source_urls else "(none)"
+    )
     feedback_guidance = _load_fast_feedback_guidance()
     feedback_block = (
         f"\n10. Apply this prior-eval feedback guidance where relevant:\n{feedback_guidance}\n"
@@ -2075,7 +2140,7 @@ def _polish_fast_report_for_trust(
     prompt = f"""You are editing a strategic report for quality and trust, not rewriting from scratch.
 
 Company: {company_name}
-Website: {website or 'N/A'}
+Website: {website or "N/A"}
 
 Rules:
 1. Preserve the report structure and section headings.
@@ -2147,7 +2212,7 @@ def _parse_batch_sections(
     expected section.
     """
     # Split on ## headings (keep the heading text)
-    parts = re.split(r'^## ', content, flags=re.MULTILINE)
+    parts = re.split(r"^## ", content, flags=re.MULTILINE)
     parsed: list[dict[str, Any]] = []
 
     # First element is any text before the first ## (usually empty)
@@ -2164,11 +2229,13 @@ def _parse_batch_sections(
     # Fallback: if we got fewer sections than expected, treat whole content as one block
     if len(parsed) == 0 and content.strip():
         word_count = len(content.split())
-        parsed.append({
-            "title": expected_sections[0].name if expected_sections else "Section",
-            "content": content.strip(),
-            "words": word_count,
-        })
+        parsed.append(
+            {
+                "title": expected_sections[0].name if expected_sections else "Section",
+                "content": content.strip(),
+                "words": word_count,
+            }
+        )
 
     # If there's a preamble and we have parsed sections, prepend it to the first section
     if preamble and parsed:
@@ -2219,7 +2286,7 @@ def _build_fast_analysis_prompt(
     current_date = datetime.now().strftime("%B %d, %Y")
 
     return f"""**Company:** {company_name}
-**Website:** {website or 'N/A'}
+**Website:** {website or "N/A"}
 **Date:** {current_date}
 
 Below is raw data scraped from the company's website and external sources.
@@ -2369,24 +2436,27 @@ No prose, no explanation."""
         response = llm(prompt, model_type="fast", streaming=False).strip()
         # Parse the JSON array
         import json as _json
+
         # Strip markdown fencing if present
         text = response.strip()
         if text.startswith("```"):
             first_nl = text.find("\n")
-            text = text[first_nl + 1:] if first_nl != -1 else text[3:]
+            text = text[first_nl + 1 :] if first_nl != -1 else text[3:]
             if text.rstrip().endswith("```"):
                 text = text.rstrip()[:-3]
             text = text.strip()
         bracket_start = text.find("[")
         bracket_end = text.rfind("]")
         if bracket_start != -1 and bracket_end > bracket_start:
-            keep_indices = _json.loads(text[bracket_start:bracket_end + 1])
+            keep_indices = _json.loads(text[bracket_start : bracket_end + 1])
         else:
             return external_data  # parse failed, keep all
 
         # Convert 1-indexed numbers to 0-indexed
         keep_set = {round(n) - 1 for n in keep_indices if isinstance(n, (int, float))}
-        filtered = {url_list[i]: external_data[url_list[i]] for i in keep_set if 0 <= i < len(url_list)}
+        filtered = {
+            url_list[i]: external_data[url_list[i]] for i in keep_set if 0 <= i < len(url_list)
+        }
 
         if len(filtered) < 3:
             # LLM was too aggressive, keep originals
@@ -2394,8 +2464,12 @@ No prose, no explanation."""
 
         dropped = len(external_data) - len(filtered)
         if dropped > 0:
-            log_structured("info", "Source quality filter dropped low-relevance sources",
-                           kept=len(filtered), dropped=dropped)
+            log_structured(
+                "info",
+                "Source quality filter dropped low-relevance sources",
+                kept=len(filtered),
+                dropped=dropped,
+            )
         return filtered
     except Exception:
         return external_data  # on any error, keep all sources
@@ -2422,7 +2496,9 @@ def _fast_gap_analysis(
     for block in corpus_lines:
         if block.startswith("[Page:"):
             corpus_summary_parts.append(block[:500])
-    corpus_summary = "\n\n".join(corpus_summary_parts[:80]) if corpus_summary_parts else raw_corpus[:30_000]
+    corpus_summary = (
+        "\n\n".join(corpus_summary_parts[:80]) if corpus_summary_parts else raw_corpus[:30_000]
+    )
 
     # Build external source summary — first 500 chars each
     ext_lines = external_sources.split("\n\n")
@@ -2480,7 +2556,7 @@ technology direction, recent news, risk factors.
     for line in response.strip().splitlines():
         line = line.strip()
         if line.upper().startswith("QUERY:"):
-            query = line[6:].strip().strip('"\'[]')
+            query = line[6:].strip().strip("\"'[]")
             if query:
                 queries.append(query)
 
@@ -2556,7 +2632,7 @@ If the report is solid, return empty arrays."""
         if text.startswith("```"):
             # Remove opening fence line (```json, ```JSON, ```, etc.)
             first_newline = text.find("\n")
-            text = text[first_newline + 1:] if first_newline != -1 else text[3:]
+            text = text[first_newline + 1 :] if first_newline != -1 else text[3:]
             # Remove closing fence
             if text.rstrip().endswith("```"):
                 text = text.rstrip()[:-3]
@@ -2570,21 +2646,27 @@ If the report is solid, return empty arrays."""
             brace_start = text.find("{")
             brace_end = text.rfind("}")
             if brace_start != -1 and brace_end > brace_start:
-                result = json.loads(text[brace_start:brace_end + 1])
+                result = json.loads(text[brace_start : brace_end + 1])
             else:
                 raise
 
         if not isinstance(result, dict):
-            log_structured("warning", "Cross-validation JSON is not a dict", type=type(result).__name__)
+            log_structured(
+                "warning", "Cross-validation JSON is not a dict", type=type(result).__name__
+            )
             return {"weak_sections": [], "contradictions": []}
 
         # Enforce limits and validate types
         raw_weak = result.get("weak_sections", [])
-        weak = [w for w in (raw_weak if isinstance(raw_weak, list) else [])
-                if isinstance(w, dict)][:3]
+        weak = [w for w in (raw_weak if isinstance(raw_weak, list) else []) if isinstance(w, dict)][
+            :3
+        ]
         raw_contradictions = result.get("contradictions", [])
-        contradictions = [c for c in (raw_contradictions if isinstance(raw_contradictions, list) else [])
-                         if isinstance(c, str)][:3]
+        contradictions = [
+            c
+            for c in (raw_contradictions if isinstance(raw_contradictions, list) else [])
+            if isinstance(c, str)
+        ][:3]
 
         return {"weak_sections": weak, "contradictions": contradictions}
     except (json.JSONDecodeError, KeyError, TypeError, AttributeError) as e:
@@ -2601,7 +2683,9 @@ If the report is solid, return empty arrays."""
         )
         try:
             retry_response = grok_llm(
-                retry_prompt, max_tokens=3_000, temperature=0.1,
+                retry_prompt,
+                max_tokens=3_000,
+                temperature=0.1,
                 system_prompt="Return valid JSON only. No markdown, no prose.",
             )
             if retry_response and retry_response.strip():
@@ -2609,17 +2693,27 @@ If the report is solid, return empty arrays."""
                 brace_start = retry_text.find("{")
                 brace_end = retry_text.rfind("}")
                 if brace_start != -1 and brace_end > brace_start:
-                    result = json.loads(retry_text[brace_start:brace_end + 1])
+                    result = json.loads(retry_text[brace_start : brace_end + 1])
                     if isinstance(result, dict):
                         raw_weak = result.get("weak_sections", [])
-                        weak = [w for w in (raw_weak if isinstance(raw_weak, list) else [])
-                                if isinstance(w, dict)][:3]
+                        weak = [
+                            w
+                            for w in (raw_weak if isinstance(raw_weak, list) else [])
+                            if isinstance(w, dict)
+                        ][:3]
                         raw_contradictions = result.get("contradictions", [])
-                        contradictions = [c for c in (raw_contradictions if isinstance(raw_contradictions, list) else [])
-                                         if isinstance(c, str)][:3]
+                        contradictions = [
+                            c
+                            for c in (
+                                raw_contradictions if isinstance(raw_contradictions, list) else []
+                            )
+                            if isinstance(c, str)
+                        ][:3]
                         return {"weak_sections": weak, "contradictions": contradictions}
         except Exception as retry_err:
-            log_structured("debug", "Cross-validation retry JSON parse failed", error=str(retry_err))
+            log_structured(
+                "debug", "Cross-validation retry JSON parse failed", error=str(retry_err)
+            )
 
         # Last resort: regex extraction of weak section titles and reasons
         try:
@@ -2629,13 +2723,17 @@ If the report is solid, return empty arrays."""
             titles = title_pattern.findall(response)
             reasons = reason_pattern.findall(response)
             for i, title in enumerate(titles[:3]):
-                weak_sections.append({
-                    "title": title,
-                    "reason": reasons[i] if i < len(reasons) else "Needs more evidence",
-                    "queries": [f"{company_name} {title.lower()}"],
-                })
+                weak_sections.append(
+                    {
+                        "title": title,
+                        "reason": reasons[i] if i < len(reasons) else "Needs more evidence",
+                        "queries": [f"{company_name} {title.lower()}"],
+                    }
+                )
             if weak_sections:
-                log_structured("info", "Cross-validation recovered via regex", count=len(weak_sections))
+                log_structured(
+                    "info", "Cross-validation recovered via regex", count=len(weak_sections)
+                )
                 return {"weak_sections": weak_sections, "contradictions": []}
         except Exception as regex_err:
             log_structured("debug", "Cross-validation regex fallback failed", error=str(regex_err))
@@ -2703,7 +2801,9 @@ RULES:
             system_prompt=system_prompt,
         )
     except Exception as e:
-        log_structured("warning", "Section regeneration failed", section=section_title, error=str(e))
+        log_structured(
+            "warning", "Section regeneration failed", section=section_title, error=str(e)
+        )
         return section_content  # Return original on failure
 
     if not result or not result.strip():
@@ -2800,7 +2900,7 @@ If the strategy is solid, return empty arrays."""
         text = response.strip()
         if text.startswith("```"):
             first_newline = text.find("\n")
-            text = text[first_newline + 1:] if first_newline != -1 else text[3:]
+            text = text[first_newline + 1 :] if first_newline != -1 else text[3:]
             if text.rstrip().endswith("```"):
                 text = text.rstrip()[:-3]
             text = text.strip()
@@ -2811,7 +2911,7 @@ If the strategy is solid, return empty arrays."""
             brace_start = text.find("{")
             brace_end = text.rfind("}")
             if brace_start != -1 and brace_end > brace_start:
-                result = json.loads(text[brace_start:brace_end + 1])
+                result = json.loads(text[brace_start : brace_end + 1])
             else:
                 raise
 
@@ -2819,11 +2919,13 @@ If the strategy is solid, return empty arrays."""
             return {"weak_sections": [], "issues": []}
 
         raw_weak = result.get("weak_sections", [])
-        weak = [w for w in (raw_weak if isinstance(raw_weak, list) else [])
-                if isinstance(w, dict)][:2]
+        weak = [w for w in (raw_weak if isinstance(raw_weak, list) else []) if isinstance(w, dict)][
+            :2
+        ]
         raw_issues = result.get("issues", [])
-        issues = [i for i in (raw_issues if isinstance(raw_issues, list) else [])
-                  if isinstance(i, str)][:2]
+        issues = [
+            i for i in (raw_issues if isinstance(raw_issues, list) else []) if isinstance(i, str)
+        ][:2]
 
         return {"weak_sections": weak, "issues": issues}
     except (json.JSONDecodeError, KeyError, TypeError, AttributeError) as e:
@@ -2884,7 +2986,9 @@ RULES:
             system_prompt=system_prompt,
         )
     except Exception as e:
-        log_structured("warning", "Strategy section regeneration failed", section=section_title, error=str(e))
+        log_structured(
+            "warning", "Strategy section regeneration failed", section=section_title, error=str(e)
+        )
         return section_content  # Return original on failure
 
     if not result or not result.strip():
@@ -2976,13 +3080,15 @@ Return the fully edited markdown strategy document only. No preamble or commenta
         if polished_words < int(original_words * 0.90):
             logger.warning(
                 "Strategy polish dropped too many words (%d → %d), using original",
-                original_words, polished_words,
+                original_words,
+                polished_words,
             )
             return strategy_content
         if len(polished_sections) < len(original_sections):
             logger.warning(
                 "Strategy polish lost sections (%d → %d), using original",
-                len(original_sections), len(polished_sections),
+                len(original_sections),
+                len(polished_sections),
             )
             return strategy_content
 
@@ -3014,13 +3120,18 @@ def _enrich_strategy_content(
         return strategy_content
 
     # Show vendor suffix only when vendor is a real cloud vendor (not the label itself)
-    vendor_label = f" ({vendor.upper()})" if vendor.lower() not in ("agnostic", label.lower()) else ""
+    vendor_label = (
+        f" ({vendor.upper()})" if vendor.lower() not in ("agnostic", label.lower()) else ""
+    )
 
     # Step 1: Cross-validate
     try:
         with console.timed_operation(f"Reviewing {label}{vendor_label}"):
             cv_result = _strategy_cross_validate(
-                company_name, strategy_content, vendor, source_urls,
+                company_name,
+                strategy_content,
+                vendor,
+                source_urls,
             )
     except Exception as e:
         log_structured("warning", "Strategy CV failed, skipping enrichment", error=str(e))
@@ -3060,12 +3171,15 @@ def _enrich_strategy_content(
                     results = search_web(q, company_name, website)
                     if results:
                         filtered = [
-                            r for r in results[:3]
+                            r
+                            for r in results[:3]
                             if (not website or website.lower() not in r.get("url", "").lower())
                             and r.get("url", "") not in source_urls_seen
                         ]
                         scraped = scrape_external_sources_validated(
-                            filtered, company_name=company_name, website=website,
+                            filtered,
+                            company_name=company_name,
+                            website=website,
                             max_sources=3,
                         )
                         for url, content in scraped.items():
@@ -3094,15 +3208,21 @@ def _enrich_strategy_content(
             # Regenerate the section
             with console.timed_operation(f"Rewriting: {section_title}"):
                 regenerated = _strategy_regenerate_section(
-                    company_name, vendor, section_title,
-                    original_section, new_evidence, analysis_workbook,
+                    company_name,
+                    vendor,
+                    section_title,
+                    original_section,
+                    new_evidence,
+                    analysis_workbook,
                 )
 
             if regenerated and regenerated != original_section:
                 if not regenerated.endswith("\n"):
                     regenerated += "\n"
                 strategy_content = (
-                    strategy_content[:match.start()] + regenerated + strategy_content[match.end():]
+                    strategy_content[: match.start()]
+                    + regenerated
+                    + strategy_content[match.end() :]
                 )
                 sections_enriched += 1
                 console.ok(f"Enriched: {section_title}")
@@ -3167,11 +3287,21 @@ def perform_fast_research(
         # Phase 1: Data collection (Gemini Flash — cheap)
         # =================================================================
         scan_domain = urlparse(website or "").netloc.replace("www.", "") if website else "website"
-        console.phase_banner(1, total_phases, "Data Collection (fast)", f"Scraping {scan_domain} + external sources", "5-8 min")
+        console.phase_banner(
+            1,
+            total_phases,
+            "Data Collection (fast)",
+            f"Scraping {scan_domain} + external sources",
+            "5-8 min",
+        )
 
         # Scrape website (50 pages for enhanced fast mode)
         with console.timed_operation(f"Website scrape ({scan_domain})", show_spinner=False):
-            scraped_data = fetch_web_content(website, company_name, max_pages=50, working_folder=folder_path) if website else {}
+            scraped_data = (
+                fetch_web_content(website, company_name, max_pages=50, working_folder=folder_path)
+                if website
+                else {}
+            )
             pages_scraped = len(scraped_data)
         log_structured("info", "Fast mode: website scraping complete", pages=pages_scraped)
 
@@ -3182,7 +3312,9 @@ def perform_fast_research(
         summarized = ""
         if scraped_data:
             with console.timed_operation("Extracting insights"):
-                summarized = summarize_scraped_content(company_name, website, scraped_data, folder_path)
+                summarized = summarize_scraped_content(
+                    company_name, website, scraped_data, folder_path
+                )
 
         # Build raw corpus from scraped data (truncate each page to 30k chars)
         raw_corpus_parts: list[str] = []
@@ -3198,14 +3330,26 @@ def perform_fast_research(
             _search_depth = "rich"
             _ext_query_count = 10
             _max_ext = 20
-            log_structured("info", "Adaptive depth: rich website, reducing external search", pages=pages_scraped, chars=total_scraped_chars)
+            log_structured(
+                "info",
+                "Adaptive depth: rich website, reducing external search",
+                pages=pages_scraped,
+                chars=total_scraped_chars,
+            )
         elif total_scraped_chars < 20_000 or pages_scraped < 5:
             # Thin website — increase external search to compensate
             _search_depth = "thin"
             _ext_query_count = 15
             _max_ext = 40
-            console.info(f"Thin website data ({pages_scraped} pages) — increasing external search depth")
-            log_structured("info", "Adaptive depth: thin website, increasing external search", pages=pages_scraped, chars=total_scraped_chars)
+            console.info(
+                f"Thin website data ({pages_scraped} pages) — increasing external search depth"
+            )
+            log_structured(
+                "info",
+                "Adaptive depth: thin website, increasing external search",
+                pages=pages_scraped,
+                chars=total_scraped_chars,
+            )
         else:
             # Normal
             _search_depth = "normal"
@@ -3231,23 +3375,27 @@ def perform_fast_research(
             results = search_web(query, company_name, website)
             if not results:
                 return []
-            return [r for r in results[:5]
-                    if not website or website.lower() not in r.get("url", "").lower()]
+            return [
+                r
+                for r in results[:5]
+                if not website or website.lower() not in r.get("url", "").lower()
+            ]
 
         # Phase 1: parallel searches (thread-safe HTTP calls)
         console.status(f"Searching external sources (0/{len(external_queries)} queries)")
         all_search_results: list[dict] = []
         _queries_done = 0
         with ThreadPoolExecutor(max_workers=3) as executor:
-            futures = [executor.submit(_search_one, q)
-                       for q in external_queries]
+            futures = [executor.submit(_search_one, q) for q in external_queries]
             for future in as_completed(futures):
                 try:
                     all_search_results.extend(future.result())
                 except Exception as e:
                     logger.warning("External search query failed: %s", e)
                 _queries_done += 1
-                console.status(f"Searching external sources ({_queries_done}/{len(external_queries)} queries, {len(all_search_results)} results)")
+                console.status(
+                    f"Searching external sources ({_queries_done}/{len(external_queries)} queries, {len(all_search_results)} results)"
+                )
 
         # Phase 2: sequential scraping on main thread (Playwright-safe)
         _scrape_idx = 0
@@ -3259,9 +3407,13 @@ def perform_fast_research(
             if not url or url in external_data:
                 continue
             _scrape_idx += 1
-            console.status(f"Validating external sources ({len(external_data)} validated, checking {_scrape_idx}/{_scrape_total})")
+            console.status(
+                f"Validating external sources ({len(external_data)} validated, checking {_scrape_idx}/{_scrape_total})"
+            )
             scraped = scrape_external_sources_validated(
-                [result], company_name=company_name, website=website,
+                [result],
+                company_name=company_name,
+                website=website,
                 max_sources=1,
             )
             external_data.update(scraped)
@@ -3272,7 +3424,9 @@ def perform_fast_research(
         pre_filter_count = len(external_data)
         external_data = _assess_source_relevance(company_name, external_data)
         if len(external_data) < pre_filter_count:
-            console.info(f"Quality filter: {pre_filter_count} → {len(external_data)} sources (dropped {pre_filter_count - len(external_data)} low-relevance)")
+            console.info(
+                f"Quality filter: {pre_filter_count} → {len(external_data)} sources (dropped {pre_filter_count - len(external_data)} low-relevance)"
+            )
 
         for url, content in external_data.items():
             source_urls.append(url)
@@ -3288,15 +3442,22 @@ def perform_fast_research(
             external_sources_initial=len(external_data),
             search_depth=_search_depth,
         )
-        console.phase_complete("Data Collection (fast)", [("Pages", str(pages_scraped)), ("External", str(len(external_data)))])
+        console.phase_complete(
+            "Data Collection (fast)",
+            [("Pages", str(pages_scraped)), ("External", str(len(external_data)))],
+        )
 
         # Combine Flash-summarized insights (for working folder)
         all_insights_parts = []
         if summarized:
             all_insights_parts.append(f"=== WEBSITE INSIGHTS ===\n{summarized}")
         if external_text_parts:
-            all_insights_parts.append("=== EXTERNAL SOURCES ===\n" + "\n\n".join(external_text_parts))
-        combined_insights = "\n\n".join(all_insights_parts) if all_insights_parts else "No research data collected."
+            all_insights_parts.append(
+                "=== EXTERNAL SOURCES ===\n" + "\n\n".join(external_text_parts)
+            )
+        combined_insights = (
+            "\n\n".join(all_insights_parts) if all_insights_parts else "No research data collected."
+        )
 
         # Save insights to working folder
         insights_file = os.path.join(folder_path, "insights.txt")
@@ -3304,12 +3465,20 @@ def perform_fast_research(
             f.write(combined_insights)
 
         # Build raw external sources string for Grok
-        external_sources_raw = "\n\n".join(external_raw_parts) if external_raw_parts else "(no external sources)"
+        external_sources_raw = (
+            "\n\n".join(external_raw_parts) if external_raw_parts else "(no external sources)"
+        )
 
         # =================================================================
         # Phase 2: Research Deepening (Grok gap analysis → targeted search)
         # =================================================================
-        console.phase_banner(2, total_phases, "Research Deepening", "Identifying gaps and searching for additional evidence", "3-5 min")
+        console.phase_banner(
+            2,
+            total_phases,
+            "Research Deepening",
+            "Identifying gaps and searching for additional evidence",
+            "3-5 min",
+        )
 
         with console.timed_operation("Analyzing research gaps via Grok"):
             gap_queries, gap_text = _fast_gap_analysis(
@@ -3335,7 +3504,8 @@ def perform_fast_research(
                 if not results:
                     return []
                 return [
-                    r for r in results[:3]
+                    r
+                    for r in results[:3]
                     if (not website or website.lower() not in r.get("url", "").lower())
                     and r.get("url", "") not in source_urls_seen
                 ]
@@ -3345,15 +3515,16 @@ def perform_fast_research(
             _gap_queries_done = 0
             console.status(f"Searching for gap-filling sources (0/{len(gap_queries)} queries)")
             with ThreadPoolExecutor(max_workers=3) as executor:
-                futures = [executor.submit(_gap_search_one, gq)
-                           for gq in gap_queries]
+                futures = [executor.submit(_gap_search_one, gq) for gq in gap_queries]
                 for future in as_completed(futures):
                     try:
                         gap_search_results.extend(future.result())
                     except Exception as e:
                         logger.warning("Gap search query failed: %s", e)
                     _gap_queries_done += 1
-                    console.status(f"Searching for gap-filling sources ({_gap_queries_done}/{len(gap_queries)} queries, {len(gap_search_results)} results)")
+                    console.status(
+                        f"Searching for gap-filling sources ({_gap_queries_done}/{len(gap_queries)} queries, {len(gap_search_results)} results)"
+                    )
 
             # Phase 2: sequential scraping on main thread (Playwright-safe)
             _gap_check_idx = 0
@@ -3364,9 +3535,13 @@ def perform_fast_research(
                 if not url or url in source_urls_seen:
                     continue
                 _gap_check_idx += 1
-                console.status(f"Validating gap sources ({gap_new_sources} found, checking {_gap_check_idx})")
+                console.status(
+                    f"Validating gap sources ({gap_new_sources} found, checking {_gap_check_idx})"
+                )
                 scraped = scrape_external_sources_validated(
-                    [result], company_name=company_name, website=website,
+                    [result],
+                    company_name=company_name,
+                    website=website,
                     max_sources=1,
                 )
                 for scraped_url, content in scraped.items():
@@ -3384,15 +3559,23 @@ def perform_fast_research(
             console.ok(f"Found {gap_new_sources} additional sources")
 
             # Rebuild external_sources_raw with new sources
-            external_sources_raw = "\n\n".join(external_raw_parts) if external_raw_parts else "(no external sources)"
+            external_sources_raw = (
+                "\n\n".join(external_raw_parts) if external_raw_parts else "(no external sources)"
+            )
 
             # Update insights file
             all_insights_parts_updated = []
             if summarized:
                 all_insights_parts_updated.append(f"=== WEBSITE INSIGHTS ===\n{summarized}")
             if external_text_parts:
-                all_insights_parts_updated.append("=== EXTERNAL SOURCES ===\n" + "\n\n".join(external_text_parts))
-            combined_insights = "\n\n".join(all_insights_parts_updated) if all_insights_parts_updated else combined_insights
+                all_insights_parts_updated.append(
+                    "=== EXTERNAL SOURCES ===\n" + "\n\n".join(external_text_parts)
+                )
+            combined_insights = (
+                "\n\n".join(all_insights_parts_updated)
+                if all_insights_parts_updated
+                else combined_insights
+            )
             with open(insights_file, "w", encoding="utf-8") as f:
                 f.write(combined_insights)
         else:
@@ -3410,7 +3593,10 @@ def perform_fast_research(
             gap_new_sources=gap_new_sources,
             external_sources_validated=total_external,
         )
-        console.phase_complete("Research Deepening", [("New sources", str(gap_new_sources)), ("Total external", str(total_external))])
+        console.phase_complete(
+            "Research Deepening",
+            [("New sources", str(gap_new_sources)), ("Total external", str(total_external))],
+        )
 
         validated_source_urls = list(source_urls)
         validated_source_count = len(validated_source_urls)
@@ -3418,7 +3604,9 @@ def perform_fast_research(
         # =================================================================
         # Phase 3: Grok analysis call (structured workbook)
         # =================================================================
-        console.phase_banner(3, total_phases, "Analysis (Grok)", "Building structured analysis workbook", "2-4 min")
+        console.phase_banner(
+            3, total_phases, "Analysis (Grok)", "Building structured analysis workbook", "2-4 min"
+        )
 
         analysis_system = (
             "You are a senior strategic analyst conducting pre-engagement research "
@@ -3463,7 +3651,13 @@ def perform_fast_research(
         # =================================================================
         # Phase 4: Grok report writing (parallel within parts + coherence)
         # =================================================================
-        console.phase_banner(4, total_phases, "Report Writing (Grok)", "Writing sections (parallel within parts)", "3-5 min")
+        console.phase_banner(
+            4,
+            total_phases,
+            "Report Writing (Grok)",
+            "Writing sections (parallel within parts)",
+            "3-5 min",
+        )
 
         # Build a raw data subset for evidence (~100k chars — workbook already distills corpus)
         raw_corpus_subset = raw_corpus[:100_000] if len(raw_corpus) > 100_000 else raw_corpus
@@ -3504,9 +3698,22 @@ def perform_fast_research(
         # Dynamic section selection: skip sections that lack evidence
         # based on what the analysis workbook actually contains
         _evidence_keywords = {
-            "financial_profile": ["revenue", "profit", "margin", "funding", "valuation", "earnings"],
+            "financial_profile": [
+                "revenue",
+                "profit",
+                "margin",
+                "funding",
+                "valuation",
+                "earnings",
+            ],
             "company_history": ["founded", "history", "acquisition", "pivot", "milestone"],
-            "industry_outlook": ["industry trend", "regulation", "outlook", "forecast", "disruption"],
+            "industry_outlook": [
+                "industry trend",
+                "regulation",
+                "outlook",
+                "forecast",
+                "disruption",
+            ],
         }
         workbook_lower = analysis_workbook.lower() if analysis_workbook else ""
         _skipped_sections: list[str] = []
@@ -3523,7 +3730,9 @@ def perform_fast_research(
                 batch.remove(sec)
         section_batches = [b for b in section_batches if b]
         if _skipped_sections:
-            console.info(f"Skipping {len(_skipped_sections)} section(s) with insufficient evidence: {', '.join(_skipped_sections)}")
+            console.info(
+                f"Skipping {len(_skipped_sections)} section(s) with insufficient evidence: {', '.join(_skipped_sections)}"
+            )
 
         # Pop executive_summary — write it LAST so it can synthesize the full report
         exec_summary_section = None
@@ -3563,19 +3772,22 @@ def perform_fast_research(
                 _prior: list[dict[str, Any]] = prior_sections,
             ) -> tuple[int, dict[str, Any] | None]:
                 local_idx, sec = idx_section
-                return (local_idx, _write_section_with_retry(
-                    sec,
-                    _offset + local_idx,
-                    all_section_names,
-                    _prior,
-                    effective_name,
-                    website,
-                    analysis_workbook,
-                    raw_corpus_subset,
-                    external_sources_raw,
-                    source_urls,
-                    report_system,
-                ))
+                return (
+                    local_idx,
+                    _write_section_with_retry(
+                        sec,
+                        _offset + local_idx,
+                        all_section_names,
+                        _prior,
+                        effective_name,
+                        website,
+                        analysis_workbook,
+                        raw_corpus_subset,
+                        external_sources_raw,
+                        source_urls,
+                        report_system,
+                    ),
+                )
 
             results: list[tuple[int, dict[str, Any] | None]] = []
             if len(part_sections) == 1:
@@ -3583,8 +3795,7 @@ def perform_fast_research(
             else:
                 with ThreadPoolExecutor(max_workers=min(len(part_sections), 4)) as executor:
                     futures = {
-                        executor.submit(_write_one, (i, s)): i
-                        for i, s in enumerate(part_sections)
+                        executor.submit(_write_one, (i, s)): i for i, s in enumerate(part_sections)
                     }
                     for future in as_completed(futures):
                         results.append(future.result())
@@ -3633,19 +3844,32 @@ def perform_fast_research(
             console.error("All report sections failed — no sections written")
             return None
 
-        report_content = _assemble_fast_report(company_name or display_name, website, written_sections)
+        report_content = _assemble_fast_report(
+            company_name or display_name, website, written_sections
+        )
 
         # Coherence pass: deduplicate and smooth transitions
         with console.timed_operation("Running coherence pass"):
-            report_content = _fast_coherence_pass(company_name or display_name, website, report_content)
+            report_content = _fast_coherence_pass(
+                company_name or display_name, website, report_content
+            )
 
         total_words = len(report_content.split())
-        console.phase_complete("Report Writing (Grok)", [("Sections", str(len(written_sections))), ("Words", f"{total_words:,}")])
+        console.phase_complete(
+            "Report Writing (Grok)",
+            [("Sections", str(len(written_sections))), ("Words", f"{total_words:,}")],
+        )
 
         # =================================================================
         # Phase 5: Cross-Validation (review + targeted enrichment)
         # =================================================================
-        console.phase_banner(5, total_phases, "Cross-Validation", "Reviewing report for gaps and weak sections", "2-4 min")
+        console.phase_banner(
+            5,
+            total_phases,
+            "Cross-Validation",
+            "Reviewing report for gaps and weak sections",
+            "2-4 min",
+        )
 
         with console.timed_operation("Reviewing report quality via Grok"):
             cv_result = _fast_cross_validate(
@@ -3688,19 +3912,24 @@ def perform_fast_research(
                         results = search_web(q, company_name, website)
                         if results:
                             filtered = [
-                                r for r in results[:3]
+                                r
+                                for r in results[:3]
                                 if (not website or website.lower() not in r.get("url", "").lower())
                                 and r.get("url", "") not in source_urls_seen
                             ]
                             scraped = scrape_external_sources_validated(
-                                filtered, company_name=company_name, website=website,
+                                filtered,
+                                company_name=company_name,
+                                website=website,
                                 max_sources=3,
                             )
                             for url, content in scraped.items():
                                 if url not in source_urls_seen:
                                     source_urls.append(url)
                                     source_urls_seen.add(url)
-                                    new_evidence_parts.append(f"[Source: {url}]\n{content[:12_000]}")
+                                    new_evidence_parts.append(
+                                        f"[Source: {url}]\n{content[:12_000]}"
+                                    )
                                     cv_new_sources += 1
 
                 if not new_evidence_parts:
@@ -3715,7 +3944,11 @@ def perform_fast_research(
                 )
                 match = section_pattern.search(report_content)
                 if not match:
-                    log_structured("warning", "Cross-validation: section not found in report", section=section_title)
+                    log_structured(
+                        "warning",
+                        "Cross-validation: section not found in report",
+                        section=section_title,
+                    )
                     continue
 
                 original_section = match.group(1)
@@ -3736,7 +3969,11 @@ def perform_fast_research(
                 if regenerated and regenerated != original_section:
                     if not regenerated.endswith("\n"):
                         regenerated += "\n"
-                    report_content = report_content[:match.start()] + regenerated + report_content[match.end():]
+                    report_content = (
+                        report_content[: match.start()]
+                        + regenerated
+                        + report_content[match.end() :]
+                    )
                     sections_enriched += 1
                     console.ok(f"Enriched: {section_title} ({cv_new_sources} new source(s))")
         else:
@@ -3790,8 +4027,11 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
                         unresolved_contradictions = 0
                         console.ok(f"Resolved {len(contradictions)} contradiction(s)")
                     else:
-                        logger.warning("Contradiction resolution dropped too many words (%d → %d), keeping original",
-                                       original_words, resolved_words)
+                        logger.warning(
+                            "Contradiction resolution dropped too many words (%d → %d), keeping original",
+                            original_words,
+                            resolved_words,
+                        )
             except Exception as resolve_err:
                 logger.warning("Contradiction resolution failed: %s", resolve_err)
 
@@ -3802,7 +4042,13 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
 
         # Extract section count from report for metrics
         report_section_count = len(re.findall(r"^## ", report_content, re.MULTILINE))
-        console.phase_complete("Cross-Validation", [("Sections reviewed", str(report_section_count)), ("Enriched", str(sections_enriched))])
+        console.phase_complete(
+            "Cross-Validation",
+            [
+                ("Sections reviewed", str(report_section_count)),
+                ("Enriched", str(sections_enriched)),
+            ],
+        )
 
         # Trust polish is a low-cost editorial pass to improve evidence discipline.
         report_content = _polish_fast_report_for_trust(
@@ -3858,7 +4104,9 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
         # =================================================================
         strategy_paths: dict[str, str] = {}
         if has_strategies:
-            console.phase_banner(6, total_phases, "Strategy (Grok)", "Generating strategy documents", "3-8 min")
+            console.phase_banner(
+                6, total_phases, "Strategy (Grok)", "Generating strategy documents", "3-8 min"
+            )
 
             # --- AI Strategy (per vendor) ---
             if ai_strategy and cloud_vendors:
@@ -3881,16 +4129,24 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
                                 with open(artifact_path, encoding="utf-8") as fh:
                                     artifact_content = fh.read()[:artifact_limit]
                                     if artifact_content.strip():
-                                        context_parts.append(f"--- {artifact_name} ---\n{artifact_content}")
+                                        context_parts.append(
+                                            f"--- {artifact_name} ---\n{artifact_content}"
+                                        )
                             except Exception as e:
                                 logger.warning("Failed to read artifact %s: %s", artifact_name, e)
 
-                    vendor_doc_paths = _get_or_generate_vendor_research(vendor) if vendor.lower() != "agnostic" else []
+                    vendor_doc_paths = (
+                        _get_or_generate_vendor_research(vendor)
+                        if vendor.lower() != "agnostic"
+                        else []
+                    )
                     for vdp in vendor_doc_paths:
                         if vdp and os.path.exists(vdp):
                             try:
                                 with open(vdp, encoding="utf-8") as fh:
-                                    context_parts.append(f"--- {os.path.basename(vdp)} ---\n{fh.read()[:30_000]}")
+                                    context_parts.append(
+                                        f"--- {os.path.basename(vdp)} ---\n{fh.read()[:30_000]}"
+                                    )
                             except Exception as e:
                                 logger.warning("Failed to read vendor doc %s: %s", vdp, e)
 
@@ -3911,7 +4167,12 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
                             )
                     except Exception as strat_err:
                         console.warn(f"AI Strategy{vendor_label} failed: {strat_err} — skipping")
-                        log_structured("warning", "Fast mode strategy failed", vendor=vendor, error=str(strat_err))
+                        log_structured(
+                            "warning",
+                            "Fast mode strategy failed",
+                            vendor=vendor,
+                            error=str(strat_err),
+                        )
                         continue
 
                     if strategy_content and strategy_content.strip():
@@ -3941,11 +4202,17 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
                                 website,
                             )
                         except Exception as enrich_err:
-                            log_structured("warning", "Strategy enrichment failed, keeping original",
-                                           vendor=vendor, error=str(enrich_err))
+                            log_structured(
+                                "warning",
+                                "Strategy enrichment failed, keeping original",
+                                vendor=vendor,
+                                error=str(enrich_err),
+                            )
 
                         strategy_content = _clean_strategy_output(strategy_content)
-                        strategy_content = _ensure_strategy_source_inventory(strategy_content, validated_source_urls)
+                        strategy_content = _ensure_strategy_source_inventory(
+                            strategy_content, validated_source_urls
+                        )
                         strategy_qa = _compute_strategy_qa_metrics(strategy_content)
                         qa_gate = "PASS" if strategy_qa["qa_gate_passed"] else "WARN"
                         console.info(
@@ -3953,11 +4220,15 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
                             f"sources={strategy_qa['source_urls']}, "
                             f"budget={'OK' if not strategy_qa['budget_inconsistent'] else 'WARN'}, gate={qa_gate}"
                         )
-                        if strategy_qa['source_urls'] == 0:
-                            console.warn("Strategy QA: no explicit source URLs detected in strategy output")
+                        if strategy_qa["source_urls"] == 0:
+                            console.warn(
+                                "Strategy QA: no explicit source URLs detected in strategy output"
+                            )
 
                         strategy_path = _save_strategy_output(
-                            strategy_content, company_name or display_name, vendor,
+                            strategy_content,
+                            company_name or display_name,
+                            vendor,
                             strategy_label="AI_Strategy",
                         )
                         if strategy_path:
@@ -3967,12 +4238,15 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
             # --- YAML-defined strategies (customer_experience, security, data_fabric, etc.) ---
             if strategy_types:
                 import yaml as _yaml
+
                 for stype in strategy_types:
                     if stype == "ai":
                         continue  # already handled above
 
                     # Load strategy YAML config (name matches filename)
-                    yaml_path = Path(__file__).parent.parent / "prompts" / "strategies" / f"{stype}.yaml"
+                    yaml_path = (
+                        Path(__file__).parent.parent / "prompts" / "strategies" / f"{stype}.yaml"
+                    )
 
                     if not yaml_path.exists():
                         console.warn(f"Strategy YAML not found: {stype}.yaml — skipping")
@@ -3989,7 +4263,9 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
                     display_name_strat = meta.get("name", stype.replace("_", " ").title())
                     output_filename = meta.get("output_filename", f"{{company_name}}_{stype}")
                     # Build label for filename from YAML meta
-                    file_label = output_filename.replace("{company_name}_", "").replace("{company_name}", "")
+                    file_label = output_filename.replace("{company_name}_", "").replace(
+                        "{company_name}", ""
+                    )
                     if not file_label:
                         file_label = stype.replace(" ", "_")
 
@@ -4010,7 +4286,9 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
                                 with open(artifact_path, encoding="utf-8") as fh:
                                     artifact_content = fh.read()[:artifact_limit]
                                     if artifact_content.strip():
-                                        yaml_context_parts.append(f"--- {artifact_name} ---\n{artifact_content}")
+                                        yaml_context_parts.append(
+                                            f"--- {artifact_name} ---\n{artifact_content}"
+                                        )
                             except Exception as e:
                                 logger.warning("Failed to read artifact %s: %s", artifact_name, e)
 
@@ -4030,7 +4308,12 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
                             )
                     except Exception as strat_err:
                         console.warn(f"{display_name_strat} failed: {strat_err} — skipping")
-                        log_structured("warning", "Fast mode strategy failed", strategy=stype, error=str(strat_err))
+                        log_structured(
+                            "warning",
+                            "Fast mode strategy failed",
+                            strategy=stype,
+                            error=str(strat_err),
+                        )
                         continue
 
                     if strategy_content and strategy_content.strip():
@@ -4061,11 +4344,17 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
                                 website,
                             )
                         except Exception as enrich_err:
-                            log_structured("warning", "Strategy enrichment failed, keeping original",
-                                           strategy=stype, error=str(enrich_err))
+                            log_structured(
+                                "warning",
+                                "Strategy enrichment failed, keeping original",
+                                strategy=stype,
+                                error=str(enrich_err),
+                            )
 
                         strategy_content = _clean_strategy_output(strategy_content)
-                        strategy_content = _ensure_strategy_source_inventory(strategy_content, validated_source_urls)
+                        strategy_content = _ensure_strategy_source_inventory(
+                            strategy_content, validated_source_urls
+                        )
                         strategy_qa = _compute_strategy_qa_metrics(strategy_content)
                         qa_gate = "PASS" if strategy_qa["qa_gate_passed"] else "WARN"
                         console.info(
@@ -4073,11 +4362,15 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
                             f"sources={strategy_qa['source_urls']}, "
                             f"budget={'OK' if not strategy_qa['budget_inconsistent'] else 'WARN'}, gate={qa_gate}"
                         )
-                        if strategy_qa['source_urls'] == 0:
-                            console.warn("Strategy QA: no explicit source URLs detected in strategy output")
+                        if strategy_qa["source_urls"] == 0:
+                            console.warn(
+                                "Strategy QA: no explicit source URLs detected in strategy output"
+                            )
 
                         strategy_path = _save_strategy_output(
-                            strategy_content, company_name or display_name, "agnostic",
+                            strategy_content,
+                            company_name or display_name,
+                            "agnostic",
                             strategy_label=file_label,
                         )
                         if strategy_path:
@@ -4101,12 +4394,16 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
         if docx_path:
             console.success_box("Report ready", str(Path(docx_path).resolve()))
         else:
-            console.warn("Report DOCX held back by artifact gate; review the saved MD/TXT artifacts")
+            console.warn(
+                "Report DOCX held back by artifact gate; review the saved MD/TXT artifacts"
+            )
 
         for strat_key, strategy_path in strategy_paths.items():
             # AI strategy keys: "ai" or "ai_azure" — show vendor suffix
             if strat_key.startswith("ai"):
-                vendor_suffix = f" ({strat_key.split('_', 1)[1].upper()})" if "_" in strat_key else ""
+                vendor_suffix = (
+                    f" ({strat_key.split('_', 1)[1].upper()})" if "_" in strat_key else ""
+                )
                 label = f"AI Strategy{vendor_suffix}"
             else:
                 label = strat_key.replace("_", " ").title()
@@ -4114,7 +4411,9 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
             if str(resolved_strategy_path).lower().endswith(".docx"):
                 console.success_box(label, str(resolved_strategy_path))
             else:
-                console.warn(f"{label} DOCX held back by artifact gate; saved {resolved_strategy_path.name} instead")
+                console.warn(
+                    f"{label} DOCX held back by artifact gate; saved {resolved_strategy_path.name} instead"
+                )
 
         # Cost summary from Grok session usage
         grok_usage = get_grok_session_usage()
@@ -4126,6 +4425,7 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
 
         # Flash cost from AI client
         from primr.ai.client import get_client
+
         client = get_client()
         flash_usage = client.get_usage_summary()
         flash_cost = flash_usage.get("total_cost", 0.0)
@@ -4150,7 +4450,10 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
             ("Pages", str(pages_scraped)),
             ("External", str(validated_source_count)),
             ("Duration", time_str),
-            ("Grok tokens", f"{grok_usage['input_tokens']:,} in / {grok_usage['output_tokens']:,} out"),
+            (
+                "Grok tokens",
+                f"{grok_usage['input_tokens']:,} in / {grok_usage['output_tokens']:,} out",
+            ),
             ("Actual Cost", f"~${actual_cost:.2f}"),
             ("Artifact Gate", "PASS" if artifacts_passed else "WARN"),
         ]
@@ -4167,6 +4470,7 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
 
         # Save usage to history
         from primr.utils.usage_tracker import get_usage_tracker
+
         tracker = get_usage_tracker()
         tracker.record_usage(
             mode="fast",
@@ -4257,7 +4561,9 @@ def _save_strategy_output(
                 markdown_text=strategy_content,
                 output_path=docx_path,
                 title=f"{display_label}: {company_name}",
-                subtitle=f"{cloud_vendor.upper()} | {datetime.now().strftime('%B %d, %Y')}" if cloud_vendor != "agnostic" else datetime.now().strftime("%B %d, %Y"),
+                subtitle=f"{cloud_vendor.upper()} | {datetime.now().strftime('%B %d, %Y')}"
+                if cloud_vendor != "agnostic"
+                else datetime.now().strftime("%B %d, %Y"),
             )
         except Exception as e:
             logger.warning(f"DOCX conversion failed: {e}")
@@ -4274,7 +4580,9 @@ def _save_strategy_output(
             try:
                 docx_path.unlink(missing_ok=True)
             except Exception as cleanup_err:
-                logger.warning("Failed to remove blocked strategy DOCX %s: %s", docx_path, cleanup_err)
+                logger.warning(
+                    "Failed to remove blocked strategy DOCX %s: %s", docx_path, cleanup_err
+                )
             console.warn(
                 "DOCX shipping gate failed for rendered strategy; saved MD/TXT only"
                 + (f" ({report_path.name})" if report_path else "")
@@ -4340,27 +4648,32 @@ def perform_research(
             cloud_vendors=list(cloud_vendors),
             working_folder=folder_path,
         )
-        _append_run_event(folder_path, "initializing", "resumed", "Resuming from existing local run folder")
+        _append_run_event(
+            folder_path, "initializing", "resumed", "Resuming from existing local run folder"
+        )
     else:
-        _save_run_state(folder_path, {
-            "company_name": company_name or display_name,
-            "website": website,
-            "mode": mode,
-            "status": "running",
-            "current_phase": "initializing",
-            "ai_strategy": ai_strategy,
-            "cloud_vendors": list(cloud_vendors),
-            "working_folder": folder_path,
-            "started_at": datetime.now().isoformat(),
-            "events": [],
-        })
+        _save_run_state(
+            folder_path,
+            {
+                "company_name": company_name or display_name,
+                "website": website,
+                "mode": mode,
+                "status": "running",
+                "current_phase": "initializing",
+                "ai_strategy": ai_strategy,
+                "cloud_vendors": list(cloud_vendors),
+                "working_folder": folder_path,
+                "started_at": datetime.now().isoformat(),
+                "events": [],
+            },
+        )
         _append_run_event(folder_path, "initializing", "started", "Run initialized")
 
     # Load discovery notes if provided
     discovery_notes_content: str | None = None
     if discovery_notes_path:
         try:
-            with open(discovery_notes_path, encoding='utf-8') as f:
+            with open(discovery_notes_path, encoding="utf-8") as f:
                 discovery_notes_content = f.read().strip()
             if discovery_notes_content:
                 logger.info(f"Loaded discovery notes from {discovery_notes_path}")
@@ -4371,29 +4684,55 @@ def perform_research(
             logger.error(f"Discovery notes file not found: {discovery_notes_path}")
             console.error(f"Discovery notes file not found: {discovery_notes_path}")
             _update_run_state(folder_path, status="failed", current_phase="initializing")
-            _append_run_event(folder_path, "initializing", "failed", f"Discovery notes not found: {discovery_notes_path}")
+            _append_run_event(
+                folder_path,
+                "initializing",
+                "failed",
+                f"Discovery notes not found: {discovery_notes_path}",
+            )
             return None
         except Exception as e:
             logger.error(f"Failed to load discovery notes: {e}")
             console.error(f"Failed to load discovery notes: {e}")
             _update_run_state(folder_path, status="failed", current_phase="initializing")
-            _append_run_event(folder_path, "initializing", "failed", f"Failed loading discovery notes: {e}")
+            _append_run_event(
+                folder_path, "initializing", "failed", f"Failed loading discovery notes: {e}"
+            )
             return None
 
     # Show cost estimate and ask for confirmation
     if not skip_confirm:
         from primr.utils.cost_estimator import display_cost_estimate
-        if not display_cost_estimate(mode, display_name, ai_strategy, num_vendors=len(cloud_vendors), lite_strategy=lite_strategy, fast_mode=fast_mode):
+
+        if not display_cost_estimate(
+            mode,
+            display_name,
+            ai_strategy,
+            num_vendors=len(cloud_vendors),
+            lite_strategy=lite_strategy,
+            fast_mode=fast_mode,
+        ):
             console.info("Research cancelled by user")
             _update_run_state(folder_path, status="cancelled", current_phase="initializing")
-            _append_run_event(folder_path, "initializing", "cancelled", "Run cancelled by user at cost confirmation")
+            _append_run_event(
+                folder_path,
+                "initializing",
+                "cancelled",
+                "Run cancelled by user at cost confirmation",
+            )
             return None
 
     start_time = time.time()
 
     # Wrap entire research flow in correlation context for tracing
     with correlation_scope("research", company=display_name, mode=mode):
-        log_structured("info", "Starting research job", company=display_name, mode=mode, ai_strategy=ai_strategy)
+        log_structured(
+            "info",
+            "Starting research job",
+            company=display_name,
+            mode=mode,
+            ai_strategy=ai_strategy,
+        )
 
         # Fast mode: Grok 4.1 accordion batch pipeline
         # Activated by: explicit --fast, or auto-detect (complete mode + XAI_API_KEY + not premium)
@@ -4406,7 +4745,9 @@ def perform_research(
             _update_run_state(folder_path, current_phase="fast_mode", status="running")
             _append_run_event(folder_path, "fast_mode", "started", "Fast mode pipeline started")
             fast_path = perform_fast_research(
-                company_name, website, start_time,
+                company_name,
+                website,
+                start_time,
                 ai_strategy=ai_strategy,
                 cloud_vendors=cloud_vendors,
                 strategy_types=strategies,
@@ -4416,8 +4757,15 @@ def perform_research(
                 resume_local=resume_local,
             )
             if fast_path:
-                _update_run_state(folder_path, status="completed", current_phase="complete", completed_at=datetime.now().isoformat())
-                _append_run_event(folder_path, "complete", "completed", "Fast mode completed", output=fast_path)
+                _update_run_state(
+                    folder_path,
+                    status="completed",
+                    current_phase="complete",
+                    completed_at=datetime.now().isoformat(),
+                )
+                _append_run_event(
+                    folder_path, "complete", "completed", "Fast mode completed", output=fast_path
+                )
             else:
                 _update_run_state(folder_path, status="failed", current_phase="fast_mode")
                 _append_run_event(folder_path, "fast_mode", "failed", "Fast mode failed")
@@ -4439,9 +4787,17 @@ def perform_research(
         if mode in ("deep-research", "complete", "hybrid"):
             _update_run_state(folder_path, current_phase="deep_research", status="running")
             return perform_deep_research(
-                company_name, website, mode, start_time, citation_style,
-                ai_strategy, cloud_vendors, context_files, refresh_vendor_research,
-                strategies=strategies, strategy_only=strategy_only,
+                company_name,
+                website,
+                mode,
+                start_time,
+                citation_style,
+                ai_strategy,
+                cloud_vendors,
+                context_files,
+                refresh_vendor_research,
+                strategies=strategies,
+                strategy_only=strategy_only,
                 discovery_notes_path=discovery_notes_path,
                 discovery_notes_content=discovery_notes_content,
                 lite_strategy=lite_strategy,
@@ -4451,13 +4807,21 @@ def perform_research(
 
         try:
             # Phase 1: Data Collection
-            console.phase_banner(1, 4, "Data Collection", "Scraping website and external sources", "5-10 min")
+            console.phase_banner(
+                1, 4, "Data Collection", "Scraping website and external sources", "5-10 min"
+            )
             _update_run_state(folder_path, current_phase="data_collection", status="running")
             _append_run_event(folder_path, "data_collection", "started", "Data collection started")
 
             # Scrape website
             with console.timed_operation("Website scrape", show_spinner=False):
-                scraped_data = fetch_web_content(website, company_name, max_pages=50, working_folder=folder_path) if website else {}
+                scraped_data = (
+                    fetch_web_content(
+                        website, company_name, max_pages=50, working_folder=folder_path
+                    )
+                    if website
+                    else {}
+                )
                 pages_scraped = len(scraped_data)
             log_structured("info", "Website scraping complete", pages=pages_scraped)
 
@@ -4505,19 +4869,31 @@ def perform_research(
 
                     results = search_web(query, company_name, website)
                     if results:
-                        filtered = [r for r in results[:5] if not website or website.lower() not in r.get("url", "").lower()]
+                        filtered = [
+                            r
+                            for r in results[:5]
+                            if not website or website.lower() not in r.get("url", "").lower()
+                        ]
                         remaining_slots = max_external_sources - len(external_data)
                         scraped = scrape_external_sources_validated(
                             filtered,
                             company_name=company_name,
                             website=website,
-                            max_sources=min(2, remaining_slots)
+                            max_sources=min(2, remaining_slots),
                         )
                         external_data.update(scraped)
-            log_structured("info", "External sources complete (validated)", sources=len(external_data))
+            log_structured(
+                "info", "External sources complete (validated)", sources=len(external_data)
+            )
 
             all_scraped = {**scraped_data, **external_data}
-            console.phase_complete("Data Collection", [("Pages scraped", str(pages_scraped)), ("External sources", str(len(external_data)))])
+            console.phase_complete(
+                "Data Collection",
+                [
+                    ("Pages scraped", str(pages_scraped)),
+                    ("External sources", str(len(external_data))),
+                ],
+            )
 
             # Phase 2: Analysis
             console.phase_banner(2, 4, "Analysis", "Processing and summarizing content", "3-5 min")
@@ -4525,7 +4901,9 @@ def perform_research(
             _append_run_event(folder_path, "analysis", "started", "Analysis started")
 
             with console.timed_operation("Summarizing content"):
-                summarized = summarize_scraped_content(company_name, website, all_scraped, folder_path)
+                summarized = summarize_scraped_content(
+                    company_name, website, all_scraped, folder_path
+                )
                 if not summarized.strip():
                     summarized = "No insights extracted."
 
@@ -4535,16 +4913,20 @@ def perform_research(
                     "industry",
                     company_name=company_name,
                     company_website=website or "N/A",
-                    scraped_insights=summarized
+                    scraped_insights=summarized,
                 )
                 industry = llm(industry_prompt, model_type="research").strip() or "Unknown"
             console.info(f"Industry: {industry}")
             console.phase_complete("Analysis")
 
             # Phase 3: Report Generation
-            console.phase_banner(3, 4, "Report Generation", "Building comprehensive report sections", "10-15 min")
+            console.phase_banner(
+                3, 4, "Report Generation", "Building comprehensive report sections", "10-15 min"
+            )
             _update_run_state(folder_path, current_phase="report_generation", status="running")
-            _append_run_event(folder_path, "report_generation", "started", "Report generation started")
+            _append_run_event(
+                folder_path, "report_generation", "started", "Report generation started"
+            )
 
             # Overview
             with console.timed_operation("Building overview"):
@@ -4553,9 +4935,7 @@ def perform_research(
             # Value theory
             with console.timed_operation("Value analysis"):
                 value_prompt = generate_prompt(
-                    "value_theory",
-                    company_name=company_name,
-                    company_website=website or "N/A"
+                    "value_theory", company_name=company_name, company_website=website or "N/A"
                 )
                 value_theory = llm(value_prompt, model_type="research").strip()
 
@@ -4565,37 +4945,62 @@ def perform_research(
 
             # Sections
             sections = [
-                "Company Name", "Website", "Industry", "Detailed Products/Services",
-                "Unique Selling Proposition (USP)", "Mission & Vision", "Company History",
-                "Key Achievements", "Target Audience", "Financial Overview",
-                "Potential Business Drivers & KPIs", "Industry Insights",
-                "Potential Business Drivers", "Primary Apps or Sources of Data",
-                "Main Types of Users", "Board of Directors Concerns",
-                "Potential Business Value", "Strategic Recommendations"
+                "Company Name",
+                "Website",
+                "Industry",
+                "Detailed Products/Services",
+                "Unique Selling Proposition (USP)",
+                "Mission & Vision",
+                "Company History",
+                "Key Achievements",
+                "Target Audience",
+                "Financial Overview",
+                "Potential Business Drivers & KPIs",
+                "Industry Insights",
+                "Potential Business Drivers",
+                "Primary Apps or Sources of Data",
+                "Main Types of Users",
+                "Board of Directors Concerns",
+                "Potential Business Value",
+                "Strategic Recommendations",
             ]
 
             section_start = time.time()
             for i, section in enumerate(sections):
                 console.progress_with_time(i + 1, len(sections), section, section_start)
-                research_section(section, company_name, website, industry, folder_path, overview, summarized)
+                research_section(
+                    section, company_name, website, industry, folder_path, overview, summarized
+                )
 
             console.progress_done()
             console.phase_complete("Report Generation", [("Sections", str(len(sections)))])
 
             # Phase 4: Output
             total_phases = 4 + (1 if ai_strategy else 0) + (1 if verify else 0)
-            console.phase_banner(4, total_phases, "Finalizing", "Generating output documents", "1-2 min")
+            console.phase_banner(
+                4, total_phases, "Finalizing", "Generating output documents", "1-2 min"
+            )
             _update_run_state(folder_path, current_phase="finalizing", status="running")
             _append_run_event(folder_path, "finalizing", "started", "Finalizing output documents")
             with console.timed_operation("Generating documents"):
-                docx_path = generate_final_report(company_name or display_name, citation_style=citation_style)
+                docx_path = generate_final_report(
+                    company_name or display_name, citation_style=citation_style
+                )
 
             # Generate AI strategy if requested (uses Deep Research with company context)
             ai_strategy_path = None
             if ai_strategy:
-                console.phase_banner(5, total_phases, "AI Strategy Analysis", "Generating AI recommendations", "5-10 min")
+                console.phase_banner(
+                    5,
+                    total_phases,
+                    "AI Strategy Analysis",
+                    "Generating AI recommendations",
+                    "5-10 min",
+                )
                 _update_run_state(folder_path, current_phase="ai_strategy", status="running")
-                _append_run_event(folder_path, "ai_strategy", "started", "AI strategy generation started")
+                _append_run_event(
+                    folder_path, "ai_strategy", "started", "AI strategy generation started"
+                )
                 # Consolidate working folder into single context file for AI strategy
                 context_file = consolidate_working_folder(folder_path)
                 # No heartbeat - the progress callback provides phase-aware status updates
@@ -4618,28 +5023,27 @@ def perform_research(
                     from primr.qa.integration import QAIntegration
                     from primr.qa.models import QAOptions
 
-                    verbose_mode = hasattr(console, 'verbose') and console.verbose
+                    verbose_mode = hasattr(console, "verbose") and console.verbose
 
                     qa_options = QAOptions(
-                        enabled=True,
-                        save_detailed=True,
-                        verbose_cli=verbose_mode
+                        enabled=True, save_detailed=True, verbose_cli=verbose_mode
                     )
                     qa_integration = QAIntegration(qa_options)
 
                     # QA for main Strategic Overview report
                     if docx_path:
-                        txt_report_path = Path(docx_path).with_suffix('.txt')
+                        txt_report_path = Path(docx_path).with_suffix(".txt")
                         if txt_report_path.exists():
-                            qa_result = qa_integration.run_post_generation_qa(txt_report_path, company_name or display_name)
+                            qa_result = qa_integration.run_post_generation_qa(
+                                txt_report_path, company_name or display_name
+                            )
 
                     # QA for AI Strategy report
                     if ai_strategy_path:
-                        ai_strategy_txt = Path(ai_strategy_path).with_suffix('.txt')
+                        ai_strategy_txt = Path(ai_strategy_path).with_suffix(".txt")
                         if ai_strategy_txt.exists():
                             ai_strategy_qa_result = qa_integration.run_post_generation_qa(
-                                ai_strategy_txt,
-                                f"{company_name or display_name} (AI Strategy)"
+                                ai_strategy_txt, f"{company_name or display_name} (AI Strategy)"
                             )
 
                 except Exception as e:
@@ -4651,7 +5055,13 @@ def perform_research(
                 try:
                     verify_phase = 6 if ai_strategy else 5
                     verify_total = verify_phase
-                    console.phase_banner(verify_phase, verify_total, "Claim Verification", "Verifying factual claims", "1-3 min")
+                    console.phase_banner(
+                        verify_phase,
+                        verify_total,
+                        "Claim Verification",
+                        "Verifying factual claims",
+                        "1-3 min",
+                    )
                     verification_result = _run_verification(
                         company_name or display_name,
                         website or "",
@@ -4660,11 +5070,18 @@ def perform_research(
                     if verification_result:
                         console.phase_complete(
                             "Claim Verification",
-                            [("Trust", f"{verification_result.trust_percentage}%"),
-                             ("Verified", f"{verification_result.verified_count}/{verification_result.total_claims}")]
+                            [
+                                ("Trust", f"{verification_result.trust_percentage}%"),
+                                (
+                                    "Verified",
+                                    f"{verification_result.verified_count}/{verification_result.total_claims}",
+                                ),
+                            ],
                         )
                     else:
-                        console.phase_complete("Claim Verification", [("Status", "No claims found")])
+                        console.phase_complete(
+                            "Claim Verification", [("Status", "No claims found")]
+                        )
                 except Exception as e:
                     logger.warning(f"Claim verification failed: {e}")
                     console.warn(f"Verification failed (non-blocking): {e}")
@@ -4697,12 +5114,14 @@ def perform_research(
 
             # Get actual usage from AI client
             from primr.ai.client import get_client
+
             client = get_client()
             usage = client.get_usage_summary()
             actual_cost = usage.get("total_cost", 0)
 
             # Get estimated cost for comparison
             from primr.utils.cost_estimator import estimate_cost
+
             estimate_cost(mode, ai_strategy, use_historical=False)
 
             # Summary stats
@@ -4714,6 +5133,7 @@ def perform_research(
 
             # Save usage to history
             from primr.utils.usage_tracker import get_usage_tracker
+
             tracker = get_usage_tracker()
             tracker.record_usage(
                 mode=mode,
@@ -4731,7 +5151,8 @@ def perform_research(
                 mode=mode,
                 duration_seconds=elapsed,
                 api_calls=usage.get("api_calls", 0),
-                total_tokens=usage.get("total_input_tokens", 0) + usage.get("total_output_tokens", 0),
+                total_tokens=usage.get("total_input_tokens", 0)
+                + usage.get("total_output_tokens", 0),
                 sections_generated=len(sections),
                 output_path=docx_path,
             )
@@ -4818,6 +5239,7 @@ def perform_deep_research(
 
     # 3. Validate API key is configured
     from primr.config.settings import get_settings
+
     settings = get_settings()
     if not settings.api.gemini_key:
         preflight_errors.append("GEMINI_API_KEY not configured")
@@ -4829,7 +5251,13 @@ def perform_deep_research(
             console.error(f"  - {err}")
         console.error("Fix these issues before running expensive Deep Research")
         _update_run_state(folder_path, status="failed", current_phase="preflight")
-        _append_run_event(folder_path, "preflight", "failed", "Pre-flight validation failed", errors=preflight_errors)
+        _append_run_event(
+            folder_path,
+            "preflight",
+            "failed",
+            "Pre-flight validation failed",
+            errors=preflight_errors,
+        )
         return None
 
     # =================================================================
@@ -4838,6 +5266,7 @@ def perform_deep_research(
     # File Search Stores have NO TTL and cost money if left behind
     try:
         from primr.ai.deep_research import cleanup_orphaned_resources
+
         orphans = cleanup_orphaned_resources()
         if orphans["caches_deleted"] or orphans["stores_deleted"]:
             console.warn(
@@ -4867,7 +5296,9 @@ def perform_deep_research(
             context_info = ""
             if context_files:
                 context_info = f" with {len(context_files)} context file(s)"
-            console.phase_banner(1, 3, f"{mode_label}{context_info}", "Autonomous AI research", "10-15 min")
+            console.phase_banner(
+                1, 3, f"{mode_label}{context_info}", "Autonomous AI research", "10-15 min"
+            )
         _update_run_state(folder_path, current_phase="deep_research", status="running")
         _append_run_event(folder_path, "deep_research", "started", f"{mode_label} started")
 
@@ -4916,9 +5347,11 @@ def perform_deep_research(
                     company_name=company_name or display_name,
                     website=website,
                     mode=research_mode,
-                    config=ResearchConfig(mode=research_mode, fail_on_low_scrape=fail_on_low_scrape),
+                    config=ResearchConfig(
+                        mode=research_mode, fail_on_low_scrape=fail_on_low_scrape
+                    ),
                     on_progress=progress_callback,
-                    context_files=context_files
+                    context_files=context_files,
                 )
             )
 
@@ -4926,7 +5359,13 @@ def perform_deep_research(
                 console.fail(f"Research failed: {result.error}")
                 log_structured("error", "Deep research failed", error=result.error)
                 _update_run_state(folder_path, status="failed", current_phase="deep_research")
-                _append_run_event(folder_path, "deep_research", "failed", "Deep research failed", error=result.error)
+                _append_run_event(
+                    folder_path,
+                    "deep_research",
+                    "failed",
+                    "Deep research failed",
+                    error=result.error,
+                )
 
                 # Save partial results if the structured phase produced anything
                 if result.section_results:
@@ -4938,14 +5377,20 @@ def perform_deep_research(
                     console.warn(
                         f"Saved {partial_count} partial sections from data collection to: {partial_folder}"
                     )
-                    console.muted("  Tip: Re-run with --mode scrape to generate a report from scraped data")
+                    console.muted(
+                        "  Tip: Re-run with --mode scrape to generate a report from scraped data"
+                    )
                 else:
                     console.muted("  Tip: Check logs for details, or re-run with --mode scrape")
 
                 return None
 
             # Use sections_written for accurate count (accordion method tracks this)
-            section_count = result.sections_written if result.sections_written > 0 else len(result.section_results)
+            section_count = (
+                result.sections_written
+                if result.sections_written > 0
+                else len(result.section_results)
+            )
             log_structured("info", "Deep research complete", sections=section_count)
 
             # Calculate word and page count from raw content
@@ -4953,13 +5398,25 @@ def perform_deep_research(
             page_count = word_count // 500  # ~500 words per page
 
             if is_simple_deep_research:
-                console.phase_complete("Deep Research", [
-                    ("Pages", f"~{page_count}"),
-                    ("Words", f"{word_count:,}"),
-                    ("Chapters", str(section_count)),
-                ])
-                console.phase_banner(2, 3, "Processing Results", "Saving and converting output", "1-2 min")
-            _append_run_event(folder_path, "deep_research", "completed", "Deep research completed", pages=page_count, chapters=section_count)
+                console.phase_complete(
+                    "Deep Research",
+                    [
+                        ("Pages", f"~{page_count}"),
+                        ("Words", f"{word_count:,}"),
+                        ("Chapters", str(section_count)),
+                    ],
+                )
+                console.phase_banner(
+                    2, 3, "Processing Results", "Saving and converting output", "1-2 min"
+                )
+            _append_run_event(
+                folder_path,
+                "deep_research",
+                "completed",
+                "Deep research completed",
+                pages=page_count,
+                chapters=section_count,
+            )
             _update_run_state(folder_path, current_phase="processing_results", status="running")
 
             # Save section results to working folder
@@ -4979,13 +5436,13 @@ def perform_deep_research(
                 if result.raw_content and mode in ("deep-research", "complete", "hybrid"):
                     # Deep Research: convert markdown directly to DOCX (preserves structure)
                     docx_path = _convert_deep_research_to_docx(
-                        result.raw_content,
-                        company_name or display_name,
-                        website
+                        result.raw_content, company_name or display_name, website
                     )
                 else:
                     # Structured pipeline: use DocumentBuilder to assemble sections
-                    docx_path = generate_final_report(company_name or display_name, citation_style=citation_style)
+                    docx_path = generate_final_report(
+                        company_name or display_name, citation_style=citation_style
+                    )
 
             if is_simple_deep_research:
                 console.phase_complete("Processing Results")
@@ -5002,13 +5459,20 @@ def perform_deep_research(
             # Generate strategies (uses Deep Research with company context)
             strategy_paths: dict[str, str] = {}
             if strategies_to_run:
-                _update_run_state(folder_path, current_phase="strategy_generation", status="running")
-                _append_run_event(folder_path, "strategy_generation", "started", "Strategy generation started", strategies=strategies_to_run)
+                _update_run_state(
+                    folder_path, current_phase="strategy_generation", status="running"
+                )
+                _append_run_event(
+                    folder_path,
+                    "strategy_generation",
+                    "started",
+                    "Strategy generation started",
+                    strategies=strategies_to_run,
+                )
                 base_phase = 3
                 # Count total phases: AI strategy runs once per vendor, others run once
                 total_phase_count = sum(
-                    len(cloud_vendors) if s == "ai" else 1
-                    for s in strategies_to_run
+                    len(cloud_vendors) if s == "ai" else 1 for s in strategies_to_run
                 )
 
                 phase_offset = 0
@@ -5022,9 +5486,14 @@ def perform_deep_research(
 
                         # Get display name from registry
                         from primr.prompts.registry import get_registry
+
                         registry = get_registry()
                         strategy_module = registry.get(strategy_name)
-                        display_strategy_name = strategy_module.display_name if strategy_module else strategy_name.replace("_", " ").title()
+                        display_strategy_name = (
+                            strategy_module.display_name
+                            if strategy_module
+                            else strategy_name.replace("_", " ").title()
+                        )
 
                         # Append vendor to display name for multi-vendor AI runs
                         vendor_label = ""
@@ -5032,10 +5501,11 @@ def perform_deep_research(
                             vendor_label = f" ({vendor.upper()})"
 
                         console.phase_banner(
-                            phase_num, total_phases,
+                            phase_num,
+                            total_phases,
                             f"{display_strategy_name}{vendor_label} Analysis",
                             f"Generating {display_strategy_name.lower()} recommendations{vendor_label.lower()}",
-                            "5-10 min"
+                            "5-10 min",
                         )
 
                         # Generate the strategy
@@ -5055,7 +5525,9 @@ def perform_deep_research(
                             else:
                                 key = strategy_name
                             strategy_paths[key] = strategy_path
-                            console.phase_complete(f"{display_strategy_name}{vendor_label} Analysis")
+                            console.phase_complete(
+                                f"{display_strategy_name}{vendor_label} Analysis"
+                            )
                             _append_run_event(
                                 folder_path,
                                 "strategy_generation",
@@ -5091,6 +5563,7 @@ def perform_deep_research(
             # Show all generated strategy outputs
             for strat_key, strategy_path in strategy_paths.items():
                 from primr.prompts.registry import get_registry
+
                 registry = get_registry()
                 # Parse compound keys like "ai_aws" back to base strategy name
                 if "_" in strat_key and strat_key.split("_", 1)[0] == "ai":
@@ -5100,12 +5573,19 @@ def perform_deep_research(
                     base_name = strat_key
                     vendor_suffix = ""
                 strategy_module = registry.get(base_name)
-                strat_display_name = strategy_module.display_name if strategy_module else base_name.replace("_", " ").title()
-                console.success_box(f"{strat_display_name}{vendor_suffix}", str(Path(strategy_path).resolve()))
+                strat_display_name = (
+                    strategy_module.display_name
+                    if strategy_module
+                    else base_name.replace("_", " ").title()
+                )
+                console.success_box(
+                    f"{strat_display_name}{vendor_suffix}", str(Path(strategy_path).resolve())
+                )
 
             # Get actual usage from AI client (per-model accurate cost)
             from primr.ai.client import get_client
             from primr.config.models import DEEP_RESEARCH_COST
+
             client = get_client()
             usage = client.get_usage_summary()
 
@@ -5126,21 +5606,33 @@ def perform_deep_research(
 
             # Get pre-run estimate for comparison
             from primr.utils.cost_estimator import estimate_cost
-            pre_estimate = estimate_cost(mode, ai_strategy, use_historical=False, num_vendors=len(cloud_vendors), lite_strategy=lite_strategy)
+
+            pre_estimate = estimate_cost(
+                mode,
+                ai_strategy,
+                use_historical=False,
+                num_vendors=len(cloud_vendors),
+                lite_strategy=lite_strategy,
+            )
 
             # Use sections_written for accurate count
-            section_count = result.sections_written if result.sections_written > 0 else len(result.section_results)
+            section_count = (
+                result.sections_written
+                if result.sections_written > 0
+                else len(result.section_results)
+            )
 
             # Count unique citations from generated content ([cite: N] format)
             citation_count = 0
             import re
+
             all_content = result.raw_content or ""
             if not all_content and result.section_results:
                 all_content = "\n".join(result.section_results.values())
             if all_content:
                 cite_numbers = set()
-                for match in re.findall(r'\[cite:\s*([\d,\s]+)\]', all_content):
-                    for num in match.split(','):
+                for match in re.findall(r"\[cite:\s*([\d,\s]+)\]", all_content):
+                    for num in match.split(","):
                         num = num.strip()
                         if num:
                             cite_numbers.add(num)
@@ -5161,6 +5653,7 @@ def perform_deep_research(
 
             # Save usage to history
             from primr.utils.usage_tracker import get_usage_tracker
+
             tracker = get_usage_tracker()
             tracker.record_usage(
                 mode=mode,
@@ -5190,7 +5683,9 @@ def perform_deep_research(
 
         except Exception as e:
             console.error(f"Deep research failed: {e}")
-            log_structured("error", "Deep research failed", error=str(e), error_type=type(e).__name__)
+            log_structured(
+                "error", "Deep research failed", error=str(e), error_type=type(e).__name__
+            )
             logger.exception("Deep research failed")
             _update_run_state(folder_path, status="failed", current_phase="error")
             _append_run_event(folder_path, "error", "failed", str(e))
@@ -5199,6 +5694,7 @@ def perform_deep_research(
             # Post-run: verify no resources leaked (safety net)
             try:
                 from primr.ai.deep_research import cleanup_orphaned_resources
+
                 leaked = cleanup_orphaned_resources()
                 if leaked["caches_deleted"] or leaked["stores_deleted"]:
                     logger.warning(
@@ -5207,7 +5703,6 @@ def perform_deep_research(
                     )
             except Exception as cleanup_err:
                 logger.debug(f"Post-run resource cleanup failed (non-fatal): {cleanup_err}")
-
 
 
 _FORBIDDEN_OUTPUT_PATTERNS: tuple[tuple[str, str], ...] = (
@@ -5289,7 +5784,9 @@ def _scan_forbidden_output_patterns(text: str) -> list[str]:
     return issues
 
 
-def _write_output_validation_report(base_path: Path, phase: str, issues: list[str], errors: list[str]) -> Path | None:
+def _write_output_validation_report(
+    base_path: Path, phase: str, issues: list[str], errors: list[str]
+) -> Path | None:
     if not issues and not errors:
         return None
 
@@ -5499,7 +5996,7 @@ def _convert_deep_research_to_docx(
                 markdown_text=markdown_content,
                 output_path=docx_path,
                 title=f"Strategic Company Overview: {company_name}",
-                subtitle=subtitle
+                subtitle=subtitle,
             )
         except PermissionError:
             # File is probably open in Word - try with timestamp suffix
@@ -5511,7 +6008,7 @@ def _convert_deep_research_to_docx(
                 markdown_text=markdown_content,
                 output_path=docx_path,
                 title=f"Strategic Company Overview: {company_name}",
-                subtitle=subtitle
+                subtitle=subtitle,
             )
 
         docx_validation = _validate_output_docx(docx_path)
@@ -5567,7 +6064,10 @@ def _is_vendor_research_current(cloud_vendor: str) -> bool:
     # Azure has a manually curated file that's always preferred
     if cloud_vendor.lower() == "azure":
         from primr.config.config import PROJECT_ROOT
-        manual_path = os.path.join(PROJECT_ROOT, "docs/research latest microsoft ignite analysis.txt")
+
+        manual_path = os.path.join(
+            PROJECT_ROOT, "docs/research latest microsoft ignite analysis.txt"
+        )
         if os.path.exists(manual_path):
             return True
 
@@ -5601,7 +6101,9 @@ def _generate_vendor_research(cloud_vendor: str) -> str | None:
     # 1. Validate cloud vendor
     valid_vendors = ["azure", "aws", "gcp", "agnostic"]
     if cloud_vendor.lower() not in valid_vendors:
-        preflight_errors.append(f"Invalid cloud vendor: {cloud_vendor}. Must be one of: {', '.join(valid_vendors)}")
+        preflight_errors.append(
+            f"Invalid cloud vendor: {cloud_vendor}. Must be one of: {', '.join(valid_vendors)}"
+        )
 
     # 2. Validate API key is configured
     settings = get_settings()
@@ -5635,7 +6137,7 @@ def _generate_vendor_research(cloud_vendor: str) -> str | None:
         "aws": "Amazon Web Services (AWS)",
         "gcp": "Google Cloud Platform (GCP)",
         "agnostic": "the AI Industry (cross-vendor)",
-        "private": "Private Cloud / NVIDIA"
+        "private": "Private Cloud / NVIDIA",
     }
     vendor_name = vendor_names.get(cloud_vendor.lower(), cloud_vendor)
 
@@ -5645,7 +6147,7 @@ def _generate_vendor_research(cloud_vendor: str) -> str | None:
         "aws": "AWS re:Invent, AWS Summit",
         "gcp": "Google Cloud Next, Google I/O",
         "agnostic": "NeurIPS, major vendor conferences (Ignite, re:Invent, Cloud Next), and recent announcements from OpenAI, Anthropic, NVIDIA, Meta, Mistral, and Cohere",
-        "private": "NVIDIA GTC 2025, NVIDIA AI Enterprise releases, and partner announcements (VMware, Red Hat, Dell, HPE)"
+        "private": "NVIDIA GTC 2025, NVIDIA AI Enterprise releases, and partner announcements (VMware, Red Hat, Dell, HPE)",
     }
     conference = conferences.get(cloud_vendor.lower(), "recent conferences")
 
@@ -5654,7 +6156,7 @@ def _generate_vendor_research(cloud_vendor: str) -> str | None:
         "azure": "Azure OpenAI Service and Azure AI Foundry",
         "aws": "Amazon Bedrock",
         "gcp": "Vertex AI",
-        "agnostic": "major model providers (OpenAI, Anthropic, Google, Meta, Mistral, Cohere) and cloud platforms (Azure, AWS, GCP)"
+        "agnostic": "major model providers (OpenAI, Anthropic, Google, Meta, Mistral, Cohere) and cloud platforms (Azure, AWS, GCP)",
     }
     model_platform = model_platforms.get(cloud_vendor.lower(), "the AI platform")
 
@@ -5663,9 +6165,11 @@ def _generate_vendor_research(cloud_vendor: str) -> str | None:
         "azure": "Microsoft Learn docs, Azure Blog, official 'What's New' pages, Microsoft Tech Community, Ignite/Build session pages, and Azure pricing pages",
         "aws": "AWS Documentation, AWS News Blog, official 'What's New' announcements, re:Invent session pages, and AWS pricing pages",
         "gcp": "Google Cloud Documentation, Google Cloud Blog, official release notes, Cloud Next session pages, and GCP pricing pages",
-        "agnostic": "official documentation and blogs from OpenAI, Anthropic, NVIDIA, Meta AI, Mistral, Cohere, and the major cloud vendors (Azure, AWS, GCP)"
+        "agnostic": "official documentation and blogs from OpenAI, Anthropic, NVIDIA, Meta AI, Mistral, Cohere, and the major cloud vendors (Azure, AWS, GCP)",
     }
-    official_source = official_sources_detail.get(cloud_vendor.lower(), "official documentation and pricing pages")
+    official_source = official_sources_detail.get(
+        cloud_vendor.lower(), "official documentation and pricing pages"
+    )
 
     # Vendor-specific service map categories
     service_maps = {
@@ -5693,7 +6197,7 @@ Infrastructure: NVIDIA (GPUs, NIM, NeMo), cloud platforms (Azure, AWS, GCP)
 Cloud AI Platforms: Azure OpenAI/AI Foundry, Amazon Bedrock, Vertex AI
 Agent Frameworks: LangChain, LlamaIndex, Semantic Kernel, AutoGen, CrewAI
 Vector Databases: Pinecone, Weaviate, Qdrant, Chroma, pgvector
-Evaluation/Observability: LangSmith, Weights & Biases, Arize, Helicone"""
+Evaluation/Observability: LangSmith, Weights & Biases, Arize, Helicone""",
     }
     service_map = service_maps.get(cloud_vendor.lower(), "")
 
@@ -5895,6 +6399,7 @@ List all sources with URLs and dates. Group by section for easy reference.
 
         if running_loop and running_loop.is_running():
             import concurrent.futures
+
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
                 result = pool.submit(asyncio.run, coro).result()
         else:
@@ -5913,10 +6418,13 @@ List all sources with URLs and dates. Group by section for easy reference.
 
         # Deep Research is a flat per-task cost (API doesn't expose tokens)
         from primr.config.models import DEEP_RESEARCH_COST
+
         actual_cost = DEEP_RESEARCH_COST.standard_task_cost
         duration_str = f"{result.duration_seconds / 60:.1f}m"
 
-        console.ok(f"Vendor research saved: {os.path.basename(research_path)} ({duration_str}, ~${actual_cost:.2f})")
+        console.ok(
+            f"Vendor research saved: {os.path.basename(research_path)} ({duration_str}, ~${actual_cost:.2f})"
+        )
         return research_path
 
     except Exception as e:
@@ -5943,7 +6451,9 @@ def _get_or_generate_vendor_research(cloud_vendor: str) -> list[str]:
 
     # Azure: always include manually curated Ignite analysis (it's excellent)
     if cloud_vendor.lower() == "azure":
-        manual_path = os.path.join(PROJECT_ROOT, "docs/research latest microsoft ignite analysis.txt")
+        manual_path = os.path.join(
+            PROJECT_ROOT, "docs/research latest microsoft ignite analysis.txt"
+        )
         if os.path.exists(manual_path):
             result_paths.append(manual_path)
 
@@ -6011,11 +6521,12 @@ def _generate_strategy_section(
             strategy_yaml=strategy_map[strategy_name],
             company_name=company_name,
             company_research_path=company_research_path,
-            discovery_notes_content=discovery_notes_content
+            discovery_notes_content=discovery_notes_content,
         )
 
     # For placeholder strategies, show a message
     from primr.prompts.registry import get_registry
+
     registry = get_registry()
     strategy_module = registry.get(strategy_name)
 
@@ -6025,6 +6536,7 @@ def _generate_strategy_section(
 
     # Check if it's a placeholder
     import yaml
+
     if strategy_module.config_path.exists():
         with open(strategy_module.config_path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
@@ -6044,7 +6556,7 @@ def _generate_generic_strategy(
     strategy_yaml: str,
     company_name: str,
     company_research_path: str | None = None,
-    discovery_notes_content: str | None = None
+    discovery_notes_content: str | None = None,
 ) -> str | None:
     """
     Generate a strategy document using Deep Research and the strategy YAML definition.
@@ -6072,7 +6584,9 @@ def _generate_generic_strategy(
     from primr.output.output_utils import OUTPUT_DIR
 
     # Load strategy YAML to get metadata
-    strategy_yaml_path = Path(__file__).parent.parent / "prompts" / "strategies" / f"{strategy_yaml}.yaml"
+    strategy_yaml_path = (
+        Path(__file__).parent.parent / "prompts" / "strategies" / f"{strategy_yaml}.yaml"
+    )
     if not strategy_yaml_path.exists():
         console.error(f"Strategy YAML not found: {strategy_yaml_path}")
         return None
@@ -6124,7 +6638,7 @@ def _generate_generic_strategy(
         prompt = _build_strategy_prompt_from_yaml(
             strategy_config=strategy_config,
             company_name=company_name,
-            discovery_notes_content=discovery_notes_content
+            discovery_notes_content=discovery_notes_content,
         )
 
         # Prepare context files
@@ -6194,7 +6708,7 @@ def _generate_generic_strategy(
                 markdown_text=result.content,
                 output_path=Path(docx_path),
                 title=f"{strategy_display_name}: {company_name}",
-                subtitle=subtitle
+                subtitle=subtitle,
             )
             console.ok(f"{strategy_display_name} DOCX: {base_name}.docx", show_time=False)
         except PermissionError:
@@ -6205,7 +6719,7 @@ def _generate_generic_strategy(
                 markdown_text=result.content,
                 output_path=Path(docx_path),
                 title=f"{strategy_display_name}: {company_name}",
-                subtitle=subtitle
+                subtitle=subtitle,
             )
         except Exception as e:
             console.warn(f"DOCX conversion failed: {e}")
@@ -6220,9 +6734,7 @@ def _generate_generic_strategy(
 
 
 def _build_strategy_prompt_from_yaml(
-    strategy_config: dict,
-    company_name: str,
-    discovery_notes_content: str | None = None
+    strategy_config: dict, company_name: str, discovery_notes_content: str | None = None
 ) -> str:
     """
     Build a Deep Research prompt from a strategy YAML configuration.
@@ -6239,6 +6751,7 @@ def _build_strategy_prompt_from_yaml(
         Formatted prompt string for Deep Research
     """
     from datetime import datetime
+
     current_date = datetime.now().strftime("%B %Y")
 
     meta = strategy_config.get("meta", {})
@@ -6281,7 +6794,9 @@ def _build_strategy_prompt_from_yaml(
     # Discovery notes if provided
     if discovery_notes_content:
         prompt_parts.append("## DISCOVERY NOTES (INTERNAL INSIGHTS)")
-        prompt_parts.append("You have access to internal discovery notes from conversations with the company.")
+        prompt_parts.append(
+            "You have access to internal discovery notes from conversations with the company."
+        )
         prompt_parts.append("Use these to ground your recommendations in their actual situation:")
         prompt_parts.append("")
         prompt_parts.append(discovery_notes_content)
@@ -6290,7 +6805,9 @@ def _build_strategy_prompt_from_yaml(
     # Sections structure
     if "sections" in strategy_config:
         prompt_parts.append("## DOCUMENT STRUCTURE")
-        prompt_parts.append("Generate a comprehensive strategy document with the following sections:\n")
+        prompt_parts.append(
+            "Generate a comprehensive strategy document with the following sections:\n"
+        )
 
         for section in strategy_config["sections"]:
             section_name = section.get("name", "Untitled Section")
@@ -6326,8 +6843,12 @@ def _build_strategy_prompt_from_yaml(
     prompt_parts.append("- Use the Strategic Overview from File Search Store as PRIMARY source")
     prompt_parts.append("- Frame assessments as hypotheses to validate, not facts")
     prompt_parts.append("- Connect every recommendation to THIS company's specific situation")
-    prompt_parts.append("- Include the Facilitation Toolkit sections (board presentation, stakeholder inception, workshop design)")
-    prompt_parts.append("- Cite evidence inline as [Source: URL] for every major recommendation or factual claim")
+    prompt_parts.append(
+        "- Include the Facilitation Toolkit sections (board presentation, stakeholder inception, workshop design)"
+    )
+    prompt_parts.append(
+        "- Cite evidence inline as [Source: URL] for every major recommendation or factual claim"
+    )
     prompt_parts.append("- End with a single ## Sources section listing the URLs you cited")
     prompt_parts.append("- Be specific, honest, and actionable")
     prompt_parts.append("")
@@ -6384,7 +6905,9 @@ def _generate_ai_strategy_section(
     # 2. Validate cloud vendor
     valid_vendors = ["azure", "aws", "gcp", "agnostic"]
     if cloud_vendor.lower() not in valid_vendors:
-        preflight_errors.append(f"Invalid cloud vendor: {cloud_vendor}. Must be one of: {', '.join(valid_vendors)}")
+        preflight_errors.append(
+            f"Invalid cloud vendor: {cloud_vendor}. Must be one of: {', '.join(valid_vendors)}"
+        )
 
     # 3. Validate API key is configured
     settings = get_settings()
@@ -6445,7 +6968,9 @@ def _generate_ai_strategy_section(
                     context_files.append(vendor_doc_path)
 
             if vendor_doc_paths:
-                console.info(f"Using {len(vendor_doc_paths)} {cloud_vendor.upper()} research doc(s) as context")
+                console.info(
+                    f"Using {len(vendor_doc_paths)} {cloud_vendor.upper()} research doc(s) as context"
+                )
 
         # Always include agnostic/cross-industry AI research as additional context
         # This covers OpenAI, Anthropic, NVIDIA, Meta, etc. which is relevant for all vendors
@@ -6480,7 +7005,12 @@ def _generate_ai_strategy_section(
             else:
                 combined_prompt = prompt
 
-            strategy_content = llm(combined_prompt, model_type="section_writing", temperature=1.0, thinking_level="high")
+            strategy_content = llm(
+                combined_prompt,
+                model_type="section_writing",
+                temperature=1.0,
+                thinking_level="high",
+            )
 
             if not strategy_content or not strategy_content.strip():
                 console.error("AI Strategy Pro generation failed - empty response")
@@ -6557,7 +7087,7 @@ def _generate_ai_strategy_section(
                 markdown_text=strategy_content,
                 output_path=Path(docx_path),
                 title=f"AI Strategy: {company_name}",
-                subtitle=subtitle
+                subtitle=subtitle,
             )
             console.ok(f"AI Strategy DOCX: {base_name}.docx", show_time=False)
         except PermissionError:
@@ -6569,7 +7099,7 @@ def _generate_ai_strategy_section(
                 markdown_text=strategy_content,
                 output_path=Path(docx_path),
                 title=f"AI Strategy: {company_name}",
-                subtitle=subtitle
+                subtitle=subtitle,
             )
         except Exception as e:
             console.warn(f"DOCX conversion failed: {e}")
@@ -6584,9 +7114,7 @@ def _generate_ai_strategy_section(
 
 
 def _build_ai_strategy_prompt(
-    company_name: str,
-    cloud_vendor: str,
-    discovery_notes_content: str | None = None
+    company_name: str, cloud_vendor: str, discovery_notes_content: str | None = None
 ) -> str:
     """
     Build a Deep Research prompt for board-level AI strategy.
@@ -6610,6 +7138,7 @@ def _build_ai_strategy_prompt(
         discovery_notes_content: Optional freeform meeting insights from discovery
     """
     from datetime import datetime
+
     current_date = datetime.now().strftime("%B %Y")
 
     vendor_names = {
@@ -6617,7 +7146,7 @@ def _build_ai_strategy_prompt(
         "aws": "Amazon Web Services (AWS)",
         "gcp": "Google Cloud Platform (GCP)",
         "agnostic": "all major cloud vendors (Azure, AWS, GCP)",
-        "private": "Private Cloud / NVIDIA"
+        "private": "Private Cloud / NVIDIA",
     }
     vendor_name = vendor_names.get(cloud_vendor.lower(), vendor_names["agnostic"])
 
@@ -6784,10 +7313,12 @@ Data Sovereignty & Air-Gap Patterns:
 - Private model registries and artifact stores
 
 Search for the latest from NVIDIA GTC 2025, NVIDIA AI Enterprise releases, and partner announcements.
-"""
+""",
     }
 
-    vendor_guidance = vendor_specific_guidance.get(cloud_vendor.lower(), vendor_specific_guidance["agnostic"])
+    vendor_guidance = vendor_specific_guidance.get(
+        cloud_vendor.lower(), vendor_specific_guidance["agnostic"]
+    )
     vendor_guidance = vendor_guidance.format(current_date=current_date)
 
     vendor_context = f"""
@@ -7464,11 +7995,13 @@ def _run_verification(
     from primr.agentic.subagents.base import SubagentContext
     from primr.agentic.subagents.verifier import VerifierSubagent
 
-    txt_path = Path(report_path).with_suffix('.txt')
+    txt_path = Path(report_path).with_suffix(".txt")
     if not txt_path.exists():
         txt_path = Path(report_path)
-        if txt_path.suffix in ('.docx', '.pdf'):
-            logger.warning(f"Verification: no .txt companion found, using {txt_path.suffix} file directly")
+        if txt_path.suffix in (".docx", ".pdf"):
+            logger.warning(
+                f"Verification: no .txt companion found, using {txt_path.suffix} file directly"
+            )
             return None
 
     context = SubagentContext(
@@ -7483,6 +8016,7 @@ def _run_verification(
         asyncio.get_running_loop()
         # Already in an async context — run in a thread to avoid RuntimeError
         import concurrent.futures
+
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
             result = pool.submit(asyncio.run, verifier.execute()).result()
     except RuntimeError:
@@ -7494,8 +8028,9 @@ def _run_verification(
     return None
 
 
-
-def improve_output_file(file_path: str, *, in_place: bool = False, use_agentic: bool = False) -> str | None:
+def improve_output_file(
+    file_path: str, *, in_place: bool = False, use_agentic: bool = False
+) -> str | None:
     """Improve an existing markdown/text output artifact with deterministic + optional agentic QA cleanup."""
     path = Path(file_path)
     if not path.exists() or not path.is_file():
@@ -7503,7 +8038,9 @@ def improve_output_file(file_path: str, *, in_place: bool = False, use_agentic: 
         return None
 
     if path.suffix.lower() not in {".md", ".txt"}:
-        console.error("Improve supports .md or .txt files. Convert DOCX/PDF to markdown/text first.")
+        console.error(
+            "Improve supports .md or .txt files. Convert DOCX/PDF to markdown/text first."
+        )
         return None
 
     try:
@@ -7557,15 +8094,17 @@ def improve_output_file(file_path: str, *, in_place: bool = False, use_agentic: 
 
     return str(out_path)
 
+
 def process_csv(
     file_path: str,
     mode: str = "complete",
     citation_style: str = "numbered",
     ai_strategy: bool = True,
     cloud_vendors: tuple[str, ...] = ("azure",),
-    no_qa: bool = False
+    no_qa: bool = False,
 ) -> None:
     import csv
+
     console.header("Batch Processing", file_path)
     console.info(f"Mode: {mode}")
 
@@ -7583,7 +8122,7 @@ def process_csv(
                         citation_style=citation_style,
                         ai_strategy=ai_strategy,
                         cloud_vendors=cloud_vendors,
-                        no_qa=no_qa
+                        no_qa=no_qa,
                     )
                 except Exception as e:
                     console.error(f"Failed: {company or website} - {e}")
@@ -7626,7 +8165,9 @@ def _list_recent_outputs():
         # Truncate filename if too long
         display_name = filename[:37] + "..." if len(filename) > 40 else filename
 
-        print(f"{i:2}. {display_name:<40} {mtime.strftime('%Y-%m-%d'):<12} {size_kb:6.1f}KB {qa_display:<10}")
+        print(
+            f"{i:2}. {display_name:<40} {mtime.strftime('%Y-%m-%d'):<12} {size_kb:6.1f}KB {qa_display:<10}"
+        )
 
     if len(output_files) > 20:
         print(f"... and {len(output_files) - 20} more files")
@@ -7660,10 +8201,7 @@ def _get_qa_grade_for_report(report_path: str) -> int | None:
 
         # Look for QA report files
         output_dir = Path(OUTPUT_DIR)
-        qa_patterns = [
-            f"{company_part}*QA_Report*.txt",
-            f"*{company_part}*QA_Report*.txt"
-        ]
+        qa_patterns = [f"{company_part}*QA_Report*.txt", f"*{company_part}*QA_Report*.txt"]
 
         qa_files = []
         for pattern in qa_patterns:
@@ -7677,11 +8215,11 @@ def _get_qa_grade_for_report(report_path: str) -> int | None:
         latest_qa = max(qa_files, key=lambda f: f.stat().st_mtime)
 
         # Parse the grade from the QA report
-        content = latest_qa.read_text(encoding='utf-8')
-        for line in content.split('\n'):
-            if line.startswith('Quality Score:'):
+        content = latest_qa.read_text(encoding="utf-8")
+        for line in content.split("\n"):
+            if line.startswith("Quality Score:"):
                 # Extract score like "Quality Score: 85/100"
-                parts = line.split(':')[1].strip().split('/')
+                parts = line.split(":")[1].strip().split("/")
                 if parts and parts[0].isdigit():
                     return int(parts[0])
 
@@ -7713,7 +8251,7 @@ def _check_api_quota():
         # Make a minimal API call to test quota
         response = client.models.generate_content(
             model=PrimrModels.FAST_MODEL,  # Use fast model for quick check
-            contents="Say 'OK' in one word."
+            contents="Say 'OK' in one word.",
         )
 
         if response and response.text:
@@ -7760,6 +8298,7 @@ def _list_strategies():
         # Check if it's a placeholder
         if strategy.config_path.exists():
             import yaml
+
             with open(strategy.config_path, encoding="utf-8") as f:
                 data = yaml.safe_load(f)
                 meta = data.get("meta", {})
@@ -7869,7 +8408,7 @@ def run_doctor():
         validators={
             "gemini_key": lambda v: len(v) >= 10 if v else False,
             "search_key": lambda v: len(v) >= 10 if v else True,  # Optional
-        }
+        },
     )
 
     # Validate config
@@ -7912,6 +8451,7 @@ def run_doctor():
     console.step("Dependencies")
     try:
         from playwright.sync_api import sync_playwright
+
         with sync_playwright():
             console.ok("Playwright browsers available")
     except Exception as e:
@@ -7962,6 +8502,7 @@ def run_doctor():
     if gemini_key:
         try:
             from google import genai
+
             client = genai.Client(api_key=gemini_key)
             response = client.models.generate_content(
                 model=PrimrModels.FAST_MODEL,
@@ -8016,7 +8557,10 @@ def run_doctor():
     if all_passed and warnings_count == 0:
         console.success_box("All checks passed", "Primr is ready to use")
     elif all_passed:
-        console.success_box(f"Ready with {warnings_count} warning(s)", "Primr can run, but some features may be limited")
+        console.success_box(
+            f"Ready with {warnings_count} warning(s)",
+            "Primr can run, but some features may be limited",
+        )
     else:
         console.error("Some checks failed - fix issues above before running research")
 
@@ -8064,12 +8608,3 @@ def _legacy_main_removed():
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
-
-

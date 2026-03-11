@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class RetryManager:
@@ -49,7 +49,7 @@ class RetryManager:
             ConnectionError,
             TimeoutError,
             OSError,
-        )
+        ),
     ):
         """
         Initialize RetryManager.
@@ -74,9 +74,7 @@ class RetryManager:
         return self._last_total_delay
 
     async def execute(
-        self,
-        operation: Callable[[], Any],
-        on_retry: Callable[[int, Exception], None] | None = None
+        self, operation: Callable[[], Any], on_retry: Callable[[int, Exception], None] | None = None
     ) -> Any:
         """
         Execute async operation with retry logic.
@@ -118,23 +116,18 @@ class RetryManager:
                             pass  # Don't let callback errors affect retry
 
                     logger.warning(
-                        f"Retry {attempt + 1}/{self.config.max_retries}: {e} "
-                        f"(waiting {delay:.2f}s)"
+                        f"Retry {attempt + 1}/{self.config.max_retries}: {e} (waiting {delay:.2f}s)"
                     )
                     await asyncio.sleep(delay)
                 else:
-                    logger.error(
-                        f"All {self.config.max_retries} retries exhausted: {e}"
-                    )
+                    logger.error(f"All {self.config.max_retries} retries exhausted: {e}")
 
         if last_exception is not None:
             raise last_exception
         raise RuntimeError("Unexpected state: no exception captured")
 
     def execute_sync(
-        self,
-        operation: Callable[[], T],
-        on_retry: Callable[[int, Exception], None] | None = None
+        self, operation: Callable[[], T], on_retry: Callable[[int, Exception], None] | None = None
     ) -> T:
         """
         Execute sync operation with retry logic.
@@ -172,14 +165,11 @@ class RetryManager:
                             pass  # Don't let callback errors affect retry
 
                     logger.warning(
-                        f"Retry {attempt + 1}/{self.config.max_retries}: {e} "
-                        f"(waiting {delay:.2f}s)"
+                        f"Retry {attempt + 1}/{self.config.max_retries}: {e} (waiting {delay:.2f}s)"
                     )
                     time.sleep(delay)
                 else:
-                    logger.error(
-                        f"All {self.config.max_retries} retries exhausted: {e}"
-                    )
+                    logger.error(f"All {self.config.max_retries} retries exhausted: {e}")
 
         if last_exception is not None:
             raise last_exception

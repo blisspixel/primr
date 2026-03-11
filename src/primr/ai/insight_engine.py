@@ -4,6 +4,7 @@ Insight Engine for extracting strategic insights from research data.
 Extracts non-obvious insights, identifies risks and opportunities,
 and generates actionable recommendations.
 """
+
 import json
 
 from primr.ai.llm import llm
@@ -182,7 +183,7 @@ class InsightEngine:
                     # Strip language specifier (json, python, etc.)
                     first_newline = response.find("\n")
                     if first_newline != -1:
-                        response = response[first_newline + 1:]
+                        response = response[first_newline + 1 :]
                 else:
                     # Malformed code block — try stripping the opening backticks
                     response = response.lstrip("`").strip()
@@ -215,7 +216,7 @@ class InsightEngine:
         data: list[GatheredData],
         company_name: str,
         min_insights: int = 5,
-        max_insights: int = 8
+        max_insights: int = 8,
     ) -> list[Insight]:
         """
         Extract strategic insights from gathered data.
@@ -238,7 +239,7 @@ class InsightEngine:
             company_name=company_name,
             data_summary=data_summary,
             min_insights=min_insights,
-            max_insights=max_insights
+            max_insights=max_insights,
         )
 
         try:
@@ -247,7 +248,9 @@ class InsightEngine:
 
             # Ensure minimum insights
             if len(insights) < min_insights:
-                logger.warning(f"Only got {len(insights)} insights, expected at least {min_insights}")
+                logger.warning(
+                    f"Only got {len(insights)} insights, expected at least {min_insights}"
+                )
 
             return insights[:max_insights]
 
@@ -255,11 +258,7 @@ class InsightEngine:
             logger.error(f"Failed to extract insights: {e}")
             return []
 
-    def identify_risks(
-        self,
-        data: list[GatheredData],
-        company_name: str
-    ) -> list[Insight]:
+    def identify_risks(self, data: list[GatheredData], company_name: str) -> list[Insight]:
         """
         Identify potential risks and vulnerabilities.
 
@@ -276,8 +275,7 @@ class InsightEngine:
         data_summary = self._summarize_data(data)
 
         prompt = RISK_IDENTIFICATION_PROMPT.format(
-            company_name=company_name,
-            data_summary=data_summary
+            company_name=company_name, data_summary=data_summary
         )
 
         try:
@@ -294,11 +292,7 @@ class InsightEngine:
             logger.error(f"Failed to identify risks: {e}")
             return []
 
-    def identify_opportunities(
-        self,
-        data: list[GatheredData],
-        company_name: str
-    ) -> list[Insight]:
+    def identify_opportunities(self, data: list[GatheredData], company_name: str) -> list[Insight]:
         """
         Identify strategic opportunities.
 
@@ -314,10 +308,7 @@ class InsightEngine:
 
         data_summary = self._summarize_data(data)
 
-        prompt = OPPORTUNITY_PROMPT.format(
-            company_name=company_name,
-            data_summary=data_summary
-        )
+        prompt = OPPORTUNITY_PROMPT.format(company_name=company_name, data_summary=data_summary)
 
         try:
             response = llm(prompt, model_type=self.model_type)
@@ -334,10 +325,7 @@ class InsightEngine:
             return []
 
     def generate_recommendations(
-        self,
-        insights: list[Insight],
-        company_name: str,
-        count: int = 5
+        self, insights: list[Insight], company_name: str, count: int = 5
     ) -> list[Insight]:
         """
         Generate actionable recommendations based on insights.
@@ -357,15 +345,10 @@ class InsightEngine:
         count = max(3, min(5, count))
 
         # Summarize insights for the prompt
-        insights_summary = "\n".join([
-            f"- {i.title}: {i.description}"
-            for i in insights
-        ])
+        insights_summary = "\n".join([f"- {i.title}: {i.description}" for i in insights])
 
         prompt = RECOMMENDATION_PROMPT.format(
-            company_name=company_name,
-            insights_summary=insights_summary,
-            count=count
+            company_name=company_name, insights_summary=insights_summary, count=count
         )
 
         try:
@@ -385,10 +368,7 @@ class InsightEngine:
             return []
 
     def analyze_competitive_position(
-        self,
-        company_name: str,
-        competitors: list[str],
-        data: list[GatheredData] | None = None
+        self, company_name: str, competitors: list[str], data: list[GatheredData] | None = None
     ) -> list[Insight]:
         """
         Analyze competitive positioning.
@@ -406,7 +386,7 @@ class InsightEngine:
 
         data_summary = self._summarize_data(data) if data else "No additional data available."
 
-        prompt = f"""Analyze the competitive position of {company_name} against these competitors: {', '.join(competitors)}.
+        prompt = f"""Analyze the competitive position of {company_name} against these competitors: {", ".join(competitors)}.
 
 Additional Research Data:
 {data_summary}
@@ -514,10 +494,7 @@ class FinancialAnalyzer:
         self.engine = insight_engine
 
     def analyze_financials(
-        self,
-        company_name: str,
-        financial_data: dict,
-        gathered_data: list[GatheredData]
+        self, company_name: str, financial_data: dict, gathered_data: list[GatheredData]
     ) -> list[Insight]:
         """
         Analyze financial data and generate insights.
@@ -541,7 +518,12 @@ class FinancialAnalyzer:
             for key, value in financial_data.items():
                 if isinstance(value, int | float) and value >= 1000:
                     from primr.utils.formatting import format_currency
-                    formatted = format_currency(value) if "revenue" in key.lower() or "funding" in key.lower() else str(value)
+
+                    formatted = (
+                        format_currency(value)
+                        if "revenue" in key.lower() or "funding" in key.lower()
+                        else str(value)
+                    )
                     financial_str += f"- {key}: {formatted}\n"
                 else:
                     financial_str += f"- {key}: {value}\n"
@@ -549,9 +531,7 @@ class FinancialAnalyzer:
             financial_str = "No structured financial data available. Estimate from research data."
 
         prompt = FINANCIAL_ANALYSIS_PROMPT.format(
-            company_name=company_name,
-            financial_data=financial_str,
-            data_summary=data_summary
+            company_name=company_name, financial_data=financial_str, data_summary=data_summary
         )
 
         try:
@@ -573,7 +553,7 @@ class FinancialAnalyzer:
         company_name: str,
         employee_count: int | None = None,
         funding_rounds: list[dict] | None = None,
-        gathered_data: list[GatheredData] | None = None
+        gathered_data: list[GatheredData] | None = None,
     ) -> Insight:
         """
         Estimate company size when financials are unavailable.
@@ -596,11 +576,13 @@ class FinancialAnalyzer:
             # Tech companies: ~$200K-$500K revenue per employee
             low_estimate = employee_count * 200000
             high_estimate = employee_count * 500000
-            estimation_basis.append(f"Based on {employee_count} employees, estimated revenue range: ${low_estimate/1e6:.1f}M - ${high_estimate/1e6:.1f}M")
+            estimation_basis.append(
+                f"Based on {employee_count} employees, estimated revenue range: ${low_estimate / 1e6:.1f}M - ${high_estimate / 1e6:.1f}M"
+            )
 
         if funding_rounds:
             total_funding = sum(r.get("amount", 0) for r in funding_rounds)
-            evidence.append(f"Total funding raised: ${total_funding/1e6:.1f}M")
+            evidence.append(f"Total funding raised: ${total_funding / 1e6:.1f}M")
             estimation_basis.append("Funding history suggests growth-stage company")
 
         description = f"Company size estimation for {company_name}. " + " ".join(estimation_basis)
@@ -612,7 +594,7 @@ class FinancialAnalyzer:
             confidence=ConfidenceLevel.ESTIMATED,
             category=InsightCategory.FINANCIAL,
             sources=[],
-            rationale="Estimated based on available signals when direct financial data unavailable"
+            rationale="Estimated based on available signals when direct financial data unavailable",
         )
 
 
@@ -628,7 +610,7 @@ class CompetitorAnalyzer:
         industry: str,
         company_info: str,
         gathered_data: list[GatheredData],
-        min_competitors: int = 5
+        min_competitors: int = 5,
     ) -> list[Insight]:
         """
         Identify and analyze competitors.
@@ -649,7 +631,7 @@ class CompetitorAnalyzer:
             company_name=company_name,
             industry=industry,
             company_info=company_info,
-            data_summary=data_summary
+            data_summary=data_summary,
         )
 
         try:
@@ -662,7 +644,9 @@ class CompetitorAnalyzer:
 
             # Log warning if fewer than minimum competitors
             if len(insights) < min_competitors:
-                logger.warning(f"Only identified {len(insights)} competitors, expected at least {min_competitors}")
+                logger.warning(
+                    f"Only identified {len(insights)} competitors, expected at least {min_competitors}"
+                )
 
             return insights
 
@@ -671,10 +655,7 @@ class CompetitorAnalyzer:
             return []
 
     def generate_competitive_matrix(
-        self,
-        company_name: str,
-        competitors: list[str],
-        criteria: list[str]
+        self, company_name: str, competitors: list[str], criteria: list[str]
     ) -> dict:
         """
         Generate a competitive comparison matrix.
@@ -693,6 +674,6 @@ class CompetitorAnalyzer:
             "company": company_name,
             "competitors": competitors,
             "criteria": criteria,
-            "scores": {}  # Would be populated with actual analysis
+            "scores": {},  # Would be populated with actual analysis
         }
         return matrix

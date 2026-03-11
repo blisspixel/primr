@@ -23,6 +23,7 @@ from primr.output.executive_summary import (
 # FIXTURES
 # =============================================================================
 
+
 @pytest.fixture(autouse=True)
 def reset_singleton():
     """Reset singleton before each test."""
@@ -80,6 +81,7 @@ def sample_sources():
 # KEY FINDING TESTS
 # =============================================================================
 
+
 class TestKeyFinding:
     """Tests for KeyFinding dataclass."""
 
@@ -115,6 +117,7 @@ class TestKeyFinding:
 # SOURCE CITATION TESTS
 # =============================================================================
 
+
 class TestSourceCitation:
     """Tests for SourceCitation dataclass."""
 
@@ -143,6 +146,7 @@ class TestSourceCitation:
 # EXECUTIVE SUMMARY TESTS
 # =============================================================================
 
+
 class TestExecutiveSummary:
     """Tests for ExecutiveSummary dataclass."""
 
@@ -163,6 +167,7 @@ class TestExecutiveSummary:
 # =============================================================================
 # GENERATOR TESTS
 # =============================================================================
+
 
 class TestExecutiveSummaryGenerator:
     """Tests for ExecutiveSummaryGenerator class."""
@@ -207,6 +212,7 @@ class TestExecutiveSummaryGenerator:
 # ONE-LINER TESTS
 # =============================================================================
 
+
 class TestOneLiner:
     """Tests for one-liner generation."""
 
@@ -229,6 +235,7 @@ class TestOneLiner:
 # =============================================================================
 # KEY POINTS TESTS
 # =============================================================================
+
 
 class TestKeyPoints:
     """Tests for key points extraction."""
@@ -267,6 +274,7 @@ class TestKeyPoints:
 # FORMATTING TESTS
 # =============================================================================
 
+
 class TestFormatting:
     """Tests for summary formatting."""
 
@@ -292,7 +300,7 @@ class TestFormatting:
         summary = generator.generate("Acme Corp", sample_sections)
         formatted = generator.format_summary(summary, "html")
 
-        assert "<div class=\"executive-summary\">" in formatted
+        assert '<div class="executive-summary">' in formatted
         assert "<h1>" in formatted
         assert "Acme Corp" in formatted
 
@@ -300,6 +308,7 @@ class TestFormatting:
 # =============================================================================
 # CATEGORIZATION TESTS
 # =============================================================================
+
 
 class TestCategorization:
     """Tests for content categorization."""
@@ -330,6 +339,7 @@ class TestCategorization:
 # CONFIDENCE ESTIMATION TESTS
 # =============================================================================
 
+
 class TestConfidenceEstimation:
     """Tests for confidence estimation."""
 
@@ -359,6 +369,7 @@ class TestConfidenceEstimation:
 # SINGLETON TESTS
 # =============================================================================
 
+
 class TestSingleton:
     """Tests for singleton access."""
 
@@ -379,6 +390,7 @@ class TestSingleton:
 # =============================================================================
 # CONVENIENCE FUNCTION TESTS
 # =============================================================================
+
 
 class TestConvenienceFunctions:
     """Tests for convenience functions."""
@@ -410,6 +422,7 @@ class TestConvenienceFunctions:
 # =============================================================================
 # EDGE CASE TESTS
 # =============================================================================
+
 
 class TestEdgeCases:
     """Tests for edge cases."""

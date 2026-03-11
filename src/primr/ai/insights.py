@@ -15,6 +15,7 @@ from typing import Any
 
 class RiskCategory(Enum):
     """Categories of business risk."""
+
     FINANCIAL = "financial"
     OPERATIONAL = "operational"
     MARKET = "market"
@@ -27,6 +28,7 @@ class RiskCategory(Enum):
 
 class RiskLevel(Enum):
     """Risk severity levels."""
+
     CRITICAL = "critical"
     HIGH = "high"
     MEDIUM = "medium"
@@ -36,6 +38,7 @@ class RiskLevel(Enum):
 
 class OpportunityType(Enum):
     """Types of business opportunities."""
+
     MARKET_EXPANSION = "market_expansion"
     PRODUCT_INNOVATION = "product_innovation"
     PARTNERSHIP = "partnership"
@@ -48,6 +51,7 @@ class OpportunityType(Enum):
 
 class RecommendationType(Enum):
     """Types of strategic recommendations."""
+
     IMMEDIATE = "immediate"
     SHORT_TERM = "short_term"
     LONG_TERM = "long_term"
@@ -57,6 +61,7 @@ class RecommendationType(Enum):
 @dataclass
 class Risk:
     """An identified business risk."""
+
     risk_id: str
     category: RiskCategory
     level: RiskLevel
@@ -92,6 +97,7 @@ class Risk:
 @dataclass
 class Opportunity:
     """An identified business opportunity."""
+
     opportunity_id: str
     opportunity_type: OpportunityType
     title: str
@@ -120,6 +126,7 @@ class Opportunity:
 @dataclass
 class Recommendation:
     """A strategic recommendation."""
+
     recommendation_id: str
     recommendation_type: RecommendationType
     title: str
@@ -147,6 +154,7 @@ class Recommendation:
 @dataclass
 class InsightReport:
     """Complete insights report for a company."""
+
     company_name: str
     risks: list[Risk] = field(default_factory=list)
     opportunities: list[Opportunity] = field(default_factory=list)
@@ -215,22 +223,32 @@ class InsightAnalyzer:
     # Opportunity indicators
     OPPORTUNITY_INDICATORS = {
         OpportunityType.MARKET_EXPANSION: [
-            "new market", "expansion", "international", "global", "emerging market"
+            "new market",
+            "expansion",
+            "international",
+            "global",
+            "emerging market",
         ],
         OpportunityType.PRODUCT_INNOVATION: [
-            "innovation", "new product", "r&d", "patent", "breakthrough"
+            "innovation",
+            "new product",
+            "r&d",
+            "patent",
+            "breakthrough",
         ],
-        OpportunityType.PARTNERSHIP: [
-            "partnership", "collaboration", "alliance", "joint venture"
-        ],
-        OpportunityType.ACQUISITION: [
-            "acquisition target", "merger opportunity", "consolidation"
-        ],
+        OpportunityType.PARTNERSHIP: ["partnership", "collaboration", "alliance", "joint venture"],
+        OpportunityType.ACQUISITION: ["acquisition target", "merger opportunity", "consolidation"],
         OpportunityType.COST_REDUCTION: [
-            "efficiency", "automation", "cost savings", "optimization"
+            "efficiency",
+            "automation",
+            "cost savings",
+            "optimization",
         ],
         OpportunityType.TECHNOLOGY: [
-            "digital transformation", "ai adoption", "cloud migration", "modernization"
+            "digital transformation",
+            "ai adoption",
+            "cloud migration",
+            "modernization",
         ],
     }
 
@@ -244,7 +262,6 @@ class InsightAnalyzer:
         with self._lock:
             self._id_counter += 1
             return f"{prefix}_{self._id_counter}"
-
 
     def assess_risks(
         self,
@@ -273,9 +290,7 @@ class InsightAnalyzer:
                     description = self._extract_context(content, keyword)
 
                     # Determine likelihood and impact
-                    likelihood, impact = self._assess_risk_factors(
-                        content_lower, keyword, level
-                    )
+                    likelihood, impact = self._assess_risk_factors(content_lower, keyword, level)
 
                     risk = Risk(
                         risk_id=self._generate_id("risk"),
@@ -385,7 +400,6 @@ class InsightAnalyzer:
         recommendations.sort(key=lambda r: r.priority, reverse=True)
         return recommendations
 
-
     def generate_insights(
         self,
         company_name: str,
@@ -402,9 +416,7 @@ class InsightAnalyzer:
         """
         risks = self.assess_risks(company_name, content)
         opportunities = self.identify_opportunities(company_name, content)
-        recommendations = self.generate_recommendations(
-            company_name, risks, opportunities
-        )
+        recommendations = self.generate_recommendations(company_name, risks, opportunities)
 
         return InsightReport(
             company_name=company_name,
@@ -549,7 +561,6 @@ class InsightAnalyzer:
         return requirements.get(opp_type, ["Strategic planning"])
 
 
-
 # Global instance
 _analyzer: InsightAnalyzer | None = None
 _analyzer_lock = threading.Lock()
@@ -588,9 +599,7 @@ def generate_recommendations(
     opportunities: list[Opportunity],
 ) -> list[Recommendation]:
     """Generate strategic recommendations."""
-    return get_insight_analyzer().generate_recommendations(
-        company_name, risks, opportunities
-    )
+    return get_insight_analyzer().generate_recommendations(company_name, risks, opportunities)
 
 
 def generate_insights(company_name: str, content: str) -> InsightReport:

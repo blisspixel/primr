@@ -54,7 +54,9 @@ def create_test_job(
         estimate=CostEstimate(cost_usd=0.1, duration_minutes=5),
         timing=JobTiming(
             submitted_at=format_timestamp(now - timedelta(hours=1)),
-            started_at=format_timestamp(started_at) if started_at else format_timestamp(now - timedelta(minutes=30)),
+            started_at=format_timestamp(started_at)
+            if started_at
+            else format_timestamp(now - timedelta(minutes=30)),
         ),
     )
 

@@ -37,12 +37,13 @@ T = TypeVar("T")
 # TEMPORARY FILE MANAGEMENT
 # =============================================================================
 
+
 @contextmanager
 def managed_temp_file(
     suffix: str = ".tmp",
     prefix: str = "primr_",
     content: str | None = None,
-    encoding: str = "utf-8"
+    encoding: str = "utf-8",
 ) -> Generator[Path, None, None]:
     """
     Context manager for temporary files with guaranteed cleanup.
@@ -97,9 +98,7 @@ def managed_temp_file(
 
 
 @contextmanager
-def managed_temp_dir(
-    prefix: str = "primr_"
-) -> Generator[Path, None, None]:
+def managed_temp_dir(prefix: str = "primr_") -> Generator[Path, None, None]:
     """
     Context manager for temporary directories with guaranteed cleanup.
 
@@ -135,11 +134,10 @@ def managed_temp_dir(
 # HTTP CLIENT MANAGEMENT
 # =============================================================================
 
+
 @contextmanager
 def managed_http_client(
-    timeout: float = 30.0,
-    max_connections: int = 10,
-    http2: bool = True
+    timeout: float = 30.0, max_connections: int = 10, http2: bool = True
 ) -> Generator:
     """
     Context manager for HTTP client with bounded connection pool.
@@ -181,16 +179,10 @@ def managed_http_client(
     import httpx
 
     limits = httpx.Limits(
-        max_connections=max_connections,
-        max_keepalive_connections=max_connections // 2
+        max_connections=max_connections, max_keepalive_connections=max_connections // 2
     )
 
-    client = httpx.Client(
-        timeout=timeout,
-        limits=limits,
-        http2=http2,
-        follow_redirects=True
-    )
+    client = httpx.Client(timeout=timeout, limits=limits, http2=http2, follow_redirects=True)
 
     try:
         yield client
@@ -202,9 +194,11 @@ def managed_http_client(
 # BOUNDED CACHE WITH TTL
 # =============================================================================
 
+
 @dataclass
 class CacheEntry:
     """Internal cache entry with value and metadata."""
+
     value: Any
     created_at: float
     last_accessed: float
@@ -213,6 +207,7 @@ class CacheEntry:
 @dataclass
 class CacheMetrics:
     """Cache performance metrics."""
+
     hits: int = 0
     misses: int = 0
     evictions: int = 0
@@ -233,7 +228,7 @@ class CacheMetrics:
             "misses": self.misses,
             "evictions": self.evictions,
             "expirations": self.expirations,
-            "hit_rate": round(self.hit_rate, 4)
+            "hit_rate": round(self.hit_rate, 4),
         }
 
 
@@ -256,12 +251,7 @@ class BoundedCache:
         print(cache.get_metrics())  # {"hits": 1, "misses": 0, ...}
     """
 
-    def __init__(
-        self,
-        max_size: int = 100,
-        ttl_seconds: float | None = None,
-        name: str = "cache"
-    ):
+    def __init__(self, max_size: int = 100, ttl_seconds: float | None = None, name: str = "cache"):
         if max_size <= 0:
             raise ValueError("max_size must be positive")
         if ttl_seconds is not None and ttl_seconds <= 0:
@@ -323,11 +313,7 @@ class BoundedCache:
 
             # If key exists, update it
             if key in self._cache:
-                self._cache[key] = CacheEntry(
-                    value=value,
-                    created_at=now,
-                    last_accessed=now
-                )
+                self._cache[key] = CacheEntry(value=value, created_at=now, last_accessed=now)
                 return
 
             # Evict if at capacity
@@ -335,11 +321,7 @@ class BoundedCache:
                 self._evict_lru()
 
             # Add new entry
-            self._cache[key] = CacheEntry(
-                value=value,
-                created_at=now,
-                last_accessed=now
-            )
+            self._cache[key] = CacheEntry(value=value, created_at=now, last_accessed=now)
 
     def _evict_lru(self) -> None:
         """Evict the least recently used entry."""
@@ -347,10 +329,7 @@ class BoundedCache:
             return
 
         # Find LRU entry
-        lru_key = min(
-            self._cache.keys(),
-            key=lambda k: self._cache[k].last_accessed
-        )
+        lru_key = min(self._cache.keys(), key=lambda k: self._cache[k].last_accessed)
         del self._cache[lru_key]
         self._metrics.evictions += 1
 
@@ -414,6 +393,7 @@ class BoundedCache:
 # =============================================================================
 # THREAD-SAFE SINGLETON PATTERN
 # =============================================================================
+
 
 class ThreadSafeSingleton:
     """
@@ -624,6 +604,7 @@ class ResourceManager:
             for pid in list(self._browser_processes):
                 try:
                     import signal
+
                     os.kill(pid, signal.SIGTERM)
                     results["processes"] += 1
                 except (OSError, ProcessLookupError) as e:
@@ -679,6 +660,7 @@ def get_resource_manager() -> ResourceManager:
         if _resource_manager is None:
             _resource_manager = ResourceManager()
             import atexit
+
             atexit.register(_resource_manager.cleanup)
 
     return _resource_manager

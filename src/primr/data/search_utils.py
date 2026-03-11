@@ -30,11 +30,7 @@ load_dotenv()
 logger = get_logger("search")
 
 # Circuit breaker for web search
-_search_circuit = CircuitBreaker(
-    name="web_search",
-    failure_threshold=3,
-    reset_timeout=60
-)
+_search_circuit = CircuitBreaker(name="web_search", failure_threshold=3, reset_timeout=60)
 
 # --- Provider detection ---
 SEARCH_PROVIDER = os.environ.get("SEARCH_PROVIDER", "auto").lower().strip()
@@ -66,15 +62,30 @@ USER_AGENTS = [
 # Sites to exclude after search (low value for business research)
 EXCLUDED_SITES = [
     # Social media
-    "reddit.com", "quora.com", "facebook.com", "twitter.com", "x.com",
-    "pinterest.com", "tiktok.com", "tumblr.com", "instagram.com",
-    "youtube.com", "linkedin.com",
+    "reddit.com",
+    "quora.com",
+    "facebook.com",
+    "twitter.com",
+    "x.com",
+    "pinterest.com",
+    "tiktok.com",
+    "tumblr.com",
+    "instagram.com",
+    "youtube.com",
+    "linkedin.com",
     # Job/review sites
-    "glassdoor.com", "indeed.com", "yelp.com", "tripadvisor.com",
+    "glassdoor.com",
+    "indeed.com",
+    "yelp.com",
+    "tripadvisor.com",
     # Reference (often outdated)
     "wikipedia.org",
     # Support/forums (not news)
-    "support.", "help.", "community.", "forum.", "answers.",
+    "support.",
+    "help.",
+    "community.",
+    "forum.",
+    "answers.",
 ]
 
 
@@ -101,7 +112,7 @@ We need more information on: {section_name}.
 
     cleaned_queries = []
     for q in raw_queries:
-        q = q.replace('"', '')
+        q = q.replace('"', "")
         if " OR " in q.upper():
             parts = [part.strip() for part in q.split(" OR ")]
             cleaned_queries.extend(parts)
@@ -166,7 +177,9 @@ Rules:
 
     try:
         response = llm(prompt.strip(), model_type="fast", streaming=False).strip()
-        raw_queries = [line.strip() for line in response.split("\n") if line.strip() and len(line.strip()) > 5]
+        raw_queries = [
+            line.strip() for line in response.split("\n") if line.strip() and len(line.strip()) > 5
+        ]
     except Exception as e:
         logger.warning(f"LLM query generation failed: {e}")
         raw_queries = []
@@ -175,7 +188,7 @@ Rules:
     llm_queries: list[str] = []
     seen_queries: set[str] = set()
     for line in raw_queries:
-        cleaned = line.strip("1234567890.- ").replace('"', '').replace(" OR ", " ")
+        cleaned = line.strip("1234567890.- ").replace('"', "").replace(" OR ", " ")
         if company_name.lower() not in cleaned.lower():
             cleaned = f"{company_name} {cleaned}".strip()
         key = cleaned.lower()
@@ -214,9 +227,12 @@ Rules:
             break
 
     return final_queries
+
+
 # =============================================================================
 # DuckDuckGo search (default provider)
 # =============================================================================
+
 
 def _search_ddg(query, company_name, website, num_results=NUM_SEARCH_RESULTS):
     """Search using DuckDuckGo via the ddgs library."""
@@ -262,7 +278,9 @@ def _search_ddg(query, company_name, website, num_results=NUM_SEARCH_RESULTS):
         # we just got no matches. Don't penalize the circuit for that.
         _search_circuit.record_success()
         if structured_results:
-            logger.debug(f"DDG: Found {len(structured_results)} results for '{formatted_query[:50]}'")
+            logger.debug(
+                f"DDG: Found {len(structured_results)} results for '{formatted_query[:50]}'"
+            )
 
         return structured_results
 
@@ -283,6 +301,7 @@ def _search_ddg(query, company_name, website, num_results=NUM_SEARCH_RESULTS):
 # =============================================================================
 # Google Custom Search (optional provider)
 # =============================================================================
+
 
 def _search_google(query, company_name, website, num_results=NUM_SEARCH_RESULTS):
     """Performs a structured Google search using the Custom Search API."""
@@ -319,7 +338,7 @@ def _search_google(query, company_name, website, num_results=NUM_SEARCH_RESULTS)
 
             if "items" not in search_results or not search_results["items"]:
                 logger.debug("No items in API response, retrying with fallback")
-                fallback_query = f"{company_name} {query}".replace('"', '').replace(" OR ", " ")
+                fallback_query = f"{company_name} {query}".replace('"', "").replace(" OR ", " ")
                 params["q"] = fallback_query
                 attempt += 1
                 time.sleep(retry_delay)
@@ -357,6 +376,7 @@ def _search_google(query, company_name, website, num_results=NUM_SEARCH_RESULTS)
 # =============================================================================
 # Public API — dispatches to active provider
 # =============================================================================
+
 
 def search_web(query, company_name, website, num_results=NUM_SEARCH_RESULTS):
     """
@@ -419,7 +439,9 @@ def lookup_company_website(company_name: str, context: dict | None = None) -> st
         if query_parts:
             context_for_query = " " + " ".join(query_parts)
         if llm_parts:
-            context_hint = "\nAdditional info about the company:\n" + "\n".join(f"  - {p}" for p in llm_parts)
+            context_hint = "\nAdditional info about the company:\n" + "\n".join(
+                f"  - {p}" for p in llm_parts
+            )
 
     try:
         time.sleep(0.5)

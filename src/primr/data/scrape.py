@@ -47,9 +47,27 @@ logger = get_logger("scrape")
 # =============================================================================
 
 _USEFUL_SINGLE_SEGMENT_PATHS = {
-    "about", "team", "news", "press", "blog", "careers", "jobs", "contact",
-    "leadership", "programs", "services", "products", "solutions", "platform",
-    "resources", "faq", "support", "help", "docs", "documentation", "ir",
+    "about",
+    "team",
+    "news",
+    "press",
+    "blog",
+    "careers",
+    "jobs",
+    "contact",
+    "leadership",
+    "programs",
+    "services",
+    "products",
+    "solutions",
+    "platform",
+    "resources",
+    "faq",
+    "support",
+    "help",
+    "docs",
+    "documentation",
+    "ir",
 }
 
 
@@ -69,9 +87,10 @@ def _looks_like_low_signal_wrapper_url(url: str, website: str) -> bool:
     if segment in _USEFUL_SINGLE_SEGMENT_PATHS or "-" in segment:
         return False
 
-    host_labels = [label for label in parsed_site.netloc.lower().replace("www.", "").split(".") if label]
+    host_labels = [
+        label for label in parsed_site.netloc.lower().replace("www.", "").split(".") if label
+    ]
     return segment in host_labels[:2]
-
 
 
 def _filter_selected_urls(urls: list[str], website: str) -> list[str]:
@@ -96,20 +115,26 @@ def _filter_selected_urls(urls: list[str], website: str) -> list[str]:
 def out_step(msg):
     console.step(msg)
 
+
 def out_ok(msg, show_time=True):
     console.ok(msg, show_time=show_time)
+
 
 def out_warn(msg):
     console.warn(msg)
 
+
 def out_err(msg):
     console.error(msg)
+
 
 def out_info(msg):
     console.info(msg)
 
+
 def out_progress(current, total, msg=""):
     console.progress(current, total, msg)
+
 
 def out_progress_done():
     console.progress_done()
@@ -150,10 +175,12 @@ def get_orchestrator(
         _orchestrator = ScrapeOrchestrator(
             tiers=tiers,
             cache=ScrapeCache(cache_dir=str(CACHE_DIR)),
-            rate_limiter=RateLimiter(RateLimitConfig(
-                per_host_requests_per_minute=30,  # Tokens refill every 2s; actual scrapes take 2-15s
-                base_delay_seconds=0.5,  # Reduced jitter when rate-limited (0-0.5s vs 0-1.5s)
-            )),
+            rate_limiter=RateLimiter(
+                RateLimitConfig(
+                    per_host_requests_per_minute=30,  # Tokens refill every 2s; actual scrapes take 2-15s
+                    base_delay_seconds=0.5,  # Reduced jitter when rate-limited (0-0.5s vs 0-1.5s)
+                )
+            ),
             enable_vision=enable_vision,
             max_page_time=45.0,  # Allow time for quality content - we want the data
             delay_between_tiers=(0.3, 1.0),  # Avg 0.65s between failed tiers (was 1-3s)
@@ -167,6 +194,7 @@ def get_orchestrator(
 # =============================================================================
 # URL Utilities
 # =============================================================================
+
 
 def normalize_url(url: str) -> str:
     """Normalize URL for deduplication."""
@@ -198,6 +226,7 @@ def validate_url(url: str, base_url: str | None = None) -> str | None:
 # =============================================================================
 # Main Scraping Functions
 # =============================================================================
+
 
 def scrape_page(
     url: str,
@@ -406,7 +435,9 @@ def fetch_web_content(
         if resume_selected_urls_prefetch and homepage_norm in resumed_text_pages_prefetch:
             homepage_html = b""
             homepage_tier = "resume-local"
-            _append_trace("RESUME", website, "using local homepage content after live fetch failure")
+            _append_trace(
+                "RESUME", website, "using local homepage content after live fetch failure"
+            )
         else:
             _append_trace("FAIL", website, f"homepage: {result.error}")
             console.clear_line()
@@ -430,6 +461,7 @@ def fetch_web_content(
         if os.path.exists(run_state_path):
             try:
                 import json
+
                 with open(run_state_path, encoding="utf-8") as f:
                     loaded = json.load(f)
                 if isinstance(loaded, dict):
@@ -441,6 +473,7 @@ def fetch_web_content(
         state["organization_type_signals"] = list(organization_profile.signals)
         try:
             import json
+
             with open(run_state_path, "w", encoding="utf-8") as f:
                 json.dump(state, f, indent=2)
         except Exception as e:
@@ -450,6 +483,7 @@ def fetch_web_content(
     # This prevents wasteful tier escalation on subsequent pages
     if homepage_tier and homepage_tier != "resume-local":
         from .scraping.net import extract_host
+
         host = extract_host(website)
         host_state = orchestrator._get_host_state(host)
         host_state.best_tier = homepage_tier
@@ -460,7 +494,9 @@ def fetch_web_content(
         selected_urls = _filter_selected_urls(resume_selected_urls, website)
         total_found = len(selected_urls)
         in_scope_count = len(selected_urls)
-        _append_trace("RESUME", website, f"loaded {len(selected_urls)} selected links from manifest")
+        _append_trace(
+            "RESUME", website, f"loaded {len(selected_urls)} selected links from manifest"
+        )
     else:
         # Step 2: Discover ALL links using full discovery pipeline
         # This includes: homepage links, common URL guessing, sitemap fallback
@@ -497,7 +533,7 @@ def fetch_web_content(
 
     # Apply max_pages limit (reserve 1 slot for homepage)
     if max_pages and max_pages < total_found + 1:
-        pages_to_scrape = selected_urls[:max_pages - 1]
+        pages_to_scrape = selected_urls[: max_pages - 1]
         console.found(f"{in_scope_count} links {console._arrow} {max_pages} selected")
     elif total_found == 0:
         pages_to_scrape = []
@@ -522,6 +558,7 @@ def fetch_web_content(
 
     # Flush stdout to ensure progress shows immediately
     import sys
+
     sys.stdout.flush()
 
     # Step 3: Scrape pages (homepage first, then discovered links)
@@ -592,7 +629,9 @@ def fetch_web_content(
     # Show initial progress immediately
     if pages_to_scrape:
         console.scrape_progress(1, total, "homepage", scrape_start, ok_count=success_count)
-        logger.info(f"Starting to scrape {total} pages (homepage + {len(pages_to_scrape)} discovered)")
+        logger.info(
+            f"Starting to scrape {total} pages (homepage + {len(pages_to_scrape)} discovered)"
+        )
 
     def _scrape_one_page(page_url, orchestrator):
         """Scrape a single page in a worker thread. Returns (result, elapsed)."""
@@ -615,7 +654,9 @@ def fetch_web_content(
             _append_trace("FAIL", page_url, _failure_detail(result))
         elif result.success and result.raw_content:
             _text_for_hash = result.extracted_text or ""
-            _content_hash = hashlib.md5(_text_for_hash.encode()).hexdigest() if _text_for_hash else ""
+            _content_hash = (
+                hashlib.md5(_text_for_hash.encode()).hexdigest() if _text_for_hash else ""
+            )
             if _content_hash and _content_hash in _seen_content_hashes:
                 dup_count += 1
                 logger.info(
@@ -645,7 +686,9 @@ def fetch_web_content(
                     safe_name = path.replace("/", "_").strip("_") or "page"
                     safe_name = safe_name[:50]
                     raw_file = os.path.join(raw_folder, f"{safe_name}.txt")
-                    write_executor.submit(_write_raw_file, raw_file, page_url, result.tier, structured)
+                    write_executor.submit(
+                        _write_raw_file, raw_file, page_url, result.tier, structured
+                    )
                 except Exception as e:
                     logger.warning(f"Failed to save raw scrape: {e}")
         else:
@@ -715,7 +758,9 @@ def fetch_web_content(
             _append_trace("TRY", page_url, f"attempt {i + 2}/{total}")
             path = urlparse(page_url).path or "/"
             path_display = path[:30] + "..." if len(path) > 30 else path
-            console.scrape_progress(i + 2, total, path_display, scrape_start, ok_count=success_count)
+            console.scrape_progress(
+                i + 2, total, path_display, scrape_start, ok_count=success_count
+            )
 
             result, page_elapsed = _scrape_one_page(page_url, orchestrator)
             if _process_result(page_url, normalized, result, page_elapsed, i):
@@ -982,7 +1027,7 @@ Line 2: Why (cite the specific identifier you found)"""
 
         try:
             response = llm(validation_prompt, model_type="research", streaming=False).strip()
-            lines = response.split('\n', 1)
+            lines = response.split("\n", 1)
             decision = lines[0].strip().upper()
             reason = lines[1].strip() if len(lines) > 1 else "No reason provided"
 
@@ -992,7 +1037,9 @@ Line 2: Why (cite the specific identifier you found)"""
                 logger.info(f"External source VALIDATED: {url[:60]}... - {reason[:80]}")
             else:
                 # Log rejections at INFO level so users can see why sources were skipped
-                logger.info(f"External source REJECTED (wrong company): {url[:60]}... - {reason[:80]}")
+                logger.info(
+                    f"External source REJECTED (wrong company): {url[:60]}... - {reason[:80]}"
+                )
 
         except Exception as e:
             # Log validation failures at WARNING level - these are unexpected
@@ -1042,6 +1089,7 @@ from primr.data.scraping import (
 
 def _wrap_tier_function(tier_fn):
     """Wrap a new-style tier function to return old-style tuple with extracted text."""
+
     def wrapper(url: str, timeout: int = 30) -> tuple[str | None, str | None]:
         result = tier_fn(url, timeout)
         if result.success and result.raw_content:
@@ -1056,6 +1104,7 @@ def _wrap_tier_function(tier_fn):
             return result.extracted_text, None
         else:
             return None, result.error
+
     return wrapper
 
 
@@ -1087,6 +1136,7 @@ def detect_soft_block(text: str, url: str = "") -> tuple[bool, str | None]:
     # Convert string to bytes for new function
     raw_content = text.encode("utf-8", errors="ignore")
     return _detect_soft_block_new(raw_content, host=url)
+
 
 # Re-export discovery functions (with signature adaptation)
 from primr.data.scraping import (
@@ -1141,6 +1191,7 @@ def extract_links_from_homepage(base_url: str, company_name: str = "") -> list[s
     links = _extract_links_from_homepage_new(base_url)
     return [link.url for link in links]
 
+
 # Re-export cache functions
 from primr.data.scraping import (
     LRUCache,
@@ -1175,10 +1226,12 @@ def clear_cache(max_age_hours: float | None = None) -> None:
 # Cleanup
 # =============================================================================
 
+
 def cleanup_browser():
     """Clean up shared browser resources."""
     try:
         from primr.data.scraping.browsers import SharedBrowser
+
         SharedBrowser.get().close()
     except Exception:
         pass  # atexit — don't crash on shutdown
@@ -1254,10 +1307,24 @@ def detect_waf_block(html_content: str) -> tuple[bool, str]:
 
 def extract_clean_text(soup_or_bytes):
     """Extract clean text from BeautifulSoup object or bytes."""
-    if hasattr(soup_or_bytes, 'get_text'):
+    if hasattr(soup_or_bytes, "get_text"):
         # It's a BeautifulSoup object
-        for tag in soup_or_bytes(["script", "style", "noscript", "meta", "header", "footer",
-                         "form", "aside", "nav", "iframe", "svg", "canvas"]):
+        for tag in soup_or_bytes(
+            [
+                "script",
+                "style",
+                "noscript",
+                "meta",
+                "header",
+                "footer",
+                "form",
+                "aside",
+                "nav",
+                "iframe",
+                "svg",
+                "canvas",
+            ]
+        ):
             tag.extract()
         text = soup_or_bytes.get_text(separator="\n")
         lines = [line.strip() for line in text.split("\n") if line.strip()]
@@ -1271,5 +1338,3 @@ def extract_clean_text(soup_or_bytes):
     else:
         # It's bytes, use new function
         return _extract_text(soup_or_bytes)
-
-

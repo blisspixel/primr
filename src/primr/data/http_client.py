@@ -66,9 +66,11 @@ def get_default_headers() -> dict[str, str]:
 # HTTP CLIENT
 # =============================================================================
 
+
 @dataclass
 class HTTPClientConfig:
     """Configuration for HTTP client."""
+
     pool_connections: int = 10
     pool_maxsize: int = 20
     max_retries: int = 3
@@ -158,7 +160,7 @@ class HTTPClient:
         headers: dict[str, str] | None = None,
         timeout: float | None = None,
         allow_redirects: bool = True,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> requests.Response:
         """
         Make a GET request.
@@ -183,7 +185,7 @@ class HTTPClient:
         if not url or not isinstance(url, str):
             raise ValueError("URL must be a non-empty string")
         url = url.strip()
-        if not url.startswith(('http://', 'https://')):
+        if not url.startswith(("http://", "https://")):
             raise ValueError(f"URL must start with http:// or https://, got: {url[:50]}")
 
         # SSRF protection
@@ -210,23 +212,24 @@ class HTTPClient:
                 timeout=timeout or self._config.timeout,
                 allow_redirects=allow_redirects,
                 verify=self._config.verify_ssl,
-                **kwargs
+                **kwargs,
             )
 
             # SSRF protection: validate final URL after redirects
             if allow_redirects:
                 from primr.utils.security import validate_final_url_after_redirect
+
                 final_url = str(response.url)
                 is_safe, redirect_error = validate_final_url_after_redirect(final_url)
                 if not is_safe:
-                    raise ValueError(f"SSRF protection: redirect to {final_url} blocked - {redirect_error}")
+                    raise ValueError(
+                        f"SSRF protection: redirect to {final_url} blocked - {redirect_error}"
+                    )
 
             duration = time.time() - start_time
             self._record_request(True, duration)
 
-            logger.debug(
-                f"GET {url} -> {response.status_code} ({duration:.2f}s)"
-            )
+            logger.debug(f"GET {url} -> {response.status_code} ({duration:.2f}s)")
 
             return response
 
@@ -235,11 +238,7 @@ class HTTPClient:
             self._record_request(False, duration)
 
             logger.warning(f"GET {url} failed: {e}")
-            raise ScrapingError(
-                f"HTTP request failed: {e}",
-                url=url,
-                cause=e
-            ) from e
+            raise ScrapingError(f"HTTP request failed: {e}", url=url, cause=e) from e
 
     def get_text(
         self,
@@ -247,7 +246,7 @@ class HTTPClient:
         headers: dict[str, str] | None = None,
         timeout: float | None = None,
         raise_for_status: bool = True,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> str | None:
         """
         Make a GET request and return text content.
@@ -279,7 +278,7 @@ class HTTPClient:
         url: str,
         headers: dict[str, str] | None = None,
         timeout: float | None = None,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> dict[str, Any] | None:
         """
         Make a GET request and return JSON content.
@@ -304,10 +303,7 @@ class HTTPClient:
             return None
 
     def head(
-        self,
-        url: str,
-        timeout: float | None = None,
-        **kwargs: Any
+        self, url: str, timeout: float | None = None, **kwargs: Any
     ) -> requests.Response | None:
         """
         Make a HEAD request.
@@ -325,7 +321,7 @@ class HTTPClient:
                 url,
                 timeout=timeout or self._config.timeout,
                 verify=self._config.verify_ssl,
-                **kwargs
+                **kwargs,
             )
             return response
         except requests.RequestException as e:
@@ -345,19 +341,13 @@ class HTTPClient:
     def get_stats(self) -> dict[str, Any]:
         """Get client statistics."""
         with self._lock:
-            avg_time = (
-                self._total_time / self._request_count
-                if self._request_count > 0
-                else 0.0
-            )
+            avg_time = self._total_time / self._request_count if self._request_count > 0 else 0.0
             return {
                 "total_requests": self._request_count,
                 "successful": self._success_count,
                 "failed": self._failure_count,
                 "success_rate": (
-                    self._success_count / self._request_count
-                    if self._request_count > 0
-                    else 0.0
+                    self._success_count / self._request_count if self._request_count > 0 else 0.0
                 ),
                 "total_time": self._total_time,
                 "avg_time": avg_time,
@@ -376,7 +366,7 @@ class HTTPClient:
         self._session.close()
         logger.debug("HTTPClient session closed")
 
-    def __enter__(self) -> 'HTTPClient':
+    def __enter__(self) -> "HTTPClient":
         """Context manager entry."""
         return self
 
@@ -384,7 +374,7 @@ class HTTPClient:
         self,
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
-        exc_tb: Any | None
+        exc_tb: Any | None,
     ) -> None:
         """Context manager exit."""
         self.close()
@@ -426,11 +416,9 @@ def reset_http_client() -> None:
 # CONVENIENCE FUNCTIONS
 # =============================================================================
 
+
 def http_get(
-    url: str,
-    headers: dict[str, str] | None = None,
-    timeout: float | None = None,
-    **kwargs: Any
+    url: str, headers: dict[str, str] | None = None, timeout: float | None = None, **kwargs: Any
 ) -> requests.Response:
     """
     Make a GET request using the global client.
@@ -448,10 +436,7 @@ def http_get(
 
 
 def http_get_text(
-    url: str,
-    headers: dict[str, str] | None = None,
-    timeout: float | None = None,
-    **kwargs: Any
+    url: str, headers: dict[str, str] | None = None, timeout: float | None = None, **kwargs: Any
 ) -> str | None:
     """
     Make a GET request and return text using the global client.
@@ -469,10 +454,7 @@ def http_get_text(
 
 
 def http_get_json(
-    url: str,
-    headers: dict[str, str] | None = None,
-    timeout: float | None = None,
-    **kwargs: Any
+    url: str, headers: dict[str, str] | None = None, timeout: float | None = None, **kwargs: Any
 ) -> dict[str, Any] | None:
     """
     Make a GET request and return JSON using the global client.

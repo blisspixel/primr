@@ -49,18 +49,22 @@ from enum import Enum
 
 class ModelType(Enum):
     """Types of AI tasks - maps to appropriate model."""
-    SCRAPING = "scraping"           # Flash - summarizing scraped content
-    LINK_SELECTION = "link_selection"  # Flash - intelligent link prioritization (which pages to scrape)
-    QA = "qa"                       # Flash - quality checks
+
+    SCRAPING = "scraping"  # Flash - summarizing scraped content
+    LINK_SELECTION = (
+        "link_selection"  # Flash - intelligent link prioritization (which pages to scrape)
+    )
+    QA = "qa"  # Flash - quality checks
     SECTION_WRITING = "section_writing"  # Pro - writing report sections
-    ANALYSIS = "analysis"           # Pro - complex analysis
-    DEEP_RESEARCH = "deep_research"      # Deep Research Agent - 12+ page reports
-    IMAGE = "image"                 # Image generation
+    ANALYSIS = "analysis"  # Pro - complex analysis
+    DEEP_RESEARCH = "deep_research"  # Deep Research Agent - 12+ page reports
+    IMAGE = "image"  # Image generation
 
 
 @dataclass
 class ModelConfig:
     """Configuration for a specific AI model."""
+
     name: str
     display_name: str
     provider: str
@@ -105,8 +109,8 @@ class ModelRegistry:
         provider="google",
         cost_per_1m_input_tokens=0.50,
         cost_per_1m_output_tokens=3.00,
-        max_input_tokens=1_000_000,      # 1M tokens
-        max_output_tokens=65_536,        # 65k tokens (major upgrade from 2.5!)
+        max_input_tokens=1_000_000,  # 1M tokens
+        max_output_tokens=65_536,  # 65k tokens (major upgrade from 2.5!)
         supports_thinking=True,
         supports_tools=True,
         supports_multimodal=True,
@@ -124,9 +128,9 @@ class ModelRegistry:
         provider="google",
         cost_per_1m_input_tokens=2.00,
         cost_per_1m_output_tokens=12.00,
-        max_input_tokens=2_000_000,      # 2M tokens
-        max_output_tokens=65_536,        # 65k tokens (can write entire files!)
-        supports_thinking=True,          # Native Chain-of-Thought
+        max_input_tokens=2_000_000,  # 2M tokens
+        max_output_tokens=65_536,  # 65k tokens (can write entire files!)
+        supports_thinking=True,  # Native Chain-of-Thought
         supports_tools=True,
         supports_multimodal=True,
     )
@@ -141,15 +145,15 @@ class ModelRegistry:
         name="gemini-3.1-pro-preview",
         display_name="Gemini 3.1 Pro Preview",
         provider="google",
-        cost_per_1m_input_tokens=2.00,      # <=200k prompts
-        cost_per_1m_output_tokens=12.00,    # <=200k prompts
-        max_input_tokens=1_048_576,         # 1M tokens
-        max_output_tokens=65_536,           # 65k tokens
+        cost_per_1m_input_tokens=2.00,  # <=200k prompts
+        cost_per_1m_output_tokens=12.00,  # <=200k prompts
+        max_input_tokens=1_048_576,  # 1M tokens
+        max_output_tokens=65_536,  # 65k tokens
         supports_thinking=True,
         supports_tools=True,
         supports_multimodal=True,
-        cost_per_1m_input_tokens_high=4.00,   # >200k prompts
-        cost_per_1m_output_tokens_high=18.00, # >200k prompts
+        cost_per_1m_input_tokens_high=4.00,  # >200k prompts
+        cost_per_1m_output_tokens_high=18.00,  # >200k prompts
         tier_threshold_tokens=200_000,
     )
 
@@ -162,15 +166,15 @@ class ModelRegistry:
         name="gemini-3.1-pro-preview-customtools",
         display_name="Gemini 3.1 Pro Preview (Custom Tools)",
         provider="google",
-        cost_per_1m_input_tokens=2.00,      # <=200k prompts
-        cost_per_1m_output_tokens=12.00,    # <=200k prompts
-        max_input_tokens=1_048_576,         # 1M tokens
-        max_output_tokens=65_536,           # 65k tokens
+        cost_per_1m_input_tokens=2.00,  # <=200k prompts
+        cost_per_1m_output_tokens=12.00,  # <=200k prompts
+        max_input_tokens=1_048_576,  # 1M tokens
+        max_output_tokens=65_536,  # 65k tokens
         supports_thinking=True,
         supports_tools=True,
         supports_multimodal=True,
-        cost_per_1m_input_tokens_high=4.00,   # >200k prompts
-        cost_per_1m_output_tokens_high=18.00, # >200k prompts
+        cost_per_1m_input_tokens_high=4.00,  # >200k prompts
+        cost_per_1m_output_tokens_high=18.00,  # >200k prompts
         tier_threshold_tokens=200_000,
     )
 
@@ -186,8 +190,8 @@ class ModelRegistry:
         provider="google",
         cost_per_1m_input_tokens=1.25,
         cost_per_1m_output_tokens=10.00,
-        max_input_tokens=2_000_000,      # 2M tokens
-        max_output_tokens=8_192,         # 8k tokens
+        max_input_tokens=2_000_000,  # 2M tokens
+        max_output_tokens=8_192,  # 8k tokens
         supports_thinking=True,
         supports_tools=True,
         supports_multimodal=True,
@@ -205,8 +209,8 @@ class ModelRegistry:
         provider="google",
         cost_per_1m_input_tokens=0.30,
         cost_per_1m_output_tokens=1.25,
-        max_input_tokens=1_000_000,      # 1M tokens
-        max_output_tokens=8_192,         # 8k tokens
+        max_input_tokens=1_000_000,  # 1M tokens
+        max_output_tokens=8_192,  # 8k tokens
         supports_thinking=True,
         supports_tools=True,
         supports_multimodal=True,
@@ -242,8 +246,8 @@ class ModelRegistry:
         provider="xai",
         cost_per_1m_input_tokens=0.20,
         cost_per_1m_output_tokens=0.50,
-        max_input_tokens=2_000_000,      # 2M tokens
-        max_output_tokens=131_072,       # 128k tokens
+        max_input_tokens=2_000_000,  # 2M tokens
+        max_output_tokens=131_072,  # 128k tokens
         supports_thinking=True,
         supports_tools=True,
         supports_multimodal=False,
@@ -262,8 +266,8 @@ class ModelRegistry:
         provider="xai",
         cost_per_1m_input_tokens=0.20,
         cost_per_1m_output_tokens=0.50,
-        max_input_tokens=2_000_000,      # 2M tokens
-        max_output_tokens=131_072,       # 128k tokens
+        max_input_tokens=2_000_000,  # 2M tokens
+        max_output_tokens=131_072,  # 128k tokens
         supports_thinking=False,
         supports_tools=True,
         supports_multimodal=False,
@@ -280,8 +284,9 @@ class ModelRegistry:
 @dataclass
 class DeepResearchCost:
     """Per-task cost estimates. API doesn't expose tokens — these are approximate."""
-    standard_task_cost: float = 2.50   # $2-3 typical (midpoint)
-    complex_task_cost: float = 4.00    # $3-5 typical (midpoint)
+
+    standard_task_cost: float = 2.50  # $2-3 typical (midpoint)
+    complex_task_cost: float = 4.00  # $3-5 typical (midpoint)
 
 
 DEEP_RESEARCH_COST = DeepResearchCost()
@@ -316,8 +321,8 @@ class PrimrModels:
     # =========================================================================
     # PRIMARY MODELS - UPDATE THESE TO CHANGE MODELS GLOBALLY
     # =========================================================================
-    FLASH_MODEL = ModelRegistry.GEMINI_3_FLASH.name    # Cheap - $0.50/$3 per 1M
-    PRO_MODEL = ModelRegistry.GEMINI_3_1_PRO.name      # Smart - $2/$12 (≤200k) | $4/$18 (>200k)
+    FLASH_MODEL = ModelRegistry.GEMINI_3_FLASH.name  # Cheap - $0.50/$3 per 1M
+    PRO_MODEL = ModelRegistry.GEMINI_3_1_PRO.name  # Smart - $2/$12 (≤200k) | $4/$18 (>200k)
     DEEP_RESEARCH_AGENT = ModelRegistry.DEEP_RESEARCH_AGENT  # Autonomous 12+ page reports
 
     # =========================================================================
@@ -326,14 +331,16 @@ class PrimrModels:
     # =========================================================================
 
     # --- FLASH MODEL TASKS (cheap, fast) ---
-    SCRAPING_MODEL = FLASH_MODEL          # Summarizing scraped website content
-    LINK_SELECTION_MODEL = FLASH_MODEL    # Intelligent link prioritization - decides which pages to scrape
-                                          # (acts like a human consultant choosing what to read)
-    QA_MODEL = FLASH_MODEL                # Quality assurance checks
+    SCRAPING_MODEL = FLASH_MODEL  # Summarizing scraped website content
+    LINK_SELECTION_MODEL = (
+        FLASH_MODEL  # Intelligent link prioritization - decides which pages to scrape
+    )
+    # (acts like a human consultant choosing what to read)
+    QA_MODEL = FLASH_MODEL  # Quality assurance checks
 
     # --- PRO MODEL TASKS (expensive, smart) ---
-    SECTION_WRITING_MODEL = PRO_MODEL     # Writing report sections
-    ANALYSIS_MODEL = PRO_MODEL            # Complex analysis, reasoning
+    SECTION_WRITING_MODEL = PRO_MODEL  # Writing report sections
+    ANALYSIS_MODEL = PRO_MODEL  # Complex analysis, reasoning
 
     # --- IMAGE MODEL ---
     IMAGE_MODEL = ModelRegistry.GEMINI_3_PRO_IMAGE.name
@@ -342,11 +349,11 @@ class PrimrModels:
     # LEGACY ALIASES - For backward compatibility only
     # DO NOT USE IN NEW CODE - use the task-specific names above
     # =========================================================================
-    FAST_MODEL = FLASH_MODEL              # Legacy alias
-    REASONING_MODEL = PRO_MODEL           # Legacy alias
-    FILTERING_MODEL = FLASH_MODEL         # DEPRECATED - use LINK_SELECTION_MODEL
-    RESEARCH_MODEL = FLASH_MODEL          # DEPRECATED - confusing name, use SCRAPING_MODEL
-    REPORT_MODEL = PRO_MODEL              # Legacy alias for SECTION_WRITING_MODEL
+    FAST_MODEL = FLASH_MODEL  # Legacy alias
+    REASONING_MODEL = PRO_MODEL  # Legacy alias
+    FILTERING_MODEL = FLASH_MODEL  # DEPRECATED - use LINK_SELECTION_MODEL
+    RESEARCH_MODEL = FLASH_MODEL  # DEPRECATED - confusing name, use SCRAPING_MODEL
+    REPORT_MODEL = PRO_MODEL  # Legacy alias for SECTION_WRITING_MODEL
 
     # =========================================================================
     # NO FALLBACKS - If model fails, FAIL IMMEDIATELY
@@ -355,7 +362,7 @@ class PrimrModels:
     FALLBACK_MODELS: dict = {}  # Empty - no fallbacks
 
     # --- GROK MODELS (xAI - for fast mode) ---
-    GROK_MODEL = ModelRegistry.GROK_4_1_FAST.name            # Reasoning — analytical tasks
+    GROK_MODEL = ModelRegistry.GROK_4_1_FAST.name  # Reasoning — analytical tasks
     GROK_MODEL_WRITING = ModelRegistry.GROK_4_1_FAST_NR.name  # Non-reasoning — writing tasks
 
     # Model registry for lookups
@@ -494,9 +501,7 @@ class PrimrModels:
         return cls.calculate_cost(cfg.name, input_tokens, output_tokens)
 
     @classmethod
-    def calculate_active_pro_cost_conservative(
-        cls, input_tokens: int, output_tokens: int
-    ) -> float:
+    def calculate_active_pro_cost_conservative(cls, input_tokens: int, output_tokens: int) -> float:
         """Calculate cost using the active Pro model at highest tier."""
         cfg = cls.get_active_pro_model()
         return cls.calculate_cost_conservative(cfg.name, input_tokens, output_tokens)
@@ -530,7 +535,9 @@ def calculate_cost(
     prompt_tokens: int | None = None,
 ) -> float:
     """Calculate cost in USD for given token counts."""
-    return PrimrModels.calculate_cost(model_name, input_tokens, output_tokens, prompt_tokens=prompt_tokens)
+    return PrimrModels.calculate_cost(
+        model_name, input_tokens, output_tokens, prompt_tokens=prompt_tokens
+    )
 
 
 def calculate_flash_cost(input_tokens: int, output_tokens: int) -> float:

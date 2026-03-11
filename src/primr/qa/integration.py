@@ -32,6 +32,7 @@ class QAIntegration:
         # Use centralized model if none specified
         if self.options.model is None:
             from ..config.models import PrimrModels
+
             self.options.model = PrimrModels.QA_MODEL
 
         self.analyzer = SimpleQAAnalyzer(self.options.model)
@@ -45,6 +46,7 @@ class QAIntegration:
         if self._output_dir is not None:
             return self._output_dir
         from ..config.config import OUTPUT_DIR
+
         return Path(OUTPUT_DIR)
 
     @output_dir.setter
@@ -109,7 +111,7 @@ class QAIntegration:
                 processing_time_ms=processing_time,
                 model_used=self.analyzer.model_name,
                 fallback_used=False,  # TODO: Track this in analyzer
-                retry_count=0  # TODO: Track this in analyzer
+                retry_count=0,  # TODO: Track this in analyzer
             )
 
             # Create result with clean CLI summary
@@ -119,7 +121,7 @@ class QAIntegration:
                 grade=self._calculate_numerical_grade(qa_result),
                 summary=cli_summary,
                 detailed_analysis=None,  # We'll store the simple result differently
-                needs_attention=not qa_result.ready_for_use or qa_result.confidence_level == "low"
+                needs_attention=not qa_result.ready_for_use or qa_result.confidence_level == "low",
             )
 
             # Save detailed analysis to workspace if enabled
@@ -132,7 +134,9 @@ class QAIntegration:
 
             confidence_text = qa_result.confidence_level.title()
             ready_text = "Ready" if qa_result.ready_for_use else "Needs Work"
-            logger.info(f"QA completed for {company_name}: {ready_text} ({confidence_text} confidence)")
+            logger.info(
+                f"QA completed for {company_name}: {ready_text} ({confidence_text} confidence)"
+            )
             return result
 
         except Exception as e:
@@ -178,7 +182,9 @@ class QAIntegration:
             if qa_result.areas_for_improvement:
                 summary += f"\n• Areas for Improvement ({len(qa_result.areas_for_improvement)}):"
                 for i, improvement in enumerate(qa_result.areas_for_improvement, 1):
-                    summary += f"\n  {i}. {improvement[:100]}{'...' if len(improvement) > 100 else ''}"
+                    summary += (
+                        f"\n  {i}. {improvement[:100]}{'...' if len(improvement) > 100 else ''}"
+                    )
 
             summary += f"\n• Recommendation: {qa_result.recommendation[:150]}{'...' if len(qa_result.recommendation) > 150 else ''}"
 
@@ -201,12 +207,12 @@ class QAIntegration:
             # Format the analysis report
             report_content = f"""Quality Assessment Report for {company_name}
 ==================================================
-Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+Generated: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 Analysis Model: {self.analyzer.model_name}
 
 OVERALL ASSESSMENT
 ------------------
-Ready for Use: {'Yes' if result.ready_for_use else 'No'}
+Ready for Use: {"Yes" if result.ready_for_use else "No"}
 Confidence Level: {result.confidence_level.title()}
 Grade: {self._calculate_numerical_grade(result)}/100
 
@@ -259,10 +265,12 @@ ASSESSMENT CRITERIA EVALUATION
             report_content += f"{result.recommendation}\n"
 
             if not result.parsing_success:
-                report_content += "\nNOTE: Analysis parsing encountered issues. Results may be incomplete.\n"
+                report_content += (
+                    "\nNOTE: Analysis parsing encountered issues. Results may be incomplete.\n"
+                )
 
             # Write to file
-            filepath.write_text(report_content, encoding='utf-8')
+            filepath.write_text(report_content, encoding="utf-8")
             logger.info(f"Detailed QA analysis saved to: {filepath}")
 
         except Exception as e:
@@ -275,7 +283,7 @@ ASSESSMENT CRITERIA EVALUATION
             summary="Assessment: QA Failed",
             detailed_analysis=None,
             needs_attention=True,
-            error_message=error_message
+            error_message=error_message,
         )
 
     def _calculate_numerical_grade(self, qa_result: SimpleQAResult) -> int:
@@ -294,10 +302,7 @@ ASSESSMENT CRITERIA EVALUATION
         scores = qa_result.scores
         assert scores is not None  # Caller guarantees this
 
-        weighted_sum = sum(
-            scores[dim] * weight
-            for dim, weight in QA_DIMENSIONS.items()
-        )
+        weighted_sum = sum(scores[dim] * weight for dim, weight in QA_DIMENSIONS.items())
         return max(0, min(100, round(weighted_sum)))
 
     def _calculate_legacy_grade(self, qa_result: SimpleQAResult) -> int:
@@ -363,7 +368,9 @@ ASSESSMENT CRITERIA EVALUATION
         # Negative indicators
         if "significant" in recommendation_lower and "issues" in recommendation_lower:
             content_modifier -= 3
-        elif "major" in recommendation_lower and ("problems" in recommendation_lower or "concerns" in recommendation_lower):
+        elif "major" in recommendation_lower and (
+            "problems" in recommendation_lower or "concerns" in recommendation_lower
+        ):
             content_modifier -= 2
         elif "needs work" in recommendation_lower or "requires improvement" in recommendation_lower:
             content_modifier -= 1
@@ -373,6 +380,7 @@ ASSESSMENT CRITERIA EVALUATION
 
         # Deterministic variation based on recommendation hash (±1)
         import random
+
         random.seed(hash(qa_result.recommendation))
         variation = random.randint(-1, 1)
         final_score += variation

@@ -11,7 +11,9 @@ def test_polish_fast_report_returns_original_on_error(monkeypatch):
 
     monkeypatch.setattr("primr.ai.grok_client.grok_llm", _boom)
     original = "## Executive Summary\n\nTest content."
-    result = _polish_fast_report_for_trust("ExampleCo", "https://example.com", original, ["https://example.com/src"])
+    result = _polish_fast_report_for_trust(
+        "ExampleCo", "https://example.com", original, ["https://example.com/src"]
+    )
     assert result == original
 
 
@@ -23,7 +25,9 @@ def test_polish_fast_report_uses_polished_output(monkeypatch):
 
     monkeypatch.setattr("primr.ai.grok_client.grok_llm", _ok)
     original = "## Executive Summary\n\nTest content."
-    result = _polish_fast_report_for_trust("ExampleCo", "https://example.com", original, ["https://example.com/src"])
+    result = _polish_fast_report_for_trust(
+        "ExampleCo", "https://example.com", original, ["https://example.com/src"]
+    )
     assert result == polished
 
 
@@ -34,7 +38,9 @@ def test_polish_fast_report_includes_feedback_guidance(monkeypatch):
         captured["prompt"] = prompt
         return "## Executive Summary\n\nEdited."
 
-    monkeypatch.setattr("primr.core.research_agent._load_fast_feedback_guidance", lambda: "Rule A\nRule B")
+    monkeypatch.setattr(
+        "primr.core.research_agent._load_fast_feedback_guidance", lambda: "Rule A\nRule B"
+    )
     monkeypatch.setattr("primr.ai.grok_client.grok_llm", _ok)
 
     _polish_fast_report_for_trust(
@@ -57,7 +63,9 @@ def test_polish_fast_report_rejects_destructive_compression(monkeypatch):
         return "## Executive Summary\n\nShort."
 
     monkeypatch.setattr("primr.ai.grok_client.grok_llm", _compressed)
-    result = _polish_fast_report_for_trust("ExampleCo", "https://example.com", original, ["https://example.com/src"])
+    result = _polish_fast_report_for_trust(
+        "ExampleCo", "https://example.com", original, ["https://example.com/src"]
+    )
     assert result == original
 
 

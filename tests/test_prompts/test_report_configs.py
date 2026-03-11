@@ -7,7 +7,6 @@ are properly structured and the system can load them correctly.
 This ensures the extensible report architecture works correctly.
 """
 
-
 import pytest
 import yaml
 
@@ -51,8 +50,9 @@ class TestCompanyOverviewConfig:
 
         valid_positions = {"opening", "middle", "closing", "framework"}
         for section in config.sections:
-            assert section.position in valid_positions, \
+            assert section.position in valid_positions, (
                 f"Section {section.id} has invalid position: {section.position}"
+            )
 
     def test_has_opening_and_closing_sections(self):
         """Config has at least one opening and one closing section."""
@@ -229,8 +229,9 @@ class TestReportTypeConsistency:
 
         for section in config.sections:
             section_id = section.id
-            assert re.match(r'^[a-z][a-z0-9_]*$', section_id), \
+            assert re.match(r"^[a-z][a-z0-9_]*$", section_id), (
                 f"Invalid section ID: {section_id} (should be snake_case)"
+            )
 
 
 class TestVendorResearchFiles:
@@ -336,8 +337,7 @@ class TestAIStrategyVendorGuidance:
         for vendor, guidance in vendor_guidance.items():
             if vendor in ["azure", "aws", "gcp"]:
                 # Guidance should be non-trivial
-                assert len(str(guidance)) > 50, \
-                    f"Vendor guidance for {vendor} is too short"
+                assert len(str(guidance)) > 50, f"Vendor guidance for {vendor} is too short"
 
 
 class TestAccordionMethodPrompts:
@@ -357,15 +357,17 @@ class TestAccordionMethodPrompts:
 
         # Research dossier prompt should have company_name placeholder
         dossier_prompt = accordion.get("research_dossier_prompt", "")
-        assert "{company_name}" in dossier_prompt, \
+        assert "{company_name}" in dossier_prompt, (
             "research_dossier_prompt missing {company_name} placeholder"
+        )
 
         # Section writing prompt should have required placeholders
         section_prompt = accordion.get("section_writing_prompt", "")
         required_placeholders = ["{company_name}", "{section_title}"]
         for placeholder in required_placeholders:
-            assert placeholder in section_prompt, \
+            assert placeholder in section_prompt, (
                 f"section_writing_prompt missing {placeholder} placeholder"
+            )
 
     def test_position_guidance_is_substantive(self):
         """Position guidance should have meaningful content."""
@@ -377,8 +379,7 @@ class TestAccordionMethodPrompts:
 
         for position in ["opening", "middle", "closing"]:
             content = guidance.get(position, "")
-            assert len(content) > 20, \
-                f"Position guidance for {position} is too short"
+            assert len(content) > 20, f"Position guidance for {position} is too short"
 
 
 class TestMalformedYAMLHandling:
@@ -406,7 +407,7 @@ sections:
       nested: value
 """
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write(malformed_yaml)
             temp_path = f.name
 
@@ -429,7 +430,7 @@ meta:
 sections: []
 """
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write(incomplete_yaml)
             temp_path = f.name
 
@@ -470,7 +471,7 @@ def test_property_section_ids_are_snake_case(section_id: str):
     import re
 
     # Valid snake_case pattern
-    pattern = r'^[a-z][a-z0-9_]*$'
+    pattern = r"^[a-z][a-z0-9_]*$"
 
     # If it matches the pattern, it's valid snake_case
     is_valid = bool(re.match(pattern, section_id))
@@ -479,9 +480,7 @@ def test_property_section_ids_are_snake_case(section_id: str):
     assert is_valid, f"Invalid section ID format: {section_id}"
 
 
-@given(
-    vendor=st.sampled_from(["azure", "aws", "gcp", "agnostic"])
-)
+@given(vendor=st.sampled_from(["azure", "aws", "gcp", "agnostic"]))
 @settings(max_examples=10, deadline=None)
 def test_property_vendor_guidance_exists(vendor: str):
     """

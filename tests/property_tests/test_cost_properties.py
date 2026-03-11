@@ -8,7 +8,6 @@ of the CostTracker implementation as specified in the PhD-Level Excellence spec.
 **Validates: Requirements 5.1-5.6**
 """
 
-
 import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
@@ -27,14 +26,16 @@ from primr.utils.telemetry import (
 # =============================================================================
 
 # Strategy for generating valid model names
-model_name_strategy = st.sampled_from([
-    "gemini-1.5-pro",
-    "gemini-1.5-flash",
-    "gemini-2.0-flash",
-])
+model_name_strategy = st.sampled_from(
+    [
+        "gemini-1.5-pro",
+        "gemini-1.5-flash",
+        "gemini-2.0-flash",
+    ]
+)
 
 # Strategy for generating unknown model names
-unknown_model_strategy = st.from_regex(r'unknown-model-[a-z0-9]{4}', fullmatch=True)
+unknown_model_strategy = st.from_regex(r"unknown-model-[a-z0-9]{4}", fullmatch=True)
 
 # Strategy for generating token counts (non-negative integers)
 token_count_strategy = st.integers(min_value=0, max_value=10_000_000)
@@ -43,27 +44,30 @@ token_count_strategy = st.integers(min_value=0, max_value=10_000_000)
 price_strategy = st.floats(min_value=0.001, max_value=1000.0, allow_nan=False, allow_infinity=False)
 
 # Strategy for generating operation names
-operation_name_strategy = st.sampled_from([
-    "generate_report",
-    "summarize_content",
-    "extract_entities",
-    "translate_text",
-    "analyze_sentiment",
-    None,
-])
+operation_name_strategy = st.sampled_from(
+    [
+        "generate_report",
+        "summarize_content",
+        "extract_entities",
+        "translate_text",
+        "analyze_sentiment",
+        None,
+    ]
+)
 
 # Strategy for generating custom pricing tables
 custom_pricing_strategy = st.dictionaries(
-    st.from_regex(r'[a-z]+-[a-z0-9]+', fullmatch=True),
+    st.from_regex(r"[a-z]+-[a-z0-9]+", fullmatch=True),
     st.tuples(price_strategy, price_strategy),
     min_size=1,
-    max_size=5
+    max_size=5,
 )
 
 
 # =============================================================================
 # PROPERTY 14: COST CALCULATION CORRECTNESS
 # =============================================================================
+
 
 class TestCostCalculationCorrectness:
     """
@@ -79,7 +83,7 @@ class TestCostCalculationCorrectness:
     @given(
         model=model_name_strategy,
         input_tokens=token_count_strategy,
-        output_tokens=token_count_strategy
+        output_tokens=token_count_strategy,
     )
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_cost_calculation_formula_correctness(
@@ -99,25 +103,21 @@ class TestCostCalculationCorrectness:
         input_price, output_price = pricing
 
         # Calculate expected cost using the formula
-        expected_cost = (input_tokens / 1_000_000) * input_price + (output_tokens / 1_000_000) * output_price
+        expected_cost = (input_tokens / 1_000_000) * input_price + (
+            output_tokens / 1_000_000
+        ) * output_price
 
         # Calculate actual cost
         actual_cost = tracker.calculate_cost(model, input_tokens, output_tokens)
 
         # Verify the formula is correct (using approximate equality for floating point)
         assert abs(actual_cost - expected_cost) < 1e-10, (
-            f"Cost calculation mismatch for {model}: "
-            f"expected {expected_cost}, got {actual_cost}"
+            f"Cost calculation mismatch for {model}: expected {expected_cost}, got {actual_cost}"
         )
 
-    @given(
-        input_tokens=token_count_strategy,
-        output_tokens=token_count_strategy
-    )
+    @given(input_tokens=token_count_strategy, output_tokens=token_count_strategy)
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
-    def test_unknown_model_returns_zero_cost(
-        self, input_tokens: int, output_tokens: int
-    ):
+    def test_unknown_model_returns_zero_cost(self, input_tokens: int, output_tokens: int):
         """
         Unknown models should return 0.0 cost.
         """
@@ -127,14 +127,9 @@ class TestCostCalculationCorrectness:
 
         assert cost == 0.0, f"Unknown model should return 0.0 cost, got {cost}"
 
-    @given(
-        model=model_name_strategy,
-        output_tokens=token_count_strategy
-    )
+    @given(model=model_name_strategy, output_tokens=token_count_strategy)
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
-    def test_zero_input_tokens_only_charges_output(
-        self, model: str, output_tokens: int
-    ):
+    def test_zero_input_tokens_only_charges_output(self, model: str, output_tokens: int):
         """
         With zero input tokens, cost should only be from output tokens.
         """
@@ -149,14 +144,9 @@ class TestCostCalculationCorrectness:
 
         assert abs(actual_cost - expected_cost) < 1e-10
 
-    @given(
-        model=model_name_strategy,
-        input_tokens=token_count_strategy
-    )
+    @given(model=model_name_strategy, input_tokens=token_count_strategy)
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
-    def test_zero_output_tokens_only_charges_input(
-        self, model: str, input_tokens: int
-    ):
+    def test_zero_output_tokens_only_charges_input(self, model: str, input_tokens: int):
         """
         With zero output tokens, cost should only be from input tokens.
         """
@@ -186,13 +176,11 @@ class TestCostCalculationCorrectness:
     @given(
         custom_pricing=custom_pricing_strategy,
         input_tokens=token_count_strategy,
-        output_tokens=token_count_strategy
+        output_tokens=token_count_strategy,
     )
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_custom_pricing_table_is_used(
-        self, custom_pricing: dict[str, tuple[float, float]],
-        input_tokens: int,
-        output_tokens: int
+        self, custom_pricing: dict[str, tuple[float, float]], input_tokens: int, output_tokens: int
     ):
         """
         Custom pricing tables should be used for cost calculation.
@@ -203,7 +191,9 @@ class TestCostCalculationCorrectness:
         model = next(iter(custom_pricing.keys()))
         input_price, output_price = custom_pricing[model]
 
-        expected_cost = (input_tokens / 1_000_000) * input_price + (output_tokens / 1_000_000) * output_price
+        expected_cost = (input_tokens / 1_000_000) * input_price + (
+            output_tokens / 1_000_000
+        ) * output_price
         actual_cost = tracker.calculate_cost(model, input_tokens, output_tokens)
 
         assert abs(actual_cost - expected_cost) < 1e-10
@@ -211,12 +201,10 @@ class TestCostCalculationCorrectness:
     @given(
         model=model_name_strategy,
         input_tokens=token_count_strategy,
-        output_tokens=token_count_strategy
+        output_tokens=token_count_strategy,
     )
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
-    def test_cost_is_non_negative(
-        self, model: str, input_tokens: int, output_tokens: int
-    ):
+    def test_cost_is_non_negative(self, model: str, input_tokens: int, output_tokens: int):
         """
         Cost should always be non-negative for non-negative token counts.
         """
@@ -229,12 +217,10 @@ class TestCostCalculationCorrectness:
     @given(
         model=model_name_strategy,
         input_tokens=st.integers(min_value=1, max_value=10_000_000),
-        output_tokens=st.integers(min_value=1, max_value=10_000_000)
+        output_tokens=st.integers(min_value=1, max_value=10_000_000),
     )
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
-    def test_cost_increases_with_tokens(
-        self, model: str, input_tokens: int, output_tokens: int
-    ):
+    def test_cost_increases_with_tokens(self, model: str, input_tokens: int, output_tokens: int):
         """
         Cost should increase when token counts increase.
         """
@@ -252,6 +238,7 @@ class TestCostCalculationCorrectness:
 # PROPERTY 15: COST ATTRIBUTION TO SPANS
 # =============================================================================
 
+
 class TestCostAttributionToSpans:
     """
     **Property 15: Cost Attribution to Spans**
@@ -267,7 +254,7 @@ class TestCostAttributionToSpans:
         model=model_name_strategy,
         input_tokens=token_count_strategy,
         output_tokens=token_count_strategy,
-        operation=operation_name_strategy
+        operation=operation_name_strategy,
     )
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_record_cost_returns_calculated_cost(
@@ -287,7 +274,7 @@ class TestCostAttributionToSpans:
                 model=model,
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
-                operation=operation
+                operation=operation,
             )
 
         assert abs(actual_cost - expected_cost) < 1e-10, (
@@ -297,7 +284,7 @@ class TestCostAttributionToSpans:
     @given(
         model=model_name_strategy,
         input_tokens=token_count_strategy,
-        output_tokens=token_count_strategy
+        output_tokens=token_count_strategy,
     )
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_record_cost_does_not_raise_when_disabled(
@@ -311,9 +298,7 @@ class TestCostAttributionToSpans:
 
         # Should not raise
         cost = telemetry.record_cost(
-            model=model,
-            input_tokens=input_tokens,
-            output_tokens=output_tokens
+            model=model, input_tokens=input_tokens, output_tokens=output_tokens
         )
 
         # Should still return the calculated cost
@@ -325,7 +310,7 @@ class TestCostAttributionToSpans:
         model=model_name_strategy,
         input_tokens=token_count_strategy,
         output_tokens=token_count_strategy,
-        operation=operation_name_strategy
+        operation=operation_name_strategy,
     )
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_record_cost_within_span_does_not_raise(
@@ -343,7 +328,7 @@ class TestCostAttributionToSpans:
                 model=model,
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
-                operation=operation
+                operation=operation,
             )
 
             # Cost should be calculated correctly
@@ -352,7 +337,7 @@ class TestCostAttributionToSpans:
     @given(
         model=model_name_strategy,
         input_tokens=token_count_strategy,
-        output_tokens=token_count_strategy
+        output_tokens=token_count_strategy,
     )
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_record_cost_uses_custom_cost_tracker(
@@ -374,7 +359,7 @@ class TestCostAttributionToSpans:
             model=model,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
-            cost_tracker=custom_tracker
+            cost_tracker=custom_tracker,
         )
 
         assert abs(actual_cost - expected_cost) < 1e-10
@@ -383,7 +368,7 @@ class TestCostAttributionToSpans:
     @given(
         model=model_name_strategy,
         input_tokens=st.integers(min_value=100, max_value=10000),
-        output_tokens=st.integers(min_value=100, max_value=10000)
+        output_tokens=st.integers(min_value=100, max_value=10000),
     )
     @settings(max_examples=50, suppress_health_check=[HealthCheck.too_slow])
     def test_record_cost_attaches_attributes_to_span_with_otel(
@@ -396,12 +381,15 @@ class TestCostAttributionToSpans:
         telemetry = TelemetrySystem(config)
 
         if telemetry.is_enabled:
-            with correlation_scope("test"), telemetry.span("ai_operation", phase="generation") as span:
+            with (
+                correlation_scope("test"),
+                telemetry.span("ai_operation", phase="generation") as span,
+            ):
                 cost = telemetry.record_cost(
                     model=model,
                     input_tokens=input_tokens,
                     output_tokens=output_tokens,
-                    operation="test_operation"
+                    operation="test_operation",
                 )
 
                 # Span should be a real OpenTelemetry span
@@ -415,6 +403,7 @@ class TestCostAttributionToSpans:
 # =============================================================================
 # COST TRACKER CONFIGURATION TESTS
 # =============================================================================
+
 
 class TestCostTrackerConfiguration:
     """
@@ -431,8 +420,11 @@ class TestCostTrackerConfiguration:
 
         # Both legacy and current models should be present
         expected_models = [
-            "gemini-1.5-pro", "gemini-1.5-flash", "gemini-2.0-flash",
-            "gemini-3-pro-preview", "gemini-3-flash-preview",
+            "gemini-1.5-pro",
+            "gemini-1.5-flash",
+            "gemini-2.0-flash",
+            "gemini-3-pro-preview",
+            "gemini-3-flash-preview",
         ]
 
         for model in expected_models:
@@ -460,14 +452,12 @@ class TestCostTrackerConfiguration:
         assert tracker.get_model_pricing("gemini-3-pro-preview") == (2.00, 12.00)
 
     @given(
-        model=st.from_regex(r'[a-z]+-[a-z0-9]+', fullmatch=True),
+        model=st.from_regex(r"[a-z]+-[a-z0-9]+", fullmatch=True),
         input_price=price_strategy,
-        output_price=price_strategy
+        output_price=price_strategy,
     )
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
-    def test_add_model_pricing(
-        self, model: str, input_price: float, output_price: float
-    ):
+    def test_add_model_pricing(self, model: str, input_price: float, output_price: float):
         """
         add_model_pricing should add new models to the pricing table.
         """
@@ -478,14 +468,9 @@ class TestCostTrackerConfiguration:
         assert model in tracker.get_supported_models()
         assert tracker.get_model_pricing(model) == (input_price, output_price)
 
-    @given(
-        input_price=price_strategy,
-        output_price=price_strategy
-    )
+    @given(input_price=price_strategy, output_price=price_strategy)
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
-    def test_add_model_pricing_updates_existing(
-        self, input_price: float, output_price: float
-    ):
+    def test_add_model_pricing_updates_existing(self, input_price: float, output_price: float):
         """
         add_model_pricing should update pricing for existing models.
         """
@@ -507,9 +492,7 @@ class TestCostTrackerConfiguration:
 
     @given(custom_pricing=custom_pricing_strategy)
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
-    def test_custom_pricing_initialization(
-        self, custom_pricing: dict[str, tuple[float, float]]
-    ):
+    def test_custom_pricing_initialization(self, custom_pricing: dict[str, tuple[float, float]]):
         """
         CostTracker should accept custom pricing at initialization.
         """
@@ -522,6 +505,7 @@ class TestCostTrackerConfiguration:
 # =============================================================================
 # COST CALCULATION EDGE CASES
 # =============================================================================
+
 
 class TestCostCalculationEdgeCases:
     """
@@ -573,7 +557,7 @@ class TestCostCalculationEdgeCases:
     @given(
         model=model_name_strategy,
         input_tokens=token_count_strategy,
-        output_tokens=token_count_strategy
+        output_tokens=token_count_strategy,
     )
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_cost_calculation_is_deterministic(
@@ -592,12 +576,10 @@ class TestCostCalculationEdgeCases:
     @given(
         model=model_name_strategy,
         input_tokens=token_count_strategy,
-        output_tokens=token_count_strategy
+        output_tokens=token_count_strategy,
     )
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
-    def test_cost_is_additive(
-        self, model: str, input_tokens: int, output_tokens: int
-    ):
+    def test_cost_is_additive(self, model: str, input_tokens: int, output_tokens: int):
         """
         Cost should be additive: cost(a+b) = cost(a) + cost(b) for same model.
         """

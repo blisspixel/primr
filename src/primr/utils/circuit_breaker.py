@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 # CIRCUIT STATE ENUM
 # =============================================================================
 
+
 class CircuitState(Enum):
     """
     States for the circuit breaker state machine.
@@ -50,14 +51,15 @@ class CircuitState(Enum):
     **Validates: Requirements 3.5, 3.6**
     """
 
-    CLOSED = "closed"      # Normal operation, requests allowed
-    OPEN = "open"          # Failing, reject requests
+    CLOSED = "closed"  # Normal operation, requests allowed
+    OPEN = "open"  # Failing, reject requests
     HALF_OPEN = "half_open"  # Testing if service recovered
 
 
 # =============================================================================
 # CIRCUIT BREAKER CONFIGURATION
 # =============================================================================
+
 
 @dataclass
 class CircuitBreakerConfig:
@@ -106,6 +108,7 @@ class CircuitBreakerConfig:
 # CIRCUIT STATISTICS
 # =============================================================================
 
+
 @dataclass
 class CircuitStats:
     """
@@ -137,6 +140,7 @@ class CircuitStats:
 # STATE CHANGE EVENT
 # =============================================================================
 
+
 @dataclass
 class StateChangeEvent:
     """
@@ -165,6 +169,7 @@ class StateChangeEvent:
 # =============================================================================
 # CIRCUIT OPEN ERROR
 # =============================================================================
+
 
 @dataclass
 class CircuitOpenError(PrimrError):
@@ -204,6 +209,7 @@ class CircuitOpenError(PrimrError):
 # =============================================================================
 # INTERNAL CIRCUIT STATE TRACKING
 # =============================================================================
+
 
 @dataclass
 class _CircuitStateData:
@@ -392,11 +398,7 @@ class CircuitBreaker:
         return self._circuits[key]
 
     def _notify_state_change(
-        self,
-        key: str,
-        from_state: CircuitState,
-        to_state: CircuitState,
-        trigger: str
+        self, key: str, from_state: CircuitState, to_state: CircuitState, trigger: str
     ) -> None:
         """Notify all listeners of a state change."""
         event = StateChangeEvent(
@@ -404,7 +406,7 @@ class CircuitBreaker:
             from_state=from_state,
             to_state=to_state,
             timestamp=datetime.now(),
-            trigger=trigger
+            trigger=trigger,
         )
 
         logger.info(
@@ -535,10 +537,7 @@ class CircuitBreaker:
                 # Still in open state, reject request
                 circuit.total_rejections += 1
                 retry_after = self.config.timeout_seconds - circuit.time_in_current_state()
-                raise CircuitOpenError(
-                    host=key,
-                    retry_after=max(0.0, retry_after)
-                )
+                raise CircuitOpenError(host=key, retry_after=max(0.0, retry_after))
         elif circuit.state == CircuitState.HALF_OPEN:
             # Check if we've exceeded max calls in half-open state
             if circuit.half_open_calls >= self.config.half_open_max_calls:
@@ -546,7 +545,7 @@ class CircuitBreaker:
                 raise CircuitOpenError(
                     message=f"Circuit breaker half-open limit reached for {key}",
                     host=key,
-                    retry_after=1.0  # Short retry for half-open limit
+                    retry_after=1.0,  # Short retry for half-open limit
                 )
 
     def add_state_change_listener(self, listener: StateChangeListener) -> None:
@@ -601,6 +600,7 @@ class CircuitBreaker:
     def _extract_domain(self, url: str) -> str:
         """Extract domain from URL for legacy API."""
         from urllib.parse import urlparse
+
         try:
             parsed = urlparse(url)
             return parsed.netloc.lower() if parsed.netloc else url

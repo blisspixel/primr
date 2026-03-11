@@ -4,6 +4,7 @@ Section Writer for consulting-tier reports.
 Generates report sections with clean formatting, source attribution,
 and consulting-quality content.
 """
+
 import json
 
 from primr.ai.llm import llm
@@ -79,10 +80,9 @@ class SectionWriter:
         if not insights:
             return "No insights available."
 
-        return "\n".join([
-            f"- {i.title}: {i.description} (Confidence: {i.confidence.value})"
-            for i in insights
-        ])
+        return "\n".join(
+            [f"- {i.title}: {i.description} (Confidence: {i.confidence.value})" for i in insights]
+        )
 
     def _summarize_data(self, data: list[GatheredData], max_chars: int = 5000) -> str:
         """Create a summary of gathered data for prompts."""
@@ -109,24 +109,25 @@ class SectionWriter:
 
         for item in data:
             if item.source_url not in seen_urls:
-                sources.append(SourceCitation(
-                    url=item.source_url,
-                    title=item.title or item.source_url,
-                    source_type=item.source_type,
-                    accessed_at=item.gathered_at,
-                    excerpt=item.content[:200] if item.content else ""
-                ))
+                sources.append(
+                    SourceCitation(
+                        url=item.source_url,
+                        title=item.title or item.source_url,
+                        source_type=item.source_type,
+                        accessed_at=item.gathered_at,
+                        excerpt=item.content[:200] if item.content else "",
+                    )
+                )
                 seen_urls.add(item.source_url)
 
         return sources
-
 
     def write_executive_summary(
         self,
         insights: list[Insight],
         data: list[GatheredData],
         company_name: str,
-        max_words: int = 500
+        max_words: int = 500,
     ) -> SectionContent:
         """
         Write an executive summary with all required components.
@@ -144,9 +145,7 @@ class SectionWriter:
         data_summary = self._summarize_data(data)
 
         prompt = EXECUTIVE_SUMMARY_PROMPT.format(
-            company_name=company_name,
-            insights_summary=insights_summary,
-            data_summary=data_summary
+            company_name=company_name, insights_summary=insights_summary, data_summary=data_summary
         )
 
         try:
@@ -160,7 +159,7 @@ class SectionWriter:
                 # Try to end at a sentence
                 last_period = content.rfind(".")
                 if last_period > len(content) * 0.8:
-                    content = content[:last_period + 1]
+                    content = content[: last_period + 1]
 
             # Extract confidence notes for estimated data
             confidence_notes = self._extract_confidence_notes(insights)
@@ -169,7 +168,7 @@ class SectionWriter:
                 title="Executive Summary",
                 content=content,
                 sources=self._extract_sources(data),
-                confidence_notes=confidence_notes
+                confidence_notes=confidence_notes,
             )
 
         except Exception as e:
@@ -178,7 +177,7 @@ class SectionWriter:
                 title="Executive Summary",
                 content=f"Executive summary generation failed for {company_name}.",
                 sources=[],
-                confidence_notes=[]
+                confidence_notes=[],
             )
 
     def _extract_confidence_notes(self, insights: list[Insight]) -> list[ConfidenceNote]:
@@ -187,20 +186,20 @@ class SectionWriter:
 
         for insight in insights:
             if insight.confidence in [ConfidenceLevel.ESTIMATED, ConfidenceLevel.INFERRED]:
-                notes.append(ConfidenceNote(
-                    statement=insight.title,
-                    confidence=insight.confidence,
-                    basis=f"Based on: {', '.join(insight.evidence[:2])}" if insight.evidence else "Inferred from available data"
-                ))
+                notes.append(
+                    ConfidenceNote(
+                        statement=insight.title,
+                        confidence=insight.confidence,
+                        basis=f"Based on: {', '.join(insight.evidence[:2])}"
+                        if insight.evidence
+                        else "Inferred from available data",
+                    )
+                )
 
         return notes
 
     def write_section(
-        self,
-        section_type: str,
-        company_name: str,
-        context: str,
-        data: list[GatheredData]
+        self, section_type: str, company_name: str, context: str, data: list[GatheredData]
     ) -> SectionContent:
         """
         Write a report section.
@@ -220,7 +219,7 @@ class SectionWriter:
             section_type=section_type,
             company_name=company_name,
             context=context,
-            data_summary=data_summary
+            data_summary=data_summary,
         )
 
         try:
@@ -231,7 +230,7 @@ class SectionWriter:
                 title=section_type,
                 content=content,
                 sources=self._extract_sources(data),
-                confidence_notes=[]
+                confidence_notes=[],
             )
 
         except Exception as e:
@@ -240,7 +239,7 @@ class SectionWriter:
                 title=section_type,
                 content=f"Section generation failed for {section_type}.",
                 sources=[],
-                confidence_notes=[]
+                confidence_notes=[],
             )
 
     def format_for_readability(self, content: str) -> str:
@@ -256,40 +255,28 @@ class SectionWriter:
         return clean_content(content)
 
     def write_industry_analysis(
-        self,
-        company_name: str,
-        industry: str,
-        data: list[GatheredData]
+        self, company_name: str, industry: str, data: list[GatheredData]
     ) -> SectionContent:
         """Write industry analysis section."""
         context = f"Industry: {industry}"
         return self.write_section("Industry Analysis", company_name, context, data)
 
     def write_financial_overview(
-        self,
-        company_name: str,
-        financial_data: dict,
-        data: list[GatheredData]
+        self, company_name: str, financial_data: dict, data: list[GatheredData]
     ) -> SectionContent:
         """Write financial overview section."""
         context = f"Financial Data: {json.dumps(financial_data, default=str)}"
         return self.write_section("Financial Overview", company_name, context, data)
 
     def write_competitive_analysis(
-        self,
-        company_name: str,
-        competitors: list[str],
-        data: list[GatheredData]
+        self, company_name: str, competitors: list[str], data: list[GatheredData]
     ) -> SectionContent:
         """Write competitive analysis section."""
         context = f"Competitors: {', '.join(competitors)}"
         return self.write_section("Competitive Analysis", company_name, context, data)
 
     def write_strategic_recommendations(
-        self,
-        company_name: str,
-        insights: list[Insight],
-        data: list[GatheredData]
+        self, company_name: str, insights: list[Insight], data: list[GatheredData]
     ) -> SectionContent:
         """Write strategic recommendations section."""
         context = self._summarize_insights(insights)

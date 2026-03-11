@@ -16,10 +16,10 @@ from primr.output.output_utils import (
 
 # Sample section data for testing
 SAMPLE_SECTIONS = {
-    'company_name': 'Test Company Inc',
-    'company_website': 'https://testcompany.com',
-    'industry': 'Technology',
-    'company_overview': """
+    "company_name": "Test Company Inc",
+    "company_website": "https://testcompany.com",
+    "industry": "Technology",
+    "company_overview": """
 Test Company Inc is a leading technology company founded in 2010.
 The company specializes in enterprise software solutions.
 
@@ -28,7 +28,7 @@ The company specializes in enterprise software solutions.
 * Employees: 10,000
 * Headquarters: San Francisco, CA
 """,
-    'financial_overview': """
+    "financial_overview": """
 ## Financial Performance
 
 The company has shown strong financial performance:
@@ -42,7 +42,7 @@ The company has shown strong financial performance:
 * P/E Ratio: 28
 * Dividend Yield: 1.5%
 """,
-    'competitive_position': """
+    "competitive_position": """
 Test Company maintains a strong competitive position in the market.
 
 Key differentiators include:
@@ -54,7 +54,7 @@ The company faces competition from:
 * Competitor A - market leader in segment X
 * Competitor B - strong in enterprise segment
 """,
-    'strategic_recommendations': """
+    "strategic_recommendations": """
 ## Strategic Recommendations
 
 Based on our analysis, we recommend the following actions:
@@ -69,7 +69,7 @@ Based on our analysis, we recommend the following actions:
 * Optimize pricing strategy - quick implementation, immediate impact
 * Streamline operations - low-cost efficiency gains
 """,
-    'industry_insights': """
+    "industry_insights": """
 The technology industry continues to evolve rapidly.
 
 Key trends include:
@@ -87,7 +87,7 @@ class TestDocumentBuilderIntegration:
 
     def test_build_complete_document(self):
         """Build a complete document and verify structure."""
-        builder = DocumentBuilder('Test Company Inc', SAMPLE_SECTIONS)
+        builder = DocumentBuilder("Test Company Inc", SAMPLE_SECTIONS)
         document = builder.build()
 
         # Verify document was created
@@ -101,60 +101,60 @@ class TestDocumentBuilderIntegration:
 
     def test_document_has_no_markdown_artifacts(self):
         """Verify generated document has no unconverted markdown."""
-        builder = DocumentBuilder('Test Company Inc', SAMPLE_SECTIONS)
+        builder = DocumentBuilder("Test Company Inc", SAMPLE_SECTIONS)
         document = builder.build()
 
         detector = ArtifactDetector()
         artifacts = detector.scan_document(document)
 
         # Filter out false positives (some patterns may appear in legitimate content)
-        real_artifacts = [a for a in artifacts if a['type'] == 'heading']
+        real_artifacts = [a for a in artifacts if a["type"] == "heading"]
 
         # Should have no heading artifacts (## patterns)
         assert len(real_artifacts) == 0, f"Found artifacts: {detector.get_artifact_summary()}"
 
     def test_document_has_cover_page_elements(self):
         """Verify cover page has required elements."""
-        builder = DocumentBuilder('Test Company Inc', SAMPLE_SECTIONS)
+        builder = DocumentBuilder("Test Company Inc", SAMPLE_SECTIONS)
         document = builder.build()
 
         # Get text from first few paragraphs
         first_paragraphs = [p.text for p in document.paragraphs[:10]]
-        all_text = '\n'.join(first_paragraphs)
+        all_text = "\n".join(first_paragraphs)
 
         # Should have company name
-        assert 'Test Company' in all_text
+        assert "Test Company" in all_text
 
         # Should have report title
-        assert 'Strategic' in all_text or 'Profile' in all_text
+        assert "Strategic" in all_text or "Profile" in all_text
 
     def test_document_has_executive_summary(self):
         """Verify executive summary section exists."""
-        builder = DocumentBuilder('Test Company Inc', SAMPLE_SECTIONS)
+        builder = DocumentBuilder("Test Company Inc", SAMPLE_SECTIONS)
         document = builder.build()
 
         # Find executive summary heading
-        headings = [p.text for p in document.paragraphs if p.style.name.startswith('Heading')]
+        headings = [p.text for p in document.paragraphs if p.style.name.startswith("Heading")]
 
-        assert any('Executive Summary' in h for h in headings)
+        assert any("Executive Summary" in h for h in headings)
 
     def test_document_has_chapters(self):
         """Verify document has chapter structure."""
-        builder = DocumentBuilder('Test Company Inc', SAMPLE_SECTIONS)
+        builder = DocumentBuilder("Test Company Inc", SAMPLE_SECTIONS)
         document = builder.build()
 
         # Find chapter headings (level 1)
-        h1_headings = [p.text for p in document.paragraphs if p.style.name == 'Heading 1']
+        h1_headings = [p.text for p in document.paragraphs if p.style.name == "Heading 1"]
 
         # Should have multiple chapters
         assert len(h1_headings) >= 3
 
     def test_document_saves_to_file(self):
         """Verify document can be saved to file."""
-        builder = DocumentBuilder('Test Company Inc', SAMPLE_SECTIONS)
+        builder = DocumentBuilder("Test Company Inc", SAMPLE_SECTIONS)
         document = builder.build()
 
-        with tempfile.NamedTemporaryFile(suffix='.docx', delete=False) as f:
+        with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
             temp_path = f.name
 
         try:
@@ -175,27 +175,28 @@ class TestTxtReportIntegration:
         with tempfile.TemporaryDirectory() as tmpdir:
             # Temporarily override OUTPUT_DIR
             import primr.output.output_utils as utils
+
             original_dir = utils.OUTPUT_DIR
             utils.OUTPUT_DIR = tmpdir
 
             try:
-                txt_path = save_report_as_txt(SAMPLE_SECTIONS, 'Test_Company')
+                txt_path = save_report_as_txt(SAMPLE_SECTIONS, "Test_Company")
 
                 assert txt_path is not None
                 assert os.path.exists(txt_path)
 
-                with open(txt_path, encoding='utf-8') as f:
+                with open(txt_path, encoding="utf-8") as f:
                     content = f.read()
 
                 # Should have title
-                assert 'Test_Company' in content
+                assert "Test_Company" in content
 
                 # Should have section headers
-                assert 'FINANCIAL' in content.upper() or 'OVERVIEW' in content.upper()
+                assert "FINANCIAL" in content.upper() or "OVERVIEW" in content.upper()
 
                 # Should not have raw markdown heading markers
-                lines = content.split('\n')
-                heading_lines = [line for line in lines if line.strip().startswith('##')]
+                lines = content.split("\n")
+                heading_lines = [line for line in lines if line.strip().startswith("##")]
                 assert len(heading_lines) == 0, f"Found markdown headings: {heading_lines}"
 
             finally:
@@ -209,19 +210,20 @@ class TestContentEquivalence:
         """Key content from sections should appear in TXT output."""
         with tempfile.TemporaryDirectory() as tmpdir:
             import primr.output.output_utils as utils
+
             original_dir = utils.OUTPUT_DIR
             utils.OUTPUT_DIR = tmpdir
 
             try:
-                txt_path = save_report_as_txt(SAMPLE_SECTIONS, 'Test_Company')
+                txt_path = save_report_as_txt(SAMPLE_SECTIONS, "Test_Company")
 
-                with open(txt_path, encoding='utf-8') as f:
+                with open(txt_path, encoding="utf-8") as f:
                     content = f.read()
 
                 # Key content from financial_overview should be present
-                assert '$45 billion' in content or '45 billion' in content
-                assert '$1.2 billion' in content or '1.2 billion' in content
-                assert '15%' in content
+                assert "$45 billion" in content or "45 billion" in content
+                assert "$1.2 billion" in content or "1.2 billion" in content
+                assert "15%" in content
 
             finally:
                 utils.OUTPUT_DIR = original_dir
@@ -242,12 +244,12 @@ Key points:
         stripped = strip_markdown_artifacts(test_content)
 
         # All key info should be present
-        assert 'Financial Overview' in stripped
-        assert 'Revenue' in stripped
-        assert '$5.2 billion' in stripped
-        assert 'Employees' in stripped
-        assert '10,000' in stripped
-        assert 'Strong growth' in stripped
+        assert "Financial Overview" in stripped
+        assert "Revenue" in stripped
+        assert "$5.2 billion" in stripped
+        assert "Employees" in stripped
+        assert "10,000" in stripped
+        assert "Strong growth" in stripped
 
 
 class TestFourTests:
@@ -267,7 +269,7 @@ class TestFourTests:
         - One-liner summary
         - Key metric if available
         """
-        builder = DocumentBuilder('Test Company Inc', SAMPLE_SECTIONS)
+        builder = DocumentBuilder("Test Company Inc", SAMPLE_SECTIONS)
         document = builder.build()
 
         # Get first page content (before first page break)
@@ -279,10 +281,10 @@ class TestFourTests:
             if len(first_page_text) > 15:
                 break
 
-        cover_text = '\n'.join(first_page_text)
+        cover_text = "\n".join(first_page_text)
 
         # Company name should be prominent
-        assert 'Test Company' in cover_text
+        assert "Test Company" in cover_text
 
         # Should have some descriptive text
         assert len(cover_text) > 50
@@ -296,7 +298,7 @@ class TestFourTests:
         - Key insights section
         - Risk factors / watch outs
         """
-        builder = DocumentBuilder('Test Company Inc', SAMPLE_SECTIONS)
+        builder = DocumentBuilder("Test Company Inc", SAMPLE_SECTIONS)
         document = builder.build()
 
         # Find executive summary section
@@ -304,21 +306,21 @@ class TestFourTests:
         exec_summary_content = []
 
         for para in document.paragraphs:
-            if 'Executive Summary' in para.text:
+            if "Executive Summary" in para.text:
                 in_exec_summary = True
                 continue
             if in_exec_summary:
-                if para.style.name == 'Heading 1' and 'Executive' not in para.text:
+                if para.style.name == "Heading 1" and "Executive" not in para.text:
                     break  # End of exec summary
                 exec_summary_content.append(para.text)
 
-        exec_text = '\n'.join(exec_summary_content)
+        exec_text = "\n".join(exec_summary_content)
 
         # Should have substantial content
         assert len(exec_text) > 100
 
         # Should have key sections
-        assert 'Key' in exec_text or 'Insight' in exec_text or 'Bottom Line' in exec_text
+        assert "Key" in exec_text or "Insight" in exec_text or "Bottom Line" in exec_text
 
     def test_visual_hierarchy_exists(self):
         """
@@ -329,20 +331,20 @@ class TestFourTests:
         - Bullet lists
         - Tables
         """
-        builder = DocumentBuilder('Test Company Inc', SAMPLE_SECTIONS)
+        builder = DocumentBuilder("Test Company Inc", SAMPLE_SECTIONS)
         document = builder.build()
 
         # Count heading levels
         heading_levels = set()
         for para in document.paragraphs:
-            if para.style.name.startswith('Heading'):
+            if para.style.name.startswith("Heading"):
                 heading_levels.add(para.style.name)
 
         # Should have at least 2 heading levels
         assert len(heading_levels) >= 2
 
         # Should have bullet lists
-        bullet_paras = [p for p in document.paragraphs if 'List' in p.style.name]
+        bullet_paras = [p for p in document.paragraphs if "List" in p.style.name]
         assert len(bullet_paras) > 0
 
         # Should have tables
@@ -361,7 +363,7 @@ class TestUXChecklist:
         This is a simplified check - we verify that bullet lists
         don't exceed 7 items in a row.
         """
-        builder = DocumentBuilder('Test Company Inc', SAMPLE_SECTIONS)
+        builder = DocumentBuilder("Test Company Inc", SAMPLE_SECTIONS)
         document = builder.build()
 
         # Count consecutive bullet items
@@ -369,7 +371,7 @@ class TestUXChecklist:
         max_consecutive = 0
 
         for para in document.paragraphs:
-            if 'List Bullet' in para.style.name:
+            if "List Bullet" in para.style.name:
                 consecutive_bullets += 1
                 max_consecutive = max(max_consecutive, consecutive_bullets)
             else:
@@ -385,11 +387,11 @@ class TestUXChecklist:
 
         Body text should be at least 11pt.
         """
-        builder = DocumentBuilder('Test Company Inc', SAMPLE_SECTIONS)
+        builder = DocumentBuilder("Test Company Inc", SAMPLE_SECTIONS)
         document = builder.build()
 
         # Check Normal style font size
-        normal_style = document.styles['Normal']
+        normal_style = document.styles["Normal"]
         if normal_style.font.size:
             # Convert to points (size is in EMUs, 914400 EMUs = 1 inch = 72 points)
             size_pt = normal_style.font.size.pt
@@ -406,77 +408,56 @@ class TestCitationConfidence:
 
     def test_high_confidence_with_many_citations(self):
         """High confidence when 10+ citations provided."""
-        citations = [
-            {'title': f'Source {i}', 'url': f'https://source{i}.com'}
-            for i in range(12)
-        ]
+        citations = [{"title": f"Source {i}", "url": f"https://source{i}.com"} for i in range(12)]
 
         builder = DocumentBuilder(
-            company_name="Test Corp",
-            section_results=SAMPLE_SECTIONS,
-            citations=citations
+            company_name="Test Corp", section_results=SAMPLE_SECTIONS, citations=citations
         )
 
         assert builder._citation_count == 12
-        assert builder._overall_confidence == 'high'
-        assert 'High confidence' in builder._get_confidence_description()
+        assert builder._overall_confidence == "high"
+        assert "High confidence" in builder._get_confidence_description()
 
     def test_medium_confidence_with_some_citations(self):
         """Medium confidence when 3-9 citations provided."""
-        citations = [
-            {'title': f'Source {i}', 'url': f'https://source{i}.com'}
-            for i in range(5)
-        ]
+        citations = [{"title": f"Source {i}", "url": f"https://source{i}.com"} for i in range(5)]
 
         builder = DocumentBuilder(
-            company_name="Test Corp",
-            section_results=SAMPLE_SECTIONS,
-            citations=citations
+            company_name="Test Corp", section_results=SAMPLE_SECTIONS, citations=citations
         )
 
         assert builder._citation_count == 5
-        assert builder._overall_confidence == 'medium'
-        assert 'Medium confidence' in builder._get_confidence_description()
+        assert builder._overall_confidence == "medium"
+        assert "Medium confidence" in builder._get_confidence_description()
 
     def test_low_confidence_with_few_citations(self):
         """Low confidence when 0-2 citations provided."""
-        citations = [
-            {'title': 'Source 1', 'url': 'https://source1.com'}
-        ]
+        citations = [{"title": "Source 1", "url": "https://source1.com"}]
 
         builder = DocumentBuilder(
-            company_name="Test Corp",
-            section_results=SAMPLE_SECTIONS,
-            citations=citations
+            company_name="Test Corp", section_results=SAMPLE_SECTIONS, citations=citations
         )
 
         assert builder._citation_count == 1
-        assert builder._overall_confidence == 'low'
-        assert 'Limited sources' in builder._get_confidence_description()
+        assert builder._overall_confidence == "low"
+        assert "Limited sources" in builder._get_confidence_description()
 
     def test_no_citations_is_low_confidence(self):
         """No citations results in low confidence."""
         builder = DocumentBuilder(
-            company_name="Test Corp",
-            section_results=SAMPLE_SECTIONS,
-            citations=[]
+            company_name="Test Corp", section_results=SAMPLE_SECTIONS, citations=[]
         )
 
         assert builder._citation_count == 0
-        assert builder._overall_confidence == 'low'
+        assert builder._overall_confidence == "low"
 
     def test_confidence_description_includes_count(self):
         """Confidence description includes citation count."""
-        citations = [
-            {'title': f'Source {i}', 'url': f'https://source{i}.com'}
-            for i in range(7)
-        ]
+        citations = [{"title": f"Source {i}", "url": f"https://source{i}.com"} for i in range(7)]
 
         builder = DocumentBuilder(
-            company_name="Test Corp",
-            section_results=SAMPLE_SECTIONS,
-            citations=citations
+            company_name="Test Corp", section_results=SAMPLE_SECTIONS, citations=citations
         )
 
         description = builder._get_confidence_description()
-        assert '7' in description  # Should mention the count
+        assert "7" in description  # Should mention the count

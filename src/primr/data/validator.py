@@ -23,10 +23,10 @@ class ConfidenceLevel(Enum):
     """Confidence levels for validated facts."""
 
     VERY_HIGH = "very_high"  # 90%+ - Multiple authoritative sources agree
-    HIGH = "high"            # 75-89% - Multiple sources agree
-    MEDIUM = "medium"        # 50-74% - Some corroboration
-    LOW = "low"              # 25-49% - Single source or conflicts
-    VERY_LOW = "very_low"    # <25% - Unverified or contradicted
+    HIGH = "high"  # 75-89% - Multiple sources agree
+    MEDIUM = "medium"  # 50-74% - Some corroboration
+    LOW = "low"  # 25-49% - Single source or conflicts
+    VERY_LOW = "very_low"  # <25% - Unverified or contradicted
 
 
 class FactType(Enum):
@@ -85,9 +85,9 @@ class Fact:
         """Normalize value for comparison."""
         # Lowercase, strip whitespace, remove extra spaces
         normalized = value.lower().strip()
-        normalized = re.sub(r'\s+', ' ', normalized)
+        normalized = re.sub(r"\s+", " ", normalized)
         # Remove common suffixes for company names
-        normalized = re.sub(r'\s*(inc\.?|llc\.?|ltd\.?|corp\.?|co\.?)$', '', normalized, flags=re.I)
+        normalized = re.sub(r"\s*(inc\.?|llc\.?|ltd\.?|corp\.?|co\.?)$", "", normalized, flags=re.I)
         return normalized
 
     @property
@@ -244,8 +244,8 @@ class FactValidator:
 
         # Extract CEO/leadership
         ceo_patterns = [
-            r'(?:CEO|Chief Executive Officer)[:\s]+([A-Z][a-z]+ [A-Z][a-z]+)',
-            r'([A-Z][a-z]+ [A-Z][a-z]+)(?:\s+is|\s+serves as)?\s+(?:the\s+)?CEO',
+            r"(?:CEO|Chief Executive Officer)[:\s]+([A-Z][a-z]+ [A-Z][a-z]+)",
+            r"([A-Z][a-z]+ [A-Z][a-z]+)(?:\s+is|\s+serves as)?\s+(?:the\s+)?CEO",
         ]
         for pattern in ceo_patterns:
             match = re.search(pattern, content)
@@ -255,9 +255,9 @@ class FactValidator:
 
         # Extract founding date
         founding_patterns = [
-            r'[Ff]ounded\s+(?:in\s+)?(\d{4})',
-            r'[Ee]stablished\s+(?:in\s+)?(\d{4})',
-            r'[Ss]ince\s+(\d{4})',
+            r"[Ff]ounded\s+(?:in\s+)?(\d{4})",
+            r"[Ee]stablished\s+(?:in\s+)?(\d{4})",
+            r"[Ss]ince\s+(\d{4})",
         ]
         for pattern in founding_patterns:
             match = re.search(pattern, content)
@@ -267,9 +267,9 @@ class FactValidator:
 
         # Extract employee count
         employee_patterns = [
-            r'(\d{1,3}(?:,\d{3})*)\s+employees',
-            r'(?:employs?|workforce of)\s+(\d{1,3}(?:,\d{3})*)',
-            r'(\d+(?:\.\d+)?[KkMm]?)\s+employees',
+            r"(\d{1,3}(?:,\d{3})*)\s+employees",
+            r"(?:employs?|workforce of)\s+(\d{1,3}(?:,\d{3})*)",
+            r"(\d+(?:\.\d+)?[KkMm]?)\s+employees",
         ]
         for pattern in employee_patterns:
             match = re.search(pattern, content)
@@ -279,9 +279,9 @@ class FactValidator:
 
         # Extract headquarters
         hq_patterns = [
-            r'[Hh]eadquartered\s+in\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*,\s*[A-Z]{2})',
-            r'[Hh]eadquarters?\s+(?:in|:)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)',
-            r'[Bb]ased\s+in\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*,\s*[A-Z]{2})',
+            r"[Hh]eadquartered\s+in\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*,\s*[A-Z]{2})",
+            r"[Hh]eadquarters?\s+(?:in|:)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)",
+            r"[Bb]ased\s+in\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*,\s*[A-Z]{2})",
         ]
         for pattern in hq_patterns:
             match = re.search(pattern, content)
@@ -291,8 +291,8 @@ class FactValidator:
 
         # Extract revenue
         revenue_patterns = [
-            r'\$(\d+(?:\.\d+)?)\s*([BMKbmk](?:illion)?)\s+(?:in\s+)?revenue',
-            r'revenue\s+(?:of\s+)?\$(\d+(?:\.\d+)?)\s*([BMKbmk](?:illion)?)',
+            r"\$(\d+(?:\.\d+)?)\s*([BMKbmk](?:illion)?)\s+(?:in\s+)?revenue",
+            r"revenue\s+(?:of\s+)?\$(\d+(?:\.\d+)?)\s*([BMKbmk](?:illion)?)",
         ]
         for pattern in revenue_patterns:
             match = re.search(pattern, content)
@@ -457,7 +457,7 @@ class FactValidator:
         for _fact_type, facts in self._facts.items():
             if len(facts) > 1:
                 for i, fact1 in enumerate(facts):
-                    for fact2 in facts[i+1:]:
+                    for fact2 in facts[i + 1 :]:
                         if not self._are_similar(fact1.normalized_value, fact2.normalized_value):
                             conflicts.append(self._create_conflict(fact1, fact2))
         return conflicts
@@ -512,7 +512,11 @@ class FactValidator:
     def _create_conflict(self, fact1: Fact, fact2: Fact) -> FactConflict:
         """Create a conflict between two facts."""
         # Determine severity based on fact type and difference
-        if fact1.fact_type in (FactType.CEO, FactType.REVENUE, FactType.EMPLOYEE_COUNT) or fact1.fact_type in (FactType.FOUNDING_DATE, FactType.HEADQUARTERS):
+        if fact1.fact_type in (
+            FactType.CEO,
+            FactType.REVENUE,
+            FactType.EMPLOYEE_COUNT,
+        ) or fact1.fact_type in (FactType.FOUNDING_DATE, FactType.HEADQUARTERS):
             severity = "major"
         else:
             severity = "minor"
@@ -524,7 +528,6 @@ class FactValidator:
             severity=severity,
             description=f"'{fact1.value}' vs '{fact2.value}'",
         )
-
 
 
 # =============================================================================
@@ -556,6 +559,7 @@ def reset_validator() -> None:
 # =============================================================================
 # CONVENIENCE FUNCTIONS
 # =============================================================================
+
 
 def validate_fact(
     fact_type: FactType,

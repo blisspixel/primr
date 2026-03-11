@@ -56,16 +56,18 @@ class TestDelegateToolExecution:
     async def test_blocks_ssrf_url(self, server):
         """Private IPs are blocked by SSRF validation."""
         handler = server.server.request_handlers[CallToolRequest]
-        result = await handler(CallToolRequest(
-            method="tools/call",
-            params=CallToolRequestParams(
-                name="delegate_to_agent",
-                arguments={
-                    "agent_url": "http://169.254.169.254/latest/meta-data/",
-                    "message": "test",
-                },
-            ),
-        ))
+        result = await handler(
+            CallToolRequest(
+                method="tools/call",
+                params=CallToolRequestParams(
+                    name="delegate_to_agent",
+                    arguments={
+                        "agent_url": "http://169.254.169.254/latest/meta-data/",
+                        "message": "test",
+                    },
+                ),
+            )
+        )
         text = result.root.content[0].text
         data = json.loads(text)
         assert data["error"] is True
@@ -74,16 +76,18 @@ class TestDelegateToolExecution:
     async def test_blocks_localhost(self, server):
         """Localhost URLs are blocked."""
         handler = server.server.request_handlers[CallToolRequest]
-        result = await handler(CallToolRequest(
-            method="tools/call",
-            params=CallToolRequestParams(
-                name="delegate_to_agent",
-                arguments={
-                    "agent_url": "http://127.0.0.1:9000",
-                    "message": "test",
-                },
-            ),
-        ))
+        result = await handler(
+            CallToolRequest(
+                method="tools/call",
+                params=CallToolRequestParams(
+                    name="delegate_to_agent",
+                    arguments={
+                        "agent_url": "http://127.0.0.1:9000",
+                        "message": "test",
+                    },
+                ),
+            )
+        )
         text = result.root.content[0].text
         data = json.loads(text)
         assert data["error"] is True
@@ -105,17 +109,19 @@ class TestDelegateToolExecution:
                 mock_validate.return_value = MagicMock(valid=True)
 
                 handler = server.server.request_handlers[CallToolRequest]
-                result = await handler(CallToolRequest(
-                    method="tools/call",
-                    params=CallToolRequestParams(
-                        name="delegate_to_agent",
-                        arguments={
-                            "agent_url": "https://remote-agent.example.com",
-                            "message": "Research Acme Corp",
-                            "skill_id": "research_company",
-                        },
-                    ),
-                ))
+                result = await handler(
+                    CallToolRequest(
+                        method="tools/call",
+                        params=CallToolRequestParams(
+                            name="delegate_to_agent",
+                            arguments={
+                                "agent_url": "https://remote-agent.example.com",
+                                "message": "Research Acme Corp",
+                                "skill_id": "research_company",
+                            },
+                        ),
+                    )
+                )
 
         text = result.root.content[0].text
         data = json.loads(text)
@@ -136,16 +142,18 @@ class TestDelegateToolExecution:
                 mock_validate.return_value = MagicMock(valid=True)
 
                 handler = server.server.request_handlers[CallToolRequest]
-                result = await handler(CallToolRequest(
-                    method="tools/call",
-                    params=CallToolRequestParams(
-                        name="delegate_to_agent",
-                        arguments={
-                            "agent_url": "https://broken-agent.example.com",
-                            "message": "test",
-                        },
-                    ),
-                ))
+                result = await handler(
+                    CallToolRequest(
+                        method="tools/call",
+                        params=CallToolRequestParams(
+                            name="delegate_to_agent",
+                            arguments={
+                                "agent_url": "https://broken-agent.example.com",
+                                "message": "test",
+                            },
+                        ),
+                    )
+                )
 
         text = result.root.content[0].text
         data = json.loads(text)

@@ -18,6 +18,7 @@ from primr.api.auth import (
 # FIXTURES
 # =============================================================================
 
+
 @pytest.fixture(autouse=True)
 def reset_singleton():
     """Reset singleton before each test."""
@@ -35,6 +36,7 @@ def auth():
 # =============================================================================
 # API KEY INFO TESTS
 # =============================================================================
+
 
 class TestAPIKeyInfo:
     """Tests for APIKeyInfo dataclass."""
@@ -56,6 +58,7 @@ class TestAPIKeyInfo:
 # =============================================================================
 # API KEY AUTH TESTS
 # =============================================================================
+
 
 class TestAPIKeyAuth:
     """Tests for APIKeyAuth class."""
@@ -160,6 +163,7 @@ class TestAPIKeyAuth:
 # SINGLETON TESTS
 # =============================================================================
 
+
 class TestSingleton:
     """Tests for singleton access."""
 
@@ -180,6 +184,7 @@ class TestSingleton:
 # =============================================================================
 # CONVENIENCE FUNCTION TESTS
 # =============================================================================
+
 
 class TestConvenienceFunctions:
     """Tests for convenience functions."""
@@ -206,6 +211,7 @@ class TestConvenienceFunctions:
 # =============================================================================
 # THREAD SAFETY TESTS
 # =============================================================================
+
 
 class TestThreadSafety:
     """Tests for thread safety."""
@@ -236,6 +242,7 @@ class TestThreadSafety:
 # =============================================================================
 # KEY ROTATION TESTS
 # =============================================================================
+
 
 class TestKeyRotation:
     """Tests for API key rotation."""
@@ -328,6 +335,7 @@ class TestKeyRotation:
 # KEY EXPIRATION TESTS
 # =============================================================================
 
+
 class TestKeyExpiration:
     """Tests for API key expiration."""
 
@@ -392,6 +400,7 @@ class TestKeyExpiration:
 # =============================================================================
 # CONVENIENCE FUNCTION ROTATION TESTS
 # =============================================================================
+
 
 class TestRotationConvenienceFunctions:
     """Tests for rotation convenience functions."""

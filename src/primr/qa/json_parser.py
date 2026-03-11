@@ -90,16 +90,18 @@ class SimpleJSONParser:
             "confidence_level": "low",
             "key_strengths": [],
             "areas_for_improvement": [],
-            "recommendation": "Assessment completed but response format was unclear"
+            "recommendation": "Assessment completed but response format was unclear",
         }
 
         # Extract ready_for_use
         ready_match = re.search(r'"ready_for_use":\s*(true|false)', response, re.IGNORECASE)
         if ready_match:
-            result["ready_for_use"] = ready_match.group(1).lower() == 'true'
+            result["ready_for_use"] = ready_match.group(1).lower() == "true"
 
         # Extract confidence_level
-        confidence_match = re.search(r'"confidence_level":\s*"(high|medium|low)"', response, re.IGNORECASE)
+        confidence_match = re.search(
+            r'"confidence_level":\s*"(high|medium|low)"', response, re.IGNORECASE
+        )
         if confidence_match:
             result["confidence_level"] = confidence_match.group(1).lower()
 
@@ -162,19 +164,19 @@ class SimpleJSONParser:
             json_end = response.find("```", json_start)
             if json_end != -1:
                 potential_json = response[json_start:json_end].strip()
-                if potential_json.startswith('{') and potential_json.endswith('}'):
+                if potential_json.startswith("{") and potential_json.endswith("}"):
                     return potential_json
 
         # Strategy 3: Find JSON object boundaries with proper brace matching
-        json_start = response.find('{')
+        json_start = response.find("{")
         if json_start != -1:
             brace_count = 0
             json_end = json_start
 
             for i, char in enumerate(response[json_start:], json_start):
-                if char == '{':
+                if char == "{":
                     brace_count += 1
-                elif char == '}':
+                elif char == "}":
                     brace_count -= 1
                     if brace_count == 0:
                         json_end = i + 1
@@ -200,8 +202,13 @@ class SimpleJSONParser:
         Returns:
             True if structure is valid, False otherwise
         """
-        required_fields = ['ready_for_use', 'confidence_level', 'key_strengths',
-                          'areas_for_improvement', 'recommendation']
+        required_fields = [
+            "ready_for_use",
+            "confidence_level",
+            "key_strengths",
+            "areas_for_improvement",
+            "recommendation",
+        ]
 
         # Check all required fields are present
         for field in required_fields:
@@ -210,36 +217,36 @@ class SimpleJSONParser:
                 return False
 
         # Validate field types and values
-        if not isinstance(data['ready_for_use'], bool):
+        if not isinstance(data["ready_for_use"], bool):
             logger.warning("ready_for_use must be boolean")
             return False
 
-        if data['confidence_level'] not in ['high', 'medium', 'low']:
+        if data["confidence_level"] not in ["high", "medium", "low"]:
             logger.warning(f"Invalid confidence_level: {data['confidence_level']}")
             return False
 
-        if not isinstance(data['key_strengths'], list):
+        if not isinstance(data["key_strengths"], list):
             logger.warning("key_strengths must be a list")
             return False
 
-        if not isinstance(data['areas_for_improvement'], list):
+        if not isinstance(data["areas_for_improvement"], list):
             logger.warning("areas_for_improvement must be a list")
             return False
 
-        if not isinstance(data['recommendation'], str) or not data['recommendation'].strip():
+        if not isinstance(data["recommendation"], str) or not data["recommendation"].strip():
             logger.warning("recommendation must be a non-empty string")
             return False
 
         # Optional: validate scores if present (absence is OK — backward compat)
-        if 'scores' in data:
-            if not isinstance(data['scores'], dict):
+        if "scores" in data:
+            if not isinstance(data["scores"], dict):
                 logger.warning("scores must be a dict if present, ignoring")
-                del data['scores']  # Remove invalid scores so downstream gets None
+                del data["scores"]  # Remove invalid scores so downstream gets None
             else:
-                for key, val in data['scores'].items():
+                for key, val in data["scores"].items():
                     if not isinstance(val, (int, float)):
                         logger.warning(f"scores.{key} is not numeric, ignoring all scores")
-                        del data['scores']
+                        del data["scores"]
                         break
 
         return True
@@ -251,14 +258,14 @@ class SimpleJSONParser:
 
         # Look for positive indicators
         positive_patterns = [
-            ('well-structured', 'Report demonstrates good structural organization'),
-            ('clear strategic', 'Strategic analysis is clearly presented'),
-            ('comprehensive analysis', 'Comprehensive coverage of key topics'),
-            ('good citations', 'Citations are properly formatted and relevant'),
-            ('actionable insights', 'Provides actionable business insights'),
-            ('thorough', 'Thorough analysis of the subject matter'),
-            ('detailed', 'Detailed examination of key factors'),
-            ('extensive', 'Extensive research and data collection')
+            ("well-structured", "Report demonstrates good structural organization"),
+            ("clear strategic", "Strategic analysis is clearly presented"),
+            ("comprehensive analysis", "Comprehensive coverage of key topics"),
+            ("good citations", "Citations are properly formatted and relevant"),
+            ("actionable insights", "Provides actionable business insights"),
+            ("thorough", "Thorough analysis of the subject matter"),
+            ("detailed", "Detailed examination of key factors"),
+            ("extensive", "Extensive research and data collection"),
         ]
 
         for pattern, description in positive_patterns:
@@ -276,13 +283,13 @@ class SimpleJSONParser:
 
         # Look for improvement indicators
         improvement_patterns = [
-            ('missing citations', 'Some claims could benefit from additional citations'),
-            ('unclear', 'Certain sections could be clearer and more specific'),
-            ('needs more', 'Additional detail would strengthen the analysis'),
-            ('insufficient', 'Some areas need more comprehensive coverage'),
-            ('contradictions', 'Internal consistency could be improved'),
-            ('inconsistent', 'Consistency across sections needs attention'),
-            ('gaps', 'Some analytical gaps should be addressed')
+            ("missing citations", "Some claims could benefit from additional citations"),
+            ("unclear", "Certain sections could be clearer and more specific"),
+            ("needs more", "Additional detail would strengthen the analysis"),
+            ("insufficient", "Some areas need more comprehensive coverage"),
+            ("contradictions", "Internal consistency could be improved"),
+            ("inconsistent", "Consistency across sections needs attention"),
+            ("gaps", "Some analytical gaps should be addressed"),
         ]
 
         for pattern, description in improvement_patterns:
@@ -300,13 +307,17 @@ class SimpleJSONParser:
         Returns:
             Dictionary with parsing statistics
         """
-        success_rate = (self.successful_extractions / self.extraction_attempts * 100) if self.extraction_attempts > 0 else 0
+        success_rate = (
+            (self.successful_extractions / self.extraction_attempts * 100)
+            if self.extraction_attempts > 0
+            else 0
+        )
 
         return {
             "total_attempts": self.extraction_attempts,
             "successful_extractions": self.successful_extractions,
             "success_rate": round(success_rate, 2),
-            "failed_extractions": self.extraction_attempts - self.successful_extractions
+            "failed_extractions": self.extraction_attempts - self.successful_extractions,
         }
 
     def reset_stats(self) -> None:

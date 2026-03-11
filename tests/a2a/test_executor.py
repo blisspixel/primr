@@ -283,4 +283,3 @@ def _get_event_text(event) -> str:
                     return root.text
 
     return ""
-

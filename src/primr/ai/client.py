@@ -18,6 +18,7 @@ from typing import Any
 try:
     from google import genai as _google_genai
     from google.genai import types as _google_types
+
     _GENAI_IMPORT_ERROR: Exception | None = None
 except Exception as import_error:
     _GENAI_IMPORT_ERROR = import_error
@@ -67,7 +68,10 @@ def _require_genai_dependency() -> None:
     if _GENAI_IMPORT_ERROR is None:
         return
     # Allow tests or callers to inject/patch a working client implementation.
-    if _FALLBACK_CLIENT_CLASS is not None and getattr(genai, "Client", None) is not _FALLBACK_CLIENT_CLASS:
+    if (
+        _FALLBACK_CLIENT_CLASS is not None
+        and getattr(genai, "Client", None) is not _FALLBACK_CLIENT_CLASS
+    ):
         return
     raise AIError(
         "google.genai is not available. Install compatible dependencies "
@@ -79,6 +83,7 @@ def _require_genai_dependency() -> None:
 @dataclass
 class TokenUsage:
     """Token usage from a single API call."""
+
     input_tokens: int = 0
     output_tokens: int = 0
 
@@ -204,7 +209,7 @@ class AIClient:
 
         config = types.GenerateContentConfig(
             temperature=temperature,
-            thinking_config=types.ThinkingConfig(thinking_level=thinking_level)  # type: ignore[arg-type]
+            thinking_config=types.ThinkingConfig(thinking_level=thinking_level),  # type: ignore[arg-type]
         )
 
         deadline = time.monotonic() + timeout if timeout is not None else None
@@ -222,9 +227,7 @@ class AIClient:
 
                 if remaining is None:
                     response = self._client.models.generate_content(
-                        model=model,
-                        contents=prompt,
-                        config=config
+                        model=model, contents=prompt, config=config
                     )
                 else:
                     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
@@ -237,9 +240,7 @@ class AIClient:
                         try:
                             response = future.result(timeout=remaining)
                         except concurrent.futures.TimeoutError as e:
-                            raise TimeoutError(
-                                f"AI call timed out after {timeout:.2f}s"
-                            ) from e
+                            raise TimeoutError(f"AI call timed out after {timeout:.2f}s") from e
 
                 # Validate and extract response text using type guards
                 result = self._validate_response_text(response)
@@ -253,17 +254,22 @@ class AIClient:
                     # Per-model accumulation with per-call cost
                     if model not in self.usage_by_model:
                         self.usage_by_model[model] = {
-                            "input_tokens": 0, "output_tokens": 0,
-                            "calls": 0, "cost": 0.0,
+                            "input_tokens": 0,
+                            "output_tokens": 0,
+                            "calls": 0,
+                            "cost": 0.0,
                         }
                     self.usage_by_model[model]["input_tokens"] += usage.input_tokens
                     self.usage_by_model[model]["output_tokens"] += usage.output_tokens
                     self.usage_by_model[model]["calls"] += 1
                     # Per-call tier-aware cost: prompt_token_count = input_tokens
                     from primr.config.models import PrimrModels
+
                     try:
                         call_cost = PrimrModels.calculate_cost(
-                            model, usage.input_tokens, usage.output_tokens,
+                            model,
+                            usage.input_tokens,
+                            usage.output_tokens,
                             prompt_tokens=usage.input_tokens,
                         )
                     except KeyError:
@@ -287,7 +293,7 @@ class AIClient:
                         "Daily API quota exhausted. Wait until quota resets or upgrade your plan. "
                         "Check status with: primr --check-quota",
                         model=model,
-                        cause=e
+                        cause=e,
                     ) from e
 
                 # Check for invalid API key
@@ -296,7 +302,7 @@ class AIClient:
                     raise AIError(
                         "Invalid API key. Check your GEMINI_API_KEY in .env file.",
                         model=model,
-                        cause=e
+                        cause=e,
                     ) from e
 
                 if is_timeout_error(e):
@@ -306,9 +312,7 @@ class AIClient:
                         cause=e,
                     ) from e
 
-                logger.warning(
-                    f"AI call failed (attempt {attempt + 1}/{retries}): {e}"
-                )
+                logger.warning(f"AI call failed (attempt {attempt + 1}/{retries}): {e}")
 
                 # Try fallback model if available
                 fallback = self._get_fallback_model(model)
@@ -325,11 +329,7 @@ class AIClient:
         logger.error(error_msg)
         raise AIError(error_msg, model=model, cause=last_error)
 
-    def generate_fast(
-        self,
-        prompt: str,
-        model_type: str = "research"
-    ) -> str:
+    def generate_fast(self, prompt: str, model_type: str = "research") -> str:
         """
         Fast generation with minimal thinking.
 
@@ -345,18 +345,10 @@ class AIClient:
         Returns:
             Generated text response
         """
-        return self.generate(
-            prompt,
-            model_type=model_type,
-            thinking_level="low"
-        )
+        return self.generate(prompt, model_type=model_type, thinking_level="low")
 
     def generate_with_context(
-        self,
-        prompt: str,
-        context: dict[str, Any],
-        model_type: str = "research",
-        **kwargs: Any
+        self, prompt: str, context: dict[str, Any], model_type: str = "research", **kwargs: Any
     ) -> str:
         """
         Generate with structured context.
@@ -400,7 +392,14 @@ class AIClient:
             - "summarization" -> Flash
         """
         # Flash model tasks (cheap, fast)
-        if model_type in ("scraping", "link_selection", "filtering", "fast", "research", "summarization"):
+        if model_type in (
+            "scraping",
+            "link_selection",
+            "filtering",
+            "fast",
+            "research",
+            "summarization",
+        ):
             return self._settings.flash_model
         # Pro model tasks (expensive, smart)
         elif model_type in ("section_writing", "analysis", "reasoning", "report"):
@@ -429,12 +428,12 @@ class AIClient:
         """
         try:
             # Gemini API returns usage_metadata with token counts
-            if not hasattr(response, 'usage_metadata') or response.usage_metadata is None:
+            if not hasattr(response, "usage_metadata") or response.usage_metadata is None:
                 return None
 
             metadata = response.usage_metadata
-            input_tokens = getattr(metadata, 'prompt_token_count', None)
-            output_tokens = getattr(metadata, 'candidates_token_count', None)
+            input_tokens = getattr(metadata, "prompt_token_count", None)
+            output_tokens = getattr(metadata, "candidates_token_count", None)
 
             # Use type guards to validate token counts are integers
             if not is_valid_type(input_tokens, int) or not is_valid_type(output_tokens, int):
@@ -476,7 +475,7 @@ class AIClient:
                 raise AIError("API returned None response")
 
             # Check response has text attribute
-            if not hasattr(response, 'text'):
+            if not hasattr(response, "text"):
                 raise AIError("API response missing 'text' attribute")
 
             text = response.text
@@ -484,12 +483,12 @@ class AIClient:
             # Handle None text
             if text is None:
                 # Check if there are candidates with content
-                if hasattr(response, 'candidates') and response.candidates:
+                if hasattr(response, "candidates") and response.candidates:
                     for candidate in response.candidates:
-                        if hasattr(candidate, 'content') and candidate.content:
-                            if hasattr(candidate.content, 'parts') and candidate.content.parts:
+                        if hasattr(candidate, "content") and candidate.content:
+                            if hasattr(candidate.content, "parts") and candidate.content.parts:
                                 for part in candidate.content.parts:
-                                    if hasattr(part, 'text') and part.text:
+                                    if hasattr(part, "text") and part.text:
                                         text = part.text
                                         break
                         if text is not None:
@@ -499,9 +498,7 @@ class AIClient:
 
             # Validate text is a string
             if not is_valid_type(text, str):
-                raise AIError(
-                    f"API response text is not a string: {type(text).__name__}"
-                )
+                raise AIError(f"API response text is not a string: {type(text).__name__}")
 
             result = str(text).strip()
 
@@ -541,13 +538,9 @@ class AIClient:
                 else:
                     # Backward compat: no per-call cost, recalculate
                     try:
-                        model_cost = PrimrModels.calculate_cost(
-                            model_name, in_tok, out_tok
-                        )
+                        model_cost = PrimrModels.calculate_cost(model_name, in_tok, out_tok)
                     except KeyError:
-                        model_cost = PrimrModels.calculate_active_pro_cost(
-                            in_tok, out_tok
-                        )
+                        model_cost = PrimrModels.calculate_active_pro_cost(in_tok, out_tok)
                     total_cost += model_cost
                 # Input/output cost breakdown (standard tier, for display)
                 try:
@@ -627,13 +620,14 @@ def reset_client() -> None:
 # BACKWARD COMPATIBLE FUNCTIONS
 # =============================================================================
 
+
 def llm(
     prompt: str,
     model_type: str = "research",
     temperature: float = 1.0,
     thinking_level: str = "high",
     streaming: bool = False,  # Kept for compatibility, not used
-    **kwargs: Any
+    **kwargs: Any,
 ) -> str:
     """
     Backward-compatible LLM function.
@@ -657,7 +651,7 @@ def llm(
         model_type=model_type,
         temperature=temperature,
         thinking_level=thinking_level,
-        **kwargs
+        **kwargs,
     )
 
 

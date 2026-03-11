@@ -16,6 +16,7 @@ from typing import Any, TypeVar
 try:
     from google import genai as _google_genai
     from google.genai import types as _google_types
+
     _GENAI_IMPORT_ERROR: Exception | None = None
 except Exception as import_error:
     _GENAI_IMPORT_ERROR = import_error
@@ -65,7 +66,10 @@ def _require_genai_dependency() -> None:
     if _GENAI_IMPORT_ERROR is None:
         return
     # Allow tests or callers to inject/patch a working client implementation.
-    if _FALLBACK_CLIENT_CLASS is not None and getattr(genai, "Client", None) is not _FALLBACK_CLIENT_CLASS:
+    if (
+        _FALLBACK_CLIENT_CLASS is not None
+        and getattr(genai, "Client", None) is not _FALLBACK_CLIENT_CLASS
+    ):
         return
     raise AIError(
         "google.genai is not available. Install compatible dependencies "
@@ -216,7 +220,7 @@ class AsyncAIClient:
 
         config = types.GenerateContentConfig(
             temperature=temperature,
-            thinking_config=types.ThinkingConfig(thinking_level=thinking_level)  # type: ignore[arg-type]
+            thinking_config=types.ThinkingConfig(thinking_level=thinking_level),  # type: ignore[arg-type]
         )
 
         last_error = None
@@ -232,10 +236,8 @@ class AsyncAIClient:
                     request = loop.run_in_executor(
                         None,
                         lambda: self._client.models.generate_content(  # type: ignore
-                            model=model,
-                            contents=prompt,
-                            config=config
-                        )
+                            model=model, contents=prompt, config=config
+                        ),
                     )
                     if deadline is None:
                         response = await request
@@ -252,9 +254,7 @@ class AsyncAIClient:
                             )
                             if not (isinstance(e, TimeoutError) or is_asyncio_timeout):
                                 raise
-                            raise TimeoutError(
-                                f"AI call timed out after {timeout:.2f}s"
-                            ) from e
+                            raise TimeoutError(f"AI call timed out after {timeout:.2f}s") from e
 
                     result = (response.text or "").strip()
                     logger.debug(f"Async AI response: {len(result)} chars")
@@ -267,7 +267,7 @@ class AsyncAIClient:
                         raise AIError(
                             "Daily API quota exhausted. Wait until quota resets or upgrade your plan. "
                             "Check status with: primr --check-quota",
-                            cause=e
+                            cause=e,
                         ) from e
 
                     if is_timeout_error(e):
@@ -276,22 +276,16 @@ class AsyncAIClient:
                     logger.warning(f"Async AI call failed (attempt {attempt + 1}): {e}")
 
                     if attempt < retries - 1:
-                        delay = calculate_retry_delay(attempt, is_rate_limited=is_rate_limit_error(e))
+                        delay = calculate_retry_delay(
+                            attempt, is_rate_limited=is_rate_limit_error(e)
+                        )
                         await asyncio.sleep(delay)
 
         raise AIError(f"Async AI call failed after {retries} attempts", cause=last_error)
 
-    async def generate_fast(
-        self,
-        prompt: str,
-        model_type: str = "research"
-    ) -> str:
+    async def generate_fast(self, prompt: str, model_type: str = "research") -> str:
         """Fast generation with minimal thinking."""
-        return await self.generate(
-            prompt,
-            model_type=model_type,
-            thinking_level="low"
-        )
+        return await self.generate(prompt, model_type=model_type, thinking_level="low")
 
     async def generate_batch(
         self,
@@ -352,7 +346,7 @@ class AsyncAIClient:
         items: list[dict[str, Any]],
         prompt_template: str,
         model_type: str = "research",
-        **kwargs: Any
+        **kwargs: Any,
     ) -> list[BatchResult]:
         """
         Generate responses for items using a template.
@@ -387,7 +381,14 @@ class AsyncAIClient:
             - "summarization" -> Flash
         """
         # Flash model tasks (cheap, fast)
-        if model_type in ("scraping", "link_selection", "filtering", "fast", "research", "summarization"):
+        if model_type in (
+            "scraping",
+            "link_selection",
+            "filtering",
+            "fast",
+            "research",
+            "summarization",
+        ):
             return self._settings.flash_model
         # Pro model tasks (expensive, smart)
         elif model_type in ("section_writing", "analysis", "reasoning", "report"):
@@ -422,11 +423,9 @@ def get_batch_stats(results: list[BatchResult]) -> BatchStats:
 # CONVENIENCE FUNCTIONS
 # =============================================================================
 
+
 async def generate_parallel(
-    prompts: list[str],
-    model_type: str = "research",
-    max_concurrent: int = 5,
-    **kwargs: Any
+    prompts: list[str], model_type: str = "research", max_concurrent: int = 5, **kwargs: Any
 ) -> list[BatchResult]:
     """
     Generate responses for multiple prompts in parallel.
@@ -447,10 +446,7 @@ async def generate_parallel(
 
 
 def run_parallel(
-    prompts: list[str],
-    model_type: str = "research",
-    max_concurrent: int = 5,
-    **kwargs: Any
+    prompts: list[str], model_type: str = "research", max_concurrent: int = 5, **kwargs: Any
 ) -> list[BatchResult]:
     """
     Synchronous wrapper for parallel generation.
@@ -466,9 +462,6 @@ def run_parallel(
     Returns:
         List of BatchResult objects
     """
-    return asyncio.run(generate_parallel(
-        prompts,
-        model_type=model_type,
-        max_concurrent=max_concurrent,
-        **kwargs
-    ))
+    return asyncio.run(
+        generate_parallel(prompts, model_type=model_type, max_concurrent=max_concurrent, **kwargs)
+    )

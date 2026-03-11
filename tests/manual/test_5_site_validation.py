@@ -20,9 +20,9 @@ from primr.data.scrape import fetch_web_content
 
 def test_site(website: str, company_name: str, max_pages: int = 5):  # noqa: PT028
     """Test scraping a single site."""
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print(f"Testing: {company_name} ({website})")
-    print(f"{'='*70}\n")
+    print(f"{'=' * 70}\n")
 
     start = time.time()
 
@@ -40,12 +40,12 @@ def test_site(website: str, company_name: str, max_pages: int = 5):  # noqa: PT0
         pages_scraped = len(scraped_content)
         success_rate = (pages_scraped / max_pages) * 100 if max_pages > 0 else 0
 
-        print(f"\n{'='*70}")
+        print(f"\n{'=' * 70}")
         print(f"Results: {company_name}")
-        print(f"{'='*70}")
+        print(f"{'=' * 70}")
         print(f"Pages scraped: {pages_scraped}/{max_pages} ({success_rate:.0f}%)")
         print(f"Time elapsed: {elapsed:.1f}s")
-        print(f"Avg per page: {elapsed/max(pages_scraped, 1):.1f}s")
+        print(f"Avg per page: {elapsed / max(pages_scraped, 1):.1f}s")
 
         # Show content samples
         if scraped_content:
@@ -56,33 +56,33 @@ def test_site(website: str, company_name: str, max_pages: int = 5):  # noqa: PT0
                 print(f"    Preview: {content[:100].replace(chr(10), ' ')}...")
 
         return {
-            'company': company_name,
-            'website': website,
-            'pages_scraped': pages_scraped,
-            'pages_attempted': max_pages,
-            'success_rate': success_rate,
-            'elapsed': elapsed,
-            'avg_per_page': elapsed / max(pages_scraped, 1),
+            "company": company_name,
+            "website": website,
+            "pages_scraped": pages_scraped,
+            "pages_attempted": max_pages,
+            "success_rate": success_rate,
+            "elapsed": elapsed,
+            "avg_per_page": elapsed / max(pages_scraped, 1),
         }
 
     except Exception as e:
         print(f"\nERROR: {e}")
         return {
-            'company': company_name,
-            'website': website,
-            'pages_scraped': 0,
-            'pages_attempted': max_pages,
-            'success_rate': 0,
-            'elapsed': time.time() - start,
-            'error': str(e),
+            "company": company_name,
+            "website": website,
+            "pages_scraped": 0,
+            "pages_attempted": max_pages,
+            "success_rate": 0,
+            "elapsed": time.time() - start,
+            "error": str(e),
         }
 
 
 def main():
     """Run 5-site validation."""
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("5-SITE VALIDATION TEST")
-    print("="*70)
+    print("=" * 70)
     print("\nGoal: 90%+ success rate across diverse company sites")
     print("Testing: Link discovery -> Scrape first 5 pages -> Verify content\n")
 
@@ -103,23 +103,25 @@ def main():
         time.sleep(2)  # Brief pause between sites
 
     # Summary
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print("SUMMARY")
-    print(f"{'='*70}\n")
+    print(f"{'=' * 70}\n")
 
-    total_attempted = sum(r['pages_attempted'] for r in results)
-    total_scraped = sum(r['pages_scraped'] for r in results)
+    total_attempted = sum(r["pages_attempted"] for r in results)
+    total_scraped = sum(r["pages_scraped"] for r in results)
     overall_success = (total_scraped / total_attempted * 100) if total_attempted > 0 else 0
 
     print(f"{'Company':<20} {'Success Rate':<15} {'Time':<10} {'Avg/Page'}")
     print("-" * 70)
 
     for r in results:
-        if 'error' in r:
+        if "error" in r:
             print(f"{r['company']:<20} ERROR: {r['error'][:30]}")
         else:
-            print(f"{r['company']:<20} {r['success_rate']:>5.0f}% ({r['pages_scraped']}/{r['pages_attempted']})      "
-                  f"{r['elapsed']:>6.1f}s    {r['avg_per_page']:>5.1f}s")
+            print(
+                f"{r['company']:<20} {r['success_rate']:>5.0f}% ({r['pages_scraped']}/{r['pages_attempted']})      "
+                f"{r['elapsed']:>6.1f}s    {r['avg_per_page']:>5.1f}s"
+            )
 
     print("-" * 70)
     print(f"{'OVERALL':<20} {overall_success:>5.0f}% ({total_scraped}/{total_attempted})")

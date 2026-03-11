@@ -31,9 +31,7 @@ from primr.utils.circuit_breaker import (
 
 # Strategy for generating circuit keys (host names, operation types)
 key_strategy = st.text(
-    alphabet=st.characters(whitelist_categories=('L', 'N')),
-    min_size=1,
-    max_size=50
+    alphabet=st.characters(whitelist_categories=("L", "N")), min_size=1, max_size=50
 ).map(lambda x: x.lower() + ".example.com")
 
 # Strategy for generating circuit breaker configurations
@@ -41,7 +39,9 @@ config_strategy = st.builds(
     CircuitBreakerConfig,
     failure_threshold=st.integers(min_value=1, max_value=20),
     success_threshold=st.integers(min_value=1, max_value=10),
-    timeout_seconds=st.floats(min_value=0.01, max_value=60.0, allow_nan=False, allow_infinity=False),
+    timeout_seconds=st.floats(
+        min_value=0.01, max_value=60.0, allow_nan=False, allow_infinity=False
+    ),
     half_open_max_calls=st.integers(min_value=1, max_value=10),
 )
 
@@ -57,6 +57,7 @@ success_count_strategy = st.integers(min_value=0, max_value=50)
 # PROPERTY 7: FAILURE COUNT TRACKING
 # =============================================================================
 
+
 class TestFailureCountTracking:
     """
     **Property 7: Failure Count Tracking**
@@ -71,7 +72,7 @@ class TestFailureCountTracking:
     @given(
         key=key_strategy,
         num_failures=st.integers(min_value=1, max_value=20),
-        config=config_strategy
+        config=config_strategy,
     )
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_failure_count_equals_recorded_failures(
@@ -92,10 +93,7 @@ class TestFailureCountTracking:
         # Failure count should match
         assert stats.failure_count == num_failures
 
-    @given(
-        key=key_strategy,
-        config=config_strategy
-    )
+    @given(key=key_strategy, config=config_strategy)
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_failure_count_resets_on_success_in_closed_state(
         self, key: str, config: CircuitBreakerConfig
@@ -121,11 +119,7 @@ class TestFailureCountTracking:
         # Failure count should be reset
         assert breaker.get_stats(key).failure_count == 0
 
-
-    @given(
-        key=key_strategy,
-        config=config_strategy
-    )
+    @given(key=key_strategy, config=config_strategy)
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_failure_count_resets_on_state_transition_to_closed(
         self, key: str, config: CircuitBreakerConfig
@@ -136,7 +130,7 @@ class TestFailureCountTracking:
             failure_threshold=config.failure_threshold,
             success_threshold=1,  # Single success to close
             timeout_seconds=0.01,  # Very short timeout
-            half_open_max_calls=config.half_open_max_calls
+            half_open_max_calls=config.half_open_max_calls,
         )
         breaker = CircuitBreaker(config)
 
@@ -160,14 +154,9 @@ class TestFailureCountTracking:
         # Failure count should be reset
         assert breaker.get_stats(key).failure_count == 0
 
-    @given(
-        key=key_strategy,
-        num_failures=st.integers(min_value=1, max_value=10)
-    )
+    @given(key=key_strategy, num_failures=st.integers(min_value=1, max_value=10))
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
-    def test_last_failure_time_updated_on_failure(
-        self, key: str, num_failures: int
-    ):
+    def test_last_failure_time_updated_on_failure(self, key: str, num_failures: int):
         """Last failure time should be updated on each failure."""
         config = CircuitBreakerConfig(failure_threshold=num_failures + 5)
         breaker = CircuitBreaker(config)
@@ -190,6 +179,7 @@ class TestFailureCountTracking:
 # PROPERTY 8: STATE TRANSITION EVENTS
 # =============================================================================
 
+
 class TestStateTransitionEvents:
     """
     **Property 8: State Transition Events**
@@ -201,14 +191,9 @@ class TestStateTransitionEvents:
     **Validates: Requirements 3.4**
     """
 
-    @given(
-        key=key_strategy,
-        config=config_strategy
-    )
+    @given(key=key_strategy, config=config_strategy)
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
-    def test_listener_receives_closed_to_open_event(
-        self, key: str, config: CircuitBreakerConfig
-    ):
+    def test_listener_receives_closed_to_open_event(self, key: str, config: CircuitBreakerConfig):
         """Listener should receive event when circuit opens."""
         breaker = CircuitBreaker(config)
 
@@ -229,10 +214,7 @@ class TestStateTransitionEvents:
         assert event.trigger == "failure"
         assert isinstance(event.timestamp, datetime)
 
-    @given(
-        key=key_strategy,
-        config=config_strategy
-    )
+    @given(key=key_strategy, config=config_strategy)
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_listener_receives_open_to_half_open_event(
         self, key: str, config: CircuitBreakerConfig
@@ -243,7 +225,7 @@ class TestStateTransitionEvents:
             failure_threshold=config.failure_threshold,
             success_threshold=config.success_threshold,
             timeout_seconds=0.01,
-            half_open_max_calls=config.half_open_max_calls
+            half_open_max_calls=config.half_open_max_calls,
         )
         breaker = CircuitBreaker(config)
 
@@ -268,11 +250,7 @@ class TestStateTransitionEvents:
         assert half_open_event.to_state == CircuitState.HALF_OPEN
         assert half_open_event.trigger == "timeout"
 
-
-    @given(
-        key=key_strategy,
-        config=config_strategy
-    )
+    @given(key=key_strategy, config=config_strategy)
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_listener_receives_half_open_to_closed_event(
         self, key: str, config: CircuitBreakerConfig
@@ -283,7 +261,7 @@ class TestStateTransitionEvents:
             failure_threshold=config.failure_threshold,
             success_threshold=1,
             timeout_seconds=0.01,
-            half_open_max_calls=config.half_open_max_calls
+            half_open_max_calls=config.half_open_max_calls,
         )
         breaker = CircuitBreaker(config)
 
@@ -309,10 +287,7 @@ class TestStateTransitionEvents:
         assert close_event.to_state == CircuitState.CLOSED
         assert close_event.trigger == "success"
 
-    @given(
-        key=key_strategy,
-        config=config_strategy
-    )
+    @given(key=key_strategy, config=config_strategy)
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_listener_receives_half_open_to_open_event(
         self, key: str, config: CircuitBreakerConfig
@@ -322,7 +297,7 @@ class TestStateTransitionEvents:
             failure_threshold=config.failure_threshold,
             success_threshold=config.success_threshold,
             timeout_seconds=0.01,
-            half_open_max_calls=config.half_open_max_calls
+            half_open_max_calls=config.half_open_max_calls,
         )
         breaker = CircuitBreaker(config)
 
@@ -348,15 +323,9 @@ class TestStateTransitionEvents:
         assert reopen_event.to_state == CircuitState.OPEN
         assert reopen_event.trigger == "failure"
 
-
-    @given(
-        key=key_strategy,
-        num_listeners=st.integers(min_value=1, max_value=5)
-    )
+    @given(key=key_strategy, num_listeners=st.integers(min_value=1, max_value=5))
     @settings(max_examples=50, suppress_health_check=[HealthCheck.too_slow])
-    def test_all_listeners_receive_events(
-        self, key: str, num_listeners: int
-    ):
+    def test_all_listeners_receive_events(self, key: str, num_listeners: int):
         """All registered listeners should receive state change events."""
         config = CircuitBreakerConfig(failure_threshold=2)
         breaker = CircuitBreaker(config)
@@ -405,6 +374,7 @@ class TestStateTransitionEvents:
 # PROPERTY 9: THRESHOLD-BASED STATE TRANSITIONS
 # =============================================================================
 
+
 class TestThresholdBasedStateTransitions:
     """
     **Property 9: Threshold-Based State Transitions**
@@ -417,14 +387,9 @@ class TestThresholdBasedStateTransitions:
     **Validates: Requirements 3.5, 3.6**
     """
 
-    @given(
-        key=key_strategy,
-        failure_threshold=st.integers(min_value=1, max_value=20)
-    )
+    @given(key=key_strategy, failure_threshold=st.integers(min_value=1, max_value=20))
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
-    def test_circuit_opens_after_exactly_n_failures(
-        self, key: str, failure_threshold: int
-    ):
+    def test_circuit_opens_after_exactly_n_failures(self, key: str, failure_threshold: int):
         """Circuit should open after exactly failure_threshold failures."""
         config = CircuitBreakerConfig(failure_threshold=failure_threshold)
         breaker = CircuitBreaker(config)
@@ -438,20 +403,15 @@ class TestThresholdBasedStateTransitions:
         breaker.record_failure(key)
         assert breaker.get_state(key) == CircuitState.OPEN
 
-    @given(
-        key=key_strategy,
-        success_threshold=st.integers(min_value=1, max_value=10)
-    )
+    @given(key=key_strategy, success_threshold=st.integers(min_value=1, max_value=10))
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
-    def test_circuit_closes_after_exactly_m_successes(
-        self, key: str, success_threshold: int
-    ):
+    def test_circuit_closes_after_exactly_m_successes(self, key: str, success_threshold: int):
         """Circuit should close after exactly success_threshold successes in half-open."""
         config = CircuitBreakerConfig(
             failure_threshold=2,
             success_threshold=success_threshold,
             timeout_seconds=0.01,
-            half_open_max_calls=success_threshold + 5
+            half_open_max_calls=success_threshold + 5,
         )
         breaker = CircuitBreaker(config)
 
@@ -473,15 +433,9 @@ class TestThresholdBasedStateTransitions:
         breaker.record_success(key)
         assert breaker.get_state(key) == CircuitState.CLOSED
 
-
-    @given(
-        key=key_strategy,
-        failure_threshold=st.integers(min_value=2, max_value=10)
-    )
+    @given(key=key_strategy, failure_threshold=st.integers(min_value=2, max_value=10))
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
-    def test_success_resets_failure_count_before_threshold(
-        self, key: str, failure_threshold: int
-    ):
+    def test_success_resets_failure_count_before_threshold(self, key: str, failure_threshold: int):
         """Success should reset failure count, preventing circuit from opening."""
         config = CircuitBreakerConfig(failure_threshold=failure_threshold)
         breaker = CircuitBreaker(config)
@@ -506,7 +460,7 @@ class TestThresholdBasedStateTransitions:
         config = CircuitBreakerConfig(
             failure_threshold=2,
             success_threshold=5,  # High threshold
-            timeout_seconds=0.01
+            timeout_seconds=0.01,
         )
         breaker = CircuitBreaker(config)
 
@@ -527,10 +481,7 @@ class TestThresholdBasedStateTransitions:
         breaker.record_failure(key)
         assert breaker.get_state(key) == CircuitState.OPEN
 
-    @given(
-        key=key_strategy,
-        config=config_strategy
-    )
+    @given(key=key_strategy, config=config_strategy)
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_successes_in_closed_state_do_not_change_state(
         self, key: str, config: CircuitBreakerConfig
@@ -550,6 +501,7 @@ class TestThresholdBasedStateTransitions:
 # PROPERTY 10: OPEN CIRCUIT REJECTION
 # =============================================================================
 
+
 class TestOpenCircuitRejection:
     """
     **Property 10: Open Circuit Rejection**
@@ -563,17 +515,14 @@ class TestOpenCircuitRejection:
 
     @given(
         key=key_strategy,
-        timeout_seconds=st.floats(min_value=1.0, max_value=60.0, allow_nan=False, allow_infinity=False)
+        timeout_seconds=st.floats(
+            min_value=1.0, max_value=60.0, allow_nan=False, allow_infinity=False
+        ),
     )
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
-    def test_check_raises_circuit_open_error_when_open(
-        self, key: str, timeout_seconds: float
-    ):
+    def test_check_raises_circuit_open_error_when_open(self, key: str, timeout_seconds: float):
         """check() should raise CircuitOpenError when circuit is open."""
-        config = CircuitBreakerConfig(
-            failure_threshold=2,
-            timeout_seconds=timeout_seconds
-        )
+        config = CircuitBreakerConfig(failure_threshold=2, timeout_seconds=timeout_seconds)
         breaker = CircuitBreaker(config)
 
         # Open the circuit
@@ -591,17 +540,14 @@ class TestOpenCircuitRejection:
 
     @given(
         key=key_strategy,
-        timeout_seconds=st.floats(min_value=1.0, max_value=60.0, allow_nan=False, allow_infinity=False)
+        timeout_seconds=st.floats(
+            min_value=1.0, max_value=60.0, allow_nan=False, allow_infinity=False
+        ),
     )
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
-    def test_retry_after_equals_remaining_timeout(
-        self, key: str, timeout_seconds: float
-    ):
+    def test_retry_after_equals_remaining_timeout(self, key: str, timeout_seconds: float):
         """retry_after should equal the remaining timeout duration."""
-        config = CircuitBreakerConfig(
-            failure_threshold=2,
-            timeout_seconds=timeout_seconds
-        )
+        config = CircuitBreakerConfig(failure_threshold=2, timeout_seconds=timeout_seconds)
         breaker = CircuitBreaker(config)
 
         # Open the circuit
@@ -618,14 +564,13 @@ class TestOpenCircuitRejection:
         assert error.retry_after is not None
         assert abs(error.retry_after - timeout_seconds) < 0.1
 
-
     @given(key=key_strategy)
     @settings(max_examples=50, suppress_health_check=[HealthCheck.too_slow])
     def test_retry_after_decreases_over_time(self, key: str):
         """retry_after should decrease as time passes."""
         config = CircuitBreakerConfig(
             failure_threshold=2,
-            timeout_seconds=1.0  # 1 second timeout
+            timeout_seconds=1.0,  # 1 second timeout
         )
         breaker = CircuitBreaker(config)
 
@@ -655,7 +600,7 @@ class TestOpenCircuitRejection:
         """check() should succeed after timeout has elapsed."""
         config = CircuitBreakerConfig(
             failure_threshold=2,
-            timeout_seconds=0.01  # Very short timeout
+            timeout_seconds=0.01,  # Very short timeout
         )
         breaker = CircuitBreaker(config)
 
@@ -672,14 +617,9 @@ class TestOpenCircuitRejection:
         # Should now be in half-open state
         assert breaker.get_state(key) == CircuitState.HALF_OPEN
 
-    @given(
-        key=key_strategy,
-        config=config_strategy
-    )
+    @given(key=key_strategy, config=config_strategy)
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
-    def test_check_succeeds_when_closed(
-        self, key: str, config: CircuitBreakerConfig
-    ):
+    def test_check_succeeds_when_closed(self, key: str, config: CircuitBreakerConfig):
         """check() should succeed when circuit is closed."""
         breaker = CircuitBreaker(config)
 
@@ -688,14 +628,13 @@ class TestOpenCircuitRejection:
 
         assert breaker.get_state(key) == CircuitState.CLOSED
 
-
     @given(key=key_strategy)
     @settings(max_examples=50, suppress_health_check=[HealthCheck.too_slow])
     def test_total_rejections_incremented_on_open_check(self, key: str):
         """total_rejections should increment when check() is called on open circuit."""
         config = CircuitBreakerConfig(
             failure_threshold=2,
-            timeout_seconds=60.0  # Long timeout
+            timeout_seconds=60.0,  # Long timeout
         )
         breaker = CircuitBreaker(config)
 
@@ -733,23 +672,21 @@ class TestOpenCircuitRejection:
 
         # Should be a PrimrError
         from primr.utils.errors import PrimrError
+
         assert isinstance(error, PrimrError)
 
         # Should have all PrimrError attributes
-        assert hasattr(error, 'message')
-        assert hasattr(error, 'category')
-        assert hasattr(error, 'recoverable')
-        assert hasattr(error, 'retry_after')
-        assert hasattr(error, 'correlation_id')
+        assert hasattr(error, "message")
+        assert hasattr(error, "category")
+        assert hasattr(error, "recoverable")
+        assert hasattr(error, "retry_after")
+        assert hasattr(error, "correlation_id")
 
     @given(key=key_strategy)
     @settings(max_examples=50, suppress_health_check=[HealthCheck.too_slow])
     def test_retry_after_is_non_negative(self, key: str):
         """retry_after should always be non-negative."""
-        config = CircuitBreakerConfig(
-            failure_threshold=2,
-            timeout_seconds=0.01
-        )
+        config = CircuitBreakerConfig(failure_threshold=2, timeout_seconds=0.01)
         breaker = CircuitBreaker(config)
 
         # Open the circuit

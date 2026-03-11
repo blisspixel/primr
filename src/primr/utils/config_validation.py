@@ -49,6 +49,7 @@ load_dotenv()
 # VALIDATION ERROR TYPES
 # =============================================================================
 
+
 @dataclass
 class ConfigError:
     """A single configuration error."""
@@ -95,37 +96,36 @@ class ConfigValidationResult:
 # CONFIGURATION MODELS (Pydantic-style validation without Pydantic dependency)
 # =============================================================================
 
+
 @dataclass
 class APIKeysConfig:
     """API keys configuration with lazy validation."""
 
-    gemini_api_key: str | None = field(
-        default_factory=lambda: os.getenv("GEMINI_API_KEY")
-    )
-    search_api_key: str | None = field(
-        default_factory=lambda: os.getenv("SEARCH_API_KEY")
-    )
-    search_engine_id: str | None = field(
-        default_factory=lambda: os.getenv("SEARCH_ENGINE_ID")
-    )
+    gemini_api_key: str | None = field(default_factory=lambda: os.getenv("GEMINI_API_KEY"))
+    search_api_key: str | None = field(default_factory=lambda: os.getenv("SEARCH_API_KEY"))
+    search_engine_id: str | None = field(default_factory=lambda: os.getenv("SEARCH_ENGINE_ID"))
 
     def validate(self) -> list[ConfigError]:
         """Validate API keys are present."""
         errors = []
 
         if not self.gemini_api_key:
-            errors.append(ConfigError(
-                field="GEMINI_API_KEY",
-                message="Required API key not set",
-                suggestion="Add GEMINI_API_KEY=your_key to .env file"
-            ))
+            errors.append(
+                ConfigError(
+                    field="GEMINI_API_KEY",
+                    message="Required API key not set",
+                    suggestion="Add GEMINI_API_KEY=your_key to .env file",
+                )
+            )
         elif len(self.gemini_api_key) < 10:
-            errors.append(ConfigError(
-                field="GEMINI_API_KEY",
-                message="API key appears too short",
-                value=f"{self.gemini_api_key[:4]}...",
-                suggestion="Check that the full API key is provided"
-            ))
+            errors.append(
+                ConfigError(
+                    field="GEMINI_API_KEY",
+                    message="API key appears too short",
+                    value=f"{self.gemini_api_key[:4]}...",
+                    suggestion="Check that the full API key is provided",
+                )
+            )
 
         return errors
 
@@ -134,18 +134,22 @@ class APIKeysConfig:
         warnings = []
 
         if not self.search_api_key:
-            warnings.append(ConfigError(
-                field="SEARCH_API_KEY",
-                message="Optional key not set (Google Search disabled)",
-                suggestion="Add SEARCH_API_KEY for external source validation"
-            ))
+            warnings.append(
+                ConfigError(
+                    field="SEARCH_API_KEY",
+                    message="Optional key not set (Google Search disabled)",
+                    suggestion="Add SEARCH_API_KEY for external source validation",
+                )
+            )
 
         if not self.search_engine_id:
-            warnings.append(ConfigError(
-                field="SEARCH_ENGINE_ID",
-                message="Optional key not set (Google Search disabled)",
-                suggestion="Add SEARCH_ENGINE_ID for external source validation"
-            ))
+            warnings.append(
+                ConfigError(
+                    field="SEARCH_ENGINE_ID",
+                    message="Optional key not set (Google Search disabled)",
+                    suggestion="Add SEARCH_ENGINE_ID for external source validation",
+                )
+            )
 
         return warnings
 
@@ -172,25 +176,27 @@ class TimeoutsConfig:
             ("ai_timeout", self.ai_timeout),
         ]:
             if value <= 0:
-                errors.append(ConfigError(
-                    field=name,
-                    message="Timeout must be positive",
-                    value=value
-                ))
+                errors.append(
+                    ConfigError(field=name, message="Timeout must be positive", value=value)
+                )
             elif value > 600:
-                errors.append(ConfigError(
-                    field=name,
-                    message="Timeout exceeds maximum (600s)",
-                    value=value,
-                    suggestion="Use a timeout <= 600 seconds"
-                ))
+                errors.append(
+                    ConfigError(
+                        field=name,
+                        message="Timeout exceeds maximum (600s)",
+                        value=value,
+                        suggestion="Use a timeout <= 600 seconds",
+                    )
+                )
 
         if self.total_timeout < self.connect_timeout:
-            errors.append(ConfigError(
-                field="total_timeout",
-                message="Must be >= connect_timeout",
-                value=self.total_timeout
-            ))
+            errors.append(
+                ConfigError(
+                    field="total_timeout",
+                    message="Must be >= connect_timeout",
+                    value=self.total_timeout,
+                )
+            )
 
         return errors
 
@@ -210,46 +216,46 @@ class RetryConfig:
         errors = []
 
         if self.max_retries < 0:
-            errors.append(ConfigError(
-                field="max_retries",
-                message="Must be non-negative",
-                value=self.max_retries
-            ))
+            errors.append(
+                ConfigError(
+                    field="max_retries", message="Must be non-negative", value=self.max_retries
+                )
+            )
         elif self.max_retries > 10:
-            errors.append(ConfigError(
-                field="max_retries",
-                message="Exceeds maximum (10)",
-                value=self.max_retries,
-                suggestion="Use max_retries <= 10 to avoid excessive delays"
-            ))
+            errors.append(
+                ConfigError(
+                    field="max_retries",
+                    message="Exceeds maximum (10)",
+                    value=self.max_retries,
+                    suggestion="Use max_retries <= 10 to avoid excessive delays",
+                )
+            )
 
         if self.base_delay <= 0:
-            errors.append(ConfigError(
-                field="base_delay",
-                message="Must be positive",
-                value=self.base_delay
-            ))
+            errors.append(
+                ConfigError(field="base_delay", message="Must be positive", value=self.base_delay)
+            )
 
         if self.max_delay <= 0:
-            errors.append(ConfigError(
-                field="max_delay",
-                message="Must be positive",
-                value=self.max_delay
-            ))
+            errors.append(
+                ConfigError(field="max_delay", message="Must be positive", value=self.max_delay)
+            )
 
         if self.exponential_base <= 1:
-            errors.append(ConfigError(
-                field="exponential_base",
-                message="Must be > 1",
-                value=self.exponential_base
-            ))
+            errors.append(
+                ConfigError(
+                    field="exponential_base", message="Must be > 1", value=self.exponential_base
+                )
+            )
 
         if not 0 <= self.jitter_factor <= 1:
-            errors.append(ConfigError(
-                field="jitter_factor",
-                message="Must be between 0 and 1",
-                value=self.jitter_factor
-            ))
+            errors.append(
+                ConfigError(
+                    field="jitter_factor",
+                    message="Must be between 0 and 1",
+                    value=self.jitter_factor,
+                )
+            )
 
         return errors
 
@@ -269,39 +275,41 @@ class ScrapingConfig:
         errors = []
 
         if self.max_pages <= 0:
-            errors.append(ConfigError(
-                field="max_pages",
-                message="Must be positive",
-                value=self.max_pages
-            ))
+            errors.append(
+                ConfigError(field="max_pages", message="Must be positive", value=self.max_pages)
+            )
         elif self.max_pages > 500:
-            errors.append(ConfigError(
-                field="max_pages",
-                message="Exceeds recommended maximum (500)",
-                value=self.max_pages,
-                suggestion="Large page counts increase cost and time significantly"
-            ))
+            errors.append(
+                ConfigError(
+                    field="max_pages",
+                    message="Exceeds recommended maximum (500)",
+                    value=self.max_pages,
+                    suggestion="Large page counts increase cost and time significantly",
+                )
+            )
 
         if self.max_depth < 0:
-            errors.append(ConfigError(
-                field="max_depth",
-                message="Must be non-negative",
-                value=self.max_depth
-            ))
+            errors.append(
+                ConfigError(field="max_depth", message="Must be non-negative", value=self.max_depth)
+            )
 
         if self.min_content_length < 0:
-            errors.append(ConfigError(
-                field="min_content_length",
-                message="Must be non-negative",
-                value=self.min_content_length
-            ))
+            errors.append(
+                ConfigError(
+                    field="min_content_length",
+                    message="Must be non-negative",
+                    value=self.min_content_length,
+                )
+            )
 
         if self.circuit_breaker_threshold < 1:
-            errors.append(ConfigError(
-                field="circuit_breaker_threshold",
-                message="Must be at least 1",
-                value=self.circuit_breaker_threshold
-            ))
+            errors.append(
+                ConfigError(
+                    field="circuit_breaker_threshold",
+                    message="Must be at least 1",
+                    value=self.circuit_breaker_threshold,
+                )
+            )
 
         return errors
 
@@ -321,37 +329,39 @@ class AIConfig:
         errors = []
 
         if not self.fast_model or not self.fast_model.strip():
-            errors.append(ConfigError(
-                field="fast_model",
-                message="Model name cannot be empty"
-            ))
+            errors.append(ConfigError(field="fast_model", message="Model name cannot be empty"))
 
         if not self.reasoning_model or not self.reasoning_model.strip():
-            errors.append(ConfigError(
-                field="reasoning_model",
-                message="Model name cannot be empty"
-            ))
+            errors.append(
+                ConfigError(field="reasoning_model", message="Model name cannot be empty")
+            )
 
         if not 0.0 <= self.temperature <= 2.0:
-            errors.append(ConfigError(
-                field="temperature",
-                message="Must be between 0.0 and 2.0",
-                value=self.temperature
-            ))
+            errors.append(
+                ConfigError(
+                    field="temperature",
+                    message="Must be between 0.0 and 2.0",
+                    value=self.temperature,
+                )
+            )
 
         if self.thinking_level not in ("low", "high"):
-            errors.append(ConfigError(
-                field="thinking_level",
-                message="Must be 'low' or 'high'",
-                value=self.thinking_level
-            ))
+            errors.append(
+                ConfigError(
+                    field="thinking_level",
+                    message="Must be 'low' or 'high'",
+                    value=self.thinking_level,
+                )
+            )
 
         if not 0 <= self.grade_threshold <= 100:
-            errors.append(ConfigError(
-                field="grade_threshold",
-                message="Must be between 0 and 100",
-                value=self.grade_threshold
-            ))
+            errors.append(
+                ConfigError(
+                    field="grade_threshold",
+                    message="Must be between 0 and 100",
+                    value=self.grade_threshold,
+                )
+            )
 
         return errors
 
@@ -383,11 +393,11 @@ class PathsConfig:
             try:
                 path.mkdir(parents=True, exist_ok=True)
             except OSError as e:
-                errors.append(ConfigError(
-                    field=name,
-                    message=f"Cannot create directory: {e}",
-                    value=str(path)
-                ))
+                errors.append(
+                    ConfigError(
+                        field=name, message=f"Cannot create directory: {e}", value=str(path)
+                    )
+                )
                 continue
 
             # Test write permission
@@ -396,11 +406,9 @@ class PathsConfig:
                 test_file.write_text("test")
                 test_file.unlink()
             except OSError as e:
-                errors.append(ConfigError(
-                    field=name,
-                    message=f"Directory not writable: {e}",
-                    value=str(path)
-                ))
+                errors.append(
+                    ConfigError(field=name, message=f"Directory not writable: {e}", value=str(path))
+                )
 
         return errors
 
@@ -408,6 +416,7 @@ class PathsConfig:
 # =============================================================================
 # MAIN CONFIGURATION CLASS
 # =============================================================================
+
 
 @dataclass
 class PrimrConfig:
@@ -458,11 +467,7 @@ class PrimrConfig:
         errors.extend(self.ai.validate())
         errors.extend(self.paths.validate())
 
-        return ConfigValidationResult(
-            valid=len(errors) == 0,
-            errors=errors,
-            warnings=warnings
-        )
+        return ConfigValidationResult(valid=len(errors) == 0, errors=errors, warnings=warnings)
 
     def to_dict(self) -> dict[str, Any]:
         """Export configuration as dictionary (excluding secrets)."""
@@ -593,7 +598,7 @@ def export_schema() -> dict[str, Any]:
             "schema_version": {
                 "type": "string",
                 "description": "Configuration schema version",
-                "default": "1.0.0"
+                "default": "1.0.0",
             },
             "timeouts": {
                 "type": "object",
@@ -603,7 +608,7 @@ def export_schema() -> dict[str, Any]:
                     "total_timeout": {"type": "number", "minimum": 0, "default": 60.0},
                     "scrape_timeout": {"type": "number", "minimum": 0, "default": 45.0},
                     "ai_timeout": {"type": "number", "minimum": 0, "default": 120.0},
-                }
+                },
             },
             "retry": {
                 "type": "object",
@@ -613,7 +618,7 @@ def export_schema() -> dict[str, Any]:
                     "max_delay": {"type": "number", "minimum": 0, "default": 60.0},
                     "exponential_base": {"type": "number", "minimum": 1, "default": 2.0},
                     "jitter_factor": {"type": "number", "minimum": 0, "maximum": 1, "default": 0.1},
-                }
+                },
             },
             "scraping": {
                 "type": "object",
@@ -623,20 +628,32 @@ def export_schema() -> dict[str, Any]:
                     "min_content_length": {"type": "integer", "minimum": 0, "default": 100},
                     "enable_vision": {"type": "boolean", "default": True},
                     "circuit_breaker_threshold": {"type": "integer", "minimum": 1, "default": 5},
-                }
+                },
             },
             "ai": {
                 "type": "object",
                 "properties": {
                     "fast_model": {"type": "string", "default": "gemini-2.0-flash"},
-                    "reasoning_model": {"type": "string", "default": "gemini-2.5-pro-preview-06-05"},
+                    "reasoning_model": {
+                        "type": "string",
+                        "default": "gemini-2.5-pro-preview-06-05",
+                    },
                     "temperature": {"type": "number", "minimum": 0, "maximum": 2, "default": 1.0},
-                    "thinking_level": {"type": "string", "enum": ["low", "high"], "default": "high"},
-                    "grade_threshold": {"type": "integer", "minimum": 0, "maximum": 100, "default": 80},
-                }
+                    "thinking_level": {
+                        "type": "string",
+                        "enum": ["low", "high"],
+                        "default": "high",
+                    },
+                    "grade_threshold": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 100,
+                        "default": 80,
+                    },
+                },
             },
         },
-        "required": ["schema_version"]
+        "required": ["schema_version"],
     }
 
 
