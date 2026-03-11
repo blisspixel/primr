@@ -15,8 +15,8 @@ from primr.data.scraping.discovery import (
     score_links_heuristically,
     verify_urls_exist,
 )
-from primr.data.scraping.org_profile import classify_organization_type
 from primr.data.scraping.net import is_same_domain
+from primr.data.scraping.org_profile import classify_organization_type
 
 
 class TestDiscoveredLink:

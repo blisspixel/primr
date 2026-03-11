@@ -6,8 +6,8 @@ import primr.output.output_utils as output_utils
 from primr.core.research_agent import (
     _clean_strategy_output,
     _compute_strategy_qa_metrics,
-    _ensure_strategy_source_inventory,
     _convert_deep_research_to_docx,
+    _ensure_strategy_source_inventory,
     _save_strategy_output,
     _validate_output_docx,
     _validate_output_markdown,
