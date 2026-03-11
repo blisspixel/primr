@@ -303,3 +303,6 @@ build/
 
 # Windows reserved name artifacts
 nul
+.pytest_tmp/
+.tmp/
+
