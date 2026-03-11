@@ -16,8 +16,8 @@ from dataclasses import dataclass
 from urllib.parse import urljoin, urlparse
 
 from .config import COMMON_PAGE_PATTERNS, SitemapConfig
-from .org_profile import classify_organization_type
 from .net import extract_host, head_exists, is_same_domain, make_request
+from .org_profile import classify_organization_type
 from .rate_limiter import NoOpRateLimiter, RateLimiter
 
 logger = logging.getLogger(__name__)
@@ -449,9 +449,7 @@ def is_probably_content_url(url: str) -> bool:
 
     if any(re.search(pattern, normalized, re.IGNORECASE) for pattern in LINK_EXCLUDE_PATTERNS):
         return False
-    if any(re.search(pattern, normalized, re.IGNORECASE) for pattern in NON_CONTENT_PATH_PATTERNS):
-        return False
-    return True
+    return not any(re.search(pattern, normalized, re.IGNORECASE) for pattern in NON_CONTENT_PATH_PATTERNS)
 
 
 # Patterns that look like internal paths (for JS extraction)
