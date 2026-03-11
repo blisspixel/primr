@@ -28,14 +28,14 @@ from primr.data.scraping import (
     ScrapeOrchestrator,
     ScrapeResult,
 )
-from primr.data.scraping.org_profile import classify_organization_type
-from primr.data.scraping.discovery import is_probably_content_url
 from primr.data.scraping import (
     extract_links_from_html as _extract_links_from_html_new,
 )
 from primr.data.scraping import (
     normalize_url as normalize_url_new,
 )
+from primr.data.scraping.discovery import is_probably_content_url
+from primr.data.scraping.org_profile import classify_organization_type
 from primr.data.scraping.tier_registry import get_available_tiers
 from primr.utils.console import console
 from primr.utils.logging_config import get_logger
