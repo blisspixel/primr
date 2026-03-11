@@ -18,14 +18,14 @@ class IssueClassifier:
             Severity.CRITICAL: 1.0,
             Severity.HIGH: 0.7,
             Severity.MEDIUM: 0.4,
-            Severity.LOW: 0.1
+            Severity.LOW: 0.1,
         }
 
         self.issue_type_weights = {
             IssueType.FACTUAL: 1.0,
             IssueType.LOGICAL: 0.8,
             IssueType.CITATION: 0.6,
-            IssueType.COMPLETENESS: 0.5
+            IssueType.COMPLETENESS: 0.5,
         }
 
     def classify_issues(self, issues: list[ClassifiedIssue]) -> dict[str, list[ClassifiedIssue]]:
@@ -46,7 +46,7 @@ class IssueClassifier:
             "factual": [],
             "logical": [],
             "citation": [],
-            "completeness": []
+            "completeness": [],
         }
 
         for issue in issues:
@@ -104,11 +104,11 @@ class IssueClassifier:
         """
         # Component scores with weights
         component_scores = {
-            'citation': (analysis.citation_check.score, 0.25),
-            'logic': (analysis.logic_check.score, 0.25),
-            'completeness': (analysis.completeness_check.score, 0.25),
-            'confidence': (analysis.confidence_assessment.overall_confidence, 0.15),
-            'issues': (self._calculate_issues_score(analysis.issues), 0.10)
+            "citation": (analysis.citation_check.score, 0.25),
+            "logic": (analysis.logic_check.score, 0.25),
+            "completeness": (analysis.completeness_check.score, 0.25),
+            "confidence": (analysis.confidence_assessment.overall_confidence, 0.15),
+            "issues": (self._calculate_issues_score(analysis.issues), 0.10),
         }
 
         # Calculate weighted average
@@ -150,7 +150,7 @@ class IssueClassifier:
             Severity.CRITICAL: 0,
             Severity.HIGH: 0,
             Severity.MEDIUM: 0,
-            Severity.LOW: 0
+            Severity.LOW: 0,
         }
 
         for issue in issues:
@@ -159,9 +159,9 @@ class IssueClassifier:
         # Calculate penalty based on issue counts and severity
         penalty = 0
         penalty += severity_counts[Severity.CRITICAL] * 25  # 25 points per critical
-        penalty += severity_counts[Severity.HIGH] * 15     # 15 points per high
-        penalty += severity_counts[Severity.MEDIUM] * 8    # 8 points per medium
-        penalty += severity_counts[Severity.LOW] * 3       # 3 points per low
+        penalty += severity_counts[Severity.HIGH] * 15  # 15 points per high
+        penalty += severity_counts[Severity.MEDIUM] * 8  # 8 points per medium
+        penalty += severity_counts[Severity.LOW] * 3  # 3 points per low
 
         # Cap penalty at 90 points (minimum score of 10)
         penalty = min(penalty, 90)
@@ -183,7 +183,9 @@ class IssueClassifier:
 
         # Check if the existing overall score is reasonable
         if abs(analysis.overall_score - calculated_overall) > 15:
-            logger.info(f"Adjusting overall score from {analysis.overall_score} to {calculated_overall} for consistency")
+            logger.info(
+                f"Adjusting overall score from {analysis.overall_score} to {calculated_overall} for consistency"
+            )
             analysis.overall_score = calculated_overall
 
         # Ensure section scores are reasonable relative to overall score
@@ -192,7 +194,9 @@ class IssueClassifier:
 
             # If section average is very different from overall, log a warning
             if abs(section_average - analysis.overall_score) > 20:
-                logger.warning(f"Section score average ({section_average:.1f}) differs significantly from overall score ({analysis.overall_score})")
+                logger.warning(
+                    f"Section score average ({section_average:.1f}) differs significantly from overall score ({analysis.overall_score})"
+                )
 
         return analysis
 
@@ -211,7 +215,7 @@ class IssueClassifier:
                 "total_issues": 0,
                 "specific_locations": 0,
                 "vague_locations": 0,
-                "specificity_score": 100
+                "specificity_score": 100,
             }
 
         specific_count = 0
@@ -243,5 +247,5 @@ class IssueClassifier:
             "total_issues": total_issues,
             "specific_locations": specific_count,
             "vague_locations": vague_count,
-            "specificity_score": specificity_score
+            "specificity_score": specificity_score,
         }

@@ -41,7 +41,7 @@ class TestSitemapFetching:
         mock_response.status_code = 200
         mock_response.content = sitemap_xml
 
-        with patch('primr.data.scraping.discovery.make_request', return_value=mock_response):
+        with patch("primr.data.scraping.discovery.make_request", return_value=mock_response):
             links = fetch_sitemap_links("https://example.com")
 
             # Should get ALL 5 links
@@ -54,7 +54,7 @@ class TestSitemapFetching:
         mock_response = MagicMock()
         mock_response.status_code = 404
 
-        with patch('primr.data.scraping.discovery.make_request', return_value=mock_response):
+        with patch("primr.data.scraping.discovery.make_request", return_value=mock_response):
             links = fetch_sitemap_links("https://example.com")
             assert len(links) == 0
 
@@ -92,7 +92,7 @@ class TestURLVerification:
         """Should check provided URLs."""
         test_urls = {"https://example.com/page1", "https://example.com/page2"}
 
-        with patch('primr.data.scraping.discovery.head_exists', return_value=True):
+        with patch("primr.data.scraping.discovery.head_exists", return_value=True):
             verified = verify_urls_exist(test_urls)
             assert len(verified) == 2
 
@@ -103,7 +103,7 @@ class TestURLVerification:
         def mock_head_exists(url, **kwargs):
             return "exists" in url
 
-        with patch('primr.data.scraping.discovery.head_exists', side_effect=mock_head_exists):
+        with patch("primr.data.scraping.discovery.head_exists", side_effect=mock_head_exists):
             verified = verify_urls_exist(test_urls)
             assert len(verified) == 1
             assert "https://example.com/exists" in verified

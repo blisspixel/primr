@@ -1,6 +1,5 @@
 """Shared fixtures for A2A tests."""
 
-
 import pytest
 
 

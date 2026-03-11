@@ -30,12 +30,13 @@ from primr.utils.logging_config import get_logger
 
 logger = get_logger("container")
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 @dataclass
 class ServiceDescriptor:
     """Describes how to create a service."""
+
     factory: Callable[[], Any]
     singleton: bool = True
     instance: Any | None = None
@@ -69,12 +70,7 @@ class Container:
         self._services: dict[str, ServiceDescriptor] = {}
         self._lock = threading.RLock()  # Reentrant lock for nested resolution
 
-    def register(
-        self,
-        name: str,
-        factory: Callable[[], T],
-        singleton: bool = True
-    ) -> None:
+    def register(self, name: str, factory: Callable[[], T], singleton: bool = True) -> None:
         """
         Register a service.
 
@@ -84,10 +80,7 @@ class Container:
             singleton: If True, only one instance is created
         """
         with self._lock:
-            self._services[name] = ServiceDescriptor(
-                factory=factory,
-                singleton=singleton
-            )
+            self._services[name] = ServiceDescriptor(factory=factory, singleton=singleton)
             logger.debug(f"Registered service: {name} (singleton={singleton})")
 
     def resolve(self, name: str) -> Any:
@@ -183,37 +176,49 @@ def create_default_container() -> Container:
     # Register AI client
     def create_ai_client():
         from primr.ai.client import AIClient
+
         return AIClient()
+
     container.register("ai_client", create_ai_client)
 
     # Register parallel scraper
     def create_scraper():
         from primr.data.parallel_scraper import ParallelScraper
+
         return ParallelScraper()
+
     container.register("scraper", create_scraper)
 
     # Register adaptive scraper
     def create_adaptive_scraper():
         from primr.data.adaptive_scraper import AdaptiveScraper
+
         return AdaptiveScraper()
+
     container.register("adaptive_scraper", create_adaptive_scraper)
 
     # Register cache
     def create_cache():
         from primr.data.cache import ContentCache
+
         return ContentCache()
+
     container.register("cache", create_cache)
 
     # Register HTTP client
     def create_http_client():
         from primr.data.http_client import HTTPClient
+
         return HTTPClient()
+
     container.register("http_client", create_http_client)
 
     # Register domain learner
     def create_domain_learner():
         from primr.data.adaptive_scraper import DomainLearner
+
         return DomainLearner()
+
     container.register("domain_learner", create_domain_learner)
 
     logger.info("Default container created with production services")
@@ -265,6 +270,7 @@ def reset_container() -> None:
 # =============================================================================
 # SERVICE LOCATOR FUNCTIONS
 # =============================================================================
+
 
 def get_ai_client() -> AIClientProtocol:
     """Get the AI client from the global container."""

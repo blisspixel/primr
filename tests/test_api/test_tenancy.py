@@ -381,15 +381,9 @@ class TestUsageTracking:
         """Test getting usage summary."""
         # Record some usage
         for _ in range(5):
-            manager.record_usage(
-                sample_tenant.tenant_id, "research", "requests", 1
-            )
-        manager.record_usage(
-            sample_tenant.tenant_id, "research", "pages", 25
-        )
-        manager.record_usage(
-            sample_tenant.tenant_id, "research", "tokens", 5000
-        )
+            manager.record_usage(sample_tenant.tenant_id, "research", "requests", 1)
+        manager.record_usage(sample_tenant.tenant_id, "research", "pages", 25)
+        manager.record_usage(sample_tenant.tenant_id, "research", "tokens", 5000)
 
         summary = manager.get_usage_summary(sample_tenant.tenant_id)
 

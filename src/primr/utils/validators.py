@@ -47,10 +47,9 @@ class InputValidationError(ValueError):
 # URL VALIDATION
 # =============================================================================
 
+
 def validate_url(
-    url: str,
-    allowed_schemes: tuple[str, ...] = ("http", "https"),
-    require_host: bool = True
+    url: str, allowed_schemes: tuple[str, ...] = ("http", "https"), require_host: bool = True
 ) -> str:
     """
     Validate and normalize a URL.
@@ -95,8 +94,7 @@ def validate_url(
     if parsed.scheme.lower() not in allowed_schemes:
         raise InputValidationError(
             "url",
-            f"URL scheme '{parsed.scheme}' not allowed. "
-            f"Allowed: {', '.join(allowed_schemes)}"
+            f"URL scheme '{parsed.scheme}' not allowed. Allowed: {', '.join(allowed_schemes)}",
         )
 
     # Check host
@@ -155,9 +153,7 @@ def normalize_url(url: str) -> str:
 
     # Check for scheme (case-insensitive)
     url_lower = url.lower()
-    has_scheme = (
-        url_lower.startswith(("http://", "https://", "ftp://"))
-    )
+    has_scheme = url_lower.startswith(("http://", "https://", "ftp://"))
 
     # Add scheme if missing
     if not has_scheme:
@@ -225,8 +221,7 @@ def validate_and_normalize_url(
 
 
 def validate_url_for_request(
-    url: str,
-    allow_private_ips: bool = False
+    url: str, allow_private_ips: bool = False
 ) -> tuple[bool, str, str | None]:
     """
     Validate URL for making external HTTP requests (SSRF protection).
@@ -274,7 +269,7 @@ def validate_url_for_request(
         return (False, url, "Only HTTP/HTTPS schemes allowed for requests")
 
     # Extract host (remove port if present)
-    host = parsed.netloc.split(':')[0].strip('[]')  # Remove brackets for IPv6
+    host = parsed.netloc.split(":")[0].strip("[]")  # Remove brackets for IPv6
 
     if not host:
         return (False, url, "URL must have a host")
@@ -323,7 +318,11 @@ def validate_url_for_request(
 
                         # Block if resolves to private/loopback/link-local
                         if ip.is_private or ip.is_loopback or ip.is_link_local:
-                            return (False, url, f"Hostname resolves to private/internal IP: {resolved_ip}")
+                            return (
+                                False,
+                                url,
+                                f"Hostname resolves to private/internal IP: {resolved_ip}",
+                            )
 
                     except ValueError:
                         # Skip if can't parse resolved IP
@@ -473,19 +472,13 @@ def validate_cli_url(url: str) -> CLIValidationResult:
     if is_valid:
         result.normalized_args["url"] = normalized
     else:
-        result.add_error(
-            f"Invalid URL: {error}",
-            "URLs should start with http:// or https://"
-        )
+        result.add_error(f"Invalid URL: {error}", "URLs should start with http:// or https://")
         result.normalized_args["url"] = url
 
     return result
 
 
-def validate_cli_mode(
-    mode: str,
-    valid_modes: list[str] | None = None
-) -> CLIValidationResult:
+def validate_cli_mode(mode: str, valid_modes: list[str] | None = None) -> CLIValidationResult:
     """
     Validate research mode from CLI input.
 
@@ -512,7 +505,7 @@ def validate_cli_mode(
 
         result.add_error(
             f"Unknown mode '{mode}'. Valid modes: {', '.join(valid_modes)}",
-            suggestion_text if suggestion_text else None
+            suggestion_text if suggestion_text else None,
         )
         result.normalized_args["mode"] = mode
 
@@ -523,11 +516,9 @@ def validate_cli_mode(
 # FILE PATH VALIDATION
 # =============================================================================
 
+
 def validate_file_path(
-    path: str,
-    base_dir: Path | None = None,
-    must_exist: bool = False,
-    allow_absolute: bool = False
+    path: str, base_dir: Path | None = None, must_exist: bool = False, allow_absolute: bool = False
 ) -> Path:
     r"""
     Validate file path against traversal attacks.
@@ -593,10 +584,7 @@ def validate_file_path(
             # Ensure resolved path is within base_dir
             resolved.relative_to(base_dir)
         except ValueError as e:
-            raise InputValidationError(
-                "path",
-                f"Path must be within {base_dir}"
-            ) from e
+            raise InputValidationError("path", f"Path must be within {base_dir}") from e
 
     # Check existence
     if must_exist:
@@ -611,11 +599,8 @@ def validate_file_path(
 # COMPANY NAME VALIDATION
 # =============================================================================
 
-def validate_company_name(
-    name: str,
-    min_length: int = 1,
-    max_length: int = 200
-) -> str:
+
+def validate_company_name(name: str, min_length: int = 1, max_length: int = 200) -> str:
     """
     Validate and sanitize company name.
 
@@ -643,14 +628,12 @@ def validate_company_name(
 
     if len(name) < min_length:
         raise InputValidationError(
-            "company_name",
-            f"Company name must be at least {min_length} characters"
+            "company_name", f"Company name must be at least {min_length} characters"
         )
 
     if len(name) > max_length:
         raise InputValidationError(
-            "company_name",
-            f"Company name must be at most {max_length} characters"
+            "company_name", f"Company name must be at most {max_length} characters"
         )
 
     # Check for suspicious patterns (potential injection)
@@ -665,19 +648,12 @@ def validate_company_name(
     name_lower = name.lower()
     for pattern in suspicious_patterns:
         if re.search(pattern, name_lower):
-            raise InputValidationError(
-                "company_name",
-                "Company name contains invalid characters"
-            )
+            raise InputValidationError("company_name", "Company name contains invalid characters")
 
     return name
 
 
-def sanitize_for_filename(
-    name: str,
-    max_length: int = 100,
-    replacement: str = "_"
-) -> str:
+def sanitize_for_filename(name: str, max_length: int = 100, replacement: str = "_") -> str:
     """
     Sanitize string for use as a filename.
 
@@ -729,10 +705,8 @@ def sanitize_for_filename(
 # JSON PARSING
 # =============================================================================
 
-def safe_json_parse(
-    content: str,
-    default: Any = None
-) -> Any:
+
+def safe_json_parse(content: str, default: Any = None) -> Any:
     """
     Safely parse JSON with graceful error handling.
 
@@ -760,11 +734,7 @@ def safe_json_parse(
         return default
 
 
-def safe_json_get(
-    data: Any,
-    *keys: str,
-    default: Any = None
-) -> Any:
+def safe_json_get(data: Any, *keys: str, default: Any = None) -> Any:
     """
     Safely get nested value from JSON-like structure.
 

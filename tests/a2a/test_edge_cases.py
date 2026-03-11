@@ -38,21 +38,25 @@ class TestA2ATaskMappingEdgeCases:
     """Edge cases for A2ATaskMapping."""
 
     def test_from_dict_with_string_created_at(self):
-        mapping = A2ATaskMapping.from_dict({
-            "task_id": "t-1",
-            "job_id": "j-1",
-            "skill_id": "check",
-            "created_at": "2026-01-15T10:30:00+00:00",
-        })
+        mapping = A2ATaskMapping.from_dict(
+            {
+                "task_id": "t-1",
+                "job_id": "j-1",
+                "skill_id": "check",
+                "created_at": "2026-01-15T10:30:00+00:00",
+            }
+        )
         assert mapping.created_at.year == 2026
 
     def test_from_dict_preserves_timezone(self):
-        mapping = A2ATaskMapping.from_dict({
-            "task_id": "t-1",
-            "job_id": "j-1",
-            "skill_id": "check",
-            "created_at": "2026-01-15T10:30:00+05:00",
-        })
+        mapping = A2ATaskMapping.from_dict(
+            {
+                "task_id": "t-1",
+                "job_id": "j-1",
+                "skill_id": "check",
+                "created_at": "2026-01-15T10:30:00+05:00",
+            }
+        )
         assert mapping.created_at.utcoffset() is not None
 
     def test_to_dict_created_at_is_iso(self):
@@ -60,6 +64,7 @@ class TestA2ATaskMappingEdgeCases:
         d = mapping.to_dict()
         # Should be valid ISO format
         from datetime import datetime
+
         datetime.fromisoformat(d["created_at"])
 
 
@@ -213,6 +218,7 @@ class TestA2AErrorClass:
 def _has_a2a_sdk():
     try:
         import a2a  # noqa: F401
+
         return True
     except ImportError:
         return False

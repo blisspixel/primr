@@ -27,10 +27,7 @@ class TestVendorResearchFile:
             filepath.write_text("content")
 
             file = VendorResearchFile(
-                path=filepath,
-                vendor="azure",
-                month="2024-01",
-                is_manual=False
+                path=filepath, vendor="azure", month="2024-01", is_manual=False
             )
 
             assert file.exists is True
@@ -40,10 +37,7 @@ class TestVendorResearchFile:
         from primr.core.vendor_research import VendorResearchFile
 
         file = VendorResearchFile(
-            path=Path("/nonexistent/file.txt"),
-            vendor="azure",
-            month="2024-01",
-            is_manual=False
+            path=Path("/nonexistent/file.txt"), vendor="azure", month="2024-01", is_manual=False
         )
 
         assert file.exists is False
@@ -53,10 +47,7 @@ class TestVendorResearchFile:
         from primr.core.vendor_research import VendorResearchFile
 
         file = VendorResearchFile(
-            path=Path("/nonexistent/file.txt"),
-            vendor="azure",
-            month="2024-01",
-            is_manual=False
+            path=Path("/nonexistent/file.txt"), vendor="azure", month="2024-01", is_manual=False
         )
 
         assert file.age_days == -1
@@ -78,11 +69,7 @@ class TestVendorResearchResult:
                 VendorResearchFile(Path("/missing.txt"), "azure", "2024-01", False),
             )
 
-            result = VendorResearchResult(
-                files=files,
-                generated=False,
-                duration_seconds=1.0
-            )
+            result = VendorResearchResult(files=files, generated=False, duration_seconds=1.0)
 
             assert len(result.paths) == 1
             assert result.paths[0] == existing
@@ -130,7 +117,7 @@ class TestGetManualResearchPath:
         assert get_manual_research_path("gcp") is None
         assert get_manual_research_path("agnostic") is None
 
-    @patch('primr.core.vendor_research.Path.exists')
+    @patch("primr.core.vendor_research.Path.exists")
     def test_returns_path_for_azure_when_exists(self, mock_exists):
         """Returns path for Azure when manual file exists."""
         from primr.core.vendor_research import get_manual_research_path
@@ -146,7 +133,7 @@ class TestGetManualResearchPath:
 class TestIsVendorResearchCurrent:
     """Tests for is_vendor_research_current function."""
 
-    @patch('primr.core.vendor_research.get_manual_research_path')
+    @patch("primr.core.vendor_research.get_manual_research_path")
     def test_returns_true_for_azure_with_manual(self, mock_manual):
         """Returns True for Azure when manual file exists."""
         from primr.core.vendor_research import is_vendor_research_current
@@ -155,8 +142,8 @@ class TestIsVendorResearchCurrent:
 
         assert is_vendor_research_current("azure") is True
 
-    @patch('primr.core.vendor_research.get_manual_research_path')
-    @patch('primr.core.vendor_research.get_vendor_research_path')
+    @patch("primr.core.vendor_research.get_manual_research_path")
+    @patch("primr.core.vendor_research.get_vendor_research_path")
     def test_returns_true_when_current_month_exists(self, mock_path, mock_manual):
         """Returns True when current month's research exists."""
         from primr.core.vendor_research import is_vendor_research_current
@@ -170,8 +157,8 @@ class TestIsVendorResearchCurrent:
 
             assert is_vendor_research_current("aws") is True
 
-    @patch('primr.core.vendor_research.get_manual_research_path')
-    @patch('primr.core.vendor_research.get_vendor_research_path')
+    @patch("primr.core.vendor_research.get_manual_research_path")
+    @patch("primr.core.vendor_research.get_vendor_research_path")
     def test_returns_false_when_no_research(self, mock_path, mock_manual):
         """Returns False when no research exists."""
         from primr.core.vendor_research import is_vendor_research_current
@@ -263,7 +250,7 @@ class TestBuildVendorPrompt:
 class TestValidateVendorResearchPreflight:
     """Tests for _validate_vendor_research_preflight function."""
 
-    @patch('primr.config.settings.get_settings')
+    @patch("primr.config.settings.get_settings")
     def test_rejects_invalid_vendor(self, mock_settings):
         """Rejects invalid vendor name."""
         from unittest.mock import MagicMock
@@ -279,7 +266,7 @@ class TestValidateVendorResearchPreflight:
         assert len(errors) > 0
         assert any("Invalid vendor" in e for e in errors)
 
-    @patch('primr.config.settings.get_settings')
+    @patch("primr.config.settings.get_settings")
     def test_rejects_missing_api_key(self, mock_settings):
         """Rejects when API key is missing."""
         from unittest.mock import MagicMock

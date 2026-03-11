@@ -74,7 +74,7 @@ class Histogram:
                 HistogramBucket(le=2.5),
                 HistogramBucket(le=5.0),
                 HistogramBucket(le=10.0),
-                HistogramBucket(le=float('inf')),
+                HistogramBucket(le=float("inf")),
             ]
 
     def observe(self, value: float) -> None:
@@ -264,10 +264,7 @@ class MetricsCollector:
                         label_key: {
                             "sum": hist.sum,
                             "count": hist.count,
-                            "buckets": [
-                                {"le": b.le, "count": b.count}
-                                for b in hist.buckets
-                            ],
+                            "buckets": [{"le": b.le, "count": b.count} for b in hist.buckets],
                         }
                         for label_key, hist in histograms.items()
                     }
@@ -430,6 +427,7 @@ def reset_metrics_collector() -> None:
 # CONVENIENCE FUNCTIONS
 # =============================================================================
 
+
 def increment_counter(
     name: str,
     value: float = 1.0,
@@ -462,5 +460,6 @@ def export_metrics(format: str = "prometheus") -> str:
     collector = get_metrics_collector()
     if format == "json":
         import json
+
         return json.dumps(collector.export_json(), indent=2)
     return collector.export_prometheus()

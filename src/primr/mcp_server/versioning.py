@@ -198,13 +198,15 @@ class ToolSchemaMetadata:
             removed_in: Version when field will be removed (optional)
             alternative: Recommended alternative (optional)
         """
-        self.deprecated_fields.append(DeprecationWarning(
-            field_name=field_name,
-            message=message,
-            deprecated_in=deprecated_in,
-            removed_in=removed_in,
-            alternative=alternative,
-        ))
+        self.deprecated_fields.append(
+            DeprecationWarning(
+                field_name=field_name,
+                message=message,
+                deprecated_in=deprecated_in,
+                removed_in=removed_in,
+                alternative=alternative,
+            )
+        )
 
 
 class MCPVersionRegistry:
@@ -337,7 +339,9 @@ class MCPVersionRegistry:
         """
         return version >= self.MIN_SUPPORTED_VERSION and version.major == self.CURRENT_VERSION.major
 
-    def get_migration_guide(self, from_version: SemanticVersion, to_version: SemanticVersion) -> str:
+    def get_migration_guide(
+        self, from_version: SemanticVersion, to_version: SemanticVersion
+    ) -> str:
         """Get migration guide between versions.
 
         Args:
@@ -357,8 +361,7 @@ class MCPVersionRegistry:
 
         # Find relevant history entries
         relevant = [
-            entry for entry in self._version_history
-            if from_version < entry.version <= to_version
+            entry for entry in self._version_history if from_version < entry.version <= to_version
         ]
 
         if not relevant:
@@ -384,7 +387,9 @@ class MCPVersionRegistry:
         return "\n".join(lines)
 
 
-def inject_version_metadata(tool_schema: dict[str, Any], metadata: ToolSchemaMetadata) -> dict[str, Any]:
+def inject_version_metadata(
+    tool_schema: dict[str, Any], metadata: ToolSchemaMetadata
+) -> dict[str, Any]:
     """Inject version metadata into a tool schema.
 
     Args:
@@ -399,7 +404,9 @@ def inject_version_metadata(tool_schema: dict[str, Any], metadata: ToolSchemaMet
     return schema
 
 
-def extract_deprecation_warnings(response: dict[str, Any], metadata: ToolSchemaMetadata) -> dict[str, Any]:
+def extract_deprecation_warnings(
+    response: dict[str, Any], metadata: ToolSchemaMetadata
+) -> dict[str, Any]:
     """Add deprecation warnings to a tool response.
 
     Args:

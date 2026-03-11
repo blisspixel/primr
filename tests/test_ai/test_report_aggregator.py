@@ -27,7 +27,7 @@ class TestAggregatedReport:
             content="word " * 2500,  # 2500 words
             table_of_contents="TOC",
             chapter_count=5,
-            total_word_count=2500
+            total_word_count=2500,
         )
         assert report.estimated_pages == 5  # 2500 / 500
 
@@ -38,7 +38,7 @@ class TestAggregatedReport:
             content="short",
             table_of_contents="TOC",
             chapter_count=1,
-            total_word_count=10
+            total_word_count=10,
         )
         assert report.estimated_pages == 1  # Minimum 1 page
 
@@ -49,7 +49,7 @@ class TestAggregatedReport:
             content="# Report Content",
             table_of_contents="## TOC",
             chapter_count=1,
-            total_word_count=100
+            total_word_count=100,
         )
         assert report.to_markdown() == "# Report Content"
 
@@ -95,15 +95,13 @@ class TestReportAggregator:
         assert "✓" not in toc
         assert "✗" not in toc
 
-    def test_clean_chapter_content_adds_header(
-        self, aggregator: ReportAggregator
-    ) -> None:
+    def test_clean_chapter_content_adds_header(self, aggregator: ReportAggregator) -> None:
         """Test that clean_chapter_content adds header if missing."""
         chapter = ChapterResult(
             chapter_number=1,
             title="Test Chapter",
             content="Just some content without header",
-            success=True
+            success=True,
         )
 
         cleaned = aggregator._clean_chapter_content(chapter)
@@ -118,7 +116,7 @@ class TestReportAggregator:
             chapter_number=3,
             title="Test Chapter",
             content="## Test Chapter\n\nContent here",
-            success=True
+            success=True,
         )
 
         cleaned = aggregator._clean_chapter_content(chapter)
@@ -129,20 +127,24 @@ class TestReportAggregator:
         """Test citation consolidation."""
         chapters = [
             ChapterResult(
-                1, "Ch1", "content",
+                1,
+                "Ch1",
+                "content",
                 citations=[
                     {"number": "1", "title": "Source 1", "url": "http://a.com"},
                     {"number": "2", "title": "Source 2", "url": "http://b.com"},
                 ],
-                success=True
+                success=True,
             ),
             ChapterResult(
-                2, "Ch2", "content",
+                2,
+                "Ch2",
+                "content",
                 citations=[
                     {"number": "1", "title": "Source 1", "url": "http://a.com"},  # Duplicate
                     {"number": "2", "title": "Source 3", "url": "http://c.com"},
                 ],
-                success=True
+                success=True,
             ),
         ]
 
@@ -156,21 +158,13 @@ class TestReportAggregator:
         assert "http://c.com" in urls
 
     @pytest.mark.asyncio
-    async def test_aggregate_successful_chapters(
-        self, aggregator: ReportAggregator
-    ) -> None:
+    async def test_aggregate_successful_chapters(self, aggregator: ReportAggregator) -> None:
         """Test aggregating successful chapters."""
         chapters = [
             ChapterResult(
-                1, "Executive Summary",
-                "## Executive Summary\n\nThis is the summary.",
-                success=True
+                1, "Executive Summary", "## Executive Summary\n\nThis is the summary.", success=True
             ),
-            ChapterResult(
-                2, "Products",
-                "## Products\n\nProduct details here.",
-                success=True
-            ),
+            ChapterResult(2, "Products", "## Products\n\nProduct details here.", success=True),
         ]
 
         report = await aggregator.aggregate(chapters, "TestCorp")
@@ -182,22 +176,13 @@ class TestReportAggregator:
         assert len(report.missing_chapters) == 0
 
     @pytest.mark.asyncio
-    async def test_aggregate_with_failed_chapters(
-        self, aggregator: ReportAggregator
-    ) -> None:
+    async def test_aggregate_with_failed_chapters(self, aggregator: ReportAggregator) -> None:
         """Test aggregating with some failed chapters."""
         chapters = [
             ChapterResult(
-                1, "Executive Summary",
-                "## Executive Summary\n\nThis is the summary.",
-                success=True
+                1, "Executive Summary", "## Executive Summary\n\nThis is the summary.", success=True
             ),
-            ChapterResult(
-                2, "Failed Chapter",
-                "",
-                success=False,
-                error="API Error"
-            ),
+            ChapterResult(2, "Failed Chapter", "", success=False, error="API Error"),
         ]
 
         report = await aggregator.aggregate(chapters, "TestCorp")
@@ -208,9 +193,7 @@ class TestReportAggregator:
         assert "could not be generated" in report.content
 
     @pytest.mark.asyncio
-    async def test_aggregate_orders_chapters(
-        self, aggregator: ReportAggregator
-    ) -> None:
+    async def test_aggregate_orders_chapters(self, aggregator: ReportAggregator) -> None:
         """Test that chapters are ordered by number."""
         chapters = [
             ChapterResult(3, "Chapter 3", "Content 3", success=True),
@@ -276,9 +259,7 @@ class TestAggregationProperty:
         chapter_count=st.integers(min_value=1, max_value=15),
     )
     @settings(max_examples=20, deadline=None)
-    async def test_aggregation_produces_single_document(
-        self, chapter_count: int
-    ) -> None:
+    async def test_aggregation_produces_single_document(self, chapter_count: int) -> None:
         """
         Property 5: Aggregation Produces Single Document
 
@@ -293,7 +274,7 @@ class TestAggregationProperty:
                 chapter_number=i,
                 title=f"Chapter {i}",
                 content=f"## Chapter {i}\n\nContent for chapter {i}.",
-                success=True
+                success=True,
             )
             for i in range(1, chapter_count + 1)
         ]
@@ -349,14 +330,16 @@ class TestChapterCompletenessProperty:
         # Create chapters with known word counts
         chapters = [
             ChapterResult(
-                1, "Ch1",
+                1,
+                "Ch1",
                 "one two three four five",  # 5 words
-                success=True
+                success=True,
             ),
             ChapterResult(
-                2, "Ch2",
+                2,
+                "Ch2",
                 "six seven eight nine ten eleven twelve",  # 7 words
-                success=True
+                success=True,
             ),
         ]
 

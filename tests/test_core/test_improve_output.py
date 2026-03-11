@@ -123,6 +123,7 @@ def test_convert_deep_research_to_docx_salvages_recoverable_markdown(tmp_path: P
     md_text = md_files[0].read_text(encoding="utf-8")
     assert "[Workbook:" not in md_text
 
+
 def test_convert_deep_research_to_docx_allows_clean_markdown(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(output_utils, "OUTPUT_DIR", str(tmp_path))
     markdown = (
@@ -164,7 +165,6 @@ def test_compute_strategy_qa_metrics_counts_numeric_citations_as_sources():
     )
     metrics = _compute_strategy_qa_metrics(content)
     assert metrics["source_urls"] >= 2
-
 
 
 def test_convert_deep_research_to_docx_salvages_raw_source_tags(tmp_path: Path, monkeypatch):
@@ -215,9 +215,10 @@ def test_ensure_strategy_source_inventory_appends_sources_when_missing():
 
 def test_ensure_strategy_source_inventory_preserves_existing_citations():
     content = (
-        "## AI Strategy\n\nClaim [cite: 1].\n\n## Sources\n\n"
-        "[cite: 1] https://example.com/a\n"
+        "## AI Strategy\n\nClaim [cite: 1].\n\n## Sources\n\n[cite: 1] https://example.com/a\n"
     )
-    improved = _ensure_strategy_source_inventory(content, ["https://example.com/a", "https://example.com/b"])
+    improved = _ensure_strategy_source_inventory(
+        content, ["https://example.com/a", "https://example.com/b"]
+    )
     assert improved.count("[cite: 1] https://example.com/a") == 1
     assert "[cite: 2] https://example.com/b" in improved

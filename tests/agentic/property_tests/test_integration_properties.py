@@ -21,6 +21,7 @@ from hypothesis import strategies as st
 # PROPERTY 22: Error Hierarchy Compliance
 # =============================================================================
 
+
 def test_agentic_errors_inherit_from_primr_error():
     """
     All agentic errors inherit from PrimrError.
@@ -122,6 +123,7 @@ def test_memory_error_is_permanent():
 # =============================================================================
 # PROPERTY 23: Disabled Mode Equivalence
 # =============================================================================
+
 
 def test_integration_graceful_degradation():
     """
@@ -269,6 +271,7 @@ def test_combined_integration_initialization():
 # STATE MACHINE INTEGRATION TESTS
 # =============================================================================
 
+
 def test_state_machine_adapter_transitions():
     """
     State machine adapter correctly maps orchestrator states.
@@ -313,6 +316,7 @@ def test_state_machine_adapter_history():
 # =============================================================================
 # TELEMETRY INTEGRATION TESTS
 # =============================================================================
+
 
 def test_telemetry_record_subagent_result():
     """
@@ -362,6 +366,7 @@ def test_telemetry_span_attributes():
 # CIRCUIT BREAKER INTEGRATION TESTS
 # =============================================================================
 
+
 def test_circuit_breaker_state_tracking():
     """
     Circuit breaker tracks state correctly.
@@ -408,6 +413,7 @@ def test_circuit_breaker_reset():
 # =============================================================================
 # ADDITIONAL UNIT TESTS
 # =============================================================================
+
 
 def test_null_span_methods():
     """

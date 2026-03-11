@@ -18,6 +18,7 @@ Usage:
     if preflight.is_valid:
         result = await perform_deep_research(config)
 """
+
 import os
 import time
 from collections.abc import Callable
@@ -41,8 +42,10 @@ logger = get_logger("deep_research_runner")
 # ENUMS
 # =============================================================================
 
+
 class PreflightStatus(Enum):
     """Status of a preflight check."""
+
     PASSED = "passed"
     FAILED = "failed"
     WARNING = "warning"
@@ -50,6 +53,7 @@ class PreflightStatus(Enum):
 
 class DeepResearchMode(Enum):
     """Deep Research execution modes."""
+
     DEEP_RESEARCH = "deep-research"
     COMPLETE = "complete"
     HYBRID = "hybrid"
@@ -60,7 +64,7 @@ class DeepResearchMode(Enum):
         names = {
             "deep-research": "Deep Research",
             "complete": "Complete (Two-Step)",
-            "hybrid": "Hybrid"
+            "hybrid": "Hybrid",
         }
         return names.get(self.value, self.value)
 
@@ -77,9 +81,11 @@ class DeepResearchMode(Enum):
 # DATACLASSES
 # =============================================================================
 
+
 @dataclass
 class PreflightCheck:
     """Result of a single preflight check."""
+
     name: str
     status: PreflightStatus
     message: str
@@ -97,6 +103,7 @@ class PreflightCheck:
 @dataclass
 class PreflightResult:
     """Aggregated result of all preflight checks."""
+
     checks: list[PreflightCheck] = field(default_factory=list)
 
     @property
@@ -130,6 +137,7 @@ class PreflightResult:
 @dataclass(frozen=True)
 class DeepResearchConfig:
     """Configuration for Deep Research execution."""
+
     company_name: str | None
     website: str | None
     mode: DeepResearchMode
@@ -151,11 +159,7 @@ class DeepResearchConfig:
 
     @classmethod
     def from_args(
-        cls,
-        company_name: str | None,
-        website: str | None,
-        mode: str,
-        **kwargs
+        cls, company_name: str | None, website: str | None, mode: str, **kwargs
     ) -> "DeepResearchConfig":
         """Create config from CLI arguments."""
         context_files = kwargs.pop("context_files", None) or []
@@ -164,13 +168,14 @@ class DeepResearchConfig:
             website=website,
             mode=DeepResearchMode.from_string(mode),
             context_files=tuple(context_files),
-            **kwargs
+            **kwargs,
         )
 
 
 @dataclass
 class DeepResearchResult:
     """Result of Deep Research execution."""
+
     docx_path: str | None
     md_path: str | None
     raw_content: str
@@ -197,6 +202,7 @@ class DeepResearchResult:
 # PROTOCOLS
 # =============================================================================
 
+
 class DeepResearchProgress(Protocol):
     """Protocol for progress reporting during Deep Research."""
 
@@ -216,6 +222,7 @@ class DeepResearchProgress(Protocol):
 # =============================================================================
 # PUBLIC INTERFACE
 # =============================================================================
+
 
 def validate_preflight(config: DeepResearchConfig) -> PreflightResult:
     """
@@ -239,65 +246,79 @@ def validate_preflight(config: DeepResearchConfig) -> PreflightResult:
 
     # Check 1: Company name or website
     if config.company_name or config.website:
-        result.add(PreflightCheck(
-            name="company_info",
-            status=PreflightStatus.PASSED,
-            message="Company name or website provided"
-        ))
+        result.add(
+            PreflightCheck(
+                name="company_info",
+                status=PreflightStatus.PASSED,
+                message="Company name or website provided",
+            )
+        )
     else:
-        result.add(PreflightCheck(
-            name="company_info",
-            status=PreflightStatus.FAILED,
-            message="Must provide company name or website",
-            guidance="Use --company or --website argument"
-        ))
+        result.add(
+            PreflightCheck(
+                name="company_info",
+                status=PreflightStatus.FAILED,
+                message="Must provide company name or website",
+                guidance="Use --company or --website argument",
+            )
+        )
 
     # Check 2: Context files
     if config.context_files:
         for f in config.context_files:
             if not os.path.exists(f):
-                result.add(PreflightCheck(
-                    name="context_file",
-                    status=PreflightStatus.FAILED,
-                    message=f"Context file not found: {f}",
-                    guidance="Verify the file path is correct"
-                ))
+                result.add(
+                    PreflightCheck(
+                        name="context_file",
+                        status=PreflightStatus.FAILED,
+                        message=f"Context file not found: {f}",
+                        guidance="Verify the file path is correct",
+                    )
+                )
             elif not os.path.isfile(f):
-                result.add(PreflightCheck(
-                    name="context_file",
-                    status=PreflightStatus.FAILED,
-                    message=f"Context path is not a file: {f}",
-                    guidance="Provide a file path, not a directory"
-                ))
+                result.add(
+                    PreflightCheck(
+                        name="context_file",
+                        status=PreflightStatus.FAILED,
+                        message=f"Context path is not a file: {f}",
+                        guidance="Provide a file path, not a directory",
+                    )
+                )
             elif os.path.getsize(f) == 0:
-                result.add(PreflightCheck(
-                    name="context_file",
-                    status=PreflightStatus.FAILED,
-                    message=f"Context file is empty: {f}",
-                    guidance="Provide a non-empty file"
-                ))
+                result.add(
+                    PreflightCheck(
+                        name="context_file",
+                        status=PreflightStatus.FAILED,
+                        message=f"Context file is empty: {f}",
+                        guidance="Provide a non-empty file",
+                    )
+                )
             else:
-                result.add(PreflightCheck(
-                    name="context_file",
-                    status=PreflightStatus.PASSED,
-                    message=f"Context file valid: {os.path.basename(f)}"
-                ))
+                result.add(
+                    PreflightCheck(
+                        name="context_file",
+                        status=PreflightStatus.PASSED,
+                        message=f"Context file valid: {os.path.basename(f)}",
+                    )
+                )
 
     # Check 3: API key
     settings = get_settings()
     if settings.api.gemini_key:
-        result.add(PreflightCheck(
-            name="api_key",
-            status=PreflightStatus.PASSED,
-            message="GEMINI_API_KEY configured"
-        ))
+        result.add(
+            PreflightCheck(
+                name="api_key", status=PreflightStatus.PASSED, message="GEMINI_API_KEY configured"
+            )
+        )
     else:
-        result.add(PreflightCheck(
-            name="api_key",
-            status=PreflightStatus.FAILED,
-            message="GEMINI_API_KEY not configured",
-            guidance="Set GEMINI_API_KEY in .env file"
-        ))
+        result.add(
+            PreflightCheck(
+                name="api_key",
+                status=PreflightStatus.FAILED,
+                message="GEMINI_API_KEY not configured",
+                guidance="Set GEMINI_API_KEY in .env file",
+            )
+        )
 
     # Check 4: Output directory writable
     try:
@@ -306,25 +327,28 @@ def validate_preflight(config: DeepResearchConfig) -> PreflightResult:
         with open(test_file, "w") as f:
             f.write("test")
         os.remove(test_file)
-        result.add(PreflightCheck(
-            name="output_dir",
-            status=PreflightStatus.PASSED,
-            message="Output directory writable"
-        ))
+        result.add(
+            PreflightCheck(
+                name="output_dir",
+                status=PreflightStatus.PASSED,
+                message="Output directory writable",
+            )
+        )
     except Exception as e:
-        result.add(PreflightCheck(
-            name="output_dir",
-            status=PreflightStatus.FAILED,
-            message=f"Output directory not writable: {e}",
-            guidance=f"Check permissions on {OUTPUT_DIR}"
-        ))
+        result.add(
+            PreflightCheck(
+                name="output_dir",
+                status=PreflightStatus.FAILED,
+                message=f"Output directory not writable: {e}",
+                guidance=f"Check permissions on {OUTPUT_DIR}",
+            )
+        )
 
     return result
 
 
 def perform_deep_research_sync(
-    config: DeepResearchConfig,
-    on_progress: Callable[[str], None] | None = None
+    config: DeepResearchConfig, on_progress: Callable[[str], None] | None = None
 ) -> DeepResearchResult:
     """
     Perform Deep Research (synchronous wrapper).
@@ -342,8 +366,7 @@ def perform_deep_research_sync(
 
 
 async def perform_deep_research(
-    config: DeepResearchConfig,
-    on_progress: Callable[[str], None] | None = None
+    config: DeepResearchConfig, on_progress: Callable[[str], None] | None = None
 ) -> DeepResearchResult:
     """
     Perform Deep Research using the orchestrator (async).
@@ -377,14 +400,16 @@ async def perform_deep_research(
             section_results={},
             citations=[],
             duration_seconds=time.time() - start_time,
-            error="; ".join(preflight.errors)
+            error="; ".join(preflight.errors),
         )
 
     display_name = config.display_name
 
     # Execute research
     with correlation_scope("deep_research", company=display_name, mode=config.mode.value):
-        log_structured("info", "Starting deep research", company=display_name, mode=config.mode.value)
+        log_structured(
+            "info", "Starting deep research", company=display_name, mode=config.mode.value
+        )
 
         # Execute Deep Research
         research_result = await _execute_research(config, on_progress)
@@ -396,7 +421,7 @@ async def perform_deep_research(
                 section_results={},
                 citations=[],
                 duration_seconds=time.time() - start_time,
-                error="Deep Research execution failed"
+                error="Deep Research execution failed",
             )
 
         # Process results
@@ -405,9 +430,7 @@ async def perform_deep_research(
         # Generate AI strategy if requested
         ai_strategy_path = None
         if config.ai_strategy:
-            ai_strategy_path = await _generate_ai_strategy(
-                config, outputs.get("raw_md_path")
-            )
+            ai_strategy_path = await _generate_ai_strategy(config, outputs.get("raw_md_path"))
 
         # Usage tracked by the main research pipeline (research_agent.py)
 
@@ -418,7 +441,7 @@ async def perform_deep_research(
             section_results=research_result.section_results,
             citations=research_result.citations,
             duration_seconds=time.time() - start_time,
-            ai_strategy_path=ai_strategy_path
+            ai_strategy_path=ai_strategy_path,
         )
 
 
@@ -426,9 +449,9 @@ async def perform_deep_research(
 # INTERNAL FUNCTIONS
 # =============================================================================
 
+
 async def _execute_research(
-    config: DeepResearchConfig,
-    on_progress: Callable[[str], None] | None = None
+    config: DeepResearchConfig, on_progress: Callable[[str], None] | None = None
 ) -> Any | None:
     """Execute Deep Research via orchestrator."""
     from primr.core.research_orchestrator import ResearchMode, get_orchestrator
@@ -457,7 +480,7 @@ async def _execute_research(
             website=config.website,
             mode=research_mode,
             on_progress=progress_callback,
-            context_files=list(config.context_files) if config.context_files else None
+            context_files=list(config.context_files) if config.context_files else None,
         )
 
         if not result.success:
@@ -495,9 +518,7 @@ def _process_results(config: DeepResearchConfig, result: Any) -> dict[str, str |
     # Generate DOCX
     if result.raw_content:
         docx_path = _convert_deep_research_to_docx(
-            result.raw_content,
-            config.company_name or config.display_name,
-            config.website
+            result.raw_content, config.company_name or config.display_name, config.website
         )
         outputs["docx_path"] = docx_path
 
@@ -505,9 +526,7 @@ def _process_results(config: DeepResearchConfig, result: Any) -> dict[str, str |
 
 
 def _convert_deep_research_to_docx(
-    markdown_content: str,
-    company_name: str,
-    website: str | None
+    markdown_content: str, company_name: str, website: str | None
 ) -> str | None:
     """
     Convert Deep Research markdown to DOCX and other formats.
@@ -546,7 +565,7 @@ def _convert_deep_research_to_docx(
                 markdown_text=markdown_content,
                 output_path=docx_path,
                 title=f"Strategic Company Overview: {company_name}",
-                subtitle=subtitle
+                subtitle=subtitle,
             )
         except PermissionError:
             # File locked - try with timestamp
@@ -558,7 +577,7 @@ def _convert_deep_research_to_docx(
                 markdown_text=markdown_content,
                 output_path=docx_path,
                 title=f"Strategic Company Overview: {company_name}",
-                subtitle=subtitle
+                subtitle=subtitle,
             )
 
         console.ok(f"DOCX saved: {docx_path.name}", show_time=False)
@@ -571,8 +590,7 @@ def _convert_deep_research_to_docx(
 
 
 async def _generate_ai_strategy(
-    config: DeepResearchConfig,
-    company_research_path: str | None
+    config: DeepResearchConfig, company_research_path: str | None
 ) -> str | None:
     """Generate AI strategy if requested."""
     from primr.core.ai_strategy import generate_ai_strategy
@@ -584,7 +602,7 @@ async def _generate_ai_strategy(
         company_name=config.company_name or config.display_name,
         cloud_vendor=config.cloud_vendor,
         company_research_path=company_research_path,
-        force_refresh_vendor=config.refresh_vendor_research
+        force_refresh_vendor=config.refresh_vendor_research,
     )
 
     if result.success:
@@ -592,7 +610,6 @@ async def _generate_ai_strategy(
         return result.docx_path
 
     return None
-
 
 
 # Usage tracking removed — consolidated in research_agent.py main pipeline

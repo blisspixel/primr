@@ -35,25 +35,35 @@ from src.primr.utils.errors import (
 # Strategies
 # =============================================================================
 
+
 @st.composite
 def error_message_strategy(draw):
     """Generate valid error messages."""
-    return draw(st.text(min_size=1, max_size=200, alphabet=st.characters(
-        whitelist_categories=("L", "N", "P", "S"),
-        whitelist_characters=" ",
-    )))
+    return draw(
+        st.text(
+            min_size=1,
+            max_size=200,
+            alphabet=st.characters(
+                whitelist_categories=("L", "N", "P", "S"),
+                whitelist_characters=" ",
+            ),
+        )
+    )
 
 
 @st.composite
 def url_strategy(draw):
     """Generate valid URLs."""
-    domain = draw(st.text(min_size=3, max_size=20, alphabet=st.characters(whitelist_categories=("L",))))
+    domain = draw(
+        st.text(min_size=3, max_size=20, alphabet=st.characters(whitelist_categories=("L",)))
+    )
     return f"https://{domain}.com"
 
 
 # =============================================================================
 # Property 32: Existing Error Compatibility
 # =============================================================================
+
 
 class TestExistingErrorCompatibility:
     """Tests for Property 32: Existing Error Compatibility.
@@ -124,7 +134,9 @@ class TestExistingErrorCompatibility:
 
     # Feature: phd-level-excellence, Property 32: Existing Error Compatibility
     @settings(max_examples=50)
-    @given(retry_after=st.floats(min_value=0.1, max_value=300.0, allow_nan=False, allow_infinity=False))
+    @given(
+        retry_after=st.floats(min_value=0.1, max_value=300.0, allow_nan=False, allow_infinity=False)
+    )
     def test_rate_limit_error_attributes(self, retry_after: float):
         """Verify RateLimitError has expected attributes."""
         error = RateLimitError(retry_after=retry_after)
@@ -225,6 +237,7 @@ class TestExistingErrorCompatibility:
 # Property 33: Telemetry Opt-In Behavior
 # =============================================================================
 
+
 class TestTelemetryOptInBehavior:
     """Tests for Property 33: Telemetry Opt-In Behavior.
 
@@ -260,7 +273,9 @@ class TestTelemetryOptInBehavior:
     # Feature: phd-level-excellence, Property 33: Telemetry Opt-In Behavior
     @settings(max_examples=50)
     @given(
-        operation=st.text(min_size=1, max_size=30, alphabet=st.characters(whitelist_categories=("L",))),
+        operation=st.text(
+            min_size=1, max_size=30, alphabet=st.characters(whitelist_categories=("L",))
+        ),
     )
     def test_telemetry_disabled_record_event_noop(self, operation: str):
         """Verify record_event is a no-op when telemetry is disabled."""
@@ -321,6 +336,7 @@ class TestTelemetryOptInBehavior:
 # Property 34: Existing Config Acceptance
 # =============================================================================
 
+
 class TestExistingConfigAcceptance:
     """Tests for Property 34: Existing Config Acceptance.
 
@@ -339,7 +355,11 @@ class TestExistingConfigAcceptance:
         # Generate a valid config structure
         config = {
             "meta": {
-                "name": data.draw(st.text(min_size=1, max_size=30, alphabet=st.characters(whitelist_categories=("L",)))),
+                "name": data.draw(
+                    st.text(
+                        min_size=1, max_size=30, alphabet=st.characters(whitelist_categories=("L",))
+                    )
+                ),
                 "version": f"{data.draw(st.integers(min_value=1, max_value=9))}.{data.draw(st.integers(min_value=0, max_value=9))}.{data.draw(st.integers(min_value=0, max_value=9))}",
                 "schema_version": "2.0",
             },
@@ -472,6 +492,7 @@ class TestExistingConfigAcceptance:
 # =============================================================================
 # Additional Backward Compatibility Tests
 # =============================================================================
+
 
 class TestUtilityFunctionCompatibility:
     """Tests for utility function backward compatibility."""

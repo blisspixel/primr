@@ -61,12 +61,17 @@ class QAReportGenerator:
             # Create filename with timestamp (use analysis timestamp if available)
             timestamp_to_use = analysis.timestamp if analysis.timestamp else datetime.now()
             timestamp = timestamp_to_use.strftime("%m-%d-%Y_%H-%M-%S")
-            clean_company_name = company_name.replace(' ', '_').replace('&', 'and').replace('/', '_').replace('\\', '_')
+            clean_company_name = (
+                company_name.replace(" ", "_")
+                .replace("&", "and")
+                .replace("/", "_")
+                .replace("\\", "_")
+            )
             filename = f"{clean_company_name}_QA_Report_{timestamp}.txt"
             file_path = self.output_dir / filename
 
             # Save to file
-            file_path.write_text(report.detailed_findings, encoding='utf-8')
+            file_path.write_text(report.detailed_findings, encoding="utf-8")
 
             logger.info(f"QA report saved: {file_path}")
             return file_path
@@ -94,27 +99,26 @@ class QAReportGenerator:
             "-" * 20,
             f"Quality Score: {analysis.overall_score}/100",
             f"Confidence Level: {analysis.confidence_assessment.overall_confidence}/100",
-            ""
+            "",
         ]
 
         # Add section scores
         if analysis.section_scores:
-            findings_parts.extend([
-                "SECTION SCORES",
-                "-" * 15
-            ])
+            findings_parts.extend(["SECTION SCORES", "-" * 15])
             for section, score in analysis.section_scores.items():
                 findings_parts.append(f"{section}: {score}/100")
             findings_parts.append("")
 
         # Add citation check results
-        findings_parts.extend([
-            "CITATION ANALYSIS",
-            "-" * 18,
-            f"Total Citations: {analysis.citation_check.total_citations}",
-            f"Valid Citations: {analysis.citation_check.valid_citations}",
-            f"Citation Score: {analysis.citation_check.score}/100"
-        ])
+        findings_parts.extend(
+            [
+                "CITATION ANALYSIS",
+                "-" * 18,
+                f"Total Citations: {analysis.citation_check.total_citations}",
+                f"Valid Citations: {analysis.citation_check.valid_citations}",
+                f"Citation Score: {analysis.citation_check.score}/100",
+            ]
+        )
 
         if analysis.citation_check.broken_links:
             findings_parts.append("\nBroken Links:")
@@ -129,11 +133,9 @@ class QAReportGenerator:
         findings_parts.append("")
 
         # Add logic check results
-        findings_parts.extend([
-            "LOGICAL CONSISTENCY",
-            "-" * 19,
-            f"Logic Score: {analysis.logic_check.score}/100"
-        ])
+        findings_parts.extend(
+            ["LOGICAL CONSISTENCY", "-" * 19, f"Logic Score: {analysis.logic_check.score}/100"]
+        )
 
         if analysis.logic_check.contradictions_found:
             findings_parts.append("\nContradictions Found:")
@@ -148,11 +150,13 @@ class QAReportGenerator:
         findings_parts.append("")
 
         # Add completeness check
-        findings_parts.extend([
-            "COMPLETENESS ASSESSMENT",
-            "-" * 22,
-            f"Completeness Score: {analysis.completeness_check.score}/100"
-        ])
+        findings_parts.extend(
+            [
+                "COMPLETENESS ASSESSMENT",
+                "-" * 22,
+                f"Completeness Score: {analysis.completeness_check.score}/100",
+            ]
+        )
 
         if analysis.completeness_check.missing_sections:
             findings_parts.append("\nMissing Sections:")
@@ -168,18 +172,17 @@ class QAReportGenerator:
 
         # Add detailed issues
         if analysis.issues:
-            findings_parts.extend([
-                "DETAILED ISSUES",
-                "-" * 15
-            ])
+            findings_parts.extend(["DETAILED ISSUES", "-" * 15])
 
             for i, issue in enumerate(analysis.issues, 1):
-                findings_parts.extend([
-                    f"\n{i}. {issue.issue_type.value.upper()} - {issue.severity.value.upper()}",
-                    f"   Section: {issue.section}",
-                    f"   Location: {issue.location}",
-                    f"   Description: {issue.description}"
-                ])
+                findings_parts.extend(
+                    [
+                        f"\n{i}. {issue.issue_type.value.upper()} - {issue.severity.value.upper()}",
+                        f"   Section: {issue.section}",
+                        f"   Location: {issue.location}",
+                        f"   Description: {issue.description}",
+                    ]
+                )
 
                 if issue.suggestion:
                     findings_parts.append(f"   Suggestion: {issue.suggestion}")
@@ -188,11 +191,7 @@ class QAReportGenerator:
         recommendations = self._generate_recommendations(analysis)
 
         if recommendations:
-            findings_parts.extend([
-                "",
-                "RECOMMENDATIONS",
-                "-" * 15
-            ])
+            findings_parts.extend(["", "RECOMMENDATIONS", "-" * 15])
             for i, rec in enumerate(recommendations, 1):
                 findings_parts.append(f"{i}. {rec}")
 
@@ -204,7 +203,7 @@ class QAReportGenerator:
             summary=summary,
             detailed_findings=detailed_findings,
             recommendations=recommendations,
-            generated_at=analysis.timestamp
+            generated_at=analysis.timestamp,
         )
 
     def _generate_recommendations(self, analysis: QAAnalysis) -> list[str]:
@@ -218,14 +217,16 @@ class QAReportGenerator:
             recommendations.append("Verify and update citations to improve credibility")
 
         if analysis.logic_check.score < 80:
-            recommendations.append("Review logical consistency and strengthen analytical connections")
+            recommendations.append(
+                "Review logical consistency and strengthen analytical connections"
+            )
 
         if analysis.completeness_check.score < 80:
             recommendations.append("Consider adding missing sections or strengthening weak areas")
 
         # Count critical and high severity issues
-        critical_issues = sum(1 for issue in analysis.issues if issue.severity.value == 'critical')
-        high_issues = sum(1 for issue in analysis.issues if issue.severity.value == 'high')
+        critical_issues = sum(1 for issue in analysis.issues if issue.severity.value == "critical")
+        high_issues = sum(1 for issue in analysis.issues if issue.severity.value == "high")
 
         if critical_issues > 0:
             recommendations.append(f"Address {critical_issues} critical issue(s) immediately")

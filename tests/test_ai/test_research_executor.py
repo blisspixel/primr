@@ -30,7 +30,7 @@ class TestChapterResult:
             title="Test Chapter",
             content="This is test content with many words.",
             success=True,
-            duration_seconds=120.0
+            duration_seconds=120.0,
         )
         assert result.success
         assert result.word_count > 0
@@ -39,11 +39,7 @@ class TestChapterResult:
     def test_failed_result(self) -> None:
         """Test failed chapter result."""
         result = ChapterResult(
-            chapter_number=2,
-            title="Failed Chapter",
-            content="",
-            success=False,
-            error="API Error"
+            chapter_number=2, title="Failed Chapter", content="", success=False, error="API Error"
         )
         assert not result.success
         assert result.word_count == 0
@@ -52,10 +48,7 @@ class TestChapterResult:
     def test_word_count_calculation(self) -> None:
         """Test word count calculation."""
         result = ChapterResult(
-            chapter_number=1,
-            title="Test",
-            content="one two three four five",
-            success=True
+            chapter_number=1, title="Test", content="one two three four five", success=True
         )
         assert result.word_count == 5
 
@@ -71,10 +64,7 @@ class TestExecutionResult:
             ChapterResult(3, "Ch3", "", success=False, error="Failed"),
         ]
         result = ExecutionResult(
-            company_name="Test",
-            chapters=chapters,
-            successful_chapters=2,
-            failed_chapters=1
+            company_name="Test", chapters=chapters, successful_chapters=2, failed_chapters=1
         )
         assert result.total_word_count == 5  # Only successful chapters
 
@@ -86,20 +76,14 @@ class TestExecutionResult:
             ChapterResult(3, "Ch3", "", success=False),
         ]
         result = ExecutionResult(
-            company_name="Test",
-            chapters=chapters,
-            successful_chapters=2,
-            failed_chapters=1
+            company_name="Test", chapters=chapters, successful_chapters=2, failed_chapters=1
         )
         assert result.success_rate == pytest.approx(66.67, rel=0.1)
 
     def test_success_rate_zero_chapters(self) -> None:
         """Test success rate with no chapters."""
         result = ExecutionResult(
-            company_name="Test",
-            chapters=[],
-            successful_chapters=0,
-            failed_chapters=0
+            company_name="Test", chapters=[], successful_chapters=0, failed_chapters=0
         )
         assert result.success_rate == 0.0
 
@@ -128,10 +112,7 @@ class TestResearchNodeExecutor:
         """Create a ResearchNodeExecutor instance."""
         with patch("primr.ai.research_executor.get_settings") as mock_settings:
             mock_settings.return_value.api.gemini_key = "test-key"
-            return ResearchNodeExecutor(
-                file_search_store="test-store",
-                max_concurrent=3
-            )
+            return ResearchNodeExecutor(file_search_store="test-store", max_concurrent=3)
 
     def test_initialization(self, executor: ResearchNodeExecutor) -> None:
         """Test executor initialization."""
@@ -271,17 +252,14 @@ class TestConcurrencyProperty:
                 chapter_number=chapter.chapter_number,
                 title=chapter.title,
                 content="Test content",
-                success=True
+                success=True,
             )
 
         # Patch the internal execute method
         executor._execute_chapter_internal = mock_execute
 
         # Create 10 chapters
-        chapters = [
-            ChapterPlan(i, f"Chapter {i}", f"Prompt {i}")
-            for i in range(1, 11)
-        ]
+        chapters = [ChapterPlan(i, f"Chapter {i}", f"Prompt {i}") for i in range(1, 11)]
 
         await executor.execute_all(chapters, "TestCorp", None)
 
@@ -316,22 +294,19 @@ class TestGracefulFailureProperty:
                     title=chapter.title,
                     content="",
                     success=False,
-                    error="Simulated failure"
+                    error="Simulated failure",
                 )
 
             return ChapterResult(
                 chapter_number=chapter.chapter_number,
                 title=chapter.title,
                 content="Test content",
-                success=True
+                success=True,
             )
 
         executor._execute_chapter_internal = mock_execute
 
-        chapters = [
-            ChapterPlan(i, f"Chapter {i}", f"Prompt {i}")
-            for i in range(1, 6)
-        ]
+        chapters = [ChapterPlan(i, f"Chapter {i}", f"Prompt {i}") for i in range(1, 6)]
 
         result = await executor.execute_all(chapters, "TestCorp", None)
 

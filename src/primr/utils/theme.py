@@ -46,23 +46,19 @@ class Theme:
     CORNER_BR: str = "+"
 
     # Semantic colors (ANSI escape codes)
-    SUCCESS: str = "\033[32m"      # Green
-    WARNING: str = "\033[33m"      # Yellow
-    ERROR: str = "\033[31m"        # Red
-    INFO: str = "\033[36m"         # Cyan
-    MUTED: str = "\033[2m"         # Dim
-    BOLD: str = "\033[1m"          # Bold
-    RESET: str = "\033[0m"         # Reset all
+    SUCCESS: str = "\033[32m"  # Green
+    WARNING: str = "\033[33m"  # Yellow
+    ERROR: str = "\033[31m"  # Red
+    INFO: str = "\033[36m"  # Cyan
+    MUTED: str = "\033[2m"  # Dim
+    BOLD: str = "\033[1m"  # Bold
+    RESET: str = "\033[0m"  # Reset all
 
     # Computed flag for color support
     _has_color: bool = field(default=True, repr=False)
 
     @classmethod
-    def for_terminal(
-        cls,
-        supports_color: bool = True,
-        supports_unicode: bool = False
-    ) -> "Theme":
+    def for_terminal(cls, supports_color: bool = True, supports_unicode: bool = False) -> "Theme":
         """
         Create a theme appropriate for terminal capabilities.
 
@@ -91,15 +87,15 @@ class Theme:
             theme.INDICATOR_DONE = "\u2713"  # ✓
             theme.INDICATOR_FAIL = "\u2717"  # ✗
             theme.INDICATOR_WARN = "\u26a0"  # ⚠ (warning sign)
-            theme.PROG_FILL = "\u2588"       # █
-            theme.PROG_EMPTY = "\u2591"      # ░
+            theme.PROG_FILL = "\u2588"  # █
+            theme.PROG_EMPTY = "\u2591"  # ░
             # Box drawing with Unicode
-            theme.LINE_H = "\u2500"          # ─
-            theme.LINE_V = "\u2502"          # │
-            theme.CORNER_TL = "\u250c"       # ┌
-            theme.CORNER_TR = "\u2510"       # ┐
-            theme.CORNER_BL = "\u2514"       # └
-            theme.CORNER_BR = "\u2518"       # ┘
+            theme.LINE_H = "\u2500"  # ─
+            theme.LINE_V = "\u2502"  # │
+            theme.CORNER_TL = "\u250c"  # ┌
+            theme.CORNER_TR = "\u2510"  # ┐
+            theme.CORNER_BL = "\u2514"  # └
+            theme.CORNER_BR = "\u2518"  # ┘
 
         return theme
 
@@ -176,8 +172,9 @@ class Theme:
             Text with all ANSI codes removed
         """
         import re
-        ansi_pattern = re.compile(r'\033\[[0-9;]*m')
-        return ansi_pattern.sub('', text)
+
+        ansi_pattern = re.compile(r"\033\[[0-9;]*m")
+        return ansi_pattern.sub("", text)
 
     def visible_len(self, text: str) -> int:
         """

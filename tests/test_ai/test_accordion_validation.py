@@ -7,7 +7,6 @@ expensive full pipeline tests. Run these first to catch issues early.
 **Feature: accordion-method-default, Task 8**
 """
 
-
 import socket
 import warnings
 from unittest.mock import MagicMock, patch
@@ -140,8 +139,9 @@ class TestYAMLConfiguration:
 
         for section in config.sections:
             position = getattr(section, "position", None)
-            assert position in valid_positions, \
+            assert position in valid_positions, (
                 f"Section {section.id} has invalid position: {position}"
+            )
 
     def test_section_count(self):
         """Should have 23 sections defined."""
@@ -150,8 +150,7 @@ class TestYAMLConfiguration:
         composer = PromptComposer()
         config = composer._load_config("company_overview")
 
-        assert len(config.sections) == 23, \
-            f"Expected 23 sections, got {len(config.sections)}"
+        assert len(config.sections) == 23, f"Expected 23 sections, got {len(config.sections)}"
 
 
 class TestPreflightValidator:
@@ -309,8 +308,7 @@ class TestOrchestratorConfiguration:
 
         orchestrator = DeepResearchOrchestrator.__new__(DeepResearchOrchestrator)
         prompt = orchestrator._build_research_dossier_prompt(
-            company_name="Test Corp",
-            website_url="https://test.com"
+            company_name="Test Corp", website_url="https://test.com"
         )
 
         assert "Test Corp" in prompt
@@ -476,8 +474,9 @@ class TestAPIConnectivity:
             pytest.skip(f"Network unavailable for integration test: {gemini_detail}")
 
         # At minimum, Gemini should be accessible
-        assert result.checks.get("gemini_flash", {}).get("passed", False), \
+        assert result.checks.get("gemini_flash", {}).get("passed", False), (
             "Gemini Flash should be accessible"
+        )
 
 
 class TestRetryLogic:
@@ -488,18 +487,33 @@ class TestRetryLogic:
     def test_retryable_errors_identified(self):
         """Verify which errors are considered retryable."""
         retryable_patterns = [
-            "429", "quota exceeded", "rate limit",
-            "500", "internal server error",
-            "503", "service unavailable",
-            "connection error", "timeout",
+            "429",
+            "quota exceeded",
+            "rate limit",
+            "500",
+            "internal server error",
+            "503",
+            "service unavailable",
+            "connection error",
+            "timeout",
         ]
 
         for pattern in retryable_patterns:
             error_str = f"Error: {pattern} occurred"
-            is_retryable = any(p in error_str.lower() for p in [
-                "429", "quota", "rate", "500", "internal server error",
-                "503", "service unavailable", "connection", "timeout"
-            ])
+            is_retryable = any(
+                p in error_str.lower()
+                for p in [
+                    "429",
+                    "quota",
+                    "rate",
+                    "500",
+                    "internal server error",
+                    "503",
+                    "service unavailable",
+                    "connection",
+                    "timeout",
+                ]
+            )
             assert is_retryable, f"Pattern '{pattern}' should be retryable"
 
 
@@ -512,7 +526,7 @@ class TestDirectGenerationMethod:
         """_execute_direct_generation method exists on orchestrator."""
         from primr.ai.deep_research import DeepResearchOrchestrator
 
-        assert hasattr(DeepResearchOrchestrator, '_execute_direct_generation')
+        assert hasattr(DeepResearchOrchestrator, "_execute_direct_generation")
 
     @pytest.mark.slow
     @pytest.mark.integration

@@ -34,6 +34,7 @@ logger = get_logger("api.service")
 # SECURITY MIDDLEWARE
 # =============================================================================
 
+
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """
     Middleware to add security headers to all responses.
@@ -98,7 +99,7 @@ class RequestIdMiddleware(BaseHTTPMiddleware):
         # Log the request with ID
         logger.debug(
             f"Request {request_id}: {request.method} {request.url.path}",
-            extra={"request_id": request_id}
+            extra={"request_id": request_id},
         )
 
         response = await call_next(request)
@@ -122,11 +123,15 @@ class ResearchStatus(str, Enum):
 class ResearchRequest(BaseModel):
     """Request to start a research job."""
 
-    company_name: str = Field(..., description="Name of the company to research", min_length=1, max_length=200)
+    company_name: str = Field(
+        ..., description="Name of the company to research", min_length=1, max_length=200
+    )
     company_url: str | None = Field(None, description="Company website URL", max_length=2048)
     sections: list[str] | None = Field(None, description="Specific sections to include")
     output_format: str = Field("markdown", description="Output format: markdown, html, text")
-    webhook_url: str | None = Field(None, description="URL for completion notification", max_length=2048)
+    webhook_url: str | None = Field(
+        None, description="URL for completion notification", max_length=2048
+    )
     priority: int = Field(5, ge=1, le=10, description="Priority 1-10 (10 highest)")
 
 
@@ -315,6 +320,7 @@ class JobManager:
 # =============================================================================
 # FASTAPI APPLICATION
 # =============================================================================
+
 
 def create_app(
     title: str = "Company Research API",
@@ -512,7 +518,9 @@ def create_app(
             raise HTTPException(status_code=400, detail="Cannot cancel job")
 
     @app.get("/research", response_model=list[JobStatus])
-    async def list_research(api_key: str = Depends(verify_key), limit: int = 100) -> list[JobStatus]:
+    async def list_research(
+        api_key: str = Depends(verify_key), limit: int = 100
+    ) -> list[JobStatus]:
         """List research jobs for the authenticated user."""
         jobs = app.state.job_manager.list_jobs(api_key, limit)
 
@@ -569,14 +577,17 @@ async def run_research(job_manager: JobManager, job_id: str) -> None:
             )
 
         # Set mock result
-        job_manager.set_result(job_id, {
-            "company_name": job.company_name,
-            "summary": f"Research report for {job.company_name}",
-            "sections": {
-                "overview": f"{job.company_name} is a company.",
-                "financials": "Financial information would go here.",
+        job_manager.set_result(
+            job_id,
+            {
+                "company_name": job.company_name,
+                "summary": f"Research report for {job.company_name}",
+                "sections": {
+                    "overview": f"{job.company_name} is a company.",
+                    "financials": "Financial information would go here.",
+                },
             },
-        })
+        )
 
         logger.info(f"Completed research job {job_id}")
 

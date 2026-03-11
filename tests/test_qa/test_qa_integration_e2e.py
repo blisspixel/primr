@@ -51,7 +51,7 @@ Sources:
 - https://example.com/company-overview
 """
 
-            with open(report_path, 'w', encoding='utf-8') as f:
+            with open(report_path, "w", encoding="utf-8") as f:
                 f.write(report_content)
 
             # Step 1: Run QA integration
@@ -93,7 +93,7 @@ Phase 1: Data preparation, Phase 2: Model development, Phase 3: Deployment.
 ## Risk Assessment
 Key risks include talent acquisition and data privacy compliance.
 Sources: https://example.com/ai-report""",
-                "expected_type": "AI Strategy"
+                "expected_type": "AI Strategy",
             },
             {
                 "company": "Financial Services Inc",
@@ -105,7 +105,7 @@ Gross margins improved to 45% due to operational efficiencies.
 ## Cash Flow
 Positive operating cash flow with strong working capital management.
 Sources: https://example.com/financials""",
-                "expected_type": "Financial Analysis"
+                "expected_type": "Financial Analysis",
             },
             {
                 "company": "Market Research Co",
@@ -117,34 +117,40 @@ Digital transformation driving increased demand for solutions.
 ## Competitive Analysis
 Fragmented market with no dominant player holding >20% share.
 Sources: https://example.com/market-data""",
-                "expected_type": "Market Research"
-            }
+                "expected_type": "Market Research",
+            },
         ]
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            qa_integration = QAIntegration(QAOptions(enabled=True, save_detailed=True), output_dir=Path(temp_dir))
+            qa_integration = QAIntegration(
+                QAOptions(enabled=True, save_detailed=True), output_dir=Path(temp_dir)
+            )
             qa_integration.analyzer.ai_client = None  # Force fallback
 
             results = []
 
             for test_case in test_cases:
                 # Create report file
-                report_path = Path(temp_dir) / f"{test_case['company'].replace(' ', '_')}_Report.txt"
-                with open(report_path, 'w', encoding='utf-8') as f:
-                    f.write(test_case['content'])
+                report_path = (
+                    Path(temp_dir) / f"{test_case['company'].replace(' ', '_')}_Report.txt"
+                )
+                with open(report_path, "w", encoding="utf-8") as f:
+                    f.write(test_case["content"])
 
                 # Run QA
-                qa_result = qa_integration.run_post_generation_qa(report_path, test_case['company'])
+                qa_result = qa_integration.run_post_generation_qa(report_path, test_case["company"])
 
                 # Verify result
                 assert qa_result is not None, f"QA should work for {test_case['company']}"
                 assert qa_result.grade >= 0, f"Grade should be valid for {test_case['company']}"
 
-                results.append({
-                    'company': test_case['company'],
-                    'grade': qa_result.grade,
-                    'type': test_case['expected_type']
-                })
+                results.append(
+                    {
+                        "company": test_case["company"],
+                        "grade": qa_result.grade,
+                        "type": test_case["expected_type"],
+                    }
+                )
 
             # Verify all reports were processed
             assert len(results) == len(test_cases), "All reports should be processed"
@@ -156,7 +162,9 @@ Sources: https://example.com/market-data""",
             # Should handle multiple reports
             summary_result = qa_command.show_recent_qa_summary(len(test_cases))
             # Note: This might return 1 if no files found due to different naming, but shouldn't crash
-            assert summary_result in [0, 1], "Summary command should handle multiple reports gracefully"
+            assert summary_result in [0, 1], (
+                "Summary command should handle multiple reports gracefully"
+            )
 
     def test_qa_workflow_error_recovery(self):
         """
@@ -177,7 +185,7 @@ Sources: https://example.com/market-data""",
 
             # Test 2: Empty file
             empty_path = Path(temp_dir) / "empty.txt"
-            with open(empty_path, 'w') as f:
+            with open(empty_path, "w") as f:
                 f.write("")
 
             result = qa_integration.run_post_generation_qa(empty_path, "Empty Company")
@@ -189,8 +197,8 @@ Sources: https://example.com/market-data""",
 
             # Test 3: Corrupted content
             corrupted_path = Path(temp_dir) / "corrupted.txt"
-            with open(corrupted_path, 'wb') as f:
-                f.write(b'\x00\x01\x02\x03')  # Binary content
+            with open(corrupted_path, "wb") as f:
+                f.write(b"\x00\x01\x02\x03")  # Binary content
 
             # Should not crash on corrupted files
             try:
@@ -250,15 +258,11 @@ The company is well-positioned for continued success in the evolving analytics m
 
             # Write as text file for testing (DOCX parsing is complex)
             text_path = Path(temp_dir) / f"{company_name.replace(' ', '_')}_Report.txt"
-            with open(text_path, 'w', encoding='utf-8') as f:
+            with open(text_path, "w", encoding="utf-8") as f:
                 f.write(report_content)
 
             # Test QA integration as it would be called from research pipeline
-            qa_options = QAOptions(
-                enabled=True,
-                save_detailed=True,
-                model="gemini-3-flash-preview"
-            )
+            qa_options = QAOptions(enabled=True, save_detailed=True, model="gemini-3-flash-preview")
 
             qa_integration = QAIntegration(qa_options, output_dir=Path(temp_dir))
             qa_integration.analyzer.ai_client = None  # Force fallback for testing
@@ -296,15 +300,23 @@ The company is well-positioned for continued success in the evolving analytics m
             # Test with various report sizes
             test_reports = [
                 ("Small Report", "# Small\nBrief analysis.\nSources: https://example.com"),
-                ("Medium Report", "# Medium\n" + "Analysis content. " * 50 + "\nSources: https://example.com"),
-                ("Large Report", "# Large\n" + "Detailed analysis content. " * 200 + "\nSources: https://example.com")
+                (
+                    "Medium Report",
+                    "# Medium\n" + "Analysis content. " * 50 + "\nSources: https://example.com",
+                ),
+                (
+                    "Large Report",
+                    "# Large\n"
+                    + "Detailed analysis content. " * 200
+                    + "\nSources: https://example.com",
+                ),
             ]
 
             results = []
 
             for company, content in test_reports:
                 report_path = Path(temp_dir) / f"{company.replace(' ', '_')}_Report.txt"
-                with open(report_path, 'w', encoding='utf-8') as f:
+                with open(report_path, "w", encoding="utf-8") as f:
                     f.write(content)
 
                 # Measure basic performance (not precise timing, just ensure it completes)
@@ -317,21 +329,27 @@ The company is well-positioned for continued success in the evolving analytics m
                 # Verify result
                 assert qa_result is not None, f"QA should complete for {company}"
                 assert qa_result.grade >= 0, f"Should have valid grade for {company}"
-                assert duration < 30, f"QA should complete reasonably quickly for {company} (took {duration}s)"
+                assert duration < 30, (
+                    f"QA should complete reasonably quickly for {company} (took {duration}s)"
+                )
 
-                results.append({
-                    'company': company,
-                    'grade': qa_result.grade,
-                    'duration': duration,
-                    'content_length': len(content)
-                })
+                results.append(
+                    {
+                        "company": company,
+                        "grade": qa_result.grade,
+                        "duration": duration,
+                        "content_length": len(content),
+                    }
+                )
 
             # Verify all reports were processed successfully
             assert len(results) == len(test_reports), "All reports should be processed"
 
             # Basic performance check - larger reports shouldn't be dramatically slower in fallback mode
-            small_duration = next(r['duration'] for r in results if r['company'] == 'Small Report')
-            large_duration = next(r['duration'] for r in results if r['company'] == 'Large Report')
+            small_duration = next(r["duration"] for r in results if r["company"] == "Small Report")
+            large_duration = next(r["duration"] for r in results if r["company"] == "Large Report")
 
             # In fallback mode, processing should be relatively fast regardless of size
-            assert large_duration < small_duration * 10, "Large reports shouldn't be dramatically slower in fallback mode"
+            assert large_duration < small_duration * 10, (
+                "Large reports shouldn't be dramatically slower in fallback mode"
+            )

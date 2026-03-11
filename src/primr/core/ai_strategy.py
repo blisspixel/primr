@@ -20,6 +20,7 @@ Usage:
         company_research_path="path/to/research.md"
     )
 """
+
 import asyncio
 import os
 from collections.abc import Callable
@@ -40,8 +41,10 @@ logger = get_logger("ai_strategy")
 # ENUMS
 # =============================================================================
 
+
 class CloudVendor(Enum):
     """Supported cloud vendors for AI strategy."""
+
     AZURE = "azure"
     AWS = "aws"
     GCP = "gcp"
@@ -56,7 +59,7 @@ class CloudVendor(Enum):
             "aws": "Amazon Web Services (AWS)",
             "gcp": "Google Cloud Platform (GCP)",
             "agnostic": "Cloud Agnostic (Multi-Cloud)",
-            "private": "Private Cloud / NVIDIA"
+            "private": "Private Cloud / NVIDIA",
         }
         return names.get(self.value, self.value.upper())
 
@@ -74,9 +77,11 @@ class CloudVendor(Enum):
 # DATACLASSES
 # =============================================================================
 
+
 @dataclass(frozen=True)
 class AIStrategyConfig:
     """Configuration for AI strategy generation."""
+
     company_name: str
     cloud_vendor: CloudVendor
     company_research_path: str | None = None
@@ -99,6 +104,7 @@ class AIStrategyConfig:
 @dataclass
 class AIStrategyResult:
     """Result of AI strategy generation."""
+
     docx_path: str | None
     md_path: str | None
     txt_path: str | None
@@ -127,6 +133,7 @@ class AIStrategyResult:
 @dataclass
 class StrategyPromptContext:
     """Context for building AI strategy prompts."""
+
     company_name: str
     cloud_vendor: CloudVendor
     current_date: str
@@ -137,6 +144,7 @@ class StrategyPromptContext:
 # =============================================================================
 # PROTOCOLS
 # =============================================================================
+
 
 class StrategyPromptBuilder(Protocol):
     """Protocol for strategy prompt construction."""
@@ -150,12 +158,13 @@ class StrategyPromptBuilder(Protocol):
 # PUBLIC INTERFACE
 # =============================================================================
 
+
 def generate_ai_strategy_sync(
     company_name: str,
     cloud_vendor: str | CloudVendor,
     company_research_path: str | None = None,
     force_refresh_vendor: bool = False,
-    on_progress: Callable[[str], None] | None = None
+    on_progress: Callable[[str], None] | None = None,
 ) -> str | None:
     """
     Generate AI strategy using Deep Research (synchronous).
@@ -178,7 +187,7 @@ def generate_ai_strategy_sync(
             cloud_vendor=cloud_vendor,
             company_research_path=company_research_path,
             force_refresh_vendor=force_refresh_vendor,
-            on_progress=on_progress
+            on_progress=on_progress,
         )
     )
 
@@ -190,7 +199,7 @@ async def generate_ai_strategy(
     cloud_vendor: str | CloudVendor,
     company_research_path: str | None = None,
     force_refresh_vendor: bool = False,
-    on_progress: Callable[[str], None] | None = None
+    on_progress: Callable[[str], None] | None = None,
 ) -> AIStrategyResult:
     """
     Generate AI strategy using Deep Research (async).
@@ -211,6 +220,7 @@ async def generate_ai_strategy(
         AIStrategyResult with output paths and metadata
     """
     import time
+
     start_time = time.time()
 
     # Normalize cloud vendor
@@ -224,7 +234,7 @@ async def generate_ai_strategy(
         company_name=company_name,
         cloud_vendor=vendor,
         company_research_path=company_research_path,
-        force_refresh_vendor=force_refresh_vendor
+        force_refresh_vendor=force_refresh_vendor,
     )
 
     # Pre-flight validation
@@ -239,7 +249,7 @@ async def generate_ai_strategy(
             content="",
             duration_seconds=time.time() - start_time,
             vendor_research_paths=[],
-            error="; ".join(preflight_errors)
+            error="; ".join(preflight_errors),
         )
 
     console.info("Pre-flight checks passed")
@@ -255,7 +265,7 @@ async def generate_ai_strategy(
         prompt=prompt,
         context_files=context_files,
         timeout=config.timeout_seconds,
-        on_progress=on_progress
+        on_progress=on_progress,
     )
 
     if not content:
@@ -266,14 +276,12 @@ async def generate_ai_strategy(
             content="",
             duration_seconds=time.time() - start_time,
             vendor_research_paths=vendor_paths,
-            error="AI Strategy research failed"
+            error="AI Strategy research failed",
         )
 
     # Save outputs
     output_paths = _save_strategy_outputs(
-        content=content,
-        company_name=company_name,
-        cloud_vendor=vendor
+        content=content, company_name=company_name, cloud_vendor=vendor
     )
 
     # Usage tracked by the main research pipeline (research_agent.py)
@@ -284,7 +292,7 @@ async def generate_ai_strategy(
         txt_path=output_paths.get("txt"),
         content=content,
         duration_seconds=time.time() - start_time,
-        vendor_research_paths=vendor_paths
+        vendor_research_paths=vendor_paths,
     )
 
 
@@ -313,6 +321,7 @@ def build_ai_strategy_prompt(company_name: str, cloud_vendor: CloudVendor) -> st
 # INTERNAL FUNCTIONS
 # =============================================================================
 
+
 def _validate_preflight(config: AIStrategyConfig) -> list[str]:
     """Validate prerequisites for AI strategy generation."""
     from primr.config.settings import get_settings
@@ -338,8 +347,7 @@ def _validate_preflight(config: AIStrategyConfig) -> list[str]:
 
 
 async def _gather_context(
-    config: AIStrategyConfig,
-    on_progress: Callable[[str], None] | None = None
+    config: AIStrategyConfig, on_progress: Callable[[str], None] | None = None
 ) -> tuple[list[str], list[str]]:
     """
     Gather context files for AI strategy generation.
@@ -374,7 +382,9 @@ async def _gather_context(
                 vendor_paths.append(path_str)
 
     if yaml_context_files:
-        console.info(f"Using {len(yaml_context_files)} vendor research file(s) from strategy config")
+        console.info(
+            f"Using {len(yaml_context_files)} vendor research file(s) from strategy config"
+        )
 
     # Fallback: If no YAML data sources found, use legacy vendor research
     if not yaml_context_files:
@@ -393,7 +403,7 @@ async def _gather_context(
                 result = await get_or_generate_vendor_research(
                     vendor_str,
                     force_refresh=False,  # Explicitly pass force_refresh
-                    on_progress=on_progress
+                    on_progress=on_progress,
                 )
                 vendor_paths = [str(p) for p in result.paths]
 
@@ -403,10 +413,16 @@ async def _gather_context(
                     context_files.append(path)
 
             if vendor_paths:
-                console.info(f"Using {len(vendor_paths)} {vendor_str.upper()} research doc(s) as context")
+                console.info(
+                    f"Using {len(vendor_paths)} {vendor_str.upper()} research doc(s) as context"
+                )
 
         # Always include agnostic research as additional context
-        agnostic_path = Path(PROJECT_ROOT) / "vendor-research" / f"vendor-research-agnostic-{datetime.now().strftime('%Y-%m')}.txt"
+        agnostic_path = (
+            Path(PROJECT_ROOT)
+            / "vendor-research"
+            / f"vendor-research-agnostic-{datetime.now().strftime('%Y-%m')}.txt"
+        )
         if agnostic_path.exists() and str(agnostic_path) not in context_files:
             context_files.append(str(agnostic_path))
 
@@ -414,11 +430,7 @@ async def _gather_context(
 
 
 async def _poll_for_completion(
-    client,
-    interaction_id: str,
-    prompt: str,
-    max_poll_time: int = 1800,
-    poll_interval: int = 120
+    client, interaction_id: str, prompt: str, max_poll_time: int = 1800, poll_interval: int = 120
 ) -> str | None:
     """Poll for job completion after streaming interruption."""
     from primr.ai.deep_research import save_pending_job
@@ -436,19 +448,19 @@ async def _poll_for_completion(
         console.status_with_time(f"AI Strategy: Checking status... ({elapsed}s elapsed)")
 
         check_result = client.check_job(interaction_id)
-        status = check_result.get('status', 'unknown')
+        status = check_result.get("status", "unknown")
 
-        if status == 'completed':
-            content = check_result.get('content', '')
+        if status == "completed":
+            content = check_result.get("content", "")
             if content:
                 console.ok("AI Strategy: Job completed!")
                 return content
             console.warn("AI Strategy: Job completed but no content returned")
             return None
-        elif status == 'failed':
+        elif status == "failed":
             console.error(f"AI Strategy: Job failed: {check_result.get('error', 'Unknown')}")
             return None
-        elif status != 'in_progress':
+        elif status != "in_progress":
             logger.warning(f"Unknown job status: {status}")
 
     console.warn(f"AI Strategy: Still running after {max_poll_time}s")
@@ -460,7 +472,7 @@ async def _execute_strategy_research(
     prompt: str,
     context_files: list[str],
     timeout: int,
-    on_progress: Callable[[str], None] | None = None
+    on_progress: Callable[[str], None] | None = None,
 ) -> str | None:
     """Execute Deep Research for AI strategy with polling fallback."""
     from primr.ai.deep_research import ResearchStatus, get_deep_research_client, save_pending_job
@@ -474,7 +486,7 @@ async def _execute_strategy_research(
             if on_progress:
                 on_progress(progress.message)
             console.status_with_time(f"AI Strategy: {progress.message}")
-        if hasattr(progress, 'interaction_id') and progress.interaction_id:
+        if hasattr(progress, "interaction_id") and progress.interaction_id:
             interaction_id = progress.interaction_id
 
     try:
@@ -483,7 +495,7 @@ async def _execute_strategy_research(
             output_format=None,
             on_progress=progress_callback,
             context_files=context_files if context_files else None,
-            timeout=timeout
+            timeout=timeout,
         )
 
         if result.status == ResearchStatus.COMPLETED and result.content:
@@ -497,7 +509,7 @@ async def _execute_strategy_research(
         if interaction_id:
             return await _poll_for_completion(client, interaction_id, prompt)
 
-        error_msg = result.error if hasattr(result, 'error') and result.error else "Unknown error"
+        error_msg = result.error if hasattr(result, "error") and result.error else "Unknown error"
         console.error(f"AI Strategy research failed: {error_msg}")
         return None
 
@@ -525,24 +537,22 @@ def _process_citations(content: str) -> str:
     # Convert inline [cite: X, Y, Z] references to clean [1] [2] [3] format
     def replace_cite_ref(match: re.Match) -> str:
         nums_str = match.group(1)
-        nums = [n.strip() for n in nums_str.split(',')]
+        nums = [n.strip() for n in nums_str.split(",")]
         refs = [f"[{num}]" for num in nums]
-        return ' '.join(refs)
+        return " ".join(refs)
 
-    content = re.sub(r'\[cite:\s*([\d,\s]+)\]', replace_cite_ref, content)
+    content = re.sub(r"\[cite:\s*([\d,\s]+)\]", replace_cite_ref, content)
 
     # Extract citations from Sources section
     citations: list[dict[str, str]] = []
-    sources_match = re.search(r'\*\*Sources:\*\*\s*([\s\S]*?)$', content)
+    sources_match = re.search(r"\*\*Sources:\*\*\s*([\s\S]*?)$", content)
     if sources_match:
         sources_text = sources_match.group(1)
-        citation_pattern = r'(\d+)\.\s*\[([^\]]+)\]\(([^)]+)\)'
+        citation_pattern = r"(\d+)\.\s*\[([^\]]+)\]\(([^)]+)\)"
         for match in re.finditer(citation_pattern, sources_text):
-            citations.append({
-                'number': match.group(1),
-                'title': match.group(2),
-                'url': match.group(3)
-            })
+            citations.append(
+                {"number": match.group(1), "title": match.group(2), "url": match.group(3)}
+            )
 
     # Resolve redirect URLs
     if citations:
@@ -555,15 +565,15 @@ def _process_citations(content: str) -> str:
             sources_header = "**Sources:**\n"
             cleaned_lines = []
             for citation in citations:
-                num = citation.get('number', '')
-                url = citation.get('url', '')
-                title = citation.get('title', '')
+                num = citation.get("number", "")
+                url = citation.get("url", "")
+                title = citation.get("title", "")
 
                 if url:
                     parsed = urlparse(url)
-                    domain = parsed.netloc.replace('www.', '')
+                    domain = parsed.netloc.replace("www.", "")
                     # Use domain as display text if title looks like a redirect URL
-                    if 'vertexaisearch' in title.lower() or not title:
+                    if "vertexaisearch" in title.lower() or not title:
                         display_text = domain
                     else:
                         display_text = title
@@ -571,16 +581,14 @@ def _process_citations(content: str) -> str:
                 elif title:
                     cleaned_lines.append(f"{num}. {title}")
 
-            new_sources = sources_header + '\n'.join(cleaned_lines)
-            content = content[:sources_match.start()] + new_sources
+            new_sources = sources_header + "\n".join(cleaned_lines)
+            content = content[: sources_match.start()] + new_sources
 
     return content
 
 
 def _save_strategy_outputs(
-    content: str,
-    company_name: str,
-    cloud_vendor: CloudVendor
+    content: str, company_name: str, cloud_vendor: CloudVendor
 ) -> dict[str, str | None]:
     """Save AI strategy outputs in multiple formats."""
     from primr.output.markdown_converter import markdown_to_docx
@@ -589,7 +597,9 @@ def _save_strategy_outputs(
     content = _process_citations(content)
 
     date_str = datetime.now().strftime("%m-%d-%Y")
-    vendor_tag = f"_{cloud_vendor.value.upper()}" if cloud_vendor.value.lower() != "agnostic" else ""
+    vendor_tag = (
+        f"_{cloud_vendor.value.upper()}" if cloud_vendor.value.lower() != "agnostic" else ""
+    )
     base_name = f"{company_name}_AI_Strategy{vendor_tag}_{date_str}"
     outputs: dict[str, str | None] = {"md": None, "txt": None, "docx": None}
 
@@ -619,7 +629,7 @@ def _save_strategy_outputs(
                 markdown_text=content,
                 output_path=Path(docx_path),
                 title=f"AI Strategy: {company_name}",
-                subtitle=subtitle
+                subtitle=subtitle,
             )
             outputs["docx"] = docx_path
             console.ok(f"AI Strategy DOCX: {base_name}.docx", show_time=False)
@@ -632,7 +642,7 @@ def _save_strategy_outputs(
                 markdown_text=content,
                 output_path=Path(docx_path),
                 title=f"AI Strategy: {company_name}",
-                subtitle=subtitle
+                subtitle=subtitle,
             )
             outputs["docx"] = docx_path
 
@@ -641,7 +651,6 @@ def _save_strategy_outputs(
         logger.exception("AI Strategy output error")
 
     return outputs
-
 
 
 # Usage tracking removed — consolidated in research_agent.py main pipeline

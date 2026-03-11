@@ -37,7 +37,7 @@ class TestStyleConsistency:
 
         # Sizes should decrease with level (H1 > H2 > H3 > H4)
         for i in range(len(sizes) - 1):
-            assert sizes[i] > sizes[i + 1], f"H{i+1} should be larger than H{i+2}"
+            assert sizes[i] > sizes[i + 1], f"H{i + 1} should be larger than H{i + 2}"
 
     def test_heading_styles_have_distinct_colors(self):
         """Heading levels have appropriate color contrast."""
@@ -46,15 +46,15 @@ class TestStyleConsistency:
         engine.setup_styles()
 
         # H1 should use primary color
-        h1 = doc.styles['Heading 1']
+        h1 = doc.styles["Heading 1"]
         assert h1.font.color.rgb == engine.PRIMARY_COLOR
 
         # H2 should use secondary color
-        h2 = doc.styles['Heading 2']
+        h2 = doc.styles["Heading 2"]
         assert h2.font.color.rgb == engine.SECONDARY_COLOR
 
         # H3 should use accent color
-        h3 = doc.styles['Heading 3']
+        h3 = doc.styles["Heading 3"]
         assert h3.font.color.rgb == engine.ACCENT_COLOR
 
     def test_body_text_uses_consistent_font(self):
@@ -63,8 +63,8 @@ class TestStyleConsistency:
         engine = StyleEngine(doc)
         engine.setup_styles()
 
-        normal = doc.styles['Normal']
-        expected_font, expected_size = engine.FONTS['body']
+        normal = doc.styles["Normal"]
+        expected_font, expected_size = engine.FONTS["body"]
 
         assert normal.font.name == expected_font
         assert normal.font.size == expected_size
@@ -80,7 +80,7 @@ class TestStyleConsistency:
         style_name = engine.get_style_for_level(level)
 
         assert style_name in doc.styles, f"Style '{style_name}' not found"
-        assert style_name == f'Heading {level}'
+        assert style_name == f"Heading {level}"
 
     @settings(max_examples=100)
     @given(level=st.integers(min_value=5, max_value=100))
@@ -91,7 +91,7 @@ class TestStyleConsistency:
 
         style_name = engine.get_style_for_level(level)
 
-        assert style_name == 'Normal'
+        assert style_name == "Normal"
 
     def test_color_palette_wcag_contrast(self):
         """Color palette meets WCAG 2.1 AA contrast requirements."""
@@ -116,10 +116,10 @@ class TestStyleConsistency:
         engine = StyleEngine(doc)
 
         # Get font sizes
-        title_size = engine.FONTS['title'][1].pt
-        chapter_size = engine.FONTS['chapter'][1].pt
-        section_size = engine.FONTS['section'][1].pt
-        body_size = engine.FONTS['body'][1].pt
+        title_size = engine.FONTS["title"][1].pt
+        chapter_size = engine.FONTS["chapter"][1].pt
+        section_size = engine.FONTS["section"][1].pt
+        body_size = engine.FONTS["body"][1].pt
 
         # Check ratios are approximately 1.2x (allowing some flexibility)
         # title (28) / chapter (18) ≈ 1.55
@@ -130,7 +130,11 @@ class TestStyleConsistency:
         assert section_size / body_size >= 1.1
 
     @settings(max_examples=50)
-    @given(style_type=st.sampled_from(['title', 'chapter', 'section', 'subsection', 'body', 'bullet', 'caption', 'metadata']))
+    @given(
+        style_type=st.sampled_from(
+            ["title", "chapter", "section", "subsection", "body", "bullet", "caption", "metadata"]
+        )
+    )
     def test_get_font_config_returns_valid_tuple(self, style_type):
         """get_font_config returns valid (font_name, size) tuple for all types."""
         doc = Document()
@@ -143,7 +147,20 @@ class TestStyleConsistency:
         assert font_size is not None
 
     @settings(max_examples=50)
-    @given(color_type=st.sampled_from(['primary', 'secondary', 'accent', 'text', 'muted', 'highlight_bg', 'table_header', 'table_alt']))
+    @given(
+        color_type=st.sampled_from(
+            [
+                "primary",
+                "secondary",
+                "accent",
+                "text",
+                "muted",
+                "highlight_bg",
+                "table_header",
+                "table_alt",
+            ]
+        )
+    )
     def test_get_color_returns_rgb_color(self, color_type):
         """get_color returns valid RGBColor for all color types."""
         from docx.shared import RGBColor
@@ -160,7 +177,6 @@ class TestStyleConsistency:
         assert 0 <= color[2] <= 255
 
 
-
 class TestInlineHeaderFormatting:
     """
     **Feature: report-excellence, Property 4: Inline header detection and formatting**
@@ -172,8 +188,10 @@ class TestInlineHeaderFormatting:
 
     @settings(max_examples=100)
     @given(
-        header=st.text(min_size=3, max_size=30, alphabet=st.characters(whitelist_categories=['L'])),
-        content=st.text(min_size=1, max_size=100, alphabet=st.characters(whitelist_categories=['L', 'N', 'S']))
+        header=st.text(min_size=3, max_size=30, alphabet=st.characters(whitelist_categories=["L"])),
+        content=st.text(
+            min_size=1, max_size=100, alphabet=st.characters(whitelist_categories=["L", "N", "S"])
+        ),
     )
     def test_inline_header_creates_bold_run(self, header, content):
         """apply_inline_header_formatting creates bold header run."""
@@ -194,15 +212,17 @@ class TestInlineHeaderFormatting:
         # First run should be bold and contain header + colon
         assert para.runs[0].bold
         assert header in para.runs[0].text
-        assert ':' in para.runs[0].text
+        assert ":" in para.runs[0].text
 
         # Second run should contain content
         assert content in para.runs[1].text
 
     @settings(max_examples=50)
     @given(
-        header=st.text(min_size=3, max_size=20, alphabet=st.characters(whitelist_categories=['L'])),
-        content=st.text(min_size=1, max_size=50, alphabet=st.characters(whitelist_categories=['L', 'N']))
+        header=st.text(min_size=3, max_size=20, alphabet=st.characters(whitelist_categories=["L"])),
+        content=st.text(
+            min_size=1, max_size=50, alphabet=st.characters(whitelist_categories=["L", "N"])
+        ),
     )
     def test_inline_header_preserves_content(self, header, content):
         """Content is preserved exactly in the output."""
@@ -218,6 +238,6 @@ class TestInlineHeaderFormatting:
         engine.apply_inline_header_formatting(para, header, content)
 
         # Full text should contain both header and content
-        full_text = ''.join(run.text for run in para.runs)
+        full_text = "".join(run.text for run in para.runs)
         assert header in full_text
         assert content in full_text

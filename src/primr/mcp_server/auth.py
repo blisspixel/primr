@@ -107,9 +107,7 @@ class PrimrTokenVerifier:
         self._cache_ttl = 300  # 5 minutes
 
         # Hash admin tokens for secure comparison
-        self._admin_token_hashes: set[str] = {
-            self._hash_token(t) for t in self.config.admin_tokens
-        }
+        self._admin_token_hashes: set[str] = {self._hash_token(t) for t in self.config.admin_tokens}
 
     def _hash_token(self, token: str) -> str:
         """Hash a token for secure storage/comparison."""
@@ -290,21 +288,15 @@ class PrimrTokenVerifier:
 
             if alg == "HS256":
                 expected_sig = hmac.new(
-                    self.config.jwt_secret.encode(),
-                    signing_input,
-                    hashlib.sha256
+                    self.config.jwt_secret.encode(), signing_input, hashlib.sha256
                 ).digest()
             elif alg == "HS384":
                 expected_sig = hmac.new(
-                    self.config.jwt_secret.encode(),
-                    signing_input,
-                    hashlib.sha384
+                    self.config.jwt_secret.encode(), signing_input, hashlib.sha384
                 ).digest()
             elif alg == "HS512":
                 expected_sig = hmac.new(
-                    self.config.jwt_secret.encode(),
-                    signing_input,
-                    hashlib.sha512
+                    self.config.jwt_secret.encode(), signing_input, hashlib.sha512
                 ).digest()
             else:
                 logger.warning(f"Unsupported JWT algorithm: {alg}")

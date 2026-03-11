@@ -128,7 +128,9 @@ class TestAIStrategySections:
 
         import yaml
 
-        strategies_dir = Path(__file__).parent.parent.parent / "src" / "primr" / "prompts" / "strategies"
+        strategies_dir = (
+            Path(__file__).parent.parent.parent / "src" / "primr" / "prompts" / "strategies"
+        )
         config_path = strategies_dir / "ai_strategy.yaml"
 
         with open(config_path, encoding="utf-8") as f:
@@ -197,10 +199,7 @@ class TestBuildCompanyOverviewPrompt:
 
     def test_includes_website_url(self):
         """Prompt should include website URL when provided."""
-        prompt = build_company_overview_prompt(
-            "Acme Corp",
-            website_url="https://acme.com"
-        )
+        prompt = build_company_overview_prompt("Acme Corp", website_url="https://acme.com")
         assert "https://acme.com" in prompt
         assert "Priority Source" in prompt
 
@@ -252,7 +251,9 @@ class TestBuildAIStrategyPrompt:
         """Prompt should include confidence labeling rule."""
         prompt = build_ai_strategy_prompt("Acme Corp")
         # Confidence labeling may be in epistemic rules section
-        assert "Low-regret" in prompt or "proven pattern" in prompt or "confidence" in prompt.lower()
+        assert (
+            "Low-regret" in prompt or "proven pattern" in prompt or "confidence" in prompt.lower()
+        )
 
     def test_includes_epistemic_rules(self):
         """Prompt should include epistemic rules."""
@@ -473,7 +474,9 @@ class TestYAMLLoadingRoundTrip:
         current_date = datetime.now().strftime("%B %Y")  # Match loader's format
 
         # Build using loader function
-        loader_prompt = build_ai_strategy_prompt(company_name, cloud_vendor=cloud_vendor, current_date=current_date)
+        loader_prompt = build_ai_strategy_prompt(
+            company_name, cloud_vendor=cloud_vendor, current_date=current_date
+        )
 
         # Build using PromptComposer directly with same date format
         composer = PromptComposer()
@@ -536,7 +539,9 @@ class TestYAMLLoadingRoundTrip:
         result1 = composer1.compose("company_overview", context)
         result2 = composer2.compose("company_overview", context)
 
-        assert result1.content == result2.content, "Different composer instances produced different output"
+        assert result1.content == result2.content, (
+            "Different composer instances produced different output"
+        )
 
     # =========================================================================
     # COMPLETE YAML CONTENT VERIFICATION
@@ -686,7 +691,9 @@ class TestYAMLLoadingRoundTrip:
         prompt_none = build_company_overview_prompt("Test Corp", website_url=None)
         prompt_default = build_company_overview_prompt("Test Corp")
 
-        assert prompt_none == prompt_default, "None and default website_url produce different output"
+        assert prompt_none == prompt_default, (
+            "None and default website_url produce different output"
+        )
 
     def test_empty_website_url(self):
         """
@@ -784,13 +791,10 @@ class TestYAMLLoadingRoundTrip:
         **Validates: Requirements 1.1**
         """
         prompt_with_query = build_company_overview_prompt(
-            "Test Corp",
-            query="This custom query should be ignored",
-            website_url="https://test.com"
+            "Test Corp", query="This custom query should be ignored", website_url="https://test.com"
         )
         prompt_without_query = build_company_overview_prompt(
-            "Test Corp",
-            website_url="https://test.com"
+            "Test Corp", website_url="https://test.com"
         )
 
         # Query parameter should be ignored - outputs should be identical
@@ -842,15 +846,18 @@ class TestYAMLLoadingRoundTrip:
     # PROPERTY-BASED TESTS WITH HYPOTHESIS
     # =========================================================================
 
-    @pytest.mark.parametrize("company_name", [
-        "Simple Corp",
-        "Acme & Sons",
-        "O'Reilly",
-        "Société Générale",
-        "Company, Inc.",
-        "Test (Holdings) Ltd",
-        "A" * 100,
-    ])
+    @pytest.mark.parametrize(
+        "company_name",
+        [
+            "Simple Corp",
+            "Acme & Sons",
+            "O'Reilly",
+            "Société Générale",
+            "Company, Inc.",
+            "Test (Holdings) Ltd",
+            "A" * 100,
+        ],
+    )
     def test_various_company_names_produce_valid_output(self, company_name):
         """
         Property: Various company name formats all produce valid prompts.

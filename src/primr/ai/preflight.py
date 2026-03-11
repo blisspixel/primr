@@ -204,17 +204,25 @@ class PreflightValidator:
             search_provider = os.environ.get("SEARCH_PROVIDER", "auto").lower().strip()
             if search_provider == "google":
                 # Google requires API keys
-                search_key = getattr(self._settings.api, 'search_key', None) or os.environ.get('SEARCH_API_KEY')
+                search_key = getattr(self._settings.api, "search_key", None) or os.environ.get(
+                    "SEARCH_API_KEY"
+                )
                 if not search_key:
-                    errors.append("SEARCH_API_KEY not configured (required when SEARCH_PROVIDER=google)")
+                    errors.append(
+                        "SEARCH_API_KEY not configured (required when SEARCH_PROVIDER=google)"
+                    )
                     checks["search_api_key"] = {"passed": False, "status": "missing"}
                 else:
                     checks["search_api_key"] = {"passed": True, "status": "configured"}
                     progress("  + SEARCH_API_KEY")
 
-                search_engine_id = getattr(self._settings.api, 'search_engine_id', None) or os.environ.get('SEARCH_ENGINE_ID')
+                search_engine_id = getattr(
+                    self._settings.api, "search_engine_id", None
+                ) or os.environ.get("SEARCH_ENGINE_ID")
                 if not search_engine_id:
-                    errors.append("SEARCH_ENGINE_ID not configured (required when SEARCH_PROVIDER=google)")
+                    errors.append(
+                        "SEARCH_ENGINE_ID not configured (required when SEARCH_PROVIDER=google)"
+                    )
                     checks["search_engine_id"] = {"passed": False, "status": "missing"}
                 else:
                     checks["search_engine_id"] = {"passed": True, "status": "configured"}
@@ -297,7 +305,9 @@ class PreflightValidator:
             except Exception as e:
                 error_str = str(e).lower()
                 if "not found" in error_str or "does not exist" in error_str:
-                    errors.append(f"Model {self.SECTION_MODEL} not available - check model name in docs")
+                    errors.append(
+                        f"Model {self.SECTION_MODEL} not available - check model name in docs"
+                    )
                 elif "quota" in error_str or "429" in error_str:
                     errors.append("Gemini API quota exhausted - wait or check billing")
                 elif "api key" in error_str or "authentication" in error_str:
@@ -328,7 +338,9 @@ class PreflightValidator:
                     checks["deep_research"] = {"passed": False, "status": "not_found"}
                 elif "quota" in error_str or "429" in error_str:
                     # Rate limit is a warning for Deep Research (we have fallback)
-                    warnings.append("Deep Research may be rate limited - will use fallback if needed")
+                    warnings.append(
+                        "Deep Research may be rate limited - will use fallback if needed"
+                    )
                     checks["deep_research"] = {"passed": True, "status": "rate_limited"}
                     progress("  ⚠ Deep Research (rate limited, fallback available)")
                 else:
@@ -381,7 +393,7 @@ class PreflightValidator:
             from primr.utils.security import validate_final_url_after_redirect
 
             # Normalize URL
-            if not website_url.startswith(('http://', 'https://')):
+            if not website_url.startswith(("http://", "https://")):
                 website_url = f"https://{website_url}"
 
             async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
@@ -432,7 +444,7 @@ class PreflightValidator:
 
             # Test write permission
             test_file = os.path.join(OUTPUT_DIR, ".preflight_test")
-            with open(test_file, 'w') as f:
+            with open(test_file, "w") as f:
                 f.write("test")
             os.remove(test_file)
 

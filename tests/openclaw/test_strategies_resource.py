@@ -114,8 +114,7 @@ class TestStrategyIdValidity:
     def test_all_ids_are_valid_strategy_types(self, strategies_response: dict) -> None:
         """FR-5.2: Each id is a valid StrategyType enum value."""
         for strategy in strategies_response["strategies"]:
-            assert strategy["id"] in VALID_STRATEGY_IDS, \
-                f"Invalid strategy ID: {strategy['id']}"
+            assert strategy["id"] in VALID_STRATEGY_IDS, f"Invalid strategy ID: {strategy['id']}"
 
     def test_all_strategy_types_are_present(self, strategies_response: dict) -> None:
         """All StrategyType enum values are represented."""
@@ -137,8 +136,7 @@ class TestSpecificStrategies:
     def test_ai_strategy_requires_cloud_vendor(self, strategies_response: dict) -> None:
         """AI Strategy requires cloud vendor."""
         ai_strategy = next(
-            (s for s in strategies_response["strategies"] if s["id"] == "ai_strategy"),
-            None
+            (s for s in strategies_response["strategies"] if s["id"] == "ai_strategy"), None
         )
         assert ai_strategy is not None
         assert ai_strategy["requires_cloud_vendor"] is True
@@ -147,8 +145,9 @@ class TestSpecificStrategies:
         """Non-AI strategies don't require cloud vendor."""
         for strategy in strategies_response["strategies"]:
             if strategy["id"] != "ai_strategy":
-                assert strategy["requires_cloud_vendor"] is False, \
+                assert strategy["requires_cloud_vendor"] is False, (
                     f"{strategy['id']} should not require cloud vendor"
+                )
 
 
 class TestPropertyBasedStrategiesResource:
@@ -188,8 +187,14 @@ class TestPropertyBasedStrategiesResource:
         result = _read_strategies_available()
         data = json.loads(result[0].content)
 
-        required_fields = {"id", "name", "description", "requires_cloud_vendor",
-                          "estimated_time_minutes", "estimated_cost_usd"}
+        required_fields = {
+            "id",
+            "name",
+            "description",
+            "requires_cloud_vendor",
+            "estimated_time_minutes",
+            "estimated_cost_usd",
+        }
 
         for strategy in data["strategies"]:
             assert required_fields.issubset(set(strategy.keys()))

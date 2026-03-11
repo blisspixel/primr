@@ -3,6 +3,7 @@ Property tests for formatting utilities.
 
 **Feature: consulting-tier-report**
 """
+
 import pytest
 from hypothesis import HealthCheck, assume, given, settings
 from hypothesis import strategies as st
@@ -347,7 +348,7 @@ class TestDeduplicateContent:
         content = "This is a test line.\nThis  is  a  TEST  line.\nOther content."
         result = deduplicate_content(content)
         # Should only have one of the test lines
-        lines = [line for line in result.split('\n') if 'test' in line.lower()]
+        lines = [line for line in result.split("\n") if "test" in line.lower()]
         assert len(lines) == 1
 
     def test_handles_empty_content(self):
@@ -395,37 +396,37 @@ class TestContentDeduplicationEffectivenessProperty:
     information.
     """
 
-    @given(st.lists(
-        st.text(alphabet="abcdefghij ", min_size=25, max_size=50),
-        min_size=2,
-        max_size=10
-    ))
+    @given(
+        st.lists(st.text(alphabet="abcdefghij ", min_size=25, max_size=50), min_size=2, max_size=10)
+    )
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_deduplication_reduces_or_preserves_size(self, lines):
         """Deduplication should never increase content size."""
         # Create content with some duplicates
-        content = '\n'.join(lines + lines[:2])  # Add duplicates
+        content = "\n".join(lines + lines[:2])  # Add duplicates
         result = deduplicate_content(content)
 
         assert len(result) <= len(content)
 
-    @given(st.lists(
-        st.text(alphabet="abcdefghij ", min_size=25, max_size=50),
-        min_size=1,
-        max_size=5,
-        unique=True
-    ))
+    @given(
+        st.lists(
+            st.text(alphabet="abcdefghij ", min_size=25, max_size=50),
+            min_size=1,
+            max_size=5,
+            unique=True,
+        )
+    )
     @settings(max_examples=100)
     def test_unique_content_preserved(self, unique_lines):
         """All unique content should be preserved."""
-        content = '\n'.join(unique_lines)
+        content = "\n".join(unique_lines)
         result = deduplicate_content(content)
 
         # All unique lines should still be present (normalized)
         for line in unique_lines:
             # Check that the essence of each line is preserved
-            normalized = ' '.join(line.lower().split())
-            result_normalized = ' '.join(result.lower().split())
+            normalized = " ".join(line.lower().split())
+            result_normalized = " ".join(result.lower().split())
             # At least part of each unique line should be in result
             assert any(word in result_normalized for word in normalized.split() if len(word) > 2)
 
@@ -439,7 +440,8 @@ class TestContentDeduplicationEffectivenessProperty:
         result = deduplicate_content(content, min_line_length=20)
 
         # The line should appear only once
-        normalized_line = ' '.join(line.lower().split())
-        count = sum(1 for line in result.split('\n')
-                   if ' '.join(line.lower().split()) == normalized_line)
+        normalized_line = " ".join(line.lower().split())
+        count = sum(
+            1 for line in result.split("\n") if " ".join(line.lower().split()) == normalized_line
+        )
         assert count <= 1

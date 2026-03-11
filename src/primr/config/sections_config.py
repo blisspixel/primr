@@ -22,5 +22,5 @@ SECTION_KEY_MAP = {
     "Potential Business Value": "potential_business_value",
     "Strategic Recommendations": "strategic_recommendations",
     "Scraped Website Summary": "scraped_website_summary",
-    "Value Theory": "value_theory"
+    "Value Theory": "value_theory",
 }

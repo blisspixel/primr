@@ -26,6 +26,7 @@ from src.primr.utils.memory_profiler import (
 # Strategies
 # =============================================================================
 
+
 @st.composite
 def memory_snapshot_strategy(draw):
     """Generate valid memory snapshots."""
@@ -34,31 +35,42 @@ def memory_snapshot_strategy(draw):
         current_bytes=draw(st.integers(min_value=0, max_value=10**9)),
         peak_bytes=draw(st.integers(min_value=0, max_value=10**9)),
         allocation_count=draw(st.integers(min_value=0, max_value=10**6)),
-        component=draw(st.text(min_size=0, max_size=50, alphabet=st.characters(whitelist_categories=("L", "N")))),
+        component=draw(
+            st.text(
+                min_size=0, max_size=50, alphabet=st.characters(whitelist_categories=("L", "N"))
+            )
+        ),
     )
 
 
 @st.composite
 def threshold_config_strategy(draw):
     """Generate valid threshold configurations."""
-    threshold_mb = draw(st.floats(min_value=1.0, max_value=1000.0, allow_nan=False, allow_infinity=False))
+    threshold_mb = draw(
+        st.floats(min_value=1.0, max_value=1000.0, allow_nan=False, allow_infinity=False)
+    )
     return threshold_mb
 
 
 @st.composite
 def component_names_strategy(draw):
     """Generate valid component names."""
-    return draw(st.lists(
-        st.text(min_size=1, max_size=20, alphabet=st.characters(whitelist_categories=("L", "N"))),
-        min_size=1,
-        max_size=5,
-        unique=True,
-    ))
+    return draw(
+        st.lists(
+            st.text(
+                min_size=1, max_size=20, alphabet=st.characters(whitelist_categories=("L", "N"))
+            ),
+            min_size=1,
+            max_size=5,
+            unique=True,
+        )
+    )
 
 
 # =============================================================================
 # Property 28: Memory Tracking and Reporting
 # =============================================================================
+
 
 class TestMemoryTrackingAndReporting:
     """Tests for Property 28: Memory Tracking and Reporting.
@@ -84,7 +96,9 @@ class TestMemoryTrackingAndReporting:
 
             # All components should be in the report
             for component in component_names:
-                assert component in report.by_component, f"Component {component} missing from report"
+                assert component in report.by_component, (
+                    f"Component {component} missing from report"
+                )
         finally:
             profiler.stop_tracking()
 
@@ -112,7 +126,11 @@ class TestMemoryTrackingAndReporting:
 
     # Feature: phd-level-excellence, Property 28: Memory Tracking and Reporting
     @settings(max_examples=50)
-    @given(component=st.text(min_size=1, max_size=20, alphabet=st.characters(whitelist_categories=("L", "N"))))
+    @given(
+        component=st.text(
+            min_size=1, max_size=20, alphabet=st.characters(whitelist_categories=("L", "N"))
+        )
+    )
     def test_report_contains_allocation_count(self, component: str):
         """Verify report includes allocation count for components."""
         profiler = MemoryProfiler()
@@ -137,7 +155,11 @@ class TestMemoryTrackingAndReporting:
         profiler.start_tracking()
 
         try:
-            component = data.draw(st.text(min_size=1, max_size=10, alphabet=st.characters(whitelist_categories=("L",))))
+            component = data.draw(
+                st.text(
+                    min_size=1, max_size=10, alphabet=st.characters(whitelist_categories=("L",))
+                )
+            )
             profiler.take_snapshot(component)
 
             report = profiler.generate_report()
@@ -182,6 +204,7 @@ class TestMemoryTrackingAndReporting:
 # Property 29: Memory Threshold Warnings
 # =============================================================================
 
+
 class TestMemoryThresholdWarnings:
     """Tests for Property 29: Memory Threshold Warnings.
 
@@ -192,7 +215,11 @@ class TestMemoryThresholdWarnings:
 
     # Feature: phd-level-excellence, Property 29: Memory Threshold Warnings
     @settings(max_examples=50)
-    @given(threshold_mb=st.floats(min_value=0.001, max_value=0.01, allow_nan=False, allow_infinity=False))
+    @given(
+        threshold_mb=st.floats(
+            min_value=0.001, max_value=0.01, allow_nan=False, allow_infinity=False
+        )
+    )
     def test_warning_emitted_when_threshold_exceeded(self, threshold_mb: float):
         """Verify warning is emitted when memory exceeds threshold."""
         warnings_received: list[MemoryWarning] = []
@@ -221,7 +248,11 @@ class TestMemoryThresholdWarnings:
 
     # Feature: phd-level-excellence, Property 29: Memory Threshold Warnings
     @settings(max_examples=50)
-    @given(threshold_mb=st.floats(min_value=10000.0, max_value=100000.0, allow_nan=False, allow_infinity=False))
+    @given(
+        threshold_mb=st.floats(
+            min_value=10000.0, max_value=100000.0, allow_nan=False, allow_infinity=False
+        )
+    )
     def test_no_warning_when_under_threshold(self, threshold_mb: float):
         """Verify no warning when memory is under threshold."""
         warnings_received: list[MemoryWarning] = []
@@ -246,8 +277,12 @@ class TestMemoryThresholdWarnings:
     @given(st.data())
     def test_warning_contains_required_fields(self, data):
         """Verify warning contains current usage and threshold values."""
-        threshold_mb = data.draw(st.floats(min_value=0.0001, max_value=0.001, allow_nan=False, allow_infinity=False))
-        component = data.draw(st.text(min_size=1, max_size=10, alphabet=st.characters(whitelist_categories=("L",))))
+        threshold_mb = data.draw(
+            st.floats(min_value=0.0001, max_value=0.001, allow_nan=False, allow_infinity=False)
+        )
+        component = data.draw(
+            st.text(min_size=1, max_size=10, alphabet=st.characters(whitelist_categories=("L",)))
+        )
 
         warnings_received: list[MemoryWarning] = []
 
@@ -280,6 +315,7 @@ class TestMemoryThresholdWarnings:
         def make_listener(idx: int):
             def listener(warning: MemoryWarning):
                 listener_counts[idx] += 1
+
             return listener
 
         profiler = MemoryProfiler(threshold_mb=0.0001)  # Very small threshold
@@ -304,6 +340,7 @@ class TestMemoryThresholdWarnings:
 # =============================================================================
 # Additional Property Tests for Memory Profiler
 # =============================================================================
+
 
 class TestMemoryProfilerInvariants:
     """Additional invariant tests for memory profiler."""
@@ -335,8 +372,10 @@ class TestMemoryProfilerInvariants:
         current = data.draw(st.integers(min_value=initial, max_value=initial + 1000))
         num_samples = data.draw(st.integers(min_value=2, max_value=10))
 
-        samples = [(datetime.now(), initial + i * ((current - initial) // max(1, num_samples - 1)))
-                   for i in range(num_samples)]
+        samples = [
+            (datetime.now(), initial + i * ((current - initial) // max(1, num_samples - 1)))
+            for i in range(num_samples)
+        ]
 
         record = GrowthRecord(
             type_name="TestType",
@@ -375,7 +414,11 @@ class TestMemoryProfilerInvariants:
 
     # Feature: phd-level-excellence, Property 29: Memory Threshold Warnings
     @settings(max_examples=50)
-    @given(threshold_mb=st.floats(min_value=1.0, max_value=1000.0, allow_nan=False, allow_infinity=False))
+    @given(
+        threshold_mb=st.floats(
+            min_value=1.0, max_value=1000.0, allow_nan=False, allow_infinity=False
+        )
+    )
     def test_fixture_assert_under_threshold(self, threshold_mb: float):
         """Verify fixture threshold assertion works correctly."""
         fixture = MemoryProfilerFixture(threshold_mb=threshold_mb)
@@ -393,8 +436,12 @@ class TestMemoryProfilerInvariants:
     @given(st.data())
     def test_fixture_get_report(self, data):
         """Verify fixture returns valid report."""
-        threshold_mb = data.draw(st.floats(min_value=100.0, max_value=1000.0, allow_nan=False, allow_infinity=False))
-        component = data.draw(st.text(min_size=1, max_size=10, alphabet=st.characters(whitelist_categories=("L",))))
+        threshold_mb = data.draw(
+            st.floats(min_value=100.0, max_value=1000.0, allow_nan=False, allow_infinity=False)
+        )
+        component = data.draw(
+            st.text(min_size=1, max_size=10, alphabet=st.characters(whitelist_categories=("L",)))
+        )
 
         fixture = MemoryProfilerFixture(threshold_mb=threshold_mb)
 
@@ -410,6 +457,7 @@ class TestMemoryProfilerInvariants:
 # =============================================================================
 # Growth Detection Tests
 # =============================================================================
+
 
 class TestGrowthDetection:
     """Tests for unbounded growth detection."""

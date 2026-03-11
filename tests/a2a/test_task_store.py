@@ -112,6 +112,7 @@ def _make_job(stage=ResearchStage.IDLE):
     from datetime import datetime, timezone
 
     from primr.mcp_server.job_store import ResearchJobState
+
     job = ResearchJobState(
         job_id="test-job-001",
         company_name="Test",

@@ -23,7 +23,9 @@ def test_evertrue_reports():
 
     # Initialize QA components with temp directory to avoid polluting output folder
     with tempfile.TemporaryDirectory() as temp_dir:
-        qa_integration = QAIntegration(QAOptions(enabled=True, save_detailed=True), output_dir=Path(temp_dir))
+        qa_integration = QAIntegration(
+            QAOptions(enabled=True, save_detailed=True), output_dir=Path(temp_dir)
+        )
         report_loader = ReportLoader()
 
         print("Testing Enhanced QA System with Real Evertrue LLC Reports")
@@ -32,7 +34,7 @@ def test_evertrue_reports():
         # Test both reports
         reports_to_test = [
             ("AI Strategy Report", ai_strategy_path),
-            ("Strategic Overview Report", strategic_overview_path)
+            ("Strategic Overview Report", strategic_overview_path),
         ]
 
         for report_name, report_path in reports_to_test:
@@ -73,9 +75,13 @@ def test_evertrue_reports():
                     analyzer_result = qa_integration.analyzer.assess_report(report_content)
                     if analyzer_result:
                         print("\nDetailed Assessment:")
-                        print(f"   Ready for Use: {'Yes' if analyzer_result.ready_for_use else 'No'}")
+                        print(
+                            f"   Ready for Use: {'Yes' if analyzer_result.ready_for_use else 'No'}"
+                        )
                         print(f"   Confidence Level: {analyzer_result.confidence_level.title()}")
-                        print(f"   Parsing Success: {'Yes' if analyzer_result.parsing_success else 'No'}")
+                        print(
+                            f"   Parsing Success: {'Yes' if analyzer_result.parsing_success else 'No'}"
+                        )
 
                         if analyzer_result.key_strengths:
                             print(f"\nKey Strengths ({len(analyzer_result.key_strengths)}):")
@@ -83,8 +89,12 @@ def test_evertrue_reports():
                                 print(f"   {i}. {strength}")
 
                         if analyzer_result.areas_for_improvement:
-                            print(f"\nAreas for Improvement ({len(analyzer_result.areas_for_improvement)}):")
-                            for i, improvement in enumerate(analyzer_result.areas_for_improvement, 1):
+                            print(
+                                f"\nAreas for Improvement ({len(analyzer_result.areas_for_improvement)}):"
+                            )
+                            for i, improvement in enumerate(
+                                analyzer_result.areas_for_improvement, 1
+                            ):
                                 print(f"   {i}. {improvement}")
 
                         if analyzer_result.recommendation:
@@ -96,9 +106,10 @@ def test_evertrue_reports():
             except Exception as e:
                 print(f"ERROR analyzing {report_name}: {e}")
                 import traceback
+
                 traceback.print_exc()
 
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("QA System Test Complete!")
 
 

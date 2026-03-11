@@ -292,13 +292,18 @@ class TestSectionPromptBuilding:
         orchestrator._settings.api.gemini_key = "test-key"
 
         # Mock the YAML loading
-        with patch.object(orchestrator, '_load_accordion_prompts') as mock_load:
+        with patch.object(orchestrator, "_load_accordion_prompts") as mock_load:
             mock_load.return_value = {
                 "section_writing_prompt": "Write {section_title} for {company_name}. Dossier: {research_dossier}",
-                "position_guidance": {"middle": "Middle section guidance."}
+                "position_guidance": {"middle": "Middle section guidance."},
             }
 
-            section = {"id": "test", "title": "Test Section", "instructions": "Write test.", "position": "middle"}
+            section = {
+                "id": "test",
+                "title": "Test Section",
+                "instructions": "Write test.",
+                "position": "middle",
+            }
 
             prompt = orchestrator._build_section_prompt(
                 section=section,
@@ -318,10 +323,10 @@ class TestSectionPromptBuilding:
         orchestrator._settings = Mock()
         orchestrator._settings.api.gemini_key = "test-key"
 
-        with patch.object(orchestrator, '_load_accordion_prompts') as mock_load:
+        with patch.object(orchestrator, "_load_accordion_prompts") as mock_load:
             mock_load.return_value = {
                 "section_writing_prompt": "{previous_sections}",
-                "position_guidance": {"middle": ""}
+                "position_guidance": {"middle": ""},
             }
 
             section = {"id": "test", "title": "Test", "instructions": "", "position": "middle"}

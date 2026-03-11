@@ -114,7 +114,9 @@ class PrimrAgentExecutor(AgentExecutor):
                     )
                 )
             else:
-                await event_queue.enqueue_event(new_agent_text_message("Internal error processing request"))
+                await event_queue.enqueue_event(
+                    new_agent_text_message("Internal error processing request")
+                )
 
     @override
     async def cancel(
@@ -130,7 +132,9 @@ class PrimrAgentExecutor(AgentExecutor):
 
         job_id = self._task_store.get_job_id(task_id)
         if not job_id:
-            await event_queue.enqueue_event(new_agent_text_message(f"No job found for task {task_id}"))
+            await event_queue.enqueue_event(
+                new_agent_text_message(f"No job found for task {task_id}")
+            )
             return
 
         runner = self._runners.get(job_id)
@@ -184,7 +188,9 @@ class PrimrAgentExecutor(AgentExecutor):
         estimator_mode = mode_mapping.get(mode, "complete")
         try:
             estimate = estimate_cost(estimator_mode, use_historical=False)
-            await event_queue.enqueue_event(new_agent_text_message(json.dumps(estimate, indent=2, default=str)))
+            await event_queue.enqueue_event(
+                new_agent_text_message(json.dumps(estimate, indent=2, default=str))
+            )
         except Exception as e:
             await event_queue.enqueue_event(new_agent_text_message(f"Estimate failed: {e}"))
 
@@ -265,11 +271,10 @@ class PrimrAgentExecutor(AgentExecutor):
                     await asyncio.sleep(_JOB_POLL_INTERVAL)
                     current_job = self._mcp.job_store.get(job.job_id)
                     if current_job:
-                        progress = (
-                            f"{current_job.current_stage.value}"
-                            + (f" ({current_job.stage_progress_percent}%)"
-                               if current_job.stage_progress_percent
-                               else "")
+                        progress = f"{current_job.current_stage.value}" + (
+                            f" ({current_job.stage_progress_percent}%)"
+                            if current_job.stage_progress_percent
+                            else ""
                         )
                         await event_queue.enqueue_event(
                             _status_update_event(
@@ -290,7 +295,9 @@ class PrimrAgentExecutor(AgentExecutor):
                     from primr.mcp_server.job_store import ResearchStage
 
                     if final_job.current_stage == ResearchStage.COMPLETED:
-                        paths = ", ".join(final_job.output_paths) if final_job.output_paths else "N/A"
+                        paths = (
+                            ", ".join(final_job.output_paths) if final_job.output_paths else "N/A"
+                        )
                         await event_queue.enqueue_event(
                             _status_update_event(
                                 state=TaskState.completed,
@@ -349,7 +356,9 @@ class PrimrAgentExecutor(AgentExecutor):
                     "job_id": terminal.job_id,
                     "company": terminal.company_name,
                     "stage": stage,
-                    "status": stage if stage in ("completed", "failed", "cancelled") else "finished",
+                    "status": stage
+                    if stage in ("completed", "failed", "cancelled")
+                    else "finished",
                     "output_paths": terminal.output_paths or [],
                 }
             else:
@@ -397,9 +406,7 @@ class PrimrAgentExecutor(AgentExecutor):
         """Handle unrecognized skill - try to route by content."""
         available = "estimate_research, research_company, check_jobs, run_qa, system_health"
         await event_queue.enqueue_event(
-            new_agent_text_message(
-                f"Unknown skill '{skill_id}'. Available skills: {available}"
-            )
+            new_agent_text_message(f"Unknown skill '{skill_id}'. Available skills: {available}")
         )
 
 

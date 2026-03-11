@@ -52,9 +52,14 @@ def test_scrape_website_uses_local_resume_when_homepage_fetch_fails(tmp_path):
     )
     orchestrator._get_host_state.return_value = SimpleNamespace(best_tier=None)
 
-    with patch("primr.data.scrape.get_orchestrator", return_value=orchestrator), patch(
-        "primr.data.scraping.scrape_with_playwright",
-        return_value=SimpleNamespace(success=False, raw_content=None, error="network error", tier="playwright"),
+    with (
+        patch("primr.data.scrape.get_orchestrator", return_value=orchestrator),
+        patch(
+            "primr.data.scraping.scrape_with_playwright",
+            return_value=SimpleNamespace(
+                success=False, raw_content=None, error="network error", tier="playwright"
+            ),
+        ),
     ):
         content = fetch_web_content(
             website="https://example.com",

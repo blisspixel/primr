@@ -28,6 +28,7 @@ class OneLinerSummary:
 
     Must pass the "dinner test" - explainable in 2 sentences.
     """
+
     company_name: str
     industry: str = ""
     differentiator: str = ""
@@ -57,6 +58,7 @@ class DocumentDisclaimer:
     """
     AI-generated content disclaimer and data currency notice.
     """
+
     generation_date: str = ""
 
     def __post_init__(self):
@@ -103,12 +105,21 @@ class KeyImplicationsBox:
 
         # Keywords that suggest implications
         keywords = [
-            'suggests', 'indicates', 'implies', 'means', 'therefore',
-            'consequently', 'as a result', 'opportunity', 'risk',
-            'should consider', 'may need', 'could benefit'
+            "suggests",
+            "indicates",
+            "implies",
+            "means",
+            "therefore",
+            "consequently",
+            "as a result",
+            "opportunity",
+            "risk",
+            "should consider",
+            "may need",
+            "could benefit",
         ]
 
-        sentences = re.split(r'[.!?]+', content)
+        sentences = re.split(r"[.!?]+", content)
 
         for sentence in sentences:
             sentence = sentence.strip()
@@ -156,8 +167,8 @@ class KeyImplicationsBox:
     def _style_callout_cell(self, cell: Any) -> None:
         """Apply callout box styling to cell."""
         # Light background
-        shading = OxmlElement('w:shd')
-        shading.set(qn('w:fill'), 'F5F5F5')
+        shading = OxmlElement("w:shd")
+        shading.set(qn("w:fill"), "F5F5F5")
         cell._tc.get_or_add_tcPr().append(shading)
 
 
@@ -169,15 +180,15 @@ class StrategicRecommendationFormatter:
     """
 
     PRIORITY_COLORS = {
-        'high': RGBColor(0xC0, 0x39, 0x2B),    # Red
-        'medium': RGBColor(0xF3, 0x9C, 0x12),  # Orange
-        'low': RGBColor(0x27, 0xAE, 0x60),     # Green
+        "high": RGBColor(0xC0, 0x39, 0x2B),  # Red
+        "medium": RGBColor(0xF3, 0x9C, 0x12),  # Orange
+        "low": RGBColor(0x27, 0xAE, 0x60),  # Green
     }
 
     PRIORITY_INDICATORS = {
-        'high': '[HIGH]',
-        'medium': '[MED]',
-        'low': '[LOW]',
+        "high": "[HIGH]",
+        "medium": "[MED]",
+        "low": "[LOW]",
     }
 
     def __init__(self, document: Document):
@@ -187,14 +198,14 @@ class StrategicRecommendationFormatter:
         """Detect priority level from text content."""
         lower = text.lower()
 
-        high_keywords = ['critical', 'urgent', 'immediate', 'essential', 'must']
-        medium_keywords = ['should', 'important', 'consider', 'recommend']
+        high_keywords = ["critical", "urgent", "immediate", "essential", "must"]
+        medium_keywords = ["should", "important", "consider", "recommend"]
 
         if any(kw in lower for kw in high_keywords):
-            return 'high'
+            return "high"
         elif any(kw in lower for kw in medium_keywords):
-            return 'medium'
-        return 'low'
+            return "medium"
+        return "low"
 
     def format_recommendation(self, number: int, text: str, priority: str | None = None) -> None:
         """Add a formatted recommendation to the document."""
@@ -208,7 +219,7 @@ class StrategicRecommendationFormatter:
         num_run.bold = True
 
         # Priority indicator
-        indicator = self.PRIORITY_INDICATORS.get(priority, '')
+        indicator = self.PRIORITY_INDICATORS.get(priority, "")
         if indicator:
             priority_run = para.add_run(f"{indicator} ")
             priority_run.font.color.rgb = self.PRIORITY_COLORS.get(priority, RGBColor(0, 0, 0))
@@ -226,8 +237,15 @@ class QuickWinsSection:
     """
 
     QUICK_WIN_KEYWORDS = [
-        'quick', 'easy', 'simple', 'immediate', 'low-cost',
-        'straightforward', 'readily', 'quickly', 'soon'
+        "quick",
+        "easy",
+        "simple",
+        "immediate",
+        "low-cost",
+        "straightforward",
+        "readily",
+        "quickly",
+        "soon",
     ]
 
     def __init__(self, document: Document, style_engine: Any):
@@ -238,7 +256,7 @@ class QuickWinsSection:
         """Extract quick win items from content."""
         quick_wins = []
 
-        sentences = re.split(r'[.!?]+', content)
+        sentences = re.split(r"[.!?]+", content)
 
         for sentence in sentences:
             sentence = sentence.strip()
@@ -259,7 +277,7 @@ class QuickWinsSection:
             return
 
         # Heading
-        self.document.add_heading('Quick Wins (30-Day Actions)', level=3)
+        self.document.add_heading("Quick Wins (30-Day Actions)", level=3)
 
         # Create callout table
         table = self.document.add_table(rows=1, cols=1)
@@ -270,8 +288,8 @@ class QuickWinsSection:
             para.add_run(f"{i}. {win}")
 
         # Style
-        shading = OxmlElement('w:shd')
-        shading.set(qn('w:fill'), 'E8F5E9')  # Light green
+        shading = OxmlElement("w:shd")
+        shading.set(qn("w:fill"), "E8F5E9")  # Light green
         cell._tc.get_or_add_tcPr().append(shading)
 
         self.document.add_paragraph()
@@ -299,7 +317,7 @@ class FinancialDashboard:
             return
 
         # Heading
-        self.document.add_heading('Financial Dashboard', level=3)
+        self.document.add_heading("Financial Dashboard", level=3)
 
         # Create 2x3 table (or adjust based on metric count)
         metric_items = list(metrics.items())
@@ -340,20 +358,20 @@ class DataConfidenceIndicator:
     """
 
     INDICATORS = {
-        'high': '●●●',
-        'medium': '●●○',
-        'low': '●○○',
+        "high": "●●●",
+        "medium": "●●○",
+        "low": "●○○",
     }
 
     COLORS = {
-        'high': RGBColor(0x27, 0xAE, 0x60),    # Green
-        'medium': RGBColor(0xF3, 0x9C, 0x12),  # Orange
-        'low': RGBColor(0xC0, 0x39, 0x2B),     # Red
+        "high": RGBColor(0x27, 0xAE, 0x60),  # Green
+        "medium": RGBColor(0xF3, 0x9C, 0x12),  # Orange
+        "low": RGBColor(0xC0, 0x39, 0x2B),  # Red
     }
 
     def get_indicator(self, level: str) -> str:
         """Get the confidence indicator string."""
-        return self.INDICATORS.get(level, self.INDICATORS['medium'])
+        return self.INDICATORS.get(level, self.INDICATORS["medium"])
 
     def format_with_confidence(self, text: str, level: str) -> str:
         """Format text with confidence indicator."""
@@ -365,5 +383,5 @@ class DataConfidenceIndicator:
         paragraph.add_run(text + " ")
 
         indicator_run = paragraph.add_run(self.get_indicator(level))
-        indicator_run.font.color.rgb = self.COLORS.get(level, self.COLORS['medium'])
+        indicator_run.font.color.rgb = self.COLORS.get(level, self.COLORS["medium"])
         indicator_run.font.size = Pt(10)

@@ -90,6 +90,7 @@ class TestAzureContainerAppConfig:
     def test_is_valid_yaml(self, azure_dir: Path) -> None:
         """container-app.yaml should be valid YAML."""
         import yaml
+
         content = (azure_dir / "container-app.yaml").read_text()
         config = yaml.safe_load(content)
         assert isinstance(config, dict)
@@ -106,6 +107,7 @@ class TestAzureJobTemplateConfig:
     def test_is_valid_yaml(self, azure_dir: Path) -> None:
         """job-template.yaml should be valid YAML."""
         import yaml
+
         content = (azure_dir / "job-template.yaml").read_text()
         config = yaml.safe_load(content)
         assert isinstance(config, dict)

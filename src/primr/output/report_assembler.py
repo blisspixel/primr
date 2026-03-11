@@ -4,6 +4,7 @@ Report Assembler for consulting-tier reports.
 Combines sections into a complete report with sources appendix
 and export capabilities.
 """
+
 import contextlib
 import os
 import shutil
@@ -28,7 +29,7 @@ class ReportAssembler:
         executive_summary: SectionContent,
         sections: list[SectionContent],
         insights: list[Insight],
-        research_duration: float
+        research_duration: float,
     ) -> Report:
         """
         Assemble sections into a complete report.
@@ -54,7 +55,7 @@ class ReportAssembler:
             industry=industry,
             generated_at=datetime.now(),
             research_duration_seconds=research_duration,
-            sources_count=len(all_sources)
+            sources_count=len(all_sources),
         )
 
         return Report(
@@ -62,13 +63,11 @@ class ReportAssembler:
             executive_summary=executive_summary,
             sections=sections,
             sources_appendix=all_sources,
-            insights=insights
+            insights=insights,
         )
 
     def _collect_sources(
-        self,
-        executive_summary: SectionContent,
-        sections: list[SectionContent]
+        self, executive_summary: SectionContent, sections: list[SectionContent]
     ) -> list[SourceCitation]:
         """Collect all unique sources from sections."""
         sources = []
@@ -134,14 +133,15 @@ class ReportAssembler:
             line += f"\n  Accessed: {accessed}"
 
             if source.excerpt:
-                excerpt = source.excerpt[:150] + "..." if len(source.excerpt) > 150 else source.excerpt
+                excerpt = (
+                    source.excerpt[:150] + "..." if len(source.excerpt) > 150 else source.excerpt
+                )
                 line += f"\n  Excerpt: {excerpt}"
 
             lines.append(line)
             lines.append("")
 
         return "\n".join(lines)
-
 
     def to_markdown(self, report: Report) -> str:
         """
@@ -287,12 +287,15 @@ class ReportAssembler:
         # This is a simplified approach - could use reportlab for direct PDF
         try:
             import subprocess
+
             output_pdf = Path(path)
             output_dir = output_pdf.parent if output_pdf.parent != Path("") else Path(".")
             output_dir.mkdir(parents=True, exist_ok=True)
 
             # Create temp DOCX in target directory so soffice can emit a sibling PDF.
-            fd, temp_docx_str = tempfile.mkstemp(suffix=".docx", prefix="primr_pdf_", dir=str(output_dir))
+            fd, temp_docx_str = tempfile.mkstemp(
+                suffix=".docx", prefix="primr_pdf_", dir=str(output_dir)
+            )
             os.close(fd)
             temp_docx = Path(temp_docx_str)
 
@@ -303,10 +306,19 @@ class ReportAssembler:
 
             # Try to convert using LibreOffice (if available)
             try:
-                subprocess.run([
-                    "soffice", "--headless", "--convert-to", "pdf",
-                    "--outdir", str(output_dir), str(temp_docx)
-                ], check=True, capture_output=True)
+                subprocess.run(
+                    [
+                        "soffice",
+                        "--headless",
+                        "--convert-to",
+                        "pdf",
+                        "--outdir",
+                        str(output_dir),
+                        str(temp_docx),
+                    ],
+                    check=True,
+                    capture_output=True,
+                )
                 generated_pdf = output_dir / f"{temp_docx.stem}.pdf"
                 if generated_pdf.exists():
                     if generated_pdf.resolve() != output_pdf.resolve():

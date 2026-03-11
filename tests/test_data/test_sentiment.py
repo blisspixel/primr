@@ -23,6 +23,7 @@ from primr.data.sentiment import (
 # FIXTURES
 # =============================================================================
 
+
 @pytest.fixture(autouse=True)
 def reset_singleton():
     """Reset singleton before each test."""
@@ -40,6 +41,7 @@ def analyzer():
 # =============================================================================
 # SENTIMENT RESULT TESTS
 # =============================================================================
+
 
 class TestSentimentResult:
     """Tests for SentimentResult dataclass."""
@@ -87,6 +89,7 @@ class TestSentimentResult:
 # =============================================================================
 # BASIC SENTIMENT TESTS
 # =============================================================================
+
 
 class TestBasicSentiment:
     """Tests for basic sentiment analysis."""
@@ -138,6 +141,7 @@ class TestBasicSentiment:
 # NEGATION TESTS
 # =============================================================================
 
+
 class TestNegation:
     """Tests for negation handling."""
 
@@ -169,6 +173,7 @@ class TestNegation:
 # =============================================================================
 # TONE ANALYSIS TESTS
 # =============================================================================
+
 
 class TestToneAnalysis:
     """Tests for tone analysis."""
@@ -217,7 +222,9 @@ class TestToneAnalysis:
 
     def test_secondary_tones(self, analyzer):
         """Test secondary tone detection."""
-        text = "Our revolutionary platform uses cutting-edge infrastructure for scalable deployment."
+        text = (
+            "Our revolutionary platform uses cutting-edge infrastructure for scalable deployment."
+        )
         result = analyzer.analyze_tone(text)
 
         # Should have both promotional and technical tones
@@ -228,6 +235,7 @@ class TestToneAnalysis:
 # =============================================================================
 # ENTITY SENTIMENT TESTS
 # =============================================================================
+
 
 class TestEntitySentiment:
     """Tests for entity-level sentiment."""
@@ -261,6 +269,7 @@ class TestEntitySentiment:
 # SENTENCE ANALYSIS TESTS
 # =============================================================================
 
+
 class TestSentenceAnalysis:
     """Tests for sentence-level analysis."""
 
@@ -292,6 +301,7 @@ class TestSentenceAnalysis:
 # =============================================================================
 # COMPLETE ANALYSIS TESTS
 # =============================================================================
+
 
 class TestCompleteAnalysis:
     """Tests for complete content analysis."""
@@ -325,6 +335,7 @@ class TestCompleteAnalysis:
 # SINGLETON TESTS
 # =============================================================================
 
+
 class TestSingleton:
     """Tests for singleton access."""
 
@@ -345,6 +356,7 @@ class TestSingleton:
 # =============================================================================
 # CONVENIENCE FUNCTION TESTS
 # =============================================================================
+
 
 class TestConvenienceFunctions:
     """Tests for convenience functions."""
@@ -376,6 +388,7 @@ class TestConvenienceFunctions:
 # =============================================================================
 # EDGE CASE TESTS
 # =============================================================================
+
 
 class TestEdgeCases:
     """Tests for edge cases."""
@@ -416,6 +429,7 @@ class TestEdgeCases:
 # =============================================================================
 # CONFIDENCE TESTS
 # =============================================================================
+
 
 class TestConfidence:
     """Tests for confidence scoring."""

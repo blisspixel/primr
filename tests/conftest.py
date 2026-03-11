@@ -36,15 +36,12 @@ def pytest_configure(config):
     # Set a generous Hypothesis deadline globally so property tests don't flake
     # on slower machines or CI. Individual tests can still override with @settings.
     from hypothesis import settings as hypothesis_settings
+
     hypothesis_settings.register_profile("ci", deadline=None)
     hypothesis_settings.load_profile("ci")
 
     # Suppress unclosed event loop warnings from asyncio
-    warnings.filterwarnings(
-        "ignore",
-        message="unclosed event loop",
-        category=ResourceWarning
-    )
+    warnings.filterwarnings("ignore", message="unclosed event loop", category=ResourceWarning)
 
     # Suppress legacy error deprecation warnings during test runs
     # These are intentionally used in tests to verify backward compatibility
@@ -52,5 +49,5 @@ def pytest_configure(config):
         "ignore",
         message=".*is deprecated and will be removed in v2.0.*",
         category=DeprecationWarning,
-        module="primr.utils.errors"
+        module="primr.utils.errors",
     )

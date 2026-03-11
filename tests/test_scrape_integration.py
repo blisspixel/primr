@@ -87,6 +87,7 @@ HTML_WITH_LINKS = """
 # ORCHESTRATOR TESTS
 # ============================================================================
 
+
 class TestOrchestratorTierEscalation:
     """Tests for orchestrator tier escalation behavior."""
 
@@ -104,8 +105,10 @@ class TestOrchestratorTierEscalation:
         def tier1_success(url, timeout=30):
             call_order.append("tier1")
             return ScrapeResult(
-                url=url, success=True, tier="tier1",
-                raw_content=VALID_HTML.encode('utf-8'),
+                url=url,
+                success=True,
+                tier="tier1",
+                raw_content=VALID_HTML.encode("utf-8"),
             )
 
         def tier2_should_not_run(url, timeout=30):
@@ -139,8 +142,10 @@ class TestOrchestratorTierEscalation:
         def tier2_success(url, timeout=30):
             call_order.append("tier2")
             return ScrapeResult(
-                url=url, success=True, tier="tier2",
-                raw_content=VALID_HTML.encode('utf-8'),
+                url=url,
+                success=True,
+                tier="tier2",
+                raw_content=VALID_HTML.encode("utf-8"),
             )
 
         orchestrator.tiers = [
@@ -190,9 +195,10 @@ class TestOrchestratorCaching:
 
         # Pre-populate cache with raw content (orchestrator checks raw cache)
         url = "https://example.com/cached"
-        cache.set_raw(url, VALID_HTML.encode('utf-8'))
+        cache.set_raw(url, VALID_HTML.encode("utf-8"))
 
         tier_called = False
+
         def should_not_run(url, timeout=30):
             nonlocal tier_called
             tier_called = True
@@ -211,6 +217,7 @@ class TestOrchestratorCaching:
 # WRAPPER FUNCTION TESTS
 # ============================================================================
 
+
 class TestScrapePage:
     """Tests for the scrape_page wrapper function."""
 
@@ -226,7 +233,7 @@ class TestScrapePage:
             extracted_text="Test content",
         )
 
-        with patch.object(ScrapeOrchestrator, 'scrape_url', return_value=mock_result):
+        with patch.object(ScrapeOrchestrator, "scrape_url", return_value=mock_result):
             content, tier = scrape_page("https://test.com")
 
         assert content == "Test content"
@@ -240,7 +247,7 @@ class TestScrapePage:
             error="All tiers exhausted",
         )
 
-        with patch.object(ScrapeOrchestrator, 'scrape_url', return_value=mock_result):
+        with patch.object(ScrapeOrchestrator, "scrape_url", return_value=mock_result):
             content, error = scrape_page("https://blocked.com")
 
         assert content is None
@@ -250,6 +257,7 @@ class TestScrapePage:
 # ============================================================================
 # SOFT BLOCK DETECTION TESTS
 # ============================================================================
+
 
 class TestSoftBlockDetection:
     """Tests for soft block detection integration."""
@@ -278,6 +286,7 @@ class TestSoftBlockDetection:
 # ============================================================================
 # CONTENT EXTRACTION TESTS
 # ============================================================================
+
 
 class TestContentExtraction:
     """Tests for content extraction integration."""
@@ -311,6 +320,7 @@ class TestContentExtraction:
 # LINK EXTRACTION TESTS
 # ============================================================================
 
+
 class TestLinkExtraction:
     """Tests for link extraction integration."""
 
@@ -332,6 +342,7 @@ class TestLinkExtraction:
 # ============================================================================
 # CACHE TESTS
 # ============================================================================
+
 
 class TestCaching:
     """Tests for caching integration."""

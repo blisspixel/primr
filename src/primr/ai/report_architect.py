@@ -14,6 +14,7 @@ from typing import Any
 
 try:
     from google import genai as _google_genai
+
     _GENAI_IMPORT_ERROR: Exception | None = None
 except Exception as import_error:
     _GENAI_IMPORT_ERROR = import_error
@@ -40,7 +41,10 @@ logger = get_logger("ai.report_architect")
 def _require_genai_dependency() -> None:
     if _GENAI_IMPORT_ERROR is None:
         return
-    if _FALLBACK_CLIENT_CLASS is not None and getattr(genai, "Client", None) is not _FALLBACK_CLIENT_CLASS:
+    if (
+        _FALLBACK_CLIENT_CLASS is not None
+        and getattr(genai, "Client", None) is not _FALLBACK_CLIENT_CLASS
+    ):
         return
     raise RuntimeError(
         "google.genai is not available. Install compatible dependencies "
@@ -95,49 +99,49 @@ DEFAULT_CHAPTERS = [
         "research_prompt": """Write a comprehensive executive summary for {company_name}.
 Include: company overview, founding story, headquarters, employee count, revenue if available.
 Synthesize the most critical findings a decision-maker needs in 60 seconds.
-Use the File Search context for baseline company facts. Add market context from web search."""
+Use the File Search context for baseline company facts. Add market context from web search.""",
     },
     {
         "title": "Products, Services & Value Proposition",
         "research_prompt": """Analyze {company_name}'s complete product and service portfolio.
 Include: detailed product lines, service offerings, pricing models, how they make money.
 Explain their unique selling proposition and competitive differentiation.
-Use File Search for official product info, web search for customer reviews and market perception."""
+Use File Search for official product info, web search for customer reviews and market perception.""",
     },
     {
         "title": "Leadership, Culture & Organization",
         "research_prompt": """Research {company_name}'s leadership team and organizational culture.
 Include: key executives with backgrounds, board composition, leadership tenure and stability.
 Analyze cultural signals from careers page, press releases, Glassdoor, and how they talk about their team.
-Note any recent leadership changes or departures."""
+Note any recent leadership changes or departures.""",
     },
     {
         "title": "Financial Position & Business Model",
         "research_prompt": """Analyze {company_name}'s financial position and business model.
 Include: revenue, growth trajectory, profitability indicators, funding history if private.
 Explain their business model, revenue streams, and key financial metrics.
-Use estimates if needed and label confidence levels. If truly unavailable, state so."""
+Use estimates if needed and label confidence levels. If truly unavailable, state so.""",
     },
     {
         "title": "Target Markets & Customer Segments",
         "research_prompt": """Research {company_name}'s target markets and customer segments.
 Include: who buys from them, customer segments, industries served, geographic focus.
 Analyze typical buyer profile, customer success stories, and market penetration.
-Include data tables comparing customer segments if available."""
+Include data tables comparing customer segments if available.""",
     },
     {
         "title": "Competitive Landscape & Market Position",
         "research_prompt": """Analyze {company_name}'s competitive landscape and market position.
 Include: main competitors, market share estimates, competitive advantages and disadvantages.
 Create comparison tables for key competitors on dimensions like pricing, features, market focus.
-Analyze where they win deals vs. lose them, and emerging competitive threats."""
+Analyze where they win deals vs. lose them, and emerging competitive threats.""",
     },
     {
         "title": "Industry Dynamics & External Forces",
         "research_prompt": """Research the industry dynamics affecting {company_name}.
 Include: industry growth trends, disruption factors, regulatory pressures, technology shifts.
 Analyze supply chain dynamics, talent market conditions, and macro-economic factors.
-What external forces are shaping their world? What keeps leadership up at night?"""
+What external forces are shaping their world? What keeps leadership up at night?""",
     },
     {
         "title": "SWOT Analysis & Strategic Assessment",
@@ -146,21 +150,21 @@ Strengths: What appears difficult to replicate? Core competencies?
 Weaknesses: What constraints, tradeoffs, or gaps exist?
 Opportunities: What options are worth exploring? Market expansion?
 Threats: What risks should be discussed? Competitive, regulatory, technological?
-Frame as observations to validate, not conclusions."""
+Frame as observations to validate, not conclusions.""",
     },
     {
         "title": "Risk Analysis & Mitigation Strategies",
         "research_prompt": """Analyze potential risks facing {company_name}.
 Include: competitive risks, operational risks, market/macro risks, leadership/execution risks.
 For each risk, assess likelihood, potential impact, and possible mitigation strategies.
-Frame as areas worth discussing, not definitive threats. Note evidence quality."""
+Frame as areas worth discussing, not definitive threats. Note evidence quality.""",
     },
     {
         "title": "Strategic Recommendations & Discovery Questions",
         "research_prompt": """Synthesize strategic recommendations and discovery questions for {company_name}.
 Include: quick wins (lower-effort options), strategic bets (transformational moves), defensive considerations.
 Generate 5-7 thoughtful questions for the first client conversation.
-Frame as hypotheses to explore, not conclusions. What do we most want to understand from them?"""
+Frame as hypotheses to explore, not conclusions. What do we most want to understand from them?""",
     },
 ]
 
@@ -233,7 +237,7 @@ class MasterArchitect:
                 config={
                     "response_mime_type": "application/json",
                     "temperature": 0.3,  # Lower temperature for consistent structure
-                }
+                },
             )
 
             # Parse the JSON response
@@ -327,9 +331,7 @@ Output ONLY the JSON object, no other text."""
 
             # Validate we have enough chapters
             if len(chapters) < 8:
-                logger.warning(
-                    f"Only {len(chapters)} chapters parsed, using defaults"
-                )
+                logger.warning(f"Only {len(chapters)} chapters parsed, using defaults")
                 return self._get_default_chapters(company_name)
 
             return chapters
@@ -344,12 +346,14 @@ Output ONLY the JSON object, no other text."""
         for i, ch in enumerate(DEFAULT_CHAPTERS, 1):
             # Replace {company_name} placeholder in prompts
             prompt = ch["research_prompt"].format(company_name=company_name)
-            chapters.append(ChapterPlan(
-                chapter_number=i,
-                title=ch["title"],
-                research_prompt=prompt,
-                expected_pages=5,
-            ))
+            chapters.append(
+                ChapterPlan(
+                    chapter_number=i,
+                    title=ch["title"],
+                    research_prompt=prompt,
+                    expected_pages=5,
+                )
+            )
         return chapters
 
     def _get_default_plan(self, company_name: str) -> ReportPlan:

@@ -32,6 +32,7 @@ USAGE_FILE = Path(__file__).parent.parent.parent.parent / "logs" / "usage_histor
 @dataclass
 class UsageRecord:
     """Record of a single API usage event."""
+
     timestamp: str
     mode: str
     company: str
@@ -122,6 +123,7 @@ class UsageRecord:
 @dataclass
 class SessionUsage:
     """Tracks usage for the current session."""
+
     records: list[UsageRecord] = field(default_factory=list)
     total_input_tokens: int = 0
     total_output_tokens: int = 0
@@ -217,7 +219,7 @@ class UsageTracker:
             self.storage_path.parent.mkdir(parents=True, exist_ok=True)
 
             # Save to file
-            with open(self.storage_path, 'w', encoding="utf-8") as f:
+            with open(self.storage_path, "w", encoding="utf-8") as f:
                 json.dump(self.history, f, indent=2)
 
             logger.info(f"Saved {len(self.session.records)} usage records")
@@ -328,31 +330,40 @@ class UsageTracker:
         total_duration = sum(r.get("duration_seconds", 0) for r in self.history)
         total_dr_cost = sum(r.get("deep_research_cost", 0) for r in self.history)
 
-        lines.extend([
-            "All-Time Totals:",
-            f"  Input Tokens:   {total_input:,}",
-            f"  Output Tokens:  {total_output:,}",
-            f"  Search Queries: {total_searches:,}",
-            f"  Total Cost:     ${total_cost:.2f}",
-        ])
+        lines.extend(
+            [
+                "All-Time Totals:",
+                f"  Input Tokens:   {total_input:,}",
+                f"  Output Tokens:  {total_output:,}",
+                f"  Search Queries: {total_searches:,}",
+                f"  Total Cost:     ${total_cost:.2f}",
+            ]
+        )
         if total_dr_cost > 0:
-            lines.extend([
-                f"    Token cost:   ${total_cost - total_dr_cost:.2f}",
-                f"    DR cost:      ${total_dr_cost:.2f}",
-            ])
-        lines.extend([
-            f"  Total Time:     {total_duration / 60:.1f} minutes",
-            "",
-        ])
+            lines.extend(
+                [
+                    f"    Token cost:   ${total_cost - total_dr_cost:.2f}",
+                    f"    DR cost:      ${total_dr_cost:.2f}",
+                ]
+            )
+        lines.extend(
+            [
+                f"  Total Time:     {total_duration / 60:.1f} minutes",
+                "",
+            ]
+        )
 
         # Show search cost projection (after Jan 5, 2026)
         if total_searches > 0:
             from primr.config.models import SEARCH_COST_PER_QUERY
+
             projected_search_cost = total_searches * SEARCH_COST_PER_QUERY
-            lines.extend([
-                f"  Search Cost (after Jan 5): +${projected_search_cost:.2f}",
-                "",
-            ])
+            lines.extend(
+                [
+                    f"  Search Cost (after Jan 5): +${projected_search_cost:.2f}",
+                    "",
+                ]
+            )
 
         # Per-mode breakdown with current estimates
         modes = ["structured", "deep-research", "complete", "hybrid", "ai-strategy"]
@@ -362,15 +373,21 @@ class UsageTracker:
         for mode in modes:
             avg = self.get_average_by_mode(mode)
             if avg:
-                status = "✓ learning" if avg['sample_size'] >= 3 else f"need {3 - avg['sample_size']} more"
-                lines.extend([
-                    f"  {mode}:",
-                    f"    Runs: {avg['sample_size']} ({status})",
-                    f"    Avg Cost:     ${avg['avg_cost']:.2f}",
-                    f"    Avg Searches: {avg['avg_search_queries']}",
-                    f"    Avg Time:     {avg['avg_duration_seconds'] / 60:.1f} min",
-                    "",
-                ])
+                status = (
+                    "✓ learning"
+                    if avg["sample_size"] >= 3
+                    else f"need {3 - avg['sample_size']} more"
+                )
+                lines.extend(
+                    [
+                        f"  {mode}:",
+                        f"    Runs: {avg['sample_size']} ({status})",
+                        f"    Avg Cost:     ${avg['avg_cost']:.2f}",
+                        f"    Avg Searches: {avg['avg_search_queries']}",
+                        f"    Avg Time:     {avg['avg_duration_seconds'] / 60:.1f} min",
+                        "",
+                    ]
+                )
 
         # Recent runs (last 5)
         lines.append("-" * 40)
@@ -385,7 +402,9 @@ class UsageTracker:
             cost = r.get("total_cost", 0)
             searches = r.get("search_queries", 0)
             duration = r.get("duration_seconds", 0) / 60
-            lines.append(f"  {timestamp} | {company:<20} | {mode:<12} | ${cost:.2f} | {searches} srch | {duration:.0f}m")
+            lines.append(
+                f"  {timestamp} | {company:<20} | {mode:<12} | ${cost:.2f} | {searches} srch | {duration:.0f}m"
+            )
 
         lines.extend(["", "=" * 60])
 

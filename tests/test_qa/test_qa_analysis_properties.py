@@ -36,46 +36,69 @@ def report_metadata(draw):
         generation_date=draw(st.datetimes(min_value=datetime(2020, 1, 1))),
         generation_mode=draw(st.sampled_from(["scrape", "deep", "full"])),
         model_used=draw(st.sampled_from(["gemini-3-flash-preview", "gemini-3-flash-preview"])),
-        file_path=Path("test_report.txt")
+        file_path=Path("test_report.txt"),
     )
 
 
 @st.composite
 def report_content(draw):
     """Generate valid ReportContent for testing."""
-    company_name = draw(st.text(min_size=1, max_size=20, alphabet=st.characters(whitelist_categories=('Lu', 'Ll', 'Nd', 'Pc'), whitelist_characters=' ')))
+    company_name = draw(
+        st.text(
+            min_size=1,
+            max_size=20,
+            alphabet=st.characters(
+                whitelist_categories=("Lu", "Ll", "Nd", "Pc"), whitelist_characters=" "
+            ),
+        )
+    )
 
     # Generate simpler, smaller sections
-    section_names = draw(st.lists(
-        st.sampled_from([
-            "Executive Summary", "Company Overview", "Business Model",
-            "Financial Analysis", "Market Position", "Conclusion"
-        ]),
-        min_size=2, max_size=4, unique=True
-    ))
+    section_names = draw(
+        st.lists(
+            st.sampled_from(
+                [
+                    "Executive Summary",
+                    "Company Overview",
+                    "Business Model",
+                    "Financial Analysis",
+                    "Market Position",
+                    "Conclusion",
+                ]
+            ),
+            min_size=2,
+            max_size=4,
+            unique=True,
+        )
+    )
 
     sections = {}
     content_parts = []
 
     for section in section_names:
-        section_content = draw(st.text(min_size=20, max_size=100, alphabet=st.characters(whitelist_categories=('Lu', 'Ll', 'Nd', 'Pc'), whitelist_characters=' .,!?')))
+        section_content = draw(
+            st.text(
+                min_size=20,
+                max_size=100,
+                alphabet=st.characters(
+                    whitelist_categories=("Lu", "Ll", "Nd", "Pc"), whitelist_characters=" .,!?"
+                ),
+            )
+        )
         sections[section] = section_content
         content_parts.append(f"## {section}\n\n{section_content}\n")
 
     full_content = "\n".join(content_parts)
 
     # Generate simpler citations
-    citations = draw(st.lists(
-        st.just("https://example.com/source"),
-        min_size=0, max_size=3
-    ))
+    citations = draw(st.lists(st.just("https://example.com/source"), min_size=0, max_size=3))
 
     metadata = ReportMetadata(
         company_name=company_name,
         generation_date=datetime(2024, 1, 1),
         generation_mode="test",
         model_used="test-model",
-        file_path=Path("test_report.txt")
+        file_path=Path("test_report.txt"),
     )
 
     return ReportContent(
@@ -84,7 +107,7 @@ def report_content(draw):
         sections=sections,
         citations=citations,
         metadata=metadata,
-        file_path=Path("test_report.txt")
+        file_path=Path("test_report.txt"),
     )
 
 
@@ -115,7 +138,9 @@ class TestQAAnalysisCompleteness:
         assert isinstance(analysis, QAAnalysis), "Analysis must be QAAnalysis instance"
 
         # Property: Overall score must be valid range
-        assert 0 <= analysis.overall_score <= 100, f"Overall score {analysis.overall_score} must be 0-100"
+        assert 0 <= analysis.overall_score <= 100, (
+            f"Overall score {analysis.overall_score} must be 0-100"
+        )
 
         # Property: Section scores must be valid
         assert isinstance(analysis.section_scores, dict), "Section scores must be dict"
@@ -135,13 +160,21 @@ class TestQAAnalysisCompleteness:
 
         # Property: Citation check must be complete
         citation_check = analysis.citation_check
-        assert isinstance(citation_check, CitationCheckResult), "Citation check must be CitationCheckResult"
+        assert isinstance(citation_check, CitationCheckResult), (
+            "Citation check must be CitationCheckResult"
+        )
         assert citation_check.total_citations >= 0, "Total citations must be non-negative"
         assert citation_check.valid_citations >= 0, "Valid citations must be non-negative"
-        assert citation_check.valid_citations <= citation_check.total_citations, "Valid <= total citations"
-        assert 0 <= citation_check.score <= 100, f"Citation score {citation_check.score} must be 0-100"
+        assert citation_check.valid_citations <= citation_check.total_citations, (
+            "Valid <= total citations"
+        )
+        assert 0 <= citation_check.score <= 100, (
+            f"Citation score {citation_check.score} must be 0-100"
+        )
         assert isinstance(citation_check.broken_links, list), "Broken links must be list"
-        assert isinstance(citation_check.unsupported_claims, list), "Unsupported claims must be list"
+        assert isinstance(citation_check.unsupported_claims, list), (
+            "Unsupported claims must be list"
+        )
 
         # Property: Logic check must be complete
         logic_check = analysis.logic_check
@@ -152,20 +185,34 @@ class TestQAAnalysisCompleteness:
 
         # Property: Completeness check must be complete
         completeness_check = analysis.completeness_check
-        assert isinstance(completeness_check, CompletenessCheckResult), "Completeness check must be CompletenessCheckResult"
-        assert 0 <= completeness_check.score <= 100, f"Completeness score {completeness_check.score} must be 0-100"
-        assert isinstance(completeness_check.expected_sections, list), "Expected sections must be list"
-        assert isinstance(completeness_check.missing_sections, list), "Missing sections must be list"
+        assert isinstance(completeness_check, CompletenessCheckResult), (
+            "Completeness check must be CompletenessCheckResult"
+        )
+        assert 0 <= completeness_check.score <= 100, (
+            f"Completeness score {completeness_check.score} must be 0-100"
+        )
+        assert isinstance(completeness_check.expected_sections, list), (
+            "Expected sections must be list"
+        )
+        assert isinstance(completeness_check.missing_sections, list), (
+            "Missing sections must be list"
+        )
         assert isinstance(completeness_check.weak_sections, list), "Weak sections must be list"
 
         # Property: Confidence assessment must be complete
         confidence = analysis.confidence_assessment
-        assert isinstance(confidence, ConfidenceAssessment), "Confidence must be ConfidenceAssessment"
-        assert 0 <= confidence.overall_confidence <= 100, f"Overall confidence {confidence.overall_confidence} must be 0-100"
+        assert isinstance(confidence, ConfidenceAssessment), (
+            "Confidence must be ConfidenceAssessment"
+        )
+        assert 0 <= confidence.overall_confidence <= 100, (
+            f"Overall confidence {confidence.overall_confidence} must be 0-100"
+        )
         assert isinstance(confidence.section_confidence, dict), "Section confidence must be dict"
         for section, conf_score in confidence.section_confidence.items():
             assert isinstance(section, str), "Confidence section names must be strings"
-            assert 0 <= conf_score <= 100, f"Confidence score {conf_score} for {section} must be 0-100"
+            assert 0 <= conf_score <= 100, (
+                f"Confidence score {conf_score} for {section} must be 0-100"
+            )
 
         # Property: Metadata must be present
         assert isinstance(analysis.timestamp, datetime), "Timestamp must be datetime"
@@ -190,16 +237,20 @@ class TestQAAnalysisCompleteness:
 
         # Property: Citation count should be reasonable relative to report citations
         # In fallback mode, it should match the report's citation list
-        assert citation_check.total_citations == len(report.citations), \
+        assert citation_check.total_citations == len(report.citations), (
             f"Total citations {citation_check.total_citations} should match report citations {len(report.citations)}"
+        )
 
         # Property: Valid citations should not exceed total
-        assert citation_check.valid_citations <= citation_check.total_citations, \
+        assert citation_check.valid_citations <= citation_check.total_citations, (
             "Valid citations cannot exceed total citations"
+        )
 
         # Property: Broken links and unsupported claims should be lists
         assert isinstance(citation_check.broken_links, list), "Broken links must be list"
-        assert isinstance(citation_check.unsupported_claims, list), "Unsupported claims must be list"
+        assert isinstance(citation_check.unsupported_claims, list), (
+            "Unsupported claims must be list"
+        )
 
     def test_qa_analysis_with_empty_report(self):
         """
@@ -215,9 +266,9 @@ class TestQAAnalysisCompleteness:
                 generation_date=datetime.now(),
                 generation_mode="test",
                 model_used="test-model",
-                file_path=Path("test.txt")
+                file_path=Path("test.txt"),
             ),
-            file_path=Path("test.txt")
+            file_path=Path("test.txt"),
         )
 
         analyzer = QAAnalyzer()
@@ -250,9 +301,9 @@ class TestQAAnalysisCompleteness:
                 generation_date=datetime.now(),
                 generation_mode="test",
                 model_used="test-model",
-                file_path=Path("large_test.txt")
+                file_path=Path("large_test.txt"),
             ),
-            file_path=Path("large_test.txt")
+            file_path=Path("large_test.txt"),
         )
 
         analyzer = QAAnalyzer()
@@ -290,9 +341,9 @@ class TestCitationCheckingProperties:
                 generation_date=datetime.now(),
                 generation_mode="test",
                 model_used="test-model",
-                file_path=Path("test.txt")
+                file_path=Path("test.txt"),
             ),
-            file_path=Path("test.txt")
+            file_path=Path("test.txt"),
         )
 
         analyzer = QAAnalyzer()
@@ -302,25 +353,30 @@ class TestCitationCheckingProperties:
         citation_check = analysis.citation_check
 
         # Property: Citation count should match input
-        assert citation_check.total_citations == len(citations), \
+        assert citation_check.total_citations == len(citations), (
             f"Total citations {citation_check.total_citations} should match input {len(citations)}"
+        )
 
         # Property: Valid citations should not exceed total
-        assert citation_check.valid_citations <= citation_check.total_citations, \
+        assert citation_check.valid_citations <= citation_check.total_citations, (
             "Valid citations cannot exceed total citations"
+        )
 
         # Property: Valid citations should be non-negative
         assert citation_check.valid_citations >= 0, "Valid citations must be non-negative"
 
         # Property: Score should be in valid range
-        assert 0 <= citation_check.score <= 100, \
+        assert 0 <= citation_check.score <= 100, (
             f"Citation score {citation_check.score} must be 0-100"
+        )
 
         # Property: Broken links should be a list
         assert isinstance(citation_check.broken_links, list), "Broken links must be list"
 
         # Property: Unsupported claims should be a list
-        assert isinstance(citation_check.unsupported_claims, list), "Unsupported claims must be list"
+        assert isinstance(citation_check.unsupported_claims, list), (
+            "Unsupported claims must be list"
+        )
 
         # Property: All broken links should be strings
         for link in citation_check.broken_links:
@@ -344,9 +400,9 @@ class TestCitationCheckingProperties:
                 generation_date=datetime.now(),
                 generation_mode="test",
                 model_used="test-model",
-                file_path=Path("test.txt")
+                file_path=Path("test.txt"),
             ),
-            file_path=Path("test.txt")
+            file_path=Path("test.txt"),
         )
 
         analyzer = QAAnalyzer()
@@ -377,9 +433,9 @@ class TestCitationCheckingProperties:
                 generation_date=datetime.now(),
                 generation_mode="test",
                 model_used="test-model",
-                file_path=Path("test.txt")
+                file_path=Path("test.txt"),
             ),
-            file_path=Path("test.txt")
+            file_path=Path("test.txt"),
         )
 
         analyzer = QAAnalyzer()
@@ -399,18 +455,39 @@ class TestCitationCheckingProperties:
 class TestIssueClassifierProperties:
     """Property-based tests for issue classification and scoring."""
 
-    @given(st.lists(
-        st.builds(
-            ClassifiedIssue,
-            issue_type=st.sampled_from(list(IssueType)),
-            severity=st.sampled_from(list(Severity)),
-            section=st.text(min_size=1, max_size=20, alphabet=st.characters(whitelist_categories=('Lu', 'Ll'), whitelist_characters=' ')),
-            description=st.text(min_size=10, max_size=100, alphabet=st.characters(whitelist_categories=('Lu', 'Ll', 'Nd'), whitelist_characters=' .,')),
-            location=st.text(min_size=5, max_size=50, alphabet=st.characters(whitelist_categories=('Lu', 'Ll', 'Nd'), whitelist_characters=' .,:')),
-            suggestion=st.one_of(st.none(), st.text(min_size=10, max_size=50))
-        ),
-        min_size=0, max_size=10
-    ))
+    @given(
+        st.lists(
+            st.builds(
+                ClassifiedIssue,
+                issue_type=st.sampled_from(list(IssueType)),
+                severity=st.sampled_from(list(Severity)),
+                section=st.text(
+                    min_size=1,
+                    max_size=20,
+                    alphabet=st.characters(
+                        whitelist_categories=("Lu", "Ll"), whitelist_characters=" "
+                    ),
+                ),
+                description=st.text(
+                    min_size=10,
+                    max_size=100,
+                    alphabet=st.characters(
+                        whitelist_categories=("Lu", "Ll", "Nd"), whitelist_characters=" .,"
+                    ),
+                ),
+                location=st.text(
+                    min_size=5,
+                    max_size=50,
+                    alphabet=st.characters(
+                        whitelist_categories=("Lu", "Ll", "Nd"), whitelist_characters=" .,:"
+                    ),
+                ),
+                suggestion=st.one_of(st.none(), st.text(min_size=10, max_size=50)),
+            ),
+            min_size=0,
+            max_size=10,
+        )
+    )
     @settings(suppress_health_check=[HealthCheck.too_slow], max_examples=15)
     def test_score_consistency_property(self, issues: list[ClassifiedIssue]):
         """
@@ -428,21 +505,21 @@ class TestIssueClassifierProperties:
             section_scores={"Test Section": 80},
             issues=issues,
             citation_check=CitationCheckResult(
-                total_citations=5, valid_citations=4, broken_links=[],
-                unsupported_claims=[], score=80
+                total_citations=5,
+                valid_citations=4,
+                broken_links=[],
+                unsupported_claims=[],
+                score=80,
             ),
-            logic_check=LogicCheckResult(
-                contradictions_found=[], unsupported_leaps=[], score=85
-            ),
+            logic_check=LogicCheckResult(contradictions_found=[], unsupported_leaps=[], score=85),
             completeness_check=CompletenessCheckResult(
-                expected_sections=["Test"], missing_sections=[],
-                weak_sections=[], score=75
+                expected_sections=["Test"], missing_sections=[], weak_sections=[], score=75
             ),
             confidence_assessment=ConfidenceAssessment(
                 section_confidence={"Test Section": 80}, overall_confidence=80
             ),
             timestamp=datetime.now(),
-            model_used="test-model"
+            model_used="test-model",
         )
 
         classifier = IssueClassifier()
@@ -474,8 +551,11 @@ class TestIssueClassifierProperties:
         assert isinstance(classification, dict)
 
         # Verify all issues are classified
-        total_classified = sum(len(issue_list) for key, issue_list in classification.items()
-                             if key in ['critical', 'high', 'medium', 'low'])
+        total_classified = sum(
+            len(issue_list)
+            for key, issue_list in classification.items()
+            if key in ["critical", "high", "medium", "low"]
+        )
         assert total_classified >= len(issues), "All issues should be classified by severity"
 
     def test_score_consistency_with_no_issues(self):
@@ -489,21 +569,21 @@ class TestIssueClassifierProperties:
             section_scores={},
             issues=[],
             citation_check=CitationCheckResult(
-                total_citations=0, valid_citations=0, broken_links=[],
-                unsupported_claims=[], score=100
+                total_citations=0,
+                valid_citations=0,
+                broken_links=[],
+                unsupported_claims=[],
+                score=100,
             ),
-            logic_check=LogicCheckResult(
-                contradictions_found=[], unsupported_leaps=[], score=95
-            ),
+            logic_check=LogicCheckResult(contradictions_found=[], unsupported_leaps=[], score=95),
             completeness_check=CompletenessCheckResult(
-                expected_sections=[], missing_sections=[],
-                weak_sections=[], score=90
+                expected_sections=[], missing_sections=[], weak_sections=[], score=90
             ),
             confidence_assessment=ConfidenceAssessment(
                 section_confidence={}, overall_confidence=90
             ),
             timestamp=datetime.now(),
-            model_used="test-model"
+            model_used="test-model",
         )
 
         classifier = IssueClassifier()
@@ -516,26 +596,41 @@ class TestIssueClassifierProperties:
         severity_impact = classifier.calculate_severity_impact([])
         assert severity_impact == 0.0  # No issues = no impact
 
-    @given(st.lists(
-        st.builds(
-            ClassifiedIssue,
-            issue_type=st.sampled_from(list(IssueType)),
-            severity=st.sampled_from(list(Severity)),
-            section=st.text(min_size=1, max_size=20, alphabet=st.characters(whitelist_categories=('Lu', 'Ll'), whitelist_characters=' ')),
-            description=st.text(min_size=10, max_size=100, alphabet=st.characters(whitelist_categories=('Lu', 'Ll', 'Nd'), whitelist_characters=' .,')),
-            location=st.one_of(
-                st.just("line 42"),  # Specific location
-                st.just("paragraph 3 in Executive Summary"),  # Specific location
-                st.just("section 2.1"),  # Specific location
-                st.just("general issues throughout"),  # Vague location
-                st.just("various sections"),  # Vague location
-                st.just("overall"),  # Vague location
-                st.text(min_size=1, max_size=30)  # Random location
+    @given(
+        st.lists(
+            st.builds(
+                ClassifiedIssue,
+                issue_type=st.sampled_from(list(IssueType)),
+                severity=st.sampled_from(list(Severity)),
+                section=st.text(
+                    min_size=1,
+                    max_size=20,
+                    alphabet=st.characters(
+                        whitelist_categories=("Lu", "Ll"), whitelist_characters=" "
+                    ),
+                ),
+                description=st.text(
+                    min_size=10,
+                    max_size=100,
+                    alphabet=st.characters(
+                        whitelist_categories=("Lu", "Ll", "Nd"), whitelist_characters=" .,"
+                    ),
+                ),
+                location=st.one_of(
+                    st.just("line 42"),  # Specific location
+                    st.just("paragraph 3 in Executive Summary"),  # Specific location
+                    st.just("section 2.1"),  # Specific location
+                    st.just("general issues throughout"),  # Vague location
+                    st.just("various sections"),  # Vague location
+                    st.just("overall"),  # Vague location
+                    st.text(min_size=1, max_size=30),  # Random location
+                ),
+                suggestion=st.one_of(st.none(), st.text(min_size=10, max_size=50)),
             ),
-            suggestion=st.one_of(st.none(), st.text(min_size=10, max_size=50))
-        ),
-        min_size=0, max_size=15
-    ))
+            min_size=0,
+            max_size=15,
+        )
+    )
     @settings(suppress_health_check=[HealthCheck.too_slow], max_examples=10)
     def test_issue_location_specificity_property(self, issues: list[ClassifiedIssue]):
         """
@@ -574,7 +669,9 @@ class TestIssueClassifierProperties:
         # Property: Score should reflect the ratio of specific to total issues
         if total > 0:
             expected_score = int((specific / total) * 100)
-            assert abs(score - expected_score) <= 1, f"Score {score} should approximately match ratio {expected_score}"
+            assert abs(score - expected_score) <= 1, (
+                f"Score {score} should approximately match ratio {expected_score}"
+            )
         else:
             assert score == 100, "Empty issue list should have perfect specificity score"
 
@@ -604,7 +701,7 @@ class TestIssueClassifierProperties:
                 section="Test",
                 description="Test issue",
                 location="line 42 in Executive Summary",
-                suggestion=None
+                suggestion=None,
             ),
             ClassifiedIssue(
                 issue_type=IssueType.LOGICAL,
@@ -612,8 +709,8 @@ class TestIssueClassifierProperties:
                 section="Test",
                 description="Test issue",
                 location="paragraph 3 of section 2.1",
-                suggestion=None
-            )
+                suggestion=None,
+            ),
         ]
 
         vague_issues = [
@@ -623,7 +720,7 @@ class TestIssueClassifierProperties:
                 section="Test",
                 description="Test issue",
                 location="general issues throughout",
-                suggestion=None
+                suggestion=None,
             ),
             ClassifiedIssue(
                 issue_type=IssueType.CITATION,
@@ -631,8 +728,8 @@ class TestIssueClassifierProperties:
                 section="Test",
                 description="Test issue",
                 location="various sections",
-                suggestion=None
-            )
+                suggestion=None,
+            ),
         ]
 
         classifier = IssueClassifier()
@@ -661,9 +758,17 @@ class TestIssueClassifierProperties:
 class TestFilePersistenceProperties:
     """Property-based tests for QA file persistence."""
 
-    @given(st.text(min_size=5, max_size=30, alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz ').filter(
-        lambda x: x.strip() and len(x.strip()) >= 5 and not x.startswith(' ') and not x.endswith(' ')
-    ))
+    @given(
+        st.text(
+            min_size=5,
+            max_size=30,
+            alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz ",
+        ).filter(
+            lambda x: (
+                x.strip() and len(x.strip()) >= 5 and not x.startswith(" ") and not x.endswith(" ")
+            )
+        )
+    )
     @settings(suppress_health_check=[HealthCheck.too_slow], max_examples=10, deadline=None)
     def test_file_persistence_property(self, company_name: str):
         """
@@ -688,26 +793,29 @@ class TestFilePersistenceProperties:
                     section="Executive Summary",
                     description="Minor factual inconsistency found",
                     location="paragraph 2",
-                    suggestion="Verify the claim with additional sources"
+                    suggestion="Verify the claim with additional sources",
                 )
             ],
             citation_check=CitationCheckResult(
-                total_citations=5, valid_citations=4, broken_links=[],
-                unsupported_claims=["Claim without source"], score=80
+                total_citations=5,
+                valid_citations=4,
+                broken_links=[],
+                unsupported_claims=["Claim without source"],
+                score=80,
             ),
-            logic_check=LogicCheckResult(
-                contradictions_found=[], unsupported_leaps=[], score=90
-            ),
+            logic_check=LogicCheckResult(contradictions_found=[], unsupported_leaps=[], score=90),
             completeness_check=CompletenessCheckResult(
                 expected_sections=["Executive Summary", "Conclusion"],
-                missing_sections=[], weak_sections=[], score=85
+                missing_sections=[],
+                weak_sections=[],
+                score=85,
             ),
             confidence_assessment=ConfidenceAssessment(
                 section_confidence={"Executive Summary": 90, "Conclusion": 80},
-                overall_confidence=85
+                overall_confidence=85,
             ),
             timestamp=datetime.now(),
-            model_used="test-model"
+            model_used="test-model",
         )
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -727,23 +835,23 @@ class TestFilePersistenceProperties:
 
             # Property: Files should contain expected content
             for file_path in output_files:
-                content = file_path.read_text(encoding='utf-8')
+                content = file_path.read_text(encoding="utf-8")
 
                 # Should contain company name
-                assert company_name.replace(' ', '_') in content or company_name in content, \
+                assert company_name.replace(" ", "_") in content or company_name in content, (
                     "File should contain company name"
+                )
 
                 # Should contain overall score
-                assert str(analysis.overall_score) in content, \
-                    "File should contain overall score"
+                assert str(analysis.overall_score) in content, "File should contain overall score"
 
                 # Should contain some analysis content
-                assert len(content.strip()) > 100, \
+                assert len(content.strip()) > 100, (
                     "File should contain substantial analysis content"
+                )
 
                 # Should be valid text file
-                assert file_path.suffix in ['.txt', '.json'], \
-                    "Should create text or JSON files"
+                assert file_path.suffix in [".txt", ".json"], "Should create text or JSON files"
 
     def test_file_persistence_with_special_characters(self):
         """
@@ -754,33 +862,28 @@ class TestFilePersistenceProperties:
         from pathlib import Path
 
         # Test with company names that need file system normalization
-        test_companies = [
-            "Acme & Associates",
-            "Stark & Banner",
-            "Wayne & Kent",
-            "Wonka's Treats"
-        ]
+        test_companies = ["Acme & Associates", "Stark & Banner", "Wayne & Kent", "Wonka's Treats"]
 
         analysis = QAAnalysis(
             overall_score=75,
             section_scores={},
             issues=[],
             citation_check=CitationCheckResult(
-                total_citations=0, valid_citations=0, broken_links=[],
-                unsupported_claims=[], score=100
+                total_citations=0,
+                valid_citations=0,
+                broken_links=[],
+                unsupported_claims=[],
+                score=100,
             ),
-            logic_check=LogicCheckResult(
-                contradictions_found=[], unsupported_leaps=[], score=100
-            ),
+            logic_check=LogicCheckResult(contradictions_found=[], unsupported_leaps=[], score=100),
             completeness_check=CompletenessCheckResult(
-                expected_sections=[], missing_sections=[],
-                weak_sections=[], score=75
+                expected_sections=[], missing_sections=[], weak_sections=[], score=75
             ),
             confidence_assessment=ConfidenceAssessment(
                 section_confidence={}, overall_confidence=75
             ),
             timestamp=datetime.now(),
-            model_used="test-model"
+            model_used="test-model",
         )
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -799,7 +902,7 @@ class TestFilePersistenceProperties:
 
                 # Files should be readable
                 for file_path in output_files:
-                    content = file_path.read_text(encoding='utf-8')
+                    content = file_path.read_text(encoding="utf-8")
                     assert len(content) > 0, f"File should have content for {company_name}"
 
 
@@ -817,7 +920,7 @@ class TestDetailedQAReviewProperties:
         qa_command = QACommand()
 
         # Mock _find_recent_report to return None (no report found)
-        with patch.object(qa_command, '_find_recent_report', return_value=None):
+        with patch.object(qa_command, "_find_recent_report", return_value=None):
             result_code = qa_command.show_detailed_analysis("NonexistentCompany")
             assert result_code == 1, "Should return error code when no report exists"
 
@@ -841,14 +944,15 @@ class TestDetailedQAReviewProperties:
 
             # Mock the methods
             mock_qa_result = QAResult(
-                grade=85,
-                summary="Good report",
-                detailed_analysis=None,
-                needs_attention=False
+                grade=85, summary="Good report", detailed_analysis=None, needs_attention=False
             )
 
-            with patch.object(qa_command, '_find_recent_report', return_value=str(report_path)), \
-                 patch.object(qa_command.qa_integration, 'run_post_generation_qa', return_value=mock_qa_result):
+            with (
+                patch.object(qa_command, "_find_recent_report", return_value=str(report_path)),
+                patch.object(
+                    qa_command.qa_integration, "run_post_generation_qa", return_value=mock_qa_result
+                ),
+            ):
                 result_code = qa_command.show_detailed_analysis("TestCompany")
                 assert result_code == 0, "Should return success code when report exists"
 
@@ -874,14 +978,15 @@ class TestDetailedQAReviewProperties:
 
             # Mock the methods
             mock_qa_result = QAResult(
-                grade=85,
-                summary="Good report",
-                detailed_analysis=None,
-                needs_attention=False
+                grade=85, summary="Good report", detailed_analysis=None, needs_attention=False
             )
 
-            with patch.object(qa_command, '_find_recent_report', return_value=str(report_path)), \
-                 patch.object(qa_command.qa_integration, 'run_post_generation_qa', return_value=mock_qa_result):
+            with (
+                patch.object(qa_command, "_find_recent_report", return_value=str(report_path)),
+                patch.object(
+                    qa_command.qa_integration, "run_post_generation_qa", return_value=mock_qa_result
+                ),
+            ):
                 result_code = qa_command.show_detailed_analysis(company_name)
                 assert result_code == 0, "Should find QA report when multiple exist"
 
@@ -900,16 +1005,28 @@ class TestDetailedQAReviewProperties:
             if invalid_name.strip():  # Skip empty names
                 result_code = qa_command.show_detailed_analysis(invalid_name)
                 # Should handle gracefully and return error code
-                assert result_code in [0, 1], f"Should handle invalid name '{invalid_name}' gracefully"
+                assert result_code in [0, 1], (
+                    f"Should handle invalid name '{invalid_name}' gracefully"
+                )
 
 
 class TestDefaultQAIntegrationProperties:
     """Property-based tests for default QA integration."""
 
-    @given(st.sampled_from([
-        "Acme Corp", "Globex Industries", "Initech Solutions", "Umbrella Holdings",
-        "Soylent Labs", "Wonka Enterprises", "Stark Solutions", "Weyland Group"
-    ]))
+    @given(
+        st.sampled_from(
+            [
+                "Acme Corp",
+                "Globex Industries",
+                "Initech Solutions",
+                "Umbrella Holdings",
+                "Soylent Labs",
+                "Wonka Enterprises",
+                "Stark Solutions",
+                "Weyland Group",
+            ]
+        )
+    )
     @settings(suppress_health_check=[HealthCheck.too_slow], max_examples=5, deadline=None)
     def test_default_qa_execution_property(self, company_name: str):
         """
@@ -948,7 +1065,7 @@ Sources:
 - https://example.com/source2
 """
 
-            with open(report_path, 'w', encoding='utf-8') as f:
+            with open(report_path, "w", encoding="utf-8") as f:
                 f.write(report_content)
 
             # Property: QA should execute automatically when enabled
@@ -958,9 +1075,11 @@ Sources:
             assert qa_result is not None, "QA should produce result when enabled"
 
             # Property: QA result should have valid structure
-            assert hasattr(qa_result, 'grade'), "QA result should have grade"
-            assert hasattr(qa_result, 'summary'), "QA result should have summary"
-            assert hasattr(qa_result, 'needs_attention'), "QA result should have needs_attention flag"
+            assert hasattr(qa_result, "grade"), "QA result should have grade"
+            assert hasattr(qa_result, "summary"), "QA result should have summary"
+            assert hasattr(qa_result, "needs_attention"), (
+                "QA result should have needs_attention flag"
+            )
 
             # Property: Grade should be in valid range
             assert 0 <= qa_result.grade <= 100, f"Grade {qa_result.grade} should be 0-100"
@@ -975,8 +1094,12 @@ Sources:
 
             # Property: Detailed analysis should be available when save_detailed is True
             if qa_result.detailed_analysis:
-                assert hasattr(qa_result.detailed_analysis, 'overall_score'), "Detailed analysis should have overall score"
-                assert qa_result.detailed_analysis.overall_score == qa_result.grade, "Scores should be consistent"
+                assert hasattr(qa_result.detailed_analysis, "overall_score"), (
+                    "Detailed analysis should have overall score"
+                )
+                assert qa_result.detailed_analysis.overall_score == qa_result.grade, (
+                    "Scores should be consistent"
+                )
 
     def test_default_qa_disabled_behavior(self):
         """
@@ -994,7 +1117,7 @@ Sources:
             qa_integration = QAIntegration(qa_options, output_dir=Path(temp_dir))
 
             report_path = Path(temp_dir) / "Test_Company_Report.txt"
-            with open(report_path, 'w') as f:
+            with open(report_path, "w") as f:
                 f.write("Test report content")
 
             # Should return None when disabled
@@ -1028,9 +1151,11 @@ Sources:
 class TestWorkspaceIntegrationProperties:
     """Property-based tests for workspace integration."""
 
-    @given(st.sampled_from([
-        "Acme Corp", "Globex Industries", "Initech Solutions", "Umbrella Holdings"
-    ]))
+    @given(
+        st.sampled_from(
+            ["Acme Corp", "Globex Industries", "Initech Solutions", "Umbrella Holdings"]
+        )
+    )
     @settings(suppress_health_check=[HealthCheck.too_slow], max_examples=3, deadline=None)
     def test_workspace_integration_property(self, company_name: str):
         """
@@ -1059,22 +1184,25 @@ class TestWorkspaceIntegrationProperties:
             section_scores={"Executive Summary": 90, "Conclusion": 80},
             issues=[],
             citation_check=CitationCheckResult(
-                total_citations=3, valid_citations=3, broken_links=[],
-                unsupported_claims=[], score=100
+                total_citations=3,
+                valid_citations=3,
+                broken_links=[],
+                unsupported_claims=[],
+                score=100,
             ),
-            logic_check=LogicCheckResult(
-                contradictions_found=[], unsupported_leaps=[], score=90
-            ),
+            logic_check=LogicCheckResult(contradictions_found=[], unsupported_leaps=[], score=90),
             completeness_check=CompletenessCheckResult(
                 expected_sections=["Executive Summary", "Conclusion"],
-                missing_sections=[], weak_sections=[], score=85
+                missing_sections=[],
+                weak_sections=[],
+                score=85,
             ),
             confidence_assessment=ConfidenceAssessment(
                 section_confidence={"Executive Summary": 90, "Conclusion": 80},
-                overall_confidence=85
+                overall_confidence=85,
             ),
             timestamp=datetime.now(),
-            model_used="test-model"
+            model_used="test-model",
         )
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1093,24 +1221,28 @@ class TestWorkspaceIntegrationProperties:
                 filename = file_path.name
 
                 # Should contain company name (normalized for file system)
-                clean_company = company_name.replace(' ', '_').replace('&', 'and')
-                assert any(part in filename for part in clean_company.split('_')), \
+                clean_company = company_name.replace(" ", "_").replace("&", "and")
+                assert any(part in filename for part in clean_company.split("_")), (
                     f"Filename {filename} should contain company name parts"
+                )
 
                 # Should contain QA_Report identifier
                 assert "QA_Report" in filename, f"Filename {filename} should contain QA_Report"
 
                 # Should have proper file extension
-                assert filename.endswith(('.txt', '.json')), \
+                assert filename.endswith((".txt", ".json")), (
                     f"Filename {filename} should have proper extension"
+                )
 
                 # Property: Files should be readable and contain expected content
-                content = file_path.read_text(encoding='utf-8')
+                content = file_path.read_text(encoding="utf-8")
                 assert len(content) > 100, "File should contain substantial content"
-                assert company_name in content or clean_company in content, \
+                assert company_name in content or clean_company in content, (
                     "File content should reference company name"
-                assert str(analysis.overall_score) in content, \
+                )
+                assert str(analysis.overall_score) in content, (
                     "File content should contain overall score"
+                )
 
     def test_workspace_integration_with_existing_files(self):
         """
@@ -1134,21 +1266,21 @@ class TestWorkspaceIntegrationProperties:
             section_scores={},
             issues=[],
             citation_check=CitationCheckResult(
-                total_citations=0, valid_citations=0, broken_links=[],
-                unsupported_claims=[], score=100
+                total_citations=0,
+                valid_citations=0,
+                broken_links=[],
+                unsupported_claims=[],
+                score=100,
             ),
-            logic_check=LogicCheckResult(
-                contradictions_found=[], unsupported_leaps=[], score=100
-            ),
+            logic_check=LogicCheckResult(contradictions_found=[], unsupported_leaps=[], score=100),
             completeness_check=CompletenessCheckResult(
-                expected_sections=[], missing_sections=[],
-                weak_sections=[], score=75
+                expected_sections=[], missing_sections=[], weak_sections=[], score=75
             ),
             confidence_assessment=ConfidenceAssessment(
                 section_confidence={}, overall_confidence=75
             ),
             timestamp=datetime.now(),
-            model_used="test-model"
+            model_used="test-model",
         )
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1206,22 +1338,26 @@ class TestQAHistoryPreservationProperties:
                 section_scores={"Test Section": 85},
                 issues=[],
                 citation_check=CitationCheckResult(
-                    total_citations=1, valid_citations=1, broken_links=[],
-                    unsupported_claims=[], score=85
+                    total_citations=1,
+                    valid_citations=1,
+                    broken_links=[],
+                    unsupported_claims=[],
+                    score=85,
                 ),
                 logic_check=LogicCheckResult(
                     contradictions_found=[], unsupported_leaps=[], score=85
                 ),
                 completeness_check=CompletenessCheckResult(
-                    expected_sections=["Test Section"], missing_sections=[],
-                    weak_sections=[], score=85
+                    expected_sections=["Test Section"],
+                    missing_sections=[],
+                    weak_sections=[],
+                    score=85,
                 ),
                 confidence_assessment=ConfidenceAssessment(
-                    section_confidence={"Test Section": 85},
-                    overall_confidence=85
+                    section_confidence={"Test Section": 85}, overall_confidence=85
                 ),
                 timestamp=datetime.now(),
-                model_used="test-model"
+                model_used="test-model",
             )
 
             generator.save_detailed_analysis(company_name, analysis)
@@ -1236,14 +1372,15 @@ class TestQAHistoryPreservationProperties:
             report_path.write_text("Mock report")
 
             mock_qa_result = QAResult(
-                grade=85,
-                summary="Good report",
-                detailed_analysis=None,
-                needs_attention=False
+                grade=85, summary="Good report", detailed_analysis=None, needs_attention=False
             )
 
-            with patch.object(qa_command, '_find_recent_report', return_value=str(report_path)), \
-                 patch.object(qa_command.qa_integration, 'run_post_generation_qa', return_value=mock_qa_result):
+            with (
+                patch.object(qa_command, "_find_recent_report", return_value=str(report_path)),
+                patch.object(
+                    qa_command.qa_integration, "run_post_generation_qa", return_value=mock_qa_result
+                ),
+            ):
                 result_code = qa_command.show_detailed_analysis(company_name)
                 assert result_code == 0, "Should be able to access QA history through command"
 
@@ -1278,7 +1415,7 @@ class TestQAHistoryPreservationProperties:
             timestamps = [
                 datetime(2024, 1, 1, 10, 0, 0),
                 datetime(2024, 1, 2, 10, 0, 0),
-                datetime(2024, 1, 3, 10, 0, 0)
+                datetime(2024, 1, 3, 10, 0, 0),
             ]
 
             scores = [70, 80, 90]  # Improving scores over time
@@ -1289,21 +1426,23 @@ class TestQAHistoryPreservationProperties:
                     section_scores={},
                     issues=[],
                     citation_check=CitationCheckResult(
-                        total_citations=0, valid_citations=0, broken_links=[],
-                        unsupported_claims=[], score=100
+                        total_citations=0,
+                        valid_citations=0,
+                        broken_links=[],
+                        unsupported_claims=[],
+                        score=100,
                     ),
                     logic_check=LogicCheckResult(
                         contradictions_found=[], unsupported_leaps=[], score=100
                     ),
                     completeness_check=CompletenessCheckResult(
-                        expected_sections=[], missing_sections=[],
-                        weak_sections=[], score=score
+                        expected_sections=[], missing_sections=[], weak_sections=[], score=score
                     ),
                     confidence_assessment=ConfidenceAssessment(
                         section_confidence={}, overall_confidence=score
                     ),
                     timestamp=timestamp,
-                    model_used="test-model"
+                    model_used="test-model",
                 )
 
                 generator.save_detailed_analysis(company_name, analysis)
@@ -1326,16 +1465,17 @@ class TestQAHistoryPreservationProperties:
             # Mock the QA command to use our temp directory
             qa_command = QACommand()
             mock_qa_result = QAResult(
-                grade=90,
-                summary="Good report",
-                detailed_analysis=None,
-                needs_attention=False
+                grade=90, summary="Good report", detailed_analysis=None, needs_attention=False
             )
 
             # Mock _find_recent_report to return our temp file
-            with patch.object(qa_command, '_find_recent_report', return_value=str(report_path)), \
-                 patch.object(qa_command, '_find_qa_report', return_value=str(qa_files[-1])), \
-                 patch.object(qa_command.qa_integration, 'run_post_generation_qa', return_value=mock_qa_result):
+            with (
+                patch.object(qa_command, "_find_recent_report", return_value=str(report_path)),
+                patch.object(qa_command, "_find_qa_report", return_value=str(qa_files[-1])),
+                patch.object(
+                    qa_command.qa_integration, "run_post_generation_qa", return_value=mock_qa_result
+                ),
+            ):
                 result_code = qa_command.show_detailed_analysis(company_name)
                 assert result_code == 0, "Should access most recent QA report"
 
@@ -1343,9 +1483,11 @@ class TestQAHistoryPreservationProperties:
 class TestErrorRecoveryProperties:
     """Property-based tests for error recovery."""
 
-    @given(st.sampled_from([
-        "Acme Corp", "Globex Industries", "Initech Solutions", "Umbrella Holdings"
-    ]))
+    @given(
+        st.sampled_from(
+            ["Acme Corp", "Globex Industries", "Initech Solutions", "Umbrella Holdings"]
+        )
+    )
     @settings(suppress_health_check=[HealthCheck.too_slow], max_examples=3, deadline=None)
     def test_error_recovery_property(self, company_name: str):
         """
@@ -1373,18 +1515,21 @@ class TestErrorRecoveryProperties:
             if qa_result is not None:
                 assert isinstance(qa_result.grade, int), "Should return integer grade even on error"
                 assert qa_result.grade >= 0, "Grade should be non-negative even on error"
-                assert isinstance(qa_result.summary, str), "Should return string summary even on error"
+                assert isinstance(qa_result.summary, str), (
+                    "Should return string summary even on error"
+                )
                 assert qa_result.needs_attention, "Error results should need attention"
 
                 # Property: Error results should indicate failure
                 if qa_result.grade == 0:
-                    assert "Failed" in qa_result.summary or "Error" in qa_result.summary, \
+                    assert "Failed" in qa_result.summary or "Error" in qa_result.summary, (
                         "Zero grade should indicate failure in summary"
+                    )
 
             # Test error recovery with corrupted files
             # Create a corrupted/empty report file
             corrupted_path = Path(temp_dir) / "corrupted_report.txt"
-            with open(corrupted_path, 'w', encoding='utf-8') as f:
+            with open(corrupted_path, "w", encoding="utf-8") as f:
                 f.write("")  # Empty file
 
             qa_result = qa_integration.run_post_generation_qa(corrupted_path, company_name)
@@ -1392,8 +1537,8 @@ class TestErrorRecoveryProperties:
             # Property: Should handle corrupted files gracefully
             if qa_result is not None:
                 assert isinstance(qa_result, type(qa_result)), "Should return QAResult object"
-                assert hasattr(qa_result, 'grade'), "Result should have grade attribute"
-                assert hasattr(qa_result, 'summary'), "Result should have summary attribute"
+                assert hasattr(qa_result, "grade"), "Result should have grade attribute"
+                assert hasattr(qa_result, "summary"), "Result should have summary attribute"
 
     def test_retry_handler_error_recovery(self):
         """
@@ -1415,9 +1560,7 @@ class TestErrorRecoveryProperties:
 
         # Should succeed after retries
         result = retry_handler.retry_with_backoff(
-            failing_operation,
-            retryable_exceptions=(QAModelError,),
-            operation_name="Test operation"
+            failing_operation, retryable_exceptions=(QAModelError,), operation_name="Test operation"
         )
 
         assert result == "Success", "Should succeed after retries"
@@ -1454,8 +1597,9 @@ class TestErrorRecoveryProperties:
         # Test analysis error handling
         json_error = Exception("JSON decode error")
         json_message = error_handler.handle_analysis_error(json_error, "Test Company")
-        assert "parse" in json_message.lower() or "json" in json_message.lower(), \
+        assert "parse" in json_message.lower() or "json" in json_message.lower(), (
             "Should mention parsing issue"
+        )
         assert "Test Company" in json_message, "Should mention company name"
 
     def test_safe_qa_operation_decorator(self):

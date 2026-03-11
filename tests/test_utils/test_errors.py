@@ -82,6 +82,7 @@ class TestSafeCallDecorator:
 
     def test_returns_result_on_success(self):
         """Should return function result when no exception."""
+
         @safe_call(default="default")
         def successful_func():
             return "success"
@@ -90,6 +91,7 @@ class TestSafeCallDecorator:
 
     def test_returns_default_on_exception(self):
         """Should return default value when exception occurs."""
+
         @safe_call(default="default")
         def failing_func():
             raise ValueError("error")
@@ -98,6 +100,7 @@ class TestSafeCallDecorator:
 
     def test_catches_specific_exceptions(self):
         """Should only catch specified exception types."""
+
         @safe_call(default="default", exceptions=(ValueError,))
         def func_raises_type_error():
             raise TypeError("wrong type")
@@ -107,17 +110,19 @@ class TestSafeCallDecorator:
 
     def test_logs_exception(self):
         """Should log caught exceptions."""
+
         @safe_call(default=None, log_level="warning")
         def failing_func():
             raise ValueError("test error")
 
-        with patch('primr.utils.errors.decorators.logger') as mock_logger:
+        with patch("primr.utils.errors.decorators.logger") as mock_logger:
             result = failing_func()
             assert result is None
             mock_logger.warning.assert_called_once()
 
     def test_reraise_option(self):
         """Should re-raise exception when reraise=True."""
+
         @safe_call(default=None, reraise=True)
         def failing_func():
             raise ValueError("test error")
@@ -127,6 +132,7 @@ class TestSafeCallDecorator:
 
     def test_preserves_function_metadata(self):
         """Should preserve function name and docstring."""
+
         @safe_call(default=None)
         def documented_func():
             """This is a docstring."""
@@ -186,6 +192,7 @@ class TestRetryOnFailure:
 
     def test_only_catches_specified_exceptions(self):
         """Should only retry on specified exception types."""
+
         @retry_on_failure(max_retries=3, exceptions=(ValueError,), delay=0.01)
         def raises_type_error():
             raise TypeError("wrong type")
@@ -219,7 +226,7 @@ class TestErrorContext:
 
     def test_logs_on_exception(self):
         """Should log error with context on exception."""
-        with patch('primr.utils.errors.decorators.logger') as mock_logger:
+        with patch("primr.utils.errors.decorators.logger") as mock_logger:
             try:
                 with ErrorContext("test operation", key="value"):
                     raise ValueError("test error")
@@ -233,7 +240,7 @@ class TestErrorContext:
 
     def test_no_log_on_success(self):
         """Should not log when no exception occurs."""
-        with patch('primr.utils.errors.decorators.logger') as mock_logger:
+        with patch("primr.utils.errors.decorators.logger") as mock_logger:
             with ErrorContext("test operation"):
                 pass  # No exception
 
@@ -259,6 +266,7 @@ from primr.utils.errors import (
 # UNIT TESTS - RetryConfig
 # =============================================================================
 
+
 class TestRetryConfig:
     """Tests for RetryConfig dataclass."""
 
@@ -274,11 +282,7 @@ class TestRetryConfig:
     def test_custom_values(self):
         """Should accept custom values."""
         config = RetryConfig(
-            max_retries=5,
-            base_delay=0.5,
-            max_delay=30.0,
-            exponential_base=3.0,
-            jitter_factor=0.2
+            max_retries=5, base_delay=0.5, max_delay=30.0, exponential_base=3.0, jitter_factor=0.2
         )
         assert config.max_retries == 5
         assert config.base_delay == 0.5
@@ -352,7 +356,7 @@ class TestErrorContextFunction:
 
     def test_logs_on_exception(self):
         """Should log error with context on exception."""
-        with patch('primr.utils.errors.decorators.logger') as mock_logger:
+        with patch("primr.utils.errors.decorators.logger") as mock_logger:
             try:
                 with error_context("test operation", key="value"):
                     raise ValueError("test error")
@@ -366,7 +370,7 @@ class TestErrorContextFunction:
 
     def test_no_log_on_success(self):
         """Should not log when no exception occurs."""
-        with patch('primr.utils.errors.decorators.logger') as mock_logger:
+        with patch("primr.utils.errors.decorators.logger") as mock_logger:
             with error_context("test operation"):
                 pass
             mock_logger.error.assert_not_called()
@@ -378,7 +382,7 @@ class TestErrorContextFunction:
 
     def test_handles_no_metadata(self):
         """Should work without metadata."""
-        with patch('primr.utils.errors.decorators.logger') as mock_logger:
+        with patch("primr.utils.errors.decorators.logger") as mock_logger:
             try:
                 with error_context("simple operation"):
                     raise ValueError("error")
@@ -394,6 +398,7 @@ class TestAsyncSafeCallback:
 
     def test_wraps_successful_callback(self):
         """Should pass through successful callback results."""
+
         def callback(x):
             return x * 2
 
@@ -408,17 +413,19 @@ class TestAsyncSafeCallback:
 
     def test_catches_callback_exceptions(self):
         """Should catch and log callback exceptions."""
+
         def failing_callback():
             raise ValueError("callback failed")
 
         safe = async_safe_callback(failing_callback)
-        with patch('primr.utils.errors.decorators.logger') as mock_logger:
+        with patch("primr.utils.errors.decorators.logger") as mock_logger:
             result = safe()
             assert result is None
             mock_logger.warning.assert_called_once()
 
     def test_preserves_function_name(self):
         """Should preserve original function name."""
+
         def my_callback():
             pass
 
@@ -429,6 +436,7 @@ class TestAsyncSafeCallback:
 # =============================================================================
 # PROPERTY-BASED TESTS
 # =============================================================================
+
 
 class TestExponentialBackoffProperty:
     """
@@ -445,16 +453,12 @@ class TestExponentialBackoffProperty:
     @given(
         attempt=st.integers(min_value=0, max_value=10),
         base_delay_cents=st.integers(min_value=10, max_value=1000),  # 0.1 to 10.0
-        exp_base_tenths=st.integers(min_value=11, max_value=50),     # 1.1 to 5.0
-        jitter_percent=st.integers(min_value=1, max_value=50)        # 0.01 to 0.5
+        exp_base_tenths=st.integers(min_value=11, max_value=50),  # 1.1 to 5.0
+        jitter_percent=st.integers(min_value=1, max_value=50),  # 0.01 to 0.5
     )
     @settings(max_examples=100)
     def test_delay_is_non_negative(
-        self,
-        attempt: int,
-        base_delay_cents: int,
-        exp_base_tenths: int,
-        jitter_percent: int
+        self, attempt: int, base_delay_cents: int, exp_base_tenths: int, jitter_percent: int
     ):
         """Delay should always be non-negative."""
         # Convert integers to floats for cleaner generation
@@ -466,32 +470,23 @@ class TestExponentialBackoffProperty:
             base_delay=base_delay,
             exponential_base=exponential_base,
             jitter_factor=jitter_factor,
-            max_delay=1000.0
+            max_delay=1000.0,
         )
         delay = calculate_backoff_delay(attempt, config)
         assert delay >= 0
 
     @given(
         attempt=st.integers(min_value=0, max_value=5),
-        base_delay_cents=st.integers(min_value=10, max_value=500),   # 0.1 to 5.0
-        max_delay_int=st.integers(min_value=10, max_value=100)       # 10.0 to 100.0
+        base_delay_cents=st.integers(min_value=10, max_value=500),  # 0.1 to 5.0
+        max_delay_int=st.integers(min_value=10, max_value=100),  # 10.0 to 100.0
     )
     @settings(max_examples=100)
-    def test_delay_respects_max(
-        self,
-        attempt: int,
-        base_delay_cents: int,
-        max_delay_int: int
-    ):
+    def test_delay_respects_max(self, attempt: int, base_delay_cents: int, max_delay_int: int):
         """Delay should never exceed max_delay (plus jitter)."""
         base_delay = base_delay_cents / 100.0
         max_delay = float(max_delay_int)
 
-        config = RetryConfig(
-            base_delay=base_delay,
-            max_delay=max_delay,
-            jitter_factor=0.1
-        )
+        config = RetryConfig(base_delay=base_delay, max_delay=max_delay, jitter_factor=0.1)
         delay = calculate_backoff_delay(attempt, config)
         # With 10% jitter, max possible is max_delay * 1.1
         assert delay <= max_delay * 1.1
@@ -501,24 +496,17 @@ class TestExponentialBackoffProperty:
     def test_exponential_growth_without_jitter(self, attempt: int):
         """Without jitter, delay should follow exact exponential formula."""
         config = RetryConfig(
-            base_delay=1.0,
-            exponential_base=2.0,
-            jitter_factor=0,
-            max_delay=1000.0
+            base_delay=1.0, exponential_base=2.0, jitter_factor=0, max_delay=1000.0
         )
         delay = calculate_backoff_delay(attempt, config)
-        expected = 1.0 * (2.0 ** attempt)
+        expected = 1.0 * (2.0**attempt)
         assert delay == expected
 
     @given(st.integers(min_value=0, max_value=3))
     @settings(max_examples=100)
     def test_jitter_produces_variation(self, attempt: int):
         """With jitter, consecutive calls should produce different values."""
-        config = RetryConfig(
-            base_delay=10.0,
-            jitter_factor=0.2,
-            max_delay=1000.0
-        )
+        config = RetryConfig(base_delay=10.0, jitter_factor=0.2, max_delay=1000.0)
         delays = [calculate_backoff_delay(attempt, config) for _ in range(20)]
         # Should have variation (not all identical)
         unique_delays = set(delays)
@@ -527,24 +515,21 @@ class TestExponentialBackoffProperty:
     @given(
         st.integers(min_value=0, max_value=4),
         st.floats(min_value=0.1, max_value=5.0),
-        st.floats(min_value=0.01, max_value=0.3)
+        st.floats(min_value=0.01, max_value=0.3),
     )
     @settings(max_examples=100)
     def test_delay_within_jitter_bounds(
-        self,
-        attempt: int,
-        base_delay: float,
-        jitter_factor: float
+        self, attempt: int, base_delay: float, jitter_factor: float
     ):
         """Delay should be within expected jitter bounds."""
         config = RetryConfig(
             base_delay=base_delay,
             exponential_base=2.0,
             jitter_factor=jitter_factor,
-            max_delay=1000.0
+            max_delay=1000.0,
         )
 
-        expected_base = base_delay * (2.0 ** attempt)
+        expected_base = base_delay * (2.0**attempt)
         expected_base = min(expected_base, 1000.0)  # Cap
 
         delay = calculate_backoff_delay(attempt, config)
@@ -581,6 +566,7 @@ class TestAsyncErrorPropagationProperty:
     @settings(max_examples=100)
     def test_safe_callback_never_raises(self, error_message: str):
         """async_safe_callback should never raise exceptions."""
+
         def failing_callback():
             raise ValueError(error_message)
 
@@ -614,11 +600,11 @@ class TestRetryManager:
     def test_retries_on_failure(self):
         """Should retry on retryable exceptions."""
         manager = RetryManager(
-            RetryConfig(max_retries=3, base_delay=0.01),
-            retryable_exceptions=(ValueError,)
+            RetryConfig(max_retries=3, base_delay=0.01), retryable_exceptions=(ValueError,)
         )
 
         call_count = 0
+
         def failing_func():
             nonlocal call_count
             call_count += 1
@@ -633,11 +619,11 @@ class TestRetryManager:
     def test_succeeds_after_retry(self):
         """Should succeed if function works on retry."""
         manager = RetryManager(
-            RetryConfig(max_retries=3, base_delay=0.01),
-            retryable_exceptions=(ValueError,)
+            RetryConfig(max_retries=3, base_delay=0.01), retryable_exceptions=(ValueError,)
         )
 
         call_count = 0
+
         def eventually_succeeds():
             nonlocal call_count
             call_count += 1
@@ -654,11 +640,11 @@ class TestRetryManager:
     def test_only_retries_specified_exceptions(self):
         """Should not retry on non-retryable exceptions."""
         manager = RetryManager(
-            RetryConfig(max_retries=3, base_delay=0.01),
-            retryable_exceptions=(ValueError,)
+            RetryConfig(max_retries=3, base_delay=0.01), retryable_exceptions=(ValueError,)
         )
 
         call_count = 0
+
         def raises_type_error():
             nonlocal call_count
             call_count += 1
@@ -672,15 +658,16 @@ class TestRetryManager:
     def test_on_retry_callback(self):
         """Should call on_retry callback on each retry."""
         manager = RetryManager(
-            RetryConfig(max_retries=3, base_delay=0.01),
-            retryable_exceptions=(ValueError,)
+            RetryConfig(max_retries=3, base_delay=0.01), retryable_exceptions=(ValueError,)
         )
 
         retry_events = []
+
         def on_retry(attempt, error):
             retry_events.append((attempt, str(error)))
 
         call_count = 0
+
         def failing_func():
             nonlocal call_count
             call_count += 1
@@ -698,14 +685,14 @@ class TestRetryManager:
     def test_callback_errors_dont_affect_retry(self):
         """Callback errors should not prevent retries."""
         manager = RetryManager(
-            RetryConfig(max_retries=3, base_delay=0.01),
-            retryable_exceptions=(ValueError,)
+            RetryConfig(max_retries=3, base_delay=0.01), retryable_exceptions=(ValueError,)
         )
 
         def bad_callback(attempt, error):
             raise RuntimeError("callback failed")
 
         call_count = 0
+
         def eventually_succeeds():
             nonlocal call_count
             call_count += 1
@@ -721,10 +708,11 @@ class TestRetryManager:
         """Should track total delay time."""
         manager = RetryManager(
             RetryConfig(max_retries=2, base_delay=0.05, jitter_factor=0),
-            retryable_exceptions=(ValueError,)
+            retryable_exceptions=(ValueError,),
         )
 
         call_count = 0
+
         def failing_func():
             nonlocal call_count
             call_count += 1
@@ -757,11 +745,11 @@ class TestRetryManagerAsync:
     async def test_async_retries_on_failure(self):
         """Should retry async operations on failure."""
         manager = RetryManager(
-            RetryConfig(max_retries=2, base_delay=0.01),
-            retryable_exceptions=(ValueError,)
+            RetryConfig(max_retries=2, base_delay=0.01), retryable_exceptions=(ValueError,)
         )
 
         call_count = 0
+
         async def eventually_succeeds():
             nonlocal call_count
             call_count += 1
@@ -786,17 +774,18 @@ class TestRetryManagerProperty:
 
     @given(
         max_retries=st.integers(min_value=1, max_value=5),
-        failures_before_success=st.integers(min_value=0, max_value=7)
+        failures_before_success=st.integers(min_value=0, max_value=7),
     )
     @settings(max_examples=50)
     def test_attempt_count_property(self, max_retries: int, failures_before_success: int):
         """Attempt count should match expected based on failures and max_retries."""
         manager = RetryManager(
             RetryConfig(max_retries=max_retries, base_delay=0.001, jitter_factor=0),
-            retryable_exceptions=(ValueError,)
+            retryable_exceptions=(ValueError,),
         )
 
         call_count = 0
+
         def controlled_func():
             nonlocal call_count
             call_count += 1
@@ -921,6 +910,7 @@ class TestErrorGuidance:
 
     def test_unknown_error_no_guidance(self):
         """Should return None for unknown error types."""
+
         class CustomError(Exception):
             pass
 
@@ -989,10 +979,7 @@ class TestStructuredErrorLoggingProperty:
     and user-facing output SHALL NOT contain stack traces.
     """
 
-    @given(
-        message=st.text(min_size=1, max_size=100),
-        url=st.text(min_size=0, max_size=50)
-    )
+    @given(message=st.text(min_size=1, max_size=100), url=st.text(min_size=0, max_size=50))
     @settings(max_examples=50)
     def test_user_message_never_contains_traceback(self, message: str, url: str):
         """User message should never contain traceback indicators."""
@@ -1007,31 +994,39 @@ class TestStructuredErrorLoggingProperty:
         assert "File" not in user_msg or "File" in message  # Unless in original message
         assert "most recent call" not in user_msg
 
-    @given(error_type=st.sampled_from([
-        ConfigurationError,
-        ScrapingError,
-        AIError,
-        SearchError,
-        OutputError,
-        ValidationError,
-    ]))
+    @given(
+        error_type=st.sampled_from(
+            [
+                ConfigurationError,
+                ScrapingError,
+                AIError,
+                SearchError,
+                OutputError,
+                ValidationError,
+            ]
+        )
+    )
     @settings(max_examples=20)
     def test_all_error_types_have_category(self, error_type):
         """All error types should have a category."""
         error = error_type("test message")
 
-        assert hasattr(error, 'category')
+        assert hasattr(error, "category")
         assert error.category is not None
         assert len(error.category) > 0
 
-    @given(error_type=st.sampled_from([
-        ConfigurationError,
-        ScrapingError,
-        AIError,
-        SearchError,
-        OutputError,
-        ValidationError,
-    ]))
+    @given(
+        error_type=st.sampled_from(
+            [
+                ConfigurationError,
+                ScrapingError,
+                AIError,
+                SearchError,
+                OutputError,
+                ValidationError,
+            ]
+        )
+    )
     @settings(max_examples=20)
     def test_debug_message_includes_category(self, error_type):
         """Debug message should include error category."""

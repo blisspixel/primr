@@ -41,10 +41,7 @@ class TestResearchProgress:
 
     def test_progress_creation(self):
         """Create progress with required fields."""
-        progress = ResearchProgress(
-            status=ResearchStatus.IN_PROGRESS,
-            message="Processing..."
-        )
+        progress = ResearchProgress(status=ResearchStatus.IN_PROGRESS, message="Processing...")
 
         assert progress.status == ResearchStatus.IN_PROGRESS
         assert progress.message == "Processing..."
@@ -55,8 +52,7 @@ class TestResearchProgress:
     def test_progress_with_thought(self):
         """Create progress with thought summary."""
         progress = ResearchProgress(
-            status=ResearchStatus.IN_PROGRESS,
-            thought="Analyzing competitive landscape..."
+            status=ResearchStatus.IN_PROGRESS, thought="Analyzing competitive landscape..."
         )
 
         assert progress.thought == "Analyzing competitive landscape..."
@@ -71,7 +67,7 @@ class TestResearchResult:
             content="Research findings...",
             interaction_id="test-123",
             duration_seconds=120.5,
-            status=ResearchStatus.COMPLETED
+            status=ResearchStatus.COMPLETED,
         )
 
         assert result.success is True
@@ -81,10 +77,7 @@ class TestResearchResult:
     def test_result_failure(self):
         """Failed result has error."""
         result = ResearchResult(
-            content="",
-            interaction_id="test-456",
-            status=ResearchStatus.FAILED,
-            error="API error"
+            content="", interaction_id="test-456", status=ResearchStatus.FAILED, error="API error"
         )
 
         assert result.success is False
@@ -93,10 +86,7 @@ class TestResearchResult:
     def test_result_with_citations(self):
         """Result can include citations."""
         result = ResearchResult(
-            content="Content",
-            citations=[
-                {"text": "Source 1", "url": "https://example.com"}
-            ]
+            content="Content", citations=[{"text": "Source 1", "url": "https://example.com"}]
         )
 
         assert len(result.citations) == 1
@@ -118,7 +108,7 @@ class TestResearchResult:
 class TestDeepResearchClient:
     """Tests for DeepResearchClient class."""
 
-    @patch.object(DeepResearchClient, '__init__', lambda self, api_key=None: None)
+    @patch.object(DeepResearchClient, "__init__", lambda self, api_key=None: None)
     def test_agent_id(self):
         """Verify agent ID constant."""
         assert DeepResearchClient.AGENT_ID == "deep-research-pro-preview-12-2025"
@@ -247,11 +237,7 @@ class TestExtractContent:
         client.TIMEOUT_SECONDS = 10
 
         output = Mock()
-        output.text = (
-            "Findings...\n\n"
-            "**Sources:**\n"
-            "1. [Example](https://example.com)\n"
-        )
+        output.text = "Findings...\n\n**Sources:**\n1. [Example](https://example.com)\n"
         metadata = Mock()
         metadata.web_search_queries = ["q1", "q2", "q3"]
         output.grounding_metadata = metadata
@@ -283,10 +269,7 @@ class TestThinkingLog:
 
     def test_thinking_log_creation(self):
         """Create thinking log with required fields."""
-        log = ThinkingLog(
-            interaction_id="test-123",
-            company_name="Acme Corp"
-        )
+        log = ThinkingLog(interaction_id="test-123", company_name="Acme Corp")
 
         assert log.interaction_id == "test-123"
         assert log.company_name == "Acme Corp"
@@ -296,10 +279,7 @@ class TestThinkingLog:
 
     def test_add_thought(self):
         """Add thoughts to the log."""
-        log = ThinkingLog(
-            interaction_id="test-123",
-            company_name="Acme Corp"
-        )
+        log = ThinkingLog(interaction_id="test-123", company_name="Acme Corp")
 
         log.add_thought("Analyzing company website")
         log.add_thought("Searching for financial data")
@@ -310,10 +290,7 @@ class TestThinkingLog:
 
     def test_add_search(self):
         """Add search queries to the log."""
-        log = ThinkingLog(
-            interaction_id="test-123",
-            company_name="Acme Corp"
-        )
+        log = ThinkingLog(interaction_id="test-123", company_name="Acme Corp")
 
         log.add_search("Acme Corp revenue 2024")
         log.add_search("Acme Corp competitors")
@@ -323,10 +300,7 @@ class TestThinkingLog:
 
     def test_add_source_deduplicates(self):
         """Adding same source twice only stores once."""
-        log = ThinkingLog(
-            interaction_id="test-123",
-            company_name="Acme Corp"
-        )
+        log = ThinkingLog(interaction_id="test-123", company_name="Acme Corp")
 
         log.add_source("https://acme.com")
         log.add_source("https://acme.com")
@@ -336,10 +310,7 @@ class TestThinkingLog:
 
     def test_to_markdown(self):
         """Export thinking log as markdown."""
-        log = ThinkingLog(
-            interaction_id="test-123",
-            company_name="Acme Corp"
-        )
+        log = ThinkingLog(interaction_id="test-123", company_name="Acme Corp")
 
         log.add_thought("Starting research")
         log.add_search("Acme Corp overview")
@@ -418,12 +389,11 @@ class TestFileSearch:
         client.AGENT_ID = "deep-research-pro-preview-12-2025"
 
         with pytest.raises(AIError, match="Context files not found"):
-            client._upload_context_files([
-                "/nonexistent/path/file1.pdf",
-                "/nonexistent/path/file2.pdf"
-            ])
+            client._upload_context_files(
+                ["/nonexistent/path/file1.pdf", "/nonexistent/path/file2.pdf"]
+            )
 
-    @patch('os.path.exists')
+    @patch("os.path.exists")
     def test_upload_context_files_creates_store(self, mock_exists):
         """Upload creates file search store and uploads files."""
         mock_exists.return_value = True
@@ -441,7 +411,7 @@ class TestFileSearch:
         mock_client.file_search_stores.create.assert_called_once()
         mock_client.file_search_stores.upload_to_file_search_store.assert_called_once()
 
-    @patch('os.path.exists')
+    @patch("os.path.exists")
     def test_upload_context_files_handles_error(self, mock_exists):
         """Upload raises AIError on API errors (fail fast)."""
         mock_exists.return_value = True
@@ -530,10 +500,7 @@ class TestResearchWithContextFiles:
         client.AGENT_ID = "deep-research-pro-preview-12-2025"
 
         with pytest.raises(AIError, match="Context file not found"):
-            await client.research(
-                "Research Acme Corp",
-                context_files=["/path/to/internal_doc.pdf"]
-            )
+            await client.research("Research Acme Corp", context_files=["/path/to/internal_doc.pdf"])
 
     @pytest.mark.asyncio
     async def test_research_fails_fast_on_nonexistent_files(self):
@@ -544,7 +511,4 @@ class TestResearchWithContextFiles:
         client.AGENT_ID = "deep-research-pro-preview-12-2025"
 
         with pytest.raises(AIError, match="Context file not found"):
-            await client.research(
-                "Research Acme Corp",
-                context_files=["/nonexistent/file.pdf"]
-            )
+            await client.research("Research Acme Corp", context_files=["/nonexistent/file.pdf"])

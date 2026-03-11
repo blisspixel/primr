@@ -69,7 +69,7 @@ def _score_extracted_text(text: str) -> float:
 # Matches <link rel="canonical" href="..."> in either attribute order
 _CANONICAL_RE = re.compile(
     r'<link\s[^>]*?rel=["\']canonical["\'][^>]*?href=["\']([^"\']+)["\']'
-    r'|'
+    r"|"
     r'<link\s[^>]*?href=["\']([^"\']+)["\'][^>]*?rel=["\']canonical["\']',
     re.IGNORECASE,
 )
@@ -385,7 +385,13 @@ class ScrapeOrchestrator:
             remaining_time = effective_max_page_time - elapsed_total
 
             # Browser tiers that need full timeout for JS/challenges
-            browser_tiers = {"playwright", "playwright_aggressive", "drissionpage", "drissionpage_stealth", "vision"}
+            browser_tiers = {
+                "playwright",
+                "playwright_aggressive",
+                "drissionpage",
+                "drissionpage_stealth",
+                "vision",
+            }
             is_browser_tier = tier.name in browser_tiers
 
             # Apply fast timeout only to HTTP tiers when we have a proven working tier
@@ -411,14 +417,16 @@ class ScrapeOrchestrator:
                     if tier_result.attempts:
                         all_attempts.extend(tier_result.attempts)
                     else:
-                        all_attempts.append(Attempt(
-                            tier=tier.name,
-                            success=tier_result.success,
-                            error=tier_result.error,
-                            error_type=tier_result.error_type,
-                            elapsed_ms=tier_result.elapsed_ms,
-                            http_status=tier_result.http_status,
-                        ))
+                        all_attempts.append(
+                            Attempt(
+                                tier=tier.name,
+                                success=tier_result.success,
+                                error=tier_result.error,
+                                error_type=tier_result.error_type,
+                                elapsed_ms=tier_result.elapsed_ms,
+                                http_status=tier_result.http_status,
+                            )
+                        )
 
                     last_result = tier_result
 
@@ -429,12 +437,14 @@ class ScrapeOrchestrator:
             except Exception as e:
                 # Handle unexpected errors
                 logger.warning(f"Tier {tier.name} raised exception: {e}")
-                all_attempts.append(Attempt(
-                    tier=tier.name,
-                    success=False,
-                    error=str(e),
-                    error_type=ErrorType.NETWORK_ERROR,
-                ))
+                all_attempts.append(
+                    Attempt(
+                        tier=tier.name,
+                        success=False,
+                        error=str(e),
+                        error_type=ErrorType.NETWORK_ERROR,
+                    )
+                )
                 host_state.record_tier_attempt(tier.name, success=False)
 
                 # Track consecutive failures
@@ -492,7 +502,10 @@ class ScrapeOrchestrator:
             if is_blocked:
                 logger.debug(f"Soft block detected on {tier.name} for {url}: {block_reason}")
                 # Check if it's a hard block
-                if "hard" in (block_reason or "").lower() or tier_result.error_type == ErrorType.HARD_BLOCK:
+                if (
+                    "hard" in (block_reason or "").lower()
+                    or tier_result.error_type == ErrorType.HARD_BLOCK
+                ):
                     # 3i. Hard block - stop escalation
                     self._mark_host_blocked(host)
 
@@ -560,7 +573,9 @@ class ScrapeOrchestrator:
             # post instead of the requested page.  Detect this by comparing
             # the <link rel="canonical"> or final URL with the requested URL.
             if tier_result.raw_content:
-                wrong, canonical = _detect_wrong_page(url, tier_result.raw_content, tier_result.final_url)
+                wrong, canonical = _detect_wrong_page(
+                    url, tier_result.raw_content, tier_result.final_url
+                )
                 if wrong:
                     logger.info(
                         f"Wrong page for {url}: canonical={canonical}, final={tier_result.final_url}"
@@ -587,6 +602,7 @@ class ScrapeOrchestrator:
             if tier_result.cookies:
                 host_state.cookies = tier_result.cookies
                 from datetime import datetime
+
                 host_state.last_clearance_ts = datetime.now()
 
             # Cache raw content (if available - vision tier may only have screenshot)
@@ -615,8 +631,12 @@ class ScrapeOrchestrator:
                     candidates = []
                     reader_text = extract_main_content(tier_result.raw_content)
                     candidates.append(reader_text or "")
-                    candidates.append(extract_clean_text(tier_result.raw_content, mode="aggressive") or "")
-                    candidates.append(extract_clean_text(tier_result.raw_content, mode="conservative") or "")
+                    candidates.append(
+                        extract_clean_text(tier_result.raw_content, mode="aggressive") or ""
+                    )
+                    candidates.append(
+                        extract_clean_text(tier_result.raw_content, mode="conservative") or ""
+                    )
                     extracted = max(candidates, key=_score_extracted_text)
                 else:
                     # Skip truly binary content (images, fonts, etc.)
@@ -637,9 +657,7 @@ class ScrapeOrchestrator:
             # validation says this is a useful structured short page.
             is_quality, quality_reason = is_quality_content(extracted)
             allow_structured_short = bool(
-                validation
-                and validation.valid
-                and validation.content_class == "structured_short"
+                validation and validation.valid and validation.content_class == "structured_short"
             )
             if not is_quality and not allow_structured_short:
                 logger.debug(f"Content quality failed on {tier.name} for {url}: {quality_reason}")
@@ -723,7 +741,6 @@ class ScrapeOrchestrator:
             self.trace_logger.log(result)
 
         return result
-
 
     def scrape_urls(
         self,

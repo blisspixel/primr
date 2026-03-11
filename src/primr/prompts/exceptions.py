@@ -10,7 +10,6 @@ class PromptConfigError(Exception):
     """Base exception for prompt configuration errors."""
 
 
-
 class PromptConfigNotFoundError(PromptConfigError):
     """
     Raised when a prompt configuration file cannot be found.

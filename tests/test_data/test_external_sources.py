@@ -8,6 +8,7 @@ These tests ensure the external source pipeline is bulletproof:
 4. LLM validation correctly identifies the target company
 5. Errors are handled gracefully without silent failures
 """
+
 from datetime import datetime
 from unittest.mock import Mock, patch
 
@@ -18,6 +19,7 @@ import pytest
 def reset_circuit_breaker():
     """Reset circuit breaker before each test."""
     from primr.data.search_utils import _search_circuit
+
     _search_circuit._failure_count = 0
     _search_circuit._state = "closed"
     _search_circuit._last_failure_time = None
@@ -35,8 +37,10 @@ class TestSearchQueryConstruction:
         """Company name should be prepended to query."""
         from primr.data.search_utils import _search_google
 
-        with patch('primr.data.search_utils._google_api_available', True), \
-             patch('primr.data.search_utils.requests.get') as mock_get:
+        with (
+            patch("primr.data.search_utils._google_api_available", True),
+            patch("primr.data.search_utils.requests.get") as mock_get,
+        ):
             mock_response = Mock()
             mock_response.json.return_value = {"items": []}
             mock_response.raise_for_status = Mock()
@@ -54,8 +58,10 @@ class TestSearchQueryConstruction:
         """The -site: filter should use domain, not full URL."""
         from primr.data.search_utils import _search_google
 
-        with patch('primr.data.search_utils._google_api_available', True), \
-             patch('primr.data.search_utils.requests.get') as mock_get:
+        with (
+            patch("primr.data.search_utils._google_api_available", True),
+            patch("primr.data.search_utils.requests.get") as mock_get,
+        ):
             mock_response = Mock()
             # Return actual items so we don't hit fallback path
             mock_response.json.return_value = {
@@ -78,8 +84,10 @@ class TestSearchQueryConstruction:
         """The -site: filter should strip www prefix."""
         from primr.data.search_utils import _search_google
 
-        with patch('primr.data.search_utils._google_api_available', True), \
-             patch('primr.data.search_utils.requests.get') as mock_get:
+        with (
+            patch("primr.data.search_utils._google_api_available", True),
+            patch("primr.data.search_utils.requests.get") as mock_get,
+        ):
             mock_response = Mock()
             mock_response.json.return_value = {
                 "items": [{"link": "https://example.com/article", "title": "Test"}]
@@ -100,8 +108,10 @@ class TestSearchQueryConstruction:
         """No -site: filter when website is None or empty."""
         from primr.data.search_utils import _search_google
 
-        with patch('primr.data.search_utils._google_api_available', True), \
-             patch('primr.data.search_utils.requests.get') as mock_get:
+        with (
+            patch("primr.data.search_utils._google_api_available", True),
+            patch("primr.data.search_utils.requests.get") as mock_get,
+        ):
             mock_response = Mock()
             mock_response.json.return_value = {"items": []}
             mock_response.raise_for_status = Mock()
@@ -121,8 +131,16 @@ class TestExcludedSites:
         """Social media sites should be filtered out."""
         from primr.data.search_utils import EXCLUDED_SITES
 
-        social_sites = ["reddit.com", "facebook.com", "twitter.com", "x.com",
-                       "instagram.com", "tiktok.com", "linkedin.com", "youtube.com"]
+        social_sites = [
+            "reddit.com",
+            "facebook.com",
+            "twitter.com",
+            "x.com",
+            "instagram.com",
+            "tiktok.com",
+            "linkedin.com",
+            "youtube.com",
+        ]
 
         for site in social_sites:
             assert site in EXCLUDED_SITES, f"{site} should be in EXCLUDED_SITES"
@@ -158,8 +176,10 @@ class TestExcludedSites:
             {"link": "https://www.youtube.com/watch", "title": "Bad"},
         ]
 
-        with patch('primr.data.search_utils._google_api_available', True), \
-             patch('primr.data.search_utils.requests.get') as mock_get:
+        with (
+            patch("primr.data.search_utils._google_api_available", True),
+            patch("primr.data.search_utils.requests.get") as mock_get,
+        ):
             mock_response = Mock()
             mock_response.json.return_value = {"items": mock_items}
             mock_response.raise_for_status = Mock()
@@ -186,10 +206,9 @@ class TestDomainFiltering:
             {"url": "https://www.acme.com/about", "title": "About Acme"},
         ]
 
-        with patch('primr.data.scrape.get_orchestrator') as mock_orch:
+        with patch("primr.data.scrape.get_orchestrator") as mock_orch:
             mock_orch.return_value.scrape_url.return_value = Mock(
-                success=True,
-                extracted_text="Some content about Acme"
+                success=True, extracted_text="Some content about Acme"
             )
 
             # Both should be filtered - they're the main site
@@ -197,7 +216,7 @@ class TestDomainFiltering:
                 search_results,
                 company_name="Acme Corp",
                 website="https://www.acme.com",
-                max_sources=2
+                max_sources=2,
             )
 
             # No results because all were filtered
@@ -211,11 +230,14 @@ class TestDomainFiltering:
             {"url": "https://investors.acme.com/news", "title": "Investor News"},
         ]
 
-        with patch('primr.data.scrape.get_orchestrator') as mock_orch:
+        with patch("primr.data.scrape.get_orchestrator") as mock_orch:
             mock_result = Mock()
             mock_result.success = True
             # Content must be > 100 chars
-            mock_result.extracted_text = "This is about Acme Corp at acme.com with detailed content about their products and services. " * 5
+            mock_result.extracted_text = (
+                "This is about Acme Corp at acme.com with detailed content about their products and services. "
+                * 5
+            )
             mock_orch.return_value.scrape_url.return_value = mock_result
 
             # Call the function - it will fail at LLM validation but we just want to verify
@@ -224,12 +246,14 @@ class TestDomainFiltering:
                 search_results,
                 company_name="Acme Corp",
                 website="https://www.acme.com",
-                max_sources=2
+                max_sources=2,
             )
 
             # The scrape should have been attempted (subdomain not filtered)
             # This proves the domain filter didn't block investors.acme.com
-            mock_orch.return_value.scrape_url.assert_called_once_with("https://investors.acme.com/news")
+            mock_orch.return_value.scrape_url.assert_called_once_with(
+                "https://investors.acme.com/news"
+            )
 
     def test_third_party_sites_not_filtered(self):
         """Third-party news sites should NOT be filtered."""
@@ -240,20 +264,20 @@ class TestDomainFiltering:
             {"url": "https://techcrunch.com/acme-funding", "title": "Acme Raises $10M"},
         ]
 
-        with patch('primr.data.scrape.get_orchestrator') as mock_orch:
+        with patch("primr.data.scrape.get_orchestrator") as mock_orch:
             mock_result = Mock()
             mock_result.success = True
             mock_result.extracted_text = "Acme Corp (acme.com) announced today..." + "x" * 200
             mock_orch.return_value.scrape_url.return_value = mock_result
 
-            with patch('primr.ai.llm.llm') as mock_llm:
+            with patch("primr.ai.llm.llm") as mock_llm:
                 mock_llm.return_value = "YES\nMentions acme.com domain"
 
                 result = scrape_external_sources_validated(
                     search_results,
                     company_name="Acme Corp",
                     website="https://www.acme.com",
-                    max_sources=2
+                    max_sources=2,
                 )
 
                 assert len(result) == 2
@@ -329,20 +353,20 @@ class TestLLMValidation:
             {"url": "https://news.com/article", "title": "Article"},
         ]
 
-        with patch('primr.data.scrape.get_orchestrator') as mock_orch:
+        with patch("primr.data.scrape.get_orchestrator") as mock_orch:
             mock_result = Mock()
             mock_result.success = True
             mock_result.extracted_text = "Content about some company" + "x" * 200
             mock_orch.return_value.scrape_url.return_value = mock_result
 
-            with patch('primr.ai.llm.llm') as mock_llm:
+            with patch("primr.ai.llm.llm") as mock_llm:
                 mock_llm.return_value = "NO\nDifferent company"
 
                 scrape_external_sources_validated(
                     search_results,
                     company_name="Acme Corp",
                     website="https://www.acme.com",
-                    max_sources=1
+                    max_sources=1,
                 )
 
                 # Check the prompt includes domain
@@ -357,21 +381,25 @@ class TestLLMValidation:
             {"url": "https://news.com/article", "title": "EverTrue Senior Living"},
         ]
 
-        with patch('primr.data.scrape.get_orchestrator') as mock_orch:
+        with patch("primr.data.scrape.get_orchestrator") as mock_orch:
             mock_result = Mock()
             mock_result.success = True
-            mock_result.extracted_text = "EverTrue Senior Living at evertrue-living.com announced..." + "x" * 200
+            mock_result.extracted_text = (
+                "EverTrue Senior Living at evertrue-living.com announced..." + "x" * 200
+            )
             mock_orch.return_value.scrape_url.return_value = mock_result
 
-            with patch('primr.ai.llm.llm') as mock_llm:
+            with patch("primr.ai.llm.llm") as mock_llm:
                 # LLM says NO - different company
-                mock_llm.return_value = "NO\nThis is about EverTrue Senior Living, not EverTrue fundraising software"
+                mock_llm.return_value = (
+                    "NO\nThis is about EverTrue Senior Living, not EverTrue fundraising software"
+                )
 
                 result = scrape_external_sources_validated(
                     search_results,
                     company_name="EverTrue",
                     website="https://www.evertrue.com",
-                    max_sources=1
+                    max_sources=1,
                 )
 
                 assert len(result) == 0
@@ -384,20 +412,22 @@ class TestLLMValidation:
             {"url": "https://businesswire.com/article", "title": "Acme Corp Funding"},
         ]
 
-        with patch('primr.data.scrape.get_orchestrator') as mock_orch:
+        with patch("primr.data.scrape.get_orchestrator") as mock_orch:
             mock_result = Mock()
             mock_result.success = True
-            mock_result.extracted_text = "Acme Corp (www.acme.com) today announced $10M in funding..." + "x" * 200
+            mock_result.extracted_text = (
+                "Acme Corp (www.acme.com) today announced $10M in funding..." + "x" * 200
+            )
             mock_orch.return_value.scrape_url.return_value = mock_result
 
-            with patch('primr.ai.llm.llm') as mock_llm:
+            with patch("primr.ai.llm.llm") as mock_llm:
                 mock_llm.return_value = "YES\nMentions www.acme.com domain directly"
 
                 result = scrape_external_sources_validated(
                     search_results,
                     company_name="Acme Corp",
                     website="https://www.acme.com",
-                    max_sources=1
+                    max_sources=1,
                 )
 
                 assert len(result) == 1
@@ -416,22 +446,22 @@ class TestErrorHandling:
             {"url": "https://working-site.com/article", "title": "Will Work"},
         ]
 
-        with patch('primr.data.scrape.get_orchestrator') as mock_orch:
+        with patch("primr.data.scrape.get_orchestrator") as mock_orch:
+
             def scrape_side_effect(url):
                 if "failing" in url:
                     return Mock(success=False, extracted_text=None)
-                return Mock(success=True, extracted_text="Good content about Acme at acme.com" + "x" * 200)
+                return Mock(
+                    success=True, extracted_text="Good content about Acme at acme.com" + "x" * 200
+                )
 
             mock_orch.return_value.scrape_url.side_effect = scrape_side_effect
 
-            with patch('primr.ai.llm.llm') as mock_llm:
+            with patch("primr.ai.llm.llm") as mock_llm:
                 mock_llm.return_value = "YES\nCorrect company"
 
                 result = scrape_external_sources_validated(
-                    search_results,
-                    company_name="Acme",
-                    website="https://acme.com",
-                    max_sources=2
+                    search_results, company_name="Acme", website="https://acme.com", max_sources=2
                 )
 
                 # Should have 1 result (the working one)
@@ -447,14 +477,14 @@ class TestErrorHandling:
             {"url": "https://site2.com/article", "title": "Article 2"},
         ]
 
-        with patch('primr.data.scrape.get_orchestrator') as mock_orch:
+        with patch("primr.data.scrape.get_orchestrator") as mock_orch:
             mock_orch.return_value.scrape_url.return_value = Mock(
-                success=True,
-                extracted_text="Content about Acme at acme.com" + "x" * 200
+                success=True, extracted_text="Content about Acme at acme.com" + "x" * 200
             )
 
-            with patch('primr.ai.llm.llm') as mock_llm:
+            with patch("primr.ai.llm.llm") as mock_llm:
                 call_count = [0]
+
                 def llm_side_effect(*args, **kwargs):
                     call_count[0] += 1
                     if call_count[0] == 1:
@@ -464,10 +494,7 @@ class TestErrorHandling:
                 mock_llm.side_effect = llm_side_effect
 
                 result = scrape_external_sources_validated(
-                    search_results,
-                    company_name="Acme",
-                    website="https://acme.com",
-                    max_sources=2
+                    search_results, company_name="Acme", website="https://acme.com", max_sources=2
                 )
 
                 # Should have 1 result (the second one that didn't fail)
@@ -482,7 +509,8 @@ class TestErrorHandling:
             {"url": "https://site.com/long", "title": "Long"},
         ]
 
-        with patch('primr.data.scrape.get_orchestrator') as mock_orch:
+        with patch("primr.data.scrape.get_orchestrator") as mock_orch:
+
             def scrape_side_effect(url):
                 if "short" in url:
                     return Mock(success=True, extracted_text="Too short")
@@ -490,14 +518,11 @@ class TestErrorHandling:
 
             mock_orch.return_value.scrape_url.side_effect = scrape_side_effect
 
-            with patch('primr.ai.llm.llm') as mock_llm:
+            with patch("primr.ai.llm.llm") as mock_llm:
                 mock_llm.return_value = "YES\nCorrect"
 
                 result = scrape_external_sources_validated(
-                    search_results,
-                    company_name="Acme",
-                    website="https://acme.com",
-                    max_sources=2
+                    search_results, company_name="Acme", website="https://acme.com", max_sources=2
                 )
 
                 # Only the long content should pass
@@ -509,10 +534,7 @@ class TestErrorHandling:
         from primr.data.scrape import scrape_external_sources_validated
 
         result = scrape_external_sources_validated(
-            [],
-            company_name="Acme",
-            website="https://acme.com",
-            max_sources=2
+            [], company_name="Acme", website="https://acme.com", max_sources=2
         )
 
         assert result == {}
@@ -522,24 +544,19 @@ class TestErrorHandling:
         from primr.data.scrape import scrape_external_sources_validated
 
         search_results = [
-            {"url": f"https://site{i}.com/article", "title": f"Article {i}"}
-            for i in range(10)
+            {"url": f"https://site{i}.com/article", "title": f"Article {i}"} for i in range(10)
         ]
 
-        with patch('primr.data.scrape.get_orchestrator') as mock_orch:
+        with patch("primr.data.scrape.get_orchestrator") as mock_orch:
             mock_orch.return_value.scrape_url.return_value = Mock(
-                success=True,
-                extracted_text="Good content about Acme at acme.com " * 20
+                success=True, extracted_text="Good content about Acme at acme.com " * 20
             )
 
-            with patch('primr.ai.llm.llm') as mock_llm:
+            with patch("primr.ai.llm.llm") as mock_llm:
                 mock_llm.return_value = "YES\nCorrect"
 
                 result = scrape_external_sources_validated(
-                    search_results,
-                    company_name="Acme",
-                    website="https://acme.com",
-                    max_sources=3
+                    search_results, company_name="Acme", website="https://acme.com", max_sources=3
                 )
 
                 assert len(result) == 3
@@ -559,12 +576,15 @@ class TestContentValidation:
         """Good content should be valid."""
         from primr.data.scraping.validation import validate_content
 
-        good_content = """
+        good_content = (
+            """
         This is a substantial article about a company.
         It contains multiple paragraphs with real information.
         The content discusses products, services, and business strategy.
         There are details about leadership and market position.
-        """ * 5  # Make it long enough
+        """
+            * 5
+        )  # Make it long enough
 
         result = validate_content(good_content, "https://example.com")
         assert result.valid
@@ -576,11 +596,14 @@ class TestContentValidation:
         nav_content = "Home About Contact Products Services Login"
         assert is_nav_only_page(nav_content)
 
-        real_content = """
+        real_content = (
+            """
         This is a real article with substantial content.
         It discusses important business topics in detail.
         The company announced new products and services.
-        """ * 3
+        """
+            * 3
+        )
         assert not is_nav_only_page(real_content)
 
 
@@ -595,8 +618,10 @@ class TestCircuitBreaker:
 
         initial_failures = _search_circuit._failure_count
 
-        with patch('primr.data.search_utils._google_api_available', True), \
-             patch('primr.data.search_utils.requests.get') as mock_get:
+        with (
+            patch("primr.data.search_utils._google_api_available", True),
+            patch("primr.data.search_utils.requests.get") as mock_get,
+        ):
             # Simulate request exception (the type that triggers circuit breaker)
             mock_get.side_effect = RequestException("API Error")
 
@@ -606,7 +631,10 @@ class TestCircuitBreaker:
             # Should return empty
             assert result == []
             # Failure count should have increased
-            assert _search_circuit._failure_count > initial_failures or _search_circuit._state == "open"
+            assert (
+                _search_circuit._failure_count > initial_failures
+                or _search_circuit._state == "open"
+            )
 
 
 class TestDDGSearch:
@@ -621,7 +649,7 @@ class TestDDGSearch:
             {"title": "Acme Funding", "href": "https://techcrunch.com/acme", "body": "..."},
         ]
 
-        with patch('ddgs.DDGS') as MockDDGS:
+        with patch("ddgs.DDGS") as MockDDGS:
             MockDDGS.return_value.text.return_value = mock_ddg_results
 
             results = _search_ddg("news", "Acme Corp", "https://acme.com")
@@ -641,7 +669,7 @@ class TestDDGSearch:
             {"title": "Bad", "href": "https://youtube.com/watch", "body": "..."},
         ]
 
-        with patch('ddgs.DDGS') as MockDDGS:
+        with patch("ddgs.DDGS") as MockDDGS:
             MockDDGS.return_value.text.return_value = mock_ddg_results
 
             results = _search_ddg("news", "Test Co", "https://test.com")
@@ -658,7 +686,7 @@ class TestDDGSearch:
             {"title": "News", "href": "https://news.com/acme-article", "body": "..."},
         ]
 
-        with patch('ddgs.DDGS') as MockDDGS:
+        with patch("ddgs.DDGS") as MockDDGS:
             MockDDGS.return_value.text.return_value = mock_ddg_results
 
             results = _search_ddg("news", "Acme Corp", "https://www.acme.com")
@@ -674,13 +702,16 @@ class TestDDGSearch:
 
         initial_failures = _search_circuit._failure_count
 
-        with patch('ddgs.DDGS') as MockDDGS:
+        with patch("ddgs.DDGS") as MockDDGS:
             MockDDGS.return_value.text.side_effect = RatelimitException("rate limited")
 
             results = _search_ddg("test", "Test Co", "https://test.com")
 
             assert results == []
-            assert _search_circuit._failure_count > initial_failures or _search_circuit._state == "open"
+            assert (
+                _search_circuit._failure_count > initial_failures
+                or _search_circuit._state == "open"
+            )
 
     def test_ddg_handles_timeout(self):
         """DDG timeout should return empty."""
@@ -688,7 +719,7 @@ class TestDDGSearch:
 
         from primr.data.search_utils import _search_ddg
 
-        with patch('ddgs.DDGS') as MockDDGS:
+        with patch("ddgs.DDGS") as MockDDGS:
             MockDDGS.return_value.text.side_effect = TimeoutException("timeout")
 
             results = _search_ddg("test", "Test Co", "https://test.com")
@@ -703,31 +734,39 @@ class TestSearchProviderDispatch:
         """Default provider should be DDG."""
         from primr.data.search_utils import _get_active_provider
 
-        with patch('primr.data.search_utils.SEARCH_PROVIDER', 'auto'):
+        with patch("primr.data.search_utils.SEARCH_PROVIDER", "auto"):
             assert _get_active_provider() == "ddg"
 
     def test_google_with_keys_uses_google(self):
         """SEARCH_PROVIDER=google with keys should use Google."""
         from primr.data.search_utils import _get_active_provider
 
-        with patch('primr.data.search_utils.SEARCH_PROVIDER', 'google'), \
-             patch('primr.data.search_utils._google_api_available', True):
+        with (
+            patch("primr.data.search_utils.SEARCH_PROVIDER", "google"),
+            patch("primr.data.search_utils._google_api_available", True),
+        ):
             assert _get_active_provider() == "google"
 
     def test_google_without_keys_falls_back_to_ddg(self):
         """SEARCH_PROVIDER=google without keys should fall back to DDG."""
         from primr.data.search_utils import _get_active_provider
 
-        with patch('primr.data.search_utils.SEARCH_PROVIDER', 'google'), \
-             patch('primr.data.search_utils._google_api_available', False):
+        with (
+            patch("primr.data.search_utils.SEARCH_PROVIDER", "google"),
+            patch("primr.data.search_utils._google_api_available", False),
+        ):
             assert _get_active_provider() == "ddg"
 
     def test_search_web_dispatches_to_ddg(self):
         """search_web should call _search_ddg when provider is DDG."""
         from primr.data.search_utils import search_web
 
-        with patch('primr.data.search_utils._get_active_provider', return_value='ddg'), \
-             patch('primr.data.search_utils._search_ddg', return_value=[{"title": "T", "url": "U"}]) as mock_ddg:
+        with (
+            patch("primr.data.search_utils._get_active_provider", return_value="ddg"),
+            patch(
+                "primr.data.search_utils._search_ddg", return_value=[{"title": "T", "url": "U"}]
+            ) as mock_ddg,
+        ):
             results = search_web("test", "Test Co", "https://test.com")
             mock_ddg.assert_called_once()
             assert len(results) == 1
@@ -736,8 +775,12 @@ class TestSearchProviderDispatch:
         """search_web should call _search_google when provider is Google."""
         from primr.data.search_utils import search_web
 
-        with patch('primr.data.search_utils._get_active_provider', return_value='google'), \
-             patch('primr.data.search_utils._search_google', return_value=[{"title": "T", "url": "U"}]) as mock_google:
+        with (
+            patch("primr.data.search_utils._get_active_provider", return_value="google"),
+            patch(
+                "primr.data.search_utils._search_google", return_value=[{"title": "T", "url": "U"}]
+            ) as mock_google,
+        ):
             results = search_web("test", "Test Co", "https://test.com")
             mock_google.assert_called_once()
             assert len(results) == 1
@@ -745,6 +788,7 @@ class TestSearchProviderDispatch:
     def test_search_google_alias_works(self):
         """search_google backward compatibility alias should work."""
         from primr.data.search_utils import search_google, search_web
+
         assert search_google is search_web
 
 
@@ -755,33 +799,33 @@ class TestExternalQueryGeneration:
         """Generated queries should always include explicit latest-news coverage."""
         from primr.data.search_utils import generate_external_search_queries
 
-        with patch('primr.data.search_utils.llm', return_value='Acme Corp smart grid strategy\nAcme Corp executive interview\n'):
+        with patch(
+            "primr.data.search_utils.llm",
+            return_value="Acme Corp smart grid strategy\nAcme Corp executive interview\n",
+        ):
             queries = generate_external_search_queries(
-                company_name='Acme Corp',
-                website='https://acme.com',
+                company_name="Acme Corp",
+                website="https://acme.com",
                 max_queries=8,
             )
 
         current_year = datetime.now().year
-        assert any('latest news' in q.lower() for q in queries)
+        assert any("latest news" in q.lower() for q in queries)
         assert any(str(current_year) in q for q in queries)
-        assert all('acme corp' in q.lower() for q in queries)
+        assert all("acme corp" in q.lower() for q in queries)
 
     def test_external_queries_fallback_when_llm_fails(self):
         """Fallback queries should still include recency and coverage dimensions."""
         from primr.data.search_utils import generate_external_search_queries
 
-        with patch('primr.data.search_utils.llm', side_effect=Exception('query failure')):
+        with patch("primr.data.search_utils.llm", side_effect=Exception("query failure")):
             queries = generate_external_search_queries(
-                company_name='Acme Corp',
-                website='https://acme.com',
+                company_name="Acme Corp",
+                website="https://acme.com",
                 max_queries=6,
             )
 
         assert len(queries) == 6
-        assert queries[0].lower().startswith('acme corp latest news')
-        assert any('leadership' in q.lower() for q in queries)
-        assert any('press release' in q.lower() or 'announcements' in q.lower() for q in queries)
-
-
-
+        assert queries[0].lower().startswith("acme corp latest news")
+        assert any("leadership" in q.lower() for q in queries)
+        assert any("press release" in q.lower() or "announcements" in q.lower() for q in queries)

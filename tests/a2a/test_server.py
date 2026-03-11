@@ -42,6 +42,7 @@ class TestPrimrA2AServer:
     def test_build_app_with_auth(self, mcp_server):
         """Auth middleware is applied when require_auth=True."""
         import os
+
         # Set a token so auth middleware can initialize
         os.environ.setdefault("MCP_ADMIN_TOKENS", "test-token")
         try:

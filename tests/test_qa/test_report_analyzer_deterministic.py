@@ -25,6 +25,7 @@ def _make_analyzer(content: str, filename: str = "test_report.md") -> ReportAnal
 # Hypothesis Coverage
 # =============================================================================
 
+
 class TestAnalyzeHypothesisCoverage:
     def test_counts_hypothesis_labels(self):
         content = (
@@ -89,6 +90,7 @@ class TestAnalyzeHypothesisCoverage:
 # Confidence Labels
 # =============================================================================
 
+
 class TestAnalyzeConfidenceLabels:
     def test_counts_all_four_label_types(self):
         content = (
@@ -107,9 +109,7 @@ class TestAnalyzeConfidenceLabels:
 
     def test_counts_hedging_phrases(self):
         content = (
-            "This appears to be correct.\n"
-            "It is worth exploring further.\n"
-            "Signals suggest growth.\n"
+            "This appears to be correct.\nIt is worth exploring further.\nSignals suggest growth.\n"
         )
         analyzer = _make_analyzer(content)
         result = analyzer.analyze_confidence_labels()
@@ -138,14 +138,11 @@ class TestAnalyzeConfidenceLabels:
 # Section Lengths
 # =============================================================================
 
+
 class TestAnalyzeSectionLengths:
     def test_detects_truncated_sections(self):
         content = (
-            "# Title\n"
-            "## Full Section\n"
-            + "word " * 100
-            + "\n## Short Section\n"
-            "Just a few words.\n"
+            "# Title\n## Full Section\n" + "word " * 100 + "\n## Short Section\nJust a few words.\n"
         )
         analyzer = _make_analyzer(content)
         result = analyzer.analyze_section_lengths()
@@ -154,9 +151,7 @@ class TestAnalyzeSectionLengths:
 
     def test_no_false_positives_on_full_report(self):
         content = (
-            "# Title\n"
-            "## Section A\n" + "word " * 100 + "\n"
-            "## Section B\n" + "word " * 80 + "\n"
+            "# Title\n## Section A\n" + "word " * 100 + "\n## Section B\n" + "word " * 80 + "\n"
         )
         analyzer = _make_analyzer(content)
         result = analyzer.analyze_section_lengths()
@@ -164,11 +159,7 @@ class TestAnalyzeSectionLengths:
         assert result["truncated_sections"] == []
 
     def test_counts_words_per_section(self):
-        content = (
-            "# Title\n"
-            "## First\n" + "word " * 60 + "\n"
-            "## Second\n" + "word " * 30 + "\n"
-        )
+        content = "# Title\n## First\n" + "word " * 60 + "\n## Second\n" + "word " * 30 + "\n"
         analyzer = _make_analyzer(content)
         result = analyzer.analyze_section_lengths()
         assert len(result["sections"]) == 2
@@ -184,6 +175,7 @@ class TestAnalyzeSectionLengths:
 # =============================================================================
 # Citation Density
 # =============================================================================
+
 
 class TestAnalyzeCitationDensity:
     def test_counts_cite_patterns(self):
@@ -227,6 +219,7 @@ class TestAnalyzeCitationDensity:
 # Structure (report-type-aware)
 # =============================================================================
 
+
 class TestAnalyzeStructureReportTypeAware:
     def test_strategic_overview_required_sections(self):
         content = (
@@ -259,11 +252,7 @@ class TestAnalyzeStructureReportTypeAware:
         assert len(result["key_sections_missing"]) == 0
 
     def test_unknown_type_uses_minimal_sections(self):
-        content = (
-            "## Executive Summary\nText\n"
-            "## Key Insights\nText\n"
-            "## Sources\nText\n"
-        )
+        content = "## Executive Summary\nText\n## Key Insights\nText\n## Sources\nText\n"
         analyzer = _make_analyzer(content, "misc.md")
         result = analyzer.analyze_structure()
         assert result["report_type"] == "unknown"

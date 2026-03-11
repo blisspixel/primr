@@ -167,12 +167,7 @@ class TestMaskDictValues:
 
     def test_mask_nested_dict(self):
         """Nested dictionaries are masked."""
-        data = {
-            "config": {
-                "api_key": "secret",
-                "timeout": 30
-            }
-        }
+        data = {"config": {"api_key": "secret", "timeout": 30}}
         result = mask_dict_values(data)
         assert result["config"]["api_key"] == "[REDACTED]"
         assert result["config"]["timeout"] == 30
@@ -309,6 +304,7 @@ class TestSecurityAuditLogger:
     def test_log_auth_success(self, caplog):
         """Auth success is logged."""
         import logging
+
         audit = SecurityAuditLogger("test")
 
         with caplog.at_level(logging.INFO):
@@ -320,6 +316,7 @@ class TestSecurityAuditLogger:
     def test_log_auth_failure(self, caplog):
         """Auth failure is logged."""
         import logging
+
         audit = SecurityAuditLogger("test")
 
         with caplog.at_level(logging.WARNING):
@@ -331,12 +328,12 @@ class TestSecurityAuditLogger:
     def test_log_security_violation(self, caplog):
         """Security violation is logged."""
         import logging
+
         audit = SecurityAuditLogger("test")
 
         with caplog.at_level(logging.ERROR):
             audit.log_security_violation(
-                violation_type="ssrf_attempt",
-                details="Attempted access to 169.254.169.254"
+                violation_type="ssrf_attempt", details="Attempted access to 169.254.169.254"
             )
 
         assert "SECURITY_VIOLATION" in caplog.text
@@ -345,6 +342,7 @@ class TestSecurityAuditLogger:
     def test_log_rate_limit(self, caplog):
         """Rate limit is logged."""
         import logging
+
         audit = SecurityAuditLogger("test")
 
         with caplog.at_level(logging.WARNING):

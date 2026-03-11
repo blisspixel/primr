@@ -18,6 +18,7 @@ from typing import Any
 
 class EntityType(Enum):
     """Types of entities in the knowledge graph."""
+
     COMPANY = "company"
     PERSON = "person"
     PRODUCT = "product"
@@ -27,6 +28,7 @@ class EntityType(Enum):
 
 class RelationType(Enum):
     """Types of relationships between entities."""
+
     OWNS = "owns"
     SUBSIDIARY_OF = "subsidiary_of"
     PARTNER_WITH = "partner_with"
@@ -43,6 +45,7 @@ class RelationType(Enum):
 @dataclass
 class Entity:
     """An entity in the knowledge graph."""
+
     entity_id: str
     entity_type: EntityType
     name: str
@@ -63,6 +66,7 @@ class Entity:
 @dataclass
 class Relationship:
     """A relationship between two entities."""
+
     relationship_id: str
     source_id: str
     target_id: str
@@ -87,6 +91,7 @@ class Relationship:
 @dataclass
 class Executive:
     """An executive/person entity with role information."""
+
     person_id: str
     name: str
     title: str
@@ -101,6 +106,7 @@ class Executive:
 @dataclass
 class CompanyNode:
     """A company node with its relationships."""
+
     entity: Entity
     executives: list[Executive] = field(default_factory=list)
     subsidiaries: list[str] = field(default_factory=list)
@@ -224,7 +230,6 @@ class KnowledgeGraph:
             self._id_counter += 1
             return f"{prefix}_{self._id_counter}"
 
-
     def add_entity(
         self,
         entity_type: EntityType,
@@ -262,8 +267,14 @@ class KnowledgeGraph:
             """INSERT INTO entities
             (entity_id, entity_type, name, properties_json, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?)""",
-            (entity_id, entity_type.value, name, json.dumps(entity.properties),
-             now.isoformat(), now.isoformat()),
+            (
+                entity_id,
+                entity_type.value,
+                name,
+                json.dumps(entity.properties),
+                now.isoformat(),
+                now.isoformat(),
+            ),
         )
 
         return entity
@@ -335,9 +346,16 @@ class KnowledgeGraph:
             (relationship_id, source_id, target_id, relation_type, properties_json,
              confidence, source_url, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (relationship_id, source_id, target_id, relation_type.value,
-             json.dumps(relationship.properties), confidence, source_url,
-             now.isoformat()),
+            (
+                relationship_id,
+                source_id,
+                target_id,
+                relation_type.value,
+                json.dumps(relationship.properties),
+                confidence,
+                source_url,
+                now.isoformat(),
+            ),
         )
 
         return relationship
@@ -379,7 +397,6 @@ class KnowledgeGraph:
             relationships.extend(self._row_to_relationship(r) for r in rows)
 
         return relationships
-
 
     def extract_entities_from_content(
         self,
@@ -544,9 +561,7 @@ class KnowledgeGraph:
 
         # BFS to find path
         visited: set[str] = set()
-        queue: list[tuple[str, list[tuple[Entity, Relationship]]]] = [
-            (source.entity_id, [])
-        ]
+        queue: list[tuple[str, list[tuple[Entity, Relationship]]]] = [(source.entity_id, [])]
 
         while queue:
             current_id, path = queue.pop(0)
@@ -622,7 +637,6 @@ class KnowledgeGraph:
         )
 
 
-
 # Global instance
 _graph: KnowledgeGraph | None = None
 _graph_lock = threading.Lock()
@@ -661,9 +675,7 @@ def add_relationship(
     properties: dict[str, Any] | None = None,
 ) -> Relationship:
     """Add a relationship between entities."""
-    return get_knowledge_graph().add_relationship(
-        source_id, target_id, relation_type, properties
-    )
+    return get_knowledge_graph().add_relationship(source_id, target_id, relation_type, properties)
 
 
 def get_company_graph(company_name: str) -> CompanyNode | None:
@@ -671,7 +683,9 @@ def get_company_graph(company_name: str) -> CompanyNode | None:
     return get_knowledge_graph().get_company_graph(company_name)
 
 
-def extract_from_content(company_name: str, content: str) -> tuple[list[Entity], list[Relationship]]:
+def extract_from_content(
+    company_name: str, content: str
+) -> tuple[list[Entity], list[Relationship]]:
     """Extract entities and relationships from content."""
     graph = get_knowledge_graph()
     entities = graph.extract_entities_from_content(content, company_name)

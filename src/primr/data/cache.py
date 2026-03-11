@@ -32,6 +32,7 @@ logger = get_logger("cache")
 @dataclass
 class CacheConfig:
     """Configuration for the content cache."""
+
     db_path: str = str(Path(PROJECT_ROOT) / "logs" / "cache.db")
     default_ttl_hours: int = 24
     max_entries: int = 10000
@@ -42,6 +43,7 @@ class CacheConfig:
 @dataclass
 class CacheEntry:
     """A single cache entry."""
+
     url: str
     content: str
     tier: str | None
@@ -64,6 +66,7 @@ class CacheEntry:
 @dataclass
 class CacheStats:
     """Cache statistics."""
+
     total_entries: int
     total_size_bytes: int
     hit_count: int
@@ -150,11 +153,7 @@ class ContentCache:
     @contextmanager
     def _get_connection(self):
         """Get a database connection with proper cleanup."""
-        conn = sqlite3.connect(
-            self._config.db_path,
-            timeout=30.0,
-            check_same_thread=False
-        )
+        conn = sqlite3.connect(self._config.db_path, timeout=30.0, check_same_thread=False)
         conn.row_factory = sqlite3.Row
         try:
             yield conn
@@ -178,10 +177,7 @@ class ContentCache:
         key = self._get_key(url)
 
         with self._lock, self._get_connection() as conn:
-            cursor = conn.execute(
-                "SELECT content, expires_at FROM cache WHERE key = ?",
-                (key,)
-            )
+            cursor = conn.execute("SELECT content, expires_at FROM cache WHERE key = ?", (key,))
             row = cursor.fetchone()
 
             if row is None:
@@ -198,21 +194,14 @@ class ContentCache:
                 return None
 
             # Update hit count
-            conn.execute(
-                "UPDATE cache SET hit_count = hit_count + 1 WHERE key = ?",
-                (key,)
-            )
+            conn.execute("UPDATE cache SET hit_count = hit_count + 1 WHERE key = ?", (key,))
             conn.commit()
 
             self._hit_count += 1
             return str(row["content"])
 
     def set(
-        self,
-        url: str,
-        content: str,
-        tier: str | None = None,
-        ttl_hours: int | None = None
+        self, url: str, content: str, tier: str | None = None, ttl_hours: int | None = None
     ) -> None:
         """
         Store content in cache.
@@ -230,19 +219,14 @@ class ContentCache:
         expires_at = now + timedelta(hours=ttl)
 
         with self._lock, self._get_connection() as conn:
-            conn.execute("""
+            conn.execute(
+                """
                     INSERT OR REPLACE INTO cache
                     (key, url, content, tier, created_at, expires_at, size, hit_count)
                     VALUES (?, ?, ?, ?, ?, ?, ?, 0)
-                """, (
-                key,
-                url,
-                content,
-                tier,
-                now.isoformat(),
-                expires_at.isoformat(),
-                len(content)
-            ))
+                """,
+                (key, url, content, tier, now.isoformat(), expires_at.isoformat(), len(content)),
+            )
             conn.commit()
 
         # Trigger cleanup if needed
@@ -261,10 +245,7 @@ class ContentCache:
         key = self._get_key(url)
 
         with self._lock, self._get_connection() as conn:
-            cursor = conn.execute(
-                "DELETE FROM cache WHERE key = ?",
-                (key,)
-            )
+            cursor = conn.execute("DELETE FROM cache WHERE key = ?", (key,))
             conn.commit()
             return bool(cursor.rowcount > 0)
 
@@ -295,10 +276,7 @@ class ContentCache:
         now = datetime.now().isoformat()
 
         with self._lock, self._get_connection() as conn:
-            cursor = conn.execute(
-                "DELETE FROM cache WHERE expires_at < ?",
-                (now,)
-            )
+            cursor = conn.execute("DELETE FROM cache WHERE expires_at < ?", (now,))
             conn.commit()
             count: int = cursor.rowcount or 0
 
@@ -326,13 +304,16 @@ class ContentCache:
             if count > self._config.max_entries:
                 # Delete oldest entries
                 to_delete = count - self._config.max_entries
-                conn.execute("""
+                conn.execute(
+                    """
                         DELETE FROM cache WHERE key IN (
                             SELECT key FROM cache
                             ORDER BY created_at ASC
                             LIMIT ?
                         )
-                    """, (to_delete,))
+                    """,
+                    (to_delete,),
+                )
                 conn.commit()
                 logger.debug(f"Removed {to_delete} oldest cache entries")
 
@@ -345,25 +326,18 @@ class ContentCache:
         """
         with self._lock, self._get_connection() as conn:
             # Total entries and size
-            cursor = conn.execute(
-                "SELECT COUNT(*), COALESCE(SUM(size), 0) FROM cache"
-            )
+            cursor = conn.execute("SELECT COUNT(*), COALESCE(SUM(size), 0) FROM cache")
             row = cursor.fetchone()
             total_entries = row[0]
             total_size = row[1]
 
             # Expired count
             now = datetime.now().isoformat()
-            cursor = conn.execute(
-                "SELECT COUNT(*) FROM cache WHERE expires_at < ?",
-                (now,)
-            )
+            cursor = conn.execute("SELECT COUNT(*) FROM cache WHERE expires_at < ?", (now,))
             expired_count = cursor.fetchone()[0]
 
             # Date range
-            cursor = conn.execute(
-                "SELECT MIN(created_at), MAX(created_at) FROM cache"
-            )
+            cursor = conn.execute("SELECT MIN(created_at), MAX(created_at) FROM cache")
             row = cursor.fetchone()
             oldest = datetime.fromisoformat(row[0]) if row and row[0] else None
             newest = datetime.fromisoformat(row[1]) if row and row[1] else None
@@ -375,7 +349,7 @@ class ContentCache:
             miss_count=self._miss_count,
             expired_count=expired_count,
             oldest_entry=oldest,
-            newest_entry=newest
+            newest_entry=newest,
         )
 
     def get_entry(self, url: str) -> CacheEntry | None:
@@ -391,10 +365,7 @@ class ContentCache:
         key = self._get_key(url)
 
         with self._lock, self._get_connection() as conn:
-            cursor = conn.execute(
-                "SELECT * FROM cache WHERE key = ?",
-                (key,)
-            )
+            cursor = conn.execute("SELECT * FROM cache WHERE key = ?", (key,))
             row = cursor.fetchone()
 
             if row is None:
@@ -407,10 +378,12 @@ class ContentCache:
                 created_at=datetime.fromisoformat(row["created_at"]),
                 expires_at=datetime.fromisoformat(row["expires_at"]),
                 size=row["size"],
-                hit_count=row["hit_count"]
+                hit_count=row["hit_count"],
             )
 
-    def warm(self, urls: list[str], scrape_function: Callable[[str], tuple[str | None, str]]) -> int:
+    def warm(
+        self, urls: list[str], scrape_function: Callable[[str], tuple[str | None, str]]
+    ) -> int:
         """
         Warm the cache by pre-fetching URLs.
 
@@ -453,8 +426,7 @@ class ContentCache:
         escaped = self._escape_like(domain)
         with self._lock, self._get_connection() as conn:
             cursor = conn.execute(
-                "SELECT url FROM cache WHERE url LIKE ? ESCAPE '\\'",
-                (f"%{escaped}%",)
+                "SELECT url FROM cache WHERE url LIKE ? ESCAPE '\\'", (f"%{escaped}%",)
             )
             return [row["url"] for row in cursor.fetchall()]
 
@@ -471,8 +443,7 @@ class ContentCache:
         escaped = self._escape_like(domain)
         with self._lock, self._get_connection() as conn:
             cursor = conn.execute(
-                "DELETE FROM cache WHERE url LIKE ? ESCAPE '\\'",
-                (f"%{escaped}%",)
+                "DELETE FROM cache WHERE url LIKE ? ESCAPE '\\'", (f"%{escaped}%",)
             )
             conn.commit()
             count: int = cursor.rowcount or 0
@@ -517,16 +488,14 @@ def reset_cache() -> None:
 # CONVENIENCE FUNCTIONS
 # =============================================================================
 
+
 def cache_get(url: str) -> str | None:
     """Get cached content for a URL."""
     return get_cache().get(url)
 
 
 def cache_set(
-    url: str,
-    content: str,
-    tier: str | None = None,
-    ttl_hours: int | None = None
+    url: str, content: str, tier: str | None = None, ttl_hours: int | None = None
 ) -> None:
     """Store content in cache."""
     get_cache().set(url, content, tier=tier, ttl_hours=ttl_hours)

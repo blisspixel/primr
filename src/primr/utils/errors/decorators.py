@@ -21,18 +21,19 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 # =============================================================================
 # ERROR HANDLING DECORATORS
 # =============================================================================
 
+
 def safe_call(
     default: T | None = None,
     exceptions: tuple[type[Exception], ...] = (Exception,),
     log_level: str = "warning",
-    reraise: bool = False
+    reraise: bool = False,
 ) -> Callable[[Callable[..., T]], Callable[..., T | None]]:
     """
     Decorator for safe function calls with automatic logging.
@@ -48,6 +49,7 @@ def safe_call(
         def fetch_url(url: str) -> Optional[str]:
             ...
     """
+
     def decorator(func: Callable[..., T]) -> Callable[..., T | None]:
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> T | None:
@@ -57,12 +59,14 @@ def safe_call(
                 log_func = getattr(logger, log_level)
                 log_func(
                     f"{func.__module__}.{func.__name__} failed: {e}",
-                    exc_info=(log_level == "error")
+                    exc_info=(log_level == "error"),
                 )
                 if reraise:
                     raise
                 return default
+
         return wrapper
+
     return decorator
 
 
@@ -70,7 +74,7 @@ def retry_on_failure(
     max_retries: int = 3,
     delay: float = 1.0,
     backoff: float = 2.0,
-    exceptions: tuple[type[Exception], ...] = (Exception,)
+    exceptions: tuple[type[Exception], ...] = (Exception,),
 ) -> Callable[[Callable[..., T]], Callable[..., T]]:
     """
     Decorator that retries a function on failure with exponential backoff.
@@ -106,20 +110,21 @@ def retry_on_failure(
                         time.sleep(current_delay)
                         current_delay *= backoff
                     else:
-                        logger.error(
-                            f"{func.__name__} failed after {max_retries} attempts: {e}"
-                        )
+                        logger.error(f"{func.__name__} failed after {max_retries} attempts: {e}")
 
             if last_exception is not None:
                 raise last_exception
             raise RuntimeError("Unexpected state: no exception captured")
+
         return wrapper
+
     return decorator
 
 
 # =============================================================================
 # ERROR CONTEXT MANAGERS
 # =============================================================================
+
 
 class ErrorContext:
     """
@@ -184,6 +189,7 @@ def error_context(operation: str, **metadata: Any) -> Generator[None, None, None
 # =============================================================================
 # CALLBACK UTILITIES
 # =============================================================================
+
 
 def async_safe_callback(callback: Callable | None) -> Callable:
     """

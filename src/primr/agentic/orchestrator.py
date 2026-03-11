@@ -79,6 +79,7 @@ logger = logging.getLogger(__name__)
 # ENUMS
 # =============================================================================
 
+
 class OrchestratorState(Enum):
     """
     State of the research orchestrator.
@@ -114,6 +115,7 @@ class OrchestratorState(Enum):
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
+
 
 @dataclass
 class OrchestratorConfig:
@@ -178,6 +180,7 @@ class OrchestratorConfig:
 # RESULT
 # =============================================================================
 
+
 @dataclass
 class OrchestratorResult:
     """
@@ -237,7 +240,8 @@ class OrchestratorResult:
     def completed_stages(self) -> list[str]:
         """Get list of successfully completed stages."""
         return [
-            name for name, result in self.stage_results.items()
+            name
+            for name, result in self.stage_results.items()
             if result.status == SubagentStatus.COMPLETED
         ]
 
@@ -245,7 +249,8 @@ class OrchestratorResult:
     def failed_stages(self) -> list[str]:
         """Get list of failed stages."""
         return [
-            name for name, result in self.stage_results.items()
+            name
+            for name, result in self.stage_results.items()
             if result.status == SubagentStatus.FAILED
         ]
 
@@ -269,6 +274,7 @@ class OrchestratorResult:
 # =============================================================================
 # ORCHESTRATOR
 # =============================================================================
+
 
 class ResearchOrchestrator:
     """
@@ -378,13 +384,15 @@ class ResearchOrchestrator:
         response = await self._config.user_input_callback(full_prompt, options)
 
         # Record the decision
-        self._user_decisions.append({
-            "prompt": prompt,
-            "options": options,
-            "response": response,
-            "timestamp": datetime.now().isoformat(),
-            "stage": self._state.value,
-        })
+        self._user_decisions.append(
+            {
+                "prompt": prompt,
+                "options": options,
+                "response": response,
+                "timestamp": datetime.now().isoformat(),
+                "stage": self._state.value,
+            }
+        )
 
         return response
 
@@ -547,10 +555,7 @@ class ResearchOrchestrator:
         start_time = time.time()
         started_at = datetime.now()
 
-        logger.info(
-            f"Starting research for {company_name} "
-            f"(url={company_url}, mode={mode})"
-        )
+        logger.info(f"Starting research for {company_name} (url={company_url}, mode={mode})")
 
         # Reset interactive state from any prior run
         self._paused_at_stage = None
@@ -562,9 +567,7 @@ class ResearchOrchestrator:
         if self._memory:
             try:
                 prior_hypotheses = self._memory.get_hypotheses(company_name)
-                logger.debug(
-                    f"Loaded {len(prior_hypotheses)} prior hypotheses"
-                )
+                logger.debug(f"Loaded {len(prior_hypotheses)} prior hypotheses")
             except Exception as e:
                 logger.warning(f"Failed to load prior hypotheses: {e}")
 
@@ -694,8 +697,7 @@ class ResearchOrchestrator:
 
                     if verify_result.is_failure:
                         logger.warning(
-                            f"Verification failed for {company_name}: "
-                            f"{verify_result.error}"
+                            f"Verification failed for {company_name}: {verify_result.error}"
                         )
                     elif verify_result.is_success and verify_result.data:
                         logger.info(
@@ -709,9 +711,7 @@ class ResearchOrchestrator:
             if self._memory and all_hypotheses:
                 try:
                     self._memory.save_hypotheses(company_name, all_hypotheses)
-                    logger.debug(
-                        f"Saved {len(all_hypotheses)} hypotheses to memory"
-                    )
+                    logger.debug(f"Saved {len(all_hypotheses)} hypotheses to memory")
                 except Exception as e:
                     logger.warning(f"Failed to save hypotheses: {e}")
 
@@ -851,12 +851,9 @@ class ResearchOrchestrator:
         Returns:
             Path to working directory
         """
-        safe_name = (
-            company_name.lower()
-            .replace(" ", "_")
-            .replace("/", "_")
-            .replace("\\", "_")
-        )[:50]
+        safe_name = (company_name.lower().replace(" ", "_").replace("/", "_").replace("\\", "_"))[
+            :50
+        ]
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         working_dir = self._config.output_dir / f"{safe_name}_{timestamp}"

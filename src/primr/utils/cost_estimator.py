@@ -32,6 +32,7 @@ from primr.config.models import (
 
 class ResearchModeType(Enum):
     """Research modes for cost estimation."""
+
     STRUCTURED = "structured"
     DEEP_RESEARCH = "deep-research"
     COMPLETE = "complete"
@@ -41,6 +42,7 @@ class ResearchModeType(Enum):
 @dataclass
 class CostEstimate:
     """Estimated cost breakdown for a research task."""
+
     mode: str
     estimated_input_tokens: int
     estimated_output_tokens: int
@@ -65,15 +67,19 @@ class CostEstimate:
         ]
 
         if self.estimated_search_queries > 0:
-            lines.append(f"  Search: ~{self.estimated_search_queries} queries (${self.search_cost:.4f})")
+            lines.append(
+                f"  Search: ~{self.estimated_search_queries} queries (${self.search_cost:.4f})"
+            )
 
         if self.deep_research_cost > 0:
             lines.append(f"  Deep Research: ${self.deep_research_cost:.2f} (approximate)")
 
-        lines.extend([
-            "",
-            f"Estimated Total: ${self.total_cost:.2f}",
-        ])
+        lines.extend(
+            [
+                "",
+                f"Estimated Total: ${self.total_cost:.2f}",
+            ]
+        )
 
         if self.notes:
             lines.append("")
@@ -86,11 +92,11 @@ class CostEstimate:
 # =============================================================================
 # Backward-compatible pricing aliases (derived from models.py)
 # =============================================================================
-GEMINI_3_PRO_INPUT_PRICE_SMALL = PrimrModels.get_price(PrimrModels.PRO_MODEL)[0]    # 2.00
-GEMINI_3_PRO_OUTPUT_PRICE_SMALL = PrimrModels.get_price(PrimrModels.PRO_MODEL)[1]   # 12.00
+GEMINI_3_PRO_INPUT_PRICE_SMALL = PrimrModels.get_price(PrimrModels.PRO_MODEL)[0]  # 2.00
+GEMINI_3_PRO_OUTPUT_PRICE_SMALL = PrimrModels.get_price(PrimrModels.PRO_MODEL)[1]  # 12.00
 
-GEMINI_3_FLASH_INPUT_PRICE = PrimrModels.get_price(PrimrModels.FLASH_MODEL)[0]      # 0.50
-GEMINI_3_FLASH_OUTPUT_PRICE = PrimrModels.get_price(PrimrModels.FLASH_MODEL)[1]     # 3.00
+GEMINI_3_FLASH_INPUT_PRICE = PrimrModels.get_price(PrimrModels.FLASH_MODEL)[0]  # 0.50
+GEMINI_3_FLASH_OUTPUT_PRICE = PrimrModels.get_price(PrimrModels.FLASH_MODEL)[1]  # 3.00
 
 GOOGLE_SEARCH_PRICE_PER_1000 = SEARCH_COST_PER_QUERY * 1000  # 35.00
 
@@ -161,14 +167,14 @@ MODE_ESTIMATES = {
     },
     # Fast mode: Flash scraping + Grok calls (gap analysis + analysis + 21 individual sections + coherence + cross-validation), no DR, no Pro
     "fast": {
-        "flash_input_tokens": 40_000,     # more pages + more external scraping
+        "flash_input_tokens": 40_000,  # more pages + more external scraping
         "flash_output_tokens": 10_000,
         "pro_input_tokens": 0,
         "pro_output_tokens": 0,
-        "grok_input_tokens": 1_600_000,   # 21 x ~72k per section + gap + analysis + cross-val + coherence
-        "grok_output_tokens": 100_000,    # ~34k writing + 25k coherence + gap + cross-val
+        "grok_input_tokens": 1_600_000,  # 21 x ~72k per section + gap + analysis + cross-val + coherence
+        "grok_output_tokens": 100_000,  # ~34k writing + 25k coherence + gap + cross-val
         "deep_research_tasks": 0,
-        "search_queries": 0,              # DDG is free, not Google Search
+        "search_queries": 0,  # DDG is free, not Google Search
         "duration_min": 18,
         "duration_max": 30,
     },
@@ -224,7 +230,9 @@ def estimate_cost(
     # Fast mode: completely different cost model (Flash + Grok, no DR, no Pro)
     # premium_mode overrides fast_mode (explicit Gemini + DR request)
     if fast_mode and not premium_mode:
-        return _estimate_fast_mode_cost(include_ai_strategy, num_vendors, search_free, verify=verify)
+        return _estimate_fast_mode_cost(
+            include_ai_strategy, num_vendors, search_free, verify=verify
+        )
 
     estimates = MODE_ESTIMATES.get(mode, MODE_ESTIMATES["scrape-only"])
 
@@ -242,6 +250,7 @@ def estimate_cost(
     hist = None
     if use_historical:
         from primr.utils.usage_tracker import get_usage_tracker
+
         tracker = get_usage_tracker()
         hist = tracker.get_average_by_mode(mode)
 
@@ -284,6 +293,7 @@ def estimate_cost(
         else:
             if use_historical:
                 from primr.utils.usage_tracker import get_usage_tracker
+
                 tracker = get_usage_tracker()
                 ai_strategy_hist = tracker.get_average_by_mode("ai-strategy")
 
@@ -401,8 +411,8 @@ def _estimate_fast_mode_cost(
 
     # AI strategy adds Grok tokens per vendor (enriched context + CV + polish)
     if include_ai_strategy:
-        grok_in += 200_000 * num_vendors   # strategy prompt + context + CV + polish
-        grok_out += 50_000 * num_vendors   # 32K gen + 4K CV + 16K regen + 32K polish
+        grok_in += 200_000 * num_vendors  # strategy prompt + context + CV + polish
+        grok_out += 50_000 * num_vendors  # 32K gen + 4K CV + 16K regen + 32K polish
         duration_min += 3 * num_vendors
         duration_max += 6 * num_vendors
 
@@ -434,7 +444,9 @@ def _estimate_fast_mode_cost(
     if include_ai_strategy:
         duration += " + AI strategy (Grok)"
 
-    notes = ["Standard mode: Grok 4.1 with research deepening + cross-validation (no Deep Research)"]
+    notes = [
+        "Standard mode: Grok 4.1 with research deepening + cross-validation (no Deep Research)"
+    ]
     if include_ai_strategy:
         notes.append(f"AI Strategy via Grok ({num_vendors} vendor(s))")
     if verify:
@@ -484,7 +496,16 @@ def display_cost_estimate(
         True if user confirms, False to cancel
     """
     import sys
-    estimate = estimate_cost(mode, include_ai_strategy, num_vendors=num_vendors, lite_strategy=lite_strategy, fast_mode=fast_mode, premium_mode=premium_mode, verify=verify)
+
+    estimate = estimate_cost(
+        mode,
+        include_ai_strategy,
+        num_vendors=num_vendors,
+        lite_strategy=lite_strategy,
+        fast_mode=fast_mode,
+        premium_mode=premium_mode,
+        verify=verify,
+    )
 
     # Clean single line with visible text
     print(f"\n{company_name} | {mode} | ~${estimate.total_cost:.2f} | {estimate.duration_minutes}")

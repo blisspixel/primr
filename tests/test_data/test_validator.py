@@ -25,6 +25,7 @@ from primr.data.validator import (
 # FIXTURES
 # =============================================================================
 
+
 @pytest.fixture(autouse=True)
 def reset_singleton():
     """Reset singleton before each test."""
@@ -70,6 +71,7 @@ def source3():
 # SOURCE INFO TESTS
 # =============================================================================
 
+
 class TestSourceInfo:
     """Tests for SourceInfo dataclass."""
 
@@ -98,6 +100,7 @@ class TestSourceInfo:
 # =============================================================================
 # FACT TESTS
 # =============================================================================
+
 
 class TestFact:
     """Tests for Fact dataclass."""
@@ -151,6 +154,7 @@ class TestFact:
 # =============================================================================
 # FACT VALIDATOR TESTS
 # =============================================================================
+
 
 class TestFactValidator:
     """Tests for FactValidator class."""
@@ -215,6 +219,7 @@ class TestFactValidator:
 # =============================================================================
 # VALIDATION TESTS
 # =============================================================================
+
 
 class TestValidation:
     """Tests for fact validation."""
@@ -286,6 +291,7 @@ class TestValidation:
 # BEST VALUE TESTS
 # =============================================================================
 
+
 class TestBestValue:
     """Tests for getting best values."""
 
@@ -320,6 +326,7 @@ class TestBestValue:
 # =============================================================================
 # CONFLICT TESTS
 # =============================================================================
+
 
 class TestConflicts:
     """Tests for conflict detection."""
@@ -361,6 +368,7 @@ class TestConflicts:
 # =============================================================================
 # CONTENT EXTRACTION TESTS
 # =============================================================================
+
 
 class TestContentExtraction:
     """Tests for extracting facts from content."""
@@ -425,6 +433,7 @@ class TestContentExtraction:
 # SINGLETON TESTS
 # =============================================================================
 
+
 class TestSingleton:
     """Tests for singleton access."""
 
@@ -445,6 +454,7 @@ class TestSingleton:
 # =============================================================================
 # CONVENIENCE FUNCTION TESTS
 # =============================================================================
+
 
 class TestConvenienceFunctions:
     """Tests for convenience functions."""
@@ -488,16 +498,14 @@ class TestConvenienceFunctions:
 # CONFIDENCE LEVEL TESTS
 # =============================================================================
 
+
 class TestConfidenceLevels:
     """Tests for confidence level determination."""
 
     def test_very_high_confidence(self, validator):
         """Test very high confidence with many authoritative sources."""
         for i in range(5):
-            source = SourceInfo(
-                url=f"https://bloomberg.com/page{i}",
-                authority_score=0.9
-            )
+            source = SourceInfo(url=f"https://bloomberg.com/page{i}", authority_score=0.9)
             validator.add_fact(FactType.CEO, "John Smith", source)
 
         facts = validator.get_facts(FactType.CEO)

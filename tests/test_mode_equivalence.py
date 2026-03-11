@@ -19,6 +19,7 @@ from typing import NamedTuple
 
 class DiffResult(NamedTuple):
     """Result of comparing two scrape output folders."""
+
     identical: bool
     raw_scrapes_match: bool
     corpus_match: bool
@@ -130,7 +131,6 @@ def print_diff_report(result: DiffResult) -> None:
 # =============================================================================
 
 
-
 class TestDiffScrapeOutputs:
     """Tests for the diff_scrape_outputs function."""
 
@@ -143,9 +143,13 @@ class TestDiffScrapeOutputs:
         for folder in [folder1, folder2]:
             folder.mkdir()
             (folder / "_raw_scrapes").mkdir()
-            (folder / "_raw_scrapes" / "homepage.txt").write_text("URL: https://example.com\nContent here")
+            (folder / "_raw_scrapes" / "homepage.txt").write_text(
+                "URL: https://example.com\nContent here"
+            )
             (folder / "scraped_content.txt").write_text("Combined corpus content")
-            (folder / "_external_links.txt").write_text("# External links\nhttps://linkedin.com/company/example")
+            (folder / "_external_links.txt").write_text(
+                "# External links\nhttps://linkedin.com/company/example"
+            )
 
         result = diff_scrape_outputs(str(folder1), str(folder2))
 

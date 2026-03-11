@@ -37,6 +37,7 @@ from primr.agentic.hooks import (
 # TEST HOOKS
 # =============================================================================
 
+
 class RecordingHook(Hook):
     """Hook that records when it was executed."""
 
@@ -88,6 +89,7 @@ class FailingHook(Hook):
 # STRATEGIES
 # =============================================================================
 
+
 # Strategy for distinct priorities (no duplicates)
 @st.composite
 def distinct_priorities(draw, min_count: int = 2, max_count: int = 10):
@@ -111,6 +113,7 @@ cost_values = st.floats(min_value=0.0, max_value=100.0, allow_nan=False, allow_i
 # =============================================================================
 # PROPERTY 6: Hook Execution Order
 # =============================================================================
+
 
 # Feature: agentic-architecture, Property 6: Hook Execution Order
 @given(priorities=distinct_priorities(min_count=2, max_count=8))
@@ -176,6 +179,7 @@ def test_post_hook_execution_order(priorities: list[int]):
 # PROPERTY 7: Hook Blocking Behavior
 # =============================================================================
 
+
 # Feature: agentic-architecture, Property 7: Hook Blocking Behavior
 @given(
     block_priority=st.integers(min_value=1, max_value=100),
@@ -217,9 +221,7 @@ def test_blocking_stops_execution(block_priority: int, other_priorities: list[in
     assert response.message == "Test block"
 
     # No hooks after the blocking hook should have executed
-    assert len(execution_log) == 0, (
-        f"Hooks executed after block: {execution_log}"
-    )
+    assert len(execution_log) == 0, f"Hooks executed after block: {execution_log}"
 
 
 # Feature: agentic-architecture, Property 7: Hook Blocking Behavior (message preserved)
@@ -243,6 +245,7 @@ def test_block_message_preserved(message: str):
 # =============================================================================
 # PROPERTY 8: Hook Error Handling
 # =============================================================================
+
 
 # Feature: agentic-architecture, Property 8: Hook Error Handling (log mode)
 def test_error_handling_log_mode():
@@ -319,6 +322,7 @@ def test_error_handling_skip_mode():
 # COST GUARD HOOK TESTS
 # =============================================================================
 
+
 # Feature: agentic-architecture, CostGuardHook budget enforcement
 @given(
     max_cost=st.floats(min_value=1.0, max_value=100.0, allow_nan=False, allow_infinity=False),
@@ -375,6 +379,7 @@ def test_cost_guard_tracking(costs: list[float]):
 # =============================================================================
 # ADDITIONAL UNIT TESTS
 # =============================================================================
+
 
 def test_hook_system_invalid_on_error():
     """Invalid on_error value raises ValueError."""
@@ -455,6 +460,7 @@ def test_hook_response_defaults():
 # =============================================================================
 # CONTENT SANITIZATION HOOK TESTS
 # =============================================================================
+
 
 def test_content_sanitization_allows_clean_content():
     """ContentSanitizationHook allows content without injection patterns."""
@@ -551,10 +557,14 @@ def test_content_sanitization_detects_control_chars():
 # Feature: agentic-architecture, Property: Content Sanitization
 @given(
     mode=st.sampled_from(["block", "strip", "warn"]),
-    clean_text=st.text(min_size=10, max_size=100, alphabet=st.characters(
-        whitelist_categories=("L", "N", "P", "Z"),
-        max_codepoint=127,
-    )),
+    clean_text=st.text(
+        min_size=10,
+        max_size=100,
+        alphabet=st.characters(
+            whitelist_categories=("L", "N", "P", "Z"),
+            max_codepoint=127,
+        ),
+    ),
 )
 @settings(max_examples=30, deadline=None)
 def test_content_sanitization_clean_content_always_allowed(mode: str, clean_text: str):
@@ -587,6 +597,7 @@ def test_content_sanitization_clean_content_always_allowed(mode: str, clean_text
 # =============================================================================
 # INTERACTIVE ERROR RECOVERY HOOK TESTS (v1.11.0)
 # =============================================================================
+
 
 def test_error_recovery_hook_type():
     """HookType.ERROR_RECOVERY is available."""
@@ -707,10 +718,12 @@ def test_run_error_recovery_hooks():
     hooks = HookSystem()
     hooks.register(InteractiveErrorRecoveryHook())
 
-    response = asyncio.run(hooks.run_error_recovery_hooks(
-        stage="test_stage",
-        error=TimeoutError("Test timeout"),
-    ))
+    response = asyncio.run(
+        hooks.run_error_recovery_hooks(
+            stage="test_stage",
+            error=TimeoutError("Test timeout"),
+        )
+    )
 
     # Should allow retry for transient error
     assert response.result == HookResult.ALLOW
@@ -727,6 +740,7 @@ def test_hook_context_mutable_data():
 
 def test_hook_context_user_input_callback():
     """HookContext accepts user_input_callback field."""
+
     async def callback(prompt: str, options: list[str] | None) -> str:
         return "test"
 

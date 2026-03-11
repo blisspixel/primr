@@ -21,11 +21,11 @@ class TableBuilder:
     """Builds professionally styled tables."""
 
     # Color constants (matching StyleEngine)
-    TABLE_HEADER_BG = RGBColor(0, 51, 102)     # Navy - table headers
-    TABLE_ALT_ROW = RGBColor(245, 247, 250)    # Light gray-blue - alternating rows
-    TEXT_COLOR = RGBColor(51, 51, 51)          # Dark gray - body text
-    WHITE = RGBColor(255, 255, 255)            # White - header text
-    CALLOUT_BG = RGBColor(240, 248, 255)       # Alice blue - callout backgrounds
+    TABLE_HEADER_BG = RGBColor(0, 51, 102)  # Navy - table headers
+    TABLE_ALT_ROW = RGBColor(245, 247, 250)  # Light gray-blue - alternating rows
+    TEXT_COLOR = RGBColor(51, 51, 51)  # Dark gray - body text
+    WHITE = RGBColor(255, 255, 255)  # White - header text
+    CALLOUT_BG = RGBColor(240, 248, 255)  # Alice blue - callout backgrounds
 
     def __init__(self, document: Document):
         """
@@ -50,22 +50,22 @@ class TableBuilder:
         rows_data = []
 
         if snapshot.industry:
-            rows_data.append(('Industry', snapshot.industry))
+            rows_data.append(("Industry", snapshot.industry))
         if snapshot.founded:
-            rows_data.append(('Founded', snapshot.founded))
+            rows_data.append(("Founded", snapshot.founded))
         if snapshot.headquarters:
-            rows_data.append(('Headquarters', snapshot.headquarters))
+            rows_data.append(("Headquarters", snapshot.headquarters))
         if snapshot.revenue:
-            rows_data.append(('Revenue', snapshot.revenue))
+            rows_data.append(("Revenue", snapshot.revenue))
         if snapshot.employees:
-            rows_data.append(('Employees', snapshot.employees))
+            rows_data.append(("Employees", snapshot.employees))
         if snapshot.ticker:
-            rows_data.append(('Ticker', snapshot.ticker))
+            rows_data.append(("Ticker", snapshot.ticker))
         if snapshot.website:
-            rows_data.append(('Website', snapshot.website))
+            rows_data.append(("Website", snapshot.website))
 
         if not rows_data:
-            rows_data = [('Company', snapshot.company_name)]
+            rows_data = [("Company", snapshot.company_name)]
 
         # Create table
         table = self.document.add_table(rows=len(rows_data), cols=2)
@@ -85,13 +85,15 @@ class TableBuilder:
             # Value cell
             value_cell = row.cells[1]
             value_para = value_cell.paragraphs[0]
-            value_run = value_para.add_run(str(value) if value else '')
+            value_run = value_para.add_run(str(value) if value else "")
             value_run.font.size = Pt(10)
 
-        self.apply_table_style(table, 'snapshot')
+        self.apply_table_style(table, "snapshot")
         return table
 
-    def create_executive_highlights(self, highlights: list[str], title: str = "KEY TAKEAWAYS") -> Table:
+    def create_executive_highlights(
+        self, highlights: list[str], title: str = "KEY TAKEAWAYS"
+    ) -> Table:
         """
         Create a styled callout box for key takeaways.
 
@@ -116,14 +118,16 @@ class TableBuilder:
         # Add highlights as bullet points
         for highlight in highlights:
             para = cell.add_paragraph()
-            para.add_run('• ' + highlight)
+            para.add_run("• " + highlight)
             para.paragraph_format.space_after = Pt(4)
             para.paragraph_format.left_indent = Inches(0.15)
 
-        self.apply_table_style(table, 'callout')
+        self.apply_table_style(table, "callout")
         return table
 
-    def create_key_metrics_table(self, metrics: dict[str, str], title: str = "KEY METRICS") -> Table:
+    def create_key_metrics_table(
+        self, metrics: dict[str, str], title: str = "KEY METRICS"
+    ) -> Table:
         """
         Create a key metrics summary table with professional styling.
 
@@ -143,19 +147,19 @@ class TableBuilder:
 
         # Header row
         header_row = table.rows[0]
-        header_row.cells[0].paragraphs[0].add_run('Metric').bold = True
-        header_row.cells[1].paragraphs[0].add_run('Value').bold = True
+        header_row.cells[0].paragraphs[0].add_run("Metric").bold = True
+        header_row.cells[1].paragraphs[0].add_run("Value").bold = True
 
         # Data rows
         for i, (metric, value) in enumerate(metrics.items(), 1):
             row = table.rows[i]
-            row.cells[0].paragraphs[0].add_run(metric.replace('_', ' ').title())
+            row.cells[0].paragraphs[0].add_run(metric.replace("_", " ").title())
             row.cells[1].paragraphs[0].add_run(str(value))
 
-        self.apply_table_style(table, 'professional')
+        self.apply_table_style(table, "professional")
         return table
 
-    def apply_table_style(self, table: Table, style: str = 'professional') -> None:
+    def apply_table_style(self, table: Table, style: str = "professional") -> None:
         """
         Apply professional styling to table.
 
@@ -163,11 +167,11 @@ class TableBuilder:
             table: Table object to style
             style: Style variant - 'professional', 'snapshot', 'callout'
         """
-        if style == 'professional':
+        if style == "professional":
             self._apply_professional_style(table)
-        elif style == 'snapshot':
+        elif style == "snapshot":
             self._apply_snapshot_style(table)
-        elif style == 'callout':
+        elif style == "callout":
             self._apply_callout_style(table)
 
     def _apply_professional_style(self, table: Table) -> None:
@@ -272,5 +276,5 @@ class TableBuilder:
                 run.font.size = Pt(10)
             row_idx += 1
 
-        self.apply_table_style(table, 'professional')
+        self.apply_table_style(table, "professional")
         return table

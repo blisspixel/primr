@@ -60,9 +60,7 @@ def configure_stdio_logging(level: str = "INFO") -> None:
     # Add stderr handler
     handler = StdioSafeHandler(sys.stderr)
     handler.setLevel(numeric_level)
-    formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )
+    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     handler.setFormatter(formatter)
     root_logger.addHandler(handler)
 
@@ -104,9 +102,7 @@ def configure_http_logging(level: str = "INFO", log_file: str | None = None) -> 
         handler = logging.StreamHandler(sys.stderr)
 
     handler.setLevel(numeric_level)
-    formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )
+    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     handler.setFormatter(formatter)
     root_logger.addHandler(handler)
 

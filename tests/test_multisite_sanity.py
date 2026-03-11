@@ -177,6 +177,7 @@ class TestMockedMultiSiteScraping:
                 tier=tier,
                 error=None,
             )
+
         return _create
 
     def test_corpus_building_respects_max_pages(self, mock_scrape_result):
@@ -285,6 +286,7 @@ class TestSiteTypeAssertions:
 # =============================================================================
 # Live Site Tests (skipped by default, run with --run-live-tests)
 # =============================================================================
+
 
 @pytest.mark.skip(reason="Live site tests disabled to avoid getting flagged")
 class TestLiveMultiSiteScraping:

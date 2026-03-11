@@ -223,6 +223,7 @@ def reset_rate_limiter() -> None:
 # CONVENIENCE FUNCTIONS
 # =============================================================================
 
+
 def check_rate_limit(key: str) -> tuple[bool, float]:
     """
     Check rate limit for a key.

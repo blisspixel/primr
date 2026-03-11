@@ -45,35 +45,36 @@ def _can_use_shared_browser() -> bool:
 # =============================================================================
 
 BROWSER_LAUNCH_ARGS = [
-    '--disable-blink-features=AutomationControlled',
-    '--disable-http2',
-    '--no-sandbox',
-    '--disable-setuid-sandbox',
-    '--disable-dev-shm-usage',
-    '--disable-infobars',
-    '--disable-background-networking',
-    '--disable-breakpad',
-    '--disable-component-update',
-    '--disable-domain-reliability',
-    '--disable-features=AudioServiceOutOfProcess,IsolateOrigins,site-per-process',
-    '--disable-hang-monitor',
-    '--disable-ipc-flooding-protection',
-    '--disable-popup-blocking',
-    '--disable-prompt-on-repost',
-    '--disable-renderer-backgrounding',
-    '--disable-sync',
-    '--force-color-profile=srgb',
-    '--metrics-recording-only',
-    '--no-first-run',
-    '--password-store=basic',
-    '--use-mock-keychain',
-    '--export-tagged-pdf',
+    "--disable-blink-features=AutomationControlled",
+    "--disable-http2",
+    "--no-sandbox",
+    "--disable-setuid-sandbox",
+    "--disable-dev-shm-usage",
+    "--disable-infobars",
+    "--disable-background-networking",
+    "--disable-breakpad",
+    "--disable-component-update",
+    "--disable-domain-reliability",
+    "--disable-features=AudioServiceOutOfProcess,IsolateOrigins,site-per-process",
+    "--disable-hang-monitor",
+    "--disable-ipc-flooding-protection",
+    "--disable-popup-blocking",
+    "--disable-prompt-on-repost",
+    "--disable-renderer-backgrounding",
+    "--disable-sync",
+    "--force-color-profile=srgb",
+    "--metrics-recording-only",
+    "--no-first-run",
+    "--password-store=basic",
+    "--use-mock-keychain",
+    "--export-tagged-pdf",
 ]
 
 
 # =============================================================================
 # Shared Browser Singleton
 # =============================================================================
+
 
 class SharedBrowser:
     """Shared Playwright browser instance for sequential scraping.
@@ -214,6 +215,7 @@ CONSENT_DISMISS_PATTERNS = [
 # BrowserSession Abstraction
 # =============================================================================
 
+
 class BrowserSession(ABC):
     """
     Abstract browser session interface.
@@ -285,6 +287,7 @@ class BrowserSession(ABC):
 # Fake Sessions for Testing
 # =============================================================================
 
+
 class FakeBrowserSession(BrowserSession):
     """Fake browser session for testing."""
 
@@ -334,10 +337,10 @@ class FakeBrowserSession(BrowserSession):
         self._closed = True
 
 
-
 # =============================================================================
 # Playwright Session Implementation
 # =============================================================================
+
 
 class PlaywrightSession(BrowserSession):
     """Browser session using Playwright."""
@@ -443,7 +446,9 @@ class PlaywrightSession(BrowserSession):
                             challenge_visible = True
                             break
                     except Exception:
-                        logger.debug("Challenge selector check failed for %s", selector, exc_info=True)
+                        logger.debug(
+                            "Challenge selector check failed for %s", selector, exc_info=True
+                        )
 
                 if not challenge_visible:
                     # Also check page title
@@ -471,7 +476,9 @@ class PlaywrightSession(BrowserSession):
                         time.sleep(0.5)
                         return True
                 except Exception:
-                    logger.debug("Consent button click failed for pattern %s", pattern, exc_info=True)
+                    logger.debug(
+                        "Consent button click failed for pattern %s", pattern, exc_info=True
+                    )
 
                 # Try link with text
                 try:
@@ -511,7 +518,9 @@ class PlaywrightSession(BrowserSession):
                                 time.sleep(0.5)
 
                                 # Check if still on same domain
-                                if not self._url_domain_unchanged(self._original_url, self._page.url):
+                                if not self._url_domain_unchanged(
+                                    self._original_url, self._page.url
+                                ):
                                     self._page.go_back()
                                     continue
 
@@ -523,7 +532,9 @@ class PlaywrightSession(BrowserSession):
                                     clicked = True
                                     break
                     except Exception:
-                        logger.debug("Expand button click failed for pattern %s", pattern, exc_info=True)
+                        logger.debug(
+                            "Expand button click failed for pattern %s", pattern, exc_info=True
+                        )
 
                     try:
                         # Try links
@@ -534,7 +545,9 @@ class PlaywrightSession(BrowserSession):
                                 link.click(timeout=2000)
                                 time.sleep(0.5)
 
-                                if not self._url_domain_unchanged(self._original_url, self._page.url):
+                                if not self._url_domain_unchanged(
+                                    self._original_url, self._page.url
+                                ):
                                     self._page.go_back()
                                     continue
 
@@ -545,7 +558,9 @@ class PlaywrightSession(BrowserSession):
                                     clicked = True
                                     break
                     except Exception:
-                        logger.debug("Expand link click failed for pattern %s", pattern, exc_info=True)
+                        logger.debug(
+                            "Expand link click failed for pattern %s", pattern, exc_info=True
+                        )
 
                 if not clicked:
                     break  # No more expandable elements
@@ -588,19 +603,19 @@ class PlaywrightSession(BrowserSession):
                 self._page.close()
             if self._context:
                 self._context.close()
-            if getattr(self, '_owns_browser', False):
+            if getattr(self, "_owns_browser", False):
                 if self._browser:
                     self._browser.close()
-                if hasattr(self, '_playwright') and self._playwright:
+                if hasattr(self, "_playwright") and self._playwright:
                     self._playwright.stop()
         except Exception as e:
             logger.debug(f"Error closing browser: {e}")
 
 
-
 # =============================================================================
 # DrissionPage Session Implementation
 # =============================================================================
+
 
 class DrissionPageSession(BrowserSession):
     """Browser session using DrissionPage (CDP-based, driverless)."""
@@ -641,7 +656,9 @@ class DrissionPageSession(BrowserSession):
             stealth_script = get_stealth_script()
             if stealth_script:
                 with contextlib.suppress(Exception):
-                    self._page.run_cdp("Page.addScriptToEvaluateOnNewDocument", source=stealth_script)
+                    self._page.run_cdp(
+                        "Page.addScriptToEvaluateOnNewDocument", source=stealth_script
+                    )
 
         except ImportError as e:
             raise ImportError("DrissionPage not installed") from e
@@ -697,14 +714,18 @@ class DrissionPageSession(BrowserSession):
             for pattern in CONSENT_DISMISS_PATTERNS:
                 # Try to find and click button/link with pattern
                 try:
-                    elements = self._page.eles(f"xpath://*[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), '{pattern}')]")
+                    elements = self._page.eles(
+                        f"xpath://*[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), '{pattern}')]"
+                    )
                     for elem in elements[:3]:  # Try first 3 matches
                         if elem.is_displayed():
                             elem.click()
                             time.sleep(0.5)
                             return True
                 except Exception:
-                    logger.debug("DrissionPage consent click failed for pattern %s", pattern, exc_info=True)
+                    logger.debug(
+                        "DrissionPage consent click failed for pattern %s", pattern, exc_info=True
+                    )
 
             return False
 
@@ -727,14 +748,18 @@ class DrissionPageSession(BrowserSession):
                         continue
 
                     try:
-                        elements = self._page.eles(f"xpath://*[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), '{pattern}')]")
+                        elements = self._page.eles(
+                            f"xpath://*[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), '{pattern}')]"
+                        )
                         for elem in elements[:2]:
                             if elem.is_displayed():
                                 elem.click()
                                 time.sleep(0.5)
 
                                 # Check domain
-                                if not self._url_domain_unchanged(self._original_url, self._page.url):
+                                if not self._url_domain_unchanged(
+                                    self._original_url, self._page.url
+                                ):
                                     self._page.back()
                                     continue
 
@@ -746,7 +771,11 @@ class DrissionPageSession(BrowserSession):
                                     clicked = True
                                     break
                     except Exception:
-                        logger.debug("DrissionPage expand click failed for pattern %s", pattern, exc_info=True)
+                        logger.debug(
+                            "DrissionPage expand click failed for pattern %s",
+                            pattern,
+                            exc_info=True,
+                        )
 
                     if clicked:
                         break
@@ -793,10 +822,10 @@ class DrissionPageSession(BrowserSession):
             logger.debug(f"Error closing browser: {e}")
 
 
-
 # =============================================================================
 # Scrape Functions (Tier Entry Points)
 # =============================================================================
+
 
 def scrape_with_playwright(
     url: str,
@@ -954,7 +983,11 @@ def _scrape_with_playwright_impl(
         except TimeoutError:
             pass  # Timeout is expected — some sites never reach idle
         except Exception as e:
-            logger.debug("Unexpected error waiting for networkidle on %s: %s", url if 'url' in dir() else 'unknown', e)
+            logger.debug(
+                "Unexpected error waiting for networkidle on %s: %s",
+                url if "url" in dir() else "unknown",
+                e,
+            )
 
         # Trigger lazy-loaded content for scroll-driven page builders.
         _trigger_lazy_load(page)
@@ -966,6 +999,7 @@ def _scrape_with_playwright_impl(
 
         # SSRF protection: Validate final URL after redirects
         from primr.utils.security import validate_final_url_after_redirect
+
         is_safe, ssrf_error = validate_final_url_after_redirect(final_url)
         if not is_safe:
             elapsed_ms = (time.time() - start_time) * 1000
@@ -976,7 +1010,14 @@ def _scrape_with_playwright_impl(
                 error=f"Redirect SSRF blocked: {ssrf_error}",
                 tier=tier_name,
                 elapsed_ms=elapsed_ms,
-                attempts=[Attempt(tier=tier_name, success=False, error=f"Redirect SSRF: {ssrf_error}", elapsed_ms=elapsed_ms)],
+                attempts=[
+                    Attempt(
+                        tier=tier_name,
+                        success=False,
+                        error=f"Redirect SSRF: {ssrf_error}",
+                        elapsed_ms=elapsed_ms,
+                    )
+                ],
             )
 
         elapsed_ms = (time.time() - start_time) * 1000
@@ -991,7 +1032,9 @@ def _scrape_with_playwright_impl(
             tier=tier_name,
             elapsed_ms=elapsed_ms,
             cookies=cookies,
-            attempts=[Attempt(tier=tier_name, success=True, elapsed_ms=elapsed_ms, http_status=200)],
+            attempts=[
+                Attempt(tier=tier_name, success=True, elapsed_ms=elapsed_ms, http_status=200)
+            ],
         )
 
     except ImportError:
@@ -1020,7 +1063,15 @@ def _scrape_with_playwright_impl(
             error=f"Playwright error: {e}",
             tier=tier_name,
             elapsed_ms=elapsed_ms,
-            attempts=[Attempt(tier=tier_name, success=False, error=str(e), error_type=error_type, elapsed_ms=elapsed_ms)],
+            attempts=[
+                Attempt(
+                    tier=tier_name,
+                    success=False,
+                    error=str(e),
+                    error_type=error_type,
+                    elapsed_ms=elapsed_ms,
+                )
+            ],
         )
 
     finally:
@@ -1105,7 +1156,14 @@ def scrape_with_playwright_aggressive(
                 error="Navigation failed",
                 tier=tier_name,
                 elapsed_ms=elapsed_ms,
-                attempts=[Attempt(tier=tier_name, success=False, error="Navigation failed", elapsed_ms=elapsed_ms)],
+                attempts=[
+                    Attempt(
+                        tier=tier_name,
+                        success=False,
+                        error="Navigation failed",
+                        elapsed_ms=elapsed_ms,
+                    )
+                ],
             )
 
         # Wait for page to stabilize
@@ -1129,6 +1187,7 @@ def scrape_with_playwright_aggressive(
 
         # SSRF protection: Validate final URL after redirects
         from primr.utils.security import validate_final_url_after_redirect
+
         is_safe, ssrf_error = validate_final_url_after_redirect(final_url)
         if not is_safe:
             elapsed_ms = (time.time() - start_time) * 1000
@@ -1139,7 +1198,14 @@ def scrape_with_playwright_aggressive(
                 error=f"Redirect SSRF blocked: {ssrf_error}",
                 tier=tier_name,
                 elapsed_ms=elapsed_ms,
-                attempts=[Attempt(tier=tier_name, success=False, error=f"Redirect SSRF: {ssrf_error}", elapsed_ms=elapsed_ms)],
+                attempts=[
+                    Attempt(
+                        tier=tier_name,
+                        success=False,
+                        error=f"Redirect SSRF: {ssrf_error}",
+                        elapsed_ms=elapsed_ms,
+                    )
+                ],
             )
 
         elapsed_ms = (time.time() - start_time) * 1000
@@ -1154,7 +1220,9 @@ def scrape_with_playwright_aggressive(
             tier=tier_name,
             elapsed_ms=elapsed_ms,
             cookies=cookies,
-            attempts=[Attempt(tier=tier_name, success=True, elapsed_ms=elapsed_ms, http_status=200)],
+            attempts=[
+                Attempt(tier=tier_name, success=True, elapsed_ms=elapsed_ms, http_status=200)
+            ],
         )
 
     except ImportError:
@@ -1178,7 +1246,15 @@ def scrape_with_playwright_aggressive(
             error=f"Playwright aggressive error: {e}",
             tier=tier_name,
             elapsed_ms=elapsed_ms,
-            attempts=[Attempt(tier=tier_name, success=False, error=str(e), error_type=error_type, elapsed_ms=elapsed_ms)],
+            attempts=[
+                Attempt(
+                    tier=tier_name,
+                    success=False,
+                    error=str(e),
+                    error_type=error_type,
+                    elapsed_ms=elapsed_ms,
+                )
+            ],
         )
 
     finally:
@@ -1241,7 +1317,14 @@ def scrape_with_drissionpage(
                 error="Navigation failed",
                 tier=tier_name,
                 elapsed_ms=elapsed_ms,
-                attempts=[Attempt(tier=tier_name, success=False, error="Navigation failed", elapsed_ms=elapsed_ms)],
+                attempts=[
+                    Attempt(
+                        tier=tier_name,
+                        success=False,
+                        error="Navigation failed",
+                        elapsed_ms=elapsed_ms,
+                    )
+                ],
             )
 
         # Wait for page
@@ -1257,6 +1340,7 @@ def scrape_with_drissionpage(
 
         # SSRF protection: Validate final URL after redirects
         from primr.utils.security import validate_final_url_after_redirect
+
         is_safe, ssrf_error = validate_final_url_after_redirect(final_url)
         if not is_safe:
             elapsed_ms = (time.time() - start_time) * 1000
@@ -1267,7 +1351,14 @@ def scrape_with_drissionpage(
                 error=f"Redirect SSRF blocked: {ssrf_error}",
                 tier=tier_name,
                 elapsed_ms=elapsed_ms,
-                attempts=[Attempt(tier=tier_name, success=False, error=f"Redirect SSRF: {ssrf_error}", elapsed_ms=elapsed_ms)],
+                attempts=[
+                    Attempt(
+                        tier=tier_name,
+                        success=False,
+                        error=f"Redirect SSRF: {ssrf_error}",
+                        elapsed_ms=elapsed_ms,
+                    )
+                ],
             )
 
         elapsed_ms = (time.time() - start_time) * 1000
@@ -1282,7 +1373,9 @@ def scrape_with_drissionpage(
             tier=tier_name,
             elapsed_ms=elapsed_ms,
             cookies=cookies,
-            attempts=[Attempt(tier=tier_name, success=True, elapsed_ms=elapsed_ms, http_status=200)],
+            attempts=[
+                Attempt(tier=tier_name, success=True, elapsed_ms=elapsed_ms, http_status=200)
+            ],
         )
 
     except ImportError:
@@ -1306,7 +1399,15 @@ def scrape_with_drissionpage(
             error=f"DrissionPage error: {e}",
             tier=tier_name,
             elapsed_ms=elapsed_ms,
-            attempts=[Attempt(tier=tier_name, success=False, error=str(e), error_type=error_type, elapsed_ms=elapsed_ms)],
+            attempts=[
+                Attempt(
+                    tier=tier_name,
+                    success=False,
+                    error=str(e),
+                    error_type=error_type,
+                    elapsed_ms=elapsed_ms,
+                )
+            ],
         )
 
     finally:
@@ -1387,7 +1488,14 @@ def scrape_with_drissionpage_stealth(
                     error="Navigation failed",
                     tier=tier_name,
                     elapsed_ms=elapsed_ms,
-                    attempts=[Attempt(tier=tier_name, success=False, error="Navigation failed", elapsed_ms=elapsed_ms)],
+                    attempts=[
+                        Attempt(
+                            tier=tier_name,
+                            success=False,
+                            error="Navigation failed",
+                            elapsed_ms=elapsed_ms,
+                        )
+                    ],
                 )
 
             # Calculate remaining time budget for challenge wait
@@ -1404,7 +1512,15 @@ def scrape_with_drissionpage_stealth(
                     error=f"Navigation consumed full timeout budget ({nav_elapsed:.1f}s)",
                     tier=tier_name,
                     elapsed_ms=elapsed_ms,
-                    attempts=[Attempt(tier=tier_name, success=False, error="Timeout", error_type=ErrorType.TIMEOUT, elapsed_ms=elapsed_ms)],
+                    attempts=[
+                        Attempt(
+                            tier=tier_name,
+                            success=False,
+                            error="Timeout",
+                            error_type=ErrorType.TIMEOUT,
+                            elapsed_ms=elapsed_ms,
+                        )
+                    ],
                 )
 
             # Wait for challenge to clear with remaining budget
@@ -1417,7 +1533,15 @@ def scrape_with_drissionpage_stealth(
                     error="Challenge did not clear",
                     tier=tier_name,
                     elapsed_ms=elapsed_ms,
-                    attempts=[Attempt(tier=tier_name, success=False, error="Challenge timeout", error_type=ErrorType.CHALLENGE, elapsed_ms=elapsed_ms)],
+                    attempts=[
+                        Attempt(
+                            tier=tier_name,
+                            success=False,
+                            error="Challenge timeout",
+                            error_type=ErrorType.CHALLENGE,
+                            elapsed_ms=elapsed_ms,
+                        )
+                    ],
                 )
 
             # Dismiss consent
@@ -1430,6 +1554,7 @@ def scrape_with_drissionpage_stealth(
 
             # SSRF protection: Validate final URL after redirects
             from primr.utils.security import validate_final_url_after_redirect
+
             is_safe, ssrf_error = validate_final_url_after_redirect(final_url)
             if not is_safe:
                 elapsed_ms = (time.time() - start_time) * 1000
@@ -1440,7 +1565,14 @@ def scrape_with_drissionpage_stealth(
                     error=f"Redirect SSRF blocked: {ssrf_error}",
                     tier=tier_name,
                     elapsed_ms=elapsed_ms,
-                    attempts=[Attempt(tier=tier_name, success=False, error=f"Redirect SSRF: {ssrf_error}", elapsed_ms=elapsed_ms)],
+                    attempts=[
+                        Attempt(
+                            tier=tier_name,
+                            success=False,
+                            error=f"Redirect SSRF: {ssrf_error}",
+                            elapsed_ms=elapsed_ms,
+                        )
+                    ],
                 )
 
             elapsed_ms = (time.time() - start_time) * 1000
@@ -1455,7 +1587,9 @@ def scrape_with_drissionpage_stealth(
                 tier=tier_name,
                 elapsed_ms=elapsed_ms,
                 cookies=cookies,
-                attempts=[Attempt(tier=tier_name, success=True, elapsed_ms=elapsed_ms, http_status=200)],
+                attempts=[
+                    Attempt(tier=tier_name, success=True, elapsed_ms=elapsed_ms, http_status=200)
+                ],
             )
 
         except ImportError:
@@ -1470,7 +1604,9 @@ def scrape_with_drissionpage_stealth(
 
         except Exception as e:
             elapsed_ms = (time.time() - start_time) * 1000
-            error_type = ErrorType.TIMEOUT if "timeout" in str(e).lower() else ErrorType.NETWORK_ERROR
+            error_type = (
+                ErrorType.TIMEOUT if "timeout" in str(e).lower() else ErrorType.NETWORK_ERROR
+            )
 
             return ScrapeResult(
                 url=url,
@@ -1479,7 +1615,15 @@ def scrape_with_drissionpage_stealth(
                 error=f"DrissionPage stealth error: {e}",
                 tier=tier_name,
                 elapsed_ms=elapsed_ms,
-                attempts=[Attempt(tier=tier_name, success=False, error=str(e), error_type=error_type, elapsed_ms=elapsed_ms)],
+                attempts=[
+                    Attempt(
+                        tier=tier_name,
+                        success=False,
+                        error=str(e),
+                        error_type=error_type,
+                        elapsed_ms=elapsed_ms,
+                    )
+                ],
             )
 
         finally:
@@ -1498,7 +1642,9 @@ def scrape_with_drissionpage_stealth(
         except concurrent.futures.TimeoutError:
             # Hard timeout hit - DrissionPage is hanging
             elapsed_ms = (time.time() - start_time) * 1000
-            logger.debug(f"DrissionPage stealth HARD TIMEOUT after {elapsed_ms/1000:.1f}s for {url}")
+            logger.debug(
+                f"DrissionPage stealth HARD TIMEOUT after {elapsed_ms / 1000:.1f}s for {url}"
+            )
             return ScrapeResult(
                 url=url,
                 success=False,
@@ -1506,7 +1652,15 @@ def scrape_with_drissionpage_stealth(
                 error=f"Hard timeout after {timeout}s (DrissionPage hung)",
                 tier=tier_name,
                 elapsed_ms=elapsed_ms,
-                attempts=[Attempt(tier=tier_name, success=False, error="Hard timeout", error_type=ErrorType.TIMEOUT, elapsed_ms=elapsed_ms)],
+                attempts=[
+                    Attempt(
+                        tier=tier_name,
+                        success=False,
+                        error="Hard timeout",
+                        error_type=ErrorType.TIMEOUT,
+                        elapsed_ms=elapsed_ms,
+                    )
+                ],
             )
 
 
@@ -1574,11 +1728,11 @@ def scrape_with_vision(
             browser = p.chromium.launch(
                 headless=True,
                 args=[
-                    '--disable-blink-features=AutomationControlled',
-                    '--disable-http2',
-                    '--no-sandbox',
-                    '--disable-setuid-sandbox',
-                    '--disable-dev-shm-usage',
+                    "--disable-blink-features=AutomationControlled",
+                    "--disable-http2",
+                    "--no-sandbox",
+                    "--disable-setuid-sandbox",
+                    "--disable-dev-shm-usage",
                 ],
             )
 
@@ -1586,7 +1740,7 @@ def scrape_with_vision(
 
             context = browser.new_context(
                 viewport={"width": 1280, "height": 1024},
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
             )
 
             # Apply stealth patches
@@ -1602,6 +1756,7 @@ def scrape_with_vision(
             # SSRF protection: Validate final URL after redirects
             final_url = page.url
             from primr.utils.security import validate_final_url_after_redirect
+
             is_safe, ssrf_error = validate_final_url_after_redirect(final_url)
             if not is_safe:
                 page.close()
@@ -1615,7 +1770,14 @@ def scrape_with_vision(
                     error=f"Redirect SSRF blocked: {ssrf_error}",
                     tier=tier_name,
                     elapsed_ms=elapsed_ms,
-                    attempts=[Attempt(tier=tier_name, success=False, error=f"Redirect SSRF: {ssrf_error}", elapsed_ms=elapsed_ms)],
+                    attempts=[
+                        Attempt(
+                            tier=tier_name,
+                            success=False,
+                            error=f"Redirect SSRF: {ssrf_error}",
+                            elapsed_ms=elapsed_ms,
+                        )
+                    ],
                 )
 
             # Scroll to load lazy content
@@ -1653,8 +1815,8 @@ Return the extracted text in a clean, readable format with proper paragraph brea
             model=settings.ai.flash_model,
             contents=[
                 {"text": prompt},
-                {"inline_data": {"mime_type": "image/png", "data": screenshot_b64}}
-            ]
+                {"inline_data": {"mime_type": "image/png", "data": screenshot_b64}},
+            ],
         )
 
         extracted_text = response.text.strip() if response.text else ""
@@ -1669,7 +1831,14 @@ Return the extracted text in a clean, readable format with proper paragraph brea
                 tier=tier_name,
                 raw_content=screenshot_bytes,
                 elapsed_ms=elapsed_ms,
-                attempts=[Attempt(tier=tier_name, success=False, error="Insufficient content", elapsed_ms=elapsed_ms)],
+                attempts=[
+                    Attempt(
+                        tier=tier_name,
+                        success=False,
+                        error="Insufficient content",
+                        elapsed_ms=elapsed_ms,
+                    )
+                ],
             )
 
         return ScrapeResult(
@@ -1709,4 +1878,3 @@ BROWSER_TIERS = {
     "drissionpage_stealth": scrape_with_drissionpage_stealth,
     "vision": scrape_with_vision,
 }
-

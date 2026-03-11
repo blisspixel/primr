@@ -20,6 +20,7 @@ import pytest
 # FIXTURES
 # =============================================================================
 
+
 @pytest.fixture
 def deploy_dir() -> Path:
     """Get the deploy directory path."""
@@ -41,6 +42,7 @@ def lib_dir(deploy_dir: Path) -> Path:
 # =============================================================================
 # SCRIPT STRUCTURE TESTS
 # =============================================================================
+
 
 class TestDeployScriptExists:
     """Test that required deployment files exist."""

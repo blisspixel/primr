@@ -2,7 +2,6 @@
 Tests for the API rate limiting module.
 """
 
-
 import pytest
 
 from primr.api.rate_limit import (
@@ -17,6 +16,7 @@ from primr.api.rate_limit import (
 # =============================================================================
 # FIXTURES
 # =============================================================================
+
 
 @pytest.fixture(autouse=True)
 def reset_singleton():
@@ -43,6 +43,7 @@ def fast_limiter():
 # TOKEN BUCKET TESTS
 # =============================================================================
 
+
 class TestTokenBucket:
     """Tests for TokenBucket class."""
 
@@ -67,7 +68,9 @@ class TestTokenBucket:
         """Test consumption with insufficient tokens."""
         bucket = TokenBucket(capacity=100, tokens=5)
         assert bucket.consume(10) is False
-        assert bucket.tokens == pytest.approx(5, abs=0.01)  # Unchanged (approx due to refill timing)
+        assert bucket.tokens == pytest.approx(
+            5, abs=0.01
+        )  # Unchanged (approx due to refill timing)
 
     def test_time_until_available(self):
         """Test time calculation."""
@@ -87,6 +90,7 @@ class TestTokenBucket:
 # =============================================================================
 # RATE LIMITER TESTS
 # =============================================================================
+
 
 class TestRateLimiter:
     """Tests for RateLimiter class."""
@@ -150,6 +154,7 @@ class TestRateLimiter:
 # RATE LIMIT CONFIG TESTS
 # =============================================================================
 
+
 class TestRateLimitConfig:
     """Tests for RateLimitConfig."""
 
@@ -174,6 +179,7 @@ class TestRateLimitConfig:
 # SINGLETON TESTS
 # =============================================================================
 
+
 class TestSingleton:
     """Tests for singleton access."""
 
@@ -194,6 +200,7 @@ class TestSingleton:
 # =============================================================================
 # CONVENIENCE FUNCTION TESTS
 # =============================================================================
+
 
 class TestConvenienceFunctions:
     """Tests for convenience functions."""
@@ -216,6 +223,7 @@ class TestConvenienceFunctions:
 # =============================================================================
 # THREAD SAFETY TESTS
 # =============================================================================
+
 
 class TestThreadSafety:
     """Tests for thread safety."""

@@ -167,15 +167,47 @@ The analysis suggests Evertrue is well-positioned for continued growth, with par
             company_name="Evertrue LLC",
             content=evertrue_content,
             sections={
-                "Executive Summary": evertrue_content[evertrue_content.find("## Executive Summary"):evertrue_content.find("## Market Analysis")],
-                "Market Analysis": evertrue_content[evertrue_content.find("## Market Analysis"):evertrue_content.find("## Competitive Landscape")],
-                "Competitive Landscape": evertrue_content[evertrue_content.find("## Competitive Landscape"):evertrue_content.find("## SWOT Analysis")],
-                "SWOT Analysis": evertrue_content[evertrue_content.find("## SWOT Analysis"):evertrue_content.find("## Financial Overview")],
-                "Financial Overview": evertrue_content[evertrue_content.find("## Financial Overview"):evertrue_content.find("## Value Chain Analysis")],
-                "Value Chain Analysis": evertrue_content[evertrue_content.find("## Value Chain Analysis"):evertrue_content.find("## Strategic Recommendations")],
-                "Strategic Recommendations": evertrue_content[evertrue_content.find("## Strategic Recommendations"):evertrue_content.find("## Risk Assessment")],
-                "Risk Assessment": evertrue_content[evertrue_content.find("## Risk Assessment"):evertrue_content.find("## Conclusion")],
-                "Conclusion": evertrue_content[evertrue_content.find("## Conclusion"):]
+                "Executive Summary": evertrue_content[
+                    evertrue_content.find("## Executive Summary") : evertrue_content.find(
+                        "## Market Analysis"
+                    )
+                ],
+                "Market Analysis": evertrue_content[
+                    evertrue_content.find("## Market Analysis") : evertrue_content.find(
+                        "## Competitive Landscape"
+                    )
+                ],
+                "Competitive Landscape": evertrue_content[
+                    evertrue_content.find("## Competitive Landscape") : evertrue_content.find(
+                        "## SWOT Analysis"
+                    )
+                ],
+                "SWOT Analysis": evertrue_content[
+                    evertrue_content.find("## SWOT Analysis") : evertrue_content.find(
+                        "## Financial Overview"
+                    )
+                ],
+                "Financial Overview": evertrue_content[
+                    evertrue_content.find("## Financial Overview") : evertrue_content.find(
+                        "## Value Chain Analysis"
+                    )
+                ],
+                "Value Chain Analysis": evertrue_content[
+                    evertrue_content.find("## Value Chain Analysis") : evertrue_content.find(
+                        "## Strategic Recommendations"
+                    )
+                ],
+                "Strategic Recommendations": evertrue_content[
+                    evertrue_content.find("## Strategic Recommendations") : evertrue_content.find(
+                        "## Risk Assessment"
+                    )
+                ],
+                "Risk Assessment": evertrue_content[
+                    evertrue_content.find("## Risk Assessment") : evertrue_content.find(
+                        "## Conclusion"
+                    )
+                ],
+                "Conclusion": evertrue_content[evertrue_content.find("## Conclusion") :],
             },
             citations=[
                 "Higher Education Marketing Report 2024",
@@ -187,16 +219,16 @@ The analysis suggests Evertrue is well-positioned for continued growth, with par
                 "TechCrunch Funding Database",
                 "Crunchbase Company Profiles",
                 "LinkedIn Company Analytics",
-                "Industry Expert Interviews"
+                "Industry Expert Interviews",
             ],
             metadata=ReportMetadata(
                 company_name="Evertrue LLC",
                 generation_date=datetime.now(),
                 generation_mode="full",
                 model_used="gemini-3-flash-preview",
-                file_path=Path("evertrue_comprehensive_analysis.txt")
+                file_path=Path("evertrue_comprehensive_analysis.txt"),
             ),
-            file_path=Path("evertrue_comprehensive_analysis.txt")
+            file_path=Path("evertrue_comprehensive_analysis.txt"),
         )
 
         # Test with the enhanced QA analyzer
@@ -223,7 +255,7 @@ The analysis suggests Evertrue is well-positioned for continued growth, with par
             "recommendation": "This comprehensive strategic analysis exceeds Primr standards for internal research use. The report demonstrates exceptional analytical rigor, appropriate use of strategic frameworks, and provides highly actionable insights for strategic decision-making. The hypothesis-driven approach and comprehensive evidence base make this suitable for high-stakes internal planning discussions."
         }"""
 
-        with patch.object(analyzer, 'ai_client') as mock_client:
+        with patch.object(analyzer, "ai_client") as mock_client:
             mock_client.generate.return_value = mock_response
 
             result = analyzer.assess_report(evertrue_report)
@@ -232,19 +264,31 @@ The analysis suggests Evertrue is well-positioned for continued growth, with par
             assert isinstance(result, SimpleQAResult)
             assert result.parsing_success, "Should successfully parse comprehensive report"
             assert result.error_message is None, "Should not have errors for well-structured report"
-            assert result.confidence_level == "high", "Should have high confidence for comprehensive analysis"
+            assert result.confidence_level == "high", (
+                "Should have high confidence for comprehensive analysis"
+            )
             assert result.ready_for_use, "Should indicate readiness for comprehensive report"
 
             # Validate quality of feedback
-            assert len(result.key_strengths) >= 5, "Should identify multiple strengths in comprehensive report"
-            assert len(result.areas_for_improvement) >= 2, "Should provide specific improvement areas"
+            assert len(result.key_strengths) >= 5, (
+                "Should identify multiple strengths in comprehensive report"
+            )
+            assert len(result.areas_for_improvement) >= 2, (
+                "Should provide specific improvement areas"
+            )
             assert len(result.recommendation) > 100, "Should provide detailed recommendation"
 
             # Should not contain generic fallback language
-            fallback_phrases = ["generic", "technical issue", "manual review recommended", "parsing issues"]
+            fallback_phrases = [
+                "generic",
+                "technical issue",
+                "manual review recommended",
+                "parsing issues",
+            ]
             recommendation_lower = result.recommendation.lower()
-            assert not any(phrase in recommendation_lower for phrase in fallback_phrases), \
+            assert not any(phrase in recommendation_lower for phrase in fallback_phrases), (
                 f"Should not use fallback language: {result.recommendation}"
+            )
 
             # Should reference Primr standards
             assert "primr" in result.recommendation.lower(), "Should reference Primr standards"
@@ -273,7 +317,10 @@ Focus on international expansion while maintaining product innovation leadership
 
         # Create temporary report file
         import tempfile
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8') as f:
+
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".txt", delete=False, encoding="utf-8"
+        ) as f:
             f.write(integration_content)
             report_path = Path(f.name)
 
@@ -289,17 +336,19 @@ Focus on international expansion while maintaining product innovation leadership
                 key_strengths=[
                     "Clear executive summary with key metrics",
                     "Market analysis provides relevant context",
-                    "Financial metrics demonstrate healthy business model"
+                    "Financial metrics demonstrate healthy business model",
                 ],
                 areas_for_improvement=[
                     "Competitive analysis section could be expanded",
-                    "Risk assessment would strengthen the analysis"
+                    "Risk assessment would strengthen the analysis",
                 ],
                 recommendation="Report provides solid foundation for strategic planning with minor enhancements needed",
-                parsing_success=True
+                parsing_success=True,
             )
 
-            with patch.object(qa_integration.analyzer, 'assess_report', return_value=mock_qa_result):
+            with patch.object(
+                qa_integration.analyzer, "assess_report", return_value=mock_qa_result
+            ):
                 qa_result = qa_integration.run_post_generation_qa(report_path, "TechCorp")
 
                 # Validate integration results
@@ -334,13 +383,13 @@ Focus on international expansion while maintaining product innovation leadership
                 generation_date=datetime.now(),
                 generation_mode="test",
                 model_used="test-model",
-                file_path=Path("error_test.txt")
+                file_path=Path("error_test.txt"),
             ),
-            file_path=Path("error_test.txt")
+            file_path=Path("error_test.txt"),
         )
 
         # Test rate limit error handling
-        with patch.object(analyzer, 'ai_client') as mock_client:
+        with patch.object(analyzer, "ai_client") as mock_client:
             mock_client.generate.side_effect = Exception("Rate limit exceeded (429)")
 
             result = analyzer.assess_report(error_test_report)
@@ -351,7 +400,10 @@ Focus on international expansion while maintaining product innovation leadership
             assert result.error_message is not None
             assert "rate limit" in result.recommendation.lower()
             # Message may say "try again" or "retry later"
-            assert "try again" in result.recommendation.lower() or "retry" in result.recommendation.lower()
+            assert (
+                "try again" in result.recommendation.lower()
+                or "retry" in result.recommendation.lower()
+            )
             assert len(result.areas_for_improvement) > 0, "Should provide diagnostic info"
 
     def test_malformed_response_handling(self):
@@ -370,9 +422,9 @@ Focus on international expansion while maintaining product innovation leadership
                 generation_date=datetime.now(),
                 generation_mode="test",
                 model_used="test-model",
-                file_path=Path("malformed_test.txt")
+                file_path=Path("malformed_test.txt"),
             ),
-            file_path=Path("malformed_test.txt")
+            file_path=Path("malformed_test.txt"),
         )
 
         # Test with malformed JSON response
@@ -384,7 +436,7 @@ Focus on international expansion while maintaining product innovation leadership
         Strengths include clear structure and good evidence base.
         """
 
-        with patch.object(analyzer, 'ai_client') as mock_client:
+        with patch.object(analyzer, "ai_client") as mock_client:
             mock_client.generate.return_value = malformed_response
 
             result = analyzer.assess_report(test_report)
@@ -413,7 +465,7 @@ Focus on international expansion while maintaining product innovation leadership
             key_strengths=["Excellent analysis", "Strong evidence", "Clear recommendations"],
             areas_for_improvement=["Minor formatting issue"],
             recommendation="Excellent report ready for use",
-            parsing_success=True
+            parsing_success=True,
         )
 
         high_grade = qa_integration._calculate_numerical_grade(high_quality_result)
@@ -426,7 +478,7 @@ Focus on international expansion while maintaining product innovation leadership
             key_strengths=["Good analysis", "Adequate evidence"],
             areas_for_improvement=["Needs more depth", "Citations could improve"],
             recommendation="Good report with minor improvements needed",
-            parsing_success=True
+            parsing_success=True,
         )
 
         medium_grade = qa_integration._calculate_numerical_grade(medium_quality_result)
@@ -439,7 +491,7 @@ Focus on international expansion while maintaining product innovation leadership
             key_strengths=[],
             areas_for_improvement=["Major gaps", "Poor citations", "Unclear analysis"],
             recommendation="Significant improvements needed",
-            parsing_success=True
+            parsing_success=True,
         )
 
         low_grade = qa_integration._calculate_numerical_grade(low_quality_result)

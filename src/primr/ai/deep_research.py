@@ -32,6 +32,7 @@ from typing import Any
 
 try:
     from google import genai as _google_genai
+
     _GENAI_IMPORT_ERROR: Exception | None = None
 except Exception as import_error:
     _GENAI_IMPORT_ERROR = import_error
@@ -73,7 +74,10 @@ def _require_genai_dependency() -> None:
     if _GENAI_IMPORT_ERROR is None:
         return
     # Allow tests or callers to inject/patch a working client implementation.
-    if _FALLBACK_CLIENT_CLASS is not None and getattr(genai, "Client", None) is not _FALLBACK_CLIENT_CLASS:
+    if (
+        _FALLBACK_CLIENT_CLASS is not None
+        and getattr(genai, "Client", None) is not _FALLBACK_CLIENT_CLASS
+    ):
         return
     raise AIError(
         "google.genai is not available. Install compatible dependencies "
@@ -84,6 +88,7 @@ def _require_genai_dependency() -> None:
 
 class ResearchStatus(Enum):
     """Status of a deep research task."""
+
     PENDING = "pending"
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
@@ -93,6 +98,7 @@ class ResearchStatus(Enum):
 @dataclass
 class ResearchProgress:
     """Progress update from deep research."""
+
     status: ResearchStatus
     message: str = ""
     thought: str | None = None
@@ -103,6 +109,7 @@ class ResearchProgress:
 @dataclass
 class ThinkingLog:
     """Log of agent's thinking/reasoning process."""
+
     interaction_id: str
     company_name: str
     thoughts: list[str] = field(default_factory=list)
@@ -133,7 +140,7 @@ class ThinkingLog:
             f"**Started:** {self.start_time.strftime('%Y-%m-%d %H:%M:%S')}",
             "",
             "## Agent Reasoning Process",
-            ""
+            "",
         ]
 
         for thought in self.thoughts:
@@ -159,6 +166,7 @@ class ThinkingLog:
 @dataclass
 class ResearchResult:
     """Result from a deep research task."""
+
     content: str
     citations: list[dict[str, str]] = field(default_factory=list)
     interaction_id: str = ""
@@ -176,7 +184,7 @@ class ResearchResult:
     def save_thinking_log(self, filepath: str) -> None:
         """Save the thinking log to a file."""
         if self.thinking_log:
-            with open(filepath, 'w', encoding='utf-8') as f:
+            with open(filepath, "w", encoding="utf-8") as f:
                 f.write(self.thinking_log.to_markdown())
 
 
@@ -192,6 +200,7 @@ import os
 def _get_jobs_file_path() -> str:
     """Get path to the jobs tracking file."""
     from primr.config.config import LOGS_DIR
+
     return os.path.join(LOGS_DIR, "pending_research_jobs.json")
 
 
@@ -222,7 +231,7 @@ def save_pending_job(
         jobs = {}
         if os.path.exists(jobs_file):
             try:
-                with open(jobs_file, encoding='utf-8') as f:
+                with open(jobs_file, encoding="utf-8") as f:
                     content = f.read().strip()
                     if content:
                         jobs = json.loads(content)
@@ -247,7 +256,7 @@ def save_pending_job(
         os.makedirs(os.path.dirname(jobs_file), exist_ok=True)
         temp_file = jobs_file + ".tmp"
         try:
-            with open(temp_file, 'w', encoding='utf-8') as f:
+            with open(temp_file, "w", encoding="utf-8") as f:
                 json.dump(jobs, f, indent=2)
             # Atomic rename (on POSIX) or replace (on Windows)
             if os.path.exists(jobs_file):
@@ -278,7 +287,7 @@ def remove_pending_job(interaction_id: str) -> None:
             return
 
         try:
-            with open(jobs_file, encoding='utf-8') as f:
+            with open(jobs_file, encoding="utf-8") as f:
                 content = f.read().strip()
                 if not content:
                     return
@@ -291,7 +300,7 @@ def remove_pending_job(interaction_id: str) -> None:
                 del jobs[interaction_id]
                 # Save atomically
                 temp_file = jobs_file + ".tmp"
-                with open(temp_file, 'w', encoding='utf-8') as f:
+                with open(temp_file, "w", encoding="utf-8") as f:
                     json.dump(jobs, f, indent=2)
                 os.replace(temp_file, jobs_file)
                 logger.info(f"Removed completed job: {interaction_id}")
@@ -312,7 +321,7 @@ def get_pending_jobs() -> dict[str, dict[str, Any]]:
             return {}
 
         try:
-            with open(jobs_file, encoding='utf-8') as f:
+            with open(jobs_file, encoding="utf-8") as f:
                 content = f.read().strip()
                 if not content:
                     return {}
@@ -329,6 +338,7 @@ def get_pending_jobs() -> dict[str, dict[str, Any]]:
 # =============================================================================
 # URL RESOLUTION - Resolve Google redirect URLs to final destinations
 # =============================================================================
+
 
 async def resolve_redirect_url(url: str, timeout: float = 10.0, retries: int = 2) -> str:
     """
@@ -366,7 +376,9 @@ async def resolve_redirect_url(url: str, timeout: float = 10.0, retries: int = 2
                 # SSRF protection: validate final URL after redirects
                 is_safe, redirect_error = validate_final_url_after_redirect(final_url)
                 if not is_safe:
-                    logger.warning(f"Redirect to unsafe URL blocked: {final_url} - {redirect_error}")
+                    logger.warning(
+                        f"Redirect to unsafe URL blocked: {final_url} - {redirect_error}"
+                    )
                     return url  # Return original URL instead of unsafe redirect target
 
                 logger.debug(f"Resolved URL: {url[:50]}... -> {final_url[:80]}...")
@@ -410,16 +422,16 @@ def _extract_domain_from_redirect(redirect_url: str) -> str:
     # Try to extract it
     try:
         # Look for the encoded part after /grounding-api-redirect/
-        match = re.search(r'/grounding-api-redirect/([A-Za-z0-9_-]+)', redirect_url)
+        match = re.search(r"/grounding-api-redirect/([A-Za-z0-9_-]+)", redirect_url)
         if match:
             encoded = match.group(1)
             # Add padding if needed
             padding = 4 - len(encoded) % 4
             if padding != 4:
-                encoded += '=' * padding
+                encoded += "=" * padding
             # Try to decode
             try:
-                decoded = base64.urlsafe_b64decode(encoded).decode('utf-8', errors='ignore')
+                decoded = base64.urlsafe_b64decode(encoded).decode("utf-8", errors="ignore")
                 # Look for URLs in the decoded content
                 url_match = re.search(r'https?://[^\s<>"\']+', decoded)
                 if url_match:
@@ -447,7 +459,7 @@ async def resolve_citation_urls(citations: list[dict[str, str]]) -> list[dict[st
         return citations
 
     # Create tasks for all URL resolutions
-    tasks = [resolve_redirect_url(c.get('url', '')) for c in citations]
+    tasks = [resolve_redirect_url(c.get("url", "")) for c in citations]
 
     # Run all resolutions in parallel
     resolved_urls = await asyncio.gather(*tasks)
@@ -455,7 +467,7 @@ async def resolve_citation_urls(citations: list[dict[str, str]]) -> list[dict[st
     # Update citations with resolved URLs
     for citation, resolved_url in zip(citations, resolved_urls, strict=False):
         if resolved_url:
-            citation['url'] = resolved_url
+            citation["url"] = resolved_url
 
     return citations
 
@@ -474,11 +486,9 @@ def resolve_citation_urls_sync(citations: list[dict[str, str]]) -> list[dict[str
         asyncio.get_running_loop()
         # If we're already in an async context, create a task
         import concurrent.futures
+
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            future = executor.submit(
-                asyncio.run,
-                resolve_citation_urls(citations)
-            )
+            future = executor.submit(asyncio.run, resolve_citation_urls(citations))
             return future.result(timeout=30)
     except RuntimeError:
         # No running loop, safe to use asyncio.run()
@@ -528,8 +538,8 @@ class DeepResearchClient:
     MAX_RESEARCH_TIME = 3600
 
     # Adaptive polling thresholds (seconds)
-    POLL_FAST_THRESHOLD = 60      # First 60s: poll every 5s
-    POLL_NORMAL_THRESHOLD = 300   # 60-300s: poll every 10s
+    POLL_FAST_THRESHOLD = 60  # First 60s: poll every 5s
+    POLL_NORMAL_THRESHOLD = 300  # 60-300s: poll every 10s
     # After 300s: poll every 20s
 
     def __init__(self, api_key: str | None = None):
@@ -597,10 +607,12 @@ class DeepResearchClient:
             except Exception as e:
                 logger.warning(f"Streaming mode failed, falling back to polling: {e}")
                 if on_progress:
-                    on_progress(ResearchProgress(
-                        status=ResearchStatus.IN_PROGRESS,
-                        message="Streaming failed, switching to polling mode..."
-                    ))
+                    on_progress(
+                        ResearchProgress(
+                            status=ResearchStatus.IN_PROGRESS,
+                            message="Streaming failed, switching to polling mode...",
+                        )
+                    )
                 # Fall through to polling mode
 
         # =================================================================
@@ -621,6 +633,7 @@ class DeepResearchClient:
         # 3. Validate context files exist and are readable
         if context_files:
             import os
+
             for f in context_files:
                 if not os.path.exists(f):
                     preflight_errors.append(f"Context file not found: {f}")
@@ -631,7 +644,7 @@ class DeepResearchClient:
                 else:
                     # Try to read the file to ensure it's accessible
                     try:
-                        with open(f, 'rb') as test_file:
+                        with open(f, "rb") as test_file:
                             test_file.read(1)  # Just read 1 byte to verify access
                     except Exception as e:
                         preflight_errors.append(f"Cannot read context file {f}: {e}")
@@ -639,7 +652,7 @@ class DeepResearchClient:
         # 4. Validate priority URLs format
         if priority_urls:
             for url in priority_urls:
-                if not url.startswith(('http://', 'https://')):
+                if not url.startswith(("http://", "https://")):
                     preflight_errors.append(f"Invalid URL format: {url}")
 
         # FAIL FAST if any validation errors
@@ -652,17 +665,22 @@ class DeepResearchClient:
         try:
             # Verify we can reach the API (this is cheap)
             from primr.config.models import PrimrModels
+
             _ = self._client.models.get(model=PrimrModels.FLASH_MODEL)
             logger.info("Pre-flight: API connectivity verified")
         except Exception as e:
-            raise AIError(f"Pre-flight: API connectivity check failed: {e}", model=self.AGENT_ID) from e
+            raise AIError(
+                f"Pre-flight: API connectivity check failed: {e}", model=self.AGENT_ID
+            ) from e
 
         # 6. Upload context files BEFORE starting research
         # This is a separate API call - if it fails, we haven't started the expensive research yet
         file_store_name = None
         if context_files:
             file_store_name = self._upload_context_files(context_files)
-            logger.info(f"Pre-flight: {len(context_files)} context files uploaded to {file_store_name}")
+            logger.info(
+                f"Pre-flight: {len(context_files)} context files uploaded to {file_store_name}"
+            )
 
         # 7. Build and validate prompt
         prompt = self._build_prompt(query, output_format)
@@ -705,10 +723,11 @@ class DeepResearchClient:
             )
 
             if on_progress:
-                on_progress(ResearchProgress(
-                    status=ResearchStatus.IN_PROGRESS,
-                    message="Research submitted to API"
-                ))
+                on_progress(
+                    ResearchProgress(
+                        status=ResearchStatus.IN_PROGRESS, message="Research submitted to API"
+                    )
+                )
 
             # Poll for completion with retry for transient errors
             consecutive_poll_errors = 0
@@ -717,10 +736,7 @@ class DeepResearchClient:
             while True:
                 elapsed = time.time() - start_time
                 if elapsed > timeout:
-                    raise AIError(
-                        f"Research timed out after {elapsed:.0f}s",
-                        model=self.AGENT_ID
-                    )
+                    raise AIError(f"Research timed out after {elapsed:.0f}s", model=self.AGENT_ID)
 
                 # Check status with retry for transient errors
                 try:
@@ -729,12 +745,12 @@ class DeepResearchClient:
                 except Exception as e:
                     error_str = str(e).lower()
                     is_transient = (
-                        "500" in error_str or
-                        "internal server error" in error_str or
-                        "503" in error_str or
-                        "service unavailable" in error_str or
-                        "connection" in error_str or
-                        "timeout" in error_str
+                        "500" in error_str
+                        or "internal server error" in error_str
+                        or "503" in error_str
+                        or "service unavailable" in error_str
+                        or "connection" in error_str
+                        or "timeout" in error_str
                     )
 
                     if is_transient and consecutive_poll_errors < max_poll_errors:
@@ -746,17 +762,18 @@ class DeepResearchClient:
                         )
                         # Only show progress on first retry to reduce noise
                         if on_progress and consecutive_poll_errors == 1:
-                            on_progress(ResearchProgress(
-                                status=ResearchStatus.IN_PROGRESS,
-                                message="API delays detected, retrying..."
-                            ))
+                            on_progress(
+                                ResearchProgress(
+                                    status=ResearchStatus.IN_PROGRESS,
+                                    message="API delays detected, retrying...",
+                                )
+                            )
                         await asyncio.sleep(wait_time)
                         continue
                     else:
                         # Non-transient or too many failures
                         raise AIError(
-                            f"Deep research polling failed: {e}",
-                            model=self.AGENT_ID
+                            f"Deep research polling failed: {e}", model=self.AGENT_ID
                         ) from e
 
                 status = interaction.status
@@ -784,7 +801,7 @@ class DeepResearchClient:
                     return result
 
                 elif status == "failed":
-                    error_msg = getattr(interaction, 'error', 'Unknown error')
+                    error_msg = getattr(interaction, "error", "Unknown error")
                     logger.error(f"Research failed: {error_msg}")
 
                     # Remove from pending jobs
@@ -795,7 +812,7 @@ class DeepResearchClient:
                         interaction_id=interaction_id,
                         duration_seconds=time.time() - start_time,
                         status=ResearchStatus.FAILED,
-                        error=str(error_msg)
+                        error=str(error_msg),
                     )
 
                 # Still in progress - show phase changes and periodic updates
@@ -807,8 +824,8 @@ class DeepResearchClient:
                     time_str = f"{mins}m {secs}s" if mins > 0 else f"{secs}s"
 
                     # Show progress on phase change OR every 60 seconds (less frequent)
-                    phase_changed = not hasattr(self, '_last_phase') or self._last_phase != phase
-                    time_for_update = (elapsed - getattr(self, '_last_progress_time', 0)) >= 60
+                    phase_changed = not hasattr(self, "_last_phase") or self._last_phase != phase
+                    time_for_update = (elapsed - getattr(self, "_last_progress_time", 0)) >= 60
 
                     if phase_changed or time_for_update:
                         self._last_phase = phase
@@ -820,10 +837,9 @@ class DeepResearchClient:
                         else:
                             message = f"  {phase}..."  # Minimal update
 
-                        on_progress(ResearchProgress(
-                            status=ResearchStatus.IN_PROGRESS,
-                            message=message
-                        ))
+                        on_progress(
+                            ResearchProgress(status=ResearchStatus.IN_PROGRESS, message=message)
+                        )
 
                 # Use adaptive polling interval
                 current_interval = self._get_poll_interval(elapsed)
@@ -832,11 +848,7 @@ class DeepResearchClient:
 
         except Exception as e:
             logger.error(f"Deep research error: {e}")
-            raise AIError(
-                f"Deep research failed: {e}",
-                model=self.AGENT_ID,
-                cause=e
-            ) from e
+            raise AIError(f"Deep research failed: {e}", model=self.AGENT_ID, cause=e) from e
         finally:
             # CRITICAL: Always cleanup File Search Store to prevent billing leaks
             # Per Gemini docs: "There is no TTL for embeddings and files; they persist until manually deleted"
@@ -874,7 +886,6 @@ class DeepResearchClient:
             # Start streaming research
             stream = self._start_research_stream(prompt)
 
-
             for chunk in stream:
                 # Capture interaction ID
                 if chunk.event_type == "interaction.start":
@@ -882,51 +893,40 @@ class DeepResearchClient:
                     pass
 
                 # Track event ID for reconnection
-                if hasattr(chunk, 'event_id') and chunk.event_id:
+                if hasattr(chunk, "event_id") and chunk.event_id:
                     pass
 
                 # Handle content updates
                 if chunk.event_type == "content.delta":
-                    if hasattr(chunk.delta, 'type'):
+                    if hasattr(chunk.delta, "type"):
                         if chunk.delta.type == "text":
                             yield ResearchProgress(
-                                status=ResearchStatus.IN_PROGRESS,
-                                partial_result=chunk.delta.text
+                                status=ResearchStatus.IN_PROGRESS, partial_result=chunk.delta.text
                             )
                         elif chunk.delta.type == "thought_summary":
                             yield ResearchProgress(
-                                status=ResearchStatus.IN_PROGRESS,
-                                thought=chunk.delta.content.text
+                                status=ResearchStatus.IN_PROGRESS, thought=chunk.delta.content.text
                             )
 
                 # Handle completion
                 if chunk.event_type == "interaction.complete":
                     yield ResearchProgress(
-                        status=ResearchStatus.COMPLETED,
-                        message="Research complete"
+                        status=ResearchStatus.COMPLETED, message="Research complete"
                     )
                     break
 
                 # Handle errors
                 if chunk.event_type == "error":
                     yield ResearchProgress(
-                        status=ResearchStatus.FAILED,
-                        message=f"Research failed: {chunk}"
+                        status=ResearchStatus.FAILED, message=f"Research failed: {chunk}"
                     )
                     break
 
         except Exception as e:
             logger.error(f"Stream error: {e}")
-            yield ResearchProgress(
-                status=ResearchStatus.FAILED,
-                message=f"Stream error: {e}"
-            )
+            yield ResearchProgress(status=ResearchStatus.FAILED, message=f"Stream error: {e}")
 
-    def _build_prompt(
-        self,
-        query: str,
-        output_format: str | None = None
-    ) -> str:
+    def _build_prompt(self, query: str, output_format: str | None = None) -> str:
         """Build the research prompt with format instructions."""
         if output_format == "company_profile":
             return self._build_company_profile_prompt(query)
@@ -975,11 +975,11 @@ Cite all sources.
         from primr.prompts import build_company_overview_prompt
 
         # Extract company name from query for header
-        company_match = re.search(r'Research\s+(.+?)(?:\s*\(|$)', query)
+        company_match = re.search(r"Research\s+(.+?)(?:\s*\(|$)", query)
         company_name = company_match.group(1).strip() if company_match else "Company"
 
         # Extract website URL if present in query
-        url_match = re.search(r'\((https?://[^\)]+)\)', query)
+        url_match = re.search(r"\((https?://[^\)]+)\)", query)
         website_url = url_match.group(1) if url_match else None
 
         return build_company_overview_prompt(
@@ -1049,8 +1049,7 @@ Frame everything as hypotheses to explore, not conclusions."""
                 try:
                     # Try with config for force delete (deletes chunks too)
                     self._client.file_search_stores.documents.delete(
-                        name=doc.name,
-                        config={"force": True}
+                        name=doc.name, config={"force": True}
                     )
                 except TypeError:
                     # SDK doesn't support config, try without
@@ -1066,8 +1065,10 @@ Frame everything as hypotheses to explore, not conclusions."""
             logger.debug(f"Cleaned up File Search Store: {store_name}")
         except Exception as e:
             error_str = str(e).lower()
-            if 'failed_precondition' in error_str or 'non-empty' in error_str:
-                logger.error(f"CLEANUP FAILED: Store {store_name} still not empty after doc deletion!")
+            if "failed_precondition" in error_str or "non-empty" in error_str:
+                logger.error(
+                    f"CLEANUP FAILED: Store {store_name} still not empty after doc deletion!"
+                )
             else:
                 logger.warning(f"Could not delete File Search Store {store_name}: {e}")
 
@@ -1092,27 +1093,21 @@ Frame everything as hypotheses to explore, not conclusions."""
         # Validate files exist BEFORE any API calls
         missing_files = [f for f in file_paths if not os.path.exists(f)]
         if missing_files:
-            raise AIError(
-                f"Context files not found: {missing_files}",
-                model=self.AGENT_ID
-            )
+            raise AIError(f"Context files not found: {missing_files}", model=self.AGENT_ID)
 
         valid_files = [f for f in file_paths if os.path.exists(f)]
         if not valid_files:
-            raise AIError(
-                "No valid context files to upload",
-                model=self.AGENT_ID
-            )
+            raise AIError("No valid context files to upload", model=self.AGENT_ID)
 
         logger.info(f"Uploading {len(valid_files)} context file(s)...")
 
         # MIME type mapping for extensions the API doesn't auto-detect
         mime_types = {
-            '.md': 'text/markdown',
-            '.txt': 'text/plain',
-            '.json': 'application/json',
-            '.csv': 'text/csv',
-            '.pdf': 'application/pdf',
+            ".md": "text/markdown",
+            ".txt": "text/plain",
+            ".json": "application/json",
+            ".csv": "text/csv",
+            ".pdf": "application/pdf",
         }
 
         store_name: str = ""
@@ -1141,7 +1136,7 @@ Frame everything as hypotheses to explore, not conclusions."""
                     self._client.file_search_stores.upload_to_file_search_store(
                         file=file_path,
                         file_search_store_name=store_name or "",
-                        config=config  # type: ignore[arg-type]
+                        config=config,  # type: ignore[arg-type]
                     )
                     logger.info(f"Uploaded: {file_path}")
                 except Exception as upload_err:
@@ -1153,7 +1148,7 @@ Frame everything as hypotheses to explore, not conclusions."""
                     raise AIError(
                         f"Failed to upload {file_path}: {upload_err}",
                         model=self.AGENT_ID,
-                        cause=upload_err
+                        cause=upload_err,
                     ) from upload_err
 
             logger.info(f"All {len(valid_files)} files uploaded successfully")
@@ -1166,21 +1161,14 @@ Frame everything as hypotheses to explore, not conclusions."""
             if store_name:
                 logger.warning(f"Error occurred, cleaning up store {store_name}")
                 self._cleanup_file_store(store_name)
-            raise AIError(
-                f"Failed to create file store: {e}",
-                model=self.AGENT_ID,
-                cause=e
-            ) from e
+            raise AIError(f"Failed to create file store: {e}", model=self.AGENT_ID, cause=e) from e
 
     def _start_research(self, prompt: str, file_store_name: str | None = None) -> Any:
         """Start a background research task."""
         # Build tools list
         tools: list[dict[str, Any]] = []
         if file_store_name:
-            tools.append({
-                "type": "file_search",
-                "file_search_store_names": [file_store_name]
-            })
+            tools.append({"type": "file_search", "file_search_store_names": [file_store_name]})
 
         create_kwargs: dict[str, Any] = {
             "input": prompt,
@@ -1204,10 +1192,7 @@ Frame everything as hypotheses to explore, not conclusions."""
             background=True,
             store=True,
             stream=True,
-            agent_config={
-                "type": "deep-research",
-                "thinking_summaries": "auto"
-            }
+            agent_config={"type": "deep-research", "thinking_summaries": "auto"},
         )
 
     @staticmethod
@@ -1401,6 +1386,7 @@ Frame everything as hypotheses to explore, not conclusions."""
             preflight_errors.append("No API key configured")
         if context_files:
             import os
+
             for f in context_files:
                 if not os.path.exists(f):
                     preflight_errors.append(f"Context file not found: {f}")
@@ -1424,10 +1410,12 @@ Frame everything as hypotheses to explore, not conclusions."""
         start_time = time.time()
 
         if on_progress:
-            on_progress(ResearchProgress(
-                status=ResearchStatus.IN_PROGRESS,
-                message="Starting research (background mode)..."
-            ))
+            on_progress(
+                ResearchProgress(
+                    status=ResearchStatus.IN_PROGRESS,
+                    message="Starting research (background mode)...",
+                )
+            )
 
         # Start background job (NO streaming - job runs async on Google's servers)
         interaction_id = None
@@ -1459,20 +1447,28 @@ Frame everything as hypotheses to explore, not conclusions."""
         max_poll_errors = 5
         last_progress_update = 0.0
         try:
+
             def _on_poll(interaction: Any, elapsed: float) -> None:
                 nonlocal last_progress_update
                 if str(getattr(interaction, "status", "")).lower() in {
-                    "completed", "failed", "error", "cancelled", "canceled", "expired"
+                    "completed",
+                    "failed",
+                    "error",
+                    "cancelled",
+                    "canceled",
+                    "expired",
                 }:
                     return
                 if on_progress and (elapsed - last_progress_update) >= 60:
                     mins = int(elapsed // 60)
                     secs = int(elapsed % 60)
                     time_str = f"{mins}m {secs}s" if mins > 0 else f"{secs}s"
-                    on_progress(ResearchProgress(
-                        status=ResearchStatus.IN_PROGRESS,
-                        message=f"Research in progress ({time_str})..."
-                    ))
+                    on_progress(
+                        ResearchProgress(
+                            status=ResearchStatus.IN_PROGRESS,
+                            message=f"Research in progress ({time_str})...",
+                        )
+                    )
                     last_progress_update = elapsed
 
             def _on_transient_retry(
@@ -1486,10 +1482,12 @@ Frame everything as hypotheses to explore, not conclusions."""
                     f"waiting {wait_time}s: {error}"
                 )
                 if on_progress:
-                    on_progress(ResearchProgress(
-                        status=ResearchStatus.IN_PROGRESS,
-                        message=f"API hiccup, retrying in {wait_time}s..."
-                    ))
+                    on_progress(
+                        ResearchProgress(
+                            status=ResearchStatus.IN_PROGRESS,
+                            message=f"API hiccup, retrying in {wait_time}s...",
+                        )
+                    )
 
             try:
                 interaction, elapsed = await poll_interaction_until_terminal(
@@ -1513,10 +1511,12 @@ Frame everything as hypotheses to explore, not conclusions."""
                 elapsed = time.time() - start_time
                 logger.warning(f"Research polling timed out after {elapsed:.0f}s")
                 if on_progress:
-                    on_progress(ResearchProgress(
-                        status=ResearchStatus.IN_PROGRESS,
-                        message=f"Still running after {elapsed:.0f}s. Check later with: primr --check-jobs"
-                    ))
+                    on_progress(
+                        ResearchProgress(
+                            status=ResearchStatus.IN_PROGRESS,
+                            message=f"Still running after {elapsed:.0f}s. Check later with: primr --check-jobs",
+                        )
+                    )
                 # Don't remove from pending jobs - it may still complete.
                 job_still_running = True
                 return ResearchResult(
@@ -1524,7 +1524,7 @@ Frame everything as hypotheses to explore, not conclusions."""
                     interaction_id=interaction_id,
                     duration_seconds=elapsed,
                     status=ResearchStatus.IN_PROGRESS,
-                    error=f"Polling timed out after {elapsed:.0f}s. Job may still be running. Use 'primr --check-jobs' to check status."
+                    error=f"Polling timed out after {elapsed:.0f}s. Job may still be running. Use 'primr --check-jobs' to check status.",
                 )
 
             if interaction.status == "completed":
@@ -1533,7 +1533,9 @@ Frame everything as hypotheses to explore, not conclusions."""
                 search_count = self._extract_search_queries_count(interaction)
                 remove_pending_job(interaction_id)
 
-                logger.info(f"Research completed in {time.time() - start_time:.0f}s, {search_count} searches")
+                logger.info(
+                    f"Research completed in {time.time() - start_time:.0f}s, {search_count} searches"
+                )
                 return ResearchResult(
                     content=content,
                     citations=citations,
@@ -1543,7 +1545,7 @@ Frame everything as hypotheses to explore, not conclusions."""
                     search_queries_count=search_count,
                 )
 
-            error_msg = getattr(interaction, 'error', 'Unknown error')
+            error_msg = getattr(interaction, "error", "Unknown error")
             remove_pending_job(interaction_id)
             logger.error(f"Research failed: {error_msg}")
             return ResearchResult(
@@ -1560,7 +1562,9 @@ Frame everything as hypotheses to explore, not conclusions."""
             if file_store_name and not job_still_running:
                 self._cleanup_file_store(file_store_name)
             elif file_store_name and job_still_running:
-                logger.warning(f"Skipping file store cleanup — job {interaction_id} may still be running")
+                logger.warning(
+                    f"Skipping file store cleanup — job {interaction_id} may still be running"
+                )
 
     def _extract_citations_from_text(self, content: str) -> list[dict[str, str]]:
         """Extract citations from text content (for streaming results)."""
@@ -2156,7 +2160,7 @@ class DeepResearchOrchestrator:
                     store_name=store_name,
                     content=stage1_context,
                     filename="stage1_research.txt",
-                    mime_type="text/plain"
+                    mime_type="text/plain",
                 )
 
             # Execute with retry
@@ -2238,15 +2242,15 @@ class DeepResearchOrchestrator:
 
                 # Check if it's a retryable error
                 is_retryable = (
-                    "429" in error_str or
-                    "quota" in error_str or
-                    "rate" in error_str or
-                    "500" in error_str or
-                    "internal server error" in error_str or
-                    "503" in error_str or
-                    "service unavailable" in error_str or
-                    "connection" in error_str or
-                    "timeout" in error_str
+                    "429" in error_str
+                    or "quota" in error_str
+                    or "rate" in error_str
+                    or "500" in error_str
+                    or "internal server error" in error_str
+                    or "503" in error_str
+                    or "service unavailable" in error_str
+                    or "connection" in error_str
+                    or "timeout" in error_str
                 )
 
                 if is_retryable and attempt < self.MAX_RETRIES - 1:
@@ -2284,10 +2288,10 @@ class DeepResearchOrchestrator:
                 error_str = str(e).lower()
 
                 is_retryable = (
-                    "500" in error_str or
-                    "internal server error" in error_str or
-                    "connection" in error_str or
-                    "timeout" in error_str
+                    "500" in error_str
+                    or "internal server error" in error_str
+                    or "connection" in error_str
+                    or "timeout" in error_str
                 )
 
                 if is_retryable and attempt < self.MAX_RETRIES - 1:
@@ -2308,8 +2312,7 @@ class DeepResearchOrchestrator:
 
         # All retries exhausted
         error_msg = (
-            f"Deep Research failed after {self.MAX_RETRIES} attempts. "
-            f"Last error: {last_error}"
+            f"Deep Research failed after {self.MAX_RETRIES} attempts. Last error: {last_error}"
         )
         logger.error(error_msg)
         return ResearchResult(
@@ -2330,7 +2333,7 @@ class DeepResearchOrchestrator:
         Returns:
             Delay in seconds
         """
-        return self.BASE_RETRY_DELAY * (2 ** attempt)
+        return self.BASE_RETRY_DELAY * (2**attempt)
 
     async def _execute_single(
         self,
@@ -2352,10 +2355,7 @@ class DeepResearchOrchestrator:
         # Build tools list
         tools: list[dict[str, Any]] = []
         if store_name:
-            tools.append({
-                "type": "file_search",
-                "file_search_store_names": [store_name]
-            })
+            tools.append({"type": "file_search", "file_search_store_names": [store_name]})
 
         # Start the research
         create_kwargs: dict[str, Any] = {
@@ -2422,7 +2422,12 @@ class DeepResearchOrchestrator:
                 )
 
             if str(getattr(interaction, "status", "")).lower() in {
-                "completed", "failed", "error", "cancelled", "canceled", "expired"
+                "completed",
+                "failed",
+                "error",
+                "cancelled",
+                "canceled",
+                "expired",
             }:
                 return
 
@@ -2470,8 +2475,7 @@ class DeepResearchOrchestrator:
             on_poll=_on_poll,
             on_transient_retry=_on_transient_retry,
             build_timeout_error=lambda _: AIError(
-                f"Deep Research timed out after {self.TIMEOUT_SECONDS}s. "
-                f"ID: {interaction_id}",
+                f"Deep Research timed out after {self.TIMEOUT_SECONDS}s. ID: {interaction_id}",
                 model=self.AGENT_ID,
             ),
             build_poll_error=lambda e: AIError(
@@ -2497,11 +2501,8 @@ class DeepResearchOrchestrator:
                 search_queries_count=search_queries_count,
             )
 
-        error_msg = getattr(interaction, 'error', 'Unknown error')
-        raise AIError(
-            f"Deep Research failed: {error_msg}",
-            model=self.AGENT_ID
-        )
+        error_msg = getattr(interaction, "error", "Unknown error")
+        raise AIError(f"Deep Research failed: {error_msg}", model=self.AGENT_ID)
 
     def _get_phase_name(self, elapsed_seconds: float) -> str:
         """Get the current phase name based on elapsed time."""
@@ -2677,15 +2678,17 @@ Write the content now, following the formatting rules above.""",
                     instructions_parts.append(f"\n{section.depth}")
 
                 # Get position from YAML (defaults to 'middle' if not specified)
-                position = getattr(section, 'position', 'middle') or 'middle'
+                position = getattr(section, "position", "middle") or "middle"
 
-                sections.append({
-                    "id": section.id,
-                    "title": section.name,
-                    "instructions": "\n".join(instructions_parts),
-                    "part": section.part,
-                    "position": position,
-                })
+                sections.append(
+                    {
+                        "id": section.id,
+                        "title": section.name,
+                        "instructions": "\n".join(instructions_parts),
+                        "part": section.part,
+                        "position": position,
+                    }
+                )
 
             cls._sections_cache = sections
             logger.info(f"Loaded {len(sections)} sections from company_overview.yaml")
@@ -2813,7 +2816,7 @@ Write the content now, following the formatting rules above.""",
                     store_name=store_name,
                     content=stage1_context,
                     filename="stage1_research.txt",
-                    mime_type="text/plain"
+                    mime_type="text/plain",
                 )
 
             # Execute Deep Research for dossier
@@ -2851,7 +2854,9 @@ Write the content now, following the formatting rules above.""",
 
             dossier_words = len(research_dossier.split())
             if on_progress:
-                on_progress(f"Phase 1 complete: Research dossier gathered ({dossier_words:,} words)")
+                on_progress(
+                    f"Phase 1 complete: Research dossier gathered ({dossier_words:,} words)"
+                )
 
             # ================================================================
             # PHASE 2: Section-by-Section Writing
@@ -2914,12 +2919,14 @@ Write the content now, following the formatting rules above.""",
                             min_words = 100
 
                             if words >= min_words:
-                                written_sections.append({
-                                    'id': section['id'],
-                                    'title': section['title'],
-                                    'content': result.content,
-                                    'words': words,
-                                })
+                                written_sections.append(
+                                    {
+                                        "id": section["id"],
+                                        "title": section["title"],
+                                        "content": result.content,
+                                        "words": words,
+                                    }
+                                )
                                 all_citations.extend(result.citations)
                                 successful_sections += 1
                                 consecutive_failures = 0
@@ -2932,7 +2939,9 @@ Write the content now, following the formatting rules above.""",
                                     on_progress(f"  {section['title']}: {words:,} words")
                                 break
                             else:
-                                logger.warning(f"Section too short: {words} words (min {min_words})")
+                                logger.warning(
+                                    f"Section too short: {words} words (min {min_words})"
+                                )
                                 if retry < max_retries - 1:
                                     await asyncio.sleep(5)
                                     continue
@@ -2967,7 +2976,9 @@ Write the content now, following the formatting rules above.""",
                         on_progress(f"  Skipped after {max_retries} attempts")
 
             if on_progress:
-                on_progress(f"Phase 2 complete: {successful_sections} sections written, {failed_sections} skipped")
+                on_progress(
+                    f"Phase 2 complete: {successful_sections} sections written, {failed_sections} skipped"
+                )
 
             # ================================================================
             # PHASE 3: Assemble Final Report
@@ -2992,7 +3003,9 @@ Write the content now, following the formatting rules above.""",
 
             if on_progress:
                 on_progress(f"Report complete: ~{final_pages} pages ({final_words:,} words)")
-                on_progress(f"API calls: {self._api_call_count} (1 research + {successful_sections} sections)")
+                on_progress(
+                    f"API calls: {self._api_call_count} (1 research + {successful_sections} sections)"
+                )
 
             # Success if we got at least half the sections
             success = successful_sections >= len(self.REPORT_SECTIONS) // 2
@@ -3003,7 +3016,9 @@ Write the content now, following the formatting rules above.""",
                 citations=all_citations,
                 duration_seconds=time.time() - start_time,
                 success=success,
-                error=None if success else f"Only {successful_sections}/{len(self.REPORT_SECTIONS)} sections completed",
+                error=None
+                if success
+                else f"Only {successful_sections}/{len(self.REPORT_SECTIONS)} sections completed",
                 interaction_id=base_interaction_id,
                 api_calls=self._api_call_count,
                 sections_written=successful_sections,
@@ -3013,9 +3028,17 @@ Write the content now, following the formatting rules above.""",
         except Exception as e:
             logger.error(f"Report generation error: {e}")
             # Return partial report if we have sections
-            industry = self._extract_industry_from_context(stage1_context) if stage1_context else None
+            industry = (
+                self._extract_industry_from_context(stage1_context) if stage1_context else None
+            )
             full_name = self._extract_full_company_name(stage1_context) if stage1_context else None
-            partial = self._assemble_report(company_name, website_url, written_sections, industry, full_name) if written_sections else ""
+            partial = (
+                self._assemble_report(
+                    company_name, website_url, written_sections, industry, full_name
+                )
+                if written_sections
+                else ""
+            )
             return DeepResearchOrchestratorResult(
                 company_name=company_name,
                 content=partial,
@@ -3083,16 +3106,16 @@ Write the content now, following the formatting rules above.""",
             prev_summaries = []
             for prev in previous_sections[-3:]:  # Last 3 sections for context
                 # First 200 words as summary
-                summary = ' '.join(prev['content'].split()[:200])
+                summary = " ".join(prev["content"].split()[:200])
                 prev_summaries.append(f"**{prev['title']}** (excerpt): {summary}...")
             prev_context = "\n\n".join(prev_summaries)
 
         # Position guidance for narrative flow - use position from YAML
-        position = section.get('position', 'middle')
+        position = section.get("position", "middle")
         position_guidance = position_guidance_templates.get(position, "")
 
         # Format position guidance with section numbers if needed
-        if position == 'middle' and '{section_number}' in position_guidance:
+        if position == "middle" and "{section_number}" in position_guidance:
             position_guidance = position_guidance.format(
                 section_number=section_index + 1,
                 total_sections=total_sections,
@@ -3102,7 +3125,9 @@ Write the content now, following the formatting rules above.""",
         stage1_section = ""
         if stage1_context:
             # Truncate Stage 1 context to key portions
-            stage1_truncated = stage1_context[:6000] if len(stage1_context) > 6000 else stage1_context
+            stage1_truncated = (
+                stage1_context[:6000] if len(stage1_context) > 6000 else stage1_context
+            )
             stage1_section = f"""## STAGE 1 RESEARCH (Website Analysis - Ground Truth)
 This is verified information from the company's own website and public sources.
 Prioritize this data when it conflicts with external research.
@@ -3122,8 +3147,8 @@ Prioritize this data when it conflicts with external research.
                 stage1_context=stage1_section,
                 research_dossier=research_dossier[:8000],
                 previous_sections=prev_context,
-                section_title=section['title'],
-                section_instructions=section['instructions'],
+                section_title=section["title"],
+                section_instructions=section["instructions"],
                 position_guidance=position_guidance,
             )
         else:
@@ -3137,15 +3162,15 @@ Prioritize this data when it conflicts with external research.
 {prev_context}
 
 ## YOUR TASK
-Write the **{section['title']}** section with depth and analytical rigor.
+Write the **{section["title"]}** section with depth and analytical rigor.
 
 Instructions:
-{section['instructions']}
+{section["instructions"]}
 
 ## NARRATIVE GUIDANCE
 {position_guidance}
 
-Write the content for the **{section['title']}** section now. Do NOT repeat the section
+Write the content for the **{section["title"]}** section now. Do NOT repeat the section
 title as a heading - it will be added automatically. Do NOT start with a heading that
 matches or closely resembles the section title. Start directly with the content or
 use a descriptive subtitle if needed."""
@@ -3156,12 +3181,15 @@ use a descriptive subtitle if needed."""
             return None
 
         import re
+
         # Look for "## Industry" section in the context
-        match = re.search(r'##\s*Industry\s*\n+(.+?)(?=\n##|\n---|\Z)', stage1_context, re.IGNORECASE | re.DOTALL)
+        match = re.search(
+            r"##\s*Industry\s*\n+(.+?)(?=\n##|\n---|\Z)", stage1_context, re.IGNORECASE | re.DOTALL
+        )
         if match:
             industry = match.group(1).strip()
             # Clean up - take first line if multi-line
-            industry = industry.split('\n')[0].strip()
+            industry = industry.split("\n")[0].strip()
             if industry and len(industry) < 200:  # Sanity check
                 return industry
         return None
@@ -3172,12 +3200,17 @@ use a descriptive subtitle if needed."""
             return None
 
         import re
+
         # Look for "## Company Name" section in the context
-        match = re.search(r'##\s*Company\s*Name\s*\n+(.+?)(?=\n##|\n---|\Z)', stage1_context, re.IGNORECASE | re.DOTALL)
+        match = re.search(
+            r"##\s*Company\s*Name\s*\n+(.+?)(?=\n##|\n---|\Z)",
+            stage1_context,
+            re.IGNORECASE | re.DOTALL,
+        )
         if match:
             full_name = match.group(1).strip()
             # Clean up - take first line if multi-line
-            full_name = full_name.split('\n')[0].strip()
+            full_name = full_name.split("\n")[0].strip()
             if full_name and len(full_name) < 200:  # Sanity check
                 return full_name
         return None
@@ -3222,23 +3255,27 @@ use a descriptive subtitle if needed."""
 
         # Website
         if website_url:
-            lines.extend([
-                f"**Website:** {website_url}",
-                "",
-            ])
+            lines.extend(
+                [
+                    f"**Website:** {website_url}",
+                    "",
+                ]
+            )
 
         # Industry (from Stage 1 analysis)
         if industry:
-            lines.extend([
-                f"**Industry:** {industry}",
-                "",
-            ])
+            lines.extend(
+                [
+                    f"**Industry:** {industry}",
+                    "",
+                ]
+            )
 
         # Sections - clean flow, no horizontal rules between every section
         for i, section in enumerate(sections):
             lines.append(f"## {section['title']}")
             lines.append("")
-            lines.append(section['content'])
+            lines.append(section["content"])
             lines.append("")
             # Only add separator between major parts (every 4-5 sections)
             if i > 0 and (i + 1) % 5 == 0 and i < len(sections) - 1:
@@ -3278,11 +3315,14 @@ use a descriptive subtitle if needed."""
         start_time = time.time()
 
         try:
-            logger.debug(f"Follow-up call with previous_interaction_id: {previous_interaction_id[:20]}...")
+            logger.debug(
+                f"Follow-up call with previous_interaction_id: {previous_interaction_id[:20]}..."
+            )
 
             # Use Pro model for follow-up (faster, no Deep Research rate limits)
             # The previous_interaction_id provides context from the original research
             from primr.config.models import PrimrModels
+
             interaction = self._client.interactions.create(
                 input=prompt,
                 model=PrimrModels.PRO_MODEL,
@@ -3291,13 +3331,13 @@ use a descriptive subtitle if needed."""
 
             # Extract content - handle multiple output formats
             content = ""
-            if hasattr(interaction, 'outputs') and interaction.outputs:
+            if hasattr(interaction, "outputs") and interaction.outputs:
                 # Concatenate all text outputs
                 text_parts = []
                 for output in interaction.outputs:
-                    if hasattr(output, 'text') and output.text:
+                    if hasattr(output, "text") and output.text:
                         text_parts.append(str(output.text))
-                content = '\n'.join(text_parts)
+                content = "\n".join(text_parts)
 
             duration = time.time() - start_time
             word_count = len(content.split()) if content else 0
@@ -3316,7 +3356,7 @@ use a descriptive subtitle if needed."""
             return ResearchResult(
                 content=content,
                 citations=[],
-                interaction_id=interaction.id if hasattr(interaction, 'id') else "",
+                interaction_id=interaction.id if hasattr(interaction, "id") else "",
                 duration_seconds=duration,
                 status=ResearchStatus.COMPLETED,
             )
@@ -3381,6 +3421,7 @@ use a descriptive subtitle if needed."""
 
             # Use Flash model for direct generation (fast, intelligent)
             from primr.config.models import PrimrModels
+
             response = self._client.models.generate_content(
                 model=PrimrModels.FLASH_MODEL,
                 contents=prompt,
@@ -3388,14 +3429,14 @@ use a descriptive subtitle if needed."""
 
             # Extract content
             content = ""
-            if hasattr(response, 'text') and response.text:
+            if hasattr(response, "text") and response.text:
                 content = response.text.strip()
-            elif hasattr(response, 'parts'):
+            elif hasattr(response, "parts"):
                 text_parts = []
                 for part in response.parts:
-                    if hasattr(part, 'text') and part.text:
+                    if hasattr(part, "text") and part.text:
                         text_parts.append(part.text)
-                content = '\n'.join(text_parts).strip()
+                content = "\n".join(text_parts).strip()
 
             duration = time.time() - start_time
             word_count = len(content.split()) if content else 0
@@ -3442,6 +3483,7 @@ use a descriptive subtitle if needed."""
                     error=str(e),
                     duration_seconds=duration,
                 )
+
 
 # Singleton instance for DeepResearchOrchestrator
 _orchestrator: DeepResearchOrchestrator | None = None
@@ -3532,6 +3574,7 @@ class ReportFormatter:
     def __init__(self):
         """Initialize the ReportFormatter."""
         import re
+
         self._prohibited_re = [re.compile(p, re.MULTILINE) for p in self.PROHIBITED_PATTERNS]
 
     def format_report(
@@ -3644,7 +3687,7 @@ class ReportFormatter:
         for i, chapter in enumerate(chapters, 1):
             # Create anchor link
             anchor = chapter.lower().replace(" ", "-").replace("&", "and")
-            anchor = re.sub(r'[^a-z0-9-]', '', anchor)
+            anchor = re.sub(r"[^a-z0-9-]", "", anchor)
 
             # Clean TOC entry - NO status markers
             lines.append(f"{i}. [{chapter}](#{anchor})")
@@ -3659,11 +3702,7 @@ class ReportFormatter:
             dedupe_urls=True,
         )
 
-    def _format_numbered_citations(
-        self,
-        content: str,
-        citations: list[dict[str, str]]
-    ) -> str:
+    def _format_numbered_citations(self, content: str, citations: list[dict[str, str]]) -> str:
         """Apply numbered citation formatting with clickable links and resolved URLs."""
         import re
         from urllib.parse import urlparse
@@ -3674,27 +3713,27 @@ class ReportFormatter:
         # Convert inline [cite: X, Y, Z] references to clean [1] [2] [3] format
         def replace_cite_ref(match: re.Match) -> str:
             nums_str = match.group(1)
-            nums = [n.strip() for n in nums_str.split(',')]
+            nums = [n.strip() for n in nums_str.split(",")]
             refs = [f"[{num}]" for num in nums]
-            return ' '.join(refs)
+            return " ".join(refs)
 
-        content = re.sub(r'\[cite:\s*([\d,\s]+)\]', replace_cite_ref, content)
+        content = re.sub(r"\[cite:\s*([\d,\s]+)\]", replace_cite_ref, content)
 
         # REMOVE all inline **Sources:** blocks - we'll add ONE consolidated section at the end
         # This makes the document much more readable
         # Pattern 1: **Sources:** followed by numbered markdown links
-        sources_pattern = r'\n*\*\*Sources:\*\*\s*(?:\d+\.\s*\[[^\]]+\]\([^)]+\)\s*)+'
-        content = re.sub(sources_pattern, '', content)
+        sources_pattern = r"\n*\*\*Sources:\*\*\s*(?:\d+\.\s*\[[^\]]+\]\([^)]+\)\s*)+"
+        content = re.sub(sources_pattern, "", content)
 
         # Pattern 2: **Sources:** followed by just [1] [2] [3] style refs
-        sources_refs_pattern = r'\n*\*\*Sources:\*\*\s*(?:\[\d+\]\s*)+'
-        content = re.sub(sources_refs_pattern, '', content)
+        sources_refs_pattern = r"\n*\*\*Sources:\*\*\s*(?:\[\d+\]\s*)+"
+        content = re.sub(sources_refs_pattern, "", content)
 
         # Remove standalone lines that are just citation references like "[1] [2] [3]"
-        content = re.sub(r'\n\s*(?:\[\d+\]\s*)+\s*\n', '\n\n', content)
+        content = re.sub(r"\n\s*(?:\[\d+\]\s*)+\s*\n", "\n\n", content)
 
         # Clean up multiple blank lines
-        content = re.sub(r'\n{3,}', '\n\n', content)
+        content = re.sub(r"\n{3,}", "\n\n", content)
 
         # Move KEY METRICS to after Executive Summary (if it exists at the end)
         content = self._relocate_key_metrics(content)
@@ -3704,27 +3743,29 @@ class ReportFormatter:
             # Deduplicate and renumber citations
             seen_urls: dict[str, dict] = {}
             for citation in citations:
-                url = citation.get('url', '')
+                url = citation.get("url", "")
                 if url and url not in seen_urls:
                     seen_urls[url] = citation
 
             # Build clean references list
             ref_lines = ["\n\n---\n\n## References\n"]
             for i, citation in enumerate(seen_urls.values(), 1):
-                url = citation.get('url', '')
-                title = citation.get('title', '')
+                url = citation.get("url", "")
+                title = citation.get("title", "")
 
                 if url:
                     # Check if URL is still an unresolved redirect
-                    if 'vertexaisearch.cloud.google.com/grounding-api-redirect' in url:
+                    if "vertexaisearch.cloud.google.com/grounding-api-redirect" in url:
                         # Show just the title/domain without the broken link
-                        display_text = title if title and 'vertexaisearch' not in title.lower() else 'Source'
+                        display_text = (
+                            title if title and "vertexaisearch" not in title.lower() else "Source"
+                        )
                         ref_lines.append(f"{i}. {display_text} (link unavailable)")
                     else:
                         parsed = urlparse(url)
-                        domain = parsed.netloc.replace('www.', '')
+                        domain = parsed.netloc.replace("www.", "")
                         # Use domain as display text if title looks like a redirect URL
-                        if 'vertexaisearch' in title.lower() or not title:
+                        if "vertexaisearch" in title.lower() or not title:
                             display_text = domain
                         else:
                             display_text = title
@@ -3732,7 +3773,7 @@ class ReportFormatter:
                 elif title:
                     ref_lines.append(f"{i}. {title}")
 
-            content = content.rstrip() + '\n'.join(ref_lines)
+            content = content.rstrip() + "\n".join(ref_lines)
 
         return content
 
@@ -3742,7 +3783,7 @@ class ReportFormatter:
 
         # Find KEY METRICS block (usually at the end)
         # Pattern: **KEY METRICS:** followed by bullet points until next section or end
-        metrics_pattern = r'\n*\*\*KEY METRICS:\*\*\s*((?:[-*]\s*[^\n]+\n?)+)'
+        metrics_pattern = r"\n*\*\*KEY METRICS:\*\*\s*((?:[-*]\s*[^\n]+\n?)+)"
         metrics_match = re.search(metrics_pattern, content, re.IGNORECASE)
 
         if not metrics_match:
@@ -3752,24 +3793,18 @@ class ReportFormatter:
         metrics_block = metrics_match.group(0).strip()
 
         # Remove it from original location
-        content = re.sub(metrics_pattern, '', content, flags=re.IGNORECASE)
+        content = re.sub(metrics_pattern, "", content, flags=re.IGNORECASE)
 
         # Find the end of Executive Summary section
         # Look for the next ## header after Executive Summary
         exec_summary_end = re.search(
-            r'(## Executive Summary.*?)(\n## )',
-            content,
-            re.DOTALL | re.IGNORECASE
+            r"(## Executive Summary.*?)(\n## )", content, re.DOTALL | re.IGNORECASE
         )
 
         if exec_summary_end:
             # Insert metrics after Executive Summary, before next section
             insert_pos = exec_summary_end.end(1)
-            content = (
-                content[:insert_pos] +
-                '\n\n' + metrics_block + '\n' +
-                content[insert_pos:]
-            )
+            content = content[:insert_pos] + "\n\n" + metrics_block + "\n" + content[insert_pos:]
 
         return content
 
@@ -3780,6 +3815,7 @@ class ReportFormatter:
     def has_memo_headers(self, content: str) -> bool:
         """Check if content contains memo-style headers."""
         import re
+
         memo_patterns = [
             r"RESEARCH REQUEST:",
             r"^TO:\s*",
@@ -3857,8 +3893,7 @@ class FileSearchStoreManager:
             store_name: str = store.name or ""
             if not store_name:
                 raise AIError(
-                    "Failed to create file store - no name returned",
-                    model="file_search_store"
+                    "Failed to create file store - no name returned", model="file_search_store"
                 )
             logger.info(f"Created File Search Store: {store_name}")
             return store_name
@@ -3866,17 +3901,11 @@ class FileSearchStoreManager:
             raise
         except Exception as e:
             raise AIError(
-                f"Failed to create File Search Store: {e}",
-                model="file_search_store",
-                cause=e
+                f"Failed to create File Search Store: {e}", model="file_search_store", cause=e
             ) from e
 
     def upload_context(
-        self,
-        store_name: str,
-        content: str,
-        filename: str,
-        mime_type: str = "text/plain"
+        self, store_name: str, content: str, filename: str, mime_type: str = "text/plain"
     ) -> None:
         """
         Upload text content to a File Search Store.
@@ -3896,20 +3925,18 @@ class FileSearchStoreManager:
         # Write content to temp file for upload
         fd, temp_path = tempfile.mkstemp(suffix=f"_{filename}")
         try:
-            with os.fdopen(fd, 'w', encoding='utf-8') as f:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
                 f.write(content)
 
             self._client.file_search_stores.upload_to_file_search_store(
                 file=temp_path,
                 file_search_store_name=store_name,
-                config={"mime_type": mime_type}  # type: ignore[arg-type]
+                config={"mime_type": mime_type},  # type: ignore[arg-type]
             )
             logger.info(f"Uploaded {filename} to store {store_name}")
         except Exception as e:
             raise AIError(
-                f"Failed to upload context to store: {e}",
-                model="file_search_store",
-                cause=e
+                f"Failed to upload context to store: {e}", model="file_search_store", cause=e
             ) from e
         finally:
             # Clean up temp file
@@ -3930,18 +3957,15 @@ class FileSearchStoreManager:
         import os
 
         if not os.path.exists(file_path):
-            raise AIError(
-                f"File not found: {file_path}",
-                model="file_search_store"
-            )
+            raise AIError(f"File not found: {file_path}", model="file_search_store")
 
         # MIME type mapping
         mime_types = {
-            '.md': 'text/markdown',
-            '.txt': 'text/plain',
-            '.json': 'application/json',
-            '.csv': 'text/csv',
-            '.pdf': 'application/pdf',
+            ".md": "text/markdown",
+            ".txt": "text/plain",
+            ".json": "application/json",
+            ".csv": "text/csv",
+            ".pdf": "application/pdf",
         }
 
         ext = os.path.splitext(file_path)[1].lower()
@@ -3952,14 +3976,12 @@ class FileSearchStoreManager:
             self._client.file_search_stores.upload_to_file_search_store(
                 file=file_path,
                 file_search_store_name=store_name,
-                config=config  # type: ignore[arg-type]
+                config=config,  # type: ignore[arg-type]
             )
             logger.info(f"Uploaded {file_path} to store {store_name}")
         except Exception as e:
             raise AIError(
-                f"Failed to upload {file_path}: {e}",
-                model="file_search_store",
-                cause=e
+                f"Failed to upload {file_path}: {e}", model="file_search_store", cause=e
             ) from e
 
     def delete_store(self, store_name: str) -> None:
@@ -3983,8 +4005,7 @@ class FileSearchStoreManager:
                 try:
                     # Try with config for force delete (deletes chunks too)
                     self._client.file_search_stores.documents.delete(
-                        name=doc.name,
-                        config={"force": True}
+                        name=doc.name, config={"force": True}
                     )
                 except TypeError:
                     # SDK doesn't support config, try without
@@ -4000,9 +4021,11 @@ class FileSearchStoreManager:
             logger.info(f"Deleted File Search Store: {store_name}")
         except Exception as e:
             error_str = str(e).lower()
-            if 'failed_precondition' in error_str or 'non-empty' in error_str:
+            if "failed_precondition" in error_str or "non-empty" in error_str:
                 # This shouldn't happen after deleting docs, but log it loudly
-                logger.error(f"CLEANUP FAILED: Store {store_name} still not empty after doc deletion!")
+                logger.error(
+                    f"CLEANUP FAILED: Store {store_name} still not empty after doc deletion!"
+                )
             else:
                 logger.warning(f"Could not delete File Search Store {store_name}: {e}")
 
@@ -4136,11 +4159,12 @@ def reset_deep_research_client() -> None:
 # CONVENIENCE FUNCTIONS
 # =============================================================================
 
+
 async def deep_research(
     query: str,
     output_format: str | None = None,
     priority_urls: list[str] | None = None,
-    **kwargs: Any
+    **kwargs: Any,
 ) -> ResearchResult:
     """
     Convenience function for deep research.
@@ -4156,17 +4180,12 @@ async def deep_research(
     """
     client = get_deep_research_client()
     return await client.research(
-        query,
-        output_format=output_format,
-        priority_urls=priority_urls,
-        **kwargs
+        query, output_format=output_format, priority_urls=priority_urls, **kwargs
     )
 
 
 async def research_company(
-    company_name: str,
-    website: str | None = None,
-    **kwargs: Any
+    company_name: str, website: str | None = None, **kwargs: Any
 ) -> ResearchResult:
     """
     Research a company using Deep Research Agent.
@@ -4187,8 +4206,5 @@ async def research_company(
     priority_urls = [website] if website else None
 
     return await deep_research(
-        query,
-        output_format="company_profile",
-        priority_urls=priority_urls,
-        **kwargs
+        query, output_format="company_profile", priority_urls=priority_urls, **kwargs
     )

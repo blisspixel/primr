@@ -24,11 +24,7 @@ class TestChapterPlan:
 
     def test_default_values(self) -> None:
         """Test ChapterPlan default values."""
-        plan = ChapterPlan(
-            chapter_number=1,
-            title="Test Chapter",
-            research_prompt="Test prompt"
-        )
+        plan = ChapterPlan(chapter_number=1, title="Test Chapter", research_prompt="Test prompt")
         assert plan.chapter_number == 1
         assert plan.title == "Test Chapter"
         assert plan.research_prompt == "Test prompt"
@@ -40,7 +36,7 @@ class TestChapterPlan:
             chapter_number=2,
             title="Products",
             research_prompt="Research products",
-            expected_pages=6
+            expected_pages=6,
         )
         result = plan.to_dict()
         assert result["chapter_number"] == 2
@@ -162,17 +158,19 @@ class TestMasterArchitect:
         """Test that generate_chapter_plan parses valid JSON response."""
         # Mock valid JSON response
         mock_response = MagicMock()
-        mock_response.text = json.dumps({
-            "chapters": [
-                {
-                    "chapter_number": i,
-                    "title": f"Chapter {i}",
-                    "research_prompt": f"Research prompt {i}",
-                    "expected_pages": 5
-                }
-                for i in range(1, 11)
-            ]
-        })
+        mock_response.text = json.dumps(
+            {
+                "chapters": [
+                    {
+                        "chapter_number": i,
+                        "title": f"Chapter {i}",
+                        "research_prompt": f"Research prompt {i}",
+                        "expected_pages": 5,
+                    }
+                    for i in range(1, 11)
+                ]
+            }
+        )
 
         architect._client = MagicMock()
         architect._client.models.generate_content.return_value = mock_response
@@ -183,23 +181,17 @@ class TestMasterArchitect:
         assert len(plan.chapters) == 10
         assert plan.chapters[0].title == "Chapter 1"
 
-    def test_parse_chapter_response_invalid_json(
-        self, architect: MasterArchitect
-    ) -> None:
+    def test_parse_chapter_response_invalid_json(self, architect: MasterArchitect) -> None:
         """Test parsing invalid JSON falls back to defaults."""
         chapters = architect._parse_chapter_response("not valid json", "TestCorp")
 
         assert len(chapters) == 10  # Falls back to defaults
 
-    def test_parse_chapter_response_too_few_chapters(
-        self, architect: MasterArchitect
-    ) -> None:
+    def test_parse_chapter_response_too_few_chapters(self, architect: MasterArchitect) -> None:
         """Test parsing response with too few chapters falls back to defaults."""
-        response = json.dumps({
-            "chapters": [
-                {"chapter_number": 1, "title": "Ch1", "research_prompt": "P1"}
-            ]
-        })
+        response = json.dumps(
+            {"chapters": [{"chapter_number": 1, "title": "Ch1", "research_prompt": "P1"}]}
+        )
 
         chapters = architect._parse_chapter_response(response, "TestCorp")
 
@@ -253,9 +245,7 @@ class TestChapterDecompositionProperty:
         company_name=st.text(min_size=1, max_size=100).filter(lambda x: x.strip()),
     )
     @settings(max_examples=50)
-    def test_default_plan_always_has_8_to_10_chapters(
-        self, company_name: str
-    ) -> None:
+    def test_default_plan_always_has_8_to_10_chapters(self, company_name: str) -> None:
         """
         Property 1: Chapter Decomposition
 
@@ -273,9 +263,7 @@ class TestChapterDecompositionProperty:
         company_name=st.text(min_size=1, max_size=100).filter(lambda x: x.strip()),
     )
     @settings(max_examples=50)
-    def test_all_chapters_have_required_fields(
-        self, company_name: str
-    ) -> None:
+    def test_all_chapters_have_required_fields(self, company_name: str) -> None:
         """
         Property 1: Chapter Decomposition
 

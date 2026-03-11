@@ -176,7 +176,7 @@ class TestStdoutPurity:
         """Server creation does not write to stdout."""
         captured_stdout = StringIO()
 
-        with patch.object(sys, 'stdout', captured_stdout):
+        with patch.object(sys, "stdout", captured_stdout):
             server = create_spike_server()
             assert server is not None
 
@@ -190,7 +190,7 @@ class TestStdoutPurity:
         captured_stdout = StringIO()
 
         handler = server.request_handlers[CallToolRequest]
-        with patch.object(sys, 'stdout', captured_stdout):
+        with patch.object(sys, "stdout", captured_stdout):
             await handler(
                 CallToolRequest(
                     method="tools/call",
@@ -208,7 +208,7 @@ class TestStdoutPurity:
         captured_stdout = StringIO()
 
         handler = server.request_handlers[ReadResourceRequest]
-        with patch.object(sys, 'stdout', captured_stdout):
+        with patch.object(sys, "stdout", captured_stdout):
             await handler(
                 ReadResourceRequest(
                     method="resources/read",

@@ -19,4 +19,6 @@ def pytest_collection_modifyitems(config, items):
     # If pytest was invoked with tests/manual/ path, run them
     for item in items:
         if "manual" in str(item.fspath):
-            item.add_marker(pytest.mark.skip(reason="Manual test - run explicitly with: pytest tests/manual/"))
+            item.add_marker(
+                pytest.mark.skip(reason="Manual test - run explicitly with: pytest tests/manual/")
+            )

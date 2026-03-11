@@ -57,6 +57,7 @@ logger = logging.getLogger(__name__)
 # RESULT DATA CLASS
 # =============================================================================
 
+
 @dataclass
 class AnalysisResult:
     """
@@ -105,6 +106,7 @@ class AnalysisResult:
 # ANALYST SUBAGENT
 # =============================================================================
 
+
 class AnalystSubagent(Subagent[AnalysisResult]):
     """
     Subagent for insight synthesis and hypothesis generation.
@@ -136,24 +138,53 @@ class AnalystSubagent(Subagent[AnalysisResult]):
     # Topic keywords for classification
     TOPIC_KEYWORDS: dict[str, list[str]] = {
         "technology": [
-            "software", "platform", "api", "cloud", "data", "ai",
-            "machine learning", "infrastructure", "architecture",
+            "software",
+            "platform",
+            "api",
+            "cloud",
+            "data",
+            "ai",
+            "machine learning",
+            "infrastructure",
+            "architecture",
         ],
         "financials": [
-            "revenue", "profit", "growth", "funding", "valuation",
-            "investment", "market", "sales",
+            "revenue",
+            "profit",
+            "growth",
+            "funding",
+            "valuation",
+            "investment",
+            "market",
+            "sales",
         ],
         "leadership": [
-            "ceo", "cto", "founder", "executive", "management",
-            "board", "leadership", "team",
+            "ceo",
+            "cto",
+            "founder",
+            "executive",
+            "management",
+            "board",
+            "leadership",
+            "team",
         ],
         "products": [
-            "product", "service", "solution", "offering", "feature",
-            "launch", "release",
+            "product",
+            "service",
+            "solution",
+            "offering",
+            "feature",
+            "launch",
+            "release",
         ],
         "culture": [
-            "culture", "values", "mission", "vision", "employee",
-            "workplace", "diversity",
+            "culture",
+            "values",
+            "mission",
+            "vision",
+            "employee",
+            "workplace",
+            "diversity",
         ],
     }
 
@@ -308,9 +339,7 @@ class AnalystSubagent(Subagent[AnalysisResult]):
 
         except ImportError:
             # Summarize module not available - return mock result
-            logger.warning(
-                "primr.ai.summarize not available, returning mock insights"
-            )
+            logger.warning("primr.ai.summarize not available, returning mock insights")
             insights_path = self.working_dir / "insights.md"
             insights_path.parent.mkdir(parents=True, exist_ok=True)
             insights_path.write_text(

@@ -24,6 +24,7 @@ from primr.utils.validators import (
 # UNIT TESTS - validate_url
 # =============================================================================
 
+
 class TestValidateUrl:
     """Tests for validate_url function."""
 
@@ -72,6 +73,7 @@ class TestValidateUrl:
 # UNIT TESTS - validate_file_path
 # =============================================================================
 
+
 class TestValidateFilePath:
     """Tests for validate_file_path function."""
 
@@ -98,6 +100,7 @@ class TestValidateFilePath:
     def test_rejects_absolute_path_by_default(self):
         """Should reject absolute paths by default."""
         import platform
+
         if platform.system() == "Windows":
             with pytest.raises(InputValidationError):
                 validate_file_path("C:\\Windows\\System32")
@@ -128,6 +131,7 @@ class TestValidateFilePath:
 # =============================================================================
 # UNIT TESTS - validate_company_name
 # =============================================================================
+
 
 class TestValidateCompanyName:
     """Tests for validate_company_name function."""
@@ -162,6 +166,7 @@ class TestValidateCompanyName:
 # UNIT TESTS - sanitize_for_filename
 # =============================================================================
 
+
 class TestSanitizeForFilename:
     """Tests for sanitize_for_filename function."""
 
@@ -191,6 +196,7 @@ class TestSanitizeForFilename:
 # =============================================================================
 # UNIT TESTS - safe_json_parse
 # =============================================================================
+
 
 class TestSafeJsonParse:
     """Tests for safe_json_parse function."""
@@ -222,6 +228,7 @@ class TestSafeJsonParse:
 # =============================================================================
 # UNIT TESTS - safe_json_get
 # =============================================================================
+
 
 class TestSafeJsonGet:
     """Tests for safe_json_get function."""
@@ -255,6 +262,7 @@ class TestSafeJsonGet:
 # PROPERTY-BASED TESTS
 # =============================================================================
 
+
 class TestUrlValidationSecurityProperty:
     """
     Property-based tests for URL validation security.
@@ -266,13 +274,17 @@ class TestUrlValidationSecurityProperty:
     schemes, invalid format, or potential injection attacks.
     """
 
-    @given(st.sampled_from([
-        "javascript:alert(1)",
-        "javascript:void(0)",
-        "data:text/html,<script>",
-        "vbscript:msgbox",
-        "file:///etc/passwd",
-    ]))
+    @given(
+        st.sampled_from(
+            [
+                "javascript:alert(1)",
+                "javascript:void(0)",
+                "data:text/html,<script>",
+                "vbscript:msgbox",
+                "file:///etc/passwd",
+            ]
+        )
+    )
     @settings(max_examples=50)
     def test_rejects_dangerous_schemes(self, url: str):
         """Should reject dangerous URL schemes."""
@@ -306,14 +318,18 @@ class TestPathTraversalPreventionProperty:
     validator SHALL reject the path when a base_dir constraint is specified.
     """
 
-    @given(st.sampled_from([
-        "../etc/passwd",
-        "..\\windows\\system32",
-        "foo/../../../etc/passwd",
-        "foo/..\\..\\windows",
-        "..%2f..%2fetc",
-        "..%5c..%5cwindows",
-    ]))
+    @given(
+        st.sampled_from(
+            [
+                "../etc/passwd",
+                "..\\windows\\system32",
+                "foo/../../../etc/passwd",
+                "foo/..\\..\\windows",
+                "..%2f..%2fetc",
+                "..%5c..%5cwindows",
+            ]
+        )
+    )
     @settings(max_examples=50)
     def test_rejects_traversal_patterns(self, path: str):
         """Should reject paths with traversal patterns."""
@@ -333,7 +349,7 @@ class TestPathTraversalPreventionProperty:
 
     @given(
         st.text(alphabet="abcdefghij", min_size=1, max_size=10),
-        st.text(alphabet="abcdefghij", min_size=1, max_size=10)
+        st.text(alphabet="abcdefghij", min_size=1, max_size=10),
     )
     @settings(max_examples=100)
     def test_accepts_nested_safe_paths(self, dir_name: str, file_name: str):
@@ -365,14 +381,18 @@ class TestJsonParseSafetyProperty:
         # The property we're testing is that it never raises, which is verified by reaching this line
         assert result == "fallback" or result is not None or content in ("null", "")
 
-    @given(st.sampled_from([
-        "{invalid}",
-        "{'single': 'quotes'}",
-        "{missing: quotes}",
-        "[1, 2, 3,]",  # Trailing comma
-        "undefined",
-        "",
-    ]))
+    @given(
+        st.sampled_from(
+            [
+                "{invalid}",
+                "{'single': 'quotes'}",
+                "{missing: quotes}",
+                "[1, 2, 3,]",  # Trailing comma
+                "undefined",
+                "",
+            ]
+        )
+    )
     @settings(max_examples=50)
     def test_returns_default_for_invalid_json(self, content):
         """Should return default for invalid JSON."""
@@ -384,16 +404,19 @@ class TestJsonParseSafetyProperty:
         result = safe_json_parse(None, default="default")
         assert result == "default"
 
-    @given(st.dictionaries(
-        st.text(alphabet="abcde", min_size=1, max_size=5),
-        st.integers(min_value=-100, max_value=100),
-        min_size=0,
-        max_size=5
-    ))
+    @given(
+        st.dictionaries(
+            st.text(alphabet="abcde", min_size=1, max_size=5),
+            st.integers(min_value=-100, max_value=100),
+            min_size=0,
+            max_size=5,
+        )
+    )
     @settings(max_examples=100)
     def test_round_trips_valid_json(self, data: dict):
         """Valid JSON should round-trip correctly."""
         import json
+
         json_str = json.dumps(data)
         result = safe_json_parse(json_str)
         assert result == data

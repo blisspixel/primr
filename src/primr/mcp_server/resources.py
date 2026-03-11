@@ -119,15 +119,21 @@ def register_resources(server: Server, mcp_server: "PrimrMCPServer") -> None:
             return _read_research_status(mcp_server)
         elif uri_str == "primr://output/latest" or uri_str.startswith("primr://output/latest"):
             return _read_latest_output(mcp_server, uri_str)
-        elif uri_str == "primr://output/artifacts" or uri_str.startswith("primr://output/artifacts"):
+        elif uri_str == "primr://output/artifacts" or uri_str.startswith(
+            "primr://output/artifacts"
+        ):
             return _read_artifacts(mcp_server)
         elif uri_str == "primr://config" or uri_str.startswith("primr://config"):
             return _read_config(mcp_server)
-        elif uri_str == "primr://strategies/available" or uri_str.startswith("primr://strategies/available"):
+        elif uri_str == "primr://strategies/available" or uri_str.startswith(
+            "primr://strategies/available"
+        ):
             return _read_strategies_available()
         elif uri_str.startswith("primr://output/by_job/"):
             return _read_output_by_job(mcp_server, uri_str)
-        elif uri_str == "primr://output/manifest/latest" or uri_str.startswith("primr://output/manifest/latest"):
+        elif uri_str == "primr://output/manifest/latest" or uri_str.startswith(
+            "primr://output/manifest/latest"
+        ):
             return _read_manifest_latest()
 
         raise ValueError(f"Unknown resource: {uri}")
@@ -181,8 +187,12 @@ def _read_research_status(mcp_server: "PrimrMCPServer") -> list[ReadResourceCont
         "start_time": status.start_time.isoformat() if status.start_time else None,
         "current_stage": status.current_stage.value if status.current_stage else None,
         "stage_progress_percent": status.stage_progress_percent,
-        "stage_started_at": status.stage_started_at.isoformat() if status.stage_started_at else None,
-        "last_heartbeat_time": status.last_heartbeat_time.isoformat() if status.last_heartbeat_time else None,
+        "stage_started_at": status.stage_started_at.isoformat()
+        if status.stage_started_at
+        else None,
+        "last_heartbeat_time": status.last_heartbeat_time.isoformat()
+        if status.last_heartbeat_time
+        else None,
         "stage_expected_minutes": status.stage_expected_minutes,
         "possibly_stuck": status.possibly_stuck,
         "completion_time": status.completion_time.isoformat() if status.completion_time else None,
@@ -263,7 +273,9 @@ def _read_latest_output(mcp_server: "PrimrMCPServer", uri: str) -> list[ReadReso
         "job_id": job_id,  # FR-6.1: Include job_id for provenance verification
         "report_path": output.report_path,
         "company_name": output.company_name,
-        "generation_timestamp": output.generation_timestamp.isoformat() if output.generation_timestamp else None,
+        "generation_timestamp": output.generation_timestamp.isoformat()
+        if output.generation_timestamp
+        else None,
         "report_type": output.report_type,
         "content_preview": output.content_preview,
     }
@@ -313,13 +325,15 @@ def _read_artifacts(mcp_server: "PrimrMCPServer") -> list[ReadResourceContents]:
                         # Calculate hash
                         content_hash = hashlib.sha256(content.encode()).hexdigest()
 
-                        artifacts.append(ArtifactInfo(
-                            artifact_type=artifact_type,
-                            file_path=str(artifact_path),
-                            size_bytes=size,
-                            preview=content[:500],
-                            content_hash=content_hash,
-                        ))
+                        artifacts.append(
+                            ArtifactInfo(
+                                artifact_type=artifact_type,
+                                file_path=str(artifact_path),
+                                size_bytes=size,
+                                preview=content[:500],
+                                content_hash=content_hash,
+                            )
+                        )
                     except Exception as e:
                         logger.warning(f"Failed to read artifact {artifact_path}: {e}")
 
@@ -331,13 +345,15 @@ def _read_artifacts(mcp_server: "PrimrMCPServer") -> list[ReadResourceContents]:
                         size = report_file.stat().st_size
                         content_hash = hashlib.sha256(content.encode()).hexdigest()
 
-                        artifacts.append(ArtifactInfo(
-                            artifact_type="report",
-                            file_path=str(report_file),
-                            size_bytes=size,
-                            preview=content[:500],
-                            content_hash=content_hash,
-                        ))
+                        artifacts.append(
+                            ArtifactInfo(
+                                artifact_type="report",
+                                file_path=str(report_file),
+                                size_bytes=size,
+                                preview=content[:500],
+                                content_hash=content_hash,
+                            )
+                        )
                     except Exception as e:
                         logger.warning(f"Failed to read report {report_file}: {e}")
 

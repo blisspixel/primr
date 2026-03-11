@@ -36,6 +36,7 @@ logger = logging.getLogger(__name__)
 # STATE MACHINE INTEGRATION
 # =============================================================================
 
+
 @dataclass
 class OrchestratorStateMachineAdapter:
     """
@@ -63,6 +64,7 @@ class OrchestratorStateMachineAdapter:
         """Initialize the underlying state machine."""
         try:
             from primr.utils.state_machine import create_job_state_machine
+
             self._state_machine = create_job_state_machine(self.job_id)
         except ImportError:
             logger.debug("State machine module not available")
@@ -146,6 +148,7 @@ class OrchestratorStateMachineAdapter:
 # OPENTELEMETRY INTEGRATION
 # =============================================================================
 
+
 @dataclass
 class TelemetryIntegration:
     """
@@ -175,6 +178,7 @@ class TelemetryIntegration:
         """Initialize telemetry system."""
         try:
             from primr.utils.telemetry import TelemetryConfig, TelemetrySystem
+
             config = TelemetryConfig(
                 enabled=False,  # Opt-in by default
                 service_name=self.service_name,
@@ -194,7 +198,7 @@ class TelemetryIntegration:
         """Check if telemetry is enabled."""
         if not self._telemetry:
             return False
-        return getattr(self._telemetry, 'is_enabled', False)
+        return getattr(self._telemetry, "is_enabled", False)
 
     @contextmanager
     def subagent_span(
@@ -343,6 +347,7 @@ class _NullSpan:
 # CIRCUIT BREAKER INTEGRATION
 # =============================================================================
 
+
 @dataclass
 class CircuitBreakerIntegration:
     """
@@ -374,6 +379,7 @@ class CircuitBreakerIntegration:
         """Initialize circuit breaker."""
         try:
             from primr.utils.circuit_breaker import CircuitBreaker
+
             self._breaker = CircuitBreaker(name="agentic")
         except ImportError:
             logger.debug("Circuit breaker module not available")
@@ -487,6 +493,7 @@ class CircuitBreakerIntegration:
 # COMBINED INTEGRATION
 # =============================================================================
 
+
 @dataclass
 class AgenticIntegration:
     """
@@ -521,9 +528,7 @@ class AgenticIntegration:
     def __post_init__(self) -> None:
         """Initialize all integrations."""
         if self.state_machine is None:
-            self.state_machine = OrchestratorStateMachineAdapter(
-                job_id=self.job_id or "default"
-            )
+            self.state_machine = OrchestratorStateMachineAdapter(job_id=self.job_id or "default")
         if self.telemetry is None:
             self.telemetry = TelemetryIntegration()
         if self.circuit_breaker is None:

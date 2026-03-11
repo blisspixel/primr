@@ -90,7 +90,9 @@ class MockMCPServer:
         if job_id in self.jobs:
             self.jobs[job_id]["status"] = "completed"
             self.jobs[job_id]["completion_time"] = datetime.now().isoformat()
-            self.jobs[job_id]["output_paths"] = [f"output/{self.jobs[job_id]['company_name'].lower().replace(' ', '_')}/report.md"]
+            self.jobs[job_id]["output_paths"] = [
+                f"output/{self.jobs[job_id]['company_name'].lower().replace(' ', '_')}/report.md"
+            ]
             if self.active_job_id == job_id:
                 self.active_job_id = None
 
@@ -105,7 +107,7 @@ class ApprovalTokenValidator:
 
     def generate_token(self, bound_to: dict) -> str:
         """Generate a new approval token bound to an estimate."""
-        token = secrets.token_hex(self.token_length // 2).upper()[:self.token_length]
+        token = secrets.token_hex(self.token_length // 2).upper()[: self.token_length]
         self.tokens[token] = {
             "created_at": datetime.now(),
             "bound_to": bound_to,
@@ -366,14 +368,15 @@ class TestHighRiskSeams:
         approval_idx = step_ids.index("approval")
 
         post_approval_tools = set()
-        for step in workflow["steps"][approval_idx + 1:]:
+        for step in workflow["steps"][approval_idx + 1 :]:
             if "tool" in step:
                 post_approval_tools.add(step["tool"])
 
         # research_company is used after approval and requires approval
         if "research_company" in post_approval_tools:
-            assert "research_company" in approval_patterns, \
+            assert "research_company" in approval_patterns, (
                 "research_company used after approval but not in exec-approvals"
+            )
 
     def test_latest_output_includes_job_id_for_matching(self):
         """AP-1: Latest output includes job_id for provenance verification."""
@@ -416,9 +419,7 @@ class TestWorkflowSimulation:
 
         # Step 4: Start research
         result = server.research_company(
-            estimate["company_name"],
-            estimate["company_url"],
-            estimate["mode"]
+            estimate["company_name"], estimate["company_url"], estimate["mode"]
         )
         assert "job_id" in result
         job_id = result["job_id"]

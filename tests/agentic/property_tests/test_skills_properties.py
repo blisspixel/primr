@@ -25,6 +25,7 @@ import yaml
 # SKILL LOADING UTILITIES
 # =============================================================================
 
+
 def load_skill_metadata(skill_path: Path) -> dict[str, Any]:
     """
     Load and parse skill metadata from a SKILL.md file.
@@ -34,7 +35,7 @@ def load_skill_metadata(skill_path: Path) -> dict[str, Any]:
     content = skill_path.read_text(encoding="utf-8")
 
     # Extract YAML front matter
-    match = re.match(r'^---\n(.*?)\n---', content, re.DOTALL)
+    match = re.match(r"^---\n(.*?)\n---", content, re.DOTALL)
     if not match:
         raise ValueError(f"No YAML front matter found in {skill_path}")
 
@@ -51,7 +52,7 @@ def get_skill_body(skill_path: Path) -> str:
     content = skill_path.read_text(encoding="utf-8")
 
     # Remove YAML front matter
-    match = re.match(r'^---\n.*?\n---\n?(.*)', content, re.DOTALL)
+    match = re.match(r"^---\n.*?\n---\n?(.*)", content, re.DOTALL)
     if match:
         return match.group(1)
     return content
@@ -79,6 +80,7 @@ def list_skills() -> list[Path]:
 # PROPERTY 18: Skill Metadata Loading
 # =============================================================================
 
+
 # Feature: agentic-architecture, Property 18: Skill Metadata Loading
 def test_skill_metadata_loading():
     """
@@ -101,23 +103,17 @@ def test_skill_metadata_loading():
         metadata = load_skill_metadata(skill_path)
 
         for field in required_fields:
-            assert field in metadata, (
-                f"Skill {skill_path} missing required field: {field}"
-            )
+            assert field in metadata, f"Skill {skill_path} missing required field: {field}"
 
         # Validate field types
-        assert isinstance(metadata["name"], str), (
-            f"Skill {skill_path}: 'name' must be a string"
-        )
+        assert isinstance(metadata["name"], str), f"Skill {skill_path}: 'name' must be a string"
         assert isinstance(metadata["version"], str), (
             f"Skill {skill_path}: 'version' must be a string"
         )
         assert isinstance(metadata["description"], str), (
             f"Skill {skill_path}: 'description' must be a string"
         )
-        assert isinstance(metadata["tools"], list), (
-            f"Skill {skill_path}: 'tools' must be a list"
-        )
+        assert isinstance(metadata["tools"], list), f"Skill {skill_path}: 'tools' must be a list"
         assert isinstance(metadata["resources"], list), (
             f"Skill {skill_path}: 'resources' must be a list"
         )
@@ -126,6 +122,7 @@ def test_skill_metadata_loading():
 # =============================================================================
 # PROPERTY 19: Skill Format Compliance
 # =============================================================================
+
 
 # Feature: agentic-architecture, Property 19: Skill Format Compliance
 def test_skill_format_compliance():
@@ -154,15 +151,13 @@ def test_skill_format_compliance():
 
         # Must have a title (# heading) after front matter
         body = get_skill_body(skill_path)
-        assert re.search(r'^#\s+.+', body, re.MULTILINE), (
+        assert re.search(r"^#\s+.+", body, re.MULTILINE), (
             f"Skill {skill_path} must have a title heading"
         )
 
         # Metadata must be valid YAML
         metadata = load_skill_metadata(skill_path)
-        assert metadata is not None, (
-            f"Skill {skill_path} has invalid YAML front matter"
-        )
+        assert metadata is not None, f"Skill {skill_path} has invalid YAML front matter"
 
 
 def test_skill_version_format():
@@ -174,7 +169,7 @@ def test_skill_version_format():
     if not skills:
         pytest.skip("No skills found in skills/ directory")
 
-    semver_pattern = re.compile(r'^\d+\.\d+\.\d+$')
+    semver_pattern = re.compile(r"^\d+\.\d+\.\d+$")
 
     for skill_path in skills:
         metadata = load_skill_metadata(skill_path)
@@ -222,14 +217,10 @@ def test_skill_tools_are_strings():
         tools = metadata.get("tools", [])
 
         for tool in tools:
-            assert isinstance(tool, str), (
-                f"Skill {skill_path}: tool '{tool}' must be a string"
-            )
-            assert len(tool) > 0, (
-                f"Skill {skill_path}: tool names cannot be empty"
-            )
+            assert isinstance(tool, str), f"Skill {skill_path}: tool '{tool}' must be a string"
+            assert len(tool) > 0, f"Skill {skill_path}: tool names cannot be empty"
             # Tool names should be snake_case
-            assert re.match(r'^[a-z][a-z0-9_]*$', tool), (
+            assert re.match(r"^[a-z][a-z0-9_]*$", tool), (
                 f"Skill {skill_path}: tool '{tool}' should be snake_case"
             )
 
@@ -244,7 +235,7 @@ def test_skill_resources_are_valid_uris():
         pytest.skip("No skills found in skills/ directory")
 
     # Valid resource URI pattern: scheme://path or scheme://path/{param}
-    uri_pattern = re.compile(r'^[a-z]+://[a-zA-Z0-9_/{}]+$')
+    uri_pattern = re.compile(r"^[a-z]+://[a-zA-Z0-9_/{}]+$")
 
     for skill_path in skills:
         metadata = load_skill_metadata(skill_path)
@@ -272,15 +263,13 @@ def test_skill_body_has_sections():
         body = get_skill_body(skill_path)
 
         # Should have at least 2 sections (## headings)
-        section_count = len(re.findall(r'^##\s+', body, re.MULTILINE))
+        section_count = len(re.findall(r"^##\s+", body, re.MULTILINE))
         assert section_count >= 2, (
             f"Skill {skill_path} should have at least 2 sections, found {section_count}"
         )
 
         # Should have reasonable content length
-        assert len(body) > 500, (
-            f"Skill {skill_path} body is too short ({len(body)} chars)"
-        )
+        assert len(body) > 500, f"Skill {skill_path} body is too short ({len(body)} chars)"
 
 
 def test_skill_names_match_directories():
@@ -305,6 +294,7 @@ def test_skill_names_match_directories():
 # =============================================================================
 # ADDITIONAL UNIT TESTS
 # =============================================================================
+
 
 def test_skills_directory_exists():
     """
@@ -332,9 +322,7 @@ def test_expected_skills_present():
 
     for skill_name in expected_skills:
         skill_path = skills_dir / skill_name / "SKILL.md"
-        assert skill_path.exists(), (
-            f"Expected skill '{skill_name}' not found at {skill_path}"
-        )
+        assert skill_path.exists(), f"Expected skill '{skill_name}' not found at {skill_path}"
 
 
 def test_no_duplicate_tool_references():
@@ -351,9 +339,7 @@ def test_no_duplicate_tool_references():
         tools = metadata.get("tools", [])
 
         unique_tools = set(tools)
-        assert len(tools) == len(unique_tools), (
-            f"Skill {skill_path} has duplicate tool references"
-        )
+        assert len(tools) == len(unique_tools), f"Skill {skill_path} has duplicate tool references"
 
 
 def test_no_duplicate_resource_references():

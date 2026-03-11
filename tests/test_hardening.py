@@ -17,7 +17,7 @@ class TestAIClientValidation:
         """Temperature must be between 0.0 and 2.0."""
         from primr.ai.client import AIClient
 
-        with patch.object(AIClient, '__init__', lambda self, **kwargs: None):
+        with patch.object(AIClient, "__init__", lambda self, **kwargs: None):
             client = AIClient.__new__(AIClient)
             client._settings = MagicMock()
             client._settings.max_retries = 3
@@ -41,7 +41,7 @@ class TestAIClientValidation:
         """Empty prompts should be rejected."""
         from primr.ai.client import AIClient
 
-        with patch.object(AIClient, '__init__', lambda self, **kwargs: None):
+        with patch.object(AIClient, "__init__", lambda self, **kwargs: None):
             client = AIClient.__new__(AIClient)
             client._settings = MagicMock()
             client._settings.max_retries = 3
@@ -56,7 +56,7 @@ class TestAIClientValidation:
         """Thinking level must be 'low' or 'high'."""
         from primr.ai.client import AIClient
 
-        with patch.object(AIClient, '__init__', lambda self, **kwargs: None):
+        with patch.object(AIClient, "__init__", lambda self, **kwargs: None):
             client = AIClient.__new__(AIClient)
             client._settings = MagicMock()
             client._settings.max_retries = 3
@@ -153,10 +153,7 @@ class TestErrorContext:
         from primr.utils.errors import ScrapingError
 
         error = ScrapingError(
-            "Failed to scrape",
-            url="https://example.com/page",
-            status_code=403,
-            tier="playwright"
+            "Failed to scrape", url="https://example.com/page", status_code=403, tier="playwright"
         )
 
         debug_msg = error.debug_message()
@@ -168,11 +165,7 @@ class TestErrorContext:
         """SearchError should include query in debug message."""
         from primr.utils.errors import SearchError
 
-        error = SearchError(
-            "Search failed",
-            query="company news",
-            status_code=400
-        )
+        error = SearchError("Search failed", query="company news", status_code=400)
 
         debug_msg = error.debug_message()
         assert "company news" in debug_msg
@@ -182,10 +175,7 @@ class TestErrorContext:
         """AIError should include model in debug message."""
         from primr.utils.errors import AIError
 
-        error = AIError(
-            "Generation failed",
-            model="gemini-2.0-flash"
-        )
+        error = AIError("Generation failed", model="gemini-2.0-flash")
 
         debug_msg = error.debug_message()
         assert "gemini-2.0-flash" in debug_msg
@@ -217,11 +207,11 @@ class TestJobTrackingThreadSafety:
             # Test basic JSON operations that the job tracking uses
             # Save
             jobs = {"test-123": {"type": "company_research", "description": "Test"}}
-            with open(jobs_file, 'w', encoding='utf-8') as f:
+            with open(jobs_file, "w", encoding="utf-8") as f:
                 json.dump(jobs, f)
 
             # Load
-            with open(jobs_file, encoding='utf-8') as f:
+            with open(jobs_file, encoding="utf-8") as f:
                 loaded = json.load(f)
 
             assert "test-123" in loaded
@@ -230,12 +220,12 @@ class TestJobTrackingThreadSafety:
             # Atomic update (what our code does)
             temp_file = jobs_file + ".tmp"
             del loaded["test-123"]
-            with open(temp_file, 'w', encoding='utf-8') as f:
+            with open(temp_file, "w", encoding="utf-8") as f:
                 json.dump(loaded, f)
             os.replace(temp_file, jobs_file)
 
             # Verify
-            with open(jobs_file, encoding='utf-8') as f:
+            with open(jobs_file, encoding="utf-8") as f:
                 final = json.load(f)
             assert "test-123" not in final
 
@@ -255,7 +245,7 @@ class TestPreflightChecks:
         from primr.core.cli import _run_preflight_checks
 
         # Mock environment to avoid actual API calls
-        with patch.dict('os.environ', {'GEMINI_API_KEY': ''}):
+        with patch.dict("os.environ", {"GEMINI_API_KEY": ""}):
             result = _run_preflight_checks("complete")
 
             assert isinstance(result, tuple)

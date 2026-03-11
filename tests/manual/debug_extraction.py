@@ -1,4 +1,5 @@
 """Debug what's being extracted from Stripe pages."""
+
 import sys
 from pathlib import Path
 
@@ -9,7 +10,7 @@ from primr.data.scraping.content import is_quality_content
 
 # Scrape Stripe pricing
 print("Scraping Stripe pricing page...")
-result = scrape_with_requests('https://stripe.com/pricing', 10)
+result = scrape_with_requests("https://stripe.com/pricing", 10)
 print(f"Success: {result.success}")
 print(f"Content length: {len(result.raw_content or b'')} bytes\n")
 

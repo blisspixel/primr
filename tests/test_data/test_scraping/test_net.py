@@ -174,7 +174,9 @@ class TestHeadExists:
         """Should return False on network exception."""
         import requests
 
-        with patch("primr.data.scraping.net.make_request", side_effect=requests.RequestException("Error")):
+        with patch(
+            "primr.data.scraping.net.make_request", side_effect=requests.RequestException("Error")
+        ):
             assert head_exists("https://example.com") is False
 
     def test_falls_back_to_get_on_405(self):
@@ -218,32 +220,22 @@ class TestIsSameDomain:
 
     def test_same_domain_returns_true(self):
         """Should return True for same domain."""
-        assert is_same_domain(
-            "https://example.com/page1",
-            "https://example.com/page2"
-        ) is True
+        assert is_same_domain("https://example.com/page1", "https://example.com/page2") is True
 
     def test_different_domain_returns_false(self):
         """Should return False for different domains."""
-        assert is_same_domain(
-            "https://example.com/page",
-            "https://other.com/page"
-        ) is False
+        assert is_same_domain("https://example.com/page", "https://other.com/page") is False
 
     def test_different_subdomain_returns_false(self):
         """Should return False for different subdomains (simple comparison)."""
         # Note: This is simple comparison, not registered domain
-        assert is_same_domain(
-            "https://www.example.com/page",
-            "https://api.example.com/page"
-        ) is False
+        assert (
+            is_same_domain("https://www.example.com/page", "https://api.example.com/page") is False
+        )
 
     def test_case_insensitive(self):
         """Should be case insensitive."""
-        assert is_same_domain(
-            "https://EXAMPLE.COM/page",
-            "https://example.com/page"
-        ) is True
+        assert is_same_domain("https://EXAMPLE.COM/page", "https://example.com/page") is True
 
 
 class TestNormalizeUrlForRequest:

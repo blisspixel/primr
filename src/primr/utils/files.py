@@ -26,6 +26,7 @@ from primr.utils.errors import ValidationError
 # SECURE TEMP FILES
 # =============================================================================
 
+
 @contextmanager
 def secure_temp_file(suffix: str = "", prefix: str = "research_") -> Iterator[Path]:
     """
@@ -92,11 +93,8 @@ def secure_temp_dir(prefix: str = "research_") -> Iterator[Path]:
 # PATH SANITIZATION
 # =============================================================================
 
-def sanitize_filename(
-    name: str,
-    max_length: int = 100,
-    replacement: str = "_"
-) -> str:
+
+def sanitize_filename(name: str, max_length: int = 100, replacement: str = "_") -> str:
     """
     Sanitize a string for safe use as a filename.
 
@@ -127,13 +125,13 @@ def sanitize_filename(
 
     # Remove or replace unsafe characters
     # Keep: alphanumeric, spaces, hyphens, underscores, dots
-    name = re.sub(r'[^\w\s\-.]', replacement, name)
+    name = re.sub(r"[^\w\s\-.]", replacement, name)
 
     # Replace multiple spaces/underscores with single
-    name = re.sub(r'[\s_]+', replacement, name)
+    name = re.sub(r"[\s_]+", replacement, name)
 
     # Remove leading/trailing special chars
-    name = name.strip(f'{replacement}.-')
+    name = name.strip(f"{replacement}.-")
 
     # Limit length
     if len(name) > max_length:
@@ -142,11 +140,7 @@ def sanitize_filename(
     return name if name else "unnamed"
 
 
-def get_safe_path(
-    base_dir: Path,
-    *parts: str,
-    create: bool = False
-) -> Path:
+def get_safe_path(base_dir: Path, *parts: str, create: bool = False) -> Path:
     """
     Get a safe path that's guaranteed to be under base_dir.
 
@@ -181,9 +175,7 @@ def get_safe_path(
     try:
         target.relative_to(base_resolved)
     except ValueError as e:
-        raise ValidationError(
-            f"Path would escape base directory: {'/'.join(parts)}"
-        ) from e
+        raise ValidationError(f"Path would escape base directory: {'/'.join(parts)}") from e
 
     if create:
         target.mkdir(parents=True, exist_ok=True)
@@ -191,11 +183,7 @@ def get_safe_path(
     return target
 
 
-def get_company_folder(
-    base_dir: Path,
-    company_name: str,
-    create: bool = True
-) -> Path:
+def get_company_folder(base_dir: Path, company_name: str, create: bool = True) -> Path:
     """
     Get a safe folder path for company data.
 
@@ -218,6 +206,7 @@ def get_company_folder(
 # CACHE UTILITIES
 # =============================================================================
 
+
 def get_cache_key(url: str, prefix: str = "") -> str:
     """
     Generate a cache key for a URL.
@@ -238,11 +227,7 @@ def get_cache_key(url: str, prefix: str = "") -> str:
     return hash_value
 
 
-def get_cache_path(
-    cache_dir: Path,
-    url: str,
-    extension: str = ".txt"
-) -> Path:
+def get_cache_path(cache_dir: Path, url: str, extension: str = ".txt") -> Path:
     """
     Get the cache file path for a URL.
 
@@ -261,6 +246,7 @@ def get_cache_path(
 # =============================================================================
 # FILE VALIDATION
 # =============================================================================
+
 
 def validate_file_exists(path: str | Path, description: str = "File") -> Path:
     """
@@ -368,6 +354,7 @@ def open_with_default_app(path: str | Path) -> None:
 # FILE SIZE UTILITIES
 # =============================================================================
 
+
 def get_file_size_str(size_bytes: int) -> str:
     """
     Convert file size to human-readable string.
@@ -379,7 +366,7 @@ def get_file_size_str(size_bytes: int) -> str:
         Human-readable size string (e.g., "1.5 MB")
     """
     size: float = float(size_bytes)
-    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+    for unit in ["B", "KB", "MB", "GB", "TB"]:
         if size < 1024:
             return f"{size:.1f} {unit}"
         size /= 1024

@@ -86,6 +86,7 @@ class TestConsole:
     def test_timing_in_ok(self, capsys):
         """ok() should show elapsed time after step()."""
         import time
+
         c = Console()
         c.step("Starting")
         time.sleep(0.1)
@@ -109,12 +110,13 @@ class TestConsoleProgress:
     def non_interactive_console(self):
         """Create a console that doesn't use in-place updates."""
         from primr.utils.console import _TerminalCaps
+
         caps = _TerminalCaps.for_testing(
             supports_color=False,
             supports_unicode=False,
             supports_cursor=False,  # Disable in-place updates
             width=80,
-            is_interactive=False
+            is_interactive=False,
         )
         return Console(capabilities=caps)
 
@@ -302,18 +304,20 @@ class TestProgressWithTime:
     def non_interactive_console(self):
         """Create a console that doesn't use in-place updates."""
         from primr.utils.console import _TerminalCaps
+
         caps = _TerminalCaps.for_testing(
             supports_color=False,
             supports_unicode=False,
             supports_cursor=False,  # Disable in-place updates
             width=80,
-            is_interactive=False
+            is_interactive=False,
         )
         return Console(capabilities=caps)
 
     def test_progress_with_time_output(self, non_interactive_console, capsys):
         """progress_with_time() should show progress and time when complete."""
         import time
+
         start = time.time() - 65  # 1m 5s ago
         # Non-interactive mode only prints on completion
         non_interactive_console.progress_with_time(10, 10, "item", start_time=start)
@@ -336,12 +340,13 @@ class TestTimedOperation:
     def non_interactive_console(self):
         """Create a console that doesn't use in-place updates."""
         from primr.utils.console import _TerminalCaps
+
         caps = _TerminalCaps.for_testing(
             supports_color=False,
             supports_unicode=False,
             supports_cursor=False,  # Disable in-place updates
             width=80,
-            is_interactive=False
+            is_interactive=False,
         )
         return Console(capabilities=caps)
 
@@ -361,6 +366,7 @@ class TestHeartbeat:
     def test_heartbeat_context(self, capsys):
         """heartbeat() should work as context manager."""
         import time
+
         c = Console()
         with c.heartbeat("Working", interval=0.1):
             time.sleep(0.15)
@@ -440,12 +446,13 @@ class TestProgressTimeDisplayProperty:
     def _get_non_interactive_console(self):
         """Create a console that doesn't use in-place updates."""
         from primr.utils.console import _TerminalCaps
+
         caps = _TerminalCaps.for_testing(
             supports_color=False,
             supports_unicode=False,
             supports_cursor=False,  # Disable in-place updates
             width=80,
-            is_interactive=False
+            is_interactive=False,
         )
         return Console(capabilities=caps)
 
@@ -486,4 +493,8 @@ class TestProgressTimeDisplayProperty:
         captured = capsys.readouterr()
 
         # Label should be present (possibly truncated)
-        assert label[:15] in captured.out or "..." in captured.out or f"{total}/{total}" in captured.out
+        assert (
+            label[:15] in captured.out
+            or "..." in captured.out
+            or f"{total}/{total}" in captured.out
+        )

@@ -22,6 +22,7 @@ from primr.api.metrics import (
 # FIXTURES
 # =============================================================================
 
+
 @pytest.fixture
 def reset_singleton():
     """Reset singleton before each test."""
@@ -40,6 +41,7 @@ def collector():
 # HISTOGRAM TESTS
 # =============================================================================
 
+
 class TestHistogram:
     """Tests for Histogram class."""
 
@@ -47,7 +49,7 @@ class TestHistogram:
         """Test default buckets are created."""
         hist = Histogram(name="test")
         assert len(hist.buckets) > 0
-        assert hist.buckets[-1].le == float('inf')
+        assert hist.buckets[-1].le == float("inf")
 
     def test_observe(self):
         """Test observing values."""
@@ -63,8 +65,8 @@ class TestHistogram:
         """Test bucket counts are updated."""
         hist = Histogram(name="test")
         hist.observe(0.001)  # Should be in 0.005 bucket
-        hist.observe(0.1)    # Should be in 0.1 bucket
-        hist.observe(5.0)    # Should be in 5.0 bucket
+        hist.observe(0.1)  # Should be in 0.1 bucket
+        hist.observe(5.0)  # Should be in 5.0 bucket
 
         # All values should be in inf bucket
         assert hist.buckets[-1].count == 3
@@ -73,6 +75,7 @@ class TestHistogram:
 # =============================================================================
 # METRICS COLLECTOR TESTS
 # =============================================================================
+
 
 class TestMetricsCollector:
     """Tests for MetricsCollector class."""
@@ -142,6 +145,7 @@ class TestMetricsCollector:
 # PROMETHEUS EXPORT TESTS
 # =============================================================================
 
+
 class TestPrometheusExport:
     """Tests for Prometheus format export."""
 
@@ -179,6 +183,7 @@ class TestPrometheusExport:
 # JSON EXPORT TESTS
 # =============================================================================
 
+
 class TestJsonExport:
     """Tests for JSON format export."""
 
@@ -206,6 +211,7 @@ class TestJsonExport:
 # =============================================================================
 # REQUEST METRICS TESTS
 # =============================================================================
+
 
 class TestRequestMetrics:
     """Tests for RequestMetrics class."""
@@ -235,6 +241,7 @@ class TestRequestMetrics:
 # SINGLETON TESTS
 # =============================================================================
 
+
 class TestSingleton:
     """Tests for singleton access."""
 
@@ -255,6 +262,7 @@ class TestSingleton:
 # =============================================================================
 # CONVENIENCE FUNCTION TESTS
 # =============================================================================
+
 
 class TestConvenienceFunctions:
     """Tests for convenience functions."""
@@ -297,6 +305,7 @@ class TestConvenienceFunctions:
 # =============================================================================
 # THREAD SAFETY TESTS
 # =============================================================================
+
 
 class TestThreadSafety:
     """Tests for thread safety."""

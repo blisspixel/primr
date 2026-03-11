@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class QAMetrics:
     """QA performance metrics for monitoring."""
+
     total_assessments: int = 0
     successful_assessments: int = 0
     failed_assessments: int = 0
@@ -43,12 +44,15 @@ class QAMetrics:
         """Calculate parsing success rate percentage."""
         if self.successful_assessments == 0:
             return 0.0
-        return ((self.successful_assessments - self.parsing_failures) / self.successful_assessments) * 100
+        return (
+            (self.successful_assessments - self.parsing_failures) / self.successful_assessments
+        ) * 100
 
 
 @dataclass
 class QAAssessmentLog:
     """Individual QA assessment log entry."""
+
     timestamp: str
     company_name: str
     report_type: str
@@ -80,18 +84,20 @@ class QAMonitor:
 
         logger.info(f"QA monitoring initialized with log directory: {self.log_dir}")
 
-    def log_assessment(self,
-                      company_name: str,
-                      report_type: str,
-                      grade: int,
-                      confidence_level: str,
-                      ready_for_use: bool,
-                      parsing_success: bool,
-                      error_type: str | None = None,
-                      processing_time_ms: int | None = None,
-                      model_used: str = PrimrModels.QA_MODEL,
-                      fallback_used: bool = False,
-                      retry_count: int = 0) -> None:
+    def log_assessment(
+        self,
+        company_name: str,
+        report_type: str,
+        grade: int,
+        confidence_level: str,
+        ready_for_use: bool,
+        parsing_success: bool,
+        error_type: str | None = None,
+        processing_time_ms: int | None = None,
+        model_used: str = PrimrModels.QA_MODEL,
+        fallback_used: bool = False,
+        retry_count: int = 0,
+    ) -> None:
         """
         Log a QA assessment result.
 
@@ -122,7 +128,7 @@ class QAMonitor:
                 processing_time_ms=processing_time_ms,
                 model_used=model_used,
                 fallback_used=fallback_used,
-                retry_count=retry_count
+                retry_count=retry_count,
             )
 
             # Add to session logs
@@ -137,7 +143,9 @@ class QAMonitor:
             # Update persistent metrics
             self._update_persistent_metrics()
 
-            logger.debug(f"Logged QA assessment for {company_name}: grade={grade}, confidence={confidence_level}")
+            logger.debug(
+                f"Logged QA assessment for {company_name}: grade={grade}, confidence={confidence_level}"
+            )
 
         except Exception as e:
             logger.error(f"Failed to log QA assessment for {company_name}: {e}")
@@ -165,7 +173,9 @@ class QAMonitor:
             # Update grade average
             total_successful = metrics.successful_assessments
             current_avg = metrics.average_grade
-            metrics.average_grade = ((current_avg * (total_successful - 1)) + log_entry.grade) / total_successful
+            metrics.average_grade = (
+                (current_avg * (total_successful - 1)) + log_entry.grade
+            ) / total_successful
 
             # Update confidence counts
             if log_entry.confidence_level == "high":
@@ -188,9 +198,9 @@ class QAMonitor:
     def _append_to_log_file(self, log_entry: QAAssessmentLog) -> None:
         """Append log entry to persistent JSONL file."""
         try:
-            with open(self.assessments_log, 'a', encoding='utf-8') as f:
+            with open(self.assessments_log, "a", encoding="utf-8") as f:
                 json.dump(asdict(log_entry), f)
-                f.write('\n')
+                f.write("\n")
         except Exception as e:
             logger.error(f"Failed to append to log file: {e}")
 
@@ -200,7 +210,7 @@ class QAMonitor:
             # Load existing metrics if they exist
             persistent_metrics = QAMetrics()
             if self.metrics_file.exists():
-                with open(self.metrics_file, encoding='utf-8') as f:
+                with open(self.metrics_file, encoding="utf-8") as f:
                     data = json.load(f)
                     for key, value in data.items():
                         if hasattr(persistent_metrics, key):
@@ -219,10 +229,12 @@ class QAMonitor:
                     total = persistent_metrics.successful_assessments
                     if total > 0:
                         current_avg = persistent_metrics.average_grade
-                        persistent_metrics.average_grade = ((current_avg * (total - 1)) + latest_log.grade) / total
+                        persistent_metrics.average_grade = (
+                            (current_avg * (total - 1)) + latest_log.grade
+                        ) / total
 
             # Save updated metrics
-            with open(self.metrics_file, 'w', encoding='utf-8') as f:
+            with open(self.metrics_file, "w", encoding="utf-8") as f:
                 json.dump(asdict(persistent_metrics), f, indent=2)
 
         except Exception as e:
@@ -238,7 +250,7 @@ class QAMonitor:
             if not self.metrics_file.exists():
                 return QAMetrics()
 
-            with open(self.metrics_file, encoding='utf-8') as f:
+            with open(self.metrics_file, encoding="utf-8") as f:
                 data = json.load(f)
                 metrics = QAMetrics()
                 for key, value in data.items():
@@ -258,11 +270,11 @@ class QAMonitor:
             cutoff_time = datetime.now() - timedelta(hours=hours)
             recent_logs = []
 
-            with open(self.assessments_log, encoding='utf-8') as f:
+            with open(self.assessments_log, encoding="utf-8") as f:
                 for line in f:
                     try:
                         data = json.loads(line.strip())
-                        log_time = datetime.fromisoformat(data['timestamp'])
+                        log_time = datetime.fromisoformat(data["timestamp"])
                         if log_time >= cutoff_time:
                             recent_logs.append(QAAssessmentLog(**data))
                     except (json.JSONDecodeError, ValueError, KeyError):
@@ -287,7 +299,9 @@ class QAMonitor:
                 successful_recent = [log for log in recent_assessments if not log.error_type]
                 recent_success_rate = (len(successful_recent) / len(recent_assessments)) * 100
                 if successful_recent:
-                    recent_avg_grade = sum(log.grade for log in successful_recent) / len(successful_recent)
+                    recent_avg_grade = sum(log.grade for log in successful_recent) / len(
+                        successful_recent
+                    )
 
             return {
                 "timestamp": datetime.now().isoformat(),
@@ -296,14 +310,14 @@ class QAMonitor:
                 "recent_24h": {
                     "total_assessments": len(recent_assessments),
                     "success_rate": recent_success_rate,
-                    "average_grade": recent_avg_grade
+                    "average_grade": recent_avg_grade,
                 },
                 "system_health": {
                     "overall_success_rate": persistent_metrics.success_rate,
                     "parsing_success_rate": persistent_metrics.parsing_success_rate,
                     "meets_95_percent_target": persistent_metrics.success_rate >= 95.0,
-                    "average_quality": persistent_metrics.average_grade
-                }
+                    "average_quality": persistent_metrics.average_grade,
+                },
             }
         except Exception as e:
             logger.error(f"Failed to generate status report: {e}")
@@ -324,12 +338,12 @@ class QAMonitor:
             print(f"Session: {session.get('total_assessments', 0)} assessments")
             print(f"Success Rate: {session.get('success_rate', 0):.1f}%")
 
-            if persistent.get('total_assessments', 0) > 0:
+            if persistent.get("total_assessments", 0) > 0:
                 print(f"Overall: {persistent.get('total_assessments', 0)} total assessments")
                 print(f"Overall Success: {health.get('overall_success_rate', 0):.1f}%")
                 print(f"Average Grade: {health.get('average_quality', 0):.1f}/100")
 
-                target_met = health.get('meets_95_percent_target', False)
+                target_met = health.get("meets_95_percent_target", False)
                 print(f"95% Target: {'[x] Met' if target_met else '[ ] Not Met'}")
 
         except Exception as e:

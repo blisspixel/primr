@@ -40,8 +40,10 @@ class TestFastGapAnalysis:
         monkeypatch.setattr("primr.ai.grok_client.grok_llm", mock_grok)
 
         queries, text = _fast_gap_analysis(
-            "ExampleCo", "https://example.com",
-            "raw corpus text", "external sources text",
+            "ExampleCo",
+            "https://example.com",
+            "raw corpus text",
+            "external sources text",
             ["https://existing-source.com"],
         )
 
@@ -56,8 +58,11 @@ class TestFastGapAnalysis:
         monkeypatch.setattr("primr.ai.grok_client.grok_llm", lambda *a, **k: "")
 
         queries, text = _fast_gap_analysis(
-            "ExampleCo", "https://example.com",
-            "corpus", "external", [],
+            "ExampleCo",
+            "https://example.com",
+            "corpus",
+            "external",
+            [],
         )
 
         assert queries == []
@@ -65,14 +70,18 @@ class TestFastGapAnalysis:
 
     def test_handles_grok_exception(self, monkeypatch):
         """Gap analysis should return empty list when Grok fails."""
+
         def boom(*args, **kwargs):
             raise RuntimeError("API down")
 
         monkeypatch.setattr("primr.ai.grok_client.grok_llm", boom)
 
         queries, text = _fast_gap_analysis(
-            "ExampleCo", "https://example.com",
-            "corpus", "external", [],
+            "ExampleCo",
+            "https://example.com",
+            "corpus",
+            "external",
+            [],
         )
 
         assert queries == []
@@ -90,8 +99,11 @@ class TestFastGapAnalysis:
         monkeypatch.setattr("primr.ai.grok_client.grok_llm", lambda *a, **k: "\n".join(lines))
 
         queries, _ = _fast_gap_analysis(
-            "ExampleCo", "https://example.com",
-            "corpus", "external", [],
+            "ExampleCo",
+            "https://example.com",
+            "corpus",
+            "external",
+            [],
         )
 
         assert len(queries) <= 8
@@ -118,7 +130,11 @@ class TestFastCrossValidate:
         """Cross-validation should return parsed JSON with weak_sections and contradictions."""
         response_obj = {
             "weak_sections": [
-                {"title": "Competitive Landscape", "reason": "No citations", "queries": ["q1", "q2"]},
+                {
+                    "title": "Competitive Landscape",
+                    "reason": "No citations",
+                    "queries": ["q1", "q2"],
+                },
             ],
             "contradictions": ["Revenue claim in Exec Summary contradicts Financial Profile"],
         }
@@ -128,7 +144,8 @@ class TestFastCrossValidate:
         )
 
         result = _fast_cross_validate(
-            "ExampleCo", "https://example.com",
+            "ExampleCo",
+            "https://example.com",
             "## Executive Summary\n\nContent\n\n## Competitive Landscape\n\nWeak content",
             ["https://src1.com"],
         )
@@ -141,8 +158,7 @@ class TestFastCrossValidate:
         """Cross-validation should cap weak sections at 3 even if Grok returns 5."""
         response_obj = {
             "weak_sections": [
-                {"title": f"Section {i}", "reason": "weak", "queries": [f"q{i}"]}
-                for i in range(5)
+                {"title": f"Section {i}", "reason": "weak", "queries": [f"q{i}"]} for i in range(5)
             ],
             "contradictions": [],
         }
@@ -152,8 +168,10 @@ class TestFastCrossValidate:
         )
 
         result = _fast_cross_validate(
-            "ExampleCo", "https://example.com",
-            "report content", [],
+            "ExampleCo",
+            "https://example.com",
+            "report content",
+            [],
         )
 
         assert len(result["weak_sections"]) == 3
@@ -166,8 +184,10 @@ class TestFastCrossValidate:
         )
 
         result = _fast_cross_validate(
-            "ExampleCo", "https://example.com",
-            "## Good Section\n\nStrong content with [Source: url].", [],
+            "ExampleCo",
+            "https://example.com",
+            "## Good Section\n\nStrong content with [Source: url].",
+            [],
         )
 
         assert result["weak_sections"] == []
@@ -181,8 +201,10 @@ class TestFastCrossValidate:
         )
 
         result = _fast_cross_validate(
-            "ExampleCo", "https://example.com",
-            "report", [],
+            "ExampleCo",
+            "https://example.com",
+            "report",
+            [],
         )
 
         assert result["weak_sections"] == []
@@ -190,14 +212,17 @@ class TestFastCrossValidate:
 
     def test_handles_grok_exception(self, monkeypatch):
         """Cross-validation should return empty result when Grok fails."""
+
         def boom(*args, **kwargs):
             raise RuntimeError("API error")
 
         monkeypatch.setattr("primr.ai.grok_client.grok_llm", boom)
 
         result = _fast_cross_validate(
-            "ExampleCo", "https://example.com",
-            "report", [],
+            "ExampleCo",
+            "https://example.com",
+            "report",
+            [],
         )
 
         assert result["weak_sections"] == []
@@ -209,8 +234,10 @@ class TestFastCrossValidate:
         monkeypatch.setattr("primr.ai.grok_client.grok_llm", lambda *a, **k: fenced)
 
         result = _fast_cross_validate(
-            "ExampleCo", "https://example.com",
-            "report", [],
+            "ExampleCo",
+            "https://example.com",
+            "report",
+            [],
         )
 
         assert len(result["contradictions"]) == 1
@@ -228,7 +255,8 @@ class TestFastRegenerateSection:
         )
 
         result = _fast_regenerate_section(
-            "ExampleCo", "https://example.com",
+            "ExampleCo",
+            "https://example.com",
             "Financial Profile",
             "## Financial Profile\n\nOld thin content.",
             "workbook context",
@@ -246,16 +274,20 @@ class TestFastRegenerateSection:
         )
 
         result = _fast_regenerate_section(
-            "ExampleCo", None,
+            "ExampleCo",
+            None,
             "Market Position",
             "## Market Position\n\nOriginal.",
-            "workbook", "evidence", [],
+            "workbook",
+            "evidence",
+            [],
         )
 
         assert result.startswith("## Market Position")
 
     def test_returns_original_on_exception(self, monkeypatch):
         """Regeneration should return original section content on Grok failure."""
+
         def boom(*args, **kwargs):
             raise RuntimeError("API down")
 
@@ -263,9 +295,13 @@ class TestFastRegenerateSection:
 
         original = "## Test Section\n\nOriginal content."
         result = _fast_regenerate_section(
-            "ExampleCo", None,
-            "Test Section", original,
-            "workbook", "evidence", [],
+            "ExampleCo",
+            None,
+            "Test Section",
+            original,
+            "workbook",
+            "evidence",
+            [],
         )
 
         assert result == original
@@ -276,9 +312,13 @@ class TestFastRegenerateSection:
 
         original = "## Test\n\nContent."
         result = _fast_regenerate_section(
-            "ExampleCo", None,
-            "Test", original,
-            "workbook", "evidence", [],
+            "ExampleCo",
+            None,
+            "Test",
+            original,
+            "workbook",
+            "evidence",
+            [],
         )
 
         assert result == original
@@ -295,9 +335,13 @@ class TestFastRegenerateSection:
 
         evidence = "[Source: https://new.com]\nRevenue grew 40% YoY."
         _fast_regenerate_section(
-            "ExampleCo", None,
-            "Section", "## Section\n\nOld.",
-            "workbook", evidence, ["https://new.com"],
+            "ExampleCo",
+            None,
+            "Section",
+            "## Section\n\nOld.",
+            "workbook",
+            evidence,
+            ["https://new.com"],
         )
 
         assert "Revenue grew 40% YoY" in captured["prompt"]
@@ -311,10 +355,13 @@ class TestFastRegenerateSection:
         )
 
         result = _fast_regenerate_section(
-            "ExampleCo", None,
+            "ExampleCo",
+            None,
             "Financial Profile",
             "## Financial Profile\n\nOriginal.",
-            "workbook", "evidence", [],
+            "workbook",
+            "evidence",
+            [],
         )
 
         assert result.startswith("## Financial Profile")
@@ -412,9 +459,9 @@ class TestCrossValidateJsonExtraction:
     def test_extracts_json_from_surrounding_prose(self, monkeypatch):
         """Should find JSON object embedded in prose text."""
         response = (
-            'Here is my analysis:\n\n'
+            "Here is my analysis:\n\n"
             '{"weak_sections": [{"title": "X", "reason": "r", "queries": ["q"]}], "contradictions": []}\n\n'
-            'Let me know if you need more.'
+            "Let me know if you need more."
         )
         monkeypatch.setattr("primr.ai.grok_client.grok_llm", lambda *a, **k: response)
 
@@ -471,8 +518,10 @@ class TestGapAnalysisCorpusParsing:
     def test_parses_page_blocks(self, monkeypatch):
         """Gap analysis should extract [Page:] blocks from corpus."""
         corpus = (
-            "[Page: https://example.com]\nLong content here " + "x" * 1000
-            + "\n\n[Page: https://example.com/about]\nAbout page content " + "y" * 1000
+            "[Page: https://example.com]\nLong content here "
+            + "x" * 1000
+            + "\n\n[Page: https://example.com/about]\nAbout page content "
+            + "y" * 1000
         )
         captured = {}
 
@@ -559,7 +608,9 @@ class TestCleanFastReportOutput:
         assert "[cite: 2, 3]" in result
 
     def test_strips_cross_ref_tags(self):
-        content = "## Section\n\nSee details [cross-ref: Financial Profile] and also [cross-ref: SWOT].\n"
+        content = (
+            "## Section\n\nSee details [cross-ref: Financial Profile] and also [cross-ref: SWOT].\n"
+        )
         result = _clean_fast_report_output(content)
         assert "[cross-ref:" not in result
         assert "See details" in result
@@ -609,9 +660,7 @@ class TestNormalizeCitationsBareDomains:
 
     def test_deduplicates_same_bare_domain(self):
         content = (
-            "## Section\n\n"
-            "First [Source: example.com/page].\n"
-            "Second [Source: example.com/page].\n"
+            "## Section\n\nFirst [Source: example.com/page].\nSecond [Source: example.com/page].\n"
         )
         result = _normalize_fast_citations(content)
         # Both inline + 1 in Sources section = 3 total occurrences of [cite: 1]
@@ -620,11 +669,6 @@ class TestNormalizeCitationsBareDomains:
         # Only one URL entry in Sources section
         sources_section = result.split("## Sources")[1]
         assert sources_section.count("https://example.com/page") == 1
-
-
-
-
-
 
 
 class TestFastReportQaMetrics:
@@ -643,8 +687,6 @@ class TestFastReportQaMetrics:
         assert metrics["qa_gate_passed"] is False
 
 
-
-
 def test_clean_fast_report_output_strips_analysis_and_internal_model_artifacts():
     content = (
         "## Section\n\n"
@@ -660,11 +702,7 @@ def test_clean_fast_report_output_strips_analysis_and_internal_model_artifacts()
 
 
 def test_compute_fast_report_qa_metrics_fails_with_zero_citations():
-    content = (
-        "## Executive Summary\n\n"
-        "Claim (Reported).\n\n"
-        "What to validate: Confirm revenue.\n"
-    )
+    content = "## Executive Summary\n\nClaim (Reported).\n\nWhat to validate: Confirm revenue.\n"
     metrics = _compute_fast_report_qa_metrics(content)
     assert metrics["citations_used"] == 0
     assert metrics["citations_defined"] == 0

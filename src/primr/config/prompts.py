@@ -19,6 +19,7 @@ Usage:
     template = get_prompt_template("industry")
     print(template.required_vars)
 """
+
 import json
 import re
 from dataclasses import dataclass
@@ -33,6 +34,7 @@ class PromptError(Exception):
 @dataclass(frozen=True)
 class PromptTemplate:
     """A single prompt template with metadata."""
+
     name: str
     template: str
     required_vars: frozenset[str]
@@ -59,10 +61,11 @@ class PromptRegistry:
 
     Thread-safe singleton that loads prompts on first access.
     """
-    _instance: 'PromptRegistry | None' = None
+
+    _instance: "PromptRegistry | None" = None
     _prompts: dict[str, PromptTemplate] | None = None
 
-    def __new__(cls) -> 'PromptRegistry':
+    def __new__(cls) -> "PromptRegistry":
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
@@ -71,10 +74,8 @@ class PromptRegistry:
         """Get a prompt template by name."""
         self._ensure_loaded()
         if name not in self._prompts:
-            available = ', '.join(sorted(self._prompts.keys()))
-            raise PromptError(
-                f"Prompt '{name}' not found. Available: {available}"
-            )
+            available = ", ".join(sorted(self._prompts.keys()))
+            raise PromptError(f"Prompt '{name}' not found. Available: {available}")
         return self._prompts[name]
 
     def render(self, name: str, **kwargs: Any) -> str:
@@ -99,6 +100,7 @@ class PromptRegistry:
 # =============================================================================
 # PUBLIC INTERFACE
 # =============================================================================
+
 
 def get_registry() -> PromptRegistry:
     """Get the prompt registry singleton."""
@@ -138,6 +140,7 @@ def get_prompt_template(name: str) -> PromptTemplate:
 # INTERNAL FUNCTIONS
 # =============================================================================
 
+
 def _load_prompts_from_file() -> dict[str, PromptTemplate]:
     """Load prompts from prompts.json and parse into templates."""
     prompts_file = Path(__file__).parent / "prompts.json"
@@ -152,9 +155,7 @@ def _load_prompts_from_file() -> dict[str, PromptTemplate]:
     for name, template_str in raw_prompts.items():
         required_vars = _extract_template_vars(template_str)
         templates[name] = PromptTemplate(
-            name=name,
-            template=template_str,
-            required_vars=frozenset(required_vars)
+            name=name, template=template_str, required_vars=frozenset(required_vars)
         )
 
     return templates
@@ -162,4 +163,4 @@ def _load_prompts_from_file() -> dict[str, PromptTemplate]:
 
 def _extract_template_vars(template: str) -> set[str]:
     """Extract variable names from a format string template."""
-    return set(re.findall(r'\{(\w+)\}', template))
+    return set(re.findall(r"\{(\w+)\}", template))

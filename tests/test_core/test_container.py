@@ -26,6 +26,7 @@ from primr.types import AIClientProtocol, CacheProtocol, ScraperProtocol
 # SERVICE DESCRIPTOR TESTS
 # =============================================================================
 
+
 class TestServiceDescriptor:
     """Tests for ServiceDescriptor dataclass."""
 
@@ -38,11 +39,7 @@ class TestServiceDescriptor:
 
     def test_custom_values(self):
         """Test custom descriptor values."""
-        descriptor = ServiceDescriptor(
-            factory=lambda: "test",
-            singleton=False,
-            instance="existing"
-        )
+        descriptor = ServiceDescriptor(factory=lambda: "test", singleton=False, instance="existing")
 
         assert descriptor.singleton is False
         assert descriptor.instance == "existing"
@@ -51,6 +48,7 @@ class TestServiceDescriptor:
 # =============================================================================
 # CONTAINER TESTS
 # =============================================================================
+
 
 class TestContainer:
     """Tests for Container class."""
@@ -172,6 +170,7 @@ class TestContainer:
 # CONVENIENCE METHOD TESTS
 # =============================================================================
 
+
 class TestConvenienceMethods:
     """Tests for convenience methods."""
 
@@ -210,6 +209,7 @@ class TestConvenienceMethods:
 # DEFAULT CONTAINER TESTS
 # =============================================================================
 
+
 class TestDefaultContainer:
     """Tests for default container creation."""
 
@@ -236,6 +236,7 @@ class TestDefaultContainer:
 # =============================================================================
 # SINGLETON TESTS
 # =============================================================================
+
 
 class TestSingleton:
     """Tests for global container singleton."""
@@ -278,6 +279,7 @@ class TestSingleton:
 # =============================================================================
 # SERVICE LOCATOR TESTS
 # =============================================================================
+
 
 class TestServiceLocators:
     """Tests for service locator functions."""
@@ -328,6 +330,7 @@ class TestServiceLocators:
 # THREAD SAFETY TESTS
 # =============================================================================
 
+
 class TestThreadSafety:
     """Tests for thread safety."""
 
@@ -344,8 +347,7 @@ class TestThreadSafety:
                 errors.append(e)
 
         threads = [
-            threading.Thread(target=register_services, args=(i * 100, 100))
-            for i in range(5)
+            threading.Thread(target=register_services, args=(i * 100, 100)) for i in range(5)
         ]
 
         for t in threads:
@@ -374,10 +376,7 @@ class TestThreadSafety:
             except Exception as e:
                 errors.append(e)
 
-        threads = [
-            threading.Thread(target=resolve_service, args=(100,))
-            for _ in range(5)
-        ]
+        threads = [threading.Thread(target=resolve_service, args=(100,)) for _ in range(5)]
 
         for t in threads:
             t.start()
@@ -392,6 +391,7 @@ class TestThreadSafety:
 # =============================================================================
 # INTEGRATION TESTS
 # =============================================================================
+
 
 class TestIntegration:
     """Integration tests for container usage."""

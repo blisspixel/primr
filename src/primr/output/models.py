@@ -25,6 +25,7 @@ class ParsedLine:
             - 'number': the number for numbered lists
             - 'detected': True if subheading was detected from context
     """
+
     type: str
     content: str
     level: int
@@ -44,6 +45,7 @@ class ContentBlock:
             - 'subheading': str for subheading_group type
             - 'indent_level': int for nested lists
     """
+
     type: str
     lines: list[ParsedLine]
     properties: dict = field(default_factory=dict)
@@ -60,6 +62,7 @@ class SectionContent:
         blocks: List of ContentBlock objects
         has_content: False if section was empty/missing
     """
+
     number: str
     title: str
     key: str
@@ -77,6 +80,7 @@ class ChapterContent:
         icon: Optional visual element (e.g., "🏢")
         sections: List of SectionContent objects
     """
+
     number: int
     title: str
     icon: str | None = None
@@ -97,6 +101,7 @@ class CompanySnapshot:
         employees: Employee count (extracted from content)
         ticker: Stock ticker symbol (extracted from financial)
     """
+
     company_name: str
     website: str = ""
     industry: str = ""
@@ -118,6 +123,7 @@ class DocumentMetadata:
         confidentiality: Confidentiality notice
         version: Document version
     """
+
     company_name: str
     generation_date: str = field(default_factory=lambda: datetime.now().strftime("%B %d, %Y"))
     report_title: str = "Strategic Company Overview"
@@ -136,6 +142,7 @@ class ExecutiveSummary:
         risk_factors: Top 3-5 risk factors
         one_liner: Single sentence company summary (dinner test)
     """
+
     narrative: str = ""
     key_takeaways: list[str] = field(default_factory=list)
     metrics_snapshot: dict[str, str] = field(default_factory=dict)

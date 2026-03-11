@@ -12,6 +12,7 @@ from enum import Enum, IntEnum
 
 class ResearchMode(str, Enum):
     """Research pipeline execution modes."""
+
     SCRAPE = "scrape"
     DEEP = "deep"
     FULL = "full"
@@ -20,6 +21,7 @@ class ResearchMode(str, Enum):
 
 class CloudVendor(str, Enum):
     """Supported cloud vendors for AI strategy generation."""
+
     AZURE = "azure"
     AWS = "aws"
     GCP = "gcp"
@@ -28,6 +30,7 @@ class CloudVendor(str, Enum):
 
 class StrategyType(str, Enum):
     """Available strategy document types."""
+
     AI_STRATEGY = "ai_strategy"
     CUSTOMER_EXPERIENCE = "customer_experience"
     MODERN_SECURITY_COMPLIANCE = "modern_security_compliance"
@@ -36,6 +39,7 @@ class StrategyType(str, Enum):
 
 class JobStatus(str, Enum):
     """High-level job status."""
+
     IDLE = "idle"
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
@@ -51,6 +55,7 @@ class ResearchStage(str, Enum):
                        DEEP_RESEARCH -> WRITING -> QA -> COMPLETED
     Terminal states: COMPLETED, FAILED, CANCELLED
     """
+
     IDLE = "idle"
     ACCEPTED = "accepted"
     SCRAPING = "scraping"
@@ -73,6 +78,7 @@ class ResearchStatus:
     - COMPLETED: completion_time, output_paths required
     - FAILED: error_type, error_message required
     """
+
     status: JobStatus
     job_id: str | None = None
     company_name: str | None = None
@@ -98,6 +104,7 @@ class JobAcceptedResult:
     This is the ONLY result type for research_company (async model).
     Clients monitor progress via primr://research/status resource.
     """
+
     job_id: str
     accepted: bool
     status_uri: str = "primr://research/status"
@@ -106,6 +113,7 @@ class JobAcceptedResult:
 @dataclass
 class EstimateResult:
     """Returned by estimate_run tool - cost/time estimates without execution."""
+
     estimated_cost_usd: float
     estimated_time_minutes: int
     planned_pages: int | None = None
@@ -115,6 +123,7 @@ class EstimateResult:
 @dataclass
 class DoctorResult:
     """Returned by doctor tool - system health status."""
+
     orphaned_stores_count: int
     config_valid: bool
     api_keys_configured: bool
@@ -124,6 +133,7 @@ class DoctorResult:
 @dataclass
 class LatestOutput:
     """Response for primr://output/latest resource."""
+
     report_path: str | None = None
     company_name: str | None = None
     generation_timestamp: datetime | None = None
@@ -135,6 +145,7 @@ class LatestOutput:
 @dataclass
 class ArtifactInfo:
     """Single artifact in the pipeline artifacts resource."""
+
     artifact_type: str  # e.g., "scraped_content", "insights", "dossier", "report"
     file_path: str
     size_bytes: int
@@ -145,6 +156,7 @@ class ArtifactInfo:
 @dataclass
 class ArtifactsResponse:
     """Response for primr://output/artifacts resource."""
+
     job_id: str | None = None
     job_status: JobStatus | None = None
     artifacts: list[ArtifactInfo] = field(default_factory=list)
@@ -157,6 +169,7 @@ class ConfigState:
 
     Built from allowlist schema - never includes sensitive values.
     """
+
     available_modes: list[str] = field(default_factory=list)
     available_strategies: dict[str, str] = field(default_factory=dict)
     configured_vendors: list[str] = field(default_factory=list)
@@ -169,6 +182,7 @@ class ToolResult:
 
     NOTE: research_company returns JobAcceptedResult (async model) - NOT ToolResult.
     """
+
     success: bool
     output_path: str | None = None
     duration_seconds: float | None = None
@@ -180,6 +194,7 @@ class ToolResult:
 @dataclass
 class JobInfo:
     """Job information returned by check_jobs tool."""
+
     job_id: str
     status: JobStatus
     company_name: str | None = None
@@ -192,6 +207,7 @@ class JobInfo:
 @dataclass
 class QAResult:
     """Result from run_qa tool."""
+
     overall_score: int
     category_scores: dict[str, int] = field(default_factory=dict)
     improvement_suggestions: list[str] = field(default_factory=list)
@@ -203,6 +219,7 @@ class MCPErrorCode(IntEnum):
 
     All codes are unique - no collisions.
     """
+
     # JSON-RPC standard errors
     PARSE_ERROR = -32700
     INVALID_REQUEST = -32600

@@ -64,7 +64,7 @@ dev = [
     "pytest-cov>=4.0.0",
     "hypothesis>=6.0.0",
     "mypy>=1.0.0",
-    "ruff>=0.1.0",
+    "ruff>=0.15.5,<0.16.0",
 ]
 api = [
     "fastapi>=0.100.0",
@@ -170,3 +170,4 @@ markers = [
     "integration: tests that make real API calls (require valid API keys)",
     "slow: tests that take a long time to run",
 ]
+

@@ -15,6 +15,7 @@ Usage:
     # Research a single section
     content = research_section("Industry", context)
 """
+
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -46,9 +47,11 @@ logger = get_logger("structured_research")
 # DATACLASSES
 # =============================================================================
 
+
 @dataclass
 class ScrapedData:
     """Container for scraped content with metadata."""
+
     website_pages: dict[str, str] = field(default_factory=dict)
     external_sources: dict[str, str] = field(default_factory=dict)
 
@@ -68,6 +71,7 @@ class ScrapedData:
 @dataclass
 class AnalysisResult:
     """Result of content analysis phase."""
+
     summarized_content: str
     industry: str
     overview: str
@@ -76,6 +80,7 @@ class AnalysisResult:
 @dataclass
 class ResearchContext:
     """Immutable context passed through the pipeline."""
+
     company_name: str
     website: str | None
     folder_path: str
@@ -87,6 +92,7 @@ class ResearchContext:
 # =============================================================================
 # PROTOCOLS
 # =============================================================================
+
 
 class ProgressReporter(Protocol):
     """Protocol for progress reporting, enabling custom UX."""
@@ -108,11 +114,12 @@ class ProgressReporter(Protocol):
 # PUBLIC INTERFACE
 # =============================================================================
 
+
 def run_research(
     company_name: str,
     website: str,
     on_progress: Callable[[str], None] | None = None,
-    reporter: ProgressReporter | None = None
+    reporter: ProgressReporter | None = None,
 ) -> dict[str, str]:
     """
     Run structured research pipeline.
@@ -144,7 +151,7 @@ def run_research(
         """Format seconds into readable time string."""
         if seconds < 60:
             return f"{int(seconds)}s"
-        return f"{int(seconds//60)}m {int(seconds%60)}s"
+        return f"{int(seconds // 60)}m {int(seconds % 60)}s"
 
     folder_path = create_working_folder(company_name, website)
 
@@ -163,7 +170,7 @@ def run_research(
         folder_path=folder_path,
         industry=analysis.industry,
         overview=analysis.overview,
-        summarized_insights=analysis.summarized_content
+        summarized_insights=analysis.summarized_content,
     )
 
     sections_start = time_module.time()
@@ -180,7 +187,7 @@ def research_section(
     industry: str,
     folder_path: str,
     overview: str,
-    summarized_insights: str
+    summarized_insights: str,
 ) -> str:
     """
     Research a single report section.
@@ -213,14 +220,12 @@ def research_section(
 
     # Generate AI content for complex sections
     ai_response = _generate_section_content(
-        section_name, section_key, company_name, website,
-        industry, overview, summarized_insights
+        section_name, section_key, company_name, website, industry, overview, summarized_insights
     )
 
     # Apply grading and refinement
     ai_response = _refine_section_if_needed(
-        ai_response, section_name, company_name, website,
-        overview, summarized_insights
+        ai_response, section_name, company_name, website, overview, summarized_insights
     )
 
     # Ensure minimum content
@@ -259,7 +264,7 @@ def research_pipeline(company_name: str, website: str) -> Iterator[ResearchConte
             folder_path=folder_path,
             industry=analysis.industry,
             overview=analysis.overview,
-            summarized_insights=analysis.summarized_content
+            summarized_insights=analysis.summarized_content,
         )
 
         yield context
@@ -270,10 +275,7 @@ def research_pipeline(company_name: str, website: str) -> Iterator[ResearchConte
 
 
 def generate_initial_overview(
-    company_name: str,
-    website: str | None,
-    industry: str,
-    folder_path: str
+    company_name: str, website: str | None, industry: str, folder_path: str
 ) -> str:
     """
     Generate initial company overview.
@@ -306,6 +308,7 @@ def generate_initial_overview(
     overview = llm(overview_prompt, model_type="report")
 
     import os
+
     overview_file = os.path.join(folder_path, f"{company_name}_Draft_Overview.txt")
     with open(overview_file, "w", encoding="utf-8") as f:
         f.write(overview)
@@ -317,10 +320,9 @@ def generate_initial_overview(
 # INTERNAL PHASE FUNCTIONS
 # =============================================================================
 
+
 def _collect_data(
-    company_name: str,
-    website: str | None,
-    progress: Callable[[str], None] | None = None
+    company_name: str, website: str | None, progress: Callable[[str], None] | None = None
 ) -> ScrapedData:
     """
     Phase 1: Data Collection.
@@ -335,6 +337,7 @@ def _collect_data(
     Returns:
         ScrapedData container with all scraped content
     """
+
     def report(msg: str) -> None:
         if progress:
             progress(msg)
@@ -375,7 +378,8 @@ def _collect_data(
         results = search_web(query, company_name, website)
         if results:
             filtered = [
-                r for r in results[:5]
+                r
+                for r in results[:5]
                 if not website or website.lower() not in r.get("url", "").lower()
             ]
             remaining_slots = max_external_sources - len(external_data)
@@ -383,7 +387,7 @@ def _collect_data(
                 filtered,
                 company_name=company_name,
                 website=website,
-                max_sources=min(2, remaining_slots)
+                max_sources=min(2, remaining_slots),
             )
             external_data.update(scraped)
 
@@ -396,7 +400,7 @@ def _analyze_content(
     website: str | None,
     scraped: ScrapedData,
     folder_path: str,
-    progress: Callable[[str], None] | None = None
+    progress: Callable[[str], None] | None = None,
 ) -> AnalysisResult:
     """
     Phase 2: Content Analysis.
@@ -414,15 +418,14 @@ def _analyze_content(
     Returns:
         AnalysisResult with summarized content, industry, and overview
     """
+
     def report(msg: str) -> None:
         if progress:
             progress(msg)
 
     # Summarize content
     report("Summarizing content...")
-    summarized = summarize_scraped_content(
-        company_name, website, scraped.all_content, folder_path
-    )
+    summarized = summarize_scraped_content(company_name, website, scraped.all_content, folder_path)
     if not summarized.strip():
         summarized = "No insights extracted."
     report("+ Content summarized")
@@ -433,7 +436,7 @@ def _analyze_content(
         "industry",
         company_name=company_name,
         company_website=website or "N/A",
-        scraped_insights=summarized
+        scraped_insights=summarized,
     )
     industry = llm(industry_prompt, model_type="research").strip() or "Unknown"
 
@@ -442,16 +445,11 @@ def _analyze_content(
     overview = generate_initial_overview(company_name, website, industry, folder_path)
     report("+ Overview complete")
 
-    return AnalysisResult(
-        summarized_content=summarized,
-        industry=industry,
-        overview=overview
-    )
+    return AnalysisResult(summarized_content=summarized, industry=industry, overview=overview)
 
 
 def _generate_sections(
-    context: ResearchContext,
-    progress: Callable[[str], None] | None = None
+    context: ResearchContext, progress: Callable[[str], None] | None = None
 ) -> dict[str, str]:
     """
     Phase 3: Section Generation.
@@ -466,18 +464,30 @@ def _generate_sections(
     Returns:
         Dict mapping section_key to content
     """
+
     def report(msg: str) -> None:
         if progress:
             progress(msg)
 
     sections = [
-        "Company Name", "Website", "Industry", "Detailed Products/Services",
-        "Unique Selling Proposition (USP)", "Mission & Vision", "Company History",
-        "Key Achievements", "Target Audience", "Financial Overview",
-        "Potential Business Drivers & KPIs", "Industry Insights",
-        "Potential Business Drivers", "Primary Apps or Sources of Data",
-        "Main Types of Users", "Board of Directors Concerns",
-        "Potential Business Value", "Strategic Recommendations"
+        "Company Name",
+        "Website",
+        "Industry",
+        "Detailed Products/Services",
+        "Unique Selling Proposition (USP)",
+        "Mission & Vision",
+        "Company History",
+        "Key Achievements",
+        "Target Audience",
+        "Financial Overview",
+        "Potential Business Drivers & KPIs",
+        "Industry Insights",
+        "Potential Business Drivers",
+        "Primary Apps or Sources of Data",
+        "Main Types of Users",
+        "Board of Directors Concerns",
+        "Potential Business Value",
+        "Strategic Recommendations",
     ]
 
     # Count non-trivial sections for progress
@@ -496,9 +506,13 @@ def _generate_sections(
                 report(f"  [{analysis_idx}/{total_analysis}] {section}")
 
             content = research_section(
-                section, context.company_name, context.website,
-                context.industry, context.folder_path,
-                context.overview, context.summarized_insights
+                section,
+                context.company_name,
+                context.website,
+                context.industry,
+                context.folder_path,
+                context.overview,
+                context.summarized_insights,
             )
             if content:
                 section_results[section_key] = content
@@ -510,11 +524,9 @@ def _generate_sections(
 # INTERNAL HELPER FUNCTIONS
 # =============================================================================
 
+
 def _get_metadata_value(
-    section_name: str,
-    company_name: str,
-    website: str | None,
-    industry: str
+    section_name: str, company_name: str, website: str | None, industry: str
 ) -> str:
     """Get value for simple metadata sections."""
     if section_name == "Company Name":
@@ -533,7 +545,7 @@ def _generate_section_content(
     website: str | None,
     industry: str,
     overview: str,
-    summarized_insights: str
+    summarized_insights: str,
 ) -> str:
     """Generate AI content for a section."""
     prompt_data = {
@@ -557,7 +569,7 @@ def _generate_section_content(
         "potential_business_value": "N/A",
         "strategic_recommendations": "N/A",
         "scraped_website_summary": summarized_insights or "N/A",
-        "value_theory": overview
+        "value_theory": overview,
     }
 
     try:
@@ -589,19 +601,16 @@ def _refine_section_if_needed(
     company_name: str,
     website: str | None,
     overview: str,
-    summarized_insights: str
+    summarized_insights: str,
 ) -> str:
     """Apply grading and refinement to section content."""
     try:
         score, needs_research, feedback = grade_report(
-            ai_response, section_name, company_name, website,
-            overview, summarized_insights
+            ai_response, section_name, company_name, website, overview, summarized_insights
         )
 
         if needs_research and score < GRADE_THRESHOLD_FOR_RESEARCH_REFINEMENT:
-            queries = generate_search_queries(
-                company_name, website, section_name, ai_response
-            )
+            queries = generate_search_queries(company_name, website, section_name, ai_response)
             for query in queries[:2]:
                 results = search_web(query, company_name, website)
                 if results:

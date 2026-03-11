@@ -278,6 +278,7 @@ class TestProtocolErrorCodes:
             job = server.job_store.get_active()
             if job:
                 from primr.mcp_server.types import ResearchStage
+
                 job.advance_stage(ResearchStage.CANCELLED)
                 server.job_store.update(job)
 

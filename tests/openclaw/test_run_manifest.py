@@ -138,8 +138,12 @@ class TestRunManifestPropertyTests:
     """
 
     @given(
-        job_id=st.text(min_size=1, max_size=50, alphabet=string.ascii_letters + string.digits + "-_"),
-        company_name=st.text(min_size=1, max_size=100, alphabet=string.ascii_letters + string.digits + " "),
+        job_id=st.text(
+            min_size=1, max_size=50, alphabet=string.ascii_letters + string.digits + "-_"
+        ),
+        company_name=st.text(
+            min_size=1, max_size=100, alphabet=string.ascii_letters + string.digits + " "
+        ),
         mode=st.sampled_from(VALID_MODES),
         status=st.sampled_from(VALID_STATUSES),
     )

@@ -29,15 +29,15 @@ MOVED_PYTHON_FILES = [
 
 # Files that ARE allowed in root
 ALLOWED_ROOT_FILES = [
-    "primr_cli.py",         # CLI entry point
-    "pyproject.toml",       # Package config
-    "requirements.txt",     # Dependencies
-    ".env",                 # Environment config
-    "README.md",            # Documentation
-    "ROADMAP.md",           # Roadmap
-    ".gitignore",           # Git config
-    "pytest.ini",           # Test config
-    "mypy.ini",             # Type checking config
+    "primr_cli.py",  # CLI entry point
+    "pyproject.toml",  # Package config
+    "requirements.txt",  # Dependencies
+    ".env",  # Environment config
+    "README.md",  # Documentation
+    "ROADMAP.md",  # Roadmap
+    ".gitignore",  # Git config
+    "pytest.ini",  # Test config
+    "mypy.ini",  # Type checking config
 ]
 
 
@@ -51,8 +51,9 @@ def test_no_moved_python_files_in_root():
     """
     for filename in MOVED_PYTHON_FILES:
         file_path = PROJECT_ROOT / filename
-        assert not file_path.exists(), \
+        assert not file_path.exists(), (
             f"Python module {filename} should not be in root - should be in src/"
+        )
 
 
 @given(st.sampled_from(MOVED_PYTHON_FILES))
@@ -65,8 +66,7 @@ def test_moved_files_not_in_root(filename: str):
     Property test verifying each moved file is no longer in root.
     """
     file_path = PROJECT_ROOT / filename
-    assert not file_path.exists(), \
-        f"File {filename} should have been moved from root"
+    assert not file_path.exists(), f"File {filename} should have been moved from root"
 
 
 def test_readme_is_markdown():

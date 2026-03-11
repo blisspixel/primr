@@ -192,7 +192,9 @@ def detect_soft_block(
         # Check for structural elements that indicate legitimate content
         has_title = bool(re.search(r"<title[^>]*>.+</title>", text, re.DOTALL | re.IGNORECASE))
         has_h1 = bool(re.search(r"<h1[^>]*>.+</h1>", text, re.DOTALL | re.IGNORECASE))
-        has_main = bool(re.search(r"<main[^>]*>", text_lower) or re.search(r"<article[^>]*>", text_lower))
+        has_main = bool(
+            re.search(r"<main[^>]*>", text_lower) or re.search(r"<article[^>]*>", text_lower)
+        )
         has_nav = bool(re.search(r"<nav[^>]*>", text_lower))
         has_header = bool(re.search(r"<header[^>]*>", text_lower))
 
@@ -201,7 +203,11 @@ def detect_soft_block(
             return False, None
 
         # Check if it's HTML (not JSON/API response)
-        if (content_type and "html" in content_type.lower()) or "<html" in text_lower or "<!doctype" in text_lower:
+        if (
+            (content_type and "html" in content_type.lower())
+            or "<html" in text_lower
+            or "<!doctype" in text_lower
+        ):
             return True, f"Content too short ({content_length} bytes)"
 
     return False, None
@@ -284,10 +290,14 @@ def detect_consent_wall(raw_content: bytes) -> bool:
 
     if has_consent:
         # Check if content is hidden (common pattern, handle minified CSS too)
-        if re.search(r"display\s*:\s*none", text_lower) or re.search(r"visibility\s*:\s*hidden", text_lower):
+        if re.search(r"display\s*:\s*none", text_lower) or re.search(
+            r"visibility\s*:\s*hidden", text_lower
+        ):
             return True
         # Check if modal/overlay is blocking
-        if re.search(r"position\s*:\s*fixed", text_lower) and re.search(r"z-index\s*:\s*9999", text_lower):
+        if re.search(r"position\s*:\s*fixed", text_lower) and re.search(
+            r"z-index\s*:\s*9999", text_lower
+        ):
             return True
 
     return False
@@ -330,7 +340,9 @@ def check_success_signal(
     # Check 2: Key selectors exist
     has_title = bool(re.search(r"<title[^>]*>.+</title>", text, re.DOTALL | re.IGNORECASE))
     has_h1 = bool(re.search(r"<h1[^>]*>.+</h1>", text, re.DOTALL | re.IGNORECASE))
-    has_main = bool(re.search(r"<main[^>]*>", text_lower) or re.search(r"<article[^>]*>", text_lower))
+    has_main = bool(
+        re.search(r"<main[^>]*>", text_lower) or re.search(r"<article[^>]*>", text_lower)
+    )
 
     if has_title and (has_h1 or has_main):
         return True

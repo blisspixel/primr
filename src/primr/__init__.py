@@ -28,6 +28,7 @@ def __getattr__(name: str):
         return importlib.import_module(f".{name}", __name__)
     if name == "perform_research":
         from .core.research_agent import perform_research
+
         return perform_research
     raise AttributeError(f"module 'primr' has no attribute {name!r}")
 

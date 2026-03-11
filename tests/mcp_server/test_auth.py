@@ -143,11 +143,13 @@ class TestPrimrTokenVerifier:
     @pytest.mark.asyncio
     async def test_verify_signed_jwt_token(self, verifier):
         """Valid signed JWT tokens are verified."""
-        token = create_signed_jwt({
-            "sub": "user-123",
-            "role": "user",
-            "exp": int(time.time()) + 3600,
-        })
+        token = create_signed_jwt(
+            {
+                "sub": "user-123",
+                "role": "user",
+                "exp": int(time.time()) + 3600,
+            }
+        )
 
         result = await verifier.verify_token(token)
 
@@ -158,11 +160,13 @@ class TestPrimrTokenVerifier:
     @pytest.mark.asyncio
     async def test_verify_jwt_admin_role(self, verifier):
         """JWT with admin role gets admin scope."""
-        token = create_signed_jwt({
-            "sub": "admin-user",
-            "role": "admin",
-            "exp": int(time.time()) + 3600,
-        })
+        token = create_signed_jwt(
+            {
+                "sub": "admin-user",
+                "role": "admin",
+                "exp": int(time.time()) + 3600,
+            }
+        )
 
         result = await verifier.verify_token(token)
 
@@ -173,10 +177,12 @@ class TestPrimrTokenVerifier:
     @pytest.mark.asyncio
     async def test_verify_expired_jwt(self, verifier):
         """Expired JWT tokens are rejected."""
-        token = create_signed_jwt({
-            "sub": "user-123",
-            "exp": int(time.time()) - 3600,  # 1 hour ago
-        })
+        token = create_signed_jwt(
+            {
+                "sub": "user-123",
+                "exp": int(time.time()) - 3600,  # 1 hour ago
+            }
+        )
 
         result = await verifier.verify_token(token)
 
@@ -185,11 +191,13 @@ class TestPrimrTokenVerifier:
     @pytest.mark.asyncio
     async def test_reject_unsigned_jwt(self, verifier):
         """Unsigned JWT tokens (alg: none) are rejected."""
-        token = create_unsigned_jwt({
-            "sub": "attacker",
-            "role": "admin",
-            "exp": int(time.time()) + 3600,
-        })
+        token = create_unsigned_jwt(
+            {
+                "sub": "attacker",
+                "role": "admin",
+                "exp": int(time.time()) + 3600,
+            }
+        )
 
         result = await verifier.verify_token(token)
 
@@ -201,7 +209,7 @@ class TestPrimrTokenVerifier:
         # Create JWT signed with wrong secret
         token = create_signed_jwt(
             {"sub": "user", "exp": int(time.time()) + 3600},
-            secret="wrong-secret-key-that-is-long-enough"
+            secret="wrong-secret-key-that-is-long-enough",
         )
 
         result = await verifier.verify_token(token)
@@ -211,10 +219,12 @@ class TestPrimrTokenVerifier:
     @pytest.mark.asyncio
     async def test_reject_jwt_without_secret_configured(self, verifier_no_jwt):
         """JWT tokens are rejected when no secret is configured."""
-        token = create_signed_jwt({
-            "sub": "user-123",
-            "exp": int(time.time()) + 3600,
-        })
+        token = create_signed_jwt(
+            {
+                "sub": "user-123",
+                "exp": int(time.time()) + 3600,
+            }
+        )
 
         result = await verifier_no_jwt.verify_token(token)
 
@@ -226,10 +236,18 @@ class TestPrimrTokenVerifier:
         # Create JWT with RS256 (not in allowed algorithms)
         header = {"alg": "RS256", "typ": "JWT"}
         header_b64 = base64.urlsafe_b64encode(json.dumps(header).encode()).decode().rstrip("=")
-        payload_b64 = base64.urlsafe_b64encode(json.dumps({
-            "sub": "user",
-            "exp": int(time.time()) + 3600,
-        }).encode()).decode().rstrip("=")
+        payload_b64 = (
+            base64.urlsafe_b64encode(
+                json.dumps(
+                    {
+                        "sub": "user",
+                        "exp": int(time.time()) + 3600,
+                    }
+                ).encode()
+            )
+            .decode()
+            .rstrip("=")
+        )
         token = f"{header_b64}.{payload_b64}.fake-signature"
 
         result = await verifier.verify_token(token)
@@ -246,20 +264,24 @@ class TestPrimrTokenVerifier:
         verifier = PrimrTokenVerifier(config)
 
         # Token with wrong issuer
-        wrong_issuer_token = create_signed_jwt({
-            "sub": "user",
-            "iss": "wrong-issuer",
-            "exp": int(time.time()) + 3600,
-        })
+        wrong_issuer_token = create_signed_jwt(
+            {
+                "sub": "user",
+                "iss": "wrong-issuer",
+                "exp": int(time.time()) + 3600,
+            }
+        )
         result = await verifier.verify_token(wrong_issuer_token)
         assert result is None
 
         # Token with correct issuer
-        correct_issuer_token = create_signed_jwt({
-            "sub": "user",
-            "iss": "expected-issuer",
-            "exp": int(time.time()) + 3600,
-        })
+        correct_issuer_token = create_signed_jwt(
+            {
+                "sub": "user",
+                "iss": "expected-issuer",
+                "exp": int(time.time()) + 3600,
+            }
+        )
         result = await verifier.verify_token(correct_issuer_token)
         assert result is not None
 
@@ -273,20 +295,24 @@ class TestPrimrTokenVerifier:
         verifier = PrimrTokenVerifier(config)
 
         # Token with wrong audience
-        wrong_aud_token = create_signed_jwt({
-            "sub": "user",
-            "aud": "wrong-audience",
-            "exp": int(time.time()) + 3600,
-        })
+        wrong_aud_token = create_signed_jwt(
+            {
+                "sub": "user",
+                "aud": "wrong-audience",
+                "exp": int(time.time()) + 3600,
+            }
+        )
         result = await verifier.verify_token(wrong_aud_token)
         assert result is None
 
         # Token with correct audience
-        correct_aud_token = create_signed_jwt({
-            "sub": "user",
-            "aud": "expected-audience",
-            "exp": int(time.time()) + 3600,
-        })
+        correct_aud_token = create_signed_jwt(
+            {
+                "sub": "user",
+                "aud": "expected-audience",
+                "exp": int(time.time()) + 3600,
+            }
+        )
         result = await verifier.verify_token(correct_aud_token)
         assert result is not None
 
@@ -294,20 +320,24 @@ class TestPrimrTokenVerifier:
     async def test_validate_jwt_nbf_claim(self, verifier):
         """JWT not-before claim is validated."""
         # Token not valid yet
-        future_token = create_signed_jwt({
-            "sub": "user",
-            "nbf": int(time.time()) + 3600,  # Valid 1 hour from now
-            "exp": int(time.time()) + 7200,
-        })
+        future_token = create_signed_jwt(
+            {
+                "sub": "user",
+                "nbf": int(time.time()) + 3600,  # Valid 1 hour from now
+                "exp": int(time.time()) + 7200,
+            }
+        )
         result = await verifier.verify_token(future_token)
         assert result is None
 
         # Token already valid
-        valid_token = create_signed_jwt({
-            "sub": "user",
-            "nbf": int(time.time()) - 60,  # Valid since 1 minute ago
-            "exp": int(time.time()) + 3600,
-        })
+        valid_token = create_signed_jwt(
+            {
+                "sub": "user",
+                "nbf": int(time.time()) - 60,  # Valid since 1 minute ago
+                "exp": int(time.time()) + 3600,
+            }
+        )
         result = await verifier.verify_token(valid_token)
         assert result is not None
 
@@ -500,10 +530,12 @@ class TestAuthenticationEnforcement:
     @pytest.mark.asyncio
     async def test_expired_token_rejected(self, verifier):
         """Expired tokens are rejected."""
-        token = create_signed_jwt({
-            "sub": "user",
-            "exp": int(time.time()) - 1,  # Expired
-        })
+        token = create_signed_jwt(
+            {
+                "sub": "user",
+                "exp": int(time.time()) - 1,  # Expired
+            }
+        )
 
         result = await verifier.verify_token(token)
         assert result is None
@@ -511,10 +543,12 @@ class TestAuthenticationEnforcement:
     @pytest.mark.asyncio
     async def test_client_id_extracted(self, verifier):
         """Client ID is extracted from token."""
-        token = create_signed_jwt({
-            "sub": "client-abc-123",
-            "exp": int(time.time()) + 3600,
-        })
+        token = create_signed_jwt(
+            {
+                "sub": "client-abc-123",
+                "exp": int(time.time()) + 3600,
+            }
+        )
 
         result = await verifier.verify_token(token)
 
@@ -524,11 +558,13 @@ class TestAuthenticationEnforcement:
     @pytest.mark.asyncio
     async def test_unsigned_token_rejected(self, verifier):
         """Unsigned tokens are rejected even with valid claims."""
-        token = create_unsigned_jwt({
-            "sub": "attacker",
-            "role": "admin",
-            "exp": int(time.time()) + 3600,
-        })
+        token = create_unsigned_jwt(
+            {
+                "sub": "attacker",
+                "role": "admin",
+                "exp": int(time.time()) + 3600,
+            }
+        )
 
         result = await verifier.verify_token(token)
         assert result is None
@@ -539,7 +575,7 @@ class TestAuthenticationEnforcement:
         # Create a token signed with wrong key
         token = create_signed_jwt(
             {"sub": "attacker", "role": "admin", "exp": int(time.time()) + 3600},
-            secret="attacker-controlled-secret-key-long"
+            secret="attacker-controlled-secret-key-long",
         )
 
         result = await verifier.verify_token(token)

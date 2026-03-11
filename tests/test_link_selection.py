@@ -10,11 +10,13 @@ def test_select_links_with_llm_drops_invented_urls():
         DiscoveredLink(url="https://example.com/news", source="homepage", anchor_text="News"),
     ]
 
-    response = "\n".join([
-        "https://example.com/about",
-        "https://example.com/pricing",
-        "https://example.com/news",
-    ])
+    response = "\n".join(
+        [
+            "https://example.com/about",
+            "https://example.com/pricing",
+            "https://example.com/news",
+        ]
+    )
 
     with patch("primr.core.research_agent.llm", return_value=response):
         selected = select_links_with_llm(

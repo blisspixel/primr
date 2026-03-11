@@ -220,7 +220,7 @@ class TestRateLimiter:
         """Requests under limit are allowed."""
         for i in range(5):
             result = limiter.check_and_record("client-1", "doctor")
-            assert result.allowed, f"Request {i+1} should be allowed"
+            assert result.allowed, f"Request {i + 1} should be allowed"
 
     def test_blocks_requests_over_limit(self, limiter):
         """Requests over limit are blocked."""
@@ -270,7 +270,7 @@ class TestRateLimiter:
         """estimate_run has high limit (30/min)."""
         for i in range(25):
             result = limiter.check_and_record("client-1", "estimate_run")
-            assert result.allowed, f"Request {i+1} should be allowed"
+            assert result.allowed, f"Request {i + 1} should be allowed"
 
     def test_env_var_override(self):
         """Rate limits can be overridden via environment."""

@@ -18,6 +18,7 @@ from primr.api.service import (
 # FIXTURES
 # =============================================================================
 
+
 @pytest.fixture(autouse=True)
 def reset_singletons():
     """Reset singletons before each test."""
@@ -56,6 +57,7 @@ def client(app):
 # RESEARCH REQUEST TESTS
 # =============================================================================
 
+
 class TestResearchRequest:
     """Tests for ResearchRequest model."""
 
@@ -82,6 +84,7 @@ class TestResearchRequest:
 # =============================================================================
 # JOB MANAGER TESTS
 # =============================================================================
+
 
 class TestJobManager:
     """Tests for JobManager class."""
@@ -197,6 +200,7 @@ class TestJobManager:
 # =============================================================================
 # API ENDPOINT TESTS
 # =============================================================================
+
 
 class TestHealthEndpoint:
     """Tests for health endpoint."""
@@ -340,6 +344,7 @@ class TestAccessControl:
 # =============================================================================
 # SECURITY MIDDLEWARE TESTS
 # =============================================================================
+
 
 class TestSecurityHeaders:
     """Tests for security headers middleware."""

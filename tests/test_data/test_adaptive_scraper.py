@@ -25,6 +25,7 @@ from primr.data.adaptive_scraper import (
 # FIXTURES
 # =============================================================================
 
+
 @pytest.fixture
 def temp_learner():
     """Create a learner with temporary storage."""
@@ -37,11 +38,13 @@ def temp_learner():
 @pytest.fixture
 def mock_scrape_functions():
     """Create mock scrape functions."""
+
     def make_scraper(tier: str, success: bool = True):
         def scrape(url: str, timeout: float = 30) -> tuple[str | None, str | None]:
             if success:
                 return f"Content from {tier}", None
             return None, f"{tier} failed"
+
         return scrape
 
     return {
@@ -56,6 +59,7 @@ def mock_scrape_functions():
 # =============================================================================
 # DOMAIN PROFILE TESTS
 # =============================================================================
+
 
 class TestDomainProfile:
     """Tests for DomainProfile dataclass."""
@@ -145,6 +149,7 @@ class TestDomainProfile:
 # =============================================================================
 # DOMAIN LEARNER TESTS
 # =============================================================================
+
 
 class TestDomainLearner:
     """Tests for DomainLearner class."""
@@ -236,23 +241,18 @@ class TestDomainLearner:
 # ADAPTIVE SCRAPER TESTS
 # =============================================================================
 
+
 class TestAdaptiveScraper:
     """Tests for AdaptiveScraper class."""
 
     def test_initialization(self, temp_learner, mock_scrape_functions):
         """Test scraper initialization."""
-        scraper = AdaptiveScraper(
-            learner=temp_learner,
-            scrape_functions=mock_scrape_functions
-        )
+        scraper = AdaptiveScraper(learner=temp_learner, scrape_functions=mock_scrape_functions)
         assert scraper is not None
 
     def test_scrape_success(self, temp_learner, mock_scrape_functions):
         """Test successful scrape."""
-        scraper = AdaptiveScraper(
-            learner=temp_learner,
-            scrape_functions=mock_scrape_functions
-        )
+        scraper = AdaptiveScraper(learner=temp_learner, scrape_functions=mock_scrape_functions)
 
         content, tier = scraper.scrape("https://example.com")
 
@@ -267,10 +267,7 @@ class TestAdaptiveScraper:
         temp_learner.record_attempt("https://example.com", "httpx", True, 1.0)
         temp_learner.record_attempt("https://example.com", "httpx", True, 1.0)
 
-        scraper = AdaptiveScraper(
-            learner=temp_learner,
-            scrape_functions=mock_scrape_functions
-        )
+        scraper = AdaptiveScraper(learner=temp_learner, scrape_functions=mock_scrape_functions)
 
         content, tier = scraper.scrape("https://example.com")
 
@@ -278,10 +275,7 @@ class TestAdaptiveScraper:
 
     def test_scrape_force_tier(self, temp_learner, mock_scrape_functions):
         """Test forcing a specific tier."""
-        scraper = AdaptiveScraper(
-            learner=temp_learner,
-            scrape_functions=mock_scrape_functions
-        )
+        scraper = AdaptiveScraper(learner=temp_learner, scrape_functions=mock_scrape_functions)
 
         content, tier = scraper.scrape("https://example.com", force_tier="playwright")
 
@@ -305,10 +299,7 @@ class TestAdaptiveScraper:
             "playwright": lambda u, timeout=30: ("Content", None),
         }
 
-        scraper = AdaptiveScraper(
-            learner=temp_learner,
-            scrape_functions=scrape_functions
-        )
+        scraper = AdaptiveScraper(learner=temp_learner, scrape_functions=scrape_functions)
 
         content, tier = scraper.scrape("https://example.com")
 
@@ -333,10 +324,7 @@ class TestAdaptiveScraper:
             "vision": failing_scrape,
         }
 
-        scraper = AdaptiveScraper(
-            learner=temp_learner,
-            scrape_functions=scrape_functions
-        )
+        scraper = AdaptiveScraper(learner=temp_learner, scrape_functions=scrape_functions)
 
         content, error = scraper.scrape("https://example.com", max_tiers=2)
 
@@ -345,10 +333,7 @@ class TestAdaptiveScraper:
 
     def test_scrape_records_attempts(self, temp_learner, mock_scrape_functions):
         """Test that scrape records attempts to learner."""
-        scraper = AdaptiveScraper(
-            learner=temp_learner,
-            scrape_functions=mock_scrape_functions
-        )
+        scraper = AdaptiveScraper(learner=temp_learner, scrape_functions=mock_scrape_functions)
 
         scraper.scrape("https://example.com")
 
@@ -357,10 +342,7 @@ class TestAdaptiveScraper:
 
     def test_get_domain_profile(self, temp_learner, mock_scrape_functions):
         """Test getting domain profile through scraper."""
-        scraper = AdaptiveScraper(
-            learner=temp_learner,
-            scrape_functions=mock_scrape_functions
-        )
+        scraper = AdaptiveScraper(learner=temp_learner, scrape_functions=mock_scrape_functions)
 
         scraper.scrape("https://example.com")
         profile = scraper.get_domain_profile("https://example.com")
@@ -369,10 +351,7 @@ class TestAdaptiveScraper:
 
     def test_get_stats(self, temp_learner, mock_scrape_functions):
         """Test getting scraper statistics."""
-        scraper = AdaptiveScraper(
-            learner=temp_learner,
-            scrape_functions=mock_scrape_functions
-        )
+        scraper = AdaptiveScraper(learner=temp_learner, scrape_functions=mock_scrape_functions)
 
         scraper.scrape("https://example1.com")
         scraper.scrape("https://example2.com")
@@ -385,6 +364,7 @@ class TestAdaptiveScraper:
 # =============================================================================
 # SINGLETON TESTS
 # =============================================================================
+
 
 class TestSingleton:
     """Tests for singleton access."""
@@ -424,6 +404,7 @@ class TestSingleton:
 # THREAD SAFETY TESTS
 # =============================================================================
 
+
 class TestThreadSafety:
     """Tests for thread safety."""
 
@@ -435,17 +416,13 @@ class TestThreadSafety:
             try:
                 for i in range(count):
                     temp_learner.record_attempt(
-                        f"https://{domain}/page{i}",
-                        "requests",
-                        i % 2 == 0,
-                        1.0
+                        f"https://{domain}/page{i}", "requests", i % 2 == 0, 1.0
                     )
             except Exception as e:
                 errors.append(e)
 
         threads = [
-            threading.Thread(target=record_attempts, args=(f"domain{i}.com", 50))
-            for i in range(5)
+            threading.Thread(target=record_attempts, args=(f"domain{i}.com", 50)) for i in range(5)
         ]
 
         for t in threads:
@@ -457,10 +434,7 @@ class TestThreadSafety:
 
     def test_concurrent_scraping(self, temp_learner, mock_scrape_functions):
         """Test concurrent scraping."""
-        scraper = AdaptiveScraper(
-            learner=temp_learner,
-            scrape_functions=mock_scrape_functions
-        )
+        scraper = AdaptiveScraper(learner=temp_learner, scrape_functions=mock_scrape_functions)
 
         errors = []
         results = []
@@ -473,8 +447,7 @@ class TestThreadSafety:
                 errors.append(e)
 
         threads = [
-            threading.Thread(target=scrape_url, args=(f"https://domain{i}.com",))
-            for i in range(10)
+            threading.Thread(target=scrape_url, args=(f"https://domain{i}.com",)) for i in range(10)
         ]
 
         for t in threads:
@@ -490,6 +463,7 @@ class TestThreadSafety:
 # CONVENIENCE FUNCTION TESTS
 # =============================================================================
 
+
 class TestConvenienceFunctions:
     """Tests for convenience functions."""
 
@@ -501,7 +475,7 @@ class TestConvenienceFunctions:
         """Clean up after each test."""
         reset_adaptive_scraper()
 
-    @patch('primr.data.adaptive_scraper.AdaptiveScraper.scrape')
+    @patch("primr.data.adaptive_scraper.AdaptiveScraper.scrape")
     def test_adaptive_scrape(self, mock_scrape):
         """Test adaptive_scrape convenience function."""
         mock_scrape.return_value = ("Content", "requests")

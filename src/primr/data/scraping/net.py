@@ -103,6 +103,7 @@ def make_request(
     # SSRF protection: validate final URL after redirects
     if allow_redirects:
         from primr.utils.security import validate_final_url_after_redirect
+
         final_url = str(response.url)
         is_safe, redirect_error = validate_final_url_after_redirect(final_url)
         if not is_safe:

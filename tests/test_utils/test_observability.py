@@ -25,6 +25,7 @@ from primr.utils.observability import (
 # UNIT TESTS - Correlation ID
 # =============================================================================
 
+
 class TestCorrelationId:
     """Tests for correlation ID management."""
 
@@ -45,6 +46,7 @@ class TestCorrelationId:
 # UNIT TESTS - OperationContext
 # =============================================================================
 
+
 class TestOperationContext:
     """Tests for OperationContext dataclass."""
 
@@ -59,9 +61,7 @@ class TestOperationContext:
     def test_custom_values(self):
         """Should accept custom values."""
         ctx = OperationContext(
-            correlation_id="abc12345",
-            operation_name="test_op",
-            metadata={"key": "value"}
+            correlation_id="abc12345", operation_name="test_op", metadata={"key": "value"}
         )
         assert ctx.correlation_id == "abc12345"
         assert ctx.operation == "test_op"  # Uses property alias
@@ -78,6 +78,7 @@ class TestOperationContext:
 # =============================================================================
 # UNIT TESTS - operation_context
 # =============================================================================
+
 
 class TestOperationContextManager:
     """Tests for operation_context context manager."""
@@ -124,11 +125,13 @@ class TestOperationContextManager:
 # UNIT TESTS - timed decorator
 # =============================================================================
 
+
 class TestTimedDecorator:
     """Tests for timed decorator."""
 
     def test_returns_result(self):
         """Should return function result."""
+
         @timed
         def add(a, b):
             return a + b
@@ -137,6 +140,7 @@ class TestTimedDecorator:
 
     def test_logs_timing(self):
         """Should log entry and exit with timing."""
+
         @timed
         def slow_func():
             time.sleep(0.05)
@@ -149,6 +153,7 @@ class TestTimedDecorator:
 
     def test_propagates_exception(self):
         """Should propagate exceptions."""
+
         @timed
         def failing_func():
             raise ValueError("error")
@@ -158,6 +163,7 @@ class TestTimedDecorator:
 
     def test_preserves_function_metadata(self):
         """Should preserve function name and docstring."""
+
         @timed
         def documented_func():
             """This is a docstring."""
@@ -170,16 +176,13 @@ class TestTimedDecorator:
 # UNIT TESTS - Metrics
 # =============================================================================
 
+
 class TestMetrics:
     """Tests for Metrics dataclass."""
 
     def test_default_values(self):
         """Should have sensible defaults."""
-        metrics = Metrics(
-            operation="test",
-            duration_seconds=1.5,
-            success=True
-        )
+        metrics = Metrics(operation="test", duration_seconds=1.5, success=True)
         assert metrics.input_tokens == 0
         assert metrics.output_tokens == 0
         assert metrics.cost_usd == 0.0
@@ -193,7 +196,7 @@ class TestMetrics:
             success=True,
             input_tokens=100,
             output_tokens=50,
-            cost_usd=0.01
+            cost_usd=0.01,
         )
         d = metrics.to_dict()
         assert d["operation"] == "test"
@@ -210,11 +213,7 @@ class TestEmitMetrics:
 
     def test_logs_metrics(self):
         """Should log metrics as JSON."""
-        metrics = Metrics(
-            operation="test",
-            duration_seconds=1.0,
-            success=True
-        )
+        metrics = Metrics(operation="test", duration_seconds=1.0, success=True)
 
         with patch("primr.utils.observability.logger") as mock_logger:
             emit_metrics(metrics)
@@ -270,6 +269,7 @@ class TestTrackedOperation:
 # PROPERTY-BASED TESTS
 # =============================================================================
 
+
 class TestOperationLoggingCompletenessProperty:
     """
     Property-based tests for operation logging completeness.
@@ -303,8 +303,8 @@ class TestOperationLoggingCompletenessProperty:
             st.text(alphabet="abcde", min_size=1, max_size=5),
             st.text(alphabet="xyz", min_size=1, max_size=5),
             min_size=0,
-            max_size=3
-        )
+            max_size=3,
+        ),
     )
     @settings(max_examples=100)
     def test_context_preserves_metadata(self, operation_name: str, metadata: dict):
@@ -330,7 +330,7 @@ class TestMetricsEmissionCompletenessProperty:
         st.booleans(),
         st.integers(min_value=0, max_value=10000),
         st.integers(min_value=0, max_value=10000),
-        st.floats(min_value=0.0, max_value=10.0, allow_nan=False, allow_infinity=False)
+        st.floats(min_value=0.0, max_value=10.0, allow_nan=False, allow_infinity=False),
     )
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_metrics_contains_all_required_fields(
@@ -340,7 +340,7 @@ class TestMetricsEmissionCompletenessProperty:
         success: bool,
         input_tokens: int,
         output_tokens: int,
-        cost: float
+        cost: float,
     ):
         """Metrics should contain all required fields."""
         metrics = Metrics(
@@ -349,7 +349,7 @@ class TestMetricsEmissionCompletenessProperty:
             success=success,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
-            cost_usd=cost
+            cost_usd=cost,
         )
 
         d = metrics.to_dict()
@@ -427,6 +427,7 @@ class TestCorrelationContext:
         ctx = CorrelationContext.create("test")
         assert ctx.start_datetime is not None
         from datetime import datetime
+
         assert isinstance(ctx.start_datetime, datetime)
 
 
@@ -768,9 +769,7 @@ class TestJobSummaryProperty:
         st.lists(st.text(min_size=1, max_size=50), min_size=0, max_size=5),
     )
     @settings(max_examples=100)
-    def test_job_summary_success_based_on_errors(
-        self, errors: list[str], warnings: list[str]
-    ):
+    def test_job_summary_success_based_on_errors(self, errors: list[str], warnings: list[str]):
         """Job summary success should be based on error count."""
         summary = JobSummary.create(
             company="Test",

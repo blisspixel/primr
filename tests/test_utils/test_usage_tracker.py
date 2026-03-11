@@ -37,6 +37,7 @@ class TestUsageRecord:
 
         # Verify cost calculation uses active Pro model pricing (conservative for tiered)
         from primr.config.models import PrimrModels
+
         active_pro = PrimrModels.get_active_pro_model()
         if active_pro.has_tiered_pricing:
             inp_price = active_pro.cost_per_1m_input_tokens_high

@@ -36,15 +36,15 @@ def parse_markdown_line(line):
     stripped = line.rstrip()
 
     if not stripped:
-        return ('empty', '', 0)
+        return ("empty", "", 0)
 
     # Section heading (## )
-    if stripped.startswith('## '):
-        return ('heading', stripped[3:], 0)
+    if stripped.startswith("## "):
+        return ("heading", stripped[3:], 0)
 
     # Sub-heading (### )
-    if stripped.startswith('### '):
-        return ('subheading', stripped[4:], 0)
+    if stripped.startswith("### "):
+        return ("subheading", stripped[4:], 0)
 
     # Calculate indent level (4 spaces = 1 level)
     indent = len(line) - len(line.lstrip())
@@ -53,20 +53,20 @@ def parse_markdown_line(line):
     content = stripped.lstrip()
 
     # Bullet point (* or - at start)
-    if content.startswith(('*   ', '* ')):
-        bullet_content = content[4:] if content.startswith('*   ') else content[2:]
-        return ('bullet', bullet_content, indent_level)
+    if content.startswith(("*   ", "* ")):
+        bullet_content = content[4:] if content.startswith("*   ") else content[2:]
+        return ("bullet", bullet_content, indent_level)
 
-    if content.startswith(('-   ', '- ')):
-        bullet_content = content[4:] if content.startswith('-   ') else content[2:]
-        return ('bullet', bullet_content, indent_level)
+    if content.startswith(("-   ", "- ")):
+        bullet_content = content[4:] if content.startswith("-   ") else content[2:]
+        return ("bullet", bullet_content, indent_level)
 
     # Numbered list
-    num_match = re.match(r'^(\d+)\.\s+(.+)$', content)
+    num_match = re.match(r"^(\d+)\.\s+(.+)$", content)
     if num_match:
-        return ('numbered', num_match.group(2), indent_level)
+        return ("numbered", num_match.group(2), indent_level)
 
-    return ('text', content, indent_level)
+    return ("text", content, indent_level)
 
 
 def apply_inline_formatting(paragraph, text):
@@ -74,13 +74,13 @@ def apply_inline_formatting(paragraph, text):
     Apply inline markdown formatting (bold, italic) to a paragraph.
     """
     # Pattern for bold (**text** or __text__)
-    pattern = r'\*\*(.+?)\*\*|__(.+?)__'
+    pattern = r"\*\*(.+?)\*\*|__(.+?)__"
 
     last_end = 0
     for match in re.finditer(pattern, text):
         # Add text before the match
         if match.start() > last_end:
-            paragraph.add_run(text[last_end:match.start()])
+            paragraph.add_run(text[last_end : match.start()])
 
         # Add bold text
         bold_text = match.group(1) or match.group(2)
@@ -108,8 +108,7 @@ def load_section_results(company_name: str) -> dict[str, str]:
     search_dir = working_dir
     try:
         subdirs = sorted(
-            [d for d in os.listdir(working_dir)
-             if os.path.isdir(os.path.join(working_dir, d))],
+            [d for d in os.listdir(working_dir) if os.path.isdir(os.path.join(working_dir, d))],
             reverse=True,
         )
         if subdirs:
@@ -147,14 +146,14 @@ def strip_markdown_artifacts(text: str) -> str:
         Clean plain text
     """
     # Remove bold markers (double asterisks)
-    text = re.sub(r'\*\*(.+?)\*\*', r'\1', text)
+    text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)
 
     # Remove bold markers (double underscores) - must have content between them
     # Use word boundaries to avoid matching things like __init__ or file__name
-    text = re.sub(r'(?<!\w)__([^_]+)__(?!\w)', r'\1', text)
+    text = re.sub(r"(?<!\w)__([^_]+)__(?!\w)", r"\1", text)
 
     # Remove heading markers but keep the text
-    text = re.sub(r'^#{1,6}\s+', '', text, flags=re.MULTILINE)
+    text = re.sub(r"^#{1,6}\s+", "", text, flags=re.MULTILINE)
 
     return text
 
@@ -193,15 +192,15 @@ def save_report_as_txt(section_results, company_name):
                     clean_content = strip_markdown_artifacts(content)
 
                     # Normalize bullet formatting for plain text
-                    lines = clean_content.split('\n')
+                    lines = clean_content.split("\n")
                     for line in lines:
                         stripped = line.strip()
                         if stripped:
                             # Convert various bullet styles to consistent format
-                            if stripped.startswith(('* ', '- ', '• ')):
+                            if stripped.startswith(("* ", "- ", "• ")):
                                 # Preserve indentation for nested bullets
                                 indent = len(line) - len(line.lstrip())
-                                indent_str = '  ' * (indent // 4)
+                                indent_str = "  " * (indent // 4)
                                 bullet_content = stripped[2:].strip()
                                 f.write(f"{indent_str}* {bullet_content}\n")
                             else:
@@ -271,16 +270,13 @@ def save_report_as_docx_premium(section_results, company_name, citation_style="n
             for key, content in section_results.items():
                 result = processor.process_content(content)
                 processed_sections[key] = result.transformed_content
-            citations = [
-                {"title": c.title, "url": c.url}
-                for c in processor.citations
-            ]
+            citations = [{"title": c.title, "url": c.url} for c in processor.citations]
 
             # Generate sidecar file if requested
             if style == CitationStyle.SIDECAR:
                 sidecar_filename, sidecar_content = processor.generate_sidecar_file(company_name)
                 sidecar_path = os.path.join(OUTPUT_DIR, sidecar_filename)
-                with open(sidecar_path, 'w', encoding='utf-8') as f:
+                with open(sidecar_path, "w", encoding="utf-8") as f:
                     f.write(sidecar_content)
                 console.ok(f"Sources file: {sidecar_filename}")
 
@@ -310,8 +306,8 @@ def save_report_as_docx(txt_path, company_name):
         document = Document()
 
         # Set up document styles
-        style = document.styles['Normal']
-        style.font.name = 'Calibri'
+        style = document.styles["Normal"]
+        style.font.name = "Calibri"
         style.font.size = Pt(11)
 
         with open(txt_path, encoding="utf-8") as f:
@@ -332,43 +328,43 @@ def save_report_as_docx(txt_path, company_name):
             line_type, content, indent = parse_markdown_line(line)
 
             # Flush text buffer before structural elements
-            if line_type in ('heading', 'subheading', 'bullet', 'numbered') and current_text_buffer:
+            if line_type in ("heading", "subheading", "bullet", "numbered") and current_text_buffer:
                 para = document.add_paragraph()
-                apply_inline_formatting(para, ' '.join(current_text_buffer))
+                apply_inline_formatting(para, " ".join(current_text_buffer))
                 current_text_buffer = []
 
-            if line_type == 'empty':
+            if line_type == "empty":
                 if current_text_buffer:
                     para = document.add_paragraph()
-                    apply_inline_formatting(para, ' '.join(current_text_buffer))
+                    apply_inline_formatting(para, " ".join(current_text_buffer))
                     current_text_buffer = []
 
-            elif line_type == 'heading':
+            elif line_type == "heading":
                 document.add_heading(content, level=1)
 
-            elif line_type == 'subheading':
+            elif line_type == "subheading":
                 document.add_heading(content, level=2)
 
-            elif line_type == 'bullet':
-                para = document.add_paragraph(style='List Bullet')
+            elif line_type == "bullet":
+                para = document.add_paragraph(style="List Bullet")
                 if indent > 0:
                     para.paragraph_format.left_indent = Inches(0.25 * indent)
                 apply_inline_formatting(para, content)
 
-            elif line_type == 'numbered':
-                para = document.add_paragraph(style='List Number')
+            elif line_type == "numbered":
+                para = document.add_paragraph(style="List Number")
                 if indent > 0:
                     para.paragraph_format.left_indent = Inches(0.25 * indent)
                 apply_inline_formatting(para, content)
 
-            elif line_type == 'text':
+            elif line_type == "text":
                 # Accumulate text for paragraph wrapping
                 current_text_buffer.append(content)
 
         # Flush remaining buffer
         if current_text_buffer:
             para = document.add_paragraph()
-            apply_inline_formatting(para, ' '.join(current_text_buffer))
+            apply_inline_formatting(para, " ".join(current_text_buffer))
 
         document.save(docx_path)
         console.ok("DOCX saved")
@@ -455,7 +451,7 @@ def zip_research_files(company_name):
 
         company_folder = os.path.join(WORKING_DIR, company_name.replace(" ", "_"))
         if os.path.exists(company_folder):
-            with zipfile.ZipFile(zip_filepath, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            with zipfile.ZipFile(zip_filepath, "w", zipfile.ZIP_DEFLATED) as zipf:
                 for root, _, files in os.walk(company_folder):
                     for file in files:
                         file_path = os.path.join(root, file)
@@ -480,7 +476,9 @@ def cleanup(company_name):
         console.warn(f"Cleanup incomplete: {e}")
 
 
-def generate_final_report(company_name: str, premium: bool = True, citation_style: str = "numbered") -> str | None:
+def generate_final_report(
+    company_name: str, premium: bool = True, citation_style: str = "numbered"
+) -> str | None:
     """
     Generates the final structured report in TXT, DOCX, and ZIP archive formats.
 

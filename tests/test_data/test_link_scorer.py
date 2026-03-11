@@ -20,6 +20,7 @@ from primr.data.link_scorer import (
 # SCORED LINK TESTS
 # =============================================================================
 
+
 class TestScoredLink:
     """Tests for ScoredLink dataclass."""
 
@@ -29,7 +30,7 @@ class TestScoredLink:
             url="https://example.com/about",
             text="About Us",
             score=0.9,
-            reasons=["High-value pattern"]
+            reasons=["High-value pattern"],
         )
 
         assert link.url == "https://example.com/about"
@@ -53,6 +54,7 @@ class TestScoredLink:
 # =============================================================================
 # LINK SCORER TESTS
 # =============================================================================
+
 
 class TestLinkScorer:
     """Tests for LinkScorer class."""
@@ -159,10 +161,7 @@ class TestLinkScorer:
     def test_deep_path_penalty(self):
         """Test penalty for deep paths."""
         scorer = LinkScorer()
-        link = LinkInfo(
-            url="https://example.com/a/b/c/d/e/f/page",
-            text="Deep Page"
-        )
+        link = LinkInfo(url="https://example.com/a/b/c/d/e/f/page", text="Deep Page")
 
         scored = scorer.score_link(link)
 
@@ -218,6 +217,7 @@ class TestLinkScorer:
 # DEDUPLICATION TESTS
 # =============================================================================
 
+
 class TestDeduplication:
     """Tests for link deduplication."""
 
@@ -263,6 +263,7 @@ class TestDeduplication:
 # DOMAIN FILTERING TESTS
 # =============================================================================
 
+
 class TestDomainFiltering:
     """Tests for domain filtering."""
 
@@ -284,6 +285,7 @@ class TestDomainFiltering:
 # =============================================================================
 # CATEGORIZATION TESTS
 # =============================================================================
+
 
 class TestCategorization:
     """Tests for link categorization."""
@@ -332,6 +334,7 @@ class TestCategorization:
 # SINGLETON TESTS
 # =============================================================================
 
+
 class TestSingleton:
     """Tests for singleton access."""
 
@@ -362,6 +365,7 @@ class TestSingleton:
 # =============================================================================
 # CONVENIENCE FUNCTION TESTS
 # =============================================================================
+
 
 class TestConvenienceFunctions:
     """Tests for convenience functions."""
@@ -400,30 +404,28 @@ class TestConvenienceFunctions:
 # PATTERN TESTS
 # =============================================================================
 
+
 class TestPatterns:
     """Tests for URL patterns."""
 
     def test_high_value_patterns_exist(self):
         """Test that high-value patterns are defined."""
         assert len(HIGH_VALUE_PATTERNS) > 0
-        assert '/about' in HIGH_VALUE_PATTERNS
-        assert '/leadership' in HIGH_VALUE_PATTERNS
+        assert "/about" in HIGH_VALUE_PATTERNS
+        assert "/leadership" in HIGH_VALUE_PATTERNS
 
     def test_low_value_patterns_exist(self):
         """Test that low-value patterns are defined."""
         assert len(LOW_VALUE_PATTERNS) > 0
-        assert '/login' in LOW_VALUE_PATTERNS
-        assert '/cart' in LOW_VALUE_PATTERNS
+        assert "/login" in LOW_VALUE_PATTERNS
+        assert "/cart" in LOW_VALUE_PATTERNS
 
     def test_custom_patterns(self):
         """Test using custom patterns."""
-        custom_high = {'/custom-page': 0.95}
-        custom_low = {'/bad-page': -0.8}
+        custom_high = {"/custom-page": 0.95}
+        custom_low = {"/bad-page": -0.8}
 
-        scorer = LinkScorer(
-            high_value_patterns=custom_high,
-            low_value_patterns=custom_low
-        )
+        scorer = LinkScorer(high_value_patterns=custom_high, low_value_patterns=custom_low)
 
         high_link = LinkInfo(url="https://example.com/custom-page", text="Custom")
         low_link = LinkInfo(url="https://example.com/bad-page", text="Bad")

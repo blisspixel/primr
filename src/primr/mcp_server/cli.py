@@ -127,6 +127,7 @@ Authentication (HTTP mode):
     if args.a2a:
         try:
             import a2a  # noqa: F401
+
             server._a2a_enabled = True
             server._a2a_port = args.a2a_port
         except ImportError:

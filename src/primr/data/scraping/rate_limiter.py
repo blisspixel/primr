@@ -92,8 +92,8 @@ class RateLimiter:
 
             # Exponential backoff with jitter
             delay = min(
-                self.config.base_delay_seconds * (self.config.backoff_multiplier ** count),
-                60.0  # Cap at 60 seconds
+                self.config.base_delay_seconds * (self.config.backoff_multiplier**count),
+                60.0,  # Cap at 60 seconds
             )
             delay += random.uniform(0, delay * 0.5)  # Add jitter
 
@@ -114,9 +114,7 @@ class RateLimiter:
         """Get or create semaphore for host."""
         with self._lock:
             if host not in self._semaphores:
-                self._semaphores[host] = threading.Semaphore(
-                    self.config.per_host_concurrency
-                )
+                self._semaphores[host] = threading.Semaphore(self.config.per_host_concurrency)
             return self._semaphores[host]
 
     def _wait_for_backoff(self, host: str) -> None:
@@ -139,8 +137,7 @@ class RateLimiter:
                 refill = elapsed * (self.config.per_host_requests_per_minute / 60.0)
 
                 self._tokens[host] = min(
-                    self._tokens[host] + refill,
-                    float(self.config.per_host_requests_per_minute)
+                    self._tokens[host] + refill, float(self.config.per_host_requests_per_minute)
                 )
                 self._last_refill[host] = now
 

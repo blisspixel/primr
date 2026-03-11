@@ -226,6 +226,7 @@ class TestScrapeTier:
 
     def test_tier_without_requires(self):
         """ScrapeTier can be created without requires."""
+
         def dummy_fn(url: str, timeout: int) -> ScrapeResult:
             return ScrapeResult(url=url, success=True)
 
@@ -236,6 +237,7 @@ class TestScrapeTier:
 
     def test_tier_with_requires(self):
         """ScrapeTier can specify a dependency."""
+
         def dummy_fn(url: str, timeout: int) -> ScrapeResult:
             return ScrapeResult(url=url, success=True)
 

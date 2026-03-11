@@ -17,6 +17,7 @@ from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 # URL Normalization
 # =============================================================================
 
+
 def normalize_url(url: str, ignore_utm: bool = True) -> str:
     """
     Normalize URL for cache key.
@@ -56,15 +57,9 @@ def normalize_url(url: str, ignore_utm: bool = True) -> str:
     # Sort query params and optionally remove utm_*
     query_params = parse_qs(parsed.query, keep_blank_values=True)
     if ignore_utm:
-        query_params = {
-            k: v for k, v in query_params.items()
-            if not k.lower().startswith("utm_")
-        }
+        query_params = {k: v for k, v in query_params.items() if not k.lower().startswith("utm_")}
     # Sort params and flatten single-value lists
-    sorted_params = sorted(
-        (k, v[0] if len(v) == 1 else v)
-        for k, v in query_params.items()
-    )
+    sorted_params = sorted((k, v[0] if len(v) == 1 else v) for k, v in query_params.items())
     query = urlencode(sorted_params, doseq=True) if sorted_params else ""
 
     # Remove fragment
@@ -84,6 +79,7 @@ def url_to_cache_key(url: str) -> str:
 # =============================================================================
 # LRU Cache (Memory)
 # =============================================================================
+
 
 class LRUCache:
     """
@@ -147,6 +143,7 @@ class LRUCache:
 # =============================================================================
 # Scrape Cache (Memory + Disk)
 # =============================================================================
+
 
 class ScrapeCache:
     """
@@ -235,12 +232,15 @@ class ScrapeCache:
                 f.write(content)
 
             with open(meta_file, "w") as f:
-                json.dump({
-                    "url": url,
-                    "timestamp": datetime.now().isoformat(),
-                    "size": len(content),
-                    "type": "raw",
-                }, f)
+                json.dump(
+                    {
+                        "url": url,
+                        "timestamp": datetime.now().isoformat(),
+                        "size": len(content),
+                        "type": "raw",
+                    },
+                    f,
+                )
         except OSError:
             pass  # Disk write failed, but memory cache is still valid
 
@@ -297,12 +297,15 @@ class ScrapeCache:
                 f.write(text)
 
             with open(meta_file, "w") as f:
-                json.dump({
-                    "url": url,
-                    "timestamp": datetime.now().isoformat(),
-                    "size": len(text),
-                    "type": "extracted",
-                }, f)
+                json.dump(
+                    {
+                        "url": url,
+                        "timestamp": datetime.now().isoformat(),
+                        "size": len(text),
+                        "type": "extracted",
+                    },
+                    f,
+                )
         except OSError:
             pass  # Disk write failed, but memory cache is still valid
 
