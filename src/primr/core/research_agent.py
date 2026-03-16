@@ -134,6 +134,7 @@ from primr.utils.observability import (
     log_job_summary,
     log_structured,
 )
+from primr.utils.validators import validate_url_for_request
 
 load_dotenv()
 
@@ -1100,7 +1101,6 @@ def _build_fast_batch_prompt(
         if feedback_guidance
         else ""
     )
-
     return f"""**Company:** {company_name}
 **Website:** {website or "N/A"}
 **Date:** {current_date}
@@ -1133,18 +1133,20 @@ Write the following sections. Each section MUST start with a ## heading matching
 
 REQUIREMENTS:
 - Write at least {word_target:,} words total across all sections in this batch
-- Use specific facts, numbers, and examples — cite sources with [cite: N]
+- Use specific facts, numbers, examples, and strategic comparisons — cite sources with [cite: N]
 - Be analytical and hypothesis-driven, not just descriptive
 - Label claims with confidence levels (Confirmed/Reported/Estimated/Hypothesis)
+- If direct evidence is limited, still write a deep section by anchoring on observed facts,
+  extending with defensible inference, and making the strategic implication explicit
 - Build on the previous sections' narrative (see rolling context above)
 - For framework sections (SWOT, Porter's, Value Chain): organize insights from
   earlier sections, don't introduce wholly new observations
 - Include tables where instructed (financials, competitors, timelines)
 - Each section should have substantive depth — multiple paragraphs with evidence
 - If a numeric claim cannot be supported by a cited source, replace it with
-  "Not publicly disclosed" or an explicitly low-confidence qualitative statement
+  "Not publicly disclosed", a bounded qualitative range, or a clearly labeled low-confidence directional statement
 - Do not invent market sizes, CAGR, revenue ranges, headcount ranges, or shares
-  unless directly grounded in one or more cited sources
+  unless directly grounded in one or more cited sources or a transparent comparative heuristic
 - End each section with a short "What to validate:" line containing one concrete
   discovery question or data point to confirm in client interviews
 - ZERO REPETITION: Before writing a section, review the rolling context above.
@@ -1167,6 +1169,10 @@ CONSULTING RIGOR (critical):
   moment interesting? Platform shifts, PE investment, leadership changes, etc.
 - Think like a buyer, not a narrator. Where does this company win deals? Where does
   it lose? What would a competitor say about them?
+- When direct evidence is sparse, go deeper on likely economics, buyer behavior,
+  operating constraints, strategic tradeoffs, scenario paths, and the decisions leadership faces.
+- When direct evidence is sparse, go deeper on likely economics, buyer behavior, operating
+  constraints, strategic tradeoffs, scenario paths, and the decisions leadership likely faces.
 
 CITATION FORMAT (strict):
 - Inline claims must reference citations as [cite: N]
@@ -1223,6 +1229,7 @@ def _build_fast_section_prompt(
     written_sections: list[dict[str, Any]],
     section_index: int,
     all_section_names: list[str],
+    reasoning_mode: str = "standard",
 ) -> str:
     """Build prompt for writing a single report section.
 
@@ -1292,6 +1299,16 @@ def _build_fast_section_prompt(
         else ""
     )
 
+    reasoning_guidance = (
+        "CONSTRAINED-EVIDENCE MODE: Direct company-specific evidence for this section is limited. "
+        "Do NOT collapse into a thin fact check. Use the website, news, industry structure, competitor "
+        "analogs, and operating logic to build a deep strategic section. Separate what is observed, what "
+        "is inferred, what is hypothesis, and what the strategic implication is."
+        if reasoning_mode == "constrained_evidence"
+        else "STANDARD-EVIDENCE MODE: Use the strongest available mix of direct evidence, external research, "
+        "and strategic inference."
+    )
+
     return f"""**Company:** {company_name}
 **Website:** {website or "N/A"}
 **Date:** {current_date}
@@ -1315,6 +1332,9 @@ Write this section under a single ## heading matching the section name exactly.
 
 {feedback_block}
 
+REASONING MODE:
+{reasoning_guidance}
+
 SOURCES CONSULTED:
 {sources_text}
 
@@ -1326,18 +1346,20 @@ Write the following section. It MUST start with a ## heading matching the sectio
 
 REQUIREMENTS:
 - Write at least {word_target:,} words for this section
-- Use specific facts, numbers, and examples — cite sources with [cite: N]
+- Use specific facts, numbers, examples, and strategic comparisons — cite sources with [cite: N]
 - Be analytical and hypothesis-driven, not just descriptive
 - Label claims with confidence levels (Confirmed/Reported/Estimated/Hypothesis)
+- If direct evidence is limited, still write a deep section by anchoring on observed facts,
+  extending with defensible inference, and making the strategic implication explicit
 - Build on the previous sections' narrative (see rolling context above)
 - For framework sections (SWOT, Porter's, Value Chain): organize insights from
   earlier sections, don't introduce wholly new observations
 - Include tables where instructed (financials, competitors, timelines)
 - This section should have substantive depth — multiple paragraphs with evidence
 - If a numeric claim cannot be supported by a cited source, replace it with
-  "Not publicly disclosed" or an explicitly low-confidence qualitative statement
+  "Not publicly disclosed", a bounded qualitative range, or a clearly labeled low-confidence directional statement
 - Do not invent market sizes, CAGR, revenue ranges, headcount ranges, or shares
-  unless directly grounded in one or more cited sources
+  unless directly grounded in one or more cited sources or a transparent comparative heuristic
 - End the section with a short "What to validate:" line containing one concrete
   discovery question or data point to confirm in client interviews
 - ZERO REPETITION: Before writing, review the rolling context and TOC above.
@@ -1347,6 +1369,8 @@ REQUIREMENTS:
 - AI/TECHNOLOGY INTEGRATION: When relevant, explicitly connect AI or technology
   use cases to the company's specific business challenges. Don't just mention
   "AI could help" — specify which AI capability maps to which concrete problem.
+- CITATION HYGIENE: Keep citations compact. Prefer paragraph-end citation clusters over
+  interrupting every sentence, and let the final Sources appendix carry the dense reference load.
 
 CONSULTING RIGOR (critical):
 - Do NOT paraphrase the company's marketing. When you cite their claims, immediately
@@ -1393,6 +1417,21 @@ def _parse_single_section(
     return {"title": title, "content": body, "words": word_count}
 
 
+def _determine_section_reasoning_mode(section: "SectionConfig", analysis_workbook: str) -> str:
+    """Use constrained-evidence reasoning when direct company signal is thin."""
+    evidence_keywords = {
+        "financial_profile": ["revenue", "profit", "margin", "funding", "valuation", "earnings"],
+        "company_history": ["founded", "history", "acquisition", "pivot", "milestone"],
+        "industry_outlook": ["industry trend", "regulation", "outlook", "forecast", "disruption"],
+    }
+    keywords = evidence_keywords.get(section.id)
+    if not keywords:
+        return "standard"
+    workbook_lower = analysis_workbook.lower() if analysis_workbook else ""
+    hits = sum(1 for kw in keywords if kw in workbook_lower)
+    return "constrained_evidence" if hits == 0 else "standard"
+
+
 def _write_section_with_retry(
     section: "SectionConfig",
     section_index: int,
@@ -1405,6 +1444,7 @@ def _write_section_with_retry(
     external_sources_raw: str,
     source_urls: list[str],
     report_system: str,
+    reasoning_mode: str = "standard",
 ) -> dict[str, Any] | None:
     """Write a single section with one retry if output is thin.
 
@@ -1425,6 +1465,7 @@ def _write_section_with_retry(
         written_sections,
         section_index,
         all_section_names,
+        reasoning_mode,
     )
 
     try:
@@ -1458,8 +1499,9 @@ def _write_section_with_retry(
         )
         retry_prompt = (
             f"IMPORTANT: Your previous attempt produced only {parsed['words']} words. "
-            f"The minimum target is {word_target} words. Write a substantive, "
-            f"evidence-rich section.\n\n" + prompt
+            f"The minimum target is {word_target} words. Write a substantive, strategist-grade, "
+            f"decision-useful section. If direct evidence is limited, deepen the analysis with explicit "
+            f"inference and strategic implications rather than staying thin.\n\n" + prompt
         )
         try:
             retry_content = grok_llm(
@@ -1602,6 +1644,10 @@ def _clean_fast_report_output(report_content: str) -> str:
     if not report_content.strip():
         return report_content
 
+    # Rewrite noisy inline citation patterns into cleaner, auditable forms.
+    report_content = _rewrite_inline_confidence_citations(report_content)
+    report_content = _rewrite_cite_from_url_tags(report_content)
+
     # 1. Strip Grok disclaimer (appears at end of report or AI strategy)
     report_content = re.sub(
         r"\n*_?Disclaimer:\s*Grok is not a financial advi[sc]er[^\n]*\n?",
@@ -1626,23 +1672,7 @@ def _clean_fast_report_output(report_content: str) -> str:
     #    Matches: [cite: workbook], [cite: website; cite: bbb], [cite: enrollment]
     #    Preserves: [cite: 1], [cite: 2, 3], [Source: URL]
     def _strip_informal_cites(match: re.Match[str]) -> str:
-        inner = match.group(1)
-        # Split on semicolons for compound citations like [cite: workbook; cite: bbb]
-        parts = [p.strip() for p in inner.split(";")]
-        kept: list[str] = []
-        for part in parts:
-            # Keep numeric citations (cite: 1, cite: 2)
-            cite_val = re.match(r"cite:\s*(.+)", part, re.IGNORECASE)
-            if cite_val:
-                val = cite_val.group(1).strip()
-                if re.match(r"^[\d,\s]+$", val):
-                    kept.append(part.strip())
-            else:
-                # Keep non-cite entries (shouldn't appear, but be safe)
-                kept.append(part.strip())
-        if not kept:
-            return ""
-        return "[" + "; ".join(kept) + "]"
+        return _sanitize_numeric_cite_bracket(match.group(1))
 
     report_content = re.sub(
         r"\[([^\]]*cite:\s*[^\]]+)\]",
@@ -1687,6 +1717,47 @@ def _clean_fast_report_output(report_content: str) -> str:
     report_content = re.sub(r"\n{3,}", "\n\n", report_content)
 
     return report_content.strip() + "\n"
+
+
+def _rewrite_inline_confidence_citations(content: str) -> str:
+    """Convert nested confidence/source annotations into cleaner prose."""
+    pattern = re.compile(
+        r"\[(Confirmed|Reported|Estimated|Hypothesis):\s*([^\[\]]*?)\s*"
+        r"\[cite:\s*\d+\s+from\s+(https?://[^\]\s]+)\]\s*\]",
+        re.IGNORECASE,
+    )
+
+    def _replace(match: re.Match[str]) -> str:
+        label = match.group(1).capitalize()
+        detail = re.sub(r"\s+", " ", match.group(2)).strip(" ;,")
+        url = match.group(3).strip()
+        if detail:
+            return f"({label}: {detail}) [Source: {url}]"
+        return f"({label}) [Source: {url}]"
+
+    return pattern.sub(_replace, content)
+
+
+def _rewrite_cite_from_url_tags(content: str) -> str:
+    """Convert malformed `[cite: N from URL]` tags into source tags for normalization."""
+    return re.sub(
+        r"\[cite:\s*\d+\s+from\s+(https?://[^\]\s]+)\]",
+        lambda m: f"[Source: {m.group(1).strip()}]",
+        content,
+        flags=re.IGNORECASE,
+    )
+
+
+def _sanitize_numeric_cite_bracket(inner: str) -> str:
+    """Keep only numeric cite ids from a mixed citation bracket."""
+    nums: list[str] = []
+    for cite_match in re.finditer(r"cite:\s*([^;\]]+)", inner, re.IGNORECASE):
+        for raw_num in re.findall(r"\d+", cite_match.group(1)):
+            if raw_num not in nums:
+                nums.append(raw_num)
+    if not nums:
+        return ""
+    return "[cite: " + ", ".join(nums) + "]"
 
 
 _INTERNAL_REFERENCE_TERMS = (
@@ -1739,12 +1810,89 @@ def _strategy_money_to_millions(value: float, unit: str) -> float:
     return value
 
 
+def _is_auditable_source_url(url: str) -> bool:
+    """Require a public HTTP(S) URL with a plausible hostname for source appendices."""
+    import ipaddress
+
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return False
+
+    host = (parsed.hostname or "").strip().lower()
+    if not host:
+        return False
+
+    try:
+        ipaddress.ip_address(host)
+        return True
+    except ValueError:
+        pass
+
+    if "." not in host:
+        return False
+
+    labels = host.split(".")
+    if any(not label or label.startswith("-") or label.endswith("-") for label in labels):
+        return False
+
+    host_label = re.compile(r"^[a-z0-9-]{1,63}$")
+    return all(host_label.fullmatch(label) for label in labels)
+
+
+def _normalize_strategy_source_urls(source_urls: list[str]) -> tuple[list[str], list[str]]:
+    """Return normalized auditable source URLs plus rejected raw entries."""
+    normalized_urls: list[str] = []
+    rejected_urls: list[str] = []
+    seen: set[str] = set()
+
+    for raw_url in source_urls:
+        candidate = raw_url.strip()
+        if not candidate:
+            continue
+        is_valid, normalized, _error = validate_url_for_request(candidate)
+        if not is_valid or not _is_auditable_source_url(normalized):
+            rejected_urls.append(candidate)
+            continue
+        if normalized not in seen:
+            seen.add(normalized)
+            normalized_urls.append(normalized)
+
+    return normalized_urls, rejected_urls
+
+
+def _extract_strategy_citation_definitions(
+    strategy_content: str,
+) -> tuple[set[int], dict[int, str], list[str]]:
+    """Parse strategy citation definitions and keep only valid auditable URLs."""
+    cited_numbers = {
+        int(n) for n in re.findall(r"\[cite:\s*(\d+)\]", strategy_content, re.IGNORECASE)
+    }
+    valid_defs: dict[int, str] = {}
+    invalid_defs: list[str] = []
+
+    for num_str, raw_url in re.findall(
+        r"\[cite:\s*(\d+)\]\s+([^\s]+)", strategy_content, re.IGNORECASE
+    ):
+        cite_num = int(num_str)
+        is_valid, normalized, _error = validate_url_for_request(raw_url.strip())
+        if not is_valid or not _is_auditable_source_url(normalized):
+            invalid_defs.append(raw_url.strip())
+            continue
+        valid_defs[cite_num] = normalized
+
+    return cited_numbers, valid_defs, invalid_defs
+
+
 def _compute_strategy_qa_metrics(strategy_content: str) -> dict[str, int | float | bool]:
     """Deterministic QA checks for strategy outputs."""
     if not strategy_content.strip():
         return {
             "placeholder_refs": 0,
             "source_urls": 0,
+            "citation_defs": 0,
+            "missing_citations": 0,
+            "invalid_source_urls": 0,
             "budget_totals_found": 0,
             "budget_inconsistent": False,
             "qa_gate_passed": False,
@@ -1755,14 +1903,21 @@ def _compute_strategy_qa_metrics(strategy_content: str) -> dict[str, int | float
     raw_source_urls = len(
         re.findall(r"\[Source:\s*https?://[^\]\s]+", strategy_content, re.IGNORECASE)
     )
-    cite_refs = {int(n) for n in re.findall(r"cite:\s*(\d+)", strategy_content, re.IGNORECASE)}
-    source_urls = max(raw_source_urls, len(cite_refs))
+    cited_numbers, valid_defs, invalid_defs = _extract_strategy_citation_definitions(
+        strategy_content
+    )
+    missing_citations = sorted(cited_numbers - set(valid_defs))
+    source_urls = max(raw_source_urls, len(valid_defs))
 
     totals: list[float] = []
+    explicit_totals: list[float] = []
+    year_one_totals: list[float] = []
     for m in re.finditer(
         r"Total\s*:?\s*\$([0-9]+(?:\.[0-9]+)?)\s*([KMB])", strategy_content, re.IGNORECASE
     ):
-        totals.append(_strategy_money_to_millions(float(m.group(1)), m.group(2)))
+        total_value = _strategy_money_to_millions(float(m.group(1)), m.group(2))
+        totals.append(total_value)
+        explicit_totals.append(total_value)
 
     for m in re.finditer(
         r"Year 1 investment\s*\(?[^\n)]*\)?\s*:?\s*\$([0-9]+(?:\.[0-9]+)?)(?:\s*-\s*([0-9]+(?:\.[0-9]+)?))?\s*([KMB])",
@@ -1771,19 +1926,31 @@ def _compute_strategy_qa_metrics(strategy_content: str) -> dict[str, int | float
     ):
         low = _strategy_money_to_millions(float(m.group(1)), m.group(3))
         high = _strategy_money_to_millions(float(m.group(2)), m.group(3)) if m.group(2) else low
-        totals.append((low + high) / 2.0)
+        midpoint = (low + high) / 2.0
+        totals.append(midpoint)
+        year_one_totals.append(midpoint)
 
     budget_inconsistent = False
-    if len(totals) >= 2:
-        min_total = min(totals)
-        max_total = max(totals)
-        if min_total > 0 and ((max_total - min_total) / min_total) > 0.05:
+    comparison_pool = explicit_totals + year_one_totals
+    if len(explicit_totals) >= 2 or (explicit_totals and year_one_totals):
+        min_total = min(comparison_pool)
+        max_total = max(comparison_pool)
+        if min_total > 0 and ((max_total - min_total) / min_total) > 0.20:
             budget_inconsistent = True
 
-    qa_passed = bool(placeholder_refs == 0 and source_urls >= 2 and not budget_inconsistent)
+    qa_passed = bool(
+        placeholder_refs == 0
+        and source_urls >= 2
+        and len(missing_citations) == 0
+        and len(invalid_defs) == 0
+        and not budget_inconsistent
+    )
     return {
         "placeholder_refs": placeholder_refs,
         "source_urls": source_urls,
+        "citation_defs": len(valid_defs),
+        "missing_citations": len(missing_citations),
+        "invalid_source_urls": len(invalid_defs),
         "budget_totals_found": len(totals),
         "budget_inconsistent": budget_inconsistent,
         "qa_gate_passed": qa_passed,
@@ -1808,6 +1975,14 @@ def _normalize_fast_citations(report_content: str) -> str:
     Converts `[Source: URL]` inline tags to `[cite: N]` and ensures a
     trailing `## Sources` appendix with `[cite: N] URL` entries.
     """
+    report_content = _rewrite_cite_from_url_tags(report_content)
+    report_content = re.sub(
+        r"\[([^\]]*cite:\s*[^\]]+)\]",
+        lambda m: _sanitize_numeric_cite_bracket(m.group(1)),
+        report_content,
+        flags=re.IGNORECASE,
+    )
+
     # Collect existing citation definitions if present.
     existing_cite_def = re.compile(r"\[cite:\s*(\d+)\]\s*(https?://\S+)", re.IGNORECASE)
     num_to_url: dict[int, str] = {}
@@ -1944,6 +2119,10 @@ def _ensure_strategy_source_inventory(
     if metrics["source_urls"] >= min_sources:
         return strategy_content
 
+    normalized_source_urls, _rejected_urls = _normalize_strategy_source_urls(source_urls)
+    if not normalized_source_urls:
+        return strategy_content
+
     existing_defs = re.findall(
         r"\[cite:\s*(\d+)\]\s*(https?://\S+)", strategy_content, re.IGNORECASE
     )
@@ -1951,7 +2130,7 @@ def _ensure_strategy_source_inventory(
     next_num = max((int(num) for num, _ in existing_defs), default=0) + 1
     new_lines: list[str] = []
 
-    for url in source_urls:
+    for url in normalized_source_urls:
         normalized = url.strip()
         if not normalized or normalized in existing_urls:
             continue
@@ -1968,6 +2147,109 @@ def _ensure_strategy_source_inventory(
         return strategy_content.rstrip() + "\n" + "\n".join(new_lines) + "\n"
 
     return strategy_content.rstrip() + "\n\n## Sources\n\n" + "\n".join(new_lines) + "\n"
+
+
+def _repair_strategy_artifact_issues(
+    strategy_content: str,
+    company_name: str,
+    vendor: str,
+    strategy_label: str,
+    source_urls: list[str],
+    issues: list[str],
+) -> str:
+    """Run one focused repair pass for strategy artifact issues before shipping."""
+    from primr.ai.grok_client import grok_llm
+
+    if not strategy_content.strip() or not issues:
+        return strategy_content
+
+    source_block = "\n".join(f"- {url}" for url in source_urls[:12]) if source_urls else "(none)"
+    issue_block = "\n".join(f"- {issue}" for issue in issues)
+    vendor_label = vendor.upper() if vendor and vendor != "agnostic" else strategy_label
+    prompt = f"""Repair this strategy document for shipping. Keep the same structure, depth,
+and consultant-grade detail, but fix the specific trust and artifact problems listed below.
+
+COMPANY: {company_name}
+STRATEGY: {strategy_label}
+VENDOR CONTEXT: {vendor_label}
+
+ISSUES TO FIX:
+{issue_block}
+
+ALLOWED SOURCE URLS:
+{source_block}
+
+DOCUMENT:
+{strategy_content[:50_000]}
+
+RULES:
+- Preserve the depth and specificity of the document
+- Keep dense references in a final ## Sources appendix, not as raw source dumps in body prose
+- Reconcile all budget numbers so Year 1 investment, investment framework, and board summary agree
+- Remove unsupported or malformed source references
+- Use only the allowed source URLs when citing
+- Every [cite: N] used in the body must have a valid matching definition in ## Sources
+- Do not invent new URLs, vendors, metrics, or budget totals
+- Return only the repaired markdown document"""
+
+    system_prompt = (
+        "You are a meticulous strategy editor repairing a document for shipment. "
+        "Preserve depth, improve auditability, and resolve contradictions conservatively."
+    )
+
+    try:
+        repaired = grok_llm(
+            prompt,
+            model=GROK_MODEL_WRITING,
+            max_tokens=20_000,
+            temperature=0.2,
+            system_prompt=system_prompt,
+        )
+    except Exception as exc:
+        log_structured("warning", "Strategy artifact repair failed", error=str(exc))
+        return strategy_content
+
+    return repaired.strip() if repaired and repaired.strip() else strategy_content
+
+
+def _prepare_strategy_for_output(
+    strategy_content: str,
+    company_name: str,
+    vendor: str,
+    strategy_label: str,
+    source_urls: list[str],
+) -> tuple[str, dict[str, int | float | bool], list[str]]:
+    """Normalize, validate, and repair strategy output before artifact shipping."""
+    normalized_source_urls, rejected_source_urls = _normalize_strategy_source_urls(source_urls)
+
+    prepared = _clean_strategy_output(strategy_content)
+    prepared = _ensure_strategy_source_inventory(prepared, normalized_source_urls)
+    qa = _compute_strategy_qa_metrics(prepared)
+
+    repair_issues: list[str] = []
+    if qa["budget_inconsistent"]:
+        repair_issues.append("budget_inconsistent")
+    if qa["missing_citations"]:
+        repair_issues.append("missing_citations")
+    if qa["invalid_source_urls"] or rejected_source_urls:
+        repair_issues.append("invalid_source_urls")
+    if qa["placeholder_refs"]:
+        repair_issues.append("placeholder_refs")
+
+    if repair_issues:
+        prepared = _repair_strategy_artifact_issues(
+            prepared,
+            company_name,
+            vendor,
+            strategy_label,
+            normalized_source_urls,
+            repair_issues,
+        )
+        prepared = _clean_strategy_output(prepared)
+        prepared = _ensure_strategy_source_inventory(prepared, normalized_source_urls)
+        qa = _compute_strategy_qa_metrics(prepared)
+
+    return prepared, qa, rejected_source_urls
 
 
 def _split_markdown_sections(content: str) -> tuple[str, list[tuple[str, str]]]:
@@ -2779,8 +3061,9 @@ ALL AVAILABLE SOURCES:
 
 RULES:
 - Start with: ## {section_title}
-- Full paragraphs with evidence, not bullet dumps
-- Cite sources with [Source: URL]
+- Full paragraphs with evidence and strategic interpretation, not bullet dumps
+- Keep citations compact, usually at paragraph ends, and use [cite: N] references in the body
+- Reserve the densest source inventory for the final Sources appendix
 - Label claims: Confirmed, Reported, Estimated, Hypothesis
 - Stress-test the company narrative — separate claims from evidence
 - Keep roughly the same scope as the original section
@@ -2967,9 +3250,10 @@ RULES:
 - Connect {vendor.upper()} capabilities to THIS company's specific needs
 - Include specific services, pricing tiers, or implementation approaches where evidence supports it
 - Label claims: Confirmed, Reported, Estimated, Hypothesis
-- Cite sources with [Source: URL]
+- Keep citations compact, usually at paragraph ends, and use [cite: N] references in the body
 - Keep roughly the same scope as the original section
-- Include concrete next steps or validation questions"""
+- Include concrete next steps or validation questions
+- Keep the densest supporting reference list in the final Sources appendix"""
 
     system_prompt = (
         f"You are a senior strategy consultant rewriting a section of {article} {vendor.upper()} "
@@ -3034,7 +3318,7 @@ TASKS (in priority order):
    occurrence and replace later duplicates with a cross-reference.
 2. EVIDENCE DISCIPLINE: For each major recommendation, ensure it has:
    - A confidence label: Confirmed, Reported, Estimated, or Hypothesis
-   - A source citation [Source: URL] where available
+   - A compact [cite: N] reference where available, with dense references consolidated in the final Sources appendix
    - Specific {vendor.upper()} services/products named (not generic "cloud services")
 3. SPECIFICITY CHECK: Replace generic recommendations with company-specific ones.
    BAD: "Leverage AI/ML capabilities to improve operations"
@@ -3665,6 +3949,8 @@ def perform_fast_research(
         report_system = (
             "You are a senior strategic analyst writing a consulting dossier — internal prep "
             "before a discovery conversation. Your reader is a partner walking into a meeting.\n\n"
+            "The bar is maximally useful strategic analysis: long-form, specific, strategically sharp, and written "
+            "to get a consultant maximally up to speed before talking with the company.\n\n"
             "CORE DISCIPLINE:\n"
             "- STRESS-TEST the company's narrative. Do NOT paraphrase their marketing. "
             "When they claim 'only purpose-built' or '9x ROI', challenge it with evidence.\n"
@@ -3682,11 +3968,14 @@ def perform_fast_research(
             "not 'transformational opportunity'. Keep scope realistic.\n"
             "- NUMERIC PRECISION: ranges for estimates ('$800M-$1.2B'), note source/date\n"
             "- AVOID OVERREACH: don't claim inside knowledge of board decisions, precise "
-            "market share in opaque markets, or causal certainty\n\n"
+            "market share in opaque markets, or causal certainty\n"
+            "- REASON UNDER CONSTRAINT: if company-specific evidence is thin, still produce deep strategic analysis by combining "
+            "observed facts, industry structure, competitive analogs, likely buyer behavior, and explicit scenario logic\n\n"
             "FORMATTING:\n"
-            "- Full paragraphs with evidence, not bullet dumps\n"
+            "- Full paragraphs with evidence and strategic interpretation, not bullet dumps\n"
             "- Tables for financials, competitors, timelines\n"
-            "- Cite sources with [Source: URL]\n"
+            "- Keep citations compact, usually at paragraph ends, and avoid cluttering every sentence\n"
+            "- Use [cite: N] references in the body; keep the densest reference inventory in the final Sources appendix\n"
             "- Sub-headings (###) within sections for readability\n"
             "- Each insight lives in ONE section — cross-reference, don't repeat"
         )
@@ -3695,43 +3984,19 @@ def perform_fast_research(
 
         section_batches = _group_sections_by_part()
 
-        # Dynamic section selection: skip sections that lack evidence
-        # based on what the analysis workbook actually contains
-        _evidence_keywords = {
-            "financial_profile": [
-                "revenue",
-                "profit",
-                "margin",
-                "funding",
-                "valuation",
-                "earnings",
-            ],
-            "company_history": ["founded", "history", "acquisition", "pivot", "milestone"],
-            "industry_outlook": [
-                "industry trend",
-                "regulation",
-                "outlook",
-                "forecast",
-                "disruption",
-            ],
-        }
-        workbook_lower = analysis_workbook.lower() if analysis_workbook else ""
-        _skipped_sections: list[str] = []
+        # Use constrained-evidence reasoning for thin-signal sections instead of skipping them.
+        section_reasoning_modes: dict[str, str] = {}
+        constrained_sections: list[str] = []
         for batch in section_batches:
-            to_remove = []
             for sec in batch:
-                if sec.id in _evidence_keywords:
-                    keywords = _evidence_keywords[sec.id]
-                    hits = sum(1 for kw in keywords if kw in workbook_lower)
-                    if hits == 0:
-                        to_remove.append(sec)
-                        _skipped_sections.append(sec.name)
-            for sec in to_remove:
-                batch.remove(sec)
-        section_batches = [b for b in section_batches if b]
-        if _skipped_sections:
+                mode = _determine_section_reasoning_mode(sec, analysis_workbook)
+                section_reasoning_modes[sec.id] = mode
+                if mode == "constrained_evidence":
+                    constrained_sections.append(sec.name)
+        if constrained_sections:
             console.info(
-                f"Skipping {len(_skipped_sections)} section(s) with insufficient evidence: {', '.join(_skipped_sections)}"
+                "Using constrained-evidence strategic reasoning for "
+                f"{len(constrained_sections)} section(s): {', '.join(constrained_sections)}"
             )
 
         # Pop executive_summary — write it LAST so it can synthesize the full report
@@ -3786,6 +4051,7 @@ def perform_fast_research(
                         external_sources_raw,
                         source_urls,
                         report_system,
+                        section_reasoning_modes.get(sec.id, "standard"),
                     ),
                 )
 
@@ -3833,6 +4099,7 @@ def perform_fast_research(
                 external_sources_raw,
                 source_urls,
                 report_system,
+                section_reasoning_modes.get(exec_summary_section.id, "standard"),
             )
             if exec_parsed:
                 written_sections.insert(0, exec_parsed)
@@ -4057,8 +4324,8 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
             report_content,
             source_urls,
         )
-        report_content = _normalize_fast_citations(report_content)
         report_content = _clean_fast_report_output(report_content)
+        report_content = _normalize_fast_citations(report_content)
         report_content = _enforce_fast_section_quality_guards(report_content)
         qa_metrics = _compute_fast_report_qa_metrics(
             report_content,
@@ -4077,6 +4344,21 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
             qa_parts.append(f"contradictions={qa_metrics['unresolved_contradictions']}")
         qa_parts.append(f"gate={'PASS' if qa_metrics['qa_gate_passed'] else 'WARN'}")
         console.info("Fast QA: " + ", ".join(qa_parts))
+        report_trust_stats = [
+            ("Report Gate", "PASS" if qa_metrics["qa_gate_passed"] else "WARN"),
+            (
+                "Citations",
+                f"{qa_metrics['citations_used']}/{qa_metrics['citations_defined']} defined",
+            ),
+            (
+                "Validate Lines",
+                f"{qa_metrics['sections_with_validate']}/{qa_metrics['section_count']} sections",
+            ),
+        ]
+        if qa_metrics.get("unresolved_contradictions", 0) > 0:
+            report_trust_stats.append(
+                ("Contradictions", str(qa_metrics["unresolved_contradictions"]))
+            )
 
         # Save report via existing output pipeline
         # Note: unresolved contradictions are surfaced as QA warnings above
@@ -4084,8 +4366,9 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
         # noted inline and the user gets the full report.
         report_gate_issues = []
         if qa_metrics["citations_used"] == 0 or qa_metrics["citations_defined"] == 0:
-            report_gate_issues.append(
-                f"citation_integrity: {qa_metrics['citations_used']}/{qa_metrics['citations_defined']}"
+            console.warn(
+                "Report validation warning: "
+                + f"citation_integrity {qa_metrics['citations_used']}/{qa_metrics['citations_defined']}"
             )
         docx_path = _convert_deep_research_to_docx(
             report_content,
@@ -4103,6 +4386,7 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
         # Phase 6: Strategy Generation via Grok (optional)
         # =================================================================
         strategy_paths: dict[str, str] = {}
+        strategy_trust_stats: list[tuple[str, list[tuple[str, str]]]] = []
         if has_strategies:
             console.phase_banner(
                 6, total_phases, "Strategy (Grok)", "Generating strategy documents", "3-8 min"
@@ -4209,21 +4493,53 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
                                 error=str(enrich_err),
                             )
 
-                        strategy_content = _clean_strategy_output(strategy_content)
-                        strategy_content = _ensure_strategy_source_inventory(
-                            strategy_content, validated_source_urls
+                        strategy_content, strategy_qa, rejected_strategy_sources = (
+                            _prepare_strategy_for_output(
+                                strategy_content,
+                                company_name or display_name,
+                                vendor,
+                                "AI Strategy",
+                                list(validated_source_urls),
+                            )
                         )
-                        strategy_qa = _compute_strategy_qa_metrics(strategy_content)
                         qa_gate = "PASS" if strategy_qa["qa_gate_passed"] else "WARN"
                         console.info(
                             f"Strategy QA: placeholders={strategy_qa['placeholder_refs']}, "
-                            f"sources={strategy_qa['source_urls']}, "
+                            f"sources={strategy_qa['source_urls']}/{strategy_qa['citation_defs']}, "
+                            f"missing={strategy_qa['missing_citations']}, "
+                            f"invalid={strategy_qa['invalid_source_urls'] + len(rejected_strategy_sources)}, "
                             f"budget={'OK' if not strategy_qa['budget_inconsistent'] else 'WARN'}, gate={qa_gate}"
                         )
                         if strategy_qa["source_urls"] == 0:
                             console.warn(
                                 "Strategy QA: no explicit source URLs detected in strategy output"
                             )
+                        strategy_trust_stats.append(
+                            (
+                                f"AI Strategy ({vendor.upper()})"
+                                if len(cloud_vendors) > 1
+                                else "AI Strategy",
+                                [
+                                    ("Gate", qa_gate),
+                                    ("Sources", f"{strategy_qa['source_urls']} valid"),
+                                    (
+                                        "Citation Gaps",
+                                        str(strategy_qa["missing_citations"]),
+                                    ),
+                                    (
+                                        "Invalid Sources",
+                                        str(
+                                            strategy_qa["invalid_source_urls"]
+                                            + len(rejected_strategy_sources)
+                                        ),
+                                    ),
+                                    (
+                                        "Budget Check",
+                                        "WARN" if strategy_qa["budget_inconsistent"] else "OK",
+                                    ),
+                                ],
+                            )
+                        )
 
                         strategy_path = _save_strategy_output(
                             strategy_content,
@@ -4351,21 +4667,51 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
                                 error=str(enrich_err),
                             )
 
-                        strategy_content = _clean_strategy_output(strategy_content)
-                        strategy_content = _ensure_strategy_source_inventory(
-                            strategy_content, validated_source_urls
+                        strategy_content, strategy_qa, rejected_strategy_sources = (
+                            _prepare_strategy_for_output(
+                                strategy_content,
+                                company_name or display_name,
+                                display_name_strat,
+                                display_name_strat,
+                                list(validated_source_urls),
+                            )
                         )
-                        strategy_qa = _compute_strategy_qa_metrics(strategy_content)
                         qa_gate = "PASS" if strategy_qa["qa_gate_passed"] else "WARN"
                         console.info(
                             f"Strategy QA: placeholders={strategy_qa['placeholder_refs']}, "
-                            f"sources={strategy_qa['source_urls']}, "
+                            f"sources={strategy_qa['source_urls']}/{strategy_qa['citation_defs']}, "
+                            f"missing={strategy_qa['missing_citations']}, "
+                            f"invalid={strategy_qa['invalid_source_urls'] + len(rejected_strategy_sources)}, "
                             f"budget={'OK' if not strategy_qa['budget_inconsistent'] else 'WARN'}, gate={qa_gate}"
                         )
                         if strategy_qa["source_urls"] == 0:
                             console.warn(
                                 "Strategy QA: no explicit source URLs detected in strategy output"
                             )
+                        strategy_trust_stats.append(
+                            (
+                                display_name_strat,
+                                [
+                                    ("Gate", qa_gate),
+                                    ("Sources", f"{strategy_qa['source_urls']} valid"),
+                                    (
+                                        "Citation Gaps",
+                                        str(strategy_qa["missing_citations"]),
+                                    ),
+                                    (
+                                        "Invalid Sources",
+                                        str(
+                                            strategy_qa["invalid_source_urls"]
+                                            + len(rejected_strategy_sources)
+                                        ),
+                                    ),
+                                    (
+                                        "Budget Check",
+                                        "WARN" if strategy_qa["budget_inconsistent"] else "OK",
+                                    ),
+                                ],
+                            )
+                        )
 
                         strategy_path = _save_strategy_output(
                             strategy_content,
@@ -4388,8 +4734,6 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
         mins = int(elapsed // 60)
         secs = int(elapsed % 60)
         time_str = f"{mins}m {secs}s" if mins > 0 else f"{secs}s"
-
-        console.ok(f"Fast mode complete in {time_str}")
 
         if docx_path:
             console.success_box("Report ready", str(Path(docx_path).resolve()))
@@ -4432,9 +4776,22 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
 
         actual_cost = grok_cost + flash_cost
 
+        from primr.output.output_utils import OUTPUT_DIR
+
+        date_str = datetime.now().strftime("%m-%d-%Y")
+        fallback_md = (
+            Path(OUTPUT_DIR) / f"{company_name or display_name}_Strategic_Overview_{date_str}.md"
+        )
+        primary_output_path = str(fallback_md) if fallback_md.exists() else docx_path
+
         artifacts_passed = bool(docx_path) and all(
             str(path).lower().endswith(".docx") for path in strategy_paths.values()
         )
+        completion_label = (
+            "Fast mode complete" if artifacts_passed else "Fast mode complete with warnings"
+        )
+        console.ok(f"{completion_label} in {time_str}")
+
         _update_run_state(
             folder_path,
             report_sections=len(written_sections),
@@ -4444,6 +4801,11 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
             artifact_gate_passed=artifacts_passed,
             actual_cost_usd=round(actual_cost, 4),
         )
+
+        if report_trust_stats:
+            console.trust_summary("Report Trust", report_trust_stats)
+        for trust_title, trust_stats in strategy_trust_stats:
+            console.trust_summary(trust_title + " Trust", trust_stats)
 
         summary_items = [
             ("Mode", "fast (Grok 4.1)"),
@@ -4491,11 +4853,11 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
             api_calls=0,
             total_tokens=grok_usage["input_tokens"] + grok_usage["output_tokens"],
             sections_generated=len(written_sections),
-            output_path=docx_path,
+            output_path=primary_output_path,
         )
         log_job_summary(job_summary)
 
-        return docx_path
+        return primary_output_path
 
     except Exception as e:
         console.error(f"Fast research failed: {e}")
@@ -4539,9 +4901,18 @@ def _save_strategy_output(
 
         strategy_gate_issues = list(markdown_validation["issues"])
         strategy_gate_errors = list(markdown_validation["errors"])
+        strategy_advisory_issues: list[str] = []
         strategy_qa = _compute_strategy_qa_metrics(strategy_content)
         if strategy_qa["budget_inconsistent"]:
-            strategy_gate_issues.append("budget_inconsistent")
+            strategy_advisory_issues.append("budget_inconsistent")
+        if strategy_qa["missing_citations"]:
+            strategy_advisory_issues.append(
+                f"missing_citations:{strategy_qa['missing_citations']}"
+            )
+        if strategy_qa["invalid_source_urls"]:
+            strategy_advisory_issues.append(
+                f"invalid_source_urls:{strategy_qa['invalid_source_urls']}"
+            )
         if strategy_gate_issues:
             report_path = _write_output_validation_report(
                 md_path,
@@ -4549,11 +4920,24 @@ def _save_strategy_output(
                 strategy_gate_issues,
                 strategy_gate_errors,
             )
+            console.warn(f"{display_label} artifact issues: " + ", ".join(strategy_gate_issues[:3]))
             console.warn(
                 "DOCX shipping gate failed for strategy markdown; saved MD/TXT only"
                 + (f" ({report_path.name})" if report_path else "")
             )
             return str(md_path)
+        if strategy_advisory_issues or strategy_gate_errors:
+            report_path = _write_output_validation_report(
+                md_path,
+                "markdown",
+                strategy_advisory_issues,
+                strategy_gate_errors,
+            )
+            console.warn(
+                f"{display_label} validation warnings: "
+                + ", ".join((strategy_advisory_issues or strategy_gate_errors)[:3])
+                + (f" ({report_path.name})" if report_path else "")
+            )
 
         docx_path = Path(OUTPUT_DIR) / f"{base_name}.docx"
         try:
@@ -5828,8 +6212,8 @@ def _extract_docx_text(document: Any) -> str:
 
 def _prepare_report_markdown_for_shipping(markdown_content: str) -> str:
     """Apply deterministic cleanup before report artifact validation/shipping."""
-    prepared = _normalize_fast_citations(markdown_content)
-    prepared = _clean_fast_report_output(prepared)
+    prepared = _clean_fast_report_output(markdown_content)
+    prepared = _normalize_fast_citations(prepared)
     prepared = _strip_internal_source_placeholders(prepared)
     prepared = _enforce_fast_section_quality_guards(prepared)
     return prepared
@@ -5983,6 +6367,7 @@ def _convert_deep_research_to_docx(
                 combined_markdown_issues,
                 markdown_validation["errors"],
             )
+            console.warn("Report artifact issues: " + ", ".join(combined_markdown_issues[:3]))
             console.warn(
                 "DOCX shipping gate failed for report markdown; saved MD/TXT only"
                 + (f" ({report_path.name})" if report_path else "")
@@ -6847,7 +7232,7 @@ def _build_strategy_prompt_from_yaml(
         "- Include the Facilitation Toolkit sections (board presentation, stakeholder inception, workshop design)"
     )
     prompt_parts.append(
-        "- Cite evidence inline as [Source: URL] for every major recommendation or factual claim"
+        "- Use compact [cite: N] references for major recommendations and factual claims; keep dense source listings in the final ## Sources appendix"
     )
     prompt_parts.append("- End with a single ## Sources section listing the URLs you cited")
     prompt_parts.append("- Be specific, honest, and actionable")
@@ -7435,8 +7820,8 @@ FORMATTING RULES:
 - No em-dashes, use commas or periods
 - Tone: Strategic and direct, like a CIO presenting to the board
 - Avoid hype language. Prefer operational language over visionary claims.
-- Cite major factual claims and recommendations inline as [Source: URL]
-- End with a single ## Sources section listing the URLs you cited
+- Use compact [cite: N] references for major factual claims and recommendations, usually at paragraph ends
+- End with a single ## Sources section listing the URLs you cited, and let that appendix carry the dense reference load
 - For each recommendation, include: Business Case, Technology, ROI Model, Timeline
 - The final Board Summary must fit on ONE PAGE (approximately 500-600 words)
 
@@ -8072,8 +8457,8 @@ def improve_output_file(
             cv = _fast_cross_validate("Company", None, improved, [])
             if cv.get("weak_sections") or cv.get("contradictions"):
                 improved = _polish_fast_report_for_trust("Company", None, improved, [])
-        improved = _normalize_fast_citations(improved)
         improved = _clean_fast_report_output(improved)
+        improved = _normalize_fast_citations(improved)
         improved = _strip_internal_source_placeholders(improved)
         improved = _enforce_fast_section_quality_guards(improved)
         qa = _compute_fast_report_qa_metrics(improved)
