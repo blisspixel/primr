@@ -1,4 +1,4 @@
-from primr.core.research_agent import _normalize_fast_citations
+from primr.core.research_agent import _clean_fast_report_output, _normalize_fast_citations
 
 
 def test_normalize_fast_citations_converts_inline_source_tags():
@@ -63,3 +63,35 @@ def test_normalize_fast_citations_strips_multiword_source_tags():
     assert "[Source:" not in normalized
     assert "Microsoft Azure" not in normalized or "[Source: Microsoft Azure]" not in normalized
     assert "[cite: 1] https://example.com/a" in normalized
+
+
+def test_clean_fast_report_output_rewrites_nested_confidence_urls():
+    content = (
+        "## Findings\n\n"
+        "Sticky integration [Confirmed: Dec 2022 [cite:6 from https://example.com/a]].\n"
+    )
+
+    cleaned = _clean_fast_report_output(content)
+
+    assert "[cite:6 from" not in cleaned
+    assert "(Confirmed: Dec 2022)" in cleaned
+    assert "[Source: https://example.com/a]" in cleaned
+
+
+def test_normalize_fast_citations_repairs_malformed_inline_citations():
+    content = (
+        "## Findings\n\n"
+        "Sticky integration (Confirmed: Dec 2022) [Source: https://example.com/a].\n"
+        "Another source [cite: 5; Tracxn].\n\n"
+        "## Sources\n\n"
+        "[cite: 5] https://example.com/b\n"
+    )
+
+    normalized = _normalize_fast_citations(content)
+    body = normalized.split("## Sources", 1)[0]
+
+    assert "[cite: 5; Tracxn]" not in normalized
+    assert "[cite: 1]" in body
+    assert "[cite: 2]" in body
+    assert "[cite: 1] https://example.com/a" in normalized
+    assert "[cite: 2] https://example.com/b" in normalized

@@ -7,7 +7,7 @@
 
 meta:
   name: "Strategic Company Overview"
-  version: "1.1.0"
+  version: "1.2.0"
   description: "Comprehensive company research for pre-meeting preparation"
   output_format: "markdown"
   expected_pages: "20-70"
@@ -23,7 +23,8 @@ document_purpose: |
   2. Form hypotheses about where support could help them move faster, reduce risk, or unlock opportunities
   3. Surface smart questions to validate our thinking WITH them
   
-  This is NOT a client deliverable. It's the thinking that makes you walk in informed and curious.
+  This is NOT a client deliverable. It is strategic analysis designed to get a consultant maximally up to speed
+  before talking with the company, so they can be sharper, more useful, and faster in conversation.
   Write with analytical depth. Surface uncomfortable hypotheses. Prioritize clarity over diplomacy.
   Treat strong claims as working hypotheses unless explicitly supported by cited sources.
   
@@ -75,10 +76,10 @@ epistemic_rules:
     - Use conditional language: "This could suggest..." not "This proves..."
 
 formatting:
-  paragraphs: "Write in full paragraphs with evidence"
+  paragraphs: "Write in full paragraphs with evidence and strategic interpretation"
   bullets: "Use bullets only for lists of specific items"
   bullet_depth: "Single-level bullets only"
-  citations: "Cite sources at section end using [cite: X, Y, Z] format"
+  citations: "Keep citations compact in the narrative, prefer paragraph-end groupings, and let the final sources appendix carry dense references"
   tables: "Include tables for financials, competitors, timelines"
 
 key_metrics:
@@ -578,7 +579,8 @@ accordion_method:
     ## RESEARCH DOSSIER (Deep Research Findings)
     The research dossier below contains compressed facts gathered by Deep Research.
     Your job is to take these facts and write them out properly - developing the 
-    analysis, surfacing implications, and identifying patterns worth exploring.
+    analysis, surfacing implications, identifying patterns worth exploring, and reasoning
+    like an expert strategist even when direct company evidence is incomplete.
 
     {research_dossier}
 
@@ -607,6 +609,7 @@ accordion_method:
     - Hypothesis-driven approach
     - Comfortable with uncertainty
     - Evidence-based reasoning
+    - Consultant-grade strategic analysis designed to get a consultant maximally up to speed before helping the company, not a thin fact sheet
     
     **NARRATIVE CEILING**: Maintain consistent stakes. Avoid escalation patterns:
     - Don't upgrade "opportunity" to "transformational opportunity"
@@ -622,9 +625,14 @@ accordion_method:
     - Frame findings as hypotheses: "This suggests..." not "They must..."
     - Surface patterns worth exploring, questions to ask
     - Be specific with evidence (numbers, names, comparisons)
+    - Keep source density readable in the narrative. Prefer compact paragraph-end citations and a dense final appendix over cluttering every sentence.
     - Acknowledge uncertainty - what we don't know matters too
     - For major hypotheses, consider the counter-case: what evidence would disprove this?
     - Write for someone preparing to engage, not delivering a verdict
+    - If direct company evidence is limited, do NOT collapse into a short overview. Use
+      industry structure, buyer logic, competitor analogs, operating economics, and news
+      context to build a deep strategic section with clear uncertainty labeling.
+    - Separate observed facts, inferred realities, hypotheses, and strategic implications.
     
     CONFIDENCE LABELING (REQUIRED):
     Label significant claims with confidence level:
@@ -654,7 +662,8 @@ accordion_method:
     - Each insight should live in ONE section
     - Reference other sections rather than restating: "As noted in the SWOT analysis..."
     
-    Write as much as the content needs - no more, no less. Let the material guide you.
+    Write as much as the content needs to produce maximally useful strategic analysis for a consultant preparing to help the company.
+    Let the material guide you, but default toward depth, synthesis, and decision-useful analysis rather than brevity.
     
     GOOD:
     - "NIM of 2.46% vs First Hawaiian's 3.19% (Confirmed - Q3 filings) suggests potential pricing constraints worth exploring"

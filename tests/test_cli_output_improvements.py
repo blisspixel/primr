@@ -102,6 +102,17 @@ class TestConsoleMessages:
         output = strip_ansi(captured.out)
         assert "! Something to note" in output
 
+    def test_trust_summary_format(self, capsys):
+        """Trust summary should surface labeled trust signals cleanly."""
+        console = Console()
+        console.trust_summary("Report Trust", [("Gate", "PASS"), ("Citations", "12/12 defined")])
+
+        captured = capsys.readouterr()
+        output = strip_ansi(captured.out)
+        assert "Report Trust" in output
+        assert "Gate: PASS" in output
+        assert "Citations: 12/12 defined" in output
+
 
 class TestPhaseComplete:
     """Test phase completion messages."""

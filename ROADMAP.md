@@ -2,9 +2,9 @@
 
 Current State: v1.16.0 (March 2026)
 
-Primr is a CLI-first, local research tool for company intelligence and strategic analysis. It aims to accelerate research workflows while being transparent about uncertainty.
+Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
-The design is intentionally opinionated and local-first. This roadmap reflects planned improvements ordered by practical impact — first make runs faster and cheaper, then make reports better, then expand extraction and provider choices, then enable compounding knowledge across runs.
+The design is intentionally opinionated and local-first. This roadmap reflects planned improvements ordered by practical impact: first make the core output more strategically valuable, then make runs faster and cheaper, then expand extraction and provider choices, then enable compounding knowledge across runs.
 
 For completed work, see the [Changelog](#changelog) at the bottom of this file, or check [GitHub releases](https://github.com/blisspixel/primr/releases) for the latest.
 
@@ -37,9 +37,9 @@ For completed work, see the [Changelog](#changelog) at the bottom of this file, 
 - AI strategy and roadmap generation with multi-vendor support (`--cloud-vendor aws azure`)
 - Cloud vendor options: Azure, AWS, GCP, agnostic, private (NVIDIA/on-prem)
 - Multiple strategy types: AI, Customer Experience, Security, Data Fabric
-- Strategy enrichment: cross-validation, evidence search, section regeneration, and polish pass
+- Strategy enrichment: cross-validation, evidence search, section regeneration, polish pass, and pre-ship repair for citation/source/budget conflicts
 - TXT, DOCX, and PDF outputs with citation styles
-- 23-section reports with adaptive section selection, deduplication, and cross-validation
+- 23-section reports with adaptive section selection, constrained-evidence reasoning, deduplication, and cross-validation
 
 ### Agent Integration
 
@@ -50,7 +50,7 @@ For completed work, see the [Changelog](#changelog) at the bottom of this file, 
 
 ### Quality & Trust
 
-- Deterministic QA checks: hypothesis coverage, confidence labels, section length, citation density, report-type-aware structure
+- Deterministic QA checks: hypothesis coverage, confidence labels, section length, citation density, report-type-aware structure, and appendix/source integrity
 - `QAGateHook` with `ReportAnalyzer`-backed scoring (6 checks, penalty system)
 - Claim verification via `--verify` flag (~$0.01, 3-5 min) — extracts claims, challenges them with DDG searches, produces trust score
 - Versioned model evaluation harness: `primr eval` with scorecard generation (Markdown + CSV), versioned eval IDs, acceptance gates
@@ -67,7 +67,7 @@ For completed work, see the [Changelog](#changelog) at the bottom of this file, 
 
 ## Design Philosophy
 
-- Structured output over raw data — briefs you can act on, not link dumps
+- Strategic analysis over raw data — deep outputs you can act on, not link dumps
 - Hypothesis generation over premature conclusions — confidence levels on every claim
 - Transparency about uncertainty — what's confirmed, what's inferred, what's speculation
 - Deterministic verification before AI judgment — check structure, citations, and epistemic labels with code before asking a model to score prose quality
@@ -79,13 +79,25 @@ Primr is intentionally not designed as a generic web scraper, a SaaS collaborati
 
 ## Planned Work
 
-Ordered by practical impact: first make runs faster and cheaper, then make reports better, then expand extraction and provider choices, then enable compounding knowledge across runs.
+Ordered by practical impact: first make the standard output more strategically useful, then make runs faster and cheaper, then expand extraction and provider choices, then enable compounding knowledge across runs.
 
 ### Near-Term
 
 Scoped, practical improvements. Some are partially built.
 
-#### v1.17.0 — Faster Runs
+#### v1.17.0 — Deeper Strategic Analysis
+
+**Consultant-Grade Strategic Writing**
+
+Push the standard output from a strong research artifact to a genuinely strategist-grade analysis for pre-discovery preparation.
+
+- Section prompts tuned around management choices, operating constraints, likely economics, scenario paths, and validation questions
+- Fewer brittle section suppressions, more constrained-evidence reasoning when direct company data is thin
+- Dense references concentrated in final appendices so the body reads like analysis, not a source dump
+- Better trust summaries so users can see what is confirmed, inferred, hypothesized, and still weak
+- Target: sparse-company runs still feel substantive; rich-company runs become sharper and more differentiated
+
+#### v1.18.0 — Faster Runs
 
 **Quick Mode (`--quick`)**
 
@@ -134,7 +146,7 @@ Surface the cost, performance, and scraping data that Primr already tracks inter
 - Stored in run state JSON for post-hoc analysis
 - Informs sticky tier policy and circuit breaker thresholds
 
-#### v1.18.0 — Better Reports
+#### v1.19.0 — Better Reports
 
 **Expert Perspective Passes (`--with-experts`)**
 
@@ -163,7 +175,7 @@ Use QA feedback to iteratively improve weak sections until reports hit 90+.
 
 Larger investments that expand Primr's capabilities.
 
-#### v1.19.0 — First-Class VLM Extraction
+#### v1.20.0 — First-Class VLM Extraction
 
 Promote vision extraction from fallback tier to first-class path for data-dense pages (charts, tables, IR decks, org charts).
 
@@ -185,7 +197,7 @@ Corporate sites are increasingly visual — investor relations decks, product co
 - `--vlm-budget N` flag to cap VLM calls per run (default: 10 pages)
 - Cost estimator updated with VLM pricing
 
-#### v1.20.0 — Provider Expansion
+#### v1.21.0 — Provider Expansion
 
 **OpenAI Deep Research Integration**
 
@@ -208,7 +220,7 @@ Extend the eval harness to compare all available providers and determine the bes
 - Auto-detect available API keys and only eval providers the user has access to
 - Historical eval tracking: compare across eval IDs to see if a provider improved over time
 
-#### v1.21.0 — Local Inference
+#### v1.22.0 — Local Inference
 
 Run parts of the pipeline on local NVIDIA hardware via Ollama, cutting API costs toward zero for batch workloads.
 
@@ -240,7 +252,7 @@ At scale, API costs compound: 100 companies × $0.55 = $55 per batch. Local infe
 
 Ambitious ideas that would meaningfully expand what Primr can do. These depend on the earlier work and may or may not happen.
 
-#### v1.22.0 — Cross-Run Research Memory
+#### v1.23.0 — Cross-Run Research Memory
 
 Make research compound across runs by persisting extracted claims, citations, and hypotheses in a searchable store.
 
