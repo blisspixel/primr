@@ -380,6 +380,15 @@ class Console:
         for label, value in stats:
             self._print(f"{self._dim}{label}:{self._reset} {value}")
 
+    def trust_summary(self, title, stats):
+        """Show compact trust and shipping signals for the finished run."""
+        if self.quiet or not stats:
+            return
+        self._print()
+        self._print(f"{self._bold}{title}{self._reset}")
+        for label, value in stats:
+            self._print(f"  {self._dim}{label}: {self._reset}{value}")
+
     def banner(self, title, version=""):
         """Modern minimal banner - 2026 design."""
         if self.quiet:

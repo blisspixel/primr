@@ -8,13 +8,16 @@ that enhance fast mode report quality.
 import json
 
 from primr.core.research_agent import (
+    _build_fast_section_prompt,
     _clean_fast_report_output,
     _compute_fast_report_qa_metrics,
+    _determine_section_reasoning_mode,
     _fast_cross_validate,
     _fast_gap_analysis,
     _fast_regenerate_section,
     _normalize_fast_citations,
 )
+from primr.prompts.loader import SectionConfig
 
 
 class TestFastGapAnalysis:
@@ -707,3 +710,53 @@ def test_compute_fast_report_qa_metrics_fails_with_zero_citations():
     assert metrics["citations_used"] == 0
     assert metrics["citations_defined"] == 0
     assert metrics["qa_gate_passed"] is False
+
+
+class TestFastSectionReasoning:
+    """Tests for constrained-evidence section writing behavior."""
+
+    def test_reasoning_mode_downgrades_to_constrained_evidence_when_signal_is_thin(self):
+        section = SectionConfig(
+            id="industry_outlook",
+            name="Industry Outlook",
+            part=2,
+            purpose="Outlook",
+            covers=["Near-term", "Medium-term"],
+            depth="Deep analysis",
+        )
+
+        mode = _determine_section_reasoning_mode(
+            section, "Workbook mentions none of the tracked keywords"
+        )
+
+        assert mode == "constrained_evidence"
+
+    def test_build_fast_section_prompt_includes_constrained_evidence_guidance(self):
+        section = SectionConfig(
+            id="industry_outlook",
+            name="Industry Outlook",
+            part=2,
+            purpose="Outlook",
+            covers=["Near-term", "Medium-term"],
+            depth="Deep analysis",
+        )
+
+        prompt = _build_fast_section_prompt(
+            company_name="ExampleCo",
+            website="https://example.com",
+            analysis_workbook="thin workbook",
+            raw_corpus_subset="website facts",
+            external_sources="industry news",
+            source_urls=["https://example.com/news"],
+            section=section,
+            written_sections=[],
+            section_index=0,
+            all_section_names=["Industry Outlook"],
+            reasoning_mode="constrained_evidence",
+        )
+
+        assert "CONSTRAINED-EVIDENCE MODE" in prompt
+        assert "Do NOT collapse into a thin fact check" in prompt
+        assert "strategic implication" in prompt
+        assert "Keep citations compact" in prompt
+        assert "final Sources appendix" in prompt

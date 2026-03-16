@@ -8,6 +8,7 @@ from primr.core.research_agent import (
     _compute_strategy_qa_metrics,
     _convert_deep_research_to_docx,
     _ensure_strategy_source_inventory,
+    _prepare_strategy_for_output,
     _save_strategy_output,
     _validate_output_docx,
     _validate_output_markdown,
@@ -32,6 +33,20 @@ def test_compute_strategy_qa_metrics_flags_budget_inconsistency():
     metrics = _compute_strategy_qa_metrics(content)
     assert metrics["budget_inconsistent"] is True
     assert metrics["source_urls"] >= 2
+
+
+def test_compute_strategy_qa_metrics_allows_reasonable_budget_variance():
+    content = (
+        "# AI Strategy: Demo\n\n"
+        "Year 1 investment: $1.2-1.8M.\n\n"
+        "## BOARD SUMMARY\n\n"
+        "**Total: $1.7M**\n"
+        "[Source: https://example.com/a]\n"
+        "[Source: https://example.com/b]\n"
+    )
+    metrics = _compute_strategy_qa_metrics(content)
+    assert metrics["budget_inconsistent"] is False
+    assert metrics["qa_gate_passed"] is True
 
 
 def test_clean_strategy_output_strips_internal_placeholders():
@@ -139,7 +154,7 @@ def test_convert_deep_research_to_docx_allows_clean_markdown(tmp_path: Path, mon
     assert Path(result).exists()
 
 
-def test_save_strategy_output_blocks_budget_inconsistent_docx(tmp_path: Path, monkeypatch):
+def test_save_strategy_output_ships_docx_with_budget_warning(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(output_utils, "OUTPUT_DIR", str(tmp_path))
     content = (
         "## AI Strategy\n\n"
@@ -149,9 +164,9 @@ def test_save_strategy_output_blocks_budget_inconsistent_docx(tmp_path: Path, mo
     )
     result = _save_strategy_output(content, "DemoCo", "azure", strategy_label="AI_Strategy")
     assert result is not None
-    assert result.endswith(".md")
+    assert result.endswith(".docx")
     assert list(tmp_path.glob("*markdown_validation.txt"))
-    assert not list(tmp_path.glob("*.docx"))
+    assert list(tmp_path.glob("*.docx"))
 
 
 def test_compute_strategy_qa_metrics_counts_numeric_citations_as_sources():
@@ -222,3 +237,63 @@ def test_ensure_strategy_source_inventory_preserves_existing_citations():
     )
     assert improved.count("[cite: 1] https://example.com/a") == 1
     assert "[cite: 2] https://example.com/b" in improved
+
+
+def test_compute_strategy_qa_metrics_flags_invalid_source_urls():
+    content = (
+        "## Strategy\n\n"
+        "Claim [cite: 1].\n\n"
+        "## Sources\n\n"
+        "[cite: 1] https://-aws-2026-03\n"
+        "[cite: 2] https://example.com/b\n"
+    )
+    metrics = _compute_strategy_qa_metrics(content)
+    assert metrics["invalid_source_urls"] == 1
+    assert metrics["qa_gate_passed"] is False
+
+
+def test_ensure_strategy_source_inventory_skips_invalid_urls():
+    content = "## AI Strategy\n\nRecommendation without citations.\n"
+    improved = _ensure_strategy_source_inventory(
+        content,
+        ["https://example.com/a", "https://-aws-2026-03", "not-a-url", "https://example.com/b"],
+    )
+    assert "https://example.com/a" in improved
+    assert "https://example.com/b" in improved
+    assert "https://-aws-2026-03" not in improved
+    assert "not-a-url" not in improved
+
+
+def test_prepare_strategy_for_output_repairs_budget_and_sources(monkeypatch):
+    def fake_grok_llm(prompt, **kwargs):
+        return (
+            "## AI Strategy\n\n"
+            "Recommended Year 1 investment: $1.2M.\n\n"
+            "## BOARD SUMMARY\n\n"
+            "**Total: $1.2M**\n\n"
+            "## Sources\n\n"
+            "[cite: 1] https://example.com/a\n"
+            "[cite: 2] https://example.com/b\n"
+        )
+
+    monkeypatch.setattr("primr.ai.grok_client.grok_llm", fake_grok_llm)
+
+    prepared, qa, rejected = _prepare_strategy_for_output(
+        "## AI Strategy\n\n"
+        "Recommended Year 1 investment: $1.2-1.8M.\n\n"
+        "## BOARD SUMMARY\n\n"
+        "**Total: $1.9M**\n\n"
+        "## Sources\n\n"
+        "[cite: 1] https://-aws-2026-03\n",
+        "DemoCo",
+        "aws",
+        "AI Strategy",
+        ["https://example.com/a", "https://example.com/b", "https://-aws-2026-03"],
+    )
+
+    assert rejected == ["https://-aws-2026-03"]
+    assert qa["budget_inconsistent"] is False
+    assert qa["invalid_source_urls"] == 0
+    assert qa["missing_citations"] == 0
+    assert qa["qa_gate_passed"] is True
+    assert "https://-aws-2026-03" not in prepared

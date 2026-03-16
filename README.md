@@ -1,8 +1,8 @@
 # Primr
 
-**Turn any company or organization URL into a strategic intelligence brief.**
+**Turn any company or organization URL into deep strategic analysis that gets a consultant maximally up to speed.**
 
-Primr extracts primary-source data from company and organization websites using adaptive, org-aware scraping that handles modern site architectures, then synthesizes external research into structured briefs using AI-powered research and synthesis (Grok 4.1 by default, or Gemini Deep Research via `--premium`).
+Primr extracts primary-source data from company and organization websites using adaptive, org-aware scraping that handles modern site architectures, then synthesizes external research into long-form strategic analysis using AI-powered research and synthesis (Grok 4.1 by default, or Gemini Deep Research via `--premium`).
 
 Runs as a CLI, an MCP server, an OpenClaw integration, and a Claude Skill.
 
@@ -10,13 +10,13 @@ Runs as a CLI, an MCP server, an OpenClaw integration, and a Claude Skill.
 primr "ExampleCo" https://example.co
 ```
 
-About 35-45 minutes later: competitive positioning, technology stack, strategic initiatives, and external validation, all cited. ~$0.55 in API costs.
+About 35-45 minutes later: a deep strategic analysis covering competitive positioning, technology stack, strategic initiatives, likely constraints, and consultant-grade hypotheses, with dense references consolidated at the end. ~$0.55 in API costs.
 
 ## Why This Exists
 
 Company research is tedious. You visit the website, click around, search the company, read articles, synthesize it all, write it up. That process easily takes 1-2 hours per company and the output is usually unstructured notes.
 
-Primr does that entire workflow autonomously in about 35-45 minutes for about $0.55 in API costs. The output is a structured, cited intelligence brief — competitive positioning, technology stack, strategic initiatives, financial profile, and external validation. Whether you're researching a potential employer, evaluating an investment, preparing for a partnership, doing competitive analysis, or running due diligence, a single run replaces hours of manual work.
+Primr does that entire workflow autonomously in about 35-45 minutes for about $0.55 in API costs. The output is deep, structured strategic analysis, competitive positioning, technology stack, strategic initiatives, financial profile, external validation, and a consultant-ready view of what matters most to validate in conversation. Whether you're researching a potential employer, evaluating an investment, preparing for a partnership, doing competitive analysis, or running due diligence, a single run replaces hours of manual work.
 
 ## What Makes It Different
 
@@ -27,7 +27,7 @@ Primr does that entire workflow autonomously in about 35-45 minutes for about $0
 - **Cost controls built in**: `--dry-run` estimates, usage tracking, and governance hooks for budget limits.
 - **Agent-native interfaces**: CLI, MCP server, OpenClaw integration, and Claude Skills, all first-class.
 
-Manual research takes hours. Primr typically runs in about 35-45 minutes and costs about $0.55 in API usage (varies by depth and site complexity). The output is structured, cited, and ready to use.
+Manual research takes hours. Primr typically runs in about 35-45 minutes and costs about $0.55 in API usage (varies by depth and site complexity). The output is long-form, strategically interpretive, cited where it matters, and readable enough to use before a real client conversation.
 
 ## Modes
 
@@ -49,7 +49,7 @@ Naming note: historical references to "fast mode" in logs/code refer to this sta
 
 **Strategy types** (use `primr --list-strategies` for details): `ai` (default), `customer_experience`, `modern_security_compliance`, `data_fabric_strategy`. Strategy types are defined by YAML configs in `src/primr/prompts/strategies/` and auto-discovered at runtime.
 
-The standard Grok pipeline includes research deepening (gap analysis + targeted search), cross-validation (weak section detection + re-generation), trust-polish, and citation normalization for reports. Strategy documents get the same treatment: cross-validation to find weak sections, targeted evidence search, section regeneration, and a polish pass. Produces reports with 40-55 sources. DDG searches are free. Use `--dry-run` for accurate estimates based on your usage history.
+The standard Grok pipeline includes research deepening (gap analysis + targeted search), cross-validation (weak section detection + re-generation), trust-polish, citation normalization, and constrained-evidence reasoning for sparse-company sections. Strategy documents get the same treatment plus pre-ship artifact repair when budgets, citations, or source inventories conflict. Dense references are kept primarily in the final Sources appendix so the narrative stays readable. Produces reports with 40-55 sources. DDG searches are free. Use `--dry-run` for accurate estimates based on your usage history.
 
 ## Versioned Model Evaluation (Quality vs Cost)
 
@@ -85,12 +85,12 @@ primr --eval --eval-id eval-2026-02-r1 --eval-run-missing --eval-manifest eval_c
 ### 2) Track the same metrics for every profile
 
 - Trust gate (must-pass): citation coverage + section completeness + confidence-label quality
-- Decision utility: actionable recommendations, risks/tradeoffs, and key validation questions
-- Reuse quality (human + AI): structured headings, bullets/tables, machine-friendly signal density
+- Decision utility: actionable recommendations, risks/tradeoffs, key validation questions, and depth of strategic interpretation
+- Reuse quality (human + AI): structured headings, tables, machine-friendly signal density, and readable appendix-style sourcing
 - Efficiency: utility-per-dollar and total estimated cost
 - Runtime: end-to-end duration per company
 
-These dimensions are aligned to the README goal: helping humans and AI get up to speed quickly and safely, not just producing long reports.
+These dimensions are aligned to the README goal: producing deep strategic analysis that gets humans and AI up to speed quickly and safely, not just producing long reports.
 
 ### 3) Use a clear decision rule
 
@@ -195,6 +195,8 @@ Part 4/5 (Deep Insights): 7 section(s) in parallel
 ✓ Report Writing (Grok)
   Sections: 23  Words: 21,500
 
+Narrative style: deep strategic analysis, compact in-body citations, dense references in final Sources appendix
+
 ▸ PHASE 5/6 · Cross-Validation
   Reviewing report for gaps and weak sections
 
@@ -202,6 +204,7 @@ Part 4/5 (Deep Insights): 7 section(s) in parallel
 ✓ Cross-Validation
 
 Fast QA: labels=310, cites=12/12, validate=23/23, gate=PASS
+Trust Summary: report=PASS cites=12/12 appendix=clean reasoning=deep
 
 ✓ Complete in 35m
 
