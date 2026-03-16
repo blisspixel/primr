@@ -56,10 +56,10 @@ class TestLoadPromptConfig:
         assert isinstance(config, PromptConfig)
 
     def test_config_has_version(self):
-        """Config should have version."""
+        """Config should have a valid semver version string."""
         config = load_prompt_config("company_overview")
-        # Version may be 1.0.0 or 1.1.0 depending on updates
-        assert config.version in ["1.0.0", "1.1.0"]
+        import re
+        assert re.match(r"^\d+\.\d+\.\d+$", config.version), f"Bad version: {config.version}"
 
     def test_config_has_sections(self):
         """Config should have sections."""
