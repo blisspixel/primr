@@ -26,6 +26,7 @@ from enum import Enum
 from primr.config.models import (
     DEEP_RESEARCH_COST,
     SEARCH_COST_PER_QUERY,
+    GrokTier,
     PrimrModels,
 )
 
@@ -171,8 +172,12 @@ MODE_ESTIMATES = {
         "flash_output_tokens": 10_000,
         "pro_input_tokens": 0,
         "pro_output_tokens": 0,
-        "grok_input_tokens": 1_600_000,  # 21 x ~72k per section + gap + analysis + cross-val + coherence
-        "grok_output_tokens": 100_000,  # ~34k writing + 25k coherence + gap + cross-val
+        # Split Grok tokens into reasoning (gap analysis, workbook, cross-val) and writing (sections, coherence, polish)
+        # Calibrated from actual Litehouse Foods run: 84K/4K reasoning, 1.7M/81K writing
+        "grok_reasoning_input_tokens": 100_000,  # gap analysis + analysis workbook + cross-val (~84K actual + margin)
+        "grok_reasoning_output_tokens": 5_000,  # gap + workbook + cross-val output (~4K actual + margin)
+        "grok_writing_input_tokens": 1_750_000,  # 21 x ~60k per section + coherence + polish (~1.7M actual + margin)
+        "grok_writing_output_tokens": 85_000,  # ~34k section writing + 25k coherence + polish (~81K actual + margin)
         "deep_research_tasks": 0,
         "search_queries": 0,  # DDG is free, not Google Search
         "duration_min": 18,
@@ -206,6 +211,7 @@ def estimate_cost(
     fast_mode: bool = False,
     premium_mode: bool = False,
     verify: bool = False,
+    grok_tier: str = "hybrid",
 ) -> CostEstimate:
     """
     Estimate the cost of a research task.
@@ -231,7 +237,7 @@ def estimate_cost(
     # premium_mode overrides fast_mode (explicit Gemini + DR request)
     if fast_mode and not premium_mode:
         return _estimate_fast_mode_cost(
-            include_ai_strategy, num_vendors, search_free, verify=verify
+            include_ai_strategy, num_vendors, search_free, verify=verify, grok_tier=grok_tier
         )
 
     estimates = MODE_ESTIMATES.get(mode, MODE_ESTIMATES["scrape-only"])
@@ -398,21 +404,24 @@ def _estimate_fast_mode_cost(
     num_vendors: int,
     search_free: bool,
     verify: bool = False,
+    grok_tier: str = "hybrid",
 ) -> CostEstimate:
-    """Estimate cost for fast mode (Grok 4.1 pipeline)."""
+    """Estimate cost for fast mode (Grok pipeline)."""
     fast = MODE_ESTIMATES["fast"]
     flash_in = fast["flash_input_tokens"]
     flash_out = fast["flash_output_tokens"]
-    grok_in = fast["grok_input_tokens"]
-    grok_out = fast["grok_output_tokens"]
+    grok_reasoning_in = fast["grok_reasoning_input_tokens"]
+    grok_reasoning_out = fast["grok_reasoning_output_tokens"]
+    grok_writing_in = fast["grok_writing_input_tokens"]
+    grok_writing_out = fast["grok_writing_output_tokens"]
     search_queries = fast["search_queries"]
     duration_min = fast["duration_min"]
     duration_max = fast["duration_max"]
 
-    # AI strategy adds Grok tokens per vendor (enriched context + CV + polish)
+    # AI strategy adds Grok writing tokens per vendor (enriched context + CV + polish)
     if include_ai_strategy:
-        grok_in += 200_000 * num_vendors  # strategy prompt + context + CV + polish
-        grok_out += 50_000 * num_vendors  # 32K gen + 4K CV + 16K regen + 32K polish
+        grok_writing_in += 200_000 * num_vendors
+        grok_writing_out += 50_000 * num_vendors
         duration_min += 3 * num_vendors
         duration_max += 6 * num_vendors
 
@@ -423,40 +432,59 @@ def _estimate_fast_mode_cost(
         duration_min += VERIFICATION_OVERHEAD["duration_min"]
         duration_max += VERIFICATION_OVERHEAD["duration_max"]
 
-    # Costs
+    # Resolve model pair for this tier
+    reasoning_model, writing_model = PrimrModels.get_grok_models(GrokTier(grok_tier))
+
+    # Costs — price each bucket using the appropriate tier model
     flash_cost = PrimrModels.calculate_flash_cost(flash_in, flash_out)
-    grok_cost = PrimrModels.calculate_cost(PrimrModels.GROK_MODEL, grok_in, grok_out)
+    reasoning_cost = PrimrModels.calculate_cost(reasoning_model, grok_reasoning_in, grok_reasoning_out)
+    writing_cost = PrimrModels.calculate_cost(writing_model, grok_writing_in, grok_writing_out)
     search_cost = 0.0 if search_free else PrimrModels.calculate_search_cost(search_queries)
 
-    total_cost = flash_cost + grok_cost + search_cost
+    total_cost = flash_cost + reasoning_cost + writing_cost + search_cost
 
     # Split for display
     flash_input_cost = (flash_in / 1_000_000) * GEMINI_3_FLASH_INPUT_PRICE
     flash_output_cost = (flash_out / 1_000_000) * GEMINI_3_FLASH_OUTPUT_PRICE
-    grok_input_price, grok_output_price = PrimrModels.get_price(PrimrModels.GROK_MODEL)
-    grok_input_cost = (grok_in / 1_000_000) * grok_input_price
-    grok_output_cost = (grok_out / 1_000_000) * grok_output_price
+    r_inp_price, r_out_price = PrimrModels.get_price(reasoning_model)
+    w_inp_price, w_out_price = PrimrModels.get_price(writing_model)
+    grok_input_cost = (
+        (grok_reasoning_in / 1_000_000) * r_inp_price
+        + (grok_writing_in / 1_000_000) * w_inp_price
+    )
+    grok_output_cost = (
+        (grok_reasoning_out / 1_000_000) * r_out_price
+        + (grok_writing_out / 1_000_000) * w_out_price
+    )
 
     total_input_cost = flash_input_cost + grok_input_cost
     total_output_cost = flash_output_cost + grok_output_cost
+
+    grok_in_total = grok_reasoning_in + grok_writing_in
+    grok_out_total = grok_reasoning_out + grok_writing_out
 
     duration = f"{duration_min}-{duration_max} min"
     if include_ai_strategy:
         duration += " + AI strategy (Grok)"
 
-    notes = [
-        "Standard mode: Grok 4.1 with research deepening + cross-validation (no Deep Research)"
-    ]
+    tier_labels = {"fast": "Grok 4.1", "hybrid": "Grok 4.20 hybrid", "max": "Grok 4.20 max"}
+    tier_label = tier_labels.get(grok_tier, "Grok")
+    tier_desc = {
+        "fast": "Grok 4.1 with research deepening + cross-validation (no Deep Research)",
+        "hybrid": "Grok 4.20 reasoning + 4.1 writing (hybrid tier)",
+        "max": "Grok 4.20 for all stages (max tier)",
+    }
+    notes = [f"Standard mode: {tier_desc.get(grok_tier, tier_label)}"]
     if include_ai_strategy:
         notes.append(f"AI Strategy via Grok ({num_vendors} vendor(s))")
     if verify:
         notes.append("Claim verification via Flash (~$0.01, 3-5 min)")
 
-    total_input_tokens = flash_in + grok_in
-    total_output_tokens = flash_out + grok_out
+    total_input_tokens = flash_in + grok_in_total
+    total_output_tokens = flash_out + grok_out_total
 
     return CostEstimate(
-        mode="standard (Grok 4.1)",
+        mode=f"standard ({tier_label})",
         estimated_input_tokens=total_input_tokens,
         estimated_output_tokens=total_output_tokens,
         estimated_search_queries=search_queries,
@@ -479,6 +507,7 @@ def display_cost_estimate(
     fast_mode: bool = False,
     premium_mode: bool = False,
     verify: bool = False,
+    grok_tier: str = "hybrid",
 ) -> bool:
     """
     Display cost estimate and ask for confirmation.
@@ -505,6 +534,7 @@ def display_cost_estimate(
         fast_mode=fast_mode,
         premium_mode=premium_mode,
         verify=verify,
+        grok_tier=grok_tier,
     )
 
     # Clean single line with visible text

@@ -33,17 +33,18 @@ Manual research takes hours. Primr typically runs in about 35-45 minutes and cos
 
 | Mode | What it does | Time | Cost |
 |------|--------------|------|------|
-| Default | Grok 4.1 pipeline + AI Strategy (auto when `XAI_API_KEY` set) | ~35-45 min | ~$0.55 |
-| Default + multi-vendor | Add `--cloud-vendor aws azure` | ~45-55 min | ~$0.60 |
-| Default + strategy type | Add `--strategy-type customer_experience` | ~35-45 min | ~$0.60 |
-| Default `--no-ai-strategy` | Grok 4.1 report only, no strategy | ~25 min | ~$0.40 |
+| Default | Grok 4.20 hybrid: 4.20 reasoning + 4.1 writing + AI Strategy | ~35-45 min | ~$0.67 |
+| Default + multi-vendor | Add `--cloud-vendor aws azure` | ~45-55 min | ~$0.80 |
+| Default + strategy type | Add `--strategy-type customer_experience` | ~35-45 min | ~$0.75 |
+| `--grok-tier fast` | Grok 4.1 everywhere (cheaper, slightly lower quality) | ~35-45 min | ~$0.47 |
+| `--grok-tier max` | Grok 4.20 everywhere (diminishing returns on writing) | ~35-45 min | ~$4.29 |
 | `--premium` | Gemini + Deep Research + AI Strategy | 50-75 min | ~$5 |
 | `--premium` + multi-vendor | Add `--cloud-vendor aws azure` | 75-120 min | $6-9 |
 | `--premium --lite` | Pro model instead of DR for AI Strategy | 50-80 min | ~$4 |
 | `--mode scrape` | Crawl site + extract insights only | 5-10 min | $0.10 |
 | `--mode deep` | Gemini Deep Research on external sources only | 10-15 min | $2.50 |
 
-The default `primr` command auto-detects: when `XAI_API_KEY` is set, it uses the Grok 4.1 standard pipeline (fastest standard quality profile, cheap, high quality). Without it, falls back to Gemini. Use `--premium` to explicitly request the Gemini + Deep Research pipeline for maximum depth.
+The default `primr` command auto-detects: when `XAI_API_KEY` is set, it uses the Grok 4.20 hybrid pipeline (4.20 for reasoning-heavy stages like gap analysis, workbook, and cross-validation; 4.1 for bulk writing). This delivers near-premium analytical quality at ~$0.67/run. Use `--grok-tier fast` for cheaper runs at slightly lower quality, or `--premium` for the Gemini + Deep Research pipeline for maximum depth.
 
 Naming note: historical references to "fast mode" in logs/code refer to this standard Grok pipeline. A separate true quick mode target (under 5 minutes) is planned as a future profile.
 
@@ -81,6 +82,26 @@ Optional controlled fill-in for missing profile/company pairs (explicit spend ca
 ```bash
 primr --eval --eval-id eval-2026-02-r1 --eval-run-missing --eval-manifest eval_companies.csv --eval-max-new-runs 2 --eval-max-estimated-cost 12
 ```
+
+Optional LLM-judge overlays on staged reports:
+
+```bash
+# Cloud judge (requires spend cap)
+primr --eval --eval-id eval-2026-02-r1 --eval-llm-judge --eval-judge-provider grok --eval-judge-model grok-4-1-fast-reasoning --eval-judge-max-cost 0.25
+
+# Local judge against an Ollama/OpenAI-compatible endpoint
+primr --eval --eval-id eval-2026-03-local --eval-llm-judge --eval-judge-provider local --eval-judge-model qwen3:30b --eval-judge-base-url http://localhost:11434/v1
+
+# Local multi-model sweep on the same staged company/profile pairs
+primr --eval --eval-id eval-2026-03-local-sweep --eval-llm-judge --eval-judge-provider local --eval-judge-models qwen3:30b qwen2.5-coder:32b-instruct-q5_K_M qwen2.5:14b --eval-judge-base-url http://localhost:11434/v1
+
+# Local sweep from a maintained named shortlist
+primr --eval --eval-id eval-2026-03-local-sweep --eval-llm-judge --eval-judge-provider local --eval-judge-model-list 4090-top10 --eval-judge-base-url http://localhost:11434/v1
+```
+
+Local judge runs now evaluate every staged non-baseline profile against the chosen baseline, not just the first available profile. They write one JSON artifact per model plus `local_judge_summary.json` / `local_judge_summary.md` with candidate-profile coverage, winner consensus, and per-profile breakdowns for side-by-side comparison.
+
+This is useful for evaluating local models against existing cloud-generated reports before routing any production pipeline stages to local inference. It is still a judge-based acceptance layer, not proof that a local model is ready to replace report-writing or deep-research stages directly.
 
 ### 2) Track the same metrics for every profile
 
@@ -328,6 +349,7 @@ primr --batch companies_utilities_enriched.csv --mode scrape
 --limit N         # Process only the first N companies (useful for testing)
 --skip-confirm    # Skip the confirmation prompt (for unattended runs)
 --mode MODE       # scrape ($0.10/co), deep ($2.50/co), full (~$0.55/co or ~$5/co with --premium)
+--grok-tier TIER  # fast (~$0.55), hybrid (~$1.10, 4.20 reasoning), max (~$4, 4.20 everywhere)
 ```
 
 **Defensive behavior:**
@@ -361,6 +383,7 @@ Playwright tiers now perform adaptive lazy-load scrolling (up to 20 steps by def
 | Model | Role | Pricing (per 1M tokens) |
 |-------|------|-------------------------|
 | Grok 4.1 | Default mode: analysis, writing, strategy | $0.20 in / $0.50 out |
+| Grok 4.20 | `--grok-tier hybrid/max`: reasoning and/or writing | $2.00 in / $6.00 out |
 | Gemini 3 Flash | Scraping, link selection, QA | $0.50 in / $3 out |
 | Gemini 3.1 Pro | `--premium` mode: section writing, analysis | $2/$12 (≤200k) · $4/$18 (>200k) |
 | Deep Research Agent | `--premium` mode: autonomous research | ~$2.50/task (flat) |
@@ -386,6 +409,13 @@ GEMINI_API_KEY=       # https://aistudio.google.com/apikey
 # SEARCH_PROVIDER=google
 # SEARCH_API_KEY=     # Google Custom Search API
 # SEARCH_ENGINE_ID=   # Programmable Search Engine ID
+
+# Optional - local/OpenAI-compatible eval judge backend (for Ollama, LAN-hosted servers, etc.)
+# LOCAL_LLM_BASE_URL=http://localhost:11434/v1
+# LOCAL_LLM_API_KEY=
+# OLLAMA_BASE_URL=http://localhost:11434
+# Local judge model lists live in src/primr/config/local_eval_models.py
+# Built-in lists today: 4090-top10, installed-starter
 
 # Optional - scrape quality gate (fail fast when website extraction is too thin)
 # MIN_SCRAPED_PAGES=3

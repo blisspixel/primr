@@ -19,6 +19,7 @@ from primr.core.cli import (
     MODE_MAP,
     CLIConfig,
     Command,
+    _resolve_local_judge_models,
     main,
     parse_args,
     run_doctor,
@@ -264,6 +265,64 @@ class TestParseArgs:
         assert config.eval_judge_max_pairs == 1
         assert config.eval_judge_passes == 1
         assert config.eval_judge_max_cost == 0.25
+
+
+    def test_parse_local_eval_judge_model_list(self):
+        """Test parsing named local judge model lists."""
+        config = parse_args(
+            [
+                "--eval",
+                "--eval-id",
+                "eval-2026-03-r1",
+                "--eval-llm-judge",
+                "--eval-judge-provider",
+                "local",
+                "--eval-judge-model-list",
+                "4090-top10",
+            ]
+        )
+        assert config.eval_llm_judge is True
+        assert config.eval_judge_provider == "local"
+        assert config.eval_judge_model_list == "4090-top10"
+
+    def test_resolve_local_judge_models_from_named_list(self, monkeypatch):
+        """Test resolving a named local judge list against installed Ollama models."""
+        config = CLIConfig(
+            command=Command.EVAL,
+            eval_llm_judge=True,
+            eval_judge_provider="local",
+            eval_judge_model_list="installed-starter",
+        )
+        monkeypatch.setattr(
+            "primr.core.cli._list_installed_ollama_models",
+            lambda: {"qwen3:30b", "qwen2.5:14b"},
+        )
+        selected, missing = _resolve_local_judge_models(config)
+        assert selected == ["qwen3:30b", "qwen2.5:14b"]
+        assert "qwen3-coder:30b" in missing
+        assert "qwen2.5-coder:32b-instruct-q5_K_M" in missing
+
+    def test_parse_local_stage_eval_options(self):
+        """Test parsing local stage eval arguments."""
+        config = parse_args(
+            [
+                "--eval",
+                "--eval-id",
+                "eval-2026-03-stage",
+                "--eval-local-stage",
+                "website-summary",
+                "--eval-working-root",
+                "working",
+                "--eval-judge-provider",
+                "local",
+                "--eval-judge-model-list",
+                "installed-starter",
+            ]
+        )
+        assert config.eval_local_stage == "website-summary"
+        assert config.eval_working_root == "working"
+        assert config.eval_judge_provider == "local"
+        assert config.eval_judge_model_list == "installed-starter"
 
     def test_parse_improve_flag(self):
         """Test parsing --improve flag."""

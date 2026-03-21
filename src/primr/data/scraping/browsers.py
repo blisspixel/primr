@@ -8,6 +8,7 @@ rendering or challenge solving.
 import contextlib
 import logging
 import os
+import platform
 import threading
 import time
 from abc import ABC, abstractmethod
@@ -27,6 +28,7 @@ from .models import Attempt, ErrorType, ScrapeResult
 from .net import extract_host
 from .profiles import (
     BrowserContextProfile,
+    get_browser_compatible_http_profile,
     get_random_context_profile,
     get_stealth_script,
 )
@@ -366,8 +368,6 @@ class PlaywrightSession(BrowserSession):
     def _setup_browser(self) -> None:
         """Initialize Playwright browser."""
         try:
-            from .profiles import get_random_http_profile
-
             self._owns_browser = False
             self._playwright = None
 
@@ -386,8 +386,10 @@ class PlaywrightSession(BrowserSession):
                 )
                 self._owns_browser = True
 
-            # Get a proper Chrome user agent
-            http_profile = get_random_http_profile()
+            http_profile = get_browser_compatible_http_profile(
+                browser_version=getattr(self._browser, "version", None),
+                platform_name=platform.system(),
+            )
 
             # Create context with profile settings
             self._context = self._browser.new_context(
@@ -398,10 +400,14 @@ class PlaywrightSession(BrowserSession):
                 locale=self._profile.locale,
                 timezone_id=self._profile.timezone,
                 user_agent=http_profile.user_agent,
+                extra_http_headers={"Accept-Language": http_profile.accept_language},
             )
 
             # Apply stealth patches
-            stealth_script = get_stealth_script()
+            stealth_script = get_stealth_script(
+                user_agent=http_profile.user_agent,
+                platform_name=platform.system(),
+            )
             if stealth_script:
                 self._context.add_init_script(stealth_script)
 
@@ -915,7 +921,7 @@ def _scrape_with_playwright_impl(
     _fresh_pw = None  # Only set if we fall back to a fresh browser
 
     try:
-        from .profiles import get_random_http_profile, get_stealth_script
+        from .profiles import get_stealth_script
 
         # Playwright sync API objects are thread-affine.
         # Reuse shared browser only on main thread; workers use isolated instances.
@@ -945,7 +951,10 @@ def _scrape_with_playwright_impl(
                 args=BROWSER_LAUNCH_ARGS,
             )
 
-        http_profile = get_random_http_profile()
+        http_profile = get_browser_compatible_http_profile(
+            browser_version=getattr(browser, "version", None),
+            platform_name=platform.system(),
+        )
         ctx_profile = profile or get_random_context_profile()
 
         context = browser.new_context(
@@ -960,9 +969,13 @@ def _scrape_with_playwright_impl(
             java_script_enabled=True,
             bypass_csp=True,
             ignore_https_errors=True,
+            extra_http_headers={"Accept-Language": http_profile.accept_language},
         )
 
-        stealth_script = get_stealth_script()
+        stealth_script = get_stealth_script(
+            user_agent=http_profile.user_agent,
+            platform_name=platform.system(),
+        )
         if stealth_script:
             context.add_init_script(stealth_script)
 
