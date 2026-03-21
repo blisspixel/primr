@@ -111,7 +111,7 @@ from primr.config.config import (
     PROJECT_ROOT,
     WORKING_DIR,
 )
-from primr.config.models import GROK_MODEL_WRITING, PrimrModels
+from primr.config.models import GROK_MODEL_WRITING, GrokTier, PrimrModels
 from primr.config.sections_config import SECTION_KEY_MAP
 from primr.core.research_orchestrator import (
     ResearchConfig,
@@ -1445,6 +1445,7 @@ def _write_section_with_retry(
     source_urls: list[str],
     report_system: str,
     reasoning_mode: str = "standard",
+    model: str | None = None,
 ) -> dict[str, Any] | None:
     """Write a single section with one retry if output is thin.
 
@@ -1468,10 +1469,11 @@ def _write_section_with_retry(
         reasoning_mode,
     )
 
+    writing_model = model or GROK_MODEL_WRITING
     try:
         section_content = grok_llm(
             prompt,
-            model=GROK_MODEL_WRITING,
+            model=writing_model,
             max_tokens=_get_section_max_tokens(section),
             temperature=0.6,
             system_prompt=report_system,
@@ -1506,7 +1508,7 @@ def _write_section_with_retry(
         try:
             retry_content = grok_llm(
                 retry_prompt,
-                model=GROK_MODEL_WRITING,
+                model=writing_model,
                 max_tokens=_get_section_max_tokens(section),
                 temperature=0.6,
                 system_prompt=report_system,
@@ -1525,6 +1527,7 @@ def _fast_coherence_pass(
     company_name: str,
     website: str | None,
     report_content: str,
+    model: str | None = None,
 ) -> str:
     """Run a coherence pass over the assembled fast-mode report.
 
@@ -1588,10 +1591,11 @@ Return the full markdown report. No preamble.
 {report_content}
 --- REPORT END ---
 """
+    writing_model = model or GROK_MODEL_WRITING
     try:
         polished = grok_llm(
             prompt,
-            model=GROK_MODEL_WRITING,
+            model=writing_model,
             max_tokens=32_000,
             temperature=0.3,
             system_prompt=(
@@ -2156,6 +2160,7 @@ def _repair_strategy_artifact_issues(
     strategy_label: str,
     source_urls: list[str],
     issues: list[str],
+    model: str | None = None,
 ) -> str:
     """Run one focused repair pass for strategy artifact issues before shipping."""
     from primr.ai.grok_client import grok_llm
@@ -2197,10 +2202,11 @@ RULES:
         "Preserve depth, improve auditability, and resolve contradictions conservatively."
     )
 
+    writing_model = model or GROK_MODEL_WRITING
     try:
         repaired = grok_llm(
             prompt,
-            model=GROK_MODEL_WRITING,
+            model=writing_model,
             max_tokens=20_000,
             temperature=0.2,
             system_prompt=system_prompt,
@@ -2218,6 +2224,7 @@ def _prepare_strategy_for_output(
     vendor: str,
     strategy_label: str,
     source_urls: list[str],
+    model: str | None = None,
 ) -> tuple[str, dict[str, int | float | bool], list[str]]:
     """Normalize, validate, and repair strategy output before artifact shipping."""
     normalized_source_urls, rejected_source_urls = _normalize_strategy_source_urls(source_urls)
@@ -2244,6 +2251,7 @@ def _prepare_strategy_for_output(
             strategy_label,
             normalized_source_urls,
             repair_issues,
+            model=model,
         )
         prepared = _clean_strategy_output(prepared)
         prepared = _ensure_strategy_source_inventory(prepared, normalized_source_urls)
@@ -2395,6 +2403,7 @@ def _polish_fast_report_for_trust(
     website: str | None,
     report_content: str,
     source_urls: list[str],
+    model: str | None = None,
 ) -> str:
     """
     Run a lightweight post-write polish pass for fast mode trust/readability.
@@ -2446,10 +2455,11 @@ Return the fully edited markdown report only.
 {report_content}
 --- REPORT END ---
 """
+    writing_model = model or GROK_MODEL_WRITING
     try:
         polished = grok_llm(
             prompt,
-            model=GROK_MODEL_WRITING,
+            model=writing_model,
             max_tokens=10_000,
             temperature=0.2,
             system_prompt=(
@@ -2763,6 +2773,7 @@ def _fast_gap_analysis(
     raw_corpus: str,
     external_sources: str,
     source_urls: list[str],
+    model: str | None = None,
 ) -> tuple[list[str], str]:
     """
     Phase 2 helper: Grok identifies research gaps and returns targeted search queries.
@@ -2822,6 +2833,7 @@ technology direction, recent news, risk factors.
     try:
         response = grok_llm(
             prompt,
+            model=model,
             max_tokens=5_000,
             temperature=0.4,
             system_prompt=system_prompt,
@@ -2850,6 +2862,7 @@ def _fast_cross_validate(
     website: str | None,
     report_content: str,
     source_urls: list[str],
+    model: str | None = None,
 ) -> dict:
     """
     Phase 5 helper: Grok reviews the assembled report for quality issues.
@@ -2896,6 +2909,7 @@ If the report is solid, return empty arrays."""
     try:
         response = grok_llm(
             prompt,
+            model=model,
             max_tokens=5_000,
             temperature=0.2,
             system_prompt=system_prompt,
@@ -3032,6 +3046,7 @@ def _fast_regenerate_section(
     analysis_workbook: str,
     new_evidence: str,
     source_urls: list[str],
+    model: str | None = None,
 ) -> str:
     """
     Phase 5 helper: Re-writes one weak section with additional evidence.
@@ -3075,10 +3090,11 @@ RULES:
         "to make the section analytically stronger. Be conservative on financial inferences."
     )
 
+    writing_model = model or GROK_MODEL_WRITING
     try:
         result = grok_llm(
             prompt,
-            model=GROK_MODEL_WRITING,
+            model=writing_model,
             max_tokens=5_000,
             temperature=0.7,
             system_prompt=system_prompt,
@@ -3121,6 +3137,7 @@ def _strategy_cross_validate(
     strategy_content: str,
     vendor: str,
     source_urls: list[str],
+    model: str | None = None,
 ) -> dict:
     """
     Phase 6 helper: Grok reviews the strategy document for quality issues.
@@ -3167,6 +3184,7 @@ If the strategy is solid, return empty arrays."""
     try:
         response = grok_llm(
             prompt,
+            model=model,
             max_tokens=4_000,
             temperature=0.2,
             system_prompt=system_prompt,
@@ -3223,6 +3241,7 @@ def _strategy_regenerate_section(
     section_content: str,
     new_evidence: str,
     analysis_workbook: str,
+    model: str | None = None,
 ) -> str:
     """
     Phase 6 helper: Re-writes one weak strategy section with additional evidence.
@@ -3261,10 +3280,11 @@ RULES:
         "more specific and actionable. Be conservative on cost estimates."
     )
 
+    writing_model = model or GROK_MODEL_WRITING
     try:
         result = grok_llm(
             prompt,
-            model=GROK_MODEL_WRITING,
+            model=writing_model,
             max_tokens=8_000,
             temperature=0.6,
             system_prompt=system_prompt,
@@ -3296,6 +3316,7 @@ def _strategy_polish(
     company_name: str,
     vendor: str,
     strategy_content: str,
+    model: str | None = None,
 ) -> str:
     """
     Phase 6 helper: Combined coherence + evidence discipline pass for strategy documents.
@@ -3340,10 +3361,11 @@ Return the fully edited markdown strategy document only. No preamble or commenta
 {strategy_content}
 --- STRATEGY END ---"""
 
+    writing_model = model or GROK_MODEL_WRITING
     try:
         polished = grok_llm(
             prompt,
-            model=GROK_MODEL_WRITING,
+            model=writing_model,
             max_tokens=32_000,
             temperature=0.3,
             system_prompt=(
@@ -3391,6 +3413,8 @@ def _enrich_strategy_content(
     source_urls_seen: set[str],
     analysis_workbook: str,
     website: str | None,
+    grok_reasoning: str | None = None,
+    grok_writing: str | None = None,
 ) -> str:
     """
     Phase 6 orchestrator: Full quality pass for strategy documents.
@@ -3416,6 +3440,7 @@ def _enrich_strategy_content(
                 strategy_content,
                 vendor,
                 source_urls,
+                model=grok_reasoning,
             )
     except Exception as e:
         log_structured("warning", "Strategy CV failed, skipping enrichment", error=str(e))
@@ -3498,6 +3523,7 @@ def _enrich_strategy_content(
                     original_section,
                     new_evidence,
                     analysis_workbook,
+                    model=grok_writing,
                 )
 
             if regenerated and regenerated != original_section:
@@ -3519,7 +3545,7 @@ def _enrich_strategy_content(
     # Step 3: Polish pass
     try:
         with console.timed_operation(f"Polishing {label}{vendor_label}"):
-            strategy_content = _strategy_polish(company_name, vendor, strategy_content)
+            strategy_content = _strategy_polish(company_name, vendor, strategy_content, model=grok_writing)
     except Exception as e:
         log_structured("warning", "Strategy polish failed, keeping unpolished", error=str(e))
 
@@ -3538,6 +3564,7 @@ def perform_fast_research(
     *,
     folder_path: str | None = None,
     resume_local: bool = False,
+    grok_tier: str = "hybrid",
 ) -> str | None:
     """
     Fast research mode using Grok 4.1 with accordion-style batch writing.
@@ -3556,9 +3583,17 @@ def perform_fast_research(
     """
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
-    from primr.ai.grok_client import get_grok_session_usage, grok_llm, reset_grok_session
+    from primr.ai.grok_client import (
+        get_grok_session_usage,
+        get_grok_session_usage_by_model,
+        grok_llm,
+        reset_grok_session,
+    )
 
     reset_grok_session()
+
+    # Resolve Grok model pair for this tier
+    grok_reasoning, grok_writing = PrimrModels.get_grok_models(GrokTier(grok_tier))
 
     display_name = company_name or (urlparse(website or "").netloc if website else "")
     folder_path = folder_path or create_working_folder(company_name, website)
@@ -3709,7 +3744,7 @@ def perform_fast_research(
         external_data = _assess_source_relevance(company_name, external_data)
         if len(external_data) < pre_filter_count:
             console.info(
-                f"Quality filter: {pre_filter_count} → {len(external_data)} sources (dropped {pre_filter_count - len(external_data)} low-relevance)"
+                f"Quality filter: {pre_filter_count} -> {len(external_data)} sources (dropped {pre_filter_count - len(external_data)} low-relevance)"
             )
 
         for url, content in external_data.items():
@@ -3771,6 +3806,7 @@ def perform_fast_research(
                 raw_corpus,
                 external_sources_raw,
                 source_urls,
+                model=grok_reasoning,
             )
 
         gap_new_sources = 0
@@ -3911,6 +3947,7 @@ def perform_fast_research(
             with console.timed_operation("Generating analysis workbook via Grok"):
                 analysis_workbook = grok_llm(
                     analysis_prompt,
+                    model=grok_reasoning,
                     max_tokens=18_000,
                     temperature=0.5,
                     system_prompt=analysis_system,
@@ -4052,6 +4089,7 @@ def perform_fast_research(
                         source_urls,
                         report_system,
                         section_reasoning_modes.get(sec.id, "standard"),
+                        model=grok_writing,
                     ),
                 )
 
@@ -4100,6 +4138,7 @@ def perform_fast_research(
                 source_urls,
                 report_system,
                 section_reasoning_modes.get(exec_summary_section.id, "standard"),
+                model=grok_writing,
             )
             if exec_parsed:
                 written_sections.insert(0, exec_parsed)
@@ -4118,7 +4157,7 @@ def perform_fast_research(
         # Coherence pass: deduplicate and smooth transitions
         with console.timed_operation("Running coherence pass"):
             report_content = _fast_coherence_pass(
-                company_name or display_name, website, report_content
+                company_name or display_name, website, report_content, model=grok_writing
             )
 
         total_words = len(report_content.split())
@@ -4144,6 +4183,7 @@ def perform_fast_research(
                 website,
                 report_content,
                 source_urls,
+                model=grok_reasoning,
             )
 
         weak_sections = cv_result.get("weak_sections", [])
@@ -4230,6 +4270,7 @@ def perform_fast_research(
                         analysis_workbook,
                         new_evidence,
                         source_urls,
+                        model=grok_writing,
                     )
 
                 # Splice back into report (preserve \n\n separator between sections)
@@ -4281,7 +4322,7 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
 
                 resolved = grok_llm(
                     resolve_prompt,
-                    model=GROK_MODEL_WRITING,
+                    model=grok_writing,
                     max_tokens=65_000,
                     temperature=0.2,
                     system_prompt="You are a fact-checker standardizing contradictory data points across report sections.",
@@ -4323,6 +4364,7 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
             website,
             report_content,
             source_urls,
+            model=grok_writing,
         )
         report_content = _clean_fast_report_output(report_content)
         report_content = _normalize_fast_citations(report_content)
@@ -4446,7 +4488,7 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
                         with console.timed_operation(f"AI Strategy{vendor_label} via Grok"):
                             strategy_content = grok_llm(
                                 combined_strategy_prompt,
-                                model=GROK_MODEL_WRITING,
+                                model=grok_writing,
                                 max_tokens=32_000,
                             )
                     except Exception as strat_err:
@@ -4484,6 +4526,8 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
                                 set(validated_source_urls),
                                 analysis_workbook,
                                 website,
+                                grok_reasoning=grok_reasoning,
+                                grok_writing=grok_writing,
                             )
                         except Exception as enrich_err:
                             log_structured(
@@ -4500,6 +4544,7 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
                                 vendor,
                                 "AI Strategy",
                                 list(validated_source_urls),
+                                model=grok_writing,
                             )
                         )
                         qa_gate = "PASS" if strategy_qa["qa_gate_passed"] else "WARN"
@@ -4619,7 +4664,7 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
                         with console.timed_operation(f"{display_name_strat} via Grok"):
                             strategy_content = grok_llm(
                                 combined_prompt,
-                                model=GROK_MODEL_WRITING,
+                                model=grok_writing,
                                 max_tokens=32_000,
                             )
                     except Exception as strat_err:
@@ -4658,6 +4703,8 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
                                 set(validated_source_urls),
                                 analysis_workbook,
                                 website,
+                                grok_reasoning=grok_reasoning,
+                                grok_writing=grok_writing,
                             )
                         except Exception as enrich_err:
                             log_structured(
@@ -4674,6 +4721,7 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
                                 display_name_strat,
                                 display_name_strat,
                                 list(validated_source_urls),
+                                model=grok_writing,
                             )
                         )
                         qa_gate = "PASS" if strategy_qa["qa_gate_passed"] else "WARN"
@@ -4759,13 +4807,21 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
                     f"{label} DOCX held back by artifact gate; saved {resolved_strategy_path.name} instead"
                 )
 
-        # Cost summary from Grok session usage
+        # Cost summary from Grok session usage (per-model for accurate pricing)
         grok_usage = get_grok_session_usage()
-        grok_cost = PrimrModels.calculate_cost(
-            PrimrModels.GROK_MODEL,
-            grok_usage["input_tokens"],
-            grok_usage["output_tokens"],
-        )
+        usage_by_model = get_grok_session_usage_by_model()
+        grok_cost = 0.0
+        for model_name, tokens in usage_by_model.items():
+            model_config = PrimrModels.get_model_config(model_name)
+            if model_config:
+                grok_cost += PrimrModels.calculate_cost(
+                    model_name, tokens["input_tokens"], tokens["output_tokens"]
+                )
+            else:
+                # Unknown model — fall back to default Grok pricing
+                grok_cost += PrimrModels.calculate_cost(
+                    PrimrModels.GROK_MODEL, tokens["input_tokens"], tokens["output_tokens"]
+                )
 
         # Flash cost from AI client
         from primr.ai.client import get_client
@@ -4807,8 +4863,9 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
         for trust_title, trust_stats in strategy_trust_stats:
             console.trust_summary(trust_title + " Trust", trust_stats)
 
+        _tier_labels = {"fast": "Grok 4.1", "hybrid": "Grok 4.20 hybrid", "max": "Grok 4.20 max"}
         summary_items = [
-            ("Mode", "fast (Grok 4.1)"),
+            ("Mode", "fast (" + _tier_labels.get(grok_tier, "Grok") + ")"),
             ("Pages", str(pages_scraped)),
             ("External", str(validated_source_count)),
             ("Duration", time_str),
@@ -5012,6 +5069,7 @@ def perform_research(
     skip_scrape_validation: bool = False,
     resume_local: bool = False,
     verify: bool = False,
+    grok_tier: str = "hybrid",
 ) -> str | None:
     if not company_name and not website:
         console.error("No company name or website provided")
@@ -5139,6 +5197,7 @@ def perform_research(
                 discovery_notes_content=discovery_notes_content,
                 folder_path=folder_path,
                 resume_local=resume_local,
+                grok_tier=grok_tier,
             )
             if fast_path:
                 _update_run_state(

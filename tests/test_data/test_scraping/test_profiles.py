@@ -6,6 +6,7 @@ from primr.data.scraping.profiles import (
     STEALTH_SCRIPT,
     BrowserContextProfile,
     HttpHeaderProfile,
+    get_browser_compatible_http_profile,
     get_context_profile_by_name,
     get_http_profile_by_name,
     get_random_context_profile,
@@ -143,7 +144,8 @@ class TestStealthPatches:
     def test_get_stealth_script_returns_script(self):
         """get_stealth_script() returns the stealth script."""
         script = get_stealth_script()
-        assert script == STEALTH_SCRIPT
+        assert "__PRIMR_PLATFORM__" not in script
+        assert "__PRIMR_APP_VERSION__" not in script
         assert len(script) > 100
 
 
@@ -155,6 +157,28 @@ class TestProfileFunctions:
         profile = get_random_http_profile()
         assert isinstance(profile, HttpHeaderProfile)
         assert profile in HTTP_PROFILES
+
+    def test_get_browser_compatible_http_profile_matches_browser_version(self):
+        """Browser-compatible profiles should align UA and client hints to the actual Chromium major."""
+        profile = get_browser_compatible_http_profile(
+            browser_version="145.0.7632.6",
+            platform_name="Windows",
+        )
+        assert profile.user_agent.endswith("Chrome/145.0.0.0 Safari/537.36")
+        assert '"145"' in profile.sec_ch_ua
+        assert profile.sec_ch_ua_platform == '"Windows"'
+
+    def test_get_stealth_script_allows_platform_and_version_alignment(self):
+        """Stealth script should embed caller-provided platform and UA values."""
+        script = get_stealth_script(
+            user_agent=(
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+            ),
+            platform_name="Darwin",
+        )
+        assert "MacIntel" in script
+        assert "Chrome/145.0.0.0 Safari/537.36" in script
 
     def test_get_random_context_profile_returns_valid(self):
         """get_random_context_profile returns a valid profile."""

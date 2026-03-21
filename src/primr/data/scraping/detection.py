@@ -152,6 +152,11 @@ def detect_soft_block(
 
     for indicator, description in browser_block_indicators:
         if indicator in text_lower:
+            # Legitimate sites sometimes embed hidden IE/browser fallback markup
+            # inside otherwise valid pages. Treat browser-support text like other
+            # block signatures: only fail when the overall response is small.
+            if content_length > 10000:
+                continue
             return True, f"Browser block: {description}"
 
     # 4. Template-based detection

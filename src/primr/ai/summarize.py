@@ -11,7 +11,6 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from primr.ai.llm import llm
-from primr.config.config import MAX_RETRIES
 from primr.utils.content_sanitizer import sanitize_for_llm
 from primr.utils.formatting import deduplicate_content, get_deduplication_stats
 from primr.utils.logging_config import get_logger
@@ -20,7 +19,6 @@ load_dotenv()
 
 logger = get_logger("summarize")
 
-# Load AI prompt templates from package config directory
 PROMPTS_FILE = Path(__file__).parent.parent / "config" / "prompts.json"
 with open(PROMPTS_FILE, encoding="utf-8") as f:
     PROMPTS = json.load(f)
@@ -30,6 +28,9 @@ _BATCH_MAX_PAGES = 8
 _BATCH_MAX_CHARS = 28_000
 _BATCH_PAGE_CHAR_LIMIT = 4_000
 _PER_PAGE_MIN_LENGTH = 80
+_DEFAULT_RETRIES = 3
+
+SummaryFn = Callable[[str, int], str]
 
 
 def generate_prompt(template_name, **kwargs):
@@ -85,11 +86,49 @@ def _build_summary_batches(pages: list[tuple[str, str]]) -> list[list[tuple[str,
     return batches
 
 
+def _invoke_default_summary_model(prompt: str, _: int) -> str:
+    response = llm(prompt, model_type="scraping", thinking_level="low", streaming=False)
+    return response.strip()
+
+
+def _summarize_with_callback(
+    content: str,
+    *,
+    summarize_fn: SummaryFn,
+    retries: int = _DEFAULT_RETRIES,
+    min_length: int = 200,
+) -> str:
+    """Attempts summarization multiple times until valid output is received."""
+    attempt = 0
+    response_text = ""
+
+    while attempt < retries:
+        try:
+            response_text = summarize_fn(content, min_length).strip()
+            if response_text and len(response_text) >= min_length:
+                return response_text
+        except Exception as e:
+            logger.warning(f"AI summarization failed: {e}", exc_info=True)
+
+        attempt += 1
+        if attempt < retries:
+            time.sleep(5)
+
+    if response_text:
+        logger.warning(
+            f"Summarization returned short response ({len(response_text)} chars), using it anyway"
+        )
+        return response_text
+    return ""
+
+
 def _summarize_page(
     company_name: str,
     company_website: str | None,
     website_source: str,
     prepared_text: str,
+    *,
+    summarize_fn: SummaryFn,
 ) -> str:
     """Summarize a single page into factual bullets."""
     summary_prompt = generate_prompt(
@@ -98,8 +137,9 @@ def _summarize_page(
         company_website=company_website or "N/A",
         website_source=website_source,
     )
-    summarized_text = summarize_with_retries(
+    summarized_text = _summarize_with_callback(
         summary_prompt + "\n\n" + prepared_text,
+        summarize_fn=summarize_fn,
         min_length=_PER_PAGE_MIN_LENGTH,
     )
 
@@ -112,6 +152,8 @@ def _summarize_batch(
     company_name: str,
     company_website: str | None,
     batch_pages: list[tuple[str, str]],
+    *,
+    summarize_fn: SummaryFn,
 ) -> str:
     """Summarize several pages in one call with source-separated output."""
     sources_block = "\n\n".join(f"[Source: {source}]\n{text}" for source, text in batch_pages)
@@ -136,13 +178,15 @@ Webpage content:
 {sources_block}
 """
 
-    return summarize_with_retries(batch_prompt, min_length=240)
+    return _summarize_with_callback(batch_prompt, summarize_fn=summarize_fn, min_length=240)
 
 
 def _synthesize_site_insights(
     company_name: str,
     company_website: str | None,
     source_summaries: str,
+    *,
+    summarize_fn: SummaryFn,
 ) -> str:
     """Generate a single cross-page synthesis from per-source summaries."""
     synthesis_prompt = f"""You are preparing a company research brief for {company_name} ({company_website or "N/A"}).
@@ -170,26 +214,21 @@ Rules:
 Source summaries:
 {source_summaries}
 """
-    return summarize_with_retries(synthesis_prompt, min_length=500)
+    return _summarize_with_callback(synthesis_prompt, summarize_fn=summarize_fn, min_length=500)
 
 
-def summarize_scraped_content(
+def summarize_scraped_content_with_callback(
     company_name,
     company_website,
     scraped_data,
     folder_path,
+    *,
+    summarize_fn: SummaryFn,
     on_progress: Callable[[int, int, str], None] | None = None,
+    output_filename: str = "scraped_website_summary.txt",
 ):
-    """Summarizes key insights from scraped website data.
-
-    Args:
-        company_name: Name of the company
-        company_website: Company website URL
-        scraped_data: Dict mapping URL to raw text content
-        folder_path: Path to save output files
-        on_progress: Optional callback(current, total, url) for progress updates
-    """
-    summary_filename = os.path.join(folder_path, "scraped_website_summary.txt")
+    """Summarize scraped content using a caller-provided model backend."""
+    summary_filename = os.path.join(folder_path, output_filename)
 
     with open(summary_filename, "w", encoding="utf-8") as f:
         f.write(f"## Website Insights for {company_name}\n\n")
@@ -215,6 +254,7 @@ def summarize_scraped_content(
                 company_website,
                 website_source,
                 prepared_text,
+                summarize_fn=summarize_fn,
             )
             with open(summary_filename, "a", encoding="utf-8") as f:
                 f.write(formatted_summary + "\n")
@@ -227,7 +267,12 @@ def summarize_scraped_content(
         )
 
         for idx, batch_pages in enumerate(batches, start=1):
-            batch_summary = _summarize_batch(company_name, company_website, batch_pages)
+            batch_summary = _summarize_batch(
+                company_name,
+                company_website,
+                batch_pages,
+                summarize_fn=summarize_fn,
+            )
             section = f"## Batch {idx}/{len(batches)}\n{batch_summary}\n"
             with open(summary_filename, "a", encoding="utf-8") as f:
                 f.write(section + "\n")
@@ -237,6 +282,7 @@ def summarize_scraped_content(
             company_name,
             company_website,
             "\n\n".join(all_summaries),
+            summarize_fn=summarize_fn,
         )
         if synthesis.strip():
             synthesis_section = f"{synthesis}\n"
@@ -248,31 +294,66 @@ def summarize_scraped_content(
     return "\n".join(all_summaries)
 
 
-def summarize_with_retries(content, retries=MAX_RETRIES, min_length=200):
-    """Attempts AI summarization multiple times until valid output is received."""
-    attempt = 0
-    response_text = ""
+def summarize_scraped_content(
+    company_name,
+    company_website,
+    scraped_data,
+    folder_path,
+    on_progress: Callable[[int, int, str], None] | None = None,
+):
+    """Summarizes key insights from scraped website data."""
+    return summarize_scraped_content_with_callback(
+        company_name,
+        company_website,
+        scraped_data,
+        folder_path,
+        summarize_fn=_invoke_default_summary_model,
+        on_progress=on_progress,
+    )
 
-    while attempt < retries:
-        try:
-            # Use Flash model for scraping summaries (cheap, fast)
-            response = llm(content, model_type="scraping", thinking_level="low", streaming=False)
-            response_text = response.strip()
 
-            if response_text and len(response_text) >= min_length:
-                return response_text
+def summarize_scraped_content_local(
+    company_name,
+    company_website,
+    scraped_data,
+    folder_path,
+    *,
+    model: str,
+    base_url: str | None = None,
+    api_key_env: str = "LOCAL_LLM_API_KEY",
+    on_progress: Callable[[int, int, str], None] | None = None,
+    output_filename: str = "scraped_website_summary.local.txt",
+):
+    """Summarize scraped content with a local OpenAI-compatible backend."""
+    from primr.ai.openai_compatible_client import chat_completion
 
-        except Exception as e:
-            logger.warning(f"AI summarization failed: {e}", exc_info=True)
-
-        attempt += 1
-        if attempt < retries:
-            time.sleep(5)
-
-    # Return the last response if we got one (even if short), otherwise empty string
-    if response_text:
-        logger.warning(
-            f"Summarization returned short response ({len(response_text)} chars), using it anyway"
+    def _summarize_locally(prompt: str, min_length: int) -> str:
+        result = chat_completion(
+            prompt,
+            model=model,
+            base_url=base_url,
+            api_key_env=api_key_env,
+            temperature=0.1,
+            max_tokens=max(900, min_length + 300),
         )
-        return response_text
-    return ""
+        return result.text
+
+    return summarize_scraped_content_with_callback(
+        company_name,
+        company_website,
+        scraped_data,
+        folder_path,
+        summarize_fn=_summarize_locally,
+        on_progress=on_progress,
+        output_filename=output_filename,
+    )
+
+
+def summarize_with_retries(content, retries=_DEFAULT_RETRIES, min_length=200):
+    """Attempts AI summarization multiple times until valid output is received."""
+    return _summarize_with_callback(
+        content,
+        summarize_fn=_invoke_default_summary_model,
+        retries=retries,
+        min_length=min_length,
+    )

@@ -20,10 +20,11 @@ from primr.utils.logging_config import get_logger
 logger = get_logger("grok_client")
 
 # ---------------------------------------------------------------------------
-# Session-level token tracking
+# Session-level token tracking (per-model for accurate cost reporting)
 # ---------------------------------------------------------------------------
 _session_input_tokens: int = 0
 _session_output_tokens: int = 0
+_session_tokens_by_model: dict[str, dict[str, int]] = {}
 
 
 def get_grok_session_usage() -> dict[str, int]:
@@ -34,11 +35,21 @@ def get_grok_session_usage() -> dict[str, int]:
     }
 
 
+def get_grok_session_usage_by_model() -> dict[str, dict[str, int]]:
+    """Return per-model token usage for accurate cost calculation.
+
+    Returns:
+        {"model-name": {"input_tokens": N, "output_tokens": N}, ...}
+    """
+    return dict(_session_tokens_by_model)
+
+
 def reset_grok_session() -> None:
     """Reset session token counters (useful for testing)."""
-    global _session_input_tokens, _session_output_tokens
+    global _session_input_tokens, _session_output_tokens, _session_tokens_by_model
     _session_input_tokens = 0
     _session_output_tokens = 0
+    _session_tokens_by_model = {}
 
 
 # ---------------------------------------------------------------------------
@@ -172,7 +183,7 @@ def grok_llm(
         ConfigurationError: If XAI_API_KEY is not set.
         RuntimeError: If the API call fails after retries.
     """
-    global _session_input_tokens, _session_output_tokens
+    global _session_input_tokens, _session_output_tokens, _session_tokens_by_model
 
     client = _get_grok_client()
 
@@ -198,8 +209,15 @@ def grok_llm(
 
             # Track tokens only after confirming we got a valid response
             if response.usage:
-                _session_input_tokens += response.usage.prompt_tokens or 0
-                _session_output_tokens += response.usage.completion_tokens or 0
+                inp = response.usage.prompt_tokens or 0
+                out = response.usage.completion_tokens or 0
+                _session_input_tokens += inp
+                _session_output_tokens += out
+                # Per-model tracking for accurate cost reporting
+                if model not in _session_tokens_by_model:
+                    _session_tokens_by_model[model] = {"input_tokens": 0, "output_tokens": 0}
+                _session_tokens_by_model[model]["input_tokens"] += inp
+                _session_tokens_by_model[model]["output_tokens"] += out
 
             text = response.choices[0].message.content or ""
             logger.info(

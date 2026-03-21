@@ -28,7 +28,7 @@ For completed work, see the [Changelog](#changelog) at the bottom of this file, 
 
 **Deep Mode**: Gemini Deep Research Agent with autonomous multi-step search and synthesis
 
-**Standard Mode** (default when `XAI_API_KEY` set): Grok 4.1 pipeline with research deepening, parallel section writing, cross-validation, coherence pass, and strategy enrichment. ~35-45 min, ~$0.55.
+**Standard Mode** (default when `XAI_API_KEY` set): Grok 4.20 hybrid pipeline — 4.20 for reasoning stages (gap analysis, workbook, cross-validation), 4.1 for bulk writing. Research deepening, parallel section writing, cross-validation, coherence pass, and strategy enrichment. ~35-45 min, ~$0.67. Use `--grok-tier fast` for 4.1 everywhere (~$0.47) or `--grok-tier max` for 4.20 everywhere (~$4.29).
 
 **Premium Mode** (`--premium`): Gemini + Deep Research pipeline for maximum depth. ~50-75 min, ~$5.
 
@@ -53,7 +53,8 @@ For completed work, see the [Changelog](#changelog) at the bottom of this file, 
 - Deterministic QA checks: hypothesis coverage, confidence labels, section length, citation density, report-type-aware structure, and appendix/source integrity
 - `QAGateHook` with `ReportAnalyzer`-backed scoring (6 checks, penalty system)
 - Claim verification via `--verify` flag (~$0.01, 3-5 min) — extracts claims, challenges them with DDG searches, produces trust score
-- Versioned model evaluation harness: `primr eval` with scorecard generation (Markdown + CSV), versioned eval IDs, acceptance gates
+- Versioned model evaluation harness: `primr eval` with scorecard generation (Markdown + CSV), versioned eval IDs, acceptance gates, and optional LLM-judge overlays
+- Local eval judge capability for staged reports: Grok or local OpenAI-compatible backends (for example Ollama), including named local model lists, per-model JSON artifacts, and local multi-model sweep summaries across every staged non-baseline profile
 - Output improvement: `primr improve` for deterministic cleanup + optional agentic review pass
 
 ### Operational Maturity
@@ -84,6 +85,15 @@ Ordered by practical impact: first make the standard output more strategically u
 ### Near-Term
 
 Scoped, practical improvements. Some are partially built.
+
+#### Grok Tier Evaluation — 3-Way Comparison
+
+Run the eval harness on 3-5 companies across all three Grok tiers (fast/hybrid/max) plus premium to produce a proper scorecard. Hybrid is now the default based on initial Litehouse Foods comparison (meaningfully better analytical depth for ~$0.20 more). Need systematic data to confirm hybrid remains the right default and whether max tier ever justifies 6x the cost.
+
+- Same companies across all tiers for apples-to-apples comparison
+- Eval scorecard with quality, trust, utility, and utility-per-dollar metrics
+- LLM judge overlay for subjective quality assessment
+- Decision: validate hybrid default, identify if any company profile benefits from max
 
 #### v1.17.0 — Deeper Strategic Analysis
 
@@ -220,33 +230,67 @@ Extend the eval harness to compare all available providers and determine the bes
 - Auto-detect available API keys and only eval providers the user has access to
 - Historical eval tracking: compare across eval IDs to see if a provider improved over time
 
-#### v1.22.0 — Local Inference
+#### v1.22.0 — Local Inference Exploration
 
-Run parts of the pipeline on local NVIDIA hardware via Ollama, cutting API costs toward zero for batch workloads.
+Explore running parts of the pipeline on local NVIDIA hardware via Ollama or another OpenAI-compatible local endpoint, cutting API costs toward zero for batch workloads without pretending local models are automatically good enough for the full pipeline.
 
-At scale, API costs compound: 100 companies × $0.55 = $55 per batch. Local inference on NVIDIA GPUs eliminates per-run API costs for pipeline stages that don't require frontier model reasoning.
+At scale, API costs compound: 100 companies × $0.55 = $55 per batch. Local inference is worth evaluating because Primr is already local-first in execution. The question is not "can Primr run locally?" — it already does for scraping, orchestration, and outputs. The real question is which AI stages can move to local inference without unacceptable quality loss.
+
+**Positioning:**
+- Treat this as an eval-driven exploration first, not a default product promise
+- Optimize for `--hybrid` before `--local`: use local models where they are cheap and good enough, keep frontier/cloud models where they still materially outperform
+- Support both single-machine setups (desktop with GPU) and LAN-hosted model servers
 
 **Hardware Targets:**
-- **RTX 4090 (24GB VRAM)**: 7B-14B models — scraping helpers, link selection, content quality assessment, QA checks, insight extraction
-- **DGX Spark (128GB unified)**: 70B+ models — full synthesis, section writing, cross-validation, expert perspectives
+- **RTX 4090 (24GB VRAM)**: 7B-14B models — scraping helpers, link selection, content quality assessment, QA checks, insight extraction, deterministic improvement assists
+- **Larger workstation / server GPUs**: 32B+ models — selective section drafting, structured synthesis, heavier review passes
+- **High-memory systems (for example DGX-class boxes)**: 70B+ models — candidates for broader synthesis experiments, still subject to eval gates before promotion
 
-**Routing:**
-- `--local` flag: route all compatible tasks to Ollama (cheapest, requires capable hardware)
-- `--hybrid` flag: local for high-volume/low-complexity tasks, API for deep research and expert analysis
-- Task-level capability mapping: each pipeline stage declares a minimum capability tier, model router selects the cheapest option that qualifies
-- Automatic fallback to API if local model produces below-threshold quality on eval gates
+**Execution Profiles:**
+- `--inference cloud`: current behavior; all AI stages use cloud providers
+- `--inference hybrid`: local for high-volume/low-complexity stages, cloud for deep research and trust-critical synthesis
+- `--inference local`: route all compatible stages to local inference, explicitly experimental
+- `--local-backend ollama|openai-compatible`: local backend selector; Ollama first, but avoid hard-coding the architecture to one vendor/runtime
+
+**Routing Hypothesis (initial):**
+- Local-first candidates: scrape summarization, link selection, extraction cleanup, content quality assessment, section QA helpers, report-improve assistance
+- Hybrid/default-cloud candidates: analysis workbook generation, long-form section writing, cross-validation, expert-perspective passes
+- API-only initially: Gemini Deep Research, web search grounding, any vision/VLM path until separately evaluated
+
+**Initial Capability (implemented):**
+- Primr can now run optional eval-time LLM judging against Grok or local OpenAI-compatible backends such as Ollama
+- Local eval runs can target one model, an explicit model set, or a maintained named shortlist such as `4090-top10` or `installed-starter`
+- Local judge sweeps now compare the baseline against every staged non-baseline profile by default, not just one convenient profile pair
+- Eval artifacts now capture backend metadata per run plus candidate-profile coverage, consensus rate, and per-profile breakdowns so local judge results are reproducible and inspectable
+- This is intentionally narrower than full local inference: it evaluates local models against existing artifacts before routing production pipeline stages to them
+- It should remain easy to conclude "local is not good enough" with evidence and stop there if needed
 
 **Integration:**
-- Ollama client in `src/primr/ai/` (OpenAI-compatible API, minimal new code)
+- Build on the existing local/OpenAI-compatible eval client in `src/primr/ai/` rather than creating a second backend path
 - `OLLAMA_BASE_URL` env var (default: `http://localhost:11434`)
-- Model registry extended with local model entries, VRAM requirements, and capability flags
-- Eval harness validates local models against the same scorecards as cloud models
-- Cost estimator reflects local inference as $0.00 API cost
+- Generalize toward `LOCAL_LLM_BASE_URL`, `LOCAL_LLM_MODEL`, and `LOCAL_LLM_API_KEY` so LAN-hosted inference works the same as localhost
+- Extend the model registry with local model entries, VRAM requirements, context limits, and capability flags
+- Add a routing layer so each pipeline stage declares a minimum capability tier and acceptable backends
+- Expand the current eval-plumbing into production-safe local/cloud/hybrid stage routing
+- Cost estimator reflects local inference as $0.00 API cost while still tracking runtime and hardware assumptions
+
+**Immediate Eval Track (this machine):**
+- Use the existing eval harness as the acceptance gate rather than shipping on intuition
+- Baseline against current cloud profiles on staged cloud-generated reports for the same company/profile pairs
+- Run first-pass local tests on this machine's RTX 4090 + Ollama setup using single-model and multi-model judge sweeps
+- Use the judge sweep to narrow candidate local models before attempting any stage-level production routing
+- Compare `cloud` vs `hybrid` first; only try `local` end-to-end after stage-level results look credible
+
+**Promotion Criteria:**
+- Trust gate still passes: citation coverage, section completeness, confidence-label quality
+- Mean decision-utility remains within an acceptable band of cloud baseline for the stages being replaced
+- Runtime is not materially worse for the target workload, or the cost savings justify the slowdown
+- No silent fallback: if a requested local profile cannot meet capability or quality requirements, fail clearly or require explicit hybrid fallback
 
 **What stays API-only (initially):**
-- Gemini Deep Research (autonomous multi-step search — no local equivalent)
-- Web search grounding (DDG/Google — free anyway)
-- Vision extraction (local VLMs exist but quality varies — eval-gated for promotion)
+- Gemini Deep Research (autonomous multi-step search — no local equivalent today)
+- Web search grounding (DDG/Google — already cheap/free)
+- Vision extraction (local VLMs exist but quality varies too much to assume parity)
 
 ### Stretch Goals
 
@@ -336,10 +380,20 @@ AI models are released frequently. Primr's strategy for staying current without 
 
 1. **Eval harness** — `primr eval` runs a fixed company corpus across profiles and generates a scorecard (cost, runtime, citation density, section completeness, confidence-label coverage)
 2. **Data-driven adoption** — A candidate model is adopted when: trust gate passes, mean decision-utility score >= 80% of baseline, and cost meets budget targets
-3. **Model registry** — New models are registered in `src/primr/config/models.py` with pricing, context limits, and capability flags. Task-specific aliases route the right model to the right job.
-4. **No lock-in** — The pipeline is model-agnostic by design. Grok for analysis, Gemini Flash for scraping, Deep Research for autonomous search — each can be swapped independently via the eval process.
+3. **Model registry** — New models are registered in `src/primr/config/models.py` with pricing, context limits, capability flags, and eventually backend/runtime metadata for local inference
+4. **No lock-in** — The pipeline should stay backend-agnostic by design. Grok for analysis, Gemini Flash for scraping, Deep Research for autonomous search, Ollama for local helper tasks — each should be swappable via the eval process rather than hard-coded ideology
 
-When a new model drops, the workflow is: register it → run eval → compare scorecard → adopt or skip. No gut decisions.
+When a new model or local runtime drops, the workflow is: register it → run eval → compare scorecard → adopt or skip. No gut decisions.
+
+**Local inference eval policy:**
+- Start with staged-report judge sweeps and same-company/profile comparisons before replacing production pipeline stages
+- Use judge sweeps to compare one model, a named shortlist, or the current top-10 candidate set across every staged non-baseline profile
+- Treat judge sweeps as evidence about comparative preference and consistency, not as sufficient proof for production stage routing on their own
+- Evaluate local models at the stage level before trying to replace full runs
+- Prefer `hybrid` promotion before `local` promotion
+- Keep a fixed reference corpus and compare local, hybrid, and cloud on the same inputs
+- Record hardware context for every eval run (GPU, VRAM, runtime, model quantization) so results are reproducible
+- Treat local models as accepted only when the quality loss is explicit and operationally worth the savings
 
 ---
 
@@ -460,6 +514,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| unreleased | Mar 2026 | Grok 4.20 hybrid tier (default): 4.20 reasoning + 4.1 writing, `--grok-tier` flag, per-model cost tracking, calibrated estimates |
 | unreleased | Mar 2026 | Private cloud vendor (NVIDIA-first, on-prem AI strategy) |
 | unreleased | Mar 2026 | A2A protocol integration (client, server, executor, hooks, 165 tests) |
 | unreleased | Mar 2026 | Adaptive output shipping gate, deterministic salvage pass, DOCX pre/post validation, strategy-only reruns from existing report markdown |
