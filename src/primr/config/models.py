@@ -47,6 +47,14 @@ from dataclasses import dataclass
 from enum import Enum
 
 
+class GrokTier(str, Enum):
+    """Grok model tier — controls quality/cost tradeoff in fast mode."""
+
+    FAST = "fast"  # 4.1-fast everywhere (~$0.47)
+    HYBRID = "hybrid"  # 4.20 reasoning + 4.1-fast writing (~$0.67) — DEFAULT
+    MAX = "max"  # 4.20 everywhere (~$4.29)
+
+
 class ModelType(Enum):
     """Types of AI tasks - maps to appropriate model."""
 
@@ -274,6 +282,63 @@ class ModelRegistry:
     )
 
     # =========================================================================
+    # GROK 4.20 REASONING - xAI flagship model, lowest hallucination rate
+    # USE FOR: High-leverage reasoning stages (gap analysis, workbook, cross-val)
+    # $2.00 input / $6.00 output per 1M tokens
+    # Context: 2M tokens, Output: 131k tokens
+    # =========================================================================
+    GROK_4_20_REASONING = ModelConfig(
+        name="grok-4.20-0309-reasoning",
+        display_name="Grok 4.20 Reasoning",
+        provider="xai",
+        cost_per_1m_input_tokens=2.00,
+        cost_per_1m_output_tokens=6.00,
+        max_input_tokens=2_000_000,
+        max_output_tokens=131_072,
+        supports_thinking=True,
+        supports_tools=True,
+        supports_multimodal=False,
+    )
+
+    # =========================================================================
+    # GROK 4.20 NON-REASONING - xAI flagship without reasoning overhead
+    # USE FOR: Writing tasks in max tier (report sections, strategy, polish)
+    # $2.00 input / $6.00 output per 1M tokens
+    # Context: 2M tokens, Output: 131k tokens
+    # =========================================================================
+    GROK_4_20_NR = ModelConfig(
+        name="grok-4.20-0309-non-reasoning",
+        display_name="Grok 4.20",
+        provider="xai",
+        cost_per_1m_input_tokens=2.00,
+        cost_per_1m_output_tokens=6.00,
+        max_input_tokens=2_000_000,
+        max_output_tokens=131_072,
+        supports_thinking=False,
+        supports_tools=True,
+        supports_multimodal=False,
+    )
+
+    # =========================================================================
+    # GROK 4.20 MULTI-AGENT - xAI flagship with tool calling optimizations
+    # Registered but not wired — no pipeline stage currently needs tool calling
+    # $2.00 input / $6.00 output per 1M tokens
+    # Context: 2M tokens, Output: 131k tokens
+    # =========================================================================
+    GROK_4_20_MULTI_AGENT = ModelConfig(
+        name="grok-4.20-multi-agent-0309",
+        display_name="Grok 4.20 Multi-Agent",
+        provider="xai",
+        cost_per_1m_input_tokens=2.00,
+        cost_per_1m_output_tokens=6.00,
+        max_input_tokens=2_000_000,
+        max_output_tokens=131_072,
+        supports_thinking=False,
+        supports_tools=True,
+        supports_multimodal=False,
+    )
+
+    # =========================================================================
     # DEEP RESEARCH AGENT - Autonomous research producing 12+ page reports
     # This is a SEPARATE API (Interactions API), not generate_content
     # Uses Gemini 3 Pro under the hood
@@ -364,6 +429,8 @@ class PrimrModels:
     # --- GROK MODELS (xAI - for fast mode) ---
     GROK_MODEL = ModelRegistry.GROK_4_1_FAST.name  # Reasoning — analytical tasks
     GROK_MODEL_WRITING = ModelRegistry.GROK_4_1_FAST_NR.name  # Non-reasoning — writing tasks
+    GROK_MODEL_420 = ModelRegistry.GROK_4_20_REASONING.name  # 4.20 reasoning — hybrid/max tier
+    GROK_MODEL_420_WRITING = ModelRegistry.GROK_4_20_NR.name  # 4.20 non-reasoning — max tier
 
     # Model registry for lookups
     ALL_MODELS = {
@@ -376,6 +443,9 @@ class PrimrModels:
         ModelRegistry.GEMINI_2_5_FLASH.name: ModelRegistry.GEMINI_2_5_FLASH,
         ModelRegistry.GROK_4_1_FAST.name: ModelRegistry.GROK_4_1_FAST,
         ModelRegistry.GROK_4_1_FAST_NR.name: ModelRegistry.GROK_4_1_FAST_NR,
+        ModelRegistry.GROK_4_20_REASONING.name: ModelRegistry.GROK_4_20_REASONING,
+        ModelRegistry.GROK_4_20_NR.name: ModelRegistry.GROK_4_20_NR,
+        ModelRegistry.GROK_4_20_MULTI_AGENT.name: ModelRegistry.GROK_4_20_MULTI_AGENT,
     }
 
     @classmethod
@@ -391,6 +461,16 @@ class PrimrModels:
             ModelType.DEEP_RESEARCH: cls.DEEP_RESEARCH_AGENT,
         }
         return type_mapping.get(model_type, cls.FLASH_MODEL)
+
+    @classmethod
+    def get_grok_models(cls, tier: GrokTier) -> tuple[str, str]:
+        """Return (reasoning_model, writing_model) for the given Grok tier."""
+        if tier == GrokTier.HYBRID:
+            return (cls.GROK_MODEL_420, cls.GROK_MODEL_WRITING)
+        if tier == GrokTier.MAX:
+            return (cls.GROK_MODEL_420, cls.GROK_MODEL_420_WRITING)
+        # GrokTier.FAST (default)
+        return (cls.GROK_MODEL, cls.GROK_MODEL_WRITING)
 
     @classmethod
     def get_model_config(cls, model_name: str) -> ModelConfig | None:
@@ -565,6 +645,8 @@ PRO_MODEL = PrimrModels.PRO_MODEL
 DEEP_RESEARCH_AGENT = PrimrModels.DEEP_RESEARCH_AGENT
 GROK_MODEL = PrimrModels.GROK_MODEL
 GROK_MODEL_WRITING = PrimrModels.GROK_MODEL_WRITING
+GROK_MODEL_420 = PrimrModels.GROK_MODEL_420
+GROK_MODEL_420_WRITING = PrimrModels.GROK_MODEL_420_WRITING
 
 # Task-specific (preferred)
 SCRAPING_MODEL = PrimrModels.SCRAPING_MODEL

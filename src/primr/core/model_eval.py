@@ -24,6 +24,7 @@ from primr.utils.cost_estimator import estimate_cost
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from pathlib import Path
 
 
@@ -92,6 +93,22 @@ class LLMJudgeRow:
     candidate_aspects: dict[str, float]
     passes: int
     rationale: str
+    cost_usd: float
+
+
+@dataclass(frozen=True)
+class LLMJudgeMetadata:
+    provider: str
+    model: str
+    base_url: str | None = None
+    api_key_env: str | None = None
+
+
+@dataclass(frozen=True)
+class JudgeCallResult:
+    text: str
+    input_tokens: int
+    output_tokens: int
     cost_usd: float
 
 
@@ -735,50 +752,18 @@ def _write_scorecard_csv(path: Path, metrics: list[ReportMetrics]) -> None:
             )
 
 
-def run_grok_judge(
+def _build_judge_prompt(
     *,
-    eval_result: EvaluationResult,
+    base_metric: ReportMetrics,
+    cand_metric: ReportMetrics,
     baseline_profile: str,
     candidate_profile: str,
-    max_pairs: int,
-    passes: int,
-    max_cost_usd: float,
-    model: str = "grok-4-1-fast-reasoning",
-) -> tuple[list[LLMJudgeRow], float]:
-    """
-    Run optional Grok LLM judging on existing staged report pairs.
-    """
-    from primr.ai.grok_client import get_grok_session_usage, grok_llm
-
-    by_profile_company: dict[tuple[str, str], ReportMetrics] = {}
-    for m in eval_result.metrics:
-        by_profile_company[(m.profile, _normalize_company_key(m.company))] = m
-
-    baseline_companies = [
-        _normalize_company_key(m.company)
-        for m in eval_result.metrics
-        if m.profile == baseline_profile
-    ]
-
-    rows: list[LLMJudgeRow] = []
-    total_cost = 0.0
-
-    for company_key in baseline_companies:
-        if len(rows) >= max_pairs:
-            break
-        base_metric = by_profile_company.get((baseline_profile, company_key))
-        cand_metric = by_profile_company.get((candidate_profile, company_key))
-        if not base_metric or not cand_metric:
-            continue
-
-        base_text = base_metric.report_path.read_text(encoding="utf-8", errors="ignore")
-        cand_text = cand_metric.report_path.read_text(encoding="utf-8", errors="ignore")
-
-        # Keep prompt bounded to control cost.
-        base_excerpt = base_text[:10_000]
-        cand_excerpt = cand_text[:10_000]
-
-        prompt = f"""
+) -> str:
+    base_text = base_metric.report_path.read_text(encoding="utf-8", errors="ignore")
+    cand_text = cand_metric.report_path.read_text(encoding="utf-8", errors="ignore")
+    base_excerpt = base_text[:10_000]
+    cand_excerpt = cand_text[:10_000]
+    return f"""
 You are grading two strategy reports for the same company.
 Return STRICT JSON only:
 {{
@@ -830,27 +815,72 @@ Candidate profile ({candidate_profile}) metrics:
 - citations={cand_metric.citations_total}
 
 Baseline report excerpt:
-\"\"\"{base_excerpt}\"\"\"
+```text
+{base_excerpt}
+```
 
 Candidate report excerpt:
-\"\"\"{cand_excerpt}\"\"\"
+```text
+{cand_excerpt}
+```
 """
-        aspect_keys = [
-            "strategic_usefulness",
-            "evidence_quality",
-            "clarity_coherence",
-            "actionability",
-            "uncertainty_calibration",
-            "coverage_completeness",
-        ]
-        weights = {
-            "strategic_usefulness": 0.25,
-            "evidence_quality": 0.20,
-            "clarity_coherence": 0.15,
-            "actionability": 0.20,
-            "uncertainty_calibration": 0.10,
-            "coverage_completeness": 0.10,
-        }
+
+
+def _run_llm_judge(
+    *,
+    eval_result: EvaluationResult,
+    baseline_profile: str,
+    candidate_profile: str,
+    max_pairs: int,
+    passes: int,
+    max_cost_usd: float,
+    invoke: Callable[[str], JudgeCallResult],
+) -> tuple[list[LLMJudgeRow], float]:
+    by_profile_company: dict[tuple[str, str], ReportMetrics] = {}
+    for metric in eval_result.metrics:
+        by_profile_company[(metric.profile, _normalize_company_key(metric.company))] = metric
+
+    baseline_companies = [
+        _normalize_company_key(metric.company)
+        for metric in eval_result.metrics
+        if metric.profile == baseline_profile
+    ]
+
+    aspect_keys = [
+        "strategic_usefulness",
+        "evidence_quality",
+        "clarity_coherence",
+        "actionability",
+        "uncertainty_calibration",
+        "coverage_completeness",
+    ]
+    weights = {
+        "strategic_usefulness": 0.25,
+        "evidence_quality": 0.20,
+        "clarity_coherence": 0.15,
+        "actionability": 0.20,
+        "uncertainty_calibration": 0.10,
+        "coverage_completeness": 0.10,
+    }
+
+    rows: list[LLMJudgeRow] = []
+    total_cost = 0.0
+
+    for company_key in baseline_companies:
+        if len(rows) >= max_pairs:
+            break
+        base_metric = by_profile_company.get((baseline_profile, company_key))
+        cand_metric = by_profile_company.get((candidate_profile, company_key))
+        if not base_metric or not cand_metric:
+            continue
+
+        prompt = _build_judge_prompt(
+            base_metric=base_metric,
+            cand_metric=cand_metric,
+            baseline_profile=baseline_profile,
+            candidate_profile=candidate_profile,
+        )
+
         baseline_aspect_sum = dict.fromkeys(aspect_keys, 0.0)
         candidate_aspect_sum = dict.fromkeys(aspect_keys, 0.0)
         rationale_parts: list[str] = []
@@ -858,39 +888,33 @@ Candidate report excerpt:
         row_cost = 0.0
 
         for _ in range(max(1, passes)):
-            if total_cost >= max_cost_usd:
+            if max_cost_usd > 0 and total_cost >= max_cost_usd:
                 break
-            before = get_grok_session_usage()
-            response = grok_llm(prompt, model=model, temperature=0.1, max_tokens=900)
-            after = get_grok_session_usage()
-
-            in_tokens = max(0, after["input_tokens"] - before["input_tokens"])
-            out_tokens = max(0, after["output_tokens"] - before["output_tokens"])
-            call_cost = PrimrModels.calculate_cost(PrimrModels.GROK_MODEL, in_tokens, out_tokens)
-            total_cost += call_cost
-            row_cost += call_cost
+            result = invoke(prompt)
+            total_cost += result.cost_usd
+            row_cost += result.cost_usd
 
             parsed_baseline = dict.fromkeys(aspect_keys, base_metric.quality_score)
             parsed_candidate = dict.fromkeys(aspect_keys, cand_metric.quality_score)
-            rationale = response.strip()
+            rationale = result.text.strip()
             try:
-                raw = response.strip()
+                raw = result.text.strip()
                 start = raw.find("{")
                 end = raw.rfind("}")
                 if start >= 0 and end > start:
                     payload = json.loads(raw[start : end + 1])
                     b_obj = payload.get("baseline_aspects", {})
                     c_obj = payload.get("candidate_aspects", {})
-                    for k in aspect_keys:
-                        parsed_baseline[k] = float(b_obj.get(k, parsed_baseline[k]))
-                        parsed_candidate[k] = float(c_obj.get(k, parsed_candidate[k]))
+                    for key in aspect_keys:
+                        parsed_baseline[key] = float(b_obj.get(key, parsed_baseline[key]))
+                        parsed_candidate[key] = float(c_obj.get(key, parsed_candidate[key]))
                     rationale = str(payload.get("rationale", rationale))
-            except Exception as e:
-                logger.warning("Model eval JSON parse failed: %s", e)
+            except Exception as exc:
+                logger.warning("Model eval JSON parse failed: %s", exc)
 
-            for k in aspect_keys:
-                baseline_aspect_sum[k] += max(0.0, min(100.0, parsed_baseline[k]))
-                candidate_aspect_sum[k] += max(0.0, min(100.0, parsed_candidate[k]))
+            for key in aspect_keys:
+                baseline_aspect_sum[key] += max(0.0, min(100.0, parsed_baseline[key]))
+                candidate_aspect_sum[key] += max(0.0, min(100.0, parsed_candidate[key]))
             rationale_parts.append(rationale[:240])
             effective_passes += 1
 
@@ -898,20 +922,19 @@ Candidate report excerpt:
             continue
 
         baseline_aspects = {
-            k: round(baseline_aspect_sum[k] / effective_passes, 2) for k in aspect_keys
+            key: round(baseline_aspect_sum[key] / effective_passes, 2) for key in aspect_keys
         }
         candidate_aspects = {
-            k: round(candidate_aspect_sum[k] / effective_passes, 2) for k in aspect_keys
+            key: round(candidate_aspect_sum[key] / effective_passes, 2) for key in aspect_keys
         }
 
-        base_score = round(sum(baseline_aspects[k] * weights[k] for k in aspect_keys), 2)
-        cand_score = round(sum(candidate_aspects[k] * weights[k] for k in aspect_keys), 2)
+        base_score = round(sum(baseline_aspects[key] * weights[key] for key in aspect_keys), 2)
+        cand_score = round(sum(candidate_aspects[key] * weights[key] for key in aspect_keys), 2)
         if abs(base_score - cand_score) <= 1.0:
             winner = "tie"
         else:
             winner = "baseline" if base_score > cand_score else "candidate"
         rationale = " | ".join(rationale_parts)[:600]
-
         winner_profile = (
             baseline_profile
             if winner == "baseline"
@@ -938,27 +961,349 @@ Candidate report excerpt:
     return rows, round(total_cost, 4)
 
 
-def write_llm_judge_report(path: Path, rows: list[LLMJudgeRow], total_cost: float) -> None:
+def run_grok_judge(
+    *,
+    eval_result: EvaluationResult,
+    baseline_profile: str,
+    candidate_profile: str,
+    max_pairs: int,
+    passes: int,
+    max_cost_usd: float,
+    model: str = "grok-4-1-fast-reasoning",
+) -> tuple[list[LLMJudgeRow], float]:
+    """Run optional Grok LLM judging on existing staged report pairs."""
+    from primr.ai.grok_client import get_grok_session_usage, grok_llm
+
+    def _invoke(prompt: str) -> JudgeCallResult:
+        before = get_grok_session_usage()
+        response = grok_llm(prompt, model=model, temperature=0.1, max_tokens=900)
+        after = get_grok_session_usage()
+        in_tokens = max(0, after["input_tokens"] - before["input_tokens"])
+        out_tokens = max(0, after["output_tokens"] - before["output_tokens"])
+        cost = PrimrModels.calculate_cost(PrimrModels.GROK_MODEL, in_tokens, out_tokens)
+        return JudgeCallResult(
+            text=response,
+            input_tokens=in_tokens,
+            output_tokens=out_tokens,
+            cost_usd=cost,
+        )
+
+    return _run_llm_judge(
+        eval_result=eval_result,
+        baseline_profile=baseline_profile,
+        candidate_profile=candidate_profile,
+        max_pairs=max_pairs,
+        passes=passes,
+        max_cost_usd=max_cost_usd,
+        invoke=_invoke,
+    )
+
+
+def run_local_judge(
+    *,
+    eval_result: EvaluationResult,
+    baseline_profile: str,
+    candidate_profile: str,
+    max_pairs: int,
+    passes: int,
+    max_cost_usd: float,
+    model: str,
+    base_url: str | None = None,
+    api_key_env: str = "LOCAL_LLM_API_KEY",
+) -> tuple[list[LLMJudgeRow], float]:
+    """Run optional local OpenAI-compatible LLM judging on staged report pairs."""
+    from primr.ai.openai_compatible_client import chat_completion
+
+    def _invoke(prompt: str) -> JudgeCallResult:
+        result = chat_completion(
+            prompt,
+            model=model,
+            base_url=base_url,
+            api_key_env=api_key_env,
+            temperature=0.1,
+            max_tokens=900,
+        )
+        return JudgeCallResult(
+            text=result.text,
+            input_tokens=result.prompt_tokens,
+            output_tokens=result.completion_tokens,
+            cost_usd=0.0,
+        )
+
+    return _run_llm_judge(
+        eval_result=eval_result,
+        baseline_profile=baseline_profile,
+        candidate_profile=candidate_profile,
+        max_pairs=max_pairs,
+        passes=passes,
+        max_cost_usd=max_cost_usd,
+        invoke=_invoke,
+    )
+
+
+def _model_slug(model: str) -> str:
+    slug = re.sub(r"[^a-zA-Z0-9]+", "-", model.strip()).strip("-").lower()
+    return slug or "model"
+
+
+def get_eval_judge_candidate_profiles(
+    eval_result: EvaluationResult,
+    *,
+    baseline_profile: str,
+) -> list[str]:
+    """Return non-baseline profiles with staged reports, preserving eval order."""
+    return [
+        summary.profile
+        for summary in eval_result.profile_summaries
+        if summary.profile != baseline_profile and summary.report_count > 0
+    ]
+
+
+def _winner_majority_label(winner_counts: dict[str, int]) -> str:
+    if not winner_counts:
+        return "unknown"
+    return max(
+        winner_counts.items(),
+        key=lambda item: (item[1], item[0] != "tie", item[0]),
+    )[0]
+
+
+def write_local_judge_sweep_summary(
+    path: Path,
+    *,
+    eval_id: str,
+    baseline_profile: str,
+    candidate_profiles: list[str],
+    results: list[tuple[LLMJudgeMetadata, list[LLMJudgeRow], float]],
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    summary_rows: list[dict[str, Any]] = []
+    winner_counts: dict[str, int] = {}
+    for metadata, rows, total_cost in results:
+        row_winner_counts: dict[str, int] = {}
+        for row in rows:
+            row_winner_counts[row.winner_profile] = row_winner_counts.get(row.winner_profile, 0) + 1
+        winner = (
+            _winner_majority_label(row_winner_counts)
+            if row_winner_counts
+            else "unknown"
+        )
+        winner_counts[winner] = winner_counts.get(winner, 0) + 1
+        avg_baseline = (
+            round(sum(row.baseline_score for row in rows) / max(1, len(rows)), 2) if rows else 0.0
+        )
+        avg_candidate = (
+            round(sum(row.candidate_score for row in rows) / max(1, len(rows)), 2) if rows else 0.0
+        )
+        aspect_names = (
+            sorted({*rows[0].baseline_aspects.keys(), *rows[0].candidate_aspects.keys()})
+            if rows
+            else []
+        )
+        avg_baseline_aspects = {
+            name: round(
+                sum(row.baseline_aspects.get(name, 0.0) for row in rows) / max(1, len(rows)),
+                2,
+            )
+            for name in aspect_names
+        }
+        avg_candidate_aspects = {
+            name: round(
+                sum(row.candidate_aspects.get(name, 0.0) for row in rows) / max(1, len(rows)),
+                2,
+            )
+            for name in aspect_names
+        }
+        avg_aspect_gap = {
+            name: round(avg_baseline_aspects[name] - avg_candidate_aspects[name], 2)
+            for name in aspect_names
+        }
+        candidate_breakdown: dict[str, dict[str, Any]] = {}
+        for candidate in sorted({row.candidate_profile for row in rows}):
+            candidate_rows = [row for row in rows if row.candidate_profile == candidate]
+            candidate_winner_counts: dict[str, int] = {}
+            for row in candidate_rows:
+                candidate_winner_counts[row.winner_profile] = (
+                    candidate_winner_counts.get(row.winner_profile, 0) + 1
+                )
+            candidate_breakdown[candidate] = {
+                "rows": len(candidate_rows),
+                "winner_counts": candidate_winner_counts,
+                "avg_baseline_score": round(
+                    sum(row.baseline_score for row in candidate_rows) / max(1, len(candidate_rows)),
+                    2,
+                ),
+                "avg_candidate_score": round(
+                    sum(row.candidate_score for row in candidate_rows) / max(1, len(candidate_rows)),
+                    2,
+                ),
+            }
+        summary_rows.append(
+            {
+                "model": metadata.model,
+                "model_slug": _model_slug(metadata.model),
+                "provider": metadata.provider,
+                "base_url": metadata.base_url,
+                "rows": len(rows),
+                "companies_evaluated": sorted({row.company for row in rows}),
+                "candidate_profiles_evaluated": sorted({row.candidate_profile for row in rows}),
+                "winner_profile": winner,
+                "row_winner_counts": row_winner_counts,
+                "winner_consensus_rate": round(
+                    row_winner_counts.get(winner, 0) / max(1, len(rows)),
+                    4,
+                ),
+                "avg_baseline_score": avg_baseline,
+                "avg_candidate_score": avg_candidate,
+                "avg_score_gap": round(avg_baseline - avg_candidate, 2),
+                "avg_baseline_aspects": avg_baseline_aspects,
+                "avg_candidate_aspects": avg_candidate_aspects,
+                "avg_aspect_gap": avg_aspect_gap,
+                "candidate_profile_breakdown": candidate_breakdown,
+                "total_cost_usd": round(total_cost, 4),
+            }
+        )
+
+    majority_winner = (
+_winner_majority_label(winner_counts) if winner_counts else "unknown"
+    )
+    summary_rows.sort(
+        key=lambda row: (
+            row["winner_profile"] != majority_winner,
+            -row["winner_consensus_rate"],
+            -row["avg_score_gap"],
+            -row["avg_baseline_score"],
+            row["model"],
+        )
+    )
+    recommended_models = [row["model"] for row in summary_rows[:3]]
+
     payload = {
+        "eval_id": eval_id,
+        "baseline_profile": baseline_profile,
+        "candidate_profiles": candidate_profiles,
+        "models_evaluated": len(results),
+        "winner_counts": winner_counts,
+        "majority_winner_profile": majority_winner,
+        "ranking_method": (
+            "majority winner alignment, then winner_consensus_rate desc, "
+            "then avg_score_gap desc, then avg_baseline_score desc"
+        ),
+        "recommended_models": recommended_models,
+        "results": summary_rows,
+    }
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def write_local_judge_sweep_markdown(
+    path: Path,
+    *,
+    eval_id: str,
+    baseline_profile: str,
+    candidate_profiles: list[str],
+    results: list[tuple[LLMJudgeMetadata, list[LLMJudgeRow], float]],
+) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    ranked: list[
+        tuple[LLMJudgeMetadata, list[LLMJudgeRow], float, str, float, float, float]
+    ] = []
+    winner_counts: dict[str, int] = {}
+    for metadata, rows, total_cost in results:
+        row_winner_counts: dict[str, int] = {}
+        for row in rows:
+            row_winner_counts[row.winner_profile] = row_winner_counts.get(row.winner_profile, 0) + 1
+        winner = (
+            _winner_majority_label(row_winner_counts)
+            if row_winner_counts
+            else "unknown"
+        )
+        avg_baseline = round(sum(row.baseline_score for row in rows) / max(1, len(rows)), 2) if rows else 0.0
+        avg_candidate = round(sum(row.candidate_score for row in rows) / max(1, len(rows)), 2) if rows else 0.0
+        consensus_rate = round(row_winner_counts.get(winner, 0) / max(1, len(rows)), 4)
+        ranked.append((metadata, rows, total_cost, winner, avg_baseline, avg_candidate, consensus_rate))
+        winner_counts[winner] = winner_counts.get(winner, 0) + 1
+    majority_winner = _winner_majority_label(winner_counts) if winner_counts else "unknown"
+    ranked.sort(
+        key=lambda item: (
+            item[3] != majority_winner,
+            -item[6],
+            -(item[4] - item[5]),
+            -item[4],
+            item[0].model,
+        )
+    )
+
+    lines = [
+        f"# Local Judge Sweep: {eval_id}",
+        "",
+        f"- Baseline profile: `{baseline_profile}`",
+        f"- Candidate profiles: `{', '.join(candidate_profiles) if candidate_profiles else 'none'}`",
+        f"- Models evaluated: `{len(results)}`",
+        f"- Majority winner: `{majority_winner}`",
+        "",
+        "## Ranking",
+        "",
+        "| Rank | Model | Winner | Consensus | Avg Baseline | Avg Candidate | Gap | Rows | Cost |",
+        "|---:|---|---|---:|---:|---:|---:|---:|---:|",
+    ]
+    for index, (metadata, rows, total_cost, winner, avg_baseline, avg_candidate, consensus_rate) in enumerate(ranked, start=1):
+        lines.append(
+            f"| {index} | {metadata.model} | {winner} | {consensus_rate:.0%} | {avg_baseline:.2f} | {avg_candidate:.2f} | {avg_baseline - avg_candidate:.2f} | {len(rows)} | {total_cost:.4f} |"
+        )
+        if rows:
+            avg_gap_by_aspect = {
+                name: round(
+                    sum(
+                        row.baseline_aspects.get(name, 0.0)
+                        - row.candidate_aspects.get(name, 0.0)
+                        for row in rows
+                    )
+                    / max(1, len(rows)),
+                    2,
+                )
+                for name in rows[0].baseline_aspects
+            }
+            top_gaps = sorted(avg_gap_by_aspect.items(), key=lambda item: abs(item[1]), reverse=True)[:3]
+            if top_gaps:
+                lines.append(f"Top aspect gaps: {', '.join(f'{name}={gap:+.2f}' for name, gap in top_gaps)}")
+            candidate_profiles_seen = sorted({row.candidate_profile for row in rows})
+            lines.append(f"Candidate profiles covered: {', '.join(candidate_profiles_seen)}")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def write_llm_judge_report(
+    path: Path,
+    rows: list[LLMJudgeRow],
+    total_cost: float,
+    metadata: LLMJudgeMetadata | None = None,
+) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload: dict[str, Any] = {
         "total_cost_usd": total_cost,
         "rows": [
             {
-                "company": r.company,
-                "baseline_profile": r.baseline_profile,
-                "candidate_profile": r.candidate_profile,
-                "winner_profile": r.winner_profile,
-                "baseline_score": r.baseline_score,
-                "candidate_score": r.candidate_score,
-                "baseline_aspects": r.baseline_aspects,
-                "candidate_aspects": r.candidate_aspects,
-                "passes": r.passes,
-                "rationale": r.rationale,
-                "cost_usd": r.cost_usd,
+                "company": row.company,
+                "baseline_profile": row.baseline_profile,
+                "candidate_profile": row.candidate_profile,
+                "winner_profile": row.winner_profile,
+                "baseline_score": row.baseline_score,
+                "candidate_score": row.candidate_score,
+                "baseline_aspects": row.baseline_aspects,
+                "candidate_aspects": row.candidate_aspects,
+                "passes": row.passes,
+                "rationale": row.rationale,
+                "cost_usd": row.cost_usd,
             }
-            for r in rows
+            for row in rows
         ],
     }
+    if metadata is not None:
+        payload["metadata"] = {
+            "provider": metadata.provider,
+            "model": metadata.model,
+            "base_url": metadata.base_url,
+            "api_key_env": metadata.api_key_env,
+        }
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 

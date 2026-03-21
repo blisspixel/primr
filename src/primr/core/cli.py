@@ -19,6 +19,7 @@ Usage:
 
 import argparse
 import os
+import re
 import sys
 from dataclasses import dataclass
 from enum import Enum
@@ -31,6 +32,55 @@ from primr.utils.console import console
 from primr.utils.logging_config import get_logger
 
 logger = get_logger("cli")
+
+
+def _list_installed_ollama_models() -> set[str]:
+    """Best-effort listing of locally available Ollama models."""
+    import subprocess
+
+    try:
+        result = subprocess.run(
+            ["ollama", "list"],
+            capture_output=True,
+            text=True,
+            check=True,
+            encoding="utf-8",
+        )
+    except Exception:
+        return set()
+
+    models: set[str] = set()
+    for line in result.stdout.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.lower().startswith("name "):
+            continue
+        parts = stripped.split()
+        if parts:
+            models.add(parts[0])
+    return models
+
+
+def _resolve_local_judge_models(config: "CLIConfig") -> tuple[list[str], list[str]]:
+    """Resolve the requested local judge models and return (selected, missing)."""
+    from primr.config.local_eval_models import get_local_eval_model_list
+
+    selected: list[str] = []
+    if config.eval_judge_models:
+        selected.extend(config.eval_judge_models)
+    elif config.eval_judge_model_list:
+        selected.extend(get_local_eval_model_list(config.eval_judge_model_list))
+    else:
+        selected.append(config.eval_judge_model)
+
+    # Deduplicate while preserving order.
+    selected = list(dict.fromkeys(model.strip() for model in selected if model and model.strip()))
+    installed = _list_installed_ollama_models()
+    if not installed:
+        return selected, []
+
+    available = [model for model in selected if model in installed]
+    missing = [model for model in selected if model not in installed]
+    return available, missing
 
 
 # =============================================================================
@@ -112,6 +162,7 @@ class CLIConfig:
     lite_strategy: bool = False  # Use Pro model instead of Deep Research for strategy
     fast_mode: bool = False  # Use Grok 4.1 for fast research (~12 min, ~$0.25)
     premium_mode: bool = False  # Force Gemini + Deep Research pipeline
+    grok_tier: str = "hybrid"  # Grok model tier: fast, hybrid, max
     no_qa: bool = False  # Disable automatic quality assessment
     verify: bool = False  # Run post-QA claim verification
     skip_scrape_validation: bool = False  # Continue even when scrape quality is too low
@@ -142,9 +193,15 @@ class CLIConfig:
     eval_llm_judge: bool = False
     eval_judge_provider: str = "grok"
     eval_judge_model: str = "grok-4-1-fast-reasoning"
+    eval_judge_models: tuple[str, ...] = ()
+    eval_judge_model_list: str | None = None
+    eval_judge_base_url: str | None = None
+    eval_judge_api_key_env: str = "LOCAL_LLM_API_KEY"
     eval_judge_max_pairs: int = 1
     eval_judge_passes: int = 1
     eval_judge_max_cost: float = 0.0
+    eval_local_stage: str | None = None
+    eval_working_root: str = "working"
 
     @property
     def cloud_vendor(self) -> str:
@@ -290,6 +347,7 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         lite_strategy=getattr(parsed, "lite_strategy", False),
         fast_mode=getattr(parsed, "fast_mode", False),
         premium_mode=getattr(parsed, "premium_mode", False),
+        grok_tier=getattr(parsed, "grok_tier", "hybrid"),
         no_qa=getattr(parsed, "no_qa", False),
         verify=getattr(parsed, "verify", False),
         skip_scrape_validation=getattr(parsed, "skip_scrape_validation", False),
@@ -317,9 +375,15 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         eval_llm_judge=getattr(parsed, "eval_llm_judge", False),
         eval_judge_provider=getattr(parsed, "eval_judge_provider", "grok"),
         eval_judge_model=getattr(parsed, "eval_judge_model", "grok-4-1-fast-reasoning"),
+        eval_judge_models=tuple(dict.fromkeys(getattr(parsed, "eval_judge_models", []) or [])),
+        eval_judge_model_list=getattr(parsed, "eval_judge_model_list", None),
+        eval_judge_base_url=getattr(parsed, "eval_judge_base_url", None),
+        eval_judge_api_key_env=getattr(parsed, "eval_judge_api_key_env", "LOCAL_LLM_API_KEY"),
         eval_judge_max_pairs=getattr(parsed, "eval_judge_max_pairs", 1),
         eval_judge_passes=getattr(parsed, "eval_judge_passes", 1),
         eval_judge_max_cost=getattr(parsed, "eval_judge_max_cost", 0.0),
+        eval_local_stage=getattr(parsed, "eval_local_stage", None),
+        eval_working_root=getattr(parsed, "eval_working_root", "working"),
     )
 
 
@@ -713,6 +777,13 @@ Accordion Method Test (for development):
         help="Premium mode: Gemini + Deep Research pipeline (~$5, 50-75 min). Use for maximum depth",
     )
     parser.add_argument(
+        "--grok-tier",
+        choices=["fast", "hybrid", "max"],
+        default="hybrid",
+        dest="grok_tier",
+        help="Grok model tier: fast (~$0.47), hybrid (~$0.67, 4.20 reasoning, default), max (~$4.29, 4.20 everywhere)",
+    )
+    parser.add_argument(
         "--discovery-notes",
         type=str,
         help="Path to discovery notes file (freeform meeting insights)",
@@ -935,15 +1006,40 @@ Accordion Method Test (for development):
     parser.add_argument(
         "--eval-judge-provider",
         type=str,
-        choices=["grok"],
+        choices=["grok", "local"],
         default="grok",
-        help="LLM judge provider (default: grok)",
+        help="LLM judge provider (default: grok; use local for OpenAI-compatible backends such as Ollama)",
     )
     parser.add_argument(
         "--eval-judge-model",
         type=str,
         default="grok-4-1-fast-reasoning",
-        help="Model name for LLM judge (default: grok-4-1-fast-reasoning)",
+        help="Model name for LLM judge (for local judge, set this to your Ollama/OpenAI-compatible model name)",
+    )
+    parser.add_argument(
+        "--eval-judge-models",
+        type=str,
+        nargs="+",
+        default=None,
+        help="For local judge sweeps: run the same eval comparison across multiple OpenAI-compatible model names",
+    )
+    parser.add_argument(
+        "--eval-judge-model-list",
+        type=str,
+        default=None,
+        help="Named local judge model list (for example: 4090-top10 or installed-starter)",
+    )
+    parser.add_argument(
+        "--eval-judge-base-url",
+        type=str,
+        default=None,
+        help="Base URL for local/OpenAI-compatible eval judge (defaults to LOCAL_LLM_BASE_URL, OLLAMA_BASE_URL, or http://localhost:11434/v1)",
+    )
+    parser.add_argument(
+        "--eval-judge-api-key-env",
+        type=str,
+        default="LOCAL_LLM_API_KEY",
+        help="Environment variable name containing the API key for the local/OpenAI-compatible judge (default: LOCAL_LLM_API_KEY)",
     )
     parser.add_argument(
         "--eval-judge-max-pairs",
@@ -962,6 +1058,19 @@ Accordion Method Test (for development):
         type=float,
         default=0.0,
         help="Hard cost cap in USD for LLM judge pass (required when --eval-llm-judge)",
+    )
+    parser.add_argument(
+        "--eval-local-stage",
+        type=str,
+        choices=["website-summary"],
+        default=None,
+        help="Run a local generation eval for a production-adjacent stage (currently: website-summary)",
+    )
+    parser.add_argument(
+        "--eval-working-root",
+        type=str,
+        default="working",
+        help="Root directory containing working run folders for stage-level eval inputs (default: working)",
     )
 
     return parser
@@ -1132,10 +1241,11 @@ def _handle_dry_run(config: CLIConfig) -> int:
         console.error(f"--premium only works with full mode, not --mode {config.mode}")
         return 1
 
+    tier_labels = {"fast": "Grok 4.1", "hybrid": "Grok 4.20 hybrid", "max": "Grok 4.20 max"}
     if use_premium_mode:
         mode_label = "premium (Gemini + Deep Research)"
     elif use_fast_mode:
-        mode_label = "standard (Grok 4.1)"
+        mode_label = f"standard ({tier_labels.get(config.grok_tier, 'Grok')})"
     else:
         mode_label = config.mode
     print("")
@@ -1158,6 +1268,7 @@ def _handle_dry_run(config: CLIConfig) -> int:
         lite_strategy=config.lite_strategy,
         fast_mode=use_fast_mode,
         premium_mode=use_premium_mode,
+        grok_tier=config.grok_tier,
     )
     print(str(estimate))
 
@@ -1704,12 +1815,24 @@ def _handle_eval(config: CLIConfig) -> int:
     from pathlib import Path
 
     from primr.config.config import FAST_FEEDBACK_RULES_PATH, OUTPUT_DIR
+    from primr.core.local_stage_eval import (
+        find_latest_website_summary_eval_inputs,
+        run_local_website_summary_stage_eval,
+        write_website_summary_stage_eval_markdown,
+        write_website_summary_stage_eval_report,
+        write_website_summary_stage_eval_summary,
+    )
     from primr.core.model_eval import (
+        LLMJudgeMetadata,
         auto_stage_existing_reports,
         evaluate_outputs,
+        get_eval_judge_candidate_profiles,
         run_grok_judge,
+        run_local_judge,
         write_fast_feedback_guidance,
         write_llm_judge_report,
+        write_local_judge_sweep_markdown,
+        write_local_judge_sweep_summary,
     )
     from primr.core.research_agent import perform_research
     from primr.utils.cost_estimator import estimate_cost
@@ -1885,51 +2008,205 @@ def _handle_eval(config: CLIConfig) -> int:
 
     judge_rows = []
     if config.eval_llm_judge:
-        if config.eval_judge_max_cost <= 0:
-            console.error("--eval-llm-judge requires --eval-judge-max-cost > 0")
+        if config.eval_judge_provider == "grok" and config.eval_judge_max_cost <= 0:
+            console.error("--eval-llm-judge with --eval-judge-provider grok requires --eval-judge-max-cost > 0")
             return 1
         if not eval_result.metrics:
             console.warn("No staged metrics available for LLM judge.")
             return 0
-        candidates = [
-            p.profile
-            for p in eval_result.profile_summaries
-            if p.profile != config.eval_baseline and p.report_count > 0
-        ]
-        if not candidates:
+        candidate_profiles = get_eval_judge_candidate_profiles(
+            eval_result,
+            baseline_profile=config.eval_baseline,
+        )
+        if not candidate_profiles:
             console.warn("No non-baseline profile with reports available for LLM judge.")
             return 0
-        candidate_profile = candidates[0]
         console.blank()
         console.step("LLM Judge")
+        judge_target = (
+            config.eval_judge_model_list
+            if config.eval_judge_model_list
+            else ", ".join(config.eval_judge_models)
+            if config.eval_judge_models
+            else config.eval_judge_model
+        )
         console.info(
-            f"Provider={config.eval_judge_provider}, Model={config.eval_judge_model}, "
-            f"Baseline={config.eval_baseline}, Candidate={candidate_profile}, "
-            f"MaxPairs={config.eval_judge_max_pairs}, Passes={config.eval_judge_passes}, "
+            f"Provider={config.eval_judge_provider}, Target={judge_target}, "
+            f"Baseline={config.eval_baseline}, Candidates={', '.join(candidate_profiles)}, "
+            f"MaxPairsPerCandidate={config.eval_judge_max_pairs}, Passes={config.eval_judge_passes}, "
             f"MaxCost=${config.eval_judge_max_cost:.2f}"
         )
-        if config.eval_judge_provider != "grok":
-            console.error(f"Unsupported eval judge provider: {config.eval_judge_provider}")
-            return 1
         try:
-            rows, judge_cost = run_grok_judge(
-                eval_result=eval_result,
-                baseline_profile=config.eval_baseline,
-                candidate_profile=candidate_profile,
-                max_pairs=max(1, config.eval_judge_max_pairs),
-                passes=max(1, config.eval_judge_passes),
-                max_cost_usd=config.eval_judge_max_cost,
-                model=config.eval_judge_model,
-            )
-            judge_rows = rows
-            judge_path = Path(config.eval_root) / config.eval_id / "llm_judge.json"
-            write_llm_judge_report(judge_path, rows, judge_cost)
-            console.info(f"LLM judge rows: {len(rows)}")
-            console.info(f"LLM judge cost: ${judge_cost:.4f}")
-            console.info(f"LLM judge output: {judge_path}")
+            if config.eval_judge_provider == "grok":
+                judge_metadata = LLMJudgeMetadata(
+                    provider=config.eval_judge_provider,
+                    model=config.eval_judge_model,
+                )
+                all_rows = []
+                judge_cost = 0.0
+                for candidate_profile in candidate_profiles:
+                    rows, profile_cost = run_grok_judge(
+                        eval_result=eval_result,
+                        baseline_profile=config.eval_baseline,
+                        candidate_profile=candidate_profile,
+                        max_pairs=max(1, config.eval_judge_max_pairs),
+                        passes=max(1, config.eval_judge_passes),
+                        max_cost_usd=max(0.0, config.eval_judge_max_cost - judge_cost),
+                        model=config.eval_judge_model,
+                    )
+                    all_rows.extend(rows)
+                    judge_cost += profile_cost
+                    if config.eval_judge_max_cost > 0 and judge_cost >= config.eval_judge_max_cost:
+                        break
+                judge_rows = all_rows
+                judge_path = Path(config.eval_root) / config.eval_id / "llm_judge.json"
+                write_llm_judge_report(judge_path, all_rows, round(judge_cost, 4), metadata=judge_metadata)
+                console.info(f"LLM judge rows: {len(all_rows)}")
+                console.info(f"LLM judge cost: ${judge_cost:.4f}")
+                console.info(f"LLM judge output: {judge_path}")
+            elif config.eval_judge_provider == "local":
+                judge_models, missing_models = _resolve_local_judge_models(config)
+                if config.eval_judge_model_list:
+                    console.info(f"Local judge model list: {config.eval_judge_model_list}")
+                if missing_models:
+                    console.warn(
+                        "Skipping local judge models not installed in Ollama: "
+                        + ", ".join(missing_models)
+                    )
+                if not judge_models:
+                    console.error("No local judge models available after resolving the requested list.")
+                    return 1
+                sweep_results: list[tuple[LLMJudgeMetadata, list[Any], float]] = []
+                last_rows: list[Any] = []
+                console.info(f"Resolved local judge models ({len(judge_models)}): " + ", ".join(judge_models))
+                for model_name in judge_models:
+                    judge_metadata = LLMJudgeMetadata(
+                        provider="local",
+                        model=model_name,
+                        base_url=config.eval_judge_base_url,
+                        api_key_env=config.eval_judge_api_key_env,
+                    )
+                    console.info(f"Running local judge model: {model_name}")
+                    rows = []
+                    judge_cost = 0.0
+                    for candidate_profile in candidate_profiles:
+                        profile_rows, profile_cost = run_local_judge(
+                            eval_result=eval_result,
+                            baseline_profile=config.eval_baseline,
+                            candidate_profile=candidate_profile,
+                            max_pairs=max(1, config.eval_judge_max_pairs),
+                            passes=max(1, config.eval_judge_passes),
+                            max_cost_usd=max(0.0, config.eval_judge_max_cost - judge_cost),
+                            model=model_name,
+                            base_url=config.eval_judge_base_url,
+                            api_key_env=config.eval_judge_api_key_env,
+                        )
+                        rows.extend(profile_rows)
+                        judge_cost += profile_cost
+                        if config.eval_judge_max_cost > 0 and judge_cost >= config.eval_judge_max_cost:
+                            break
+                    sweep_results.append((judge_metadata, rows, round(judge_cost, 4)))
+                    last_rows = rows
+                    model_slug = re.sub(r"[^a-zA-Z0-9]+", "-", model_name).strip("-").lower() or "model"
+                    judge_path = Path(config.eval_root) / config.eval_id / f"llm_judge.{model_slug}.json"
+                    write_llm_judge_report(judge_path, rows, round(judge_cost, 4), metadata=judge_metadata)
+                    console.info(f"  rows: {len(rows)}")
+                    console.info(f"  cost: ${judge_cost:.4f}")
+                    console.info(f"  output: {judge_path}")
+                judge_rows = last_rows
+                summary_json = Path(config.eval_root) / config.eval_id / "local_judge_summary.json"
+                summary_md = Path(config.eval_root) / config.eval_id / "local_judge_summary.md"
+                write_local_judge_sweep_summary(
+                    summary_json,
+                    eval_id=config.eval_id,
+                    baseline_profile=config.eval_baseline,
+                    candidate_profiles=candidate_profiles,
+                    results=sweep_results,
+                )
+                write_local_judge_sweep_markdown(
+                    summary_md,
+                    eval_id=config.eval_id,
+                    baseline_profile=config.eval_baseline,
+                    candidate_profiles=candidate_profiles,
+                    results=sweep_results,
+                )
+                console.info(
+                    "Local judge backend: "
+                    f"base_url={config.eval_judge_base_url or 'env/default'}, "
+                    f"api_key_env={config.eval_judge_api_key_env}"
+                )
+                console.info(f"Local judge sweep summary: {summary_json}")
+                console.info(f"Local judge sweep markdown: {summary_md}")
+            else:
+                console.error(f"Unsupported eval judge provider: {config.eval_judge_provider}")
+                return 1
         except Exception as e:
             console.warn(f"LLM judge skipped due to provider/network error: {e}")
             console.info("Deterministic eval scorecard is still valid.")
+
+    if config.eval_local_stage == "website-summary":
+        console.blank()
+        console.step("Local Stage Eval")
+        judge_models, missing_models = _resolve_local_judge_models(config)
+        if config.eval_judge_model_list:
+            console.info(f"Local stage model list: {config.eval_judge_model_list}")
+        if missing_models:
+            console.warn(
+                "Skipping local stage models not installed in Ollama: "
+                + ", ".join(missing_models)
+            )
+        if not judge_models:
+            console.error("No local models available for stage eval after resolving the requested list.")
+            return 1
+        target_companies = [config.eval_company] if config.eval_company else sorted({m.company for m in eval_result.metrics})
+        inputs = find_latest_website_summary_eval_inputs(
+            Path(config.eval_working_root),
+            companies=target_companies or None,
+        )
+        if not inputs:
+            console.warn("No working folders with scraped_content.txt and scraped_website_summary.txt found for local stage eval.")
+        else:
+            console.info(
+                f"Stage=website-summary, Companies={', '.join(row.company for row in inputs)}, "
+                f"Models={', '.join(judge_models)}"
+            )
+            stage_root = Path(config.eval_root) / config.eval_id / "website_summary_stage"
+            stage_results: list[tuple[str, list[Any]]] = []
+            for model_name in judge_models:
+                console.info(f"Running local website-summary stage model: {model_name}")
+                rows = run_local_website_summary_stage_eval(
+                    inputs=inputs,
+                    model=model_name,
+                    output_root=stage_root,
+                    base_url=config.eval_judge_base_url,
+                    api_key_env=config.eval_judge_api_key_env,
+                )
+                stage_results.append((model_name, rows))
+                model_slug = re.sub(r"[^a-zA-Z0-9]+", "-", model_name).strip("-").lower() or "model"
+                report_path = stage_root / f"website_summary_stage.{model_slug}.json"
+                write_website_summary_stage_eval_report(
+                    report_path,
+                    model=model_name,
+                    rows=rows,
+                    base_url=config.eval_judge_base_url,
+                    api_key_env=config.eval_judge_api_key_env,
+                )
+                console.info(f"  companies: {len(rows)}")
+                console.info(f"  output: {report_path}")
+            summary_json = stage_root / "website_summary_stage_summary.json"
+            summary_md = stage_root / "website_summary_stage_summary.md"
+            write_website_summary_stage_eval_summary(
+                summary_json,
+                eval_id=config.eval_id,
+                results=stage_results,
+            )
+            write_website_summary_stage_eval_markdown(
+                summary_md,
+                eval_id=config.eval_id,
+                results=stage_results,
+            )
+            console.info(f"Local stage eval summary: {summary_json}")
+            console.info(f"Local stage eval markdown: {summary_md}")
 
     # Persist fast-mode feedback guidance for future --fast runs.
     if "fast" in config.eval_profiles and any(m.profile == "fast" for m in eval_result.metrics):
@@ -2104,7 +2381,8 @@ def _handle_research(config: CLIConfig) -> int:
         # Auto-detect: if XAI_API_KEY is set, default to fast mode
         if os.environ.get("XAI_API_KEY"):
             use_fast_mode = True
-            console.info("Using Grok 4.1 · for deeper research add --premium")
+            tier_label = {"fast": "Grok 4.1", "hybrid": "Grok 4.20 hybrid", "max": "Grok 4.20 max"}
+            console.info(f"Using {tier_label.get(config.grok_tier, 'Grok')} · for deeper research add --premium")
         else:
             console.info("Using standard mode (Gemini). Set XAI_API_KEY for faster, cheaper runs.")
 
@@ -2184,6 +2462,7 @@ def _handle_research(config: CLIConfig) -> int:
         skip_scrape_validation=config.skip_scrape_validation,
         resume_local=config.resume_local,
         verify=config.verify,
+        grok_tier=config.grok_tier,
     )
 
     # Open report if requested

@@ -445,7 +445,121 @@ class TestFastModeAIStrategy:
         grok_notes = [n for n in estimate.notes if "Grok" in n]
         assert len(grok_notes) >= 1
 
-    def test_fast_mode_returns_fast_mode_label(self):
-        """Fast mode estimate should report mode as 'standard (Grok 4.1)'."""
+    def test_fast_mode_returns_default_mode_label(self):
+        """Fast mode estimate should report mode as 'standard (Grok 4.20 hybrid)' by default."""
         estimate = estimate_cost("complete", fast_mode=True, use_historical=False)
+        assert estimate.mode == "standard (Grok 4.20 hybrid)"
+
+    def test_fast_mode_explicit_fast_tier_label(self):
+        """Fast mode with explicit fast tier should report 'standard (Grok 4.1)'."""
+        estimate = estimate_cost("complete", fast_mode=True, use_historical=False, grok_tier="fast")
         assert estimate.mode == "standard (Grok 4.1)"
+
+
+class TestGrokTier:
+    """Tests for Grok 4.20 tier support."""
+
+    def test_grok_tier_enum_values(self):
+        """GrokTier enum has fast, hybrid, max."""
+        from primr.config.models import GrokTier
+
+        assert GrokTier.FAST.value == "fast"
+        assert GrokTier.HYBRID.value == "hybrid"
+        assert GrokTier.MAX.value == "max"
+
+    def test_get_grok_models_fast(self):
+        """Fast tier returns 4.1 models."""
+        from primr.config.models import GrokTier
+
+        reasoning, writing = PrimrModels.get_grok_models(GrokTier.FAST)
+        assert reasoning == "grok-4-1-fast-reasoning"
+        assert writing == "grok-4-1-fast-non-reasoning"
+
+    def test_get_grok_models_hybrid(self):
+        """Hybrid tier returns 4.20 reasoning + 4.1 writing."""
+        from primr.config.models import GrokTier
+
+        reasoning, writing = PrimrModels.get_grok_models(GrokTier.HYBRID)
+        assert reasoning == "grok-4.20-0309-reasoning"
+        assert writing == "grok-4-1-fast-non-reasoning"
+
+    def test_get_grok_models_max(self):
+        """Max tier returns 4.20 for both."""
+        from primr.config.models import GrokTier
+
+        reasoning, writing = PrimrModels.get_grok_models(GrokTier.MAX)
+        assert reasoning == "grok-4.20-0309-reasoning"
+        assert writing == "grok-4.20-0309-non-reasoning"
+
+    def test_grok_420_pricing(self):
+        """Grok 4.20 models should have $2.00/$6.00 pricing."""
+        assert ModelRegistry.GROK_4_20_REASONING.cost_per_1m_input_tokens == 2.00
+        assert ModelRegistry.GROK_4_20_REASONING.cost_per_1m_output_tokens == 6.00
+        assert ModelRegistry.GROK_4_20_NR.cost_per_1m_input_tokens == 2.00
+        assert ModelRegistry.GROK_4_20_NR.cost_per_1m_output_tokens == 6.00
+
+    def test_grok_420_in_all_models(self):
+        """Grok 4.20 models should be registered in ALL_MODELS."""
+        assert "grok-4.20-0309-reasoning" in PrimrModels.ALL_MODELS
+        assert "grok-4.20-0309-non-reasoning" in PrimrModels.ALL_MODELS
+        assert "grok-4.20-multi-agent-0309" in PrimrModels.ALL_MODELS
+
+    def test_grok_420_supports_thinking(self):
+        """Reasoning variant supports thinking, NR does not."""
+        assert ModelRegistry.GROK_4_20_REASONING.supports_thinking is True
+        assert ModelRegistry.GROK_4_20_NR.supports_thinking is False
+
+    def test_hybrid_tier_costs_more_than_fast(self):
+        """Hybrid tier estimate should cost more than fast tier."""
+        fast_est = estimate_cost("complete", fast_mode=True, use_historical=False, grok_tier="fast")
+        hybrid_est = estimate_cost(
+            "complete", fast_mode=True, use_historical=False, grok_tier="hybrid"
+        )
+        assert hybrid_est.total_cost > fast_est.total_cost
+
+    def test_max_tier_costs_more_than_hybrid(self):
+        """Max tier estimate should cost more than hybrid tier."""
+        hybrid_est = estimate_cost(
+            "complete", fast_mode=True, use_historical=False, grok_tier="hybrid"
+        )
+        max_est = estimate_cost("complete", fast_mode=True, use_historical=False, grok_tier="max")
+        assert max_est.total_cost > hybrid_est.total_cost
+
+    def test_hybrid_tier_mode_label(self):
+        """Hybrid tier estimate should have correct mode label."""
+        estimate = estimate_cost(
+            "complete", fast_mode=True, use_historical=False, grok_tier="hybrid"
+        )
+        assert estimate.mode == "standard (Grok 4.20 hybrid)"
+
+    def test_max_tier_mode_label(self):
+        """Max tier estimate should have correct mode label."""
+        estimate = estimate_cost("complete", fast_mode=True, use_historical=False, grok_tier="max")
+        assert estimate.mode == "standard (Grok 4.20 max)"
+
+    def test_fast_tier_cost_range(self):
+        """Fast tier should be ~$0.55."""
+        est = estimate_cost("complete", fast_mode=True, use_historical=False, grok_tier="fast")
+        assert 0.30 < est.total_cost < 1.00
+
+    def test_hybrid_tier_cost_range(self):
+        """Hybrid tier should be ~$1.00-1.10."""
+        est = estimate_cost("complete", fast_mode=True, use_historical=False, grok_tier="hybrid")
+        assert 0.60 < est.total_cost < 1.60
+
+    def test_max_tier_cost_range(self):
+        """Max tier should be ~$4.00."""
+        est = estimate_cost("complete", fast_mode=True, use_historical=False, grok_tier="max")
+        assert 2.50 < est.total_cost < 6.00
+
+    def test_fast_mode_never_includes_deep_research_any_tier(self):
+        """No Grok tier should include Deep Research cost."""
+        for tier in ("fast", "hybrid", "max"):
+            est = estimate_cost("complete", fast_mode=True, use_historical=False, grok_tier=tier)
+            assert est.deep_research_cost == 0.0
+
+    def test_grok_tier_default_is_hybrid(self):
+        """Default grok_tier should produce same result as explicit hybrid."""
+        default_est = estimate_cost("complete", fast_mode=True, use_historical=False)
+        hybrid_est = estimate_cost("complete", fast_mode=True, use_historical=False, grok_tier="hybrid")
+        assert abs(default_est.total_cost - hybrid_est.total_cost) < 0.001

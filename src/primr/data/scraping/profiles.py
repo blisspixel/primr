@@ -10,7 +10,9 @@ Modern WAF detection looks at:
 This module provides realistic 2026 browser profiles.
 """
 
+import platform
 import random
+import re
 from dataclasses import dataclass
 
 
@@ -250,7 +252,7 @@ Object.defineProperty(navigator, 'hardwareConcurrency', {get: () => 8});
 Object.defineProperty(navigator, 'deviceMemory', {get: () => 8});
 
 // Fix platform (ensure it's not detected as headless)
-Object.defineProperty(navigator, 'platform', {get: () => 'Win32'});
+Object.defineProperty(navigator, 'platform', {get: () => '__PRIMR_PLATFORM__'});
 
 // Fix vendor
 Object.defineProperty(navigator, 'vendor', {get: () => 'Google Inc.'});
@@ -263,7 +265,7 @@ Object.defineProperty(navigator, 'productSub', {get: () => '20030107'});
 
 // Fix appVersion to match Chrome
 Object.defineProperty(navigator, 'appVersion', {
-    get: () => '5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
+    get: () => '__PRIMR_APP_VERSION__'
 });
 
 // Fix appName
@@ -322,9 +324,61 @@ def get_random_context_profile() -> BrowserContextProfile:
     return random.choice(CONTEXT_PROFILES)
 
 
-def get_stealth_script() -> str:
-    """Get comprehensive stealth script for 2026 anti-detection."""
-    return STEALTH_SCRIPT
+def _extract_chromium_major(browser_version: str | None) -> str:
+    """Extract a Chromium major version from Playwright's browser.version string."""
+    if not browser_version:
+        return "145"
+    match = re.search(r"(\d+)", browser_version)
+    return match.group(1) if match else "145"
+
+
+def _host_platform_tokens(platform_name: str | None = None) -> tuple[str, str, str]:
+    """Map host platform to UA and navigator.platform tokens."""
+    normalized = (platform_name or platform.system()).lower()
+    if normalized == "darwin":
+        return "Macintosh; Intel Mac OS X 10_15_7", "macOS", "MacIntel"
+    if normalized == "linux":
+        return "X11; Linux x86_64", "Linux", "Linux x86_64"
+    return "Windows NT 10.0; Win64; x64", "Windows", "Win32"
+
+
+def get_browser_compatible_http_profile(
+    browser_version: str | None = None, platform_name: str | None = None
+) -> HttpHeaderProfile:
+    """
+    Build a browser profile aligned to the actual Chromium version and host OS.
+
+    This avoids fingerprint mismatches such as Playwright Chromium 145 presenting
+    itself as Chrome 130/131 or as a different operating system.
+    """
+    major = _extract_chromium_major(browser_version)
+    ua_platform, ch_platform, _ = _host_platform_tokens(platform_name)
+    return HttpHeaderProfile(
+        name=f"chrome_{major}_{ch_platform.lower()}",
+        user_agent=(
+            f"Mozilla/5.0 ({ua_platform}) AppleWebKit/537.36 "
+            f"(KHTML, like Gecko) Chrome/{major}.0.0.0 Safari/537.36"
+        ),
+        sec_ch_ua=(
+            f'"Chromium";v="{major}", "Google Chrome";v="{major}", "Not_A Brand";v="24"'
+        ),
+        sec_ch_ua_platform=f'"{ch_platform}"',
+        accept_language="en-US,en;q=0.9",
+    )
+
+
+def get_stealth_script(user_agent: str | None = None, platform_name: str | None = None) -> str:
+    """Get comprehensive stealth script, optionally aligned to a concrete browser fingerprint."""
+    _, _, navigator_platform = _host_platform_tokens(platform_name)
+    app_version = user_agent or (
+        "5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+    )
+    return (
+        STEALTH_SCRIPT.replace("__PRIMR_PLATFORM__", navigator_platform).replace(
+            "__PRIMR_APP_VERSION__", app_version
+        )
+    )
 
 
 def get_http_profile_by_name(name: str) -> HttpHeaderProfile | None:
