@@ -102,7 +102,7 @@ def chat_completion(
         try:
             response = client.chat.completions.create(
                 model=model,
-                messages=messages,
+                messages=messages,  # type: ignore[arg-type]
                 temperature=temperature,
                 max_tokens=max_tokens,
             )
