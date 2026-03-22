@@ -269,7 +269,7 @@ def write_website_summary_stage_eval_summary(
     results: list[tuple[str, list[WebsiteSummaryEvalRow]]],
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    ranked = []
+    ranked: list[dict[str, str | int | float]] = []
     for model, rows in results:
         avg_score = round(sum(row.completeness_score for row in rows) / max(1, len(rows)), 2) if rows else 0.0
         avg_source_ratio = round(sum(row.source_section_ratio for row in rows) / max(1, len(rows)), 2) if rows else 0.0
@@ -287,9 +287,9 @@ def write_website_summary_stage_eval_summary(
         )
     ranked.sort(
         key=lambda row: (
-            -row["avg_completeness_score"],
-            -row["avg_source_section_ratio"],
-            -row["avg_word_ratio"],
+            -float(row["avg_completeness_score"]),
+            -float(row["avg_source_section_ratio"]),
+            -float(row["avg_word_ratio"]),
             row["model"],
         )
     )
