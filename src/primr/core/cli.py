@@ -2174,24 +2174,24 @@ def _handle_eval(config: CLIConfig) -> int:
             stage_results: list[tuple[str, list[Any]]] = []
             for model_name in judge_models:
                 console.info(f"Running local website-summary stage model: {model_name}")
-                rows = run_local_website_summary_stage_eval(
+                stage_rows = run_local_website_summary_stage_eval(
                     inputs=inputs,
                     model=model_name,
                     output_root=stage_root,
                     base_url=config.eval_judge_base_url,
                     api_key_env=config.eval_judge_api_key_env,
                 )
-                stage_results.append((model_name, rows))
+                stage_results.append((model_name, stage_rows))
                 model_slug = re.sub(r"[^a-zA-Z0-9]+", "-", model_name).strip("-").lower() or "model"
                 report_path = stage_root / f"website_summary_stage.{model_slug}.json"
                 write_website_summary_stage_eval_report(
                     report_path,
                     model=model_name,
-                    rows=rows,
+                    rows=stage_rows,
                     base_url=config.eval_judge_base_url,
                     api_key_env=config.eval_judge_api_key_env,
                 )
-                console.info(f"  companies: {len(rows)}")
+                console.info(f"  companies: {len(stage_rows)}")
                 console.info(f"  output: {report_path}")
             summary_json = stage_root / "website_summary_stage_summary.json"
             summary_md = stage_root / "website_summary_stage_summary.md"

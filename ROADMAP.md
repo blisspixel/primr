@@ -86,14 +86,15 @@ Ordered by practical impact: first make the standard output more strategically u
 
 Scoped, practical improvements. Some are partially built.
 
-#### Grok Tier Evaluation — 3-Way Comparison
+#### Grok Tier Evaluation — 4-Way Comparison
 
-Run the eval harness on 3-5 companies across all three Grok tiers (fast/hybrid/max) plus premium to produce a proper scorecard. Hybrid is now the default based on initial Litehouse Foods comparison (meaningfully better analytical depth for ~$0.20 more). Need systematic data to confirm hybrid remains the right default and whether max tier ever justifies 6x the cost.
+Run the eval harness on 3-5 companies across all Grok tiers (fast/hybrid/max/multi-agent) plus premium to produce a proper scorecard. Hybrid is now the default based on initial Litehouse Foods comparison (meaningfully better analytical depth for ~$0.20 more). Need systematic data to confirm hybrid remains the right default, whether max tier ever justifies 6x the cost, and where multi-agent fits in the lineup.
 
 - Same companies across all tiers for apples-to-apples comparison
-- Eval scorecard with quality, trust, utility, and utility-per-dollar metrics
+- Eval scorecard with quality, trust, utility, hallucination rate, and utility-per-dollar metrics
 - LLM judge overlay for subjective quality assessment
-- Decision: validate hybrid default, identify if any company profile benefits from max
+- Include multi-agent tier: compare hypothesis depth, source cross-checking quality, and contradiction detection against single-agent tiers
+- Decision: validate hybrid default, identify if multi-agent justifies higher cost for reasoning-heavy stages, identify if any company profile benefits from max
 
 #### v1.17.0 — Deeper Strategic Analysis
 
@@ -107,6 +108,28 @@ Push the standard output from a strong research artifact to a genuinely strategi
 - Better trust summaries so users can see what is confirmed, inferred, hypothesized, and still weak
 - Target: sparse-company runs still feel substantive; rich-company runs become sharper and more differentiated
 
+**Grok 4.20 Multi-Agent Integration**
+
+Leverage xAI's Grok 4.20 Multi-Agent Beta (parallel agents with built-in web_search/x_search tools, verbose streaming, reasoning effort control) for reasoning-heavy pipeline stages.
+
+- Register `grok-4.20-multi-agent-beta` (or latest variant) in ModelRegistry with pricing and capability flags
+- Add `--grok-multi-agent` flag and `--grok-agent-count` (dynamic range 4-16 based on complexity + budget)
+- Route to multi-agent for reasoning-heavy stages only: gap analysis, workbook generation, cross-validation, strategy enrichment — keep 4.1 for bulk writing where single-agent is sufficient
+- Multi-agent reasoning enables parallel hypothesis debate, real-time source cross-checking, and contradiction synthesis — directly improves analytical depth for sparse-company runs
+- Cost: ~$2-6/M input/output (higher than single-agent 4.1, but lower hallucination rate and deeper analysis)
+- Eval sweep required before promotion: compare hybrid vs multi-agent on 5 companies (quality, hallucination rate, depth, cost, utility-per-dollar)
+- Decision gated by eval harness, not assumption — multi-agent may not justify cost for all company profiles
+
+**Gemini 3.1 Pro Enhancements for Premium Mode**
+
+Adopt Gemini 3.1 Pro improvements to strengthen premium mode, especially for sparse-company runs and strategy sections.
+
+- Register `gemini-3.1-pro-preview` and custom-tools variants in ModelRegistry (partially done)
+- Add `thinking_level` control per pipeline stage: "high" for strategy sections and cross-validation, "low" for extraction and summarization — reduces cost without sacrificing depth where it matters
+- Enable built-in tools + function calling combinations (Grounding with Google Search + URL context) for external validation during premium analysis stages
+- Test Interactions API / Deep Research Agent polling with durability features (`store=True`, improved resume) — builds on existing shared polling modules
+- Aligns with deterministic QA + constrained-evidence reasoning: stronger model reasoning reduces "thin" sections without huge cost jumps
+
 #### v1.18.0 — Faster Runs
 
 **Quick Mode (`--quick`)**
@@ -114,12 +137,15 @@ Push the standard output from a strong research artifact to a genuinely strategi
 A real quick profile that finishes in under 5 minutes for most companies. Ideal for batch screening or fast lookups.
 
 - New CLI profile with explicit runtime budget and reduced token/search footprint
-- Tight phase budget: fewer sections, capped external queries, smaller synthesis context
-- Scraping capped at tier 3 (Playwright → Playwright Aggressive → curl_cffi) — skip slow stealth/vision tiers
+- Tight phase budget: fewer sections, capped external queries (5 max), smaller synthesis context
+- Scraping capped at tiers 1-3 (Playwright → Playwright Aggressive → curl_cffi) — skip slow stealth/vision tiers
 - Fewer pages scraped (10-15 instead of 50)
+- Grok 4.1 everywhere (skip cross-validation and coherence passes to stay under budget)
+- `--quick --lite-strategy` for minimal strategy sections only (skip full AI strategy generation)
 - Quality floor + graceful fallback when evidence is thin
-- Target: median runtime < 5 min, cost < $0.10, with citations and confidence labels
+- Target: median runtime < 5 min, cost < $0.40, with citations and confidence labels
 - Users choose between `quick` (speed), `standard` (balanced), and `premium` (depth)
+- Cost-vs-depth profiles reflected in eval harness for systematic comparison across tiers
 
 **Pipeline Overlap**
 
@@ -181,6 +207,16 @@ Use QA feedback to iteratively improve weak sections until reports hit 90+.
 - Section-level regeneration without full pipeline re-run
 - Repeat until grade >= 90
 
+**Auto-Eval on Model Releases**
+
+Reduce manual work when new Grok/Gemini variants drop by automating the eval-and-compare cycle.
+
+- Trigger eval sweep when a new model variant is registered in ModelRegistry (manual trigger initially, automated detection later)
+- Run the standard 3-5 company corpus against the new variant and current default, generate comparative scorecard
+- LLM judge overlay (cloud or local Ollama) for subjective metrics: utility, strategic sharpness, hallucination rate
+- Decision output: "new variant is better/worse/equivalent for [stage]" with evidence
+- Keeps defaults current (hybrid vs multi-agent vs premium) without gut calls on each release
+
 ### Medium-Term
 
 Larger investments that expand Primr's capabilities.
@@ -206,6 +242,16 @@ Corporate sites are increasingly visual — investor relations decks, product co
 - VLM extraction is more expensive per page — only trigger on high-value pages
 - `--vlm-budget N` flag to cap VLM calls per run (default: 10 pages)
 - Cost estimator updated with VLM pricing
+
+**Scrape Tier Evolution**
+
+Expand the scraping engine with managed fallbacks and deeper data extraction.
+
+- Managed Playwright service fallback (e.g., Scrapfly or Firecrawl API key) when local browser tiers fail — handles infra/scaling edge cases without maintaining headless browser farms
+- `MANAGED_SCRAPE_API_KEY` env var, used only after local tiers 1-5 exhaust retries
+- Network interception during Playwright runs: capture underlying JSON APIs (XHR/fetch) during page loads — often yields cleaner structured data than HTML parsing, especially for company financials, careers pages, and dynamically loaded content
+- Intercepted API responses stored alongside HTML scrapes in `_raw_scrapes/` for downstream extraction
+- No change to existing tier priority or sequential same-host behavior
 
 #### v1.21.0 — Provider Expansion
 
@@ -302,7 +348,18 @@ Make research compound across runs by persisting extracted claims, citations, an
 
 Currently each run starts fresh. If you research 50 companies in the same industry, each run rediscovers the same industry context. Cross-run memory enables meta-research ("show AI strategy evolution across all fintech targets") and better hypothesis quality for repeat verticals.
 
-**Implementation:**
+**Persistent Company Tracking (entry point)**
+
+Lightweight precursor to the full claim store — turns one-off runs into living company profiles.
+
+- `primr company track <name> <url>` — creates persistent profile folder with versioned reports, hypothesis deltas, and freshness score
+- `primr company list` — shows tracked companies with last-run date and staleness indicator
+- `primr improve --track` — auto-runs improvement pass on stale profiles (configurable staleness threshold, e.g., >90 days or after model upgrade)
+- Profile folder stores run history, confidence evolution, and gaps flagged across runs
+- `primr company export <name>` — structured MD/JSON bundle with confidence tags and flagged gaps for external consumption
+- This is the foundation layer — the full claim store and embedding search build on top of tracked profiles
+
+**Full Claim Store:**
 - SQLite-backed claim store (no external dependencies)
 - Each claim stored with: company, section, text, confidence, citations, timestamp, embedding
 - Embedding via local model (sentence-transformers) or API (Gemini embedding)
