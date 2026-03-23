@@ -712,7 +712,20 @@ def fetch_web_content(
                 low_content_with_low_success = (
                     avg_chars < SCRAPE_PILOT_MIN_CHARS and success_rate < high_success_relief_rate
                 )
-                if success_rate < SCRAPE_PILOT_MIN_SUCCESS_RATE or low_content_with_low_success:
+                # Rich-content relief: if enough pages succeeded with substantial
+                # content, the projected yield is still useful for a report even
+                # when many pages are blocked (common on e-commerce sites).
+                rich_content_relief = (
+                    pilot_success >= 3
+                    and avg_chars >= SCRAPE_PILOT_MIN_CHARS * 3
+                )
+                if rich_content_relief:
+                    logger.info(
+                        f"Pilot success rate low ({success_rate:.0%}) but content "
+                        f"is rich ({avg_chars} avg chars from {pilot_success} pages) "
+                        f"— proceeding"
+                    )
+                elif success_rate < SCRAPE_PILOT_MIN_SUCCESS_RATE or low_content_with_low_success:
                     console.clear_line()
                     console.fail(
                         "Pilot scrape validation failed "
