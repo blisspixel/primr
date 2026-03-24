@@ -73,6 +73,7 @@ For completed work, see the [Changelog](#changelog) at the bottom of this file, 
 - Transparency about uncertainty — what's confirmed, what's inferred, what's speculation
 - Deterministic verification before AI judgment — check structure, citations, and epistemic labels with code before asking a model to score prose quality
 - Local-first, CLI-first — your data stays on your machine
+- Role over tool — Primr is an account strategist, not a "research command." Its outputs should be consumable by both humans and downstream agents.
 
 Primr is intentionally not designed as a generic web scraper, a SaaS collaboration platform, or a presentation builder.
 
@@ -414,6 +415,26 @@ Make Primr the system of record for how thinking evolves about a company. Requir
 - Explicit "what changed and why" sections
 - Diff-style comparison between runs: what shifted in confidence, what new evidence appeared
 - Timeline view: how understanding of a company evolved across runs
+
+#### v1.25.0 — Agentic Interoperability
+
+**The shift: from tool to role.**
+
+Primr already does deep company research. The next evolution is positioning it as a composable role in multi-agent workflows — not just something a human runs, but a specialist that other agents can assign work to and build on.
+
+Today: "run primr on this company." Next: "assign the account strategist to this deal and let downstream roles build on its findings."
+
+The infrastructure is already in place (A2A protocol, MCP tools, subagent architecture). What changes is the framing and how Primr presents itself to the broader agentic ecosystem.
+
+**Role-Aware Output Shaping:**
+- When called via A2A, Primr adapts its output to the requesting workflow's needs — a downstream agent building a proposal gets tighter focus on opportunities and angles; one doing risk assessment gets constraints and gaps emphasized
+- AgentCard skills already declare capabilities; extend with output-format negotiation so callers can request the emphasis they need
+- Expert perspective passes (v1.19.0) become named analyst roles that shape output tone, not just appended report sections
+
+**Workflow Composability:**
+- Primr as one role in a team: receives a company assignment, produces intelligence (MD, DOCX), and the next role picks it up
+- A2A protocol already supports assignment and handoff; the evolution is Primr understanding its place in a larger workflow rather than assuming it's the terminal step
+- No orchestrator built into Primr — Primr is a specialist, not the coordinator
 
 #### v2.0.0 — Public Release
 
