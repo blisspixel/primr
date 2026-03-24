@@ -1,5 +1,9 @@
 # Primr
 
+[![CI](https://github.com/blisspixel/primr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/primr/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
+
 **Turn any company or organization URL into deep strategic analysis that gets a consultant maximally up to speed.**
 
 Primr extracts primary-source data from company and organization websites using adaptive, org-aware scraping that handles modern site architectures, then synthesizes external research into long-form strategic analysis using AI-powered research and synthesis (Grok 4.1 by default, or Gemini Deep Research via `--premium`).

@@ -90,6 +90,7 @@ primr-a2a = "primr.a2a.cli:main"
 Homepage = "https://github.com/blisspixel/primr"
 Documentation = "https://github.com/blisspixel/primr#readme"
 Repository = "https://github.com/blisspixel/primr"
+"Bug Tracker" = "https://github.com/blisspixel/primr/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
