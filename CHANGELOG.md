@@ -7,28 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+No unreleased changes.
+
+## [1.16.0] - 2026-03-23
+
+This release consolidates all work from v1.7.0 through v1.16.0. See [ROADMAP.md](ROADMAP.md) for the detailed changelog.
+
 ### Added
-- **Startup Banner** — Big blocky ASCII art PRIMR logo with horizontal gradient (cyan→blue→purple→magenta)
-  - 5-layer terminal fallback: truecolor → 256-color → 4-bit ANSI → no-color → ASCII
-  - Left-to-right reveal animation with tagline fade-in
-  - Cross-platform: Windows Terminal, macOS, Linux, ConHost, SSH
-  - Respects `NO_COLOR`, `--no-banner`, non-TTY, and screen reader environments
-  - Help hint: "Type primr --help for commands"
+- **A2A Protocol Integration** — Agent-to-agent communication with AgentCard, executor, client, hooks, and 165 dedicated tests
+  - Standalone `primr-a2a` server or co-hosted `primr-mcp --http --a2a`
+  - `delegate_to_agent` MCP tool for calling external A2A agents
+  - Governance hooks: SSRF, cost budget, content sanitization
+- **Grok 4.20 Hybrid Tier** — 4.20 reasoning + 4.1 writing as new default, `--grok-tier` flag (fast/hybrid/max), per-model cost tracking, calibrated estimates
+- **Private Cloud Vendor** — NVIDIA-first, on-prem AI strategy via `--cloud-vendor private`
+- **Agentic Architecture** (v1.7.0) — Hypothesis tracking, subagents (scraper, analyst, writer, QA), hook system (cost guard, SSRF guard, QA gate), orchestrator, research memory, Claude Skills
+- **Output Improve Mode** — `primr improve <path>` for deterministic cleanup + optional `--improve-agentic` review pass
+- **Versioned Eval Workflow** — `primr --eval` with scorecards, auto-staging, LLM-judge overlays (cloud and local), multi-model sweeps
+- **Fast Mode as Default** — Auto-detects Grok 4.1 when `XAI_API_KEY` set; `--premium` for Gemini + Deep Research
+- **Startup Banner** — Animated ANSI gradient with 5-layer terminal fallback, cross-platform
+- **Adaptive Output Shipping Gate** — Deterministic salvage pass, DOCX pre/post validation, strategy-only reruns
+- **Agentic Pipeline** — Adaptive search depth, source quality filtering, dynamic section selection, 2 new report sections (23 total)
+- **Deep Research Refactor** — Shared parsing/polling/execution modules, durable async recovery, `--resume-latest`, `--resume-local`
+- **Shared AI Error Policy** — Unified sync/async retry classification
+- **Scraping Reliability** — Adaptive lazy-load scrolling, strict quality gate, scrape trace logging, external search caps
+- **Content Sanitization** (v1.8.1) — Prompt injection protection
+- **Interactive Research Mode** (v1.11.0) — Expanded external search, MCP progress subscriptions
+- **Multi-Cloud-Vendor AI Strategy** (v1.12.0) — `--cloud-vendor aws azure` for multi-vendor strategy documents
+- **Strategy Enrichment** — Cross-validation, evidence search, section regeneration, polish pass, pre-ship repair
+- **Gemini 3.1 Pro Preview** — Registered with tiered pricing in ModelRegistry
+- **All Strategy Types in Fast Mode** — `--strategy-type` works with Grok pipeline, YAML configs auto-discovered
 
 ### Fixed
-- **Silent Failure Audit (Round 1)** — 20+ bare `except: pass` and DEBUG-level error handlers upgraded to WARNING across 15 modules:
-  - JWT auth decode failures now logged at WARNING (was silent)
-  - A2A auth middleware failures now logged at ERROR with stack trace
-  - Research agent: 6 silent exception swallows now log at WARNING
-  - Content extraction: 6 decode/extraction failures now visible
-  - HTTP client HEAD request failures upgraded from DEBUG
-  - Job store corrupted journal now logged with details
-  - Narrowed broad `except Exception` to specific types where safe
-- **Silent Failure Audit (Round 2)** — 25 more patterns fixed across 8 modules:
-  - Scraper: 9 failure paths upgraded from DEBUG to WARNING
-  - Link discovery: 5 fetch/parse failures now visible, bare `except: return []` narrowed to specific types
-  - Security URL parsing: 3 bare `except Exception` blocks now log with URL context
-  - Deep research cache cleanup, model eval JSON parsing, CLI corrupt state files — all now WARNING
+- **Silent Failure Audit** — 45+ bare `except: pass` and DEBUG-level error handlers upgraded across 23 modules
+- **Report Quality** — Duplicate section elimination, coherence pass rewrite (guard threshold 0.92→0.96), contradiction resolution
+- **Scraping Robustness** (v1.12.1) — PDF routing, bug fixes
+- **SharedBrowser** (v1.11.2) — ETA progress, UI polish
+- **Deep Research Progress** (v1.11.1) — Visibility and failure recovery
+
+### Changed
+- Default pipeline uses Grok 4.20 hybrid (was Grok 4.1)
+- Strategy `max_tokens` raised from 16K to 32K
+- Executive summary written last (with full report context)
+- Parallel external source search (`ThreadPoolExecutor(max_workers=3)`)
+- Framework section word targets raised from 600 to 800
 
 ## [1.6.0] - 2026-02-03
 

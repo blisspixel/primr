@@ -506,9 +506,10 @@ mypy src/primr --ignore-missing-imports                  # Type check
 
 Recent hardening includes shared deep-research parsing/polling/execution modules, a shared AI error policy module across sync/async clients, reduced noisy integration-runtime warnings for constrained Playwright/network test environments, and A2A protocol integration with 165+ dedicated tests.
 
-**Validation snapshot (March 6, 2026):**
+**Validation snapshot (March 23, 2026):**
 - `ruff check .` passes
-- `python -m pytest -q` passes: `4877 passed, 28 skipped` (~20 minutes on this machine)
+- `mypy src/primr --ignore-missing-imports` passes (202 source files)
+- `python -m pytest -q` passes: `4490 passed, 25 skipped` (~8 minutes on this machine)
 
 ## Documentation
 
