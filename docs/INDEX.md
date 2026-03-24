@@ -1,6 +1,6 @@
 # Primr Documentation
 
-Current version: 1.12.1
+Current version: 1.16.0
 
 ## Getting Started
 

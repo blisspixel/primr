@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.16.0 (March 2026)
+Current State: v1.16.0 (released 2026-03-23)
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -592,13 +592,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
-| unreleased | Mar 2026 | Grok 4.20 hybrid tier (default): 4.20 reasoning + 4.1 writing, `--grok-tier` flag, per-model cost tracking, calibrated estimates |
-| unreleased | Mar 2026 | Private cloud vendor (NVIDIA-first, on-prem AI strategy) |
-| unreleased | Mar 2026 | A2A protocol integration (client, server, executor, hooks, 165 tests) |
-| unreleased | Mar 2026 | Adaptive output shipping gate, deterministic salvage pass, DOCX pre/post validation, strategy-only reruns from existing report markdown |
-| unreleased | Mar 2026 | Fast mode as default, `--premium` flag, quality improvements, strategy enrichment, startup banner, all strategy types in fast mode, output improve mode |
-| unreleased | Mar 2026 | Agentic pipeline, report quality fixes (duplicate elimination, coherence rewrite, contradiction resolution), adaptive search depth, source quality filtering, dynamic section selection, 2 new report sections (23 total), stronger QA gate |
-| unreleased | Feb 2026 | Deep-research refactor, scrape reliability hardening, shared error policy, warning reduction, eval workflow, Gemini 3.1 Pro, tiered pricing |
+| 1.16.0 | Mar 2026 | A2A protocol, Grok 4.20 hybrid default, private cloud vendor, output shipping gate, fast mode default, agentic pipeline, deep-research refactor, eval workflow |
 | 1.12.1 | Feb 2026 | Scraping robustness, PDF routing, bug fixes |
 | 1.12.0 | Feb 2026 | Multi-cloud-vendor AI strategy |
 | 1.11.2 | Feb 2026 | SharedBrowser, ETA progress, UI polish |
@@ -624,7 +618,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 | 0.1.0 | Nov 2025 | Core research pipeline |
 
 <details>
-<summary><strong>Detailed changelog for unreleased work</strong></summary>
+<summary><strong>Detailed changelog for v1.16.0</strong></summary>
 
 ### Post-v1.12.1 — Reliability, Maintainability, and Model Updates
 
