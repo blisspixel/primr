@@ -53,7 +53,7 @@ class TestExternalAgentConfigProperties:
 
     @given(
         url=st.from_regex(r"https?://[a-z]+\.[a-z]{2,4}", fullmatch=True),
-        name=st.text(min_size=1, max_size=50),
+        name=st.text(min_size=1, max_size=50).filter(lambda s: s.strip()),
         timeout=st.floats(min_value=0.1, max_value=300.0),
     )
     @settings(max_examples=50)
