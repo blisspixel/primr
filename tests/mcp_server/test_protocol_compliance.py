@@ -142,6 +142,28 @@ class TestProtocolListResponseCompleteness:
                     # description is optional but recommended
 
 
+    @pytest.mark.asyncio
+    async def test_governed_execution_prompt_listed(self, server):
+        """Governed execution prompt is exposed to MCP clients."""
+        handler = server.server.request_handlers[ListPromptsRequest]
+        result = await handler(ListPromptsRequest(method="prompts/list"))
+        names = [prompt.name for prompt in result.root.prompts]
+        assert "governed_execution" in names
+
+    @pytest.mark.asyncio
+    async def test_governed_execution_prompt_get(self, server):
+        """Governed execution prompt content is retrievable."""
+        handler = server.server.request_handlers[GetPromptRequest]
+        result = await handler(
+            GetPromptRequest(
+                method="prompts/get",
+                params=GetPromptRequestParams(name="governed_execution", arguments={}),
+            )
+        )
+        messages = result.root.messages
+        assert len(messages) > 0
+        assert "max_estimated_cost_usd" in messages[0].content.text
+
 class TestProtocolErrorCodes:
     """
     Property 14: Protocol Error Codes
@@ -442,6 +464,50 @@ class TestToolResultStructure:
         assert isinstance(data["estimated_cost_usd"], (int, float))
         assert isinstance(data["estimated_time_minutes"], (int, float))
         assert isinstance(data["planned_pages"], int)
+
+    @pytest.mark.asyncio
+    async def test_estimate_strategy_result_structure(self, server):
+        """estimate_strategy returns expected fields."""
+        handler = server.server.request_handlers[CallToolRequest]
+        result = await handler(
+            CallToolRequest(
+                method="tools/call",
+                params=CallToolRequestParams(
+                    name="estimate_strategy",
+                    arguments={"strategy_type": "customer_experience"},
+                ),
+            )
+        )
+
+        data = json.loads(result.root.content[0].text)
+
+        assert "strategy_type" in data
+        assert "estimated_cost_usd" in data
+        assert "estimated_time_minutes" in data
+        assert "cost_warning" in data
+
+    @pytest.mark.asyncio
+    async def test_cost_cap_errors_are_structured(self, server):
+        """Cost-cap rejections return structured MCP-compatible errors."""
+        handler = server.server.request_handlers[CallToolRequest]
+        result = await handler(
+            CallToolRequest(
+                method="tools/call",
+                params=CallToolRequestParams(
+                    name="research_company",
+                    arguments={
+                        "company_name": "Test Corp",
+                        "company_url": "https://example.com",
+                        "max_estimated_cost_usd": 0.01,
+                    },
+                ),
+            )
+        )
+
+        data = json.loads(result.root.content[0].text)
+        assert data["error"] is True
+        assert "error_code" in data
+        assert data["error_type"] == "cost_cap_exceeded"
 
     @pytest.mark.asyncio
     async def test_research_company_result_structure(self, server):

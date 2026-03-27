@@ -1,24 +1,18 @@
-# Research Modes Reference
-
-| Mode | Duration | Cost | Use Case |
-|------|----------|------|----------|
-| `scrape` | 5-10 min | ~$0.10 | Quick website intel -- first-party content only |
-| `deep` | 10-15 min | ~$2.50 | External research only -- market context, competitors |
-| `full` | 25-40 min | ~$3.50 | Comprehensive report -- both first-party and external |
-
-## Mode Selection Guidance
-
-**Use `scrape` when:**
-- Target is the company's own website
-- Need first-party content only
-- Budget or time is limited
-
-**Use `deep` when:**
-- Site is heavily protected (>50% scrape failure rate)
-- Need external sources (competitors, market context)
-- Company website is sparse
-
-**Use `full` when:**
-- Comprehensive report needed
-- Budget allows (~$3.50) and time allows (~30 min)
-- Both first-party and external sources are valuable
+# Research Modes
+
+Use `primr://research/modes` and `estimate_run` as the source of truth for current recommendations and estimates.
+
+## Quick guidance
+
+| Mode | Use when |
+|------|----------|
+| `scrape` | You want a first-party site overview only |
+| `deep` | The target site is blocked, sparse, or not the main evidence source |
+| `full` | You want the standard end-to-end Primr workflow |
+| `premium` | You want maximum-depth research and accept longer runtime |
+
+## Notes
+
+- `full` is the standard recommended workflow for most end-to-end runs.
+- `premium` is the explicit high-depth option.
+- Do not rely on hardcoded cost or time numbers here; call `estimate_run` for the current estimate.

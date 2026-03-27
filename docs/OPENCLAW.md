@@ -1,285 +1,212 @@
 # Open Claw Integration Guide
 
-This guide covers integrating Primr with [Open Claw](https://openclaw.dev), a local-first agentic AI runtime.
+
+
+This guide covers the maintained OpenClaw integration for Primr.
+
+
+
+Primr is exposed to OpenClaw through `primr-mcp`. Skills and workflows should treat MCP as the source of truth for current modes, defaults, status, and outputs.
+
+
 
 ## Prerequisites
 
+
+
 - Python 3.11+
-- Primr installed (`pip install primr`)
-- Open Claw runtime installed
-- API keys configured (GEMINI_API_KEY, SEARCH_API_KEY, SEARCH_ENGINE_ID)
+
+- Primr installed
+
+- OpenClaw installed
+
+- `XAI_API_KEY` for the standard default workflow, `GEMINI_API_KEY` for premium mode, or both
+
+- Optional: `SEARCH_API_KEY` and `SEARCH_ENGINE_ID` if you want Google Custom Search instead of DuckDuckGo
+
+
 
 ## Installation
 
+
+
 ### 1. Install Primr
 
+
+
 ```bash
+
 pip install primr
-```
 
-Verify the MCP server is available:
-
-```bash
 primr-mcp --help
+
 ```
 
-### 2. Copy Configuration Files
 
-Copy the Open Claw configuration files to your Open Claw config directory:
+
+### 2. Copy the OpenClaw assets
+
+
 
 ```bash
+
 # Linux/macOS
+
 cp -r openclaw/* ~/.openclaw/
 
+
+
 # Windows
-xcopy /E openclaw %USERPROFILE%\.openclaw\
-```
 
-### 3. Configure Environment Variables
+xcopy /E openclaw %USERPROFILE%\.openclaw```
 
-The integration uses environment variable passthrough. Set these in your shell or `.env` file:
+
+
+### 3. Configure environment variables
+
+
 
 ```bash
+
+export XAI_API_KEY="your-xai-api-key"
+
 export GEMINI_API_KEY="your-gemini-api-key"
+
+# Optional fallback search config
+
 export SEARCH_API_KEY="your-google-search-api-key"
+
 export SEARCH_ENGINE_ID="your-search-engine-id"
+
 ```
 
-Alternatively, configure per-skill environment overrides in `openclaw.json`:
 
-```json
-{
-  "skills": {
-    "entries": {
-      "primr-research": {
-        "env": {
-          "GEMINI_API_KEY": "${GEMINI_API_KEY}",
-          "SEARCH_API_KEY": "${SEARCH_API_KEY}",
-          "SEARCH_ENGINE_ID": "${SEARCH_ENGINE_ID}"
-        }
-      }
-    }
-  }
-}
-```
 
-### 4. Verify Installation
+### 4. Verify the installation
 
-Run the Primr doctor command to verify everything is configured:
+
 
 ```bash
+
 primr doctor
+
 ```
 
-## Skills Overview
 
-The integration provides three skills:
 
-| Skill | Purpose | Tools |
-|-------|---------|-------|
-| primr-research | Company research workflows | estimate_run, research_company, check_jobs, cancel_job |
-| primr-strategy | Strategy document generation | generate_strategy |
-| primr-qa | Quality assessment | run_qa, doctor |
+## What the integration provides
 
-## Workflows
 
-### Research Pipeline
 
-The `research-pipeline.yaml` workflow orchestrates the complete research flow:
+### Skills
 
-1. **Estimate** - Get cost/time estimate
-2. **Approval** - Request user approval (required for cost-incurring operations)
-3. **Research** - Execute the research job
-4. **Monitor** - Poll for completion
-5. **Retrieve** - Get the results
+
+
+- `primr-research`: estimate, start, and monitor research jobs
+
+- `primr-strategy`: estimate and generate strategy deliverables from existing reports
+
+- `primr-qa`: run QA and diagnostics
+
+
+
+### Workflow
+
+
+
+- `research-pipeline`: estimate, approval, execution, and monitoring for a full research run
+- `strategy-pipeline`: estimate, approval, and governed strategy generation from an existing report
+
+
+
+## Operating model
+
+
+
+- Read `primr://research/modes` before advising on mode selection.
+
+- Call `estimate_run` before starting new research work and show the user the expected cost/time.
+- If `PRIMR_ENFORCE_MCP_COST_CAPS` is enabled, the packaged research workflow now propagates the approved estimate as `max_estimated_cost_usd` into `research_company`, and the packaged strategy workflow does the same for `generate_strategy`.
+
+- Treat `full` as the standard end-to-end mode.
+- Expect long runtimes: standard runs are often 35-45 minutes, and premium multi-vendor runs can take 75-120 minutes.
+- Build around async monitoring and reconnection, not one long blocking session.
+
+- Use `premium` only when the user explicitly wants maximum-depth research.
+
+- Use `primr://research/status`, `wait_for_status_change`, or `check_jobs` for monitoring.
+
 
 
 ## Troubleshooting
 
-### Common Issues
 
-#### Missing Binary: `primr-mcp not found`
 
-Ensure Primr is installed and the binary is in your PATH:
+### `primr-mcp` is not found
+
+
 
 ```bash
-# Check if primr-mcp is available
-which primr-mcp  # Linux/macOS
-where primr-mcp  # Windows
 
-# If not found, reinstall Primr
+which primr-mcp
+
+where primr-mcp
+
 pip install --upgrade primr
+
 ```
 
-#### Missing API Keys
 
-If you see "No API key configured" errors:
 
-1. Verify environment variables are set:
-   ```bash
-   echo $GEMINI_API_KEY
-   echo $SEARCH_API_KEY
-   ```
+### API keys are missing or incorrect
 
-2. Run `primr doctor` to check configuration:
-   ```bash
-   primr doctor
-   ```
 
-3. Ensure keys are passed through in `openclaw.json`
-
-#### Connection Errors
-
-If the MCP server fails to connect:
-
-1. Check the server is running:
-   ```bash
-   primr-mcp --stdio
-   ```
-
-2. Use Open Claw's debug mode:
-   ```bash
-   pnpm gateway:watch --raw-stream
-   ```
-
-3. Check logs in `~/.openclaw/logs/`
-
-#### Research Job Stuck
-
-If a research job appears stuck:
-
-1. Check job status:
-   ```bash
-   # Via MCP resource
-   primr://research/status
-   ```
-
-2. Cancel if needed:
-   ```bash
-   # Via MCP tool
-   cancel_job
-   ```
-
-3. Check for `possibly_stuck: true` in status response
-
-### Using `primr doctor`
-
-The `primr doctor` command provides system health diagnostics:
 
 ```bash
+
 primr doctor
-```
-
-Output includes:
-- API key configuration status
-- Output directory status
-- Configuration validity
-- Warnings for common issues
-
-## Example Agent Prompts
-
-### Research Workflow
-
-Start a company research:
 
 ```
-Research Acme Corp at https://acme.com
-```
 
-The agent will:
-1. Get a cost estimate
-2. Ask for approval
-3. Execute the research
-4. Return the report location
 
-### Strategy Generation
 
-Generate a strategy document from an existing report:
+Confirm the relevant provider key is available in the environment passed to OpenClaw.
 
-```
-Generate an AI strategy from the latest report
-```
 
-Available strategy types:
-- AI Strategy (requires cloud vendor)
-- Customer Experience Strategy
-- Security & Compliance Strategy
-- Data Fabric Strategy
 
-### QA and Refinement
+### A run looks stuck
 
-Run quality assessment on a report:
 
-```
-Run QA on the report and suggest improvements
-```
 
-The QA system provides:
-- Overall score (0-100)
-- Category scores (completeness, accuracy, clarity, actionability)
-- Improvement suggestions
+- Read `primr://research/status`
 
-Score interpretation:
-- 85+: Excellent quality
-- 70-84: Good, minor improvements needed
-- Below 70: Needs significant revision
+- Check whether `possibly_stuck` is true
 
-## Memory Subsystem Integration
+- Use `cancel_job` only if the run is no longer making progress
 
-Primr integrates with Open Claw's Memory Subsystem to persist learnings across sessions.
 
-### How It Works
 
-When you encounter and solve issues, record them in MEMORY.md:
+## Docker sandbox
 
-```markdown
-## Primr Research Learnings
 
-### SSRF Protection Workaround
-- **Issue**: URL blocked by SSRF protection
-- **Solution**: Use `deep` mode instead of `scrape` mode
-- **Context**: Some corporate sites block direct scraping
-
-### API Rate Limits
-- **Issue**: Gemini API rate limit exceeded
-- **Solution**: Wait 60 seconds and retry, or reduce research scope
-- **Context**: Full mode uses more API calls
-```
-
-### Memory Entry Format
-
-```markdown
-### [Issue Title]
-- **Issue**: Brief description of the problem
-- **Solution**: How to resolve it
-- **Context**: When this applies
-```
-
-The agent will reference these learnings in future sessions to avoid repeating mistakes.
-
-## Docker Sandbox
-
-For enhanced security, Primr can run in a Docker sandbox:
 
 ```bash
-# Build the container
+
 docker build -f openclaw/Dockerfile.primr -t primr-sandbox .
 
-# Run with environment variables
-docker run -e GEMINI_API_KEY -e SEARCH_API_KEY -e SEARCH_ENGINE_ID \
-  -v ./output:/home/primr/output \
-  primr-sandbox
+docker run -e XAI_API_KEY -e GEMINI_API_KEY -e SEARCH_API_KEY -e SEARCH_ENGINE_ID -v ./output:/workspace/output primr-sandbox
+
 ```
 
-Security features:
-- Non-root user execution
-- No credential mounts
-- Read-only documentation mount
-- Health check via `primr doctor`
 
-## Resources
 
-- [Primr Documentation](./README.md)
-- [MCP Server API](./API.md)
-- [Architecture Overview](./ARCHITECTURE.md)
-- [Open Claw Documentation](https://openclaw.dev/docs)
+## Related docs
+
+
+
+- [API.md](API.md)
+
+- [README.md](../README.md)
+
+- [openclaw.json](../openclaw/openclaw.json)
+

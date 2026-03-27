@@ -4,6 +4,7 @@ Prompt template definitions for MCP server.
 This module provides workflow guidance prompts:
 - research_workflow - Guide through company research process
 - strategy_selection - Help choose appropriate strategy type
+- governed_execution - Default contract for cost-aware MCP clients
 
 Requirements: 9.1-9.5, 10.1-10.4
 """
@@ -41,6 +42,11 @@ def register_prompts(server: Server) -> None:
                     ),
                 ],
             ),
+            Prompt(
+                name="governed_execution",
+                description="Default estimate, approval, and cost-cap contract for generic MCP clients",
+                arguments=[],
+            ),
         ]
 
     @server.get_prompt()
@@ -50,6 +56,8 @@ def register_prompts(server: Server) -> None:
             return _get_research_workflow_prompt(arguments or {})
         elif name == "strategy_selection":
             return _get_strategy_selection_prompt(arguments or {})
+        elif name == "governed_execution":
+            return _get_governed_execution_prompt()
 
         raise ValueError(f"Unknown prompt: {name}")
 
@@ -66,13 +74,11 @@ def _get_research_workflow_prompt(arguments: dict) -> list[PromptMessage]:
 
 ## Step 1: Gather Requirements
 - Identify the target company name and website URL
-- For {company_name}, determine research depth needed:
-  - **scrape**: Quick overview from website content (5-10 min, ~$0.05)
-  - **deep**: External source validation without site scraping (8-15 min, ~$0.50)
-  - **full**: Complete pipeline with all sources (25-40 min, ~$0.75)
+- Read `primr://research/modes` to confirm current mode guidance and defaults
+- For {company_name}, choose the lightest mode that still answers the user's question
 
 ## Step 2: Estimate Costs (Recommended)
-Before starting research, call `estimate_run` to get cost and time estimates:
+Before starting research, call `estimate_run` to get mode-specific cost and time estimates. Do not call `research_company` until the user approves that spend:
 ```
 estimate_run(company_url="https://example.com", mode="full")
 ```
@@ -88,7 +94,9 @@ research_company(
     cloud_vendor="azure"  # Optional: for AI strategy
 )
 ```
-3. Monitor progress through status resource updates
+3. For long-running jobs, prefer `wait_for_status_change` or poll `primr://research/status`
+4. Expect standard runs to take roughly 35-45 minutes, and premium multi-vendor runs to take up to 75-120 minutes
+5. Design the client to resume from job state rather than holding a synchronous request open for the full run
 
 ## Step 4: Evaluate Results
 1. Read `primr://output/latest` to review the report
@@ -99,13 +107,16 @@ research_company(
 
 ## Step 5: Generate Additional Deliverables
 If strategy documents are needed:
-1. Use `generate_strategy` with the report path
-2. Select appropriate strategy type based on use case
+1. Read `primr://strategies/available` to pick a strategy
+2. Call `estimate_strategy` and surface the cost/time to the user
+3. Get explicit approval before calling `generate_strategy`
+4. Use `generate_strategy` with the report path
 
 ## Decision Points
 - Use **scrape** mode for initial reconnaissance
 - Use **deep** mode when website is heavily protected or inaccessible
-- Use **full** mode for comprehensive analysis
+- Use **full** mode for the standard end-to-end workflow
+- Use **premium** when the user explicitly wants maximum-depth research
 - Add `cloud_vendor` parameter when AI strategy is needed
 
 ## Error Handling
@@ -169,6 +180,11 @@ def _get_strategy_selection_prompt(arguments: dict) -> list[PromptMessage]:
 
 ## Example Usage
 ```
+estimate_strategy(
+    strategy_type="ai_strategy",
+    cloud_vendor="azure"
+)
+
 generate_strategy(
     report_path="output/acme_corp/report.md",
     strategy_type="ai_strategy",
@@ -181,6 +197,43 @@ generate_strategy(
 - Multiple strategies can be generated from the same report
 - AI strategy requires cloud_vendor; others don't
 - Check QA score after generation to ensure quality
+"""
+
+    return [
+        PromptMessage(
+            role="user",
+            content=TextContent(type="text", text=content),
+        )
+    ]
+
+
+
+def _get_governed_execution_prompt() -> list[PromptMessage]:
+    """Get governed execution guidance for generic MCP clients."""
+    content = """# Governed Execution Contract
+
+Use this contract whenever a Primr MCP client may trigger paid work.
+
+## Required pattern
+1. Call an estimate tool first.
+2. Tell the user the action incurs real API charges.
+3. Get explicit approval.
+4. Pass `max_estimated_cost_usd` into the cost-incurring tool when possible.
+5. Treat research as a long-running async job; monitor status and resume from state instead of blocking synchronously.
+6. If the server enforces cost caps, never call `research_company` or `generate_strategy` without that cap.
+
+## Research
+```text
+estimate_run(company_url="https://example.com", mode="full")
+research_company(company_name="ExampleCo", company_url="https://example.com", mode="full", max_estimated_cost_usd=0.67)
+# then monitor via primr://research/status or wait_for_status_change
+```
+
+## Strategy
+```text
+estimate_strategy(strategy_type="customer_experience")
+generate_strategy(report_path="output/exampleco/report.md", strategy_type="customer_experience", max_estimated_cost_usd=0.25)
+```
 """
 
     return [

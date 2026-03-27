@@ -66,6 +66,24 @@ def register_resources(server: Server, mcp_server: "PrimrMCPServer") -> None:
                 mimeType="application/json",
             ),
             Resource(
+                uri="primr://research/next-actions",
+                name="Research Next Actions",
+                description="Recommended next client actions for the active or latest job",
+                mimeType="application/json",
+            ),
+            Resource(
+                uri="primr://agent/governance",
+                name="Agent Governance",
+                description="Recommended estimate, approval, and cost-cap contract for MCP clients",
+                mimeType="application/json",
+            ),
+            Resource(
+                uri="primr://research/modes",
+                name="Research Modes",
+                description="Available research modes, current defaults, and usage guidance",
+                mimeType="application/json",
+            ),
+            Resource(
                 uri="primr://output/latest",
                 name="Latest Output",
                 description="Most recent research report",
@@ -117,6 +135,12 @@ def register_resources(server: Server, mcp_server: "PrimrMCPServer") -> None:
 
         if uri_str == "primr://research/status" or uri_str.startswith("primr://research/status"):
             return _read_research_status(mcp_server)
+        elif uri_str == "primr://research/next-actions" or uri_str.startswith("primr://research/next-actions"):
+            return _read_research_next_actions(mcp_server)
+        elif uri_str == "primr://agent/governance" or uri_str.startswith("primr://agent/governance"):
+            return _read_agent_governance()
+        elif uri_str == "primr://research/modes" or uri_str.startswith("primr://research/modes"):
+            return _read_research_modes()
         elif uri_str == "primr://output/latest" or uri_str.startswith("primr://output/latest"):
             return _read_latest_output(mcp_server, uri_str)
         elif uri_str == "primr://output/artifacts" or uri_str.startswith(
@@ -137,6 +161,100 @@ def register_resources(server: Server, mcp_server: "PrimrMCPServer") -> None:
             return _read_manifest_latest()
 
         raise ValueError(f"Unknown resource: {uri}")
+
+
+def _read_research_next_actions(mcp_server: "PrimrMCPServer") -> list[ReadResourceContents]:
+    """Read recommended client actions for the active or latest job."""
+    import json
+
+    job = mcp_server.job_store.get_active()
+    source = "active"
+    if job is None:
+        job = mcp_server.job_store.get_latest_terminal()
+        source = "latest_terminal"
+
+    if job is None:
+        data = {
+            "job_source": None,
+            "job_id": None,
+            "status": "idle",
+            "recommended_action": "start_new_research",
+            "message": "No active or recent job. Estimate a new run before starting research.",
+            "follow_up": [
+                "Read primr://research/modes",
+                "Call estimate_run",
+                "Get explicit user approval before research_company",
+            ],
+        }
+    else:
+        status = job.get_status().value
+        if status == "in_progress":
+            possibly_stuck = job.is_possibly_stuck()
+            data = {
+                "job_source": source,
+                "job_id": job.job_id,
+                "status": status,
+                "recommended_action": "monitor_job",
+                "message": "Research is still running. Monitor status instead of relaunching the job.",
+                "follow_up": [
+                    "Read primr://research/status",
+                    "Use wait_for_status_change for short blocking waits",
+                    "Reconnect and resume monitoring if the client session drops",
+                ],
+                "possibly_stuck": possibly_stuck,
+            }
+            if possibly_stuck:
+                data["recommended_action"] = "inspect_or_cancel"
+                data["message"] = "Research may be stuck. Inspect status and consider cancellation only if progress has stopped."
+                data["follow_up"].append("If the process was interrupted, use resume/recovery commands outside MCP when appropriate")
+        elif status == "completed":
+            data = {
+                "job_source": source,
+                "job_id": job.job_id,
+                "status": status,
+                "recommended_action": "review_output",
+                "message": "Research completed. Review outputs before deciding on QA or strategy generation.",
+                "follow_up": [
+                    "Read primr://output/latest",
+                    "Read primr://output/manifest/latest",
+                    "Run run_qa or estimate_strategy if another deliverable is needed",
+                ],
+                "output_paths": job.output_paths,
+            }
+        elif status == "failed":
+            data = {
+                "job_source": source,
+                "job_id": job.job_id,
+                "status": status,
+                "recommended_action": "inspect_failure",
+                "message": "Research failed. Inspect the error and decide whether to retry or recover.",
+                "follow_up": [
+                    "Read primr://research/status for error details",
+                    "Run doctor if the issue looks environmental",
+                    "Consider resume/recovery flows if the failure was due to interruption",
+                ],
+                "error_type": job.error_type,
+                "error_message": job.error_message,
+            }
+        else:
+            data = {
+                "job_source": source,
+                "job_id": job.job_id,
+                "status": status,
+                "recommended_action": "acknowledge_terminal_state",
+                "message": "The latest job is no longer running.",
+                "follow_up": [
+                    "Read primr://research/status",
+                    "Start a new estimate if another run is needed",
+                ],
+            }
+
+    return [
+        ReadResourceContents(
+            content=json.dumps(data, indent=2),
+            mime_type="application/json",
+        )
+    ]
 
 
 def _read_research_status(mcp_server: "PrimrMCPServer") -> list[ReadResourceContents]:
@@ -420,16 +538,120 @@ def _read_config(mcp_server: "PrimrMCPServer") -> list[ReadResourceContents]:
     ]
 
 
-def _read_strategies_available() -> list[ReadResourceContents]:
-    """
-    Read available strategy types with metadata.
+def _read_agent_governance() -> list[ReadResourceContents]:
+    """Read the recommended governance contract for generic MCP clients."""
+    import json
 
-    Requirements: FR-5.1, FR-5.2
+    data = {
+        "schema_version": "1.0",
+        "principles": [
+            "Call estimate tools before any cost-incurring tool",
+            "Tell the user that research and strategy generation incur real API cost",
+            "Get explicit user approval before execution",
+            "Pass max_estimated_cost_usd into cost-incurring tools when possible",
+            "Treat Primr as a long-running async job system, not a synchronous request",
+            "If PRIMR_ENFORCE_MCP_COST_CAPS is enabled, cost-incurring tools require max_estimated_cost_usd",
+        ],
+        "research_flow": {
+            "estimate_tool": "estimate_run",
+            "execute_tool": "research_company",
+            "cap_argument": "max_estimated_cost_usd",
+            "status_resource": "primr://research/status",
+            "wait_tool": "wait_for_status_change",
+            "expected_runtime": "standard runs are often 35-45 minutes; premium multi-vendor runs can reach 75-120 minutes",
+            "client_behavior": "launch once, then monitor and resume rather than waiting synchronously",
+        },
+        "strategy_flow": {
+            "estimate_tool": "estimate_strategy",
+            "execute_tool": "generate_strategy",
+            "cap_argument": "max_estimated_cost_usd",
+        },
+    }
+
+    return [
+        ReadResourceContents(
+            content=json.dumps(data, indent=2),
+            mime_type="application/json",
+        )
+    ]
+
+
+def _read_research_modes() -> list[ReadResourceContents]:
+    """
+    Read available research modes with current integration guidance.
+
+    This resource is intended for agent clients and skill packages so they
+    can discover current positioning without embedding stale mode tables.
     """
     import json
 
-    # Strategy metadata per design document
-    strategies = [
+    data = {
+        "schema_version": "1.0",
+        "default_mode": "full",
+        "default_mode_behavior": (
+            "Standard research pipeline. When XAI_API_KEY is available, Primr uses the "
+            "Grok hybrid path by default. Use premium to force Gemini Deep Research."
+        ),
+        "cost_warning": (
+            "Research runs incur real API charges. Call estimate_run first and get explicit "
+            "user approval before research_company."
+        ),
+        "search_defaults": {
+            "provider": "duckduckgo",
+            "search_api_key_required": False,
+            "google_custom_search_optional": True,
+        },
+        "modes": [
+            {
+                "id": "scrape",
+                "name": "Scrape",
+                "summary": "Site corpus and extraction only.",
+                "best_for": [
+                    "quick first-party reconnaissance",
+                    "capturing site structure and surface-level signals",
+                ],
+            },
+            {
+                "id": "deep",
+                "name": "Deep",
+                "summary": "External research only, useful when site access is weak or blocked.",
+                "best_for": [
+                    "protected or sparse websites",
+                    "external validation and market context",
+                ],
+            },
+            {
+                "id": "full",
+                "name": "Full",
+                "summary": "Primary recommended mode for most runs.",
+                "best_for": [
+                    "standard end-to-end research",
+                    "consultant-style strategic analysis",
+                ],
+            },
+            {
+                "id": "premium",
+                "name": "Premium",
+                "summary": "Maximum-depth pipeline using Gemini Deep Research.",
+                "best_for": [
+                    "high-depth deliverables",
+                    "cases where longer runtime and higher cost are acceptable",
+                ],
+            },
+        ],
+    }
+
+    return [
+        ReadResourceContents(
+            content=json.dumps(data, indent=2),
+            mime_type="application/json",
+        )
+    ]
+
+
+def get_strategy_catalog() -> list[dict[str, object]]:
+    """Return the shared strategy catalog used by resources and estimate tools."""
+    return [
         {
             "id": StrategyType.AI_STRATEGY.value,
             "name": "AI Strategy",
@@ -464,9 +686,22 @@ def _read_strategies_available() -> list[ReadResourceContents]:
         },
     ]
 
+
+def _read_strategies_available() -> list[ReadResourceContents]:
+    """
+    Read available strategy types with metadata.
+
+    Requirements: FR-5.1, FR-5.2
+    """
+    import json
+
     data = {
         "schema_version": "1.0",
-        "strategies": strategies,
+        "cost_warning": (
+            "Strategy generation incurs real API charges. Surface the current estimate and "
+            "get explicit user approval before generate_strategy."
+        ),
+        "strategies": get_strategy_catalog(),
     }
 
     return [

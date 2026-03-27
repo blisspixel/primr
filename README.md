@@ -465,27 +465,30 @@ curl localhost:9000/.well-known/agent.json  # discover agent capabilities
 ```
 
 <details>
-<summary><strong>OpenClaw</strong> - Drop-in integration with skills and workflows</summary>
+<summary><strong>OpenClaw</strong> - Packaged skills, governed workflows, and sandbox config</summary>
 
 ```bash
-# openclaw/openclaw.json already configured
+# openclaw/openclaw.json wires Primr MCP into OpenClaw
 # Skills: primr-research, primr-strategy, primr-qa
-# Sandboxed Docker execution included
+# Workflows: research-pipeline, strategy-pipeline
 ```
+
+The packaged workflows estimate cost, require approval, and propagate approved cost caps into spend calls.
+See `docs/OPENCLAW.md` for setup and troubleshooting.
 </details>
 
 <details>
-<summary><strong>Claude Skills</strong> - Anthropic's Agent Skills format</summary>
+<summary><strong>Claude Skills</strong> - MCP-first skill packages</summary>
 
-```
+```text
 skills/
-├── company-research/SKILL.md   # Full pipeline with memory
-├── hypothesis-tracking/SKILL.md # Confidence management
-├── qa-iteration/SKILL.md       # Section refinement
-└── scrape-strategy/SKILL.md    # Tier selection heuristics
+├── company-research/SKILL.md
+├── hypothesis-tracking/SKILL.md
+├── qa-iteration/SKILL.md
+└── scrape-strategy/SKILL.md
 ```
 
-Skills include hypothesis persistence, cost governance hooks, and QA gates. Agents can pick up where they left off across sessions.
+These skills are thin intent routers over Primr MCP rather than separate product definitions. Generic MCP clients can also use `primr://agent/governance`, `primr://research/next-actions`, and the `governed_execution` prompt to follow the same estimate/approval/monitor pattern.
 </details>
 
 <details>
@@ -494,7 +497,7 @@ Skills include hypothesis persistence, cost governance hooks, and QA gates. Agen
 Scale-to-zero ephemeral containers, event-driven queues, production observability. See [deployment guide](docs/CLOUD_DEPLOYMENT.md).
 </details>
 
-[MCP docs](docs/API.md) | [A2A protocol](https://github.com/a2aproject/a2a-python) | [OpenClaw config](openclaw/openclaw.json)
+[MCP docs](docs/API.md) | [A2A protocol](https://github.com/a2aproject/a2a-python) | [OpenClaw config](openclaw/openclaw.json) | [OpenClaw guide](docs/OPENCLAW.md)
 
 ## Development
 
@@ -524,6 +527,7 @@ Recent hardening includes shared deep-research parsing/polling/execution modules
 | [CONFIG.md](docs/CONFIG.md) | Full configuration reference |
 | [API_KEYS.md](docs/API_KEYS.md) | API key setup |
 | [CLOUD_DEPLOYMENT.md](docs/CLOUD_DEPLOYMENT.md) | Serverless deployment |
+| [OPENCLAW.md](docs/OPENCLAW.md) | OpenClaw setup and troubleshooting |
 | [SECURITY_OPS.md](docs/SECURITY_OPS.md) | Security operations guide |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution guidelines |
 | [SECURITY.md](SECURITY.md) | Vulnerability reporting |

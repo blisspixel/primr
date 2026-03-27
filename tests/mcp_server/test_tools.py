@@ -34,6 +34,7 @@ class TestToolListing:
         tool_names = [t.name for t in tools]
 
         assert "estimate_run" in tool_names
+        assert "estimate_strategy" in tool_names
         assert "research_company" in tool_names
         assert "generate_strategy" in tool_names
         assert "check_jobs" in tool_names
@@ -116,6 +117,58 @@ class TestEstimateRun:
         assert data["error_type"] == "ssrf_blocked"
 
 
+class TestEstimateStrategy:
+    """Tests for estimate_strategy tool."""
+
+    @pytest.fixture
+    def server(self):
+        """Create a server with temp journal."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            journal_path = str(Path(tmpdir) / "test_journal.json")
+            yield create_mcp_server(journal_path=journal_path, skip_background_tasks=True)
+
+    @pytest.mark.asyncio
+    async def test_estimate_strategy_valid(self, server):
+        """estimate_strategy returns estimates for a valid strategy."""
+        handler = server.server.request_handlers[CallToolRequest]
+        result = await handler(
+            CallToolRequest(
+                method="tools/call",
+                params=CallToolRequestParams(
+                    name="estimate_strategy",
+                    arguments={"strategy_type": "customer_experience"},
+                ),
+            )
+        )
+
+        content = result.root.content[0]
+        data = json.loads(content.text)
+
+        assert data["strategy_type"] == "customer_experience"
+        assert "estimated_cost_usd" in data
+        assert "estimated_time_minutes" in data
+
+    @pytest.mark.asyncio
+    async def test_estimate_strategy_requires_vendor_for_ai(self, server):
+        """estimate_strategy requires cloud_vendor for ai_strategy."""
+        handler = server.server.request_handlers[CallToolRequest]
+        result = await handler(
+            CallToolRequest(
+                method="tools/call",
+                params=CallToolRequestParams(
+                    name="estimate_strategy",
+                    arguments={"strategy_type": "ai_strategy"},
+                ),
+            )
+        )
+
+        content = result.root.content[0]
+        data = json.loads(content.text)
+
+        assert data["error"] is True
+        assert data["error_type"] == "missing_cloud_vendor"
+
+
 class TestResearchCompany:
     """Tests for research_company tool."""
 
@@ -189,6 +242,104 @@ class TestResearchCompany:
         assert data["error"] is True
         assert data["error_type"] == "job_in_progress"
         assert "active_job_id" in data
+
+
+class TestCostCaps:
+    """Tests for MCP cost-cap enforcement."""
+
+    @pytest.fixture
+    def server(self):
+        """Create a server with temp journal."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            journal_path = str(Path(tmpdir) / "test_journal.json")
+            yield create_mcp_server(journal_path=journal_path, skip_background_tasks=True)
+
+    @pytest.mark.asyncio
+    async def test_research_company_rejects_when_cap_exceeded(self, server):
+        handler = server.server.request_handlers[CallToolRequest]
+        result = await handler(
+            CallToolRequest(
+                method="tools/call",
+                params=CallToolRequestParams(
+                    name="research_company",
+                    arguments={
+                        "company_name": "Acme Corp",
+                        "company_url": "https://example.com",
+                        "mode": "full",
+                        "max_estimated_cost_usd": 0.01,
+                    },
+                ),
+            )
+        )
+        data = json.loads(result.root.content[0].text)
+        assert data["error"] is True
+        assert data["error_type"] == "cost_cap_exceeded"
+
+    @pytest.mark.asyncio
+    async def test_generate_strategy_rejects_when_cap_exceeded(self, server):
+        report = Path("output/test_cost_cap_report.md")
+        report.parent.mkdir(parents=True, exist_ok=True)
+        report.write_text("# report", encoding="utf-8")
+        handler = server.server.request_handlers[CallToolRequest]
+        result = await handler(
+            CallToolRequest(
+                method="tools/call",
+                params=CallToolRequestParams(
+                    name="generate_strategy",
+                    arguments={
+                        "report_path": str(report),
+                        "strategy_type": "customer_experience",
+                        "max_estimated_cost_usd": 0.01,
+                    },
+                ),
+            )
+        )
+        data = json.loads(result.root.content[0].text)
+        assert data["error"] is True
+        assert data["error_type"] == "cost_cap_exceeded"
+
+    @pytest.mark.asyncio
+    async def test_research_company_requires_cap_when_enforced(self, server, monkeypatch):
+        monkeypatch.setenv("PRIMR_ENFORCE_MCP_COST_CAPS", "1")
+        handler = server.server.request_handlers[CallToolRequest]
+        result = await handler(
+            CallToolRequest(
+                method="tools/call",
+                params=CallToolRequestParams(
+                    name="research_company",
+                    arguments={
+                        "company_name": "Acme Corp",
+                        "company_url": "https://example.com",
+                    },
+                ),
+            )
+        )
+        data = json.loads(result.root.content[0].text)
+        assert data["error"] is True
+        assert data["error_type"] == "cost_cap_required"
+
+    @pytest.mark.asyncio
+    async def test_generate_strategy_requires_cap_when_enforced(self, server, monkeypatch):
+        monkeypatch.setenv("PRIMR_ENFORCE_MCP_COST_CAPS", "true")
+        report = Path("output/test_required_cap_report.md")
+        report.parent.mkdir(parents=True, exist_ok=True)
+        report.write_text("# report", encoding="utf-8")
+        handler = server.server.request_handlers[CallToolRequest]
+        result = await handler(
+            CallToolRequest(
+                method="tools/call",
+                params=CallToolRequestParams(
+                    name="generate_strategy",
+                    arguments={
+                        "report_path": str(report),
+                        "strategy_type": "customer_experience",
+                    },
+                ),
+            )
+        )
+        data = json.loads(result.root.content[0].text)
+        assert data["error"] is True
+        assert data["error_type"] == "cost_cap_required"
 
 
 class TestCancelJob:

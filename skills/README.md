@@ -1,36 +1,36 @@
-# Primr Skills Directory
-
-Skills are documentation files for MCP-connected AI agents. They are **not** runtime code — they provide context, heuristics, and workflow guidance that agents read to make better decisions.
-
-## Design Principles
-
-Based on SkillsBench research (arXiv:2602.12670):
-
-- **Focused > monolithic**: Each skill is 94-116 lines with 2-5 tools. Small, focused skills outperform large composite ones.
-- **Human-curated only**: Skills encode domain expertise that models lack. Don't skill what the model already knows.
-- **Documentation, not injection**: Skills live in this directory for agents to reference. They are not injected into runtime prompts.
-
-## Current Skills
-
-| Skill | Purpose | Lines |
-|-------|---------|-------|
-| `company-research` | Full pipeline workflow (modes, cost, phases) | ~100 |
-| `scrape-strategy` | Tier selection heuristics and escalation logic | ~95 |
-| `hypothesis-tracking` | Confidence level management and evolution | ~115 |
-| `qa-iteration` | Section refinement workflow and scoring | ~95 |
-
-## Structure
-
-Each skill directory contains:
-
-```
-skills/<skill-name>/
-├── SKILL.md              # Main skill document (agent reads this)
-└── references/           # Supporting reference material
-    └── <topic>.md
-```
-
-## Future
-
-- Industry-specific skill templates (healthcare, fintech, etc.)
-- Skill versioning aligned with Primr releases
+# Primr Skills Directory
+
+This directory contains agent-facing skill packages for Primr integrations.
+
+These files are not runtime code. They are lightweight decision guides that help clients such as Claude-style skill loaders and OpenClaw pick the right MCP tools and resources.
+
+## Design Rules
+
+- Keep each skill narrow and intent-based.
+- Treat MCP as the source of truth for current modes, defaults, and outputs.
+- Keep volatile facts out of `SKILL.md` where possible.
+- Use progressive disclosure: start with the skill, then read references or MCP resources only when needed.
+- Duplicate as little product logic as possible across skills.
+
+## Current Skills
+
+| Skill | Purpose |
+|-------|---------|
+| `company-research` | Start and monitor research runs |
+| `scrape-strategy` | Choose the right mode when scraping is weak |
+| `hypothesis-tracking` | Manage durable company findings |
+| `qa-iteration` | Review and improve reports or strategies |
+
+## Structure
+
+```text
+skills/<skill-name>/
+├── SKILL.md
+└── references/
+```
+
+## Integration Guidance
+
+- Repo skills should stay host-neutral and MCP-first.
+- OpenClaw-specific packaging lives under `openclaw/skills/`.
+- If Primr behavior changes, update MCP resources first, then adjust any skill text that still needs to mention the change.

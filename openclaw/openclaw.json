@@ -11,8 +11,11 @@
               "name": "primr",
               "transport": "stdio",
               "command": "primr-mcp",
-              "args": ["--stdio"],
+              "args": [
+                "--stdio"
+              ],
               "env": {
+                "XAI_API_KEY": "${XAI_API_KEY}",
                 "GEMINI_API_KEY": "${GEMINI_API_KEY}",
                 "SEARCH_API_KEY": "${SEARCH_API_KEY}",
                 "SEARCH_ENGINE_ID": "${SEARCH_ENGINE_ID}"
@@ -47,6 +50,10 @@
       "research-pipeline": {
         "path": "./workflows/research-pipeline.yaml",
         "enabled": true
+      },
+      "strategy-pipeline": {
+        "path": "./workflows/strategy-pipeline.yaml",
+        "enabled": true
       }
     }
   },
@@ -69,6 +76,7 @@
         }
       ],
       "env": {
+        "XAI_API_KEY": "${XAI_API_KEY}",
         "GEMINI_API_KEY": "${GEMINI_API_KEY}",
         "SEARCH_API_KEY": "${SEARCH_API_KEY}",
         "SEARCH_ENGINE_ID": "${SEARCH_ENGINE_ID}"

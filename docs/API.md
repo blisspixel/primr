@@ -1052,11 +1052,11 @@ asyncio.run(main())
 
 ### Tools
 
-The MCP server exposes 9 tools for research operations:
+The MCP server exposes 10 tools for research operations:
 
 #### estimate_run
 
-Get cost and time estimates before running research.
+Get cost and time estimates before running research. For stricter agent governance, pass the approved estimate into `research_company.max_estimated_cost_usd`.
 
 ```json
 {
@@ -1078,9 +1078,34 @@ Response:
 }
 ```
 
+#### estimate_strategy
+
+Get cost and time estimates before generating a strategy document. For stricter agent governance, pass the approved estimate into `generate_strategy.max_estimated_cost_usd`.
+
+```json
+{
+  "name": "estimate_strategy",
+  "arguments": {
+    "strategy_type": "customer_experience"
+  }
+}
+```
+
+Response:
+```json
+{
+  "strategy_type": "customer_experience",
+  "estimated_cost_usd": 0.25,
+  "estimated_time_minutes": 12,
+  "requires_cloud_vendor": false,
+  "cloud_vendor": null,
+  "cost_warning": "Strategy generation incurs real API charges. Get explicit user approval before generate_strategy."
+}
+```
+
 #### research_company
 
-Initiate company research (async - returns job_id immediately).
+Initiate company research (async - returns job_id immediately). This should only be called after `estimate_run` and explicit user approval.
 
 ```json
 {
@@ -1090,7 +1115,8 @@ Initiate company research (async - returns job_id immediately).
     "company_url": "https://acme.example",
     "mode": "full",
     "cloud_vendor": "azure",
-    "skip_qa": false
+    "skip_qa": false,
+    "max_estimated_cost_usd": 0.67
   }
 }
 ```
@@ -1106,7 +1132,7 @@ Response:
 
 #### generate_strategy
 
-Generate strategy document from existing report.
+Generate strategy document from existing report. This should only be called after `estimate_strategy` and explicit user approval.
 
 ```json
 {
@@ -1114,7 +1140,8 @@ Generate strategy document from existing report.
   "arguments": {
     "report_path": "output/Acme_Corp_Strategic_Overview.md",
     "strategy_type": "customer_experience",
-    "cloud_vendor": "azure"
+    "cloud_vendor": "azure",
+    "max_estimated_cost_usd": 0.30
   }
 }
 ```
@@ -1232,6 +1259,20 @@ Response (error):
 
 SSRF protection validates all agent URLs. Private IPs, metadata endpoints, and non-HTTP schemes are blocked.
 
+### Prompts
+
+#### governed_execution
+
+Use this prompt when building a generic cost-aware MCP client. It encodes the default contract: estimate first, tell the user the action costs money, get explicit approval, pass `max_estimated_cost_usd` into spend tools, and treat research as a long-running async job.
+
+#### research_workflow
+
+Guided workflow for company research.
+
+#### strategy_selection
+
+Guided workflow for selecting and generating strategy documents.
+
 ### A2A Server
 
 Primr can also expose its capabilities via the A2A (Agent-to-Agent) protocol, allowing other agents to discover and invoke Primr's research tools.
@@ -1281,7 +1322,7 @@ The A2A server shares the MCP server's `SingleJobStore`, rate limiter, and secur
 
 ### Resources
 
-The MCP server exposes 4 read-only resources:
+The MCP server exposes 7 primary read-only resources. For agent clients, assume research is long-running and monitor/resume from job state rather than blocking on one request:
 
 #### primr://research/status
 
@@ -1297,6 +1338,69 @@ Current research job status with progress information.
   "stage_progress_percent": 45,
   "stage_expected_minutes": 15,
   "possibly_stuck": false
+}
+```
+
+#### primr://research/next-actions
+
+Recommended next action for the active or latest job.
+
+```json
+{
+  "job_source": "active",
+  "job_id": "job_abc123",
+  "status": "in_progress",
+  "recommended_action": "monitor_job",
+  "message": "Research is still running. Monitor status instead of relaunching the job.",
+  "follow_up": [
+    "Read primr://research/status",
+    "Use wait_for_status_change for short blocking waits",
+    "Reconnect and resume monitoring if the client session drops"
+  ]
+}
+```
+
+#### primr://agent/governance
+
+Default governance contract for generic MCP clients.
+
+```json
+{
+  "schema_version": "1.0",
+  "principles": [
+    "Call estimate tools before any cost-incurring tool",
+    "Tell the user the action incurs real API charges",
+    "Get explicit approval before execution",
+    "Pass max_estimated_cost_usd into cost-incurring tools when possible"
+  ],
+  "research_flow": {
+    "estimate_tool": "estimate_run",
+    "execute_tool": "research_company",
+    "cap_argument": "max_estimated_cost_usd"
+  },
+  "strategy_flow": {
+    "estimate_tool": "estimate_strategy",
+    "execute_tool": "generate_strategy",
+    "cap_argument": "max_estimated_cost_usd"
+  }
+}
+```
+
+#### primr://research/modes
+
+Current mode guidance for integrations.
+
+```json
+{
+  "schema_version": "1.0",
+  "default_mode": "full",
+  "default_mode_behavior": "Standard research pipeline. When XAI_API_KEY is available, Primr uses the Grok hybrid path by default. Use premium to force Gemini Deep Research.",
+  "cost_warning": "Research runs incur real API charges. Call estimate_run first and get explicit user approval before research_company.",
+  "search_defaults": {
+    "provider": "duckduckgo",
+    "search_api_key_required": false,
+    "google_custom_search_optional": true
+  }
 }
 ```
 
@@ -1358,6 +1462,7 @@ List of available strategy types with metadata for Open Claw integration.
 ```json
 {
   "schema_version": "1.0",
+  "cost_warning": "Strategy generation incurs real API charges. Surface the current estimate and get explicit user approval before generate_strategy.",
   "strategies": [
     {
       "id": "ai_strategy",
@@ -1482,6 +1587,7 @@ URLs are validated to prevent SSRF attacks:
 
 Per-tool rate limits prevent abuse:
 - `estimate_run`: 30 requests/minute
+- `estimate_strategy`: 30 requests/minute
 - `research_company`: 2 requests/minute
 - Other tools: 10 requests/minute
 
