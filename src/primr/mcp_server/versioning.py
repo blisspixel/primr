@@ -233,6 +233,7 @@ class MCPVersionRegistry:
         """Initialize tool metadata with current versions."""
         tools = [
             ("estimate_run", "Estimate cost and time for a research run"),
+            ("estimate_strategy", "Estimate cost and time for a strategy document"),
             ("research_company", "Initiate company research pipeline"),
             ("generate_strategy", "Generate strategy document from existing report"),
             ("check_jobs", "Check status of pending Deep Research jobs"),
@@ -259,6 +260,7 @@ class MCPVersionRegistry:
                 description="Initial release of MCP API",
                 new_features=[
                     "estimate_run tool for cost estimation",
+                    "estimate_strategy tool for strategy cost estimation",
                     "research_company tool for initiating research",
                     "generate_strategy tool for strategy documents",
                     "check_jobs tool for job status",

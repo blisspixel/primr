@@ -80,8 +80,8 @@ class TestSkillFrontmatterCompliance:
         assert isinstance(env_vars, list)
         assert len(env_vars) > 0
 
-        # At minimum, GEMINI_API_KEY should be required
         assert "GEMINI_API_KEY" in env_vars
+        assert "XAI_API_KEY" in env_vars
 
     def test_has_tools_array(self, skill_file: Path) -> None:
         """FR-2.2: tools array is present."""
@@ -124,12 +124,13 @@ class TestPrimrResearchSkillSpecific:
         _, body = research_skill
         assert "primr://research/status" in body or "status" in body.lower()
 
-    def test_documents_three_research_modes(self, research_skill: tuple[dict, str]) -> None:
-        """FR-2.4: Documents three research modes."""
+    def test_documents_research_modes(self, research_skill: tuple[dict, str]) -> None:
+        """FR-2.4: Documents the current research modes."""
         _, body = research_skill
         assert "scrape" in body.lower()
         assert "deep" in body.lower()
         assert "full" in body.lower()
+        assert "premium" in body.lower()
 
     def test_has_error_handling_section(self, research_skill: tuple[dict, str]) -> None:
         """FR-2.3: Has Error Handling section."""

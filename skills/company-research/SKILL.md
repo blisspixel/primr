@@ -1,94 +1,112 @@
 ---
+
 name: company-research
-version: "1.0.0"
-description: "Run company research using Primr. Use when the user asks to research, analyze, or investigate a company, or provides a company URL."
+
+version: "1.1.0"
+
+description: "Run end-to-end company research through Primr. Use when the user asks to research a company, provides a company URL, or wants a new strategic analysis run."
+
+mcp_server: "primr"
 
 tools:
+
   - estimate_run
+
   - research_company
+
   - check_jobs
-  - get_hypotheses
-  - save_hypothesis
+
+  - wait_for_status_change
 
 resources:
-  - file://references/modes
 
-metadata:
-  openclaw:
-    requires:
-      bins:
-        - primr-mcp
-      env:
-        - GEMINI_API_KEY
-        - SEARCH_API_KEY
-        - SEARCH_ENGINE_ID
+  - primr://research/modes
+
+  - primr://research/status
+
+  - primr://output/latest
+
 ---
+
+
 
 # Company Research
 
+
+
+## Purpose
+
+
+
+Use this skill to start and monitor Primr research runs through MCP. Treat MCP as the source of truth for current modes, defaults, and outputs.
+
+
+
 ## Workflow
 
-1. **Check prior research**: `get_hypotheses(company)` -- present any existing findings to user
-2. **Estimate cost**: `estimate_run(company, url, mode)` -- always before starting
-3. **Get user approval**: show estimated cost and duration
-4. **Start research**: `research_company(company, url, mode)` -- returns job_id immediately
-5. **Monitor**: poll `check_jobs()` every 2 minutes until complete
-6. **Present results**: show report path and any new hypotheses
 
-## Research Modes
 
-See `references/modes.md` for mode details (cost, duration, use cases).
+1. Read `primr://research/modes` to confirm the current mode guidance.
 
-## Hypothesis Management
+2. Read `primr://research/status` to see whether a run is already active.
 
-When user confirms or rejects a claim during research:
+3. Call `estimate_run` before starting a new run.
+
+4. Present the estimate, state that the run incurs real API cost, and get explicit approval before calling `research_company`.
+
+5. After starting a run, monitor with `wait_for_status_change` or `check_jobs` until terminal.
+
+6. Read `primr://output/latest` to present the result and next actions.
+
+
+
+## Operating Rules
+
+
+
+- Prefer the lightest mode that answers the request.
+
+- Do not restate fixed pricing or provider defaults from memory. Use MCP resources and `estimate_run`.
+
+- If a job is already in progress, surface that state instead of starting a second run.
+
+- Treat `full` as the standard end-to-end workflow and `premium` as the higher-cost, higher-depth option.
+- Expect standard runs to take roughly 35-45 minutes and premium multi-vendor runs to reach 75-120 minutes.
+- Do not hold the client in a synchronous wait for the entire run; launch once, then monitor and resume from job state.
+
+
+
+## Example
+
+
+
+```text
+
+User: Research ExampleCo at https://example.com
+
+
+
+1. Read primr://research/modes
+
+2. Read primr://research/status
+
+3. estimate_run(company_url="https://example.com", mode="full")
+
+4. After approval: research_company(company_name="ExampleCo", company_url="https://example.com", mode="full", max_estimated_cost_usd=0.67)
+
+5. wait_for_status_change(job_id="...", timeout_seconds=60)
 
 ```
-save_hypothesis(company, hypothesis_id, "validated", evidence)
-save_hypothesis(company, hypothesis_id, "invalidated", evidence)
-```
+
+
 
 ## Error Handling
 
-| Error | Resolution |
-|-------|------------|
-| `budget_exceeded` | Hook blocked operation; request budget increase |
-| `ssrf_blocked` | URL failed security check; use deep mode instead |
-| `qa_below_threshold` | Report quality low; suggest refinement |
-| `job_already_running` | Wait for current job; use `check_jobs` |
 
-## Example Workflow
 
-```
-User: "Research Acme Corp at https://acme.com"
+- `job_in_progress`: report the active run and offer to monitor it.
 
-1. get_hypotheses("Acme Corp")
-   -> Found 2 prior hypotheses from last session
+- `invalid_url` or `ssrf_blocked`: ask for a valid public URL or switch to `deep` if appropriate.
 
-2. Present to user:
-   "I found prior research on Acme Corp:
-    - [VALIDATED] Uses microservices architecture
-    - [UNTESTED] Revenue growth exceeds 20% YoY
-    Shall I continue with new research?"
+- `rate_limit_exceeded`: wait for the retry window and retry.
 
-3. estimate_run("Acme Corp", "https://acme.com", "full")
-   -> Cost: $3.50, Time: ~30 minutes
-
-4. Request approval:
-   "Full research will cost ~$3.50 and take ~30 minutes.
-    Reply 'approve' to proceed."
-
-5. research_company("Acme Corp", "https://acme.com", "full")
-   -> Job started: job_abc123
-
-6. Poll check_jobs() until complete
-
-7. Present results and new hypotheses
-```
-
-## Constraints
-
-- **Single Job**: Only one research job at a time
-- **Cost Awareness**: Always estimate before running
-- **Memory Persistence**: Hypotheses survive across sessions
-- **QA Gate**: Reports below score 70 trigger warnings

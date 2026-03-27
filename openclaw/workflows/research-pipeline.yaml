@@ -1,128 +1,228 @@
 # Lobster Workflow: Research Pipeline
-# 
-# This workflow orchestrates the complete Primr research flow with
-# approval gates for cost-incurring operations.
+
 #
-# Requirements: FR-3.1, FR-3.2, FR-3.3, FR-3.4, SR-1.1, SR-1.2, SR-1.3, SR-1.4
+
+# MCP-first workflow for Primr research with explicit user approval.
+
+
 
 name: primr-research-pipeline
-description: "Complete company research workflow with cost approval gate"
-version: "1.0.0"
+
+description: "Complete company research workflow with estimate and approval gate"
+
+version: "1.1.0"
+
+
 
 inputs:
+
   company_name:
+
     type: string
+
     required: true
-    description: "Display name for the company (e.g., 'Acme Corp')"
-  
+
+    description: "Display name for the company"
+
+
+
   company_url:
+
     type: string
+
     required: true
-    description: "Company website URL (e.g., 'https://acme.com')"
-  
+
+    description: "Company website URL"
+
+
+
   mode:
+
     type: string
+
     required: false
+
     default: "full"
-    enum: ["scrape", "deep", "full"]
-    description: "Research mode: scrape (fast), deep (external), full (comprehensive)"
+
+    enum: ["scrape", "deep", "full", "premium"]
+
+    description: "Research mode. Use full for the standard workflow and premium for the highest-depth run."
+
+
 
 steps:
-  # Step 1: Get cost/time estimate
+
   - id: estimate
-    description: "Get cost and time estimate for the research"
+
+    description: "Get current cost and time estimate from Primr"
+
     type: tool
+
     tool: estimate_run
+
     args:
-      company_name: "$inputs.company_name"
+
       company_url: "$inputs.company_url"
+
       mode: "$inputs.mode"
+
     output: estimate_result
 
-  # Step 2: Request user approval with bound token
+
+
   - id: approval
+
     description: "Request user approval before incurring costs"
+
     type: approval
+
     approval: required
+
     message: |
+
       Research **$inputs.company_name**?
-      
+
+
+
       Mode: $inputs.mode
-      Estimated cost: $$estimate_result.cost_usd
-      Estimated time: $estimate_result.time_minutes minutes
+
+      Estimated cost: $$estimate_result.estimated_cost_usd
+
+      Estimated time: $estimate_result.estimated_time_minutes minutes
+
       URL: $inputs.company_url
-      
-      Reply "approve $token" to proceed (valid for 10 minutes).
+
+
+
+      Reply "approve $token" to proceed.
+
       Reply "deny" to cancel.
+
     token_length: 6
+
     timeout_minutes: 10
+
     output: approval_result
 
-  # Step 3: Start research (only if approved)
+
+
   - id: research
+
     description: "Start the research job"
+
     type: tool
+
     tool: research_company
+
     condition: "$approval_result.approved == true"
+
     args:
+
       company_name: "$inputs.company_name"
+
       company_url: "$inputs.company_url"
+
       mode: "$inputs.mode"
+
+      max_estimated_cost_usd: "$estimate_result.estimated_cost_usd"
+
     output: research_result
 
-  # Step 4: Poll for completion
+
+
   - id: monitor
+
     description: "Monitor research progress until completion"
+
     type: poll
+
     condition: "$research_result.job_id != null"
+
     resource: "primr://research/status"
+
     until: "status in ['completed', 'failed', 'cancelled']"
+
     interval_seconds: 30
-    timeout_minutes: 60
+
+    timeout_minutes: 90
+
     output: monitor_result
 
-  # Step 5: Retrieve results (only if completed successfully)
+
+
   - id: retrieve
-    description: "Retrieve the research output"
+
+    description: "Retrieve latest job details"
+
     type: tool
+
     condition: "$monitor_result.status == 'completed'"
+
     tool: check_jobs
+
+    args:
+
+      job_id: "$research_result.job_id"
+
     output: retrieve_result
 
-  # Step 6: Notify completion
-  - id: notify_success
-    description: "Notify user of successful completion"
-    type: message
-    condition: "$monitor_result.status == 'completed'"
-    content: |
-      ✅ Research complete for **$inputs.company_name**!
-      
-      Report saved to: $retrieve_result.report_path
-      
-      Next steps:
-      - Run QA: "Check quality of the report"
-      - Generate strategy: "Create an AI strategy from this report"
 
-# Error handlers
-on_failure:
-  - id: failure_notification
+
+  - id: notify_success
+
+    description: "Notify user of successful completion"
+
     type: message
+
+    condition: "$monitor_result.status == 'completed'"
+
     content: |
-      ❌ Research pipeline failed.
-      
+
+      Research complete for **$inputs.company_name**.
+
+
+
+      Job ID: $research_result.job_id
+
+      Review the latest output and artifacts, then decide whether to run QA or generate a strategy.
+
+
+
+on_failure:
+
+  - id: failure_notification
+
+    type: message
+
+    content: |
+
+      Research pipeline failed.
+
+
+
       Step: $failed_step.id
+
       Error: $failed_step.error
-      
-      Suggestions:
-      - Run "primr doctor" to check system health
-      - Check API key validity
-      - Try a different research mode
+
+
+
+      Suggested next actions:
+
+      - Run `doctor`
+
+      - Check model API keys
+
+      - Retry with a different mode if site access was the blocker
+
+
 
 on_denial:
+
   - id: denial_notification
+
     type: message
+
     content: |
-      🚫 Research cancelled. No charges incurred.
-      
-      You can restart anytime with:
-      "Research $inputs.company_name at $inputs.company_url"
+
+      Research cancelled. No new run was started.
+

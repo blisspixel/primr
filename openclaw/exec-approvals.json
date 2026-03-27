@@ -1,32 +1,33 @@
-{
-  "$schema": "https://openclaw.dev/schemas/exec-approvals.json",
-  "version": "1.0",
-  "description": "Execution governance rules for Primr MCP tools. Cost-incurring tools require explicit user approval.",
-  "approvals": [
-    {
-      "pattern": "research_company",
-      "approval": "required",
-      "message": "This will start company research which incurs API costs. Estimated cost: ${estimate.cost_usd}, time: ${estimate.time_minutes} minutes.",
-      "timeout_seconds": 600
-    },
-    {
-      "pattern": "generate_strategy",
-      "approval": "required",
-      "message": "This will generate a strategy document which incurs API costs. Estimated cost: ~$0.25-0.30, time: ~12-15 minutes.",
-      "timeout_seconds": 600
-    },
-    {
-      "pattern": "clear_jobs",
-      "approval": "required",
-      "message": "This will clear all pending jobs. Any in-progress work may be lost.",
-      "timeout_seconds": 300
-    }
-  ],
-  "allow_without_approval": [
-    "estimate_run",
-    "check_jobs",
-    "doctor",
-    "run_qa",
-    "cancel_job"
-  ]
-}
+{
+  "$schema": "https://openclaw.dev/schemas/exec-approvals.json",
+  "version": "1.0",
+  "description": "Execution governance rules for Primr MCP tools. Cost-incurring tools require explicit user approval.",
+  "approvals": [
+    {
+      "pattern": "research_company",
+      "approval": "required",
+      "message": "This will start company research which incurs API costs. Review the current estimate before approving.",
+      "timeout_seconds": 600
+    },
+    {
+      "pattern": "generate_strategy",
+      "approval": "required",
+      "message": "This will generate a strategy document which incurs API costs. Run estimate_strategy and review the estimate before approving.",
+      "timeout_seconds": 600
+    },
+    {
+      "pattern": "clear_jobs",
+      "approval": "required",
+      "message": "This will clear all pending jobs. Any in-progress work may be lost.",
+      "timeout_seconds": 300
+    }
+  ],
+  "allow_without_approval": [
+    "estimate_run",
+    "estimate_strategy",
+    "check_jobs",
+    "doctor",
+    "run_qa",
+    "cancel_job"
+  ]
+}

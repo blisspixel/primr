@@ -54,6 +54,7 @@ def tool_name_strategy(draw):
         st.sampled_from(
             [
                 "estimate_run",
+                "estimate_strategy",
                 "research_company",
                 "generate_strategy",
                 "check_jobs",

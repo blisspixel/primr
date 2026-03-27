@@ -30,6 +30,7 @@ RUN pip install --user --no-cache-dir primr
 
 # Declare environment variables (passed at runtime)
 # These are NOT set here to avoid baking secrets into the image
+ENV XAI_API_KEY=""
 ENV GEMINI_API_KEY=""
 ENV SEARCH_API_KEY=""
 ENV SEARCH_ENGINE_ID=""

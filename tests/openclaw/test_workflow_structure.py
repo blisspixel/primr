@@ -194,7 +194,7 @@ class TestResearchPipelineSpecific:
         mode = inputs.get("mode", {})
 
         assert "enum" in mode
-        assert set(mode["enum"]) == {"scrape", "deep", "full"}
+        assert set(mode["enum"]) == {"scrape", "deep", "full", "premium"}
 
     def test_has_estimate_step(self, research_pipeline: dict) -> None:
         """FR-3.1: Has estimate step."""
@@ -211,6 +211,14 @@ class TestResearchPipelineSpecific:
 
         assert research_step is not None
         assert research_step.get("tool") == "research_company"
+
+    def test_research_step_passes_estimated_cost_cap(self, research_pipeline: dict) -> None:
+        """Research step passes the approved estimate into the spend call."""
+        steps = research_pipeline["steps"]
+        research_step = next((s for s in steps if s["id"] == "research"), None)
+
+        assert research_step is not None
+        assert research_step.get("args", {}).get("max_estimated_cost_usd") == "$estimate_result.estimated_cost_usd"
 
     def test_has_monitor_step(self, research_pipeline: dict) -> None:
         """FR-3.1: Has monitor/poll step."""
@@ -254,3 +262,43 @@ class TestPropertyBasedWorkflowValidity:
         # At least one approval step
         approval_steps = [s for s in workflow["steps"] if s.get("approval") == "required"]
         assert len(approval_steps) > 0
+
+
+class TestStrategyPipelineSpecific:
+    """Tests specific to strategy-pipeline.yaml."""
+
+    @pytest.fixture
+    def strategy_pipeline(self) -> dict:
+        """Load strategy-pipeline.yaml."""
+        path = WORKFLOWS_DIR / "strategy-pipeline.yaml"
+        return load_workflow(path)
+
+    def test_has_required_inputs(self, strategy_pipeline: dict) -> None:
+        inputs = strategy_pipeline.get("inputs", {})
+        assert "report_path" in inputs
+        assert inputs["report_path"]["required"] is True
+        assert "strategy_type" in inputs
+        assert inputs["strategy_type"]["required"] is True
+
+    def test_strategy_type_input_has_enum(self, strategy_pipeline: dict) -> None:
+        strategy_type = strategy_pipeline.get("inputs", {}).get("strategy_type", {})
+        assert set(strategy_type.get("enum", [])) == {"ai_strategy", "customer_experience", "modern_security_compliance", "data_fabric_strategy"}
+
+    def test_has_estimate_step(self, strategy_pipeline: dict) -> None:
+        steps = strategy_pipeline["steps"]
+        estimate_step = next((s for s in steps if s["id"] == "estimate"), None)
+        assert estimate_step is not None
+        assert estimate_step.get("tool") == "estimate_strategy"
+
+    def test_has_strategy_step(self, strategy_pipeline: dict) -> None:
+        steps = strategy_pipeline["steps"]
+        strategy_step = next((s for s in steps if s["id"] == "strategy"), None)
+        assert strategy_step is not None
+        assert strategy_step.get("tool") == "generate_strategy"
+
+    def test_strategy_step_passes_estimated_cost_cap(self, strategy_pipeline: dict) -> None:
+        steps = strategy_pipeline["steps"]
+        strategy_step = next((s for s in steps if s["id"] == "strategy"), None)
+        assert strategy_step is not None
+        assert strategy_step.get("args", {}).get("max_estimated_cost_usd") == "$estimate_result.estimated_cost_usd"
+
