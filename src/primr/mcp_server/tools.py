@@ -392,7 +392,6 @@ def _build_research_estimate(arguments: dict[str, Any]) -> dict[str, Any]:
     }
     estimator_mode = mode_mapping.get(mode, "complete")
     verify = arguments.get("verify", False)
-    max_estimated_cost_usd = arguments.get("max_estimated_cost_usd")
     premium_mode = mode == "premium"
     fast_mode = mode == "full" and bool(os.environ.get("XAI_API_KEY"))
     cost_estimate = estimate_cost(
@@ -454,7 +453,6 @@ async def _handle_estimate_run(
     import json
 
     company_url = arguments.get("company_url")
-    mode = arguments.get("mode", "full")
 
     # Validate URL
     url_result = mcp_server.url_validator.validate(company_url)
