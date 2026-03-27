@@ -35,6 +35,9 @@ class TestResourceListing:
         uris = [str(r.uri) for r in resources]
 
         assert "primr://research/status" in uris
+        assert "primr://research/next-actions" in uris
+        assert "primr://agent/governance" in uris
+        assert "primr://research/modes" in uris
         assert "primr://output/latest" in uris
         assert "primr://output/artifacts" in uris
         assert "primr://config" in uris
@@ -137,6 +140,100 @@ class TestResearchStatusResource:
         assert data["status"] == "failed"
         assert data["error_type"] == "test_error"
         assert data["error_message"] == "Test error message"
+
+
+class TestResearchModesResource:
+    """Tests for primr://research/modes resource."""
+
+    @pytest.fixture
+    def server(self):
+        """Create a server with temp journal."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            journal_path = str(Path(tmpdir) / "test_journal.json")
+            yield create_mcp_server(journal_path=journal_path)
+
+    @pytest.mark.asyncio
+    async def test_research_modes_returns_default_mode(self, server):
+        """Research modes resource includes the default mode."""
+        handler = server.server.request_handlers[ReadResourceRequest]
+        result = await handler(
+            ReadResourceRequest(
+                method="resources/read",
+                params=ReadResourceRequestParams(uri="primr://research/modes"),
+            )
+        )
+
+        content = result.root.contents[0]
+        data = json.loads(content.text)
+
+        assert data["default_mode"] == "full"
+        assert data["search_defaults"]["provider"] == "duckduckgo"
+        assert any(mode["id"] == "premium" for mode in data["modes"])
+
+
+class TestResearchNextActionsResource:
+    """Tests for primr://research/next-actions resource."""
+
+    @pytest.fixture
+    def server(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            journal_path = str(Path(tmpdir) / "test_journal.json")
+            yield create_mcp_server(journal_path=journal_path)
+
+    @pytest.mark.asyncio
+    async def test_next_actions_idle(self, server):
+        handler = server.server.request_handlers[ReadResourceRequest]
+        result = await handler(
+            ReadResourceRequest(
+                method="resources/read",
+                params=ReadResourceRequestParams(uri="primr://research/next-actions"),
+            )
+        )
+        data = json.loads(result.root.contents[0].text)
+        assert data["recommended_action"] == "start_new_research"
+
+    @pytest.mark.asyncio
+    async def test_next_actions_completed(self, server):
+        job = server.job_store.create("Acme Corp", "full")
+        job.output_paths = ["output/report.md"]
+        job.advance_stage(ResearchStage.COMPLETED)
+        server.job_store.update(job)
+        handler = server.server.request_handlers[ReadResourceRequest]
+        result = await handler(
+            ReadResourceRequest(
+                method="resources/read",
+                params=ReadResourceRequestParams(uri="primr://research/next-actions"),
+            )
+        )
+        data = json.loads(result.root.contents[0].text)
+        assert data["recommended_action"] == "review_output"
+        assert "output_paths" in data
+
+
+class TestAgentGovernanceResource:
+    """Tests for primr://agent/governance resource."""
+
+    @pytest.fixture
+    def server(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            journal_path = str(Path(tmpdir) / "test_journal.json")
+            yield create_mcp_server(journal_path=journal_path)
+
+    @pytest.mark.asyncio
+    async def test_agent_governance_describes_cap_argument(self, server):
+        handler = server.server.request_handlers[ReadResourceRequest]
+        result = await handler(
+            ReadResourceRequest(
+                method="resources/read",
+                params=ReadResourceRequestParams(uri="primr://agent/governance"),
+            )
+        )
+
+        data = json.loads(result.root.contents[0].text)
+        assert data["research_flow"]["cap_argument"] == "max_estimated_cost_usd"
+        assert data["strategy_flow"]["cap_argument"] == "max_estimated_cost_usd"
+        assert "35-45 minutes" in data["research_flow"]["expected_runtime"]
+        assert data["research_flow"]["wait_tool"] == "wait_for_status_change"
 
 
 class TestConfigResource:

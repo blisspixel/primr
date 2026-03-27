@@ -45,8 +45,10 @@ For completed work, see the [Changelog](#changelog) at the bottom of this file, 
 
 - MCP server (stdio + HTTP with JWT auth)
 - A2A protocol (standalone or co-hosted with MCP)
-- OpenClaw integration with skills and workflows
-- Claude Skills directory
+- OpenClaw integration with packaged skills plus governed research/strategy workflows
+- Claude Skills directory with MCP-first skill packages
+- Agent governance surfaces for generic MCP clients: estimate-first prompts/resources, next-action hints, and optional server-enforced cost caps (`max_estimated_cost_usd`, `PRIMR_ENFORCE_MCP_COST_CAPS`)
+- Long-running job guidance for agent clients: monitor/resume flows for 35-45 minute standard runs and 75-120 minute premium multi-vendor runs
 
 ### Quality & Trust
 
@@ -74,8 +76,10 @@ For completed work, see the [Changelog](#changelog) at the bottom of this file, 
 - Deterministic verification before AI judgment — check structure, citations, and epistemic labels with code before asking a model to score prose quality
 - Local-first, CLI-first — your data stays on your machine
 - Role over tool — Primr is an account strategist, not a "research command." Its outputs should be consumable by both humans and downstream agents.
+- Product over middleware — integrations should act as a disciplined control plane for Primr's long-running research jobs, not turn Primr into a generic orchestration framework.
+- Artifact-first delivery — the main unit of value is a report, strategy, or evaluation artifact, not a stream of chat-sized tool responses.
 
-Primr is intentionally not designed as a generic web scraper, a SaaS collaboration platform, or a presentation builder.
+Primr is intentionally not designed as a generic web scraper, a SaaS collaboration platform, a presentation builder, or a generic agent middleware layer.
 
 ---
 
@@ -86,6 +90,26 @@ Ordered by practical impact: first make the standard output more strategically u
 ### Near-Term
 
 Scoped, practical improvements. Some are partially built.
+
+#### Agent Control Plane Hardening
+
+The MCP/OpenClaw/skill integrations are now treated as a disciplined Primr control plane rather than thin shell wrappers. The next work here is narrower and more intentional than the initial integration push.
+
+What this work is for:
+- Make long-running, paid Primr runs safer and easier to route, approve, monitor, resume, and consume from agent clients.
+- Keep the user experience aligned to Primr's actual product shape: URL in, serious artifact out.
+
+What this work is not for:
+- Turning Primr into a generic orchestration platform.
+- Replacing the CLI or duplicating core business logic in skills.
+- Exposing a shell-shaped `run_primr(command_string)` surface.
+
+Planned next steps:
+- Add server-issued approval tokens for cost-incurring operations so approval is harder to bypass than cost-cap propagation alone
+- Expand job-scoped resources for artifact consumption (`qa_summary`, source appendix, trace summary) so clients do not need large report bodies in context by default
+- Add integration eval suites for routing, approval, recovery, and recomputation avoidance
+- Keep skills thin and MCP-first; intentionally avoid turning SKILL files into duplicated application specs
+- Preserve typed lifecycle/control-plane primitives instead of free-form execution wrappers
 
 #### Grok Tier Evaluation — 4-Way Comparison
 

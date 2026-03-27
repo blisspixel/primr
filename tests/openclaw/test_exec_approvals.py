@@ -82,6 +82,11 @@ class TestAllowWithoutApproval:
         allowed = exec_approvals["allow_without_approval"]
         assert "estimate_run" in allowed
 
+    def test_estimate_strategy_no_approval(self, exec_approvals: dict) -> None:
+        """SR-1.7: estimate_strategy does NOT require approval."""
+        allowed = exec_approvals["allow_without_approval"]
+        assert "estimate_strategy" in allowed
+
     def test_check_jobs_no_approval(self, exec_approvals: dict) -> None:
         """SR-1.7: check_jobs does NOT require approval."""
         allowed = exec_approvals["allow_without_approval"]

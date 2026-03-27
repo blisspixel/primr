@@ -88,6 +88,7 @@ class TestNoCredentialMounts:
     def test_no_hardcoded_api_keys(self, dockerfile_content: str) -> None:
         """SR-3.2: No hardcoded API keys."""
         # Check that env vars are empty strings (passed at runtime)
+        assert 'XAI_API_KEY=""' in dockerfile_content
         assert 'GEMINI_API_KEY=""' in dockerfile_content
         assert 'SEARCH_API_KEY=""' in dockerfile_content
         assert 'SEARCH_ENGINE_ID=""' in dockerfile_content

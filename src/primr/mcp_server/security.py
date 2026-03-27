@@ -469,6 +469,7 @@ class RateLimiter:
     # Default per-tool rate limits (requests per minute)
     DEFAULT_LIMITS = {
         "estimate_run": 30,  # Lightweight, encourage use
+        "estimate_strategy": 30,  # Lightweight, encourage use
         "doctor": 10,
         "research_company": 2,  # Expensive operation
         "generate_strategy": 5,

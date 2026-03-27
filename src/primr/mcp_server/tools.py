@@ -3,6 +3,7 @@ Tool handler implementations for MCP server.
 
 This module provides executable tools for research operations:
 - estimate_run - Cost/time estimates
+- estimate_strategy - Strategy cost/time estimates
 - research_company - Initiate research pipeline
 - generate_strategy - Generate strategy documents
 - check_jobs - Check Deep Research job status
@@ -50,7 +51,7 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
         base_tools = [
             Tool(
                 name="estimate_run",
-                description="Estimate cost and time for a research run without executing",
+                description="Estimate cost and time for a research run without executing. Call this before any cost-incurring research run.",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -69,13 +70,43 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
                             "default": False,
                             "description": "Run post-QA claim verification (~$0.01, 3-5 min)",
                         },
+                        "max_estimated_cost_usd": {
+                            "type": "number",
+                            "minimum": 0,
+                            "description": "Optional hard ceiling for estimated run cost. The server rejects execution if the estimate exceeds this cap.",
+                        },
                     },
                     "required": ["company_url"],
                 },
             ),
             Tool(
+                name="estimate_strategy",
+                description="Estimate cost and time for a strategy document without executing. Call this before any cost-incurring strategy generation.",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "strategy_type": {
+                            "type": "string",
+                            "enum": [
+                                "ai_strategy",
+                                "customer_experience",
+                                "modern_security_compliance",
+                                "data_fabric_strategy",
+                            ],
+                            "description": "Type of strategy to estimate",
+                        },
+                        "cloud_vendor": {
+                            "type": "string",
+                            "enum": ["azure", "aws", "gcp", "agnostic", "private"],
+                            "description": "Cloud vendor for AI strategy (required for ai_strategy)",
+                        },
+                    },
+                    "required": ["strategy_type"],
+                },
+            ),
+            Tool(
                 name="research_company",
-                description="Initiate company research pipeline (async - returns job_id immediately)",
+                description="Initiate company research pipeline (async - returns job_id immediately). This incurs real API cost and should only be called after the user approves an estimate.",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -114,7 +145,7 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
             ),
             Tool(
                 name="generate_strategy",
-                description="Generate strategy document from existing report",
+                description="Generate strategy document from existing report. This incurs real API cost and should only be called after the user approves the action.",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -137,6 +168,11 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
                             "enum": ["azure", "aws", "gcp", "agnostic", "private"],
                             "description": "Cloud vendor for AI strategy (optional, default: agnostic)",
                         },
+                        "max_estimated_cost_usd": {
+                            "type": "number",
+                            "minimum": 0,
+                            "description": "Optional hard ceiling for estimated strategy cost. The server rejects execution if the estimate exceeds this cap.",
+                        },
                     },
                     "required": ["report_path", "strategy_type"],
                 },
@@ -157,7 +193,7 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
             ),
             Tool(
                 name="run_qa",
-                description="Run quality assessment on a report",
+                description="Run quality assessment on a report. This may incur real API cost depending on the configured QA path.",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -300,6 +336,8 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
         # Dispatch to handler
         if name == "estimate_run":
             return await _handle_estimate_run(mcp_server, arguments)
+        elif name == "estimate_strategy":
+            return await _handle_estimate_strategy(arguments)
         elif name == "research_company":
             return await _handle_research_company(mcp_server, arguments, client_id)
         elif name == "generate_strategy":
@@ -331,6 +369,77 @@ def _parse_max_duration(duration_str: str, default: int = 30) -> int:
         return int(parts[0].split()[0])
     except (ValueError, IndexError):
         return default
+
+
+def _is_cost_cap_enforced() -> bool:
+    import os
+
+    value = os.getenv("PRIMR_ENFORCE_MCP_COST_CAPS", "").strip().lower()
+    return value in {"1", "true", "yes", "on"}
+
+
+def _build_research_estimate(arguments: dict[str, Any]) -> dict[str, Any]:
+    import os
+
+    from primr.utils.cost_estimator import estimate_cost
+
+    mode = arguments.get("mode", "full")
+    mode_mapping = {
+        "scrape": "scrape-only",
+        "deep": "deep-research",
+        "full": "complete",
+        "premium": "complete",
+    }
+    estimator_mode = mode_mapping.get(mode, "complete")
+    verify = arguments.get("verify", False)
+    max_estimated_cost_usd = arguments.get("max_estimated_cost_usd")
+    premium_mode = mode == "premium"
+    fast_mode = mode == "full" and bool(os.environ.get("XAI_API_KEY"))
+    cost_estimate = estimate_cost(
+        estimator_mode,
+        use_historical=False,
+        verify=verify,
+        premium_mode=premium_mode,
+        fast_mode=fast_mode,
+    )
+    pages = 20 if mode in ("scrape", "full", "premium") else 0
+    return {
+        "estimated_cost_usd": round(cost_estimate.total_cost, 2),
+        "estimated_time_minutes": _parse_max_duration(cost_estimate.duration_minutes),
+        "planned_pages": pages,
+        "mode": mode,
+    }
+
+
+def _enforce_cost_cap(
+    estimated_cost: float,
+    max_estimated_cost_usd: float | None,
+    operation_name: str,
+) -> dict[str, Any] | None:
+    if max_estimated_cost_usd is None:
+        if _is_cost_cap_enforced():
+            return {
+                "error": True,
+                "error_type": "cost_cap_required",
+                "error_code": MCPErrorCode.COST_CAP_REQUIRED,
+                "message": (
+                    f"{operation_name} requires max_estimated_cost_usd when PRIMR_ENFORCE_MCP_COST_CAPS is enabled"
+                ),
+            }
+        return None
+
+    if estimated_cost > max_estimated_cost_usd:
+        return {
+            "error": True,
+            "error_type": "cost_cap_exceeded",
+            "error_code": MCPErrorCode.COST_CAP_EXCEEDED,
+            "message": (
+                f"Estimated cost ${estimated_cost:.2f} exceeds approved cap ${max_estimated_cost_usd:.2f} for {operation_name}"
+            ),
+            "estimated_cost_usd": estimated_cost,
+            "max_estimated_cost_usd": max_estimated_cost_usd,
+        }
+    return None
 
 
 async def _handle_estimate_run(
@@ -368,41 +477,68 @@ async def _handle_estimate_run(
             )
         ]
 
-    # Map MCP mode names to cost_estimator mode names
-    import os
+    estimate = _build_research_estimate(arguments)
 
-    from primr.utils.cost_estimator import estimate_cost
+    return [
+        TextContent(
+            type="text",
+            text=json.dumps(estimate),
+        )
+    ]
 
-    mode_mapping = {
-        "scrape": "scrape-only",
-        "deep": "deep-research",
-        "full": "complete",
-        "premium": "complete",
-    }
-    estimator_mode = mode_mapping.get(mode, "complete")
-    verify = arguments.get("verify", False)
-    premium_mode = mode == "premium"
-    fast_mode = mode == "full" and bool(os.environ.get("XAI_API_KEY"))
-    cost_estimate = estimate_cost(
-        estimator_mode,
-        use_historical=False,
-        verify=verify,
-        premium_mode=premium_mode,
-        fast_mode=fast_mode,
-    )
 
-    # Pages estimate (scrape-based modes get ~20 pages)
-    pages = 20 if mode in ("scrape", "full", "premium") else 0
+async def _handle_estimate_strategy(arguments: dict[str, Any]) -> list[TextContent]:
+    """Handle estimate_strategy tool."""
+    import json
+
+    from primr.mcp_server.resources import get_strategy_catalog
+
+    strategy_type = arguments.get("strategy_type")
+    cloud_vendor = arguments.get("cloud_vendor")
+
+    strategy = next((item for item in get_strategy_catalog() if item["id"] == strategy_type), None)
+    if strategy is None:
+        return [
+            TextContent(
+                type="text",
+                text=json.dumps(
+                    {
+                        "error": True,
+                        "error_type": "invalid_strategy_type",
+                        "message": f"Unknown strategy type: {strategy_type}",
+                    }
+                ),
+            )
+        ]
+
+    if strategy["requires_cloud_vendor"] and not cloud_vendor:
+        return [
+            TextContent(
+                type="text",
+                text=json.dumps(
+                    {
+                        "error": True,
+                        "error_type": "missing_cloud_vendor",
+                        "message": "cloud_vendor is required for ai_strategy estimates",
+                    }
+                ),
+            )
+        ]
 
     return [
         TextContent(
             type="text",
             text=json.dumps(
                 {
-                    "estimated_cost_usd": round(cost_estimate.total_cost, 2),
-                    "estimated_time_minutes": _parse_max_duration(cost_estimate.duration_minutes),
-                    "planned_pages": pages,
-                    "mode": mode,
+                    "strategy_type": strategy["id"],
+                    "estimated_cost_usd": strategy["estimated_cost_usd"],
+                    "estimated_time_minutes": strategy["estimated_time_minutes"],
+                    "requires_cloud_vendor": strategy["requires_cloud_vendor"],
+                    "cloud_vendor": cloud_vendor,
+                    "cost_warning": (
+                        "Strategy generation incurs real API charges. Get explicit user approval "
+                        "before generate_strategy."
+                    ),
                 }
             ),
         )
@@ -431,6 +567,7 @@ async def _handle_research_company(
     cloud_vendor = arguments.get("cloud_vendor")
     skip_qa = arguments.get("skip_qa", False)
     verify = arguments.get("verify", False)
+    max_estimated_cost_usd = arguments.get("max_estimated_cost_usd")
 
     # Validate URL
     url_result = mcp_server.url_validator.validate(company_url)
@@ -454,6 +591,15 @@ async def _handle_research_company(
                 ),
             )
         ]
+
+    estimate = _build_research_estimate(arguments)
+    cost_cap_error = _enforce_cost_cap(
+        estimated_cost=float(estimate["estimated_cost_usd"]),
+        max_estimated_cost_usd=max_estimated_cost_usd,
+        operation_name="research_company",
+    )
+    if cost_cap_error is not None:
+        return [TextContent(type="text", text=json.dumps(cost_cap_error))]
 
     # Try to create job
     try:
@@ -527,6 +673,19 @@ async def _handle_generate_strategy(
     report_path = arguments.get("report_path")
     strategy_type = arguments.get("strategy_type")
     cloud_vendor = arguments.get("cloud_vendor")
+    max_estimated_cost_usd = arguments.get("max_estimated_cost_usd")
+
+    estimate_result = await _handle_estimate_strategy(arguments)
+    estimate_payload = json.loads(estimate_result[0].text)
+    if estimate_payload.get("error"):
+        return estimate_result
+    cost_cap_error = _enforce_cost_cap(
+        estimated_cost=float(estimate_payload["estimated_cost_usd"]),
+        max_estimated_cost_usd=max_estimated_cost_usd,
+        operation_name="generate_strategy",
+    )
+    if cost_cap_error is not None:
+        return [TextContent(type="text", text=json.dumps(cost_cap_error))]
 
     # Validate path
     path_result = mcp_server.path_validator.validate(report_path)

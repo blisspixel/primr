@@ -1,135 +1,124 @@
 ---
+
 name: primr-strategy
-version: "1.0.0"
-description: "Generate strategy documents from Primr research reports"
+
+version: "1.1.0"
+
+description: "Generate strategy documents from completed Primr research. Use when the user wants AI, CX, security, or data strategy deliverables from an existing report."
 
 metadata:
+
   openclaw:
+
     requires:
+
       bins:
+
         - primr-mcp
+
       env:
+
+        - XAI_API_KEY
+
         - GEMINI_API_KEY
-        - SEARCH_API_KEY
-        - SEARCH_ENGINE_ID
+
       os:
+
         - linux
+
         - darwin
+
         - win32
 
 mcp_server: primr
+
 tools:
+
   - generate_strategy
+
+  - run_qa
+
 resources:
+
   - primr://strategies/available
+
   - primr://output/latest
+
 ---
+
+
 
 # Primr Strategy Skill
 
-You are a strategic analyst with access to Primr's strategy generation capabilities. You can transform company research reports into actionable strategy frameworks.
+
 
 ## Conceptual Framework
 
-Primr generates strategy documents by:
-1. Using an existing Strategic Overview report as context
-2. Applying domain-specific strategy frameworks via Deep Research
-3. Producing company-specific recommendations grounded in research findings
 
-**Key Principle**: Strategy documents are research tools, not final deliverables. They provide frameworks and hypotheses to validate through further investigation.
 
-### Available Strategy Types
+Strategy generation is a post-research step. The report is the evidence base; the strategy output is a structured interpretation of that evidence, not a substitute for validation.
 
-| Strategy Type | ID | Description | Cloud Vendor Required |
-|--------------|-----|-------------|----------------------|
-| **AI Strategy** | `ai_strategy` | Agentic AI transformation, organizational design, investment frameworks | Yes (azure/aws/gcp/agnostic/private) |
-| **Customer Experience** | `customer_experience` | CX transformation, journey mapping, experience design | No |
-| **Security & Compliance** | `modern_security_compliance` | Zero Trust architecture, guardrails-first governance, risk frameworks | No |
-| **Data Fabric** | `data_fabric_strategy` | Modern data platform for agentic AI, semantic layers, intelligent estates | No |
 
-### Cost and Time Estimates
 
-| Strategy | Time | Cost |
-|----------|------|------|
-| AI Strategy | ~15 min | ~$0.30 |
-| Customer Experience | ~12 min | ~$0.25 |
-| Security & Compliance | ~12 min | ~$0.25 |
-| Data Fabric | ~12 min | ~$0.25 |
+Use `primr://strategies/available` to discover the current strategy set and requirements instead of relying on static tables.
+
+
 
 ## Operational Capabilities
 
-### 1. List Available Strategies
 
-**Trigger**: User asks what strategies are available
-**Resource**: `primr://strategies/available`
+
+### 1. Inspect strategy options
+
+
+
+Read `primr://strategies/available` to confirm available strategy IDs, expected effort, and whether a cloud vendor is required.
+
+
+
+### 2. Generate the requested strategy
+
+
+
+Before `generate_strategy`, call `estimate_strategy`, tell the user it incurs real API cost, get explicit approval, and pass `max_estimated_cost_usd` when available. Then call `generate_strategy` with a concrete report path and strategy type.
+
+
+
+```text
+
+generate_strategy(report_path="output/exampleco/report.md", strategy_type="customer_experience", max_estimated_cost_usd=0.25)
 
 ```
-Example: "What strategy documents can you generate?"
-→ Read primr://strategies/available to show options
-```
 
-### 2. Generate Strategy Document
 
-**Trigger**: User requests a specific strategy type
-**Tool**: `generate_strategy`
 
-**Parameters**:
-- `report_path`: Path to existing Strategic Overview report (required)
-- `strategy_type`: One of the strategy IDs above (required)
-- `cloud_vendor`: For AI Strategy only - "azure", "aws", "gcp", "agnostic", or "private"
+### 3. Validate output quality
 
-```
-Example: "Generate a customer experience strategy from the Acme Corp report"
-→ Call generate_strategy with report_path="output/acme_corp/report.md", strategy_type="customer_experience"
-```
 
-**Constraints**:
-- ALWAYS verify the report exists before attempting generation
-- ALWAYS confirm the strategy type with the user if ambiguous
-- For AI Strategy, ask which cloud vendor to focus on
 
-### 3. Output Location
+Offer `run_qa` on the generated strategy or source report when the user wants review.
 
-Strategy documents are saved alongside the source report:
-- Input: `output/acme_corp/report.md`
-- Output: `output/acme_corp/acme_corp_customer_experience_strategy.md`
 
-**Follow-up Actions**:
-- Offer to run QA on the generated strategy
-- Suggest generating additional strategy types
-- Remind user these are research documents — verify key claims independently
+
+## Constraints
+
+
+
+- Verify the report exists before generation.
+
+- Ask for `cloud_vendor` when generating `ai_strategy`.
+
+- Do not promise exact runtime or price from the skill text; Primr behavior can evolve.
+
+
 
 ## Error Handling
 
-### Common Errors
 
-| Error | Cause | Resolution |
-|-------|-------|------------|
-| `report_not_found` | Source report doesn't exist | Run research first, or check path |
-| `invalid_strategy_type` | Unknown strategy ID | Use `primr://strategies/available` to list valid types |
-| `missing_cloud_vendor` | AI Strategy without vendor | Ask user to specify azure/aws/gcp/agnostic/private |
 
-### Recovery Patterns
+- `report_not_found`: locate the report first or run research.
 
-1. **Report not found**: Offer to run research first, then generate strategy
-2. **Strategy generation fails**: Check API keys, retry with `doctor` diagnostics
-3. **Partial output**: Strategy may still be usable; offer to regenerate
+- `invalid_strategy_type`: read `primr://strategies/available` and retry.
 
-## Use Case Guidance
+- `missing_cloud_vendor`: ask for the target vendor.
 
-### When to Use Each Strategy
-
-| If the user wants to discuss... | Suggest... |
-|--------------------------------|------------|
-| AI/ML adoption, automation, agents | AI Strategy |
-| Customer journeys, digital experience, CX | Customer Experience |
-| Security posture, compliance, Zero Trust | Security & Compliance |
-| Data architecture, analytics, data mesh | Data Fabric |
-
-### Combining Strategies
-
-Multiple strategies can be generated from the same research report. Suggest combinations based on user goals:
-
-- **Digital Transformation**: AI Strategy + Customer Experience
-- **Enterprise Modernization**: Data Fabric + Security & Compliance
-- **Full Assessment**: All four strategies for comprehensive coverage

@@ -61,6 +61,7 @@ class TestEnvironmentVariablePassthrough:
         env = primr_server["env"]
 
         # Check each required env var uses ${VAR} syntax
+        assert env["XAI_API_KEY"] == "${XAI_API_KEY}"
         assert env["GEMINI_API_KEY"] == "${GEMINI_API_KEY}"
         assert env["SEARCH_API_KEY"] == "${SEARCH_API_KEY}"
         assert env["SEARCH_ENGINE_ID"] == "${SEARCH_ENGINE_ID}"
@@ -72,7 +73,7 @@ class TestEnvironmentVariablePassthrough:
         primr_server = next((s for s in servers if s["name"] == "primr"), None)
 
         env = primr_server["env"]
-        required_vars = ["GEMINI_API_KEY", "SEARCH_API_KEY", "SEARCH_ENGINE_ID"]
+        required_vars = ["XAI_API_KEY", "GEMINI_API_KEY", "SEARCH_API_KEY", "SEARCH_ENGINE_ID"]
 
         for var in required_vars:
             assert var in env, f"Missing required env var: {var}"
@@ -130,6 +131,13 @@ class TestWorkflowsConfiguration:
         assert workflows["research-pipeline"]["enabled"] is True
         assert "path" in workflows["research-pipeline"]
 
+
+    def test_strategy_pipeline_workflow_configured(self, openclaw_config: dict) -> None:
+        """Strategy pipeline workflow is registered."""
+        workflows = openclaw_config["workflows"]["entries"]
+        assert "strategy-pipeline" in workflows
+        assert workflows["strategy-pipeline"]["enabled"] is True
+        assert "path" in workflows["strategy-pipeline"]
 
 class TestSandboxConfiguration:
     """Test Docker sandbox configuration."""
