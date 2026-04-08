@@ -135,9 +135,13 @@ def register_resources(server: Server, mcp_server: "PrimrMCPServer") -> None:
 
         if uri_str == "primr://research/status" or uri_str.startswith("primr://research/status"):
             return _read_research_status(mcp_server)
-        elif uri_str == "primr://research/next-actions" or uri_str.startswith("primr://research/next-actions"):
+        elif uri_str == "primr://research/next-actions" or uri_str.startswith(
+            "primr://research/next-actions"
+        ):
             return _read_research_next_actions(mcp_server)
-        elif uri_str == "primr://agent/governance" or uri_str.startswith("primr://agent/governance"):
+        elif uri_str == "primr://agent/governance" or uri_str.startswith(
+            "primr://agent/governance"
+        ):
             return _read_agent_governance()
         elif uri_str == "primr://research/modes" or uri_str.startswith("primr://research/modes"):
             return _read_research_modes()
@@ -205,8 +209,12 @@ def _read_research_next_actions(mcp_server: "PrimrMCPServer") -> list[ReadResour
             }
             if possibly_stuck:
                 data["recommended_action"] = "inspect_or_cancel"
-                data["message"] = "Research may be stuck. Inspect status and consider cancellation only if progress has stopped."
-                data["follow_up"].append("If the process was interrupted, use resume/recovery commands outside MCP when appropriate")
+                data["message"] = (
+                    "Research may be stuck. Inspect status and consider cancellation only if progress has stopped."
+                )
+                data["follow_up"].append(
+                    "If the process was interrupted, use resume/recovery commands outside MCP when appropriate"
+                )
         elif status == "completed":
             data = {
                 "job_source": source,

@@ -59,6 +59,7 @@ class TestLoadPromptConfig:
         """Config should have a valid semver version string."""
         config = load_prompt_config("company_overview")
         import re
+
         assert re.match(r"^\d+\.\d+\.\d+$", config.version), f"Bad version: {config.version}"
 
     def test_config_has_sections(self):

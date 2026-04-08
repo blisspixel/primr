@@ -45,6 +45,7 @@ class ManifestAlreadyExistsError(Exception):
 @dataclass
 class ArtifactMeta:
     """Metadata for a single artifact."""
+
     size_bytes: int
     checksum_sha256: str
 
@@ -65,6 +66,7 @@ class ArtifactMeta:
 @dataclass
 class JobTiming:
     """Timing information for a job."""
+
     submitted_at: str
     started_at: str | None = None
     completed_at: str | None = None
@@ -91,6 +93,7 @@ class JobTiming:
 @dataclass
 class JobCost:
     """Cost information for a job."""
+
     estimated_usd: float
     actual_compute_usd: float | None = None
     actual_llm_usd: float | None = None
@@ -117,6 +120,7 @@ class JobCost:
 @dataclass
 class JobInputs:
     """Input parameters for a job."""
+
     company_name: str
     company_url: str
     mode: str
@@ -143,6 +147,7 @@ class JobInputs:
 @dataclass
 class JobVersions:
     """Version information for a job."""
+
     primr: str
     runner: str
 
@@ -168,6 +173,7 @@ class JobManifest:
     The manifest is written LAST after all artifacts are complete.
     Its presence signals job completion (manifest-as-commit semantics).
     """
+
     job_id: str
     idempotency_key: str
     deployment: str
@@ -302,6 +308,7 @@ def get_primr_version() -> str:
     """Get the installed primr version."""
     try:
         from primr import __version__
+
         return __version__
     except ImportError:
         return "unknown"

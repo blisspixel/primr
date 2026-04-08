@@ -30,6 +30,7 @@ from urllib.parse import urlparse
 
 class JobStatus(str, Enum):
     """Job lifecycle states."""
+
     PENDING_APPROVAL = "PENDING_APPROVAL"
     QUEUED = "QUEUED"
     RUNNING = "RUNNING"
@@ -64,6 +65,7 @@ def format_timestamp(dt: datetime) -> str:
 @dataclass
 class CostEstimate:
     """Cost and time estimate for a job."""
+
     cost_usd: float
     duration_minutes: int
 
@@ -84,6 +86,7 @@ class CostEstimate:
 @dataclass
 class JobInputs:
     """Canonicalized job inputs."""
+
     company_name: str
     company_url: str
     mode: str
@@ -110,6 +113,7 @@ class JobInputs:
 @dataclass
 class JobTiming:
     """Timing information for a job."""
+
     submitted_at: str
     started_at: str | None = None
     completed_at: str | None = None
@@ -137,6 +141,7 @@ class JobRecord:
 
     Uniqueness constraint: (deployment, api_key_hash, idempotency_key)
     """
+
     job_id: str
     deployment: str
     idempotency_key: str
@@ -371,6 +376,7 @@ class DynamoDBStore:
         """Get or create boto3 DynamoDB client."""
         if self._client is None:
             import boto3
+
             self._client = boto3.client("dynamodb", region_name=self.region)
         return self._client
 
@@ -384,7 +390,9 @@ class DynamoDBStore:
             "canonical_hash": {"S": job.canonical_hash},
             "status": {"S": job.status.value},
             "inputs": {"S": json.dumps(job.inputs.to_dict())},
-            "expected_artifacts": {"SS": job.expected_artifacts} if job.expected_artifacts else {"SS": ["_empty"]},
+            "expected_artifacts": {"SS": job.expected_artifacts}
+            if job.expected_artifacts
+            else {"SS": ["_empty"]},
             "estimate": {"S": json.dumps(job.estimate.to_dict())},
             "timing": {"S": json.dumps(job.timing.to_dict())},
             "attempt": {"N": str(job.attempt)},
@@ -514,6 +522,7 @@ class CosmosStore:
         """Get or create Cosmos DB container client."""
         if self._container is None:
             from azure.cosmos import CosmosClient
+
             client = CosmosClient.from_connection_string(self.connection_string)
             database = client.get_database_client(self.database_name)
             self._container = database.get_container_client(self.container_name)
@@ -557,9 +566,7 @@ class CosmosStore:
         for item in self.container.query_items(query=query, enable_cross_partition_query=True):
             job = JobRecord.from_dict(item)
             if started_before and job.timing.started_at:
-                started = datetime.fromisoformat(
-                    job.timing.started_at.replace("Z", "+00:00")
-                )
+                started = datetime.fromisoformat(job.timing.started_at.replace("Z", "+00:00"))
                 if started >= started_before:
                     continue
             results.append(job)
@@ -597,6 +604,7 @@ class FirestoreStore:
         """Get or create Firestore client."""
         if self._db is None:
             from google.cloud import firestore
+
             self._db = firestore.Client(project=self.project)
         return self._db
 
@@ -645,9 +653,7 @@ class FirestoreStore:
         for doc in query.stream():
             job = JobRecord.from_dict(doc.to_dict())
             if started_before and job.timing.started_at:
-                started = datetime.fromisoformat(
-                    job.timing.started_at.replace("Z", "+00:00")
-                )
+                started = datetime.fromisoformat(job.timing.started_at.replace("Z", "+00:00"))
                 if started >= started_before:
                     continue
             results.append(job)

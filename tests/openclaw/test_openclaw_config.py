@@ -131,13 +131,13 @@ class TestWorkflowsConfiguration:
         assert workflows["research-pipeline"]["enabled"] is True
         assert "path" in workflows["research-pipeline"]
 
-
     def test_strategy_pipeline_workflow_configured(self, openclaw_config: dict) -> None:
         """Strategy pipeline workflow is registered."""
         workflows = openclaw_config["workflows"]["entries"]
         assert "strategy-pipeline" in workflows
         assert workflows["strategy-pipeline"]["enabled"] is True
         assert "path" in workflows["strategy-pipeline"]
+
 
 class TestSandboxConfiguration:
     """Test Docker sandbox configuration."""

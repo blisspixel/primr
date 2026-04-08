@@ -141,7 +141,6 @@ class TestProtocolListResponseCompleteness:
                     assert arg.name, f"Prompt {prompt.name} has argument without name"
                     # description is optional but recommended
 
-
     @pytest.mark.asyncio
     async def test_governed_execution_prompt_listed(self, server):
         """Governed execution prompt is exposed to MCP clients."""
@@ -163,6 +162,7 @@ class TestProtocolListResponseCompleteness:
         messages = result.root.messages
         assert len(messages) > 0
         assert "max_estimated_cost_usd" in messages[0].content.text
+
 
 class TestProtocolErrorCodes:
     """

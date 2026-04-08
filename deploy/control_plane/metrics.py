@@ -32,6 +32,7 @@ def utc_now() -> datetime:
 @dataclass
 class MetricValue:
     """A metric value with timestamp."""
+
     value: float
     timestamp: str
     labels: dict[str, str] = field(default_factory=dict)
@@ -68,11 +69,13 @@ class Counter:
             result = []
             for key, value in self._values.items():
                 labels = dict(json.loads(key)) if key else {}
-                result.append(MetricValue(
-                    value=value,
-                    timestamp=format_timestamp(utc_now()),
-                    labels=labels,
-                ))
+                result.append(
+                    MetricValue(
+                        value=value,
+                        timestamp=format_timestamp(utc_now()),
+                        labels=labels,
+                    )
+                )
             return result
 
 
@@ -119,11 +122,13 @@ class Gauge:
             result = []
             for key, value in self._values.items():
                 labels = dict(json.loads(key)) if key else {}
-                result.append(MetricValue(
-                    value=value,
-                    timestamp=format_timestamp(utc_now()),
-                    labels=labels,
-                ))
+                result.append(
+                    MetricValue(
+                        value=value,
+                        timestamp=format_timestamp(utc_now()),
+                        labels=labels,
+                    )
+                )
             return result
 
 

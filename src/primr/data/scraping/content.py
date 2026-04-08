@@ -8,10 +8,20 @@ Uses BeautifulSoup for robust HTML parsing and reader-mode extraction.
 import contextlib
 import logging
 import re
+import warnings
 
-from bs4 import BeautifulSoup, NavigableString
+from bs4 import BeautifulSoup, FeatureNotFound, NavigableString, XMLParsedAsHTMLWarning
 
 logger = logging.getLogger(__name__)
+
+XML_DOCUMENT_TOKENS = (
+    "<urlset",
+    "<sitemapindex",
+    "<rss",
+    "<feed",
+    "<rdf:rdf",
+    "<atom:feed",
+)
 
 # Tags to remove in both modes
 NOISE_TAGS_ALWAYS = ["script", "style", "noscript", "meta", "link", "svg", "canvas", "iframe"]
@@ -245,6 +255,27 @@ def detect_content_type(
     return "unknown"
 
 
+def _looks_like_xml_document(text: str) -> bool:
+    """Heuristically detect XML-like documents before handing them to BeautifulSoup."""
+    sample = (text or "").lstrip()[:2000].lower()
+    if not sample:
+        return False
+    if "<!doctype html" in sample or "<html" in sample:
+        return False
+    return sample.startswith("<?xml") or any(token in sample for token in XML_DOCUMENT_TOKENS)
+
+
+def _parse_markup_document(text: str) -> BeautifulSoup:
+    """Parse HTML normally, but route XML-like documents to an XML parser when available."""
+    parser = "xml" if _looks_like_xml_document(text) else "html.parser"
+    try:
+        return BeautifulSoup(text, parser)
+    except FeatureNotFound:
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
+            return BeautifulSoup(text, "html.parser")
+
+
 def extract_clean_text(
     raw_html: bytes,
     mode: str = "conservative",
@@ -290,7 +321,7 @@ def extract_clean_text(
         return ""
 
     try:
-        soup = BeautifulSoup(html, "html.parser")
+        soup = _parse_markup_document(html)
     except (ValueError, TypeError):
         return ""
 
@@ -513,7 +544,7 @@ def extract_main_content(raw_html: bytes) -> str:
         return ""
 
     try:
-        soup = BeautifulSoup(html, "html.parser")
+        soup = _parse_markup_document(html)
     except (ValueError, TypeError):
         return ""
 

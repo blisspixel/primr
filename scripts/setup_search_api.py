@@ -101,22 +101,29 @@ def verify_project(project_id: str) -> None:
 def enable_api(project_id: str) -> None:
     """Enable the Custom Search API."""
     # Check if already enabled
-    enabled = run_gcloud([
-        "services", "list",
-        f"--project={project_id}",
-        "--enabled",
-        "--format=value(config.name)",
-        f"--filter=config.name:{CUSTOM_SEARCH_SERVICE}",
-    ])
+    enabled = run_gcloud(
+        [
+            "services",
+            "list",
+            f"--project={project_id}",
+            "--enabled",
+            "--format=value(config.name)",
+            f"--filter=config.name:{CUSTOM_SEARCH_SERVICE}",
+        ]
+    )
     if CUSTOM_SEARCH_SERVICE in enabled:
         print("  Custom Search API: already enabled")
         return
 
     print("  Enabling Custom Search API...", end=" ", flush=True)
-    run_gcloud([
-        "services", "enable", CUSTOM_SEARCH_SERVICE,
-        f"--project={project_id}",
-    ])
+    run_gcloud(
+        [
+            "services",
+            "enable",
+            CUSTOM_SEARCH_SERVICE,
+            f"--project={project_id}",
+        ]
+    )
     print("done")
 
 
@@ -125,21 +132,29 @@ def create_api_key(project_id: str) -> str:
     display_name = "primr-search"
 
     # Check for existing primr-search key
-    existing = run_gcloud([
-        "services", "api-keys", "list",
-        f"--project={project_id}",
-        "--format=json",
-    ])
+    existing = run_gcloud(
+        [
+            "services",
+            "api-keys",
+            "list",
+            f"--project={project_id}",
+            "--format=json",
+        ]
+    )
     if existing:
         keys = json.loads(existing)
         for key in keys:
             if key.get("displayName") == display_name:
                 uid = key["uid"]
                 print(f"  Found existing key '{display_name}' (uid: {uid})")
-                key_string = run_gcloud([
-                    "services", "api-keys", "get-key-string",
-                    key["name"],
-                ])
+                key_string = run_gcloud(
+                    [
+                        "services",
+                        "api-keys",
+                        "get-key-string",
+                        key["name"],
+                    ]
+                )
                 # Output is "keyString: <value>"
                 match = re.search(r"keyString:\s*(.+)", key_string)
                 if match:
@@ -148,13 +163,17 @@ def create_api_key(project_id: str) -> str:
 
     # Create new key
     print(f"  Creating restricted API key '{display_name}'...", end=" ", flush=True)
-    result = run_gcloud([
-        "services", "api-keys", "create",
-        f"--project={project_id}",
-        f"--display-name={display_name}",
-        f"--api-target=service={CUSTOM_SEARCH_SERVICE}",
-        "--format=json",
-    ])
+    result = run_gcloud(
+        [
+            "services",
+            "api-keys",
+            "create",
+            f"--project={project_id}",
+            f"--display-name={display_name}",
+            f"--api-target=service={CUSTOM_SEARCH_SERVICE}",
+            "--format=json",
+        ]
+    )
     print("done")
 
     # The create command returns an operation; extract the key name
@@ -163,11 +182,15 @@ def create_api_key(project_id: str) -> str:
 
     if not key_name:
         # List keys and find the one we just created
-        keys_json = run_gcloud([
-            "services", "api-keys", "list",
-            f"--project={project_id}",
-            "--format=json",
-        ])
+        keys_json = run_gcloud(
+            [
+                "services",
+                "api-keys",
+                "list",
+                f"--project={project_id}",
+                "--format=json",
+            ]
+        )
         keys = json.loads(keys_json) if keys_json else []
         for key in keys:
             if key.get("displayName") == display_name:
@@ -180,10 +203,14 @@ def create_api_key(project_id: str) -> str:
         sys.exit(1)
 
     # Get the actual key string
-    key_string_raw = run_gcloud([
-        "services", "api-keys", "get-key-string",
-        key_name,
-    ])
+    key_string_raw = run_gcloud(
+        [
+            "services",
+            "api-keys",
+            "get-key-string",
+            key_name,
+        ]
+    )
     match = re.search(r"keyString:\s*(.+)", key_string_raw)
     key_string = match.group(1).strip() if match else key_string_raw.strip()
 
@@ -297,6 +324,7 @@ def prompt_for_search_engine_id() -> str:
     # Try to open the browser
     try:
         import webbrowser
+
         webbrowser.open("https://programmablesearchengine.google.com/controlpanel/create")
         print("  (Opened browser to the creation page)")
         print()
@@ -352,9 +380,7 @@ def verify_with_doctor() -> None:
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Set up Google Custom Search API for Primr"
-    )
+    parser = argparse.ArgumentParser(description="Set up Google Custom Search API for Primr")
     parser.add_argument(
         "--project",
         default=DEFAULT_PROJECT,

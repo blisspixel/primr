@@ -1,10 +1,13 @@
 """Tests for structured content extraction and boilerplate filtering."""
 
-from bs4 import BeautifulSoup
+import warnings
+
+from bs4 import BeautifulSoup, XMLParsedAsHTMLWarning
 
 from primr.data.scraping.net import is_in_scope
 from primr.data.scraping.structured_content import (
     BoilerplateFilter,
+    extract_structured_content,
     prune_dom,
     remove_duplicate_lines,
 )
@@ -244,3 +247,22 @@ class TestPruneDomProtectsMainContent:
         soup = BeautifulSoup(html, "html.parser")
         soup = prune_dom(soup)
         assert len(soup.get_text(strip=True)) >= 200
+
+
+class TestStructuredContentXmlParsing:
+    """Tests XML-like input parsing behavior."""
+
+    def test_xml_input_does_not_emit_html_warning(self):
+        """Structured extraction should route XML-like input away from html.parser."""
+        xml = b"""<?xml version="1.0" encoding="UTF-8"?>
+        <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+            <url><loc>https://example.com/contact</loc></url>
+        </urlset>
+        """
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            content = extract_structured_content(xml, "https://example.com/sitemap.xml")
+
+        assert "https://example.com/contact" in content.text
+        assert not any(isinstance(w.message, XMLParsedAsHTMLWarning) for w in caught)

@@ -28,7 +28,7 @@ For completed work, see the [Changelog](#changelog) at the bottom of this file, 
 
 **Deep Mode**: Gemini Deep Research Agent with autonomous multi-step search and synthesis
 
-**Standard Mode** (default when `XAI_API_KEY` set): Grok 4.20 hybrid pipeline — 4.20 for reasoning stages (gap analysis, workbook, cross-validation), 4.1 for bulk writing. Research deepening, parallel section writing, cross-validation, coherence pass, and strategy enrichment. ~35-45 min, ~$0.67. Use `--grok-tier fast` for 4.1 everywhere (~$0.47) or `--grok-tier max` for 4.20 everywhere (~$4.29).
+**Standard Mode** (default when `XAI_API_KEY` set): Grok 4.20 hybrid pipeline — 4.20 for reasoning stages (gap analysis, workbook, cross-validation), 4.1 for bulk writing. Research deepening, parallel section writing, cross-validation, coherence pass, and strategy enrichment. ~35-50 min, ~$0.67. Use `--grok-tier fast` for 4.1 everywhere (~$0.47) or `--grok-tier max` for 4.20 everywhere (~$4.29).
 
 **Premium Mode** (`--premium`): Gemini + Deep Research pipeline for maximum depth. ~50-75 min, ~$5.
 
@@ -48,7 +48,7 @@ For completed work, see the [Changelog](#changelog) at the bottom of this file, 
 - OpenClaw integration with packaged skills plus governed research/strategy workflows
 - Claude Skills directory with MCP-first skill packages
 - Agent governance surfaces for generic MCP clients: estimate-first prompts/resources, next-action hints, and optional server-enforced cost caps (`max_estimated_cost_usd`, `PRIMR_ENFORCE_MCP_COST_CAPS`)
-- Long-running job guidance for agent clients: monitor/resume flows for 35-45 minute standard runs and 75-120 minute premium multi-vendor runs
+- Long-running job guidance for agent clients: monitor/resume flows for 35-50 minute standard runs and 75-120 minute premium multi-vendor runs
 
 ### Quality & Trust
 
@@ -78,6 +78,7 @@ For completed work, see the [Changelog](#changelog) at the bottom of this file, 
 - Role over tool — Primr is an account strategist, not a "research command." Its outputs should be consumable by both humans and downstream agents.
 - Product over middleware — integrations should act as a disciplined control plane for Primr's long-running research jobs, not turn Primr into a generic orchestration framework.
 - Artifact-first delivery — the main unit of value is a report, strategy, or evaluation artifact, not a stream of chat-sized tool responses.
+- The pipeline is the product — Primr's value is the 8-tier scraping engine, the org-aware link selection, the research deepening, the cross-validation, the deterministic QA gate, the eval harness, the crash recovery, and the cost estimation. None of these are model calls. They're all harness. The model is a commodity (Grok today, something else tomorrow); the orchestration pipeline is the moat. Research into production agentic systems consistently shows that 90%+ of a mature agent's codebase is harness engineering, not model interaction. Primr's architecture reflects this from the start.
 
 Primr is intentionally not designed as a generic web scraper, a SaaS collaboration platform, a presentation builder, or a generic agent middleware layer.
 
@@ -122,6 +123,45 @@ Run the eval harness on 3-5 companies across all Grok tiers (fast/hybrid/max/mul
 - Decision: validate hybrid default, identify if multi-agent justifies higher cost for reasoning-heavy stages, identify if any company profile benefits from max
 
 #### v1.17.0 — Deeper Strategic Analysis
+
+**Pipeline Resilience Patterns**
+
+Formalize Primr's retry and recovery logic into explicit, cost-ordered patterns across all pipeline stages. Informed by research into how production agentic systems handle failure recovery — the consistent finding is that mature agent harnesses invest heavily in cost-ordered retry hierarchies, foreground/background stage classification, and model-level circuit breaking.
+
+*Cost-Ordered Pipeline Recovery:*
+
+Primr already has exponential retry with jitter on transient API failures. The next step is making every pipeline stage declare an explicit recovery hierarchy ordered by cost, not just retry count:
+
+| Stage | Recovery 1 (cheapest) | Recovery 2 | Recovery 3 (most expensive) |
+|---|---|---|---|
+| Scraping (per-page) | Retry same tier with jitter | Escalate to next tier (existing) | Skip page, log as failed |
+| External search | Retry query with backoff | Reduce query count | Skip search, proceed with scrape-only data |
+| Analysis (Grok/Gemini) | Retry with same model | Retry with fallback model (Grok 4.20 → 4.1 → Flash) | Abort with partial output |
+| Section writing | Retry section | Regenerate with simpler prompt | Skip section, note gap in report |
+| Cross-validation | Retry validation | Skip validation, flag as unvalidated | Proceed without cross-validation |
+| Strategy generation | Retry strategy | Generate minimal strategy | Skip strategy, deliver report only |
+
+*Foreground/Background Stage Classification:*
+
+Classify every pipeline stage as foreground (must complete for a useful artifact) or background (additive quality, not core). Background stages bail immediately on API overload or budget stress instead of retrying and amplifying capacity cascades.
+
+- Foreground (retry aggressively): scraping, analysis workbook, report section writing
+- Background (bail on overload): strategy generation, expert perspectives (v1.19.0), deep cross-validation, research deepening
+
+This classification directly enables quick mode (v1.18.0) — quick mode is essentially "foreground stages only with tight caps." It also protects batch runs: if the API is rate-limited during company #3 of a 50-company batch, background stages bail so budget is preserved for company #4's core analysis.
+
+*Model-Level Circuit Breaker:*
+
+Extend the existing scrape-tier circuit breaker (skip after 3 consecutive failures) to model routing. Track consecutive API failures per model and automatically fall back after a threshold:
+
+- Track consecutive failures per model (Grok 4.1, Grok 4.20, Gemini Flash, Gemini Pro, Deep Research)
+- After 3 consecutive failures on a model: mark as unhealthy, route to fallback
+- Fallback chain: Grok 4.20 → Grok 4.1 → Gemini Flash (for analysis); Gemini Pro → Grok 4.1 (for premium)
+- After 10 minutes: attempt recovery with a single test call
+- Log model health transitions in `_run_state.json`
+- Check API key availability before cross-provider fallback
+
+This becomes essential as Primr adds more providers (OpenAI in v1.21.0, local inference in v1.22.0). The pattern is identical to the scrape-tier circuit breaker — count consecutive failures, break at threshold, attempt recovery later.
 
 **Consultant-Grade Strategic Writing**
 
@@ -207,6 +247,37 @@ Surface the cost, performance, and scraping data that Primr already tracks inter
 - Stored in run state JSON for post-hoc analysis
 - Informs sticky tier policy and circuit breaker thresholds
 
+**Diminishing Returns Detection for Cross-Validation**
+
+Detect when cross-validation or section regeneration is making diminishing progress and stop early, rather than consuming the full token budget.
+
+- After each section regeneration, measure improvement: word count delta, new citation count, QA score change
+- If 3+ consecutive regenerations each produce <5% improvement in QA score, stop the loop early
+- Log the early stop in the QA summary: `cross-validation: stopped early (diminishing returns after N iterations)`
+- Applies to both the existing cross-validation pass and the planned QA iteration loop (v1.19.0)
+- Directly supports quick mode: quick runs can use a tighter threshold (2 iterations, <3% improvement) to stay within budget
+- Start conservative and tune thresholds based on eval results
+
+**Windows Working-Directory Hardening**
+
+Reduce false negatives and transient failures on Windows machines where the repo lives inside OneDrive or similar synced folders.
+
+- Make checkpoint/state writes tolerant of transient `PermissionError` during atomic rename
+- Update `primr doctor` to probe the same atomic write path used during real runs
+- Add explicit docs for keeping high-churn `working/` paths outside synced folders when possible
+- Longer term: support a configurable working directory separate from the repo root
+
+**Prompt Cache Preparation**
+
+Split section-writing prompts into cached (stable across sections) and volatile (per-section) components as a clean architectural separation, even before model providers fully support prompt caching for Primr's use case.
+
+- Cached prefix (identical across all 23 parallel section writes): company context, analysis workbook, scrape summary, external research summary, general writing instructions, citation style guide
+- Volatile suffix (per-section): section name, section-specific prompt, section-specific evidence excerpts, word target
+- Ensure the cached prefix is byte-identical across all parallel section writes — no timestamps, no randomized evidence ordering, no section-specific context in the prefix
+- This is a zero-cost architectural prep step: it doesn't add caching API calls, it just structures the prompts so caching works when providers support it
+- When prompt caching becomes available (Anthropic supports it now; xAI and Google may follow), the payoff is significant: a cache miss on the shared prefix means paying full input token cost 23 times instead of once
+- Applies the same principle to strategy generation prompts and cross-validation prompts where a shared context prefix is reused across multiple calls
+
 #### v1.19.0 — Better Reports
 
 **Expert Perspective Passes (`--with-experts`)**
@@ -231,6 +302,29 @@ Use QA feedback to iteratively improve weak sections until reports hit 90+.
 - QA identifies specific sections needing work
 - Section-level regeneration without full pipeline re-run
 - Repeat until grade >= 90
+- Integrates with diminishing returns detection (v1.18.0): stop the loop when regeneration produces <5% QA improvement per iteration
+
+Structure the refinement loop around a four-phase consolidation protocol (Orient → Gather → Consolidate → Prune) to ensure the LLM surveys existing state before making changes:
+
+1. Orient: Read full report + QA summary + source appendix. Identify which sections scored lowest, which citations are weak, which confidence labels are missing.
+2. Gather: For weak sections, search for additional evidence. DDG queries targeted at specific gaps. Cross-reference existing scrape data for unused signal.
+3. Consolidate: Regenerate weak sections with enriched context. Merge new evidence into existing narrative rather than rewriting from scratch. Preserve existing citations and confidence labels that are still valid.
+4. Prune: Re-run deterministic QA. Normalize citations. Ensure Sources appendix is consistent with body citations. Validate budget/timeline figures in strategy sections.
+
+The critical principle: separate reading (Orient/Gather) from writing (Consolidate/Prune). The LLM has full context before it starts editing, which prevents hallucinated improvements that contradict existing content.
+
+**Constrained Agent Permissions for Agentic Improve**
+
+When `primr improve --improve-agentic` runs an agentic review pass, constrain the agent's write permissions to the output file only. This transforms the agentic improve from a trust-based policy ("the LLM should only edit the report") into an enforced architectural constraint.
+
+- Allow: read any file in the working directory and output directory
+- Allow: write only to the target output file (or `*_improved` variant)
+- Allow: DDG search for additional evidence (read-only external)
+- Deny: write to `_run_state.json`, `_raw_scrapes/`, working directory state files
+- Deny: any shell commands that modify files outside the output target
+- Implement as a wrapper around file I/O that checks the target path against an allowlist before writing
+
+This pattern applies to any future agentic pipeline stage that modifies artifacts: expert perspective passes, strategy enrichment, cross-validation regeneration. The principle is the same — declare what the agent can touch, enforce it in code, not in prompts.
 
 **Auto-Eval on Model Releases**
 
@@ -241,6 +335,103 @@ Reduce manual work when new Grok/Gemini variants drop by automating the eval-and
 - LLM judge overlay (cloud or local Ollama) for subjective metrics: utility, strategic sharpness, hallucination rate
 - Decision output: "new variant is better/worse/equivalent for [stage]" with evidence
 - Keeps defaults current (hybrid vs multi-agent vs premium) without gut calls on each release
+
+#### v1.19.1 — Post-Research Skill Processing (Anthropic Skills API)
+
+**The problem Primr solves today ends at the artifact.** Primr produces a strategic overview, an AI strategy document, and supporting artifacts. What happens next — turning those into a client-ready deliverable, an internal brief, a CRM enrichment payload, an ideas page — is different for every user and every organization. Today that workflow is manual: copy the `.md` output, paste it into Claude, run your own skill or prompt, iterate.
+
+This feature makes that handoff automatic and generic. Primr ships the plumbing to pipe its artifacts through any user-provided skill via the [Anthropic Skills API](https://docs.anthropic.com/en/docs/build-with-claude/skills). The skill itself is entirely the user's business — Primr doesn't know or care what it does. A consulting firm might run a "client brief generator" skill. A sales team might run a "deal qualification" skill. An investor might run a "due diligence memo" skill. Primr just feeds the artifacts in and collects whatever comes out.
+
+**What this is:**
+- A generic, optional post-processing phase in the Primr pipeline
+- Infrastructure that belongs in the public repo because it's skill-agnostic
+- A clean boundary: Primr's job ends at research artifacts, the skill's job starts there
+
+**What this is not:**
+- Primr shipping specific downstream skills (those are user/org-specific, outside the repo)
+- A replacement for the existing MCP skills (those are for controlling Primr, not consuming its outputs)
+- A requirement — if you don't configure a skill, nothing changes
+
+**How it works:**
+
+1. User creates their own skill (a folder with `SKILL.md` + scripts + resources) for whatever downstream workflow they need
+2. User uploads it to the Anthropic Skills API (once) and gets back a `skill_id`
+3. User configures Primr with the skill ID and an Anthropic API key
+4. After research completes, Primr calls the Messages API with the skill loaded and the research artifacts as input
+5. Primr downloads any files the skill produces and drops them alongside the other outputs
+
+**CLI interface:**
+
+```bash
+# One-off: run a skill against the outputs of this research run
+primr "Company" https://company.com --post-skill skill_01AbCd...
+
+# Reprocess existing artifacts through a skill without re-running research
+primr skill-run "output/Company_Strategic_Overview_03-06-2026.md" --skill skill_01AbCd...
+
+# Upload a local skill folder to the Anthropic Skills API (helper, not required)
+primr skill-upload ./my-skill-folder
+# → prints skill_id to configure in .env or pass via --post-skill
+```
+
+**Configuration (`.env`):**
+
+```bash
+# Optional — post-research skill processing via Anthropic Skills API
+# ANTHROPIC_API_KEY=sk-ant-...
+# PRIMR_POST_SKILL_ID=skill_01AbCd...
+# PRIMR_POST_SKILL_VERSION=latest
+```
+
+When `PRIMR_POST_SKILL_ID` is set, every research run automatically pipes artifacts through the skill after the standard pipeline completes. `--post-skill` on the CLI overrides or supplements the env config. `--no-post-skill` skips it for a single run.
+
+**Implementation shape:**
+
+- New module: `src/primr/ai/skills_api.py` — thin Anthropic Skills API client (upload, invoke, download results)
+- New pipeline phase: `post_skill` — runs after report generation and QA, before final output summary
+- Skill invocation uses the Messages API with `container.skills` and `code_execution` tool enabled so skills can run bundled scripts
+- Multi-turn handling: skills that need multiple turns (pause_turn) are handled automatically
+- File download via the Anthropic Files API for any artifacts the skill produces
+- Output files land in the same output directory as the research artifacts, with a `_skill/` subfolder to keep them separate
+- Cost tracking: skill API calls are tracked in the same usage/cost system as research calls
+- `--dry-run` includes estimated skill processing cost (based on input token count of artifacts)
+
+**What the user's skill folder looks like (their repo, not Primr's):**
+
+```
+my-downstream-skill/
+├── SKILL.md              # Instructions for Claude on what to produce
+├── scripts/
+│   ├── generate_html.py  # Custom output generation
+│   └── brand_assets.py   # Org-specific styling/templates
+└── templates/
+    └── brief_template.html
+```
+
+Primr never sees or ships this. The user uploads it once, gets a skill ID, and configures Primr to use it.
+
+**Batch support:**
+
+When running `primr --batch companies.csv`, the post-skill phase runs per-company after each company's research completes. This means a batch of 20 companies produces 20 research artifacts AND 20 downstream deliverables in one pipeline run.
+
+**Relationship to existing skills:**
+
+The four skills in `skills/` (company-research, hypothesis-tracking, qa-iteration, scrape-strategy) are MCP-first control-plane skills — they tell Claude how to drive Primr. Post-skill processing is the inverse: Primr drives Claude with the user's skill to transform its own outputs. These are complementary, not competing.
+
+**Relationship to v1.25.0 (Agentic Interoperability):**
+
+This is a concrete, near-term version of the "Primr produces intelligence, the next role picks it up" vision. The difference is that v1.25.0 envisions this happening via A2A protocol between agents, while post-skill processing does it via the Anthropic Skills API within a single pipeline. Post-skill processing is the simpler, more immediate path that works today without requiring a multi-agent orchestrator.
+
+**Setup flow integration:**
+
+`setup_env.py` adds the optional Anthropic Skills API section to `.env` with comments explaining the flow. `primr doctor` checks for valid `ANTHROPIC_API_KEY` and `PRIMR_POST_SKILL_ID` when configured, and verifies the skill exists and is accessible. Documentation covers the full lifecycle: create a skill folder → upload it → configure Primr → run research → get downstream deliverables automatically.
+
+**Security considerations:**
+
+- Skills run in Anthropic's cloud containers, not on the user's machine — the skill cannot access local files beyond what Primr explicitly sends
+- Primr sends only the research artifacts (report, strategy, QA summary) — no API keys, no working directory contents, no scrape traces
+- Users are responsible for the security of their own skills (same as any code they upload to a cloud API)
+- `primr doctor` warns if a configured skill ID is invalid or inaccessible
 
 ### Medium-Term
 
@@ -345,10 +536,10 @@ At scale, API costs compound: 100 companies × $0.55 = $55 per batch. Local infe
 - Expand the current eval-plumbing into production-safe local/cloud/hybrid stage routing
 - Cost estimator reflects local inference as $0.00 API cost while still tracking runtime and hardware assumptions
 
-**Immediate Eval Track (this machine):**
+**Immediate Eval Track:**
 - Use the existing eval harness as the acceptance gate rather than shipping on intuition
 - Baseline against current cloud profiles on staged cloud-generated reports for the same company/profile pairs
-- Run first-pass local tests on this machine's RTX 4090 + Ollama setup using single-model and multi-model judge sweeps
+- Run first-pass local tests on an RTX 4090 + Ollama setup using single-model and multi-model judge sweeps
 - Use the judge sweep to narrow candidate local models before attempting any stage-level production routing
 - Compare `cloud` vs `hybrid` first; only try `local` end-to-end after stage-level results look credible
 
@@ -401,9 +592,9 @@ Lightweight precursor to the full claim store — turns one-off runs into living
 - `primr memory clear` to reset
 - No data leaves the machine unless user explicitly exports
 
-#### v1.23.0 — Knowledge Compounding
+#### v1.23.1 — Knowledge Compounding
 
-Build on cross-run memory (v1.22.0) to make research compound across batch runs and evolving investigations.
+Build on cross-run memory (v1.23.0) to make research compound across batch runs and evolving investigations.
 
 **Industry Knowledge Base for Batch Runs**
 
@@ -429,11 +620,11 @@ Support post-discovery learning without re-running everything from scratch.
 - `primr refine` command accepting new information, notes, and follow-up findings
 - Re-synthesize insights with updated confidence and revised hypotheses
 - Outputs evolve as understanding deepens
-- Cross-run memory (v1.22.0) stores the evolution
+- Cross-run memory (v1.23.0) stores the evolution
 
 #### v1.24.0 — Narrative Evolution
 
-Make Primr the system of record for how thinking evolves about a company. Requires cross-run memory (v1.22.0).
+Make Primr the system of record for how thinking evolves about a company. Requires cross-run memory (v1.23.0).
 
 - Versioned research artifacts
 - Explicit "what changed and why" sections

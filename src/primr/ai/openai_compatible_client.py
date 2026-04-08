@@ -31,7 +31,12 @@ _default_base_url = "http://localhost:11434/v1"
 
 def normalize_openai_base_url(base_url: str | None) -> str:
     """Normalize a local OpenAI-compatible base URL."""
-    value = (base_url or os.getenv("LOCAL_LLM_BASE_URL") or os.getenv("OLLAMA_BASE_URL") or _default_base_url).strip()
+    value = (
+        base_url
+        or os.getenv("LOCAL_LLM_BASE_URL")
+        or os.getenv("OLLAMA_BASE_URL")
+        or _default_base_url
+    ).strip()
     if not value:
         return _default_base_url
     if not re.search(r"/v\d+/?$", value):

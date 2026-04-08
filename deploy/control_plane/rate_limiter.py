@@ -21,6 +21,7 @@ from typing import Any
 @dataclass
 class RateLimitConfig:
     """Rate limit configuration."""
+
     requests_per_second: float = 10.0  # Sustained rate
     burst_size: int = 20  # Maximum burst
 
@@ -34,6 +35,7 @@ class RateLimitConfig:
 @dataclass
 class RateLimitResult:
     """Result of a rate limit check."""
+
     allowed: bool
     remaining: int  # Remaining tokens
     reset_after: float  # Seconds until bucket refills

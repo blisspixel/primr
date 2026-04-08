@@ -71,6 +71,22 @@ def test_update_run_state_sets_updated_timestamp(tmp_path):
     assert "updated_at" in state
 
 
+def test_save_run_state_falls_back_when_atomic_replace_is_denied(tmp_path, monkeypatch):
+    folder = tmp_path / "run"
+    folder.mkdir()
+
+    def fail_replace(_src, _dst):
+        raise PermissionError("Access is denied")
+
+    monkeypatch.setattr(research_agent.os, "replace", fail_replace)
+
+    research_agent._save_run_state(str(folder), {"status": "running"})
+
+    state = research_agent._load_run_state(str(folder))
+    assert state["status"] == "running"
+    assert not list(folder.glob("*.tmp"))
+
+
 def test_append_run_event_keeps_recent_200(tmp_path):
     folder = tmp_path / "run"
     folder.mkdir()

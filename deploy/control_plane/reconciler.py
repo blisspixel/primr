@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ReconciliationConfig:
     """Configuration for reconciliation."""
+
     # Maximum job duration before timeout (default 2 hours)
     max_duration_seconds: int = 7200
     # Grace period for cancellation (default 5 minutes)
@@ -45,6 +46,7 @@ class ReconciliationConfig:
 @dataclass
 class ReconciliationResult:
     """Result of a reconciliation run."""
+
     jobs_checked: int = 0
     timeout_reconciled: int = 0
     manifest_reconciled: int = 0
@@ -189,7 +191,9 @@ class Reconciler:
         # Check if manifest exists (runner wrote CANCELLED manifest)
         manifest = self.artifact_store.get_manifest(job.job_id)
         if manifest:
-            logger.info(f"Job {job.job_id} has manifest after cancel request, status: {manifest.status}")
+            logger.info(
+                f"Job {job.job_id} has manifest after cancel request, status: {manifest.status}"
+            )
 
             new_status = self._status_from_manifest(manifest.status)
             job.status = new_status

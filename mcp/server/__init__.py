@@ -139,6 +139,8 @@ class Server:
     def create_initialization_options(self) -> InitializationOptions:
         return InitializationOptions(server_name=self.name)
 
-    async def run(self, _read_stream: Any, _write_stream: Any, _options: InitializationOptions) -> None:
+    async def run(
+        self, _read_stream: Any, _write_stream: Any, _options: InitializationOptions
+    ) -> None:
         """No-op run loop for tests."""
         return None

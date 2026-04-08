@@ -70,8 +70,10 @@ Use this skill to start and monitor Primr research runs through MCP. Treat MCP a
 
 - If a job is already in progress, surface that state instead of starting a second run.
 
-- Treat `full` as the standard end-to-end workflow and `premium` as the higher-cost, higher-depth option.
-- Expect standard runs to take roughly 35-45 minutes and premium multi-vendor runs to reach 75-120 minutes.
+- Treat `full` as the standard end-to-end workflow and `premium` as the higher-cost, higher-depth option.
+
+- Expect standard runs to take roughly 35-50 minutes and premium multi-vendor runs to reach 75-120 minutes.
+
 - Do not hold the client in a synchronous wait for the entire run; launch once, then monitor and resume from job state.
 
 

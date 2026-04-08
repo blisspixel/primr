@@ -266,7 +266,6 @@ class TestParseArgs:
         assert config.eval_judge_passes == 1
         assert config.eval_judge_max_cost == 0.25
 
-
     def test_parse_local_eval_judge_model_list(self):
         """Test parsing named local judge model lists."""
         config = parse_args(

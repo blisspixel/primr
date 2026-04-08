@@ -39,7 +39,9 @@ def run_gcloud(args: list[str], capture: bool = True) -> tuple[int, str, str]:
 
 def check_gcloud_auth() -> bool:
     """Check if gcloud is authenticated."""
-    code, out, err = run_gcloud(["auth", "list", "--filter=status:ACTIVE", "--format=value(account)"])
+    code, out, err = run_gcloud(
+        ["auth", "list", "--filter=status:ACTIVE", "--format=value(account)"]
+    )
     if code != 0 or not out:
         print("❌ Not authenticated with gcloud")
         print("   Run: gcloud auth login")
@@ -61,10 +63,9 @@ def get_project() -> str | None:
 
 def list_api_keys() -> list[dict]:
     """List all API keys in the project."""
-    code, out, err = run_gcloud([
-        "services", "api-keys", "list",
-        "--format=csv[no-heading](name,displayName,createTime)"
-    ])
+    code, out, err = run_gcloud(
+        ["services", "api-keys", "list", "--format=csv[no-heading](name,displayName,createTime)"]
+    )
     if code != 0:
         print(f"❌ Failed to list keys: {err}")
         return []
@@ -74,20 +75,21 @@ def list_api_keys() -> list[dict]:
         if line:
             parts = line.split(",")
             if len(parts) >= 2:
-                keys.append({
-                    "id": parts[0],
-                    "name": parts[1] if len(parts) > 1 else "unnamed",
-                    "created": parts[2] if len(parts) > 2 else "unknown",
-                })
+                keys.append(
+                    {
+                        "id": parts[0],
+                        "name": parts[1] if len(parts) > 1 else "unnamed",
+                        "created": parts[2] if len(parts) > 2 else "unknown",
+                    }
+                )
     return keys
 
 
 def get_key_string(key_id: str) -> str | None:
     """Get the actual key string for a key ID."""
-    code, out, err = run_gcloud([
-        "services", "api-keys", "get-key-string", key_id,
-        "--format=value(keyString)"
-    ])
+    code, out, err = run_gcloud(
+        ["services", "api-keys", "get-key-string", key_id, "--format=value(keyString)"]
+    )
     if code != 0:
         print(f"❌ Failed to get key string: {err}")
         return None
@@ -97,9 +99,11 @@ def get_key_string(key_id: str) -> str | None:
 def create_api_key(display_name: str, restrict_to_api: str | None = None) -> tuple[str, str] | None:
     """Create a new API key. Returns (key_id, key_string) or None."""
     args = [
-        "services", "api-keys", "create",
+        "services",
+        "api-keys",
+        "create",
         f"--display-name={display_name}",
-        "--format=value(name)"
+        "--format=value(name)",
     ]
 
     print(f"Creating new key '{display_name}'...")
@@ -116,10 +120,9 @@ def create_api_key(display_name: str, restrict_to_api: str | None = None) -> tup
     # Optionally restrict to specific API
     if restrict_to_api:
         print(f"Restricting key to {restrict_to_api}...")
-        code, _, err = run_gcloud([
-            "services", "api-keys", "update", key_id,
-            f"--api-target=service={restrict_to_api}"
-        ])
+        code, _, err = run_gcloud(
+            ["services", "api-keys", "update", key_id, f"--api-target=service={restrict_to_api}"]
+        )
         if code != 0:
             print(f"⚠ Warning: Failed to restrict key: {err}")
 
@@ -143,7 +146,7 @@ def update_env_file(key_name: str, new_value: str) -> bool:
         return False
 
     content = env_path.read_text()
-    pattern = rf'^{re.escape(key_name)}=.*$'
+    pattern = rf"^{re.escape(key_name)}=.*$"
 
     if re.search(pattern, content, re.MULTILINE):
         new_content = re.sub(pattern, f"{key_name}={new_value}", content, flags=re.MULTILINE)
@@ -162,10 +165,7 @@ def rotate_search_key(old_key_id: str | None = None) -> bool:
     print("\n=== Rotating Search API Key ===\n")
 
     # Create new key
-    result = create_api_key(
-        "primr-search",
-        restrict_to_api="customsearch.googleapis.com"
-    )
+    result = create_api_key("primr-search", restrict_to_api="customsearch.googleapis.com")
     if not result:
         return False
 
@@ -206,7 +206,7 @@ def interactive_mode():
     keys = list_api_keys()
     if keys:
         for i, key in enumerate(keys):
-            print(f"  [{i+1}] {key['name']} (created: {key['created'][:10]})")
+            print(f"  [{i + 1}] {key['name']} (created: {key['created'][:10]})")
     else:
         print("  No keys found")
 
@@ -259,7 +259,7 @@ Examples:
     python scripts/rotate_keys.py --list       # List existing keys
 
 Note: Gemini API keys must be rotated manually at https://aistudio.google.com/apikey
-        """
+        """,
     )
     parser.add_argument("--search", action="store_true", help="Rotate Search API key")
     parser.add_argument("--list", action="store_true", help="List existing API keys")

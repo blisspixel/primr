@@ -141,6 +141,11 @@ def llm(prompt, model_type="fast", temperature=1.0, thinking_level="high", strea
         "thinking_config": types.ThinkingConfig(thinking_level=thinking_level),
     }
 
+    # NOTE (pipeline-resilience): This client-level retry loop is intentionally
+    # retained alongside the stage-level RecoveryExecutor.  The executor handles
+    # stage recovery (model fallback, skip/abort); this loop handles transient
+    # API-call retries within a single stage attempt.  Candidate for future
+    # consolidation if the executor gains per-call retry support.
     while retries < MAX_RETRIES:
         try:
             ai_response = ""
