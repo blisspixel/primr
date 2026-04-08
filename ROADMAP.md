@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.16.0 (released 2026-03-23)
+Current State: v1.17.0 (released 2026-04-07)
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -900,6 +900,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.17.0 | Apr 2026 | Pipeline resilience (cost-ordered recovery, foreground/background stages, model circuit breaker), MCP estimate_run fix (cloud vendors, strategy type, historical data, time ranges), corrected duration estimates |
 | 1.16.0 | Mar 2026 | A2A protocol, Grok 4.20 hybrid default, private cloud vendor, output shipping gate, fast mode default, agentic pipeline, deep-research refactor, eval workflow |
 | 1.12.1 | Feb 2026 | Scraping robustness, PDF routing, bug fixes |
 | 1.12.0 | Feb 2026 | Multi-cloud-vendor AI strategy |
