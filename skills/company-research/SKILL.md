@@ -50,7 +50,7 @@ Use this skill to start and monitor Primr research runs through MCP. Treat MCP a
 
 2. Read `primr://research/status` to see whether a run is already active.
 
-3. Call `estimate_run` before starting a new run.
+3. Call `estimate_run` before starting a new run. Supports `cloud_vendors` (array), `strategy_type`, and `no_ai_strategy` parameters. Returns `estimated_time_range` alongside `estimated_time_minutes`.
 
 4. Present the estimate, state that the run incurs real API cost, and get explicit approval before calling `research_company`.
 
