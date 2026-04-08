@@ -14,13 +14,13 @@ Runs as a CLI, an MCP server, an OpenClaw integration, and a Claude Skill.
 primr "ExampleCo" https://example.co
 ```
 
-About 35-45 minutes later: a deep strategic analysis covering competitive positioning, technology stack, strategic initiatives, likely constraints, and consultant-grade hypotheses, with dense references consolidated at the end. ~$0.55 in API costs.
+About 35-50 minutes later: a deep strategic analysis covering competitive positioning, technology stack, strategic initiatives, likely constraints, and consultant-grade hypotheses, with dense references consolidated at the end. ~$0.55 in API costs.
 
 ## Why This Exists
 
 Company research is tedious. You visit the website, click around, search the company, read articles, synthesize it all, write it up. That process easily takes 1-2 hours per company and the output is usually unstructured notes.
 
-Primr does that entire workflow autonomously in about 35-45 minutes for about $0.55 in API costs. The output is deep, structured strategic analysis, competitive positioning, technology stack, strategic initiatives, financial profile, external validation, and a consultant-ready view of what matters most to validate in conversation. Whether you're researching a potential employer, evaluating an investment, preparing for a partnership, doing competitive analysis, or running due diligence, a single run replaces hours of manual work.
+Primr does that entire workflow autonomously in about 35-50 minutes for about $0.55 in API costs. The output is deep, structured strategic analysis, competitive positioning, technology stack, strategic initiatives, financial profile, external validation, and a consultant-ready view of what matters most to validate in conversation. Whether you're researching a potential employer, evaluating an investment, preparing for a partnership, doing competitive analysis, or running due diligence, a single run replaces hours of manual work.
 
 ## What Makes It Different
 
@@ -31,17 +31,17 @@ Primr does that entire workflow autonomously in about 35-45 minutes for about $0
 - **Cost controls built in**: `--dry-run` estimates, usage tracking, and governance hooks for budget limits.
 - **Agent-native interfaces**: CLI, MCP server, OpenClaw integration, and Claude Skills, all first-class.
 
-Manual research takes hours. Primr typically runs in about 35-45 minutes and costs about $0.55 in API usage (varies by depth and site complexity). The output is long-form, strategically interpretive, cited where it matters, and readable enough to use before a real client conversation.
+Manual research takes hours. Primr typically runs in about 35-50 minutes and costs about $0.55 in API usage (varies by depth and site complexity). The output is long-form, strategically interpretive, cited where it matters, and readable enough to use before a real client conversation.
 
 ## Modes
 
 | Mode | What it does | Time | Cost |
 |------|--------------|------|------|
-| Default | Grok 4.20 hybrid: 4.20 reasoning + 4.1 writing + AI Strategy | ~35-45 min | ~$0.67 |
-| Default + multi-vendor | Add `--cloud-vendor aws azure` | ~45-55 min | ~$0.80 |
-| Default + strategy type | Add `--strategy-type customer_experience` | ~35-45 min | ~$0.75 |
-| `--grok-tier fast` | Grok 4.1 everywhere (cheaper, slightly lower quality) | ~35-45 min | ~$0.47 |
-| `--grok-tier max` | Grok 4.20 everywhere (diminishing returns on writing) | ~35-45 min | ~$4.29 |
+| Default | Grok 4.20 hybrid: 4.20 reasoning + 4.1 writing + AI Strategy | ~35-50 min | ~$0.67 |
+| Default + multi-vendor | Add `--cloud-vendor aws azure` | ~45-60 min | ~$0.80 |
+| Default + strategy type | Add `--strategy-type customer_experience` | ~35-50 min | ~$0.75 |
+| `--grok-tier fast` | Grok 4.1 everywhere (cheaper, slightly lower quality) | ~30-45 min | ~$0.47 |
+| `--grok-tier max` | Grok 4.20 everywhere (diminishing returns on writing) | ~35-50 min | ~$4.29 |
 | `--premium` | Gemini + Deep Research + AI Strategy | 50-75 min | ~$5 |
 | `--premium` + multi-vendor | Add `--cloud-vendor aws azure` | 75-120 min | $6-9 |
 | `--premium --lite` | Pro model instead of DR for AI Strategy | 50-80 min | ~$4 |
@@ -151,6 +151,7 @@ Primr is designed to run on all three major desktop/server platforms:
 
 Notes:
 - Core research/scraping/report generation flows are cross-platform.
+- On Windows, prefer keeping the repo outside OneDrive/Dropbox/iCloud-synced folders. Primr writes checkpoint state into `working/`, and sync/AV tools can transiently lock atomic renames.
 - "Open report after run" behavior uses native OS launchers (`startfile` / `open` / `xdg-open` family) with a browser fallback on minimal Linux environments.
 
 ```bash
@@ -392,7 +393,7 @@ Playwright tiers now perform adaptive lazy-load scrolling (up to 20 steps by def
 | Gemini 3.1 Pro | `--premium` mode: section writing, analysis | $2/$12 (≤200k) · $4/$18 (>200k) |
 | Deep Research Agent | `--premium` mode: autonomous research | ~$2.50/task (flat) |
 
-**Why Grok 4.1 is the default:** Primr originally ran everything through Google's Deep Research API + Gemini 3.1 Pro — excellent research quality, but the Deep Research API runs ~$2.50 per task, pushing full runs to ~$5 and 50-75 minutes. When xAI released Grok 4.1, testing showed it handles company research comparably: strong at search-grounded analysis, solid structured output, and reliable citation handling. Switching the default pipeline to Grok 4.1 dropped costs to ~$0.55 (~90% cheaper) and runtime to ~35-45 minutes with similar report quality. Gemini Flash is still used for scraping in both modes. The full Gemini + Deep Research pipeline remains available via `--premium` when maximum research depth justifies the cost. [Full config reference](docs/CONFIG.md).
+**Why Grok 4.1 is the default:** Primr originally ran everything through Google's Deep Research API + Gemini 3.1 Pro — excellent research quality, but the Deep Research API runs ~$2.50 per task, pushing full runs to ~$5 and 50-75 minutes. When xAI released Grok 4.1, testing showed it handles company research comparably: strong at search-grounded analysis, solid structured output, and reliable citation handling. Switching the default pipeline to Grok 4.1 dropped costs to ~$0.55 (~90% cheaper) and runtime to ~35-50 minutes with similar report quality. Gemini Flash is still used for scraping in both modes. The full Gemini + Deep Research pipeline remains available via `--premium` when maximum research depth justifies the cost. [Full config reference](docs/CONFIG.md).
 
 **Agentic Architecture**
 - Hypothesis tracking with confidence levels across sessions
@@ -439,7 +440,7 @@ GEMINI_API_KEY=       # https://aistudio.google.com/apikey
 ```
 
 Web search uses DuckDuckGo by default - no search API key needed. Google Custom Search is available as an optional fallback for users with existing whole-web CSEs.
-When `XAI_API_KEY` is set, Primr automatically uses the Grok 4.1 pipeline (faster, cheaper, same quality). Use `--premium` to force Gemini + Deep Research.
+When `XAI_API_KEY` is set, Primr automatically uses the standard Grok hybrid pipeline by default: Grok 4.20 for reasoning-heavy stages and Grok 4.1 for bulk writing. Use `--grok-tier fast` for 4.1 everywhere, or `--premium` to force Gemini + Deep Research.
 If scrape validation blocks a run you intentionally want to continue, pass `--skip-scrape-validation` or lower `SCRAPE_PILOT_MIN_CHARS` (default `700`) for terse websites. Primr now constrains LLM link selection to the discovered URL set, filters obvious non-content URLs like favicons/manifests/search endpoints, and preserves short structured pages when they carry useful signal. Strategy outputs also add a deterministic `## Sources` appendix when the model does not emit explicit source URLs on its own.
 Deep Research background jobs are created with persistent storage enabled, so `primr --check-jobs` can recover completed cloud work after local interruptions. Job checks now distinguish local connectivity issues (`CHECK ERROR`) from provider terminal failures.
 For one-shot recovery after crashes/reboots, use `primr --resume-latest` (or `--resume-jobs`) to fetch completed jobs and finalize canonical output filenames automatically.
@@ -516,7 +517,7 @@ Recent hardening includes shared deep-research parsing/polling/execution modules
 **Validation snapshot (March 23, 2026):**
 - `ruff check .` passes
 - `mypy src/primr --ignore-missing-imports` passes (202 source files)
-- `python -m pytest -q` passes: `4490 passed, 25 skipped` (~8 minutes on this machine)
+- `python -m pytest -q` passes: `4490 passed, 25 skipped`
 
 ## Documentation
 
@@ -555,4 +556,5 @@ This software is provided as-is by a solo developer. The author is not liable fo
 ## License
 
 MIT
+
 

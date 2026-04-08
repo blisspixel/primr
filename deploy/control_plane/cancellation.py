@@ -25,6 +25,7 @@ from deploy.control_plane.job_store import JobStatus, JobStore
 
 class CancellationResult(str, Enum):
     """Result of cancellation attempt."""
+
     CANCELLED = "CANCELLED"
     CANCEL_REQUESTED = "CANCEL_REQUESTED"
     ALREADY_COMPLETED = "ALREADY_COMPLETED"
@@ -35,6 +36,7 @@ class CancellationResult(str, Enum):
 @dataclass
 class CancelResponse:
     """Response from cancellation attempt."""
+
     result: CancellationResult
     status: JobStatus
     message: str
@@ -95,6 +97,7 @@ class ECSCancellation:
         """Get or create boto3 ECS client."""
         if self._client is None:
             import boto3
+
             self._client = boto3.client("ecs", region_name=self.region)
         return self._client
 
@@ -154,6 +157,7 @@ class StepFunctionsCancellation:
         """Get or create boto3 Step Functions client."""
         if self._client is None:
             import boto3
+
             self._client = boto3.client("stepfunctions", region_name=self.region)
         return self._client
 
@@ -272,6 +276,7 @@ class CloudRunJobsCancellation:
         """Get or create Cloud Run client."""
         if self._client is None:
             from google.cloud import run_v2
+
             self._client = run_v2.ExecutionsClient()
         return self._client
 

@@ -561,5 +561,7 @@ class TestGrokTier:
     def test_grok_tier_default_is_hybrid(self):
         """Default grok_tier should produce same result as explicit hybrid."""
         default_est = estimate_cost("complete", fast_mode=True, use_historical=False)
-        hybrid_est = estimate_cost("complete", fast_mode=True, use_historical=False, grok_tier="hybrid")
+        hybrid_est = estimate_cost(
+            "complete", fast_mode=True, use_historical=False, grok_tier="hybrid"
+        )
         assert abs(default_est.total_cost - hybrid_est.total_cost) < 0.001

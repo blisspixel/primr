@@ -56,11 +56,17 @@ def run_bandit() -> tuple[bool, list[str]]:
     try:
         result = subprocess.run(
             [
-                "python", "-m", "bandit",
-                "-r", "src/primr",
-                "-c", ".bandit",
-                "-f", "txt",
-                "--severity-level", "medium",
+                "python",
+                "-m",
+                "bandit",
+                "-r",
+                "src/primr",
+                "-c",
+                ".bandit",
+                "-f",
+                "txt",
+                "--severity-level",
+                "medium",
             ],
             capture_output=True,
             text=True,
@@ -133,14 +139,14 @@ def check_hardcoded_secrets() -> tuple[bool, list[str]]:
         (r'password\s*=\s*["\'][^"\']+["\']', "Possible hardcoded password"),
         (r'secret\s*=\s*["\'][a-zA-Z0-9]{16,}["\']', "Possible hardcoded secret"),
         (r'token\s*=\s*["\'][a-zA-Z0-9_.-]{20,}["\']', "Possible hardcoded token"),
-        (r'AIza[a-zA-Z0-9_-]{35}', "Google API key pattern"),
-        (r'sk-[a-zA-Z0-9]{48}', "OpenAI API key pattern"),
-        (r'ghp_[a-zA-Z0-9]{36}', "GitHub token pattern"),
-        (r'gho_[a-zA-Z0-9]{36}', "GitHub OAuth token pattern"),
-        (r'github_pat_[a-zA-Z0-9_]{22,}', "GitHub PAT pattern"),
-        (r'xox[baprs]-[a-zA-Z0-9-]+', "Slack token pattern"),
-        (r'sk-ant-[a-zA-Z0-9-]+', "Anthropic API key pattern"),
-        (r'AKIA[A-Z0-9]{16}', "AWS access key pattern"),
+        (r"AIza[a-zA-Z0-9_-]{35}", "Google API key pattern"),
+        (r"sk-[a-zA-Z0-9]{48}", "OpenAI API key pattern"),
+        (r"ghp_[a-zA-Z0-9]{36}", "GitHub token pattern"),
+        (r"gho_[a-zA-Z0-9]{36}", "GitHub OAuth token pattern"),
+        (r"github_pat_[a-zA-Z0-9_]{22,}", "GitHub PAT pattern"),
+        (r"xox[baprs]-[a-zA-Z0-9-]+", "Slack token pattern"),
+        (r"sk-ant-[a-zA-Z0-9-]+", "Anthropic API key pattern"),
+        (r"AKIA[A-Z0-9]{16}", "AWS access key pattern"),
     ]
 
     issues = []
@@ -162,7 +168,7 @@ def check_hardcoded_secrets() -> tuple[bool, list[str]]:
                 for match in matches:
                     # Skip if it's in a comment or docstring context
                     line_start = content.rfind("\n", 0, match.start()) + 1
-                    line = content[line_start:match.end()]
+                    line = content[line_start : match.end()]
 
                     if line.strip().startswith("#"):
                         continue
@@ -189,16 +195,22 @@ def check_unsafe_patterns() -> tuple[bool, list[str]]:
     print_header("Checking for Unsafe Code Patterns")
 
     unsafe_patterns = [
-        (r'\beval\s*\(', "Use of eval()"),
-        (r'\bexec\s*\(', "Use of exec()"),
-        (r'pickle\.loads?\s*\(', "Use of pickle (potential RCE)"),
-        (r'subprocess.*shell\s*=\s*True', "subprocess with shell=True"),
-        (r'yaml\.load\s*\([^)]*\)', "Unsafe yaml.load (use safe_load)"),
-        (r'__import__\s*\(', "Dynamic import"),
-        (r'os\.system\s*\(', "Use of os.system"),
-        (r'random\.(choice|randint|random)\s*\(.*(?:token|secret|key|password)', "Insecure random for secrets"),
+        (r"\beval\s*\(", "Use of eval()"),
+        (r"\bexec\s*\(", "Use of exec()"),
+        (r"pickle\.loads?\s*\(", "Use of pickle (potential RCE)"),
+        (r"subprocess.*shell\s*=\s*True", "subprocess with shell=True"),
+        (r"yaml\.load\s*\([^)]*\)", "Unsafe yaml.load (use safe_load)"),
+        (r"__import__\s*\(", "Dynamic import"),
+        (r"os\.system\s*\(", "Use of os.system"),
+        (
+            r"random\.(choice|randint|random)\s*\(.*(?:token|secret|key|password)",
+            "Insecure random for secrets",
+        ),
         # Only flag MD5/SHA1 if NOT marked as usedforsecurity=False
-        (r'hashlib\.(md5|sha1)\s*\([^)]*\)(?!.*usedforsecurity\s*=\s*False)', "Weak hash algorithm (use sha256+ or add usedforsecurity=False)"),
+        (
+            r"hashlib\.(md5|sha1)\s*\([^)]*\)(?!.*usedforsecurity\s*=\s*False)",
+            "Weak hash algorithm (use sha256+ or add usedforsecurity=False)",
+        ),
     ]
 
     issues = []
@@ -271,7 +283,7 @@ def check_file_encoding() -> tuple[bool, list[str]]:
     src_path = Path("src/primr")
 
     # Pattern for open() calls without encoding (text mode)
-    re.compile(r'open\s*\([^)]*\)')
+    re.compile(r"open\s*\([^)]*\)")
 
     for py_file in src_path.rglob("*.py"):
         try:

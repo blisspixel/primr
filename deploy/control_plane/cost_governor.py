@@ -35,6 +35,7 @@ class QuotaExceededError(Exception):
 @dataclass
 class QuotaConfig:
     """Quota configuration for an API key."""
+
     max_concurrent_jobs: int = 5
     max_daily_cost_usd: float = 50.0
     max_job_cost_usd: float = 10.0
@@ -50,6 +51,7 @@ class QuotaConfig:
 @dataclass
 class QuotaUsage:
     """Current quota usage for an API key."""
+
     concurrent_jobs: int = 0
     daily_cost_usd: float = 0.0
 

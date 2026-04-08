@@ -218,7 +218,10 @@ class TestResearchPipelineSpecific:
         research_step = next((s for s in steps if s["id"] == "research"), None)
 
         assert research_step is not None
-        assert research_step.get("args", {}).get("max_estimated_cost_usd") == "$estimate_result.estimated_cost_usd"
+        assert (
+            research_step.get("args", {}).get("max_estimated_cost_usd")
+            == "$estimate_result.estimated_cost_usd"
+        )
 
     def test_has_monitor_step(self, research_pipeline: dict) -> None:
         """FR-3.1: Has monitor/poll step."""
@@ -282,7 +285,12 @@ class TestStrategyPipelineSpecific:
 
     def test_strategy_type_input_has_enum(self, strategy_pipeline: dict) -> None:
         strategy_type = strategy_pipeline.get("inputs", {}).get("strategy_type", {})
-        assert set(strategy_type.get("enum", [])) == {"ai_strategy", "customer_experience", "modern_security_compliance", "data_fabric_strategy"}
+        assert set(strategy_type.get("enum", [])) == {
+            "ai_strategy",
+            "customer_experience",
+            "modern_security_compliance",
+            "data_fabric_strategy",
+        }
 
     def test_has_estimate_step(self, strategy_pipeline: dict) -> None:
         steps = strategy_pipeline["steps"]
@@ -300,5 +308,7 @@ class TestStrategyPipelineSpecific:
         steps = strategy_pipeline["steps"]
         strategy_step = next((s for s in steps if s["id"] == "strategy"), None)
         assert strategy_step is not None
-        assert strategy_step.get("args", {}).get("max_estimated_cost_usd") == "$estimate_result.estimated_cost_usd"
-
+        assert (
+            strategy_step.get("args", {}).get("max_estimated_cost_usd")
+            == "$estimate_result.estimated_cost_usd"
+        )

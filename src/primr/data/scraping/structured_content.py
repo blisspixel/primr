@@ -52,6 +52,8 @@ from dataclasses import dataclass, field
 
 from bs4 import BeautifulSoup, Tag
 
+from .content import _parse_markup_document
+
 # =============================================================================
 # PASS A: DOM SANITIZATION CONFIGURATION
 # =============================================================================
@@ -917,7 +919,7 @@ def extract_structured_content(
         result.quality = QualityScore(score=0.0, flags=["decode_error"])
         return result
 
-    soup = BeautifulSoup(html, "html.parser")
+    soup = _parse_markup_document(html)
 
     # Extract metadata first (before pruning)
     metadata = extract_metadata(soup)

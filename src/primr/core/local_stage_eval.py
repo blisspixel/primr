@@ -121,7 +121,9 @@ def find_latest_website_summary_eval_inputs(
     companies: list[str] | None = None,
 ) -> list[WebsiteSummaryEvalInput]:
     results: list[WebsiteSummaryEvalInput] = []
-    company_dirs = [p for p in working_root.iterdir() if p.is_dir()] if working_root.exists() else []
+    company_dirs = (
+        [p for p in working_root.iterdir() if p.is_dir()] if working_root.exists() else []
+    )
 
     if companies:
         for target in companies:
@@ -225,9 +227,15 @@ def run_local_website_summary_stage_eval(
                 local_open_questions=local_metrics["open_questions"],
                 baseline_has_synthesis=baseline_metrics["has_synthesis"],
                 local_has_synthesis=local_metrics["has_synthesis"],
-                source_section_ratio=_ratio_pct(local_metrics["source_sections"], baseline_metrics["source_sections"]),
-                citation_ratio=_ratio_pct(local_metrics["source_citations"], baseline_metrics["source_citations"]),
-                open_questions_ratio=_ratio_pct(local_metrics["open_questions"], baseline_metrics["open_questions"]),
+                source_section_ratio=_ratio_pct(
+                    local_metrics["source_sections"], baseline_metrics["source_sections"]
+                ),
+                citation_ratio=_ratio_pct(
+                    local_metrics["source_citations"], baseline_metrics["source_citations"]
+                ),
+                open_questions_ratio=_ratio_pct(
+                    local_metrics["open_questions"], baseline_metrics["open_questions"]
+                ),
                 word_ratio=_ratio_pct(local_metrics["words"], baseline_metrics["words"]),
                 completeness_score=_website_summary_completeness_score(
                     baseline=baseline_metrics,
@@ -271,10 +279,24 @@ def write_website_summary_stage_eval_summary(
     path.parent.mkdir(parents=True, exist_ok=True)
     ranked: list[dict[str, str | int | float]] = []
     for model, rows in results:
-        avg_score = round(sum(row.completeness_score for row in rows) / max(1, len(rows)), 2) if rows else 0.0
-        avg_source_ratio = round(sum(row.source_section_ratio for row in rows) / max(1, len(rows)), 2) if rows else 0.0
-        avg_word_ratio = round(sum(row.word_ratio for row in rows) / max(1, len(rows)), 2) if rows else 0.0
-        avg_question_ratio = round(sum(row.open_questions_ratio for row in rows) / max(1, len(rows)), 2) if rows else 0.0
+        avg_score = (
+            round(sum(row.completeness_score for row in rows) / max(1, len(rows)), 2)
+            if rows
+            else 0.0
+        )
+        avg_source_ratio = (
+            round(sum(row.source_section_ratio for row in rows) / max(1, len(rows)), 2)
+            if rows
+            else 0.0
+        )
+        avg_word_ratio = (
+            round(sum(row.word_ratio for row in rows) / max(1, len(rows)), 2) if rows else 0.0
+        )
+        avg_question_ratio = (
+            round(sum(row.open_questions_ratio for row in rows) / max(1, len(rows)), 2)
+            if rows
+            else 0.0
+        )
         ranked.append(
             {
                 "model": model,
@@ -312,11 +334,27 @@ def write_website_summary_stage_eval_markdown(
     path.parent.mkdir(parents=True, exist_ok=True)
     ranked_rows = []
     for model, rows in results:
-        avg_score = round(sum(row.completeness_score for row in rows) / max(1, len(rows)), 2) if rows else 0.0
-        avg_source_ratio = round(sum(row.source_section_ratio for row in rows) / max(1, len(rows)), 2) if rows else 0.0
-        avg_word_ratio = round(sum(row.word_ratio for row in rows) / max(1, len(rows)), 2) if rows else 0.0
-        avg_question_ratio = round(sum(row.open_questions_ratio for row in rows) / max(1, len(rows)), 2) if rows else 0.0
-        ranked_rows.append((model, rows, avg_score, avg_source_ratio, avg_word_ratio, avg_question_ratio))
+        avg_score = (
+            round(sum(row.completeness_score for row in rows) / max(1, len(rows)), 2)
+            if rows
+            else 0.0
+        )
+        avg_source_ratio = (
+            round(sum(row.source_section_ratio for row in rows) / max(1, len(rows)), 2)
+            if rows
+            else 0.0
+        )
+        avg_word_ratio = (
+            round(sum(row.word_ratio for row in rows) / max(1, len(rows)), 2) if rows else 0.0
+        )
+        avg_question_ratio = (
+            round(sum(row.open_questions_ratio for row in rows) / max(1, len(rows)), 2)
+            if rows
+            else 0.0
+        )
+        ranked_rows.append(
+            (model, rows, avg_score, avg_source_ratio, avg_word_ratio, avg_question_ratio)
+        )
     ranked_rows.sort(key=lambda item: (-item[2], -item[3], -item[4], item[0]))
 
     lines = [
@@ -325,7 +363,14 @@ def write_website_summary_stage_eval_markdown(
         "| Rank | Model | Companies | Avg Completeness | Source Ratio | Word Ratio | Open Questions Ratio |",
         "|---:|---|---:|---:|---:|---:|---:|",
     ]
-    for idx, (model, rows, avg_score, avg_source_ratio, avg_word_ratio, avg_question_ratio) in enumerate(ranked_rows, start=1):
+    for idx, (
+        model,
+        rows,
+        avg_score,
+        avg_source_ratio,
+        avg_word_ratio,
+        avg_question_ratio,
+    ) in enumerate(ranked_rows, start=1):
         lines.append(
             f"| {idx} | {model} | {len(rows)} | {avg_score:.2f} | {avg_source_ratio:.2f} | {avg_word_ratio:.2f} | {avg_question_ratio:.2f} |"
         )

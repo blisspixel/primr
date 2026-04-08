@@ -1272,6 +1272,23 @@ def _handle_dry_run(config: CLIConfig) -> int:
     )
     print(str(estimate))
 
+    # Recovery table summary (pipeline-resilience feature)
+    # Validates: Requirements 14.1, 14.2
+    print("")
+    print("RECOVERY TABLE")
+    print("-" * 40)
+    from primr.pipeline.recovery import build_default_recovery_table
+    from primr.pipeline.stages import STAGE_CLASSIFICATIONS
+
+    recovery_table = build_default_recovery_table()
+    for stage, hierarchy in recovery_table.hierarchies.items():
+        classification = STAGE_CLASSIFICATIONS[stage].value
+        actions = ", ".join(a.action_type.value for a in hierarchy.actions)
+        print(f"  {stage.value} ({classification}): {actions}")
+    print("")
+    print("Recovery Table JSON:")
+    print(recovery_table.to_json())
+
     print("")
     print("=" * 60)
     print("")
@@ -2009,7 +2026,9 @@ def _handle_eval(config: CLIConfig) -> int:
     judge_rows = []
     if config.eval_llm_judge:
         if config.eval_judge_provider == "grok" and config.eval_judge_max_cost <= 0:
-            console.error("--eval-llm-judge with --eval-judge-provider grok requires --eval-judge-max-cost > 0")
+            console.error(
+                "--eval-llm-judge with --eval-judge-provider grok requires --eval-judge-max-cost > 0"
+            )
             return 1
         if not eval_result.metrics:
             console.warn("No staged metrics available for LLM judge.")
@@ -2060,7 +2079,9 @@ def _handle_eval(config: CLIConfig) -> int:
                         break
                 judge_rows = all_rows
                 judge_path = Path(config.eval_root) / config.eval_id / "llm_judge.json"
-                write_llm_judge_report(judge_path, all_rows, round(judge_cost, 4), metadata=judge_metadata)
+                write_llm_judge_report(
+                    judge_path, all_rows, round(judge_cost, 4), metadata=judge_metadata
+                )
                 console.info(f"LLM judge rows: {len(all_rows)}")
                 console.info(f"LLM judge cost: ${judge_cost:.4f}")
                 console.info(f"LLM judge output: {judge_path}")
@@ -2074,11 +2095,15 @@ def _handle_eval(config: CLIConfig) -> int:
                         + ", ".join(missing_models)
                     )
                 if not judge_models:
-                    console.error("No local judge models available after resolving the requested list.")
+                    console.error(
+                        "No local judge models available after resolving the requested list."
+                    )
                     return 1
                 sweep_results: list[tuple[LLMJudgeMetadata, list[Any], float]] = []
                 last_rows: list[Any] = []
-                console.info(f"Resolved local judge models ({len(judge_models)}): " + ", ".join(judge_models))
+                console.info(
+                    f"Resolved local judge models ({len(judge_models)}): " + ", ".join(judge_models)
+                )
                 for model_name in judge_models:
                     judge_metadata = LLMJudgeMetadata(
                         provider="local",
@@ -2103,13 +2128,22 @@ def _handle_eval(config: CLIConfig) -> int:
                         )
                         rows.extend(profile_rows)
                         judge_cost += profile_cost
-                        if config.eval_judge_max_cost > 0 and judge_cost >= config.eval_judge_max_cost:
+                        if (
+                            config.eval_judge_max_cost > 0
+                            and judge_cost >= config.eval_judge_max_cost
+                        ):
                             break
                     sweep_results.append((judge_metadata, rows, round(judge_cost, 4)))
                     last_rows = rows
-                    model_slug = re.sub(r"[^a-zA-Z0-9]+", "-", model_name).strip("-").lower() or "model"
-                    judge_path = Path(config.eval_root) / config.eval_id / f"llm_judge.{model_slug}.json"
-                    write_llm_judge_report(judge_path, rows, round(judge_cost, 4), metadata=judge_metadata)
+                    model_slug = (
+                        re.sub(r"[^a-zA-Z0-9]+", "-", model_name).strip("-").lower() or "model"
+                    )
+                    judge_path = (
+                        Path(config.eval_root) / config.eval_id / f"llm_judge.{model_slug}.json"
+                    )
+                    write_llm_judge_report(
+                        judge_path, rows, round(judge_cost, 4), metadata=judge_metadata
+                    )
                     console.info(f"  rows: {len(rows)}")
                     console.info(f"  cost: ${judge_cost:.4f}")
                     console.info(f"  output: {judge_path}")
@@ -2152,19 +2186,26 @@ def _handle_eval(config: CLIConfig) -> int:
             console.info(f"Local stage model list: {config.eval_judge_model_list}")
         if missing_models:
             console.warn(
-                "Skipping local stage models not installed in Ollama: "
-                + ", ".join(missing_models)
+                "Skipping local stage models not installed in Ollama: " + ", ".join(missing_models)
             )
         if not judge_models:
-            console.error("No local models available for stage eval after resolving the requested list.")
+            console.error(
+                "No local models available for stage eval after resolving the requested list."
+            )
             return 1
-        target_companies = [config.eval_company] if config.eval_company else sorted({m.company for m in eval_result.metrics})
+        target_companies = (
+            [config.eval_company]
+            if config.eval_company
+            else sorted({m.company for m in eval_result.metrics})
+        )
         inputs = find_latest_website_summary_eval_inputs(
             Path(config.eval_working_root),
             companies=target_companies or None,
         )
         if not inputs:
-            console.warn("No working folders with scraped_content.txt and scraped_website_summary.txt found for local stage eval.")
+            console.warn(
+                "No working folders with scraped_content.txt and scraped_website_summary.txt found for local stage eval."
+            )
         else:
             console.info(
                 f"Stage=website-summary, Companies={', '.join(row.company for row in inputs)}, "
@@ -2382,7 +2423,9 @@ def _handle_research(config: CLIConfig) -> int:
         if os.environ.get("XAI_API_KEY"):
             use_fast_mode = True
             tier_label = {"fast": "Grok 4.1", "hybrid": "Grok 4.20 hybrid", "max": "Grok 4.20 max"}
-            console.info(f"Using {tier_label.get(config.grok_tier, 'Grok')} · for deeper research add --premium")
+            console.info(
+                f"Using {tier_label.get(config.grok_tier, 'Grok')} · for deeper research add --premium"
+            )
         else:
             console.info("Using standard mode (Gemini). Set XAI_API_KEY for faster, cheaper runs.")
 
@@ -2586,12 +2629,21 @@ def _check_dependencies(warnings_count: int) -> int:
 
 def _check_filesystem(all_passed: bool, warnings_count: int) -> tuple[bool, int]:
     """Check filesystem access."""
+
+    def _atomic_write_probe(directory: str) -> None:
+        os.makedirs(directory, exist_ok=True)
+        target = os.path.join(directory, ".primr_test")
+        tmp = f"{target}.tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write("test")
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, target)
+        os.remove(target)
+
     # Output directory
     try:
-        test_file = os.path.join(OUTPUT_DIR, ".primr_test")
-        with open(test_file, "w") as f:
-            f.write("test")
-        os.remove(test_file)
+        _atomic_write_probe(OUTPUT_DIR)
         console.ok("Output directory writable")
     except Exception as e:
         console.error(f"Cannot write to output directory: {e}")
@@ -2599,11 +2651,7 @@ def _check_filesystem(all_passed: bool, warnings_count: int) -> tuple[bool, int]
 
     # Working directory
     try:
-        os.makedirs(WORKING_DIR, exist_ok=True)
-        test_file = os.path.join(WORKING_DIR, ".primr_test")
-        with open(test_file, "w") as f:
-            f.write("test")
-        os.remove(test_file)
+        _atomic_write_probe(WORKING_DIR)
         console.ok("Working directory writable")
     except Exception as e:
         console.error(f"Cannot write to working directory: {e}")

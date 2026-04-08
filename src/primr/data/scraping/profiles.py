@@ -359,9 +359,7 @@ def get_browser_compatible_http_profile(
             f"Mozilla/5.0 ({ua_platform}) AppleWebKit/537.36 "
             f"(KHTML, like Gecko) Chrome/{major}.0.0.0 Safari/537.36"
         ),
-        sec_ch_ua=(
-            f'"Chromium";v="{major}", "Google Chrome";v="{major}", "Not_A Brand";v="24"'
-        ),
+        sec_ch_ua=(f'"Chromium";v="{major}", "Google Chrome";v="{major}", "Not_A Brand";v="24"'),
         sec_ch_ua_platform=f'"{ch_platform}"',
         accept_language="en-US,en;q=0.9",
     )
@@ -374,10 +372,8 @@ def get_stealth_script(user_agent: str | None = None, platform_name: str | None 
         "5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
         "(KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
     )
-    return (
-        STEALTH_SCRIPT.replace("__PRIMR_PLATFORM__", navigator_platform).replace(
-            "__PRIMR_APP_VERSION__", app_version
-        )
+    return STEALTH_SCRIPT.replace("__PRIMR_PLATFORM__", navigator_platform).replace(
+        "__PRIMR_APP_VERSION__", app_version
     )
 
 

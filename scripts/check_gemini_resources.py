@@ -20,21 +20,22 @@ import sys
 from datetime import datetime
 
 # Fix Windows console encoding for Unicode characters
-if sys.platform == 'win32':
-    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+if sys.platform == "win32":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 # Add src to path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 try:
     from google import genai
 except ImportError:
     print("ERROR: google-genai not installed for this interpreter.")
-    print(f"Run: \"{sys.executable}\" -m pip install google-genai")
+    print(f'Run: "{sys.executable}" -m pip install google-genai')
     sys.exit(1)
 
 try:
     from dotenv import load_dotenv
+
     load_dotenv()
 except ImportError:
     pass  # dotenv optional
@@ -42,7 +43,7 @@ except ImportError:
 
 def get_api_key():
     """Get Gemini API key from environment."""
-    key = os.environ.get('GEMINI_API_KEY')
+    key = os.environ.get("GEMINI_API_KEY")
     if not key:
         print("ERROR: GEMINI_API_KEY not set in environment or .env file")
         sys.exit(1)
@@ -65,18 +66,21 @@ def list_caches(client):
         print(f"\n⚠ Found {len(caches)} cache(s):\n")
         for cache in caches:
             print(f"  Name: {cache.name}")
-            if hasattr(cache, 'display_name'):
+            if hasattr(cache, "display_name"):
                 print(f"  Display Name: {cache.display_name}")
-            if hasattr(cache, 'create_time'):
+            if hasattr(cache, "create_time"):
                 print(f"  Created: {cache.create_time}")
-            if hasattr(cache, 'expire_time'):
+            if hasattr(cache, "expire_time"):
                 print(f"  Expires: {cache.expire_time}")
-            if hasattr(cache, 'usage_metadata'):
+            if hasattr(cache, "usage_metadata"):
                 meta = cache.usage_metadata
-                if hasattr(meta, 'total_token_count'):
+                if hasattr(meta, "total_token_count"):
                     tokens = meta.total_token_count
                     from primr.config.models import ModelRegistry
-                    hourly_cost = (tokens / 1_000_000) * ModelRegistry.GEMINI_3_FLASH.cost_per_1m_input_tokens
+
+                    hourly_cost = (
+                        tokens / 1_000_000
+                    ) * ModelRegistry.GEMINI_3_FLASH.cost_per_1m_input_tokens
                     daily_cost = hourly_cost * 24
                     print(f"  Tokens: {tokens:,}")
                     print(f"  Est. Cost: ${hourly_cost:.4f}/hour (${daily_cost:.2f}/day)")
@@ -103,9 +107,9 @@ def list_file_search_stores(client):
         print(f"\n⚠ Found {len(stores)} store(s):\n")
         for store in stores:
             print(f"  Name: {store.name}")
-            if hasattr(store, 'display_name'):
+            if hasattr(store, "display_name"):
                 print(f"  Display Name: {store.display_name}")
-            if hasattr(store, 'create_time'):
+            if hasattr(store, "create_time"):
                 print(f"  Created: {store.create_time}")
             print()
         return stores
@@ -150,8 +154,7 @@ def delete_documents_in_store(client, store_name, force=True):
                 if force:
                     try:
                         client.file_search_stores.documents.delete(
-                            name=doc.name,
-                            config={"force": True}
+                            name=doc.name, config={"force": True}
                         )
                         deleted_count += 1
                         continue
@@ -164,7 +167,7 @@ def delete_documents_in_store(client, store_name, force=True):
                 deleted_count += 1
             except Exception as e:
                 error_str = str(e).lower()
-                if 'failed_precondition' in error_str or 'non-empty' in error_str:
+                if "failed_precondition" in error_str or "non-empty" in error_str:
                     print(f"    ⚠ Doc {doc.name.split('/')[-1]}: has chunks, cannot delete")
                 else:
                     print(f"    ⚠ Could not delete doc: {e}")
@@ -208,7 +211,7 @@ def delete_stores(client, stores, force_empty=False):
             print(f"  ✓ Deleted: {store_name}")
         except Exception as e:
             error_str = str(e).lower()
-            if 'failed_precondition' in error_str or 'non-empty' in error_str:
+            if "failed_precondition" in error_str or "non-empty" in error_str:
                 print(f"  ⚠ {store_name}: Non-empty, will be cleaned by retention policy")
             else:
                 print(f"  ✗ Failed to delete {store_name}: {e}")
@@ -219,25 +222,17 @@ def main():
         description="Inspect and clean up Gemini resources that may be incurring costs"
     )
     parser.add_argument(
-        '--delete-caches',
-        action='store_true',
-        help='Delete all explicit context caches'
+        "--delete-caches", action="store_true", help="Delete all explicit context caches"
     )
     parser.add_argument(
-        '--delete-stores',
-        action='store_true',
-        help='Delete all file search stores'
+        "--delete-stores", action="store_true", help="Delete all file search stores"
     )
     parser.add_argument(
-        '--force-empty',
-        action='store_true',
-        help='Delete documents inside stores before deleting stores (use with --delete-stores)'
+        "--force-empty",
+        action="store_true",
+        help="Delete documents inside stores before deleting stores (use with --delete-stores)",
     )
-    parser.add_argument(
-        '--delete-all',
-        action='store_true',
-        help='Delete all caches and stores'
-    )
+    parser.add_argument("--delete-all", action="store_true", help="Delete all caches and stores")
     args = parser.parse_args()
 
     print("Gemini Resource Inspector")

@@ -17,6 +17,7 @@ from primr.data.scrape import (
     cache_content,
     clear_cache,
     detect_soft_block,
+    evaluate_scrape_pilot,
     extract_clean_text,
     get_cached_content,
     is_excluded_site,
@@ -335,6 +336,48 @@ class TestUserAgents:
 
 
 # ============================================================================
+# PILOT SCRAPE VALIDATION TESTS
+# ============================================================================
+class TestPilotScrapeValidation:
+    """Tests for pilot scrape quality gate decisions."""
+
+    def test_aborts_when_success_rate_and_content_are_both_weak(self):
+        """Thin pilot samples should stop the crawl."""
+        result = evaluate_scrape_pilot(
+            pilot_success=2,
+            pilot_attempts=10,
+            pilot_chars_total=800,
+        )
+
+        assert result["avg_chars"] == 400
+        assert result["rich_content_relief"] is False
+        assert result["should_abort"] is True
+
+    def test_allows_sparse_but_content_rich_pilot_sample(self):
+        """A few strong pages should be enough to continue when content is rich."""
+        result = evaluate_scrape_pilot(
+            pilot_success=2,
+            pilot_attempts=10,
+            pilot_chars_total=4336,
+        )
+
+        assert result["avg_chars"] == 2168
+        assert result["rich_content_relief"] is True
+        assert result["should_abort"] is False
+
+    def test_allows_moderate_success_when_total_corpus_is_useful(self):
+        """Several decent pages should pass once the pilot corpus is already useful."""
+        result = evaluate_scrape_pilot(
+            pilot_success=5,
+            pilot_attempts=10,
+            pilot_chars_total=9435,
+        )
+
+        assert result["avg_chars"] == 1887
+        assert result["useful_corpus_relief"] is True
+        assert result["should_abort"] is False
+
+# ============================================================================
 # WAF SIGNATURES TESTS (formerly SOFT_BLOCK_INDICATORS)
 # ============================================================================
 class TestWAFSignatures:
@@ -355,3 +398,5 @@ class TestWAFSignatures:
         has_cloudflare = any("cloudflare" in s for s in signatures_lower)
         has_denied = any("denied" in s or "blocked" in s for s in signatures_lower)
         assert has_captcha or has_cloudflare or has_denied
+
+

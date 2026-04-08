@@ -12,6 +12,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from primr.config.config import (
+    MIN_SCRAPED_CHARS,
     PROJECT_ROOT,
     SCRAPE_PILOT_COUNT,
     SCRAPE_PILOT_MIN_CHARS,
@@ -111,6 +112,55 @@ def _filter_selected_urls(urls: list[str], website: str) -> list[str]:
         filtered.append(url)
     return filtered
 
+
+def evaluate_scrape_pilot(
+    pilot_success: int,
+    pilot_attempts: int,
+    pilot_chars_total: int,
+) -> dict[str, float | int | bool]:
+    """
+    Evaluate whether the pilot sample is too weak to trust a full crawl.
+
+    Relief is intentionally granted when a sparse pilot still yields a few
+    content-rich pages. That pattern is common on bot-protected or uneven sites
+    where the crawl is still worth continuing with heavier external research.
+    """
+    success_rate = pilot_success / max(pilot_attempts, 1)
+    avg_chars = int(pilot_chars_total / max(pilot_success, 1)) if pilot_success else 0
+    high_success_relief_rate = max(SCRAPE_PILOT_MIN_SUCCESS_RATE, 0.90)
+    low_content_with_low_success = (
+        avg_chars < SCRAPE_PILOT_MIN_CHARS and success_rate < high_success_relief_rate
+    )
+
+    # Permit a sparse pilot when the pages that did land are substantively rich.
+    rich_content_relief = (
+        avg_chars >= max(SCRAPE_PILOT_MIN_CHARS * 3, 2000)
+        and (
+            pilot_success >= 3
+            or (
+                pilot_success >= 2
+                and pilot_chars_total >= max(SCRAPE_PILOT_MIN_CHARS * 6, 4000)
+            )
+        )
+    )
+    useful_corpus_relief = (
+        pilot_success >= 4 and pilot_chars_total >= max(MIN_SCRAPED_CHARS, 4000)
+    )
+
+    should_abort = False
+    if not (rich_content_relief or useful_corpus_relief) and (
+        success_rate < SCRAPE_PILOT_MIN_SUCCESS_RATE or low_content_with_low_success
+    ):
+        should_abort = True
+
+    return {
+        "success_rate": success_rate,
+        "avg_chars": avg_chars,
+        "low_content_with_low_success": low_content_with_low_success,
+        "rich_content_relief": rich_content_relief,
+        "useful_corpus_relief": useful_corpus_relief,
+        "should_abort": should_abort,
+    }
 
 def out_step(msg):
     console.step(msg)
@@ -698,8 +748,13 @@ def fetch_web_content(
         if pilot_attempts < pilot_count:
             pilot_attempts += 1
             if pilot_attempts == pilot_count:
-                success_rate = pilot_success / max(pilot_attempts, 1)
-                avg_chars = int(pilot_chars_total / max(pilot_success, 1)) if pilot_success else 0
+                pilot_eval = evaluate_scrape_pilot(
+                    pilot_success=pilot_success,
+                    pilot_attempts=pilot_attempts,
+                    pilot_chars_total=pilot_chars_total,
+                )
+                success_rate = float(pilot_eval["success_rate"])
+                avg_chars = int(pilot_eval["avg_chars"])
                 _append_trace(
                     "PILOT",
                     website,
@@ -708,24 +763,13 @@ def fetch_web_content(
                         f"success_rate={success_rate:.2f}, avg_chars={avg_chars}"
                     ),
                 )
-                high_success_relief_rate = max(SCRAPE_PILOT_MIN_SUCCESS_RATE, 0.90)
-                low_content_with_low_success = (
-                    avg_chars < SCRAPE_PILOT_MIN_CHARS and success_rate < high_success_relief_rate
-                )
-                # Rich-content relief: if enough pages succeeded with substantial
-                # content, the projected yield is still useful for a report even
-                # when many pages are blocked (common on e-commerce sites).
-                rich_content_relief = (
-                    pilot_success >= 3
-                    and avg_chars >= SCRAPE_PILOT_MIN_CHARS * 3
-                )
-                if rich_content_relief:
+                if pilot_eval["rich_content_relief"]:
                     logger.info(
                         f"Pilot success rate low ({success_rate:.0%}) but content "
                         f"is rich ({avg_chars} avg chars from {pilot_success} pages) "
                         f"— proceeding"
                     )
-                elif success_rate < SCRAPE_PILOT_MIN_SUCCESS_RATE or low_content_with_low_success:
+                elif pilot_eval["should_abort"]:
                     console.clear_line()
                     console.fail(
                         "Pilot scrape validation failed "
@@ -1351,3 +1395,9 @@ def extract_clean_text(soup_or_bytes):
     else:
         # It's bytes, use new function
         return _extract_text(soup_or_bytes)
+
+
+
+
+
+

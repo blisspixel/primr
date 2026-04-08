@@ -30,6 +30,7 @@ try:
     from opentelemetry.sdk.trace import TracerProvider
     from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
     from opentelemetry.trace import Status, StatusCode
+
     OTEL_AVAILABLE = True
 except ImportError:
     OTEL_AVAILABLE = False
@@ -38,10 +39,16 @@ except ImportError:
 
 # Sensitive patterns to redact
 SENSITIVE_PATTERNS = [
-    (re.compile(r'(api[_-]?key|apikey|secret|password|token|auth)["\']?\s*[:=]\s*["\']?([^"\'\s,}]+)', re.IGNORECASE), r'\1=***REDACTED***'),
-    (re.compile(r'(Bearer\s+)([A-Za-z0-9\-_]+\.?)+', re.IGNORECASE), r'\1***REDACTED***'),
-    (re.compile(r'(sk-[a-zA-Z0-9]{20,})', re.IGNORECASE), '***REDACTED_API_KEY***'),
-    (re.compile(r'(AIza[a-zA-Z0-9_-]{35})', re.IGNORECASE), '***REDACTED_GOOGLE_KEY***'),
+    (
+        re.compile(
+            r'(api[_-]?key|apikey|secret|password|token|auth)["\']?\s*[:=]\s*["\']?([^"\'\s,}]+)',
+            re.IGNORECASE,
+        ),
+        r"\1=***REDACTED***",
+    ),
+    (re.compile(r"(Bearer\s+)([A-Za-z0-9\-_]+\.?)+", re.IGNORECASE), r"\1***REDACTED***"),
+    (re.compile(r"(sk-[a-zA-Z0-9]{20,})", re.IGNORECASE), "***REDACTED_API_KEY***"),
+    (re.compile(r"(AIza[a-zA-Z0-9_-]{35})", re.IGNORECASE), "***REDACTED_GOOGLE_KEY***"),
 ]
 
 
@@ -73,7 +80,7 @@ def redact_dict(data: dict[str, Any]) -> dict[str, Any]:
     Returns:
         Dictionary with sensitive data redacted
     """
-    sensitive_keys = {'api_key', 'apikey', 'secret', 'password', 'token', 'auth', 'key'}
+    sensitive_keys = {"api_key", "apikey", "secret", "password", "token", "auth", "key"}
     result = {}
 
     for key, value in data.items():
@@ -81,15 +88,18 @@ def redact_dict(data: dict[str, Any]) -> dict[str, Any]:
 
         # Check if key suggests sensitive data
         if any(s in key_lower for s in sensitive_keys):
-            result[key] = '***REDACTED***'
+            result[key] = "***REDACTED***"
         elif isinstance(value, dict):
             result[key] = redact_dict(value)
         elif isinstance(value, str):
             result[key] = redact_sensitive(value)
         elif isinstance(value, list):
             result[key] = [
-                redact_dict(v) if isinstance(v, dict) else
-                redact_sensitive(v) if isinstance(v, str) else v
+                redact_dict(v)
+                if isinstance(v, dict)
+                else redact_sensitive(v)
+                if isinstance(v, str)
+                else v
                 for v in value
             ]
         else:
@@ -111,6 +121,7 @@ def utc_now() -> datetime:
 @dataclass
 class TraceContext:
     """Context for distributed tracing."""
+
     trace_id: str
     span_id: str
     job_id: str
@@ -258,11 +269,13 @@ class Tracer:
             return
 
         # Create resource with service info
-        resource = Resource.create({
-            "service.name": self.service_name,
-            "service.version": "1.0.0",
-            "deployment.environment": self.deployment or "unknown",
-        })
+        resource = Resource.create(
+            {
+                "service.name": self.service_name,
+                "service.version": "1.0.0",
+                "deployment.environment": self.deployment or "unknown",
+            }
+        )
 
         # Create tracer provider
         provider = TracerProvider(resource=resource)
@@ -329,6 +342,7 @@ class Tracer:
 @dataclass
 class MetricPoint:
     """A single metric data point."""
+
     name: str
     value: float
     timestamp: str

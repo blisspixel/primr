@@ -1,6 +1,9 @@
 """Tests for content extraction - Property 7: Text Extraction Cleanliness."""
 
+import warnings
 from pathlib import Path
+
+from bs4 import XMLParsedAsHTMLWarning
 
 from primr.data.scraping.content import (
     detect_content_type,
@@ -155,6 +158,21 @@ class TestExtractCleanText:
         assert "Acme Corporation" in text
         assert "About" in text or "Leadership" in text
         assert len(text) > 500
+
+    def test_xml_input_uses_xml_parser_without_warning(self):
+        """XML-like documents should not emit XMLParsedAsHTMLWarning."""
+        xml = b"""<?xml version="1.0" encoding="UTF-8"?>
+        <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+            <url><loc>https://example.com/about</loc></url>
+        </urlset>
+        """
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            text = extract_clean_text(xml)
+
+        assert "https://example.com/about" in text
+        assert not any(isinstance(w.message, XMLParsedAsHTMLWarning) for w in caught)
 
 
 class TestExtractMainContent:

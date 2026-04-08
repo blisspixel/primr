@@ -65,6 +65,25 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
                             "default": "full",
                             "description": "Research mode: full (standard Grok pipeline, default), premium (Gemini + Deep Research), scrape, deep",
                         },
+                        "cloud_vendors": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "enum": ["azure", "aws", "gcp", "agnostic", "private"],
+                            },
+                            "description": "Cloud vendor(s) for AI strategy. Each vendor adds a separate strategy document and ~3-6 min + ~$0.10-0.15 per vendor. Default: single agnostic strategy.",
+                        },
+                        "strategy_type": {
+                            "type": "string",
+                            "enum": ["ai", "customer_experience", "modern_security_compliance", "data_fabric_strategy"],
+                            "default": "ai",
+                            "description": "Type of strategy to generate alongside the research report",
+                        },
+                        "no_ai_strategy": {
+                            "type": "boolean",
+                            "default": False,
+                            "description": "Skip AI strategy generation entirely (report only)",
+                        },
                         "verify": {
                             "type": "boolean",
                             "default": False,
@@ -394,20 +413,40 @@ def _build_research_estimate(arguments: dict[str, Any]) -> dict[str, Any]:
     verify = arguments.get("verify", False)
     premium_mode = mode == "premium"
     fast_mode = mode == "full" and bool(os.environ.get("XAI_API_KEY"))
+
+    # Strategy configuration
+    no_ai_strategy = arguments.get("no_ai_strategy", False)
+    include_ai_strategy = not no_ai_strategy and mode in ("full", "premium")
+    cloud_vendors = arguments.get("cloud_vendors", ["agnostic"])
+    if isinstance(cloud_vendors, str):
+        cloud_vendors = [cloud_vendors]
+    num_vendors = len(cloud_vendors) if include_ai_strategy else 0
+
     cost_estimate = estimate_cost(
         estimator_mode,
-        use_historical=False,
+        include_ai_strategy=include_ai_strategy,
+        use_historical=True,
         verify=verify,
         premium_mode=premium_mode,
         fast_mode=fast_mode,
+        num_vendors=max(num_vendors, 1) if include_ai_strategy else 1,
     )
     pages = 20 if mode in ("scrape", "full", "premium") else 0
-    return {
+    max_duration = _parse_max_duration(cost_estimate.duration_minutes)
+    result: dict[str, Any] = {
         "estimated_cost_usd": round(cost_estimate.total_cost, 2),
-        "estimated_time_minutes": _parse_max_duration(cost_estimate.duration_minutes),
+        "estimated_time_minutes": max_duration,
+        "estimated_time_range": cost_estimate.duration_minutes,
         "planned_pages": pages,
         "mode": mode,
     }
+    if include_ai_strategy:
+        result["ai_strategy"] = True
+        result["cloud_vendors"] = cloud_vendors
+        result["strategy_type"] = arguments.get("strategy_type", "ai")
+    else:
+        result["ai_strategy"] = False
+    return result
 
 
 def _enforce_cost_cap(

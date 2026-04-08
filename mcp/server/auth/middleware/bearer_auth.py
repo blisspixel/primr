@@ -14,4 +14,3 @@ class RequireAuthMiddleware:
 
     def __call__(self, app: Any) -> Any:
         return app
-

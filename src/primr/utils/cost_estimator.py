@@ -180,8 +180,9 @@ MODE_ESTIMATES = {
         "grok_writing_output_tokens": 85_000,  # ~34k section writing + 25k coherence + polish (~81K actual + margin)
         "deep_research_tasks": 0,
         "search_queries": 0,  # DDG is free, not Google Search
-        "duration_min": 18,
-        "duration_max": 30,
+        # Calibrated from real runs: scraping ~6-10 min, search ~8-12 min, analysis+writing ~15-20 min, cross-val ~5 min
+        "duration_min": 30,
+        "duration_max": 45,
     },
 }
 
@@ -437,7 +438,9 @@ def _estimate_fast_mode_cost(
 
     # Costs — price each bucket using the appropriate tier model
     flash_cost = PrimrModels.calculate_flash_cost(flash_in, flash_out)
-    reasoning_cost = PrimrModels.calculate_cost(reasoning_model, grok_reasoning_in, grok_reasoning_out)
+    reasoning_cost = PrimrModels.calculate_cost(
+        reasoning_model, grok_reasoning_in, grok_reasoning_out
+    )
     writing_cost = PrimrModels.calculate_cost(writing_model, grok_writing_in, grok_writing_out)
     search_cost = 0.0 if search_free else PrimrModels.calculate_search_cost(search_queries)
 
@@ -448,14 +451,12 @@ def _estimate_fast_mode_cost(
     flash_output_cost = (flash_out / 1_000_000) * GEMINI_3_FLASH_OUTPUT_PRICE
     r_inp_price, r_out_price = PrimrModels.get_price(reasoning_model)
     w_inp_price, w_out_price = PrimrModels.get_price(writing_model)
-    grok_input_cost = (
-        (grok_reasoning_in / 1_000_000) * r_inp_price
-        + (grok_writing_in / 1_000_000) * w_inp_price
-    )
-    grok_output_cost = (
-        (grok_reasoning_out / 1_000_000) * r_out_price
-        + (grok_writing_out / 1_000_000) * w_out_price
-    )
+    grok_input_cost = (grok_reasoning_in / 1_000_000) * r_inp_price + (
+        grok_writing_in / 1_000_000
+    ) * w_inp_price
+    grok_output_cost = (grok_reasoning_out / 1_000_000) * r_out_price + (
+        grok_writing_out / 1_000_000
+    ) * w_out_price
 
     total_input_cost = flash_input_cost + grok_input_cost
     total_output_cost = flash_output_cost + grok_output_cost

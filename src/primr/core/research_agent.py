@@ -385,13 +385,41 @@ def _load_run_state(folder_path: str) -> dict[str, Any]:
 
 
 def _save_run_state(folder_path: str, state: dict[str, Any]) -> None:
-    """Atomically persist run state JSON."""
+    """Persist run state JSON without aborting the run on transient Windows locks."""
     path = _run_state_file(folder_path)
-    tmp = f"{path}.tmp"
+    tmp = f"{path}.{os.getpid()}.tmp"
     os.makedirs(folder_path, exist_ok=True)
+    payload = json.dumps(state, indent=2)
     with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(state, f, indent=2)
-    os.replace(tmp, path)
+        f.write(payload)
+        f.flush()
+        os.fsync(f.fileno())
+
+    last_error: PermissionError | None = None
+    for attempt in range(5):
+        try:
+            os.replace(tmp, path)
+            return
+        except PermissionError as exc:
+            last_error = exc
+            if attempt == 4:
+                break
+            time.sleep(0.05 * (attempt + 1))
+
+    logger.warning(
+        "Atomic run state save failed for %s; falling back to direct overwrite: %s",
+        path,
+        last_error,
+    )
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(payload)
+    finally:
+        if os.path.exists(tmp):
+            try:
+                os.remove(tmp)
+            except OSError:
+                logger.debug("Failed to remove stale run-state temp file %s", tmp, exc_info=True)
 
 
 def _update_run_state(folder_path: str, **updates: Any) -> None:
@@ -422,6 +450,126 @@ def _append_run_event(
     state["events"] = events[-200:]  # keep recent history bounded
     state["updated_at"] = datetime.now().isoformat()
     _save_run_state(folder_path, state)
+
+
+# =============================================================================
+# RESILIENCE RUN STATE HELPERS (pipeline-resilience feature)
+# =============================================================================
+
+
+def _ensure_resilience_keys(state: dict[str, Any]) -> dict[str, Any]:
+    """Ensure resilience arrays exist in run state (backwards compatible).
+
+    Adds ``model_health``, ``recovery_events``, and ``background_aborts``
+    arrays if they are missing.  Existing keys are never overwritten.
+
+    **Feature: pipeline-resilience**
+    **Validates: Requirements 16.3, 12.2, NFR 3**
+    """
+    for key in ("model_health", "recovery_events", "background_aborts"):
+        if key not in state or not isinstance(state[key], list):
+            state[key] = state.get(key, []) if isinstance(state.get(key), list) else []
+    return state
+
+
+def _append_model_health_event(folder_path: str, event_dict: dict[str, Any]) -> None:
+    """Append a ModelHealthEvent dict to the ``model_health`` array in run state.
+
+    **Feature: pipeline-resilience**
+    **Validates: Requirements 12.2**
+    """
+    state = _load_run_state(folder_path)
+    _ensure_resilience_keys(state)
+    state["model_health"].append(event_dict)
+    state["model_health"] = state["model_health"][-200:]
+    state["updated_at"] = datetime.now().isoformat()
+    _save_run_state(folder_path, state)
+
+
+def _append_recovery_event(folder_path: str, event_dict: dict[str, Any]) -> None:
+    """Append a recovery event dict to the ``recovery_events`` array in run state.
+
+    **Feature: pipeline-resilience**
+    **Validates: Requirements 16.3**
+    """
+    state = _load_run_state(folder_path)
+    _ensure_resilience_keys(state)
+    state["recovery_events"].append(event_dict)
+    state["recovery_events"] = state["recovery_events"][-200:]
+    state["updated_at"] = datetime.now().isoformat()
+    _save_run_state(folder_path, state)
+
+
+def _append_background_abort(folder_path: str, event_dict: dict[str, Any]) -> None:
+    """Append a background abort dict to the ``background_aborts`` array in run state.
+
+    **Feature: pipeline-resilience**
+    **Validates: Requirements 16.3**
+    """
+    state = _load_run_state(folder_path)
+    _ensure_resilience_keys(state)
+    state["background_aborts"].append(event_dict)
+    state["background_aborts"] = state["background_aborts"][-200:]
+    state["updated_at"] = datetime.now().isoformat()
+    _save_run_state(folder_path, state)
+
+
+def _init_run_state_with_resilience(
+    folder_path: str, base_state: dict[str, Any]
+) -> None:
+    """Initialize run state with resilience keys included.
+
+    Merges the base state dict with empty resilience arrays and saves.
+    Backwards compatible — existing keys in *base_state* are preserved.
+
+    **Feature: pipeline-resilience**
+    **Validates: Requirements 16.3, NFR 3**
+    """
+    _ensure_resilience_keys(base_state)
+    _save_run_state(folder_path, base_state)
+
+
+def _build_resilience_event_listener(folder_path: str):
+    """Build an event listener callback that routes recovery events to run state.
+
+    Returns a callable suitable for ``RecoveryExecutor(event_listener=...)``.
+
+    **Feature: pipeline-resilience**
+    **Validates: Requirements 16.1, 16.2, 16.3**
+    """
+    from primr.pipeline.executor import BackgroundAbort, RecoveryEvent
+
+    def _listener(event) -> None:
+        if isinstance(event, RecoveryEvent):
+            _append_recovery_event(folder_path, event.to_dict())
+        elif isinstance(event, BackgroundAbort):
+            _append_background_abort(folder_path, event.to_dict())
+
+    return _listener
+
+
+def _build_health_listener(folder_path: str):
+    """Build a health listener callback that logs ModelHealthEvents to run state.
+
+    Returns a callable suitable for ``ModelCircuitBreaker(health_listener=...)``.
+
+    **Feature: pipeline-resilience**
+    **Validates: Requirements 12.1, 12.2**
+    """
+    from primr.pipeline.model_breaker import ModelHealthEvent
+
+    def _listener(event: ModelHealthEvent) -> None:
+        _append_model_health_event(folder_path, event.to_dict())
+        log_structured(
+            "info",
+            "Model health transition",
+            model=event.model,
+            from_state=event.from_state,
+            to_state=event.to_state,
+            failure_count=event.failure_count,
+        )
+
+    return _listener
 
 
 def ensure_valid_url(website):
@@ -1450,6 +1598,12 @@ def _write_section_with_retry(
     """Write a single section with one retry if output is thin.
 
     Returns the parsed section dict, or ``None`` on failure.
+
+    NOTE (pipeline-resilience): The thin-section retry below is a *content
+    quality* retry (re-prompt when word count is too low), not an API error
+    retry.  It is intentionally retained alongside the stage-level
+    RecoveryExecutor which handles API failures, model fallback, and
+    skip/abort.  The two layers are complementary.
     """
     from primr.ai.grok_client import grok_llm
 
@@ -2968,6 +3122,11 @@ If the report is solid, return empty arrays."""
     except (json.JSONDecodeError, KeyError, TypeError, AttributeError) as e:
         log_structured("warning", "Cross-validation JSON parse failed, retrying", error=str(e))
 
+        # NOTE (pipeline-resilience): This retry is a *format correction* retry
+        # (re-prompt when JSON parsing fails), not an API error retry.  It is
+        # intentionally retained alongside the stage-level RecoveryExecutor
+        # which handles API failures and skip/abort for the cross-validation
+        # background stage.
         # Retry with tighter prompt including the failed response
         retry_prompt = (
             "Your previous response could not be parsed as JSON. "
@@ -3545,7 +3704,9 @@ def _enrich_strategy_content(
     # Step 3: Polish pass
     try:
         with console.timed_operation(f"Polishing {label}{vendor_label}"):
-            strategy_content = _strategy_polish(company_name, vendor, strategy_content, model=grok_writing)
+            strategy_content = _strategy_polish(
+                company_name, vendor, strategy_content, model=grok_writing
+            )
     except Exception as e:
         log_structured("warning", "Strategy polish failed, keeping unpolished", error=str(e))
 
@@ -3717,8 +3878,15 @@ def perform_fast_research(
                 )
 
         # Phase 2: sequential scraping on main thread (Playwright-safe)
+        # Wrap per-page scrapes with recovery executor (pipeline-resilience)
+        from primr.pipeline.integration import create_pipeline_executor, scrape_page_with_recovery
+
+        _resilience_listener = _build_resilience_event_listener(folder_path)
+        _recovery_executor = create_pipeline_executor(folder_path, event_listener=_resilience_listener)
+
         _scrape_idx = 0
         _scrape_total = len(all_search_results)
+        _failed_scrape_urls: list[str] = []
         for result in all_search_results:
             if len(external_data) >= max_external_sources:
                 break
@@ -3729,13 +3897,27 @@ def perform_fast_research(
             console.status(
                 f"Validating external sources ({len(external_data)} validated, checking {_scrape_idx}/{_scrape_total})"
             )
-            scraped = scrape_external_sources_validated(
-                [result],
-                company_name=company_name,
-                website=website,
-                max_sources=1,
+
+            def _do_scrape(_r=result, _u=url):
+                return scrape_external_sources_validated(
+                    [_r],
+                    company_name=company_name,
+                    website=website,
+                    max_sources=1,
+                )
+
+            scrape_result = scrape_page_with_recovery(
+                _recovery_executor, _do_scrape, url, folder_path
             )
-            external_data.update(scraped)
+            if scrape_result.success and scrape_result.output:
+                external_data.update(scrape_result.output)
+            elif scrape_result.skipped:
+                _failed_scrape_urls.append(url)
+                logger.info("Scrape skipped for %s: %s", url, scrape_result.skip_reason)
+
+        # Log failed pages in run state (Req 2.3)
+        if _failed_scrape_urls:
+            _update_run_state(folder_path, failed_scrape_urls=_failed_scrape_urls)
 
         console.ok(f"Searching external sources ({console._elapsed(_ext_search_start)})")
 
@@ -3944,14 +4126,27 @@ def perform_fast_research(
         )
 
         try:
-            with console.timed_operation("Generating analysis workbook via Grok"):
-                analysis_workbook = grok_llm(
+            from primr.pipeline.integration import analysis_with_recovery
+
+            def _do_analysis():
+                return grok_llm(
                     analysis_prompt,
                     model=grok_reasoning,
                     max_tokens=18_000,
                     temperature=0.5,
                     system_prompt=analysis_system,
                 )
+
+            with console.timed_operation("Generating analysis workbook via Grok"):
+                _analysis_result = analysis_with_recovery(
+                    _recovery_executor, _do_analysis, folder_path
+                )
+                if _analysis_result.success:
+                    analysis_workbook = _analysis_result.output
+                else:
+                    raise RuntimeError(
+                        _analysis_result.skip_reason or "Analysis recovery exhausted"
+                    )
         except Exception as analysis_err:
             console.warn(f"Analysis workbook generation failed: {analysis_err}")
             console.info("Continuing with collected insights as fallback workbook")
@@ -4074,9 +4269,9 @@ def perform_fast_research(
                 _prior: list[dict[str, Any]] = prior_sections,
             ) -> tuple[int, dict[str, Any] | None]:
                 local_idx, sec = idx_section
-                return (
-                    local_idx,
-                    _write_section_with_retry(
+
+                def _do_write():
+                    result = _write_section_with_retry(
                         sec,
                         _offset + local_idx,
                         all_section_names,
@@ -4090,8 +4285,19 @@ def perform_fast_research(
                         report_system,
                         section_reasoning_modes.get(sec.id, "standard"),
                         model=grok_writing,
-                    ),
+                    )
+                    if result is None:
+                        raise RuntimeError(f"Section '{sec.name}' returned empty")
+                    return result
+
+                from primr.pipeline.integration import write_section_with_recovery
+
+                stage_result = write_section_with_recovery(
+                    _recovery_executor, _do_write, folder_path
                 )
+                if stage_result.success:
+                    return (local_idx, stage_result.output)
+                return (local_idx, None)
 
             results: list[tuple[int, dict[str, Any] | None]] = []
             if len(part_sections) == 1:
@@ -4178,13 +4384,27 @@ def perform_fast_research(
         )
 
         with console.timed_operation("Reviewing report quality via Grok"):
-            cv_result = _fast_cross_validate(
-                company_name or display_name,
-                website,
-                report_content,
-                source_urls,
-                model=grok_reasoning,
+            from primr.pipeline.integration import cross_validate_with_recovery
+
+            def _do_cross_validate():
+                return _fast_cross_validate(
+                    company_name or display_name,
+                    website,
+                    report_content,
+                    source_urls,
+                    model=grok_reasoning,
+                )
+
+            _cv_stage_result = cross_validate_with_recovery(
+                _recovery_executor, _do_cross_validate, folder_path
             )
+            if _cv_stage_result.success:
+                cv_result = _cv_stage_result.output
+            else:
+                logger.info(
+                    "Cross-validation skipped: %s", _cv_stage_result.skip_reason
+                )
+                cv_result = {"weak_sections": [], "contradictions": []}
 
         weak_sections = cv_result.get("weak_sections", [])
         contradictions = cv_result.get("contradictions", [])
@@ -4485,12 +4705,25 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
 
                     vendor_label = f" ({vendor.upper()})" if len(cloud_vendors) > 1 else ""
                     try:
-                        with console.timed_operation(f"AI Strategy{vendor_label} via Grok"):
-                            strategy_content = grok_llm(
-                                combined_strategy_prompt,
+                        from primr.pipeline.integration import strategy_with_recovery
+
+                        def _do_strategy(_prompt=combined_strategy_prompt):
+                            return grok_llm(
+                                _prompt,
                                 model=grok_writing,
                                 max_tokens=32_000,
                             )
+
+                        with console.timed_operation(f"AI Strategy{vendor_label} via Grok"):
+                            _strat_result = strategy_with_recovery(
+                                _recovery_executor, _do_strategy, folder_path
+                            )
+                            if _strat_result.success:
+                                strategy_content = _strat_result.output
+                            else:
+                                raise RuntimeError(
+                                    _strat_result.skip_reason or "Strategy recovery exhausted"
+                                )
                     except Exception as strat_err:
                         console.warn(f"AI Strategy{vendor_label} failed: {strat_err} — skipping")
                         log_structured(
@@ -4661,12 +4894,25 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
                     )
 
                     try:
-                        with console.timed_operation(f"{display_name_strat} via Grok"):
-                            strategy_content = grok_llm(
-                                combined_prompt,
+                        from primr.pipeline.integration import strategy_with_recovery
+
+                        def _do_yaml_strategy(_p=combined_prompt):
+                            return grok_llm(
+                                _p,
                                 model=grok_writing,
                                 max_tokens=32_000,
                             )
+
+                        with console.timed_operation(f"{display_name_strat} via Grok"):
+                            _yaml_strat_result = strategy_with_recovery(
+                                _recovery_executor, _do_yaml_strategy, folder_path
+                            )
+                            if _yaml_strat_result.success:
+                                strategy_content = _yaml_strat_result.output
+                            else:
+                                raise RuntimeError(
+                                    _yaml_strat_result.skip_reason or "Strategy recovery exhausted"
+                                )
                     except Exception as strat_err:
                         console.warn(f"{display_name_strat} failed: {strat_err} — skipping")
                         log_structured(
@@ -4963,9 +5209,7 @@ def _save_strategy_output(
         if strategy_qa["budget_inconsistent"]:
             strategy_advisory_issues.append("budget_inconsistent")
         if strategy_qa["missing_citations"]:
-            strategy_advisory_issues.append(
-                f"missing_citations:{strategy_qa['missing_citations']}"
-            )
+            strategy_advisory_issues.append(f"missing_citations:{strategy_qa['missing_citations']}")
         if strategy_qa["invalid_source_urls"]:
             strategy_advisory_issues.append(
                 f"invalid_source_urls:{strategy_qa['invalid_source_urls']}"
@@ -5079,6 +5323,9 @@ def perform_research(
     folder_path = create_working_folder(company_name, website, reuse_incomplete=resume_local)
     existing_state = _load_run_state(folder_path)
     if resume_local and existing_state:
+        # Ensure resilience keys exist even on resumed runs (NFR 3 backwards compat)
+        _ensure_resilience_keys(existing_state)
+        _save_run_state(folder_path, existing_state)
         _update_run_state(
             folder_path,
             company_name=company_name or display_name,
@@ -5094,7 +5341,7 @@ def perform_research(
             folder_path, "initializing", "resumed", "Resuming from existing local run folder"
         )
     else:
-        _save_run_state(
+        _init_run_state_with_resilience(
             folder_path,
             {
                 "company_name": company_name or display_name,
