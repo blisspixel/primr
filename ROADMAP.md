@@ -59,6 +59,14 @@ For completed work, see the [Changelog](#changelog) at the bottom of this file, 
 - Local eval judge capability for staged reports: Grok or local OpenAI-compatible backends (for example Ollama), including named local model lists, per-model JSON artifacts, and local multi-model sweep summaries across every staged non-baseline profile
 - Output improvement: `primr improve` for deterministic cleanup + optional agentic review pass
 
+### Pipeline Resilience
+
+- Cost-ordered recovery hierarchies for all six pipeline stages (scraping, external search, analysis, section writing, cross-validation, strategy generation)
+- Foreground/background stage classification — foreground stages retry aggressively, background stages bail on API overload or budget stress
+- Model-level circuit breaker with provider-aware fallback chains (e.g., Grok 4.20 → Grok 4.1 → Gemini Flash)
+- Recovery executor that orchestrates retry/fallback/skip logic and logs events to `_run_state.json`
+- `--dry-run` shows the full recovery table (stage classifications + recovery hierarchies)
+
 ### Operational Maturity
 
 - Cost estimation, usage tracking, job recovery, crash/reboot recovery
@@ -124,44 +132,41 @@ Run the eval harness on 3-5 companies across all Grok tiers (fast/hybrid/max/mul
 
 #### v1.17.0 — Deeper Strategic Analysis
 
-**Pipeline Resilience Patterns**
+**Pipeline Resilience Patterns** ✅ *(Implemented — see `src/primr/pipeline/`)*
 
-Formalize Primr's retry and recovery logic into explicit, cost-ordered patterns across all pipeline stages. Informed by research into how production agentic systems handle failure recovery — the consistent finding is that mature agent harnesses invest heavily in cost-ordered retry hierarchies, foreground/background stage classification, and model-level circuit breaking.
+Primr's retry and recovery logic is now formalized into explicit, cost-ordered patterns across all pipeline stages. Implemented in `src/primr/pipeline/` with six modules: `stages.py`, `errors.py`, `recovery.py`, `model_breaker.py`, `executor.py`, `integration.py`.
 
-*Cost-Ordered Pipeline Recovery:*
+*What shipped:*
 
-Primr already has exponential retry with jitter on transient API failures. The next step is making every pipeline stage declare an explicit recovery hierarchy ordered by cost, not just retry count:
+- Cost-ordered recovery hierarchies for all six pipeline stages (cheapest action first)
+- Foreground/background stage classification (foreground retries aggressively, background bails on overload)
+- Model-level circuit breaker with provider-aware fallback chains (Grok 4.20 → Grok 4.1 → Gemini Flash)
+- Recovery executor that orchestrates retry/fallback/skip and logs events to `_run_state.json`
+- `--dry-run` includes the full recovery table (stage classifications + recovery hierarchies)
+- Error classification (transient/quota/configuration) delegates to existing `error_policy.py`
+
+*Recovery table (implemented):*
 
 | Stage | Recovery 1 (cheapest) | Recovery 2 | Recovery 3 (most expensive) |
 |---|---|---|---|
-| Scraping (per-page) | Retry same tier with jitter | Escalate to next tier (existing) | Skip page, log as failed |
-| External search | Retry query with backoff | Reduce query count | Skip search, proceed with scrape-only data |
-| Analysis (Grok/Gemini) | Retry with same model | Retry with fallback model (Grok 4.20 → 4.1 → Flash) | Abort with partial output |
-| Section writing | Retry section | Regenerate with simpler prompt | Skip section, note gap in report |
-| Cross-validation | Retry validation | Skip validation, flag as unvalidated | Proceed without cross-validation |
-| Strategy generation | Retry strategy | Generate minimal strategy | Skip strategy, deliver report only |
+| Scraping (per-page) | Retry same tier with jitter | Escalate to next tier | Skip page, log as failed |
+| External search | Retry query with backoff | Reduce query count by 50%+ | Skip search, proceed scrape-only |
+| Analysis (Grok/Gemini) | Retry with same model + backoff | Try next model in fallback chain | Abort with partial output |
+| Section writing | Retry with original prompt | Regenerate with simpler prompt | Skip section, insert gap marker |
+| Cross-validation | Retry validation call | Skip validation, flag as unvalidated | — |
+| Strategy generation | Retry strategy generation | Generate minimal strategy | Skip strategy, deliver report only |
 
-*Foreground/Background Stage Classification:*
+*Stage classification (implemented):*
 
-Classify every pipeline stage as foreground (must complete for a useful artifact) or background (additive quality, not core). Background stages bail immediately on API overload or budget stress instead of retrying and amplifying capacity cascades.
+- Foreground (retry aggressively): scraping, external search, analysis, section writing
+- Background (bail on overload): cross-validation, strategy generation
 
-- Foreground (retry aggressively): scraping, analysis workbook, report section writing
-- Background (bail on overload): strategy generation, expert perspectives (v1.19.0), deep cross-validation, research deepening
+*Model circuit breaker (implemented):*
 
-This classification directly enables quick mode (v1.18.0) — quick mode is essentially "foreground stages only with tight caps." It also protects batch runs: if the API is rate-limited during company #3 of a 50-company batch, background stages bail so budget is preserved for company #4's core analysis.
-
-*Model-Level Circuit Breaker:*
-
-Extend the existing scrape-tier circuit breaker (skip after 3 consecutive failures) to model routing. Track consecutive API failures per model and automatically fall back after a threshold:
-
-- Track consecutive failures per model (Grok 4.1, Grok 4.20, Gemini Flash, Gemini Pro, Deep Research)
-- After 3 consecutive failures on a model: mark as unhealthy, route to fallback
-- Fallback chain: Grok 4.20 → Grok 4.1 → Gemini Flash (for analysis); Gemini Pro → Grok 4.1 (for premium)
-- After 10 minutes: attempt recovery with a single test call
-- Log model health transitions in `_run_state.json`
-- Check API key availability before cross-provider fallback
-
-This becomes essential as Primr adds more providers (OpenAI in v1.21.0, local inference in v1.22.0). The pattern is identical to the scrape-tier circuit breaker — count consecutive failures, break at threshold, attempt recovery later.
+- Tracks consecutive failures per model (failure_threshold=3, recovery_timeout=600s)
+- Fallback chains: analysis (Grok 4.20 → Grok 4.1 → Gemini Flash), premium (Gemini Pro → Grok 4.1)
+- Checks API key availability before cross-provider fallback
+- Logs model health transitions via `ModelHealthEvent`
 
 **Consultant-Grade Strategic Writing**
 
@@ -471,92 +476,130 @@ Expand the scraping engine with managed fallbacks and deeper data extraction.
 
 #### v1.21.0 — Provider Expansion
 
-**OpenAI Deep Research Integration**
+**OpenAI Integration**
 
-Add OpenAI's Deep Research API as a third provider option alongside Grok and Gemini.
+Add OpenAI as a third provider option alongside Grok and Gemini.
 
 - `OPENAI_API_KEY` env var support
-- OpenAI Deep Research client in `src/primr/ai/`
+- OpenAI client in `src/primr/ai/` using the existing thin-client pattern
+- OpenAI Deep Research API for autonomous research (comparable to Gemini DR)
+- OpenAI reasoning models (o3, o4-mini) as candidates for analysis/writing stages
 - `--provider openai` flag (or auto-detect from available keys)
-- Cost estimator updated with OpenAI DR pricing
+- Cost estimator updated with OpenAI pricing
 - Shared deep research parsing/polling modules extended for OpenAI response format
-- Which tier(s) OpenAI DR best serves (quick, standard, premium) determined by eval results, not assumption
+- Which tier(s) OpenAI best serves (quick, standard, premium) determined by eval results, not assumption
+
+**Anthropic Claude Integration**
+
+Add Anthropic Claude as a fourth provider option.
+
+- `ANTHROPIC_API_KEY` env var support (shared with post-skill processing from v1.19.1)
+- Claude client in `src/primr/ai/` — Claude Opus for analysis/writing, Claude Sonnet for scraping/QA
+- Extended thinking support for reasoning-heavy stages (gap analysis, cross-validation)
+- Natural fit for the post-skill processing pipeline (v1.19.1) — same API key, same provider
+- Eval-gated adoption: Claude may excel at strategic writing and hypothesis generation but cost more than Grok for bulk section writing
+
+**Provider-Agnostic Routing Layer**
+
+Formalize the model selection into a proper routing layer so each pipeline stage declares capability requirements and the router selects the best available model.
+
+- Each pipeline stage declares: minimum reasoning depth, required capabilities (web search, structured output, long context), acceptable providers
+- Router selects the cheapest model that meets requirements from available providers
+- Integrates with the model circuit breaker (v1.17.0) — unhealthy models are skipped automatically
+- Integrates with effort-level routing for hybrid inference (v1.22.0)
+- `primr doctor` shows available providers and which stages each can serve
 
 **Cross-Provider Eval**
 
 Extend the eval harness to compare all available providers and determine the best default for each research tier.
 
-- Eval profiles expanded: `grok-standard`, `gemini-premium`, `openai-quick`, `openai-full`, etc.
+- Eval profiles expanded: `grok-standard`, `gemini-premium`, `openai-quick`, `claude-standard`, etc.
 - Cross-provider scorecard: quality, cost, runtime, citation density compared side-by-side
 - Tier recommendation output: "For quick: use X, for standard: use Y, for premium: use Z"
 - Auto-detect available API keys and only eval providers the user has access to
 - Historical eval tracking: compare across eval IDs to see if a provider improved over time
 
-#### v1.22.0 — Local Inference Exploration
+#### v1.22.0 — Local Inference Mode
 
-Explore running parts of the pipeline on local NVIDIA hardware via Ollama or another OpenAI-compatible local endpoint, cutting API costs toward zero for batch workloads without pretending local models are automatically good enough for the full pipeline.
+Run the full Primr pipeline on local hardware with zero API costs. Primary target: RTX 4090 (24GB VRAM) with Ollama, which is available for testing and validation. The goal is a working `--inference local` mode that produces useful research output — not cloud-quality, but good enough for batch screening, internal research, and cost-sensitive workloads.
 
-At scale, API costs compound: 100 companies × $0.55 = $55 per batch. Local inference is worth evaluating because Primr is already local-first in execution. The question is not "can Primr run locally?" — it already does for scraping, orchestration, and outputs. The real question is which AI stages can move to local inference without unacceptable quality loss.
+At scale, API costs compound: 100 companies × $0.55 = $55 per batch. Local inference eliminates that entirely for workloads where 80% quality at $0 cost is the right tradeoff. Primr is already local-first in execution — scraping, orchestration, and outputs all run locally. This version makes the AI stages local too.
 
-**Positioning:**
-- Treat this as an eval-driven exploration first, not a default product promise
-- Optimize for `--hybrid` before `--local`: use local models where they are cheap and good enough, keep frontier/cloud models where they still materially outperform
-- Support both single-machine setups (desktop with GPU) and LAN-hosted model servers
+**Three Execution Profiles:**
 
-**Hardware Targets:**
-- **RTX 4090 (24GB VRAM)**: 7B-14B models — scraping helpers, link selection, content quality assessment, QA checks, insight extraction, deterministic improvement assists
-- **Larger workstation / server GPUs**: 32B+ models — selective section drafting, structured synthesis, heavier review passes
-- **High-memory systems (for example DGX-class boxes)**: 70B+ models — candidates for broader synthesis experiments, still subject to eval gates before promotion
+- `--inference cloud`: current behavior, all AI stages use cloud providers (default)
+- `--inference hybrid`: local for high-volume/low-complexity stages, cloud for deep research and trust-critical synthesis — the sweet spot for most users with a GPU
+- `--inference local`: all compatible stages on local inference, $0 API cost, longer runtime
 
-**Execution Profiles:**
-- `--inference cloud`: current behavior; all AI stages use cloud providers
-- `--inference hybrid`: local for high-volume/low-complexity stages, cloud for deep research and trust-critical synthesis
-- `--inference local`: route all compatible stages to local inference, explicitly experimental
-- `--local-backend ollama|openai-compatible`: local backend selector; Ollama first, but avoid hard-coding the architecture to one vendor/runtime
+**RTX 4090 Target (24GB VRAM):**
 
-**Routing Hypothesis (initial):**
-- Local-first candidates: scrape summarization, link selection, extraction cleanup, content quality assessment, section QA helpers, report-improve assistance
-- Hybrid/default-cloud candidates: analysis workbook generation, long-form section writing, cross-validation, expert-perspective passes
-- API-only initially: Gemini Deep Research, web search grounding, any vision/VLM path until separately evaluated
+The RTX 4090 is the validation target. Models that fit in 24GB VRAM and run at acceptable speed:
 
-**Initial Capability (implemented):**
-- Primr can now run optional eval-time LLM judging against Grok or local OpenAI-compatible backends such as Ollama
-- Local eval runs can target one model, an explicit model set, or a maintained named shortlist such as `4090-top10` or `installed-starter`
-- Local judge sweeps now compare the baseline against every staged non-baseline profile by default, not just one convenient profile pair
-- Eval artifacts now capture backend metadata per run plus candidate-profile coverage, consensus rate, and per-profile breakdowns so local judge results are reproducible and inspectable
-- This is intentionally narrower than full local inference: it evaluates local models against existing artifacts before routing production pipeline stages to them
-- It should remain easy to conclude "local is not good enough" with evidence and stop there if needed
+- 7B-14B models for high-volume stages: link selection, content quality assessment, scrape summarization, extraction cleanup, QA checks
+- 14B-32B quantized models (Q4/Q5) for medium-complexity stages: section writing, insight extraction, report improvement
+- The eval harness determines which specific models work — not assumptions
 
-**Integration:**
-- Build on the existing local/OpenAI-compatible eval client in `src/primr/ai/` rather than creating a second backend path
-- `OLLAMA_BASE_URL` env var (default: `http://localhost:11434`)
-- Generalize toward `LOCAL_LLM_BASE_URL`, `LOCAL_LLM_MODEL`, and `LOCAL_LLM_API_KEY` so LAN-hosted inference works the same as localhost
-- Extend the model registry with local model entries, VRAM requirements, context limits, and capability flags
-- Add a routing layer so each pipeline stage declares a minimum capability tier and acceptable backends
-- Expand the current eval-plumbing into production-safe local/cloud/hybrid stage routing
-- Cost estimator reflects local inference as $0.00 API cost while still tracking runtime and hardware assumptions
+Larger GPUs (48GB+, multi-GPU, DGX-class) can run bigger models for better quality, but the 4090 is the baseline that must work.
 
-**Immediate Eval Track:**
-- Use the existing eval harness as the acceptance gate rather than shipping on intuition
-- Baseline against current cloud profiles on staged cloud-generated reports for the same company/profile pairs
-- Run first-pass local tests on an RTX 4090 + Ollama setup using single-model and multi-model judge sweeps
-- Use the judge sweep to narrow candidate local models before attempting any stage-level production routing
-- Compare `cloud` vs `hybrid` first; only try `local` end-to-end after stage-level results look credible
+**Stage Routing:**
+
+Each pipeline stage declares a minimum capability tier. The router selects the best available model:
+
+| Stage | Local (RTX 4090) | Hybrid | Cloud |
+|---|---|---|---|
+| Link selection | Local 7B | Local 7B | Gemini Flash |
+| Content quality assessment | Local 7B | Local 7B | Gemini Flash |
+| Scrape summarization | Local 14B | Local 14B | Gemini Flash |
+| External search query generation | Local 14B | Cloud | Grok 4.1 |
+| Analysis workbook | Local 32B-Q4 | Cloud | Grok 4.20 |
+| Section writing | Local 14B-32B | Cloud | Grok 4.1 |
+| Cross-validation | Local 14B | Cloud | Grok 4.20 |
+| Strategy generation | Local 32B-Q4 | Cloud | Grok 4.1 |
+| Deep Research | Skip (no local equivalent) | Cloud | Gemini DR |
+
+This table is a starting hypothesis. The eval harness validates it — if a local 14B model can't write sections that pass the trust gate, it gets bumped to cloud in hybrid mode.
+
+**Backend Support:**
+
+- `--local-backend ollama` (primary): Ollama with OpenAI-compatible API at `localhost:11434`
+- `--local-backend openai-compatible`: any OpenAI-compatible endpoint (LAN-hosted servers, vLLM, etc.)
+- `OLLAMA_BASE_URL`, `LOCAL_LLM_BASE_URL`, `LOCAL_LLM_API_KEY` env vars
+- Model registry extended with local model entries: VRAM requirements, context limits, quantization level, capability flags
+
+**What's Already Built:**
+
+- Local eval judge capability: Ollama-backed LLM judging against staged reports
+- Named local model lists (`4090-top10`, `installed-starter`) for eval sweeps
+- Multi-model judge sweeps comparing every staged non-baseline profile
+- Eval artifacts with backend metadata, coverage, and consensus tracking
+
+**What Gets Built:**
+
+- Production-safe local/cloud/hybrid stage routing (extends the provider-agnostic routing layer from v1.21.0)
+- Per-stage model selection based on capability requirements + available backends
+- Cost estimator reflects local inference as $0.00 API cost while tracking runtime
+- `primr doctor --local` validates Ollama is running, models are pulled, VRAM is sufficient
+- Graceful degradation: if a local model can't handle a stage, fall back to cloud (hybrid) or skip (local) with clear logging
+- Progress display shows which backend each stage is using: `Analysis (local: qwen3:30b)` vs `Analysis (cloud: grok-4.1)`
+
+**Validation Approach:**
+
+- Run the eval harness on the standard company corpus: cloud baseline vs hybrid vs local
+- Compare quality, runtime, and trust gate pass rates
+- Start with hybrid (local for cheap stages, cloud for hard stages) before attempting full local
+- Publish the eval results so the tradeoffs are explicit and data-driven
+- If local quality is unacceptable for certain stages, that's a valid outcome — hybrid mode still saves significant cost
 
 **Promotion Criteria:**
-- Trust gate still passes: citation coverage, section completeness, confidence-label quality
-- Mean decision-utility remains within an acceptable band of cloud baseline for the stages being replaced
-- Runtime is not materially worse for the target workload, or the cost savings justify the slowdown
-- No silent fallback: if a requested local profile cannot meet capability or quality requirements, fail clearly or require explicit hybrid fallback
 
-**What stays API-only (initially):**
-- Gemini Deep Research (autonomous multi-step search — no local equivalent today)
-- Web search grounding (DDG/Google — already cheap/free)
-- Vision extraction (local VLMs exist but quality varies too much to assume parity)
+- Trust gate passes: citation coverage, section completeness, confidence-label quality
+- Decision-utility within acceptable band of cloud baseline for replaced stages
+- No silent fallback: if local can't meet requirements, fail clearly or require explicit hybrid
+- Runtime documented: local runs will be slower (minutes, not seconds per stage) — the tradeoff is cost, not speed
 
-### Stretch Goals
+### Later
 
-Ambitious ideas that would meaningfully expand what Primr can do. These depend on the earlier work and may or may not happen.
+Larger capabilities that build on the medium-term foundation.
 
 #### v1.23.0 — Cross-Run Research Memory
 
@@ -651,12 +694,62 @@ The infrastructure is already in place (A2A protocol, MCP tools, subagent archit
 - A2A protocol already supports assignment and handoff; the evolution is Primr understanding its place in a larger workflow rather than assuming it's the terminal step
 - No orchestrator built into Primr — Primr is a specialist, not the coordinator
 
+#### v1.26.0 — Cloud Deployment Hardening
+
+Take the existing IaC templates (`deploy/`) from reference implementations to validated, production-ready deployments. The infrastructure code exists (v1.6.0) but hasn't been battle-tested end-to-end. This version makes it real.
+
+**Approach:** Azure first (most immediate need), then GCP, then AWS. Each cloud gets the same treatment: deploy, run real research jobs, validate artifacts, tear down, document.
+
+**Azure (Primary Target)**
+
+- Validate `deploy/azure/` templates end-to-end: Container Apps job → Service Bus queue → Blob Storage artifacts
+- Real research runs through the deployed control plane (not just template validation)
+- Managed identity for secrets (Key Vault) instead of env var injection
+- Application Insights integration for observability (traces, metrics, cost tracking)
+- Auto-scaling rules: scale-to-zero when idle, scale up on queue depth
+- VNET integration for private endpoint access to AI services
+- `deploy/azure/deploy.sh validate` runs a smoke test (submit job → poll → verify artifact)
+- Cost profile documented: idle cost ($0), per-run overhead, storage costs
+
+**GCP**
+
+- Validate `deploy/gcp/` templates: Cloud Run Jobs → Pub/Sub → Cloud Storage
+- Workload Identity Federation for keyless auth
+- Cloud Trace + Cloud Monitoring integration
+- `deploy/gcp/deploy.sh validate` smoke test
+- Cost profile documented
+
+**AWS**
+
+- Validate `deploy/aws/` templates: Fargate → SQS → S3
+- IAM roles for task execution (no long-lived credentials)
+- X-Ray tracing + CloudWatch integration
+- Step Functions for job orchestration (already templated in `step-function.json`)
+- `deploy/aws/deploy.sh validate` smoke test
+- Cost profile documented
+
+**Cross-Cloud Consistency**
+
+- Unified CLI: `primr deploy <cloud> <env>` wraps the per-cloud deploy scripts
+- Shared control plane API contract across all three clouds (same endpoints, same auth, same job lifecycle)
+- Integration test suite that runs against any deployed environment: submit → poll → retrieve → validate artifact quality
+- Terraform or Pulumi option alongside the existing shell scripts for teams that prefer declarative IaC
+- Documentation: deployment guide per cloud, cost comparison table, architecture diagrams
+
+**What stays local-first:**
+
+- CLI is always the primary interface — cloud deployment is for organizational scale, not a replacement
+- All research logic runs in the container, unchanged — the cloud layer is queue + storage + auth, not a rewrite
+- `primr doctor` works in both local and deployed contexts
+- Artifacts are downloadable as the same MD/DOCX/TXT files you get locally
+
 #### v2.0.0 — Public Release
 
 Make Primr available to the broader community via PyPI.
 
 **Prerequisites:**
 - v1.8.1 Content Sanitization Layer (complete - security requirement satisfied)
+- v1.26.0 Cloud Deployment Hardening (at least one cloud validated end-to-end)
 
 **Scope:**
 - PyPI publication (`pip install primr`)

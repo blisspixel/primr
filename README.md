@@ -28,7 +28,7 @@ Primr does that entire workflow autonomously in about 35-50 minutes for about $0
 - **Org-aware site selection**: Link discovery and prioritization now adapt for commercial companies, government sites, nonprofits, education, and healthcare organizations instead of assuming every site looks like a SaaS company.
 - **Fail-fast scrape quality gate**: Full/scrape modes now abort when site extraction is too thin, while still preserving short structured pages like contact, leadership, and org-chart references when they carry useful signal (override with `--skip-scrape-validation`).
 - **Autonomous external research**: Gemini Deep Research for comprehensive analysis, Grok 4.1 for fast turnaround — both plan queries, follow leads, cross-validate sources, and synthesize findings.
-- **Cost controls built in**: `--dry-run` estimates, usage tracking, and governance hooks for budget limits.
+- **Cost controls built in**: `--dry-run` estimates (including recovery table and stage classifications), usage tracking, and governance hooks for budget limits.
 - **Agent-native interfaces**: CLI, MCP server, OpenClaw integration, and Claude Skills, all first-class.
 
 Manual research takes hours. Primr typically runs in about 35-50 minutes and costs about $0.55 in API usage (varies by depth and site complexity). The output is long-form, strategically interpretive, cited where it matters, and readable enough to use before a real client conversation.

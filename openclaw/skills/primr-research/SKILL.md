@@ -74,7 +74,7 @@ Use MCP resources to discover current behavior instead of assuming fixed costs, 
 
 
 
-Research runs are async jobs. Start the run, then monitor status until terminal. Standard runs often take 35-45 minutes; premium multi-vendor runs can take 75-120 minutes.
+Research runs are async jobs. Start the run, then monitor status until terminal. Standard runs often take 35-50 minutes; premium multi-vendor runs can take 75-120 minutes.
 
 
 
