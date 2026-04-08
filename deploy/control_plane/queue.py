@@ -39,6 +39,7 @@ def format_timestamp(dt: datetime) -> str:
 @dataclass
 class QueueMessage:
     """Message for job queue."""
+
     job_id: str
     deployment: str
     api_key_hash: str
@@ -63,7 +64,9 @@ class QueueMessage:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any], message_id: str = "", receipt_handle: str = "") -> QueueMessage:
+    def from_dict(
+        cls, data: dict[str, Any], message_id: str = "", receipt_handle: str = ""
+    ) -> QueueMessage:
         return cls(
             job_id=data.get("job_id", ""),
             deployment=data.get("deployment", ""),
@@ -124,7 +127,9 @@ class InMemoryQueue:
 
     def __init__(self) -> None:
         self._messages: list[QueueMessage] = []
-        self._in_flight: dict[str, tuple[QueueMessage, float]] = {}  # receipt_handle -> (message, visible_at)
+        self._in_flight: dict[
+            str, tuple[QueueMessage, float]
+        ] = {}  # receipt_handle -> (message, visible_at)
         self._lock = threading.Lock()
 
     def enqueue(self, message: QueueMessage) -> str:
@@ -213,6 +218,7 @@ class SQSQueue:
         """Get or create boto3 SQS client."""
         if self._client is None:
             import boto3
+
             self._client = boto3.client("sqs", region_name=self.region)
         return self._client
 
@@ -243,11 +249,13 @@ class SQSQueue:
         messages = []
         for msg in response.get("Messages", []):
             body = json.loads(msg["Body"])
-            messages.append(QueueMessage.from_dict(
-                body,
-                message_id=msg["MessageId"],
-                receipt_handle=msg["ReceiptHandle"],
-            ))
+            messages.append(
+                QueueMessage.from_dict(
+                    body,
+                    message_id=msg["MessageId"],
+                    receipt_handle=msg["ReceiptHandle"],
+                )
+            )
 
         return messages
 
@@ -289,6 +297,7 @@ class ServiceBusQueue:
         """Get or create Service Bus client."""
         if self._client is None:
             from azure.servicebus import ServiceBusClient
+
             self._client = ServiceBusClient.from_connection_string(self.connection_string)
         return self._client
 
@@ -319,11 +328,13 @@ class ServiceBusQueue:
                 max_wait_time=1,
             ):
                 body = json.loads(str(msg))
-                messages.append(QueueMessage.from_dict(
-                    body,
-                    message_id=msg.message_id,
-                    receipt_handle=msg.lock_token,
-                ))
+                messages.append(
+                    QueueMessage.from_dict(
+                        body,
+                        message_id=msg.message_id,
+                        receipt_handle=msg.lock_token,
+                    )
+                )
 
         return messages
 
@@ -369,6 +380,7 @@ class PubSubQueue:
         """Get or create Pub/Sub publisher client."""
         if self._publisher is None:
             from google.cloud import pubsub_v1
+
             self._publisher = pubsub_v1.PublisherClient()
         return self._publisher
 
@@ -377,6 +389,7 @@ class PubSubQueue:
         """Get or create Pub/Sub subscriber client."""
         if self._subscriber is None:
             from google.cloud import pubsub_v1
+
             self._subscriber = pubsub_v1.SubscriberClient()
         return self._subscriber
 
@@ -414,11 +427,13 @@ class PubSubQueue:
         messages = []
         for received in response.received_messages:
             body = json.loads(received.message.data.decode("utf-8"))
-            messages.append(QueueMessage.from_dict(
-                body,
-                message_id=received.message.message_id,
-                receipt_handle=received.ack_id,
-            ))
+            messages.append(
+                QueueMessage.from_dict(
+                    body,
+                    message_id=received.message.message_id,
+                    receipt_handle=received.ack_id,
+                )
+            )
 
         return messages
 

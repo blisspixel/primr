@@ -60,8 +60,10 @@ from deploy.storage import ArtifactStore, LocalStore
 # PYDANTIC MODELS
 # =============================================================================
 
+
 class SubmitRequest(BaseModel):
     """Request body for job submission."""
+
     company_name: str = Field(..., min_length=1, description="Company name to research")
     company_url: str = Field(..., description="Company URL to research")
     mode: str = Field(default="full", description="Research mode: scrape, deep, or full")
@@ -72,12 +74,14 @@ class SubmitRequest(BaseModel):
 
 class CostEstimateResponse(BaseModel):
     """Cost estimate in response."""
+
     cost_usd: float
     duration_minutes: int
 
 
 class SubmitResponse(BaseModel):
     """Response from job submission."""
+
     job_id: str
     status: str
     estimate: CostEstimateResponse
@@ -86,6 +90,7 @@ class SubmitResponse(BaseModel):
 
 class LastEvent(BaseModel):
     """Last progress event."""
+
     stage: str
     percent: int
     message: str
@@ -94,6 +99,7 @@ class LastEvent(BaseModel):
 
 class TimingResponse(BaseModel):
     """Timing information in response."""
+
     submitted_at: str
     started_at: str | None = None
     completed_at: str | None = None
@@ -101,6 +107,7 @@ class TimingResponse(BaseModel):
 
 class StatusResponse(BaseModel):
     """Response from status query."""
+
     job_id: str
     status: str
     timing: TimingResponse
@@ -110,12 +117,14 @@ class StatusResponse(BaseModel):
 
 class CancelResponseModel(BaseModel):
     """Response from cancellation."""
+
     status: str
     message: str
 
 
 class ArtifactInfo(BaseModel):
     """Artifact information with presigned URL."""
+
     presigned_url: str
     size_bytes: int
     checksum_sha256: str
@@ -123,6 +132,7 @@ class ArtifactInfo(BaseModel):
 
 class ResultsResponse(BaseModel):
     """Response from results query."""
+
     job_id: str
     status: str
     manifest: dict[str, Any]
@@ -131,6 +141,7 @@ class ResultsResponse(BaseModel):
 
 class ApproveResponse(BaseModel):
     """Response from job approval."""
+
     job_id: str
     status: str
     message: str
@@ -138,6 +149,7 @@ class ApproveResponse(BaseModel):
 
 class QuotaResponse(BaseModel):
     """Quota information in error response."""
+
     max_concurrent_jobs: int
     max_daily_cost_usd: float
     max_job_cost_usd: float
@@ -145,12 +157,14 @@ class QuotaResponse(BaseModel):
 
 class UsageResponse(BaseModel):
     """Usage information in error response."""
+
     concurrent_jobs: int
     daily_cost_usd: float
 
 
 class QuotaErrorResponse(BaseModel):
     """Error response for quota exceeded."""
+
     error: str
     message: str
     quota: QuotaResponse
@@ -160,6 +174,7 @@ class QuotaErrorResponse(BaseModel):
 # =============================================================================
 # APPLICATION SETUP
 # =============================================================================
+
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI):
@@ -204,7 +219,14 @@ def configure_app(
 
     Call this before starting the server.
     """
-    global _job_store, _queue, _artifact_store, _cancellation_service, _cost_governor, _rate_limiter, _deployment
+    global \
+        _job_store, \
+        _queue, \
+        _artifact_store, \
+        _cancellation_service, \
+        _cost_governor, \
+        _rate_limiter, \
+        _deployment
     _job_store = job_store
     _queue = queue
     _artifact_store = artifact_store
@@ -279,6 +301,7 @@ def get_api_key(authorization: str = Header(default="")) -> str:
 # API ENDPOINTS
 # =============================================================================
 
+
 @app.post("/submit", response_model=SubmitResponse)
 async def submit_job(
     request: SubmitRequest,
@@ -341,7 +364,7 @@ async def submit_job(
             raise HTTPException(
                 status_code=409,
                 detail=f"Idempotency key '{request.idempotency_key}' already used with different inputs. "
-                       "Use a new idempotency_key for different requests.",
+                "Use a new idempotency_key for different requests.",
             )
         return SubmitResponse(
             job_id=existing.job_id,
@@ -604,6 +627,7 @@ async def get_prometheus_metrics() -> str:
     Returns metrics in Prometheus text format.
     """
     from fastapi.responses import PlainTextResponse
+
     metrics = get_metrics()
     return PlainTextResponse(content=metrics.to_prometheus(), media_type="text/plain")
 
@@ -611,6 +635,7 @@ async def get_prometheus_metrics() -> str:
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
+
 
 def _get_last_event(artifact_store: ArtifactStore, job_id: str) -> LastEvent | None:
     """
@@ -655,6 +680,7 @@ def _get_last_event(artifact_store: ArtifactStore, job_id: str) -> LastEvent | N
 # ERROR HANDLERS
 # =============================================================================
 
+
 @app.exception_handler(QuotaExceededError)
 async def quota_exceeded_handler(request: Request, exc: QuotaExceededError) -> JSONResponse:
     """Handle quota exceeded errors."""
@@ -687,10 +713,18 @@ async def rate_limit_handler(request: Request, exc: RateLimitExceededError) -> J
 # STARTUP/SHUTDOWN
 # =============================================================================
 
+
 def _initialize_default_dependencies() -> None:
     """Initialize default dependencies when app is not explicitly configured."""
     # If not configured, use defaults for local development
-    global _job_store, _queue, _artifact_store, _cancellation_service, _cost_governor, _rate_limiter, _deployment
+    global \
+        _job_store, \
+        _queue, \
+        _artifact_store, \
+        _cancellation_service, \
+        _cost_governor, \
+        _rate_limiter, \
+        _deployment
 
     if _job_store is None:
         import tempfile
@@ -707,6 +741,7 @@ def _initialize_default_dependencies() -> None:
 # =============================================================================
 # MAIN
 # =============================================================================
+
 
 def create_app(
     job_store: JobStore | None = None,

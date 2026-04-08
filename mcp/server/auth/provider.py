@@ -9,4 +9,3 @@ class AccessToken:
     client_id: str
     scopes: list[str]
     expires_at: float | int | None = None
-

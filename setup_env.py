@@ -26,6 +26,7 @@ try:
     from rich.panel import Panel
     from rich.progress import Progress, SpinnerColumn, TextColumn
     from rich.prompt import Confirm, Prompt
+
     RICH = True
 except ImportError:
     RICH = False
@@ -44,12 +45,7 @@ def find_best_python():
     if sys.platform == "win32":
         try:
             # Check what versions are available
-            result = subprocess.run(
-                ["py", "-0"],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
+            result = subprocess.run(["py", "-0"], capture_output=True, text=True, timeout=5)
 
             # Parse output to find 3.11+
             for line in result.stdout.split("\n"):
@@ -67,7 +63,7 @@ def find_best_python():
                                         ["py", part, "-c", "import sys; print(sys.executable)"],
                                         capture_output=True,
                                         text=True,
-                                        timeout=5
+                                        timeout=5,
                                     )
                                     if py_result.returncode == 0:
                                         return py_result.stdout.strip()
@@ -79,12 +75,7 @@ def find_best_python():
     # Try common names
     for cmd in ["python3.13", "python3.12", "python3.11", "python3"]:
         try:
-            result = subprocess.run(
-                [cmd, "--version"],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
+            result = subprocess.run([cmd, "--version"], capture_output=True, text=True, timeout=5)
             if result.returncode == 0:
                 # Check version
                 version_line = result.stdout or result.stderr
@@ -97,7 +88,7 @@ def find_best_python():
                             [cmd, "-c", "import sys; print(sys.executable)"],
                             capture_output=True,
                             text=True,
-                            timeout=5
+                            timeout=5,
                         )
                         if path_result.returncode == 0:
                             return path_result.stdout.strip()
@@ -117,10 +108,7 @@ def add_to_user_path_windows(scripts_dir: str) -> bool:
 
         # Open user environment variables
         key = winreg.OpenKey(
-            winreg.HKEY_CURRENT_USER,
-            r"Environment",
-            0,
-            winreg.KEY_READ | winreg.KEY_WRITE
+            winreg.HKEY_CURRENT_USER, r"Environment", 0, winreg.KEY_READ | winreg.KEY_WRITE
         )
 
         try:
@@ -142,6 +130,7 @@ def add_to_user_path_windows(scripts_dir: str) -> bool:
         # Broadcast environment change so new terminals pick it up
         try:
             import ctypes
+
             HWND_BROADCAST = 0xFFFF
             WM_SETTINGCHANGE = 0x1A
             ctypes.windll.user32.SendMessageTimeoutW(
@@ -160,6 +149,7 @@ def get_user_scripts_dir() -> str | None:
     if sys.platform == "win32":
         # Check user site-packages location
         import site
+
         user_base = site.getuserbase()
         if user_base:
             return os.path.join(user_base, "Scripts")
@@ -171,6 +161,7 @@ def install_rich_and_restart():
     print("Installing setup dependencies...")
     subprocess.run([sys.executable, "-m", "pip", "install", "rich", "-q"], check=True)
     import os
+
     os.execv(sys.executable, [sys.executable, *sys.argv])
 
 
@@ -229,7 +220,10 @@ def run_with_status(cmd, status_msg):
             if line:
                 output_lines.append(line)
                 # Only show short, meaningful status updates
-                if len(line) < 50 and any(x in line.lower() for x in ["installing", "downloading", "building", "collecting"]):
+                if len(line) < 50 and any(
+                    x in line.lower()
+                    for x in ["installing", "downloading", "building", "collecting"]
+                ):
                     progress.update(task, description=f"{status_msg} [dim]{line[:40]}[/dim]")
 
         process.wait()
@@ -238,7 +232,9 @@ def run_with_status(cmd, status_msg):
         # Show relevant error lines
         console.print()
         for line in output_lines[-10:]:  # Last 10 lines only
-            if line and any(x in line.lower() for x in ["error", "failed", "cannot", "not found", "denied"]):
+            if line and any(
+                x in line.lower() for x in ["error", "failed", "cannot", "not found", "denied"]
+            ):
                 console.print(f"    [dim]{line[:80]}[/dim]")
 
     return process.returncode == 0, output_lines
@@ -251,8 +247,7 @@ def install_primr():
 
     # Try normal install (suppress most output)
     success, output = run_with_status(
-        [sys.executable, "-m", "pip", "install", "-e", ".", "-q"],
-        "Installing primr"
+        [sys.executable, "-m", "pip", "install", "-e", ".", "-q"], "Installing primr"
     )
 
     if success:
@@ -268,7 +263,7 @@ def install_primr():
         # Retry with --user flag (suppress most output)
         success, output = run_with_status(
             [sys.executable, "-m", "pip", "install", "-e", ".", "--user", "-q"],
-            "Installing (user mode)"
+            "Installing (user mode)",
         )
 
         if success:
@@ -281,7 +276,7 @@ def install_primr():
 
         success, _ = run_with_status(
             [sys.executable, "-m", "pip", "install", ".", "--user", "-q"],
-            "Installing (non-editable)"
+            "Installing (non-editable)",
         )
 
         if success:
@@ -353,11 +348,13 @@ def get_key_interactive(name, url, description):
 def main_rich():
     """Main setup flow with rich UI."""
     console.print()
-    console.print(Panel.fit(
-        "[bold]Primr Setup[/bold]",
-        border_style="cyan",
-        padding=(0, 2),
-    ))
+    console.print(
+        Panel.fit(
+            "[bold]Primr Setup[/bold]",
+            border_style="cyan",
+            padding=(0, 2),
+        )
+    )
     console.print()
 
     # Python check
@@ -427,8 +424,12 @@ def main_rich():
     if is_installed("playwright"):
         console.print("  [green]✓[/green] Playwright ready")
     else:
-        run_with_status([sys.executable, "-m", "pip", "install", "playwright"], "Installing playwright")
-        run_with_status([sys.executable, "-m", "playwright", "install", "chromium"], "Downloading browser")
+        run_with_status(
+            [sys.executable, "-m", "pip", "install", "playwright"], "Installing playwright"
+        )
+        run_with_status(
+            [sys.executable, "-m", "playwright", "install", "chromium"], "Downloading browser"
+        )
         if is_installed("playwright"):
             console.print("  [green]✓[/green] Playwright ready")
         else:
@@ -449,7 +450,9 @@ def main_rich():
     if "XAI_API_KEY" in current and key_looks_valid("XAI_API_KEY", current["XAI_API_KEY"]):
         console.print("  [green]✓[/green] XAI_API_KEY [dim](Grok — default model)[/dim]")
     else:
-        console.print("  [dim]·[/dim] XAI_API_KEY [dim](optional — enables Grok default mode, ~$0.55/run)[/dim]")
+        console.print(
+            "  [dim]·[/dim] XAI_API_KEY [dim](optional — enables Grok default mode, ~$0.55/run)[/dim]"
+        )
 
     # Show search provider status
     console.print("  [green]✓[/green] Search: DuckDuckGo [dim](no API key needed)[/dim]")
@@ -468,7 +471,7 @@ def main_rich():
         key_info = {
             "GEMINI_API_KEY": (
                 "https://aistudio.google.com/apikey",
-                "Powers AI analysis (required)"
+                "Powers AI analysis (required)",
             ),
         }
 
@@ -482,11 +485,13 @@ def main_rich():
     # Offer to set up XAI key if not present
     if "XAI_API_KEY" not in current or not key_looks_valid("XAI_API_KEY", current["XAI_API_KEY"]):
         console.print()
-        if Confirm.ask("  Set up XAI_API_KEY for Grok? [dim](faster, cheaper default)[/dim]", default=False):
+        if Confirm.ask(
+            "  Set up XAI_API_KEY for Grok? [dim](faster, cheaper default)[/dim]", default=False
+        ):
             xai_key = get_key_interactive(
                 "XAI_API_KEY",
                 "https://console.x.ai/",
-                "Powers Grok analysis — default mode (~$0.55/run, ~30 min)"
+                "Powers Grok analysis — default mode (~$0.55/run, ~30 min)",
             )
             current["XAI_API_KEY"] = xai_key
             Path(".env").write_text("\n".join(f"{k}={v}" for k, v in current.items()) + "\n")
@@ -506,7 +511,7 @@ def main_rich():
                 text=True,
                 timeout=30,
                 env=os.environ.copy(),
-                stdin=subprocess.DEVNULL  # Prevent any input prompts
+                stdin=subprocess.DEVNULL,  # Prevent any input prompts
             )
     except subprocess.TimeoutExpired:
         console.print("  [red]✗[/red] Verification timed out")
@@ -537,12 +542,14 @@ def main_rich():
         cli_available = shutil.which("primr") is not None
 
         if cli_available:
-            console.print(Panel.fit(
-                "[green bold]Ready![/green bold]\n\n"
-                "Try: [cyan]primr \"Acme Corp\" https://acme.com[/cyan]",
-                border_style="green",
-                padding=(0, 2),
-            ))
+            console.print(
+                Panel.fit(
+                    "[green bold]Ready![/green bold]\n\n"
+                    'Try: [cyan]primr "Acme Corp" https://acme.com[/cyan]',
+                    border_style="green",
+                    padding=(0, 2),
+                )
+            )
         else:
             # CLI not on PATH - try to fix it automatically on Windows
             scripts_dir = get_user_scripts_dir()
@@ -555,20 +562,24 @@ def main_rich():
                     console.print("  [green]✓[/green] PATH updated")
 
             if path_fixed:
-                console.print(Panel.fit(
-                    "[green bold]Ready![/green bold]\n\n"
-                    "[yellow]Open a new terminal[/yellow], then:\n\n"
-                    "  [cyan]primr \"Acme Corp\" https://acme.com[/cyan]",
-                    border_style="green",
-                    padding=(0, 2),
-                ))
+                console.print(
+                    Panel.fit(
+                        "[green bold]Ready![/green bold]\n\n"
+                        "[yellow]Open a new terminal[/yellow], then:\n\n"
+                        '  [cyan]primr "Acme Corp" https://acme.com[/cyan]',
+                        border_style="green",
+                        padding=(0, 2),
+                    )
+                )
             else:
-                console.print(Panel.fit(
-                    "[green bold]Ready![/green bold]\n\n"
-                    "Use: [cyan]python -m primr \"Acme Corp\" https://acme.com[/cyan]",
-                    border_style="green",
-                    padding=(0, 2),
-                ))
+                console.print(
+                    Panel.fit(
+                        "[green bold]Ready![/green bold]\n\n"
+                        'Use: [cyan]python -m primr "Acme Corp" https://acme.com[/cyan]',
+                        border_style="green",
+                        padding=(0, 2),
+                    )
+                )
     else:
         console.print("[yellow]Setup complete but doctor found issues above[/yellow]")
     console.print()
@@ -621,7 +632,9 @@ if __name__ == "__main__":
         else:
             main_rich()
     except KeyboardInterrupt:
-        console.print("\n\n  [yellow]Setup cancelled[/yellow]\n") if RICH else print("\n\nSetup cancelled\n")
+        console.print("\n\n  [yellow]Setup cancelled[/yellow]\n") if RICH else print(
+            "\n\nSetup cancelled\n"
+        )
         sys.exit(130)  # Standard exit code for Ctrl+C
     except Exception as e:
         if RICH:

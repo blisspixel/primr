@@ -372,6 +372,7 @@ class S3Store:
         """Get or create boto3 S3 client."""
         if self._client is None:
             import boto3
+
             self._client = boto3.client("s3", region_name=self.region)
         return self._client
 
@@ -415,7 +416,7 @@ class S3Store:
                 # Remove deployment prefix from key
                 key = obj["Key"]
                 if key.startswith(f"{self.deployment}/"):
-                    key = key[len(f"{self.deployment}/"):]
+                    key = key[len(f"{self.deployment}/") :]
                 keys.append(key)
 
         return keys
@@ -526,6 +527,7 @@ class BlobStore:
         """Get or create Azure container client."""
         if self._container_client is None:
             from azure.storage.blob import ContainerClient
+
             self._container_client = ContainerClient.from_connection_string(
                 self.connection_string,
                 container_name=self.container_name,
@@ -567,7 +569,7 @@ class BlobStore:
             # Remove deployment prefix from name
             name = blob.name
             if name.startswith(f"{self.deployment}/"):
-                name = name[len(f"{self.deployment}/"):]
+                name = name[len(f"{self.deployment}/") :]
             keys.append(name)
 
         return keys
@@ -583,7 +585,9 @@ class BlobStore:
             account_name=blob_client.account_name,
             container_name=self.container_name,
             blob_name=self._get_blob_name(key),
-            account_key=blob_client.credential.account_key if hasattr(blob_client.credential, "account_key") else None,
+            account_key=blob_client.credential.account_key
+            if hasattr(blob_client.credential, "account_key")
+            else None,
             permission=BlobSasPermissions(read=True),
             expiry=utc_now() + timedelta(seconds=expires_in),
         )
@@ -685,6 +689,7 @@ class GCSStore:
         """Get or create GCS bucket object."""
         if self._bucket is None:
             from google.cloud import storage
+
             client = storage.Client(project=self.project)
             self._bucket = client.bucket(self.bucket_name)
         return self._bucket
@@ -718,7 +723,7 @@ class GCSStore:
             # Remove deployment prefix from name
             name = blob.name
             if name.startswith(f"{self.deployment}/"):
-                name = name[len(f"{self.deployment}/"):]
+                name = name[len(f"{self.deployment}/") :]
             keys.append(name)
 
         return keys

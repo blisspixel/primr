@@ -83,9 +83,9 @@ class TestDetectSoftBlock:
         """Hidden IE fallback markup on a large page should not be treated as a block."""
         hidden_warning = (
             b'<div style="display:none" class="isIE">'
-            b'<h2>Browser not supported</h2>'
-            b'<p>Sorry, this site is not compatible with Internet Explorer.</p>'
-            b'</div>'
+            b"<h2>Browser not supported</h2>"
+            b"<p>Sorry, this site is not compatible with Internet Explorer.</p>"
+            b"</div>"
         )
         html = b"<html><body>" + (b"A" * 12000) + hidden_warning + b"</body></html>"
         is_blocked, reason = detect_soft_block(html)

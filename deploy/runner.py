@@ -468,10 +468,13 @@ def build_primr_command(job_spec: JobSpec, output_dir: Path) -> list[str]:
         Command as list of strings
     """
     cmd = [
-        sys.executable, "-m", "primr",
+        sys.executable,
+        "-m",
+        "primr",
         job_spec.company_name,
         job_spec.company_url,
-        "--output-dir", str(output_dir),
+        "--output-dir",
+        str(output_dir),
         "--skip-confirm",  # Non-interactive
     ]
 
@@ -582,7 +585,9 @@ def run_primr(
             return EXIT_SUCCESS, None
         else:
             error_msg = f"primr exited with code {exit_code}"
-            struct_logger.error("primr_failed", exit_code=exit_code, output="\n".join(output_lines[-20:]))
+            struct_logger.error(
+                "primr_failed", exit_code=exit_code, output="\n".join(output_lines[-20:])
+            )
             return EXIT_FAILURE, error_msg
 
     except subprocess.TimeoutExpired:
@@ -645,13 +650,15 @@ def main() -> int:
         logger.error({"event": "invalid_job_spec", "error": str(e)})
         return EXIT_INVALID_SPEC
 
-    logger.info({
-        "event": "job_starting",
-        "job_id": job_spec.job_id,
-        "deployment": job_spec.deployment,
-        "mode": job_spec.mode,
-        "attempt": job_spec.attempt,
-    })
+    logger.info(
+        {
+            "event": "job_starting",
+            "job_id": job_spec.job_id,
+            "deployment": job_spec.deployment,
+            "mode": job_spec.mode,
+            "attempt": job_spec.attempt,
+        }
+    )
 
     # Setup artifact store
     artifact_store_url = os.environ.get("ARTIFACT_STORE_URL", "")
@@ -742,7 +749,9 @@ def main() -> int:
         completed_at = utc_now()
         if _state.started_at:
             duration = (completed_at - _state.started_at).total_seconds()
-            metrics.record_duration("job_execution", duration, {"status": status, "mode": job_spec.mode})
+            metrics.record_duration(
+                "job_execution", duration, {"status": status, "mode": job_spec.mode}
+            )
         metrics.record_count("job_completed", labels={"status": status, "mode": job_spec.mode})
 
         # Upload artifacts to store if not local
@@ -829,6 +838,7 @@ def main() -> int:
         if not isinstance(store, LocalStore):
             try:
                 import shutil
+
                 shutil.rmtree(output_dir, ignore_errors=True)
             except Exception:
                 pass

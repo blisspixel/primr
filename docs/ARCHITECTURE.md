@@ -622,6 +622,14 @@ src/primr/
 │   ├── report_models.py     # Report data structures
 │   └── container.py         # Dependency injection
 │
+├── pipeline/                # Pipeline resilience layer
+│   ├── stages.py            # Stage enum and foreground/background classifier
+│   ├── recovery.py          # Recovery table and cost-ordered hierarchies
+│   ├── model_breaker.py     # Per-model circuit breaker with fallback chains
+│   ├── executor.py          # Recovery executor (retry/fallback/skip orchestration)
+│   ├── errors.py            # Error classification (transient/quota/configuration)
+│   └── integration.py       # Stage wrappers connecting executor to pipeline
+│
 ├── prompts/                 # Externalized prompt architecture (v1.2.5+)
 │   ├── composer.py          # PromptComposer for YAML-based prompts
 │   ├── loader.py            # YAML loading and legacy builders
@@ -711,6 +719,22 @@ Daily API quota exhaustion is detected and handled specially:
 | Chapter planning | API error | Use default chapters |
 | Chapter execution | Timeout | Mark chapter failed, continue |
 | Grading | API error | Skip grading, use content as-is |
+
+## Pipeline Resilience Layer
+
+Location: `src/primr/pipeline/`
+
+The pipeline resilience layer formalizes Primr's retry and recovery logic into three interlocking subsystems. Instead of ad-hoc retry loops scattered across AI clients, every pipeline stage declares a **cost-ordered recovery hierarchy** — a sequence of actions ranked cheapest-first (e.g., retry → fallback model → skip). A **stage classifier** labels each stage as *foreground* (must complete) or *background* (bail on API overload or budget stress), so background stages like cross-validation and strategy generation never amplify capacity cascades during batch runs. A **model circuit breaker** tracks consecutive API failures per model and automatically routes to fallback models after 3 failures, with recovery probes after 10 minutes.
+
+The resilience layer sits between the pipeline orchestrator (`research_agent.py`) and the AI clients (`grok_client.py`, `llm.py`). It shares no mutable global state and is fully unit-testable. On successful runs, it adds no observable behavior change (NFR 1).
+
+- **Recovery Table** (`recovery.py`): Declarative mapping from each of the six pipeline stages to its recovery hierarchy. Pure data — serializable to JSON, inspectable via `--dry-run` (`primr --dry-run` includes the full recovery table).
+- **Stage Classifier** (`stages.py`): Static foreground/background classification. Foreground: scraping, external search, analysis, section writing. Background: cross-validation, strategy generation.
+- **Model Circuit Breaker** (`model_breaker.py`): Per-model health tracking with provider-aware fallback chains (e.g., Grok 4.20 → Grok 4.1 → Gemini Flash). Verifies API key availability before cross-provider fallback.
+- **Recovery Executor** (`executor.py`): Integration glue that wraps stage callables, consults the classifier and recovery table on failure, and logs all recovery events to `_run_state.json`.
+- **Integration Helpers** (`integration.py`): Thin wrappers connecting the executor to each pipeline stage at the appropriate granularity (per-page for scraping, per-section for writing, per-stage for analysis).
+
+Run `primr --dry-run <company> <url>` to inspect the recovery table and stage classifications without executing any research.
 
 ## Security Architecture
 

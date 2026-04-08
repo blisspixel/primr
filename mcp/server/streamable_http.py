@@ -10,4 +10,3 @@ class StreamableHTTPServerTransport:
 
     async def handle_request(self, scope: Any, receive: Any, send: Any) -> None:
         raise NotImplementedError("HTTP transport shim does not implement handle_request")
-

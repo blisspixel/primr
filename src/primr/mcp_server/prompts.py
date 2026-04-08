@@ -207,7 +207,6 @@ generate_strategy(
     ]
 
 
-
 def _get_governed_execution_prompt() -> list[PromptMessage]:
     """Get governed execution guidance for generic MCP clients."""
     content = """# Governed Execution Contract

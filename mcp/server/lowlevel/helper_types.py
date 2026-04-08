@@ -7,4 +7,3 @@ from dataclasses import dataclass
 class ReadResourceContents:
     content: str
     mime_type: str = "text/plain"
-

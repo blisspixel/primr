@@ -255,8 +255,12 @@ def test_normalize_openai_base_url_appends_v1():
 
 
 def test_write_local_judge_sweep_summary_and_markdown(tmp_path: Path):
-    metadata_a = LLMJudgeMetadata(provider="local", model="qwen3-coder:30b", base_url="http://localhost:11434/v1")
-    metadata_b = LLMJudgeMetadata(provider="local", model="qwen2.5:14b", base_url="http://localhost:11434/v1")
+    metadata_a = LLMJudgeMetadata(
+        provider="local", model="qwen3-coder:30b", base_url="http://localhost:11434/v1"
+    )
+    metadata_b = LLMJudgeMetadata(
+        provider="local", model="qwen2.5:14b", base_url="http://localhost:11434/v1"
+    )
     rows_a = [
         LLMJudgeRow(
             company="ExampleCo",

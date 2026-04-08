@@ -97,7 +97,16 @@ _DEFAULT_MODEL = "grok-4-1-fast-reasoning"
 
 
 def _is_retryable_grok_error(error: Exception) -> bool:
-    """Return True when a Grok API error is likely transient and safe to retry."""
+    """Return True when a Grok API error is likely transient and safe to retry.
+
+    NOTE (pipeline-resilience): This client-level retry logic is intentionally
+    retained alongside the stage-level RecoveryExecutor.  The executor handles
+    *stage* recovery (model fallback, tier escalation, skip/abort), while this
+    function drives *API-call* retries inside a single stage attempt.  Both
+    layers are needed: the client absorbs brief transient blips so the executor
+    only sees persistent failures.  Candidate for future consolidation if the
+    executor gains per-call retry support.
+    """
     error_text = str(error).lower()
     retryable_markers = [
         "429",

@@ -1083,11 +1083,7 @@ def write_local_judge_sweep_summary(
         row_winner_counts: dict[str, int] = {}
         for row in rows:
             row_winner_counts[row.winner_profile] = row_winner_counts.get(row.winner_profile, 0) + 1
-        winner = (
-            _winner_majority_label(row_winner_counts)
-            if row_winner_counts
-            else "unknown"
-        )
+        winner = _winner_majority_label(row_winner_counts) if row_winner_counts else "unknown"
         winner_counts[winner] = winner_counts.get(winner, 0) + 1
         avg_baseline = (
             round(sum(row.baseline_score for row in rows) / max(1, len(rows)), 2) if rows else 0.0
@@ -1134,7 +1130,8 @@ def write_local_judge_sweep_summary(
                     2,
                 ),
                 "avg_candidate_score": round(
-                    sum(row.candidate_score for row in candidate_rows) / max(1, len(candidate_rows)),
+                    sum(row.candidate_score for row in candidate_rows)
+                    / max(1, len(candidate_rows)),
                     2,
                 ),
             }
@@ -1164,9 +1161,7 @@ def write_local_judge_sweep_summary(
             }
         )
 
-    majority_winner = (
-_winner_majority_label(winner_counts) if winner_counts else "unknown"
-    )
+    majority_winner = _winner_majority_label(winner_counts) if winner_counts else "unknown"
     summary_rows.sort(
         key=lambda row: (
             row["winner_profile"] != majority_winner,
@@ -1204,23 +1199,23 @@ def write_local_judge_sweep_markdown(
     results: list[tuple[LLMJudgeMetadata, list[LLMJudgeRow], float]],
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    ranked: list[
-        tuple[LLMJudgeMetadata, list[LLMJudgeRow], float, str, float, float, float]
-    ] = []
+    ranked: list[tuple[LLMJudgeMetadata, list[LLMJudgeRow], float, str, float, float, float]] = []
     winner_counts: dict[str, int] = {}
     for metadata, rows, total_cost in results:
         row_winner_counts: dict[str, int] = {}
         for row in rows:
             row_winner_counts[row.winner_profile] = row_winner_counts.get(row.winner_profile, 0) + 1
-        winner = (
-            _winner_majority_label(row_winner_counts)
-            if row_winner_counts
-            else "unknown"
+        winner = _winner_majority_label(row_winner_counts) if row_winner_counts else "unknown"
+        avg_baseline = (
+            round(sum(row.baseline_score for row in rows) / max(1, len(rows)), 2) if rows else 0.0
         )
-        avg_baseline = round(sum(row.baseline_score for row in rows) / max(1, len(rows)), 2) if rows else 0.0
-        avg_candidate = round(sum(row.candidate_score for row in rows) / max(1, len(rows)), 2) if rows else 0.0
+        avg_candidate = (
+            round(sum(row.candidate_score for row in rows) / max(1, len(rows)), 2) if rows else 0.0
+        )
         consensus_rate = round(row_winner_counts.get(winner, 0) / max(1, len(rows)), 4)
-        ranked.append((metadata, rows, total_cost, winner, avg_baseline, avg_candidate, consensus_rate))
+        ranked.append(
+            (metadata, rows, total_cost, winner, avg_baseline, avg_candidate, consensus_rate)
+        )
         winner_counts[winner] = winner_counts.get(winner, 0) + 1
     majority_winner = _winner_majority_label(winner_counts) if winner_counts else "unknown"
     ranked.sort(
@@ -1246,7 +1241,15 @@ def write_local_judge_sweep_markdown(
         "| Rank | Model | Winner | Consensus | Avg Baseline | Avg Candidate | Gap | Rows | Cost |",
         "|---:|---|---|---:|---:|---:|---:|---:|---:|",
     ]
-    for index, (metadata, rows, total_cost, winner, avg_baseline, avg_candidate, consensus_rate) in enumerate(ranked, start=1):
+    for index, (
+        metadata,
+        rows,
+        total_cost,
+        winner,
+        avg_baseline,
+        avg_candidate,
+        consensus_rate,
+    ) in enumerate(ranked, start=1):
         lines.append(
             f"| {index} | {metadata.model} | {winner} | {consensus_rate:.0%} | {avg_baseline:.2f} | {avg_candidate:.2f} | {avg_baseline - avg_candidate:.2f} | {len(rows)} | {total_cost:.4f} |"
         )
@@ -1254,8 +1257,7 @@ def write_local_judge_sweep_markdown(
             avg_gap_by_aspect = {
                 name: round(
                     sum(
-                        row.baseline_aspects.get(name, 0.0)
-                        - row.candidate_aspects.get(name, 0.0)
+                        row.baseline_aspects.get(name, 0.0) - row.candidate_aspects.get(name, 0.0)
                         for row in rows
                     )
                     / max(1, len(rows)),
@@ -1263,9 +1265,13 @@ def write_local_judge_sweep_markdown(
                 )
                 for name in rows[0].baseline_aspects
             }
-            top_gaps = sorted(avg_gap_by_aspect.items(), key=lambda item: abs(item[1]), reverse=True)[:3]
+            top_gaps = sorted(
+                avg_gap_by_aspect.items(), key=lambda item: abs(item[1]), reverse=True
+            )[:3]
             if top_gaps:
-                lines.append(f"Top aspect gaps: {', '.join(f'{name}={gap:+.2f}' for name, gap in top_gaps)}")
+                lines.append(
+                    f"Top aspect gaps: {', '.join(f'{name}={gap:+.2f}' for name, gap in top_gaps)}"
+                )
             candidate_profiles_seen = sorted({row.candidate_profile for row in rows})
             lines.append(f"Candidate profiles covered: {', '.join(candidate_profiles_seen)}")
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
