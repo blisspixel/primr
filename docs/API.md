@@ -1063,18 +1063,37 @@ Get cost and time estimates before running research. For stricter agent governan
   "name": "estimate_run",
   "arguments": {
     "company_url": "https://acme.example",
-    "mode": "full"
+    "mode": "full",
+    "cloud_vendors": ["azure"],
+    "strategy_type": "ai",
+    "no_ai_strategy": false
   }
 }
 ```
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `company_url` | string | Yes | Company website URL |
+| `mode` | string | No | Research mode: `full` (default), `premium`, `scrape`, `deep` |
+| `cloud_vendors` | array of strings | No | Cloud vendor(s) for AI strategy. Each adds ~3-6 min + ~$0.10-0.15. Values: `azure`, `aws`, `gcp`, `agnostic`, `private`. Default: `["agnostic"]` |
+| `strategy_type` | string | No | Strategy type: `ai` (default), `customer_experience`, `modern_security_compliance`, `data_fabric_strategy` |
+| `no_ai_strategy` | boolean | No | Skip AI strategy generation entirely (report only). Default: `false` |
+| `verify` | boolean | No | Run post-QA claim verification (~$0.01, 3-5 min). Default: `false` |
+| `max_estimated_cost_usd` | number | No | Hard ceiling for estimated run cost |
 
 Response:
 ```json
 {
   "estimated_cost_usd": 0.75,
   "estimated_time_minutes": 30,
+  "estimated_time_range": "35-50 min",
   "planned_pages": 20,
-  "mode": "full"
+  "mode": "full",
+  "ai_strategy": true,
+  "cloud_vendors": ["azure"],
+  "strategy_type": "ai"
 }
 ```
 

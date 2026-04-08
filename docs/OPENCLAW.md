@@ -129,7 +129,7 @@ primr doctor
 - If `PRIMR_ENFORCE_MCP_COST_CAPS` is enabled, the packaged research workflow now propagates the approved estimate as `max_estimated_cost_usd` into `research_company`, and the packaged strategy workflow does the same for `generate_strategy`.
 
 - Treat `full` as the standard end-to-end mode.
-- Expect long runtimes: standard runs are often 35-45 minutes, and premium multi-vendor runs can take 75-120 minutes.
+- Expect long runtimes: standard runs are often 35-50 minutes, and premium multi-vendor runs can take 75-120 minutes.
 - Build around async monitoring and reconnection, not one long blocking session.
 
 - Use `premium` only when the user explicitly wants maximum-depth research.
