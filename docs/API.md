@@ -1124,7 +1124,7 @@ Response:
 
 #### research_company
 
-Initiate company research (async - returns job_id immediately). This should only be called after `estimate_run` and explicit user approval.
+Initiate company research (async - returns job_id immediately). Includes AI strategy generation when `cloud_vendor` is specified — no separate `generate_strategy` call needed. This should only be called after `estimate_run` and explicit user approval.
 
 ```json
 {
@@ -1140,6 +1140,19 @@ Initiate company research (async - returns job_id immediately). This should only
 }
 ```
 
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `company_name` | string | Yes | Display name for the company |
+| `company_url` | string | Yes | Company website URL (must be valid HTTP/HTTPS) |
+| `mode` | string | No | Research mode: `full` (default), `premium`, `scrape`, `deep` |
+| `cloud_vendor` | string | No | Cloud vendor for AI strategy. When set, strategy is generated as part of this job. Values: `azure`, `aws`, `gcp`, `agnostic`, `private`. |
+| `skip_qa` | boolean | No | Skip quality assessment. Default: `false` |
+| `verify` | boolean | No | Run post-QA claim verification. Default: `false` |
+| `destination` | string | No | Optional destination directory for output files. Artifacts are copied here in addition to the default output/ directory. |
+| `max_estimated_cost_usd` | number | No | Hard ceiling for estimated run cost |
+
 Response:
 ```json
 {
@@ -1151,7 +1164,7 @@ Response:
 
 #### generate_strategy
 
-Generate strategy document from existing report. This should only be called after `estimate_strategy` and explicit user approval.
+Generate strategy document from an existing report after the fact. Only needed when adding a strategy to a previously completed research run. For new research, use `research_company` with `cloud_vendor` instead — strategy is included automatically.
 
 ```json
 {
@@ -1169,7 +1182,7 @@ Strategy types: `ai_strategy`, `customer_experience`, `modern_security_complianc
 
 #### check_jobs
 
-Check status of research jobs.
+Check status of research jobs. When a job is completed, returns full artifact content (report + strategy MD files) inline so the agent client can consume them directly without filesystem access.
 
 ```json
 {
@@ -1180,7 +1193,7 @@ Check status of research jobs.
 }
 ```
 
-Response:
+Response (in progress):
 ```json
 {
   "jobs": [
@@ -1189,6 +1202,32 @@ Response:
       "status": "in_progress",
       "company_name": "Acme Corp",
       "output_path": null
+    }
+  ]
+}
+```
+
+Response (completed — includes artifact content):
+```json
+{
+  "jobs": [
+    {
+      "job_id": "job_abc123",
+      "status": "completed",
+      "company_name": "Acme Corp",
+      "output_path": "output/Acme_Corp_Strategic_Overview_04-08-2026.md",
+      "artifacts": [
+        {
+          "type": "strategic_overview",
+          "filename": "Acme_Corp_Strategic_Overview_04-08-2026.md",
+          "content": "# Acme Corp Strategic Overview\n\n..."
+        },
+        {
+          "type": "ai_strategy",
+          "filename": "Acme_Corp_AI_Strategy_AZURE_04-08-2026.md",
+          "content": "# AI Strategy (Azure)\n\n..."
+        }
+      ]
     }
   ]
 }

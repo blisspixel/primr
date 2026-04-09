@@ -65,9 +65,10 @@ primr-mcp --http --a2a                     # Co-hosted MCP + A2A
 ### MCP Tools (for programmatic access)
 | Tool | Purpose |
 |------|---------|
-| `estimate_run` | Get cost/time estimate (call FIRST). Modes: scrape, deep, full (default, Grok), premium (Gemini+DR) |
-| `research_company` | Start async research job. Modes: scrape, deep, full, premium |
-| `check_jobs` | Poll job status |
+| `estimate_run` | Get cost/time estimate (call FIRST). Includes strategy cost when cloud_vendors specified. Modes: scrape, deep, full (default, Grok), premium (Gemini+DR) |
+| `research_company` | Start async research job (includes strategy when cloud_vendor set). Returns job_id. Optional `destination` param for output directory. |
+| `check_jobs` | Poll job status. Returns full artifact content (report + strategy MD) inline when completed — no filesystem access needed. |
+| `generate_strategy` | Add strategy to an existing report after the fact (not needed for new research — use cloud_vendor on research_company instead) |
 | `run_qa` | Quality assessment on reports |
 | `doctor` | System health check |
 | `delegate_to_agent` | Call an external A2A agent (requires primr[a2a]) |
