@@ -214,24 +214,36 @@ def _get_governed_execution_prompt() -> list[PromptMessage]:
 Use this contract whenever a Primr MCP client may trigger paid work.
 
 ## Required pattern
-1. Call an estimate tool first.
-2. Tell the user the action incurs real API charges.
-3. Get explicit approval.
-4. Pass `max_estimated_cost_usd` into the cost-incurring tool when possible.
-5. Treat research as a long-running async job; monitor status and resume from state instead of blocking synchronously.
-6. If the server enforces cost caps, never call `research_company` or `generate_strategy` without that cap.
+1. Call `estimate_run` first — this includes AI strategy cost when cloud_vendor is specified.
+2. Tell the user the total cost (research + strategy combined) and get ONE explicit approval.
+3. Pass `max_estimated_cost_usd` into `research_company`.
+4. Do NOT call `estimate_strategy` or `generate_strategy` separately — strategy is included in the research job when `cloud_vendor` is set.
+5. Treat research as a long-running async job; poll `check_jobs` for completion.
+6. When `check_jobs` returns status "completed", the response includes full artifact content (report + strategy MD files) inline — no filesystem access needed.
 
-## Research
+## Standard flow (research + strategy in one approval)
 ```text
-estimate_run(company_url="https://example.com", mode="full")
-research_company(company_name="ExampleCo", company_url="https://example.com", mode="full", max_estimated_cost_usd=0.67)
-# then monitor via primr://research/status or wait_for_status_change
+estimate_run(company_url="https://example.com", mode="full", cloud_vendors=["azure"])
+# → shows combined cost for research + AI strategy
+# → user approves once
+
+research_company(company_name="ExampleCo", company_url="https://example.com", mode="full", cloud_vendor="azure", max_estimated_cost_usd=0.67)
+# → returns job_id immediately
+
+check_jobs(job_id="...")
+# → when completed, response includes artifacts[].content with full MD files
 ```
 
-## Strategy
+## Optional: destination directory
+```text
+research_company(company_name="ExampleCo", company_url="https://example.com", cloud_vendor="azure", destination="/path/to/output")
+# → artifacts are also copied to the specified directory
+```
+
+## Adding a strategy to an existing report (rare — only when strategy was not part of the original run)
 ```text
 estimate_strategy(strategy_type="customer_experience")
-generate_strategy(report_path="output/exampleco/report.md", strategy_type="customer_experience", max_estimated_cost_usd=0.25)
+generate_strategy(report_path="output/report.md", strategy_type="customer_experience", max_estimated_cost_usd=0.25)
 ```
 """
 

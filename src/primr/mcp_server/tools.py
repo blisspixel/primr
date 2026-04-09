@@ -27,7 +27,7 @@ from typing import TYPE_CHECKING, Any
 from mcp.server import Server
 from mcp.types import TextContent, Tool
 from primr.mcp_server.agentic_tools import handle_agentic_tool, register_agentic_tools
-from primr.mcp_server.job_store import JobInProgressError
+from primr.mcp_server.job_store import JobInProgressError, ResearchJobState
 from primr.mcp_server.types import (
     MCPErrorCode,
     ResearchStage,
@@ -125,7 +125,7 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
             ),
             Tool(
                 name="research_company",
-                description="Initiate company research pipeline (async - returns job_id immediately). This incurs real API cost and should only be called after the user approves an estimate.",
+                description="Initiate company research pipeline (async - returns job_id immediately). Includes AI strategy generation when cloud_vendor is specified — no separate strategy call needed. This incurs real API cost and should only be called after the user approves an estimate from estimate_run.",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -146,7 +146,7 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
                         "cloud_vendor": {
                             "type": "string",
                             "enum": ["azure", "aws", "gcp", "agnostic", "private"],
-                            "description": "Cloud vendor for AI strategy (optional, default: agnostic)",
+                            "description": "Cloud vendor for AI strategy. When set, strategy is generated as part of this job (no separate generate_strategy call needed). Default: agnostic.",
                         },
                         "skip_qa": {
                             "type": "boolean",
@@ -158,13 +158,17 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
                             "default": False,
                             "description": "Run post-QA claim verification (~$0.01, 3-5 min)",
                         },
+                        "destination": {
+                            "type": "string",
+                            "description": "Optional destination directory for output files. If not specified, uses the default output/ directory.",
+                        },
                     },
                     "required": ["company_name", "company_url"],
                 },
             ),
             Tool(
                 name="generate_strategy",
-                description="Generate strategy document from existing report. This incurs real API cost and should only be called after the user approves the action.",
+                description="Generate strategy document from an existing report AFTER the fact. Only needed when adding a strategy to a previously completed research run. For new research, use research_company with cloud_vendor instead — strategy is included automatically.",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -198,7 +202,7 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
             ),
             Tool(
                 name="check_jobs",
-                description="Check status of pending Deep Research jobs",
+                description="Check status of research jobs. When a job is completed, returns full artifact content (report + strategy MD files) inline so you can consume them directly without filesystem access.",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -605,6 +609,7 @@ async def _handle_research_company(
     skip_qa = arguments.get("skip_qa", False)
     verify = arguments.get("verify", False)
     max_estimated_cost_usd = arguments.get("max_estimated_cost_usd")
+    destination = arguments.get("destination")
 
     # Validate URL
     url_result = mcp_server.url_validator.validate(company_url)
@@ -675,6 +680,7 @@ async def _handle_research_company(
                 cloud_vendor=cloud_vendor,
                 skip_qa=skip_qa,
                 verify=verify,
+                destination=destination,
             )
         )
         # Track task for graceful shutdown
@@ -804,6 +810,9 @@ async def _handle_check_jobs(
     """
     Handle check_jobs tool.
 
+    When a job is completed, returns artifact content inline so the agent
+    client does not need filesystem access to read the output files.
+
     Requirements: 7.1-7.6
     """
     import json
@@ -816,16 +825,8 @@ async def _handle_check_jobs(
         # Check specific job
         job = mcp_server.job_store.get(job_id)
         if job:
-            jobs.append(
-                {
-                    "job_id": job.job_id,
-                    "status": job.get_status().value,
-                    "company_name": job.company_name,
-                    "output_path": job.output_paths[0] if job.output_paths else None,
-                    "error_type": job.error_type,
-                    "error_message": job.error_message,
-                }
-            )
+            job_data = _build_job_response(job)
+            jobs.append(job_data)
         else:
             return [
                 TextContent(
@@ -844,25 +845,11 @@ async def _handle_check_jobs(
         # Return all jobs (just the current one in single-job model)
         active = mcp_server.job_store.get_active()
         if active:
-            jobs.append(
-                {
-                    "job_id": active.job_id,
-                    "status": active.get_status().value,
-                    "company_name": active.company_name,
-                    "output_path": active.output_paths[0] if active.output_paths else None,
-                }
-            )
+            jobs.append(_build_job_response(active))
 
         terminal = mcp_server.job_store.get_latest_terminal()
         if terminal and (not active or terminal.job_id != active.job_id):
-            jobs.append(
-                {
-                    "job_id": terminal.job_id,
-                    "status": terminal.get_status().value,
-                    "company_name": terminal.company_name,
-                    "output_path": terminal.output_paths[0] if terminal.output_paths else None,
-                }
-            )
+            jobs.append(_build_job_response(terminal))
 
     return [
         TextContent(
@@ -870,6 +857,65 @@ async def _handle_check_jobs(
             text=json.dumps({"jobs": jobs}),
         )
     ]
+
+
+def _build_job_response(job: "ResearchJobState") -> dict[str, Any]:
+    """
+    Build a job response dict.
+
+    For completed jobs, includes full artifact content inline so agent
+    clients can consume the output without filesystem access.
+    """
+    from pathlib import Path
+
+    status = job.get_status().value
+    response: dict[str, Any] = {
+        "job_id": job.job_id,
+        "status": status,
+        "company_name": job.company_name,
+        "output_path": job.output_paths[0] if job.output_paths else None,
+        "error_type": job.error_type,
+        "error_message": job.error_message,
+    }
+
+    # For completed jobs, include artifact content inline
+    if status == "completed" and job.output_paths:
+        artifacts = []
+        for artifact_path in job.output_paths:
+            p = Path(artifact_path)
+            if not p.exists():
+                continue
+            try:
+                content = p.read_text(encoding="utf-8")
+            except Exception:
+                continue
+
+            # Classify artifact type from filename
+            name_lower = p.stem.lower()
+            if "ai_strategy" in name_lower or "ai-strategy" in name_lower:
+                artifact_type = "ai_strategy"
+            elif "customer_experience" in name_lower:
+                artifact_type = "customer_experience_strategy"
+            elif "security" in name_lower:
+                artifact_type = "security_strategy"
+            elif "data_fabric" in name_lower:
+                artifact_type = "data_fabric_strategy"
+            elif "strategic_overview" in name_lower or "report" in name_lower:
+                artifact_type = "strategic_overview"
+            else:
+                artifact_type = "report"
+
+            artifacts.append(
+                {
+                    "type": artifact_type,
+                    "filename": p.name,
+                    "content": content,
+                }
+            )
+
+        response["artifacts"] = artifacts
+
+    return response
 
 
 async def _handle_run_qa(

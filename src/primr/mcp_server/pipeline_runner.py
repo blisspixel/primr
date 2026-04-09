@@ -56,6 +56,7 @@ class PipelineRunner:
         cloud_vendor: str | None = None,
         skip_qa: bool = False,
         verify: bool = False,
+        destination: str | None = None,
     ) -> None:
         """
         Run the research pipeline for a job.
@@ -69,6 +70,8 @@ class PipelineRunner:
             mode: Research mode (scrape, deep, full)
             cloud_vendor: Optional cloud vendor for strategy
             skip_qa: Whether to skip QA
+            verify: Whether to run claim verification
+            destination: Optional destination directory for output files
         """
         self._cancel_requested = False
 
@@ -133,9 +136,16 @@ class PipelineRunner:
                     self.mcp_server.job_store.update(job)
                     return
 
-                # Fast mode produces final output directly
+                # Fast mode produces final output directly — collect all artifacts
+                # (report + strategy files) from the output directory
                 job.advance_stage(ResearchStage.COMPLETED)
-                job.output_paths = [result_path]
+                all_artifacts = _collect_run_artifacts(result_path, job.company_name)
+
+                # If a destination was specified, copy artifacts there
+                if destination:
+                    all_artifacts = _copy_artifacts_to_destination(all_artifacts, destination)
+
+                job.output_paths = all_artifacts
                 self.mcp_server.job_store.update(job)
                 return
 
@@ -200,6 +210,13 @@ class PipelineRunner:
 
             # Complete
             job.advance_stage(ResearchStage.COMPLETED)
+
+            # If a destination was specified, copy artifacts there
+            if destination and job.output_paths:
+                job.output_paths = _copy_artifacts_to_destination(
+                    job.output_paths, destination
+                )
+
             self.mcp_server.job_store.update(job)
 
             # Generate run manifest for audit trail (FR-7.1)
@@ -380,6 +397,77 @@ class PipelineRunner:
         self._cancel_requested = True
         if self._running_task:
             self._running_task.cancel()
+
+
+def _collect_run_artifacts(primary_path: str, company_name: str) -> list[str]:
+    """
+    Collect all output artifacts (report + strategy files) for a completed run.
+
+    Scans the output directory for files matching the company name from today's
+    date, returning the primary report first followed by any strategy documents.
+
+    Args:
+        primary_path: The primary output path returned by the pipeline.
+        company_name: Company name used to match sibling artifacts.
+
+    Returns:
+        List of artifact paths, primary report first.
+    """
+    from datetime import datetime
+    from pathlib import Path
+
+    primary = Path(primary_path)
+    output_dir = primary.parent
+
+    if not output_dir.exists():
+        return [primary_path]
+
+    # Build a safe prefix to match sibling artifacts from the same run
+    safe_name = company_name.replace(" ", "_").replace("/", "_")
+    today_str = datetime.now().strftime("%m-%d-%Y")
+
+    # Collect all .md and .txt files matching this company + today's date
+    artifacts: list[str] = [primary_path]
+    for ext in ("*.md", "*.txt"):
+        for candidate in output_dir.glob(ext):
+            candidate_str = str(candidate)
+            if candidate_str == primary_path:
+                continue
+            # Match by company name prefix and today's date
+            if safe_name in candidate.name and today_str in candidate.name:
+                artifacts.append(candidate_str)
+
+    return artifacts
+
+
+def _copy_artifacts_to_destination(artifact_paths: list[str], destination: str) -> list[str]:
+    """
+    Copy artifact files to a user-specified destination directory.
+
+    Args:
+        artifact_paths: List of source artifact file paths.
+        destination: Target directory path.
+
+    Returns:
+        List of new artifact paths in the destination directory.
+    """
+    import shutil
+    from pathlib import Path
+
+    dest_dir = Path(destination)
+    dest_dir.mkdir(parents=True, exist_ok=True)
+
+    new_paths: list[str] = []
+    for src_path in artifact_paths:
+        src = Path(src_path)
+        if not src.exists():
+            continue
+        dest_file = dest_dir / src.name
+        shutil.copy2(str(src), str(dest_file))
+        new_paths.append(str(dest_file))
+        logger.info(f"Copied artifact to destination: {dest_file}")
+
+    return new_paths if new_paths else artifact_paths
 
 
 async def run_strategy_generation(
