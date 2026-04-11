@@ -82,41 +82,63 @@ class TestLogContext:
     def test_sets_context(self):
         """LogContext should set context variables."""
         with LogContext(company="Acme", url="https://acme.com"):
-            assert LogContext._context.get("company") == "Acme"
-            assert LogContext._context.get("url") == "https://acme.com"
+            ctx = LogContext.get_current()
+            assert ctx.get("company") == "Acme"
+            assert ctx.get("url") == "https://acme.com"
 
     def test_clears_context_on_exit(self):
         """LogContext should clear context on exit."""
         with LogContext(company="Acme"):
             pass
-        assert "company" not in LogContext._context
+        assert "company" not in LogContext.get_current()
 
     def test_nested_contexts(self):
         """Nested LogContexts should work correctly."""
         with LogContext(outer="value1"):
-            assert LogContext._context.get("outer") == "value1"
+            assert LogContext.get_current().get("outer") == "value1"
 
             with LogContext(inner="value2"):
-                assert LogContext._context.get("outer") == "value1"
-                assert LogContext._context.get("inner") == "value2"
+                assert LogContext.get_current().get("outer") == "value1"
+                assert LogContext.get_current().get("inner") == "value2"
 
             # Inner context should be cleared
-            assert "inner" not in LogContext._context
-            assert LogContext._context.get("outer") == "value1"
+            assert "inner" not in LogContext.get_current()
+            assert LogContext.get_current().get("outer") == "value1"
 
     def test_restores_previous_context(self):
         """Should restore previous context values."""
-        LogContext._context = {"existing": "value"}
+        with LogContext(existing="value"):
+            with LogContext(new="context"):
+                assert LogContext.get_current().get("existing") == "value"
+                assert LogContext.get_current().get("new") == "context"
 
-        with LogContext(new="context"):
-            assert LogContext._context.get("existing") == "value"
-            assert LogContext._context.get("new") == "context"
+            assert LogContext.get_current().get("existing") == "value"
+            assert "new" not in LogContext.get_current()
 
-        assert LogContext._context.get("existing") == "value"
-        assert "new" not in LogContext._context
+    def test_thread_isolation(self):
+        """LogContext should be isolated across threads."""
+        import concurrent.futures
 
-        # Cleanup
-        LogContext._context = {}
+        results = {}
+
+        def worker(name, value):
+            with LogContext(**{name: value}):
+                # Small sleep to increase chance of interleaving
+                import time
+                time.sleep(0.01)
+                results[name] = LogContext.get_current().copy()
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            f1 = executor.submit(worker, "thread1", "val1")
+            f2 = executor.submit(worker, "thread2", "val2")
+            f1.result()
+            f2.result()
+
+        # Each thread should only see its own context
+        assert "thread1" in results["thread1"]
+        assert "thread2" not in results["thread1"]
+        assert "thread2" in results["thread2"]
+        assert "thread1" not in results["thread2"]
 
 
 class TestColoredFormatter:

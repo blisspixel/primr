@@ -8,9 +8,11 @@ This module provides:
 - Context-aware logging
 """
 
+import contextvars
 import functools
 import logging
 import sys
+import threading
 from collections.abc import Callable
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
@@ -113,6 +115,8 @@ def setup_logging(
         file_handler.setFormatter(
             StructuredFormatter("%(asctime)s | %(name)s | %(levelname)s | %(message)s%(extra_str)s")
         )
+        # Wire up ContextFilter so LogContext data appears in structured log output
+        file_handler.addFilter(ContextFilter())
         logger.addHandler(file_handler)
 
         logger.info(f"Logging to {log_file}")
@@ -142,35 +146,50 @@ def get_logger(name: str) -> logging.Logger:
 # =============================================================================
 
 
+# Thread-local and async-safe context storage
+_log_context_var: contextvars.ContextVar[dict] = contextvars.ContextVar(
+    "log_context", default={}
+)
+
+
 class LogContext:
     """
     Context manager that adds context to all log messages within its scope.
+
+    Thread-safe and async-safe via contextvars. Each thread and each async
+    task gets its own isolated context, so parallel ThreadPoolExecutor
+    workers (section writing, search queries) cannot corrupt each other.
 
     Example:
         with LogContext(company="Acme Corp", url="https://acme.com"):
             logger.info("Starting research")  # Will include company and url
     """
 
-    _context: dict = {}
-
     def __init__(self, **context):
         self.context = context
-        self.previous = {}
+        self._token: contextvars.Token | None = None
 
     def __enter__(self):
-        self.previous = LogContext._context.copy()
-        LogContext._context.update(self.context)
+        previous = _log_context_var.get()
+        merged = {**previous, **self.context}
+        self._token = _log_context_var.set(merged)
         return self
 
     def __exit__(self, *args):
-        LogContext._context = self.previous
+        if self._token is not None:
+            _log_context_var.reset(self._token)
+
+    @staticmethod
+    def get_current() -> dict:
+        """Return the current context dict (safe from any thread/task)."""
+        return _log_context_var.get()
 
 
 class ContextFilter(logging.Filter):
-    """Filter that adds context to log records."""
+    """Filter that adds context to log records (thread-safe via contextvars)."""
 
     def filter(self, record: logging.LogRecord) -> bool:
-        record.extra = LogContext._context.copy()
+        record.extra = _log_context_var.get().copy()
         return True
 
 

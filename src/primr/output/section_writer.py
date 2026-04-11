@@ -173,6 +173,13 @@ class SectionWriter:
 
         except Exception as e:
             logger.error(f"Failed to write executive summary: {e}")
+            from primr.utils.observability import log_structured
+            log_structured(
+                "error",
+                "Executive summary generation failed",
+                company=company_name,
+                error=str(e),
+            )
             return SectionContent(
                 title="Executive Summary",
                 content=f"Executive summary generation failed for {company_name}.",
@@ -235,6 +242,14 @@ class SectionWriter:
 
         except Exception as e:
             logger.error(f"Failed to write section {section_type}: {e}")
+            from primr.utils.observability import log_structured
+            log_structured(
+                "error",
+                "Section generation failed",
+                section=section_type,
+                company=company_name,
+                error=str(e),
+            )
             return SectionContent(
                 title=section_type,
                 content=f"Section generation failed for {section_type}.",

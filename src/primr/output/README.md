@@ -161,4 +161,4 @@ Output behavior is configured via:
 
 - `PathConfig`: Output directories
 - Citation style: Command-line flag
-- Cloud vendor: For AI strategy sections (now `--platform`; `--cloud-vendor` is a deprecated alias)
+- Platform: For AI strategy sections (`--platform`)
