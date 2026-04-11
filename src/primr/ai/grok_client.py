@@ -96,6 +96,17 @@ def _get_grok_client():
 _DEFAULT_MODEL = "grok-4-1-fast-reasoning"
 
 
+def _is_billing_exhausted(error: Exception) -> bool:
+    """Return True when the error indicates credits/spending limit exhaustion.
+
+    These errors will never resolve on retry — the user must add credits.
+    Checked before the retryable test so we don't waste time on backoff.
+    """
+    from primr.ai.error_policy import is_billing_exhausted
+
+    return is_billing_exhausted(error)
+
+
 def _is_retryable_grok_error(error: Exception) -> bool:
     """Return True when a Grok API error is likely transient and safe to retry.
 
@@ -107,6 +118,10 @@ def _is_retryable_grok_error(error: Exception) -> bool:
     only sees persistent failures.  Candidate for future consolidation if the
     executor gains per-call retry support.
     """
+    # Billing exhaustion is never retryable — bail immediately
+    if _is_billing_exhausted(error):
+        return False
+
     error_text = str(error).lower()
     retryable_markers = [
         "429",
@@ -238,6 +253,15 @@ def grok_llm(
 
         except Exception as e:
             last_error = e
+
+            # Billing exhaustion — abort immediately with a clear message
+            if _is_billing_exhausted(e):
+                raise RuntimeError(
+                    "xAI API credits exhausted or spending limit reached. "
+                    "Add credits at https://console.x.ai/ and re-run. "
+                    "Your progress has been saved — the same command will resume."
+                ) from e
+
             if _is_retryable_grok_error(e):
                 if attempt < retries:
                     retry_after = _extract_retry_after_seconds(e)

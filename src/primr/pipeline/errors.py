@@ -18,6 +18,7 @@ from __future__ import annotations
 from enum import Enum
 
 from primr.ai.error_policy import (
+    is_billing_exhausted,
     is_daily_quota_exhausted,
     is_invalid_api_key_error,
     is_timeout_error,
@@ -113,8 +114,8 @@ def classify_error(error: Exception) -> ErrorCategory:
     if "invalid model" in text or "model not found" in text:
         return ErrorCategory.CONFIGURATION
 
-    # 2. Quota errors — delegate to error_policy
-    if is_daily_quota_exhausted(error):
+    # 2. Billing / quota errors — delegate to error_policy
+    if is_billing_exhausted(error) or is_daily_quota_exhausted(error):
         return ErrorCategory.QUOTA
 
     # 3. Transient errors
