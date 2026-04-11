@@ -5,9 +5,12 @@ Manages document styling for consistent, professional formatting that meets
 WCAG 2.1 AA accessibility standards and follows cognitive science principles.
 """
 
+import logging
 from typing import Any
 
 from docx import Document
+
+logger = logging.getLogger("primr.output.style_engine")
 from docx.shared import Inches, Pt, RGBColor
 
 
@@ -144,7 +147,7 @@ class StyleEngine:
             list_bullet.paragraph_format.space_after = self.SPACING["after_bullet"]
             list_bullet.paragraph_format.left_indent = self.SPACING["bullet_indent"]
         except KeyError:
-            pass  # Style may not exist in all templates
+            logger.debug("'List Bullet' style not found in document template — skipping")
 
         # List Number style
         try:
@@ -155,7 +158,7 @@ class StyleEngine:
             list_number.paragraph_format.space_after = self.SPACING["after_bullet"]
             list_number.paragraph_format.left_indent = self.SPACING["bullet_indent"]
         except KeyError:
-            pass
+            logger.debug("'List Number' style not found in document template — skipping")
 
     def get_style_for_level(self, level: int) -> str:
         """
