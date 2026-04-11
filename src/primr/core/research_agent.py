@@ -42,6 +42,7 @@ warnings.filterwarnings("ignore", message=".*found in sys.modules.*", category=R
 # From ai_strategy module
 from primr.core.ai_strategy import (
     CloudVendor,
+    Platform,
 )
 from primr.core.cli import (
     main as _main_new,
@@ -59,6 +60,7 @@ from primr.core.deep_research_runner import (
 
 __all__ = [
     "CloudVendor",
+    "Platform",
     "DeepResearchConfig",
     "DeepResearchMode",
     "consolidate_working_folder",
@@ -5292,6 +5294,24 @@ def _save_strategy_output(
         return None
 
 
+def _extract_domain(url: str) -> str | None:
+    """Extract domain from a URL for recon lookup.
+
+    Uses recon's own validator for normalization.
+    Returns None if the URL cannot be parsed into a valid domain.
+    """
+    from urllib.parse import urlparse as _urlparse
+
+    try:
+        from primr.recon.validator import validate_domain
+
+        parsed = _urlparse(url)
+        raw = parsed.netloc or parsed.path.split("/")[0]
+        return validate_domain(raw)
+    except (ValueError, Exception):
+        return None
+
+
 def perform_research(
     company_name: str | None = None,
     website: str | None = None,
@@ -5314,6 +5334,7 @@ def perform_research(
     resume_local: bool = False,
     verify: bool = False,
     grok_tier: str = "hybrid",
+    skip_recon: bool = False,
 ) -> str | None:
     if not company_name and not website:
         console.error("No company name or website provided")
@@ -5388,6 +5409,81 @@ def perform_research(
                 folder_path, "initializing", "failed", f"Failed loading discovery notes: {e}"
             )
             return None
+
+    # =========================================================================
+    # Recon pre-flight: DNS intelligence on target domain
+    # =========================================================================
+    recon_info = None  # TenantInfo | None
+    recon_context_path: str | None = None
+
+    if not skip_recon and website:
+        domain = _extract_domain(website)
+        if domain:
+            try:
+                _update_run_state(folder_path, current_phase="recon")
+                _append_run_event(folder_path, "recon", "started", f"Running recon on {domain}")
+
+                from primr.recon.models import ReconLookupError
+                from primr.recon.resolver import resolve_tenant
+
+                info, _recon_results = asyncio.get_event_loop().run_until_complete(
+                    asyncio.wait_for(resolve_tenant(domain), timeout=15.0)
+                )
+                recon_info = info
+
+                # Auto-detect platforms if user didn't specify
+                from primr.core.platform_mapper import map_platforms
+
+                detected_platforms = map_platforms(info.slugs)
+                if cloud_vendors == ("agnostic",) or cloud_vendors == ("azure",):
+                    # Default values — treat as "not explicitly specified"
+                    cloud_vendors = detected_platforms
+                    console.info(f"Recon: auto-detected platform(s): {', '.join(cloud_vendors)}")
+                elif set(detected_platforms) != set(cloud_vendors):
+                    console.info(
+                        f"Recon detected {', '.join(detected_platforms)}, "
+                        f"but --platform {', '.join(cloud_vendors)} was specified. "
+                        f"Using user override."
+                    )
+
+                # Format and write recon context to file
+                from primr.core.recon_context import format_recon_context
+
+                recon_text = format_recon_context(info)
+                recon_context_path = os.path.join(folder_path, "_recon_context.txt")
+                with open(recon_context_path, "w", encoding="utf-8") as f:
+                    f.write(recon_text)
+
+                # Log summary
+                console.ok(
+                    f"Recon: {len(info.services)} services, "
+                    f"{len(info.insights)} insights, "
+                    f"platform: {', '.join(detected_platforms)}"
+                )
+
+                _update_run_state(
+                    folder_path,
+                    recon_detected_platforms=list(detected_platforms),
+                    recon_service_count=len(info.services),
+                    recon_signal_count=len(info.insights),
+                )
+                _append_run_event(
+                    folder_path,
+                    "recon",
+                    "completed",
+                    f"{len(info.services)} services detected",
+                )
+
+            except Exception as exc:
+                console.warn(f"Recon: {exc} — continuing without domain intelligence")
+                _append_run_event(folder_path, "recon", "failed", str(exc))
+                # Keep existing cloud_vendors (user-specified or default)
+
+    # Inject recon context into context_files for strategy generation
+    if recon_context_path and os.path.exists(recon_context_path):
+        if context_files is None:
+            context_files = []
+        context_files.insert(0, recon_context_path)
 
     # Show cost estimate and ask for confirmation
     if not skip_confirm:

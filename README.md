@@ -24,6 +24,7 @@ Primr does that entire workflow autonomously in about 35-50 minutes for about $0
 
 ## What Makes It Different
 
+- **DNS intelligence pre-flight**: Automatic domain reconnaissance detects cloud platforms, SaaS services, email security, and identity providers from DNS records — zero API keys, 2-3 seconds. Strategies are grounded in real tech stack data.
 - **Adaptive scraping**: 8 retrieval methods from browser rendering to TLS fingerprinting to screenshot+vision extraction, with per-host optimization. Starts with full browser rendering (what works on 95%+ of modern sites) and falls back through increasingly specialized methods.
 - **Org-aware site selection**: Link discovery and prioritization now adapt for commercial companies, government sites, nonprofits, education, and healthcare organizations instead of assuming every site looks like a SaaS company.
 - **Fail-fast scrape quality gate**: Full/scrape modes now abort when site extraction is too thin, while still preserving short structured pages like contact, leadership, and org-chart references when they carry useful signal (override with `--skip-scrape-validation`).
@@ -37,16 +38,18 @@ Manual research takes hours. Primr typically runs in about 35-50 minutes and cos
 
 | Mode | What it does | Time | Cost |
 |------|--------------|------|------|
-| Default | Grok 4.20 hybrid: 4.20 reasoning + 4.1 writing + AI Strategy | ~35-50 min | ~$0.67 |
-| Default + multi-vendor | Add `--cloud-vendor aws azure` | ~45-60 min | ~$0.80 |
+| Default | Grok 4.20 hybrid + AI Strategy (recon auto-detects platform) | ~35-50 min | ~$0.67 |
+| `--platform ms` | Microsoft Azure + NVIDIA private cloud strategy | ~45-60 min | ~$0.80 |
+| Default + multi-platform | Add `--platform aws azure` | ~45-60 min | ~$0.80 |
 | Default + strategy type | Add `--strategy-type customer_experience` | ~35-50 min | ~$0.75 |
 | `--grok-tier fast` | Grok 4.1 everywhere (cheaper, slightly lower quality) | ~30-45 min | ~$0.47 |
 | `--grok-tier max` | Grok 4.20 everywhere (diminishing returns on writing) | ~35-50 min | ~$4.29 |
 | `--premium` | Gemini + Deep Research + AI Strategy | 50-75 min | ~$5 |
-| `--premium` + multi-vendor | Add `--cloud-vendor aws azure` | 75-120 min | $6-9 |
+| `--premium --platform ms` | Premium + Microsoft/NVIDIA | 75-120 min | $6-9 |
 | `--premium --lite` | Pro model instead of DR for AI Strategy | 50-80 min | ~$4 |
 | `--mode scrape` | Crawl site + extract insights only | 5-10 min | $0.10 |
 | `--mode deep` | Gemini Deep Research on external sources only | 10-15 min | $2.50 |
+| `primr recon` | DNS intelligence only (no API keys needed) | 2-3 sec | $0.00 |
 
 The default `primr` command auto-detects: when `XAI_API_KEY` is set, it uses the Grok 4.20 hybrid pipeline (4.20 for reasoning-heavy stages like gap analysis, workbook, and cross-validation; 4.1 for bulk writing). This delivers near-premium analytical quality at ~$0.67/run. Use `--grok-tier fast` for cheaper runs at slightly lower quality, or `--premium` for the Gemini + Deep Research pipeline for maximum depth.
 
@@ -155,22 +158,37 @@ Notes:
 - "Open report after run" behavior uses native OS launchers (`startfile` / `open` / `xdg-open` family) with a browser fallback on minimal Linux environments.
 
 ```bash
+# Most common: Microsoft + NVIDIA AI strategy (auto-detects platform from DNS if omitted)
+primr "Company" https://company.com --platform ms              # Microsoft Azure + NVIDIA private cloud
+
+# Or let recon auto-detect the platform from DNS
+primr "Company" https://company.com                            # Recon detects platform automatically
+
 # More usage
-primr "Company" https://company.com --mode scrape        # Site corpus only
-primr "Company" https://company.com --mode deep          # External research only
-primr "Company" https://company.com --dry-run            # Cost estimate first
-primr "Company" https://company.com --cloud-vendor aws azure  # Multi-vendor AI strategy
-primr "Company" https://company.com --cloud-vendor azure private  # Azure + private cloud/NVIDIA
+primr "Company" https://company.com --mode scrape              # Site corpus only
+primr "Company" https://company.com --mode deep                # External research only
+primr "Company" https://company.com --dry-run                  # Cost estimate first
+primr "Company" https://company.com --platform aws azure       # Multi-platform AI strategy
+primr "Company" https://company.com --platform microsoft nvidia # Same as --platform ms
+primr "Company" https://company.com --skip-recon --platform azure  # Skip DNS pre-flight
 primr "Company" https://company.com --strategy-type customer_experience  # CX strategy document
 primr "Company" https://company.com --strategy-type data_fabric_strategy # Data fabric strategy
 primr --list-strategies                                                  # See all strategy types
-primr "Company" https://company.com --premium            # Gemini + Deep Research (~$5)
-primr "Company" https://company.com --premium --cloud-vendor aws azure  # Premium + multi-vendor
-primr "Company" https://company.com --premium --lite     # Cheaper premium strategy
-primr "Company" https://company.com --skip-scrape-validation      # Continue even if scrape quality is low
-primr "Company" https://company.com --resume-local                # Reuse latest incomplete local run folder
-primr --resume-latest                                              # Recover completed cloud jobs and finalize MD/DOCX
-primr --ai-strategy-only "output/Company_Strategic_Overview_03-06-2026.md" --cloud-vendor aws  # Reuse an existing report to generate only a missing strategy
+primr "Company" https://company.com --premium                  # Gemini + Deep Research (~$5)
+primr "Company" https://company.com --premium --platform ms    # Premium + Microsoft/NVIDIA
+primr "Company" https://company.com --premium --lite           # Cheaper premium strategy
+
+# DNS intelligence (standalone)
+primr recon acme.com                                           # DNS intelligence lookup
+primr recon acme.com --json                                    # Structured JSON output
+primr recon acme.com --full                                    # Everything: services, domains, insights
+primr recon batch domains.txt                                  # Batch mode
+
+# Recovery and utilities
+primr "Company" https://company.com --skip-scrape-validation   # Continue even if scrape quality is low
+primr "Company" https://company.com --resume-local             # Reuse latest incomplete local run folder
+primr --resume-latest                                          # Recover completed cloud jobs and finalize MD/DOCX
+primr --ai-strategy-only "output/Company_Strategic_Overview_03-06-2026.md" --platform aws  # Reuse an existing report
 primr --improve "output/Company_Strategic_Overview_03-06-2026.md"          # Improve an existing output file
 primr improve "output/Company_AI_Strategy_AZURE_03-06-2026.md" --improve-agentic  # Agentic+deterministic post-pass
 primr --banner                                                           # Show startup banner only
@@ -500,6 +518,41 @@ Scale-to-zero ephemeral containers, event-driven queues, production observabilit
 
 [MCP docs](docs/API.md) | [A2A protocol](https://github.com/a2aproject/a2a-python) | [OpenClaw config](openclaw/openclaw.json) | [OpenClaw guide](docs/OPENCLAW.md)
 
+## Cloud Deployment (Optional)
+
+Primr is CLI-first, local-first. Cloud deployment is an optional scaling path for teams that need shared access, agent platform integration, or always-on availability. Nothing here changes the core CLI experience or introduces cloud dependencies into the local tool.
+
+**Tiered deployment:**
+
+| Tier | What it is | Auth | Idle cost |
+|------|-----------|------|-----------|
+| Solo (default) | CLI on your machine. Zero cloud dependency. | API keys (local) | $0 |
+| Team | Azure Container Apps. Scale-to-zero. Shared MCP server. | API keys | < $5/month |
+| Organization | Full enterprise surface. Entra ID, budget tracking, observability, M365 Agent Store. | Entra ID + API keys | < $15/month |
+
+```bash
+# Team tier — deploy in under 10 minutes
+./deploy/azure/deploy.sh -d myteam deploy
+
+# Organization tier — full enterprise surface
+./deploy/azure/deploy.sh --tier organization -d prod deploy
+
+# Or use declarative Bicep templates
+az deployment group create \
+  --resource-group primr-prod-rg \
+  --template-file deploy/azure/bicep/main.bicep \
+  --parameters deploymentName=prod tier=team ...
+```
+
+**Agent platform integration surfaces:**
+
+- **Foundry Agent Service** — Connect Primr as an MCP tool source in Foundry prompt agents ([guide](docs/FOUNDRY_AGENT_GUIDE.md))
+- **Copilot Studio** — Create a Power Platform custom connector from the OpenAPI spec ([guide](docs/COPILOT_STUDIO_GUIDE.md))
+- **Copilot Cowork** — Publish to M365 Agent Store for organization-wide discovery ([guide](docs/COPILOT_COWORK_GUIDE.md))
+- **Any MCP client** — Claude Desktop, Cursor, VS Code, custom clients — point at `https://{fqdn}/mcp`
+
+See the [Azure Quickstart](docs/AZURE_QUICKSTART.md) to get started.
+
 ## Development
 
 ```bash
@@ -528,6 +581,10 @@ Recent hardening includes shared deep-research parsing/polling/execution modules
 | [CONFIG.md](docs/CONFIG.md) | Full configuration reference |
 | [API_KEYS.md](docs/API_KEYS.md) | API key setup |
 | [CLOUD_DEPLOYMENT.md](docs/CLOUD_DEPLOYMENT.md) | Serverless deployment |
+| [AZURE_QUICKSTART.md](docs/AZURE_QUICKSTART.md) | Azure tiered deployment quickstart |
+| [FOUNDRY_AGENT_GUIDE.md](docs/FOUNDRY_AGENT_GUIDE.md) | Foundry Agent Service integration |
+| [COPILOT_STUDIO_GUIDE.md](docs/COPILOT_STUDIO_GUIDE.md) | Copilot Studio MCP connector |
+| [COPILOT_COWORK_GUIDE.md](docs/COPILOT_COWORK_GUIDE.md) | M365 Agent Store publishing |
 | [OPENCLAW.md](docs/OPENCLAW.md) | OpenClaw setup and troubleshooting |
 | [SECURITY_OPS.md](docs/SECURITY_OPS.md) | Security operations guide |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution guidelines |

@@ -500,3 +500,56 @@ class TestRateLimiting:
         assert data["error"] is True
         assert data["error_type"] == "rate_limit_exceeded"
         assert "retry_after_seconds" in data
+
+
+class TestShowUsage:
+    """Tests for show_usage tool."""
+
+    @pytest.fixture
+    def server(self):
+        """Create a server with temp journal."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            journal_path = str(Path(tmpdir) / "test_journal.json")
+            yield create_mcp_server(journal_path=journal_path, skip_background_tasks=True)
+
+    @pytest.mark.asyncio
+    async def test_show_usage_local_mode(self, server, monkeypatch):
+        """show_usage returns local-mode message when no cloud env vars are set."""
+        # Ensure cloud env vars are not set
+        monkeypatch.delenv("AZURE_CLIENT_ID", raising=False)
+        monkeypatch.delenv("COSMOS_ENDPOINT", raising=False)
+        monkeypatch.delenv("STORAGE_ACCOUNT_NAME", raising=False)
+
+        handler = server.server.request_handlers[CallToolRequest]
+        result = await handler(
+            CallToolRequest(
+                method="tools/call",
+                params=CallToolRequestParams(
+                    name="show_usage",
+                    arguments={},
+                ),
+            )
+        )
+
+        content = result.root.content[0]
+        data = json.loads(content.text)
+
+        assert "message" in data
+        assert "local" in data["message"].lower() or "Local" in data["message"]
+        assert "not tracked" in data["message"].lower()
+
+    @pytest.mark.asyncio
+    async def test_show_usage_listed_in_tools(self, server):
+        """show_usage appears in the tool listing."""
+        handler = server.server.request_handlers[ListToolsRequest]
+        result = await handler(ListToolsRequest(method="tools/list"))
+
+        tools = result.root.tools
+        tool_names = [t.name for t in tools]
+
+        assert "show_usage" in tool_names
+
+        # Verify description is agent-friendly
+        show_usage_tool = next(t for t in tools if t.name == "show_usage")
+        assert "spending" in show_usage_tool.description.lower()
+        assert "budget" in show_usage_tool.description.lower()

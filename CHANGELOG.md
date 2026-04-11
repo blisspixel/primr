@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 No unreleased changes.
 
+## [1.18.0] - 2026-04-10
+
+### Recon Integration — DNS Intelligence Pre-Flight
+- **Recon as first-class module**: DNS intelligence tool relocated from standalone `recon/` into `src/primr/recon/`, fully integrated into primr's package, linting, type checking, and CI
+- **`primr recon` subcommand**: Standalone DNS intelligence lookups — `primr recon acme.com` returns company name, email provider, tenant ID, 140+ SaaS services, email security score, and signal intelligence. Supports `--json`, `--md`, `--services`, `--full`, batch mode, and `primr recon doctor`
+- **Auto-platform detection**: Recon runs automatically before scraping, detects cloud platform(s) from DNS fingerprints (AWS Route 53, Azure DNS, GCP DNS, etc.), and auto-selects `--platform` value. Override with explicit `--platform` flag
+- **Recon context injection**: Detected services, signal intelligence, email security, auth type, and infrastructure insights injected as context into all strategy types (AI, Security, CX, Data Fabric)
+- **`--cloud-vendor` renamed to `--platform`**: Cleaner flag name. `--cloud-vendor` kept as deprecated alias with warning
+- **`--platform ms` shorthand**: Expands to `azure private` for the common Microsoft + NVIDIA combo
+- **`--skip-recon` flag**: Opt out of DNS pre-flight step
+- **`CloudVendor` → `Platform` enum rename**: `CloudVendor` kept as deprecated alias for backward compatibility
+- **Pipeline integration**: Recon results logged, recorded in `_run_state.json`, included in `--dry-run` cost estimates ($0.00, ~2-3 seconds)
+- **Property-based tests**: 4 correctness properties validated with Hypothesis (platform mapper purity/ordering, formatter section presence/determinism)
+
 ## [1.16.0] - 2026-03-23
 
 This release consolidates all work from v1.7.0 through v1.16.0. See [ROADMAP.md](ROADMAP.md) for the detailed changelog.

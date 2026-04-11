@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.17.0 (released 2026-04-07)
+Current State: v1.18.0 (released 2026-04-10)
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -34,8 +34,11 @@ For completed work, see the [Changelog](#changelog) at the bottom of this file, 
 
 ### AI Strategy & Report Generation
 
-- AI strategy and roadmap generation with multi-vendor support (`--cloud-vendor aws azure`)
-- Cloud vendor options: Azure, AWS, GCP, agnostic, private (NVIDIA/on-prem)
+- AI strategy and roadmap generation with multi-platform support (`--platform aws azure`)
+- Platform options: Azure, AWS, GCP, agnostic, private (NVIDIA/on-prem)
+- DNS intelligence pre-flight (recon): auto-detects cloud platform from DNS fingerprints, injects tech stack context into all strategy types
+- `primr recon` subcommand for standalone DNS intelligence lookups
+- `--platform ms` shorthand for Microsoft Azure + NVIDIA private cloud
 - Multiple strategy types: AI, Customer Experience, Security, Data Fabric
 - Strategy enrichment: cross-validation, evidence search, section regeneration, polish pass, and pre-ship repair for citation/source/budget conflicts
 - TXT, DOCX, and PDF outputs with citation styles
@@ -700,15 +703,66 @@ Take the existing IaC templates (`deploy/`) from reference implementations to va
 
 **Approach:** Azure first (most immediate need), then GCP, then AWS. Each cloud gets the same treatment: deploy, run real research jobs, validate artifacts, tear down, document.
 
-**Azure (Primary Target)**
+**Azure Tiered Deployment (In Progress)**
 
-- Validate `deploy/azure/` templates end-to-end: Container Apps job → Service Bus queue → Blob Storage artifacts
-- Real research runs through the deployed control plane (not just template validation)
-- Managed identity for secrets (Key Vault) instead of env var injection
-- Application Insights integration for observability (traces, metrics, cost tracking)
-- Auto-scaling rules: scale-to-zero when idle, scale up on queue depth
-- VNET integration for private endpoint access to AI services
-- `deploy/azure/deploy.sh validate` runs a smoke test (submit job → poll → verify artifact)
+Primr's Azure deployment now follows a tiered model — team and organization — with declarative Bicep IaC, a hardened deploy script, and integration surfaces for Microsoft agent platforms.
+
+*What's implemented:*
+
+- Bicep templates (`deploy/azure/bicep/`) for all Azure resources with tier-conditional provisioning (team vs organization)
+- Deploy script (`deploy/azure/deploy.sh`) with `--tier`, `--bicep`, `--budget`, `--min-replicas`/`--max-replicas` support
+- OpenAPI spec (`deploy/azure/openapi.yaml`) with `x-ms-agentic-protocol: mcp-streamable-1.0` for Power Platform connector creation
+- Budget tracker module with per-API-key spending limits (per-job, daily, monthly)
+- Environment auto-detection (local vs Azure) based on Azure-specific env vars
+- Entra ID JWT audience claim validation for organization tier
+- `show_usage` MCP tool for agent clients to check remaining budget
+- Enhanced `doctor` tool with cloud diagnostics (Cosmos DB, Blob Storage, Service Bus, App Insights)
+- `/healthz` endpoint for Container App health checks
+- Azure Budget resources with alerts at 50%, 80%, 100% of configurable monthly spend
+
+*Agent platform integration surfaces:*
+
+- **Foundry Agent Service**: MCP tool connection via project connection (key-based, Entra agent identity, Entra managed identity). Guide: `docs/FOUNDRY_AGENT_GUIDE.md`
+- **Copilot Studio**: Power Platform custom connector from OpenAPI spec with MCP tool discovery. Guide: `docs/COPILOT_STUDIO_GUIDE.md`
+- **Copilot Cowork**: Copilot Studio agent published to M365 Agent Store for organization-wide discovery. Guide: `docs/COPILOT_COWORK_GUIDE.md`
+- **Any MCP client**: Claude Desktop, Cursor, VS Code, Microsoft Agent Framework — point at `https://{fqdn}/mcp`
+
+*Deployment tier comparison:*
+
+| Resource | Team (< $5/mo idle) | Organization (< $15/mo idle) |
+|---|---|---|
+| Container App (MCP + API) | Scale-to-zero | Min 1 replica |
+| Cosmos DB | Serverless | Autoscale (400-4000 RU/s) |
+| Service Bus | — | Standard (dead-letter) |
+| Application Insights | — | With daily cap |
+| Entra ID Auth | — | ✅ |
+| Budget Tracker | — | ✅ (Cosmos container) |
+| Azure Budget Alerts | $50 default | $200 default |
+
+*What's remaining (known issues):*
+
+- **Container App entrypoint**: The MCP server (`primr-mcp --http`) needs to run correctly inside the Docker container. The Bicep command override is in place but the container crashes on startup — likely a dependency or import path issue that needs local debugging. The Dockerfile currently builds for the job runner; the API server entrypoint needs the same image to also serve HTTP.
+- **Container App Job triggering**: The MCP server's `research_company` tool needs to trigger Container App Jobs in cloud mode instead of running the pipeline in-process. This is the queue integration that enables 20+ concurrent users.
+- **ACR build log streaming on Windows**: Azure CLI's `az acr build` crashes on Windows due to a Unicode encoding bug in colorama/cp1252. Workaround: poll `az acr task list-runs` for completion instead of streaming logs. The deploy.ps1 script needs this fix finalized.
+- **Structured logging for Application Insights**: Log fields (request_id, job_id, tool_name, duration_ms) are designed but not yet wired into the container runtime.
+- **VNet integration**: Documented as a production TODO. Private endpoints for Cosmos DB, Storage, Key Vault, and Service Bus are not yet configured.
+- **GCP and AWS validation**: Azure is the first cloud target. AWS and GCP templates exist as reference implementations but are not validated.
+
+*What's validated and working:*
+
+- Bicep IaC deploys all resources in one command (~3.5 minutes)
+- Container App scales to zero, cold starts in ~30 seconds
+- Cosmos DB (serverless) connected via managed identity
+- Blob Storage connected via managed identity
+- Key Vault with RBAC, deployer access, and placeholder secrets
+- ACR with managed identity pull
+- /healthz endpoint passes (Cosmos DB + Blob Storage connectivity verified)
+- Budget tracker with per-user spending limits (55 tests)
+- Auth with Entra ID JWT audience validation (66 tests)
+- Environment auto-detection, cloud diagnostics (41 tests)
+- Full security review: 28 findings identified and fixed
+- OpenAPI spec with x-ms-agentic-protocol for Copilot Studio
+- Documentation: Azure Quickstart, Foundry Agent Guide, Copilot Studio Guide, Copilot Cowork Guide
 - Cost profile documented: idle cost ($0), per-run overhead, storage costs
 
 **GCP**
@@ -862,11 +916,17 @@ primr "ExampleCo" https://example.co --mode scrape
 primr "ExampleCo" https://example.co --mode deep
 primr "ExampleCo" https://example.co --premium  # Gemini + Deep Research
 
-# AI Strategy
-primr "ExampleCo" https://example.co --cloud-vendor azure
-primr "ExampleCo" https://example.co --cloud-vendor aws azure  # Multi-vendor
-primr "ExampleCo" https://example.co --cloud-vendor azure private  # Azure + private cloud
+# AI Strategy (most common: Microsoft + NVIDIA)
+primr "ExampleCo" https://example.co --platform ms              # Microsoft + NVIDIA shorthand
+primr "ExampleCo" https://example.co --platform azure
+primr "ExampleCo" https://example.co --platform aws azure  # Multi-platform
+primr "ExampleCo" https://example.co --platform microsoft nvidia  # Same as --platform ms
 primr "ExampleCo" https://example.co --no-ai-strategy
+
+# DNS Intelligence (standalone, no API keys)
+primr recon example.co                                          # Quick domain intel
+primr recon example.co --json                                   # Structured output
+primr recon example.co --full                                   # Everything
 
 # Retry AI Strategy
 primr --ai-strategy-only "output/ExampleCo_Strategic_Overview.md"
@@ -900,6 +960,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.18.0 | Apr 2026 | Recon integration (DNS intelligence pre-flight, auto-platform detection, `primr recon` subcommand), `--cloud-vendor` renamed to `--platform` with backward compat, `--platform ms` shorthand, recon context injection into all strategy types |
 | 1.17.0 | Apr 2026 | Pipeline resilience (cost-ordered recovery, foreground/background stages, model circuit breaker), MCP estimate_run fix (cloud vendors, strategy type, historical data, time ranges), corrected duration estimates |
 | 1.16.0 | Mar 2026 | A2A protocol, Grok 4.20 hybrid default, private cloud vendor, output shipping gate, fast mode default, agentic pipeline, deep-research refactor, eval workflow |
 | 1.12.1 | Feb 2026 | Scraping robustness, PDF routing, bug fixes |

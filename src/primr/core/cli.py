@@ -133,7 +133,8 @@ class CLIConfig:
     mode: str = "complete"
     citation_style: str = "numbered"
     ai_strategy: bool = True
-    cloud_vendors: tuple[str, ...] = ("azure",)
+    platforms: tuple[str, ...] | None = None  # None = auto-detect from recon
+    skip_recon: bool = False
     skip_confirm: bool = True
     context_files: tuple[str, ...] = ()
     context_folder: str | None = None
@@ -202,6 +203,11 @@ class CLIConfig:
     eval_judge_max_cost: float = 0.0
     eval_local_stage: str | None = None
     eval_working_root: str = "working"
+
+    @property
+    def cloud_vendors(self) -> tuple[str, ...]:
+        """Backward-compatible alias. Returns platforms or default ('azure',)."""
+        return self.platforms or ("azure",)
 
     @property
     def cloud_vendor(self) -> str:
@@ -299,6 +305,32 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
     skip_confirm_flag = getattr(parsed, "skip_confirm", False)
     skip_confirm = skip_confirm_flag if is_batch else True
 
+    # Handle --platform / --cloud-vendor resolution
+    raw_platforms = getattr(parsed, "platform", None)
+    raw_cloud_vendor = getattr(parsed, "cloud_vendor", None)
+
+    if raw_cloud_vendor is not None:
+        import sys as _sys
+        print("WARNING: --cloud-vendor is deprecated, use --platform instead", file=_sys.stderr)
+        platforms = tuple(dict.fromkeys(raw_cloud_vendor))
+    elif raw_platforms is not None:
+        # Normalize aliases and expand shorthands
+        _PLATFORM_ALIASES: dict[str, str] = {
+            "microsoft": "azure",
+            "amazon": "aws",
+            "google": "gcp",
+            "nvidia": "private",
+        }
+        expanded: list[str] = []
+        for p in raw_platforms:
+            if p == "ms":
+                expanded.extend(["azure", "private"])
+            else:
+                expanded.append(_PLATFORM_ALIASES.get(p, p))
+        platforms = tuple(dict.fromkeys(expanded))
+    else:
+        platforms = None  # Will be resolved from recon auto-detection or default
+
     return CLIConfig(
         command=command,
         company_name=parsed.company,
@@ -306,7 +338,8 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         mode=mode,
         citation_style=getattr(parsed, "citation_style", "numbered"),
         ai_strategy=ai_strategy,
-        cloud_vendors=tuple(dict.fromkeys(getattr(parsed, "cloud_vendor", ["azure"]))),
+        platforms=platforms,
+        skip_recon=getattr(parsed, "skip_recon", False),
         skip_confirm=skip_confirm,
         context_files=context_files,
         context_folder=getattr(parsed, "context_folder", None),
@@ -387,6 +420,40 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
     )
 
 
+def _is_recon_command(args: list[str] | None) -> bool:
+    """Check if the command line is a ``primr recon ...`` invocation."""
+    argv = args if args is not None else sys.argv[1:]
+    return len(argv) >= 1 and argv[0] == "recon"
+
+
+def _run_recon(args: list[str] | None) -> int:
+    """Delegate to the recon Typer CLI, returning an exit code."""
+    from primr.recon.cli import _preprocess_args, _reset_preprocess
+    from primr.recon.cli import app as recon_app
+
+    argv = args if args is not None else sys.argv[1:]
+    # Strip the leading "recon" token — the Typer app doesn't expect it.
+    recon_argv = argv[1:]
+
+    # Typer/Click reads from sys.argv by default.  Temporarily replace it so
+    # the recon app sees the correct arguments.
+    saved_argv = sys.argv
+    try:
+        # Build a synthetic argv: ["primr recon", ...remaining_args]
+        sys.argv = ["primr recon", *list(recon_argv)]
+        _reset_preprocess()
+        _preprocess_args()
+        recon_app(standalone_mode=False)
+        return 0
+    except SystemExit as exc:
+        return int(exc.code) if exc.code is not None else 0
+    except Exception as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+    finally:
+        sys.argv = saved_argv
+
+
 def main(args: list[str] | None = None) -> int:
     """
     Main CLI entry point.
@@ -397,6 +464,10 @@ def main(args: list[str] | None = None) -> int:
     Returns:
         Exit code (0 for success, non-zero for failure)
     """
+    # Intercept "primr recon ..." before argparse — delegate to the recon Typer app.
+    if _is_recon_command(args):
+        return _run_recon(args)
+
     from pathlib import Path
 
     from primr.utils.config_validation import validate_config
@@ -650,7 +721,7 @@ Examples:
 
 AI Strategy Retry (when main report succeeded but AI strategy failed):
   primr --ai-strategy-only "output/Company_Strategic_Overview_01-09-2026.md"
-  primr --ai-strategy-only "output/report.md" --cloud-vendor aws
+  primr --ai-strategy-only "output/report.md" --platform aws
   primr "Acme Corp" https://acme.example --resume-local
   primr --resume-latest                               # Recover + finalize completed cloud jobs
 
@@ -668,6 +739,16 @@ Agentic Architecture (v1.7.0):
   primr --orchestrate --max-cost 5.0                 # With cost budget
   primr roadmap                                      # Show roadmap overview
   primr --roadmap-version v1.7.0                     # Show version details
+
+Domain Intelligence (Recon):
+  primr recon acme.com                               # DNS intelligence lookup
+  primr recon acme.com --json                        # Structured JSON output
+  primr recon acme.com --md                          # Markdown report
+  primr recon acme.com --services                    # M365 vs tech stack split
+  primr recon acme.com --full                        # Everything
+  primr recon batch domains.txt                      # Batch mode
+  primr recon batch domains.txt -c 10                # Batch with concurrency
+  primr recon doctor                                 # Connectivity check
 
 Accordion Method Test (for development):
   primr --test-accordion "Oceanography 2026-2030"
@@ -750,13 +831,28 @@ Accordion Method Test (for development):
         action="store_true",
         help="Reuse latest incomplete local working folder for this company and continue from checkpoints",
     )
-    parser.add_argument(
+    # --platform / --cloud-vendor mutually exclusive group
+    platform_group = parser.add_mutually_exclusive_group()
+    platform_group.add_argument(
+        "--platform",
+        type=str,
+        nargs="+",
+        choices=["azure", "microsoft", "aws", "amazon", "gcp", "google", "agnostic", "private", "nvidia", "ms"],
+        default=None,
+        help="Target platform(s). Aliases: microsoft=azure, amazon=aws, google=gcp, nvidia=private, ms=azure+private. Auto-detected from recon if omitted.",
+    )
+    platform_group.add_argument(
         "--cloud-vendor",
         type=str,
         nargs="+",
         choices=["azure", "aws", "gcp", "agnostic", "private"],
-        default=["azure"],
-        help="Cloud vendor(s) for AI recommendations (can specify multiple)",
+        default=None,
+        help=argparse.SUPPRESS,  # Hidden deprecated alias
+    )
+    parser.add_argument(
+        "--skip-recon",
+        action="store_true",
+        help="Skip DNS intelligence pre-flight step",
     )
     parser.add_argument(
         "--lite",
@@ -1234,7 +1330,7 @@ def _handle_dry_run(config: CLIConfig) -> int:
     if use_fast_mode and config.mode not in ("complete", "structured", "hybrid"):
         console.error(f"--fast only works with full mode, not --mode {config.mode}")
         console.info(
-            'Usage: primr "Company" https://url --fast [--cloud-vendor aws azure] --dry-run'
+            'Usage: primr "Company" https://url --fast [--platform aws azure] --dry-run'
         )
         return 1
     if use_premium_mode and config.mode not in ("complete", "structured", "hybrid"):
@@ -1271,6 +1367,17 @@ def _handle_dry_run(config: CLIConfig) -> int:
         grok_tier=config.grok_tier,
     )
     print(str(estimate))
+
+    # Recon pre-flight step (DNS intelligence — no API cost)
+    if not config.skip_recon:
+        print("")
+        print("RECON PRE-FLIGHT")
+        print("-" * 40)
+        print("  DNS intelligence lookup:  $0.00  (~2-3 seconds)")
+        print("  (no API keys required)")
+    else:
+        print("")
+        print("RECON PRE-FLIGHT: skipped (--skip-recon)")
 
     # Recovery table summary (pipeline-resilience feature)
     # Validates: Requirements 14.1, 14.2
@@ -2438,7 +2545,7 @@ def _handle_research(config: CLIConfig) -> int:
     if use_fast_mode:
         if config.mode not in ("complete", "structured", "hybrid"):
             console.error(f"--fast only works with full mode, not --mode {config.mode}")
-            console.info('Usage: primr "Company" https://url --fast [--cloud-vendor aws azure]')
+            console.info('Usage: primr "Company" https://url --fast [--platform aws azure]')
             return 1
         if not os.environ.get("XAI_API_KEY"):
             console.error("Fast mode requires XAI_API_KEY in your .env or environment")
@@ -2506,6 +2613,7 @@ def _handle_research(config: CLIConfig) -> int:
         resume_local=config.resume_local,
         verify=config.verify,
         grok_tier=config.grok_tier,
+        skip_recon=config.skip_recon,
     )
 
     # Open report if requested
@@ -3171,8 +3279,8 @@ def _handle_list_strategies(config: CLIConfig) -> int:
             "name": "ai",
             "display_name": "AI Strategy",
             "description": "Agentic AI transformation roadmap with vendor-specific recommendations (Azure/AWS/GCP)",
-            "usage": 'primr "Company" https://example.com --cloud-vendor azure',
-            "standalone": 'primr --ai-strategy-only "report.md" --cloud-vendor azure',
+            "usage": 'primr "Company" https://example.com --platform azure',
+            "standalone": 'primr --ai-strategy-only "report.md" --platform azure',
         }
     )
 
@@ -3241,7 +3349,7 @@ def _handle_list_strategies(config: CLIConfig) -> int:
         '  3. With notes:        primr --ai-strategy-only "report.md" --strategy-type ai --discovery-notes "notes.md"'
     )
     console.info(
-        '  4. Multi-vendor AI:   primr "Company" https://example.com --cloud-vendor aws azure'
+        '  4. Multi-vendor AI:   primr "Company" https://example.com --platform aws azure'
     )
     console.blank()
 

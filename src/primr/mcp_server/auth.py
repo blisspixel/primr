@@ -27,12 +27,19 @@ logger = logging.getLogger(__name__)
 # Minimum secret key length for security
 MIN_SECRET_KEY_LENGTH = 32
 
+# Maximum number of entries in the token cache
+MAX_CACHE_SIZE = 10000
+
 
 @dataclass
 class AuthConfig:
     """Authentication configuration."""
 
-    # Admin tokens from environment (comma-separated)
+    # Admin tokens from environment (comma-separated).
+    # NOTE: Static admin tokens do not expire. For production deployments,
+    # rotate tokens regularly (e.g., monthly) by updating MCP_ADMIN_TOKENS
+    # and restarting the service. Set MCP_ADMIN_TOKEN_MAX_AGE_HOURS to
+    # enforce automatic expiry after first use.
     admin_tokens: set[str] = field(default_factory=set)
 
     # Whether to require authentication (disabled for stdio)
@@ -50,6 +57,9 @@ class AuthConfig:
     # Required JWT audience (optional, for additional validation)
     jwt_audience: str | None = None
 
+    # L4: Maximum age in hours for admin tokens from first use (None = no expiry)
+    admin_token_max_age_hours: float | None = None
+
     @classmethod
     def from_env(cls) -> "AuthConfig":
         """Load auth config from environment variables."""
@@ -60,18 +70,39 @@ class AuthConfig:
         jwt_issuer = os.environ.get("MCP_JWT_ISSUER")
         jwt_audience = os.environ.get("MCP_JWT_AUDIENCE")
 
-        # Warn if JWT secret is too short
+        is_cloud = bool(os.environ.get("AZURE_CLIENT_ID"))
+
+        # L3: In cloud mode, refuse to start if JWT secret is too short
         if jwt_secret and len(jwt_secret) < MIN_SECRET_KEY_LENGTH:
-            logger.warning(
-                f"MCP_JWT_SECRET is shorter than {MIN_SECRET_KEY_LENGTH} characters. "
-                "Consider using a longer secret for better security."
-            )
+            if is_cloud:
+                raise ValueError(
+                    f"MCP_JWT_SECRET must be at least {MIN_SECRET_KEY_LENGTH} characters "
+                    "in cloud mode (AZURE_CLIENT_ID is set). "
+                    "Use a cryptographically random secret of 32+ characters."
+                )
+            else:
+                logger.warning(
+                    f"MCP_JWT_SECRET is shorter than {MIN_SECRET_KEY_LENGTH} characters. "
+                    "Consider using a longer secret for better security."
+                )
+
+        # L4: Optional admin token max age
+        max_age_str = os.environ.get("MCP_ADMIN_TOKEN_MAX_AGE_HOURS")
+        admin_token_max_age_hours: float | None = None
+        if max_age_str:
+            try:
+                admin_token_max_age_hours = float(max_age_str)
+            except ValueError:
+                logger.warning(
+                    f"Invalid MCP_ADMIN_TOKEN_MAX_AGE_HOURS value: {max_age_str!r}. Ignoring."
+                )
 
         return cls(
             admin_tokens=admin_tokens,
             jwt_secret=jwt_secret,
             jwt_issuer=jwt_issuer,
             jwt_audience=jwt_audience,
+            admin_token_max_age_hours=admin_token_max_age_hours,
         )
 
 
@@ -105,6 +136,8 @@ class PrimrTokenVerifier:
         self.config = config or AuthConfig.from_env()
         self._token_cache: dict[str, tuple[AccessToken, float]] = {}
         self._cache_ttl = 300  # 5 minutes
+        # L4: Track first-use time for admin tokens (token_hash -> first_use_timestamp)
+        self._admin_token_first_use: dict[str, float] = {}
 
         # Hash admin tokens for secure comparison
         self._admin_token_hashes: set[str] = {self._hash_token(t) for t in self.config.admin_tokens}
@@ -134,7 +167,25 @@ class PrimrTokenVerifier:
 
         # Check if it's a static admin token (using constant-time comparison)
         token_hash = self._hash_token(token)
-        if token_hash in self._admin_token_hashes:
+        is_admin = False
+        for stored_hash in self._admin_token_hashes:
+            if hmac.compare_digest(token_hash, stored_hash):
+                is_admin = True
+        if is_admin:
+            # L4: Check admin token max age if configured
+            if self.config.admin_token_max_age_hours is not None:
+                now = time.time()
+                if token_hash not in self._admin_token_first_use:
+                    self._admin_token_first_use[token_hash] = now
+                first_use = self._admin_token_first_use[token_hash]
+                max_age_seconds = self.config.admin_token_max_age_hours * 3600
+                if now - first_use > max_age_seconds:
+                    logger.warning(
+                        f"Admin token expired: first used {now - first_use:.0f}s ago, "
+                        f"max age is {max_age_seconds:.0f}s. Rotate the token."
+                    )
+                    return None
+
             access = AccessToken(
                 token=token,
                 client_id=f"admin-{hashlib.sha256(token.encode()).hexdigest()[:12]}",
@@ -375,7 +426,13 @@ class PrimrTokenVerifier:
         return None
 
     def _cache_token(self, token: str, access: AccessToken) -> None:
-        """Cache a verified token."""
+        """Cache a verified token. Evicts oldest 20% when cache is full."""
+        if len(self._token_cache) >= MAX_CACHE_SIZE:
+            # Evict oldest 20% of entries by cached_at timestamp
+            evict_count = MAX_CACHE_SIZE // 5
+            sorted_keys = sorted(self._token_cache, key=lambda k: self._token_cache[k][1])
+            for key in sorted_keys[:evict_count]:
+                del self._token_cache[key]
         self._token_cache[token] = (access, time.time())
 
     def is_admin(self, access: AccessToken) -> bool:
@@ -472,6 +529,59 @@ def create_auth_middleware(verifier: PrimrTokenVerifier):
 
     backend = BearerAuthBackend(verifier)
     return RequireAuthMiddleware(backend)
+
+
+def validate_entra_id_audience(token_payload: dict, expected_audience: str) -> bool:
+    """
+    Validate the JWT audience claim against the expected Entra ID audience.
+
+    Handles both string and list audience claims per the JWT spec (RFC 7519).
+
+    Args:
+        token_payload: Decoded JWT payload dictionary.
+        expected_audience: The expected audience value (e.g., Container App application ID).
+
+    Returns:
+        True if the audience claim matches, False otherwise.
+
+    Requirements: 3.1, 3.4
+    """
+    if not expected_audience:
+        return False
+
+    aud = token_payload.get("aud")
+    if aud is None:
+        return False
+
+    if isinstance(aud, str):
+        return aud == expected_audience
+
+    if isinstance(aud, list):
+        return expected_audience in aud
+
+    # Malformed aud claim (not str or list)
+    return False
+
+
+def get_entra_id_config() -> dict:
+    """
+    Return Entra ID configuration from environment variables.
+
+    Returns:
+        Dictionary with keys:
+        - audience: from MCP_JWT_AUDIENCE env var (or None)
+        - tenant_id: from MCP_JWT_TENANT_ID env var (or None)
+        - enabled: True if MCP_JWT_AUDIENCE is set
+
+    Requirements: 3.1, 3.4, 4.7
+    """
+    audience = os.environ.get("MCP_JWT_AUDIENCE")
+    tenant_id = os.environ.get("MCP_JWT_TENANT_ID")
+    return {
+        "audience": audience,
+        "tenant_id": tenant_id,
+        "enabled": audience is not None and audience != "",
+    }
 
 
 def log_auth_failure(client_ip: str, reason: str) -> None:

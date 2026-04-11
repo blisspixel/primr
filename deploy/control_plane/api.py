@@ -16,6 +16,7 @@ Requirements: 3.1, 3.2, 3.3, 3.9, 3.10, 3.11, 3.12, 3.15, 3.16, 3.17, 3.19, 3.20
 from __future__ import annotations
 
 import json
+import logging
 import os
 import time
 from contextlib import asynccontextmanager
@@ -25,6 +26,10 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+from deploy.control_plane.budget_tracker import (
+    BudgetExceededError,
+    BudgetTracker,
+)
 from deploy.control_plane.cancellation import CancellationService
 from deploy.control_plane.cost_governor import (
     CostGovernor,
@@ -55,6 +60,8 @@ from deploy.control_plane.rate_limiter import (
     RateLimitExceededError,
 )
 from deploy.storage import ArtifactStore, LocalStore
+
+logger = logging.getLogger(__name__)
 
 # =============================================================================
 # PYDANTIC MODELS
@@ -202,6 +209,7 @@ _artifact_store: ArtifactStore | None = None
 _cancellation_service: CancellationService | None = None
 _cost_governor: CostGovernor | None = None
 _rate_limiter: RateLimiter | None = None
+_budget_tracker: BudgetTracker | None = None
 _deployment: str = "default"
 
 
@@ -212,6 +220,7 @@ def configure_app(
     cancellation_service: CancellationService | None = None,
     cost_governor: CostGovernor | None = None,
     rate_limiter: RateLimiter | None = None,
+    budget_tracker: BudgetTracker | None = None,
     deployment: str = "default",
 ) -> None:
     """
@@ -226,6 +235,7 @@ def configure_app(
         _cancellation_service, \
         _cost_governor, \
         _rate_limiter, \
+        _budget_tracker, \
         _deployment
     _job_store = job_store
     _queue = queue
@@ -233,6 +243,7 @@ def configure_app(
     _cancellation_service = cancellation_service or CancellationService(job_store)
     _cost_governor = cost_governor or CostGovernor(job_store)
     _rate_limiter = rate_limiter or RateLimiter()
+    _budget_tracker = budget_tracker or BudgetTracker()
     _deployment = deployment
 
 
@@ -276,6 +287,13 @@ def get_rate_limiter() -> RateLimiter:
     if _rate_limiter is None:
         raise RuntimeError("Application not configured. Call configure_app() first.")
     return _rate_limiter
+
+
+def get_budget_tracker() -> BudgetTracker:
+    """Get budget tracker dependency."""
+    if _budget_tracker is None:
+        raise RuntimeError("Application not configured. Call configure_app() first.")
+    return _budget_tracker
 
 
 def get_deployment() -> str:
@@ -608,23 +626,109 @@ async def get_results(
     )
 
 
+@app.get("/usage/{api_key_hash}")
+async def get_usage(
+    api_key_hash: str,
+    _api_key: str = Depends(get_api_key),  # noqa: B008 - FastAPI dependency injection
+    budget_tracker: BudgetTracker = Depends(get_budget_tracker),  # noqa: B008 - FastAPI dependency injection
+) -> JSONResponse:
+    """
+    Get budget usage for an API key.
+
+    Returns cumulative spend (daily, monthly, all-time), job count,
+    and remaining budget for the authenticated API key.
+    Only allows querying the caller's own usage.
+
+    Requirements: 6.4
+    """
+    # Compute the caller's api_key_hash and enforce own-usage-only access
+    caller_hash = hash_api_key(_api_key)
+    if caller_hash != api_key_hash:
+        raise HTTPException(status_code=403, detail="Cannot query usage for a different API key")
+
+    status = budget_tracker.get_budget_status(api_key_hash)
+    return JSONResponse(content=status.to_dict())
+
+
+@app.get("/healthz")
+async def healthz() -> JSONResponse:
+    """
+    Health check endpoint.
+
+    In cloud mode: verifies connectivity to Cosmos DB and Blob Storage.
+    In local mode: always returns 200 with healthy status.
+
+    Returns 200 (healthy) or 503 (unhealthy).
+
+    Requirements: 2.7
+    """
+    from primr.mcp_server.cloud_detect import is_cloud_mode
+
+    if not is_cloud_mode():
+        return JSONResponse(
+            status_code=200,
+            content={"status": "healthy", "mode": "local"},
+        )
+
+    # Cloud mode: check connectivity to backing services
+    checks: dict[str, Any] = {}
+
+    # Check Cosmos DB connectivity
+    try:
+        store = get_job_store()
+        # A lightweight read to verify connectivity
+        store.get("__healthz_probe__")
+        checks["cosmos_db"] = {"status": "ok"}
+    except Exception as e:
+        logger.exception("Health check: Cosmos DB connectivity failed")
+        checks["cosmos_db"] = {"status": "error", "detail": "connectivity check failed"}
+
+    # Check Blob Storage connectivity
+    try:
+        artifact_store = get_artifact_store()
+        # A lightweight read to verify connectivity
+        artifact_store.get("__healthz_probe__")
+        checks["blob_storage"] = {"status": "ok"}
+    except Exception as e:
+        logger.exception("Health check: Blob Storage connectivity failed")
+        checks["blob_storage"] = {"status": "error", "detail": "connectivity check failed"}
+
+    all_ok = all(c["status"] == "ok" for c in checks.values())
+    status_code = 200 if all_ok else 503
+
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "status": "healthy" if all_ok else "unhealthy",
+            "mode": "cloud",
+            "checks": checks,
+        },
+    )
+
+
 @app.get("/metrics")
-async def get_metrics_endpoint() -> JSONResponse:
+async def get_metrics_endpoint(
+    api_key: str = Depends(get_api_key),  # noqa: B008 - FastAPI dependency injection
+) -> JSONResponse:
     """
     Get control plane metrics.
 
     Returns metrics in JSON format for monitoring systems.
+    Requires authentication.
     """
     metrics = get_metrics()
     return JSONResponse(content=json.loads(metrics.to_json()))
 
 
 @app.get("/metrics/prometheus")
-async def get_prometheus_metrics() -> str:
+async def get_prometheus_metrics(
+    api_key: str = Depends(get_api_key),  # noqa: B008 - FastAPI dependency injection
+) -> str:
     """
     Get control plane metrics in Prometheus format.
 
     Returns metrics in Prometheus text format.
+    Requires authentication.
     """
     from fastapi.responses import PlainTextResponse
 
@@ -695,6 +799,21 @@ async def quota_exceeded_handler(request: Request, exc: QuotaExceededError) -> J
     )
 
 
+@app.exception_handler(BudgetExceededError)
+async def budget_exceeded_handler(request: Request, exc: BudgetExceededError) -> JSONResponse:
+    """Handle budget exceeded errors."""
+    content: dict[str, Any] = {
+        "error": "quota_exceeded",
+        "message": str(exc),
+        "limit_type": exc.limit_type,
+        "limits": exc.limits.to_dict(),
+        "usage": exc.usage.to_dict(),
+    }
+    if exc.reset_at:
+        content["reset_at"] = exc.reset_at
+    return JSONResponse(status_code=429, content=content)
+
+
 @app.exception_handler(RateLimitExceededError)
 async def rate_limit_handler(request: Request, exc: RateLimitExceededError) -> JSONResponse:
     """Handle rate limit exceeded errors."""
@@ -724,6 +843,7 @@ def _initialize_default_dependencies() -> None:
         _cancellation_service, \
         _cost_governor, \
         _rate_limiter, \
+        _budget_tracker, \
         _deployment
 
     if _job_store is None:
@@ -735,6 +855,7 @@ def _initialize_default_dependencies() -> None:
         _cancellation_service = CancellationService(_job_store)
         _cost_governor = CostGovernor(_job_store)
         _rate_limiter = RateLimiter()
+        _budget_tracker = BudgetTracker()
         _deployment = os.environ.get("DEPLOYMENT", "local")
 
 
@@ -748,6 +869,7 @@ def create_app(
     queue: Queue | None = None,
     artifact_store: ArtifactStore | None = None,
     rate_limiter: RateLimiter | None = None,
+    budget_tracker: BudgetTracker | None = None,
     deployment: str = "default",
 ) -> FastAPI:
     """
@@ -758,6 +880,7 @@ def create_app(
         queue: Message queue (defaults to InMemoryQueue)
         artifact_store: Artifact store (defaults to LocalStore)
         rate_limiter: Rate limiter (defaults to RateLimiter)
+        budget_tracker: Budget tracker (defaults to BudgetTracker)
         deployment: Deployment namespace
 
     Returns:
@@ -769,12 +892,14 @@ def create_app(
     q = queue or InMemoryQueue()
     artifacts = artifact_store or LocalStore(tempfile.mkdtemp(prefix="primr_artifacts_"))
     limiter = rate_limiter or RateLimiter()
+    tracker = budget_tracker or BudgetTracker()
 
     configure_app(
         job_store=store,
         queue=q,
         artifact_store=artifacts,
         rate_limiter=limiter,
+        budget_tracker=tracker,
         deployment=deployment,
     )
 
