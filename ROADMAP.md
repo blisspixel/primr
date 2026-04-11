@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.18.0 (released 2026-04-10)
+Current State: v1.18.1 (released 2026-04-11)
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -74,7 +74,7 @@ For completed work, see the [Changelog](#changelog) at the bottom of this file, 
 
 - Cost estimation, usage tracking, job recovery, crash/reboot recovery
 - System diagnostics (`primr doctor`)
-- 4,500+ tests, full ruff and mypy compliance
+- 5,700+ tests, full ruff and mypy compliance
 - Serverless cloud deployment (AWS, Azure, GCP)
 - Agentic architecture: hypothesis tracking, subagents, hooks, orchestrator
 - Content sanitization for prompt injection protection
@@ -960,6 +960,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.18.1 | Apr 2026 | Observability and reliability hardening: thread-safe `LogContext` via contextvars, `ContextFilter` wired into file logging, structured logging added to 15+ silent `except` paths (run state, source relevance, trust polish, gap analysis, cross-validation, search queries, section writing, scrape cache, domain profiles, usage tracker), cross-validation and gap analysis failures now surface to user instead of looking like clean passes, Gemini client errors logged to file (not just stdout), failed search query aggregate tracking, `__init__.py` version synced with pyproject.toml |
 | 1.18.0 | Apr 2026 | Recon integration (DNS intelligence pre-flight, auto-platform detection, `primr recon` subcommand, 156 fingerprints, 20 signals, crt.sh cert transparency, SRV detection, custom signals), `--cloud-vendor` renamed to `--platform` with backward compat, `--platform ms` shorthand, recon context injection into all strategy types |
 | 1.17.0 | Apr 2026 | Pipeline resilience (cost-ordered recovery, foreground/background stages, model circuit breaker), MCP estimate_run fix (cloud vendors, strategy type, historical data, time ranges), corrected duration estimates |
 | 1.16.0 | Mar 2026 | A2A protocol, Grok 4.20 hybrid default, private cloud vendor, output shipping gate, fast mode default, agentic pipeline, deep-research refactor, eval workflow |

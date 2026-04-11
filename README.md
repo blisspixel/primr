@@ -236,7 +236,7 @@ ruff check .                                 # Lint
 mypy src/primr --ignore-missing-imports     # Type check
 ```
 
-4,500+ tests including property-based testing (Hypothesis), full ruff and mypy compliance, and OpenTelemetry tracing. CI runs lint, type check, and tests on every push.
+5,700+ tests including property-based testing (Hypothesis), full ruff and mypy compliance, and OpenTelemetry tracing. CI runs lint, type check, and tests on every push.
 
 ## Learn More
 
