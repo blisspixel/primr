@@ -134,11 +134,13 @@ class TestIsVendorResearchCurrent:
     """Tests for is_vendor_research_current function."""
 
     @patch("primr.core.vendor_research.get_manual_research_path")
-    def test_returns_true_for_azure_with_manual(self, mock_manual):
-        """Returns True for Azure when manual file exists."""
+    def test_returns_true_for_azure_with_manual(self, mock_manual, tmp_path):
+        """Returns True for Azure when manual file exists and is fresh."""
         from primr.core.vendor_research import is_vendor_research_current
 
-        mock_manual.return_value = Path("/some/path.txt")
+        manual_file = tmp_path / "vendor-research-azure.txt"
+        manual_file.write_text("content")
+        mock_manual.return_value = manual_file
 
         assert is_vendor_research_current("azure") is True
 
