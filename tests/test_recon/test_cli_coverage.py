@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from typer.testing import CliRunner
@@ -97,7 +98,7 @@ class TestDoctorFailures:
 
         result = runner.invoke(app, ["doctor"])
         assert result.exit_code == 0
-        assert "FAIL" in result.output
+        assert "FAIL" in re.sub(r"\x1b\[[0-9;]*m", "", result.output)
 
 
 class TestBatchEdgeCases:
