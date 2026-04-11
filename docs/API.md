@@ -214,7 +214,7 @@ from primr.core.ai_strategy import (
 # Generate AI strategy for a company
 config = AIStrategyConfig(
     company_name="Acme Corp",
-    cloud_vendor=Platform.AWS,
+    platform=Platform.AWS,
     working_folder=Path("working/Acme Corp"),
 )
 
@@ -223,7 +223,7 @@ if result.success:
     print(result.content)
 ```
 
-**Platform enum** (formerly `CloudVendor`):
+**Platform enum**:
 
 ```python
 Platform.AWS      # Amazon Web Services
@@ -326,7 +326,7 @@ from primr.core.research_agent import (
     consolidate_working_folder,
     run_research,
     research_section,
-    Platform,  # formerly CloudVendor; CloudVendor alias still works
+    Platform,
     DeepResearchConfig,
     DeepResearchMode,
 )
@@ -904,7 +904,7 @@ composer = PromptComposer()
 context = PromptContext(
     company_name="Acme Corp",
     website_url="https://acme.example",
-    cloud_vendor="azure",  # now maps to platform internally
+    platform="azure",
 )
 
 # Compose a standard prompt
@@ -958,7 +958,7 @@ prompts = get_available_prompts()  # ['ai_strategy', 'company_overview', ...]
 
 # Build prompts (delegates to PromptComposer internally)
 prompt = build_company_overview_prompt("Acme Corp", website_url="https://acme.example")
-prompt = build_ai_strategy_prompt("Acme Corp", cloud_vendor="azure")  # cloud_vendor param kept for backward compat
+prompt = build_ai_strategy_prompt("Acme Corp", platform="azure")
 ```
 
 ### Custom Exceptions
@@ -1064,7 +1064,7 @@ Get cost and time estimates before running research. For stricter agent governan
   "arguments": {
     "company_url": "https://acme.example",
     "mode": "full",
-    "cloud_vendors": ["azure"],
+    "platforms": ["azure"],
     "strategy_type": "ai",
     "no_ai_strategy": false
   }
@@ -1077,7 +1077,7 @@ Get cost and time estimates before running research. For stricter agent governan
 |------|------|----------|-------------|
 | `company_url` | string | Yes | Company website URL |
 | `mode` | string | No | Research mode: `full` (default), `premium`, `scrape`, `deep` |
-| `cloud_vendors` | array of strings | No | Platform(s) for AI strategy (formerly `cloud_vendors`; parameter name kept for backward compatibility). Each adds ~3-6 min + ~$0.10-0.15. Values: `azure`, `aws`, `gcp`, `agnostic`, `private`. Default: `["agnostic"]` |
+| `platforms` | array of strings | No | Platform(s) for AI strategy. Each adds ~3-6 min + ~$0.10-0.15. Values: `azure`, `aws`, `gcp`, `agnostic`, `private`. Default: `["agnostic"]` |
 | `strategy_type` | string | No | Strategy type: `ai` (default), `customer_experience`, `modern_security_compliance`, `data_fabric_strategy` |
 | `no_ai_strategy` | boolean | No | Skip AI strategy generation entirely (report only). Default: `false` |
 | `verify` | boolean | No | Run post-QA claim verification (~$0.01, 3-5 min). Default: `false` |
@@ -1092,7 +1092,7 @@ Response:
   "planned_pages": 20,
   "mode": "full",
   "ai_strategy": true,
-  "cloud_vendors": ["azure"],
+  "platforms": ["azure"],
   "strategy_type": "ai"
 }
 ```
@@ -1116,18 +1116,15 @@ Response:
   "strategy_type": "customer_experience",
   "estimated_cost_usd": 0.25,
   "estimated_time_minutes": 12,
-  "requires_cloud_vendor": false,
-  "cloud_vendor": null,
+  "requires_platform": false,
+  "platform": null,
   "cost_warning": "Strategy generation incurs real API charges. Get explicit user approval before generate_strategy."
 }
 ```
 
-> **Note:** The MCP API parameter names `cloud_vendor`, `cloud_vendors`, and `requires_cloud_vendor` are retained for backward compatibility. The CLI flag has been renamed from `--cloud-vendor` to `--platform`.
-```
-
 #### research_company
 
-Initiate company research (async - returns job_id immediately). Includes AI strategy generation when `cloud_vendor` (platform) is specified — no separate `generate_strategy` call needed. This should only be called after `estimate_run` and explicit user approval.
+Initiate company research (async - returns job_id immediately). Includes AI strategy generation when `platform` is specified — no separate `generate_strategy` call needed. This should only be called after `estimate_run` and explicit user approval.
 
 ```json
 {
@@ -1136,7 +1133,7 @@ Initiate company research (async - returns job_id immediately). Includes AI stra
     "company_name": "Acme Corp",
     "company_url": "https://acme.example",
     "mode": "full",
-    "cloud_vendor": "azure",
+    "platform": "azure",
     "skip_qa": false,
     "max_estimated_cost_usd": 0.67
   }
@@ -1150,7 +1147,7 @@ Initiate company research (async - returns job_id immediately). Includes AI stra
 | `company_name` | string | Yes | Display name for the company |
 | `company_url` | string | Yes | Company website URL (must be valid HTTP/HTTPS) |
 | `mode` | string | No | Research mode: `full` (default), `premium`, `scrape`, `deep` |
-| `cloud_vendor` | string | No | Platform for AI strategy (formerly `cloud_vendor`; parameter name kept for backward compatibility). When set, strategy is generated as part of this job. Values: `azure`, `aws`, `gcp`, `agnostic`, `private`. |
+| `platform` | string | No | Platform for AI strategy. When set, strategy is generated as part of this job. Values: `azure`, `aws`, `gcp`, `agnostic`, `private`. |
 | `skip_qa` | boolean | No | Skip quality assessment. Default: `false` |
 | `verify` | boolean | No | Run post-QA claim verification. Default: `false` |
 | `destination` | string | No | Optional destination directory for output files. Artifacts are copied here in addition to the default output/ directory. |
@@ -1167,7 +1164,7 @@ Response:
 
 #### generate_strategy
 
-Generate strategy document from an existing report after the fact. Only needed when adding a strategy to a previously completed research run. For new research, use `research_company` with `cloud_vendor` (platform) instead — strategy is included automatically.
+Generate strategy document from an existing report after the fact. Only needed when adding a strategy to a previously completed research run. For new research, use `research_company` with `platform` instead — strategy is included automatically.
 
 ```json
 {
@@ -1175,7 +1172,7 @@ Generate strategy document from an existing report after the fact. Only needed w
   "arguments": {
     "report_path": "output/Acme_Corp_Strategic_Overview.md",
     "strategy_type": "customer_experience",
-    "cloud_vendor": "azure",
+    "platform": "azure",
     "max_estimated_cost_usd": 0.30
   }
 }
@@ -1529,7 +1526,7 @@ List of available strategy types with metadata for Open Claw integration.
       "id": "ai_strategy",
       "name": "AI Strategy",
       "description": "AI/ML transformation roadmap with quick wins and bigger bets",
-      "requires_cloud_vendor": true,
+      "requires_platform": true,
       "estimated_time_minutes": 15,
       "estimated_cost_usd": 0.30
     },
@@ -1537,7 +1534,7 @@ List of available strategy types with metadata for Open Claw integration.
       "id": "customer_experience",
       "name": "Customer Experience Strategy",
       "description": "CX transformation and digital experience improvement plan",
-      "requires_cloud_vendor": false,
+      "requires_platform": false,
       "estimated_time_minutes": 12,
       "estimated_cost_usd": 0.25
     },
@@ -1545,7 +1542,7 @@ List of available strategy types with metadata for Open Claw integration.
       "id": "modern_security_compliance",
       "name": "Security & Compliance Strategy",
       "description": "Zero Trust architecture and compliance posture assessment",
-      "requires_cloud_vendor": false,
+      "requires_platform": false,
       "estimated_time_minutes": 12,
       "estimated_cost_usd": 0.25
     },
@@ -1553,7 +1550,7 @@ List of available strategy types with metadata for Open Claw integration.
       "id": "data_fabric_strategy",
       "name": "Data Fabric Strategy",
       "description": "Modern data platform for agentic AI and semantic layers",
-      "requires_cloud_vendor": false,
+      "requires_platform": false,
       "estimated_time_minutes": 12,
       "estimated_cost_usd": 0.25
     }

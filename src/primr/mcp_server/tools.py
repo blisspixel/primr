@@ -38,6 +38,44 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Alias map: friendly platform names → canonical values used internally.
+_PLATFORM_ALIASES: dict[str, str | list[str]] = {
+    "microsoft": "azure",
+    "amazon": "aws",
+    "google": "gcp",
+    "nvidia": "private",
+    "ms": ["azure", "private"],  # ms expands to both Azure + private
+}
+
+
+def _normalize_platform(value: str) -> str:
+    """Resolve a single platform alias to its canonical name."""
+    mapped = _PLATFORM_ALIASES.get(value.lower())
+    if isinstance(mapped, str):
+        return mapped
+    return value  # already canonical, or unknown
+
+
+def _normalize_platforms(values: list[str]) -> list[str]:
+    """Resolve a list of platform aliases, expanding multi-valued aliases like 'ms'."""
+    result: list[str] = []
+    for v in values:
+        mapped = _PLATFORM_ALIASES.get(v.lower())
+        if isinstance(mapped, list):
+            result.extend(mapped)
+        elif isinstance(mapped, str):
+            result.append(mapped)
+        else:
+            result.append(v)
+    # Deduplicate while preserving order
+    seen: set[str] = set()
+    deduped: list[str] = []
+    for item in result:
+        if item not in seen:
+            seen.add(item)
+            deduped.append(item)
+    return deduped
+
 
 def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
     """Register all Primr tools with the MCP server."""
@@ -65,13 +103,13 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
                             "default": "full",
                             "description": "Research mode: full (standard Grok pipeline, default), premium (Gemini + Deep Research), scrape, deep",
                         },
-                        "cloud_vendors": {
+                        "platforms": {
                             "type": "array",
                             "items": {
                                 "type": "string",
-                                "enum": ["azure", "aws", "gcp", "agnostic", "private"],
+                                "enum": ["azure", "aws", "gcp", "agnostic", "private", "microsoft", "amazon", "google", "nvidia", "ms"],
                             },
-                            "description": "Cloud vendor(s) for AI strategy. Each vendor adds a separate strategy document and ~3-6 min + ~$0.10-0.15 per vendor. Default: single agnostic strategy.",
+                            "description": "Platform(s) for AI strategy (CLI: --platform). Aliases: microsoft=azure, amazon=aws, google=gcp, nvidia=private. Each adds a separate strategy document and ~3-6 min + ~$0.10-0.15 per vendor. Default: single agnostic strategy.",
                         },
                         "strategy_type": {
                             "type": "string",
@@ -114,10 +152,10 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
                             ],
                             "description": "Type of strategy to estimate",
                         },
-                        "cloud_vendor": {
+                        "platform": {
                             "type": "string",
-                            "enum": ["azure", "aws", "gcp", "agnostic", "private"],
-                            "description": "Cloud vendor for AI strategy (required for ai_strategy)",
+                            "enum": ["azure", "aws", "gcp", "agnostic", "private", "microsoft", "amazon", "google", "nvidia", "ms"],
+                            "description": "Platform for AI strategy (CLI: --platform). Aliases: microsoft=azure, amazon=aws, google=gcp, nvidia=private.",
                         },
                     },
                     "required": ["strategy_type"],
@@ -125,7 +163,7 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
             ),
             Tool(
                 name="research_company",
-                description="Initiate company research pipeline (async - returns job_id immediately). Includes AI strategy generation when cloud_vendor is specified — no separate strategy call needed. This incurs real API cost and should only be called after the user approves an estimate from estimate_run.",
+                description="Initiate company research pipeline (async - returns job_id immediately). Includes AI strategy generation when platform is specified — no separate strategy call needed. This incurs real API cost and should only be called after the user approves an estimate from estimate_run.",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -143,10 +181,10 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
                             "default": "full",
                             "description": "Research mode: full (standard Grok pipeline, default), premium (Gemini + Deep Research), scrape, deep",
                         },
-                        "cloud_vendor": {
+                        "platform": {
                             "type": "string",
-                            "enum": ["azure", "aws", "gcp", "agnostic", "private"],
-                            "description": "Cloud vendor for AI strategy. When set, strategy is generated as part of this job (no separate generate_strategy call needed). Default: agnostic.",
+                            "enum": ["azure", "aws", "gcp", "agnostic", "private", "microsoft", "amazon", "google", "nvidia", "ms"],
+                            "description": "Platform for AI strategy (CLI: --platform). Aliases: microsoft=azure, amazon=aws, google=gcp, nvidia=private. When set, strategy is generated as part of this job (no separate generate_strategy call needed). Default: agnostic.",
                         },
                         "skip_qa": {
                             "type": "boolean",
@@ -168,7 +206,7 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
             ),
             Tool(
                 name="generate_strategy",
-                description="Generate strategy document from an existing report AFTER the fact. Only needed when adding a strategy to a previously completed research run. For new research, use research_company with cloud_vendor instead — strategy is included automatically.",
+                description="Generate strategy document from an existing report AFTER the fact. Only needed when adding a strategy to a previously completed research run. For new research, use research_company with platform instead — strategy is included automatically.",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -186,10 +224,10 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
                             ],
                             "description": "Type of strategy to generate",
                         },
-                        "cloud_vendor": {
+                        "platform": {
                             "type": "string",
-                            "enum": ["azure", "aws", "gcp", "agnostic", "private"],
-                            "description": "Cloud vendor for AI strategy (optional, default: agnostic)",
+                            "enum": ["azure", "aws", "gcp", "agnostic", "private", "microsoft", "amazon", "google", "nvidia", "ms"],
+                            "description": "Platform for AI strategy (CLI: --platform). Aliases: microsoft=azure, amazon=aws, google=gcp, nvidia=private. Default: agnostic.",
                         },
                         "max_estimated_cost_usd": {
                             "type": "number",
@@ -432,10 +470,11 @@ def _build_research_estimate(arguments: dict[str, Any]) -> dict[str, Any]:
     # Strategy configuration
     no_ai_strategy = arguments.get("no_ai_strategy", False)
     include_ai_strategy = not no_ai_strategy and mode in ("full", "premium")
-    cloud_vendors = arguments.get("cloud_vendors", ["agnostic"])
-    if isinstance(cloud_vendors, str):
-        cloud_vendors = [cloud_vendors]
-    num_vendors = len(cloud_vendors) if include_ai_strategy else 0
+    platforms = arguments.get("platforms", ["agnostic"])
+    if isinstance(platforms, str):
+        platforms = [platforms]
+    platforms = _normalize_platforms(platforms)
+    num_vendors = len(platforms) if include_ai_strategy else 0
 
     cost_estimate = estimate_cost(
         estimator_mode,
@@ -457,7 +496,7 @@ def _build_research_estimate(arguments: dict[str, Any]) -> dict[str, Any]:
     }
     if include_ai_strategy:
         result["ai_strategy"] = True
-        result["cloud_vendors"] = cloud_vendors
+        result["platforms"] = platforms
         result["strategy_type"] = arguments.get("strategy_type", "ai")
     else:
         result["ai_strategy"] = False
@@ -546,7 +585,9 @@ async def _handle_estimate_strategy(arguments: dict[str, Any]) -> list[TextConte
     from primr.mcp_server.resources import get_strategy_catalog
 
     strategy_type = arguments.get("strategy_type")
-    cloud_vendor = arguments.get("cloud_vendor")
+    platform = arguments.get("platform")
+    if platform:
+        platform = _normalize_platform(platform)
 
     strategy = next((item for item in get_strategy_catalog() if item["id"] == strategy_type), None)
     if strategy is None:
@@ -563,15 +604,15 @@ async def _handle_estimate_strategy(arguments: dict[str, Any]) -> list[TextConte
             )
         ]
 
-    if strategy["requires_cloud_vendor"] and not cloud_vendor:
+    if strategy["requires_platform"] and not platform:
         return [
             TextContent(
                 type="text",
                 text=json.dumps(
                     {
                         "error": True,
-                        "error_type": "missing_cloud_vendor",
-                        "message": "cloud_vendor is required for ai_strategy estimates",
+                        "error_type": "missing_platform",
+                        "message": "platform is required for ai_strategy estimates",
                     }
                 ),
             )
@@ -585,8 +626,8 @@ async def _handle_estimate_strategy(arguments: dict[str, Any]) -> list[TextConte
                     "strategy_type": strategy["id"],
                     "estimated_cost_usd": strategy["estimated_cost_usd"],
                     "estimated_time_minutes": strategy["estimated_time_minutes"],
-                    "requires_cloud_vendor": strategy["requires_cloud_vendor"],
-                    "cloud_vendor": cloud_vendor,
+                    "requires_platform": strategy["requires_platform"],
+                    "platform": platform,
                     "cost_warning": (
                         "Strategy generation incurs real API charges. Get explicit user approval "
                         "before generate_strategy."
@@ -616,7 +657,7 @@ async def _handle_research_company(
     company_name = arguments.get("company_name")
     company_url = arguments.get("company_url")
     mode = arguments.get("mode", "full")
-    cloud_vendor = arguments.get("cloud_vendor")
+    platform = arguments.get("platform")
     skip_qa = arguments.get("skip_qa", False)
     verify = arguments.get("verify", False)
     max_estimated_cost_usd = arguments.get("max_estimated_cost_usd")
@@ -688,7 +729,7 @@ async def _handle_research_company(
                 job=job,
                 company_url=company_url,
                 mode=mode,
-                cloud_vendor=cloud_vendor,
+                platform=platform,
                 skip_qa=skip_qa,
                 verify=verify,
                 destination=destination,
@@ -726,7 +767,7 @@ async def _handle_generate_strategy(
 
     report_path = arguments.get("report_path")
     strategy_type = arguments.get("strategy_type")
-    cloud_vendor = arguments.get("cloud_vendor")
+    platform = arguments.get("platform")
     max_estimated_cost_usd = arguments.get("max_estimated_cost_usd")
 
     estimate_result = await _handle_estimate_strategy(arguments)
@@ -781,7 +822,7 @@ async def _handle_generate_strategy(
         result = await run_strategy_generation(
             report_path=str(path_result.resolved_path),
             strategy_type=strategy_type,
-            cloud_vendor=cloud_vendor,
+            platform=platform,
         )
 
         return [

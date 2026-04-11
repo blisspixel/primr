@@ -19,13 +19,22 @@ class ResearchMode(str, Enum):
     PREMIUM = "premium"
 
 
-class CloudVendor(str, Enum):
-    """Supported cloud vendors for AI strategy generation."""
+class Platform(str, Enum):
+    """Supported platforms for AI strategy generation.
+
+    Aliases accepted by the CLI (--platform):
+      microsoft / ms → azure
+      amazon        → aws
+      google        → gcp
+      nvidia        → private
+    """
 
     AZURE = "azure"
     AWS = "aws"
     GCP = "gcp"
     PRIVATE = "private"
+
+
 
 
 class StrategyType(str, Enum):

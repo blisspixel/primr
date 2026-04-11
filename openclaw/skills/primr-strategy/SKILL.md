@@ -72,7 +72,7 @@ Use `primr://strategies/available` to discover the current strategy set and requ
 
 
 
-Read `primr://strategies/available` to confirm available strategy IDs, expected effort, and whether a cloud vendor is required.
+Read `primr://strategies/available` to confirm available strategy IDs, expected effort, and whether a platform is required.
 
 
 
@@ -106,7 +106,7 @@ Offer `run_qa` on the generated strategy or source report when the user wants re
 
 - Verify the report exists before generation.
 
-- Ask for `cloud_vendor` when generating `ai_strategy`.
+- Ask for `platform` when generating `ai_strategy`.
 
 - Do not promise exact runtime or price from the skill text; Primr behavior can evolve.
 
@@ -120,5 +120,5 @@ Offer `run_qa` on the generated strategy or source report when the user wants re
 
 - `invalid_strategy_type`: read `primr://strategies/available` and retry.
 
-- `missing_cloud_vendor`: ask for the target vendor.
+- `missing_platform`: ask for the target platform.
 

@@ -11,7 +11,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "create_mcp_server": ("primr.mcp_server.server", "create_mcp_server"),
     "ArtifactInfo": ("primr.mcp_server.types", "ArtifactInfo"),
     "ArtifactsResponse": ("primr.mcp_server.types", "ArtifactsResponse"),
-    "CloudVendor": ("primr.mcp_server.types", "CloudVendor"),
+    "Platform": ("primr.mcp_server.types", "Platform"),
     "ConfigState": ("primr.mcp_server.types", "ConfigState"),
     "DoctorResult": ("primr.mcp_server.types", "DoctorResult"),
     "EstimateResult": ("primr.mcp_server.types", "EstimateResult"),

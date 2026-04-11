@@ -185,7 +185,7 @@ class TestDeepResearchConfig:
         assert config.website == "https://acme.com"
         assert config.mode == DeepResearchMode.DEEP_RESEARCH
         assert config.ai_strategy is False
-        assert config.cloud_vendor == "agnostic"
+        assert config.platform == "agnostic"
 
     def test_display_name_from_company(self):
         """Test display name uses company name when available."""
@@ -213,12 +213,12 @@ class TestDeepResearchConfig:
             website="https://test.com",
             mode="complete",
             ai_strategy=True,
-            cloud_vendor="azure",
+            platform="azure",
         )
         assert config.company_name == "Test"
         assert config.mode == DeepResearchMode.COMPLETE
         assert config.ai_strategy is True
-        assert config.cloud_vendor == "azure"
+        assert config.platform == "azure"
 
     def test_from_args_with_context_files(self):
         """Test creating config with context files."""
