@@ -656,7 +656,7 @@ class TestValidateEntraIdAudience:
             "exp": int(time.time()) + 3600,
         })
         import asyncio
-        result = asyncio.get_event_loop().run_until_complete(verifier.verify_token(token))
+        result = asyncio.run(verifier.verify_token(token))
         assert result is not None
         assert result.client_id == "user@contoso.com"
 
@@ -674,7 +674,7 @@ class TestValidateEntraIdAudience:
             "exp": int(time.time()) + 3600,
         })
         import asyncio
-        result = asyncio.get_event_loop().run_until_complete(verifier.verify_token(token))
+        result = asyncio.run(verifier.verify_token(token))
         assert result is None
 
 
