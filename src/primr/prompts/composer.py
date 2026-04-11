@@ -486,9 +486,9 @@ class PromptComposer:
             lines.append("")
 
         # Add vendor guidance if applicable
-        if config.vendor_guidance and context.cloud_vendor:
+        if config.vendor_guidance and context.platform:
             vendor_config = config.vendor_guidance.get(
-                context.cloud_vendor.lower(), config.vendor_guidance.get("agnostic", {})
+                context.platform.lower(), config.vendor_guidance.get("agnostic", {})
             )
             if vendor_config:
                 lines.extend(self._build_vendor_context(vendor_config, context))
@@ -571,7 +571,7 @@ class PromptComposer:
     ) -> list[str]:
         """Build vendor-specific context for the prompt."""
         lines = []
-        display_name = vendor_config.get("display_name", context.cloud_vendor.upper())
+        display_name = vendor_config.get("display_name", context.platform.upper())
 
         lines.extend(
             [
@@ -630,7 +630,9 @@ class PromptComposer:
         else:
             content = content.replace("{current_date}", datetime.now().strftime("%B %d, %Y"))
 
-        content = content.replace("{cloud_vendor}", context.cloud_vendor)
+        content = content.replace("{platform}", context.platform)
+        # Also support legacy {cloud_vendor} in YAML templates
+        content = content.replace("{cloud_vendor}", context.platform)
 
         # Custom variables
         for name, value in context.custom_vars.items():
@@ -645,8 +647,8 @@ class PromptComposer:
             variables.append("website_url")
         if context.current_date:
             variables.append("current_date")
-        if context.cloud_vendor:
-            variables.append("cloud_vendor")
+        if context.platform:
+            variables.append("platform")
         variables.extend(context.custom_vars.keys())
         return variables
 

@@ -141,6 +141,8 @@ class TestErrors:
 class TestMCPMetadata:
     def test_server_name(self) -> None:
         from primr.recon.server import mcp
+        if mcp is None:
+            pytest.skip("FastMCP not available in this environment")
         assert mcp.name == "recon-tool"
 
     def test_tool_description(self) -> None:

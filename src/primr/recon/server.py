@@ -15,11 +15,15 @@ import logging
 import time
 import uuid
 
-from mcp.server.fastmcp import FastMCP
+try:
+    from mcp.server.fastmcp import FastMCP
+except (ImportError, ModuleNotFoundError):
+    # MCP SDK version doesn't have fastmcp — server won't run but module can be imported
+    FastMCP = None  # type: ignore[assignment,misc]
 
 try:
     from mcp.types import ToolAnnotations  # type: ignore[attr-defined]
-except ImportError:  # MCP SDK <1.8 doesn't have ToolAnnotations
+except (ImportError, ModuleNotFoundError):
     ToolAnnotations = None  # type: ignore[assignment,misc]
 
 from primr.recon.formatter import detect_provider, format_tenant_json, format_tenant_markdown
@@ -37,7 +41,10 @@ if not logger.handlers:
 
 _VALID_FORMATS = frozenset({"text", "json", "markdown"})
 
-mcp = FastMCP("recon-tool")
+if FastMCP is not None:
+    mcp = FastMCP("recon-tool")
+else:
+    mcp = None  # type: ignore[assignment]
 
 
 # ── Bounded TTL cache for resolved results ──────────────────────────────
@@ -139,7 +146,18 @@ _LOOKUP_ANNOTATIONS = (
 )
 
 
-@mcp.tool(**_LOOKUP_ANNOTATIONS)
+def _noop_decorator(**kwargs):
+    """No-op decorator when MCP is unavailable."""
+    def wrapper(fn):
+        return fn
+    return wrapper
+
+
+_tool = mcp.tool if mcp is not None else _noop_decorator
+_prompt = mcp.prompt if mcp is not None else _noop_decorator
+
+
+@_tool(**_LOOKUP_ANNOTATIONS)
 async def lookup_tenant(
     domain: str,
     format: str = "text",
@@ -266,7 +284,7 @@ _RELOAD_ANNOTATIONS = (
 )
 
 
-@mcp.tool(**_RELOAD_ANNOTATIONS)
+@_tool(**_RELOAD_ANNOTATIONS)
 async def reload_data() -> str:
     """Reload fingerprint and signal definitions from disk.
 
@@ -291,7 +309,7 @@ async def reload_data() -> str:
     return f"Reloaded: {fp_count} fingerprints, {sig_count} signals. Cache cleared."
 
 
-@mcp.prompt()
+@_prompt()
 def domain_report(domain: str) -> str:
     """Generate a domain intelligence report.
 
@@ -306,6 +324,8 @@ def domain_report(domain: str) -> str:
 
 def main() -> None:
     """Run the MCP server with stdio transport."""
+    if mcp is None:
+        raise RuntimeError("MCP server requires mcp[fastmcp] — install with: pip install 'mcp[cli]'")
     mcp.run()
 
 

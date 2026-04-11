@@ -105,6 +105,24 @@ context_instructions: |
   --platform flag). Use this for accurate technology recommendations with
   proper service names, pricing context, and capability details.
   
+  CRITICAL: The --platform flag is a BIAS, not a constraint. It tells you which
+  ecosystem to LEAD with in recommendations, but you must still:
+  - Acknowledge what the company actually runs (from DNS intelligence)
+  - Recommend the best AI tools regardless of platform when appropriate
+  - Include productivity AI (Copilot, Gemini, Claude, ChatGPT Enterprise) based
+    on what makes sense for the company, not just the selected platform
+  - If the company is on M365 but --platform is AWS, lead with AWS services for
+    infrastructure/ML but note that Copilot for M365 is still their natural
+    productivity AI play given their existing Microsoft investment
+  - Always consider multi-vendor AI strategies: a company might use Azure OpenAI
+    for enterprise apps, Anthropic Claude for reasoning tasks, and their platform
+    vendor's native AI for infrastructure
+  
+  Example: If --platform is "azure" but DNS shows they use Anthropic Claude:
+  "Lead architecture recommendations with Azure OpenAI Service and Azure AI Studio,
+  but note their existing Claude deployment — this suggests a multi-model strategy
+  where Azure provides the platform layer and Claude handles specialized reasoning."
+  
   TERTIARY SOURCE - DNS INTELLIGENCE (RECON):
   If present, your context includes a "Domain Intelligence (DNS Reconnaissance)"
   document with VERIFIED facts about the company's actual technology stack,

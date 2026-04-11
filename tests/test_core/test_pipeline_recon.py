@@ -150,12 +150,12 @@ class TestReconPreFlightLogic:
         detected = map_platforms(info.slugs)
         user_specified = ("gcp",)
 
-        # The pipeline checks: set(detected) != set(cloud_vendors)
+        # The pipeline checks: set(detected) != set(platforms)
         assert set(detected) != set(user_specified)
 
     def test_recon_error_falls_back_gracefully(self):
         """Verify the error handling pattern catches all expected exceptions."""
-        cloud_vendors = ("azure",)
+        platforms = ("azure",)
         recon_info = None
 
         # Simulate ReconLookupError
@@ -166,15 +166,15 @@ class TestReconPreFlightLogic:
                 error_type="not_found",
             )
         except Exception:
-            # Pipeline continues with existing cloud_vendors
+            # Pipeline continues with existing platforms
             pass
 
-        assert cloud_vendors == ("azure",)
+        assert platforms == ("azure",)
         assert recon_info is None
 
     def test_timeout_error_falls_back_gracefully(self):
         """Verify TimeoutError is caught and pipeline continues."""
-        cloud_vendors = ("azure",)
+        platforms = ("azure",)
         recon_info = None
 
         try:
@@ -182,7 +182,7 @@ class TestReconPreFlightLogic:
         except Exception:
             pass
 
-        assert cloud_vendors == ("azure",)
+        assert platforms == ("azure",)
         assert recon_info is None
 
 

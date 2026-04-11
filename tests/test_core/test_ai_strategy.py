@@ -81,9 +81,9 @@ class TestAIStrategyConfig:
 
     def test_valid_config(self):
         """Test creating valid config."""
-        config = AIStrategyConfig(company_name="Acme Corp", cloud_vendor=CloudVendor.AZURE)
+        config = AIStrategyConfig(company_name="Acme Corp", platform=CloudVendor.AZURE)
         assert config.company_name == "Acme Corp"
-        assert config.cloud_vendor == CloudVendor.AZURE
+        assert config.platform == CloudVendor.AZURE
         assert config.company_research_path is None
         assert config.force_refresh_vendor is False
         assert config.timeout_seconds == 1800
@@ -96,7 +96,7 @@ class TestAIStrategyConfig:
 
             config = AIStrategyConfig(
                 company_name="Test Co",
-                cloud_vendor=CloudVendor.AWS,
+                platform=CloudVendor.AWS,
                 company_research_path=str(research_file),
             )
             errors = config.validate()
@@ -104,14 +104,14 @@ class TestAIStrategyConfig:
 
     def test_validate_empty_company_name(self):
         """Test validation fails for empty company name."""
-        config = AIStrategyConfig(company_name="", cloud_vendor=CloudVendor.AZURE)
+        config = AIStrategyConfig(company_name="", platform=CloudVendor.AZURE)
         errors = config.validate()
         assert len(errors) == 1
         assert "Company name is required" in errors[0]
 
     def test_validate_whitespace_company_name(self):
         """Test validation fails for whitespace-only company name."""
-        config = AIStrategyConfig(company_name="   ", cloud_vendor=CloudVendor.AZURE)
+        config = AIStrategyConfig(company_name="   ", platform=CloudVendor.AZURE)
         errors = config.validate()
         assert len(errors) == 1
         assert "Company name is required" in errors[0]
@@ -120,7 +120,7 @@ class TestAIStrategyConfig:
         """Test validation fails for missing research file."""
         config = AIStrategyConfig(
             company_name="Test Co",
-            cloud_vendor=CloudVendor.AZURE,
+            platform=CloudVendor.AZURE,
             company_research_path="/nonexistent/path/research.md",
         )
         errors = config.validate()
@@ -135,7 +135,7 @@ class TestAIStrategyConfig:
 
             config = AIStrategyConfig(
                 company_name="Test Co",
-                cloud_vendor=CloudVendor.AZURE,
+                platform=CloudVendor.AZURE,
                 company_research_path=str(empty_file),
             )
             errors = config.validate()
@@ -144,7 +144,7 @@ class TestAIStrategyConfig:
 
     def test_config_is_frozen(self):
         """Test config is immutable (frozen)."""
-        config = AIStrategyConfig(company_name="Test", cloud_vendor=CloudVendor.AZURE)
+        config = AIStrategyConfig(company_name="Test", platform=CloudVendor.AZURE)
         with pytest.raises(AttributeError):
             config.company_name = "Changed"
 
@@ -226,13 +226,13 @@ class TestStrategyPromptContext:
         """Test creating prompt context."""
         context = StrategyPromptContext(
             company_name="Test Corp",
-            cloud_vendor=CloudVendor.AZURE,
+            platform=CloudVendor.AZURE,
             current_date="December 2025",
             vendor_guidance="Azure guidance here",
             vendor_name="Microsoft Azure",
         )
         assert context.company_name == "Test Corp"
-        assert context.cloud_vendor == CloudVendor.AZURE
+        assert context.platform == CloudVendor.AZURE
         assert context.current_date == "December 2025"
 
 
@@ -314,7 +314,7 @@ class TestGenerateAIStrategy:
             mock_api.gemini_key = None
             mock_settings.return_value.api = mock_api
 
-            result = await generate_ai_strategy(company_name="Test Corp", cloud_vendor="azure")
+            result = await generate_ai_strategy(company_name="Test Corp", platform="azure")
 
             assert result.success is False
             assert "GEMINI_API_KEY" in result.error
@@ -327,7 +327,7 @@ class TestGenerateAIStrategy:
             mock_api.gemini_key = "test-key"
             mock_settings.return_value.api = mock_api
 
-            result = await generate_ai_strategy(company_name="", cloud_vendor="azure")
+            result = await generate_ai_strategy(company_name="", platform="azure")
 
             assert result.success is False
             assert "Company name" in result.error
@@ -340,7 +340,7 @@ class TestGenerateAIStrategy:
 
             result = await generate_ai_strategy(
                 company_name="Test",
-                cloud_vendor="azure",  # String, not enum
+                platform="azure",  # String, not enum
             )
 
             # Should fail at preflight, but vendor conversion should work
@@ -351,7 +351,7 @@ class TestGenerateAIStrategy:
         with patch("primr.core.ai_strategy._validate_preflight") as mock_validate:
             mock_validate.return_value = ["Preflight error"]
 
-            result = generate_ai_strategy_sync(company_name="Test", cloud_vendor="azure")
+            result = generate_ai_strategy_sync(company_name="Test", platform="azure")
 
             # Should return None on failure
             assert result is None
@@ -369,7 +369,7 @@ class TestAIStrategyProperties:
     @settings(deadline=None)
     def test_config_validates_non_empty_names(self, company_name):
         """Property: Non-empty company names pass validation."""
-        config = AIStrategyConfig(company_name=company_name, cloud_vendor=CloudVendor.AZURE)
+        config = AIStrategyConfig(company_name=company_name, platform=CloudVendor.AZURE)
         errors = config.validate()
         # Should not have "Company name is required" error
         assert not any("Company name is required" in e for e in errors)
