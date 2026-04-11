@@ -286,6 +286,27 @@ Split section-writing prompts into cached (stable across sections) and volatile 
 - When prompt caching becomes available (Anthropic supports it now; xAI and Google may follow), the payoff is significant: a cache miss on the shared prefix means paying full input token cost 23 times instead of once
 - Applies the same principle to strategy generation prompts and cross-validation prompts where a shared context prefix is reused across multiple calls
 
+**xAI Batch API for Section Writing (`--batch-api`)**
+
+Use xAI's Batch API for the most token-intensive pipeline stage (section writing) to reduce cost and eliminate rate-limit risk during large batch runs.
+
+Why section writing: each company generates 23 independent section-writing calls — the single most expensive stage (~40-50% of Grok spend) and the only one where all calls are independent of each other. The other stages (gap analysis, workbook, cross-validation) are sequential and depend on prior outputs, making them poor candidates for async batch processing.
+
+- New `--batch-api` flag on `primr --batch` to opt in to Batch API for section writing
+- After the analysis/workbook stage completes for a company, submit all 23 section prompts as a single xAI batch instead of running them through `ThreadPoolExecutor(max_workers=4)`
+- Poll batch status until complete (typically minutes, SLA up to 24 hours)
+- Retrieve results and feed into cross-validation as normal
+- xAI Batch API benefits: reduced pricing (typically ~50% discount), no per-minute rate limits, requests processed in background queue
+- For a 100-company batch at ~$0.65 Grok spend each: saves ~$16-32 on section writing alone, plus zero risk of 429 errors during the most API-intensive phase
+- Scraping and sequential LLM stages (gap analysis, workbook, cross-validation, strategy) remain synchronous — they're either I/O-bound (scraping) or sequentially dependent
+- Graceful fallback: if Batch API is unavailable or times out, fall back to existing `ThreadPoolExecutor` path
+- Progress display updated: "Section writing (batch API, polling...)" with ETA based on batch state counters
+- Strategy generation could also be batched when running multi-platform strategies (multiple independent strategy calls)
+- Requires `xai-sdk` or raw HTTP — evaluate SDK maturity vs direct `httpx` calls to `/v1/batches`
+- Decision gated by xAI Batch API pricing confirmation and SDK stability
+
+Larger batch pipeline restructuring (scrape-all-first, then batch all LLM work across companies) is a bigger architectural change. Evaluate after single-company batch API proves out. The wall-clock tradeoff (async queue vs immediate) may not justify the complexity for batches under ~20 companies.
+
 #### v1.19.0 — Better Reports
 
 **Expert Perspective Passes (`--with-experts`)**
