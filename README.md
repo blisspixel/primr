@@ -14,13 +14,13 @@ Runs as a CLI, an MCP server, an OpenClaw integration, and a Claude Skill.
 primr "ExampleCo" https://example.co
 ```
 
-About 35-50 minutes later: a deep strategic analysis covering competitive positioning, technology stack, strategic initiatives, likely constraints, and consultant-grade hypotheses, with dense references consolidated at the end. ~$0.55 in API costs.
+About 35-50 minutes later: a deep strategic analysis covering competitive positioning, technology stack, strategic initiatives, likely constraints, and consultant-grade hypotheses, with dense references consolidated at the end. ~$0.75 in API costs.
 
 ## Why This Exists
 
 Company research is tedious. You visit the website, click around, search the company, read articles, synthesize it all, write it up. That process easily takes 1-2 hours per company and the output is usually unstructured notes.
 
-Primr does that entire workflow autonomously in about 35-50 minutes for about $0.55 in API costs. The output is deep, structured strategic analysis, competitive positioning, technology stack, strategic initiatives, financial profile, external validation, and a consultant-ready view of what matters most to validate in conversation. Whether you're researching a potential employer, evaluating an investment, preparing for a partnership, doing competitive analysis, or running due diligence, a single run replaces hours of manual work.
+Primr does that entire workflow autonomously in about 35-50 minutes for about $0.75 in API costs. The output is deep, structured strategic analysis, competitive positioning, technology stack, strategic initiatives, financial profile, external validation, and a consultant-ready view of what matters most to validate in conversation. Whether you're researching a potential employer, evaluating an investment, preparing for a partnership, doing competitive analysis, or running due diligence, a single run replaces hours of manual work.
 
 ## What Makes It Different
 
@@ -103,37 +103,39 @@ For batch processing, see [Batch Guide](docs/BATCH.md). For crash recovery and r
 ### What a run looks like
 
 ```
-Using Grok 4.1 · for deeper research add --premium
+Grok 4.20 hybrid · recon auto-detected Azure
 
-▸ PHASE 1/6 · Data Collection (fast)
-  Scraping example.co + external sources
+▸ PHASE 0/6 · Recon
+✓ 14 services, 8 insights, platform: azure (2s)
 
+▸ PHASE 1/6 · Data Collection
 ✓ 251 links → 50 selected
 ✓ 48/50 pages scraped (6m 10s)
-✓ Searching external sources (8m 22s)
-  Quality filter: 38 → 31 sources (dropped 7 low-relevance)
+✓ 31 external sources (8m 22s)
 
 ▸ PHASE 2/6 · Research Deepening
-✓ Gap analysis: 8 questions identified
-✓ Found 12 additional sources
+✓ 8 gaps identified, 12 additional sources
 
-▸ PHASE 3/6 · Analysis (Grok)
-✓ Analysis (Grok)
+▸ PHASE 3/6 · Analysis
+✓ Structured workbook built
 
-▸ PHASE 4/6 · Report Writing (Grok)
-  Part 1/5 (Foundation): 7 section(s) in parallel
-  Part 2/5 (Industry): 3 section(s) in parallel
-  Part 4/5 (Deep Insights): 7 section(s) in parallel
-✓ Report Writing — Sections: 23  Words: 21,500
+▸ PHASE 4/6 · Report Writing
+  Part 1/5: 7 sections in parallel
+  Part 2/5: 3 sections in parallel
+  Part 4/5: 7 sections in parallel
+✓ 23 sections, 21,500 words
 
 ▸ PHASE 5/6 · Cross-Validation
-✓ Resolved 3 contradiction(s)
-  Trust Summary: report=PASS cites=12/12 appendix=clean reasoning=deep
+✓ 3 contradictions resolved
+  Trust: PASS · cites 12/12 · appendix clean
 
-✓ Complete in 35m
-  output/ExampleCo_Strategic_Overview_03-03-2026.docx
+▸ PHASE 6/6 · AI Strategy (Azure)
+✓ Strategy generated
 
-Artifact Gate: PASS | Chapters: 23 | Citations: 48 | Est. Cost: $0.60
+✓ Complete in 38m
+  output/ExampleCo_Strategic_Overview_04-10-2026.docx
+
+PASS | 23 chapters | 48 citations | ~$0.74
 ```
 
 ### What the output looks like
