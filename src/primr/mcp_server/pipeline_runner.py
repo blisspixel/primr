@@ -492,7 +492,7 @@ async def run_strategy_generation(
     import os
     import re
 
-    from primr.core.ai_strategy import CloudVendor, generate_ai_strategy
+    from primr.core.ai_strategy import CloudVendor, Platform, generate_ai_strategy
 
     # Filename pattern: "Company_Name_Strategic_Overview_MM-DD-YYYY.ext"
     filename = os.path.splitext(os.path.basename(report_path))[0]
@@ -506,7 +506,7 @@ async def run_strategy_generation(
         company_name = filename.replace("_", " ")
 
     # Map strategy type
-    vendor = CloudVendor.from_string(cloud_vendor) if cloud_vendor else CloudVendor.AGNOSTIC
+    vendor = Platform.from_string(cloud_vendor) if cloud_vendor else Platform.AGNOSTIC
 
     result = await generate_ai_strategy(
         company_name=company_name,

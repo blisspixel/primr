@@ -16,7 +16,9 @@ from primr.mcp_server.auth import (
     AuthConfig,
     AuthContext,
     PrimrTokenVerifier,
+    get_entra_id_config,
     log_auth_failure,
+    validate_entra_id_audience,
 )
 
 # Test secret for JWT signing
@@ -580,3 +582,344 @@ class TestAuthenticationEnforcement:
 
         result = await verifier.verify_token(token)
         assert result is None
+
+
+class TestValidateEntraIdAudience:
+    """Tests for validate_entra_id_audience function.
+
+    Requirements: 3.1, 3.4
+    """
+
+    def test_matching_string_audience(self):
+        """Audience validation passes when aud matches as string."""
+        payload = {"aud": "app-id-123"}
+        assert validate_entra_id_audience(payload, "app-id-123") is True
+
+    def test_mismatched_string_audience(self):
+        """Audience validation fails when aud doesn't match."""
+        payload = {"aud": "wrong-app-id"}
+        assert validate_entra_id_audience(payload, "app-id-123") is False
+
+    def test_matching_list_audience(self):
+        """Audience validation passes when aud list contains expected value."""
+        payload = {"aud": ["app-id-123", "other-app"]}
+        assert validate_entra_id_audience(payload, "app-id-123") is True
+
+    def test_mismatched_list_audience(self):
+        """Audience validation fails when aud list doesn't contain expected value."""
+        payload = {"aud": ["other-app", "another-app"]}
+        assert validate_entra_id_audience(payload, "app-id-123") is False
+
+    def test_missing_audience_claim(self):
+        """Audience validation fails when aud claim is missing."""
+        payload = {"sub": "user-123"}
+        assert validate_entra_id_audience(payload, "app-id-123") is False
+
+    def test_empty_string_audience(self):
+        """Audience validation fails when aud is empty string."""
+        payload = {"aud": ""}
+        assert validate_entra_id_audience(payload, "app-id-123") is False
+
+    def test_empty_list_audience(self):
+        """Audience validation fails when aud is empty list."""
+        payload = {"aud": []}
+        assert validate_entra_id_audience(payload, "app-id-123") is False
+
+    def test_none_audience_in_payload(self):
+        """Audience validation fails when aud is None."""
+        payload = {"aud": None}
+        assert validate_entra_id_audience(payload, "app-id-123") is False
+
+    def test_malformed_audience_type(self):
+        """Audience validation fails for non-string/non-list aud."""
+        payload = {"aud": 12345}
+        assert validate_entra_id_audience(payload, "app-id-123") is False
+
+    def test_empty_expected_audience(self):
+        """Audience validation fails when expected audience is empty."""
+        payload = {"aud": "app-id-123"}
+        assert validate_entra_id_audience(payload, "") is False
+
+    def test_entra_id_jwt_audience_with_verifier(self):
+        """Full JWT flow: Entra ID audience validated via PrimrTokenVerifier."""
+        app_id = "api://my-container-app-id"
+        config = AuthConfig(
+            jwt_secret=TEST_JWT_SECRET,
+            jwt_audience=app_id,
+        )
+        verifier = PrimrTokenVerifier(config)
+
+        # Token with correct Entra ID audience
+        token = create_signed_jwt({
+            "sub": "user@contoso.com",
+            "aud": app_id,
+            "exp": int(time.time()) + 3600,
+        })
+        import asyncio
+        result = asyncio.get_event_loop().run_until_complete(verifier.verify_token(token))
+        assert result is not None
+        assert result.client_id == "user@contoso.com"
+
+    def test_entra_id_jwt_wrong_audience_rejected(self):
+        """Full JWT flow: wrong Entra ID audience rejected with verifier."""
+        config = AuthConfig(
+            jwt_secret=TEST_JWT_SECRET,
+            jwt_audience="api://my-container-app-id",
+        )
+        verifier = PrimrTokenVerifier(config)
+
+        token = create_signed_jwt({
+            "sub": "user@contoso.com",
+            "aud": "api://wrong-app-id",
+            "exp": int(time.time()) + 3600,
+        })
+        import asyncio
+        result = asyncio.get_event_loop().run_until_complete(verifier.verify_token(token))
+        assert result is None
+
+
+class TestGetEntraIdConfig:
+    """Tests for get_entra_id_config function.
+
+    Requirements: 3.1, 3.4, 4.7
+    """
+
+    def test_config_with_audience_set(self, monkeypatch):
+        """Config returns enabled=True when MCP_JWT_AUDIENCE is set."""
+        monkeypatch.setenv("MCP_JWT_AUDIENCE", "api://my-app")
+        monkeypatch.delenv("MCP_JWT_TENANT_ID", raising=False)
+
+        config = get_entra_id_config()
+
+        assert config["audience"] == "api://my-app"
+        assert config["tenant_id"] is None
+        assert config["enabled"] is True
+
+    def test_config_with_audience_and_tenant(self, monkeypatch):
+        """Config returns both audience and tenant_id when set."""
+        monkeypatch.setenv("MCP_JWT_AUDIENCE", "api://my-app")
+        monkeypatch.setenv("MCP_JWT_TENANT_ID", "tenant-abc-123")
+
+        config = get_entra_id_config()
+
+        assert config["audience"] == "api://my-app"
+        assert config["tenant_id"] == "tenant-abc-123"
+        assert config["enabled"] is True
+
+    def test_config_without_audience(self, monkeypatch):
+        """Config returns enabled=False when MCP_JWT_AUDIENCE is not set."""
+        monkeypatch.delenv("MCP_JWT_AUDIENCE", raising=False)
+        monkeypatch.delenv("MCP_JWT_TENANT_ID", raising=False)
+
+        config = get_entra_id_config()
+
+        assert config["audience"] is None
+        assert config["tenant_id"] is None
+        assert config["enabled"] is False
+
+    def test_config_with_empty_audience(self, monkeypatch):
+        """Config returns enabled=False when MCP_JWT_AUDIENCE is empty string."""
+        monkeypatch.setenv("MCP_JWT_AUDIENCE", "")
+
+        config = get_entra_id_config()
+
+        assert config["enabled"] is False
+
+
+class TestFoundryAgentServiceAuth:
+    """Tests for Foundry Agent Service authentication methods.
+
+    Validates that the auth system supports the three Foundry auth methods:
+    - Key-based (API key via project connection)
+    - Entra agent identity (JWT with aud claim)
+    - Entra project managed identity (JWT with aud claim)
+
+    Requirements: 4.7
+    """
+
+    @pytest.fixture
+    def verifier_with_entra(self):
+        """Verifier configured for Entra ID + API key auth."""
+        config = AuthConfig(
+            admin_tokens={"foundry-api-key-abc123"},
+            jwt_secret=TEST_JWT_SECRET,
+            jwt_audience="api://primr-container-app",
+        )
+        return PrimrTokenVerifier(config)
+
+    @pytest.mark.asyncio
+    async def test_key_based_auth(self, verifier_with_entra):
+        """Key-based auth: API key via Foundry project connection."""
+        result = await verifier_with_entra.verify_token("foundry-api-key-abc123")
+        assert result is not None
+        assert "admin" in result.scopes
+
+    @pytest.mark.asyncio
+    async def test_entra_agent_identity(self, verifier_with_entra):
+        """Entra agent identity: JWT with matching audience."""
+        token = create_signed_jwt({
+            "sub": "foundry-agent-identity",
+            "aud": "api://primr-container-app",
+            "iss": "https://login.microsoftonline.com/tenant-id/v2.0",
+            "exp": int(time.time()) + 3600,
+        })
+        result = await verifier_with_entra.verify_token(token)
+        assert result is not None
+        assert result.client_id == "foundry-agent-identity"
+
+    @pytest.mark.asyncio
+    async def test_entra_managed_identity(self, verifier_with_entra):
+        """Entra project managed identity: JWT with matching audience."""
+        token = create_signed_jwt({
+            "sub": "managed-identity-object-id",
+            "aud": "api://primr-container-app",
+            "oid": "managed-identity-object-id",
+            "exp": int(time.time()) + 3600,
+        })
+        result = await verifier_with_entra.verify_token(token)
+        assert result is not None
+
+    @pytest.mark.asyncio
+    async def test_entra_wrong_audience_rejected(self, verifier_with_entra):
+        """Entra token with wrong audience is rejected."""
+        token = create_signed_jwt({
+            "sub": "foundry-agent",
+            "aud": "api://wrong-app-id",
+            "exp": int(time.time()) + 3600,
+        })
+        result = await verifier_with_entra.verify_token(token)
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_invalid_api_key_rejected(self, verifier_with_entra):
+        """Invalid API key is rejected."""
+        result = await verifier_with_entra.verify_token("invalid-key")
+        assert result is None
+
+
+class TestJwtSecretCloudEnforcement:
+    """Tests for L3: JWT secret length enforcement in cloud mode."""
+
+    def test_short_secret_raises_in_cloud_mode(self, monkeypatch):
+        """In cloud mode, short JWT secret raises ValueError."""
+        monkeypatch.setenv("AZURE_CLIENT_ID", "some-client-id")
+        monkeypatch.setenv("MCP_JWT_SECRET", "short")
+        monkeypatch.delenv("MCP_ADMIN_TOKENS", raising=False)
+        monkeypatch.delenv("MCP_JWT_ISSUER", raising=False)
+        monkeypatch.delenv("MCP_JWT_AUDIENCE", raising=False)
+        monkeypatch.delenv("MCP_ADMIN_TOKEN_MAX_AGE_HOURS", raising=False)
+
+        with pytest.raises(ValueError, match="at least"):
+            AuthConfig.from_env()
+
+    def test_short_secret_warns_in_local_mode(self, monkeypatch, caplog):
+        """In local mode, short JWT secret only logs a warning."""
+        import logging
+
+        monkeypatch.delenv("AZURE_CLIENT_ID", raising=False)
+        monkeypatch.setenv("MCP_JWT_SECRET", "short")
+        monkeypatch.delenv("MCP_ADMIN_TOKENS", raising=False)
+        monkeypatch.delenv("MCP_JWT_ISSUER", raising=False)
+        monkeypatch.delenv("MCP_JWT_AUDIENCE", raising=False)
+        monkeypatch.delenv("MCP_ADMIN_TOKEN_MAX_AGE_HOURS", raising=False)
+
+        with caplog.at_level(logging.WARNING):
+            config = AuthConfig.from_env()
+
+        assert config.jwt_secret == "short"
+        assert "shorter than" in caplog.text
+
+    def test_long_secret_ok_in_cloud_mode(self, monkeypatch):
+        """In cloud mode, sufficiently long JWT secret is accepted."""
+        monkeypatch.setenv("AZURE_CLIENT_ID", "some-client-id")
+        monkeypatch.setenv("MCP_JWT_SECRET", TEST_JWT_SECRET)
+        monkeypatch.delenv("MCP_ADMIN_TOKENS", raising=False)
+        monkeypatch.delenv("MCP_JWT_ISSUER", raising=False)
+        monkeypatch.delenv("MCP_JWT_AUDIENCE", raising=False)
+        monkeypatch.delenv("MCP_ADMIN_TOKEN_MAX_AGE_HOURS", raising=False)
+
+        config = AuthConfig.from_env()
+        assert config.jwt_secret == TEST_JWT_SECRET
+
+
+class TestAdminTokenMaxAge:
+    """Tests for L4: Admin token max age expiry."""
+
+    @pytest.mark.asyncio
+    async def test_admin_token_expires_after_max_age(self):
+        """Admin token is rejected after max age from first use."""
+        config = AuthConfig(
+            admin_tokens={"expiring-token"},
+            admin_token_max_age_hours=1.0,  # 1 hour
+        )
+        verifier = PrimrTokenVerifier(config)
+
+        # First use — should succeed
+        result = await verifier.verify_token("expiring-token")
+        assert result is not None
+
+        # Simulate time passing beyond max age
+        token_hash = verifier._hash_token("expiring-token")
+        verifier._admin_token_first_use[token_hash] = time.time() - 7200  # 2 hours ago
+        verifier.clear_cache()  # Clear cache to force re-check
+
+        result = await verifier.verify_token("expiring-token")
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_admin_token_no_expiry_by_default(self):
+        """Admin tokens don't expire when max age is not set."""
+        config = AuthConfig(
+            admin_tokens={"forever-token"},
+            admin_token_max_age_hours=None,
+        )
+        verifier = PrimrTokenVerifier(config)
+
+        result = await verifier.verify_token("forever-token")
+        assert result is not None
+
+    @pytest.mark.asyncio
+    async def test_admin_token_within_max_age(self):
+        """Admin token is accepted within max age window."""
+        config = AuthConfig(
+            admin_tokens={"fresh-token"},
+            admin_token_max_age_hours=24.0,
+        )
+        verifier = PrimrTokenVerifier(config)
+
+        result = await verifier.verify_token("fresh-token")
+        assert result is not None
+
+        # Clear cache but keep first-use time (recent)
+        verifier.clear_cache()
+        result = await verifier.verify_token("fresh-token")
+        assert result is not None
+
+    def test_max_age_from_env(self, monkeypatch):
+        """MCP_ADMIN_TOKEN_MAX_AGE_HOURS is loaded from environment."""
+        monkeypatch.delenv("AZURE_CLIENT_ID", raising=False)
+        monkeypatch.delenv("MCP_JWT_SECRET", raising=False)
+        monkeypatch.delenv("MCP_ADMIN_TOKENS", raising=False)
+        monkeypatch.delenv("MCP_JWT_ISSUER", raising=False)
+        monkeypatch.delenv("MCP_JWT_AUDIENCE", raising=False)
+        monkeypatch.setenv("MCP_ADMIN_TOKEN_MAX_AGE_HOURS", "48")
+
+        config = AuthConfig.from_env()
+        assert config.admin_token_max_age_hours == 48.0
+
+    def test_invalid_max_age_ignored(self, monkeypatch, caplog):
+        """Invalid MCP_ADMIN_TOKEN_MAX_AGE_HOURS is ignored with warning."""
+        import logging
+
+        monkeypatch.delenv("AZURE_CLIENT_ID", raising=False)
+        monkeypatch.delenv("MCP_JWT_SECRET", raising=False)
+        monkeypatch.delenv("MCP_ADMIN_TOKENS", raising=False)
+        monkeypatch.delenv("MCP_JWT_ISSUER", raising=False)
+        monkeypatch.delenv("MCP_JWT_AUDIENCE", raising=False)
+        monkeypatch.setenv("MCP_ADMIN_TOKEN_MAX_AGE_HOURS", "not-a-number")
+
+        with caplog.at_level(logging.WARNING):
+            config = AuthConfig.from_env()
+
+        assert config.admin_token_max_age_hours is None
+        assert "Invalid MCP_ADMIN_TOKEN_MAX_AGE_HOURS" in caplog.text

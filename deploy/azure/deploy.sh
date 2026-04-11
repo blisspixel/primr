@@ -39,6 +39,25 @@ STORAGE_ACCOUNT="$(short_resource_name "storage" 24 | tr -d '-')"
 COSMOS_ACCOUNT="$(resource_name "cosmos")"
 KEY_VAULT_NAME="$(short_resource_name "kv" 24)"
 
+# Configurable parameters (set via CLI flags)
+DEPLOY_TIER="${DEPLOY_TIER:-team}"
+USE_BICEP=false
+BUDGET_AMOUNT=""
+MIN_REPLICAS=0
+MAX_REPLICAS=10
+SKIP_SMOKE_TEST=false
+LLM_ROUTING="${LLM_ROUTING:-direct}"
+AZURE_OPENAI_ENDPOINT=""
+AZURE_OPENAI_DEPLOYMENT=""
+
+# =============================================================================
+# TIER HELPERS
+# =============================================================================
+
+is_org_tier() {
+    [[ "$DEPLOY_TIER" == "organization" ]]
+}
+
 # =============================================================================
 # PREREQUISITE CHECKS
 # =============================================================================
@@ -76,7 +95,7 @@ create_acr() {
         log_info "ACR already exists"
     else
         az acr create --name "$ACR_NAME" --resource-group "$RESOURCE_GROUP" \
-            --sku Basic --admin-enabled true
+            --sku Basic
         log_success "ACR created"
     fi
 }
@@ -312,9 +331,6 @@ create_reconciler_function() {
         --query documentEndpoint -o tsv)
     
     # Get Storage account name (use managed identity instead of connection string)
-    local storage_conn
-    storage_conn=$(az storage account show-connection-string --name "$STORAGE_ACCOUNT" \
-        --resource-group "$RESOURCE_GROUP" --query connectionString -o tsv)
     
     # Configure app settings with Application Insights and managed identity
     az functionapp config appsettings set \
@@ -325,7 +341,6 @@ create_reconciler_function() {
             "COSMOS_DATABASE=primr" \
             "COSMOS_CONTAINER=jobs" \
             "STORAGE_ACCOUNT_NAME=$STORAGE_ACCOUNT" \
-            "STORAGE_CONNECTION_STRING=$storage_conn" \
             "STORAGE_CONTAINER=artifacts" \
             "DEPLOYMENT=$PRIMR_DEPLOYMENT" \
             "APPLICATIONINSIGHTS_CONNECTION_STRING=$app_insights_conn" \
@@ -347,96 +362,14 @@ deploy_reconciler_function_code() {
     # Create temporary directory for function code
     local temp_dir
     temp_dir=$(mktemp -d)
-    
-    # Create function.json for timer trigger (every 5 minutes)
-    mkdir -p "$temp_dir/reconciler"
-    cat > "$temp_dir/reconciler/function.json" << 'EOF'
-{
-    "scriptFile": "__init__.py",
-    "bindings": [
-        {
-            "name": "timer",
-            "type": "timerTrigger",
-            "direction": "in",
-            "schedule": "0 */5 * * * *"
-        }
-    ]
-}
-EOF
-    
-    # Create the function code
-    cat > "$temp_dir/reconciler/__init__.py" << 'EOF'
-import logging
-import os
-import json
-import azure.functions as func
-from deploy.control_plane.reconciler import Reconciler, ReconciliationConfig
-from deploy.control_plane.job_store import CosmosStore
-from deploy.storage import BlobStore
 
-def main(timer: func.TimerRequest) -> None:
-    """Timer-triggered reconciliation function."""
-    logging.info("Reconciler function triggered")
-    
-    # Get configuration from environment
-    cosmos_conn = os.environ.get("COSMOS_CONNECTION_STRING")
-    storage_conn = os.environ.get("STORAGE_CONNECTION_STRING")
-    deployment = os.environ.get("DEPLOYMENT", "prod")
-    database = os.environ.get("COSMOS_DATABASE", "primr")
-    container = os.environ.get("COSMOS_CONTAINER", "jobs")
-    storage_container = os.environ.get("STORAGE_CONTAINER", "artifacts")
-    
-    # Create stores
-    job_store = CosmosStore(
-        connection_string=cosmos_conn,
-        database_name=database,
-        container_name=container,
-    )
-    artifact_store = BlobStore(
-        container_name=storage_container,
-        deployment=deployment,
-        connection_string=storage_conn,
-    )
-    
-    # Create reconciler with config
-    config = ReconciliationConfig(
-        max_duration_seconds=7200,  # 2 hours
-        cancellation_grace_seconds=300,  # 5 minutes
-        heartbeat_stale_seconds=600,  # 10 minutes
-    )
-    reconciler = Reconciler(job_store, artifact_store, config)
-    
-    # Run reconciliation
-    result = reconciler.reconcile()
-    
-    logging.info(f"Reconciliation complete: {result.to_dict()}")
-EOF
-    
-    # Create host.json
-    cat > "$temp_dir/host.json" << 'EOF'
-{
-    "version": "2.0",
-    "logging": {
-        "applicationInsights": {
-            "samplingSettings": {
-                "isEnabled": true,
-                "excludedTypes": "Request"
-            }
-        }
-    },
-    "extensionBundle": {
-        "id": "Microsoft.Azure.Functions.ExtensionBundle",
-        "version": "[3.*, 4.0.0)"
-    }
-}
-EOF
-    
-    # Create requirements.txt
-    cat > "$temp_dir/requirements.txt" << 'EOF'
-azure-functions
-azure-cosmos
-azure-storage-blob
-EOF
+    # Q3: Copy extracted function files instead of using heredocs
+    local functions_src="$SCRIPT_DIR/functions"
+    cp "$functions_src/host.json" "$temp_dir/host.json"
+    cp "$functions_src/requirements.txt" "$temp_dir/requirements.txt"
+    mkdir -p "$temp_dir/reconciler"
+    cp "$functions_src/reconciler/function.json" "$temp_dir/reconciler/function.json"
+    cp "$functions_src/reconciler/__init__.py" "$temp_dir/reconciler/__init__.py"
     
     # Copy deploy module
     cp -r "$SCRIPT_DIR/../" "$temp_dir/deploy"
@@ -452,6 +385,111 @@ EOF
     
     # Clean up
     rm -rf "$temp_dir"
+}
+
+# =============================================================================
+# BICEP DEPLOYMENT
+# =============================================================================
+
+cmd_deploy_bicep() {
+    log_step "Deploying Primr to Azure via Bicep templates"
+    log_info "Deployment: $PRIMR_DEPLOYMENT"
+    log_info "Location: $AZURE_LOCATION"
+    log_info "Tier: $DEPLOY_TIER"
+
+    check_prerequisites
+    create_resource_group
+
+    # Build and push image first (Bicep needs the image in ACR)
+    create_acr
+    push_to_acr
+
+    local bicep_file="$SCRIPT_DIR/bicep/main.bicep"
+    if [[ ! -f "$bicep_file" ]]; then
+        log_error "Bicep template not found: $bicep_file"
+        exit 1
+    fi
+
+    local budget="${BUDGET_AMOUNT:-}"
+    if [[ -z "$budget" ]]; then
+        if is_org_tier; then budget=200; else budget=50; fi
+    fi
+
+    local params=(
+        "deploymentName=$PRIMR_DEPLOYMENT"
+        "location=$AZURE_LOCATION"
+        "resourcePrefix=$PRIMR_PREFIX"
+        "tier=$DEPLOY_TIER"
+        "minReplicas=$MIN_REPLICAS"
+        "maxReplicas=$MAX_REPLICAS"
+        "budgetAmount=$budget"
+        "acrLoginServer=$ACR_NAME.azurecr.io"
+        "imageName=primr-runner"
+        "imageTag=$PRIMR_DEPLOYMENT"
+        "contactEmails=[\"$PRIMR_DEPLOYMENT@primr.dev\"]"
+        "llmRoutingMode=$LLM_ROUTING"
+    )
+
+    if [[ "$LLM_ROUTING" == "azure" ]]; then
+        if [[ -n "$AZURE_OPENAI_ENDPOINT" ]]; then
+            params+=("azureOpenaiEndpoint=$AZURE_OPENAI_ENDPOINT")
+        fi
+        if [[ -n "$AZURE_OPENAI_DEPLOYMENT" ]]; then
+            params+=("azureOpenaiDeployment=$AZURE_OPENAI_DEPLOYMENT")
+        fi
+    fi
+
+    log_step "Running az deployment group create"
+    local param_args=()
+    for p in "${params[@]}"; do
+        param_args+=("$p")
+    done
+
+    az deployment group create \
+        --resource-group "$RESOURCE_GROUP" \
+        --template-file "$bicep_file" \
+        --parameters "${param_args[@]}" \
+        --name "$PRIMR_DEPLOYMENT-$(date +%Y%m%d%H%M%S)"
+
+    log_success "Bicep deployment complete!"
+    print_post_deploy_summary
+}
+
+# =============================================================================
+# POST-DEPLOYMENT SUMMARY
+# =============================================================================
+
+print_post_deploy_summary() {
+    log_step "Post-Deployment Summary"
+
+    # MCP Server FQDN
+    local fqdn=""
+    fqdn=$(az containerapp show --name "$CONTAINER_APP_NAME" --resource-group "$RESOURCE_GROUP" \
+        --query "properties.configuration.ingress.fqdn" -o tsv 2>/dev/null || echo "not-available")
+    log_info "MCP Server FQDN:   https://${fqdn}"
+
+    # Auth method
+    local auth_method="API Key (Bearer token)"
+    if is_org_tier; then
+        auth_method="Entra ID + API Key"
+    fi
+    log_info "Auth Method:       ${auth_method}"
+
+    # OpenAPI spec URL
+    log_info "OpenAPI Spec URL:  https://${fqdn}/openapi.json"
+
+    # LLM routing mode
+    log_info "LLM Routing:       ${LLM_ROUTING}"
+
+    # Estimated idle cost
+    local idle_cost="< \$5/month"
+    if is_org_tier; then
+        idle_cost="< \$15/month"
+    fi
+    log_info "Est. Idle Cost:    ${idle_cost}"
+
+    echo ""
+    log_success "Deployment ready!"
 }
 
 # =============================================================================
@@ -497,6 +535,8 @@ cmd_deploy() {
     log_step "Deploying Primr to Azure"
     log_info "Deployment: $PRIMR_DEPLOYMENT"
     log_info "Location: $AZURE_LOCATION"
+    log_info "Tier: $DEPLOY_TIER"
+    log_info "LLM Routing: $LLM_ROUTING"
     
     check_prerequisites
     create_resource_group
@@ -504,21 +544,32 @@ cmd_deploy() {
     push_to_acr
     create_storage
     create_cosmos
-    create_service_bus
     create_key_vault
-    
-    # Create observability and identity
-    create_app_insights
+
+    # Organization-tier resources only
+    if is_org_tier; then
+        create_service_bus
+        create_app_insights
+    fi
+
     create_managed_identity
-    
     create_container_app_env
     create_container_app_job
-    
-    # Create reconciler (Azure Function with Timer trigger)
-    create_function_storage
-    create_reconciler_function
+
+    # Organization-tier: reconciler function
+    if is_org_tier; then
+        create_function_storage
+        create_reconciler_function
+    fi
+
+    # Budget alert (if --budget was specified)
+    if [[ -n "${BUDGET_AMOUNT:-}" ]]; then
+        log_step "Configuring budget alert: \$${BUDGET_AMOUNT}/month"
+        log_info "Budget alerts will be created via Bicep or Azure portal"
+    fi
     
     log_success "Deployment complete!"
+    print_post_deploy_summary
     log_info "Next steps:"
     log_info "  1. Set LLM API keys: $0 secrets set OPENAI-API-KEY"
     log_info "  2. Validate deployment: $0 validate"
@@ -541,17 +592,81 @@ cmd_destroy() {
 }
 
 cmd_validate() {
-    log_step "Validating Azure deployment"
+    log_step "Validating Azure deployment (tier: $DEPLOY_TIER)"
     check_prerequisites
     local errors=0
+
+    # Core resources (both tiers)
     az group show --name "$RESOURCE_GROUP" &>/dev/null && log_substep "Resource group: OK" || { log_error "Resource group not found"; ((errors++)); }
     az acr show --name "$ACR_NAME" --resource-group "$RESOURCE_GROUP" &>/dev/null && log_substep "ACR: OK" || { log_error "ACR not found"; ((errors++)); }
     az storage account show --name "$STORAGE_ACCOUNT" --resource-group "$RESOURCE_GROUP" &>/dev/null && log_substep "Storage: OK" || { log_error "Storage not found"; ((errors++)); }
     az cosmosdb show --name "$COSMOS_ACCOUNT" --resource-group "$RESOURCE_GROUP" &>/dev/null && log_substep "Cosmos DB: OK" || { log_error "Cosmos DB not found"; ((errors++)); }
-    az monitor app-insights component show --app "$APP_INSIGHTS_NAME" --resource-group "$RESOURCE_GROUP" &>/dev/null && log_substep "Application Insights: OK" || { log_error "Application Insights not found"; ((errors++)); }
+    az keyvault show --name "$KEY_VAULT_NAME" --resource-group "$RESOURCE_GROUP" &>/dev/null && log_substep "Key Vault: OK" || { log_error "Key Vault not found"; ((errors++)); }
     az identity show --name "$MANAGED_IDENTITY_NAME" --resource-group "$RESOURCE_GROUP" &>/dev/null && log_substep "Managed Identity: OK" || { log_error "Managed Identity not found"; ((errors++)); }
-    az functionapp show --name "$FUNCTION_APP_NAME" --resource-group "$RESOURCE_GROUP" &>/dev/null && log_substep "Reconciler Function: OK" || { log_error "Reconciler Function not found"; ((errors++)); }
-    [[ $errors -eq 0 ]] && log_success "All resources validated" || { log_error "$errors resource(s) missing"; return 1; }
+
+    # Organization-tier resources only
+    if is_org_tier; then
+        az monitor app-insights component show --app "$APP_INSIGHTS_NAME" --resource-group "$RESOURCE_GROUP" &>/dev/null && log_substep "Application Insights: OK" || { log_error "Application Insights not found"; ((errors++)); }
+        az servicebus namespace show --name "$SERVICE_BUS_NS" --resource-group "$RESOURCE_GROUP" &>/dev/null && log_substep "Service Bus: OK" || { log_error "Service Bus not found"; ((errors++)); }
+        az functionapp show --name "$FUNCTION_APP_NAME" --resource-group "$RESOURCE_GROUP" &>/dev/null && log_substep "Reconciler Function: OK" || { log_error "Reconciler Function not found"; ((errors++)); }
+    fi
+
+    if [[ $errors -eq 0 ]]; then
+        log_success "All resources validated"
+    else
+        log_error "$errors resource(s) missing"
+        return 1
+    fi
+
+    # Smoke test (unless --skip-smoke-test)
+    if [[ "$SKIP_SMOKE_TEST" == "false" ]]; then
+        log_step "Running smoke test"
+        local fqdn
+        fqdn=$(az containerapp show --name "$CONTAINER_APP_NAME" --resource-group "$RESOURCE_GROUP" \
+            --query "properties.configuration.ingress.fqdn" -o tsv 2>/dev/null || echo "")
+
+        if [[ -z "$fqdn" ]]; then
+            log_error "Cannot determine Container App FQDN — skipping smoke test"
+        else
+            local smoke_errors=0
+
+            # 1. Health check
+            log_substep "Checking /healthz ..."
+            local health_status
+            health_status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "https://${fqdn}/healthz" 2>/dev/null || echo "000")
+            if [[ "$health_status" == "200" ]]; then
+                log_substep "/healthz: PASS (HTTP $health_status)"
+            else
+                log_error "/healthz: FAIL (HTTP $health_status)"
+                ((smoke_errors++))
+            fi
+
+            # 2. MCP tools/list JSON-RPC request
+            log_substep "Checking /mcp tools/list ..."
+            local mcp_body='{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+            local mcp_status
+            mcp_status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 \
+                -X POST "https://${fqdn}/mcp" \
+                -H "Content-Type: application/json" \
+                -d "$mcp_body" 2>/dev/null || echo "000")
+            if [[ "$mcp_status" == "200" || "$mcp_status" == "401" ]]; then
+                # 401 is acceptable — it means the endpoint is live but requires auth
+                log_substep "/mcp tools/list: PASS (HTTP $mcp_status)"
+            else
+                log_error "/mcp tools/list: FAIL (HTTP $mcp_status)"
+                ((smoke_errors++))
+            fi
+
+            if [[ $smoke_errors -eq 0 ]]; then
+                log_success "Smoke test passed"
+            else
+                log_error "Smoke test failed ($smoke_errors check(s))"
+                return 1
+            fi
+        fi
+    else
+        log_info "Smoke test skipped (--skip-smoke-test)"
+    fi
 }
 
 cmd_secrets() {
@@ -564,11 +679,32 @@ cmd_secrets() {
 }
 
 usage() {
-    print_usage_header "deploy.sh" "Deploy Primr to Azure (REFERENCE)"
-    echo "Commands:"; print_usage_command "deploy" "Deploy all Azure resources"
+    print_usage_header "deploy.sh" "Deploy Primr to Azure"
+    echo "Commands:"
+    print_usage_command "deploy" "Deploy all Azure resources"
     print_usage_command "destroy [--force]" "Tear down all Azure resources (--force skips confirmation)"
-    print_usage_command "validate" "Validate deployed resources"
+    print_usage_command "validate" "Validate deployed resources and run smoke test"
     print_usage_command "secrets" "Manage secrets (set, list)"
+    echo ""
+    echo "Options:"
+    print_usage_option "-d, --deployment" "Deployment name (default: dev)"
+    print_usage_option "-r, --region" "Azure region (default: eastus)"
+    print_usage_option "--tier" "Deployment tier: team (default) or organization"
+    print_usage_option "--bicep" "Use Bicep templates instead of imperative CLI"
+    print_usage_option "--budget N" "Monthly Azure budget alert threshold in USD"
+    print_usage_option "--min-replicas N" "Minimum Container App replicas (default: 0)"
+    print_usage_option "--max-replicas N" "Maximum Container App replicas (default: 10)"
+    print_usage_option "--skip-smoke-test" "Skip smoke test during validate"
+    print_usage_option "--llm-routing" "LLM routing mode: direct (default) or azure"
+    print_usage_option "--azure-openai-endpoint" "Azure OpenAI endpoint URL (when --llm-routing azure)"
+    print_usage_option "--azure-openai-deployment" "Azure OpenAI deployment name (when --llm-routing azure)"
+    echo ""
+    echo "Examples:"
+    echo "  $0 --tier team -d prod deploy"
+    echo "  $0 --tier organization --bicep -d prod deploy"
+    echo "  $0 --budget 100 -d prod deploy"
+    echo "  $0 --llm-routing azure --azure-openai-endpoint https://myoai.openai.azure.com -d prod deploy"
+    echo "  $0 -d prod validate --skip-smoke-test"
 }
 
 main() {
@@ -576,16 +712,73 @@ main() {
         case "$1" in
             -d|--deployment) PRIMR_DEPLOYMENT="$2"; shift 2 ;;
             -r|--region) AZURE_LOCATION="$2"; PRIMR_REGION="$2"; shift 2 ;;
+            --tier)
+                if [[ "$2" != "team" && "$2" != "organization" ]]; then
+                    log_error "Invalid tier: $2 (must be 'team' or 'organization')"
+                    exit 1
+                fi
+                DEPLOY_TIER="$2"; shift 2 ;;
+            --bicep) USE_BICEP=true; shift ;;
+            --budget)
+                if ! [[ "$2" =~ ^[0-9]+$ ]]; then
+                    log_error "Invalid budget: $2 (must be a positive integer)"
+                    exit 1
+                fi
+                BUDGET_AMOUNT="$2"; shift 2 ;;
+            --min-replicas)
+                if ! [[ "$2" =~ ^[0-9]+$ ]]; then
+                    log_error "Invalid min-replicas: $2 (must be a non-negative integer)"
+                    exit 1
+                fi
+                MIN_REPLICAS="$2"; shift 2 ;;
+            --max-replicas)
+                if ! [[ "$2" =~ ^[0-9]+$ ]]; then
+                    log_error "Invalid max-replicas: $2 (must be a positive integer)"
+                    exit 1
+                fi
+                MAX_REPLICAS="$2"; shift 2 ;;
+            --skip-smoke-test) SKIP_SMOKE_TEST=true; shift ;;
+            --llm-routing)
+                if [[ "$2" != "direct" && "$2" != "azure" ]]; then
+                    log_error "Invalid llm-routing: $2 (must be 'direct' or 'azure')"
+                    exit 1
+                fi
+                LLM_ROUTING="$2"; shift 2 ;;
+            --azure-openai-endpoint) AZURE_OPENAI_ENDPOINT="$2"; shift 2 ;;
+            --azure-openai-deployment) AZURE_OPENAI_DEPLOYMENT="$2"; shift 2 ;;
             -h|--help) usage; exit 0 ;;
             -*) log_error "Unknown option: $1"; usage; exit 1 ;;
             *) break ;;
         esac
     done
+
+    # Validate --llm-routing azure requires endpoint
+    if [[ "$LLM_ROUTING" == "azure" && -z "$AZURE_OPENAI_ENDPOINT" ]]; then
+        log_error "--azure-openai-endpoint is required when --llm-routing azure"
+        exit 1
+    fi
+
     validate_deployment "$PRIMR_DEPLOYMENT" || exit 1
+
+    # L6: Enforce Azure naming constraints (lowercase alphanumeric + hyphens, 3-24 chars, starts with letter)
+    if [[ ! "$PRIMR_DEPLOYMENT" =~ ^[a-z][a-z0-9-]{2,23}$ ]]; then
+        log_error "Deployment name must be 3-24 chars, lowercase alphanumeric + hyphens, starting with a letter"
+        exit 1
+    fi
+
     local cmd="${1:-}"; shift || true
     case "$cmd" in
-        deploy) cmd_deploy ;; destroy) cmd_destroy "${1:-}" ;; validate) cmd_validate ;;
-        secrets) cmd_secrets "$@" ;; "") usage; exit 1 ;;
+        deploy)
+            if [[ "$USE_BICEP" == "true" ]]; then
+                cmd_deploy_bicep
+            else
+                cmd_deploy
+            fi
+            ;;
+        destroy) cmd_destroy "${1:-}" ;;
+        validate) cmd_validate ;;
+        secrets) cmd_secrets "$@" ;;
+        "") usage; exit 1 ;;
         *) log_error "Unknown command: $cmd"; usage; exit 1 ;;
     esac
 }

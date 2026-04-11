@@ -78,7 +78,7 @@ class TestCLIConfig:
             website="https://acme.example",
             mode="deep-research",
             ai_strategy=False,
-            cloud_vendors=("aws",),
+            platforms=("aws",),
         )
         assert config.company_name == "Acme Corp"
         assert config.website == "https://acme.example"
@@ -575,3 +575,224 @@ class TestCLIProperties:
         """Property: All new mode names have mappings."""
         assert mode in MODE_MAP
         assert MODE_MAP[mode] in ["scrape-only", "deep-research", "complete", "hybrid"]
+
+
+# =============================================================================
+# Platform Flag Tests (Task 6.5)
+# =============================================================================
+
+
+class TestPlatformFlag:
+    """Tests for --platform flag, --skip-recon, ms shorthand, and backward compat."""
+
+    def test_parse_platform_aws(self):
+        """Test --platform aws parsing."""
+        config = parse_args(["Acme Corp", "acme.example", "--platform", "aws"])
+        assert config.platforms == ("aws",)
+        assert config.cloud_vendors == ("aws",)
+        assert config.cloud_vendor == "aws"
+
+    def test_parse_platform_multiple(self):
+        """Test --platform with multiple values."""
+        config = parse_args(["Acme Corp", "acme.example", "--platform", "aws", "azure"])
+        assert config.platforms == ("aws", "azure")
+        assert config.cloud_vendors == ("aws", "azure")
+
+    def test_parse_platform_ms_expansion(self):
+        """Test --platform ms expands to azure private."""
+        config = parse_args(["Acme Corp", "acme.example", "--platform", "ms"])
+        assert config.platforms == ("azure", "private")
+        assert config.cloud_vendors == ("azure", "private")
+        assert config.cloud_vendor == "azure"
+
+    def test_parse_platform_ms_deduplicates(self):
+        """Test --platform ms azure deduplicates azure."""
+        config = parse_args(["Acme Corp", "acme.example", "--platform", "ms", "azure"])
+        assert config.platforms == ("azure", "private")
+
+    def test_cloud_vendor_deprecation_warning(self, capsys):
+        """Test --cloud-vendor emits deprecation warning on stderr."""
+        config = parse_args(["Acme Corp", "acme.example", "--cloud-vendor", "aws"])
+        captured = capsys.readouterr()
+        assert "deprecated" in captured.err.lower()
+        assert "--platform" in captured.err
+        assert config.platforms == ("aws",)
+
+    def test_platform_cloud_vendor_mutual_exclusion(self):
+        """Test --platform and --cloud-vendor cannot be used together."""
+        with pytest.raises(SystemExit):
+            parse_args(
+                ["Acme Corp", "acme.example", "--platform", "aws", "--cloud-vendor", "azure"]
+            )
+
+    def test_skip_recon_flag(self):
+        """Test --skip-recon flag parsing."""
+        config = parse_args(["Acme Corp", "acme.example", "--skip-recon"])
+        assert config.skip_recon is True
+
+    def test_skip_recon_default_false(self):
+        """Test --skip-recon defaults to False."""
+        config = parse_args(["Acme Corp", "acme.example"])
+        assert config.skip_recon is False
+
+    def test_no_platform_flag_sets_none(self):
+        """Test that omitting --platform sets platforms to None (auto-detect)."""
+        config = parse_args(["Acme Corp", "acme.example"])
+        assert config.platforms is None
+
+    def test_cloud_vendors_property_default_when_none(self):
+        """Test CLIConfig.cloud_vendors returns ('azure',) when platforms is None."""
+        config = CLIConfig(command=Command.RESEARCH, platforms=None)
+        assert config.cloud_vendors == ("azure",)
+        assert config.cloud_vendor == "azure"
+
+    def test_cloud_vendors_property_with_platforms(self):
+        """Test CLIConfig.cloud_vendors returns platforms when set."""
+        config = CLIConfig(command=Command.RESEARCH, platforms=("aws", "gcp"))
+        assert config.cloud_vendors == ("aws", "gcp")
+        assert config.cloud_vendor == "aws"
+
+    def test_platform_private_choice(self):
+        """Test --platform private is a valid choice."""
+        config = parse_args(["Acme Corp", "acme.example", "--platform", "private"])
+        assert config.platforms == ("private",)
+
+    def test_platform_agnostic_choice(self):
+        """Test --platform agnostic is a valid choice."""
+        config = parse_args(["Acme Corp", "acme.example", "--platform", "agnostic"])
+        assert config.platforms == ("agnostic",)
+
+
+# =============================================================================
+# Recon Subcommand Tests
+# =============================================================================
+
+
+class TestReconSubcommand:
+    """Tests for ``primr recon`` subcommand dispatch."""
+
+    def test_is_recon_command_with_domain(self):
+        """Test that 'recon acme.com' is recognized as a recon command."""
+        from primr.core.cli import _is_recon_command
+
+        assert _is_recon_command(["recon", "acme.com"]) is True
+
+    def test_is_recon_command_doctor(self):
+        """Test that 'recon doctor' is recognized as a recon command."""
+        from primr.core.cli import _is_recon_command
+
+        assert _is_recon_command(["recon", "doctor"]) is True
+
+    def test_is_recon_command_batch(self):
+        """Test that 'recon batch domains.txt' is recognized as a recon command."""
+        from primr.core.cli import _is_recon_command
+
+        assert _is_recon_command(["recon", "batch", "domains.txt"]) is True
+
+    def test_is_recon_command_with_flags(self):
+        """Test that 'recon acme.com --json' is recognized as a recon command."""
+        from primr.core.cli import _is_recon_command
+
+        assert _is_recon_command(["recon", "acme.com", "--json"]) is True
+
+    def test_is_recon_command_bare(self):
+        """Test that bare 'recon' is recognized as a recon command."""
+        from primr.core.cli import _is_recon_command
+
+        assert _is_recon_command(["recon"]) is True
+
+    def test_is_not_recon_command_research(self):
+        """Test that a normal research command is not a recon command."""
+        from primr.core.cli import _is_recon_command
+
+        assert _is_recon_command(["Acme Corp", "acme.example"]) is False
+
+    def test_is_not_recon_command_doctor(self):
+        """Test that 'doctor' alone is not a recon command."""
+        from primr.core.cli import _is_recon_command
+
+        assert _is_recon_command(["doctor"]) is False
+
+    def test_is_not_recon_command_empty(self):
+        """Test that empty args is not a recon command."""
+        from primr.core.cli import _is_recon_command
+
+        assert _is_recon_command([]) is False
+
+    def test_is_not_recon_command_none_uses_sysargv(self):
+        """Test that None falls back to sys.argv[1:]."""
+        from primr.core.cli import _is_recon_command
+
+        import sys
+        saved = sys.argv
+        try:
+            sys.argv = ["primr", "recon", "acme.com"]
+            assert _is_recon_command(None) is True
+        finally:
+            sys.argv = saved
+
+    @patch("primr.recon.cli.app")
+    def test_run_recon_delegates_to_typer_app(self, mock_app):
+        """Test that _run_recon delegates to the recon Typer app."""
+        from primr.core.cli import _run_recon
+
+        mock_app.return_value = None
+        exit_code = _run_recon(["recon", "acme.com"])
+        assert exit_code == 0
+        mock_app.assert_called_once_with(standalone_mode=False)
+
+    @patch("primr.recon.cli.app")
+    def test_run_recon_doctor(self, mock_app):
+        """Test that _run_recon handles 'recon doctor'."""
+        from primr.core.cli import _run_recon
+
+        mock_app.return_value = None
+        exit_code = _run_recon(["recon", "doctor"])
+        assert exit_code == 0
+        mock_app.assert_called_once()
+
+    @patch("primr.recon.cli.app")
+    def test_run_recon_handles_system_exit(self, mock_app):
+        """Test that _run_recon handles SystemExit from Typer."""
+        from primr.core.cli import _run_recon
+
+        mock_app.side_effect = SystemExit(2)
+        exit_code = _run_recon(["recon", "acme.com"])
+        assert exit_code == 2
+
+    @patch("primr.recon.cli.app")
+    def test_run_recon_handles_exception(self, mock_app):
+        """Test that _run_recon handles unexpected exceptions."""
+        from primr.core.cli import _run_recon
+
+        mock_app.side_effect = RuntimeError("boom")
+        exit_code = _run_recon(["recon", "acme.com"])
+        assert exit_code == 1
+
+    @patch("primr.core.cli._run_recon", return_value=0)
+    def test_main_dispatches_recon(self, mock_run_recon):
+        """Test that main() dispatches to _run_recon for recon commands."""
+        exit_code = main(["recon", "acme.com"])
+        assert exit_code == 0
+        mock_run_recon.assert_called_once_with(["recon", "acme.com"])
+
+    @patch("primr.core.cli._run_recon", return_value=0)
+    def test_main_dispatches_recon_with_flags(self, mock_run_recon):
+        """Test that main() dispatches recon with output format flags."""
+        exit_code = main(["recon", "acme.com", "--json"])
+        assert exit_code == 0
+        mock_run_recon.assert_called_once_with(["recon", "acme.com", "--json"])
+
+    @patch("primr.core.cli._run_recon", return_value=0)
+    def test_main_dispatches_recon_md_flag(self, mock_run_recon):
+        """Test that main() dispatches recon with --md flag."""
+        exit_code = main(["recon", "acme.com", "--md"])
+        assert exit_code == 0
+        mock_run_recon.assert_called_once_with(["recon", "acme.com", "--md"])
+
+    @patch("primr.core.cli._run_recon", return_value=0)
+    def test_main_dispatches_recon_batch(self, mock_run_recon):
+        """Test that main() dispatches recon batch mode."""
+        exit_code = main(["recon", "batch", "domains.txt"])
+        assert exit_code == 0
+        mock_run_recon.assert_called_once_with(["recon", "batch", "domains.txt"])

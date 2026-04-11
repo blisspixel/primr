@@ -53,21 +53,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy wheel from builder stage
 COPY --from=builder /build/dist/*.whl /app/
 
-# Install the wheel and its dependencies
-RUN pip install --no-cache-dir /app/*.whl && rm /app/*.whl
+# Install the wheel and its dependencies (including API server deps)
+RUN pip install --no-cache-dir /app/*.whl && \
+    pip install --no-cache-dir fastapi pydantic uvicorn && \
+    rm /app/*.whl
 
 # Install runner wrapper and manifest module
 COPY deploy/runner.py /app/runner.py
 COPY deploy/manifest.py /app/manifest.py
 COPY deploy/storage.py /app/storage.py
 COPY deploy/__init__.py /app/deploy/__init__.py
+COPY deploy/control_plane/ /app/deploy/control_plane/
 
 # Create deploy package structure for imports
 RUN mkdir -p /app/deploy && \
     cp /app/runner.py /app/deploy/runner.py && \
     cp /app/manifest.py /app/deploy/manifest.py && \
-    cp /app/storage.py /app/deploy/storage.py && \
-    cp /app/deploy/__init__.py /app/deploy/__init__.py
+    cp /app/storage.py /app/deploy/storage.py
 
 # Create directories for job artifacts and logs
 RUN mkdir -p /job /app/_logs && \

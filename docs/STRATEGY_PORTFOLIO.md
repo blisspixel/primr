@@ -34,7 +34,7 @@ These strategies are fully implemented, tested, and ready to use. All have been 
 - **Purpose**: Board-level AI roadmap for strategic decision making
 - **Goal**: Answer "What should we actually do with AI, and why?"
 - **Status**: DONE - Fully Implemented and Tested
-- **Usage**: `primr --ai-strategy-only "report.md" --cloud-vendor azure`
+- **Usage**: `primr --ai-strategy-only "report.md" --platform azure`
 - **Output**: `{company}_AI_Strategy_{date}.md/txt/docx`
 - **Key Sections**:
   - Strategic Thesis (AI-enabled vs AI-native)
@@ -181,7 +181,7 @@ Adoption psychology and enablement:
 
 ### Generate AI Strategy (Default)
 ```bash
-primr "Company Name" https://example.com --cloud-vendor azure
+primr "Company Name" https://example.com --platform azure
 ```
 Generates Strategic Overview + AI Strategy
 
@@ -197,7 +197,7 @@ primr --ai-strategy-only "output/Company_Strategic_Overview.md" --strategy-type 
 primr --ai-strategy-only "output/Company_Strategic_Overview.md" --strategy-type data_fabric_strategy
 
 # AI Strategy (regenerate or with different vendor)
-primr --ai-strategy-only "output/Company_Strategic_Overview.md" --cloud-vendor azure
+primr --ai-strategy-only "output/Company_Strategic_Overview.md" --platform azure
 ```
 
 ### List Available Strategies

@@ -548,7 +548,7 @@ composer = PromptComposer()
 context = PromptContext(
     company_name="Acme Corp",
     website_url="https://acme.com",
-    cloud_vendor="azure",
+    cloud_vendor="azure",  # maps to platform internally
 )
 
 # Compose a standard prompt
@@ -569,7 +569,7 @@ Runtime context for variable substitution:
 class PromptContext:
     company_name: str
     website_url: str | None = None
-    cloud_vendor: str = "agnostic"
+    cloud_vendor: str = "agnostic"  # maps to platform; kept for backward compat
     current_date: str | None = None
     has_stage1_context: bool = False
     custom_vars: dict[str, str] = field(default_factory=dict)
@@ -735,7 +735,8 @@ Variables in prompts are substituted at runtime:
 |----------|--------|
 | `{company_name}` | `context.company_name` |
 | `{website_url}` | `context.website_url` |
-| `{cloud_vendor}` | `context.cloud_vendor` |
+| `{cloud_vendor}` | `context.cloud_vendor` (maps to platform) |
+| `{platform}` | `context.platform` (preferred; alias for `cloud_vendor`) |
 | `{current_date}` | `context.current_date` or auto-generated |
 
 Custom variables can be added via `context.custom_vars`.
