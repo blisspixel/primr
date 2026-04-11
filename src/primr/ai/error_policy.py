@@ -3,8 +3,26 @@
 from __future__ import annotations
 
 
+def is_billing_exhausted(error: Exception | str) -> bool:
+    """Return True when an error indicates credits or spending limit exhaustion.
+
+    These are non-retryable — the user must add credits or raise their
+    spending limit before any further API calls can succeed.
+    """
+    text = str(error).lower()
+    patterns = (
+        "used all available credits" in text,
+        "spending limit" in text,
+        "credits" in text and "exhausted" in text,
+        "insufficient credits" in text,
+        "insufficient_quota" in text,
+        "billing" in text and "limit" in text,
+    )
+    return any(patterns)
+
+
 def is_daily_quota_exhausted(error: Exception | str) -> bool:
-    """Return True when an error indicates daily quota exhaustion."""
+    """Return True when an error indicates daily quota or billing exhaustion."""
     text = str(error).lower()
     patterns = (
         "resource_exhausted" in text and "per_day" in text,
@@ -13,6 +31,7 @@ def is_daily_quota_exhausted(error: Exception | str) -> bool:
         "daily limit" in text,
         "rate limit exceeded" in text and "daily" in text,
         "requests per day" in text,
+        is_billing_exhausted(error),
     )
     return any(patterns)
 

@@ -3727,6 +3727,7 @@ def process_batch(
     min_report_size_kb = 5  # Reports under 5KB are suspiciously small
     max_retries_per_company = 2
     retry_wait_minutes = [0, 2, 5]  # Progressive backoff: immediate, 2min, 5min
+    billing_wait_minutes = 10  # How long to pause when billing/credits exhausted
 
     # Check for existing reports (enables resume)
     import glob
@@ -3870,6 +3871,49 @@ def process_batch(
 
             except Exception as e:
                 error_str = str(e).lower()
+
+                # Billing exhaustion — pause immediately, don't burn retries
+                is_billing = any(
+                    s in error_str
+                    for s in (
+                        "credits exhausted",
+                        "spending limit",
+                        "available credits",
+                        "insufficient credits",
+                    )
+                )
+                if is_billing:
+                    console.error(
+                        f"  xAI credits exhausted — add credits at https://console.x.ai/"
+                    )
+                    if skip_confirm:
+                        console.info(
+                            f"  Pausing {billing_wait_minutes}min then retrying..."
+                        )
+                        _time.sleep(billing_wait_minutes * 60)
+                        continue  # Retry same company
+                    console.info(f"  [w] Wait {billing_wait_minutes} minutes and retry")
+                    console.info("  [s] Stop batch (re-run to resume)")
+                    resp = input("  Choice [w/s]: ").strip().lower()
+                    if resp == "w":
+                        console.info(
+                            f"  Waiting {billing_wait_minutes}min..."
+                        )
+                        _time.sleep(billing_wait_minutes * 60)
+                        continue  # Retry same company
+                    else:
+                        console.info("  Batch stopped. Re-run the same command to resume.")
+                        results.append(
+                            {
+                                "company": company_name,
+                                "status": "failed",
+                                "path": None,
+                                "size_kb": 0,
+                                "error": "billing exhausted — stopped by user",
+                            }
+                        )
+                        break
+
                 is_quota = any(
                     s in error_str for s in ("quota", "rate", "429", "resource_exhausted")
                 )
@@ -3890,22 +3934,32 @@ def process_batch(
                 consecutive_failures += 1
                 break
 
+        # Billing stop — the inner loop broke because user chose to stop
+        last_result = results[-1] if results else None
+        if last_result and last_result.get("error") == "billing exhausted — stopped by user":
+            break
+
         # Consecutive failure handling — likely quota exhaustion
         if consecutive_failures >= max_consecutive_failures:
             console.error(
                 f"\n  {max_consecutive_failures} consecutive failures — possible API quota exhaustion."
             )
-            console.info("  [w] Wait 10 minutes and continue")
-            console.info("  [s] Stop batch and show summary")
-            resp = input("  Choice [w/s]: ").strip().lower()
-            if resp == "w":
-                console.info("  Waiting 10 minutes for quota recovery...")
-                _time.sleep(10 * 60)
+            if skip_confirm:
+                console.info(f"  Auto-waiting {billing_wait_minutes}min before continuing...")
+                _time.sleep(billing_wait_minutes * 60)
                 consecutive_failures = 0
             else:
-                console.info("  Batch stopped by user.")
-                console.info("  Re-run the same command to retry failed companies.")
-                break
+                console.info(f"  [w] Wait {billing_wait_minutes} minutes and continue")
+                console.info("  [s] Stop batch and show summary")
+                resp = input("  Choice [w/s]: ").strip().lower()
+                if resp == "w":
+                    console.info(f"  Waiting {billing_wait_minutes}min for quota recovery...")
+                    _time.sleep(billing_wait_minutes * 60)
+                    consecutive_failures = 0
+                else:
+                    console.info("  Batch stopped by user.")
+                    console.info("  Re-run the same command to retry failed companies.")
+                    break
 
         # Check overall error rate (after at least 3 new attempts)
         new_attempted = len(results) - skipped_existing
