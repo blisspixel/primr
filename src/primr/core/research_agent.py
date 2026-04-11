@@ -60,9 +60,9 @@ from primr.core.deep_research_runner import (
 
 __all__ = [
     "CloudVendor",
-    "Platform",
     "DeepResearchConfig",
     "DeepResearchMode",
+    "Platform",
     "consolidate_working_folder",
     "create_working_folder",
     "ensure_valid_url",
@@ -5423,13 +5423,12 @@ def perform_research(
                 _update_run_state(folder_path, current_phase="recon")
                 _append_run_event(folder_path, "recon", "started", f"Running recon on {domain}")
 
-                from primr.recon.models import ReconLookupError
                 from primr.recon.resolver import resolve_tenant
 
                 info, _recon_results = asyncio.get_event_loop().run_until_complete(
                     asyncio.wait_for(resolve_tenant(domain), timeout=15.0)
                 )
-                recon_info = info
+                recon_info = info  # noqa: F841 — kept for future downstream use
 
                 # Auto-detect platforms if user didn't specify
                 from primr.core.platform_mapper import map_platforms

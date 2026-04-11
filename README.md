@@ -32,8 +32,6 @@ Primr does that entire workflow autonomously in about 35-50 minutes for about $0
 - **Cost controls built in**: `--dry-run` estimates (including recovery table and stage classifications), usage tracking, and governance hooks for budget limits.
 - **Agent-native interfaces**: CLI, MCP server, OpenClaw integration, and Claude Skills, all first-class.
 
-Manual research takes hours. Primr typically runs in about 35-50 minutes and costs about $0.55 in API usage (varies by depth and site complexity). The output is long-form, strategically interpretive, cited where it matters, and readable enough to use before a real client conversation.
-
 ## Modes
 
 | Mode | What it does | Time | Cost |
@@ -51,85 +49,9 @@ Manual research takes hours. Primr typically runs in about 35-50 minutes and cos
 | `--mode deep` | Gemini Deep Research on external sources only | 10-15 min | $2.50 |
 | `primr recon` | DNS intelligence only (no API keys needed) | 2-3 sec | $0.00 |
 
-The default `primr` command auto-detects: when `XAI_API_KEY` is set, it uses the Grok 4.20 hybrid pipeline (4.20 for reasoning-heavy stages like gap analysis, workbook, and cross-validation; 4.1 for bulk writing). This delivers near-premium analytical quality at ~$0.67/run. Use `--grok-tier fast` for cheaper runs at slightly lower quality, or `--premium` for the Gemini + Deep Research pipeline for maximum depth.
+The default `primr` command auto-detects: when `XAI_API_KEY` is set, it uses the Grok 4.20 hybrid pipeline (4.20 for reasoning-heavy stages, 4.1 for bulk writing) at ~$0.67/run. The standard pipeline includes research deepening, cross-validation, trust-polish, citation normalization, and constrained-evidence reasoning. Strategy types (`ai`, `customer_experience`, `modern_security_compliance`, `data_fabric_strategy`) are YAML-defined and auto-discovered — run `primr --list-strategies` for details. DDG searches are free. Use `--dry-run` for accurate cost estimates.
 
-Naming note: historical references to "fast mode" in logs/code refer to this standard Grok pipeline. A separate true quick mode target (under 5 minutes) is planned as a future profile.
-
-**Strategy types** (use `primr --list-strategies` for details): `ai` (default), `customer_experience`, `modern_security_compliance`, `data_fabric_strategy`. Strategy types are defined by YAML configs in `src/primr/prompts/strategies/` and auto-discovered at runtime.
-
-The standard Grok pipeline includes research deepening (gap analysis + targeted search), cross-validation (weak section detection + re-generation), trust-polish, citation normalization, and constrained-evidence reasoning for sparse-company sections. Strategy documents get the same treatment plus pre-ship artifact repair when budgets, citations, or source inventories conflict. Dense references are kept primarily in the final Sources appendix so the narrative stays readable. Produces reports with 40-55 sources. DDG searches are free. Use `--dry-run` for accurate estimates based on your usage history.
-
-## Versioned Model Evaluation (Quality vs Cost)
-
-When a new model or profile is released (for example, a new Pro/Flash/Grok variant), evaluate it with a repeatable run ID so decisions are data-driven.
-
-### 1) Pick an eval version and fixed corpus
-
-- Example eval ID: `eval-2026-02-r1`
-- Use 5-10 representative companies (keep this set stable across model tests)
-- Save runs under a dedicated folder per profile:
-
-```bash
-primr "ExampleCo A" https://example-a.com --mode full --output-dir output/evals/eval-2026-02-r1/full
-primr "ExampleCo A" https://example-a.com --mode full --lite --output-dir output/evals/eval-2026-02-r1/lite
-primr "ExampleCo A" https://example-a.com --fast --output-dir output/evals/eval-2026-02-r1/fast
-```
-
-Offline comparison (no API spend):
-
-```bash
-primr --eval --eval-id eval-2026-02-r1
-primr --eval --eval-id eval-2026-02-r1 --eval-company "ExampleCo"
-```
-
-By default, `--eval` auto-stages matching existing reports from `output/` into `output/evals/<eval-id>/<profile>/` and writes `staging_manifest.json` for reproducibility.
-
-Optional controlled fill-in for missing profile/company pairs (explicit spend caps required):
-
-```bash
-primr --eval --eval-id eval-2026-02-r1 --eval-run-missing --eval-manifest eval_companies.csv --eval-max-new-runs 2 --eval-max-estimated-cost 12
-```
-
-Optional LLM-judge overlays on staged reports:
-
-```bash
-# Cloud judge (requires spend cap)
-primr --eval --eval-id eval-2026-02-r1 --eval-llm-judge --eval-judge-provider grok --eval-judge-model grok-4-1-fast-reasoning --eval-judge-max-cost 0.25
-
-# Local judge against an Ollama/OpenAI-compatible endpoint
-primr --eval --eval-id eval-2026-03-local --eval-llm-judge --eval-judge-provider local --eval-judge-model qwen3:30b --eval-judge-base-url http://localhost:11434/v1
-
-# Local multi-model sweep on the same staged company/profile pairs
-primr --eval --eval-id eval-2026-03-local-sweep --eval-llm-judge --eval-judge-provider local --eval-judge-models qwen3:30b qwen2.5-coder:32b-instruct-q5_K_M qwen2.5:14b --eval-judge-base-url http://localhost:11434/v1
-
-# Local sweep from a maintained named shortlist
-primr --eval --eval-id eval-2026-03-local-sweep --eval-llm-judge --eval-judge-provider local --eval-judge-model-list 4090-top10 --eval-judge-base-url http://localhost:11434/v1
-```
-
-Local judge runs now evaluate every staged non-baseline profile against the chosen baseline, not just the first available profile. They write one JSON artifact per model plus `local_judge_summary.json` / `local_judge_summary.md` with candidate-profile coverage, winner consensus, and per-profile breakdowns for side-by-side comparison.
-
-This is useful for evaluating local models against existing cloud-generated reports before routing any production pipeline stages to local inference. It is still a judge-based acceptance layer, not proof that a local model is ready to replace report-writing or deep-research stages directly.
-
-### 2) Track the same metrics for every profile
-
-- Trust gate (must-pass): citation coverage + section completeness + confidence-label quality
-- Decision utility: actionable recommendations, risks/tradeoffs, key validation questions, and depth of strategic interpretation
-- Reuse quality (human + AI): structured headings, tables, machine-friendly signal density, and readable appendix-style sourcing
-- Efficiency: utility-per-dollar and total estimated cost
-- Runtime: end-to-end duration per company
-
-These dimensions are aligned to the README goal: producing deep strategic analysis that gets humans and AI up to speed quickly and safely, not just producing long reports.
-
-### 3) Use a clear decision rule
-
-Adopt a candidate profile when all are true:
-
-- Trust gate passes for compared reports
-- Mean decision-utility score >= 80% of baseline profile
-- Mean cost <= 20% of baseline (or your own budget target)
-- Utility-per-dollar improves enough to matter operationally
-
-This lets you make explicit tradeoffs such as "80% of quality for 1/10th of cost" with evidence, not intuition.
+For model evaluation and quality comparison, see [Evaluation Guide](docs/EVAL.md).
 
 ## Quick Start
 
@@ -146,53 +68,37 @@ Requires Python 3.11+. Set `XAI_API_KEY` for the standard Grok pipeline (recomme
 
 ### Platform Support
 
-Primr is designed to run on all three major desktop/server platforms:
-
 - Windows
 - macOS
 - Linux
 
-Notes:
-- Core research/scraping/report generation flows are cross-platform.
-- On Windows, prefer keeping the repo outside OneDrive/Dropbox/iCloud-synced folders. Primr writes checkpoint state into `working/`, and sync/AV tools can transiently lock atomic renames.
-- "Open report after run" behavior uses native OS launchers (`startfile` / `open` / `xdg-open` family) with a browser fallback on minimal Linux environments.
-
 ```bash
-# Most common: Microsoft + NVIDIA AI strategy (auto-detects platform from DNS if omitted)
-primr "Company" https://company.com --platform ms              # Microsoft Azure + NVIDIA private cloud
+# Standard run (auto-detects platform from DNS)
+primr "Company" https://company.com
 
-# Or let recon auto-detect the platform from DNS
-primr "Company" https://company.com                            # Recon detects platform automatically
+# Microsoft Azure + NVIDIA private cloud strategy
+primr "Company" https://company.com --platform ms
 
-# More usage
+# Research modes
 primr "Company" https://company.com --mode scrape              # Site corpus only
 primr "Company" https://company.com --mode deep                # External research only
 primr "Company" https://company.com --dry-run                  # Cost estimate first
+
+# Multi-platform and strategy types
 primr "Company" https://company.com --platform aws azure       # Multi-platform AI strategy
-primr "Company" https://company.com --platform microsoft nvidia # Same as --platform ms
-primr "Company" https://company.com --skip-recon --platform azure  # Skip DNS pre-flight
-primr "Company" https://company.com --strategy-type customer_experience  # CX strategy document
-primr "Company" https://company.com --strategy-type data_fabric_strategy # Data fabric strategy
-primr --list-strategies                                                  # See all strategy types
-primr "Company" https://company.com --premium                  # Gemini + Deep Research (~$5)
-primr "Company" https://company.com --premium --platform ms    # Premium + Microsoft/NVIDIA
+primr "Company" https://company.com --strategy-type customer_experience  # CX strategy
+primr --list-strategies                                        # See all strategy types
+
+# Premium (Gemini + Deep Research)
+primr "Company" https://company.com --premium                  # ~$5, maximum depth
 primr "Company" https://company.com --premium --lite           # Cheaper premium strategy
 
-# DNS intelligence (standalone)
+# DNS intelligence (standalone, no API keys needed)
 primr recon acme.com                                           # DNS intelligence lookup
 primr recon acme.com --json                                    # Structured JSON output
-primr recon acme.com --full                                    # Everything: services, domains, insights
-primr recon batch domains.txt                                  # Batch mode
-
-# Recovery and utilities
-primr "Company" https://company.com --skip-scrape-validation   # Continue even if scrape quality is low
-primr "Company" https://company.com --resume-local             # Reuse latest incomplete local run folder
-primr --resume-latest                                          # Recover completed cloud jobs and finalize MD/DOCX
-primr --ai-strategy-only "output/Company_Strategic_Overview_03-06-2026.md" --platform aws  # Reuse an existing report
-primr --improve "output/Company_Strategic_Overview_03-06-2026.md"          # Improve an existing output file
-primr improve "output/Company_AI_Strategy_AZURE_03-06-2026.md" --improve-agentic  # Agentic+deterministic post-pass
-primr --banner                                                           # Show startup banner only
 ```
+
+For batch processing, see [Batch Guide](docs/BATCH.md). For crash recovery and resume, see [Recovery Guide](docs/RECOVERY.md). For post-generation quality improvement, see [Improve Guide](docs/IMPROVE.md).
 
 ### What a run looks like
 
@@ -203,138 +109,32 @@ Using Grok 4.1 · for deeper research add --premium
   Scraping example.co + external sources
 
 ✓ 251 links → 50 selected
-Scraping 23/50 (ok 17) /about  [15s elapsed, ~2m left]
 ✓ 48/50 pages scraped (6m 10s)
-Searching external sources (15/15 queries, 42 results)
-Validating external sources (38 validated, checking 42/42)
 ✓ Searching external sources (8m 22s)
-Quality filter: 38 → 31 sources (dropped 7 low-relevance)
-✓ Data Collection (fast)
-  Pages: 48  External: 31
+  Quality filter: 38 → 31 sources (dropped 7 low-relevance)
 
 ▸ PHASE 2/6 · Research Deepening
-  Identifying gaps and searching for additional evidence
-
 ✓ Gap analysis: 8 questions identified
 ✓ Found 12 additional sources
 
 ▸ PHASE 3/6 · Analysis (Grok)
-  Building structured workbook from enriched data
-
 ✓ Analysis (Grok)
 
 ▸ PHASE 4/6 · Report Writing (Grok)
-  Writing sections (parallel within parts)
-
-Part 1/5 (Foundation): 7 section(s) in parallel
-  ✓ Executive Summary (1,142 words)
-  ...
-Part 2/5 (Industry): 3 section(s) in parallel
-  ✓ Industry Dynamics (970 words)
-  ✓ Industry Outlook (1,050 words)
-  ✓ Competitive Landscape (1,118 words)
-Part 4/5 (Deep Insights): 7 section(s) in parallel
-  ✓ Strategic Leadership Perspective (1,200 words)
-  ...
-✓ Report Writing (Grok)
-  Sections: 23  Words: 21,500
-
-Narrative style: deep strategic analysis, compact in-body citations, dense references in final Sources appendix
+  Part 1/5 (Foundation): 7 section(s) in parallel
+  Part 2/5 (Industry): 3 section(s) in parallel
+  Part 4/5 (Deep Insights): 7 section(s) in parallel
+✓ Report Writing — Sections: 23  Words: 21,500
 
 ▸ PHASE 5/6 · Cross-Validation
-  Reviewing report for gaps and weak sections
-
 ✓ Resolved 3 contradiction(s)
-✓ Cross-Validation
-
-Fast QA: labels=310, cites=12/12, validate=23/23, gate=PASS
-Trust Summary: report=PASS cites=12/12 appendix=clean reasoning=deep
+  Trust Summary: report=PASS cites=12/12 appendix=clean reasoning=deep
 
 ✓ Complete in 35m
-
-✓ Report ready
   output/ExampleCo_Strategic_Overview_03-03-2026.docx
 
-Artifact Gate: PASS
-Mode: Standard (Grok 4.1)
-Chapters: 23
-Citations: 48
-Duration: 35m
-Est. Cost: $0.60
-AI Strategy: Yes
+Artifact Gate: PASS | Chapters: 23 | Citations: 48 | Est. Cost: $0.60
 ```
-
-### Crash/Reboot Recovery
-
-Primr now writes per-run state to the working folder as `_run_state.json` (phase, status, timeline events).
-
-If your computer reboots mid-run:
-
-```bash
-# 1) Recover completed cloud jobs (Deep Research / AI Strategy)
-primr --resume-latest
-
-# 2) Continue local run from latest incomplete working folder for this company
-primr "Company Name" https://company.com --resume-local
-
-# 3) Inspect local run state (scrape + phase checkpoints)
-type working\\Company_Name\\YYYY-MM-DD_HHMM\\_run_state.json
-```
-
-Recovery behavior:
-- Deep Research / AI Strategy jobs run in the cloud and can be recovered after reboot.
-- `--resume-latest` finalizes recovered outputs to canonical filenames (`.md/.txt/.docx`).
-- `--resume-local` reuses the latest incomplete working folder for the same company and skips pages already saved in `_raw_scrapes` (same run folder is reused for standard/Grok mode).
-- Local scrape progress is logged in `_raw_scrapes/_scrape_trace.log` and summarized in `_run_state.json`.
-
-
-### Improve Existing Outputs
-
-Use `primr improve` (or `--improve`) to run a post-generation quality pass on existing `.md` / `.txt` outputs.
-
-```bash
-# Deterministic cleanup + QA metrics
-primr improve "output/Company_Strategic_Overview_03-06-2026.md"
-
-# Add an agentic review pass first (find weak sections, then tighten)
-primr improve "output/Company_AI_Strategy_AZURE_03-06-2026.md" --improve-agentic
-
-# Overwrite the original file instead of writing *_improved
-primr improve "output/Company_Strategic_Overview_03-06-2026.md" --in-place
-```
-
-What this does:
-- Removes internal placeholder/source artifacts that should not ship (`Analysis Context`, `vendor-research`, `citation inventory`, etc.)
-- Normalizes and validates citations for reports
-- Applies strategy consistency checks (including budget-total mismatch detection)
-- Runs a deterministic salvage pass before blocking output, so recoverable markdown issues are auto-cleaned
-- Applies an artifact shipping gate before DOCX render and validates the rendered DOCX text afterward
-- Holds back dirty DOCX files but still saves `.md` / `.txt` plus a validation sidecar when issues remain
-- Prints deterministic QA summary (`gate=PASS|WARN`) before writing output
-
-### Startup Banner
-
-Primr now shows a short startup banner by default in interactive terminals. It is skipped automatically in non-interactive/CI contexts and when `NO_COLOR` disables styling.
-
-```bash
-# Show banner only, then exit
-primr --banner
-
-# Choose mode explicitly
-primr --banner static
-primr --banner animated
-
-# Disable once
-primr --no-banner
-
-# Disable globally (env)
-set PRIMR_NO_BANNER=1
-```
-
-Env controls:
-- `PRIMR_BANNER=auto|off|static|animated`
-- `PRIMR_NO_BANNER=1`
-- `PRIMR_BANNER_DURATION_MS=250..3000` (animated mode)
 
 ### What the output looks like
 
@@ -350,74 +150,11 @@ From the executive summary of a sample report:
 
 Reports include 23 structured sections, SWOT analysis, competitive landscape, discovery questions, and inline confidence levels on every non-obvious claim.
 
-## Batch Research
-
-Have a spreadsheet of companies? Primr can enrich it with website URLs and run research across the list.
-
-**Two-step workflow (recommended):**
-
-```bash
-# Step 1: Enrich - auto-detect columns, look up websites, filter by industry, save CSV
-primr --batch companies.xlsx --industry Utilities --enrich
-
-# Step 2: Review the enriched CSV, then run research
-primr --batch companies_utilities_enriched.csv --mode scrape
-```
-
-**Options:**
-
-```bash
---enrich          # Enrich only - look up websites, save CSV, don't research
---industry NAME   # Filter rows by industry column value
---limit N         # Process only the first N companies (useful for testing)
---skip-confirm    # Skip the confirmation prompt (for unattended runs)
---mode MODE       # scrape ($0.10/co), deep ($2.50/co), full (~$0.55/co or ~$5/co with --premium)
---grok-tier TIER  # fast (~$0.55), hybrid (~$1.10, 4.20 reasoning), max (~$4, 4.20 everywhere)
-```
-
-**Defensive behavior:**
-
-- Shows cost estimate and asks for confirmation before starting (use `--skip-confirm` to bypass)
-- **Resume:** re-run the same command to skip companies that already have reports from today
-- Cooldown between companies (10s for scrape, 60s for deep/full) to avoid API quota issues
-- Exponential retry with jitter on transient API failures (429, 5xx, service unavailable, timeouts)
-- Pauses and asks after 3 consecutive failures - option to wait 10 minutes or stop
-- Deduplicates companies by name (case-insensitive)
-
-Accepts Excel (`.xlsx`) or CSV files. Smart column detection uses an LLM to find company name, website, and industry columns automatically.
-
 ## Under the Hood
 
-**8-Tier Retrieval Engine** (browser-first, falls back automatically)
-1. Playwright (JS rendering)
-2. Playwright Aggressive (accordions, lazy load)
-3. curl_cffi (TLS fingerprint impersonation)
-4. DrissionPage Stealth (challenge waiting)
-5. DrissionPage (driverless CDP)
-6. Vision (screenshot + LLM extraction)
-7. httpx (HTTP/2)
-8. requests (simple fallback)
+Primr uses an 8-tier browser-first retrieval engine with sticky tier memory, circuit breakers, and cookie handoff. Models range from Grok 4.1 ($0.20/$0.50 per 1M tokens) to Gemini Deep Research (~$2.50/task). The agentic architecture includes hypothesis tracking, subagents for each pipeline stage, governance hooks, and persistent research memory.
 
-Includes sticky tier memory, circuit breakers, cookie handoff, and automatic PDF detection.
-Playwright tiers now perform adaptive lazy-load scrolling (up to 20 steps by default, stops early when page height stabilizes).
-
-**Models & Pricing**
-
-| Model | Role | Pricing (per 1M tokens) |
-|-------|------|-------------------------|
-| Grok 4.1 | Default mode: analysis, writing, strategy | $0.20 in / $0.50 out |
-| Grok 4.20 | `--grok-tier hybrid/max`: reasoning and/or writing | $2.00 in / $6.00 out |
-| Gemini 3 Flash | Scraping, link selection, QA | $0.50 in / $3 out |
-| Gemini 3.1 Pro | `--premium` mode: section writing, analysis | $2/$12 (≤200k) · $4/$18 (>200k) |
-| Deep Research Agent | `--premium` mode: autonomous research | ~$2.50/task (flat) |
-
-**Why Grok 4.1 is the default:** Primr originally ran everything through Google's Deep Research API + Gemini 3.1 Pro — excellent research quality, but the Deep Research API runs ~$2.50 per task, pushing full runs to ~$5 and 50-75 minutes. When xAI released Grok 4.1, testing showed it handles company research comparably: strong at search-grounded analysis, solid structured output, and reliable citation handling. Switching the default pipeline to Grok 4.1 dropped costs to ~$0.55 (~90% cheaper) and runtime to ~35-50 minutes with similar report quality. Gemini Flash is still used for scraping in both modes. The full Gemini + Deep Research pipeline remains available via `--premium` when maximum research depth justifies the cost. [Full config reference](docs/CONFIG.md).
-
-**Agentic Architecture**
-- Hypothesis tracking with confidence levels across sessions
-- Subagents for scraping, analysis, writing, and QA
-- Hook system for governance (cost limits, quality gates)
-- Research memory that persists and evolves
+For full architecture details, model pricing, and the retrieval tier breakdown, see [System Design](docs/ARCHITECTURE.md).
 
 ## Configuration
 
@@ -428,47 +165,14 @@ XAI_API_KEY=          # https://console.x.ai/
 # Required for --premium mode or if XAI_API_KEY not set
 GEMINI_API_KEY=       # https://aistudio.google.com/apikey
 
-# Optional - only needed if you want to use Google Custom Search instead of DuckDuckGo
-# SEARCH_PROVIDER=google
-# SEARCH_API_KEY=     # Google Custom Search API
-# SEARCH_ENGINE_ID=   # Programmable Search Engine ID
-
-# Optional - local/OpenAI-compatible eval judge backend (for Ollama, LAN-hosted servers, etc.)
-# LOCAL_LLM_BASE_URL=http://localhost:11434/v1
-# LOCAL_LLM_API_KEY=
-# OLLAMA_BASE_URL=http://localhost:11434
-# Local judge model lists live in src/primr/config/local_eval_models.py
-# Built-in lists today: 4090-top10, installed-starter
-
-# Optional - scrape quality gate (fail fast when website extraction is too thin)
-# MIN_SCRAPED_PAGES=3
-# MIN_SCRAPED_CHARS=6000
-# SCRAPE_PILOT_COUNT=10
-# SCRAPE_PILOT_MIN_SUCCESS_RATE=0.70
-# SCRAPE_PILOT_MIN_CHARS=700
-
-# Optional - external search volume caps
-# MAX_EXTERNAL_SEARCH_QUERIES=5
-# MAX_EXTERNAL_SOURCES=8
-
-# Optional - lazy-load scrolling behavior for scroll-driven sites
-# PLAYWRIGHT_LAZY_SCROLL_MAX_STEPS=20
-# PLAYWRIGHT_LAZY_SCROLL_PAUSE_MS=250
-# PLAYWRIGHT_LAZY_SCROLL_SETTLE_ROUNDS=3
+# Web search uses DuckDuckGo by default - no key needed
 ```
 
-Web search uses DuckDuckGo by default - no search API key needed. Google Custom Search is available as an optional fallback for users with existing whole-web CSEs.
-When `XAI_API_KEY` is set, Primr automatically uses the standard Grok hybrid pipeline by default: Grok 4.20 for reasoning-heavy stages and Grok 4.1 for bulk writing. Use `--grok-tier fast` for 4.1 everywhere, or `--premium` to force Gemini + Deep Research.
-If scrape validation blocks a run you intentionally want to continue, pass `--skip-scrape-validation` or lower `SCRAPE_PILOT_MIN_CHARS` (default `700`) for terse websites. Primr now constrains LLM link selection to the discovered URL set, filters obvious non-content URLs like favicons/manifests/search endpoints, and preserves short structured pages when they carry useful signal. Strategy outputs also add a deterministic `## Sources` appendix when the model does not emit explicit source URLs on its own.
-Deep Research background jobs are created with persistent storage enabled, so `primr --check-jobs` can recover completed cloud work after local interruptions. Job checks now distinguish local connectivity issues (`CHECK ERROR`) from provider terminal failures.
-For one-shot recovery after crashes/reboots, use `primr --resume-latest` (or `--resume-jobs`) to fetch completed jobs and finalize canonical output filenames automatically.
-
-[Full setup guide](docs/API_KEYS.md)
+[Full config reference](docs/CONFIG.md) | [API key setup](docs/API_KEYS.md)
 
 ## Agent Integration
 
 Primr is built for the agentic era. Four ways to plug it in:
-
 **MCP Server** - Claude Desktop, Cursor, and any MCP-compatible client:
 ```bash
 primr-mcp --stdio              # stdio transport
@@ -510,86 +214,49 @@ skills/
 These skills are thin intent routers over Primr MCP rather than separate product definitions. Generic MCP clients can also use `primr://agent/governance`, `primr://research/next-actions`, and the `governed_execution` prompt to follow the same estimate/approval/monitor pattern.
 </details>
 
-<details>
-<summary><strong>Cloud Deployment</strong> - Serverless on AWS, Azure, or GCP</summary>
-
-Scale-to-zero ephemeral containers, event-driven queues, production observability. See [deployment guide](docs/CLOUD_DEPLOYMENT.md).
-</details>
-
 [MCP docs](docs/API.md) | [A2A protocol](https://github.com/a2aproject/a2a-python) | [OpenClaw config](openclaw/openclaw.json) | [OpenClaw guide](docs/OPENCLAW.md)
 
-## Cloud Deployment (Optional)
+## Cloud Deployment
 
-Primr is CLI-first, local-first. Cloud deployment is an optional scaling path for teams that need shared access, agent platform integration, or always-on availability. Nothing here changes the core CLI experience or introduces cloud dependencies into the local tool.
+Primr is CLI-first, local-first. Cloud deployment is optional for teams needing shared access or always-on availability.
 
-**Tiered deployment:**
+| Tier | What it is | Idle cost |
+|------|-----------|-----------|
+| Solo (default) | CLI on your machine | $0 |
+| Team | Azure Container Apps, scale-to-zero | < $5/month |
+| Organization | Entra ID, budget tracking, observability, M365 Agent Store | < $15/month |
 
-| Tier | What it is | Auth | Idle cost |
-|------|-----------|------|-----------|
-| Solo (default) | CLI on your machine. Zero cloud dependency. | API keys (local) | $0 |
-| Team | Azure Container Apps. Scale-to-zero. Shared MCP server. | API keys | < $5/month |
-| Organization | Full enterprise surface. Entra ID, budget tracking, observability, M365 Agent Store. | Entra ID + API keys | < $15/month |
-
-```bash
-# Team tier — deploy in under 10 minutes
-./deploy/azure/deploy.sh -d myteam deploy
-
-# Organization tier — full enterprise surface
-./deploy/azure/deploy.sh --tier organization -d prod deploy
-
-# Or use declarative Bicep templates
-az deployment group create \
-  --resource-group primr-prod-rg \
-  --template-file deploy/azure/bicep/main.bicep \
-  --parameters deploymentName=prod tier=team ...
-```
-
-**Agent platform integration surfaces:**
-
-- **Foundry Agent Service** — Connect Primr as an MCP tool source in Foundry prompt agents ([guide](docs/FOUNDRY_AGENT_GUIDE.md))
-- **Copilot Studio** — Create a Power Platform custom connector from the OpenAPI spec ([guide](docs/COPILOT_STUDIO_GUIDE.md))
-- **Copilot Cowork** — Publish to M365 Agent Store for organization-wide discovery ([guide](docs/COPILOT_COWORK_GUIDE.md))
-- **Any MCP client** — Claude Desktop, Cursor, VS Code, custom clients — point at `https://{fqdn}/mcp`
-
-See the [Azure Quickstart](docs/AZURE_QUICKSTART.md) to get started.
+See the [Deployment Guide](docs/CLOUD_DEPLOYMENT.md) or [Azure Quickstart](docs/AZURE_QUICKSTART.md).
 
 ## Development
 
 ```bash
-python -m pytest tests/ -x --tb=short                    # Run tests
-python -m pytest tests/a2a/ -v --tb=short                # A2A tests only (requires pip install .[a2a])
-pytest -q tests/test_core/test_resume_recovery.py tests/test_core/test_research_agent_resume.py tests/test_data/test_scrape_resume.py --cov=primr.core.cli --cov=primr.core.research_agent --cov=primr.data.scrape --cov-fail-under=13 --cov-report=term  # Recovery regression gate
-ruff check .                                              # Lint (full repo)
-mypy src/primr --ignore-missing-imports                  # Type check
+python -m pytest tests/ -x --tb=short       # Run tests
+ruff check .                                 # Lint
+mypy src/primr --ignore-missing-imports     # Type check
 ```
 
-4,500+ tests including property-based testing (Hypothesis), full ruff and mypy compliance, OpenTelemetry tracing, and typed error hierarchy with automatic retry classification. CI runs lint, type check, and tests on every push via GitHub Actions.
+4,500+ tests including property-based testing (Hypothesis), full ruff and mypy compliance, and OpenTelemetry tracing. CI runs lint, type check, and tests on every push.
 
-Recent hardening includes shared deep-research parsing/polling/execution modules, a shared AI error policy module across sync/async clients, reduced noisy integration-runtime warnings for constrained Playwright/network test environments, and A2A protocol integration with 165+ dedicated tests.
+## Learn More
 
-**Validation snapshot (April 7, 2026):**
-- `ruff check .` passes
-- `mypy src/primr --ignore-missing-imports` passes
-- `python -m pytest -q` passes: pipeline resilience: 108 tests, 92% coverage
-
-## Documentation
-
-| Doc | What's in it |
-|-----|--------------|
-| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design, data flow, scraping tiers |
-| [API.md](docs/API.md) | MCP server, A2A server, programmatic usage |
-| [CONFIG.md](docs/CONFIG.md) | Full configuration reference |
-| [API_KEYS.md](docs/API_KEYS.md) | API key setup |
-| [CLOUD_DEPLOYMENT.md](docs/CLOUD_DEPLOYMENT.md) | Serverless deployment |
-| [AZURE_QUICKSTART.md](docs/AZURE_QUICKSTART.md) | Azure tiered deployment quickstart |
-| [FOUNDRY_AGENT_GUIDE.md](docs/FOUNDRY_AGENT_GUIDE.md) | Foundry Agent Service integration |
-| [COPILOT_STUDIO_GUIDE.md](docs/COPILOT_STUDIO_GUIDE.md) | Copilot Studio MCP connector |
-| [COPILOT_COWORK_GUIDE.md](docs/COPILOT_COWORK_GUIDE.md) | M365 Agent Store publishing |
-| [OPENCLAW.md](docs/OPENCLAW.md) | OpenClaw setup and troubleshooting |
-| [SECURITY_OPS.md](docs/SECURITY_OPS.md) | Security operations guide |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution guidelines |
-| [SECURITY.md](SECURITY.md) | Vulnerability reporting |
-| [ROADMAP.md](ROADMAP.md) | What's planned |
+| Topic | Guide |
+|-------|-------|
+| Batch processing | [Batch Guide](docs/BATCH.md) |
+| Model evaluation | [Evaluation Guide](docs/EVAL.md) |
+| Crash recovery | [Recovery Guide](docs/RECOVERY.md) |
+| Output improvement | [Improve Guide](docs/IMPROVE.md) |
+| Configuration | [Full Config Reference](docs/CONFIG.md) |
+| Architecture | [System Design](docs/ARCHITECTURE.md) |
+| Cloud deployment | [Deployment Guide](docs/CLOUD_DEPLOYMENT.md) |
+| Agent integration | [MCP & A2A API](docs/API.md) |
+| API key setup | [API Keys](docs/API_KEYS.md) |
+| Azure quickstart | [Azure Quickstart](docs/AZURE_QUICKSTART.md) |
+| OpenClaw | [Setup & Troubleshooting](docs/OPENCLAW.md) |
+| Security ops | [Security Operations](docs/SECURITY_OPS.md) |
+| Contributing | [Contribution Guidelines](CONTRIBUTING.md) |
+| Vulnerability reporting | [Security](SECURITY.md) |
+| Roadmap | [What's Planned](ROADMAP.md) |
 
 ## About This Project
 
@@ -613,5 +280,3 @@ This software is provided as-is by a solo developer. The author is not liable fo
 ## License
 
 MIT
-
-

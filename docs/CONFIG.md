@@ -247,3 +247,28 @@ sections:
 ```
 
 The strategy is automatically discovered. CLI support is available via `--strategy-type` and discoverable via `--list-strategies`.
+
+
+## Startup Banner
+
+Primr shows a short startup banner by default in interactive terminals. It is skipped automatically in non-interactive/CI contexts and when `NO_COLOR` disables styling.
+
+```bash
+# Show banner only, then exit
+primr --banner
+
+# Choose mode explicitly
+primr --banner static
+primr --banner animated
+
+# Disable once
+primr --no-banner
+
+# Disable globally (env)
+set PRIMR_NO_BANNER=1
+```
+
+Env controls:
+- `PRIMR_BANNER=auto|off|static|animated`
+- `PRIMR_NO_BANNER=1`
+- `PRIMR_BANNER_DURATION_MS=250..3000` (animated mode)

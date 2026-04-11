@@ -492,7 +492,7 @@ async def run_strategy_generation(
     import os
     import re
 
-    from primr.core.ai_strategy import CloudVendor, Platform, generate_ai_strategy
+    from primr.core.ai_strategy import Platform, generate_ai_strategy
 
     # Filename pattern: "Company_Name_Strategic_Overview_MM-DD-YYYY.ext"
     filename = os.path.splitext(os.path.basename(report_path))[0]

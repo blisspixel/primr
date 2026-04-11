@@ -74,7 +74,7 @@ def format_recon_context(info: TenantInfo) -> str:
         sections.append("")
 
     # AI & Productivity Intelligence — the key strategic signal
-    ai_slugs = {"openai", "anthropic", "mistral", "perplexity"}
+    ai_slugs = {"openai", "anthropic", "mistral", "perplexity", "glean"}
     detected_ai = [s for s in info.slugs if s in ai_slugs]
     m365_detected = "microsoft365" in info.slugs
     gws_detected = "google-workspace" in info.slugs
@@ -101,6 +101,7 @@ def format_recon_context(info: TenantInfo) -> str:
                 "anthropic": "Anthropic (Claude)",
                 "mistral": "Mistral AI",
                 "perplexity": "Perplexity Enterprise",
+                "glean": "Glean (Enterprise AI Search)",
             }
             ai_list = [ai_names.get(s, s) for s in detected_ai]
             sections.append(
@@ -186,7 +187,8 @@ def format_recon_context(info: TenantInfo) -> str:
     # Security stack summary for security strategy
     security_slugs = {"crowdstrike", "sentinelone", "knowbe4", "proofpoint", "mimecast",
                       "zscaler", "netskope", "paloalto", "wiz", "sophos", "okta", "duo",
-                      "1password", "jamf", "kandji", "barracuda", "trendmicro", "trellix"}
+                      "1password", "jamf", "kandji", "barracuda", "trendmicro", "trellix",
+                      "ping-identity", "cyberark", "cato", "lakera"}
     detected_security = [s for s in info.slugs if s in security_slugs]
     if detected_security:
         sections.append("--- Security Stack ---")
@@ -199,7 +201,8 @@ def format_recon_context(info: TenantInfo) -> str:
         sections.append("")
 
     # Data & analytics for data fabric strategy
-    data_slugs = {"databricks", "snowflake", "mongodb", "dynatrace", "segment"}
+    data_slugs = {"databricks", "snowflake", "mongodb", "dynatrace", "segment",
+                  "datadog", "newrelic", "pagerduty"}
     detected_data = [s for s in info.slugs if s in data_slugs]
     if detected_data:
         sections.append("--- Data & Analytics Stack ---")
@@ -223,6 +226,32 @@ def format_recon_context(info: TenantInfo) -> str:
             "GTM maturity and inform CX recommendations."
         )
         for slug in sorted(detected_crm):
+            sections.append(f"  - {slug}")
+        sections.append("")
+
+    # HR & Operations
+    hr_slugs = {"workday", "sap", "ukg", "rippling", "deel"}
+    detected_hr = [s for s in info.slugs if s in hr_slugs]
+    if detected_hr:
+        sections.append("--- HR & Operations Stack ---")
+        sections.append(
+            "These HR and operations tools were detected. Use this to assess "
+            "workforce management maturity."
+        )
+        for slug in sorted(detected_hr):
+            sections.append(f"  - {slug}")
+        sections.append("")
+
+    # File Sharing & Collaboration
+    file_slugs = {"box", "egnyte", "dropbox"}
+    detected_file = [s for s in info.slugs if s in file_slugs]
+    if detected_file:
+        sections.append("--- File Sharing & Collaboration ---")
+        sections.append(
+            "These file sharing platforms were detected. Multiple platforms may "
+            "indicate migration or shadow IT."
+        )
+        for slug in sorted(detected_file):
             sections.append(f"  - {slug}")
         sections.append("")
 

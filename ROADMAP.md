@@ -960,7 +960,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
-| 1.18.0 | Apr 2026 | Recon integration (DNS intelligence pre-flight, auto-platform detection, `primr recon` subcommand), `--cloud-vendor` renamed to `--platform` with backward compat, `--platform ms` shorthand, recon context injection into all strategy types |
+| 1.18.0 | Apr 2026 | Recon integration (DNS intelligence pre-flight, auto-platform detection, `primr recon` subcommand, 156 fingerprints, 20 signals, crt.sh cert transparency, SRV detection, custom signals), `--cloud-vendor` renamed to `--platform` with backward compat, `--platform ms` shorthand, recon context injection into all strategy types |
 | 1.17.0 | Apr 2026 | Pipeline resilience (cost-ordered recovery, foreground/background stages, model circuit breaker), MCP estimate_run fix (cloud vendors, strategy type, historical data, time ranges), corrected duration estimates |
 | 1.16.0 | Mar 2026 | A2A protocol, Grok 4.20 hybrid default, private cloud vendor, output shipping gate, fast mode default, agentic pipeline, deep-research refactor, eval workflow |
 | 1.12.1 | Feb 2026 | Scraping robustness, PDF routing, bug fixes |
