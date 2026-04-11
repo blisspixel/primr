@@ -225,19 +225,19 @@ class TestBuildAIStrategyPrompt:
 
     def test_includes_azure_services(self):
         """Azure prompt should include Azure services."""
-        prompt = build_ai_strategy_prompt("Acme Corp", cloud_vendor="azure")
+        prompt = build_ai_strategy_prompt("Acme Corp", platform="azure")
         assert "Azure" in prompt
         assert "Microsoft 365 Copilot" in prompt
 
     def test_includes_aws_services(self):
         """AWS prompt should include AWS services."""
-        prompt = build_ai_strategy_prompt("Acme Corp", cloud_vendor="aws")
+        prompt = build_ai_strategy_prompt("Acme Corp", platform="aws")
         assert "AWS" in prompt
         assert "Amazon Bedrock" in prompt
 
     def test_includes_gcp_services(self):
         """GCP prompt should include GCP services."""
-        prompt = build_ai_strategy_prompt("Acme Corp", cloud_vendor="gcp")
+        prompt = build_ai_strategy_prompt("Acme Corp", platform="gcp")
         assert "GCP" in prompt or "Google Cloud" in prompt
         assert "Vertex AI" in prompt
 
@@ -471,19 +471,19 @@ class TestYAMLLoadingRoundTrip:
         from primr.prompts.schema import PromptContext
 
         company_name = "Test Corp"
-        cloud_vendor = "azure"
+        platform = "azure"
         current_date = datetime.now().strftime("%B %Y")  # Match loader's format
 
         # Build using loader function
         loader_prompt = build_ai_strategy_prompt(
-            company_name, cloud_vendor=cloud_vendor, current_date=current_date
+            company_name, platform=platform, current_date=current_date
         )
 
         # Build using PromptComposer directly with same date format
         composer = PromptComposer()
         context = PromptContext(
             company_name=company_name,
-            cloud_vendor=cloud_vendor,
+            platform=platform,
             current_date=current_date,
             has_stage1_context=True,
         )
@@ -518,8 +518,8 @@ class TestYAMLLoadingRoundTrip:
         **Feature: deep-research-prompt-architecture, Property 1: YAML Loading Round-Trip**
         **Validates: Requirements 1.1**
         """
-        prompt1 = build_ai_strategy_prompt("Test Corp", cloud_vendor="aws")
-        prompt2 = build_ai_strategy_prompt("Test Corp", cloud_vendor="aws")
+        prompt1 = build_ai_strategy_prompt("Test Corp", platform="aws")
+        prompt2 = build_ai_strategy_prompt("Test Corp", platform="aws")
 
         assert prompt1 == prompt2, "Idempotency violated: same inputs produced different outputs"
 
@@ -723,7 +723,7 @@ class TestYAMLLoadingRoundTrip:
         vendors = ["azure", "aws", "gcp"]
 
         for vendor in vendors:
-            prompt = build_ai_strategy_prompt("Test Corp", cloud_vendor=vendor)
+            prompt = build_ai_strategy_prompt("Test Corp", platform=vendor)
 
             # Each vendor prompt should be substantial
             assert len(prompt) > 10000, f"Prompt too short for vendor {vendor}"
@@ -740,9 +740,9 @@ class TestYAMLLoadingRoundTrip:
         **Feature: deep-research-prompt-architecture, Property 1: YAML Loading Round-Trip**
         **Validates: Requirements 1.1**
         """
-        azure_prompt = build_ai_strategy_prompt("Test Corp", cloud_vendor="azure")
-        aws_prompt = build_ai_strategy_prompt("Test Corp", cloud_vendor="aws")
-        gcp_prompt = build_ai_strategy_prompt("Test Corp", cloud_vendor="gcp")
+        azure_prompt = build_ai_strategy_prompt("Test Corp", platform="azure")
+        aws_prompt = build_ai_strategy_prompt("Test Corp", platform="aws")
+        gcp_prompt = build_ai_strategy_prompt("Test Corp", platform="gcp")
 
         # Prompts should differ (vendor-specific content)
         assert azure_prompt != aws_prompt, "Azure and AWS prompts are identical"
