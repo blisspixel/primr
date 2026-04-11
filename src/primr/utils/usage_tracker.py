@@ -223,6 +223,16 @@ class UsageTracker:
                 json.dump(self.history, f, indent=2)
 
             logger.info(f"Saved {len(self.session.records)} usage records")
+        except PermissionError as e:
+            logger.error(
+                "Could not save usage history (permission denied — file may be locked "
+                "by OneDrive or another process): %s",
+                e,
+            )
+        except OSError as e:
+            logger.error(
+                "Could not save usage history (disk error — check available space): %s", e
+            )
         except Exception as e:
             logger.error(f"Could not save usage history: {e}")
 

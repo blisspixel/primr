@@ -179,7 +179,8 @@ def _load_fast_feedback_guidance() -> str:
         return ""
     try:
         text = path.read_text(encoding="utf-8", errors="ignore").strip()
-    except Exception:
+    except Exception as e:
+        logger.debug("Failed to load fast feedback guidance from %s: %s", path, e)
         return ""
     if not text:
         return ""
@@ -356,7 +357,10 @@ def create_working_folder(company_name, website, reuse_incomplete: bool = False)
                 if status in {"running", "failed", "cancelled", "canceled"}:
                     logger.info(f"Reusing incomplete working folder: {candidate}")
                     return candidate
-            except Exception:
+            except Exception as e:
+                logger.debug(
+                    "Failed to read run state for resume candidate %s: %s", candidate, e
+                )
                 continue
 
     # Create timestamped run folder: Company_Name/2026-01-09_0915
@@ -382,7 +386,15 @@ def _load_run_state(folder_path: str) -> dict[str, Any]:
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
         return data if isinstance(data, dict) else {}
-    except Exception:
+    except json.JSONDecodeError as e:
+        logger.warning(
+            "Run state file corrupted (%s), starting with empty state: %s", path, e
+        )
+        return {}
+    except Exception as e:
+        logger.warning(
+            "Failed to load run state from %s, starting with empty state: %s", path, e
+        )
         return {}
 
 
@@ -2643,7 +2655,12 @@ Return the fully edited markdown report only.
         if polished_words < min_words or len(polished_sections) < min_sections:
             return report_content
         return polished
-    except Exception:
+    except Exception as e:
+        log_structured(
+            "warning",
+            "Trust polish pass failed, using unpolished report",
+            error=str(e),
+        )
         return report_content
 
 
@@ -2919,7 +2936,13 @@ No prose, no explanation."""
                 dropped=dropped,
             )
         return filtered
-    except Exception:
+    except Exception as e:
+        log_structured(
+            "warning",
+            "Source relevance assessment failed, keeping all sources",
+            error=str(e),
+            source_count=len(external_data),
+        )
         return external_data  # on any error, keep all sources
 
 
@@ -3072,7 +3095,7 @@ If the report is solid, return empty arrays."""
         )
     except Exception as e:
         log_structured("warning", "Cross-validation failed", error=str(e))
-        return {"weak_sections": [], "contradictions": []}
+        return {"weak_sections": [], "contradictions": [], "_failed": True}
 
     if not response or not response.strip():
         return {"weak_sections": [], "contradictions": []}
@@ -3196,7 +3219,7 @@ If the report is solid, return empty arrays."""
             log_structured("debug", "Cross-validation regex fallback failed", error=str(regex_err))
 
         log_structured("warning", "Cross-validation JSON parse failed after all retries")
-        return {"weak_sections": [], "contradictions": []}
+        return {"weak_sections": [], "contradictions": [], "_failed": True}
 
 
 def _fast_regenerate_section(
@@ -3352,7 +3375,7 @@ If the strategy is solid, return empty arrays."""
         )
     except Exception as e:
         log_structured("warning", "Strategy cross-validation failed", error=str(e))
-        return {"weak_sections": [], "issues": []}
+        return {"weak_sections": [], "issues": [], "_failed": True}
 
     if not response or not response.strip():
         return {"weak_sections": [], "issues": []}
@@ -3392,7 +3415,7 @@ If the strategy is solid, return empty arrays."""
         return {"weak_sections": weak, "issues": issues}
     except (json.JSONDecodeError, KeyError, TypeError, AttributeError) as e:
         log_structured("warning", "Strategy cross-validation JSON parse failed", error=str(e))
-        return {"weak_sections": [], "issues": []}
+        return {"weak_sections": [], "issues": [], "_failed": True}
 
 
 def _strategy_regenerate_section(
@@ -3609,6 +3632,10 @@ def _enrich_strategy_content(
 
     weak_sections = cv_result.get("weak_sections", [])
     issues = cv_result.get("issues", [])
+    cv_failed = cv_result.pop("_failed", False)
+
+    if cv_failed:
+        console.warn(f"Strategy cross-validation failed for {label}{vendor_label} — skipping enrichment")
 
     if issues:
         for issue in issues:
@@ -3867,17 +3894,31 @@ def perform_fast_research(
         console.status(f"Searching external sources (0/{len(external_queries)} queries)")
         all_search_results: list[dict] = []
         _queries_done = 0
+        _queries_failed = 0
         with ThreadPoolExecutor(max_workers=3) as executor:
             futures = [executor.submit(_search_one, q) for q in external_queries]
             for future in as_completed(futures):
                 try:
                     all_search_results.extend(future.result())
                 except Exception as e:
+                    _queries_failed += 1
                     logger.warning("External search query failed: %s", e)
                 _queries_done += 1
                 console.status(
                     f"Searching external sources ({_queries_done}/{len(external_queries)} queries, {len(all_search_results)} results)"
                 )
+
+        if _queries_failed > 0:
+            console.warn(
+                f"{_queries_failed}/{len(external_queries)} search queries failed"
+                " — external source coverage may be reduced"
+            )
+            log_structured(
+                "warning",
+                "External search queries failed",
+                failed=_queries_failed,
+                total=len(external_queries),
+            )
 
         # Phase 2: sequential scraping on main thread (Playwright-safe)
         # Wrap per-page scrapes with recovery executor (pipeline-resilience)
@@ -4083,7 +4124,11 @@ def perform_fast_research(
             with open(insights_file, "w", encoding="utf-8") as f:
                 f.write(combined_insights)
         else:
-            console.info("Gap analysis returned no queries — skipping")
+            # Distinguish between "no gaps found" (good) and "gap analysis failed" (bad)
+            if gap_text and "failed" in gap_text.lower():
+                console.warn(f"Gap analysis failed — skipping research deepening ({gap_text})")
+            else:
+                console.info("Gap analysis found no research gaps — skipping")
 
         # Save gap analysis output to working folder
         gap_analysis_path = os.path.join(folder_path, "gap_analysis.md")
@@ -4406,15 +4451,18 @@ def perform_fast_research(
                 logger.info(
                     "Cross-validation skipped: %s", _cv_stage_result.skip_reason
                 )
-                cv_result = {"weak_sections": [], "contradictions": []}
+                cv_result = {"weak_sections": [], "contradictions": [], "_failed": True}
 
+        cv_failed = cv_result.pop("_failed", False)
         weak_sections = cv_result.get("weak_sections", [])
         contradictions = cv_result.get("contradictions", [])
         unresolved_contradictions = len(contradictions)
         sections_enriched = 0
         cv_search_count = 0
 
-        if weak_sections:
+        if cv_failed:
+            console.warn("Cross-validation failed — report was not quality-checked")
+        elif weak_sections:
             console.ok(f"Review complete: {len(weak_sections)} section(s) flagged for enrichment")
 
             # Build a lookup of report headings for case-insensitive matching
@@ -4572,13 +4620,13 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
 
         # Extract section count from report for metrics
         report_section_count = len(re.findall(r"^## ", report_content, re.MULTILINE))
-        console.phase_complete(
-            "Cross-Validation",
-            [
-                ("Sections reviewed", str(report_section_count)),
-                ("Enriched", str(sections_enriched)),
-            ],
-        )
+        cv_stats = [
+            ("Sections reviewed", str(report_section_count)),
+            ("Enriched", str(sections_enriched)),
+        ]
+        if cv_failed:
+            cv_stats.append(("Status", "FAILED"))
+        console.phase_complete("Cross-Validation", cv_stats)
 
         # Trust polish is a low-cost editorial pass to improve evidence discipline.
         report_content = _polish_fast_report_for_trust(

@@ -78,7 +78,7 @@ You have access to Primr company research tools. When a user asks you to researc
 3. Use check_jobs to monitor progress (jobs take 35-50 minutes)
 4. When the job completes, share the results with the user
 
-Always estimate before submitting. Research jobs cost real money (~$0.55 for standard mode).
+Always estimate before submitting. Research jobs cost real money (~$0.75 for standard mode).
 Use show_usage to check remaining budget if the user asks about costs.
 ```
 

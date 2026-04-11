@@ -189,6 +189,8 @@ class DomainLearner:
                     )
 
                 logger.info(f"Loaded {len(self._profiles)} domain profiles")
+        except json.JSONDecodeError as e:
+            logger.warning("Domain profiles file corrupted, starting fresh: %s", e)
         except Exception as e:
             logger.warning(f"Failed to load domain profiles: {e}")
 
@@ -217,8 +219,16 @@ class DomainLearner:
             with open(path, "w") as f:
                 json.dump(data, f, indent=2)
 
+        except PermissionError as e:
+            logger.error(
+                "Failed to save domain profiles (permission denied — file may be locked): %s", e
+            )
         except Exception as e:
-            logger.warning(f"Failed to save domain profiles: {e}")
+            logger.error(
+                "Failed to save domain profiles (%d profiles lost): %s",
+                len(self._profiles),
+                e,
+            )
 
     def get_domain(self, url: str) -> str:
         """Extract domain from URL."""

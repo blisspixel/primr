@@ -10,7 +10,7 @@ Company research tool using Gemini and Grok models. Generates strategic intellig
 ### Critical Constraints
 - **Single-job model**: ONE research job at a time. Check `primr --check-jobs` before starting new research.
 - **Async execution**: `research_company` returns immediately with `job_id`. Poll `check_jobs` for completion.
-- **Cost awareness**: ALWAYS run `estimate_run` before `research_company`. Default mode uses Grok 4.1 when XAI_API_KEY is set (~$0.55, ~35-50 min, 40-55 sources). Use `--premium` for Gemini + Deep Research (~$5, 50-75 min). Scrape ~$0.10, deep ~$2.50. Each extra `--platform` adds ~$0.07 (standard) or ~$2.50 (premium). DDG searches are free. Use `--lite` with `--premium` to drop strategy cost.
+- **Cost awareness**: ALWAYS run `estimate_run` before `research_company`. Default mode uses Grok 4.20 hybrid when XAI_API_KEY is set (~$0.75, ~35-50 min, 40-55 sources). Use `--premium` for Gemini + Deep Research (~$5, 50-75 min). Scrape ~$0.10, deep ~$2.50. Each extra `--platform` adds ~$0.07 (standard) or ~$2.50 (premium). DDG searches are free. Use `--lite` with `--premium` to drop strategy cost.
 
 ### Common Tasks
 
@@ -24,7 +24,7 @@ primr "Company" https://example.com --mode scrape
 # Deep external research (10-15 min, ~$2.50)
 primr "Company" https://example.com --mode deep
 
-# Standard run (~$0.55, ~35-50 min — auto-uses Grok 4.1 when XAI_API_KEY set)
+# Standard run (~$0.75, ~35-50 min — auto-uses Grok 4.20 hybrid when XAI_API_KEY set)
 primr "Company" https://example.com
 
 # Most common: Microsoft + NVIDIA AI strategy
