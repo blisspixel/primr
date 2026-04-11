@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import re
+
 import pytest
 import typer
 from typer.testing import CliRunner
@@ -18,6 +20,11 @@ from primr.recon.models import (
 )
 
 runner = CliRunner()
+
+
+def _strip_ansi(text: str) -> str:
+    """Remove ANSI escape codes from Rich/Typer output for reliable assertions."""
+    return re.sub(r"\x1b\[[0-9;]*m", "", text)
 
 SAMPLE_INFO = TenantInfo(
     tenant_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
@@ -44,14 +51,15 @@ class TestHelp:
     def test_help_shows_usage(self) -> None:
         result = runner.invoke(app, ["--help"])
         assert result.exit_code == 0
-        assert "recon" in result.output.lower()
+        assert "recon" in _strip_ansi(result.output).lower()
 
     def test_lookup_help(self) -> None:
         result = runner.invoke(app, ["lookup", "--help"])
         assert result.exit_code == 0
-        assert "--json" in result.output
-        assert "--md" in result.output
-        assert "--full" in result.output
+        output = _strip_ansi(result.output)
+        assert "--json" in output
+        assert "--md" in output
+        assert "--full" in output
 
     def test_version_flag(self) -> None:
         from primr.recon.cli import version_callback
