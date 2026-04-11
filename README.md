@@ -18,9 +18,7 @@ About 35-50 minutes later: a deep strategic analysis covering competitive positi
 
 ## Why This Exists
 
-Company research is tedious. You visit the website, click around, search the company, read articles, synthesize it all, write it up. That process easily takes 1-2 hours per company and the output is usually unstructured notes.
-
-Primr does that entire workflow autonomously in about 35-50 minutes for about $0.75 in API costs. The output is deep, structured strategic analysis, competitive positioning, technology stack, strategic initiatives, financial profile, external validation, and a consultant-ready view of what matters most to validate in conversation. Whether you're researching a potential employer, evaluating an investment, preparing for a partnership, doing competitive analysis, or running due diligence, a single run replaces hours of manual work.
+Company research is tedious. You visit the website, click around, search the company, read articles, synthesize it all, write it up. That process easily takes 1-2 hours per company and the output is usually unstructured notes. Primr replaces that entire workflow with a single command.
 
 ## What Makes It Different
 
@@ -36,7 +34,7 @@ Primr does that entire workflow autonomously in about 35-50 minutes for about $0
 
 | Mode | What it does | Time | Cost |
 |------|--------------|------|------|
-| Default | Grok 4.20 hybrid + AI Strategy (recon auto-detects platform) | ~35-50 min | ~$0.67 |
+| Default | Grok 4.20 hybrid + AI Strategy (recon auto-detects platform) | ~35-50 min | ~$0.75 |
 | `--platform ms` | Microsoft Azure + NVIDIA private cloud strategy | ~45-60 min | ~$0.80 |
 | Default + multi-platform | Add `--platform aws azure` | ~45-60 min | ~$0.80 |
 | Default + strategy type | Add `--strategy-type customer_experience` | ~35-50 min | ~$0.75 |
@@ -262,9 +260,7 @@ mypy src/primr --ignore-missing-imports     # Type check
 
 ## About This Project
 
-Primr is a nights-and-weekends project by a solo developer. I kept finding myself spending hours researching companies — clicking around websites, reading articles, trying to piece together what a company actually does and where it's headed. The time-to-insight ratio was terrible, and most of the work was mechanical. That's exactly what AI should be doing.
-
-So I built the tool I wanted: drop in a URL, get back a structured brief. It costs about $0.50 in API fees and saves hours per company. Whether you're evaluating a potential employer, researching an investment, preparing for a partnership conversation, or just curious about a company, it gets you up to speed fast.
+Primr is a nights-and-weekends project by a solo developer. The time-to-insight ratio for company research was terrible, and most of the work was mechanical. That's exactly what AI should be doing. So I built the tool I wanted.
 
 It's not backed by a company or a team. It's an independent project built for personal use.
 
