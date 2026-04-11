@@ -148,7 +148,7 @@ class AIStrategyAnalyzer:
         opportunities = analyzer.analyze(
             company_name="Acme Corp",
             industry="manufacturing",
-            cloud_vendor=CloudVendor.AZURE
+            platform=CloudVendor.AZURE
         )
     """
 
@@ -257,7 +257,7 @@ class AIStrategyAnalyzer:
         self,
         company_name: str,
         industry: str = "",
-        cloud_vendor: CloudVendor = CloudVendor.AGNOSTIC,
+        platform: CloudVendor = CloudVendor.AGNOSTIC,
         company_context: str = "",
     ) -> list[AIOpportunity]:
         """
@@ -266,7 +266,7 @@ class AIStrategyAnalyzer:
         Args:
             company_name: Name of the company
             industry: Industry sector (e.g., "healthcare", "retail")
-            cloud_vendor: Cloud vendor preference
+            platform: Cloud vendor preference
             company_context: Additional context from company research
 
         Returns:
@@ -300,7 +300,7 @@ class AIStrategyAnalyzer:
                 category=category,
                 company_name=company_name,
                 industry=industry,
-                vendor=cloud_vendor,
+                vendor=platform,
                 context=company_context,
             )
             opportunities.append(opportunity)
@@ -476,7 +476,7 @@ class AIStrategyAnalyzer:
 def analyze_ai_strategy(
     company_name: str,
     industry: str = "",
-    cloud_vendor: str = "agnostic",
+    platform: str = "agnostic",
     company_context: str = "",
 ) -> list[AIOpportunity]:
     """
@@ -485,7 +485,7 @@ def analyze_ai_strategy(
     Args:
         company_name: Name of the company
         industry: Industry sector
-        cloud_vendor: Cloud vendor string ("azure", "aws", "gcp", "agnostic")
+        platform: Cloud vendor string ("azure", "aws", "gcp", "agnostic")
         company_context: Additional context
 
     Returns:
@@ -497,12 +497,12 @@ def analyze_ai_strategy(
         "gcp": CloudVendor.GCP,
         "agnostic": CloudVendor.AGNOSTIC,
     }
-    vendor = vendor_map.get(cloud_vendor.lower(), CloudVendor.AGNOSTIC)
+    vendor = vendor_map.get(platform.lower(), CloudVendor.AGNOSTIC)
 
     analyzer = AIStrategyAnalyzer()
     return analyzer.analyze(
         company_name=company_name,
         industry=industry,
-        cloud_vendor=vendor,
+        platform=vendor,
         company_context=company_context,
     )

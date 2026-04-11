@@ -77,7 +77,7 @@ class TestPromptComposer:
         context = PromptContext(
             company_name="MyCompany",
             website_url="https://mycompany.com",
-            cloud_vendor="azure",
+            platform="azure",
             current_date="January 1, 2025",
         )
         result = composer.compose("company_overview", context)
@@ -395,7 +395,7 @@ class TestVendorSpecificContentProperties:
         composer = PromptComposer()
         context = PromptContext(
             company_name="Test Corp",
-            cloud_vendor=vendor,
+            platform=vendor,
             has_stage1_context=True,
         )
         result = composer.compose_strategy("ai_strategy", context)
@@ -422,7 +422,7 @@ class TestVendorSpecificContentProperties:
         composer = PromptComposer()
         context = PromptContext(
             company_name="Test Corp",
-            cloud_vendor="azure",
+            platform="azure",
             has_stage1_context=True,
         )
         result = composer.compose_strategy("ai_strategy", context)
@@ -441,7 +441,7 @@ class TestVendorSpecificContentProperties:
         composer = PromptComposer()
         context = PromptContext(
             company_name="Test Corp",
-            cloud_vendor="aws",
+            platform="aws",
             has_stage1_context=True,
         )
         result = composer.compose_strategy("ai_strategy", context)
@@ -460,7 +460,7 @@ class TestVendorSpecificContentProperties:
         composer = PromptComposer()
         context = PromptContext(
             company_name="Test Corp",
-            cloud_vendor="gcp",
+            platform="gcp",
             has_stage1_context=True,
         )
         result = composer.compose_strategy("ai_strategy", context)
@@ -493,7 +493,7 @@ class TestCustomStrategySharedComponentsProperties:
         composer = PromptComposer()
         context = PromptContext(
             company_name="Test Corp",
-            cloud_vendor="agnostic",
+            platform="agnostic",
             has_stage1_context=True,
         )
 
