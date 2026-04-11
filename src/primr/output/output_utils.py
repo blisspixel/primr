@@ -113,8 +113,8 @@ def load_section_results(company_name: str) -> dict[str, str]:
         )
         if subdirs:
             search_dir = os.path.join(working_dir, subdirs[0])
-    except OSError:
-        pass
+    except OSError as e:
+        console.error(f"Failed to list working directory {working_dir}: {e}")
 
     console.info(f"Loading section data from: {search_dir}")
 
