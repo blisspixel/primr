@@ -1064,7 +1064,7 @@ async def _get_cloud_diagnostics() -> dict[str, Any]:
                 "http_status": resp.status_code,
                 "detail": resp.json(),
             }
-    except Exception as e:
+    except Exception:
         logger.exception("Cloud diagnostics: Container App health check failed")
         diagnostics["container_app_health"] = {
             "status": "error",
@@ -1079,7 +1079,7 @@ async def _get_cloud_diagnostics() -> dict[str, Any]:
                 "status": "ok",
                 "endpoint": cosmos_endpoint,
             }
-        except Exception as e:
+        except Exception:
             logger.exception("Cloud diagnostics: Cosmos DB check failed")
             diagnostics["cosmos_db"] = {
                 "status": "error",
@@ -1096,7 +1096,7 @@ async def _get_cloud_diagnostics() -> dict[str, Any]:
                 "status": "ok",
                 "account": storage_account,
             }
-        except Exception as e:
+        except Exception:
             logger.exception("Cloud diagnostics: Blob Storage check failed")
             diagnostics["blob_storage"] = {
                 "status": "error",
@@ -1113,7 +1113,7 @@ async def _get_cloud_diagnostics() -> dict[str, Any]:
                 "status": "ok",
                 "configured": True,
             }
-        except Exception as e:
+        except Exception:
             logger.exception("Cloud diagnostics: Service Bus check failed")
             diagnostics["service_bus"] = {
                 "status": "error",
@@ -1145,7 +1145,7 @@ async def _get_cloud_diagnostics() -> dict[str, Any]:
                 "max_monthly_cost_usd": max_monthly_cost,
             },
         }
-    except Exception as e:
+    except Exception:
         logger.exception("Cloud diagnostics: Cost Governor check failed")
         diagnostics["cost_governor"] = {
             "status": "error",
@@ -1428,7 +1428,7 @@ async def _handle_show_usage(
                 text=json.dumps(usage_data),
             )
         ]
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to fetch usage data")
         return [
             TextContent(
@@ -1501,7 +1501,7 @@ async def _handle_delegate_to_agent(
         async with A2AClient(agent_url=agent_url) as client:
             result = await client.send_message(message=message, skill_id=skill_id)
         return [TextContent(type="text", text=json.dumps(result, indent=2, default=str))]
-    except Exception as e:
+    except Exception:
         logger.exception("A2A delegation failed: %s", agent_url)
         return [
             TextContent(

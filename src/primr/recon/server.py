@@ -17,7 +17,11 @@ import uuid
 
 from mcp.server.fastmcp import FastMCP
 
-from mcp.types import ToolAnnotations
+try:
+    from mcp.types import ToolAnnotations  # type: ignore[attr-defined]
+except ImportError:  # MCP SDK <1.8 doesn't have ToolAnnotations
+    ToolAnnotations = None  # type: ignore[assignment,misc]
+
 from primr.recon.formatter import detect_provider, format_tenant_json, format_tenant_markdown
 from primr.recon.models import ReconLookupError, SourceResult, TenantInfo
 from primr.recon.resolver import resolve_tenant
@@ -123,14 +127,19 @@ def _log_structured(level: int, msg: str, **fields: object) -> None:
         logger.log(level, msg, extra=fields)
 
 
-@mcp.tool(
-    annotations=ToolAnnotations(
+_LOOKUP_ANNOTATIONS = (
+    {"annotations": ToolAnnotations(
         readOnlyHint=True,
         destructiveHint=False,
         idempotentHint=True,
         openWorldHint=True,
-    ),
+    )}
+    if ToolAnnotations is not None
+    else {}
 )
+
+
+@mcp.tool(**_LOOKUP_ANNOTATIONS)
 async def lookup_tenant(
     domain: str,
     format: str = "text",
@@ -174,7 +183,8 @@ async def lookup_tenant(
 
     cached = _cache_get(validated)
     if cached is not None:
-        info, results = cached
+        info, cached_results = cached
+        results = list(cached_results)
         _log_structured(
             logging.INFO, "cache_hit",
             request_id=request_id, domain=validated,
@@ -244,14 +254,19 @@ async def lookup_tenant(
     return "\n".join(lines)
 
 
-@mcp.tool(
-    annotations=ToolAnnotations(
+_RELOAD_ANNOTATIONS = (
+    {"annotations": ToolAnnotations(
         readOnlyHint=False,
         destructiveHint=False,
         idempotentHint=True,
         openWorldHint=False,
-    ),
+    )}
+    if ToolAnnotations is not None
+    else {}
 )
+
+
+@mcp.tool(**_RELOAD_ANNOTATIONS)
 async def reload_data() -> str:
     """Reload fingerprint and signal definitions from disk.
 
