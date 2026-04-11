@@ -19,8 +19,8 @@ primr --batch companies_utilities_enriched.csv --mode scrape
 --industry NAME   # Filter rows by industry column value
 --limit N         # Process only the first N companies (useful for testing)
 --skip-confirm    # Skip the confirmation prompt (for unattended runs)
---mode MODE       # scrape ($0.10/co), deep ($2.50/co), full (~$0.55/co or ~$5/co with --premium)
---grok-tier TIER  # fast (~$0.55), hybrid (~$1.10, 4.20 reasoning), max (~$4, 4.20 everywhere)
+--mode MODE       # scrape ($0.10/co), deep ($2.50/co), full (~$0.75/co or ~$5/co with --premium)
+--grok-tier TIER  # fast (~$0.53), hybrid (~$0.75, 4.20 reasoning), max (~$4, 4.20 everywhere)
 ```
 
 ## Defensive Behavior

@@ -118,7 +118,7 @@ When a user asks you to research a company:
 6. When complete, share the key findings with the user
 
 Important:
-- Always estimate costs before submitting a job (~$0.55 for standard research)
+- Always estimate costs before submitting a job (~$0.75 for standard research)
 - Research jobs are asynchronous and take 35-50 minutes to complete
 - Use show_usage to check the user's remaining budget
 - Use doctor to diagnose any connectivity issues
@@ -126,7 +126,7 @@ Important:
 Available research modes:
 - scrape: Website data extraction only (~5-10 min, ~$0.10)
 - deep: External research only (~10-15 min, ~$2.50)
-- full: Complete analysis (~35-50 min, ~$0.55)
+- full: Complete analysis (~35-50 min, ~$0.75)
 ```
 
 ## Step 5: Test with Sample Queries

@@ -526,7 +526,7 @@ Extend the eval harness to compare all available providers and determine the bes
 
 Run the full Primr pipeline on local hardware with zero API costs. Primary target: RTX 4090 (24GB VRAM) with Ollama, which is available for testing and validation. The goal is a working `--inference local` mode that produces useful research output — not cloud-quality, but good enough for batch screening, internal research, and cost-sensitive workloads.
 
-At scale, API costs compound: 100 companies × $0.55 = $55 per batch. Local inference eliminates that entirely for workloads where 80% quality at $0 cost is the right tradeoff. Primr is already local-first in execution — scraping, orchestration, and outputs all run locally. This version makes the AI stages local too.
+At scale, API costs compound: 100 companies × $0.75 = $75 per batch. Local inference eliminates that entirely for workloads where 80% quality at $0 cost is the right tradeoff. Primr is already local-first in execution — scraping, orchestration, and outputs all run locally. This version makes the AI stages local too.
 
 **Three Execution Profiles:**
 
@@ -843,7 +843,7 @@ The QA feedback suggested replacing the linear pipeline with a DAG orchestration
 
 **What the research shows:**
 - [Anthropic's own multi-agent research system](https://www.anthropic.com/engineering/multi-agent-research-system) does NOT use a DAG — it's a simple orchestrator-worker pattern (lead agent spawns 3-5 subagents in parallel, waits, synthesizes). They got 90% speed improvement purely from parallelism, not graph orchestration.
-- Multi-agent systems use ~15x more tokens than single-agent ([LangChain State of Agents](https://www.langchain.com/state-of-agent-engineering)), which directly conflicts with Primr's $0.55 value proposition.
+- Multi-agent systems use ~15x more tokens than single-agent ([LangChain State of Agents](https://www.langchain.com/state-of-agent-engineering)), which directly conflicts with Primr's ~$0.75 value proposition.
 - [Production teams report](https://dev.to/isaachagoel/read-this-before-building-ai-agents-lessons-from-the-trenches-333i) the golden rule: "Can I code this without losing functionality?" Mechanical tasks (scraping, search) should be code, not agent orchestration.
 - [Community consensus](https://community.latenode.com/t/coordinating-multiple-ai-agents-for-scraping-validation-and-reporting-does-the-complexity-actually-pay-off/60040): keep simple pipelines simple; multi-agent DAGs only justified for horizontal scaling or dynamic replanning.
 

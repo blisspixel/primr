@@ -199,7 +199,7 @@ print(f"Consolidated {result.section_count} sections")
 
 ### AI Strategy Generation
 
-Generate AI strategy recommendations with platform context (formerly cloud vendor context).
+Generate AI strategy recommendations with platform context.
 
 ```python
 from primr.core.ai_strategy import (
@@ -302,7 +302,7 @@ from primr.core.structured_research import (
 
 ### Vendor Research
 
-Cloud vendor AI capabilities research.
+Platform AI capabilities research.
 
 ```python
 from primr.core.vendor_research import (

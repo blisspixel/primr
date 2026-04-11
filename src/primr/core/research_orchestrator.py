@@ -946,6 +946,12 @@ class ResearchOrchestrator:
             deep_task, structured_task, return_exceptions=True
         )
 
+        # Log exceptions from parallel tasks (they'd otherwise be silently swallowed)
+        if isinstance(deep_result, Exception):
+            logger.error("Deep research failed in hybrid mode: %s", deep_result)
+        if isinstance(structured_result, Exception):
+            logger.error("Structured research failed in hybrid mode: %s", structured_result)
+
         # Merge results
         section_results = {}
 

@@ -24,7 +24,7 @@ Copilot Cowork is Microsoft 365 Copilot's agentic execution layer. It discovers 
 3. Fill in the required metadata:
    - **Display name**: `Company Research (Primr)`
    - **Short description**: `Research any company using AI-powered analysis. Produces strategic overviews, competitive analysis, and consultant-grade insights.`
-   - **Long description**: `Submit a company name and website URL to get deep strategic analysis including competitive positioning, technology stack, strategic initiatives, financial profile, and discovery questions. Research takes 35-50 minutes and costs ~$0.55 in API fees. Results include 23 structured sections with inline confidence levels.`
+   - **Long description**: `Submit a company name and website URL to get deep strategic analysis including competitive positioning, technology stack, strategic initiatives, financial profile, and discovery questions. Research takes 35-50 minutes and costs ~$0.75 in API fees. Results include 23 structured sections with inline confidence levels.`
    - **Icon**: Upload a recognizable icon for the agent
 4. Go to **Settings** → **Security**
    - Ensure **Authentication** is set to **Microsoft Entra ID**

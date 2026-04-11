@@ -48,8 +48,11 @@ types = _google_types
 from primr.config.config import GEMINI_API_KEY, MAX_RETRIES
 from primr.config.models import PrimrModels
 from primr.utils.chat_logger import log_chat_interaction
+from primr.utils.logging_config import get_logger
 
 load_dotenv()
+
+logger = get_logger("llm")
 
 # Lazy-initialized client (created on first use to allow import without API key)
 _client: genai.Client | None = None
@@ -189,6 +192,10 @@ def llm(prompt, model_type="fast", temperature=1.0, thinking_level="high", strea
             )
 
             if is_quota_exhausted:
+                logger.error(
+                    "Gemini daily API quota exhausted. Options: wait for reset, "
+                    "upgrade plan, use different key, or run 'primr --check-quota'"
+                )
                 print(Fore.RED + "\n" + "=" * 60 + Style.RESET_ALL)
                 print(Fore.RED + "[QUOTA EXHAUSTED] Daily API limit reached." + Style.RESET_ALL)
                 print(
@@ -217,6 +224,9 @@ def llm(prompt, model_type="fast", temperature=1.0, thinking_level="high", strea
             # Check for temporary rate limit (retry with backoff, but limit retries)
             if "429" in str(e) or "resource_exhausted" in error_str:
                 if retries >= MAX_RETRIES:
+                    logger.error(
+                        "Gemini rate limit persists after %d retries, aborting", MAX_RETRIES
+                    )
                     print(
                         Fore.RED
                         + f"[ERROR] Rate limit persists after {MAX_RETRIES} retries. Stopping."
@@ -224,6 +234,10 @@ def llm(prompt, model_type="fast", temperature=1.0, thinking_level="high", strea
                     )
                     raise RuntimeError(f"Rate limit exceeded after {MAX_RETRIES} retries") from e
                 wait_time = min(2**retries * 5, 60)  # Exponential backoff: 10s, 20s, 40s, max 60s
+                logger.warning(
+                    "Gemini rate limited, waiting %.0fs before retry %d/%d",
+                    wait_time, retries, MAX_RETRIES,
+                )
                 print(
                     Fore.YELLOW
                     + f"[RATE LIMITED] Waiting {wait_time}s before retry {retries}/{MAX_RETRIES}..."
@@ -232,6 +246,9 @@ def llm(prompt, model_type="fast", temperature=1.0, thinking_level="high", strea
                 time.sleep(wait_time)
             else:
                 # Other errors: short delay
+                logger.warning(
+                    "Gemini API call failed (attempt %d/%d): %s", retries, MAX_RETRIES, e
+                )
                 print(
                     Fore.YELLOW
                     + f"[WARNING] Gemini API Call Failed. Retrying {retries}/{MAX_RETRIES}... Error: {e}"
@@ -239,7 +256,8 @@ def llm(prompt, model_type="fast", temperature=1.0, thinking_level="high", strea
                 )
                 time.sleep(2)
 
-    error_message = "[ERROR] LLM API call failed after max retries."
+    error_message = f"[ERROR] LLM API call failed after {MAX_RETRIES} retries."
+    logger.error(error_message)
     log_chat_interaction(prompt, error_message)
     raise RuntimeError(error_message)
 

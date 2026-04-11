@@ -427,7 +427,8 @@ def fetch_web_content(
                         body = text.strip()
                     if body:
                         existing[normalize_url(url)] = body
-                except Exception:
+                except Exception as e:
+                    logger.debug("Failed parsing raw scrape file %s: %s", name, e)
                     continue
         except Exception as e:
             logger.debug(f"Failed loading existing raw scrapes: {e}")

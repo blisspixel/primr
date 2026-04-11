@@ -258,8 +258,8 @@ The `src/primr/core/` directory contains the research orchestration logic, decom
 | `research_agent.py` | Main entry point with backward-compatible re-exports |
 | `workspace.py` | Working folder creation, file consolidation, section output |
 | `structured_research.py` | Website scraping pipeline, section-by-section analysis |
-| `vendor_research.py` | Cloud vendor AI capabilities research (major providers) |
-| `ai_strategy.py` | AI strategy generation with cloud vendor context |
+| `vendor_research.py` | Platform AI capabilities research (major providers) |
+| `ai_strategy.py` | AI strategy generation with platform context |
 | `deep_research_runner.py` | Deep Research execution with preflight validation |
 | `cli.py` | Command-line interface, argument parsing, utility commands |
 
@@ -615,8 +615,8 @@ src/primr/
 │   ├── research_agent.py    # Main entry point, backward-compatible re-exports
 │   ├── workspace.py         # Working folder management, file consolidation
 │   ├── structured_research.py # Website scraping pipeline, section generation
-│   ├── vendor_research.py   # Cloud vendor AI capabilities research
-│   ├── ai_strategy.py       # AI strategy generation with cloud vendor context
+│   ├── vendor_research.py   # Platform AI capabilities research
+│   ├── ai_strategy.py       # AI strategy generation with platform context
 │   ├── deep_research_runner.py # Deep Research execution, preflight validation
 │   ├── cli.py               # Command-line interface, argument parsing
 │   ├── report_models.py     # Report data structures
@@ -1035,9 +1035,9 @@ Playwright tiers now perform adaptive lazy-load scrolling (up to 20 steps by def
 | Gemini 3.1 Pro | `--premium` mode: section writing, analysis | $2/$12 (≤200k) · $4/$18 (>200k) |
 | Deep Research Agent | `--premium` mode: autonomous research | ~$2.50/task (flat) |
 
-### Why Grok 4.1 is the Default
+### Why Grok is the Default
 
-Primr originally ran everything through Google's Deep Research API + Gemini 3.1 Pro — excellent research quality, but the Deep Research API runs ~$2.50 per task, pushing full runs to ~$5 and 50-75 minutes. When xAI released Grok 4.1, testing showed it handles company research comparably: strong at search-grounded analysis, solid structured output, and reliable citation handling. Switching the default pipeline to Grok 4.1 dropped costs to ~$0.55 (~90% cheaper) and runtime to ~35-50 minutes with similar report quality. Gemini Flash is still used for scraping in both modes. The full Gemini + Deep Research pipeline remains available via `--premium` when maximum research depth justifies the cost.
+Primr originally ran everything through Google's Deep Research API + Gemini 3.1 Pro — excellent research quality, but the Deep Research API runs ~$2.50 per task, pushing full runs to ~$5 and 50-75 minutes. When xAI released Grok 4.1, testing showed it handles company research comparably: strong at search-grounded analysis, solid structured output, and reliable citation handling. The default pipeline now uses Grok 4.20 hybrid (4.20 for reasoning, 4.1 for writing) at ~$0.75/run — ~85% cheaper than premium. Gemini Flash is still used for scraping in both modes. The full Gemini + Deep Research pipeline remains available via `--premium` when maximum research depth justifies the cost.
 
 ### Agentic Architecture
 
