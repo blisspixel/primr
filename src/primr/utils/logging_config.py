@@ -12,7 +12,6 @@ import contextvars
 import functools
 import logging
 import sys
-import threading
 from collections.abc import Callable
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
@@ -148,8 +147,16 @@ def get_logger(name: str) -> logging.Logger:
 
 # Thread-local and async-safe context storage
 _log_context_var: contextvars.ContextVar[dict] = contextvars.ContextVar(
-    "log_context", default={}
+    "log_context", default=None
 )
+
+
+def _get_log_context() -> dict:
+    """Return the current log context, initializing if needed."""
+    ctx = _log_context_var.get()
+    if ctx is None:
+        return {}
+    return ctx
 
 
 class LogContext:
@@ -170,7 +177,7 @@ class LogContext:
         self._token: contextvars.Token | None = None
 
     def __enter__(self):
-        previous = _log_context_var.get()
+        previous = _get_log_context()
         merged = {**previous, **self.context}
         self._token = _log_context_var.set(merged)
         return self
@@ -182,14 +189,14 @@ class LogContext:
     @staticmethod
     def get_current() -> dict:
         """Return the current context dict (safe from any thread/task)."""
-        return _log_context_var.get()
+        return _get_log_context()
 
 
 class ContextFilter(logging.Filter):
     """Filter that adds context to log records (thread-safe via contextvars)."""
 
     def filter(self, record: logging.LogRecord) -> bool:
-        record.extra = _log_context_var.get().copy()
+        record.extra = _get_log_context().copy()
         return True
 
 
