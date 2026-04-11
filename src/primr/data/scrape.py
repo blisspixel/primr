@@ -517,7 +517,8 @@ def fetch_web_content(
                     loaded = json.load(f)
                 if isinstance(loaded, dict):
                     state = loaded
-            except Exception:
+            except Exception as e:
+                logger.debug("Failed to load run state for org type persistence: %s", e)
                 state = {}
         state["organization_type"] = organization_type
         state["organization_type_confidence"] = organization_profile.confidence

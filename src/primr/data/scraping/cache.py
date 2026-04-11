@@ -7,11 +7,14 @@ without re-scraping.
 
 import hashlib
 import json
+import logging
 import threading
 from collections import OrderedDict
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
+
+logger = logging.getLogger("primr.scraping.cache")
 
 # =============================================================================
 # URL Normalization
@@ -211,8 +214,8 @@ class ScrapeCache:
                     # Add to memory cache
                     self.raw_memory.set(key, content)
                     return content
-            except (OSError, json.JSONDecodeError, KeyError, ValueError):
-                pass
+            except (OSError, json.JSONDecodeError, KeyError, ValueError) as e:
+                logger.debug("Disk cache read failed for raw %s: %s", url, e)
 
         return None
 
@@ -241,8 +244,8 @@ class ScrapeCache:
                     },
                     f,
                 )
-        except OSError:
-            pass  # Disk write failed, but memory cache is still valid
+        except OSError as e:
+            logger.debug("Disk cache write failed for %s (memory cache still valid): %s", url, e)
 
     def get_extracted(self, url: str) -> str | None:
         """
@@ -276,8 +279,8 @@ class ScrapeCache:
                     # Add to memory cache
                     self.extracted_memory.set(key, text.encode("utf-8"))
                     return text
-            except (OSError, json.JSONDecodeError, KeyError, ValueError):
-                pass
+            except (OSError, json.JSONDecodeError, KeyError, ValueError) as e:
+                logger.debug("Disk cache read failed for extracted %s: %s", url, e)
 
         return None
 
@@ -306,8 +309,8 @@ class ScrapeCache:
                     },
                     f,
                 )
-        except OSError:
-            pass  # Disk write failed, but memory cache is still valid
+        except OSError as e:
+            logger.debug("Disk cache write failed for extracted text %s (memory cache still valid): %s", url, e)
 
     def clear_memory(self) -> None:
         """Clear memory caches only."""
