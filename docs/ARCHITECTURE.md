@@ -1003,3 +1003,45 @@ The architecture is designed to support future enhancements without major restru
 - **Centralized Execution:** The orchestrator pattern allows swapping local execution for remote job queues
 
 See `ROADMAP.md` for planned features.
+
+
+## Under the Hood — Quick Reference
+
+This section provides a quick-reference summary of the retrieval engine, model pricing, and agentic architecture. For full details, see the component sections above.
+
+### 8-Tier Retrieval Engine
+
+Browser-first, falls back automatically:
+
+1. Playwright (JS rendering)
+2. Playwright Aggressive (accordions, lazy load)
+3. curl_cffi (TLS fingerprint impersonation)
+4. DrissionPage Stealth (challenge waiting)
+5. DrissionPage (driverless CDP)
+6. Vision (screenshot + LLM extraction)
+7. httpx (HTTP/2)
+8. requests (simple fallback)
+
+Includes sticky tier memory, circuit breakers, cookie handoff, and automatic PDF detection.
+Playwright tiers now perform adaptive lazy-load scrolling (up to 20 steps by default, stops early when page height stabilizes).
+
+### Models & Pricing
+
+| Model | Role | Pricing (per 1M tokens) |
+|-------|------|-------------------------|
+| Grok 4.1 | Default mode: analysis, writing, strategy | $0.20 in / $0.50 out |
+| Grok 4.20 | `--grok-tier hybrid/max`: reasoning and/or writing | $2.00 in / $6.00 out |
+| Gemini 3 Flash | Scraping, link selection, QA | $0.50 in / $3 out |
+| Gemini 3.1 Pro | `--premium` mode: section writing, analysis | $2/$12 (≤200k) · $4/$18 (>200k) |
+| Deep Research Agent | `--premium` mode: autonomous research | ~$2.50/task (flat) |
+
+### Why Grok 4.1 is the Default
+
+Primr originally ran everything through Google's Deep Research API + Gemini 3.1 Pro — excellent research quality, but the Deep Research API runs ~$2.50 per task, pushing full runs to ~$5 and 50-75 minutes. When xAI released Grok 4.1, testing showed it handles company research comparably: strong at search-grounded analysis, solid structured output, and reliable citation handling. Switching the default pipeline to Grok 4.1 dropped costs to ~$0.55 (~90% cheaper) and runtime to ~35-50 minutes with similar report quality. Gemini Flash is still used for scraping in both modes. The full Gemini + Deep Research pipeline remains available via `--premium` when maximum research depth justifies the cost.
+
+### Agentic Architecture
+
+- Hypothesis tracking with confidence levels across sessions
+- Subagents for scraping, analysis, writing, and QA
+- Hook system for governance (cost limits, quality gates)
+- Research memory that persists and evolves

@@ -13,7 +13,7 @@ No unreleased changes.
 
 ### Recon Integration — DNS Intelligence Pre-Flight
 - **Recon as first-class module**: DNS intelligence tool relocated from standalone `recon/` into `src/primr/recon/`, fully integrated into primr's package, linting, type checking, and CI
-- **`primr recon` subcommand**: Standalone DNS intelligence lookups — `primr recon acme.com` returns company name, email provider, tenant ID, 140+ SaaS services, email security score, and signal intelligence. Supports `--json`, `--md`, `--services`, `--full`, batch mode, and `primr recon doctor`
+- **`primr recon` subcommand**: Standalone DNS intelligence lookups — `primr recon acme.com` returns company name, email provider, tenant ID, 156 SaaS service fingerprints, email security score, and 20 signal intelligence rules. Supports `--json`, `--md`, `--services`, `--full`, batch mode, and `primr recon doctor`
 - **Auto-platform detection**: Recon runs automatically before scraping, detects cloud platform(s) from DNS fingerprints (AWS Route 53, Azure DNS, GCP DNS, etc.), and auto-selects `--platform` value. Override with explicit `--platform` flag
 - **Recon context injection**: Detected services, signal intelligence, email security, auth type, and infrastructure insights injected as context into all strategy types (AI, Security, CX, Data Fabric)
 - **`--cloud-vendor` renamed to `--platform`**: Cleaner flag name. `--cloud-vendor` kept as deprecated alias with warning
@@ -22,6 +22,12 @@ No unreleased changes.
 - **`CloudVendor` → `Platform` enum rename**: `CloudVendor` kept as deprecated alias for backward compatibility
 - **Pipeline integration**: Recon results logged, recorded in `_run_state.json`, included in `--dry-run` cost estimates ($0.00, ~2-3 seconds)
 - **Property-based tests**: 4 correctness properties validated with Hypothesis (platform mapper purity/ordering, formatter section presence/determinism)
+- **156 fingerprints**: 13 new detections including Box, Egnyte, Glean (Enterprise AI Search), Datadog, New Relic, PagerDuty, Render, Ping Identity, CyberArk, Lakera (LLM Guardrails), Cato Networks (SASE), Rippling, Deel
+- **20 signal rules**: 7 new signals including Zero Trust Posture, AI Security Posture, Shadow IT Risk, Startup Tool Mix, Dual Email Provider, Observability & SRE, File Collaboration Sprawl
+- **Certificate transparency**: Passive subdomain discovery via crt.sh integration
+- **SRV record detection**: Skype for Business, XMPP, CalDAV, CardDAV
+- **Expanded DKIM**: ESP selectors for Mailchimp, SendGrid, Mailgun, Postmark, Mimecast
+- **Custom signals**: User-defined signals via `~/.recon/signals.yaml` (additive, mirrors fingerprint extensibility)
 
 ## [1.16.0] - 2026-03-23
 
