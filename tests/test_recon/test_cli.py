@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
-
 import re
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import typer
@@ -107,14 +106,14 @@ class TestLookupSubcommand:
         mock_resolve.return_value = (SAMPLE_INFO, SAMPLE_RESULTS)
         result = runner.invoke(app, ["lookup", "contoso.com", "--verbose"])
         assert result.exit_code == 0
-        assert "oidc_discovery" in result.output
+        assert "oidc_discovery" in _strip_ansi(result.output)
 
     @patch(RESOLVE_PATH, new_callable=AsyncMock)
     def test_sources_flag(self, mock_resolve) -> None:
         mock_resolve.return_value = (SAMPLE_INFO, SAMPLE_RESULTS)
         result = runner.invoke(app, ["lookup", "contoso.com", "--sources"])
         assert result.exit_code == 0
-        assert "Source Details" in result.output
+        assert "Source Details" in _strip_ansi(result.output)
 
 
 class TestErrors:
@@ -159,4 +158,4 @@ class TestDoctor:
 
         result = runner.invoke(app, ["doctor"])
         assert result.exit_code == 0
-        assert "All checks passed" in result.output
+        assert "All checks passed" in _strip_ansi(result.output)
