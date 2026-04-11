@@ -34,7 +34,7 @@ class TestAIStrategyAnalyzer:
     def test_analyze_with_azure_vendor(self):
         """Azure vendor returns Azure-specific technologies."""
         analyzer = AIStrategyAnalyzer()
-        opportunities = analyzer.analyze("Acme Corp", "technology", cloud_vendor=CloudVendor.AZURE)
+        opportunities = analyzer.analyze("Acme Corp", "technology", platform=CloudVendor.AZURE)
 
         # All technologies should be from Azure catalog
         azure_techs = set()
@@ -48,7 +48,7 @@ class TestAIStrategyAnalyzer:
     def test_analyze_with_aws_vendor(self):
         """AWS vendor returns AWS-specific technologies."""
         analyzer = AIStrategyAnalyzer()
-        opportunities = analyzer.analyze("Acme Corp", "retail", cloud_vendor=CloudVendor.AWS)
+        opportunities = analyzer.analyze("Acme Corp", "retail", platform=CloudVendor.AWS)
 
         aws_techs = set()
         for cat_techs in VENDOR_TECHNOLOGIES[CloudVendor.AWS].values():
@@ -61,7 +61,7 @@ class TestAIStrategyAnalyzer:
     def test_analyze_with_gcp_vendor(self):
         """GCP vendor returns GCP-specific technologies."""
         analyzer = AIStrategyAnalyzer()
-        opportunities = analyzer.analyze("Acme Corp", "manufacturing", cloud_vendor=CloudVendor.GCP)
+        opportunities = analyzer.analyze("Acme Corp", "manufacturing", platform=CloudVendor.GCP)
 
         gcp_techs = set()
         for cat_techs in VENDOR_TECHNOLOGIES[CloudVendor.GCP].values():
@@ -101,7 +101,7 @@ class TestAIStrategyAnalyzer:
     def test_agnostic_vendor_works(self):
         """Agnostic vendor returns generic technologies."""
         analyzer = AIStrategyAnalyzer()
-        opportunities = analyzer.analyze("Acme Corp", "retail", cloud_vendor=CloudVendor.AGNOSTIC)
+        opportunities = analyzer.analyze("Acme Corp", "retail", platform=CloudVendor.AGNOSTIC)
 
         assert len(opportunities) == 5
         # Should have generic tech names
@@ -127,7 +127,7 @@ class TestConvenienceFunction:
 
     def test_analyze_ai_strategy_with_vendor_string(self):
         """Convenience function accepts vendor as string."""
-        opportunities = analyze_ai_strategy("Acme Corp", "technology", cloud_vendor="azure")
+        opportunities = analyze_ai_strategy("Acme Corp", "technology", platform="azure")
 
         assert len(opportunities) == 5
         # Should have Azure technologies
@@ -219,7 +219,7 @@ class TestAIOpportunityStructure:
         assume(len(company) > 0)
 
         analyzer = AIStrategyAnalyzer()
-        opportunities = analyzer.analyze(company, "technology", cloud_vendor=vendor)
+        opportunities = analyzer.analyze(company, "technology", platform=vendor)
 
         for opp in opportunities:
             assert opp.title, "title is required"
@@ -256,7 +256,7 @@ class TestVendorTechnologyAlignment:
         assume(len(company) >= 3)
 
         analyzer = AIStrategyAnalyzer()
-        opportunities = analyzer.analyze(company, industry, cloud_vendor=CloudVendor.AZURE)
+        opportunities = analyzer.analyze(company, industry, platform=CloudVendor.AZURE)
 
         azure_techs = set()
         for cat_techs in VENDOR_TECHNOLOGIES[CloudVendor.AZURE].values():
@@ -279,7 +279,7 @@ class TestVendorTechnologyAlignment:
         assume(len(company) >= 3)
 
         analyzer = AIStrategyAnalyzer()
-        opportunities = analyzer.analyze(company, industry, cloud_vendor=CloudVendor.AWS)
+        opportunities = analyzer.analyze(company, industry, platform=CloudVendor.AWS)
 
         aws_techs = set()
         for cat_techs in VENDOR_TECHNOLOGIES[CloudVendor.AWS].values():
@@ -302,7 +302,7 @@ class TestVendorTechnologyAlignment:
         assume(len(company) >= 3)
 
         analyzer = AIStrategyAnalyzer()
-        opportunities = analyzer.analyze(company, industry, cloud_vendor=CloudVendor.GCP)
+        opportunities = analyzer.analyze(company, industry, platform=CloudVendor.GCP)
 
         gcp_techs = set()
         for cat_techs in VENDOR_TECHNOLOGIES[CloudVendor.GCP].values():
