@@ -508,12 +508,9 @@ For {meta["platform"]}, provide:
 - Data protection and compliance
 - Identity and access for AI
 
-## What's New (Last 2 Weeks)
-Bulleted list of the most recent announcements, launches, and changes with dates and sources.
-Prioritize: new model releases, service GA announcements, pricing changes, and capability updates.
-
-## What Changed Recently (Last 3 Months)
-Bulleted list of notable changes from the past quarter with dates and sources.
+## What's New and Changed
+Bulleted list with dates and sources. Split into: last 2 weeks (top priority) and last 3 months.
+Prioritize: model releases, GA announcements, pricing changes, capability updates.
 
 ## Sources
 List all sources with URLs and dates.
