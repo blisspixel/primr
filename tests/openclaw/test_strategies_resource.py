@@ -79,11 +79,11 @@ class TestStrategyFields:
             assert isinstance(strategy["description"], str)
             assert len(strategy["description"]) > 0
 
-    def test_each_strategy_has_requires_cloud_vendor(self, strategies_response: dict) -> None:
-        """FR-5.2: Each strategy has requires_cloud_vendor field."""
+    def test_each_strategy_has_requires_platform(self, strategies_response: dict) -> None:
+        """FR-5.2: Each strategy has requires_platform field."""
         for strategy in strategies_response["strategies"]:
-            assert "requires_cloud_vendor" in strategy
-            assert isinstance(strategy["requires_cloud_vendor"], bool)
+            assert "requires_platform" in strategy
+            assert isinstance(strategy["requires_platform"], bool)
 
     def test_each_strategy_has_estimated_time(self, strategies_response: dict) -> None:
         """FR-5.2: Each strategy has estimated_time_minutes field."""
@@ -133,20 +133,20 @@ class TestSpecificStrategies:
         result = _read_strategies_available()
         return json.loads(result[0].content)
 
-    def test_ai_strategy_requires_cloud_vendor(self, strategies_response: dict) -> None:
-        """AI Strategy requires cloud vendor."""
+    def test_ai_strategy_requires_platform(self, strategies_response: dict) -> None:
+        """AI Strategy requires platform."""
         ai_strategy = next(
             (s for s in strategies_response["strategies"] if s["id"] == "ai_strategy"), None
         )
         assert ai_strategy is not None
-        assert ai_strategy["requires_cloud_vendor"] is True
+        assert ai_strategy["requires_platform"] is True
 
-    def test_other_strategies_dont_require_cloud_vendor(self, strategies_response: dict) -> None:
-        """Non-AI strategies don't require cloud vendor."""
+    def test_other_strategies_dont_require_platform(self, strategies_response: dict) -> None:
+        """Non-AI strategies don't require platform."""
         for strategy in strategies_response["strategies"]:
             if strategy["id"] != "ai_strategy":
-                assert strategy["requires_cloud_vendor"] is False, (
-                    f"{strategy['id']} should not require cloud vendor"
+                assert strategy["requires_platform"] is False, (
+                    f"{strategy['id']} should not require platform"
                 )
 
 
@@ -191,7 +191,7 @@ class TestPropertyBasedStrategiesResource:
             "id",
             "name",
             "description",
-            "requires_cloud_vendor",
+            "requires_platform",
             "estimated_time_minutes",
             "estimated_cost_usd",
         }

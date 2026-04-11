@@ -150,7 +150,7 @@ class TestEstimateStrategy:
 
     @pytest.mark.asyncio
     async def test_estimate_strategy_requires_vendor_for_ai(self, server):
-        """estimate_strategy requires cloud_vendor for ai_strategy."""
+        """estimate_strategy requires platform for ai_strategy."""
         handler = server.server.request_handlers[CallToolRequest]
         result = await handler(
             CallToolRequest(
@@ -166,7 +166,7 @@ class TestEstimateStrategy:
         data = json.loads(content.text)
 
         assert data["error"] is True
-        assert data["error_type"] == "missing_cloud_vendor"
+        assert data["error_type"] == "missing_platform"
 
 
 class TestResearchCompany:
