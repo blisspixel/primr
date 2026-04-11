@@ -144,7 +144,7 @@ def is_vendor_research_current(vendor: str, max_age_days: int = 14) -> bool:
     """
     # Check manually curated files — these are always preferred but still age-checked
     manual_path = get_manual_research_path(vendor)
-    if manual_path:
+    if manual_path and manual_path.exists():
         mtime = datetime.fromtimestamp(manual_path.stat().st_mtime)
         age_days = (datetime.now() - mtime).days
         if age_days <= max_age_days:
