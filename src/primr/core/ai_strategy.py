@@ -9,14 +9,14 @@ This module generates comprehensive AI strategy recommendations:
 Usage:
     from primr.core.ai_strategy import (
         generate_ai_strategy,
-        CloudVendor,
+        Platform,
         AIStrategyConfig,
     )
 
     # Generate AI strategy
     result = await generate_ai_strategy(
         company_name="Acme Corp",
-        cloud_vendor=CloudVendor.AZURE,
+        cloud_vendor=Platform.AZURE,
         company_research_path="path/to/research.md"
     )
 """
@@ -42,8 +42,8 @@ logger = get_logger("ai_strategy")
 # =============================================================================
 
 
-class CloudVendor(Enum):
-    """Supported cloud vendors for AI strategy."""
+class Platform(Enum):
+    """Supported platforms for strategy generation."""
 
     AZURE = "azure"
     AWS = "aws"
@@ -53,7 +53,7 @@ class CloudVendor(Enum):
 
     @property
     def display_name(self) -> str:
-        """Human-readable vendor name."""
+        """Human-readable platform name."""
         names = {
             "azure": "Microsoft Azure",
             "aws": "Amazon Web Services (AWS)",
@@ -64,13 +64,24 @@ class CloudVendor(Enum):
         return names.get(self.value, self.value.upper())
 
     @classmethod
-    def from_string(cls, value: str) -> "CloudVendor":
-        """Create CloudVendor from string, case-insensitive."""
+    def from_string(cls, value: str) -> "Platform":
+        """Create Platform from string, case-insensitive. Supports aliases."""
+        _aliases = {
+            "microsoft": "azure",
+            "amazon": "aws",
+            "google": "gcp",
+            "nvidia": "private",
+        }
+        normalized = _aliases.get(value.lower(), value.lower())
         try:
-            return cls(value.lower())
+            return cls(normalized)
         except ValueError:
-            logger.warning("Unknown cloud vendor '%s', defaulting to agnostic", value)
+            logger.warning("Unknown platform '%s', defaulting to agnostic", value)
             return cls.AGNOSTIC
+
+
+# Deprecated alias for backward compatibility
+CloudVendor = Platform
 
 
 # =============================================================================
@@ -83,7 +94,7 @@ class AIStrategyConfig:
     """Configuration for AI strategy generation."""
 
     company_name: str
-    cloud_vendor: CloudVendor
+    cloud_vendor: Platform
     company_research_path: str | None = None
     force_refresh_vendor: bool = False
     timeout_seconds: int = 1800  # 30 minutes
@@ -135,7 +146,7 @@ class StrategyPromptContext:
     """Context for building AI strategy prompts."""
 
     company_name: str
-    cloud_vendor: CloudVendor
+    cloud_vendor: Platform
     current_date: str
     vendor_guidance: str
     vendor_name: str
@@ -161,7 +172,7 @@ class StrategyPromptBuilder(Protocol):
 
 def generate_ai_strategy_sync(
     company_name: str,
-    cloud_vendor: str | CloudVendor,
+    cloud_vendor: str | Platform,
     company_research_path: str | None = None,
     force_refresh_vendor: bool = False,
     on_progress: Callable[[str], None] | None = None,
@@ -196,7 +207,7 @@ def generate_ai_strategy_sync(
 
 async def generate_ai_strategy(
     company_name: str,
-    cloud_vendor: str | CloudVendor,
+    cloud_vendor: str | Platform,
     company_research_path: str | None = None,
     force_refresh_vendor: bool = False,
     on_progress: Callable[[str], None] | None = None,
@@ -211,7 +222,7 @@ async def generate_ai_strategy(
 
     Args:
         company_name: Name of the company
-        cloud_vendor: Cloud vendor preference (string or CloudVendor enum)
+        cloud_vendor: Cloud vendor preference (string or Platform enum)
         company_research_path: Path to company research markdown
         force_refresh_vendor: If True, regenerate vendor research
         on_progress: Optional progress callback
@@ -225,7 +236,7 @@ async def generate_ai_strategy(
 
     # Normalize cloud vendor
     if isinstance(cloud_vendor, str):
-        vendor = CloudVendor.from_string(cloud_vendor)
+        vendor = Platform.from_string(cloud_vendor)
     else:
         vendor = cloud_vendor
 
@@ -296,7 +307,7 @@ async def generate_ai_strategy(
     )
 
 
-def build_ai_strategy_prompt(company_name: str, cloud_vendor: CloudVendor) -> str:
+def build_ai_strategy_prompt(company_name: str, cloud_vendor: Platform) -> str:
     """
     Build Deep Research prompt for AI strategy.
 
@@ -389,7 +400,7 @@ async def _gather_context(
             get_or_generate_vendor_research,
         )
 
-        if config.cloud_vendor != CloudVendor.AGNOSTIC:
+        if config.cloud_vendor != Platform.AGNOSTIC:
             if config.force_refresh_vendor:
                 console.info(f"Force refreshing {vendor_str.upper()} vendor research...")
                 generated = await generate_vendor_research(vendor_str, on_progress)
@@ -582,7 +593,7 @@ def _process_citations(content: str) -> str:
 
 
 def _save_strategy_outputs(
-    content: str, company_name: str, cloud_vendor: CloudVendor
+    content: str, company_name: str, cloud_vendor: Platform
 ) -> dict[str, str | None]:
     """Save AI strategy outputs in multiple formats."""
     from primr.output.markdown_converter import markdown_to_docx

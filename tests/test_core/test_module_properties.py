@@ -312,6 +312,7 @@ class TestModulePublicAPI:
             "generate_ai_strategy_sync",
             "build_ai_strategy_prompt",
             "CloudVendor",
+            "Platform",
         ]
         for func in expected:
             assert hasattr(ai_strategy, func), f"Missing: {func}"

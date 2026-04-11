@@ -10,7 +10,7 @@ Company research tool using Gemini and Grok models. Generates strategic intellig
 ### Critical Constraints
 - **Single-job model**: ONE research job at a time. Check `primr --check-jobs` before starting new research.
 - **Async execution**: `research_company` returns immediately with `job_id`. Poll `check_jobs` for completion.
-- **Cost awareness**: ALWAYS run `estimate_run` before `research_company`. Default mode uses Grok 4.1 when XAI_API_KEY is set (~$0.55, ~35-50 min, 40-55 sources). Use `--premium` for Gemini + Deep Research (~$5, 50-75 min). Scrape ~$0.10, deep ~$2.50. Each extra `--cloud-vendor` adds ~$0.07 (standard) or ~$2.50 (premium). DDG searches are free. Use `--lite` with `--premium` to drop strategy cost.
+- **Cost awareness**: ALWAYS run `estimate_run` before `research_company`. Default mode uses Grok 4.1 when XAI_API_KEY is set (~$0.55, ~35-50 min, 40-55 sources). Use `--premium` for Gemini + Deep Research (~$5, 50-75 min). Scrape ~$0.10, deep ~$2.50. Each extra `--platform` adds ~$0.07 (standard) or ~$2.50 (premium). DDG searches are free. Use `--lite` with `--premium` to drop strategy cost.
 
 ### Common Tasks
 
@@ -27,14 +27,17 @@ primr "Company" https://example.com --mode deep
 # Standard run (~$0.55, ~35-50 min — auto-uses Grok 4.1 when XAI_API_KEY set)
 primr "Company" https://example.com
 
-# Multi-vendor AI strategy (~$0.60, adds ~$0.07 per vendor)
-primr "Company" https://example.com --cloud-vendor aws azure
+# Most common: Microsoft + NVIDIA AI strategy
+primr "Company" https://example.com --platform ms
 
-# Private cloud / NVIDIA AI strategy
-primr "Company" https://example.com --cloud-vendor private
+# DNS intelligence only (no API keys, 2-3 seconds)
+primr recon acme.com
 
-# Azure + private cloud combo
-primr "Company" https://example.com --cloud-vendor azure private
+# Multi-platform AI strategy (~$0.60, adds ~$0.07 per platform)
+primr "Company" https://example.com --platform aws azure
+
+# Platform aliases: microsoft=azure, amazon=aws, google=gcp, nvidia=private
+primr "Company" https://example.com --platform microsoft nvidia
 
 # Other strategy types (CX, security, data fabric — see --list-strategies)
 primr "Company" https://example.com --strategy-type customer_experience
@@ -42,11 +45,11 @@ primr "Company" https://example.com --strategy-type customer_experience
 # Premium mode: Gemini + Deep Research (~$5, 50-75 min)
 primr "Company" https://example.com --premium
 
-# Premium + multi-vendor (~$9, adds ~$2.50 per vendor)
-primr "Company" https://example.com --premium --cloud-vendor aws azure
+# Premium + Microsoft/NVIDIA (~$9)
+primr "Company" https://example.com --premium --platform ms
 
-# Lite premium strategy (~$4 for premium + 2 vendors, uses Pro instead of DR)
-primr "Company" https://example.com --premium --cloud-vendor aws azure --lite
+# Lite premium strategy (~$4, uses Pro instead of DR)
+primr "Company" https://example.com --premium --platform ms --lite
 
 # Claim verification (~$0.01, 3-5 min, non-blocking)
 primr "Company" https://example.com --verify
@@ -57,6 +60,9 @@ primr --check-jobs
 # System health
 primr doctor
 
+# DNS intelligence lookup
+primr recon acme.com
+
 # A2A server (requires: pip install primr[a2a])
 primr-a2a --no-auth                        # Standalone A2A on port 9000
 primr-mcp --http --a2a                     # Co-hosted MCP + A2A
@@ -65,10 +71,10 @@ primr-mcp --http --a2a                     # Co-hosted MCP + A2A
 ### MCP Tools (for programmatic access)
 | Tool | Purpose |
 |------|---------|
-| `estimate_run` | Get cost/time estimate (call FIRST). Includes strategy cost when cloud_vendors specified. Modes: scrape, deep, full (default, Grok), premium (Gemini+DR) |
-| `research_company` | Start async research job (includes strategy when cloud_vendor set). Returns job_id. Optional `destination` param for output directory. |
+| `estimate_run` | Get cost/time estimate (call FIRST). Includes strategy cost when platforms specified. Modes: scrape, deep, full (default, Grok), premium (Gemini+DR) |
+| `research_company` | Start async research job (includes strategy when platform set). Returns job_id. Optional `destination` param for output directory. |
 | `check_jobs` | Poll job status. Returns full artifact content (report + strategy MD) inline when completed — no filesystem access needed. |
-| `generate_strategy` | Add strategy to an existing report after the fact (not needed for new research — use cloud_vendor on research_company instead) |
+| `generate_strategy` | Add strategy to an existing report after the fact (not needed for new research — use platform on research_company instead) |
 | `run_qa` | Quality assessment on reports |
 | `doctor` | System health check |
 | `delegate_to_agent` | Call an external A2A agent (requires primr[a2a]) |
@@ -280,4 +286,4 @@ Unit tests validate specific examples and edge cases.
 
 ---
 
-*Last updated: 2026-04-07 | Primr v1.17.0 | Agentic Architecture v1.0 | A2A Protocol v1.0*
+*Last updated: 2026-04-10 | Primr v1.18.0 | Agentic Architecture v1.0 | A2A Protocol v1.0*

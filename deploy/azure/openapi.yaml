@@ -1,0 +1,162 @@
+openapi: "3.1.0"
+info:
+  title: Primr MCP Server
+  description: >-
+    Company research tools exposed via the Model Context Protocol (MCP)
+    Streamable HTTP transport. This spec enables Power Platform custom
+    connector creation for Copilot Studio, Power Automate, and Logic Apps.
+  version: "1.0.0"
+
+servers:
+  - url: https://{primr-fqdn}
+    description: Azure Container App hosting the Primr MCP server
+    variables:
+      primr-fqdn:
+        default: primr.example.azurecontainerapps.io
+        description: FQDN of the deployed Container App — replaced during connector creation
+
+paths:
+  /mcp:
+    post:
+      operationId: mcpRequest
+      summary: MCP Streamable HTTP endpoint
+      description: >-
+        Accepts JSON-RPC 2.0 messages for the MCP protocol. Supports
+        initialize, tools/list, and tools/call methods. Tool results are
+        returned as JSON-RPC responses.
+      x-ms-agentic-protocol: mcp-streamable-1.0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonRpcRequest"
+            examples:
+              initialize:
+                summary: Initialize MCP session
+                value:
+                  jsonrpc: "2.0"
+                  id: 1
+                  method: initialize
+                  params:
+                    protocolVersion: "2025-03-26"
+                    capabilities: {}
+                    clientInfo:
+                      name: copilot-studio
+                      version: "1.0.0"
+              toolsList:
+                summary: Discover available tools
+                value:
+                  jsonrpc: "2.0"
+                  id: 2
+                  method: tools/list
+                  params: {}
+              toolsCall:
+                summary: Invoke a tool
+                value:
+                  jsonrpc: "2.0"
+                  id: 3
+                  method: tools/call
+                  params:
+                    name: estimate_run
+                    arguments:
+                      mode: scrape
+      responses:
+        "200":
+          description: JSON-RPC 2.0 response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JsonRpcResponse"
+        "401":
+          description: Missing or invalid authentication credentials
+        "429":
+          description: Rate limited or budget exceeded
+      security:
+        - entraId:
+            - "api://{app_id}/.default"
+        - apiKey: []
+
+components:
+  securitySchemes:
+    entraId:
+      type: oauth2
+      description: Microsoft Entra ID (Azure AD) authentication
+      flows:
+        authorizationCode:
+          authorizationUrl: https://login.microsoftonline.com/{tenant}/oauth2/v2.0/authorize
+          tokenUrl: https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token
+          scopes:
+            "api://{app_id}/.default": Access Primr MCP Server
+    apiKey:
+      type: http
+      scheme: bearer
+      description: API key issued by the Primr deployment and stored in Azure Key Vault
+
+  schemas:
+    JsonRpcRequest:
+      type: object
+      required:
+        - jsonrpc
+        - method
+      properties:
+        jsonrpc:
+          type: string
+          const: "2.0"
+          description: JSON-RPC protocol version — always "2.0"
+        id:
+          oneOf:
+            - type: string
+            - type: integer
+          description: Request identifier echoed back in the response
+        method:
+          type: string
+          enum:
+            - initialize
+            - tools/list
+            - tools/call
+          description: MCP method to invoke
+        params:
+          type: object
+          description: >-
+            Method-specific parameters. Input validation happens at the tool
+            handler level. The MCP protocol requires additionalProperties for
+            method-specific parameters (JSON-RPC 2.0 params are open by design).
+          additionalProperties: true
+
+    JsonRpcResponse:
+      type: object
+      required:
+        - jsonrpc
+        - id
+      properties:
+        jsonrpc:
+          type: string
+          const: "2.0"
+          description: JSON-RPC protocol version — always "2.0"
+        id:
+          oneOf:
+            - type: string
+            - type: integer
+          description: Echoed request identifier
+        result:
+          type: object
+          description: Successful method result (present when no error)
+          additionalProperties: true
+        error:
+          $ref: "#/components/schemas/JsonRpcError"
+
+    JsonRpcError:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: integer
+          description: JSON-RPC error code
+        message:
+          type: string
+          description: Short human-readable error description
+        data:
+          description: Optional additional error data

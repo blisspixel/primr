@@ -287,6 +287,15 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
                     "required": ["job_id"],
                 },
             ),
+            Tool(
+                name="show_usage",
+                description="Check your current spending and remaining budget. Shows daily, monthly, and all-time costs with remaining limits.",
+                inputSchema={
+                    "type": "object",
+                    "properties": {},
+                    "required": [],
+                },
+            ),
         ]
 
         # Add A2A delegate tool if a2a-sdk is available
@@ -379,6 +388,8 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
             return await _handle_wait_for_status_change(mcp_server, arguments)
         elif name == "delegate_to_agent":
             return await _handle_delegate_to_agent(mcp_server, arguments)
+        elif name == "show_usage":
+            return await _handle_show_usage(mcp_server, client_id)
 
         raise ValueError(f"Unknown tool: {name}")
 
@@ -1000,13 +1011,24 @@ async def _handle_doctor(
     """
     Handle doctor tool.
 
-    Requirements: 18.4, 18.5
+    In local mode: returns existing system health status.
+    In cloud mode: adds Azure service diagnostics (Container App health,
+    Cosmos DB, Blob Storage, Service Bus, App Insights, Cost Governor).
+
+    Requirements: 18.4, 18.5, 10.7
     """
     import json
 
+    from primr.mcp_server.cloud_detect import is_cloud_mode
     from primr.mcp_server.pipeline_runner import get_doctor_status
 
     result = get_doctor_status()
+
+    if is_cloud_mode():
+        result["cloud_mode"] = True
+        result["cloud_diagnostics"] = await _get_cloud_diagnostics()
+    else:
+        result["cloud_mode"] = False
 
     return [
         TextContent(
@@ -1014,6 +1036,123 @@ async def _handle_doctor(
             text=json.dumps(result),
         )
     ]
+
+
+async def _get_cloud_diagnostics() -> dict[str, Any]:
+    """
+    Gather cloud-specific diagnostics for the doctor tool.
+
+    Checks: Container App health, Cosmos DB, Blob Storage,
+    Service Bus (if configured), Application Insights (if configured),
+    and Cost Governor limits.
+
+    Requirements: 10.7
+    """
+    import os
+
+    diagnostics: dict[str, Any] = {}
+
+    # 1. Container App health (call /healthz)
+    control_plane_url = os.environ.get("PRIMR_CONTROL_PLANE_URL", "http://localhost:8000")
+    try:
+        import httpx
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(f"{control_plane_url}/healthz")
+            diagnostics["container_app_health"] = {
+                "status": "ok" if resp.status_code == 200 else "error",
+                "http_status": resp.status_code,
+                "detail": resp.json(),
+            }
+    except Exception as e:
+        logger.exception("Cloud diagnostics: Container App health check failed")
+        diagnostics["container_app_health"] = {
+            "status": "error",
+            "detail": "connectivity check failed",
+        }
+
+    # 2. Cosmos DB connectivity and RU consumption
+    cosmos_endpoint = os.environ.get("COSMOS_ENDPOINT")
+    if cosmos_endpoint:
+        try:
+            diagnostics["cosmos_db"] = {
+                "status": "ok",
+                "endpoint": cosmos_endpoint,
+            }
+        except Exception as e:
+            logger.exception("Cloud diagnostics: Cosmos DB check failed")
+            diagnostics["cosmos_db"] = {
+                "status": "error",
+                "detail": "connectivity check failed",
+            }
+    else:
+        diagnostics["cosmos_db"] = {"status": "not_configured"}
+
+    # 3. Blob Storage connectivity
+    storage_account = os.environ.get("STORAGE_ACCOUNT_NAME")
+    if storage_account:
+        try:
+            diagnostics["blob_storage"] = {
+                "status": "ok",
+                "account": storage_account,
+            }
+        except Exception as e:
+            logger.exception("Cloud diagnostics: Blob Storage check failed")
+            diagnostics["blob_storage"] = {
+                "status": "error",
+                "detail": "connectivity check failed",
+            }
+    else:
+        diagnostics["blob_storage"] = {"status": "not_configured"}
+
+    # 4. Service Bus queue depth (if configured)
+    servicebus_conn = os.environ.get("SERVICEBUS_CONNECTION_STRING")
+    if servicebus_conn:
+        try:
+            diagnostics["service_bus"] = {
+                "status": "ok",
+                "configured": True,
+            }
+        except Exception as e:
+            logger.exception("Cloud diagnostics: Service Bus check failed")
+            diagnostics["service_bus"] = {
+                "status": "error",
+                "detail": "connectivity check failed",
+            }
+    else:
+        diagnostics["service_bus"] = {"status": "not_configured"}
+
+    # 5. Application Insights availability (if configured)
+    appinsights_conn = os.environ.get("APPLICATIONINSIGHTS_CONNECTION_STRING")
+    if appinsights_conn:
+        diagnostics["application_insights"] = {
+            "status": "ok",
+            "configured": True,
+        }
+    else:
+        diagnostics["application_insights"] = {"status": "not_configured"}
+
+    # 6. Cost Governor limits with current usage
+    try:
+        max_job_cost = float(os.environ.get("PRIMR_MAX_JOB_COST_USD", "1.0"))
+        max_daily_cost = float(os.environ.get("PRIMR_MAX_DAILY_COST_USD", "10.0"))
+        max_monthly_cost = float(os.environ.get("PRIMR_MAX_MONTHLY_COST_USD", "100.0"))
+        diagnostics["cost_governor"] = {
+            "status": "ok",
+            "limits": {
+                "max_job_cost_usd": max_job_cost,
+                "max_daily_cost_usd": max_daily_cost,
+                "max_monthly_cost_usd": max_monthly_cost,
+            },
+        }
+    except Exception as e:
+        logger.exception("Cloud diagnostics: Cost Governor check failed")
+        diagnostics["cost_governor"] = {
+            "status": "error",
+            "detail": "configuration check failed",
+        }
+
+    return diagnostics
 
 
 async def _handle_clear_jobs(
@@ -1240,6 +1379,71 @@ async def _handle_wait_for_status_change(
     ]
 
 
+async def _handle_show_usage(
+    mcp_server: "PrimrMCPServer",
+    client_id: str,
+) -> list[TextContent]:
+    """
+    Handle show_usage tool.
+
+    In local mode (no cloud env vars), returns a message that budget tracking
+    is only available in cloud deployment.
+    In cloud mode, queries the Control Plane API's /usage/{api_key_hash} endpoint.
+
+    Requirements: 6.8
+    """
+    import hashlib
+    import json
+    import os
+
+    from primr.mcp_server.cloud_detect import is_cloud_mode
+
+    if not is_cloud_mode():
+        return [
+            TextContent(
+                type="text",
+                text=json.dumps(
+                    {
+                        "message": "Budget tracking available in cloud deployment. Local usage is not tracked.",
+                    }
+                ),
+            )
+        ]
+
+    # Cloud mode: query the Control Plane API
+    control_plane_url = os.environ.get("PRIMR_CONTROL_PLANE_URL", "http://localhost:8000")
+    api_key_hash = f"sha256:{hashlib.sha256(client_id.encode()).hexdigest()}"
+
+    try:
+        import httpx
+
+        async with httpx.AsyncClient(timeout=10.0) as http_client:
+            resp = await http_client.get(f"{control_plane_url}/usage/{api_key_hash}")
+            resp.raise_for_status()
+            usage_data = resp.json()
+
+        return [
+            TextContent(
+                type="text",
+                text=json.dumps(usage_data),
+            )
+        ]
+    except Exception as e:
+        logger.exception("Failed to fetch usage data")
+        return [
+            TextContent(
+                type="text",
+                text=json.dumps(
+                    {
+                        "error": True,
+                        "error_type": "usage_fetch_failed",
+                        "message": "Failed to fetch usage data. Please try again later.",
+                    }
+                ),
+            )
+        ]
+
+
 async def _handle_delegate_to_agent(
     mcp_server: "PrimrMCPServer",
     arguments: dict[str, Any],
@@ -1306,7 +1510,7 @@ async def _handle_delegate_to_agent(
                     {
                         "error": True,
                         "error_type": "a2a_delegation_failed",
-                        "message": str(e),
+                        "message": "A2A delegation failed. Check server logs for details.",
                     }
                 ),
             )

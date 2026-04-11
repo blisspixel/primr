@@ -73,6 +73,21 @@ context_instructions: |
   GOOD: "Given their [specific operational complexity from report], one architecture worth exploring
   would be a data fabric that virtualizes access to [specific systems]. This assumes [X] about
   their current data landscape - worth validating in conversation."
+  
+  ADDITIONAL SOURCE - DNS INTELLIGENCE (RECON):
+  If present, your context includes a "Domain Intelligence (DNS Reconnaissance)"
+  document with VERIFIED facts about the company's data and analytics stack from DNS records.
+  
+  USE DNS INTELLIGENCE TO:
+  - Detect existing data platforms: Databricks, Snowflake, MongoDB detection tells
+    you what they already have — don't recommend migrating away from it without reason
+  - Assess cloud platform: Azure DNS = likely Fabric/Synapse ecosystem.
+    AWS = likely Redshift/Glue. GCP = likely BigQuery. Match recommendations to
+    their existing cloud investment.
+  - Identify analytics maturity: Dynatrace, Segment, Mixpanel detection indicates
+    existing analytics infrastructure and data culture
+  - Ground architecture recommendations: If they're on Azure with M365, Fabric
+    is the natural data platform. If they're on AWS, recommend Redshift/Glue/Lake Formation.
 
 # =============================================================================
 # WRITING QUALITY STANDARDS

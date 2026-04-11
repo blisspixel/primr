@@ -111,6 +111,22 @@ context_instructions: |
   GOOD: "Given their distributed workforce and cloud-first strategy [from report],
   Zero Trust architecture could enable secure remote access while reducing VPN complexity.
   This assumes [X] about their current security posture - worth validating in conversation."
+  
+  ADDITIONAL SOURCE - DNS INTELLIGENCE (RECON):
+  If present, your context includes a "Domain Intelligence (DNS Reconnaissance)"
+  document with VERIFIED facts about the company's security stack from DNS records.
+  
+  USE DNS INTELLIGENCE TO:
+  - Ground security assessments in verified data: "DNS confirms CrowdStrike endpoint
+    protection and Okta federated identity — this is a mature security stack"
+  - Assess email security posture: DMARC policy, DKIM, SPF, email gateway detection
+    are FACTS, not hypotheses. Use them directly.
+  - Identify security gaps: If they have an email gateway but DMARC is "none",
+    that's a real finding worth highlighting
+  - Detect SASE/ZTNA adoption: Zscaler, Netskope, Palo Alto detection indicates
+    Zero Trust progress already underway
+  - Assess identity maturity: Federated auth via Okta/Duo vs cloud-managed identity
+    tells you where they are on the identity journey
 
 # =============================================================================
 # WRITING QUALITY STANDARDS

@@ -112,6 +112,21 @@ context_instructions: |
   [from report], one CX approach worth exploring would be high-touch onboarding with dedicated
   success managers. This assumes [X] about their current customer success model - worth
   validating in conversation."
+  
+  ADDITIONAL SOURCE - DNS INTELLIGENCE (RECON):
+  If present, your context includes a "Domain Intelligence (DNS Reconnaissance)"
+  document with VERIFIED facts about the company's CRM and GTM stack from DNS records.
+  
+  USE DNS INTELLIGENCE TO:
+  - Identify their GTM model: Salesforce + Outreach + 6sense = sales-led growth.
+    Mixpanel + Intercom + Segment = product-led growth. This fundamentally shapes
+    CX recommendations.
+  - Assess CX tooling maturity: Zendesk/Freshdesk = support infrastructure exists.
+    Intercom = conversational support. No support tools detected = potential gap.
+  - Detect personalization capability: Segment, Klaviyo, HubSpot indicate
+    existing personalization infrastructure to build on.
+  - Ground recommendations in their actual stack: Don't recommend Salesforce
+    if they're already on HubSpot. Build on what they have.
 
 # =============================================================================
 # WRITING QUALITY STANDARDS

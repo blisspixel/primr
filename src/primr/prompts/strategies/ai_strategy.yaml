@@ -102,20 +102,55 @@ context_instructions: |
   
   SECONDARY SOURCE - VENDOR RESEARCH:
   Current information about cloud AI services (Azure, AWS, or GCP depending on
-  --cloud-vendor flag). Use this for accurate technology recommendations with
+  --platform flag). Use this for accurate technology recommendations with
   proper service names, pricing context, and capability details.
+  
+  TERTIARY SOURCE - DNS INTELLIGENCE (RECON):
+  If present, your context includes a "Domain Intelligence (DNS Reconnaissance)"
+  document with VERIFIED facts about the company's actual technology stack,
+  detected from public DNS records. This is ground truth — not hypotheses.
+  
+  USE DNS INTELLIGENCE TO:
+  - Ground "Current State" sections in verified data: "DNS records confirm they
+    run [specific services], suggesting [maturity level]"
+  - Inform platform recommendations: If they're on Microsoft 365 with Azure DNS,
+    lead with Microsoft ecosystem (Copilot, Azure OpenAI) as the natural fit.
+    If they're on Google Workspace, lead with Gemini/Vertex AI.
+  - Detect existing AI adoption: If OpenAI, Anthropic, or other AI tools are
+    detected, acknowledge they're already in the game — don't pitch AI basics.
+    Build on what they have.
+  - Assess security maturity: If CrowdStrike, Okta, Zscaler are detected,
+    they have a mature security stack. Don't recommend basics.
+  - Identify their GTM model: Salesforce + Outreach = sales-led. Mixpanel +
+    Intercom = product-led. This shapes CX and AI recommendations.
+  - Note multi-cloud signals: If both Azure and AWS infrastructure detected,
+    recommendations should be cloud-agnostic or address both platforms.
+  
+  IMPORTANT: The DNS intelligence tells you their CURRENT productivity platform.
+  If they're on Microsoft 365, their AI productivity play is Copilot for M365.
+  If they're on Google Workspace, it's Gemini for Workspace. But ALSO consider
+  that they may be using or evaluating other AI providers (Anthropic Claude,
+  OpenAI ChatGPT Enterprise, etc.) alongside their primary platform — the DNS
+  data will show this if those tools have domain verification records.
   
   HOW TO USE CONTEXT:
   - Search the strategic report for relevant sections before writing each part
   - Quote or reference specific findings: "The strategic analysis notes that..."
   - Connect AI opportunities to tensions/patterns already identified in the report
   - Use the "Where They're Likely to Say Yes" section to inform Quick Wins
+  - Cross-reference DNS intelligence with strategic report findings
   - Don't repeat generic AI advice - make it specific to THIS company's situation
   
   BAD: "They could use AI for customer service"
   GOOD: "Given their 45,000+ client base and emphasis on the 'Open and Connected' 
   ecosystem [from strategic report], an AI-powered integration assistant could 
   reduce the support burden of maintaining 400+ partner APIs"
+  
+  BAD: "Consider Microsoft Copilot for productivity"
+  GOOD: "DNS confirms they run Microsoft 365 with federated auth via Okta and
+  Anthropic Claude enterprise. They're already in the AI game. The natural next
+  step is Copilot for M365 for broad productivity, while leveraging their existing
+  Claude deployment for specialized reasoning tasks."
 
 # =============================================================================
 # WRITING QUALITY STANDARDS
