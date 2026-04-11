@@ -129,24 +129,33 @@ def get_manual_research_path(vendor: str) -> Path | None:
     return None
 
 
-def is_vendor_research_current(vendor: str) -> bool:
+def is_vendor_research_current(vendor: str, max_age_days: int = 14) -> bool:
     """
-    Check if we have current month's vendor research.
+    Check if we have fresh vendor research (within max_age_days).
+
+    AI moves fast — monthly is too stale. Default is 14 days.
 
     Args:
         vendor: Cloud vendor
+        max_age_days: Maximum age in days before research is considered stale (default: 14)
 
     Returns:
-        True if current research exists
+        True if current research exists and is fresh enough
     """
-    # Azure has a manually curated file that's always preferred
-    if vendor.lower() == "azure":
-        manual_path = get_manual_research_path(vendor)
-        if manual_path:
+    # Check manually curated files — these are always preferred but still age-checked
+    manual_path = get_manual_research_path(vendor)
+    if manual_path:
+        mtime = datetime.fromtimestamp(manual_path.stat().st_mtime)
+        age_days = (datetime.now() - mtime).days
+        if age_days <= max_age_days:
             return True
 
     research_path = get_vendor_research_path(vendor)
-    return research_path.exists()
+    if not research_path.exists():
+        return False
+    mtime = datetime.fromtimestamp(research_path.stat().st_mtime)
+    age_days = (datetime.now() - mtime).days
+    return age_days <= max_age_days
 
 
 def get_or_generate_vendor_research_sync(
@@ -176,14 +185,21 @@ def get_or_generate_vendor_research_sync(
         if manual_path:
             result_paths.append(str(manual_path))
 
-    # Check for current month's auto-generated research
+    # Check for fresh auto-generated research (within 14 days)
     research_path = get_vendor_research_path(vendor)
+    research_is_fresh = False
     if research_path.exists() and not force_refresh:
+        mtime = datetime.fromtimestamp(research_path.stat().st_mtime)
+        age_days = (datetime.now() - mtime).days
+        research_is_fresh = age_days <= 14
+
+    if research_is_fresh:
         result_paths.append(str(research_path))
-        console.info(f"Using existing vendor research: {research_path.name}")
-        logger.info(f"Reusing vendor research file: {research_path}")
+        age_days = (datetime.now() - datetime.fromtimestamp(research_path.stat().st_mtime)).days
+        console.info(f"Using vendor research: {research_path.name} ({age_days}d old)")
+        logger.info(f"Reusing vendor research file: {research_path} (age: {age_days}d)")
     elif not result_paths or force_refresh:
-        # Only auto-generate if we have nothing or force refresh
+        # Generate fresh if stale (>14d), missing, or force refresh
         generated = generate_vendor_research_sync(vendor, on_progress)
         if generated:
             result_paths.append(generated)
@@ -224,23 +240,34 @@ async def get_or_generate_vendor_research(
                 VendorResearchFile(path=manual_path, vendor=vendor, month="manual", is_manual=True)
             )
 
-    # Check for current month's auto-generated research
+    # Check for fresh auto-generated research (within 14 days)
     current_month = datetime.now().strftime("%Y-%m")
     research_path = get_vendor_research_path(vendor)
 
+    research_is_fresh = False
     if research_path.exists() and not force_refresh:
-        # Reuse existing research from this month
+        mtime = datetime.fromtimestamp(research_path.stat().st_mtime)
+        age_days = (datetime.now() - mtime).days
+        research_is_fresh = age_days <= 14
+
+    if research_is_fresh:
+        # Reuse existing research (less than 14 days old)
         files.append(
             VendorResearchFile(
                 path=research_path, vendor=vendor, month=current_month, is_manual=False
             )
         )
-        console.info(f"Using existing vendor research: {research_path.name}")
-        logger.info(f"Reusing vendor research file: {research_path}")
+        age_days = (datetime.now() - datetime.fromtimestamp(research_path.stat().st_mtime)).days
+        console.info(f"Using vendor research: {research_path.name} ({age_days}d old)")
+        logger.info(f"Reusing vendor research file: {research_path} (age: {age_days}d)")
     elif not files or force_refresh:
-        # Generate fresh research only if:
+        # Generate fresh research if:
         # 1. No files at all (not even manual), OR
-        # 2. Force refresh requested
+        # 2. Force refresh requested, OR
+        # 3. Existing research is stale (>14 days)
+        if research_path.exists() and not force_refresh:
+            age_days = (datetime.now() - datetime.fromtimestamp(research_path.stat().st_mtime)).days
+            console.info(f"Vendor research is {age_days}d old (>14d) — refreshing...")
         result = await generate_vendor_research(vendor, on_progress)
         if result:
             files.append(
@@ -451,7 +478,8 @@ Key themes and strategic direction for {meta["name"]} AI in {current_date}.
 ## Foundation Models and AI Services
 For {meta["platform"]}, provide:
 - Which models are available (provider, model family, version)
-- What is new in the past 6 months
+- What has changed or been announced in the past 2 weeks
+- What is new in the past 3 months
 - GA vs Preview status for each model
 - Customization options
 
@@ -480,8 +508,12 @@ For {meta["platform"]}, provide:
 - Data protection and compliance
 - Identity and access for AI
 
-## New in the Past 6 Months
-Bulleted list of recent changes with dates and sources.
+## What's New (Last 2 Weeks)
+Bulleted list of the most recent announcements, launches, and changes with dates and sources.
+Prioritize: new model releases, service GA announcements, pricing changes, and capability updates.
+
+## What Changed Recently (Last 3 Months)
+Bulleted list of notable changes from the past quarter with dates and sources.
 
 ## Sources
 List all sources with URLs and dates.

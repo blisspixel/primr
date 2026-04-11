@@ -216,7 +216,7 @@ class PromptContext:
 
     company_name: str
     website_url: str | None = None
-    cloud_vendor: str = "agnostic"
+    platform: str = "agnostic"
     current_date: str | None = None  # Auto-populated if None
     has_stage1_context: bool = False
     discovery_notes_path: str | None = None  # Path to discovery notes file
@@ -229,8 +229,11 @@ class PromptContext:
             return self.company_name
         elif name == "website_url":
             return self.website_url
+        elif name == "platform":
+            return self.platform
         elif name == "cloud_vendor":
-            return self.cloud_vendor
+            # Fallback for YAML templates still using {cloud_vendor}
+            return self.platform
         elif name == "current_date":
             return self.current_date
         elif name == "discovery_notes_path":

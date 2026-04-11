@@ -3720,7 +3720,7 @@ def perform_fast_research(
     website: str | None,
     start_time: float,
     ai_strategy: bool = False,
-    cloud_vendors: tuple[str, ...] = ("agnostic",),
+    platforms: tuple[str, ...] = ("agnostic",),
     strategy_types: list[str] | None = None,
     max_scrape_time: int | None = None,
     discovery_notes_content: str | None = None,
@@ -4657,8 +4657,8 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
             )
 
             # --- AI Strategy (per vendor) ---
-            if ai_strategy and cloud_vendors:
-                for vendor in cloud_vendors:
+            if ai_strategy and platforms:
+                for vendor in platforms:
                     strategy_prompt = _build_ai_strategy_prompt(
                         company_name or display_name, vendor, discovery_notes_content
                     )
@@ -4705,7 +4705,7 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
                         + strategy_prompt
                     )
 
-                    vendor_label = f" ({vendor.upper()})" if len(cloud_vendors) > 1 else ""
+                    vendor_label = f" ({vendor.upper()})" if len(platforms) > 1 else ""
                     try:
                         from primr.pipeline.integration import strategy_with_recovery
 
@@ -4797,7 +4797,7 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
                         strategy_trust_stats.append(
                             (
                                 f"AI Strategy ({vendor.upper()})"
-                                if len(cloud_vendors) > 1
+                                if len(platforms) > 1
                                 else "AI Strategy",
                                 [
                                     ("Gate", qa_gate),
@@ -4828,7 +4828,7 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
                             strategy_label="AI_Strategy",
                         )
                         if strategy_path:
-                            key = f"ai_{vendor}" if len(cloud_vendors) > 1 else "ai"
+                            key = f"ai_{vendor}" if len(platforms) > 1 else "ai"
                             strategy_paths[key] = strategy_path
 
             # --- YAML-defined strategies (customer_experience, security, data_fabric, etc.) ---
@@ -5174,7 +5174,7 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
 def _save_strategy_output(
     strategy_content: str,
     company_name: str,
-    cloud_vendor: str,
+    platform: str,
     strategy_label: str = "AI_Strategy",
 ) -> str | None:
     """Save strategy markdown/txt/docx output. Returns docx path or None."""
@@ -5182,7 +5182,7 @@ def _save_strategy_output(
     from primr.output.output_utils import OUTPUT_DIR
 
     date_str = datetime.now().strftime("%m-%d-%Y")
-    vendor_suffix = f"_{cloud_vendor.upper()}" if cloud_vendor != "agnostic" else ""
+    vendor_suffix = f"_{platform.upper()}" if platform != "agnostic" else ""
     base_name = f"{company_name}_{strategy_label}{vendor_suffix}_{date_str}"
 
     # Human-readable title for DOCX
@@ -5248,8 +5248,8 @@ def _save_strategy_output(
                 markdown_text=strategy_content,
                 output_path=docx_path,
                 title=f"{display_label}: {company_name}",
-                subtitle=f"{cloud_vendor.upper()} | {datetime.now().strftime('%B %d, %Y')}"
-                if cloud_vendor != "agnostic"
+                subtitle=f"{platform.upper()} | {datetime.now().strftime('%B %d, %Y')}"
+                if platform != "agnostic"
                 else datetime.now().strftime("%B %d, %Y"),
             )
         except Exception as e:
@@ -5318,7 +5318,7 @@ def perform_research(
     mode: str = "structured",
     citation_style: str = "numbered",
     ai_strategy: bool = False,
-    cloud_vendors: tuple[str, ...] = ("agnostic",),
+    platforms: tuple[str, ...] = ("agnostic",),
     skip_confirm: bool = False,
     context_files: list[Any] | None = None,
     refresh_vendor_research: bool = False,
@@ -5355,7 +5355,7 @@ def perform_research(
             status="running",
             current_phase="initializing",
             ai_strategy=ai_strategy,
-            cloud_vendors=list(cloud_vendors),
+            cloud_vendors=list(platforms),
             working_folder=folder_path,
         )
         _append_run_event(
@@ -5371,7 +5371,7 @@ def perform_research(
                 "status": "running",
                 "current_phase": "initializing",
                 "ai_strategy": ai_strategy,
-                "cloud_vendors": list(cloud_vendors),
+                "cloud_vendors": list(platforms),
                 "working_folder": folder_path,
                 "started_at": datetime.now().isoformat(),
                 "events": [],
@@ -5434,14 +5434,14 @@ def perform_research(
                 from primr.core.platform_mapper import map_platforms
 
                 detected_platforms = map_platforms(info.slugs)
-                if cloud_vendors == ("agnostic",) or cloud_vendors == ("azure",):
+                if platforms == ("agnostic",) or platforms == ("azure",):
                     # Default values — treat as "not explicitly specified"
-                    cloud_vendors = detected_platforms
-                    console.info(f"Recon: auto-detected platform(s): {', '.join(cloud_vendors)}")
-                elif set(detected_platforms) != set(cloud_vendors):
+                    platforms = detected_platforms
+                    console.info(f"Recon: auto-detected platform(s): {', '.join(platforms)}")
+                elif set(detected_platforms) != set(platforms):
                     console.info(
                         f"Recon detected {', '.join(detected_platforms)}, "
-                        f"but --platform {', '.join(cloud_vendors)} was specified. "
+                        f"but --platform {', '.join(platforms)} was specified. "
                         f"Using user override."
                     )
 
@@ -5476,7 +5476,7 @@ def perform_research(
             except Exception as exc:
                 console.warn(f"Recon: {exc} — continuing without domain intelligence")
                 _append_run_event(folder_path, "recon", "failed", str(exc))
-                # Keep existing cloud_vendors (user-specified or default)
+                # Keep existing platforms (user-specified or default)
 
     # Inject recon context into context_files for strategy generation
     if recon_context_path and os.path.exists(recon_context_path):
@@ -5492,7 +5492,7 @@ def perform_research(
             mode,
             display_name,
             ai_strategy,
-            num_vendors=len(cloud_vendors),
+            num_vendors=len(platforms),
             lite_strategy=lite_strategy,
             fast_mode=fast_mode,
         ):
@@ -5533,7 +5533,7 @@ def perform_research(
                 website,
                 start_time,
                 ai_strategy=ai_strategy,
-                cloud_vendors=cloud_vendors,
+                platforms=platforms,
                 strategy_types=strategies,
                 max_scrape_time=max_scrape_time,
                 discovery_notes_content=discovery_notes_content,
@@ -5578,7 +5578,7 @@ def perform_research(
                 start_time,
                 citation_style,
                 ai_strategy,
-                cloud_vendors,
+                platforms,
                 context_files,
                 refresh_vendor_research,
                 strategies=strategies,
@@ -5791,7 +5791,7 @@ def perform_research(
                 # No heartbeat - the progress callback provides phase-aware status updates
                 ai_strategy_path = _generate_ai_strategy_section(
                     company_name or display_name,
-                    cloud_vendors[0],
+                    platforms[0],
                     company_research_path=context_file,
                     force_refresh_vendor=refresh_vendor_research,
                     discovery_notes_content=discovery_notes_content,
@@ -5969,7 +5969,7 @@ def perform_deep_research(
     start_time: float,
     citation_style: str = "numbered",
     ai_strategy: bool = False,
-    cloud_vendors: tuple[str, ...] = ("agnostic",),
+    platforms: tuple[str, ...] = ("agnostic",),
     context_files: list[Any] | None = None,
     refresh_vendor_research: bool = False,
     strategies: list[str] | None = None,
@@ -5990,7 +5990,7 @@ def perform_deep_research(
         start_time: Start timestamp for duration tracking
         citation_style: Citation formatting style
         ai_strategy: If True, generate AI opportunity recommendations (legacy, use strategies instead)
-        cloud_vendors: Cloud vendor(s) for AI recommendations
+        platforms: Platform(s) for AI recommendations
         context_files: Optional list of files (PDFs, docs) to upload as context for Deep Research
         refresh_vendor_research: If True, force regenerate vendor research
         strategies: List of strategy module names to generate (e.g., ['ai', 'cloud'])
@@ -6257,13 +6257,13 @@ def perform_deep_research(
                 base_phase = 3
                 # Count total phases: AI strategy runs once per vendor, others run once
                 total_phase_count = sum(
-                    len(cloud_vendors) if s == "ai" else 1 for s in strategies_to_run
+                    len(platforms) if s == "ai" else 1 for s in strategies_to_run
                 )
 
                 phase_offset = 0
                 for strategy_name in strategies_to_run:
                     # AI strategy iterates over each vendor; others run once
-                    vendors = list(cloud_vendors) if strategy_name == "ai" else ["agnostic"]
+                    vendors = list(platforms) if strategy_name == "ai" else ["agnostic"]
 
                     for vendor in vendors:
                         phase_num = base_phase + phase_offset
@@ -6282,7 +6282,7 @@ def perform_deep_research(
 
                         # Append vendor to display name for multi-vendor AI runs
                         vendor_label = ""
-                        if strategy_name == "ai" and len(cloud_vendors) > 1:
+                        if strategy_name == "ai" and len(platforms) > 1:
                             vendor_label = f" ({vendor.upper()})"
 
                         console.phase_banner(
@@ -6297,7 +6297,7 @@ def perform_deep_research(
                         strategy_path = _generate_strategy_section(
                             strategy_name=strategy_name,
                             company_name=company_name or display_name,
-                            cloud_vendor=vendor,
+                            platform=vendor,
                             company_research_path=raw_md_path,
                             force_refresh_vendor=refresh_vendor_research,
                             lite_strategy=lite_strategy,
@@ -6305,7 +6305,7 @@ def perform_deep_research(
 
                         if strategy_path:
                             # Use compound key for multi-vendor AI strategies
-                            if strategy_name == "ai" and len(cloud_vendors) > 1:
+                            if strategy_name == "ai" and len(platforms) > 1:
                                 key = f"ai_{vendor}"
                             else:
                                 key = strategy_name
@@ -6383,8 +6383,8 @@ def perform_deep_research(
             dr_tasks = 0
             if mode in ("deep-research", "complete", "hybrid"):
                 dr_tasks += 1  # Main research dossier
-            if ai_strategy and cloud_vendors and not lite_strategy:
-                dr_tasks += len(cloud_vendors)  # Each vendor triggers a DR task
+            if ai_strategy and platforms and not lite_strategy:
+                dr_tasks += len(platforms)  # Each vendor triggers a DR task
             dr_cost = dr_tasks * DEEP_RESEARCH_COST.standard_task_cost
 
             actual_cost = pipeline_cost + dr_cost
@@ -6396,7 +6396,7 @@ def perform_deep_research(
                 mode,
                 ai_strategy,
                 use_historical=False,
-                num_vendors=len(cloud_vendors),
+                num_vendors=len(platforms),
                 lite_strategy=lite_strategy,
             )
 
@@ -6836,19 +6836,19 @@ def _convert_deep_research_to_docx(
         return None
 
 
-def _get_vendor_research_path(cloud_vendor: str) -> str:
+def _get_vendor_research_path(platform: str) -> str:
     """Get the path for vendor research file based on current month."""
     from datetime import datetime
 
     current_month = datetime.now().strftime("%Y-%m")
-    filename = f"vendor-research-{cloud_vendor.lower()}-{current_month}.txt"
+    filename = f"vendor-research-{platform.lower()}-{current_month}.txt"
     return os.path.join(PROJECT_ROOT, "vendor-research", filename)
 
 
-def _is_vendor_research_current(cloud_vendor: str) -> bool:
+def _is_vendor_research_current(platform: str) -> bool:
     """Check if we have current month's vendor research."""
     # Azure has a manually curated file that's always preferred
-    if cloud_vendor.lower() == "azure":
+    if platform.lower() == "azure":
         from primr.config.config import PROJECT_ROOT
 
         manual_path = os.path.join(
@@ -6857,11 +6857,11 @@ def _is_vendor_research_current(cloud_vendor: str) -> bool:
         if os.path.exists(manual_path):
             return True
 
-    research_path = _get_vendor_research_path(cloud_vendor)
+    research_path = _get_vendor_research_path(platform)
     return os.path.exists(research_path)
 
 
-def _generate_vendor_research(cloud_vendor: str) -> str | None:
+def _generate_vendor_research(platform: str) -> str | None:
     """
     Generate fresh vendor AI research using Deep Research.
 
@@ -6869,7 +6869,7 @@ def _generate_vendor_research(cloud_vendor: str) -> str | None:
     from the specified cloud vendor, suitable for use as context in AI strategy generation.
 
     Args:
-        cloud_vendor: Cloud vendor (azure, aws, gcp, agnostic)
+        platform: Platform (azure, aws, gcp, agnostic)
 
     Returns:
         Path to generated research file, or None if generation failed
@@ -6886,9 +6886,9 @@ def _generate_vendor_research(cloud_vendor: str) -> str | None:
 
     # 1. Validate cloud vendor
     valid_vendors = ["azure", "aws", "gcp", "agnostic"]
-    if cloud_vendor.lower() not in valid_vendors:
+    if platform.lower() not in valid_vendors:
         preflight_errors.append(
-            f"Invalid cloud vendor: {cloud_vendor}. Must be one of: {', '.join(valid_vendors)}"
+            f"Invalid cloud vendor: {platform}. Must be one of: {', '.join(valid_vendors)}"
         )
 
     # 2. Validate API key is configured
@@ -6925,7 +6925,7 @@ def _generate_vendor_research(cloud_vendor: str) -> str | None:
         "agnostic": "the AI Industry (cross-vendor)",
         "private": "Private Cloud / NVIDIA",
     }
-    vendor_name = vendor_names.get(cloud_vendor.lower(), cloud_vendor)
+    vendor_name = vendor_names.get(platform.lower(), platform)
 
     # Conference names for each vendor
     conferences = {
@@ -6935,7 +6935,7 @@ def _generate_vendor_research(cloud_vendor: str) -> str | None:
         "agnostic": "NeurIPS, major vendor conferences (Ignite, re:Invent, Cloud Next), and recent announcements from OpenAI, Anthropic, NVIDIA, Meta, Mistral, and Cohere",
         "private": "NVIDIA GTC 2025, NVIDIA AI Enterprise releases, and partner announcements (VMware, Red Hat, Dell, HPE)",
     }
-    conference = conferences.get(cloud_vendor.lower(), "recent conferences")
+    conference = conferences.get(platform.lower(), "recent conferences")
 
     # Vendor-specific model platform names
     model_platforms = {
@@ -6944,7 +6944,7 @@ def _generate_vendor_research(cloud_vendor: str) -> str | None:
         "gcp": "Vertex AI",
         "agnostic": "major model providers (OpenAI, Anthropic, Google, Meta, Mistral, Cohere) and cloud platforms (Azure, AWS, GCP)",
     }
-    model_platform = model_platforms.get(cloud_vendor.lower(), "the AI platform")
+    model_platform = model_platforms.get(platform.lower(), "the AI platform")
 
     # Vendor-specific official sources (detailed)
     official_sources_detail = {
@@ -6954,7 +6954,7 @@ def _generate_vendor_research(cloud_vendor: str) -> str | None:
         "agnostic": "official documentation and blogs from OpenAI, Anthropic, NVIDIA, Meta AI, Mistral, Cohere, and the major cloud vendors (Azure, AWS, GCP)",
     }
     official_source = official_sources_detail.get(
-        cloud_vendor.lower(), "official documentation and pricing pages"
+        platform.lower(), "official documentation and pricing pages"
     )
 
     # Vendor-specific service map categories
@@ -6985,7 +6985,7 @@ Agent Frameworks: LangChain, LlamaIndex, Semantic Kernel, AutoGen, CrewAI
 Vector Databases: Pinecone, Weaviate, Qdrant, Chroma, pgvector
 Evaluation/Observability: LangSmith, Weights & Biases, Arize, Helicone""",
     }
-    service_map = service_maps.get(cloud_vendor.lower(), "")
+    service_map = service_maps.get(platform.lower(), "")
 
     prompt = f"""You are an AI technology analyst. Research the latest AI services and capabilities.
 
@@ -7155,7 +7155,7 @@ For each, state the replacement or migration path.
 List all sources with URLs and dates. Group by section for easy reference.
 """
 
-    console.info(f"Generating fresh {cloud_vendor.upper()} AI research...")
+    console.info(f"Generating fresh {platform.upper()} AI research...")
     console.info("Estimated: 5-10 min, ~$0.50")  # Deep Research for vendor docs
 
     client = get_deep_research_client()
@@ -7171,7 +7171,7 @@ List all sources with URLs and dates. Group by section for easy reference.
         timeout=1800,  # 30 min timeout
         job_metadata={
             "report_kind": "vendor_research",
-            "cloud_vendor": cloud_vendor.lower(),
+            "cloud_vendor": platform.lower(),
         },
     )
 
@@ -7196,7 +7196,7 @@ List all sources with URLs and dates. Group by section for easy reference.
             return None
 
         # Save to docs folder
-        research_path = _get_vendor_research_path(cloud_vendor)
+        research_path = _get_vendor_research_path(platform)
         os.makedirs(os.path.dirname(research_path), exist_ok=True)
 
         with open(research_path, "w", encoding="utf-8") as f:
@@ -7219,7 +7219,7 @@ List all sources with URLs and dates. Group by section for easy reference.
         return None
 
 
-def _get_or_generate_vendor_research(cloud_vendor: str) -> list[str]:
+def _get_or_generate_vendor_research(platform: str) -> list[str]:
     """
     Get vendor research file, generating if needed.
 
@@ -7227,7 +7227,7 @@ def _get_or_generate_vendor_research(cloud_vendor: str) -> list[str]:
     For AWS/GCP, auto-generates if current month's research doesn't exist.
 
     Args:
-        cloud_vendor: Cloud vendor (azure, aws, gcp)
+        platform: Platform (azure, aws, gcp)
 
     Returns:
         List of paths to vendor research files, or empty list if unavailable
@@ -7236,7 +7236,7 @@ def _get_or_generate_vendor_research(cloud_vendor: str) -> list[str]:
     result_paths = []
 
     # Azure: always include manually curated Ignite analysis (it's excellent)
-    if cloud_vendor.lower() == "azure":
+    if platform.lower() == "azure":
         manual_path = os.path.join(
             PROJECT_ROOT, "docs/research latest microsoft ignite analysis.txt"
         )
@@ -7244,11 +7244,11 @@ def _get_or_generate_vendor_research(cloud_vendor: str) -> list[str]:
             result_paths.append(manual_path)
 
     # Check for current month's auto-generated research
-    research_path = _get_vendor_research_path(cloud_vendor)
+    research_path = _get_vendor_research_path(platform)
     if os.path.exists(research_path):
         result_paths.append(research_path)
     elif not result_paths:  # Only auto-generate if we have nothing
-        generated = _generate_vendor_research(cloud_vendor)
+        generated = _generate_vendor_research(platform)
         if generated:
             result_paths.append(generated)
 
@@ -7258,7 +7258,7 @@ def _get_or_generate_vendor_research(cloud_vendor: str) -> list[str]:
 def _generate_strategy_section(
     strategy_name: str,
     company_name: str,
-    cloud_vendor: str,
+    platform: str,
     company_research_path: str | None = None,
     force_refresh_vendor: bool = False,
     discovery_notes_content: str | None = None,
@@ -7273,7 +7273,7 @@ def _generate_strategy_section(
     Args:
         strategy_name: Name of the strategy module (e.g., 'ai', 'customer_experience', 'modern_security_compliance', 'data_fabric_strategy')
         company_name: Name of the company
-        cloud_vendor: Cloud vendor preference (azure, aws, gcp, agnostic)
+        platform: Platform preference (azure, aws, gcp, agnostic)
         company_research_path: Path to company research markdown (used as context)
         force_refresh_vendor: If True, regenerate vendor research even if current
         discovery_notes_content: Optional freeform meeting insights from discovery
@@ -7293,7 +7293,7 @@ def _generate_strategy_section(
     if strategy_name == "ai":
         return _generate_ai_strategy_section(
             company_name=company_name,
-            cloud_vendor=cloud_vendor,
+            platform=platform,
             company_research_path=company_research_path,
             force_refresh_vendor=force_refresh_vendor,
             discovery_notes_content=discovery_notes_content,
@@ -7645,7 +7645,7 @@ def _build_strategy_prompt_from_yaml(
 
 def _generate_ai_strategy_section(
     company_name: str,
-    cloud_vendor: str,
+    platform: str,
     company_research_path: str | None = None,
     force_refresh_vendor: bool = False,
     discovery_notes_content: str | None = None,
@@ -7665,7 +7665,7 @@ def _generate_ai_strategy_section(
 
     Args:
         company_name: Name of the company
-        cloud_vendor: Cloud vendor preference (azure, aws, gcp)
+        platform: Platform preference (azure, aws, gcp)
         company_research_path: Path to company research markdown (used as context)
         force_refresh_vendor: If True, regenerate vendor research even if current
         discovery_notes_content: Optional freeform meeting insights from discovery
@@ -7690,9 +7690,9 @@ def _generate_ai_strategy_section(
 
     # 2. Validate cloud vendor
     valid_vendors = ["azure", "aws", "gcp", "agnostic"]
-    if cloud_vendor.lower() not in valid_vendors:
+    if platform.lower() not in valid_vendors:
         preflight_errors.append(
-            f"Invalid cloud vendor: {cloud_vendor}. Must be one of: {', '.join(valid_vendors)}"
+            f"Invalid cloud vendor: {platform}. Must be one of: {', '.join(valid_vendors)}"
         )
 
     # 3. Validate API key is configured
@@ -7730,7 +7730,7 @@ def _generate_ai_strategy_section(
 
     try:
         # Build the AI Strategy prompt
-        prompt = _build_ai_strategy_prompt(company_name, cloud_vendor, discovery_notes_content)
+        prompt = _build_ai_strategy_prompt(company_name, platform, discovery_notes_content)
 
         # Prepare context files if we have company research
         context_files = []
@@ -7739,14 +7739,14 @@ def _generate_ai_strategy_section(
 
         # Get vendor-specific research (auto-generates if needed)
         vendor_doc_paths = []
-        if cloud_vendor.lower() != "agnostic":
+        if platform.lower() != "agnostic":
             # Force refresh if requested
             if force_refresh_vendor:
-                console.info(f"Force refreshing {cloud_vendor.upper()} vendor research...")
-                generated = _generate_vendor_research(cloud_vendor)
+                console.info(f"Force refreshing {platform.upper()} vendor research...")
+                generated = _generate_vendor_research(platform)
                 vendor_doc_paths = [generated] if generated else []
             else:
-                vendor_doc_paths = _get_or_generate_vendor_research(cloud_vendor)
+                vendor_doc_paths = _get_or_generate_vendor_research(platform)
 
             # Add vendor-specific research files as context
             for vendor_doc_path in vendor_doc_paths:
@@ -7755,7 +7755,7 @@ def _generate_ai_strategy_section(
 
             if vendor_doc_paths:
                 console.info(
-                    f"Using {len(vendor_doc_paths)} {cloud_vendor.upper()} research doc(s) as context"
+                    f"Using {len(vendor_doc_paths)} {platform.upper()} research doc(s) as context"
                 )
 
         # Always include agnostic/cross-industry AI research as additional context
@@ -7832,7 +7832,7 @@ def _generate_ai_strategy_section(
                         "report_kind": "ai_strategy",
                         "strategy_type": "ai",
                         "company_name": company_name,
-                        "cloud_vendor": cloud_vendor.lower(),
+                        "cloud_vendor": platform.lower(),
                     },
                 )
             )
@@ -7846,7 +7846,7 @@ def _generate_ai_strategy_section(
             # Usage tracked by the main pipeline recording
 
         date_str = datetime.now().strftime("%m-%d-%Y")
-        vendor_tag = f"_{cloud_vendor.upper()}" if cloud_vendor.lower() != "agnostic" else ""
+        vendor_tag = f"_{platform.upper()}" if platform.lower() != "agnostic" else ""
         base_name = f"{company_name}_AI_Strategy{vendor_tag}_{date_str}"
 
         # Save markdown (.md)
@@ -7866,7 +7866,7 @@ def _generate_ai_strategy_section(
         try:
             subtitle_parts = [datetime.now().strftime("%B %d, %Y")]
             # Clean subtitle: "December 18, 2024 | Azure" (no "Cloud Vendor:" prefix)
-            subtitle_parts.append(cloud_vendor.title())
+            subtitle_parts.append(platform.title())
             subtitle = " | ".join(subtitle_parts)
 
             markdown_to_docx(
@@ -7900,7 +7900,7 @@ def _generate_ai_strategy_section(
 
 
 def _build_ai_strategy_prompt(
-    company_name: str, cloud_vendor: str, discovery_notes_content: str | None = None
+    company_name: str, platform: str, discovery_notes_content: str | None = None
 ) -> str:
     """
     Build a Deep Research prompt for board-level AI strategy.
@@ -7920,7 +7920,7 @@ def _build_ai_strategy_prompt(
 
     Args:
         company_name: Name of the company
-        cloud_vendor: Cloud vendor preference (azure, aws, gcp, agnostic)
+        platform: Platform preference (azure, aws, gcp, agnostic)
         discovery_notes_content: Optional freeform meeting insights from discovery
     """
     from datetime import datetime
@@ -7934,7 +7934,7 @@ def _build_ai_strategy_prompt(
         "agnostic": "all major cloud vendors (Azure, AWS, GCP)",
         "private": "Private Cloud / NVIDIA",
     }
-    vendor_name = vendor_names.get(cloud_vendor.lower(), vendor_names["agnostic"])
+    vendor_name = vendor_names.get(platform.lower(), vendor_names["agnostic"])
 
     # Vendor-specific context with key services to research
     vendor_specific_guidance = {
@@ -8103,7 +8103,7 @@ Search for the latest from NVIDIA GTC 2025, NVIDIA AI Enterprise releases, and p
     }
 
     vendor_guidance = vendor_specific_guidance.get(
-        cloud_vendor.lower(), vendor_specific_guidance["agnostic"]
+        platform.lower(), vendor_specific_guidance["agnostic"]
     )
     vendor_guidance = vendor_guidance.format(current_date=current_date)
 
@@ -8886,7 +8886,7 @@ def process_csv(
     mode: str = "complete",
     citation_style: str = "numbered",
     ai_strategy: bool = True,
-    cloud_vendors: tuple[str, ...] = ("azure",),
+    platforms: tuple[str, ...] = ("azure",),
     no_qa: bool = False,
 ) -> None:
     import csv
@@ -8907,7 +8907,7 @@ def process_csv(
                         mode=mode,
                         citation_style=citation_style,
                         ai_strategy=ai_strategy,
-                        cloud_vendors=cloud_vendors,
+                        platforms=platforms,
                         no_qa=no_qa,
                     )
                 except Exception as e:

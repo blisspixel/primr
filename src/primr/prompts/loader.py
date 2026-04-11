@@ -189,7 +189,7 @@ def build_company_overview_prompt(
 
 def build_ai_strategy_prompt(
     company_name: str,
-    cloud_vendor: str = "agnostic",
+    platform: str = "agnostic",
     current_date: str | None = None,
 ) -> str:
     """
@@ -200,7 +200,7 @@ def build_ai_strategy_prompt(
 
     Args:
         company_name: Name of the company
-        cloud_vendor: Cloud vendor preference (azure, aws, gcp, agnostic)
+        platform: Platform preference (azure, aws, gcp, agnostic)
         current_date: Optional date string (defaults to current date)
 
     Returns:
@@ -215,7 +215,7 @@ def build_ai_strategy_prompt(
     # Create context for the composer
     context = PromptContext(
         company_name=company_name,
-        cloud_vendor=cloud_vendor,
+        platform=platform,
         current_date=current_date,
         has_stage1_context=True,  # AI strategy always uses company overview as context
     )

@@ -91,7 +91,7 @@ research_company(
     company_name="{company_name}",
     company_url="https://example.com",
     mode="full",
-    cloud_vendor="azure"  # Optional: for AI strategy
+    platform="azure"  # Optional: for AI strategy
 )
 ```
 3. For long-running jobs, prefer `wait_for_status_change` or poll `primr://research/status`
@@ -117,7 +117,7 @@ If strategy documents are needed:
 - Use **deep** mode when website is heavily protected or inaccessible
 - Use **full** mode for the standard end-to-end workflow
 - Use **premium** when the user explicitly wants maximum-depth research
-- Add `cloud_vendor` parameter when AI strategy is needed
+- Add `platform` parameter when AI strategy is needed
 
 ## Error Handling
 - **url_unreachable**: Try `mode=deep` which doesn't require site access
@@ -150,7 +150,7 @@ def _get_strategy_selection_prompt(arguments: dict) -> list[PromptMessage]:
 **Use when:** Client needs AI/ML transformation roadmap
 **Focus:** Agentic AI, organizational design, investment frameworks
 **Best for:** Technology companies, digital transformation initiatives
-**Requires:** `cloud_vendor` parameter (azure, aws, or gcp)
+**Requires:** `platform` parameter (azure, aws, or gcp)
 
 ### customer_experience
 **Use when:** Client needs CX improvement plan
@@ -167,7 +167,7 @@ def _get_strategy_selection_prompt(arguments: dict) -> list[PromptMessage]:
 **Focus:** Semantic layers, intelligent data estates, AI-ready infrastructure
 **Best for:** Data-intensive organizations, analytics modernization
 
-## Cloud Vendor Selection (for ai_strategy)
+## Platform Selection (for ai_strategy)
 - **azure**: Microsoft ecosystem, enterprise integration, Copilot focus
 - **aws**: Broad service portfolio, startup-friendly, Bedrock/SageMaker
 - **gcp**: AI/ML focus, data analytics strength, Vertex AI
@@ -182,20 +182,20 @@ def _get_strategy_selection_prompt(arguments: dict) -> list[PromptMessage]:
 ```
 estimate_strategy(
     strategy_type="ai_strategy",
-    cloud_vendor="azure"
+    platform="azure"
 )
 
 generate_strategy(
     report_path="output/acme_corp/report.md",
     strategy_type="ai_strategy",
-    cloud_vendor="azure"
+    platform="azure"
 )
 ```
 
 ## Tips
 - Read the research report first to understand the company
 - Multiple strategies can be generated from the same report
-- AI strategy requires cloud_vendor; others don't
+- AI strategy requires platform; others don't
 - Check QA score after generation to ensure quality
 """
 
@@ -214,20 +214,20 @@ def _get_governed_execution_prompt() -> list[PromptMessage]:
 Use this contract whenever a Primr MCP client may trigger paid work.
 
 ## Required pattern
-1. Call `estimate_run` first — this includes AI strategy cost when cloud_vendor is specified.
+1. Call `estimate_run` first — this includes AI strategy cost when platform is specified.
 2. Tell the user the total cost (research + strategy combined) and get ONE explicit approval.
 3. Pass `max_estimated_cost_usd` into `research_company`.
-4. Do NOT call `estimate_strategy` or `generate_strategy` separately — strategy is included in the research job when `cloud_vendor` is set.
+4. Do NOT call `estimate_strategy` or `generate_strategy` separately — strategy is included in the research job when `platform` is set.
 5. Treat research as a long-running async job; poll `check_jobs` for completion.
 6. When `check_jobs` returns status "completed", the response includes full artifact content (report + strategy MD files) inline — no filesystem access needed.
 
 ## Standard flow (research + strategy in one approval)
 ```text
-estimate_run(company_url="https://example.com", mode="full", cloud_vendors=["azure"])
+estimate_run(company_url="https://example.com", mode="full", platforms=["azure"])
 # → shows combined cost for research + AI strategy
 # → user approves once
 
-research_company(company_name="ExampleCo", company_url="https://example.com", mode="full", cloud_vendor="azure", max_estimated_cost_usd=0.67)
+research_company(company_name="ExampleCo", company_url="https://example.com", mode="full", platform="azure", max_estimated_cost_usd=0.67)
 # → returns job_id immediately
 
 check_jobs(job_id="...")
@@ -236,7 +236,7 @@ check_jobs(job_id="...")
 
 ## Optional: destination directory
 ```text
-research_company(company_name="ExampleCo", company_url="https://example.com", cloud_vendor="azure", destination="/path/to/output")
+research_company(company_name="ExampleCo", company_url="https://example.com", platform="azure", destination="/path/to/output")
 # → artifacts are also copied to the specified directory
 ```
 

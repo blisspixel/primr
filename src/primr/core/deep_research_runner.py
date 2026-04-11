@@ -143,7 +143,7 @@ class DeepResearchConfig:
     mode: DeepResearchMode
     citation_style: str = "numbered"
     ai_strategy: bool = False
-    cloud_vendor: str = "agnostic"
+    platform: str = "agnostic"
     context_files: tuple[str, ...] = ()
     refresh_vendor_research: bool = False
     timeout_seconds: int = 1800  # 30 minutes
@@ -600,7 +600,7 @@ async def _generate_ai_strategy(
     # No heartbeat - the progress callback provides phase-aware status updates
     result = await generate_ai_strategy(
         company_name=config.company_name or config.display_name,
-        cloud_vendor=config.cloud_vendor,
+        platform=config.platform,
         company_research_path=company_research_path,
         force_refresh_vendor=config.refresh_vendor_research,
     )

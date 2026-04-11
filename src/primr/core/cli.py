@@ -1449,7 +1449,7 @@ def _handle_batch(config: CLIConfig) -> int:
             mode=config.mode,
             citation_style=config.citation_style,
             ai_strategy=config.ai_strategy,
-            cloud_vendors=config.cloud_vendors,
+            platforms=config.cloud_vendors,
             industry=config.industry,
             limit=config.limit,
             skip_confirm=config.skip_confirm,
@@ -1466,7 +1466,7 @@ def _handle_batch(config: CLIConfig) -> int:
         mode=config.mode,
         citation_style=config.citation_style,
         ai_strategy=config.ai_strategy,
-        cloud_vendors=config.cloud_vendors,
+        platforms=config.cloud_vendors,
     )
     return 0
 
@@ -1655,7 +1655,7 @@ def _handle_ai_strategy_only(config: CLIConfig) -> int:
         result_path = _generate_strategy_section(
             strategy_name=strategy_type,
             company_name=company_name,
-            cloud_vendor=vendor,
+            platform=vendor,
             company_research_path=str(path),
             force_refresh_vendor=config.refresh_vendor_research,
             discovery_notes_content=None,  # TODO: Add discovery notes support
@@ -2598,7 +2598,7 @@ def _handle_research(config: CLIConfig) -> int:
         mode=config.mode,
         citation_style=config.citation_style,
         ai_strategy=config.ai_strategy,
-        cloud_vendors=config.cloud_vendors,
+        platforms=config.cloud_vendors,
         skip_confirm=config.skip_confirm,
         context_files=context_files if context_files else None,
         refresh_vendor_research=config.refresh_vendor_research,
@@ -3646,7 +3646,7 @@ def process_batch(
     mode: str = "complete",
     citation_style: str = "numbered",
     ai_strategy: bool = True,
-    cloud_vendors: tuple[str, ...] = ("azure",),
+    platforms: tuple[str, ...] = ("azure",),
     industry: str | None = None,
     limit: int | None = None,
     skip_confirm: bool = True,
@@ -3822,7 +3822,7 @@ def process_batch(
                     mode=mode,
                     citation_style=citation_style,
                     ai_strategy=ai_strategy,
-                    cloud_vendors=cloud_vendors,
+                    platforms=platforms,
                 )
 
                 if result_path:
@@ -3966,7 +3966,7 @@ def process_csv(
     mode: str = "complete",
     citation_style: str = "numbered",
     ai_strategy: bool = True,
-    cloud_vendors: tuple[str, ...] = ("azure",),
+    platforms: tuple[str, ...] = ("azure",),
 ) -> None:
     """Process a CSV file for batch research."""
     import csv
@@ -3989,7 +3989,7 @@ def process_csv(
                         mode=mode,
                         citation_style=citation_style,
                         ai_strategy=ai_strategy,
-                        cloud_vendors=cloud_vendors,
+                        platforms=platforms,
                     )
                 except Exception as e:
                     console.error(f"Failed: {company or website} - {e}")

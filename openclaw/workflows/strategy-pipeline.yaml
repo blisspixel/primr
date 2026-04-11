@@ -1,95 +1,190 @@
-# Lobster Workflow: Strategy Pipeline
-#
-# MCP-first workflow for Primr strategy generation with explicit estimate,
-# approval, and cost-cap propagation.
-
-name: primr-strategy-pipeline
-description: "Generate a strategy document with estimate and approval gate"
-version: "1.0.0"
-
-inputs:
-  report_path:
-    type: string
-    required: true
-    description: "Path to an existing Primr report"
-
-  strategy_type:
-    type: string
-    required: true
-    enum: ["ai_strategy", "customer_experience", "modern_security_compliance", "data_fabric_strategy"]
-    description: "Strategy document type"
-
-  cloud_vendor:
-    type: string
-    required: false
-    enum: ["azure", "aws", "gcp", "agnostic", "private"]
-    description: "Cloud vendor for ai_strategy"
-
-steps:
-  - id: estimate
-    description: "Get current cost and time estimate for strategy generation"
-    type: tool
-    tool: estimate_strategy
-    args:
-      strategy_type: "$inputs.strategy_type"
-      cloud_vendor: "$inputs.cloud_vendor"
-    output: estimate_result
-
-  - id: approval
-    description: "Request user approval before incurring strategy costs"
-    type: approval
-    approval: required
-    message: |
-      Generate **$inputs.strategy_type** from `$inputs.report_path`?
-
-      Estimated cost: $$estimate_result.estimated_cost_usd
-      Estimated time: $estimate_result.estimated_time_minutes minutes
-
-      This action incurs real API charges.
-      Reply "approve $token" to proceed.
-      Reply "deny" to cancel.
-    token_length: 6
-    timeout_minutes: 10
-    output: approval_result
-
-  - id: strategy
-    description: "Generate the strategy document"
-    type: tool
-    tool: generate_strategy
-    condition: "$approval_result.approved == true"
-    args:
-      report_path: "$inputs.report_path"
-      strategy_type: "$inputs.strategy_type"
-      cloud_vendor: "$inputs.cloud_vendor"
-      max_estimated_cost_usd: "$estimate_result.estimated_cost_usd"
-    output: strategy_result
-
-  - id: notify_success
-    description: "Notify user of successful completion"
-    type: message
-    condition: "$strategy_result.success == true"
-    content: |
-      Strategy generation complete.
-
-      Output: $strategy_result.output_path
-      Next step: run QA on the generated strategy if you want a quality review.
-
-on_failure:
-  - id: failure_notification
-    type: message
-    content: |
-      Strategy pipeline failed.
-
-      Step: $failed_step.id
-      Error: $failed_step.error
-
-      Suggested next actions:
-      - Check the report path
-      - Re-run estimate_strategy for the intended strategy type
-      - Run `doctor` if the failure looks environmental
-
-on_denial:
-  - id: denial_notification
-    type: message
-    content: |
-      Strategy generation cancelled. No new strategy was generated.
+# Lobster Workflow: Strategy Pipeline
+
+#
+
+# MCP-first workflow for Primr strategy generation with explicit estimate,
+
+# approval, and cost-cap propagation.
+
+
+
+name: primr-strategy-pipeline
+
+description: "Generate a strategy document with estimate and approval gate"
+
+version: "1.0.0"
+
+
+
+inputs:
+
+  report_path:
+
+    type: string
+
+    required: true
+
+    description: "Path to an existing Primr report"
+
+
+
+  strategy_type:
+
+    type: string
+
+    required: true
+
+    enum: ["ai_strategy", "customer_experience", "modern_security_compliance", "data_fabric_strategy"]
+
+    description: "Strategy document type"
+
+
+
+  platform:
+
+    type: string
+
+    required: false
+
+    enum: ["azure", "aws", "gcp", "agnostic", "private"]
+
+    description: "Platform for ai_strategy"
+
+
+
+steps:
+
+  - id: estimate
+
+    description: "Get current cost and time estimate for strategy generation"
+
+    type: tool
+
+    tool: estimate_strategy
+
+    args:
+
+      strategy_type: "$inputs.strategy_type"
+
+      platform: "$inputs.platform"
+
+    output: estimate_result
+
+
+
+  - id: approval
+
+    description: "Request user approval before incurring strategy costs"
+
+    type: approval
+
+    approval: required
+
+    message: |
+
+      Generate **$inputs.strategy_type** from `$inputs.report_path`?
+
+
+
+      Estimated cost: $$estimate_result.estimated_cost_usd
+
+      Estimated time: $estimate_result.estimated_time_minutes minutes
+
+
+
+      This action incurs real API charges.
+
+      Reply "approve $token" to proceed.
+
+      Reply "deny" to cancel.
+
+    token_length: 6
+
+    timeout_minutes: 10
+
+    output: approval_result
+
+
+
+  - id: strategy
+
+    description: "Generate the strategy document"
+
+    type: tool
+
+    tool: generate_strategy
+
+    condition: "$approval_result.approved == true"
+
+    args:
+
+      report_path: "$inputs.report_path"
+
+      strategy_type: "$inputs.strategy_type"
+
+      platform: "$inputs.platform"
+
+      max_estimated_cost_usd: "$estimate_result.estimated_cost_usd"
+
+    output: strategy_result
+
+
+
+  - id: notify_success
+
+    description: "Notify user of successful completion"
+
+    type: message
+
+    condition: "$strategy_result.success == true"
+
+    content: |
+
+      Strategy generation complete.
+
+
+
+      Output: $strategy_result.output_path
+
+      Next step: run QA on the generated strategy if you want a quality review.
+
+
+
+on_failure:
+
+  - id: failure_notification
+
+    type: message
+
+    content: |
+
+      Strategy pipeline failed.
+
+
+
+      Step: $failed_step.id
+
+      Error: $failed_step.error
+
+
+
+      Suggested next actions:
+
+      - Check the report path
+
+      - Re-run estimate_strategy for the intended strategy type
+
+      - Run `doctor` if the failure looks environmental
+
+
+
+on_denial:
+
+  - id: denial_notification
+
+    type: message
+
+    content: |
+
+      Strategy generation cancelled. No new strategy was generated.
+

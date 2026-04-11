@@ -53,7 +53,7 @@ class PipelineRunner:
         job: ResearchJobState,
         company_url: str,
         mode: str,
-        cloud_vendor: str | None = None,
+        platform: str | None = None,
         skip_qa: bool = False,
         verify: bool = False,
         destination: str | None = None,
@@ -68,7 +68,7 @@ class PipelineRunner:
             job: The job state to update
             company_url: Company website URL
             mode: Research mode (scrape, deep, full)
-            cloud_vendor: Optional cloud vendor for strategy
+            platform: Optional platform for strategy
             skip_qa: Whether to skip QA
             verify: Whether to run claim verification
             destination: Optional destination directory for output files
@@ -121,8 +121,8 @@ class PipelineRunner:
                         job.company_name,
                         company_url,
                         time.time(),
-                        ai_strategy=cloud_vendor is not None,
-                        cloud_vendors=(cloud_vendor,) if cloud_vendor else ("agnostic",),
+                        ai_strategy=platform is not None,
+                        platforms=(platform,) if platform else ("agnostic",),
                     )
                 finally:
                     heartbeat_task.cancel()
@@ -473,7 +473,7 @@ def _copy_artifacts_to_destination(artifact_paths: list[str], destination: str) 
 async def run_strategy_generation(
     report_path: str,
     strategy_type: str,
-    cloud_vendor: str | None = None,
+    platform: str | None = None,
     on_progress: Callable[[str], None] | None = None,
 ) -> dict:
     """
@@ -482,7 +482,7 @@ async def run_strategy_generation(
     Args:
         report_path: Path to the research report
         strategy_type: Type of strategy to generate
-        cloud_vendor: Optional cloud vendor preference
+        platform: Optional platform preference
         on_progress: Optional progress callback
 
     Returns:
@@ -506,11 +506,11 @@ async def run_strategy_generation(
         company_name = filename.replace("_", " ")
 
     # Map strategy type
-    vendor = Platform.from_string(cloud_vendor) if cloud_vendor else Platform.AGNOSTIC
+    vendor = Platform.from_string(platform) if platform else Platform.AGNOSTIC
 
     result = await generate_ai_strategy(
         company_name=company_name,
-        cloud_vendor=vendor,
+        platform=vendor,
         company_research_path=report_path,
         on_progress=on_progress,
     )

@@ -16,7 +16,7 @@ Usage:
     # Generate AI strategy
     result = await generate_ai_strategy(
         company_name="Acme Corp",
-        cloud_vendor=Platform.AZURE,
+        platform=Platform.AZURE,
         company_research_path="path/to/research.md"
     )
 """
@@ -94,7 +94,7 @@ class AIStrategyConfig:
     """Configuration for AI strategy generation."""
 
     company_name: str
-    cloud_vendor: Platform
+    platform: Platform
     company_research_path: str | None = None
     force_refresh_vendor: bool = False
     timeout_seconds: int = 1800  # 30 minutes
@@ -146,7 +146,7 @@ class StrategyPromptContext:
     """Context for building AI strategy prompts."""
 
     company_name: str
-    cloud_vendor: Platform
+    platform: Platform
     current_date: str
     vendor_guidance: str
     vendor_name: str
@@ -172,7 +172,7 @@ class StrategyPromptBuilder(Protocol):
 
 def generate_ai_strategy_sync(
     company_name: str,
-    cloud_vendor: str | Platform,
+    platform: str | Platform,
     company_research_path: str | None = None,
     force_refresh_vendor: bool = False,
     on_progress: Callable[[str], None] | None = None,
@@ -182,7 +182,7 @@ def generate_ai_strategy_sync(
 
     Args:
         company_name: Name of the company
-        cloud_vendor: Cloud vendor preference
+        platform: Platform preference
         company_research_path: Path to company research markdown
         force_refresh_vendor: If True, regenerate vendor research
         on_progress: Optional progress callback
@@ -195,7 +195,7 @@ def generate_ai_strategy_sync(
     result = run_sync(
         generate_ai_strategy(
             company_name=company_name,
-            cloud_vendor=cloud_vendor,
+            platform=platform,
             company_research_path=company_research_path,
             force_refresh_vendor=force_refresh_vendor,
             on_progress=on_progress,
@@ -207,7 +207,7 @@ def generate_ai_strategy_sync(
 
 async def generate_ai_strategy(
     company_name: str,
-    cloud_vendor: str | Platform,
+    platform: str | Platform,
     company_research_path: str | None = None,
     force_refresh_vendor: bool = False,
     on_progress: Callable[[str], None] | None = None,
@@ -222,7 +222,7 @@ async def generate_ai_strategy(
 
     Args:
         company_name: Name of the company
-        cloud_vendor: Cloud vendor preference (string or Platform enum)
+        platform: Platform preference (string or Platform enum)
         company_research_path: Path to company research markdown
         force_refresh_vendor: If True, regenerate vendor research
         on_progress: Optional progress callback
@@ -234,16 +234,16 @@ async def generate_ai_strategy(
 
     start_time = time.time()
 
-    # Normalize cloud vendor
-    if isinstance(cloud_vendor, str):
-        vendor = Platform.from_string(cloud_vendor)
+    # Normalize platform
+    if isinstance(platform, str):
+        vendor = Platform.from_string(platform)
     else:
-        vendor = cloud_vendor
+        vendor = platform
 
     # Build config
     config = AIStrategyConfig(
         company_name=company_name,
-        cloud_vendor=vendor,
+        platform=vendor,
         company_research_path=company_research_path,
         force_refresh_vendor=force_refresh_vendor,
     )
@@ -292,7 +292,7 @@ async def generate_ai_strategy(
 
     # Save outputs
     output_paths = _save_strategy_outputs(
-        content=content, company_name=company_name, cloud_vendor=vendor
+        content=content, company_name=company_name, platform=vendor
     )
 
     # Usage tracked by the main research pipeline (research_agent.py)
@@ -307,7 +307,7 @@ async def generate_ai_strategy(
     )
 
 
-def build_ai_strategy_prompt(company_name: str, cloud_vendor: Platform) -> str:
+def build_ai_strategy_prompt(company_name: str, platform: Platform) -> str:
     """
     Build Deep Research prompt for AI strategy.
 
@@ -315,7 +315,7 @@ def build_ai_strategy_prompt(company_name: str, cloud_vendor: Platform) -> str:
 
     Args:
         company_name: Name of the company
-        cloud_vendor: Cloud vendor preference
+        platform: Platform preference
 
     Returns:
         Complete prompt string for Deep Research
@@ -324,7 +324,7 @@ def build_ai_strategy_prompt(company_name: str, cloud_vendor: Platform) -> str:
 
     return build_from_yaml(
         company_name=company_name,
-        cloud_vendor=cloud_vendor.value,
+        platform=platform.value,
     )
 
 
@@ -378,7 +378,7 @@ async def _gather_context(
         context_files.append(config.company_research_path)
 
     registry = get_registry()
-    vendor_str = config.cloud_vendor.value
+    vendor_str = config.platform.value
 
     yaml_context_files = registry.get_context_files("ai", vendor=vendor_str)
 
@@ -400,7 +400,7 @@ async def _gather_context(
             get_or_generate_vendor_research,
         )
 
-        if config.cloud_vendor != Platform.AGNOSTIC:
+        if config.platform != Platform.AGNOSTIC:
             if config.force_refresh_vendor:
                 console.info(f"Force refreshing {vendor_str.upper()} vendor research...")
                 generated = await generate_vendor_research(vendor_str, on_progress)
@@ -593,7 +593,7 @@ def _process_citations(content: str) -> str:
 
 
 def _save_strategy_outputs(
-    content: str, company_name: str, cloud_vendor: Platform
+    content: str, company_name: str, platform: Platform
 ) -> dict[str, str | None]:
     """Save AI strategy outputs in multiple formats."""
     from primr.output.markdown_converter import markdown_to_docx
@@ -603,7 +603,7 @@ def _save_strategy_outputs(
 
     date_str = datetime.now().strftime("%m-%d-%Y")
     vendor_tag = (
-        f"_{cloud_vendor.value.upper()}" if cloud_vendor.value.lower() != "agnostic" else ""
+        f"_{platform.value.upper()}" if platform.value.lower() != "agnostic" else ""
     )
     base_name = f"{company_name}_AI_Strategy{vendor_tag}_{date_str}"
     outputs: dict[str, str | None] = {"md": None, "txt": None, "docx": None}
@@ -626,7 +626,7 @@ def _save_strategy_outputs(
         # Convert to DOCX
         docx_path = os.path.join(OUTPUT_DIR, f"{base_name}.docx")
         subtitle_parts = [datetime.now().strftime("%B %d, %Y")]
-        subtitle_parts.append(f"Cloud Vendor: {cloud_vendor.value.upper()}")
+        subtitle_parts.append(f"Cloud Vendor: {platform.value.upper()}")
         subtitle = " | ".join(subtitle_parts)
 
         try:
