@@ -323,7 +323,7 @@ class ArtifactDetector:
     """
 
     # Patterns that indicate unconverted markdown
-    HEADING_ARTIFACT = re.compile(r"^#{1,6}\s+", re.MULTILINE)
+    HEADING_ARTIFACT = re.compile(r"^#{2,6}\s+", re.MULTILINE)
     BOLD_ARTIFACT = re.compile(r"\*\*[^*]+\*\*|__[^_]+__")
     ITALIC_ARTIFACT = re.compile(r"(?<!\*)\*[^*\n]+\*(?!\*)|(?<!_)_[^_\n]+_(?!_)")
     BULLET_ARTIFACT = re.compile(r"^\s*[*\-•]\s{1,4}(?=[A-Za-z])", re.MULTILINE)

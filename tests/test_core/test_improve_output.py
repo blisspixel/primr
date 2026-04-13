@@ -3,12 +3,14 @@ from pathlib import Path
 from docx import Document
 
 import primr.output.output_utils as output_utils
+from primr.output.final_artifact import GeneratedSection, canonicalize_final_markdown, parse_final_markdown
 from primr.core.research_agent import (
     _clean_strategy_output,
     _compute_strategy_qa_metrics,
     _convert_deep_research_to_docx,
     _ensure_strategy_source_inventory,
     _prepare_strategy_for_output,
+    _prepare_strategy_markdown_for_shipping,
     _save_strategy_output,
     _validate_output_docx,
     _validate_output_markdown,
@@ -297,3 +299,87 @@ def test_prepare_strategy_for_output_repairs_budget_and_sources(monkeypatch):
     assert qa["missing_citations"] == 0
     assert qa["qa_gate_passed"] is True
     assert "https://-aws-2026-03" not in prepared
+
+
+def test_validate_output_docx_allows_literal_hash_table_headers(tmp_path: Path):
+    doc_path = tmp_path / "hash-table.docx"
+    doc = Document()
+    table = doc.add_table(rows=2, cols=2)
+    table.rows[0].cells[0].text = "# Items"
+    table.rows[0].cells[1].text = "Value"
+    table.rows[1].cells[0].text = "42"
+    table.rows[1].cells[1].text = "OK"
+    doc.save(doc_path)
+
+    result = _validate_output_docx(doc_path)
+    assert result["passed"] is True
+    assert result["issues"] == []
+
+
+def test_canonicalize_final_markdown_merges_reference_sections_at_end():
+    content = (
+        "# Report\n\n"
+        "## Executive Summary\n\n"
+        "Intro (Reported).\n\n"
+        "## References\n\n"
+        "[cite: 2] https://example.com/b\n\n"
+        "## Products and Services\n\n"
+        "Detail (Estimated).\n\n"
+        "## Sources\n\n"
+        "[cite: 1] https://example.com/a\n"
+    )
+
+    normalized = canonicalize_final_markdown(content)
+
+    assert normalized.count("## Sources") == 1
+    assert normalized.rstrip().endswith("[cite: 1] https://example.com/a")
+    assert "## References" not in normalized
+    assert normalized.index("## Products and Services") < normalized.index("## Sources")
+
+
+def test_parse_final_markdown_preserves_preamble_and_content_section_order():
+    content = (
+        "# Strategic Company Overview: DemoCo\n\n"
+        "*April 12, 2026*\n\n"
+        "## Executive Summary\n\n"
+        "Summary.\n\n"
+        "## SWOT Analysis\n\n"
+        "SWOT body.\n"
+    )
+
+    parsed = parse_final_markdown(content)
+
+    assert parsed.preamble.startswith("# Strategic Company Overview")
+    assert [section.heading for section in parsed.sections] == ["Executive Summary", "SWOT Analysis"]
+    assert parsed.sources_body == ""
+
+
+def test_generated_section_to_markdown_formats_section():
+    section = GeneratedSection(
+        title="Executive Summary",
+        content="Deep content.\n\nWhat to validate: Confirm the key claim.",
+        words=8,
+        validate_line="What to validate: Confirm the key claim.",
+        citation_numbers=[1, 2],
+    )
+
+    assert section.to_markdown() == "## Executive Summary\n\nDeep content.\n\nWhat to validate: Confirm the key claim."
+
+
+def test_prepare_strategy_markdown_for_shipping_merges_reference_sections():
+    content = (
+        "## AI Strategy\n\n"
+        "Recommendation [cite: 1].\n\n"
+        "## References\n\n"
+        "[cite: 2] https://example.com/b\n\n"
+        "## Recommended AI Architecture Posture\n\n"
+        "Architecture detail [cite: 2].\n\n"
+        "## Sources\n\n"
+        "[cite: 1] https://example.com/a\n"
+    )
+
+    prepared = _prepare_strategy_markdown_for_shipping(content)
+
+    assert prepared.count("## Sources") == 1
+    assert "## References" not in prepared
+    assert prepared.index("## Recommended AI Architecture Posture") < prepared.index("## Sources")

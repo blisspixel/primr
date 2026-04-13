@@ -100,3 +100,20 @@ def test_compute_fast_report_qa_metrics_passes_on_guarded_report():
     assert metrics["confidence_labels"] >= 2
     assert metrics["missing_citations"] == 0
     assert metrics["sections_with_validate"] == metrics["section_count"]
+
+
+def test_compute_fast_report_qa_metrics_counts_multi_cite_references():
+    report = (
+        "# Report\n\n"
+        "## Executive Summary\n\n"
+        "Core claim (Reported) [cite: 1, 2].\n\n"
+        "What to validate: Confirm adoption metrics in customer interviews.\n\n"
+        "## Sources\n\n"
+        "[cite: 1] https://example.com/a\n"
+        "[cite: 2] https://example.com/b\n"
+    )
+
+    metrics = _compute_fast_report_qa_metrics(report)
+    assert metrics["citations_used"] == 2
+    assert metrics["citations_defined"] == 2
+    assert metrics["missing_citations"] == 0

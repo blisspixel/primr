@@ -123,6 +123,32 @@ Planned next steps:
 - Keep skills thin and MCP-first; intentionally avoid turning SKILL files into duplicated application specs
 - Preserve typed lifecycle/control-plane primitives instead of free-form execution wrappers
 
+#### Artifact Pipeline Hardening
+
+Primr needs a sharper separation between **intermediate research artifacts** and **final shipping artifacts**. This is now a near-term priority because the product is increasingly used for long-form outputs that need to survive batch runs and deterministic rendering, not just one-off interactive use.
+
+Why this work matters:
+- Research-stage artifacts such as scrape summaries, source inventories, contradiction notes, and section briefs are primarily machine-facing inputs to later stages. Their job is to be consistent, parseable, and provenance-preserving, not beautifully formatted.
+- Final reports and strategy documents are different. Their job is to ship as polished Markdown, TXT, DOCX, and PDF artifacts with stable section structure, auditable citations, clean tables/lists/headings, and predictable validation behavior.
+- Treating both classes of output as "just markdown" creates avoidable failure modes: placeholder leakage, brittle regex repair, false-positive validator blocks, and renderer edge cases that only show up at batch scale.
+
+What has already shipped:
+- A normalized final-document model for shipping artifacts so report/strategy markdown is canonicalized before rendering and validation
+- Typed `GeneratedSection` normalization at the writer boundary, including embedded-reference stripping, single trailing `What to validate:` enforcement, and citation extraction
+- Support for mixed section output formats during parsing, so the pipeline can recover if the model mixes XML-style section envelopes with legacy `##` headings
+- Cleaner DOCX artifact validation with fewer false positives from literal markdown-like content inside rendered tables
+- Regression coverage for recent artifact-parser and shipping-path edge cases
+
+Planned next steps:
+- Keep intermediate research outputs flexible, but make them more explicitly structured for downstream consumption (evidence packets, source inventories, contradiction records, section briefs)
+- Push more consistency upstream into the long-form writing and regeneration prompts so final-stage cleanup has less arbitrary prose repair to do
+- Strengthen artifact shipping gates to validate section structure and citation integrity, not just scan for forbidden markdown leftovers
+- Build a regression corpus from real shipped and failed artifacts so renderer/validator changes are tested against actual long-form outputs
+- Continue moving final rendering toward structured document data rather than free-form markdown recovery wherever practical
+
+Decision principle:
+- Be permissive about formatting in the research pipeline, but strict about formatting and structure in the final document pipeline.
+
 #### Grok Tier Evaluation — 4-Way Comparison
 
 Run the eval harness on 3-5 companies across all Grok tiers (fast/hybrid/max/multi-agent) plus premium to produce a proper scorecard. Hybrid is now the default based on initial Litehouse Foods comparison (meaningfully better analytical depth for ~$0.20 more). Need systematic data to confirm hybrid remains the right default, whether max tier ever justifies 6x the cost, and where multi-agent fits in the lineup.
