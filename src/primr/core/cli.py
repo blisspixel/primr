@@ -3884,7 +3884,7 @@ def process_batch(
                 )
                 if is_billing:
                     console.error(
-                        f"  xAI credits exhausted — add credits at https://console.x.ai/"
+                        "  xAI credits exhausted — add credits at https://console.x.ai/"
                     )
                     if skip_confirm:
                         console.info(

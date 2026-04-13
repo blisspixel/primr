@@ -94,6 +94,7 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 if TYPE_CHECKING:
+    from primr.output.final_artifact import GeneratedSection
     from primr.prompts.loader import SectionConfig
 
 from dotenv import load_dotenv
@@ -2810,7 +2811,7 @@ def _parse_batch_sections(
     expected_sections: list["SectionConfig"],
 ) -> list["GeneratedSection"]:
     """Parse Grok's batch response from XML envelopes and/or markdown headings."""
-    parsed: list["GeneratedSection"] = []
+    parsed: list[GeneratedSection] = []
     preamble, blocks = _extract_generated_section_blocks(content)
 
     for idx, (title, body) in enumerate(blocks):
@@ -4424,7 +4425,7 @@ def perform_fast_research(
         # should NOT be in the ToC during batch writing — avoids off-by-one where
         # [NOW] marker points to the wrong section name.
         all_section_names = [s.name for batch in section_batches for s in batch]
-        written_sections: list["GeneratedSection"] = []
+        written_sections: list[GeneratedSection] = []
         effective_name = company_name or display_name
 
         global_offset = 0
