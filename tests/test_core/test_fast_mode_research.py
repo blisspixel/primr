@@ -16,6 +16,10 @@ from primr.core.research_agent import (
     _fast_gap_analysis,
     _fast_regenerate_section,
     _normalize_fast_citations,
+    _normalize_generated_section_payload,
+    _parse_single_section,
+    _parse_structured_section_envelopes,
+    _parse_batch_sections,
 )
 from primr.prompts.loader import SectionConfig
 
@@ -760,3 +764,128 @@ class TestFastSectionReasoning:
         assert "strategic implication" in prompt
         assert "Keep citations compact" in prompt
         assert "final Sources appendix" in prompt
+
+
+class TestGeneratedSectionNormalization:
+    """Tests for stricter section payload normalization before report assembly."""
+
+    def test_normalize_generated_section_payload_removes_embedded_reference_appendix(self):
+        payload = _normalize_generated_section_payload(
+            "Executive Summary",
+            "Core analysis (Reported).\n\n## Sources\n\n[cite: 1] https://example.com/a\n",
+            "Executive Summary",
+        )
+
+        assert payload.title == "Executive Summary"
+        assert "## Sources" not in payload.content
+        assert payload.content.endswith(payload.validate_line)
+
+    def test_normalize_generated_section_payload_keeps_single_trailing_validate_line(self):
+        payload = _normalize_generated_section_payload(
+            "SWOT Analysis",
+            "Point A.\n\nWhat to validate: Old question.\n\nMore detail.\n\nWhat to validate: Final question.",
+            "SWOT Analysis",
+        )
+
+        assert payload.content.count("What to validate:") == 1
+        assert payload.validate_line == "What to validate: Final question."
+        assert payload.content.endswith("What to validate: Final question.")
+
+    def test_normalize_generated_section_payload_strips_nested_heading_from_body(self):
+        payload = _normalize_generated_section_payload(
+            "Competitive Landscape",
+            "## Wrong Heading\n\nComparison body.\n\nWhat to validate: Confirm competitor win-loss reasons.",
+            "Competitive Landscape",
+        )
+
+        assert not payload.content.startswith("## ")
+        assert payload.content.startswith("Comparison body.")
+        assert payload.content.endswith("What to validate: Confirm competitor win-loss reasons.")
+
+    def test_parse_single_section_normalizes_title_and_validate_line(self):
+        class ExpectedSection:
+            name = "Competitive Landscape"
+
+        parsed = _parse_single_section(
+            "## Wrong Heading\n\nComparison body.\n\nWhat to validate: Confirm competitor win-loss reasons.\n\n## References\n\n[cite: 1] https://example.com/a\n",
+            ExpectedSection(),
+        )
+
+        assert parsed.title == "Competitive Landscape"
+        assert "## References" not in parsed.content
+        assert parsed.content.endswith("What to validate: Confirm competitor win-loss reasons.")
+
+
+    def test_parse_structured_section_envelopes_reads_xml_blocks(self):
+        content = (
+            "<section><title>Executive Summary</title><body>Summary body.\n\nWhat to validate: Confirm summary.</body></section>"
+            "<section><title>SWOT Analysis</title><body>SWOT body.\n\nWhat to validate: Confirm SWOT.</body></section>"
+        )
+
+        parsed = _parse_structured_section_envelopes(content)
+
+        assert parsed[0][0] == "Executive Summary"
+        assert parsed[1][0] == "SWOT Analysis"
+
+    def test_parse_single_section_prefers_structured_envelope(self):
+        class ExpectedSection:
+            name = "Competitive Landscape"
+
+        parsed = _parse_single_section(
+            "<section><title>Wrong Heading</title><body>Comparison body.\n\nWhat to validate: Confirm competitor win-loss reasons.</body></section>",
+            ExpectedSection(),
+        )
+
+        assert parsed.title == "Competitive Landscape"
+        assert parsed.content.endswith("What to validate: Confirm competitor win-loss reasons.")
+
+    def test_parse_batch_sections_prefers_structured_envelopes(self):
+        class ExpectedSection:
+            def __init__(self, name: str):
+                self.name = name
+
+        expected = [ExpectedSection("Executive Summary"), ExpectedSection("SWOT Analysis")]
+        content = (
+            "<section><title>Executive Summary</title><body>Summary body.\n\nWhat to validate: Confirm summary.</body></section>"
+            "<section><title>SWOT Analysis</title><body>SWOT body.\n\nWhat to validate: Confirm SWOT.</body></section>"
+        )
+
+        parsed = _parse_batch_sections(content, expected)
+
+        assert [section.title for section in parsed] == ["Executive Summary", "SWOT Analysis"]
+
+
+    def test_parse_batch_sections_handles_mixed_envelope_and_markdown_output(self):
+        class ExpectedSection:
+            def __init__(self, name: str):
+                self.name = name
+
+        expected = [ExpectedSection("Executive Summary"), ExpectedSection("SWOT Analysis")]
+        content = (
+            "<section><title>Wrong Summary</title><body>Summary body.\n\nWhat to validate: Confirm summary.</body></section>\n\n"
+            "## Wrong SWOT\n\nSWOT body.\n\nWhat to validate: Confirm SWOT."
+        )
+
+        parsed = _parse_batch_sections(content, expected)
+
+        assert [section.title for section in parsed] == ["Executive Summary", "SWOT Analysis"]
+        assert parsed[0].content.endswith("What to validate: Confirm summary.")
+        assert parsed[1].content.endswith("What to validate: Confirm SWOT.")
+
+    def test_parse_batch_sections_keeps_preamble_on_first_section_with_mixed_output(self):
+        class ExpectedSection:
+            def __init__(self, name: str):
+                self.name = name
+
+        expected = [ExpectedSection("Executive Summary"), ExpectedSection("SWOT Analysis")]
+        content = (
+            "Internal note before sections.\n\n"
+            "<section><title>Executive Summary</title><body>Summary body.\n\nWhat to validate: Confirm summary.</body></section>\n\n"
+            "## SWOT Analysis\n\nSWOT body.\n\nWhat to validate: Confirm SWOT."
+        )
+
+
+        parsed = _parse_batch_sections(content, expected)
+
+        assert parsed[0].content.startswith("Internal note before sections.")
+        assert parsed[0].content.endswith("What to validate: Confirm summary.")

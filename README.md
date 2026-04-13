@@ -30,6 +30,20 @@ Company research is tedious. You visit the website, click around, search the com
 - **Cost controls built in**: `--dry-run` estimates (including recovery table and stage classifications), usage tracking, and governance hooks for budget limits.
 - **Agent-native interfaces**: CLI, MCP server, OpenClaw integration, and Claude Skills, all first-class.
 
+## Artifact Model
+
+Primr treats **research artifacts** and **shipping artifacts** as different classes of output. Intermediate research steps such as scrape summaries, gap-analysis notes, source inventories, contradiction findings, and section briefs optimize for consistency, provenance, and parseability. Their formatting matters far less than whether they are complete and structured enough to feed later stages reliably.
+
+Final reports and strategy documents are different. Those artifacts must ship cleanly as Markdown, TXT, DOCX, and eventually PDF, so Primr treats them as a stricter output contract with deterministic cleanup, citation normalization, validation gates, and renderer hardening.
+
+What is already in place:
+- Final-document canonicalization before shipping so report/strategy artifacts are normalized into a stable shape before MD/TXT/DOCX rendering
+- Typed generated-section normalization at the section-writing seam, including validation-line cleanup, embedded reference stripping, and citation extraction
+- Mixed-format parsing resilience so section batches can recover cleanly even if the model blends XML-style section envelopes with legacy `##` headings
+- Cleaner artifact validation for rendered DOCX outputs, including reduced false positives from literal `#` content inside tables
+
+Near-term work remains focused on pushing more structure upstream into the long-form writing steps, reducing arbitrary markdown repair before shipping, and strengthening artifact gates against real-world failed artifacts.
+
 ## Modes
 
 | Mode | What it does | Time | Cost |

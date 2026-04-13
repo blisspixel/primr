@@ -95,3 +95,15 @@ def test_normalize_fast_citations_repairs_malformed_inline_citations():
     assert "[cite: 2]" in body
     assert "[cite: 1] https://example.com/a" in normalized
     assert "[cite: 2] https://example.com/b" in normalized
+
+
+def test_normalize_fast_citations_strips_plural_cites_placeholders_without_urls():
+    content = (
+        "## Findings\n\n"
+        "Claim [cites: 1=website homepage; 2=workbook].\n"
+    )
+
+    normalized = _normalize_fast_citations(content)
+
+    assert "[cites:" not in normalized
+    assert "[cite:" not in normalized
