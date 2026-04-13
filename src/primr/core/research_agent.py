@@ -1203,7 +1203,7 @@ def _build_fast_batch_prompt(
     external_sources: str,
     source_urls: list[str],
     sections: list["SectionConfig"],
-    previous_sections: list[dict[str, Any]],
+    previous_sections: list["GeneratedSection"],
     batch_number: int,
     total_batches: int,
 ) -> str:
@@ -1240,11 +1240,11 @@ def _build_fast_batch_prompt(
         context_parts: list[str] = []
         for s in recent:
             # Truncate each section to ~400 words for rolling context
-            words = s["content"].split()
+            words = s.content.split()
             summary = " ".join(words[:400])
             if len(words) > 400:
                 summary += " ..."
-            context_parts.append(f"**{s['title']}** (completed):\n{summary}")
+            context_parts.append(f"**{s.title}** (completed):\n{summary}")
         rolling_context = "\n\n".join(context_parts)
 
     rolling_block = (
@@ -1340,6 +1340,14 @@ CITATION FORMAT (strict):
 - Inline claims must reference citations as [cite: N]
 - Reuse the same citation number for the same URL
 - Do not emit [Source: URL] inline; use [cite: N] only
+
+OUTPUT CONTRACT (strict):
+- Preferred format: emit each section inside a lightweight XML envelope:
+  <section><title>Exact Section Name</title><body>Section body here</body></section>
+- If you do not use the XML envelope, start each section with exactly one ## heading matching the requested section name
+- Do not add a ## Sources, ## References, or ## Citations subsection inside section output
+- Include exactly one What to validate: line per section, and make it the final line of that section
+- Do not include any preamble or commentary outside the requested section bodies
 """
 
 
@@ -1388,7 +1396,7 @@ def _build_fast_section_prompt(
     external_sources: str,
     source_urls: list[str],
     section: "SectionConfig",
-    written_sections: list[dict[str, Any]],
+    written_sections: list["GeneratedSection"],
     section_index: int,
     all_section_names: list[str],
     reasoning_mode: str = "standard",
@@ -1432,17 +1440,17 @@ def _build_fast_section_prompt(
             # Framework sections and executive summary need full prior content
             # to synthesise insights from earlier analytical sections
             context_parts = [
-                f"**{s['title']}** (completed):\n{s['content']}" for s in written_sections
+                f"**{s.title}** (completed):\n{s.content}" for s in written_sections
             ]
         else:
             recent = written_sections[-5:]
             context_parts = []
             for s in recent:
-                words = s["content"].split()
+                words = s.content.split()
                 summary = " ".join(words[:300])
                 if len(words) > 300:
                     summary += " ..."
-                context_parts.append(f"**{s['title']}** (completed):\n{summary}")
+                context_parts.append(f"**{s.title}** (completed):\n{summary}")
         rolling_context = "\n\n".join(context_parts)
 
     rolling_block = (
@@ -1550,33 +1558,157 @@ CITATION FORMAT (strict):
 - Inline claims must reference citations as [cite: N]
 - Reuse the same citation number for the same URL
 - Do not emit [Source: URL] inline; use [cite: N] only
+
+OUTPUT CONTRACT (strict):
+- Preferred format: emit each section inside a lightweight XML envelope:
+  <section><title>Exact Section Name</title><body>Section body here</body></section>
+- If you do not use the XML envelope, start each section with exactly one ## heading matching the requested section name
+- Do not add a ## Sources, ## References, or ## Citations subsection inside section output
+- Include exactly one What to validate: line per section, and make it the final line of that section
+- Do not include any preamble or commentary outside the requested section bodies
 """
+
+
+def _normalize_generated_section_payload(
+    title: str,
+    body: str,
+    expected_title: str | None = None,
+) -> "GeneratedSection":
+    """Normalize a generated section into a stricter payload contract."""
+    canonical_title = (expected_title or title or "Section").strip().rstrip("#").strip()
+    working_body = body.strip()
+
+    # Drop a duplicated section heading if the model nested one inside the body.
+    heading_match = re.match(r"^##\s+.+?(?:\n+|$)", working_body)
+    if heading_match:
+        working_body = working_body[heading_match.end() :].lstrip()
+
+    # Drop any embedded reference appendix the model tried to include inside a section.
+    ref_match = re.search(
+        r"^##\s+(Sources|References|Citations)\s*$",
+        working_body,
+        flags=re.IGNORECASE | re.MULTILINE,
+    )
+    if ref_match:
+        working_body = working_body[: ref_match.start()].rstrip()
+
+    validation_lines: list[str] = []
+    cleaned_lines: list[str] = []
+    for raw_line in working_body.splitlines():
+        stripped = raw_line.strip()
+        if re.match(r"^What to validate:\s*", stripped, flags=re.IGNORECASE):
+            question = re.sub(r"^What to validate:\s*", "", stripped, flags=re.IGNORECASE).strip()
+            if question:
+                validation_lines.append(f"What to validate: {question}")
+            continue
+        cleaned_lines.append(raw_line)
+
+    cleaned_body = "\n".join(cleaned_lines).strip()
+    validation_line = (
+        validation_lines[-1]
+        if validation_lines
+        else "What to validate: Confirm this section's key claim with primary customer or operator evidence."
+    )
+    content = (cleaned_body + "\n\n" + validation_line).strip() if cleaned_body else validation_line
+    citation_numbers: list[int] = []
+    for raw_group in re.findall(r"\[cite:\s*([0-9,\s]+)\]", content, re.IGNORECASE):
+        for raw_num in raw_group.split(","):
+            raw_num = raw_num.strip()
+            if raw_num.isdigit():
+                num = int(raw_num)
+                if num not in citation_numbers:
+                    citation_numbers.append(num)
+
+    from primr.output.final_artifact import GeneratedSection
+
+    return GeneratedSection(
+        title=canonical_title,
+        content=content,
+        words=len(content.split()),
+        validate_line=validation_line,
+        citation_numbers=citation_numbers,
+    )
+
+
+def _parse_structured_section_envelopes(content: str) -> list[tuple[str, str]]:
+    """Parse optional XML-style section envelopes emitted by the writer stage."""
+    matches = re.findall(
+        r"<section>\s*<title>(.*?)</title>\s*<body>(.*?)</body>\s*</section>",
+        content,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    parsed: list[tuple[str, str]] = []
+    for title, body in matches:
+        clean_title = re.sub(r"\s+", " ", title).strip()
+        clean_body = body.strip()
+        if clean_title:
+            parsed.append((clean_title, clean_body))
+    return parsed
+
+
+_SECTION_ENVELOPE_RE = re.compile(
+    r"<section>\s*<title>(.*?)</title>\s*<body>(.*?)</body>\s*</section>",
+    re.IGNORECASE | re.DOTALL,
+)
+_SECTION_HEADING_RE = re.compile(r"^##\s+(.+?)\s*$", re.MULTILINE)
+
+
+def _extract_generated_section_blocks(content: str) -> tuple[str, list[tuple[str, str]]]:
+    """Extract generated sections in source order from XML envelopes and/or markdown headings."""
+    envelope_matches = list(_SECTION_ENVELOPE_RE.finditer(content))
+    envelope_spans = [(match.start(), match.end()) for match in envelope_matches]
+
+    def inside_envelope(position: int) -> bool:
+        return any(start <= position < end for start, end in envelope_spans)
+
+    heading_matches = [
+        match for match in _SECTION_HEADING_RE.finditer(content) if not inside_envelope(match.start())
+    ]
+
+    block_starts = sorted([match.start() for match in envelope_matches] + [match.start() for match in heading_matches])
+    parsed_blocks: list[tuple[int, str, str]] = []
+
+    for match in envelope_matches:
+        title = re.sub(r"\s+", " ", match.group(1)).strip()
+        body = match.group(2).strip()
+        if title:
+            parsed_blocks.append((match.start(), title, body))
+
+    for match in heading_matches:
+        next_start = next((start for start in block_starts if start > match.start()), len(content))
+        title = match.group(1).strip().rstrip("#").strip()
+        body = content[match.end() : next_start].strip()
+        if title:
+            parsed_blocks.append((match.start(), title, body))
+
+    parsed_blocks.sort(key=lambda item: item[0])
+    preamble_end = parsed_blocks[0][0] if parsed_blocks else 0
+    preamble = content[:preamble_end].strip()
+    ordered_blocks = [(title, body) for _, title, body in parsed_blocks]
+    return preamble, ordered_blocks
 
 
 def _parse_single_section(
     content: str,
     expected_section: "SectionConfig",
-) -> dict[str, Any]:
+) -> "GeneratedSection":
     """Parse Grok's single-section response.
 
-    Expects one ``## `` heading. Strips preamble text before the heading.
+    Expects one ``## `` heading or an optional ``<section>`` envelope.
     Falls back to using the expected section name if no heading found.
     """
-    parts = re.split(r"^## ", content, flags=re.MULTILINE)
+    preamble, blocks = _extract_generated_section_blocks(content)
+    if blocks:
+        title, body = blocks[0]
+        if preamble:
+            body = f"{preamble}\n\n{body}".strip()
+        return _normalize_generated_section_payload(title, body, expected_section.name)
 
-    if len(parts) >= 2:
-        # First element is preamble (usually empty), second is heading+body
-        section_text = parts[1]
-        lines = section_text.split("\n", 1)
-        title = lines[0].strip().rstrip("#").strip().lstrip("#").strip()
-        body = lines[1].strip() if len(lines) > 1 else ""
-    else:
-        # No ## heading found — use expected name, treat whole content as body
-        title = expected_section.name
-        body = content.strip()
-
-    word_count = len(body.split())
-    return {"title": title, "content": body, "words": word_count}
+    return _normalize_generated_section_payload(
+        expected_section.name,
+        content.strip(),
+        expected_section.name,
+    )
 
 
 def _determine_section_reasoning_mode(section: "SectionConfig", analysis_workbook: str) -> str:
@@ -1598,7 +1730,7 @@ def _write_section_with_retry(
     section: "SectionConfig",
     section_index: int,
     all_section_names: list[str],
-    written_sections: list[dict[str, Any]],
+    written_sections: list["GeneratedSection"],
     company_name: str,
     website: str | None,
     analysis_workbook: str,
@@ -1660,15 +1792,15 @@ def _write_section_with_retry(
     parsed = _parse_single_section(section_content, section)
 
     # Thin-section retry: if < 50% of target, retry once
-    if parsed["words"] < word_target * 0.5:
+    if parsed.words < word_target * 0.5:
         logger.warning(
             "Section '%s' too thin (%d/%d words), retrying",
             section.name,
-            parsed["words"],
+            parsed.words,
             word_target,
         )
         retry_prompt = (
-            f"IMPORTANT: Your previous attempt produced only {parsed['words']} words. "
+            f"IMPORTANT: Your previous attempt produced only {parsed.words} words. "
             f"The minimum target is {word_target} words. Write a substantive, strategist-grade, "
             f"decision-useful section. If direct evidence is limited, deepen the analysis with explicit "
             f"inference and strategic implications rather than staying thin.\n\n" + prompt
@@ -1683,7 +1815,7 @@ def _write_section_with_retry(
             )
             if retry_content and retry_content.strip():
                 retry_parsed = _parse_single_section(retry_content, section)
-                if retry_parsed["words"] > parsed["words"]:
+                if retry_parsed.words > parsed.words:
                     parsed = retry_parsed
         except Exception as retry_err:
             logger.warning("Section '%s' retry failed: %s", section.name, retry_err)
@@ -1847,7 +1979,7 @@ def _clean_fast_report_output(report_content: str) -> str:
         return _sanitize_numeric_cite_bracket(match.group(1))
 
     report_content = re.sub(
-        r"\[([^\]]*cite:\s*[^\]]+)\]",
+        r"\[([^\]]*cites?:\s*[^\]]+)\]",
         _strip_informal_cites,
         report_content,
         flags=re.IGNORECASE,
@@ -1923,7 +2055,7 @@ def _rewrite_cite_from_url_tags(content: str) -> str:
 def _sanitize_numeric_cite_bracket(inner: str) -> str:
     """Keep only numeric cite ids from a mixed citation bracket."""
     nums: list[str] = []
-    for cite_match in re.finditer(r"cite:\s*([^;\]]+)", inner, re.IGNORECASE):
+    for cite_match in re.finditer(r"cites?:\s*([^;\]]+)", inner, re.IGNORECASE):
         for raw_num in re.findall(r"\d+", cite_match.group(1)):
             if raw_num not in nums:
                 nums.append(raw_num)
@@ -2149,7 +2281,7 @@ def _normalize_fast_citations(report_content: str) -> str:
     """
     report_content = _rewrite_cite_from_url_tags(report_content)
     report_content = re.sub(
-        r"\[([^\]]*cite:\s*[^\]]+)\]",
+        r"\[([^\]]*cites?:\s*[^\]]+)\]",
         lambda m: _sanitize_numeric_cite_bracket(m.group(1)),
         report_content,
         flags=re.IGNORECASE,
@@ -2506,14 +2638,23 @@ def _compute_fast_report_qa_metrics(
             r"\((Confirmed|Reported|Estimated|Hypothesis)[^)]*\)", report_content, re.IGNORECASE
         )
     )
-    citation_refs = re.findall(r"\[cite:\s*(\d+)\]", report_content, re.IGNORECASE)
-    cited_numbers = {int(n) for n in citation_refs}
+    cited_numbers: set[int] = set()
+    for raw_group in re.findall(r"\[cite:\s*([0-9,\s]+)\]", report_content, re.IGNORECASE):
+        for raw_num in raw_group.split(","):
+            raw_num = raw_num.strip()
+            if raw_num.isdigit():
+                cited_numbers.add(int(raw_num))
 
     sources_block = ""
     match = re.search(r"^##\s+Sources\s*$", report_content, flags=re.IGNORECASE | re.MULTILINE)
     if match:
         sources_block = report_content[match.start() :]
-    defined = {int(n) for n in re.findall(r"\[cite:\s*(\d+)\]", sources_block, re.IGNORECASE)}
+    defined: set[int] = set()
+    for raw_group in re.findall(r"\[cite:\s*([0-9,\s]+)\]", sources_block, re.IGNORECASE):
+        for raw_num in raw_group.split(","):
+            raw_num = raw_num.strip()
+            if raw_num.isdigit():
+                defined.add(int(raw_num))
     missing = sorted(cited_numbers - defined)
 
     _, sections = _split_markdown_sections(report_content)
@@ -2667,45 +2808,32 @@ Return the fully edited markdown report only.
 def _parse_batch_sections(
     content: str,
     expected_sections: list["SectionConfig"],
-) -> list[dict[str, Any]]:
-    """
-    Parse Grok's batch response by splitting on ``## `` headings.
+) -> list["GeneratedSection"]:
+    """Parse Grok's batch response from XML envelopes and/or markdown headings."""
+    parsed: list["GeneratedSection"] = []
+    preamble, blocks = _extract_generated_section_blocks(content)
 
-    Returns a list of dicts with keys ``title`` (str), ``content`` (str),
-    and ``words`` (int).  If headings don't split cleanly, falls back to
-    treating the whole response as a single block assigned to the first
-    expected section.
-    """
-    # Split on ## headings (keep the heading text)
-    parts = re.split(r"^## ", content, flags=re.MULTILINE)
-    parsed: list[dict[str, Any]] = []
+    for idx, (title, body) in enumerate(blocks):
+        expected_title = expected_sections[idx].name if idx < len(expected_sections) else title
+        parsed.append(_normalize_generated_section_payload(title, body, expected_title))
 
-    # First element is any text before the first ## (usually empty)
-    preamble = parts[0].strip() if parts else ""
-
-    for part in parts[1:]:
-        # First line is the heading, rest is content
-        lines = part.split("\n", 1)
-        title = lines[0].strip().rstrip("#").strip()
-        body = lines[1].strip() if len(lines) > 1 else ""
-        word_count = len(body.split())
-        parsed.append({"title": title, "content": body, "words": word_count})
-
-    # Fallback: if we got fewer sections than expected, treat whole content as one block
-    if len(parsed) == 0 and content.strip():
-        word_count = len(content.split())
+    if not parsed and content.strip():
+        expected_title = expected_sections[0].name if expected_sections else "Section"
         parsed.append(
-            {
-                "title": expected_sections[0].name if expected_sections else "Section",
-                "content": content.strip(),
-                "words": word_count,
-            }
+            _normalize_generated_section_payload(
+                expected_title,
+                content.strip(),
+                expected_title,
+            )
         )
 
-    # If there's a preamble and we have parsed sections, prepend it to the first section
     if preamble and parsed:
-        parsed[0]["content"] = preamble + "\n\n" + parsed[0]["content"]
-        parsed[0]["words"] = len(parsed[0]["content"].split())
+        first_body = parsed[0].content
+        parsed[0] = _normalize_generated_section_payload(
+            parsed[0].title,
+            preamble + "\n\n" + first_body,
+            parsed[0].title,
+        )
 
     return parsed
 
@@ -2713,7 +2841,7 @@ def _parse_batch_sections(
 def _assemble_fast_report(
     company_name: str,
     website: str | None,
-    written_sections: list[dict[str, Any]],
+    written_sections: list["GeneratedSection"],
 ) -> str:
     """
     Assemble individual batch sections into a final markdown report.
@@ -2728,7 +2856,7 @@ def _assemble_fast_report(
 
     body_parts: list[str] = []
     for i, section in enumerate(written_sections):
-        body_parts.append(f"## {section['title']}\n\n{section['content']}")
+        body_parts.append(section.to_markdown())
         # Horizontal separator every 5 sections (matches full mode)
         if (i + 1) % 5 == 0 and i + 1 < len(written_sections):
             body_parts.append("---")
@@ -4296,7 +4424,7 @@ def perform_fast_research(
         # should NOT be in the ToC during batch writing — avoids off-by-one where
         # [NOW] marker points to the wrong section name.
         all_section_names = [s.name for batch in section_batches for s in batch]
-        written_sections: list[dict[str, Any]] = []
+        written_sections: list["GeneratedSection"] = []
         effective_name = company_name or display_name
 
         global_offset = 0
@@ -4313,7 +4441,7 @@ def perform_fast_research(
             def _write_one(
                 idx_section: tuple[int, "SectionConfig"],
                 _offset: int = global_offset,
-                _prior: list[dict[str, Any]] = prior_sections,
+                _prior: list["GeneratedSection"] = prior_sections,
             ) -> tuple[int, dict[str, Any] | None]:
                 local_idx, sec = idx_section
 
@@ -4359,16 +4487,16 @@ def perform_fast_research(
 
             # Sort by local index to maintain canonical section order
             results.sort(key=lambda x: x[0])
-            seen_titles: set[str] = {s["title"].lower().strip() for s in written_sections}
+            seen_titles: set[str] = {s.title.lower().strip() for s in written_sections}
             for local_idx, parsed in results:
                 if parsed:
-                    title_key = parsed["title"].lower().strip()
+                    title_key = parsed.title.lower().strip()
                     if title_key in seen_titles:
                         console.warn(f"  {parsed['title']} — duplicate, skipping")
                         continue
                     seen_titles.add(title_key)
                     written_sections.append(parsed)
-                    console.ok(f"  {parsed['title']} ({parsed['words']:,} words)")
+                    console.ok(f"  {parsed.title} ({parsed.words:,} words)")
                 else:
                     sec_name = part_sections[local_idx].name
                     console.warn(f"  {sec_name} — skipped (failed or empty)")
@@ -6661,16 +6789,25 @@ def _extract_docx_text(document: Any) -> str:
 
 def _prepare_report_markdown_for_shipping(markdown_content: str) -> str:
     """Apply deterministic cleanup before report artifact validation/shipping."""
+    from primr.output.final_artifact import canonicalize_final_markdown
+
     prepared = _clean_fast_report_output(markdown_content)
+    prepared = canonicalize_final_markdown(prepared)
     prepared = _normalize_fast_citations(prepared)
     prepared = _strip_internal_source_placeholders(prepared)
     prepared = _enforce_fast_section_quality_guards(prepared)
+    prepared = canonicalize_final_markdown(prepared)
     return prepared
 
 
 def _prepare_strategy_markdown_for_shipping(strategy_content: str) -> str:
     """Apply deterministic cleanup before strategy artifact validation/shipping."""
-    return _clean_strategy_output(strategy_content)
+    from primr.output.final_artifact import canonicalize_final_markdown
+
+    prepared = canonicalize_final_markdown(strategy_content)
+    prepared = _clean_strategy_output(prepared)
+    prepared = canonicalize_final_markdown(prepared)
+    return prepared
 
 
 def _prepare_markdown_for_shipping(content: str, kind: str) -> str:

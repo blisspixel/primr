@@ -29,6 +29,13 @@ from primr.output.executive_summary import (
 from primr.output.executive_summary_generator import (
     ExecutiveSummaryGenerator as PremiumExecutiveSummaryGenerator,
 )
+from primr.output.final_artifact import (
+    FinalDocument,
+    FinalSection,
+    GeneratedSection,
+    canonicalize_final_markdown,
+    parse_final_markdown,
+)
 from primr.output.markdown_parser import ArtifactDetector, MarkdownParser
 
 # Premium report generation components
@@ -79,20 +86,20 @@ __all__ = [
     "ContentBlock",
     "ContentPatternDetector",
     "DataConfidenceIndicator",
-    # Premium report generation
     "DocumentBuilder",
     "DocumentDisclaimer",
     "DocumentMetadata",
     "DualCodingEnhancer",
     "ExecutiveSummary",
-    # Executive summary
     "ExecutiveSummaryGenerator",
+    "FinalDocument",
+    "FinalSection",
+    "GeneratedSection",
     "FinancialDashboard",
     "FindingCategory",
     "KeyFinding",
     "KeyImplicationsBox",
     "MarkdownParser",
-    # Polish elements
     "OneLinerSummary",
     "OutputFormat",
     "ParsedLine",
@@ -103,16 +110,15 @@ __all__ = [
     "ReportMetadata",
     "ReportSection",
     "ReportStyle",
-    # Templates
     "ReportTemplate",
     "SectionContent",
     "SectionType",
-    # Consulting-tier components
     "SectionWriter",
     "SourceCitation",
     "StrategicRecommendationFormatter",
     "StyleEngine",
     "TableBuilder",
+    "canonicalize_final_markdown",
     "create_report",
     "extract_key_points",
     "format_executive_summary",
@@ -121,6 +127,7 @@ __all__ = [
     "generate_report",
     "get_report_template",
     "get_summary_generator",
+    "parse_final_markdown",
     "render_report",
     "reset_report_template",
     "reset_summary_generator",
