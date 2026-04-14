@@ -2,6 +2,7 @@ from primr.core.research_agent import (
     _compute_fast_report_qa_metrics,
     _enforce_fast_section_quality_guards,
     _polish_fast_report_for_trust,
+    _repair_fast_report_citation_integrity,
 )
 
 
@@ -117,3 +118,37 @@ def test_compute_fast_report_qa_metrics_counts_multi_cite_references():
     assert metrics["citations_used"] == 2
     assert metrics["citations_defined"] == 2
     assert metrics["missing_citations"] == 0
+
+
+def test_repair_fast_report_citation_integrity_adds_citations_when_structure_preserved(monkeypatch):
+    repaired = (
+        "## Executive Summary\n\n"
+        "Claim (Reported) [cite: 1].\n\n"
+        "What to validate: Confirm claim.\n\n"
+        "## Sources\n\n"
+        "[cite: 1] https://example.com/src\n"
+    )
+
+    monkeypatch.setattr("primr.ai.grok_client.grok_llm", lambda *a, **k: repaired)
+    original = "## Executive Summary\n\nClaim (Reported).\n\nWhat to validate: Confirm claim.\n"
+    result = _repair_fast_report_citation_integrity(
+        "ExampleCo", "https://example.com", original, ["https://example.com/src"]
+    )
+    assert result == repaired
+
+
+def test_repair_fast_report_citation_integrity_rejects_structure_changes(monkeypatch):
+    broken = (
+        "## Different Heading\n\n"
+        "Claim (Reported) [cite: 1].\n\n"
+        "What to validate: Confirm claim.\n\n"
+        "## Sources\n\n"
+        "[cite: 1] https://example.com/src\n"
+    )
+
+    monkeypatch.setattr("primr.ai.grok_client.grok_llm", lambda *a, **k: broken)
+    original = "## Executive Summary\n\nClaim (Reported).\n\nWhat to validate: Confirm claim.\n"
+    result = _repair_fast_report_citation_integrity(
+        "ExampleCo", "https://example.com", original, ["https://example.com/src"]
+    )
+    assert result == original

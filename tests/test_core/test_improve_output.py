@@ -383,3 +383,26 @@ def test_prepare_strategy_markdown_for_shipping_merges_reference_sections():
     assert prepared.count("## Sources") == 1
     assert "## References" not in prepared
     assert prepared.index("## Recommended AI Architecture Posture") < prepared.index("## Sources")
+
+
+def test_clean_strategy_output_strips_unresolved_section_cross_refs():
+    content = (
+        "## Executive Summary\n\n"
+        "Quick wins are prioritized [see ## Five Quick Wins and ## Five Bigger Bets].\n"
+    )
+    cleaned = _clean_strategy_output(content)
+    assert "[see ##" not in cleaned
+    assert "Quick wins are prioritized" in cleaned
+
+
+def test_compute_strategy_qa_metrics_flags_unresolved_section_cross_refs():
+    content = (
+        "# AI Strategy: Demo\n\n"
+        "Reference [see ## Five Quick Wins].\n\n"
+        "## Sources\n\n"
+        "[cite: 1] https://example.com/a\n"
+        "[cite: 2] https://example.com/b\n"
+    )
+    metrics = _compute_strategy_qa_metrics(content)
+    assert metrics["placeholder_refs"] >= 1
+    assert metrics["qa_gate_passed"] is False
