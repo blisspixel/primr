@@ -2106,6 +2106,43 @@ def _strip_internal_source_placeholders(content: str) -> str:
     return cleaned
 
 
+def _strip_unresolved_section_cross_references(content: str) -> str:
+    """Remove unresolved internal section references that should not ship."""
+    if not content.strip():
+        return content
+
+    cleaned = re.sub(
+        r"\[\s*(?:see|cross-?ref|xref)\s+##\s+[^\]]+\]",
+        "",
+        content,
+        flags=re.IGNORECASE,
+    )
+    cleaned = re.sub(r"\s{2,}", " ", cleaned)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    return cleaned
+
+
+def _extract_markdown_headings(content: str) -> list[str]:
+    """Return normalized markdown headings in document order."""
+    return [heading.strip() for heading in re.findall(r"^##\s+(.+?)\s*$", content, re.MULTILINE)]
+
+
+def _preserves_report_structure(original: str, candidate: str) -> bool:
+    """Require same ordered headings, allowing only an appended sources section."""
+    original_headings = _extract_markdown_headings(original)
+    candidate_headings = _extract_markdown_headings(candidate)
+    if candidate_headings[: len(original_headings)] != original_headings:
+        return False
+    extra_headings = [h.strip().lower() for h in candidate_headings[len(original_headings) :]]
+    if any(h not in {"sources", "citations", "references"} for h in extra_headings):
+        return False
+
+    original_words = len(original.split())
+    candidate_words = len(candidate.split())
+    if original_words == 0:
+        return False
+    return candidate_words >= int(original_words * 0.98)
+
 def _strategy_money_to_millions(value: float, unit: str) -> float:
     unit = unit.upper()
     if unit == "B":
@@ -2205,6 +2242,9 @@ def _compute_strategy_qa_metrics(strategy_content: str) -> dict[str, int | float
 
     lower = strategy_content.lower()
     placeholder_refs = sum(1 for term in _INTERNAL_REFERENCE_TERMS if term in lower)
+    placeholder_refs += len(
+        re.findall(r"\[\s*(?:see|cross-?ref|xref)\s+##\s+[^\]]+\]", strategy_content, re.IGNORECASE)
+    )
     raw_source_urls = len(
         re.findall(r"\[Source:\s*https?://[^\]\s]+", strategy_content, re.IGNORECASE)
     )
@@ -2269,6 +2309,7 @@ def _clean_strategy_output(strategy_content: str) -> str:
     cleaned = _clean_fast_report_output(strategy_content)
     cleaned = _normalize_fast_citations(cleaned)
     cleaned = _strip_internal_source_placeholders(cleaned)
+    cleaned = _strip_unresolved_section_cross_references(cleaned)
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
     return cleaned.strip() + "\n"
 
@@ -2707,6 +2748,77 @@ def _compute_fast_report_qa_metrics(
         "qa_gate_passed": qa_passed,
     }
 
+
+def _repair_fast_report_citation_integrity(
+    company_name: str,
+    website: str | None,
+    report_content: str,
+    source_urls: list[str],
+    model: str | None = None,
+) -> str:
+    """Repair missing citation linkage while preserving report structure."""
+    from primr.ai.grok_client import grok_llm
+
+    if not report_content.strip() or not source_urls:
+        return report_content
+
+    source_block = "\n".join(f"{i}. {u}" for i, u in enumerate(source_urls, 1))
+    prompt = f"""You are repairing citation integrity in a strategic markdown report.
+
+Company: {company_name}
+Website: {website or 'N/A'}
+
+Your job:
+- Keep ALL existing ## headings, sections, tables, and prose intact
+- Add compact inline citations as [cite: N] only where major factual claims or numeric claims appear
+- Add a final ## Sources appendix that maps each [cite: N] to one of the allowed URLs below
+- Reuse citation numbers consistently for the same URL
+- Do NOT invent URLs or add claims
+- Do NOT remove any 'What to validate:' lines
+- Output must preserve the existing section order and at least 98% of the original word count
+
+Allowed URLs:
+{source_block}
+
+Return the full corrected markdown report only.
+
+--- REPORT START ---
+{report_content}
+--- REPORT END ---
+"""
+    writing_model = model or GROK_MODEL_WRITING
+    try:
+        repaired = grok_llm(
+            prompt,
+            model=writing_model,
+            max_tokens=40_000,
+            temperature=0.2,
+            system_prompt="You are a meticulous editor fixing citations in-place without rewriting content.",
+        )
+    except Exception as repair_err:
+        logger.warning("Citation repair pass failed: %s", repair_err)
+        return report_content
+
+    if not repaired or not repaired.strip():
+        return report_content
+
+    repaired = _clean_fast_report_output(repaired)
+    repaired = _normalize_fast_citations(repaired)
+    repaired = _enforce_fast_section_quality_guards(repaired)
+
+    if not _preserves_report_structure(report_content, repaired):
+        logger.warning("Citation repair changed report structure too much; keeping original")
+        return report_content
+
+    repaired_metrics = _compute_fast_report_qa_metrics(repaired)
+    if (
+        repaired_metrics["citations_used"] > 0
+        and repaired_metrics["citations_defined"] > 0
+        and repaired_metrics["missing_citations"] == 0
+    ):
+        return repaired
+
+    return report_content
 
 def _polish_fast_report_for_trust(
     company_name: str,
@@ -4493,7 +4605,7 @@ def perform_fast_research(
                 if parsed:
                     title_key = parsed.title.lower().strip()
                     if title_key in seen_titles:
-                        console.warn(f"  {parsed['title']} — duplicate, skipping")
+                        console.warn(f"  {parsed.title} — duplicate, skipping")
                         continue
                     seen_titles.add(title_key)
                     written_sections.append(parsed)
@@ -4524,7 +4636,7 @@ def perform_fast_research(
             )
             if exec_parsed:
                 written_sections.insert(0, exec_parsed)
-                console.ok(f"  {exec_parsed['title']} ({exec_parsed['words']:,} words)")
+                console.ok(f"  {exec_parsed.title} ({exec_parsed.words:,} words)")
             else:
                 console.warn("  Executive Summary — skipped (failed or empty)")
 
@@ -4729,13 +4841,13 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
                 if resolved and resolved.strip():
                     resolved_words = len(resolved.split())
                     original_words = len(report_content.split())
-                    if resolved_words >= int(original_words * 0.95):
+                    if _preserves_report_structure(report_content, resolved):
                         report_content = resolved
                         unresolved_contradictions = 0
                         console.ok(f"Resolved {len(contradictions)} contradiction(s)")
                     else:
                         logger.warning(
-                            "Contradiction resolution dropped too many words (%d → %d), keeping original",
+                            "Contradiction resolution changed structure too much (%d → %d words or headings changed), keeping original",
                             original_words,
                             resolved_words,
                         )
@@ -4772,6 +4884,20 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
             report_content,
             unresolved_contradictions=unresolved_contradictions,
         )
+        if qa_metrics["citations_used"] == 0 or qa_metrics["citations_defined"] == 0:
+            repaired_report = _repair_fast_report_citation_integrity(
+                company_name or display_name,
+                website,
+                report_content,
+                source_urls,
+                model=grok_writing,
+            )
+            if repaired_report != report_content:
+                report_content = repaired_report
+                qa_metrics = _compute_fast_report_qa_metrics(
+                    report_content,
+                    unresolved_contradictions=unresolved_contradictions,
+                )
         qa_parts = [
             f"labels={qa_metrics['confidence_labels']}",
             f"cites={qa_metrics['citations_used']}/{qa_metrics['citations_defined']}",
@@ -6669,6 +6795,7 @@ def perform_deep_research(
 
 _FORBIDDEN_OUTPUT_PATTERNS: tuple[tuple[str, str], ...] = (
     ("raw_source_tag", r"\[Source:\s*(?:https?://)?[^\]\s]+"),
+    ("section_cross_ref", r"\[\s*(?:see|cross-?ref|xref)\s+##\s+[^\]]+\]"),
     ("workbook_ref", r"\[Workbook:[^\]]*\]"),
     ("workbook_section_ref", r"\[workbook section[^\]]*\]"),
     ("workbook_section_symbol", r"\[Workbook §[^\]]*\]"),
@@ -6687,6 +6814,7 @@ _FORBIDDEN_OUTPUT_PATTERNS: tuple[tuple[str, str], ...] = (
 # This list is the SINGLE SOURCE OF TRUTH for what gets auto-stripped.
 _FORBIDDEN_OUTPUT_CLEANERS: tuple[tuple[str, str], ...] = (
     ("raw_source_tag", r"\[Source:[^\]]*\]"),
+    ("section_cross_ref", r"\[\s*(?:see|cross-?ref|xref)\s+##\s+[^\]]+\]"),
     ("workbook_ref", r"\[Workbook:[^\]]*\]"),
     ("workbook_section_ref", r"\[workbook section[^\]]*\]"),
     ("workbook_section_symbol", r"\[Workbook §[^\]]*\]"),
