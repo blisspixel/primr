@@ -1,5 +1,6 @@
 """Tests for the scrape orchestrator."""
 
+import os
 import tempfile
 from unittest.mock import Mock, patch
 
@@ -12,7 +13,7 @@ from primr.data.scraping.models import (
 )
 from primr.data.scraping.orchestrator import ScrapeOrchestrator
 from primr.data.scraping.rate_limiter import NoOpRateLimiter
-from primr.data.scraping.trace import TraceLogger
+from primr.data.scraping.trace import TRACE_SCHEMA_VERSION, TraceLogger
 
 # Default mock content that passes success signal check AND quality check
 # Must have: 200+ chars, 30+ words, 2+ sentences, no garbage patterns
@@ -150,6 +151,85 @@ class TestScrapeOrchestrator:
         assert "tier1" in tier_names
         assert "tier2" in tier_names
         assert "tier3" in tier_names
+
+    def test_escalates_when_first_tier_returns_challenge_shell(self):
+        """Should reject challenge/interstitial shells and try the next tier."""
+
+        blocked_html = b"""<!DOCTYPE html><html><body>
+        <script>window.KPSDK={};</script>
+        <script src="/challenge/ips.js?x-kpsdk-im=test"></script>
+        </body></html>"""
+
+        tier1 = make_mock_tier("tier1", success=True, content=blocked_html)
+        tier2 = make_mock_tier("tier2", success=True, content=DEFAULT_MOCK_CONTENT)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            orchestrator = ScrapeOrchestrator(
+                tiers=[tier1, tier2],
+                cache=ScrapeCache(cache_dir=tmpdir),
+                rate_limiter=NoOpRateLimiter(),
+                delay_between_tiers=(0, 0),
+            )
+
+            result = orchestrator.scrape_url("https://example.com")
+
+        assert result.success is True
+        assert result.tier == "tier2"
+        assert result.access_assessment is not None
+        assert result.access_assessment.state.value == "success"
+
+    def test_adaptive_browser_retry_recovers_soft_block(self):
+        """Should retry Playwright in stronger mode before escalating away."""
+        call_modes = []
+
+        def playwright_fn(url: str, timeout: int) -> ScrapeResult:
+            headed = os.environ.get("PRIMR_BROWSER_HEADED") == "1"
+            call_modes.append(headed)
+            content = (
+                DEFAULT_MOCK_CONTENT
+                if headed
+                else b"""<!DOCTYPE html><html><body>
+            <script>window.KPSDK={};</script>
+            <script src="/challenge/ips.js?x-kpsdk-im=test"></script>
+            </body></html>"""
+            )
+            return ScrapeResult(
+                url=url,
+                success=True,
+                raw_content=content,
+                content_type="text/html",
+                http_status=200,
+                final_url=url,
+                tier="playwright",
+                elapsed_ms=100,
+                attempts=[
+                    Attempt(tier="playwright", success=True, elapsed_ms=100, http_status=200)
+                ],
+            )
+
+        tier1 = ScrapeTier(name="playwright", scrape_fn=playwright_fn, timeout=10, requires=None)
+        tier2 = make_mock_tier("tier2", success=True, content=DEFAULT_MOCK_CONTENT)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            orchestrator = ScrapeOrchestrator(
+                tiers=[tier1, tier2],
+                cache=ScrapeCache(cache_dir=tmpdir),
+                rate_limiter=NoOpRateLimiter(),
+                delay_between_tiers=(0, 0),
+            )
+
+            result = orchestrator.scrape_url("https://example.com")
+
+            assert result.success is True
+            assert result.tier == "playwright"
+            assert call_modes == [False, True]
+
+            call_modes.clear()
+            result2 = orchestrator.scrape_url("https://example.com/about")
+
+            assert result2.success is True
+            assert result2.tier == "playwright"
+            assert call_modes == [True]
 
 
 class TestCircuitBreaker:
@@ -387,6 +467,7 @@ class TestCaching:
 <main>
 <h1>Test Content</h1>
 <p>This is test content that should be cached.</p>
+<p>It includes additional explanatory text so the classifier can distinguish a real page from a thin shell.</p>
 </main>
 </body>
 </html>"""
@@ -640,7 +721,7 @@ class TestGoldenRunTrace:
 
             # Verify header
             header = json.loads(lines[0])
-            assert header["schema_version"] == "1.0"
+            assert header["schema_version"] == TRACE_SCHEMA_VERSION
             assert header["company"] == "golden_test"
             assert "run_id" in header
 

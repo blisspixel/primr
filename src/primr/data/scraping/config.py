@@ -76,6 +76,8 @@ WAF_SIGNATURES = [
     ("_pxhd", "PerimeterX cookie"),
     # Kasada
     ("kasada", "Kasada protection"),
+    ("window.kpsdk", "Kasada script challenge"),
+    ("kpsdk", "Kasada SDK challenge"),
     ("x-kpsdk", "Kasada header"),
     # Distil Networks
     ("distil", "Distil Networks"),

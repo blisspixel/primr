@@ -98,23 +98,21 @@ async def _enrich_from_related(
 
     MAX_RELATED_ENRICHMENTS = 10
 
-    candidates = [
-        d for d in info.related_domains
-        if not d.endswith(".onmicrosoft.com")
-    ][:MAX_RELATED_ENRICHMENTS]
+    candidates = [d for d in info.related_domains if not d.endswith(".onmicrosoft.com")][
+        :MAX_RELATED_ENRICHMENTS
+    ]
 
     if not candidates:
         return info, all_results
 
     logger.debug(
         "Enriching from %d related domains: %s",
-        len(candidates), ", ".join(candidates),
+        len(candidates),
+        ", ".join(candidates),
     )
 
     dns_source = DNSSource()
-    related_results = await asyncio.gather(
-        *(_safe_lookup(dns_source, d) for d in candidates)
-    )
+    related_results = await asyncio.gather(*(_safe_lookup(dns_source, d) for d in candidates))
 
     extra_services: set[str] = set(info.services)
     extra_slugs: set[str] = set(info.slugs)
@@ -134,7 +132,11 @@ async def _enrich_from_related(
     from primr.recon.merger import build_insights_with_signals
 
     enriched_insights = build_insights_with_signals(
-        extra_services, extra_slugs, info.auth_type, info.dmarc_policy, info.domain_count,
+        extra_services,
+        extra_slugs,
+        info.auth_type,
+        info.dmarc_policy,
+        info.domain_count,
     )
 
     enriched = replace(
@@ -166,9 +168,7 @@ async def _resolve_tenant_inner(
     if client is not None:
         kwargs["client"] = client
 
-    results = await asyncio.gather(
-        *(_safe_lookup(source, domain, **kwargs) for source in sources)
-    )
+    results = await asyncio.gather(*(_safe_lookup(source, domain, **kwargs) for source in sources))
 
     info = merge_results(list(results), domain)
 

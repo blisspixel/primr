@@ -35,8 +35,6 @@ class Platform(str, Enum):
     PRIVATE = "private"
 
 
-
-
 class StrategyType(str, Enum):
     """Available strategy document types."""
 

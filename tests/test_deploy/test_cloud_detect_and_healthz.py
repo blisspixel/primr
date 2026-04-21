@@ -21,7 +21,6 @@ from deploy.control_plane.queue import InMemoryQueue
 from deploy.storage import LocalStore
 from primr.mcp_server.cloud_detect import is_cloud_mode
 
-
 # =============================================================================
 # is_cloud_mode() TESTS
 # =============================================================================

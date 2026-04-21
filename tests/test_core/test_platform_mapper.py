@@ -87,11 +87,11 @@ class TestPlatformMappingCorrectnessAndOrdering:
             count_a = counts[result[i]]
             count_b = counts[result[i + 1]]
             assert count_a >= count_b, (
-                f"Ordering violated: {result[i]}({count_a}) before {result[i+1]}({count_b})"
+                f"Ordering violated: {result[i]}({count_a}) before {result[i + 1]}({count_b})"
             )
             if count_a == count_b:
                 assert result[i] < result[i + 1], (
-                    f"Alphabetical tiebreak violated: '{result[i]}' should come before '{result[i+1]}'"
+                    f"Alphabetical tiebreak violated: '{result[i]}' should come before '{result[i + 1]}'"
                 )
 
     @given(slugs=mixed_slug_lists)

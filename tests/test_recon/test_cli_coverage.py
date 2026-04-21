@@ -38,8 +38,12 @@ SAMPLE_INFO = TenantInfo(
 )
 
 SAMPLE_RESULTS = [
-    SourceResult(source_name="oidc_discovery", tenant_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", region="NA"),
-    SourceResult(source_name="dns_records", detected_services=("Slack",), detected_slugs=("slack",)),
+    SourceResult(
+        source_name="oidc_discovery", tenant_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", region="NA"
+    ),
+    SourceResult(
+        source_name="dns_records", detected_services=("Slack",), detected_slugs=("slack",)
+    ),
 ]
 
 
@@ -55,6 +59,7 @@ class TestVersionAndDebug:
     def test_debug_true_enables_logging(self):
         """_debug_callback(True) should set debug level."""
         import logging
+
         _debug_callback(True)
         logger = logging.getLogger("recon")
         assert logger.level == logging.DEBUG
@@ -86,6 +91,7 @@ class TestDoctorFailures:
     @patch("httpx.AsyncClient")
     def test_doctor_with_dns_failure(self, mock_http_cls, mock_dns):
         import dns.resolver
+
         mock_dns.side_effect = dns.resolver.NoNameservers("no nameservers")
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -128,7 +134,9 @@ class TestBatchEdgeCases:
     def test_batch_panel_error_display(self, mock_resolve, tmp_path):
         """Batch in default (panel) mode should show errors inline."""
         mock_resolve.side_effect = ReconLookupError(
-            domain="bad.com", message="No data", error_type="all_sources_failed",
+            domain="bad.com",
+            message="No data",
+            error_type="all_sources_failed",
         )
         domain_file = tmp_path / "domains.txt"
         domain_file.write_text("bad.com\n")

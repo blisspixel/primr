@@ -136,7 +136,7 @@ class TestWhitespaceDomainRejection:
     )
     @settings(max_examples=100)
     def test_whitespace_only_raises_value_error(self, s: str):
-        with pytest.raises(ValueError, match="(valid domain|Invalid domain)"):
+        with pytest.raises(ValueError, match=r"(valid domain|Invalid domain)"):
             validate_domain(s)
 
 
@@ -199,9 +199,9 @@ class TestSchemeStrippingPreservesDomain:
 
     # Strategy that generates valid domain strings (excluding www. prefix
     # since the validator strips it, which would change the expected output)
-    _valid_domain = st.from_regex(
-        r"[a-z][a-z0-9]{0,10}\.[a-z]{2,6}", fullmatch=True
-    ).filter(lambda d: not d.startswith("www."))
+    _valid_domain = st.from_regex(r"[a-z][a-z0-9]{0,10}\.[a-z]{2,6}", fullmatch=True).filter(
+        lambda d: not d.startswith("www.")
+    )
 
     @given(domain=_valid_domain)
     @settings(max_examples=100)

@@ -128,7 +128,9 @@ def load_signals() -> tuple[Signal, ...]:
     """
     data_path = Path(__file__).parent / "data" / "signals.yaml"
     custom_dir = os.environ.get("RECON_CONFIG_DIR")
-    custom_path = Path(custom_dir) / "signals.yaml" if custom_dir else Path.home() / ".recon" / "signals.yaml"
+    custom_path = (
+        Path(custom_dir) / "signals.yaml" if custom_dir else Path.home() / ".recon" / "signals.yaml"
+    )
 
     entries: list[Signal] = []
     entries.extend(_load_from_path(data_path))
@@ -180,12 +182,14 @@ def evaluate_signals(
             ):
                 continue  # DMARC is enforcing — no inconsistency
 
-            results.append(SignalMatch(
-                name=signal.name,
-                category=signal.category,
-                confidence=signal.confidence,
-                matched=tuple(matched),
-                description=signal.description,
-            ))
+            results.append(
+                SignalMatch(
+                    name=signal.name,
+                    category=signal.category,
+                    confidence=signal.confidence,
+                    matched=tuple(matched),
+                    description=signal.description,
+                )
+            )
 
     return results

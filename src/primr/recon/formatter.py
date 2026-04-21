@@ -60,14 +60,29 @@ CONFIDENCE_DOTS: dict[ConfidenceLevel, str] = {
     ConfidenceLevel.LOW: "●○○",
 }
 
-_M365_KEYWORDS = frozenset({
-    "exchange", "teams", "skype", "intune", "mdm", "dkim",
-    "microsoft", "domain verified",
-})
+_M365_KEYWORDS = frozenset(
+    {
+        "exchange",
+        "teams",
+        "skype",
+        "intune",
+        "mdm",
+        "dkim",
+        "microsoft",
+        "domain verified",
+    }
+)
 
 _SKIP_COMPACT_PREFIXES = (
-    "dmarc", "domain verified", "spf:", "spf complexity",
-    "dns:", "cdn:", "hosting:", "waf:", "domain connect",
+    "dmarc",
+    "domain verified",
+    "spf:",
+    "spf complexity",
+    "dns:",
+    "cdn:",
+    "hosting:",
+    "waf:",
+    "domain connect",
 )
 
 _SKIP_COMPACT_EXACT = frozenset({"(SPF)", "(site verified)"})
@@ -87,7 +102,9 @@ def _is_compact_noise(svc: str) -> bool:
     return svc in _SKIP_COMPACT_EXACT
 
 
-def detect_provider(services: tuple[str, ...] | set[str], slugs: tuple[str, ...] | set[str] = ()) -> str:
+def detect_provider(
+    services: tuple[str, ...] | set[str], slugs: tuple[str, ...] | set[str] = ()
+) -> str:
     """Detect the primary email/identity provider from slugs (preferred) or services."""
     slug_set = set(slugs)
     providers = []
@@ -135,7 +152,9 @@ def render_tenant_panel(
         text.append(f"{info.auth_type}\n")
 
     text.append("  Confidence: ", style="bold")
-    text.append(f"{dots} {info.confidence.value.capitalize()} ({source_count} sources)", style=color)
+    text.append(
+        f"{dots} {info.confidence.value.capitalize()} ({source_count} sources)", style=color
+    )
 
     if info.services:
         if show_services:
@@ -161,7 +180,11 @@ def render_tenant_panel(
         text.append("  Insights:", style="bold")
         for insight in info.insights:
             text.append("\n  ")
-            if "gap" in insight.lower() or "not enforced" in insight.lower() or "not configured" in insight.lower():
+            if (
+                "gap" in insight.lower()
+                or "not enforced" in insight.lower()
+                or "not configured" in insight.lower()
+            ):
                 text.append(f"  {insight}", style="red")
             elif "hybrid" in insight.lower() or "migration" in insight.lower():
                 text.append(f"  {insight}", style="yellow")
@@ -224,7 +247,9 @@ def render_sources_detail(results: list[SourceResult]) -> Table:
     table.add_column("Details")
 
     for result in results:
-        status = Text("✓ success", style="green") if result.is_success else Text("✗ failed", style="red")
+        status = (
+            Text("✓ success", style="green") if result.is_success else Text("✗ failed", style="red")
+        )
         tenant_id = result.tenant_id or "—"
         region = result.region or "—"
         details = result.error or ("M365 detected" if result.m365_detected else "—")

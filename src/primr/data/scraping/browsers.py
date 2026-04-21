@@ -42,6 +42,24 @@ def _can_use_shared_browser() -> bool:
     return enabled and threading.current_thread() is threading.main_thread()
 
 
+def _browser_session_mode() -> str:
+    """Return configured Playwright session mode."""
+    mode = os.getenv("PRIMR_BROWSER_SESSION_MODE", "persistent").strip().lower()
+    return mode if mode in {"isolated", "persistent"} else "persistent"
+
+
+def _use_persistent_browser_context() -> bool:
+    """Whether Playwright should reuse a context per host for the current run."""
+    return _browser_session_mode() == "persistent"
+
+
+def _resolve_headless(headless: bool | None) -> bool:
+    """Allow CLI/env to force a headed browser for scrape recovery."""
+    if os.getenv("PRIMR_BROWSER_HEADED", "").strip().lower() in {"1", "true", "yes"}:
+        return False
+    return True if headless is None else headless
+
+
 # =============================================================================
 # Shared Browser Launch Args
 # =============================================================================
@@ -92,6 +110,8 @@ class SharedBrowser:
     def __init__(self):
         self._playwright = None
         self._browser = None
+        self._browser_headless = None
+        self._contexts = {}
 
     @classmethod
     def get(cls) -> "SharedBrowser":
@@ -103,9 +123,14 @@ class SharedBrowser:
 
     def get_browser(self, headless: bool = True):
         """Get or create the shared Chromium browser. Lazy init on first call."""
+        headless = _resolve_headless(headless)
         # Crash recovery: if browser died, restart
         if self._browser and not self._browser.is_connected():
             logger.info("Shared browser disconnected, restarting...")
+            self._cleanup_internal()
+
+        if self._browser is not None and self._browser_headless != headless:
+            logger.info("Shared browser headless mode changed, restarting...")
             self._cleanup_internal()
 
         if self._browser is None:
@@ -124,15 +149,56 @@ class SharedBrowser:
                 raise
             self._playwright = pw
             self._browser = browser
+            self._browser_headless = headless
             logger.info("Shared Playwright browser started")
 
         return self._browser
 
+    def get_context(
+        self,
+        host: str,
+        *,
+        headless: bool = True,
+        viewport: dict,
+        locale: str,
+        timezone_id: str,
+        user_agent: str,
+        accept_language: str,
+        stealth_script: str | None = None,
+    ):
+        """Get or create a persistent browser context for a host."""
+        browser = self.get_browser(headless=headless)
+        key = (host.lower(), self._browser_headless)
+        context = self._contexts.get(key)
+        if context is not None:
+            return context
+
+        context = browser.new_context(
+            viewport=viewport,
+            locale=locale,
+            timezone_id=timezone_id,
+            user_agent=user_agent,
+            java_script_enabled=True,
+            bypass_csp=True,
+            ignore_https_errors=True,
+            extra_http_headers={"Accept-Language": accept_language},
+        )
+        if stealth_script:
+            context.add_init_script(stealth_script)
+        self._contexts[key] = context
+        logger.info("Shared Playwright context started for %s", host)
+        return context
+
     def _cleanup_internal(self):
+        for context in self._contexts.values():
+            with contextlib.suppress(Exception):
+                context.close()
+        self._contexts = {}
         if self._browser:
             with contextlib.suppress(Exception):
                 self._browser.close()
             self._browser = None
+            self._browser_headless = None
         if self._playwright:
             with contextlib.suppress(Exception):
                 self._playwright.stop()
@@ -350,12 +416,18 @@ class PlaywrightSession(BrowserSession):
     def __init__(
         self,
         profile: BrowserContextProfile | None = None,
-        headless: bool = True,
+        headless: bool | None = True,
         reusable: bool = False,
+        persistent_context: bool | None = None,
+        context_host: str | None = None,
     ):
         self._profile = profile or get_random_context_profile()
-        self._headless = headless
+        self._headless = _resolve_headless(headless)
         self._reusable = reusable
+        self._persistent_context = (
+            _use_persistent_browser_context() if persistent_context is None else persistent_context
+        )
+        self._context_host = context_host
         self._browser = None
         self._context = None
         self._page = None
@@ -391,25 +463,44 @@ class PlaywrightSession(BrowserSession):
                 platform_name=platform.system(),
             )
 
-            # Create context with profile settings
-            self._context = self._browser.new_context(
-                viewport={
-                    "width": self._profile.viewport_width,
-                    "height": self._profile.viewport_height,
-                },
-                locale=self._profile.locale,
-                timezone_id=self._profile.timezone,
-                user_agent=http_profile.user_agent,
-                extra_http_headers={"Accept-Language": http_profile.accept_language},
-            )
-
             # Apply stealth patches
             stealth_script = get_stealth_script(
                 user_agent=http_profile.user_agent,
                 platform_name=platform.system(),
             )
-            if stealth_script:
-                self._context.add_init_script(stealth_script)
+
+            if self._persistent_context and _can_use_shared_browser() and self._context_host:
+                shared = SharedBrowser.get()
+                self._context = shared.get_context(
+                    self._context_host,
+                    headless=self._headless,
+                    viewport={
+                        "width": self._profile.viewport_width,
+                        "height": self._profile.viewport_height,
+                    },
+                    locale=self._profile.locale,
+                    timezone_id=self._profile.timezone,
+                    user_agent=http_profile.user_agent,
+                    accept_language=http_profile.accept_language,
+                    stealth_script=stealth_script,
+                )
+            else:
+                # Create context with profile settings
+                self._context = self._browser.new_context(
+                    viewport={
+                        "width": self._profile.viewport_width,
+                        "height": self._profile.viewport_height,
+                    },
+                    locale=self._profile.locale,
+                    timezone_id=self._profile.timezone,
+                    user_agent=http_profile.user_agent,
+                    java_script_enabled=True,
+                    bypass_csp=True,
+                    ignore_https_errors=True,
+                    extra_http_headers={"Accept-Language": http_profile.accept_language},
+                )
+                if stealth_script:
+                    self._context.add_init_script(stealth_script)
 
             self._page = self._context.new_page()
 
@@ -607,7 +698,7 @@ class PlaywrightSession(BrowserSession):
         try:
             if self._page:
                 self._page.close()
-            if self._context:
+            if self._context and not self._persistent_context:
                 self._context.close()
             if getattr(self, "_owns_browser", False):
                 if self._browser:
@@ -837,7 +928,7 @@ def scrape_with_playwright(
     url: str,
     timeout: float = DEFAULT_TIMEOUT_PLAYWRIGHT,
     profile: BrowserContextProfile | None = None,
-    headless: bool = True,
+    headless: bool | None = True,
     reuse_browser: bool = False,  # Ignored - always creates fresh instance
 ) -> ScrapeResult:
     """
@@ -908,16 +999,18 @@ def _scrape_with_playwright_impl(
     url: str,
     timeout: float,
     profile: BrowserContextProfile | None,
-    headless: bool,
+    headless: bool | None,
 ) -> ScrapeResult:
     """Internal implementation of Playwright scraping - uses shared browser."""
     start_time = time.time()
     tier_name = "playwright"
-    extract_host(url)
+    host = extract_host(url)
+    headless = _resolve_headless(headless)
     browser = None
     context = None
     page = None
     _using_shared = False
+    _using_persistent_context = False
     _fresh_pw = None  # Only set if we fall back to a fresh browser
 
     try:
@@ -957,27 +1050,44 @@ def _scrape_with_playwright_impl(
         )
         ctx_profile = profile or get_random_context_profile()
 
-        context = browser.new_context(
-            viewport={
-                "width": ctx_profile.viewport_width,
-                "height": ctx_profile.viewport_height,
-            },
-            locale=ctx_profile.locale,
-            timezone_id=ctx_profile.timezone,
-            user_agent=http_profile.user_agent,
-            # Additional context options for stealth
-            java_script_enabled=True,
-            bypass_csp=True,
-            ignore_https_errors=True,
-            extra_http_headers={"Accept-Language": http_profile.accept_language},
-        )
-
         stealth_script = get_stealth_script(
             user_agent=http_profile.user_agent,
             platform_name=platform.system(),
         )
-        if stealth_script:
-            context.add_init_script(stealth_script)
+
+        if _using_shared and _use_persistent_browser_context():
+            shared = SharedBrowser.get()
+            context = shared.get_context(
+                host,
+                headless=headless,
+                viewport={
+                    "width": ctx_profile.viewport_width,
+                    "height": ctx_profile.viewport_height,
+                },
+                locale=ctx_profile.locale,
+                timezone_id=ctx_profile.timezone,
+                user_agent=http_profile.user_agent,
+                accept_language=http_profile.accept_language,
+                stealth_script=stealth_script,
+            )
+            _using_persistent_context = True
+        else:
+            context = browser.new_context(
+                viewport={
+                    "width": ctx_profile.viewport_width,
+                    "height": ctx_profile.viewport_height,
+                },
+                locale=ctx_profile.locale,
+                timezone_id=ctx_profile.timezone,
+                user_agent=http_profile.user_agent,
+                # Additional context options for stealth
+                java_script_enabled=True,
+                bypass_csp=True,
+                ignore_https_errors=True,
+                extra_http_headers={"Accept-Language": http_profile.accept_language},
+            )
+            if stealth_script:
+                context.add_init_script(stealth_script)
 
         page = context.new_page()
 
@@ -1001,6 +1111,11 @@ def _scrape_with_playwright_impl(
                 url if "url" in dir() else "unknown",
                 e,
             )
+
+        try:
+            page.wait_for_timeout(750)
+        except Exception:
+            pass
 
         # Trigger lazy-loaded content for scroll-driven page builders.
         _trigger_lazy_load(page)
@@ -1094,7 +1209,7 @@ def _scrape_with_playwright_impl(
                 page.close()
             except Exception as e:
                 logger.debug(f"Error closing page: {e}")
-        if context:
+        if context and not _using_persistent_context:
             try:
                 context.close()
             except Exception as e:
@@ -1117,7 +1232,7 @@ def scrape_with_playwright_aggressive(
     url: str,
     timeout: float = DEFAULT_TIMEOUT_PLAYWRIGHT_AGGRESSIVE,
     profile: BrowserContextProfile | None = None,
-    headless: bool = True,
+    headless: bool | None = True,
     max_expand_clicks: int = 20,
 ) -> ScrapeResult:
     """
@@ -1156,7 +1271,11 @@ def scrape_with_playwright_aggressive(
     session = None
 
     try:
-        session = PlaywrightSession(profile=profile, headless=headless)
+        session = PlaywrightSession(
+            profile=profile,
+            headless=headless,
+            context_host=extract_host(url),
+        )
 
         # Navigate
         timeout_ms = int(timeout * 1000)

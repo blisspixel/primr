@@ -135,12 +135,14 @@ def _log_structured(level: int, msg: str, **fields: object) -> None:
 
 
 _LOOKUP_ANNOTATIONS = (
-    {"annotations": ToolAnnotations(
-        readOnlyHint=True,
-        destructiveHint=False,
-        idempotentHint=True,
-        openWorldHint=True,
-    )}
+    {
+        "annotations": ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=True,
+        )
+    }
     if ToolAnnotations is not None
     else {}
 )
@@ -148,8 +150,10 @@ _LOOKUP_ANNOTATIONS = (
 
 def _noop_decorator(**kwargs):
     """No-op decorator when MCP is unavailable."""
+
     def wrapper(fn):
         return fn
+
     return wrapper
 
 
@@ -194,8 +198,11 @@ async def lookup_tenant(
         validated = validate_domain(domain)
     except ValueError as exc:
         _log_structured(
-            logging.WARNING, "validation_failed",
-            request_id=request_id, domain=domain, error=str(exc),
+            logging.WARNING,
+            "validation_failed",
+            request_id=request_id,
+            domain=domain,
+            error=str(exc),
         )
         return f"Error: {exc}"
 
@@ -204,30 +211,34 @@ async def lookup_tenant(
         info, cached_results = cached
         results = list(cached_results)
         _log_structured(
-            logging.INFO, "cache_hit",
-            request_id=request_id, domain=validated,
+            logging.INFO,
+            "cache_hit",
+            request_id=request_id,
+            domain=validated,
         )
     else:
         if not _rate_limit_check(validated):
-            return (
-                f"Rate limited: {domain} was looked up recently. "
-                f"Try again in a few seconds."
-            )
+            return f"Rate limited: {domain} was looked up recently. Try again in a few seconds."
 
         try:
             info, results = await resolve_tenant(validated)
         except ReconLookupError as exc:
             elapsed = time.monotonic() - start_time
             _log_structured(
-                logging.INFO, "no_data",
-                request_id=request_id, domain=domain,
-                elapsed_s=round(elapsed, 2), error=exc.message,
+                logging.INFO,
+                "no_data",
+                request_id=request_id,
+                domain=domain,
+                elapsed_s=round(elapsed, 2),
+                error=exc.message,
             )
             return f"No information found for {domain}"
         except Exception:
             elapsed = time.monotonic() - start_time
             logger.exception(
-                "Unexpected error looking up %s (request_id=%s)", domain, request_id,
+                "Unexpected error looking up %s (request_id=%s)",
+                domain,
+                request_id,
             )
             return f"Error looking up {domain}: an internal error occurred"
 
@@ -236,9 +247,13 @@ async def lookup_tenant(
 
     elapsed = time.monotonic() - start_time
     _log_structured(
-        logging.INFO, "resolved",
-        request_id=request_id, domain=domain, display_name=info.display_name,
-        services=len(info.services), elapsed_s=round(elapsed, 2),
+        logging.INFO,
+        "resolved",
+        request_id=request_id,
+        domain=domain,
+        display_name=info.display_name,
+        services=len(info.services),
+        elapsed_s=round(elapsed, 2),
     )
 
     if output_format == "json":
@@ -273,12 +288,14 @@ async def lookup_tenant(
 
 
 _RELOAD_ANNOTATIONS = (
-    {"annotations": ToolAnnotations(
-        readOnlyHint=False,
-        destructiveHint=False,
-        idempotentHint=True,
-        openWorldHint=False,
-    )}
+    {
+        "annotations": ToolAnnotations(
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        )
+    }
     if ToolAnnotations is not None
     else {}
 )
@@ -325,7 +342,9 @@ def domain_report(domain: str) -> str:
 def main() -> None:
     """Run the MCP server with stdio transport."""
     if mcp is None:
-        raise RuntimeError("MCP server requires mcp[fastmcp] — install with: pip install 'mcp[cli]'")
+        raise RuntimeError(
+            "MCP server requires mcp[fastmcp] — install with: pip install 'mcp[cli]'"
+        )
     mcp.run()
 
 

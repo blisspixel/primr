@@ -7,6 +7,7 @@ It wraps the new modular scraping system in primr.data.scraping.
 
 import hashlib
 import os
+import re
 import time
 from pathlib import Path
 from urllib.parse import urlparse
@@ -23,6 +24,7 @@ from primr.config.config import (
 from primr.data.scraping import (
     COMMON_PAGE_PATTERNS,
     DiscoveredLink,
+    ErrorType,
     RateLimitConfig,
     RateLimiter,
     ScrapeCache,
@@ -133,19 +135,11 @@ def evaluate_scrape_pilot(
     )
 
     # Permit a sparse pilot when the pages that did land are substantively rich.
-    rich_content_relief = (
-        avg_chars >= max(SCRAPE_PILOT_MIN_CHARS * 3, 2000)
-        and (
-            pilot_success >= 3
-            or (
-                pilot_success >= 2
-                and pilot_chars_total >= max(SCRAPE_PILOT_MIN_CHARS * 6, 4000)
-            )
-        )
+    rich_content_relief = avg_chars >= max(SCRAPE_PILOT_MIN_CHARS * 3, 2000) and (
+        pilot_success >= 3
+        or (pilot_success >= 2 and pilot_chars_total >= max(SCRAPE_PILOT_MIN_CHARS * 6, 4000))
     )
-    useful_corpus_relief = (
-        pilot_success >= 4 and pilot_chars_total >= max(MIN_SCRAPED_CHARS, 4000)
-    )
+    useful_corpus_relief = pilot_success >= 4 and pilot_chars_total >= max(MIN_SCRAPED_CHARS, 4000)
 
     should_abort = False
     if not (rich_content_relief or useful_corpus_relief) and (
@@ -161,6 +155,7 @@ def evaluate_scrape_pilot(
         "useful_corpus_relief": useful_corpus_relief,
         "should_abort": should_abort,
     }
+
 
 def out_step(msg):
     console.step(msg)
@@ -343,9 +338,10 @@ def fetch_web_content(
 
     from .scraping import (
         BoilerplateFilter,
+        PageAccessState,
+        classify_page_access,
         extract_main_content,
         extract_structured_content,
-        scrape_with_playwright,
     )
 
     def _write_raw_file(file_path, url, tier, structured):
@@ -463,6 +459,65 @@ def fetch_web_content(
             return str(result.error_type)
         return "unknown"
 
+    def _structured_to_clean_text(structured, raw_html: bytes) -> str:
+        """Recover usable page text even when block rendering yields nothing."""
+        plain_text = structured.to_plain_text(include_cta=False).strip()
+        if plain_text:
+            return plain_text
+
+        cleaned_text = (structured.text or "").strip()
+        if cleaned_text:
+            return cleaned_text
+
+        raw_text = (structured.raw_text or "").strip()
+        if raw_text:
+            return raw_text
+
+        return extract_main_content(raw_html).strip()
+
+    def _is_recoverable_selected_url(url: str, website: str) -> bool:
+        """Allow high-value first-party recovery URLs, including PDFs."""
+        try:
+            parsed = urlparse(url)
+        except ValueError:
+            return False
+
+        normalized = normalize_url(url)
+        if normalized == normalize_url(website):
+            return False
+        if _looks_like_low_signal_wrapper_url(url, website):
+            return False
+
+        path_lower = (parsed.path or "").lower()
+        if path_lower.endswith(".pdf"):
+            return True
+
+        return is_probably_content_url(url)
+
+    def _discover_first_party_recovery_urls(
+        base_url: str,
+        organization_type: str,
+        limit: int,
+    ) -> list[str]:
+        """Probe first-party deep paths when the homepage is blocked."""
+        from .scraping.discovery import discover_links, is_same_domain
+
+        recovery_links = discover_links(
+            base_url=base_url,
+            homepage_html=None,
+            verify_guessed=True,
+            min_links_before_sitemap=20,
+            organization_type=organization_type,
+        )
+
+        filtered_links = [
+            link
+            for link in recovery_links
+            if is_same_domain(base_url, link.url)
+            and _is_recoverable_selected_url(link.url, base_url)
+        ]
+        return [link.url for link in filtered_links[:limit]]
+
     domain = urlparse(website).netloc
     orchestrator = get_orchestrator(enable_vision=use_vision)
     resume_selected_urls_prefetch = _load_resume_selected_links()
@@ -470,33 +525,90 @@ def fetch_web_content(
 
     # Step 1: Get homepage with browser (modern sites need JS rendering)
     console.status(f"Scanning {domain}...")
+    homepage_recovery_reason: str | None = None
+    homepage_access_ok = False
 
-    # Use playwright directly for homepage - it handles JS
-    # Homepage gets a generous timeout: failed homepage = entire run fails
-    result = scrape_with_playwright(website, timeout=25)
-    homepage_tier = "playwright"
+    # Route homepage through the orchestrator so it gets the same adaptive
+    # browser retry/escalation behavior as every subsequent page.
+    result = orchestrator.scrape_url(website)
+    homepage_tier = result.tier if result.success else None
 
-    if not result.success or not result.raw_content:
-        # Fallback to orchestrator (tries all tiers)
-        result = orchestrator.scrape_url(website)
-        homepage_tier = result.tier if result.success else None
+    if result.success and result.raw_content:
+        expected_markers: list[str] = []
+        if company_name:
+            expected_markers.extend(
+                token.lower()
+                for token in re.split(r"[^a-zA-Z0-9]+", company_name)
+                if len(token) >= 4
+            )
+        host_tokens = [
+            token
+            for token in urlparse(website).netloc.lower().replace("www.", "").split(".")
+            if len(token) >= 4
+        ]
+        expected_markers.extend(host_tokens[:2])
+
+        homepage_assessment = classify_page_access(
+            result.raw_content,
+            url=website,
+            final_url=getattr(result, "final_url", website),
+            http_status=getattr(result, "http_status", None),
+            content_type=getattr(result, "content_type", None),
+            expected_markers=expected_markers,
+        )
+        if homepage_assessment.state != PageAccessState.SUCCESS:
+            homepage_recovery_reason = homepage_assessment.reason or "Homepage blocked"
+            _append_trace(
+                "BLOCK",
+                website,
+                "homepage via orchestrator rejected: "
+                f"{homepage_assessment.state.value} ({homepage_assessment.reason or 'inconclusive'})",
+            )
+            result = ScrapeResult(
+                url=website,
+                success=False,
+                error=homepage_assessment.reason or "Homepage blocked",
+                error_type=(
+                    ErrorType.SOFT_BLOCK
+                    if homepage_assessment.state == PageAccessState.SOFT_BLOCK
+                    else ErrorType.SUCCESS_SIGNAL_FAILED
+                ),
+                tier=result.tier,
+                access_assessment=homepage_assessment,
+            )
+            homepage_tier = None
+        else:
+            homepage_access_ok = True
+    else:
+        access_assessment = getattr(result, "access_assessment", None)
+        if access_assessment and getattr(access_assessment, "reason", None):
+            homepage_recovery_reason = access_assessment.reason
 
     if not result.success or not result.raw_content:
         homepage_norm = normalize_url(website)
         if resume_selected_urls_prefetch and homepage_norm in resumed_text_pages_prefetch:
             homepage_html = b""
             homepage_tier = "resume-local"
+            homepage_access_ok = False
             _append_trace(
                 "RESUME", website, "using local homepage content after live fetch failure"
             )
         else:
-            _append_trace("FAIL", website, f"homepage: {result.error}")
-            console.clear_line()
-            console.fail(f"Could not access {domain}")
-            return {}
+            homepage_html = b""
+            homepage_tier = None
+            homepage_access_ok = False
+            homepage_recovery_reason = (
+                homepage_recovery_reason or result.error or "Homepage blocked"
+            )
+            _append_trace(
+                "RECOVER",
+                website,
+                f"homepage unavailable, trying first-party fallback: {homepage_recovery_reason}",
+            )
     else:
         homepage_html = result.raw_content
         _append_trace("OK", website, f"homepage via {homepage_tier or result.tier}")
+        homepage_access_ok = True
 
     homepage_text = extract_main_content(homepage_html) if homepage_html else ""
     organization_profile = classify_organization_type(
@@ -533,7 +645,7 @@ def fetch_web_content(
 
     # Tell orchestrator what tier worked for this host (sticky tier)
     # This prevents wasteful tier escalation on subsequent pages
-    if homepage_tier and homepage_tier != "resume-local":
+    if homepage_access_ok and homepage_tier and homepage_tier != "resume-local":
         from .scraping.net import extract_host
 
         host = extract_host(website)
@@ -550,49 +662,79 @@ def fetch_web_content(
             "RESUME", website, f"loaded {len(selected_urls)} selected links from manifest"
         )
     else:
-        # Step 2: Discover ALL links using full discovery pipeline
-        # This includes: homepage links, common URL guessing, sitemap fallback
-        from .scraping.discovery import discover_links, is_same_domain
+        if homepage_access_ok:
+            # Step 2: Discover ALL links using full discovery pipeline
+            # This includes: homepage links, common URL guessing, sitemap fallback
+            from .scraping.discovery import discover_links, is_same_domain
 
-        all_links = discover_links(
-            base_url=website,
-            homepage_html=homepage_html,
-            verify_guessed=True,  # Verify guessed URLs exist
-            min_links_before_sitemap=20,  # Check sitemap if < 20 links
-            organization_type=organization_type,
-        )
+            all_links = discover_links(
+                base_url=website,
+                homepage_html=homepage_html,
+                verify_guessed=True,  # Verify guessed URLs exist
+                min_links_before_sitemap=20,  # Check sitemap if < 20 links
+                organization_type=organization_type,
+            )
 
-        # Filter to in-scope links (same domain + subdomains)
-        in_scope_links = [link for link in all_links if is_same_domain(website, link.url)]
-        in_scope_count = len(in_scope_links)
+            # Filter to in-scope links (same domain + subdomains)
+            in_scope_links = [link for link in all_links if is_same_domain(website, link.url)]
+            in_scope_count = len(in_scope_links)
 
-        # Use LLM to intelligently select the most valuable pages for company research
-        # The LLM decides how many pages are worth scraping - no artificial limits
-        # Falls back to heuristic scoring if LLM fails
-        from primr.core.research_agent import select_links_with_llm
+            # Use LLM to intelligently select the most valuable pages for company research
+            # The LLM decides how many pages are worth scraping - no artificial limits
+            # Falls back to heuristic scoring if LLM fails
+            from primr.core.research_agent import select_links_with_llm
 
-        console.status(f"Selecting from {len(in_scope_links)} pages...")
-        selected_urls = select_links_with_llm(
-            in_scope_links,
-            company_name=company_name,
-            website=website,
-            max_links=max_pages or 100,  # Let LLM decide, but cap at 100 for sanity
-            organization_type=organization_type,
-        )
-        selected_urls = _filter_selected_urls(selected_urls, website)
-        console.clear_line()
-        total_found = len(selected_urls)
+            console.status(f"Selecting from {len(in_scope_links)} pages...")
+            selected_urls = select_links_with_llm(
+                in_scope_links,
+                company_name=company_name,
+                website=website,
+                max_links=max_pages or 100,  # Let LLM decide, but cap at 100 for sanity
+                organization_type=organization_type,
+            )
+            selected_urls = _filter_selected_urls(selected_urls, website)
+            console.clear_line()
+            total_found = len(selected_urls)
+        else:
+            console.status("Homepage blocked - probing first-party fallback paths...")
+            selected_urls = _discover_first_party_recovery_urls(
+                website,
+                organization_type=organization_type,
+                limit=max_pages or 100,
+            )
+            console.clear_line()
+            total_found = len(selected_urls)
+            in_scope_count = total_found
+            _append_trace(
+                "RECOVER",
+                website,
+                f"first-party recovery candidates={total_found} reason={homepage_recovery_reason or 'homepage blocked'}",
+            )
 
-    # Apply max_pages limit (reserve 1 slot for homepage)
-    if max_pages and max_pages < total_found + 1:
-        pages_to_scrape = selected_urls[: max_pages - 1]
+    homepage_slot = 1 if homepage_access_ok else 0
+    # Apply max_pages limit (reserve slot for homepage only when we have it)
+    if max_pages and max_pages < total_found + homepage_slot:
+        allowed_pages = max_pages - homepage_slot
+        pages_to_scrape = selected_urls[:allowed_pages]
         console.found(f"{in_scope_count} links {console._arrow} {max_pages} selected")
     elif total_found == 0:
         pages_to_scrape = []
-        console.found("1 page (homepage only)")
+        if homepage_access_ok:
+            console.found("1 page (homepage only)")
+        else:
+            console.found("0 recovery pages found")
     else:
         pages_to_scrape = selected_urls
-        console.found(f"{in_scope_count} links {console._arrow} {total_found} selected")
+        if homepage_access_ok:
+            console.found(f"{in_scope_count} links {console._arrow} {total_found} selected")
+        else:
+            console.found(f"{in_scope_count} recovery links selected")
+
+    if not homepage_access_ok and not pages_to_scrape:
+        console.clear_line()
+        console.fail(f"Could not access {domain}")
+        console.muted("  No recoverable first-party paths were reachable")
+        return {}
 
     # Persist selected URL set for reproducibility and debugging.
     if raw_folder:
@@ -602,7 +744,8 @@ def fetch_web_content(
                 f.write(f"# Selected links for {company_name}\n")
                 f.write(f"# Website: {website}\n")
                 f.write(f"# Organization type: {organization_type}\n")
-                f.write(f"# Selected count: {len(pages_to_scrape)} (excluding homepage)\n\n")
+                homepage_note = "excluding homepage" if homepage_access_ok else "recovery mode only"
+                f.write(f"# Selected count: {len(pages_to_scrape)} ({homepage_note})\n\n")
                 for idx, link in enumerate(pages_to_scrape, start=1):
                     f.write(f"{idx:03d}. {link}\n")
         except Exception as e:
@@ -626,7 +769,7 @@ def fetch_web_content(
 
     # Add homepage as first result when we have live HTML.
     homepage_normalized = normalize_url(website)
-    if homepage_html:
+    if homepage_access_ok and homepage_html:
         homepage_result = ScrapeResult(
             url=website,
             success=True,
@@ -648,14 +791,14 @@ def fetch_web_content(
                 logger.warning(f"Failed to save homepage raw scrape: {e}")
 
     resumed_non_home = [u for u in resumed_text_pages if u != homepage_normalized]
-    if homepage_normalized in resumed_text_pages:
+    if homepage_access_ok and homepage_normalized in resumed_text_pages:
         success_count = max(success_count, 1)
     if resumed_non_home:
         success_count += len(resumed_non_home)
-    total = len(pages_to_scrape) + 1  # +1 for homepage already scraped
+    total = len(pages_to_scrape) + (1 if homepage_access_ok else 0)
     page_times = []  # Track per-page durations for ETA
     dup_count = 0  # Pages rejected as duplicate content
-    attempted_urls: set[str] = {homepage_normalized}
+    attempted_urls: set[str] = {homepage_normalized} if homepage_access_ok else set()
     attempted_urls.update(resumed_text_pages.keys())
 
     pilot_count = min(max(0, SCRAPE_PILOT_COUNT), len(pages_to_scrape))
@@ -670,7 +813,7 @@ def fetch_web_content(
     # text (e.g. a global sidebar widget) are caught as duplicates.
     # Uses extract_main_content (same pipeline as the orchestrator's
     # result.extracted_text) to ensure hashes are comparable.
-    if homepage_html:
+    if homepage_access_ok and homepage_html:
         try:
             _hp_text = extract_main_content(homepage_html)
             if _hp_text and _hp_text.strip():
@@ -679,10 +822,20 @@ def fetch_web_content(
             logger.warning("Homepage content hash failed: %s", e)
 
     # Show initial progress immediately
+    initial_completed = 1 if homepage_access_ok else 0
     if pages_to_scrape:
-        console.scrape_progress(1, total, "homepage", scrape_start, ok_count=success_count)
+        initial_label = "homepage" if homepage_access_ok else "recovery"
+        console.scrape_progress(
+            initial_completed, total, initial_label, scrape_start, ok_count=success_count
+        )
         logger.info(
-            f"Starting to scrape {total} pages (homepage + {len(pages_to_scrape)} discovered)"
+            "Starting to scrape %s pages (%s)",
+            total,
+            (
+                f"homepage + {len(pages_to_scrape)} discovered"
+                if homepage_access_ok
+                else f"{len(pages_to_scrape)} recovery candidates"
+            ),
         )
 
     def _scrape_one_page(page_url, orchestrator):
@@ -813,12 +966,13 @@ def fetch_web_content(
                 continue
             attempted_urls.add(normalized)
 
-            logger.debug(f"Scraping page {i + 2}/{total}: {page_url}")
-            _append_trace("TRY", page_url, f"attempt {i + 2}/{total}")
+            display_index = i + 2 if homepage_access_ok else i + 1
+            logger.debug(f"Scraping page {display_index}/{total}: {page_url}")
+            _append_trace("TRY", page_url, f"attempt {display_index}/{total}")
             path = urlparse(page_url).path or "/"
             path_display = path[:30] + "..." if len(path) > 30 else path
             console.scrape_progress(
-                i + 2, total, path_display, scrape_start, ok_count=success_count
+                display_index, total, path_display, scrape_start, ok_count=success_count
             )
 
             result, page_elapsed = _scrape_one_page(page_url, orchestrator)
@@ -839,8 +993,9 @@ def fetch_web_content(
                         continue
                     attempted_urls.add(normalized)
 
-                    logger.debug(f"Scraping page {i + 2}/{total}: {page_url}")
-                    _append_trace("TRY", page_url, f"attempt {i + 2}/{total}")
+                    display_index = i + 2 if homepage_access_ok else i + 1
+                    logger.debug(f"Scraping page {display_index}/{total}: {page_url}")
+                    _append_trace("TRY", page_url, f"attempt {display_index}/{total}")
 
                     future = scrape_pool.submit(_scrape_one_page, page_url, orchestrator)
                     futures[future] = (page_url, normalized, i)
@@ -892,8 +1047,8 @@ def fetch_web_content(
         scraped_content = {}
         for url, raw_html in raw_pages:
             structured = extract_structured_content(raw_html, url, bp_filter)
-            # Use clean_text (boilerplate removed) and exclude CTAs
-            clean_text = structured.to_plain_text(include_cta=False)
+            # Prefer structured plain text, but recover from empty block output.
+            clean_text = _structured_to_clean_text(structured, raw_html)
             if clean_text.strip():
                 scraped_content[url] = clean_text
     else:
@@ -901,7 +1056,7 @@ def fetch_web_content(
         scraped_content = {}
         for url, raw_html in raw_pages:
             structured = structured_cache.get(url) or extract_structured_content(raw_html, url)
-            clean_text = structured.to_plain_text(include_cta=False)
+            clean_text = _structured_to_clean_text(structured, raw_html)
             if clean_text.strip():
                 scraped_content[url] = clean_text
 
@@ -1397,9 +1552,3 @@ def extract_clean_text(soup_or_bytes):
     else:
         # It's bytes, use new function
         return _extract_text(soup_or_bytes)
-
-
-
-
-
-

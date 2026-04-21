@@ -1,6 +1,7 @@
 """Tests for browser automation scrapers."""
 
 import asyncio
+import os
 import sys
 from unittest.mock import MagicMock, patch
 
@@ -12,6 +13,11 @@ from primr.data.scraping.browsers import (
     CONSENT_DISMISS_PATTERNS,
     EXPAND_PATTERNS,
     FakeBrowserSession,
+    PlaywrightSession,
+    SharedBrowser,
+    _browser_session_mode,
+    _resolve_headless,
+    _use_persistent_browser_context,
     scrape_with_drissionpage,
     scrape_with_drissionpage_stealth,
     scrape_with_playwright,
@@ -264,6 +270,55 @@ class TestScrapeWithPlaywright:
 
         assert result.success is False
         assert "playwright" in result.error.lower() or "not installed" in result.error.lower()
+
+
+class TestPlaywrightBrowserMode:
+    """Tests for browser session mode helpers and persistent contexts."""
+
+    def test_resolve_headless_honors_env(self):
+        """Headed env should override explicit headless mode."""
+        with patch.dict(os.environ, {"PRIMR_BROWSER_HEADED": "1"}, clear=False):
+            assert _resolve_headless(True) is False
+            assert _resolve_headless(None) is False
+
+    def test_browser_session_mode_defaults_to_persistent(self):
+        """Unexpected values should fall back to persistent mode."""
+        with patch.dict(os.environ, {"PRIMR_BROWSER_SESSION_MODE": "wat"}, clear=False):
+            assert _browser_session_mode() == "persistent"
+            assert _use_persistent_browser_context() is True
+
+    def test_playwright_session_uses_persistent_context(self):
+        """Persistent session mode should reuse a shared host context."""
+        mock_browser = MagicMock()
+        mock_browser.version = "123"
+        mock_page = MagicMock()
+        mock_context = MagicMock()
+        mock_context.new_page.return_value = mock_page
+        shared = MagicMock(spec=SharedBrowser)
+        shared.get_browser.return_value = mock_browser
+        shared.get_context.return_value = mock_context
+        http_profile = MagicMock(user_agent="ua", accept_language="en-US")
+
+        with (
+            patch.dict(os.environ, {"PRIMR_BROWSER_SESSION_MODE": "persistent"}, clear=False),
+            patch("primr.data.scraping.browsers._can_use_shared_browser", return_value=True),
+            patch("primr.data.scraping.browsers.SharedBrowser.get", return_value=shared),
+            patch(
+                "primr.data.scraping.browsers.get_browser_compatible_http_profile",
+                return_value=http_profile,
+            ),
+            patch("primr.data.scraping.browsers.get_stealth_script", return_value="script"),
+        ):
+            session = PlaywrightSession(context_host="example.com")
+            try:
+                shared.get_context.assert_called_once()
+                assert session._context is mock_context
+                assert session._page is mock_page
+            finally:
+                session.close()
+
+        mock_page.close.assert_called_once()
+        mock_context.close.assert_not_called()
 
 
 class TestScrapeWithPlaywrightAggressive:

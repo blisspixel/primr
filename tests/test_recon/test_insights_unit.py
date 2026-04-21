@@ -20,7 +20,13 @@ from primr.recon.insights import (
 
 
 def _ctx(**kwargs) -> InsightContext:
-    defaults = dict(services=set(), slugs=set(), auth_type=None, dmarc_policy=None, domain_count=0)
+    defaults = {
+        "services": set(),
+        "slugs": set(),
+        "auth_type": None,
+        "dmarc_policy": None,
+        "domain_count": 0,
+    }
     defaults.update(kwargs)
     return InsightContext.from_sets(**defaults)
 
@@ -31,7 +37,10 @@ class TestAuthInsights:
 
     def test_managed(self):
         # "Managed" only shows Entra ID insight when M365 slug is present
-        assert any("Cloud-managed" in i for i in _auth_insights(_ctx(auth_type="Managed", slugs={"microsoft365"})))
+        assert any(
+            "Cloud-managed" in i
+            for i in _auth_insights(_ctx(auth_type="Managed", slugs={"microsoft365"}))
+        )
 
     def test_managed_without_m365(self):
         # "Managed" without M365 evidence produces nothing — GetUserRealm

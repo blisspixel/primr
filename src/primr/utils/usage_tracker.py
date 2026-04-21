@@ -230,9 +230,7 @@ class UsageTracker:
                 e,
             )
         except OSError as e:
-            logger.error(
-                "Could not save usage history (disk error — check available space): %s", e
-            )
+            logger.error("Could not save usage history (disk error — check available space): %s", e)
         except Exception as e:
             logger.error(f"Could not save usage history: {e}")
 
