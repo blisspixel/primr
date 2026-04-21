@@ -167,6 +167,8 @@ class CLIConfig:
     no_qa: bool = False  # Disable automatic quality assessment
     verify: bool = False  # Run post-QA claim verification
     skip_scrape_validation: bool = False  # Continue even when scrape quality is too low
+    browser_headed: bool = False
+    browser_session_mode: str = "persistent"
     improve_path: str | None = None
     improve_in_place: bool = False
     improve_agentic: bool = False
@@ -311,6 +313,7 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
 
     if raw_cloud_vendor is not None:
         import sys as _sys
+
         print("WARNING: --cloud-vendor is deprecated, use --platform instead", file=_sys.stderr)
         platforms = tuple(dict.fromkeys(raw_cloud_vendor))
     elif raw_platforms is not None:
@@ -384,6 +387,8 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         no_qa=getattr(parsed, "no_qa", False),
         verify=getattr(parsed, "verify", False),
         skip_scrape_validation=getattr(parsed, "skip_scrape_validation", False),
+        browser_headed=getattr(parsed, "browser_headed", False),
+        browser_session_mode=getattr(parsed, "browser_session", "isolated"),
         # Agentic architecture options
         memory_company=getattr(parsed, "memory", None),
         memory_list=getattr(parsed, "memory_list", False),
@@ -827,6 +832,18 @@ Accordion Method Test (for development):
         help="Allow run to continue even when website scraping is too thin/failing",
     )
     parser.add_argument(
+        "--browser-headed",
+        "--headed",
+        action="store_true",
+        help="Use a visible browser window for scraping instead of forcing headless mode",
+    )
+    parser.add_argument(
+        "--browser-session",
+        choices=["isolated", "persistent"],
+        default="persistent",
+        help="Browser session behavior: persistent per host for the run (default) or isolated per page",
+    )
+    parser.add_argument(
         "--resume-local",
         action="store_true",
         help="Reuse latest incomplete local working folder for this company and continue from checkpoints",
@@ -837,7 +854,18 @@ Accordion Method Test (for development):
         "--platform",
         type=str,
         nargs="+",
-        choices=["azure", "microsoft", "aws", "amazon", "gcp", "google", "agnostic", "private", "nvidia", "ms"],
+        choices=[
+            "azure",
+            "microsoft",
+            "aws",
+            "amazon",
+            "gcp",
+            "google",
+            "agnostic",
+            "private",
+            "nvidia",
+            "ms",
+        ],
         default=None,
         help="Target platform(s). Aliases: microsoft=azure, amazon=aws, google=gcp, nvidia=private, ms=azure+private. Auto-detected from recon if omitted.",
     )
@@ -1329,9 +1357,7 @@ def _handle_dry_run(config: CLIConfig) -> int:
     # Validate compatibility
     if use_fast_mode and config.mode not in ("complete", "structured", "hybrid"):
         console.error(f"--fast only works with full mode, not --mode {config.mode}")
-        console.info(
-            'Usage: primr "Company" https://url --fast [--platform aws azure] --dry-run'
-        )
+        console.info('Usage: primr "Company" https://url --fast [--platform aws azure] --dry-run')
         return 1
     if use_premium_mode and config.mode not in ("complete", "structured", "hybrid"):
         console.error(f"--premium only works with full mode, not --mode {config.mode}")
@@ -2591,6 +2617,12 @@ def _handle_research(config: CLIConfig) -> int:
     if config.strategy_type and config.strategy_type != "ai":
         strategy_types = [config.strategy_type]
 
+    os.environ["PRIMR_BROWSER_SESSION_MODE"] = config.browser_session_mode
+    if config.browser_headed:
+        os.environ["PRIMR_BROWSER_HEADED"] = "1"
+    else:
+        os.environ.pop("PRIMR_BROWSER_HEADED", None)
+
     # Run research
     result_path = perform_research(
         company_name,
@@ -3348,9 +3380,7 @@ def _handle_list_strategies(config: CLIConfig) -> int:
     console.info(
         '  3. With notes:        primr --ai-strategy-only "report.md" --strategy-type ai --discovery-notes "notes.md"'
     )
-    console.info(
-        '  4. Multi-vendor AI:   primr "Company" https://example.com --platform aws azure'
-    )
+    console.info('  4. Multi-vendor AI:   primr "Company" https://example.com --platform aws azure')
     console.blank()
 
     return 0
@@ -3883,22 +3913,16 @@ def process_batch(
                     )
                 )
                 if is_billing:
-                    console.error(
-                        "  xAI credits exhausted — add credits at https://console.x.ai/"
-                    )
+                    console.error("  xAI credits exhausted — add credits at https://console.x.ai/")
                     if skip_confirm:
-                        console.info(
-                            f"  Pausing {billing_wait_minutes}min then retrying..."
-                        )
+                        console.info(f"  Pausing {billing_wait_minutes}min then retrying...")
                         _time.sleep(billing_wait_minutes * 60)
                         continue  # Retry same company
                     console.info(f"  [w] Wait {billing_wait_minutes} minutes and retry")
                     console.info("  [s] Stop batch (re-run to resume)")
                     resp = input("  Choice [w/s]: ").strip().lower()
                     if resp == "w":
-                        console.info(
-                            f"  Waiting {billing_wait_minutes}min..."
-                        )
+                        console.info(f"  Waiting {billing_wait_minutes}min...")
                         _time.sleep(billing_wait_minutes * 60)
                         continue  # Retry same company
                     else:

@@ -12,12 +12,7 @@ Tests the recon pre-flight step in perform_research():
 
 from __future__ import annotations
 
-import asyncio
-import json
 import os
-from unittest.mock import patch
-
-import pytest
 
 from primr.core.research_agent import (
     _append_run_event,
@@ -27,10 +22,10 @@ from primr.core.research_agent import (
 )
 from primr.recon.models import ConfidenceLevel, ReconLookupError, TenantInfo
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 def _make_tenant_info(
     domain: str = "acme.com",
@@ -104,7 +99,8 @@ class TestReconPreFlightLogic:
             f.write(recon_text)
 
         assert os.path.exists(recon_path)
-        content = open(recon_path, encoding="utf-8").read()
+        with open(recon_path, encoding="utf-8") as f:
+            content = f.read()
         assert "Domain Intelligence (DNS Reconnaissance)" in content
         assert "acme.com" in content
 
@@ -178,7 +174,7 @@ class TestReconPreFlightLogic:
         recon_info = None
 
         try:
-            raise asyncio.TimeoutError("Timed out after 15s")
+            raise TimeoutError("Timed out after 15s")
         except Exception:
             pass
 
@@ -291,10 +287,7 @@ class TestReconRunState:
 
         state = _load_run_state(folder)
         events = state.get("events", [])
-        assert any(
-            e.get("phase") == "recon" and e.get("status") == "failed"
-            for e in events
-        )
+        assert any(e.get("phase") == "recon" and e.get("status") == "failed" for e in events)
 
 
 # ---------------------------------------------------------------------------

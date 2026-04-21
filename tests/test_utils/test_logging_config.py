@@ -125,6 +125,7 @@ class TestLogContext:
             with LogContext(**{name: value}):
                 # Small sleep to increase chance of interleaving
                 import time
+
                 time.sleep(0.01)
                 results[name] = LogContext.get_current().copy()
 

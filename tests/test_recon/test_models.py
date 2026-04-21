@@ -14,11 +14,13 @@ from primr.recon.models import SourceResult
 # Strategy for optional non-empty strings (or None)
 optional_str = st.one_of(
     st.none(),
-    st.text(alphabet=st.characters(whitelist_categories=('L', 'N')), min_size=1, max_size=20),
+    st.text(alphabet=st.characters(whitelist_categories=("L", "N")), min_size=1, max_size=20),
 )
 
 # Strategy for non-None, non-empty strings
-non_empty_str = st.text(alphabet=st.characters(whitelist_categories=('L', 'N')), min_size=1, max_size=20)
+non_empty_str = st.text(
+    alphabet=st.characters(whitelist_categories=("L", "N")), min_size=1, max_size=20
+)
 
 
 class TestSourceResultCompleteness:
@@ -85,9 +87,7 @@ class TestSourceResultIsSuccess:
         m365_detected=st.booleans(),
     )
     @settings(max_examples=100)
-    def test_is_success_when_tenant_id_present(
-        self, source_name, tenant_id, m365_detected
-    ):
+    def test_is_success_when_tenant_id_present(self, source_name, tenant_id, m365_detected):
         """is_success should be True when tenant_id is not None,
         regardless of m365_detected."""
         result = SourceResult(

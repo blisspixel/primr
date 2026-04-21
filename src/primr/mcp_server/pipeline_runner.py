@@ -213,9 +213,7 @@ class PipelineRunner:
 
             # If a destination was specified, copy artifacts there
             if destination and job.output_paths:
-                job.output_paths = _copy_artifacts_to_destination(
-                    job.output_paths, destination
-                )
+                job.output_paths = _copy_artifacts_to_destination(job.output_paths, destination)
 
             self.mcp_server.job_store.update(job)
 

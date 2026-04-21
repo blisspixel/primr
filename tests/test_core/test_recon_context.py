@@ -113,24 +113,19 @@ tenant_info_strategy = st.builds(
     queried_domain=domain_text,
     confidence=confidence_levels,
     region=st.one_of(st.none(), st.sampled_from(["US", "EU", "APAC"])),
-    sources=st.tuples(*[st.just(s) for s in ["dns", "oidc"]]).map(tuple)
-    | st.just(()),
-    services=st.lists(
-        st.sampled_from(_SAMPLE_SERVICES), min_size=0, max_size=8, unique=True
-    ).map(tuple),
-    slugs=st.lists(
-        st.sampled_from(_SAMPLE_SLUGS), min_size=0, max_size=8, unique=True
-    ).map(tuple),
-    auth_type=st.one_of(st.none(), st.sampled_from(["Federated", "Managed"])),
-    dmarc_policy=st.one_of(
-        st.none(), st.sampled_from(["reject", "quarantine", "none"])
+    sources=st.tuples(*[st.just(s) for s in ["dns", "oidc"]]).map(tuple) | st.just(()),
+    services=st.lists(st.sampled_from(_SAMPLE_SERVICES), min_size=0, max_size=8, unique=True).map(
+        tuple
     ),
+    slugs=st.lists(st.sampled_from(_SAMPLE_SLUGS), min_size=0, max_size=8, unique=True).map(tuple),
+    auth_type=st.one_of(st.none(), st.sampled_from(["Federated", "Managed"])),
+    dmarc_policy=st.one_of(st.none(), st.sampled_from(["reject", "quarantine", "none"])),
     domain_count=st.integers(min_value=0, max_value=100),
     tenant_domains=st.just(()),
     related_domains=st.just(()),
-    insights=st.lists(
-        st.sampled_from(_ALL_INSIGHTS), min_size=0, max_size=8, unique=True
-    ).map(tuple),
+    insights=st.lists(st.sampled_from(_ALL_INSIGHTS), min_size=0, max_size=8, unique=True).map(
+        tuple
+    ),
 )
 
 # Strategy for TenantInfo with guaranteed empty fields (for section omission tests)
@@ -234,9 +229,7 @@ class TestFormatterSectionPresence:
 
     @given(info=tenant_info_strategy)
     @settings(deadline=None, max_examples=200)
-    def test_signal_intelligence_present_iff_signal_insights_exist(
-        self, info: TenantInfo
-    ):
+    def test_signal_intelligence_present_iff_signal_insights_exist(self, info: TenantInfo):
         """'Signal Intelligence' header present iff insights contain signal-type entries.
 
         **Validates: Requirements 8.2, 8.4**
@@ -244,9 +237,7 @@ class TestFormatterSectionPresence:
         result = format_recon_context(info)
         has_header = SECTION_SIGNAL_INTELLIGENCE in _extract_section_headers(result)
         signal_insights = [
-            i
-            for i in info.insights
-            if ":" in i and not i.startswith("Email security")
+            i for i in info.insights if ":" in i and not i.startswith("Email security")
         ]
         if signal_insights:
             assert has_header, (
@@ -289,6 +280,4 @@ class TestFormatterDeterminism:
         result2 = format_recon_context(info)
         headers1 = _extract_section_headers(result1)
         headers2 = _extract_section_headers(result2)
-        assert headers1 == headers2, (
-            f"Section headers differ: {headers1} vs {headers2}"
-        )
+        assert headers1 == headers2, f"Section headers differ: {headers1} vs {headers2}"

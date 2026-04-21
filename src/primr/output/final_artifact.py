@@ -50,7 +50,11 @@ class FinalDocument:
 
         for section in self.sections:
             body = section.body.strip()
-            parts.append(f"## {section.heading.strip()}\n\n{body}" if body else f"## {section.heading.strip()}")
+            parts.append(
+                f"## {section.heading.strip()}\n\n{body}"
+                if body
+                else f"## {section.heading.strip()}"
+            )
 
         if self.sources_body.strip():
             parts.append(f"## {self.sources_heading}\n\n{self.sources_body.strip()}")

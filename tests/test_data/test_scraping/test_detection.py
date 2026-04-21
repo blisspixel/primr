@@ -54,6 +54,20 @@ class TestDetectSoftBlock:
         assert reason is not None
         assert "wirewall" in reason.lower() or "waf" in reason.lower()
 
+    def test_detects_kasada_kpsdk_challenge_shell(self):
+        """Should detect Kasada challenge shells returned before content loads."""
+        html = (
+            b"<!DOCTYPE html><html><body>"
+            b"<script>window.KPSDK={};</script>"
+            b'<script src="/abc/ips.js?akm_bmfp=123&x-kpsdk-im=test"></script>'
+            b"</body></html>"
+        )
+        is_blocked, reason = detect_soft_block(html)
+
+        assert is_blocked is True
+        assert reason is not None
+        assert "kasada" in reason.lower() or "kpsdk" in reason.lower()
+
     def test_detects_spa_skeleton(self):
         """Should detect SPA skeleton with no rendered content."""
         html = load_fixture("spa_skeleton.html")

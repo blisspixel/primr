@@ -25,6 +25,7 @@ def _strip_ansi(text: str) -> str:
     """Remove ANSI escape codes from Rich/Typer output for reliable assertions."""
     return re.sub(r"\x1b\[[0-9;]*m", "", text)
 
+
 SAMPLE_INFO = TenantInfo(
     tenant_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
     display_name="Contoso Ltd",
@@ -38,8 +39,14 @@ SAMPLE_INFO = TenantInfo(
 )
 
 SAMPLE_RESULTS = [
-    SourceResult(source_name="oidc_discovery", tenant_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", region="NA"),
-    SourceResult(source_name="azure_ad_metadata", tenant_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", region="NA"),
+    SourceResult(
+        source_name="oidc_discovery", tenant_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", region="NA"
+    ),
+    SourceResult(
+        source_name="azure_ad_metadata",
+        tenant_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+        region="NA",
+    ),
     SourceResult(source_name="dns_records", error="no indicators"),
 ]
 
@@ -62,6 +69,7 @@ class TestHelp:
 
     def test_version_flag(self) -> None:
         from primr.recon.cli import version_callback
+
         with pytest.raises(typer.Exit):
             version_callback(True)
 
@@ -128,7 +136,9 @@ class TestErrors:
     @patch(RESOLVE_PATH, new_callable=AsyncMock)
     def test_not_found(self, mock_resolve) -> None:
         mock_resolve.side_effect = ReconLookupError(
-            domain="unknown.com", message="No tenant found", error_type="all_sources_failed",
+            domain="unknown.com",
+            message="No tenant found",
+            error_type="all_sources_failed",
         )
         result = runner.invoke(app, ["lookup", "unknown.com"])
         assert result.exit_code == 3

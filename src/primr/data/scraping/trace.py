@@ -13,7 +13,7 @@ from pathlib import Path
 from .models import ErrorType, ScrapeResult
 
 # Trace schema version - increment when format changes
-TRACE_SCHEMA_VERSION = "1.0"
+TRACE_SCHEMA_VERSION = "1.1"
 
 
 @dataclass
@@ -60,6 +60,7 @@ class TraceEntry:
     # Content metrics
     extracted_text_length: int | None
     validation_result: dict | None  # Serialized ValidationResult
+    access_assessment: dict | None
 
 
 class TraceLogger:
@@ -158,6 +159,21 @@ class TraceLogger:
                 "counts_as_full_page": result.validation.counts_as_full_page,
             }
 
+        access_dict = None
+        if result.access_assessment:
+            access_dict = {
+                "state": result.access_assessment.state.value,
+                "reason": result.access_assessment.reason,
+                "confidence": result.access_assessment.confidence,
+                "page_kind": result.access_assessment.page_kind,
+                "title": result.access_assessment.title,
+                "visible_text_length": result.access_assessment.visible_text_length,
+                "matched_expected_markers": result.access_assessment.matched_expected_markers,
+                "matched_challenge_markers": result.access_assessment.matched_challenge_markers,
+                "landmarks": result.access_assessment.landmarks,
+                "evidence": result.access_assessment.evidence,
+            }
+
         entry = TraceEntry(
             run_id=self.run_id,
             url=result.url,
@@ -173,6 +189,7 @@ class TraceLogger:
             elapsed_total_ms=result.elapsed_ms or 0,
             extracted_text_length=len(result.extracted_text) if result.extracted_text else None,
             validation_result=validation_dict,
+            access_assessment=access_dict,
         )
 
         with open(self.path, "a", encoding="utf-8") as f:

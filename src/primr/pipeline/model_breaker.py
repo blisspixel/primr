@@ -196,8 +196,7 @@ class ModelCircuitBreaker:
             if self.is_healthy(model_name):
                 return model_name
         raise RuntimeError(
-            f"All models in fallback chain '{chain.name}' are unavailable: "
-            f"{list(chain.models)}"
+            f"All models in fallback chain '{chain.name}' are unavailable: {list(chain.models)}"
         )
 
     def reset(self) -> None:

@@ -32,6 +32,15 @@ class BlockType(Enum):
     TEMPLATE_BLOCK = "template_block"  # Known blocked page template
 
 
+class PageAccessState(Enum):
+    """Classification of whether a response contains real site content."""
+
+    SUCCESS = "success"
+    SOFT_BLOCK = "soft_block"
+    THIN_CONTENT = "thin_content"
+    UNKNOWN = "unknown"
+
+
 @dataclass
 class Attempt:
     """Single tier attempt record (typed, not dict)."""
@@ -58,6 +67,22 @@ class ValidationResult:
 
 
 @dataclass
+class PageAccessAssessment:
+    """Evidence-backed access classification for a fetched page."""
+
+    state: PageAccessState
+    reason: str | None = None
+    confidence: float = 0.0
+    page_kind: str = "generic"
+    title: str | None = None
+    visible_text_length: int = 0
+    matched_expected_markers: list[str] = field(default_factory=list)
+    matched_challenge_markers: list[str] = field(default_factory=list)
+    landmarks: list[str] = field(default_factory=list)
+    evidence: list[str] = field(default_factory=list)
+
+
+@dataclass
 class HostState:
     """Per-host trust state for optimizing tier selection."""
 
@@ -66,6 +91,8 @@ class HostState:
     last_clearance_ts: datetime | None = None
     best_tier: str | None = None  # Tier that worked best for this host
     hard_blocked: bool = False
+    browser_headed_preferred: bool = False
+    browser_escalations: dict = field(default_factory=dict)  # tier_name -> retry count
 
     # Per-tier success/failure tracking for circuit breaker
     tier_attempts: dict = field(default_factory=dict)  # tier_name -> total attempts
@@ -137,6 +164,7 @@ class ScrapeResult:
 
     # Content validation (filled after extraction, separate from soft block)
     validation: ValidationResult | None = None
+    access_assessment: PageAccessAssessment | None = None
 
     # Tier attempt history (typed records)
     attempts: list = field(default_factory=list)  # list[Attempt]

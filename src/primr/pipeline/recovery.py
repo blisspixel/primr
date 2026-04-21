@@ -101,10 +101,7 @@ class RecoveryTable:
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the full table to a plain dictionary."""
-        return {
-            stage.value: h.to_dict()
-            for stage, h in self.hierarchies.items()
-        }
+        return {stage.value: h.to_dict() for stage, h in self.hierarchies.items()}
 
     def to_json(self) -> str:
         """Serialize the full table to a JSON string."""

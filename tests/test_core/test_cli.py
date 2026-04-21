@@ -69,6 +69,7 @@ class TestCLIConfig:
         assert config.cloud_vendor == "azure"
         assert config.skip_confirm is True
         assert config.context_files == ()
+        assert config.browser_session_mode == "persistent"
 
     def test_config_with_values(self):
         """Test config with custom values."""
@@ -166,6 +167,16 @@ class TestParseArgs:
         """Test parsing --no-ai-strategy flag."""
         config = parse_args(["Acme Corp", "acme.example", "--no-ai-strategy"])
         assert config.ai_strategy is False
+
+    def test_parse_browser_headed(self):
+        """Test parsing headed browser flag."""
+        config = parse_args(["Acme Corp", "acme.example", "--browser-headed"])
+        assert config.browser_headed is True
+
+    def test_parse_browser_session_mode(self):
+        """Test parsing browser session mode."""
+        config = parse_args(["Acme Corp", "acme.example", "--browser-session", "persistent"])
+        assert config.browser_session_mode == "persistent"
 
     def test_parse_cloud_vendor(self):
         """Test parsing cloud vendor flag."""
@@ -721,9 +732,10 @@ class TestReconSubcommand:
 
     def test_is_not_recon_command_none_uses_sysargv(self):
         """Test that None falls back to sys.argv[1:]."""
+        import sys
+
         from primr.core.cli import _is_recon_command
 
-        import sys
         saved = sys.argv
         try:
             sys.argv = ["primr", "recon", "acme.com"]

@@ -310,7 +310,11 @@ class ScrapeCache:
                     f,
                 )
         except OSError as e:
-            logger.debug("Disk cache write failed for extracted text %s (memory cache still valid): %s", url, e)
+            logger.debug(
+                "Disk cache write failed for extracted text %s (memory cache still valid): %s",
+                url,
+                e,
+            )
 
     def clear_memory(self) -> None:
         """Clear memory caches only."""

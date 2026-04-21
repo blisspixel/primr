@@ -19,6 +19,7 @@ def _mock_crtsh():
     The crt.sh detector is a bonus source — tests for DNS fingerprinting
     shouldn't depend on it or be slowed by its timeout.
     """
+
     async def _noop_crtsh(ctx, domain):
         pass
 

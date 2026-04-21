@@ -106,6 +106,8 @@ from .models import (
     BlockType,
     ErrorType,
     HostState,
+    PageAccessAssessment,
+    PageAccessState,
     ScrapeResult,
     ScrapeTier,
     ValidationResult,
@@ -130,6 +132,10 @@ from .org_profile import (
     OrganizationProfile,
     classify_organization_type,
     get_focus_areas_for_org_type,
+)
+from .page_access import (
+    classify_page_access,
+    infer_page_kind,
 )
 
 # Profiles
@@ -232,6 +238,8 @@ __all__ = [
     "LRUCache",
     "NoOpRateLimiter",
     "OrganizationProfile",
+    "PageAccessAssessment",
+    "PageAccessState",
     "QualityScore",
     # Config
     "RateLimitConfig",
@@ -251,6 +259,7 @@ __all__ = [
     "ValidationResult",
     "check_success_signal",
     "classify_organization_type",
+    "classify_page_access",
     "clear_block_templates",
     "compute_link_density",
     "detect_challenge_page",
@@ -287,6 +296,7 @@ __all__ = [
     "get_tier_names",
     "guess_common_urls",
     "head_exists",
+    "infer_page_kind",
     "is_cta_block",
     "is_in_scope",
     "is_nav_only_page",

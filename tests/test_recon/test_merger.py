@@ -102,9 +102,7 @@ class TestMergeFillsMissingFields:
         domain=non_empty_str,
     )
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
-    def test_display_name_filled_from_lower_priority(
-        self, uuid1, display, name1, name2, domain
-    ):
+    def test_display_name_filled_from_lower_priority(self, uuid1, display, name1, name2, domain):
         """First result has tenant_id but no display_name; second result
         has display_name. Merged result should have both."""
         assume(name1 != name2)
@@ -135,9 +133,7 @@ class TestMergeFillsMissingFields:
 
         results = [
             SourceResult(source_name=name1, tenant_id=uuid1),
-            SourceResult(
-                source_name=name2, default_domain=default_dom, region=region
-            ),
+            SourceResult(source_name=name2, default_domain=default_dom, region=region),
         ]
         merged = merge_results(results, queried_domain=domain)
         assert merged.tenant_id == uuid1
@@ -232,16 +228,16 @@ class TestSourcesFieldTracksContributors:
         domain=non_empty_str,
     )
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
-    def test_sources_contains_only_successful_results(
-        self, uuid1, name1, name2, domain
-    ):
+    def test_sources_contains_only_successful_results(self, uuid1, name1, name2, domain):
         """sources tuple should contain source_names only from results
         where is_success is True."""
         assume(name1 != name2)
 
         results = [
             SourceResult(source_name=name1, tenant_id=uuid1),  # is_success=True
-            SourceResult(source_name=name2, tenant_id=None, m365_detected=False),  # is_success=False
+            SourceResult(
+                source_name=name2, tenant_id=None, m365_detected=False
+            ),  # is_success=False
         ]
         merged = merge_results(results, queried_domain=domain)
         assert merged.sources == (name1,)
@@ -254,9 +250,7 @@ class TestSourcesFieldTracksContributors:
         domain=non_empty_str,
     )
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
-    def test_sources_contains_all_successful_results(
-        self, uuid1, uuid2, name1, name2, domain
-    ):
+    def test_sources_contains_all_successful_results(self, uuid1, uuid2, name1, name2, domain):
         """When multiple results are successful, all their source_names
         should appear in the sources tuple."""
         assume(name1 != name2)

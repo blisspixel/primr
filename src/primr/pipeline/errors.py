@@ -28,9 +28,7 @@ from primr.ai.error_policy import (
 # Constants
 # ---------------------------------------------------------------------------
 
-_TRANSIENT_HTTP_CODES: frozenset[str] = frozenset(
-    {"429", "500", "502", "503", "504"}
-)
+_TRANSIENT_HTTP_CODES: frozenset[str] = frozenset({"429", "500", "502", "503", "504"})
 
 _TRANSIENT_MARKERS: tuple[str, ...] = (
     "connection reset",
@@ -68,7 +66,9 @@ class ErrorCategory(Enum):
 def is_rate_limited(error: Exception) -> bool:
     """Return True when the error indicates an HTTP 429 rate-limit response."""
     text = str(error).lower()
-    return "429" in text and ("rate" in text or "limit" in text or "too many" in text or text.strip() == "429")
+    return "429" in text and (
+        "rate" in text or "limit" in text or "too many" in text or text.strip() == "429"
+    )
 
 
 def _is_transient_error(error: Exception) -> bool:

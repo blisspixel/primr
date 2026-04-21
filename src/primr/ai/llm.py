@@ -236,7 +236,9 @@ def llm(prompt, model_type="fast", temperature=1.0, thinking_level="high", strea
                 wait_time = min(2**retries * 5, 60)  # Exponential backoff: 10s, 20s, 40s, max 60s
                 logger.warning(
                     "Gemini rate limited, waiting %.0fs before retry %d/%d",
-                    wait_time, retries, MAX_RETRIES,
+                    wait_time,
+                    retries,
+                    MAX_RETRIES,
                 )
                 print(
                     Fore.YELLOW

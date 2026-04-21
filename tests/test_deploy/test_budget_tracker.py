@@ -14,7 +14,6 @@ Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7
 
 from __future__ import annotations
 
-import os
 from typing import TYPE_CHECKING
 
 import pytest
@@ -97,7 +96,11 @@ class TestInMemoryUsageStore:
             date="2026-01-15",
             job_count=1,
             total_cost_usd=0.50,
-            jobs=[JobCostRecord(job_id="j1", cost_usd=0.50, mode="scrape", submitted_at="2026-01-15T10:00:00Z")],
+            jobs=[
+                JobCostRecord(
+                    job_id="j1", cost_usd=0.50, mode="scrape", submitted_at="2026-01-15T10:00:00Z"
+                )
+            ],
             ttl=9999999,
         )
         usage_store.put_usage_record(record)
@@ -118,7 +121,9 @@ class TestInMemoryUsageStore:
             )
         # Different month
         usage_store.put_usage_record(
-            UsageRecord(api_key_hash="sha256:abc", date="2026-02-01", job_count=1, total_cost_usd=5.0)
+            UsageRecord(
+                api_key_hash="sha256:abc", date="2026-02-01", job_count=1, total_cost_usd=5.0
+            )
         )
         records = usage_store.get_usage_records_for_month("sha256:abc", 2026, 1)
         assert len(records) == 3
@@ -126,14 +131,20 @@ class TestInMemoryUsageStore:
 
     def test_get_all_records(self, usage_store: InMemoryUsageStore) -> None:
         usage_store.put_usage_record(
-            UsageRecord(api_key_hash="sha256:abc", date="2026-01-01", job_count=1, total_cost_usd=1.0)
+            UsageRecord(
+                api_key_hash="sha256:abc", date="2026-01-01", job_count=1, total_cost_usd=1.0
+            )
         )
         usage_store.put_usage_record(
-            UsageRecord(api_key_hash="sha256:abc", date="2026-02-01", job_count=2, total_cost_usd=3.0)
+            UsageRecord(
+                api_key_hash="sha256:abc", date="2026-02-01", job_count=2, total_cost_usd=3.0
+            )
         )
         # Different key
         usage_store.put_usage_record(
-            UsageRecord(api_key_hash="sha256:xyz", date="2026-01-01", job_count=1, total_cost_usd=2.0)
+            UsageRecord(
+                api_key_hash="sha256:xyz", date="2026-01-01", job_count=1, total_cost_usd=2.0
+            )
         )
         records = usage_store.get_all_usage_records("sha256:abc")
         assert len(records) == 2
@@ -141,7 +152,9 @@ class TestInMemoryUsageStore:
 
     def test_clear(self, usage_store: InMemoryUsageStore) -> None:
         usage_store.put_usage_record(
-            UsageRecord(api_key_hash="sha256:abc", date="2026-01-01", job_count=1, total_cost_usd=1.0)
+            UsageRecord(
+                api_key_hash="sha256:abc", date="2026-01-01", job_count=1, total_cost_usd=1.0
+            )
         )
         usage_store.clear()
         assert usage_store.get_all_usage_records("sha256:abc") == []
@@ -199,7 +212,9 @@ class TestBudgetTrackerLimits:
     def test_custom_limits_per_key(self, budget_tracker: BudgetTracker) -> None:
         budget_tracker.set_limits(
             "sha256:vip",
-            BudgetLimits(max_job_cost_usd=50.0, max_daily_cost_usd=500.0, max_monthly_cost_usd=5000.0),
+            BudgetLimits(
+                max_job_cost_usd=50.0, max_daily_cost_usd=500.0, max_monthly_cost_usd=5000.0
+            ),
         )
         # This would fail with default limits but passes with custom
         budget_tracker.check_budget("sha256:vip", 25.0)
@@ -298,6 +313,7 @@ class TestUsageEndpoint:
     def test_usage_returns_empty_for_new_key(self, client: TestClient) -> None:
         # The caller's api_key_hash must match the path parameter (H2 authorization fix)
         from deploy.control_plane.job_store import hash_api_key
+
         caller_hash = hash_api_key("test-key")
         response = client.get(
             f"/usage/{caller_hash}",
@@ -314,6 +330,7 @@ class TestUsageEndpoint:
         self, client: TestClient, budget_tracker: BudgetTracker
     ) -> None:
         from deploy.control_plane.job_store import hash_api_key
+
         caller_hash = hash_api_key("test-key")
         budget_tracker.record_job_cost(caller_hash, "job-1", 2.5, "deep")
         response = client.get(

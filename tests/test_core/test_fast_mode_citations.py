@@ -98,10 +98,7 @@ def test_normalize_fast_citations_repairs_malformed_inline_citations():
 
 
 def test_normalize_fast_citations_strips_plural_cites_placeholders_without_urls():
-    content = (
-        "## Findings\n\n"
-        "Claim [cites: 1=website homepage; 2=workbook].\n"
-    )
+    content = "## Findings\n\nClaim [cites: 1=website homepage; 2=workbook].\n"
 
     normalized = _normalize_fast_citations(content)
 

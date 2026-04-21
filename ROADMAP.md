@@ -149,6 +149,33 @@ Planned next steps:
 Decision principle:
 - Be permissive about formatting in the research pipeline, but strict about formatting and structure in the final document pipeline.
 
+#### Verified Page Access & Challenge Recovery
+
+Primr's scraping pipeline needs to treat **real page access** as a stricter condition than "HTTP 200 + some DOM." The Canada Goose / Kasada case made this concrete: a browser tier can receive a challenge shell, script bootstrap, or interstitial and still look superficially successful unless the pipeline explicitly verifies that the destination content actually appeared.
+
+What this work is for:
+- Promote scrape success from transport success to **verified real-content success**
+- Detect challenge/interstitial states consistently across homepage fast paths and orchestrated deep-page scraping
+- Recover through **allowed first-party paths** such as sitemap, investor relations, newsroom, PDFs, and static metadata instead of pretending success or looping indefinitely
+
+What has already shipped:
+- A shared page-access classifier that assigns explicit states: `success`, `soft_block`, `thin_content`, `unknown`
+- Evidence-backed classification fields on scrape results and trace artifacts so runs now preserve why a page was accepted or rejected
+- Homepage fast-path validation wired into the same classifier used by the orchestrator, closing the previous gap where a browser-fetched challenge shell could be accepted as a "homepage success"
+- Additional Kasada/KPSDK challenge-shell coverage in soft-block detection
+- First-party recovery mode when the homepage is blocked: Primr now probes sitemap/guessed deep paths directly and only declares failure after those recoverable first-party paths are exhausted
+- Regression tests for challenge shells, thin-but-real history/about pages, homepage fallback behavior, and trace serialization
+
+Planned next steps:
+- Expand first-party fallback probing beyond current sitemap/guessed-path recovery: investor/news/about/help PDFs, feeds, and structured data endpoints with better prioritization
+- Add host-level learning so once Primr sees a confirmed real page for a host it can persist useful positive markers for later pages
+- Add optional screenshot/text-snapshot comparison for browser tiers to distinguish stable real homepages from interstitial templates
+- Surface a clearer user-facing blocked-site summary in the CLI with evidence snippets and recommended next actions (`--mode deep`, site-wide block vs partial access, first-party fallback coverage)
+- Extend trace analytics and eval suites to score false-positive and false-negative rates for access classification on protected sites
+
+Decision principle:
+- A page counts as scraped only when Primr has evidence that the **real page content** appeared, not merely that a request returned HTML.
+
 #### Grok Tier Evaluation — 4-Way Comparison
 
 Run the eval harness on 3-5 companies across all Grok tiers (fast/hybrid/max/multi-agent) plus premium to produce a proper scorecard. Hybrid is now the default based on initial Litehouse Foods comparison (meaningfully better analytical depth for ~$0.20 more). Need systematic data to confirm hybrid remains the right default, whether max tier ever justifies 6x the cost, and where multi-agent fits in the lineup.
