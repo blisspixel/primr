@@ -78,7 +78,7 @@ def compute_backoff(
 
     **Validates: Requirements 10.3**
     """
-    raw = base * (2 ** attempt)
+    raw = base * (2**attempt)
     jitter_factor = 1.0 + random.random() * 0.2
     delay = raw * jitter_factor
     return float(min(delay, max_delay))

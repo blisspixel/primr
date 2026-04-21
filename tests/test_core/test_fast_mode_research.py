@@ -17,9 +17,9 @@ from primr.core.research_agent import (
     _fast_regenerate_section,
     _normalize_fast_citations,
     _normalize_generated_section_payload,
+    _parse_batch_sections,
     _parse_single_section,
     _parse_structured_section_envelopes,
-    _parse_batch_sections,
 )
 from primr.prompts.loader import SectionConfig
 
@@ -815,7 +815,6 @@ class TestGeneratedSectionNormalization:
         assert "## References" not in parsed.content
         assert parsed.content.endswith("What to validate: Confirm competitor win-loss reasons.")
 
-
     def test_parse_structured_section_envelopes_reads_xml_blocks(self):
         content = (
             "<section><title>Executive Summary</title><body>Summary body.\n\nWhat to validate: Confirm summary.</body></section>"
@@ -854,7 +853,6 @@ class TestGeneratedSectionNormalization:
 
         assert [section.title for section in parsed] == ["Executive Summary", "SWOT Analysis"]
 
-
     def test_parse_batch_sections_handles_mixed_envelope_and_markdown_output(self):
         class ExpectedSection:
             def __init__(self, name: str):
@@ -883,7 +881,6 @@ class TestGeneratedSectionNormalization:
             "<section><title>Executive Summary</title><body>Summary body.\n\nWhat to validate: Confirm summary.</body></section>\n\n"
             "## SWOT Analysis\n\nSWOT body.\n\nWhat to validate: Confirm SWOT."
         )
-
 
         parsed = _parse_batch_sections(content, expected)
 

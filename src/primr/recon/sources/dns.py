@@ -109,7 +109,15 @@ def _safe_resolve_sync(domain: str, rdtype: str, timeout: float = DNS_QUERY_TIME
 class _DetectionCtx:
     """Mutable accumulator for service detection results."""
 
-    __slots__ = ("_m365_slugs", "dmarc_policy", "m365", "related_domains", "services", "slugs", "spf_include_count")
+    __slots__ = (
+        "_m365_slugs",
+        "dmarc_policy",
+        "m365",
+        "related_domains",
+        "services",
+        "slugs",
+        "spf_include_count",
+    )
 
     def __init__(self) -> None:
         self.services: set[str] = set()
@@ -176,10 +184,20 @@ async def _detect_m365_cnames(ctx: _DetectionCtx, domain: str) -> None:
     enterprise_task = _safe_resolve(f"enterpriseregistration.{domain}", "CNAME")
     msoid_task = _safe_resolve(f"msoid.{domain}", "CNAME")
 
-    (autodiscover_results, lyncdiscover_results, sip_results,
-     srv_results, enterprise_results, msoid_results) = await asyncio.gather(
-        autodiscover_task, lyncdiscover_task, sip_task,
-        srv_task, enterprise_task, msoid_task,
+    (
+        autodiscover_results,
+        lyncdiscover_results,
+        sip_results,
+        srv_results,
+        enterprise_results,
+        msoid_results,
+    ) = await asyncio.gather(
+        autodiscover_task,
+        lyncdiscover_task,
+        sip_task,
+        srv_task,
+        enterprise_task,
+        msoid_task,
     )
 
     for cname in autodiscover_results:
@@ -247,12 +265,14 @@ async def _detect_dkim(ctx: _DetectionCtx, domain: str) -> None:
 
     # Also fire ESP selector queries concurrently
     esp_tasks = [
-        _safe_resolve(f"{sel}._domainkey.{domain}", "CNAME")
-        for sel, _, _, _ in _ESP_SELECTORS
+        _safe_resolve(f"{sel}._domainkey.{domain}", "CNAME") for sel, _, _, _ in _ESP_SELECTORS
     ]
 
     all_results = await asyncio.gather(
-        sel1_task, sel2_task, google_txt_task, google_cname_task,
+        sel1_task,
+        sel2_task,
+        google_txt_task,
+        google_cname_task,
         *esp_tasks,
     )
 
@@ -305,7 +325,9 @@ async def _detect_email_security(ctx: _DetectionCtx, domain: str) -> None:
     mta_sts_task = _safe_resolve(f"_mta-sts.{domain}", "TXT")
 
     dmarc_results, bimi_results, mta_sts_results = await asyncio.gather(
-        dmarc_task, bimi_task, mta_sts_task,
+        dmarc_task,
+        bimi_task,
+        mta_sts_task,
     )
 
     for txt in dmarc_results:
@@ -442,8 +464,16 @@ _CRTSH_TIMEOUT = 8.0
 # Patterns to filter out from crt.sh results — wildcards, common noise,
 # and subdomains that rarely have interesting TXT/MX records.
 _CRTSH_SKIP_PREFIXES = (
-    "*.", "cpanel.", "cpcalendars.", "cpcontacts.", "webdisk.", "webmail.",
-    "mail.", "ftp.", "localhost.", "www.",
+    "*.",
+    "cpanel.",
+    "cpcalendars.",
+    "cpcontacts.",
+    "webdisk.",
+    "webmail.",
+    "mail.",
+    "ftp.",
+    "localhost.",
+    "www.",
 )
 
 

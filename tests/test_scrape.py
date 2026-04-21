@@ -377,6 +377,7 @@ class TestPilotScrapeValidation:
         assert result["useful_corpus_relief"] is True
         assert result["should_abort"] is False
 
+
 # ============================================================================
 # WAF SIGNATURES TESTS (formerly SOFT_BLOCK_INDICATORS)
 # ============================================================================
@@ -398,5 +399,3 @@ class TestWAFSignatures:
         has_cloudflare = any("cloudflare" in s for s in signatures_lower)
         has_denied = any("denied" in s or "blocked" in s for s in signatures_lower)
         assert has_captcha or has_cloudflare or has_denied
-
-

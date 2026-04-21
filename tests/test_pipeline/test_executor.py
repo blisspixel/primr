@@ -88,9 +88,9 @@ class TestForegroundExhaustionLogging:
 
         handlers: dict[tuple[PipelineStage, RecoveryActionType], Any] = {}
         for action in hierarchy.actions:
-            handlers[(PipelineStage.SCRAPING, action.action_type)] = (
-                lambda ctx: (_ for _ in ()).throw(Exception("fail"))
-            )
+            handlers[(PipelineStage.SCRAPING, action.action_type)] = lambda ctx: (
+                _ for _ in ()
+            ).throw(Exception("fail"))
 
         executor = RecoveryExecutor(
             recovery_table=table,
@@ -125,9 +125,9 @@ class TestForegroundExhaustionLogging:
 
         handlers: dict[tuple[PipelineStage, RecoveryActionType], Any] = {}
         for action in hierarchy.actions:
-            handlers[(PipelineStage.ANALYSIS, action.action_type)] = (
-                lambda ctx: (_ for _ in ()).throw(Exception("fail"))
-            )
+            handlers[(PipelineStage.ANALYSIS, action.action_type)] = lambda ctx: (
+                _ for _ in ()
+            ).throw(Exception("fail"))
 
         executor = RecoveryExecutor(
             recovery_table=table,

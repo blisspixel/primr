@@ -7,6 +7,8 @@ from pathlib import Path
 from primr.data.scraping.models import (
     Attempt,
     ErrorType,
+    PageAccessAssessment,
+    PageAccessState,
     ScrapeResult,
     ValidationResult,
 )
@@ -55,6 +57,12 @@ class TestTraceLogger:
                 content_type="html",
                 elapsed_ms=150.0,
                 extracted_text="Some content",
+                access_assessment=PageAccessAssessment(
+                    state=PageAccessState.SUCCESS,
+                    confidence=0.88,
+                    page_kind="homepage",
+                    evidence=["landmarks:main, nav"],
+                ),
                 attempts=[
                     Attempt(tier="requests", success=True, elapsed_ms=150.0),
                 ],
@@ -74,6 +82,8 @@ class TestTraceLogger:
             assert entry["blocked"] is False
             assert entry["http_status"] == 200
             assert entry["extracted_text_length"] == len("Some content")
+            assert entry["access_assessment"]["state"] == "success"
+            assert entry["access_assessment"]["page_kind"] == "homepage"
 
     def test_log_failed_result(self):
         """Should log failed scrape result with block info."""

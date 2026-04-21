@@ -106,10 +106,7 @@ def merge_results(
         if not all_services_check:
             raise ReconLookupError(
                 domain=queried_domain,
-                message=(
-                    f"No information could be resolved "
-                    f"for {queried_domain} from any source"
-                ),
+                message=(f"No information could be resolved for {queried_domain} from any source"),
                 error_type="all_sources_failed",
             )
 
@@ -135,7 +132,9 @@ def merge_results(
     domain_count = len(all_domains)
     tenant_domains = tuple(sorted(all_domains))
 
-    insights = build_insights_with_signals(all_services, all_slugs, auth_type, dmarc_policy, domain_count)
+    insights = build_insights_with_signals(
+        all_services, all_slugs, auth_type, dmarc_policy, domain_count
+    )
 
     if has_id_conflict:
         conflicting = sorted({r.tenant_id for r in results if r.tenant_id is not None})

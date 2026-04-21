@@ -146,26 +146,28 @@ class TestInsightGeneration:
 
 class TestTieredOutput:
     def _make_info(self, **kwargs) -> TenantInfo:
-        defaults = dict(
-            tenant_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
-            display_name="TestCo",
-            default_domain="testco.com",
-            queried_domain="testco.com",
-            confidence=ConfidenceLevel.HIGH,
-            region="NA",
-            auth_type="Federated",
-            dmarc_policy="reject",
-            domain_count=5,
-            sources=("oidc_discovery", "user_realm"),
-            services=("Exchange Online", "Google Workspace", "Slack"),
-            insights=("Federated identity", "DMARC: reject"),
-            tenant_domains=("testco.com", "testco.onmicrosoft.com"),
-        )
+        defaults = {
+            "tenant_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+            "display_name": "TestCo",
+            "default_domain": "testco.com",
+            "queried_domain": "testco.com",
+            "confidence": ConfidenceLevel.HIGH,
+            "region": "NA",
+            "auth_type": "Federated",
+            "dmarc_policy": "reject",
+            "domain_count": 5,
+            "sources": ("oidc_discovery", "user_realm"),
+            "services": ("Exchange Online", "Google Workspace", "Slack"),
+            "insights": ("Federated identity", "DMARC: reject"),
+            "tenant_domains": ("testco.com", "testco.onmicrosoft.com"),
+        }
         defaults.update(kwargs)
         return TenantInfo(**defaults)
 
     def _render(self, panel) -> str:
-        c = Console(file=io.StringIO(), force_terminal=True, width=200, no_color=True, highlight=False)
+        c = Console(
+            file=io.StringIO(), force_terminal=True, width=200, no_color=True, highlight=False
+        )
         c.print(panel)
         return c.file.getvalue()
 

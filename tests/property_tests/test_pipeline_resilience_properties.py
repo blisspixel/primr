@@ -117,9 +117,7 @@ class TestCostOrderingInvariant:
         """Every hierarchy has at least one recovery action."""
         table = build_default_recovery_table()
         hierarchy = table.get_hierarchy(stage)
-        assert len(hierarchy.actions) >= 1, (
-            f"Stage {stage.name} has no recovery actions"
-        )
+        assert len(hierarchy.actions) >= 1, f"Stage {stage.name} has no recovery actions"
 
 
 # =============================================================================
@@ -153,9 +151,7 @@ class TestRecoveryTableSerializationRoundTrip:
         json_str = table.to_json()
         parsed: dict[str, object] = json.loads(json_str)
         hierarchy_dict = table.get_hierarchy(stage).to_dict()
-        assert parsed[stage.value] == hierarchy_dict, (
-            f"Round-trip mismatch for stage {stage.name}"
-        )
+        assert parsed[stage.value] == hierarchy_dict, f"Round-trip mismatch for stage {stage.name}"
 
 
 # =============================================================================
@@ -360,9 +356,7 @@ class TestProviderAwareModelSelection:
         )
 
         # Pick a chain with at least 2 models
-        chain_models = data.draw(
-            st.lists(model_names, min_size=2, max_size=5, unique=True)
-        )
+        chain_models = data.draw(st.lists(model_names, min_size=2, max_size=5, unique=True))
         chain = FallbackChain(name="test", models=tuple(chain_models))
 
         # Decide which providers have API keys (provider-level, not model-level)
@@ -408,9 +402,7 @@ class TestProviderAwareModelSelection:
         ):
             if expected_model is not None:
                 result = breaker.select_model(chain)
-                assert result == expected_model, (
-                    f"Expected {expected_model}, got {result}"
-                )
+                assert result == expected_model, f"Expected {expected_model}, got {result}"
             else:
                 import pytest
 
@@ -428,9 +420,7 @@ class TestProviderAwareModelSelection:
 
         from primr.pipeline.model_breaker import FallbackChain, ModelCircuitBreaker
 
-        chain_models = data.draw(
-            st.lists(model_names, min_size=1, max_size=5, unique=True)
-        )
+        chain_models = data.draw(st.lists(model_names, min_size=1, max_size=5, unique=True))
         chain = FallbackChain(name="test", models=tuple(chain_models))
 
         breaker = ModelCircuitBreaker()
@@ -486,7 +476,9 @@ class TestHealthEventEmission:
         assert event.model == model, f"Expected model {model}, got {event.model}"
         assert event.from_state == "closed", f"Expected from_state 'closed', got {event.from_state}"
         assert event.to_state == "open", f"Expected to_state 'open', got {event.to_state}"
-        assert event.failure_count >= 0, f"failure_count must be non-negative, got {event.failure_count}"
+        assert event.failure_count >= 0, (
+            f"failure_count must be non-negative, got {event.failure_count}"
+        )
 
     @given(model=model_names)
     @settings(max_examples=100, deadline=None)
@@ -529,18 +521,22 @@ class TestHealthEventEmission:
 # =============================================================================
 
 # Background stages only
-background_stages = st.sampled_from([
-    PipelineStage.CROSS_VALIDATION,
-    PipelineStage.STRATEGY_GENERATION,
-])
+background_stages = st.sampled_from(
+    [
+        PipelineStage.CROSS_VALIDATION,
+        PipelineStage.STRATEGY_GENERATION,
+    ]
+)
 
 # Foreground stages only
-foreground_stages = st.sampled_from([
-    PipelineStage.SCRAPING,
-    PipelineStage.EXTERNAL_SEARCH,
-    PipelineStage.ANALYSIS,
-    PipelineStage.SECTION_WRITING,
-])
+foreground_stages = st.sampled_from(
+    [
+        PipelineStage.SCRAPING,
+        PipelineStage.EXTERNAL_SEARCH,
+        PipelineStage.ANALYSIS,
+        PipelineStage.SECTION_WRITING,
+    ]
+)
 
 
 # =============================================================================
@@ -582,7 +578,9 @@ class TestBackgroundStageImmediateAbort:
 
         table = build_default_recovery_table()
         hierarchy = table.get_hierarchy(stage)
-        handlers: dict[tuple[PipelineStage, RecoveryActionType], Callable[[RecoveryContext], Any]] = {}
+        handlers: dict[
+            tuple[PipelineStage, RecoveryActionType], Callable[[RecoveryContext], Any]
+        ] = {}
         for action in hierarchy.actions:
             handlers[(stage, action.action_type)] = should_not_be_called
 
@@ -694,8 +692,7 @@ class TestForegroundStageExhaustion:
 
         # All actions should have been attempted
         assert len(result.actions_taken) == len(hierarchy.actions), (
-            f"Expected {len(hierarchy.actions)} actions attempted, "
-            f"got {len(result.actions_taken)}"
+            f"Expected {len(hierarchy.actions)} actions attempted, got {len(result.actions_taken)}"
         )
         assert result.success is False, "Should not succeed when all actions fail"
 
@@ -734,9 +731,7 @@ class TestQueryReductionBound:
         from primr.pipeline.executor import reduce_queries
 
         reduced = reduce_queries(original)
-        assert reduced >= 1, (
-            f"reduce_queries({original}) = {reduced}, expected >= 1"
-        )
+        assert reduced >= 1, f"reduce_queries({original}) = {reduced}, expected >= 1"
 
     @given(original=st.integers(min_value=1, max_value=10000))
     @settings(max_examples=100, deadline=None)
@@ -745,9 +740,7 @@ class TestQueryReductionBound:
         from primr.pipeline.executor import reduce_queries
 
         reduced = reduce_queries(original)
-        assert reduced >= 1, (
-            f"reduce_queries({original}) = {reduced}, expected >= 1"
-        )
+        assert reduced >= 1, f"reduce_queries({original}) = {reduced}, expected >= 1"
 
 
 # =============================================================================
@@ -783,7 +776,7 @@ class TestBackoffDelayMonotonicity:
 
         for attempt in range(max_attempt + 1):
             delay = compute_backoff(attempt, base=base, max_delay=max_delay)
-            raw_min = base * (2 ** attempt)
+            raw_min = base * (2**attempt)
             raw_max = raw_min * 1.2
             expected_min = min(raw_min, max_delay)
             expected_max = min(raw_max, max_delay)

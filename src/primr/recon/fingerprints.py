@@ -50,7 +50,9 @@ __all__ = [
 # Hard cap on pattern length. Not a ReDoS fix by itself — see _validate_regex.
 _MAX_PATTERN_LENGTH = 500
 
-_VALID_DETECTION_TYPES = frozenset({"txt", "spf", "mx", "ns", "cname", "subdomain_txt", "caa", "srv"})
+_VALID_DETECTION_TYPES = frozenset(
+    {"txt", "spf", "mx", "ns", "cname", "subdomain_txt", "caa", "srv"}
+)
 _VALID_CONFIDENCE_LEVELS = frozenset({"high", "medium", "low"})
 
 # Structural patterns known to cause catastrophic backtracking.
@@ -60,11 +62,11 @@ _VALID_CONFIDENCE_LEVELS = frozenset({"high", "medium", "low"})
 # This is a heuristic — not exhaustive — but catches the most common
 # ReDoS vectors from user-supplied custom fingerprints.
 _REDOS_RE = re.compile(
-    r"\([^)]*[+*][^)]*\)[+*]"       # (group-with-quantifier) followed by quantifier
+    r"\([^)]*[+*][^)]*\)[+*]"  # (group-with-quantifier) followed by quantifier
     r"|"
-    r"(?:[+*]\??\.\*[+*])"          # quantifier + .* + quantifier
+    r"(?:[+*]\??\.\*[+*])"  # quantifier + .* + quantifier
     r"|"
-    r"(?:\.[+*]\??\.[+*]\??\.[+*])" # three adjacent .X quantifiers (polynomial)
+    r"(?:\.[+*]\??\.[+*]\??\.[+*])"  # three adjacent .X quantifiers (polynomial)
 )
 
 
@@ -184,12 +186,14 @@ def _validate_fingerprint(fp: dict[str, Any], source: str) -> Fingerprint | None
         pattern = det.get("pattern", "")
         if not _validate_regex(pattern, f"{source}:{name}"):
             continue
-        valid_detections.append(DetectionRule(
-            type=det_type,
-            pattern=pattern,
-            description=det.get("description", ""),
-            reference=det.get("reference", ""),
-        ))
+        valid_detections.append(
+            DetectionRule(
+                type=det_type,
+                pattern=pattern,
+                description=det.get("description", ""),
+                reference=det.get("reference", ""),
+            )
+        )
 
     if not valid_detections:
         logger.warning("Fingerprint %r has no valid detections in %s — skipped", name, source)
@@ -259,7 +263,11 @@ def load_fingerprints() -> tuple[Fingerprint, ...]:
     """
     data_path = Path(__file__).parent / "data" / "fingerprints.yaml"
     custom_dir = os.environ.get("RECON_CONFIG_DIR")
-    custom_path = Path(custom_dir) / "fingerprints.yaml" if custom_dir else Path.home() / ".recon" / "fingerprints.yaml"
+    custom_path = (
+        Path(custom_dir) / "fingerprints.yaml"
+        if custom_dir
+        else Path.home() / ".recon" / "fingerprints.yaml"
+    )
 
     entries: list[Fingerprint] = []
     entries.extend(_load_from_path(data_path))
@@ -294,6 +302,7 @@ def _get_detections(det_type: str) -> tuple[Detection, ...]:
 
 # Public accessors — thin wrappers over _get_detections for readability.
 # All return tuple[Detection, ...] (immutable).
+
 
 def get_txt_patterns() -> tuple[Detection, ...]:
     """Return Detection tuples for TXT record matching."""
@@ -366,7 +375,9 @@ def get_m365_slugs() -> frozenset[str]:
 _MAX_TXT_MATCH_LENGTH = 4096
 
 
-def match_txt(txt_value: str, patterns: tuple[Detection, ...] | list[Detection]) -> Detection | None:
+def match_txt(
+    txt_value: str, patterns: tuple[Detection, ...] | list[Detection]
+) -> Detection | None:
     """Match a TXT record value against patterns. Returns the matching Detection or None.
 
     Rejects excessively long input to bound regex execution time.

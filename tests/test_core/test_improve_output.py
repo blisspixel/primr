@@ -3,7 +3,6 @@ from pathlib import Path
 from docx import Document
 
 import primr.output.output_utils as output_utils
-from primr.output.final_artifact import GeneratedSection, canonicalize_final_markdown, parse_final_markdown
 from primr.core.research_agent import (
     _clean_strategy_output,
     _compute_strategy_qa_metrics,
@@ -15,6 +14,11 @@ from primr.core.research_agent import (
     _validate_output_docx,
     _validate_output_markdown,
     improve_output_file,
+)
+from primr.output.final_artifact import (
+    GeneratedSection,
+    canonicalize_final_markdown,
+    parse_final_markdown,
 )
 
 
@@ -350,7 +354,10 @@ def test_parse_final_markdown_preserves_preamble_and_content_section_order():
     parsed = parse_final_markdown(content)
 
     assert parsed.preamble.startswith("# Strategic Company Overview")
-    assert [section.heading for section in parsed.sections] == ["Executive Summary", "SWOT Analysis"]
+    assert [section.heading for section in parsed.sections] == [
+        "Executive Summary",
+        "SWOT Analysis",
+    ]
     assert parsed.sources_body == ""
 
 
@@ -363,7 +370,10 @@ def test_generated_section_to_markdown_formats_section():
         citation_numbers=[1, 2],
     )
 
-    assert section.to_markdown() == "## Executive Summary\n\nDeep content.\n\nWhat to validate: Confirm the key claim."
+    assert (
+        section.to_markdown()
+        == "## Executive Summary\n\nDeep content.\n\nWhat to validate: Confirm the key claim."
+    )
 
 
 def test_prepare_strategy_markdown_for_shipping_merges_reference_sections():

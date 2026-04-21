@@ -10,7 +10,9 @@ The orchestrator manages:
 - Success signal checking (uniform across all tiers)
 """
 
+import contextlib
 import logging
+import os
 import random
 import re
 import time
@@ -25,21 +27,24 @@ from .content import (
     extract_text_from_pdf_via_llm,
     is_quality_content,
 )
-from .detection import check_success_signal, detect_soft_block
 from .models import (
     Attempt,
     ErrorType,
     HostState,
+    PageAccessState,
     ScrapeResult,
     ScrapeTier,
 )
 from .net import extract_host
+from .page_access import classify_page_access
 from .rate_limiter import RateLimiter
 from .tier_registry import get_available_tiers
 from .trace import TraceLogger
 from .validation import validate_content
 
 logger = logging.getLogger(__name__)
+
+ADAPTIVE_BROWSER_TIERS = {"playwright", "playwright_aggressive"}
 
 _BOILERPLATE_TEXT_PATTERNS = (
     "skip to content",
@@ -235,6 +240,105 @@ class ScrapeOrchestrator:
         delay = random.uniform(*self.delay_between_tiers)
         time.sleep(delay)
 
+    @contextlib.contextmanager
+    def _browser_execution_env(self, host_state: HostState, tier_name: str, headed: bool = False):
+        """Temporarily apply adaptive browser settings for Playwright tiers."""
+        if tier_name not in ADAPTIVE_BROWSER_TIERS:
+            yield
+            return
+
+        force_headed = headed or host_state.browser_headed_preferred
+        previous_headed = os.environ.get("PRIMR_BROWSER_HEADED")
+        previous_session = os.environ.get("PRIMR_BROWSER_SESSION_MODE")
+        try:
+            os.environ["PRIMR_BROWSER_SESSION_MODE"] = "persistent"
+            if force_headed:
+                os.environ["PRIMR_BROWSER_HEADED"] = "1"
+            elif previous_headed is None:
+                os.environ.pop("PRIMR_BROWSER_HEADED", None)
+            yield
+        finally:
+            if previous_session is None:
+                os.environ.pop("PRIMR_BROWSER_SESSION_MODE", None)
+            else:
+                os.environ["PRIMR_BROWSER_SESSION_MODE"] = previous_session
+
+            if previous_headed is None:
+                os.environ.pop("PRIMR_BROWSER_HEADED", None)
+            else:
+                os.environ["PRIMR_BROWSER_HEADED"] = previous_headed
+
+    def _maybe_retry_browser_tier(
+        self,
+        host_state: HostState,
+        tier: ScrapeTier,
+        url: str,
+        timeout: float,
+        all_attempts: list[Attempt],
+        start_time: float,
+    ) -> ScrapeResult | None:
+        """Retry browser tiers with stronger session settings before escalating away."""
+        if tier.name not in ADAPTIVE_BROWSER_TIERS:
+            return None
+        if host_state.browser_headed_preferred:
+            return None
+        if host_state.browser_escalations.get(tier.name, 0) >= 1:
+            return None
+
+        logger.info("Adaptive browser retry for %s on %s", tier.name, url)
+        host_state.browser_escalations[tier.name] = (
+            host_state.browser_escalations.get(tier.name, 0) + 1
+        )
+
+        try:
+            self.rate_limiter.acquire(host_state.host)
+            try:
+                with self._browser_execution_env(host_state, tier.name, headed=True):
+                    retry_result = tier.scrape_fn(url, timeout)
+            finally:
+                self.rate_limiter.release(host_state.host)
+        except Exception as e:
+            logger.warning("Adaptive browser retry failed on %s for %s: %s", tier.name, url, e)
+            all_attempts.append(
+                Attempt(
+                    tier=f"{tier.name}:adaptive",
+                    success=False,
+                    error=str(e),
+                    error_type=ErrorType.NETWORK_ERROR,
+                    elapsed_ms=(time.time() - start_time) * 1000,
+                )
+            )
+            return None
+
+        if retry_result.attempts:
+            adapted_attempts = [
+                Attempt(
+                    tier=f"{attempt.tier}:adaptive",
+                    success=attempt.success,
+                    error=attempt.error,
+                    error_type=attempt.error_type,
+                    elapsed_ms=attempt.elapsed_ms,
+                    http_status=attempt.http_status,
+                )
+                for attempt in retry_result.attempts
+            ]
+            all_attempts.extend(adapted_attempts)
+        else:
+            all_attempts.append(
+                Attempt(
+                    tier=f"{tier.name}:adaptive",
+                    success=retry_result.success,
+                    error=retry_result.error,
+                    error_type=retry_result.error_type,
+                    elapsed_ms=retry_result.elapsed_ms,
+                    http_status=retry_result.http_status,
+                )
+            )
+
+        if retry_result.success:
+            host_state.browser_headed_preferred = True
+        return retry_result
+
     def scrape_url(self, url: str) -> ScrapeResult:
         """
         Scrape a single URL using tiered approach.
@@ -411,7 +515,8 @@ class ScrapeOrchestrator:
 
                 try:
                     # Make request
-                    tier_result = tier.scrape_fn(url, effective_timeout)
+                    with self._browser_execution_env(host_state, tier.name):
+                        tier_result = tier.scrape_fn(url, effective_timeout)
 
                     # Record attempt
                     if tier_result.attempts:
@@ -490,25 +595,20 @@ class ScrapeOrchestrator:
                 self._random_delay()
                 continue
 
-            # 3e. Check for soft blocks
-            is_blocked, block_reason = detect_soft_block(
-                tier_result.raw_content,
+            # 3e-f. Classify whether transport success produced real content.
+            access_assessment = classify_page_access(
+                tier_result.raw_content or b"",
+                url=url,
                 http_status=tier_result.http_status,
                 content_type=tier_result.content_type,
                 final_url=tier_result.final_url,
-                host=host,
             )
 
-            if is_blocked:
+            if access_assessment.state == PageAccessState.SOFT_BLOCK:
+                block_reason = access_assessment.reason or "Challenge/interstitial detected"
                 logger.debug(f"Soft block detected on {tier.name} for {url}: {block_reason}")
-                # Check if it's a hard block
-                if (
-                    "hard" in (block_reason or "").lower()
-                    or tier_result.error_type == ErrorType.HARD_BLOCK
-                ):
-                    # 3i. Hard block - stop escalation
+                if "hard" in block_reason.lower() or tier_result.error_type == ErrorType.HARD_BLOCK:
                     self._mark_host_blocked(host)
-
                     result = ScrapeResult(
                         url=url,
                         success=False,
@@ -518,6 +618,7 @@ class ScrapeOrchestrator:
                         tier=tier.name,
                         attempts=all_attempts,
                         elapsed_ms=(time.time() - start_time) * 1000,
+                        access_assessment=access_assessment,
                     )
 
                     if self.trace_logger:
@@ -525,48 +626,124 @@ class ScrapeOrchestrator:
 
                     return result
 
-                # 3h. Soft block - record failure, try next tier
-                logger.debug(f"Soft block on {tier.name}: {block_reason}")
-                host_state.record_tier_attempt(tier.name, success=False)
-                last_result = ScrapeResult(
-                    url=url,
-                    success=False,
-                    error=f"Soft block detected: {block_reason}",
-                    error_type=ErrorType.NETWORK_ERROR,
-                    tier=tier.name,
-                    elapsed_ms=(time.time() - start_time) * 1000,
+                retry_result = self._maybe_retry_browser_tier(
+                    host_state,
+                    tier,
+                    url,
+                    effective_timeout,
+                    all_attempts,
+                    start_time,
                 )
-                # Track consecutive failures for soft blocks
-                error_key = "soft_block"
-                if last_error_type == error_key:
-                    consecutive_failures += 1
+                if retry_result and retry_result.success:
+                    retry_assessment = classify_page_access(
+                        retry_result.raw_content or b"",
+                        url=url,
+                        http_status=retry_result.http_status,
+                        content_type=retry_result.content_type,
+                        final_url=retry_result.final_url,
+                    )
+                    if retry_assessment.state == PageAccessState.SUCCESS:
+                        tier_result = retry_result
+                        access_assessment = retry_assessment
+                    else:
+                        logger.debug(
+                            "Adaptive browser retry still rejected on %s for %s: %s",
+                            tier.name,
+                            url,
+                            retry_assessment.reason,
+                        )
+                        host_state.browser_headed_preferred = False
+                        retry_result = None
+                if (
+                    retry_result
+                    and retry_result.success
+                    and access_assessment.state == PageAccessState.SUCCESS
+                ):
+                    # Continue using the adapted result through the normal success path below.
+                    pass
                 else:
-                    consecutive_failures = 1
-                    last_error_type = error_key
-                self._random_delay()
-                continue
+                    host_state.record_tier_attempt(tier.name, success=False)
+                    last_result = ScrapeResult(
+                        url=url,
+                        success=False,
+                        error=f"Soft block detected: {block_reason}",
+                        error_type=ErrorType.SOFT_BLOCK,
+                        blocked_reason=block_reason,
+                        tier=tier.name,
+                        elapsed_ms=(time.time() - start_time) * 1000,
+                        access_assessment=access_assessment,
+                    )
+                    error_key = "soft_block"
+                    if last_error_type == error_key:
+                        consecutive_failures += 1
+                    else:
+                        consecutive_failures = 1
+                        last_error_type = error_key
+                    self._random_delay()
+                    continue
 
-            # 3f. Check success signal
-            if not check_success_signal(tier_result.raw_content, tier_result.http_status):
-                logger.debug(f"Success signal failed on {tier.name} for {url}")
-                host_state.record_tier_attempt(tier.name, success=False)
-                last_result = ScrapeResult(
-                    url=url,
-                    success=False,
-                    error="Success signal check failed (likely blocked/interstitial content)",
-                    error_type=ErrorType.NETWORK_ERROR,
-                    tier=tier.name,
-                    elapsed_ms=(time.time() - start_time) * 1000,
+            if access_assessment.state in (PageAccessState.THIN_CONTENT, PageAccessState.UNKNOWN):
+                logger.debug(
+                    "Access classifier rejected %s on %s for %s: %s",
+                    access_assessment.state.value,
+                    tier.name,
+                    url,
+                    access_assessment.reason,
                 )
-                # Track consecutive failures for success signal failures
-                error_key = "success_signal_failed"
-                if last_error_type == error_key:
-                    consecutive_failures += 1
+                retry_result = self._maybe_retry_browser_tier(
+                    host_state,
+                    tier,
+                    url,
+                    effective_timeout,
+                    all_attempts,
+                    start_time,
+                )
+                if retry_result and retry_result.success:
+                    retry_assessment = classify_page_access(
+                        retry_result.raw_content or b"",
+                        url=url,
+                        http_status=retry_result.http_status,
+                        content_type=retry_result.content_type,
+                        final_url=retry_result.final_url,
+                    )
+                    if retry_assessment.state == PageAccessState.SUCCESS:
+                        tier_result = retry_result
+                        access_assessment = retry_assessment
+                    else:
+                        logger.debug(
+                            "Adaptive browser retry remained %s on %s for %s",
+                            retry_assessment.state.value,
+                            tier.name,
+                            url,
+                        )
+                        host_state.browser_headed_preferred = False
+                        retry_result = None
+                if (
+                    retry_result
+                    and retry_result.success
+                    and access_assessment.state == PageAccessState.SUCCESS
+                ):
+                    pass
                 else:
-                    consecutive_failures = 1
-                    last_error_type = error_key
-                self._random_delay()
-                continue
+                    host_state.record_tier_attempt(tier.name, success=False)
+                    last_result = ScrapeResult(
+                        url=url,
+                        success=False,
+                        error=access_assessment.reason
+                        or "Page loaded without convincing real-content markers",
+                        error_type=ErrorType.SUCCESS_SIGNAL_FAILED,
+                        tier=tier.name,
+                        elapsed_ms=(time.time() - start_time) * 1000,
+                        access_assessment=access_assessment,
+                    )
+                    error_key = access_assessment.state.value
+                    if last_error_type == error_key:
+                        consecutive_failures += 1
+                    else:
+                        consecutive_failures = 1
+                        last_error_type = error_key
+                    self._random_delay()
+                    continue
 
             # 3f2. Check for wrong-page (canonical URL mismatch)
             # Some sites redirect category pages to a child or serve a blog
@@ -716,6 +893,7 @@ class ScrapeOrchestrator:
                 elapsed_ms=(time.time() - start_time) * 1000,
                 cookies=tier_result.cookies,
                 validation=validation,
+                access_assessment=access_assessment,
                 attempts=all_attempts,
             )
 

@@ -117,10 +117,7 @@ def format_recon_context(info: TenantInfo) -> str:
         sections.append("")
 
     # Signal Intelligence — strategic patterns
-    signal_insights = [
-        i for i in info.insights
-        if ":" in i and not i.startswith("Email security")
-    ]
+    signal_insights = [i for i in info.insights if ":" in i and not i.startswith("Email security")]
     if signal_insights:
         sections.append(f"--- {SECTION_SIGNAL_INTELLIGENCE} ---")
         sections.append(
@@ -133,8 +130,7 @@ def format_recon_context(info: TenantInfo) -> str:
 
     # Email Security
     email_insights = [
-        i for i in info.insights
-        if i.startswith("Email security") or "DMARC" in i or "DKIM" in i
+        i for i in info.insights if i.startswith("Email security") or "DMARC" in i or "DKIM" in i
     ]
     if email_insights or info.dmarc_policy:
         sections.append(f"--- {SECTION_EMAIL_SECURITY} ---")
@@ -149,10 +145,9 @@ def format_recon_context(info: TenantInfo) -> str:
         sections.append(f"--- {SECTION_IDENTITY_AUTH} ---")
         sections.append(f"  Auth Type: {info.auth_type}")
         auth_insights = [
-            i for i in info.insights
-            if "identity" in i.lower()
-            or "federated" in i.lower()
-            or "managed" in i.lower()
+            i
+            for i in info.insights
+            if "identity" in i.lower() or "federated" in i.lower() or "managed" in i.lower()
         ]
         for insight in auth_insights:
             sections.append(f"  - {insight}")
@@ -160,7 +155,8 @@ def format_recon_context(info: TenantInfo) -> str:
 
     # Infrastructure — with strategic interpretation
     infra_insights = [
-        i for i in info.insights
+        i
+        for i in info.insights
         if i.startswith("Infrastructure:") or "cloud" in i.lower() or "DNS:" in i
     ]
     if infra_insights or info.slugs:
@@ -179,16 +175,38 @@ def format_recon_context(info: TenantInfo) -> str:
         if detected_gcp:
             sections.append(f"  GCP infrastructure detected: {', '.join(detected_gcp)}")
         if detected_azure and detected_aws:
-            sections.append("  Multi-cloud posture: Azure + AWS — recommendations should be cloud-agnostic or address both.")
+            sections.append(
+                "  Multi-cloud posture: Azure + AWS — recommendations should be cloud-agnostic or address both."
+            )
         for insight in infra_insights:
             sections.append(f"  - {insight}")
         sections.append("")
 
     # Security stack summary for security strategy
-    security_slugs = {"crowdstrike", "sentinelone", "knowbe4", "proofpoint", "mimecast",
-                      "zscaler", "netskope", "paloalto", "wiz", "sophos", "okta", "duo",
-                      "1password", "jamf", "kandji", "barracuda", "trendmicro", "trellix",
-                      "ping-identity", "cyberark", "cato", "lakera"}
+    security_slugs = {
+        "crowdstrike",
+        "sentinelone",
+        "knowbe4",
+        "proofpoint",
+        "mimecast",
+        "zscaler",
+        "netskope",
+        "paloalto",
+        "wiz",
+        "sophos",
+        "okta",
+        "duo",
+        "1password",
+        "jamf",
+        "kandji",
+        "barracuda",
+        "trendmicro",
+        "trellix",
+        "ping-identity",
+        "cyberark",
+        "cato",
+        "lakera",
+    }
     detected_security = [s for s in info.slugs if s in security_slugs]
     if detected_security:
         sections.append("--- Security Stack ---")
@@ -201,8 +219,16 @@ def format_recon_context(info: TenantInfo) -> str:
         sections.append("")
 
     # Data & analytics for data fabric strategy
-    data_slugs = {"databricks", "snowflake", "mongodb", "dynatrace", "segment",
-                  "datadog", "newrelic", "pagerduty"}
+    data_slugs = {
+        "databricks",
+        "snowflake",
+        "mongodb",
+        "dynatrace",
+        "segment",
+        "datadog",
+        "newrelic",
+        "pagerduty",
+    }
     detected_data = [s for s in info.slugs if s in data_slugs]
     if detected_data:
         sections.append("--- Data & Analytics Stack ---")
@@ -215,9 +241,23 @@ def format_recon_context(info: TenantInfo) -> str:
         sections.append("")
 
     # CRM & GTM for CX strategy
-    crm_slugs = {"salesforce", "hubspot", "marketo", "pardot", "eloqua", "klaviyo",
-                 "6sense", "outreach", "salesloft", "clearbit", "demandbase", "drift",
-                 "gong", "intercom", "apollo"}
+    crm_slugs = {
+        "salesforce",
+        "hubspot",
+        "marketo",
+        "pardot",
+        "eloqua",
+        "klaviyo",
+        "6sense",
+        "outreach",
+        "salesloft",
+        "clearbit",
+        "demandbase",
+        "drift",
+        "gong",
+        "intercom",
+        "apollo",
+    }
     detected_crm = [s for s in info.slugs if s in crm_slugs]
     if detected_crm:
         sections.append("--- CRM & Go-to-Market Stack ---")

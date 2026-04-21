@@ -32,8 +32,8 @@ class SourceResult:
     error: str | None = None
     detected_services: tuple[str, ...] = ()
     # Extended intel fields
-    auth_type: str | None = None          # "Federated" or "Managed"
-    dmarc_policy: str | None = None       # "reject", "quarantine", "none"
+    auth_type: str | None = None  # "Federated" or "Managed"
+    dmarc_policy: str | None = None  # "reject", "quarantine", "none"
     tenant_domains: tuple[str, ...] = ()  # All domains in the tenant
     detected_slugs: tuple[str, ...] = ()  # Fingerprint slugs that matched
     # Domains discovered from CNAME targets (autodiscover redirects, DKIM
@@ -44,11 +44,7 @@ class SourceResult:
     @property
     def is_success(self) -> bool:
         """True if this result contains any useful data (identity or services)."""
-        return (
-            self.tenant_id is not None
-            or self.m365_detected
-            or len(self.detected_services) > 0
-        )
+        return self.tenant_id is not None or self.m365_detected or len(self.detected_services) > 0
 
     @property
     def is_complete(self) -> bool:
@@ -74,14 +70,14 @@ class TenantInfo:
     region: str | None = None
     sources: tuple[str, ...] = ()
     services: tuple[str, ...] = ()
-    slugs: tuple[str, ...] = ()          # Stable fingerprint identifiers
+    slugs: tuple[str, ...] = ()  # Stable fingerprint identifiers
     # Extended intel
-    auth_type: str | None = None          # "Federated" or "Managed"
-    dmarc_policy: str | None = None       # "reject", "quarantine", "none"
-    domain_count: int = 0                 # Number of domains in tenant
+    auth_type: str | None = None  # "Federated" or "Managed"
+    dmarc_policy: str | None = None  # "reject", "quarantine", "none"
+    domain_count: int = 0  # Number of domains in tenant
     tenant_domains: tuple[str, ...] = ()  # All domains found
-    related_domains: tuple[str, ...] = () # Domains inferred from CNAME targets
-    insights: tuple[str, ...] = ()        # Derived intelligence signals
+    related_domains: tuple[str, ...] = ()  # Domains inferred from CNAME targets
+    insights: tuple[str, ...] = ()  # Derived intelligence signals
 
 
 @dataclass

@@ -650,12 +650,15 @@ class TestValidateEntraIdAudience:
         verifier = PrimrTokenVerifier(config)
 
         # Token with correct Entra ID audience
-        token = create_signed_jwt({
-            "sub": "user@contoso.com",
-            "aud": app_id,
-            "exp": int(time.time()) + 3600,
-        })
+        token = create_signed_jwt(
+            {
+                "sub": "user@contoso.com",
+                "aud": app_id,
+                "exp": int(time.time()) + 3600,
+            }
+        )
         import asyncio
+
         result = asyncio.run(verifier.verify_token(token))
         assert result is not None
         assert result.client_id == "user@contoso.com"
@@ -668,12 +671,15 @@ class TestValidateEntraIdAudience:
         )
         verifier = PrimrTokenVerifier(config)
 
-        token = create_signed_jwt({
-            "sub": "user@contoso.com",
-            "aud": "api://wrong-app-id",
-            "exp": int(time.time()) + 3600,
-        })
+        token = create_signed_jwt(
+            {
+                "sub": "user@contoso.com",
+                "aud": "api://wrong-app-id",
+                "exp": int(time.time()) + 3600,
+            }
+        )
         import asyncio
+
         result = asyncio.run(verifier.verify_token(token))
         assert result is None
 
@@ -757,12 +763,14 @@ class TestFoundryAgentServiceAuth:
     @pytest.mark.asyncio
     async def test_entra_agent_identity(self, verifier_with_entra):
         """Entra agent identity: JWT with matching audience."""
-        token = create_signed_jwt({
-            "sub": "foundry-agent-identity",
-            "aud": "api://primr-container-app",
-            "iss": "https://login.microsoftonline.com/tenant-id/v2.0",
-            "exp": int(time.time()) + 3600,
-        })
+        token = create_signed_jwt(
+            {
+                "sub": "foundry-agent-identity",
+                "aud": "api://primr-container-app",
+                "iss": "https://login.microsoftonline.com/tenant-id/v2.0",
+                "exp": int(time.time()) + 3600,
+            }
+        )
         result = await verifier_with_entra.verify_token(token)
         assert result is not None
         assert result.client_id == "foundry-agent-identity"
@@ -770,23 +778,27 @@ class TestFoundryAgentServiceAuth:
     @pytest.mark.asyncio
     async def test_entra_managed_identity(self, verifier_with_entra):
         """Entra project managed identity: JWT with matching audience."""
-        token = create_signed_jwt({
-            "sub": "managed-identity-object-id",
-            "aud": "api://primr-container-app",
-            "oid": "managed-identity-object-id",
-            "exp": int(time.time()) + 3600,
-        })
+        token = create_signed_jwt(
+            {
+                "sub": "managed-identity-object-id",
+                "aud": "api://primr-container-app",
+                "oid": "managed-identity-object-id",
+                "exp": int(time.time()) + 3600,
+            }
+        )
         result = await verifier_with_entra.verify_token(token)
         assert result is not None
 
     @pytest.mark.asyncio
     async def test_entra_wrong_audience_rejected(self, verifier_with_entra):
         """Entra token with wrong audience is rejected."""
-        token = create_signed_jwt({
-            "sub": "foundry-agent",
-            "aud": "api://wrong-app-id",
-            "exp": int(time.time()) + 3600,
-        })
+        token = create_signed_jwt(
+            {
+                "sub": "foundry-agent",
+                "aud": "api://wrong-app-id",
+                "exp": int(time.time()) + 3600,
+            }
+        )
         result = await verifier_with_entra.verify_token(token)
         assert result is None
 

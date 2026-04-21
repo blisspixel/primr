@@ -30,8 +30,14 @@ SAMPLE_INFO = TenantInfo(
 )
 
 SAMPLE_RESULTS = [
-    SourceResult(source_name="oidc_discovery", tenant_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", region="NA"),
-    SourceResult(source_name="azure_ad_metadata", tenant_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", region="NA"),
+    SourceResult(
+        source_name="oidc_discovery", tenant_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", region="NA"
+    ),
+    SourceResult(
+        source_name="azure_ad_metadata",
+        tenant_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+        region="NA",
+    ),
 ]
 
 
@@ -109,7 +115,9 @@ class TestErrors:
     @patch(RESOLVE_PATH, new_callable=AsyncMock)
     async def test_not_found(self, mock_resolve: AsyncMock) -> None:
         mock_resolve.side_effect = ReconLookupError(
-            domain="unknown.com", message="No data", error_type="all_sources_failed",
+            domain="unknown.com",
+            message="No data",
+            error_type="all_sources_failed",
         )
         result = await lookup_tenant("unknown.com")
         assert "No information found for unknown.com" in result
@@ -141,6 +149,7 @@ class TestErrors:
 class TestMCPMetadata:
     def test_server_name(self) -> None:
         from primr.recon.server import mcp
+
         if mcp is None:
             pytest.skip("FastMCP not available in this environment")
         assert mcp.name == "recon-tool"
@@ -152,6 +161,7 @@ class TestMCPMetadata:
 
     def test_prompt_exists(self) -> None:
         from primr.recon.server import domain_report
+
         result = domain_report("pepsi.com")
         assert "pepsi.com" in result
         assert "lookup_tenant" in result

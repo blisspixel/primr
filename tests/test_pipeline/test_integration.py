@@ -15,9 +15,6 @@ import os
 import tempfile
 from unittest.mock import MagicMock, patch
 
-import pytest
-
-
 # =============================================================================
 # TEST: --dry-run output contains recovery table JSON (Req 14.2)
 # =============================================================================
@@ -56,7 +53,6 @@ class TestDryRunRecoveryTable:
         **Validates: Requirements 14.2**
         """
         from primr.pipeline.recovery import build_default_recovery_table
-        from primr.pipeline.stages import STAGE_CLASSIFICATIONS
 
         table = build_default_recovery_table()
         table_dict = table.to_dict()
@@ -93,9 +89,8 @@ class TestDryRunRecoveryTable:
         )
 
         captured = io.StringIO()
-        with redirect_stdout(captured):
-            with patch.dict(os.environ, {"XAI_API_KEY": "test-key"}):
-                result = _handle_dry_run(config)
+        with redirect_stdout(captured), patch.dict(os.environ, {"XAI_API_KEY": "test-key"}):
+            result = _handle_dry_run(config)
 
         output = captured.getvalue()
         assert result == 0
@@ -122,10 +117,9 @@ class TestStickyTierPreservation:
 
         **Validates: Requirements 2.4**
         """
-        from primr.pipeline.executor import RecoveryExecutor, StageResult
+        from primr.pipeline.executor import RecoveryExecutor
         from primr.pipeline.integration import scrape_page_with_recovery
         from primr.pipeline.recovery import build_default_recovery_table
-        from primr.pipeline.stages import PipelineStage
 
         # Simulate a successful scrape — executor should pass through
         call_count = 0
@@ -139,9 +133,7 @@ class TestStickyTierPreservation:
         executor = RecoveryExecutor(recovery_table=build_default_recovery_table())
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            result = scrape_page_with_recovery(
-                executor, mock_scrape, "https://example.com", tmpdir
-            )
+            result = scrape_page_with_recovery(executor, mock_scrape, "https://example.com", tmpdir)
 
         assert result.success is True
         assert call_count == 1  # Only called once on success
@@ -163,8 +155,8 @@ class TestHealthTransitionLogging:
         """
         from primr.core.research_agent import (
             _build_health_listener,
-            _load_run_state,
             _ensure_resilience_keys,
+            _load_run_state,
             _save_run_state,
         )
         from primr.pipeline.model_breaker import ModelHealthEvent

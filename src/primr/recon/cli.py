@@ -74,6 +74,7 @@ def version_callback(value: bool) -> None:
     """Print version and exit."""
     if value:
         from primr.recon import __version__
+
         get_console().print(f"recon [bold]{__version__}[/bold]")
         raise typer.Exit()
 
@@ -82,6 +83,7 @@ def _debug_callback(value: bool) -> None:
     """Enable debug logging when --debug is passed."""
     if value:
         import logging
+
         logger = logging.getLogger("recon")
         if not logger.handlers:
             handler = logging.StreamHandler()
@@ -93,11 +95,17 @@ def _debug_callback(value: bool) -> None:
 @app.callback()
 def main(
     version: bool | None = typer.Option(
-        None, "--version", callback=version_callback, is_eager=True,
+        None,
+        "--version",
+        callback=version_callback,
+        is_eager=True,
         help="Show version and exit.",
     ),
     debug: bool = typer.Option(
-        False, "--debug", callback=_debug_callback, is_eager=True,
+        False,
+        "--debug",
+        callback=_debug_callback,
+        is_eager=True,
         help="Enable debug logging.",
     ),
 ) -> None:
@@ -123,23 +131,18 @@ def lookup(
     domain: str = typer.Argument(help="Domain to look up"),
     json_output: bool = typer.Option(False, "--json", help="Structured JSON output"),
     markdown: bool = typer.Option(False, "--md", help="Markdown report"),
-    services: bool = typer.Option(
-        False, "--services", "-s", help="M365 vs tech stack breakdown"
-    ),
-    domains: bool = typer.Option(
-        False, "--domains", "-d", help="All tenant domains"
-    ),
+    services: bool = typer.Option(False, "--services", "-s", help="M365 vs tech stack breakdown"),
+    domains: bool = typer.Option(False, "--domains", "-d", help="All tenant domains"),
     full: bool = typer.Option(
         False, "--full", "-f", help="Everything (verbose + services + domains)"
     ),
-    verbose: bool = typer.Option(
-        False, "--verbose", "-v", help="Per-source resolution status"
-    ),
-    sources: bool = typer.Option(
-        False, "--sources", help="Detailed source breakdown table"
-    ),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Per-source resolution status"),
+    sources: bool = typer.Option(False, "--sources", help="Detailed source breakdown table"),
     timeout: float = typer.Option(
-        60.0, "--timeout", "-t", help="Max seconds for resolution (default: 60)",
+        60.0,
+        "--timeout",
+        "-t",
+        help="Max seconds for resolution (default: 60)",
     ),
 ) -> None:
     """
@@ -147,7 +150,9 @@ def lookup(
 
     [dim]primr recon pepsi.com is the same as primr recon lookup pepsi.com[/dim]
     """
-    asyncio.run(_lookup(domain, json_output, markdown, verbose, services, domains, full, sources, timeout))
+    asyncio.run(
+        _lookup(domain, json_output, markdown, verbose, services, domains, full, sources, timeout)
+    )
 
 
 @app.command()
@@ -156,7 +161,10 @@ def batch(
     json_output: bool = typer.Option(False, "--json", help="JSON array output"),
     markdown: bool = typer.Option(False, "--md", help="Markdown report per domain"),
     concurrency: int = typer.Option(
-        5, "--concurrency", "-c", help="Max concurrent lookups (1-20)",
+        5,
+        "--concurrency",
+        "-c",
+        help="Max concurrent lookups (1-20)",
     ),
 ) -> None:
     """
@@ -223,33 +231,48 @@ async def _doctor() -> None:
     try:
         answers = dns.resolver.resolve("example.com", "TXT")
         checks.append(("DNS resolution", True, f"{len(list(answers))} TXT records"))  # pyright: ignore[reportArgumentType]
-    except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer, dns.resolver.NoNameservers,
-            dns.exception.Timeout, OSError) as exc:
+    except (
+        dns.resolver.NXDOMAIN,
+        dns.resolver.NoAnswer,
+        dns.resolver.NoNameservers,
+        dns.exception.Timeout,
+        OSError,
+    ) as exc:
         checks.append(("DNS resolution", False, str(exc)))
 
     try:
         from primr.recon.server import mcp  # noqa: F401  # pyright: ignore[reportUnusedImport]
+
         checks.append(("MCP server module", True, "loaded"))
     except Exception as exc:
         checks.append(("MCP server module", False, str(exc)))
 
     try:
         from primr.recon.fingerprints import load_fingerprints
+
         fps = load_fingerprints()
         if fps:
             checks.append(("Fingerprint database", True, f"{len(fps)} fingerprints loaded"))
         else:
-            checks.append(("Fingerprint database", False, "no fingerprints loaded — detection will not work"))
+            checks.append(
+                ("Fingerprint database", False, "no fingerprints loaded — detection will not work")
+            )
     except Exception as exc:
         checks.append(("Fingerprint database", False, str(exc)))
 
     import os
     from pathlib import Path
+
     custom_dir = os.environ.get("RECON_CONFIG_DIR")
-    custom_path = Path(custom_dir) / "fingerprints.yaml" if custom_dir else Path.home() / ".recon" / "fingerprints.yaml"
+    custom_path = (
+        Path(custom_dir) / "fingerprints.yaml"
+        if custom_dir
+        else Path.home() / ".recon" / "fingerprints.yaml"
+    )
     if custom_path.exists():
         try:
             import yaml
+
             data = yaml.safe_load(custom_path.read_text(encoding="utf-8"))
             count = 0
             if isinstance(data, dict) and "fingerprints" in data:
@@ -334,11 +357,13 @@ async def _lookup(
             typer.echo(format_tenant_markdown(info))
             return
 
-        console.print(render_tenant_panel(
-            info,
-            show_services=show_services,
-            show_domains=show_domains,
-        ))
+        console.print(
+            render_tenant_panel(
+                info,
+                show_services=show_services,
+                show_domains=show_domains,
+            )
+        )
 
         if show_sources:
             console.print(render_sources_detail(results))
@@ -381,9 +406,7 @@ async def _batch(file: str, json_output: bool, markdown: bool, concurrency: int)
                 if stripped and not stripped.startswith("#"):
                     domain_list.append(stripped)
                     if len(domain_list) > _MAX_BATCH_DOMAINS:
-                        render_error(
-                            f"Batch file exceeds maximum of {_MAX_BATCH_DOMAINS} domains"
-                        )
+                        render_error(f"Batch file exceeds maximum of {_MAX_BATCH_DOMAINS} domains")
                         raise typer.Exit(code=EXIT_VALIDATION)
     except OSError as exc:
         render_error(f"Cannot read file: {exc}")
@@ -466,7 +489,7 @@ async def _batch(file: str, json_output: bool, markdown: bool, concurrency: int)
             if r is None:
                 continue
             if isinstance(r, str) and r.startswith(_ERROR_PREFIX):
-                render_error(r[len(_ERROR_PREFIX):])
+                render_error(r[len(_ERROR_PREFIX) :])
             else:
                 console.print(r)
                 console.print()

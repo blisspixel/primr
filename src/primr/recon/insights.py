@@ -59,10 +59,19 @@ _GOOGLE_SLUGS = frozenset({"google-workspace"})
 
 # Slugs that indicate the domain sends/receives email — used to decide
 # whether to show the email security score (vs just a bare DMARC line).
-_EMAIL_SLUGS = frozenset({
-    "aws-ses", "sendgrid", "mailgun", "postmark", "sparkpost", "brevo",
-    "mailchimp", "zoho", "protonmail",
-})
+_EMAIL_SLUGS = frozenset(
+    {
+        "aws-ses",
+        "sendgrid",
+        "mailgun",
+        "postmark",
+        "sparkpost",
+        "brevo",
+        "mailchimp",
+        "zoho",
+        "protonmail",
+    }
+)
 
 _GATEWAY_SLUG_MAP: dict[str, str] = {
     "proofpoint": "Proofpoint",
@@ -101,6 +110,7 @@ _IDP_SLUG_MAP: dict[str, str] = {
 
 # ── Individual insight generators ───────────────────────────────────────
 # Each returns a list of insight strings. Pure functions, easy to test.
+
 
 def _auth_insights(ctx: InsightContext) -> list[str]:
     if ctx.auth_type == "Federated":

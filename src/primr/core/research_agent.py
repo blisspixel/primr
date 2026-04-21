@@ -359,9 +359,7 @@ def create_working_folder(company_name, website, reuse_incomplete: bool = False)
                     logger.info(f"Reusing incomplete working folder: {candidate}")
                     return candidate
             except Exception as e:
-                logger.debug(
-                    "Failed to read run state for resume candidate %s: %s", candidate, e
-                )
+                logger.debug("Failed to read run state for resume candidate %s: %s", candidate, e)
                 continue
 
     # Create timestamped run folder: Company_Name/2026-01-09_0915
@@ -388,14 +386,10 @@ def _load_run_state(folder_path: str) -> dict[str, Any]:
             data = json.load(f)
         return data if isinstance(data, dict) else {}
     except json.JSONDecodeError as e:
-        logger.warning(
-            "Run state file corrupted (%s), starting with empty state: %s", path, e
-        )
+        logger.warning("Run state file corrupted (%s), starting with empty state: %s", path, e)
         return {}
     except Exception as e:
-        logger.warning(
-            "Failed to load run state from %s, starting with empty state: %s", path, e
-        )
+        logger.warning("Failed to load run state from %s, starting with empty state: %s", path, e)
         return {}
 
 
@@ -529,9 +523,7 @@ def _append_background_abort(folder_path: str, event_dict: dict[str, Any]) -> No
     _save_run_state(folder_path, state)
 
 
-def _init_run_state_with_resilience(
-    folder_path: str, base_state: dict[str, Any]
-) -> None:
+def _init_run_state_with_resilience(folder_path: str, base_state: dict[str, Any]) -> None:
     """Initialize run state with resilience keys included.
 
     Merges the base state dict with empty resilience arrays and saves.
@@ -1440,9 +1432,7 @@ def _build_fast_section_prompt(
         if section.position == "framework" or section.id == "executive_summary":
             # Framework sections and executive summary need full prior content
             # to synthesise insights from earlier analytical sections
-            context_parts = [
-                f"**{s.title}** (completed):\n{s.content}" for s in written_sections
-            ]
+            context_parts = [f"**{s.title}** (completed):\n{s.content}" for s in written_sections]
         else:
             recent = written_sections[-5:]
             context_parts = []
@@ -1663,10 +1653,14 @@ def _extract_generated_section_blocks(content: str) -> tuple[str, list[tuple[str
         return any(start <= position < end for start, end in envelope_spans)
 
     heading_matches = [
-        match for match in _SECTION_HEADING_RE.finditer(content) if not inside_envelope(match.start())
+        match
+        for match in _SECTION_HEADING_RE.finditer(content)
+        if not inside_envelope(match.start())
     ]
 
-    block_starts = sorted([match.start() for match in envelope_matches] + [match.start() for match in heading_matches])
+    block_starts = sorted(
+        [match.start() for match in envelope_matches] + [match.start() for match in heading_matches]
+    )
     parsed_blocks: list[tuple[int, str, str]] = []
 
     for match in envelope_matches:
@@ -2142,6 +2136,7 @@ def _preserves_report_structure(original: str, candidate: str) -> bool:
     if original_words == 0:
         return False
     return candidate_words >= int(original_words * 0.98)
+
 
 def _strategy_money_to_millions(value: float, unit: str) -> float:
     unit = unit.upper()
@@ -2766,7 +2761,7 @@ def _repair_fast_report_citation_integrity(
     prompt = f"""You are repairing citation integrity in a strategic markdown report.
 
 Company: {company_name}
-Website: {website or 'N/A'}
+Website: {website or "N/A"}
 
 Your job:
 - Keep ALL existing ## headings, sections, tables, and prose intact
@@ -2819,6 +2814,7 @@ Return the full corrected markdown report only.
         return repaired
 
     return report_content
+
 
 def _polish_fast_report_for_trust(
     company_name: str,
@@ -3876,7 +3872,9 @@ def _enrich_strategy_content(
     cv_failed = cv_result.pop("_failed", False)
 
     if cv_failed:
-        console.warn(f"Strategy cross-validation failed for {label}{vendor_label} — skipping enrichment")
+        console.warn(
+            f"Strategy cross-validation failed for {label}{vendor_label} — skipping enrichment"
+        )
 
     if issues:
         for issue in issues:
@@ -4166,7 +4164,9 @@ def perform_fast_research(
         from primr.pipeline.integration import create_pipeline_executor, scrape_page_with_recovery
 
         _resilience_listener = _build_resilience_event_listener(folder_path)
-        _recovery_executor = create_pipeline_executor(folder_path, event_listener=_resilience_listener)
+        _recovery_executor = create_pipeline_executor(
+            folder_path, event_listener=_resilience_listener
+        )
 
         _scrape_idx = 0
         _scrape_total = len(all_search_results)
@@ -4689,9 +4689,7 @@ def perform_fast_research(
             if _cv_stage_result.success:
                 cv_result = _cv_stage_result.output
             else:
-                logger.info(
-                    "Cross-validation skipped: %s", _cv_stage_result.skip_reason
-                )
+                logger.info("Cross-validation skipped: %s", _cv_stage_result.skip_reason)
                 cv_result = {"weak_sections": [], "contradictions": [], "_failed": True}
 
         cv_failed = cv_result.pop("_failed", False)

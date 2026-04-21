@@ -80,9 +80,7 @@ class TestOIDCSource:
             "authorization_endpoint": "https://login.microsoftonline.com/a1b2c3d4-e5f6-7890-abcd-ef1234567890/oauth2/v2.0/authorize",
             "tenant_region_scope": "NA",
         }
-        transport = httpx.MockTransport(
-            lambda request: httpx.Response(200, json=response_json)
-        )
+        transport = httpx.MockTransport(lambda request: httpx.Response(200, json=response_json))
         async with httpx.AsyncClient(transport=transport) as client:
             source = OIDCSource()
             result = await source.lookup("example.com", client=client)
@@ -92,9 +90,7 @@ class TestOIDCSource:
 
     @pytest.mark.asyncio
     async def test_http_error_returns_source_result_with_error(self):
-        transport = httpx.MockTransport(
-            lambda request: httpx.Response(404)
-        )
+        transport = httpx.MockTransport(lambda request: httpx.Response(404))
         async with httpx.AsyncClient(transport=transport) as client:
             source = OIDCSource()
             result = await source.lookup("nonexistent.com", client=client)
@@ -104,9 +100,7 @@ class TestOIDCSource:
 
     @pytest.mark.asyncio
     async def test_unparseable_response_returns_error(self):
-        transport = httpx.MockTransport(
-            lambda request: httpx.Response(200, json={"foo": "bar"})
-        )
+        transport = httpx.MockTransport(lambda request: httpx.Response(200, json={"foo": "bar"}))
         async with httpx.AsyncClient(transport=transport) as client:
             source = OIDCSource()
             result = await source.lookup("example.com", client=client)
@@ -186,9 +180,7 @@ class TestProperty4DiscoveryURLConstruction:
         'https://login.microsoftonline.com/' + d + '/.well-known/openid-configuration'."""
         url = DISCOVERY_URL_TEMPLATE.format(domain=domain)
         expected = (
-            "https://login.microsoftonline.com/"
-            + domain
-            + "/.well-known/openid-configuration"
+            "https://login.microsoftonline.com/" + domain + "/.well-known/openid-configuration"
         )
         assert url == expected
 
@@ -213,9 +205,7 @@ class TestProperty5TenantInfoParsingRoundTrip:
         assert result.tenant_id == uuid_str.lower()
 
 
-_UUID_PATTERN = re.compile(
-    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-)
+_UUID_PATTERN = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 
 
 class TestProperty6TenantIDUUIDFormatInvariant:

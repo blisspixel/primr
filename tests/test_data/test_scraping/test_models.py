@@ -7,6 +7,8 @@ from primr.data.scraping.models import (
     BlockType,
     ErrorType,
     HostState,
+    PageAccessAssessment,
+    PageAccessState,
     ScrapeResult,
     ScrapeTier,
     ValidationResult,
@@ -70,6 +72,26 @@ class TestAttempt:
         assert attempt.error == "Connection timeout"
         assert attempt.error_type == ErrorType.TIMEOUT
         assert attempt.elapsed_ms == 5000.0
+
+
+class TestPageAccessState:
+    """Tests for PageAccessState enum."""
+
+    def test_all_states_have_string_values(self):
+        for state in PageAccessState:
+            assert isinstance(state.value, str)
+            assert len(state.value) > 0
+
+
+class TestPageAccessAssessment:
+    """Tests for PageAccessAssessment dataclass."""
+
+    def test_minimal_assessment(self):
+        result = PageAccessAssessment(state=PageAccessState.SUCCESS, confidence=0.9)
+        assert result.state == PageAccessState.SUCCESS
+        assert result.confidence == 0.9
+        assert result.page_kind == "generic"
+        assert result.matched_expected_markers == []
 
 
 class TestValidationResult:
@@ -191,10 +213,15 @@ class TestScrapeResult:
             http_status=200,
             content_type="html",
             elapsed_ms=150.0,
+            access_assessment=PageAccessAssessment(
+                state=PageAccessState.SUCCESS,
+                confidence=0.9,
+            ),
         )
         assert result.success is True
         assert result.raw_content == b"<html>content</html>"
         assert result.tier == "requests"
+        assert result.access_assessment is not None
 
     def test_result_with_cookies(self):
         """ScrapeResult can carry cookies for handoff."""
