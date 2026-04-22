@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+No unreleased changes.
+
+## [1.19.0] - 2026-04-21
+
 ### Scraping Resilience — Routing Around Bot Protection
 
 - **Recon moved to external `recon-tool` package**: the embedded `src/primr/recon/` module was deleted; primr now depends on the standalone `recon-tool` (PyPI) so recon work can evolve in its own repo. `primr recon <domain>` CLI shorthand still works via mount of `recon_tool.cli:app`. `dnspython` removed as a primr dependency (owned by recon-tool now).
