@@ -4084,13 +4084,17 @@ def perform_fast_research(
                 pages=pages_scraped,
                 chars=total_scraped_chars,
             )
-        elif total_scraped_chars < 20_000 or pages_scraped < 5:
-            # Thin website — increase external search to compensate
+        elif total_scraped_chars < 20_000:
+            # Thin website — increase external search to compensate. A small
+            # number of *rich* pages (e.g. 3 fallback pages totaling 60K+ chars
+            # from EDGAR / Wikipedia / IR subdomain) is NOT thin even though
+            # page_count is low — char volume is the real signal.
             _search_depth = "thin"
             _ext_query_count = 15
             _max_ext = 40
             console.info(
-                f"Thin website data ({pages_scraped} pages) — increasing external search depth"
+                f"Thin website data ({pages_scraped} pages, {total_scraped_chars} chars) "
+                "— increasing external search depth"
             )
             log_structured(
                 "info",
@@ -5604,7 +5608,7 @@ def _extract_domain(url: str) -> str | None:
     from urllib.parse import urlparse as _urlparse
 
     try:
-        from primr.recon.validator import validate_domain
+        from recon_tool.validator import validate_domain
 
         parsed = _urlparse(url)
         raw = parsed.netloc or parsed.path.split("/")[0]
@@ -5724,7 +5728,7 @@ def perform_research(
                 _update_run_state(folder_path, current_phase="recon")
                 _append_run_event(folder_path, "recon", "started", f"Running recon on {domain}")
 
-                from primr.recon.resolver import resolve_tenant
+                from recon_tool.resolver import resolve_tenant
 
                 info, _recon_results = asyncio.get_event_loop().run_until_complete(
                     asyncio.wait_for(resolve_tenant(domain), timeout=15.0)

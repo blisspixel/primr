@@ -325,6 +325,10 @@ def test_scrape_website_recovers_first_party_page_when_homepage_is_blocked(tmp_p
 
 
 def test_scrape_website_returns_empty_when_homepage_and_first_party_recovery_fail(tmp_path):
+    """When origin is fully blocked and public fallbacks are also mocked empty,
+    fetch_web_content should return {}. Real Wikipedia/EDGAR/Wayback/subdomain
+    calls are mocked to return nothing so we can isolate the "total failure"
+    contract."""
     working_folder = tmp_path / "run"
     working_folder.mkdir(parents=True)
 
@@ -353,6 +357,10 @@ def test_scrape_website_returns_empty_when_homepage_and_first_party_recovery_fai
         ),
         patch(
             "primr.data.scraping.discovery.discover_links",
+            return_value=[],
+        ),
+        patch(
+            "primr.data.fallback_sources.gather_fallback_content",
             return_value=[],
         ),
     ):

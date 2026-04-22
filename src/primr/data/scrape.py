@@ -192,8 +192,150 @@ def out_progress_done():
 CACHE_DIR = Path(PROJECT_ROOT) / "logs" / "scrape_cache"
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
+
+# =============================================================================
+# Fallback content helper (used when origin is fully blocked)
+# =============================================================================
+
+
+def _collect_fallback_content(
+    company_name: str,
+    website: str,
+    raw_folder: str | None = None,
+    append_trace=None,
+) -> dict[str, str]:
+    """
+    Gather content from public-data fallbacks when the origin host is blocked.
+
+    Fires Wayback / subdomain / EDGAR / Wikipedia in parallel and returns a
+    url -> text dict compatible with fetch_web_content's output shape.
+
+    Also writes each recovered page to raw_folder for downstream inspection,
+    so the rest of the pipeline sees the same artifacts it would see from a
+    normal scrape.
+    """
+    from primr.data.fallback_sources import gather_fallback_content
+
+    # Build a short list of likely deep pages on the origin to try through
+    # Wayback — the homepage alone rarely captures "About/History" content.
+    # Generic paths only; locale prefixes and product paths are too site-
+    # specific to hard-code.
+    wayback_candidates = [
+        website.rstrip("/") + path
+        for path in (
+            "/",
+            "/about",
+            "/about-us",
+            "/our-story",
+            "/company",
+            "/company/overview",
+            "/history",
+            "/our-history",
+            "/leadership",
+            "/sustainability",
+            "/responsibility",
+            "/investors",
+            "/investor-relations",
+        )
+    ]
+
+    # Grok surrogate is opt-in via env — it costs tokens. Default on because
+    # it catches pages Wayback doesn't have a snapshot for. Set
+    # PRIMR_DISABLE_GROK_SURROGATE=1 to skip.
+    grok_urls: list[str] | None = None
+    if os.getenv("PRIMR_DISABLE_GROK_SURROGATE", "0").lower() not in ("1", "true", "yes"):
+        # Prioritize high-value paths: about, history, leadership — where Grok's
+        # synthesis-from-public-sources is most valuable. Cap at 3 to control
+        # token spend.
+        grok_urls = [
+            website.rstrip("/") + path
+            for path in ("/about", "/our-story", "/leadership")
+        ][:3]
+
+    pages = gather_fallback_content(
+        company_name=company_name,
+        website=website,
+        wayback_urls=wayback_candidates,
+        grok_surrogate_urls=grok_urls,
+        timeout_per_source=90.0,
+    )
+
+    if not pages:
+        return {}
+
+    result: dict[str, str] = {}
+    for idx, page in enumerate(pages, start=1):
+        text = page.content.strip()
+        if not text:
+            continue
+        result[page.url] = text
+
+        if append_trace is not None:
+            append_trace(
+                "FALLBACK_OK",
+                page.url,
+                f"source={page.source} chars={len(text)} title={(page.title or '')[:60]}",
+            )
+
+        if raw_folder:
+            try:
+                safe_source = page.source.replace("/", "_")
+                raw_file = os.path.join(
+                    raw_folder, f"fb_{idx:02d}_{safe_source}.txt"
+                )
+                with open(raw_file, "w", encoding="utf-8") as f:
+                    f.write(f"URL: {page.url}\n")
+                    f.write(f"Source: {page.source}\n")
+                    f.write(f"Title: {page.title or ''}\n")
+                    f.write(f"Length: {len(text)} chars\n")
+                    f.write("-" * 60 + "\n\n")
+                    f.write(text)
+            except Exception as e:
+                logger.warning("Failed to save fallback raw file: %s", e)
+
+    return result
+
+
 # Global orchestrator instance (lazy initialized)
 _orchestrator: ScrapeOrchestrator | None = None
+
+
+_external_orchestrator: ScrapeOrchestrator | None = None
+
+
+def get_external_orchestrator(
+    enable_vision: bool = False,
+) -> ScrapeOrchestrator:
+    """Orchestrator used for external / validation source scrapes.
+
+    External sources are web-search results we're assessing, not the primary
+    company target. They should never trigger a visible-browser popup — if a
+    search hit is behind Kasada we just skip it and move on. This orchestrator
+    omits the Patchright stealth tier entirely to guarantee no popup happens
+    during discovery/validation passes.
+    """
+    global _external_orchestrator
+    if _external_orchestrator is not None:
+        return _external_orchestrator
+
+    tiers = get_available_tiers()
+    enable_drission = os.getenv("PRIMR_ENABLE_DRISSION", "0").lower() in {"1", "true", "yes"}
+    excluded = {"patchright"}
+    if not enable_drission:
+        excluded.update({"drissionpage", "drissionpage_stealth"})
+    tiers = [t for t in tiers if t.name not in excluded]
+
+    _external_orchestrator = ScrapeOrchestrator(
+        tiers=tiers,
+        cache=ScrapeCache(cache_dir=str(CACHE_DIR)),
+        rate_limiter=RateLimiter(RateLimitConfig(per_host_requests_per_minute=30)),
+        enable_vision=enable_vision,
+        max_page_time=30.0,  # external sources: don't spend long per URL
+        delay_between_tiers=(0.3, 1.0),
+        use_cache=False,
+        circuit_breaker_threshold=3,
+    )
+    return _external_orchestrator
 
 
 def get_orchestrator(
@@ -528,6 +670,37 @@ def fetch_web_content(
     homepage_recovery_reason: str | None = None
     homepage_access_ok = False
 
+    # Check if this host has a remembered rate-limit cooldown. If so, skip
+    # live scraping entirely and go straight to public fallbacks — no point
+    # burning 60+ seconds on a host we know is 429'ing us.
+    from primr.data.scraping.rate_limit_state import get_rate_limit
+
+    rl_entry = get_rate_limit(domain)
+    if rl_entry is not None:
+        mins = rl_entry.remaining_seconds() // 60
+        secs = rl_entry.remaining_seconds() % 60
+        time_str = f"{mins}m {secs}s" if mins else f"{secs}s"
+        console.warn(
+            f"{domain} rate-limited for {time_str} ({rl_entry.reason}) — "
+            "skipping live scrape, using public fallbacks"
+        )
+        _append_trace(
+            "RATE_LIMIT_SKIP",
+            website,
+            f"remaining={rl_entry.remaining_seconds()}s reason={rl_entry.reason}",
+        )
+        fallback_content = _collect_fallback_content(
+            company_name=company_name,
+            website=website,
+            raw_folder=raw_folder,
+            append_trace=_append_trace,
+        )
+        if fallback_content:
+            console.done(
+                f"Recovered {len(fallback_content)} page(s) from public fallbacks"
+            )
+        return fallback_content
+
     # Route homepage through the orchestrator so it gets the same adaptive
     # browser retry/escalation behavior as every subsequent page.
     result = orchestrator.scrape_url(website)
@@ -733,7 +906,26 @@ def fetch_web_content(
     if not homepage_access_ok and not pages_to_scrape:
         console.clear_line()
         console.fail(f"Could not access {domain}")
-        console.muted("  No recoverable first-party paths were reachable")
+        console.muted("  Routing around block via Wayback / subdomains / EDGAR / Wikipedia...")
+        _append_trace(
+            "FALLBACK",
+            website,
+            f"origin blocked ({homepage_recovery_reason or 'unknown'}) — firing public-data fallbacks",
+        )
+
+        fallback_content = _collect_fallback_content(
+            company_name=company_name,
+            website=website,
+            raw_folder=raw_folder,
+            append_trace=_append_trace,
+        )
+        if fallback_content:
+            console.done(
+                f"Recovered {len(fallback_content)} page(s) from public fallbacks"
+            )
+            return fallback_content
+
+        console.muted("  No public fallbacks returned content either")
         return {}
 
     # Persist selected URL set for reproducibility and debugging.
@@ -1066,6 +1258,32 @@ def fetch_web_content(
         if url not in scraped_content and text.strip():
             scraped_content[url] = text
 
+    # Defensive fallback: if the origin produced zero usable pages, fan out
+    # to public fallback sources. Running on "zero pages" is the safe gate:
+    # any successful scrape (even a single thin homepage or one recovery
+    # page) is trusted as-is. Fallbacks only replace nothing.
+    if len(scraped_content) == 0:
+        logger.info(
+            "Origin produced no content — supplementing with public fallbacks"
+        )
+        _append_trace(
+            "FALLBACK",
+            website,
+            "origin produced 0 pages — firing public fallbacks",
+        )
+        supplementary = _collect_fallback_content(
+            company_name=company_name,
+            website=website,
+            raw_folder=raw_folder,
+            append_trace=_append_trace,
+        )
+        for url, text in supplementary.items():
+            scraped_content[url] = text
+        if supplementary:
+            console.done(
+                f"Added {len(supplementary)} page(s) from public fallbacks"
+            )
+
     return scraped_content
 
 
@@ -1085,7 +1303,9 @@ def scrape_external_sources(
     Returns:
         Dict mapping URL -> extracted text
     """
-    orchestrator = get_orchestrator()
+    # External sources use a no-popup orchestrator — these are discovery
+    # candidates, not worth prompting the user to solve Kasada challenges for.
+    orchestrator = get_external_orchestrator()
     scraped_sources = {}
     count = 0
 
@@ -1144,7 +1364,8 @@ def scrape_external_sources_validated(
 
     from primr.ai.llm import llm
 
-    orchestrator = get_orchestrator()
+    # Use the popup-free orchestrator for external validation sources.
+    orchestrator = get_external_orchestrator()
     validated_sources = {}
     count = 0
 

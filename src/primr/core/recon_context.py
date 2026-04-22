@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from primr.recon.models import TenantInfo
+    from recon_tool.models import TenantInfo
 
 __all__ = [
     "SECTION_DETECTED_SERVICES",

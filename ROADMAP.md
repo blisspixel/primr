@@ -165,6 +165,9 @@ What has already shipped:
 - Additional Kasada/KPSDK challenge-shell coverage in soft-block detection
 - First-party recovery mode when the homepage is blocked: Primr now probes sitemap/guessed deep paths directly and only declares failure after those recoverable first-party paths are exhausted
 - Regression tests for challenge shells, thin-but-real history/about pages, homepage fallback behavior, and trace serialization
+- **Public-data fallback fan-out** (`src/primr/data/fallback_sources.py`): when the origin is fully blocked, Primr automatically routes around the block by fetching content in parallel from (1) the Wayback Machine via the CDX API, (2) live sister subdomains (investor / IR / newsroom / corporate / press), (3) SEC EDGAR 10-K filings when the company has a US public filer match, and (4) the Wikipedia REST API. All four sources fail open — any one of them returning content is enough for the run to produce a report instead of bailing.
+- Wayback tier filters out captures that are themselves challenge shells (preserves only real archived content)
+- New unit tests for fallback fan-out: per-source failure isolation, merge behavior, empty-result contract
 
 Planned next steps:
 - Expand first-party fallback probing beyond current sitemap/guessed-path recovery: investor/news/about/help PDFs, feeds, and structured data endpoints with better prioritization
@@ -172,6 +175,7 @@ Planned next steps:
 - Add optional screenshot/text-snapshot comparison for browser tiers to distinguish stable real homepages from interstitial templates
 - Surface a clearer user-facing blocked-site summary in the CLI with evidence snippets and recommended next actions (`--mode deep`, site-wide block vs partial access, first-party fallback coverage)
 - Extend trace analytics and eval suites to score false-positive and false-negative rates for access classification on protected sites
+- **Job-listing intelligence**: when initial discovery finds a careers/jobs site, crawl individual listings and have an LLM extract (a) the job title + location, (b) platforms/services/stack mentioned ("experience with Snowflake, dbt, Terraform required"), (c) strategic intent signals ("building our AI/ML platform", "expanding EMEA presence"), (d) cultural/org signals. Feed the aggregated extraction into the dossier as a separate "Hiring Signals" input alongside the main scrape. Job posts are often the single most honest statement of what a company is building right now.
 
 Decision principle:
 - A page counts as scraped only when Primr has evidence that the **real page content** appeared, not merely that a request returned HTML.
