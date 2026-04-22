@@ -291,3 +291,143 @@ def grok_llm(
     raise RuntimeError(
         f"Grok API call failed after {retries + 1} attempts: {last_error}"
     ) from last_error
+
+
+# ---------------------------------------------------------------------------
+# Grok Agent Tools (browse + web search)
+# ---------------------------------------------------------------------------
+
+
+def grok_browse_and_summarize(
+    url: str,
+    context: str | None = None,
+    *,
+    model: str = _DEFAULT_MODEL,
+    max_tokens: int = 2000,
+    timeout: float = 90.0,
+) -> dict | None:
+    """Ask Grok to fetch a URL (or synthesize equivalent content) and summarize.
+
+    Uses xAI's Responses API with the ``web_search`` agent tool. Grok attempts
+    to open the page directly, and when that fails (Kasada / Akamai / etc) it
+    falls back to searching the web and synthesizing from public sources,
+    citing them.
+
+    Returns a dict with ``text`` (summary), ``citations`` (list of urls), and
+    ``source_url`` (the URL we asked about). Returns None on transport or auth
+    failures.
+
+    The caller should treat the returned text as **LLM synthesis with
+    citations**, not direct page scrape content — downstream pipelines should
+    tag it as "grok-surrogate" so it isn't confused with first-party text.
+    """
+    import os
+
+    import httpx
+
+    api_key = os.getenv("XAI_API_KEY")
+    if not api_key:
+        logger.debug("grok_browse_and_summarize skipped: XAI_API_KEY not set")
+        return None
+
+    context_block = f"\n\nAdditional context: {context}" if context else ""
+    prompt = (
+        f"Use your web search and browse tools to gather content from this URL: {url}\n\n"
+        "Summarize what the page says in 200-400 words. Focus on concrete facts — "
+        "dates, products, services, leadership, customers, financials, strategy. "
+        "If you cannot browse the page directly (e.g., it is behind bot protection), "
+        "synthesize an equivalent summary from public sources about the same company "
+        "or topic, and clearly cite where each fact came from. Do not invent details."
+        f"{context_block}"
+    )
+
+    try:
+        resp = httpx.post(
+            "https://api.x.ai/v1/responses",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": model,
+                "input": prompt,
+                "tools": [{"type": "web_search"}],
+                "max_output_tokens": max_tokens,
+            },
+            timeout=timeout,
+        )
+    except (httpx.TimeoutException, httpx.NetworkError) as e:
+        logger.warning("grok_browse_and_summarize: network error for %s: %s", url, e)
+        return None
+
+    if resp.status_code != 200:
+        logger.warning(
+            "grok_browse_and_summarize: status %s for %s — %s",
+            resp.status_code,
+            url,
+            (resp.text or "")[:200],
+        )
+        return None
+
+    try:
+        data = resp.json()
+    except ValueError:
+        logger.warning("grok_browse_and_summarize: non-JSON response for %s", url)
+        return None
+
+    # Walk the output list for the assistant message text
+    text = ""
+    citations: list[str] = []
+    tool_calls_made = 0
+    for item in data.get("output", []) or []:
+        item_type = item.get("type")
+        if item_type == "web_search_call":
+            tool_calls_made += 1
+            continue
+        if item_type == "message":
+            for block in item.get("content", []) or []:
+                if block.get("type") in ("output_text", "text"):
+                    text += block.get("text", "")
+                    for ann in block.get("annotations", []) or []:
+                        if ann.get("type") == "url_citation" and ann.get("url"):
+                            citations.append(ann["url"])
+
+    # Track token usage for cost accounting when available
+    usage = data.get("usage") or {}
+    inp = int(usage.get("input_tokens") or usage.get("prompt_tokens") or 0)
+    out = int(usage.get("output_tokens") or usage.get("completion_tokens") or 0)
+    if inp or out:
+        global _session_input_tokens, _session_output_tokens, _session_tokens_by_model
+        _session_input_tokens += inp
+        _session_output_tokens += out
+        if model not in _session_tokens_by_model:
+            _session_tokens_by_model[model] = {"input_tokens": 0, "output_tokens": 0}
+        _session_tokens_by_model[model]["input_tokens"] += inp
+        _session_tokens_by_model[model]["output_tokens"] += out
+
+    text = text.strip()
+    if not text:
+        logger.info("grok_browse_and_summarize: empty body for %s", url)
+        return None
+
+    # Deduplicate citations preserving order.
+    seen: set[str] = set()
+    unique_citations: list[str] = []
+    for c in citations:
+        if c not in seen:
+            seen.add(c)
+            unique_citations.append(c)
+
+    logger.info(
+        "grok_browse_and_summarize: %s — %d chars, %d tool calls, %d citations",
+        url,
+        len(text),
+        tool_calls_made,
+        len(unique_citations),
+    )
+    return {
+        "text": text,
+        "citations": unique_citations,
+        "source_url": url,
+        "tool_calls": tool_calls_made,
+    }

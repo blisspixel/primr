@@ -743,7 +743,7 @@ class TestReconSubcommand:
         finally:
             sys.argv = saved
 
-    @patch("primr.recon.cli.app")
+    @patch("recon_tool.cli.app")
     def test_run_recon_delegates_to_typer_app(self, mock_app):
         """Test that _run_recon delegates to the recon Typer app."""
         from primr.core.cli import _run_recon
@@ -753,7 +753,7 @@ class TestReconSubcommand:
         assert exit_code == 0
         mock_app.assert_called_once_with(standalone_mode=False)
 
-    @patch("primr.recon.cli.app")
+    @patch("recon_tool.cli.app")
     def test_run_recon_doctor(self, mock_app):
         """Test that _run_recon handles 'recon doctor'."""
         from primr.core.cli import _run_recon
@@ -763,7 +763,7 @@ class TestReconSubcommand:
         assert exit_code == 0
         mock_app.assert_called_once()
 
-    @patch("primr.recon.cli.app")
+    @patch("recon_tool.cli.app")
     def test_run_recon_handles_system_exit(self, mock_app):
         """Test that _run_recon handles SystemExit from Typer."""
         from primr.core.cli import _run_recon
@@ -772,7 +772,7 @@ class TestReconSubcommand:
         exit_code = _run_recon(["recon", "acme.com"])
         assert exit_code == 2
 
-    @patch("primr.recon.cli.app")
+    @patch("recon_tool.cli.app")
     def test_run_recon_handles_exception(self, mock_app):
         """Test that _run_recon handles unexpected exceptions."""
         from primr.core.cli import _run_recon

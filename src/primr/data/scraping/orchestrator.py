@@ -427,6 +427,32 @@ class ScrapeOrchestrator:
 
             return result
 
+        # 2b. Check if host has a remembered rate-limit cooldown. Skip the
+        # full tier escalation instead of wasting 60+ seconds on a host we
+        # know is 429'ing us. The caller (fetch_web_content) will route to
+        # public-data fallbacks instead.
+        from .rate_limit_state import get_rate_limit
+
+        rl_entry = get_rate_limit(host)
+        if rl_entry is not None:
+            logger.info(
+                "Skipping live scrape for %s (rate-limited for %ss, reason=%s)",
+                host,
+                rl_entry.remaining_seconds(),
+                rl_entry.reason,
+            )
+            return ScrapeResult(
+                url=url,
+                success=False,
+                error_type=ErrorType.SOFT_BLOCK,
+                error=(
+                    f"Host rate-limited for {rl_entry.remaining_seconds()}s "
+                    f"(reason: {rl_entry.reason})"
+                ),
+                tier=None,
+                attempts=all_attempts,
+            )
+
         # 3. Try each tier (start with best_tier if known for this host)
         last_result: ScrapeResult | None = None
         host_state = self._get_host_state(host)
@@ -570,6 +596,17 @@ class ScrapeOrchestrator:
                 else:
                     consecutive_failures = 1
                     last_error_type = tier_result.error_type
+
+                # If the server explicitly rate-limited us, record it so
+                # future requests against this host skip straight to public
+                # fallbacks instead of grinding through tiers.
+                if tier_result.http_status == 429:
+                    from .rate_limit_state import record_rate_limit
+
+                    record_rate_limit(
+                        host,
+                        reason=f"HTTP 429 on tier {tier.name}",
+                    )
 
                 # Check if it's a hard block (stop escalation)
                 if tier_result.error_type == ErrorType.HARD_BLOCK:
