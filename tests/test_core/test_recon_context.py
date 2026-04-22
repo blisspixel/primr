@@ -14,6 +14,7 @@ import re
 
 from hypothesis import given, settings
 from hypothesis import strategies as st
+from recon_tool.models import ConfidenceLevel, TenantInfo
 
 from primr.core.recon_context import (
     SECTION_DETECTED_SERVICES,
@@ -23,7 +24,6 @@ from primr.core.recon_context import (
     SECTION_SIGNAL_INTELLIGENCE,
     format_recon_context,
 )
-from primr.recon.models import ConfidenceLevel, TenantInfo
 
 # ---------------------------------------------------------------------------
 # Strategies

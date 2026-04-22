@@ -148,7 +148,7 @@ mypy src/primr --ignore-missing-imports
 ### AVOID
 - Long-running commands in agent context (use `--check-jobs` polling instead)
 - Modifying `_raw_scrapes/` directory directly - managed by scraper
-- Hardcoding tier selection - let the 8-tier orchestrator handle escalation
+- Hardcoding tier selection - let the 9-tier orchestrator handle escalation
 - Ignoring QA scores below 70 - indicates report quality issues
 
 ---
@@ -156,20 +156,39 @@ mypy src/primr --ignore-missing-imports
 ## Progressive Disclosure
 
 <details>
-<summary><strong>Scraping Tiers (8-tier fallback system)</strong></summary>
+<summary><strong>Scraping Tiers (9-tier fallback system)</strong></summary>
 
 | Tier | Method | When Used |
 |------|--------|-----------|
 | 1 | Playwright | JS-rendered content (default) |
 | 2 | Playwright Aggressive | Accordions, lazy load |
-| 3 | curl_cffi | TLS fingerprint impersonation |
-| 4 | DrissionPage Stealth | Challenge waiting |
-| 5 | DrissionPage | Driverless CDP |
-| 6 | Vision | AI extraction (enabled by default) |
-| 7 | httpx | HTTP/2 sites |
-| 8 | requests | Simple sites (fallback) |
+| 3 | Patchright | Kasada/Akamai bypass (real Chrome + persistent profile) |
+| 4 | curl_cffi | TLS fingerprint impersonation |
+| 5 | DrissionPage Stealth | Challenge waiting |
+| 6 | DrissionPage | Driverless CDP |
+| 7 | Vision | AI extraction (enabled by default) |
+| 8 | httpx | HTTP/2 sites |
+| 9 | requests | Simple sites (fallback) |
 
-Key features: Sticky tier (remembers what works), Circuit breaker (skips failing tiers), Cookie handoff (browser→HTTP), Content-type routing (PDF/HTML/binary detection).
+Key features: Sticky tier (remembers what works), Circuit breaker (skips failing tiers), Cookie handoff (browser→HTTP), Content-type routing (PDF/HTML/binary detection), Per-host rate-limit memory (429-flagged hosts skip live scrape for 20 min), Headed popup budget (max 3 visible-browser challenges per run, configurable via `PRIMR_MAX_HEADED_POPUPS`).
+
+**Public-data fallback fan-out** (`src/primr/data/fallback_sources.py`): when live scrape returns zero pages, primr routes around the block by fetching in parallel from (1) Wayback Machine via CDX API, (2) live sister subdomains (investor.*, ir.*, newsroom.*), (3) SEC EDGAR 10-K filings (for US public filers), (4) Wikipedia REST API, and (5) Grok web_search synthesis with citations. All fail open — any one returning content is enough to produce a report.
+
+</details>
+
+<details>
+<summary><strong>Recon (external recon-tool package)</strong></summary>
+
+DNS intelligence is provided by the standalone `recon-tool` package (pinned in `pyproject.toml` as a dependency). The CLI is mounted at `primr recon <domain>` and delegates to `recon_tool.cli:app`. Update recon features by updating `recon-tool` in its own repo and bumping the version pin here.
+
+```python
+from recon_tool.resolver import resolve_tenant      # async
+from recon_tool.models import TenantInfo
+from recon_tool.validator import validate_domain
+from recon_tool.formatter import format_tenant_dict, format_tenant_json, format_tenant_markdown
+```
+
+primr wraps recon output into strategy-context text via `primr.core.recon_context.format_recon_context(TenantInfo)`.
 
 </details>
 

@@ -14,13 +14,14 @@ from __future__ import annotations
 
 import os
 
+from recon_tool.models import ConfidenceLevel, ReconLookupError, TenantInfo
+
 from primr.core.research_agent import (
     _append_run_event,
     _extract_domain,
     _load_run_state,
     _update_run_state,
 )
-from primr.recon.models import ConfidenceLevel, ReconLookupError, TenantInfo
 
 # ---------------------------------------------------------------------------
 # Fixtures

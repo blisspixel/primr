@@ -206,7 +206,7 @@ class TestDomainFiltering:
             {"url": "https://www.acme.com/about", "title": "About Acme"},
         ]
 
-        with patch("primr.data.scrape.get_orchestrator") as mock_orch:
+        with patch("primr.data.scrape.get_external_orchestrator") as mock_orch:
             mock_orch.return_value.scrape_url.return_value = Mock(
                 success=True, extracted_text="Some content about Acme"
             )
@@ -230,7 +230,7 @@ class TestDomainFiltering:
             {"url": "https://investors.acme.com/news", "title": "Investor News"},
         ]
 
-        with patch("primr.data.scrape.get_orchestrator") as mock_orch:
+        with patch("primr.data.scrape.get_external_orchestrator") as mock_orch:
             mock_result = Mock()
             mock_result.success = True
             # Content must be > 100 chars
@@ -264,7 +264,7 @@ class TestDomainFiltering:
             {"url": "https://techcrunch.com/acme-funding", "title": "Acme Raises $10M"},
         ]
 
-        with patch("primr.data.scrape.get_orchestrator") as mock_orch:
+        with patch("primr.data.scrape.get_external_orchestrator") as mock_orch:
             mock_result = Mock()
             mock_result.success = True
             mock_result.extracted_text = "Acme Corp (acme.com) announced today..." + "x" * 200
@@ -353,7 +353,7 @@ class TestLLMValidation:
             {"url": "https://news.com/article", "title": "Article"},
         ]
 
-        with patch("primr.data.scrape.get_orchestrator") as mock_orch:
+        with patch("primr.data.scrape.get_external_orchestrator") as mock_orch:
             mock_result = Mock()
             mock_result.success = True
             mock_result.extracted_text = "Content about some company" + "x" * 200
@@ -381,7 +381,7 @@ class TestLLMValidation:
             {"url": "https://news.com/article", "title": "EverTrue Senior Living"},
         ]
 
-        with patch("primr.data.scrape.get_orchestrator") as mock_orch:
+        with patch("primr.data.scrape.get_external_orchestrator") as mock_orch:
             mock_result = Mock()
             mock_result.success = True
             mock_result.extracted_text = (
@@ -412,7 +412,7 @@ class TestLLMValidation:
             {"url": "https://businesswire.com/article", "title": "Acme Corp Funding"},
         ]
 
-        with patch("primr.data.scrape.get_orchestrator") as mock_orch:
+        with patch("primr.data.scrape.get_external_orchestrator") as mock_orch:
             mock_result = Mock()
             mock_result.success = True
             mock_result.extracted_text = (
@@ -446,7 +446,7 @@ class TestErrorHandling:
             {"url": "https://working-site.com/article", "title": "Will Work"},
         ]
 
-        with patch("primr.data.scrape.get_orchestrator") as mock_orch:
+        with patch("primr.data.scrape.get_external_orchestrator") as mock_orch:
 
             def scrape_side_effect(url):
                 if "failing" in url:
@@ -477,7 +477,7 @@ class TestErrorHandling:
             {"url": "https://site2.com/article", "title": "Article 2"},
         ]
 
-        with patch("primr.data.scrape.get_orchestrator") as mock_orch:
+        with patch("primr.data.scrape.get_external_orchestrator") as mock_orch:
             mock_orch.return_value.scrape_url.return_value = Mock(
                 success=True, extracted_text="Content about Acme at acme.com" + "x" * 200
             )
@@ -509,7 +509,7 @@ class TestErrorHandling:
             {"url": "https://site.com/long", "title": "Long"},
         ]
 
-        with patch("primr.data.scrape.get_orchestrator") as mock_orch:
+        with patch("primr.data.scrape.get_external_orchestrator") as mock_orch:
 
             def scrape_side_effect(url):
                 if "short" in url:
@@ -547,7 +547,7 @@ class TestErrorHandling:
             {"url": f"https://site{i}.com/article", "title": f"Article {i}"} for i in range(10)
         ]
 
-        with patch("primr.data.scrape.get_orchestrator") as mock_orch:
+        with patch("primr.data.scrape.get_external_orchestrator") as mock_orch:
             mock_orch.return_value.scrape_url.return_value = Mock(
                 success=True, extracted_text="Good content about Acme at acme.com " * 20
             )

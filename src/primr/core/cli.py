@@ -432,22 +432,32 @@ def _is_recon_command(args: list[str] | None) -> bool:
 
 
 def _run_recon(args: list[str] | None) -> int:
-    """Delegate to the recon Typer CLI, returning an exit code."""
-    from primr.recon.cli import _preprocess_args, _reset_preprocess
-    from primr.recon.cli import app as recon_app
+    """Delegate to the external recon-tool Typer CLI, returning an exit code.
+
+    Recon is now a separate pip-installable project (``recon-tool``) maintained
+    out-of-tree. We only mount its Typer app here so ``primr recon <domain>``
+    continues to work as a shorthand. The recon-tool package itself handles
+    shorthand routing via invoke_without_command, so no sys.argv preprocessing
+    is needed from primr.
+    """
+    try:
+        from recon_tool.cli import app as recon_app
+    except ImportError:
+        print(
+            "Error: recon-tool is not installed. Run: pip install recon-tool",
+            file=sys.stderr,
+        )
+        return 1
 
     argv = args if args is not None else sys.argv[1:]
     # Strip the leading "recon" token — the Typer app doesn't expect it.
     recon_argv = argv[1:]
 
-    # Typer/Click reads from sys.argv by default.  Temporarily replace it so
+    # Typer/Click reads from sys.argv by default. Temporarily replace it so
     # the recon app sees the correct arguments.
     saved_argv = sys.argv
     try:
-        # Build a synthetic argv: ["primr recon", ...remaining_args]
-        sys.argv = ["primr recon", *list(recon_argv)]
-        _reset_preprocess()
-        _preprocess_args()
+        sys.argv = ["recon", *list(recon_argv)]
         recon_app(standalone_mode=False)
         return 0
     except SystemExit as exc:

@@ -595,7 +595,8 @@ src/primr/
 │   └── llm.py               # Legacy LLM interface
 │
 ├── data/                    # Data collection
-│   ├── scrape.py            # 8-tier scraping engine
+│   ├── scrape.py            # 9-tier scraping engine + public-data fallback routing
+│   ├── fallback_sources.py  # Wayback / subdomain / EDGAR / Wikipedia / Grok surrogate fan-out
 │   ├── adaptive_scraper.py  # Domain-learning scraper
 │   ├── parallel_scraper.py  # Concurrent scraping
 │   ├── http_client.py       # HTTP client wrapper
@@ -770,10 +771,11 @@ def validate_url_for_request(url: str, allow_private_ips: bool = False) -> tuple
     """
 ```
 
-**Protected Functions** (9 total):
+**Protected Functions** (10 total):
 - `src/primr/data/scraping/http_clients.py`: `scrape_with_requests()`, `scrape_with_httpx()`, `scrape_with_curl_cffi()`
 - `src/primr/data/scraping/net.py`: `make_request()`, `head_exists()`
 - `src/primr/data/scraping/browsers.py`: `scrape_with_playwright()`, `scrape_with_playwright_aggressive()`, `scrape_with_drissionpage()`, `scrape_with_drissionpage_stealth()`
+- `src/primr/data/scraping/stealth_browser.py`: `scrape_with_patchright()` (Kasada / Akamai bypass tier)
 
 #### XXE (XML External Entity) Protection
 
