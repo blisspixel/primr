@@ -220,7 +220,13 @@ class TestScrapeOrchestrator:
                 delay_between_tiers=(0, 0),
             )
 
-            with patch.dict(os.environ, {"PRIMR_MAX_HEADED_POPUPS": "1"}, clear=False):
+            with (
+                patch.dict(os.environ, {"PRIMR_MAX_HEADED_POPUPS": "1"}, clear=False),
+                patch(
+                    "primr.data.scraping.headed_budget._display_available",
+                    return_value=True,
+                ),
+            ):
                 result = orchestrator.scrape_url("https://example.com")
 
                 assert result.success is True
@@ -277,6 +283,10 @@ class TestScrapeOrchestrator:
             with (
                 patch.dict(os.environ, {"PRIMR_MAX_HEADED_POPUPS": "1"}, clear=False),
                 patch("primr.utils.security.is_safe_url", return_value=(True, None)),
+                patch(
+                    "primr.data.scraping.headed_budget._display_available",
+                    return_value=True,
+                ),
             ):
                 result1 = orchestrator.scrape_url("https://host1.example.com")
                 result2 = orchestrator.scrape_url("https://host2.example.com")
