@@ -433,6 +433,15 @@ def _estimate_fast_mode_cost(
         duration_min += VERIFICATION_OVERHEAD["duration_min"]
         duration_max += VERIFICATION_OVERHEAD["duration_max"]
 
+    # Hiring-signals overhead: two Grok calls (triage + batched extraction)
+    # off the writing model. Conservative budget assumes we actually find
+    # postings — roughly half of mid-market companies do. Whole-token budget
+    # is small enough that we always bake it in rather than gating it.
+    grok_writing_in += 25_000
+    grok_writing_out += 3_500
+    duration_min += 1
+    duration_max += 2
+
     # Resolve model pair for this tier
     reasoning_model, writing_model = PrimrModels.get_grok_models(GrokTier(grok_tier))
 
@@ -480,6 +489,7 @@ def _estimate_fast_mode_cost(
         notes.append(f"AI Strategy via Grok ({num_vendors} vendor(s))")
     if verify:
         notes.append("Claim verification via Flash (~$0.01, 3-5 min)")
+    notes.append("Hiring signals via ATS / careers page (~$0.01, +1-2 min; skip with PRIMR_SKIP_HIRING_SIGNALS=1)")
 
     total_input_tokens = flash_in + grok_in_total
     total_output_tokens = flash_out + grok_out_total

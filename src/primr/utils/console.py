@@ -514,26 +514,29 @@ class Console:
         current_msg = [message]
         line_width = min(self._caps.width - 2, 80)
 
+        # ~5 fps (was 12.5): calm enough to not strobe on Windows Terminal's
+        # Braille rendering, still fast enough to feel alive. Using
+        # stop_event.wait() instead of time.sleep() lets the spinner exit
+        # immediately when the context manager closes, without having to
+        # wait out the remainder of the current tick.
+        _tick_interval = 0.2
+
         def animate():
             idx = 0
             while not stop_event.is_set():
                 frame = frames[idx % len(frames)]
                 with self._lock:
-                    # Build line with proper padding
                     msg_text = current_msg[0]
-                    # Calculate visible length (excluding ANSI codes)
-                    visible_len = len(frame) + 1 + len(msg_text)  # frame + space + message
+                    visible_len = len(frame) + 1 + len(msg_text)
                     if visible_len > line_width:
                         msg_text = msg_text[: line_width - len(frame) - 4] + "..."
                         visible_len = len(frame) + 1 + len(msg_text)
-                    # Pad based on visible length, not string length
                     pad = " " * max(0, line_width - visible_len)
                     line = f"{self._cyan}{frame}{self._reset} {msg_text}{pad}"
-                    # Write with carriage return
                     sys.stdout.write(f"\r{line}")
                     sys.stdout.flush()
                 idx += 1
-                time.sleep(0.08)
+                stop_event.wait(_tick_interval)
 
         thread = threading.Thread(target=animate, daemon=True)
         self._heartbeat_paused = True

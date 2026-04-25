@@ -104,5 +104,76 @@ def parse_final_markdown(markdown_content: str) -> FinalDocument:
     return FinalDocument(preamble=preamble, sections=sections, sources_body=sources_body)
 
 
+# Detection threshold: any line longer than this that also contains inline
+# structural markers (## heading, | table row, list-style "- **bold**") is
+# almost certainly collapsed — Grok occasionally emits the first big chunk
+# of a long response with newlines stripped.
+_COLLAPSED_LINE_CHAR_THRESHOLD = 500
+
+
+def _looks_collapsed(content: str) -> bool:
+    """True if at least one line looks like a run-together multi-section blob."""
+    for line in content.splitlines():
+        if len(line) <= _COLLAPSED_LINE_CHAR_THRESHOLD:
+            continue
+        # Signals that the long line contains structure that should have been
+        # broken out: multiple ## headings, multiple pipe-table rows, or a
+        # "- **Label**" bullet pattern embedded mid-line.
+        heading_hits = len(re.findall(r"(?<!^)(?<!\n)##\s+[A-Z]", line))
+        pipe_hits = line.count("| ")
+        bullet_hits = len(re.findall(r"(?<!^)(?<!\n)\s-\s\*\*[A-Z]", line))
+        if heading_hits >= 1 or pipe_hits >= 4 or bullet_hits >= 2:
+            return True
+    return False
+
+
+def _restore_collapsed_markdown(content: str) -> str:
+    """Reinsert missing line breaks around structural markers in a collapsed
+    markdown blob. Only applied when ``_looks_collapsed`` returns True — in
+    the common case of well-formed markdown this function is a no-op.
+
+    Heuristics are intentionally conservative: we only split when the marker
+    is adjacent to whitespace and followed by a capitalized token (so
+    legitimate cross-references like ``(see ## quick wins)`` stay put when
+    lowercase).
+    """
+    if not _looks_collapsed(content):
+        return content
+
+    repaired = content
+
+    # Break before "## " headings that appear mid-line followed by a
+    # capitalized word. Require a space before the ## so we don't split on
+    # "###" or inline bold markers.
+    repaired = re.sub(
+        r"(?<=\S) (##+\s+[A-Z][^\n]*?)(?=\s+[A-Z]|\s+\*|\n|$)",
+        r"\n\n\1",
+        repaired,
+    )
+
+    # Break before the single "# " top-level title when inline (rare but
+    # happens if the LLM emits a subtitle on the same line).
+    repaired = re.sub(r"(?<=\S) (#\s+[A-Z][^\n#]{2,})", r"\n\n\1", repaired)
+
+    # Break before "- **Label**:" bullets that appear mid-line. Require the
+    # bold opener and a capital letter to avoid matching em-dashes or
+    # negative numbers.
+    repaired = re.sub(r"(?<=\S) (-\s+\*\*[A-Z][^*\n]+\*\*)", r"\n\1", repaired)
+
+    # Break pipe-table row boundaries. When an inline sequence contains
+    # "| cell | cell | | ---- | ---- |" the transition between rows is a
+    # closing "|" followed by whitespace and an opening "|". Insert a
+    # newline between them. Also break the FIRST row of a table out of the
+    # preceding prose ("...summary sentence. | Phase | Focus |").
+    repaired = re.sub(r"\| +\|", "|\n|", repaired)
+    repaired = re.sub(r"(?<=[.!?)\"'*\s])(\|\s+[A-Z][^\n|]*?\|)", r"\n\1", repaired)
+
+    # Collapse any 3+ consecutive blank lines introduced by the splits.
+    repaired = re.sub(r"\n{3,}", "\n\n", repaired)
+
+    return repaired
+
+
 def canonicalize_final_markdown(markdown_content: str) -> str:
-    return parse_final_markdown(markdown_content).to_markdown()
+    repaired = _restore_collapsed_markdown(markdown_content)
+    return parse_final_markdown(repaired).to_markdown()

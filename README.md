@@ -23,6 +23,7 @@ Company research is tedious. You visit the website, click around, search the com
 ## What Makes It Different
 
 - **DNS intelligence pre-flight**: Automatic domain reconnaissance detects cloud platforms, SaaS services, email security, and identity providers from DNS records — zero API keys, 2-3 seconds. Strategies are grounded in real tech stack data.
+- **Hiring-signal gathering**: After the main scrape, Primr discovers open job postings (Greenhouse, Lever, Ashby, SmartRecruiters board APIs first; HTML careers-page fallback if every ATS misses), LLM-triages the most signal-rich roles, and extracts tech-stack frequency, strategic initiatives, culture cues, and notable absences. Job posts are often the most honest statement of what a company is actually building right now — they feed every downstream phase from gap analysis to final strategy. Skip with `PRIMR_SKIP_HIRING_SIGNALS=1`.
 - **Adaptive scraping**: 8 retrieval methods from browser rendering to TLS fingerprinting to screenshot+vision extraction, with per-host optimization. Starts with full browser rendering (what works on 95%+ of modern sites) and falls back through increasingly specialized methods.
 - **Org-aware site selection**: Link discovery and prioritization now adapt for commercial companies, government sites, nonprofits, education, and healthcare organizations instead of assuming every site looks like a SaaS company.
 - **Fail-fast scrape quality gate**: Full/scrape modes now abort when site extraction is too thin, while still preserving short structured pages like contact, leadership, and org-chart references when they carry useful signal (override with `--skip-scrape-validation`).
@@ -70,13 +71,14 @@ For model evaluation and quality comparison, see [Evaluation Guide](docs/EVAL.md
 ```bash
 git clone https://github.com/blisspixel/primr.git
 cd primr
-python setup_env.py              # Installs deps, creates .env
+py -3.13 setup_env.py           # Windows
+# or: python3.13 setup_env.py   # macOS/Linux
 # Add your API keys to .env (see docs/API_KEYS.md)
 primr doctor                     # Verify everything works
 primr "ExampleCo" https://example.co  # Run your first research
 ```
 
-Requires Python 3.11+. Set `XAI_API_KEY` for the standard Grok pipeline (recommended), or `GEMINI_API_KEY` for Gemini/premium mode. Web search uses DuckDuckGo (no key needed).
+Requires Python 3.11+. On Windows, prefer `py -3.13` instead of bare `python` if your default interpreter is older. `setup_env.py` installs or upgrades the local editable package to the current repo version, installs dependencies, and creates `.env`. Set `XAI_API_KEY` for the standard Grok pipeline (recommended), or `GEMINI_API_KEY` for Gemini/premium mode. Web search uses DuckDuckGo (no key needed).
 
 ### Platform Support
 
