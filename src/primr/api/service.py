@@ -10,7 +10,6 @@ This module provides:
 - Request ID tracking for audit trails
 """
 
-import asyncio
 import threading
 import uuid
 from dataclasses import dataclass, field
@@ -18,7 +17,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
-from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Request, Response
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -429,7 +428,7 @@ def create_app(
     @app.post("/research", response_model=ResearchResponse)
     async def create_research(
         request: ResearchRequest,
-        background_tasks: BackgroundTasks,
+        response: Response,
         api_key: str = Depends(verify_key),
     ) -> ResearchResponse:
         """
@@ -465,18 +464,16 @@ def create_app(
         # Update request with sanitized name
         request.company_name = safe_name
 
-        job_id = app.state.job_manager.create_job(request, api_key)
-        job = app.state.job_manager.get_job(job_id)
-
-        # Start research in background
-        background_tasks.add_task(run_research, app.state.job_manager, job_id)
-
-        return ResearchResponse(
-            job_id=job_id,
-            status=job.status,
-            company_name=job.company_name,
-            created_at=job.created_at.isoformat(),
-            progress=job.progress,
+        raise HTTPException(
+            status_code=501,
+            detail=(
+                "REST API research submission is not wired to the production pipeline yet. "
+                "Use the CLI or MCP server for real runs."
+            ),
+            headers={
+                "X-RateLimit-Remaining": response.headers.get("X-RateLimit-Remaining", "0"),
+                "X-RateLimit-Limit": response.headers.get("X-RateLimit-Limit", "0"),
+            },
         )
 
     @app.get("/research/{job_id}", response_model=ResearchResponse)
@@ -543,54 +540,11 @@ async def run_research(job_manager: JobManager, job_id: str) -> None:
     """
     Run research in background.
 
-    This is a placeholder that simulates research.
-    In production, this would call the actual research pipeline.
+    This endpoint is intentionally not implemented until it is wired to the
+    production research pipeline.
     """
-    job = job_manager.get_job(job_id)
-    if job is None:
-        return
-
-    try:
-        job_manager.update_status(job_id, ResearchStatus.RUNNING, 0.0, "Starting research...")
-
-        # Simulate research progress
-        for progress in [10, 25, 50, 75, 90, 100]:
-            await asyncio.sleep(0.1)  # Simulated work
-
-            job = job_manager.get_job(job_id)
-            if job is None or job.status == ResearchStatus.CANCELLED:
-                return
-
-            messages = {
-                10: "Gathering initial data...",
-                25: "Scraping company website...",
-                50: "Analyzing content...",
-                75: "Generating report...",
-                90: "Finalizing...",
-                100: "Complete",
-            }
-            job_manager.update_status(
-                job_id,
-                ResearchStatus.RUNNING,
-                float(progress),
-                messages.get(progress, "Processing..."),
-            )
-
-        # Set mock result
-        job_manager.set_result(
-            job_id,
-            {
-                "company_name": job.company_name,
-                "summary": f"Research report for {job.company_name}",
-                "sections": {
-                    "overview": f"{job.company_name} is a company.",
-                    "financials": "Financial information would go here.",
-                },
-            },
-        )
-
-        logger.info(f"Completed research job {job_id}")
-
-    except Exception as e:
-        logger.error(f"Research job {job_id} failed: {e}")
-        job_manager.set_error(job_id, str(e))
+    del job_manager, job_id
+    raise NotImplementedError(
+        "REST API research execution is disabled until the endpoint is wired "
+        "to the production research pipeline."
+    )

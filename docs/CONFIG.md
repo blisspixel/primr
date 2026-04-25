@@ -30,6 +30,22 @@ Gemini 3.1 Pro Preview is the default Pro model. It has tiered pricing: $2/$12 p
 To revert to Gemini 3.0 Pro (flat $2/$12 pricing):
 - Set `AI_REASONING_MODEL=gemini-3-pro-preview` in `.env`
 
+### Scraping Behavior
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PRIMR_MAX_HEADED_POPUPS` | Total number of visible-browser challenges allowed per run. Shared across the Patchright stealth tier (main-site rescue) and the orchestrator's adaptive Playwright retry. Default is 0 (no popups ever); set to `5` (or any N) to opt in for a run. | `0` |
+| `PRIMR_SKIP_HIRING_SIGNALS` | When set to `1` / `true` / `yes`, skips the hiring-signals stage entirely — no ATS probes, no careers-page crawl, no LLM extraction. Use when researching companies where hiring data is irrelevant or when debugging. | unset |
+| `PRIMR_ALLOW_HEADED_FALLBACK` | Master switch for the visible-browser path in the stealth tier. Set to `0` / `false` / `no` to disable entirely regardless of budget. | `1` |
+| `PRIMR_ENABLE_DRISSION` | Include DrissionPage tiers in the external validation orchestrator. | `0` |
+| `PRIMR_BROWSER_HEADED` | Force the Playwright tiers to launch in headed mode for a specific call. Normally set internally by the adaptive-retry path, not by users. | unset |
+| `PRIMR_BROWSER_SESSION_MODE` | `persistent` enables a reused browser profile per host (set internally during adaptive retry). | unset |
+
+Notes on the popup budget:
+- The budget is a single shared counter — opt in once with `PRIMR_MAX_HEADED_POPUPS=N` and that N is the total allowance across all trigger points in the run.
+- External-source validation (web-search results) uses a separate orchestrator that excludes the Patchright stealth tier by design, so validation-pass popups are already impossible even when the budget is set.
+- On Linux, the budget is automatically treated as 0 when neither `DISPLAY` nor `WAYLAND_DISPLAY` is set, so SSH sessions, CI runners, and headless containers never attempt a visible-browser launch.
+
 ## Configuration Classes
 
 ### TimeoutConfig

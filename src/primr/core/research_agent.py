@@ -44,6 +44,12 @@ from primr.core.ai_strategy import (
     CloudVendor,
     Platform,
 )
+from primr.core.ai_strategy_runtime import (
+    build_ai_strategy_prompt as _build_ai_strategy_prompt_impl,
+)
+from primr.core.ai_strategy_runtime import (
+    generate_ai_strategy_section as _generate_ai_strategy_section_impl,
+)
 from primr.core.cli import (
     main as _main_new,
 )
@@ -52,6 +58,12 @@ from primr.core.cli import (
 from primr.core.deep_research_runner import (
     DeepResearchConfig,
     DeepResearchMode,
+)
+from primr.core.strategy_generation import (
+    build_strategy_prompt_from_yaml as _build_strategy_prompt_from_yaml_impl,
+)
+from primr.core.strategy_generation import (
+    generate_generic_strategy as _generate_generic_strategy_impl,
 )
 
 # =============================================================================
@@ -4074,10 +4086,11 @@ def perform_fast_research(
         # Adaptive depth: assess data richness to calibrate search effort
         total_scraped_chars = sum(len(v or "") for v in scraped_data.values())
         if total_scraped_chars > 200_000 and pages_scraped > 30:
-            # Rich website — reduce external search, data is abundant
+            # Rich website — data is abundant; a small number of high-signal
+            # externals is enough for cross-validation.
             _search_depth = "rich"
-            _ext_query_count = 10
-            _max_ext = 20
+            _ext_query_count = 8
+            _max_ext = 12
             log_structured(
                 "info",
                 "Adaptive depth: rich website, reducing external search",
@@ -4085,13 +4098,12 @@ def perform_fast_research(
                 chars=total_scraped_chars,
             )
         elif total_scraped_chars < 20_000:
-            # Thin website — increase external search to compensate. A small
-            # number of *rich* pages (e.g. 3 fallback pages totaling 60K+ chars
-            # from EDGAR / Wikipedia / IR subdomain) is NOT thin even though
-            # page_count is low — char volume is the real signal.
+            # Thin website — compensate with more externals, but not a firehose.
+            # Fallback_sources already filled in EDGAR / Wikipedia / IR if the
+            # main site was blocked; we don't need to re-validate 40 DDG hits.
             _search_depth = "thin"
-            _ext_query_count = 15
-            _max_ext = 40
+            _ext_query_count = 12
+            _max_ext = 22
             console.info(
                 f"Thin website data ({pages_scraped} pages, {total_scraped_chars} chars) "
                 "— increasing external search depth"
@@ -4103,10 +4115,10 @@ def perform_fast_research(
                 chars=total_scraped_chars,
             )
         else:
-            # Normal
+            # Normal — 18 validated externals is plenty for a 23-section brief.
             _search_depth = "normal"
-            _ext_query_count = 15
-            _max_ext = 30
+            _ext_query_count = 10
+            _max_ext = 18
 
         # External research (adaptive query count)
         source_urls: list[str] = []
@@ -4163,8 +4175,16 @@ def perform_fast_research(
                 total=len(external_queries),
             )
 
-        # Phase 2: sequential scraping on main thread (Playwright-safe)
-        # Wrap per-page scrapes with recovery executor (pipeline-resilience)
+        # Phase 2: parallel validation with a hard attempt cap.
+        # External validation used to iterate *every* search result serially,
+        # which on noisy queries meant 75-150+ Grok validation calls and 20+
+        # minutes of wall time. We now:
+        #   - hard-cap attempts at max_external_sources * 2 (empirically
+        #     enough to fill the quota on any reasonable rejection rate)
+        #   - run 4 attempts in parallel (external scrape now uses a
+        #     Patchright-free orchestrator, so no browser contention)
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
         from primr.pipeline.integration import create_pipeline_executor, scrape_page_with_recovery
 
         _resilience_listener = _build_resilience_event_listener(folder_path)
@@ -4172,36 +4192,92 @@ def perform_fast_research(
             folder_path, event_listener=_resilience_listener
         )
 
-        _scrape_idx = 0
-        _scrape_total = len(all_search_results)
-        _failed_scrape_urls: list[str] = []
+        # Deduplicate and cap candidate list up front.
+        _candidates: list[dict] = []
+        _seen_candidate_urls: set[str] = set()
         for result in all_search_results:
-            if len(external_data) >= max_external_sources:
-                break
             url = result.get("url")
-            if not url or url in external_data:
+            if not url or url in _seen_candidate_urls or url in external_data:
                 continue
-            _scrape_idx += 1
-            console.status(
-                f"Validating external sources ({len(external_data)} validated, checking {_scrape_idx}/{_scrape_total})"
-            )
+            _seen_candidate_urls.add(url)
+            _candidates.append(result)
 
-            def _do_scrape(_r=result, _u=url):
-                return scrape_external_sources_validated(
-                    [_r],
-                    company_name=company_name,
-                    website=website,
-                    max_sources=1,
+        # Attempt cap sized at 1.6x the quota. Empirically ~35% of DDG
+        # results get LLM-rejected as "wrong company" (similar-name but
+        # unrelated business), so 1.6x fills the quota in the normal case
+        # while keeping total work bounded. Was 2x before 1.19.1 — that
+        # was overcautious and turned a 20-source quota into a 60-HTTP-call
+        # validation marathon on companies with lots of hits (Nintendo,
+        # Disney, any well-known brand).
+        _attempt_cap = max(12, int(max_external_sources * 1.6))
+        _candidates = _candidates[:_attempt_cap]
+        _scrape_total = len(_candidates)
+        _failed_scrape_urls: list[str] = []
+        _completed_checks = 0
+
+        def _do_scrape(_r: dict, _u: str):
+            wrapped = lambda: scrape_external_sources_validated(  # noqa: E731
+                [_r],
+                company_name=company_name,
+                website=website,
+                max_sources=1,
+            )
+            return scrape_page_with_recovery(_recovery_executor, wrapped, _u, folder_path)
+
+        # Total wall-clock deadline for this phase. A single hung worker
+        # (stuck HTTP, stuck Grok validation call) used to block the whole
+        # pipeline because ThreadPoolExecutor's __exit__ waits for every
+        # running thread to finish and fut.cancel() only cancels queued
+        # work. Deadline + manual shutdown(wait=False, cancel_futures=True)
+        # lets us abandon stuck workers and move on.
+        _validation_deadline_s = 600.0  # 10 min total across all workers
+        _val_pool = ThreadPoolExecutor(max_workers=4)
+        futures = {
+            _val_pool.submit(_do_scrape, result, result["url"]): result
+            for result in _candidates
+        }
+        _val_abandoned = False
+        try:
+            for fut in as_completed(futures, timeout=_validation_deadline_s):
+                _completed_checks += 1
+                if len(external_data) >= max_external_sources:
+                    # Enough accepted sources — stop waiting for the rest.
+                    break
+                result = futures[fut]
+                url = result["url"]
+                console.status(
+                    f"Validating external sources ({len(external_data)} validated, "
+                    f"checking {_completed_checks}/{_scrape_total})"
                 )
-
-            scrape_result = scrape_page_with_recovery(
-                _recovery_executor, _do_scrape, url, folder_path
+                try:
+                    scrape_result = fut.result(timeout=0)
+                except Exception as e:
+                    logger.debug("External validation worker failed for %s: %s", url, e)
+                    continue
+                if scrape_result.success and scrape_result.output:
+                    external_data.update(scrape_result.output)
+                elif scrape_result.skipped:
+                    _failed_scrape_urls.append(url)
+                    logger.info("Scrape skipped for %s: %s", url, scrape_result.skip_reason)
+        except TimeoutError:
+            _val_abandoned = True
+            console.warn(
+                f"External validation deadline ({int(_validation_deadline_s)}s) reached — "
+                f"continuing with {len(external_data)} validated sources "
+                f"({_completed_checks}/{_scrape_total} workers checked)"
             )
-            if scrape_result.success and scrape_result.output:
-                external_data.update(scrape_result.output)
-            elif scrape_result.skipped:
-                _failed_scrape_urls.append(url)
-                logger.info("Scrape skipped for %s: %s", url, scrape_result.skip_reason)
+        finally:
+            # Don't block on hung threads — cancel queued work and let
+            # any still-running workers finish in the background.
+            _val_pool.shutdown(wait=False, cancel_futures=True)
+
+        if _val_abandoned:
+            _update_run_state(
+                folder_path,
+                external_validation_abandoned=True,
+                external_validation_completed=_completed_checks,
+                external_validation_total=_scrape_total,
+            )
 
         # Log failed pages in run state (Req 2.3)
         if _failed_scrape_urls:
@@ -4236,6 +4312,64 @@ def perform_fast_research(
             [("Pages", str(pages_scraped)), ("External", str(len(external_data)))],
         )
 
+        # =================================================================
+        # Hiring Signals — discover open postings, extract strategic signals.
+        # Not numbered as a full phase so we avoid renumbering the five
+        # downstream banners, but announced clearly. The resulting block is
+        # threaded through BOTH the initial insights build and the Phase 2
+        # gap-filling rebuild so it survives every refresh of insights.txt
+        # and external_sources_raw.
+        # =================================================================
+        hiring_block = ""
+        try:
+            from primr.data.hiring_signals import gather_hiring_signals, render_for_prompt
+
+            console.info("Hiring Signals — scanning for open job postings")
+            hiring_signals = gather_hiring_signals(
+                company_name or display_name,
+                website,
+                corpus=scraped_data,
+                working_folder=folder_path,
+            )
+        except Exception as e:
+            logger.warning("Hiring signals stage failed: %s", e)
+            hiring_signals = None
+
+        if hiring_signals and not hiring_signals.is_empty():
+            console.ok(
+                f"Hiring Signals: {hiring_signals.postings_extracted} postings analysed via "
+                f"{hiring_signals.source} "
+                f"({len(hiring_signals.tech_stack)} tech items, "
+                f"{len(hiring_signals.strategic_initiatives)} initiatives)",
+                show_time=False,
+            )
+            _update_run_state(
+                folder_path,
+                hiring_signals={
+                    "source": hiring_signals.source,
+                    "postings_found": hiring_signals.postings_found,
+                    "postings_selected": hiring_signals.postings_selected,
+                    "postings_extracted": hiring_signals.postings_extracted,
+                    "company_slug": hiring_signals.company_slug,
+                },
+            )
+            hiring_block = "=== HIRING SIGNALS ===\n" + render_for_prompt(hiring_signals)
+        else:
+            if hiring_signals is None:
+                logger.info("Hiring signals: skipped (disabled or no slug candidates)")
+            else:
+                console.info(
+                    "Hiring Signals: no public postings found — continuing without hiring data"
+                )
+            _update_run_state(
+                folder_path,
+                hiring_signals={
+                    "source": hiring_signals.source if hiring_signals else "skipped",
+                    "postings_found": hiring_signals.postings_found if hiring_signals else 0,
+                    "postings_extracted": 0,
+                },
+            )
+
         # Combine Flash-summarized insights (for working folder)
         all_insights_parts = []
         if summarized:
@@ -4244,6 +4378,8 @@ def perform_fast_research(
             all_insights_parts.append(
                 "=== EXTERNAL SOURCES ===\n" + "\n\n".join(external_text_parts)
             )
+        if hiring_block:
+            all_insights_parts.append(hiring_block)
         combined_insights = (
             "\n\n".join(all_insights_parts) if all_insights_parts else "No research data collected."
         )
@@ -4253,9 +4389,14 @@ def perform_fast_research(
         with open(insights_file, "w", encoding="utf-8") as f:
             f.write(combined_insights)
 
-        # Build raw external sources string for Grok
+        # Build raw external sources string for Grok. Hiring signals ride
+        # along so the gap-analysis, workbook, section-writing, and
+        # cross-validation prompts all see them as available evidence.
+        external_raw_base_parts = list(external_raw_parts)
+        if hiring_block:
+            external_raw_base_parts.append(hiring_block)
         external_sources_raw = (
-            "\n\n".join(external_raw_parts) if external_raw_parts else "(no external sources)"
+            "\n\n".join(external_raw_base_parts) if external_raw_base_parts else "(no external sources)"
         )
 
         # =================================================================
@@ -4284,7 +4425,7 @@ def perform_fast_research(
 
         if gap_queries:
             console.ok(f"Gap analysis: {len(gap_queries)} questions identified")
-            max_gap_sources = 15
+            max_gap_sources = 10
 
             _gap_start = time.time()
 
@@ -4316,41 +4457,86 @@ def perform_fast_research(
                         f"Searching for gap-filling sources ({_gap_queries_done}/{len(gap_queries)} queries, {len(gap_search_results)} results)"
                     )
 
-            # Phase 2: sequential scraping on main thread (Playwright-safe)
-            _gap_check_idx = 0
+            # Phase 2: parallel validation with a hard attempt cap (same
+            # design as the main external-source pass: 4 workers, cap at
+            # 2x the target to bound runtime on noisy searches).
+            _gap_candidates: list[dict] = []
+            _gap_seen: set[str] = set()
             for result in gap_search_results:
-                if gap_new_sources >= max_gap_sources:
-                    break
                 url = result.get("url")
-                if not url or url in source_urls_seen:
+                if not url or url in source_urls_seen or url in _gap_seen:
                     continue
-                _gap_check_idx += 1
-                console.status(
-                    f"Validating gap sources ({gap_new_sources} found, checking {_gap_check_idx})"
-                )
-                scraped = scrape_external_sources_validated(
-                    [result],
+                _gap_seen.add(url)
+                _gap_candidates.append(result)
+
+            # Same 1.6x sizing as the main external pass — see comment there.
+            _gap_attempt_cap = max(10, int(max_gap_sources * 1.6))
+            _gap_candidates = _gap_candidates[:_gap_attempt_cap]
+            _gap_check_idx = 0
+
+            def _validate_gap_source(res: dict) -> dict[str, str]:
+                return scrape_external_sources_validated(
+                    [res],
                     company_name=company_name,
                     website=website,
                     max_sources=1,
                 )
-                for scraped_url, content in scraped.items():
+
+            # Same deadline pattern as the main external-source validation
+            # above — a hung worker can't block shutdown forever.
+            _gap_deadline_s = 420.0  # 7 min total across all workers
+            _gap_pool = ThreadPoolExecutor(max_workers=4)
+            gap_futures = {
+                _gap_pool.submit(_validate_gap_source, r): r for r in _gap_candidates
+            }
+            try:
+                for fut in as_completed(gap_futures, timeout=_gap_deadline_s):
+                    _gap_check_idx += 1
                     if gap_new_sources >= max_gap_sources:
                         break
-                    if scraped_url not in source_urls_seen:
-                        source_urls.append(scraped_url)
-                        source_urls_seen.add(scraped_url)
-                        external_text_parts.append(f"[Source: {scraped_url}]\n{content[:12_000]}")
-                        external_raw_parts.append(f"[Source: {scraped_url}]\n{content[:20_000]}")
-                        gap_new_sources += 1
+                    console.status(
+                        f"Validating gap sources ({gap_new_sources} found, "
+                        f"checking {_gap_check_idx}/{len(_gap_candidates)})"
+                    )
+                    try:
+                        scraped = fut.result(timeout=0)
+                    except Exception as e:
+                        logger.debug("Gap validation worker failed: %s", e)
+                        continue
+                    for scraped_url, content in scraped.items():
+                        if gap_new_sources >= max_gap_sources:
+                            break
+                        if scraped_url not in source_urls_seen:
+                            source_urls.append(scraped_url)
+                            source_urls_seen.add(scraped_url)
+                            external_text_parts.append(
+                                f"[Source: {scraped_url}]\n{content[:12_000]}"
+                            )
+                            external_raw_parts.append(
+                                f"[Source: {scraped_url}]\n{content[:20_000]}"
+                            )
+                            gap_new_sources += 1
+            except TimeoutError:
+                console.warn(
+                    f"Gap-filling deadline ({int(_gap_deadline_s)}s) reached — "
+                    f"continuing with {gap_new_sources} new sources "
+                    f"({_gap_check_idx}/{len(_gap_candidates)} workers checked)"
+                )
+            finally:
+                _gap_pool.shutdown(wait=False, cancel_futures=True)
 
             console.ok(f"Searching for gap-filling sources ({console._elapsed(_gap_start)})")
 
             console.ok(f"Found {gap_new_sources} additional sources")
 
-            # Rebuild external_sources_raw with new sources
+            # Rebuild external_sources_raw with new sources. Keep the
+            # hiring-signals block alongside so downstream prompts still
+            # see it after the gap-filling refresh.
+            external_raw_rebuild = list(external_raw_parts)
+            if hiring_block:
+                external_raw_rebuild.append(hiring_block)
             external_sources_raw = (
-                "\n\n".join(external_raw_parts) if external_raw_parts else "(no external sources)"
+                "\n\n".join(external_raw_rebuild) if external_raw_rebuild else "(no external sources)"
             )
 
             # Update insights file
@@ -4361,6 +4547,8 @@ def perform_fast_research(
                 all_insights_parts_updated.append(
                     "=== EXTERNAL SOURCES ===\n" + "\n\n".join(external_text_parts)
                 )
+            if hiring_block:
+                all_insights_parts_updated.append(hiring_block)
             combined_insights = (
                 "\n\n".join(all_insights_parts_updated)
                 if all_insights_parts_updated
@@ -4962,8 +5150,22 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
             )
 
             # --- AI Strategy (per vendor) ---
+            # When multiple platforms are active (common when recon detects
+            # both AWS and Azure), run the per-vendor strategies concurrently.
+            # The shared company context (report + insights + gap analysis +
+            # workbook) is identical across vendors; only the vendor-specific
+            # research docs differ. Running them in parallel roughly halves
+            # wall-clock time on multi-platform runs.
             if ai_strategy and platforms:
-                for vendor in platforms:
+
+                def _run_ai_strategy_for_vendor(vendor: str):
+                    """Run the full per-platform AI strategy pipeline.
+
+                    Returns (strategy_path, trust_stats_tuple, path_key) on
+                    success, or None on failure. All console output is
+                    prefixed with the vendor label so concurrent runs remain
+                    distinguishable in the CLI.
+                    """
                     strategy_prompt = _build_ai_strategy_prompt(
                         company_name or display_name, vendor, discovery_notes_content
                     )
@@ -5039,7 +5241,7 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
                             vendor=vendor,
                             error=str(strat_err),
                         )
-                        continue
+                        return  # abandon this vendor; others run independently
 
                     if strategy_content and strategy_content.strip():
                         strategy_content = re.sub(
@@ -5135,6 +5337,34 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
                         if strategy_path:
                             key = f"ai_{vendor}" if len(platforms) > 1 else "ai"
                             strategy_paths[key] = strategy_path
+
+                # Dispatch per-platform strategy workers. One platform = run
+                # inline (no pool overhead). Multiple platforms = ThreadPool
+                # with one worker per platform, capped at 3 for rate-limit
+                # safety. grok_llm + network IO releases the GIL so threads
+                # genuinely overlap.
+                if len(platforms) == 1:
+                    _run_ai_strategy_for_vendor(platforms[0])
+                else:
+                    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+                    with ThreadPoolExecutor(
+                        max_workers=min(len(platforms), 3)
+                    ) as _strat_pool:
+                        _strat_futures = {
+                            _strat_pool.submit(_run_ai_strategy_for_vendor, v): v
+                            for v in platforms
+                        }
+                        for _sf in as_completed(_strat_futures):
+                            v = _strat_futures[_sf]
+                            try:
+                                _sf.result()
+                            except Exception as e:
+                                logger.warning(
+                                    "Parallel AI strategy worker for %s raised: %s",
+                                    v,
+                                    e,
+                                )
 
             # --- YAML-defined strategies (customer_experience, security, data_fabric, etc.) ---
             if strategy_types:
@@ -7660,303 +7890,23 @@ def _generate_generic_strategy(
     company_research_path: str | None = None,
     discovery_notes_content: str | None = None,
 ) -> str | None:
-    """
-    Generate a strategy document using Deep Research and the strategy YAML definition.
-
-    This is the generic implementation for CX, Security, Data Fabric, and future strategies.
-
-    Args:
-        strategy_name: Internal strategy name (e.g., 'customer_experience')
-        strategy_yaml: YAML filename (e.g., 'customer_experience')
-        company_name: Name of the company
-        company_research_path: Path to company research markdown (used as context)
-        discovery_notes_content: Optional freeform meeting insights from discovery
-
-    Returns:
-        Path to the generated DOCX file, or None if generation failed
-    """
-    from datetime import datetime
-    from pathlib import Path
-
-    import yaml
-
-    from primr.ai.deep_research import ResearchStatus, get_deep_research_client
-    from primr.config.settings import get_settings
-    from primr.output.markdown_converter import markdown_to_docx
-    from primr.output.output_utils import OUTPUT_DIR
-
-    # Load strategy YAML to get metadata
-    strategy_yaml_path = (
-        Path(__file__).parent.parent / "prompts" / "strategies" / f"{strategy_yaml}.yaml"
+    return _generate_generic_strategy_impl(
+        strategy_name=strategy_name,
+        strategy_yaml=strategy_yaml,
+        company_name=company_name,
+        company_research_path=company_research_path,
+        discovery_notes_content=discovery_notes_content,
     )
-    if not strategy_yaml_path.exists():
-        console.error(f"Strategy YAML not found: {strategy_yaml_path}")
-        return None
-
-    with open(strategy_yaml_path, encoding="utf-8") as f:
-        strategy_config = yaml.safe_load(f)
-
-    meta = strategy_config.get("meta", {})
-    strategy_display_name = meta.get("name", strategy_name)
-
-    # =================================================================
-    # PRE-FLIGHT VALIDATION
-    # =================================================================
-    preflight_errors = []
-
-    if not company_name or not company_name.strip():
-        preflight_errors.append("Company name is required for strategy generation")
-
-    settings = get_settings()
-    if not settings.api.gemini_key:
-        preflight_errors.append("GEMINI_API_KEY not configured in .env")
-
-    if company_research_path:
-        if not os.path.exists(company_research_path):
-            preflight_errors.append(f"Company research file not found: {company_research_path}")
-        elif os.path.getsize(company_research_path) == 0:
-            preflight_errors.append(f"Company research file is empty: {company_research_path}")
-
-    try:
-        os.makedirs(OUTPUT_DIR, exist_ok=True)
-        test_file = os.path.join(OUTPUT_DIR, ".write_test")
-        with open(test_file, "w") as f:
-            f.write("test")
-        os.remove(test_file)
-    except Exception as e:
-        preflight_errors.append(f"Output directory not writable: {OUTPUT_DIR} ({e})")
-
-    if preflight_errors:
-        console.error("Pre-flight validation failed:")
-        for err in preflight_errors:
-            console.error(f"  - {err}")
-        return None
-
-    console.info("Pre-flight checks passed")
-    # =================================================================
-
-    try:
-        # Build the strategy prompt from YAML
-        prompt = _build_strategy_prompt_from_yaml(
-            strategy_config=strategy_config,
-            company_name=company_name,
-            discovery_notes_content=discovery_notes_content,
-        )
-
-        # Prepare context files
-        context_files = []
-        if company_research_path and os.path.exists(company_research_path):
-            context_files.append(company_research_path)
-            console.info("Using Strategic Overview as context")
-
-        # Run Deep Research
-        client = get_deep_research_client()
-
-        def progress_callback(progress):
-            if progress.message:
-                console.info(f"{strategy_display_name}: {progress.message}")
-
-        # Create event loop if needed
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-        result = loop.run_until_complete(
-            client.research(
-                query=prompt,
-                output_format=None,
-                on_progress=progress_callback,
-                context_files=context_files if context_files else None,
-                timeout=1800,  # 30 min timeout
-                job_metadata={
-                    "report_kind": strategy_name,
-                    "strategy_type": strategy_name,
-                    "company_name": company_name,
-                    "cloud_vendor": "agnostic",
-                },
-            )
-        )
-
-        if result.status != ResearchStatus.COMPLETED or not result.content:
-            console.error(f"{strategy_display_name} research failed")
-            return None
-
-        # Usage tracked by the main pipeline recording
-
-        # Generate output files
-        date_str = datetime.now().strftime("%m-%d-%Y")
-        output_filename = meta.get("output_filename", f"{{company_name}}_{strategy_name}")
-        base_name = output_filename.format(company_name=company_name) + f"_{date_str}"
-
-        # Save markdown
-        md_path = os.path.join(OUTPUT_DIR, f"{base_name}.md")
-        with open(md_path, "w", encoding="utf-8") as f:
-            f.write(result.content)
-        console.ok(f"{strategy_display_name} MD: {base_name}.md", show_time=False)
-
-        # Save plain text
-        txt_path = os.path.join(OUTPUT_DIR, f"{base_name}.txt")
-        with open(txt_path, "w", encoding="utf-8") as f:
-            f.write(result.content)
-        console.ok(f"{strategy_display_name} TXT: {base_name}.txt", show_time=False)
-
-        # Convert to DOCX
-        docx_path = os.path.join(OUTPUT_DIR, f"{base_name}.docx")
-        try:
-            subtitle = datetime.now().strftime("%B %d, %Y")
-            markdown_to_docx(
-                markdown_text=result.content,
-                output_path=Path(docx_path),
-                title=f"{strategy_display_name}: {company_name}",
-                subtitle=subtitle,
-            )
-            console.ok(f"{strategy_display_name} DOCX: {base_name}.docx", show_time=False)
-        except PermissionError:
-            timestamp = datetime.now().strftime("%H%M%S")
-            docx_path = os.path.join(OUTPUT_DIR, f"{base_name}_{timestamp}.docx")
-            console.warn(f"Original file locked, saving as: {base_name}_{timestamp}.docx")
-            markdown_to_docx(
-                markdown_text=result.content,
-                output_path=Path(docx_path),
-                title=f"{strategy_display_name}: {company_name}",
-                subtitle=subtitle,
-            )
-        except Exception as e:
-            console.warn(f"DOCX conversion failed: {e}")
-            docx_path = md_path
-
-        return docx_path
-
-    except Exception as e:
-        console.error(f"{strategy_display_name} generation failed: {e}")
-        logger.exception(f"{strategy_display_name} error")
-        return None
 
 
 def _build_strategy_prompt_from_yaml(
     strategy_config: dict, company_name: str, discovery_notes_content: str | None = None
 ) -> str:
-    """
-    Build a Deep Research prompt from a strategy YAML configuration.
-
-    This reads the YAML structure and generates a comprehensive prompt that
-    instructs Deep Research to produce the strategy document.
-
-    Args:
-        strategy_config: Parsed YAML configuration
-        company_name: Name of the company
-        discovery_notes_content: Optional freeform meeting insights
-
-    Returns:
-        Formatted prompt string for Deep Research
-    """
-    from datetime import datetime
-
-    current_date = datetime.now().strftime("%B %Y")
-
-    meta = strategy_config.get("meta", {})
-    strategy_name = meta.get("name", "Strategy Document")
-
-    # Build the prompt
-    prompt_parts = []
-
-    # Header
-    prompt_parts.append(f"# {strategy_name} for {company_name}")
-    prompt_parts.append(f"Date: {current_date}\n")
-
-    # Document purpose
-    if "document_purpose" in strategy_config:
-        prompt_parts.append("## YOUR ROLE AND TASK")
-        prompt_parts.append(strategy_config["document_purpose"])
-        prompt_parts.append("")
-
-    # Context instructions
-    if "context_instructions" in strategy_config:
-        prompt_parts.append("## HOW TO USE CONTEXT")
-        prompt_parts.append(strategy_config["context_instructions"])
-        prompt_parts.append("")
-
-    # Writing standards
-    if "writing_standards" in strategy_config:
-        prompt_parts.append("## WRITING QUALITY STANDARDS")
-        prompt_parts.append(strategy_config["writing_standards"])
-        prompt_parts.append("")
-
-    # Epistemic rules
-    if "epistemic_rules" in strategy_config:
-        prompt_parts.append("## EPISTEMIC RULES (CRITICAL)")
-        epistemic = strategy_config["epistemic_rules"]
-        for rule_name, rule_text in epistemic.items():
-            prompt_parts.append(f"### {rule_name.replace('_', ' ').title()}")
-            prompt_parts.append(rule_text)
-            prompt_parts.append("")
-
-    # Discovery notes if provided
-    if discovery_notes_content:
-        prompt_parts.append("## DISCOVERY NOTES (INTERNAL INSIGHTS)")
-        prompt_parts.append(
-            "You have access to internal discovery notes from conversations with the company."
-        )
-        prompt_parts.append("Use these to ground your recommendations in their actual situation:")
-        prompt_parts.append("")
-        prompt_parts.append(discovery_notes_content)
-        prompt_parts.append("")
-
-    # Sections structure
-    if "sections" in strategy_config:
-        prompt_parts.append("## DOCUMENT STRUCTURE")
-        prompt_parts.append(
-            "Generate a comprehensive strategy document with the following sections:\n"
-        )
-
-        for section in strategy_config["sections"]:
-            section_name = section.get("name", "Untitled Section")
-            section_purpose = section.get("purpose", "")
-            section_depth = section.get("depth", "")
-
-            prompt_parts.append(f"### {section_name}")
-            if section_purpose:
-                prompt_parts.append(f"**Purpose**: {section_purpose}")
-
-            if "covers" in section:
-                prompt_parts.append("**Covers**:")
-                for item in section["covers"]:
-                    prompt_parts.append(f"- {item}")
-
-            if "subsections" in section:
-                for subsection in section["subsections"]:
-                    subsection_name = subsection.get("name", "")
-                    prompt_parts.append(f"\n#### {subsection_name}")
-                    if "covers" in subsection:
-                        for item in subsection["covers"]:
-                            prompt_parts.append(f"- {item}")
-
-            if section_depth:
-                prompt_parts.append(f"\n**Depth Guidance**: {section_depth}")
-
-            prompt_parts.append("")
-
-    # Final instructions
-    prompt_parts.append("## FINAL INSTRUCTIONS")
-    prompt_parts.append(f"Generate a comprehensive {strategy_name} for {company_name}.")
-    prompt_parts.append("Follow ALL the rules above, especially:")
-    prompt_parts.append("- Use the Strategic Overview from File Search Store as PRIMARY source")
-    prompt_parts.append("- Frame assessments as hypotheses to validate, not facts")
-    prompt_parts.append("- Connect every recommendation to THIS company's specific situation")
-    prompt_parts.append(
-        "- Include the Facilitation Toolkit sections (board presentation, stakeholder inception, workshop design)"
+    return _build_strategy_prompt_from_yaml_impl(
+        strategy_config=strategy_config,
+        company_name=company_name,
+        discovery_notes_content=discovery_notes_content,
     )
-    prompt_parts.append(
-        "- Use compact [cite: N] references for major recommendations and factual claims; keep dense source listings in the final ## Sources appendix"
-    )
-    prompt_parts.append("- End with a single ## Sources section listing the URLs you cited")
-    prompt_parts.append("- Be specific, honest, and actionable")
-    prompt_parts.append("")
-    prompt_parts.append("Begin the document now.")
-
-    return "\n".join(prompt_parts)
 
 
 def _generate_ai_strategy_section(
@@ -7989,1101 +7939,24 @@ def _generate_ai_strategy_section(
     Returns:
         Path to the generated DOCX file, or None if generation failed
     """
-    from datetime import datetime
-
-    from primr.config.settings import get_settings
-    from primr.output.markdown_converter import markdown_to_docx
-    from primr.output.output_utils import OUTPUT_DIR
-
-    # =================================================================
-    # PRE-FLIGHT VALIDATION - Check everything BEFORE expensive API call
-    # =================================================================
-    preflight_errors = []
-
-    # 1. Validate company name
-    if not company_name or not company_name.strip():
-        preflight_errors.append("Company name is required for AI strategy generation")
-
-    # 2. Validate cloud vendor
-    valid_vendors = ["azure", "aws", "gcp", "agnostic"]
-    if platform.lower() not in valid_vendors:
-        preflight_errors.append(
-            f"Invalid cloud vendor: {platform}. Must be one of: {', '.join(valid_vendors)}"
-        )
-
-    # 3. Validate API key is configured
-    settings = get_settings()
-    if not settings.api.gemini_key:
-        preflight_errors.append("GEMINI_API_KEY not configured in .env")
-
-    # 4. Validate company research path if provided
-    if company_research_path:
-        if not os.path.exists(company_research_path):
-            preflight_errors.append(f"Company research file not found: {company_research_path}")
-        elif os.path.getsize(company_research_path) == 0:
-            preflight_errors.append(f"Company research file is empty: {company_research_path}")
-
-    # 5. Check output directory is writable
-    try:
-        os.makedirs(OUTPUT_DIR, exist_ok=True)
-        test_file = os.path.join(OUTPUT_DIR, ".write_test")
-        with open(test_file, "w") as f:
-            f.write("test")
-        os.remove(test_file)
-    except Exception as e:
-        preflight_errors.append(f"Output directory not writable: {OUTPUT_DIR} ({e})")
-
-    # ABORT if any pre-flight errors
-    if preflight_errors:
-        console.error("Pre-flight validation failed:")
-        for err in preflight_errors:
-            console.error(f"  - {err}")
-        console.error("Fix these issues before running expensive Deep Research")
-        return None
-
-    console.info("Pre-flight checks passed")
-    # =================================================================
-
-    try:
-        # Build the AI Strategy prompt
-        prompt = _build_ai_strategy_prompt(company_name, platform, discovery_notes_content)
-
-        # Prepare context files if we have company research
-        context_files = []
-        if company_research_path and os.path.exists(company_research_path):
-            context_files.append(company_research_path)
-
-        # Get vendor-specific research (auto-generates if needed)
-        vendor_doc_paths = []
-        if platform.lower() != "agnostic":
-            # Force refresh if requested
-            if force_refresh_vendor:
-                console.info(f"Force refreshing {platform.upper()} vendor research...")
-                generated = _generate_vendor_research(platform)
-                vendor_doc_paths = [generated] if generated else []
-            else:
-                vendor_doc_paths = _get_or_generate_vendor_research(platform)
-
-            # Add vendor-specific research files as context
-            for vendor_doc_path in vendor_doc_paths:
-                if vendor_doc_path and os.path.exists(vendor_doc_path):
-                    context_files.append(vendor_doc_path)
-
-            if vendor_doc_paths:
-                console.info(
-                    f"Using {len(vendor_doc_paths)} {platform.upper()} research doc(s) as context"
-                )
-
-        # Always include agnostic/cross-industry AI research as additional context
-        # This covers OpenAI, Anthropic, NVIDIA, Meta, etc. which is relevant for all vendors
-        agnostic_path = _get_vendor_research_path("agnostic")
-        if os.path.exists(agnostic_path):
-            context_files.append(agnostic_path)
-            console.info("Using cross-industry AI research as additional context")
-
-        if lite_strategy:
-            # Fast path: use Pro model directly with context inlined
-            console.info("AI Strategy: Starting research (Pro mode)...")
-
-            # Read context files into a single string to prepend to prompt
-            context_parts = []
-            for cf in context_files:
-                try:
-                    with open(cf, encoding="utf-8") as fh:
-                        content = fh.read()
-                    if content.strip():
-                        context_parts.append(f"--- Context: {os.path.basename(cf)} ---\n{content}")
-                except Exception as e:
-                    logger.warning(f"Failed to read context file {cf}: {e}")
-
-            if context_parts:
-                combined_context = "\n\n".join(context_parts)
-                combined_prompt = (
-                    "Use the following context documents to inform your analysis:\n\n"
-                    f"{combined_context}\n\n"
-                    "---\n\n"
-                    f"{prompt}"
-                )
-            else:
-                combined_prompt = prompt
-
-            strategy_content = llm(
-                combined_prompt,
-                model_type="section_writing",
-                temperature=1.0,
-                thinking_level="high",
-            )
-
-            if not strategy_content or not strategy_content.strip():
-                console.error("AI Strategy Pro generation failed - empty response")
-                return None
-
-            # Usage tracked by the main pipeline recording
-        else:
-            # Default path: use Deep Research
-            from primr.ai.deep_research import ResearchStatus, get_deep_research_client
-
-            console.info("AI Strategy: Starting research (background mode)...")
-            client = get_deep_research_client()
-
-            def progress_callback(progress):
-                if progress.message:
-                    console.info(f"AI Strategy: {progress.message}")
-
-            # Create event loop if needed
-            try:
-                loop = asyncio.get_event_loop()
-            except RuntimeError:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-
-            result = loop.run_until_complete(
-                client.research(
-                    query=prompt,
-                    output_format=None,  # Use the prompt directly
-                    on_progress=progress_callback,
-                    context_files=context_files if context_files else None,
-                    timeout=1800,  # 30 min timeout for AI strategy
-                    job_metadata={
-                        "report_kind": "ai_strategy",
-                        "strategy_type": "ai",
-                        "company_name": company_name,
-                        "cloud_vendor": platform.lower(),
-                    },
-                )
-            )
-
-            if result.status != ResearchStatus.COMPLETED or not result.content:
-                console.error("AI Strategy research failed")
-                return None
-
-            strategy_content = result.content
-
-            # Usage tracked by the main pipeline recording
-
-        date_str = datetime.now().strftime("%m-%d-%Y")
-        vendor_tag = f"_{platform.upper()}" if platform.lower() != "agnostic" else ""
-        base_name = f"{company_name}_AI_Strategy{vendor_tag}_{date_str}"
-
-        # Save markdown (.md)
-        md_path = os.path.join(OUTPUT_DIR, f"{base_name}.md")
-        with open(md_path, "w", encoding="utf-8") as f:
-            f.write(strategy_content)
-        console.ok(f"AI Strategy MD: {base_name}.md", show_time=False)
-
-        # Save plain text (.txt)
-        txt_path = os.path.join(OUTPUT_DIR, f"{base_name}.txt")
-        with open(txt_path, "w", encoding="utf-8") as f:
-            f.write(strategy_content)
-        console.ok(f"AI Strategy TXT: {base_name}.txt", show_time=False)
-
-        # Convert to DOCX
-        docx_path = os.path.join(OUTPUT_DIR, f"{base_name}.docx")
-        try:
-            subtitle_parts = [datetime.now().strftime("%B %d, %Y")]
-            # Clean subtitle: "December 18, 2024 | Azure" (no "Cloud Vendor:" prefix)
-            subtitle_parts.append(platform.title())
-            subtitle = " | ".join(subtitle_parts)
-
-            markdown_to_docx(
-                markdown_text=strategy_content,
-                output_path=Path(docx_path),
-                title=f"AI Strategy: {company_name}",
-                subtitle=subtitle,
-            )
-            console.ok(f"AI Strategy DOCX: {base_name}.docx", show_time=False)
-        except PermissionError:
-            # File locked - try with timestamp
-            timestamp = datetime.now().strftime("%H%M%S")
-            docx_path = os.path.join(OUTPUT_DIR, f"{base_name}_{timestamp}.docx")
-            console.warn(f"Original file locked, saving as: {base_name}_{timestamp}.docx")
-            markdown_to_docx(
-                markdown_text=strategy_content,
-                output_path=Path(docx_path),
-                title=f"AI Strategy: {company_name}",
-                subtitle=subtitle,
-            )
-        except Exception as e:
-            console.warn(f"DOCX conversion failed: {e}")
-            docx_path = md_path  # Fall back to MD path
-
-        return docx_path
-
-    except Exception as e:
-        console.error(f"AI Strategy generation failed: {e}")
-        logger.exception("AI Strategy error")
-        return None
+    return _generate_ai_strategy_section_impl(
+        company_name=company_name,
+        platform=platform,
+        company_research_path=company_research_path,
+        force_refresh_vendor=force_refresh_vendor,
+        discovery_notes_content=discovery_notes_content,
+        lite_strategy=lite_strategy,
+    )
 
 
 def _build_ai_strategy_prompt(
     company_name: str, platform: str, discovery_notes_content: str | None = None
 ) -> str:
-    """
-    Build a Deep Research prompt for board-level AI strategy.
-
-    This prompt produces a comprehensive AI roadmap covering all major AI domains:
-    - Strategic thesis and prioritization
-    - Productivity AI by persona
-    - Automation and workflow
-    - Conversational AI (internal/external)
-    - Agentic AI connected to data/apps
-    - Generative BI and analytics
-    - Traditional AI/ML
-    - Security and governance
-    - Organizational structure (AI Practice Group)
-    - Explicit deprioritization (what NOT to do)
-    - Failure and experimentation model
-
-    Args:
-        company_name: Name of the company
-        platform: Platform preference (azure, aws, gcp, agnostic)
-        discovery_notes_content: Optional freeform meeting insights from discovery
-    """
-    from datetime import datetime
-
-    current_date = datetime.now().strftime("%B %Y")
-
-    vendor_names = {
-        "azure": "Microsoft Azure",
-        "aws": "Amazon Web Services (AWS)",
-        "gcp": "Google Cloud Platform (GCP)",
-        "agnostic": "all major cloud vendors (Azure, AWS, GCP)",
-        "private": "Private Cloud / NVIDIA",
-    }
-    vendor_name = vendor_names.get(platform.lower(), vendor_names["agnostic"])
-
-    # Vendor-specific context with key services to research
-    vendor_specific_guidance = {
-        "azure": """
-KEY AZURE AI SERVICES TO RESEARCH AND RECOMMEND (search for latest as of {current_date}):
-
-Productivity & Copilots:
-- Microsoft 365 Copilot (Word, Excel, PowerPoint, Outlook, Teams)
-- Copilot Studio (build custom copilots and agents)
-- Work IQ (personalized AI based on work patterns)
-
-Agentic AI & Automation:
-- Agent 365 (AI agent control plane, governance, monitoring)
-- Foundry (unified AI platform for building and deploying agents)
-- Power Automate with AI Builder
-- Semantic Kernel for agent orchestration
-
-Data & Analytics:
-- Microsoft Fabric (unified analytics platform)
-- Fabric IQ (semantic layer for AI-ready data)
-- Azure AI Search (vector search, RAG)
-- Power BI with Copilot
-
-AI Development:
-- Azure OpenAI Service (GPT-4, GPT-4o, o1 models)
-- Azure AI Foundry (model catalog, fine-tuning)
-- GitHub Copilot for developers
-
-Security & Governance:
-- Entra Agent ID (identity for AI agents)
-- Microsoft Purview (data governance, compliance)
-- Microsoft Defender for Cloud (AI security)
-- Responsible AI dashboard
-
-Search for the latest announcements from Microsoft Ignite 2025 and recent Azure updates.
-""",
-        "aws": """
-KEY AWS AI SERVICES TO RESEARCH AND RECOMMEND (search for latest as of {current_date}):
-
-Productivity & Assistants:
-- Amazon Q (AI assistant for business and developers)
-- Amazon Q in Connect (customer service AI)
-- Amazon Q Business (enterprise knowledge assistant)
-
-Agentic AI & Automation:
-- Amazon Bedrock Agents (autonomous AI agents)
-- AWS Step Functions for AI orchestration
-- Amazon Bedrock Flows (visual agent builder)
-
-Data & Analytics:
-- Amazon SageMaker (ML platform)
-- Amazon Bedrock Knowledge Bases (RAG)
-- Amazon QuickSight Q (natural language BI)
-- AWS Glue for data integration
-
-AI Development:
-- Amazon Bedrock (Claude, Llama, Titan, Mistral models)
-- Amazon SageMaker JumpStart (model hub)
-- Amazon CodeWhisperer for developers
-- PartyRock (no-code AI app builder)
-
-Security & Governance:
-- Amazon Bedrock Guardrails (content filtering, PII protection)
-- AWS IAM for AI access control
-- Amazon Macie (data security)
-- AWS CloudTrail for AI audit logging
-
-Search for the latest announcements from AWS re:Invent 2024 and recent AWS updates.
-""",
-        "gcp": """
-KEY GOOGLE CLOUD AI SERVICES TO RESEARCH AND RECOMMEND (search for latest as of {current_date}):
-
-Productivity & Assistants:
-- Gemini for Google Workspace (Docs, Sheets, Slides, Gmail, Meet)
-- Gemini for Google Cloud (cloud console assistant)
-- NotebookLM (AI research assistant)
-
-Agentic AI & Automation:
-- Vertex AI Agent Builder (build and deploy agents)
-- Vertex AI Extensions (connect agents to APIs)
-- Google Cloud Workflows for orchestration
-
-Data & Analytics:
-- BigQuery with Gemini (natural language SQL)
-- Vertex AI Search (enterprise search)
-- Looker with Gemini (conversational BI)
-- Dataplex for data governance
-
-AI Development:
-- Vertex AI (Gemini Pro, Gemini Ultra, PaLM models)
-- Vertex AI Model Garden (model catalog)
-- Gemini Code Assist for developers
-- Vertex AI Studio (prompt design, tuning)
-
-Security & Governance:
-- Vertex AI Model Monitoring
-- Google Cloud IAM for AI
-- Data Loss Prevention API
-- Cloud Audit Logs
-
-Search for the latest announcements from Google Cloud Next 2024 and recent GCP updates.
-""",
-        "agnostic": """
-MULTI-CLOUD AI STRATEGY (search for latest as of {current_date}):
-
-Compare and recommend the best services across Azure, AWS, and GCP for each use case.
-Consider:
-- Which vendor has the strongest offering for each domain?
-- Interoperability and avoiding vendor lock-in
-- Cost comparison across platforms
-- Enterprise readiness and support
-
-Key areas to compare:
-- Foundation models: Azure OpenAI vs Amazon Bedrock vs Vertex AI
-- Productivity AI: M365 Copilot vs Amazon Q vs Gemini for Workspace
-- Agent platforms: Copilot Studio vs Bedrock Agents vs Agent Builder
-- Data platforms: Fabric vs SageMaker/Bedrock vs BigQuery/Vertex
-- Governance: Purview vs Bedrock Guardrails vs Vertex AI governance
-
-Search for the latest announcements from all three vendors' recent conferences.
-""",
-        "private": """
-KEY PRIVATE CLOUD / NVIDIA AI SERVICES TO RESEARCH AND RECOMMEND (search for latest as of {current_date}):
-
-GPU Infrastructure & Compute:
-- NVIDIA DGX Cloud (managed GPU clusters, multi-tenant)
-- NVIDIA DGX SuperPOD / DGX B200 / GB200 NVL72 (on-prem supercomputers)
-- NVIDIA HGX / MGX (modular GPU server platforms)
-
-AI Platform & Inference:
-- NVIDIA AI Enterprise (end-to-end AI platform, supported stack)
-- NVIDIA NIM microservices (optimized model inference containers)
-- NVIDIA TensorRT-LLM (inference optimization engine)
-- NVIDIA Triton Inference Server (multi-framework model serving)
-
-Model Training & Customization:
-- NVIDIA NeMo (LLM training, fine-tuning, RLHF)
-- NVIDIA CUDA / cuDNN (GPU-accelerated computing)
-- NVIDIA Base Command Manager (cluster orchestration)
-
-Agentic AI & Vertical Solutions:
-- NVIDIA AI Blueprints (pre-built agentic RAG, digital humans, video search)
-- NVIDIA Morpheus (cybersecurity AI pipeline)
-- NVIDIA Metropolis (vision AI, video analytics)
-- NVIDIA Omniverse (digital twin simulation)
-
-On-Prem Infrastructure Partners:
-- VMware Private AI Foundation with NVIDIA
-- Red Hat OpenShift AI (Kubernetes-native ML)
-- Dell AI Factory with NVIDIA
-- HPE GreenLake for Large Language Models
-
-Open-Source MLOps Stack:
-- Kubeflow (ML pipelines on Kubernetes)
-- MLflow (experiment tracking, model registry)
-- Ray (distributed training and serving)
-- vLLM / Ollama / TGI (self-hosted LLM inference)
-
-Data Sovereignty & Air-Gap Patterns:
-- Fully on-premises deployment with NIM containers
-- Air-gapped inference (no cloud dependency)
-- Private model registries and artifact stores
-
-Search for the latest from NVIDIA GTC 2025, NVIDIA AI Enterprise releases, and partner announcements.
-""",
-    }
-
-    vendor_guidance = vendor_specific_guidance.get(
-        platform.lower(), vendor_specific_guidance["agnostic"]
+    return _build_ai_strategy_prompt_impl(
+        company_name=company_name,
+        platform=platform,
+        discovery_notes_content=discovery_notes_content,
     )
-    vendor_guidance = vendor_guidance.format(current_date=current_date)
-
-    vendor_context = f"""
-CLOUD VENDOR FOCUS: {vendor_name}
-
-CRITICAL RESEARCH REQUIREMENT:
-You MUST actively search for and cite the LATEST AI services and capabilities from {vendor_name}
-as of {current_date}. Do NOT rely on training data. AI technology changes monthly.
-
-You have access to context files with the latest vendor announcements and capabilities.
-USE THESE CONTEXT FILES as your primary source for current technology recommendations.
-
-{vendor_guidance}
-
-IMPORTANT: Search for additional information to verify current availability and pricing.
-Cite specific announcement dates and sources for all technology recommendations.
-"""
-
-    return f"""You are a senior AI strategy consultant. Generate a comprehensive AI roadmap for board-level decision making.
-
-=============================================================================
-OUTPUT FORMAT (Start the document with this exact header)
-=============================================================================
-
-# AI Strategy: {company_name}
-
-**Prepared by:** Primr Research System
-**Date:** {current_date}
-
----
-
-Then continue with the sections below.
-
-=============================================================================
-RESEARCH INSTRUCTIONS
-=============================================================================
-
-CRITICAL: This strategy must reflect the AI landscape as of {current_date}.
-AI technology evolves rapidly. You MUST actively search for the latest announcements,
-services, and capabilities. Do NOT rely on potentially outdated training data.
-Every technology recommendation must be verified and cited per the Research Protocol below.
-
-You have access to research about {company_name} in the context files. Use that foundation
-to develop a comprehensive AI strategy that their CIO and board would actually use.
-
-AUDIENCE CLARIFICATION:
-This strategy is an internal planning artifact. Recommendations represent proposed directions to evaluate, not commitments or final decisions.
-
-THE GOAL: Produce an AI roadmap that answers "What should we actually do with AI, and why?"
-This is not a generic list of AI buzzwords. It's a strategic document that connects AI
-capabilities to THIS company's specific business model, pain points, competitive pressures,
-and organizational reality. The intent is to help leadership make confident, well-sequenced decisions, not to prescribe a single correct path.
-
-=============================================================================
-RESEARCH AND VALIDATION PROTOCOL
-=============================================================================
-
-For every vendor service, tool, or capability named in this document:
-
-1. **Verify current name**: Confirm the service still exists and has not been renamed or deprecated
-2. **Status**: Note if GA (Generally Available) or Preview/Beta
-3. **Region availability**: Flag if limited to specific regions
-4. **Compliance certifications**: Note relevant certifications (SOC2, HIPAA, FedRAMP) if applicable
-5. **Citation**: Link to official product page or release note with date (e.g., "Announced Nov 2024")
-6. **Pricing**: If pricing varies, cite pricing page and state assumptions (users, tokens, volume)
-7. **Unconfirmed flag**: If anything cannot be verified through search, mark as "UNCONFIRMED" and offer an alternative
-
-This protocol reduces confident but incorrect vendor claims.
-
-=============================================================================
-STRATEGIC CONTEXT
-=============================================================================
-
-THE AGENTIC TRANSFORMATION
-We are in the "Agentic Era" where AI evolves from passive assistants to proactive agents
-capable of planning, reasoning, and executing multi-step workflows autonomously. The key
-distinction is between "AI-enabled" (AI bolted onto legacy processes) vs "AI-native"
-(intelligence as the foundational operating substrate). The competitive advantage lies
-not in "using AI" but in "becoming agentic." Not every function needs to become agentic
-immediately. The strategy must distinguish where autonomy creates real economic leverage
-versus where it adds unnecessary risk.
-
-HEURISTICS AND RULES OF THUMB (internal planning guidance, not cited facts):
-- The "10-20-70 Rule": Allocate roughly 10% effort to algorithms, 20% to technology
-  infrastructure, and 70% to people, processes, and cultural transformation.
-  In plain language: most AI projects fail due to change management, not technology.
-- The "J-Curve": Expect productivity to dip during the learning phase before surging.
-  Leadership must be prepared for a 2-4 month adjustment period.
-- Default to RAG over fine-tuning for 90% of enterprise use cases. Fine-tune only when
-  you need to change the model's style, format, or domain-specific reasoning.
-
-The output should give them:
-1. A clear strategic thesis: AI-enabled vs AI-native, and the path between
-2. A framework for thinking about AI across ALL domains
-3. 5 specific Quick Wins they can start in 90 days (with ROI models)
-4. 5 specific Bigger Bets for transformational impact
-5. 3 things they should explicitly NOT pursue (deprioritization)
-6. ROI frameworks using the appropriate model (productivity, revenue, or risk)
-7. An organizational model with governance "traffic light" system
-8. A target AI architecture posture to prevent tool sprawl
-
-CONFIDENCE LABELING RULE:
-All recommendations must be labeled as one of:
-- "Low-regret / proven pattern" - widely adopted, strong evidence base
-- "Context-dependent bet" - success depends on company-specific factors
-- "Exploratory / frontier" - emerging capability, higher uncertainty
-Never present a recommendation without one of these labels. Confidence labels reflect uncertainty in outcomes, not confidence in the team's ability to execute.
-
-{vendor_context}
-
-FORMATTING RULES:
-- Write in full paragraphs for strategic sections
-- Use bullets only for specific recommendations or lists
-- No em-dashes, use commas or periods
-- Tone: Strategic and direct, like a CIO presenting to the board
-- Avoid hype language. Prefer operational language over visionary claims.
-- Use compact [cite: N] references for major factual claims and recommendations, usually at paragraph ends
-- End with a single ## Sources section listing the URLs you cited, and let that appendix carry the dense reference load
-- For each recommendation, include: Business Case, Technology, ROI Model, Timeline
-- The final Board Summary must fit on ONE PAGE (approximately 500-600 words)
-
-=============================================================================
-DOCUMENT STRUCTURE
-=============================================================================
-
-## AI Strategic Thesis (Recommended Direction)
-
-Based on our research into {company_name}'s business model, industry, and competitive landscape, we recommend the following strategic thesis. This is a PROPOSED direction to discuss with leadership, not an assessment of their current plans.
-
-**Recommended Transformation Path**: Based on their industry and business model, should {company_name} pursue:
-- "AI-enabled" (AI bolted onto existing processes for efficiency) - lower risk, faster wins
-- "AI-native" (intelligence as the operating substrate) - higher investment, transformational potential
-
-**Proposed Primary Value Lever**: Based on their competitive position and industry dynamics, where should AI investment focus?
-- Cost reduction and operational efficiency?
-- Revenue growth and customer experience?
-- Risk reduction and compliance?
-- Competitive differentiation?
-
-**Recommended Priorities**: Based on their business, what should they focus on first?
-
-**Suggested Deprioritizations**: What should they explicitly NOT pursue in the near term, and why?
-- Include the condition under which they should revisit
-- Include the signal that would indicate the condition has changed
-
-**Change Management Reality**: Most AI projects fail due to change management, not technology. Recommend allocating 70% of AI budget to people, processes, and cultural transformation.
-
-Be specific to {company_name}'s situation. Avoid generic statements like "AI will transform the business." Instead: "Based on {company_name}'s position in [industry], we recommend focusing AI investment on [specific area] because [specific reason]. This could target [estimated impact]. We suggest deferring [specific thing] until [specific condition]."
-
-## Executive Summary
-
-The "so what" for the board. 2-3 paragraphs covering:
-- Why AI matters for THIS company specifically (competitive pressure, efficiency opportunity)
-- The recommended investment level and expected ROI
-- The 3 most important things to do in the next 12 months
-
-## Likely Current State (Hypotheses to Validate)
-
-IMPORTANT: We do NOT have visibility into {company_name}'s internal systems, data platforms, or organizational readiness. The following are HYPOTHESES based on:
-- Their industry and company size
-- Public signals (job postings, press releases, tech stack mentions)
-- Typical patterns for companies in their sector
-
-Frame each assessment as "Based on [evidence], we hypothesize..." and note what we'd want to validate in conversation.
-
-### Data Platform Maturity (Hypothesis)
-Based on their industry and size, hypothesize their likely data situation:
-- **Likely data sources**: What systems probably generate their core business data?
-- **Probable challenges**: Based on industry patterns, what data debt might they face?
-- **Signals we observed**: Any public mentions of data initiatives, cloud migrations, or analytics investments?
-
-Frame as: "Companies of this size in this industry typically face [X]. We'd want to understand their specific situation."
-
-### Technology Signals (What We Can Observe)
-Based on public information (job postings, press releases, tech blog posts, conference talks):
-- **Cloud posture**: Any signals about their cloud provider or migration status?
-- **Tech stack hints**: What technologies appear in their job postings?
-- **Digital maturity signals**: E-commerce sophistication, mobile apps, API mentions?
-
-Note: This is inference from public signals, not confirmed knowledge.
-
-### Organizational Readiness (Industry Baseline)
-Based on typical patterns for their industry and size:
-- **AI adoption curve**: Where do companies like this typically sit on AI maturity?
-- **Change management capacity**: What's typical for organizations of this scale?
-- **Likely constraints**: Budget cycles, regulatory requirements, talent availability?
-
-Frame as hypotheses to explore, not assertions about their actual state.
-
-### Common Anti-Patterns to Discuss
-These are common failure modes we'd want to explore with leadership (not accusations):
-- **Pilot proliferation**: Many companies have dozens of disconnected AI PoCs. Worth asking about their current AI initiatives.
-- **Tool sprawl**: Without governance, teams often adopt conflicting AI tools. Worth understanding their current landscape.
-- **Data foundation gaps**: AI projects often stall on data quality. Worth exploring their data readiness.
-
-## Competitive AI Landscape
-
-Be specific about the competitive context:
-- **One competitor ahead on AI**: Who is doing AI better? What specifically are they doing? What is the gap?
-- **One peer making common AI mistakes**: What mistakes should {company_name} avoid? (e.g., pilot proliferation, tool sprawl, no governance)
-- **Value at stake over 24 months**: What value could be protected or created by acting on AI?
-
-Framing Guidance: When discussing the cost of inaction, emphasize the value that could be protected or created by acting, not a presumption of failure if action is delayed. Express as a range of potential impacts, not a single deterministic outcome. Present best-case, likely-case, and worst-case scenarios rather than asserting a single inevitable future.
-
-## Recommended AI Architecture Posture
-
-Based on the target cloud vendor and industry best practices, here's what {company_name} SHOULD build toward. These are recommendations, not assessments of their current state.
-
-### Knowledge Grounding Pattern (RAG as Default)
-For most enterprise AI use cases, recommend:
-- Retrieval-Augmented Generation (RAG) as the default pattern for knowledge grounding
-- Specific vector database and embedding strategy for the target cloud vendor
-- Fine-tuning reserved only for style/format changes or domain-specific reasoning
-- Data sources to prioritize: internal documents, wikis, customer data, operational databases
-
-### Identity, Access, and Audit (Recommended Framework)
-What they should implement:
-- User authentication to AI systems (SSO integration)
-- Service principal / managed identity for AI agents calling backend systems
-- Audit logging for all AI interactions (prompts, responses, actions taken)
-- PII handling policies for prompts and responses
-
-### Agent Boundaries and Kill Switches (Governance Model)
-Recommended guardrails:
-- Define where agents can act autonomously vs. require human approval
-- Set dollar/impact thresholds for human-in-the-loop
-- Implement runaway agent detection and automatic stopping
-- Establish escalation paths for agent failures
-
-### Reusable Platform Components (Build Once, Use Many)
-To prevent tool sprawl, recommend building shared infrastructure:
-- Common prompt templates and guardrails library
-- Shared vector stores and knowledge bases
-- Centralized model endpoints and API gateway
-- Evaluation and monitoring infrastructure
-- Cost allocation and chargeback mechanisms
-
-=============================================================================
-AI OPPORTUNITY DOMAINS
-=============================================================================
-
-For EACH domain below, provide specific recommendations tailored to {company_name}.
-Do not give generic advice. Connect every recommendation to their actual business.
-
-### Productivity AI by Persona
-
-Different user groups need different AI tools. For {company_name}, identify 3-4 key personas
-and recommend specific productivity AI for each:
-
-Example personas to consider (adapt to their business):
-- Executives: Strategic insights, board prep, competitive intelligence
-- Sales/Account teams: Customer research, proposal generation, CRM enrichment
-- Operations: Process documentation, troubleshooting guides, knowledge capture
-- Customer service: Response drafting, knowledge lookup, case summarization
-- Finance: Report generation, variance analysis, forecasting assistance
-- Engineering/Technical: Code assistance, documentation, design review
-
-For each persona:
-- What are their daily pain points?
-- What AI tools would help? (Be specific: Copilot for M365, custom GPTs, etc.)
-- What is the productivity gain? (hours saved per week, quality improvement)
-- What is the adoption approach?
-
-### Process Automation
-
-Identify 3-5 high-value automation opportunities specific to {company_name}'s operations:
-
-Consider:
-- Document processing (invoices, orders, contracts, compliance docs)
-- Workflow automation (approvals, routing, notifications)
-- Data entry and validation
-- Report generation and distribution
-- Integration between systems
-
-For each opportunity:
-- What is the current manual process?
-- What is the volume? (transactions/day, hours spent)
-- What technology would automate it? (Power Automate, custom agents, RPA)
-- What is the ROI? (FTE equivalent, error reduction, speed improvement)
-
-### Conversational AI
-
-**Internal Conversational AI (Employee-Facing)**
-- Knowledge base chatbots for HR, IT, policies
-- Technical support assistants
-- Training and onboarding assistants
-- Internal search and discovery
-
-**External Conversational AI (Customer-Facing)**
-- Customer service chatbots
-- Sales assistants and product finders
-- Order status and self-service
-- Technical support for customers
-
-For each recommendation:
-- What is the use case specific to {company_name}?
-- What is the expected deflection rate or efficiency gain?
-- What technology? (Copilot Studio, custom agents, third-party)
-- What is the customer/employee experience improvement?
-
-### Agentic AI (Connected to Data, Apps, Services)
-
-This is the frontier: AI agents that can take actions, not just answer questions.
-Identify 2-3 agentic AI opportunities for {company_name}:
-
-Consider:
-- Multi-step workflows that span multiple systems
-- Decision-making processes that could be augmented or automated
-- Complex research and analysis tasks
-- Orchestration across CRM, ERP, and operational systems
-
-For each:
-- What is the end-to-end process?
-- What systems need to be connected?
-- What decisions can the agent make vs. escalate to humans?
-- What governance is needed?
-
-Reference the latest agentic AI capabilities from {vendor_name} (search for current announcements).
-
-### Generative BI and Analytics
-
-Modern analytics is moving from dashboards to natural language queries and AI-generated insights.
-Recommend how {company_name} should evolve their analytics:
-
-Consider:
-- Natural language querying of business data
-- Automated insight generation and anomaly detection
-- AI-powered forecasting and scenario modeling
-- Self-service analytics for business users
-- Integration with data platforms (Fabric, Databricks, Snowflake)
-
-For {company_name}:
-- What are their key business questions?
-- What data would power AI analytics?
-- What is the path from current BI to AI-powered analytics?
-- What is the business impact of faster, better insights?
-
-### Traditional AI/ML
-
-Not everything is generative AI. Identify opportunities for traditional ML:
-
-Consider:
-- Demand forecasting and inventory optimization
-- Pricing optimization
-- Customer churn prediction
-- Fraud detection
-- Predictive maintenance
-- Recommendation engines
-
-For {company_name}:
-- What predictions would be valuable?
-- What data do they have to train models?
-- Build vs. buy vs. use pre-built models?
-- What is the ROI of better predictions?
-
-### Security, Governance, and Responsible AI
-
-All AI must be secure and governed. Recommend a framework for {company_name}:
-
-Cover:
-- Data governance: What data can AI access? Classification, permissions
-- Model governance: How are models approved, monitored, updated?
-- Security: Prompt injection protection, data leakage prevention, access controls
-- Responsible AI: Bias detection, transparency, human oversight
-- Compliance: Industry-specific requirements (HIPAA, PCI, SOX, etc.)
-
-Reference the latest governance tools from {vendor_name} as listed in the vendor guidance above.
-
-=============================================================================
-PRIORITIZATION FILTERS
-=============================================================================
-
-Before presenting recommendations, evaluate all candidate initiatives using these 5 filters.
-For each of the top 10 recommendations (5 Quick Wins + 5 Bigger Bets), include a brief
-sentence explaining why it scored well on these criteria:
-
-- **Expected Business Impact**: Revenue, cost savings, risk reduction, or strategic value
-- **Data Readiness**: Is the required data available, clean, and accessible?
-- **Integration Complexity**: How many systems must connect? Are APIs available?
-- **Adoption and Change Load**: How much workflow change and training is required?
-- **Risk and Compliance Exposure**: Data sensitivity, regulatory requirements, autonomy level
-
-This ensures recommendations are explainable and defensible, not just technically interesting.
-
-=============================================================================
-STRATEGIC RECOMMENDATIONS
-=============================================================================
-
-## ROI Model Selection
-
-Use the appropriate ROI model for each recommendation type:
-
-**Productivity ROI** (for labor savings and throughput)
-```
-ROI = ((Hours Saved/Week x 52 x Hourly Cost x Adoption Rate) - Annual Cost) / Annual Cost
-```
-- Hours saved per week per user (be conservative: 1-3 hours typical)
-- Number of target users
-- Assumed adoption rate (use 40-60% for credibility, not 100%)
-- Hourly fully-loaded cost
-- Annual license/infrastructure cost
-
-**Revenue ROI** (for conversion, retention, pricing initiatives)
-```
-Revenue Impact = (Baseline Metric x Improvement % x Revenue per Unit) - Implementation Cost
-```
-- Baseline metric (conversion rate, churn rate, average deal size)
-- Expected improvement percentage (cite benchmarks where available)
-- Revenue per unit affected
-- Implementation and ongoing costs
-
-**Risk ROI** (for compliance, security, error reduction)
-```
-Risk ROI = (Expected Loss Reduction + Compliance Cost Avoidance) - Implementation Cost
-```
-- Current exposure (fines, breach costs, error remediation)
-- Expected reduction percentage
-- Compliance cost avoidance (audit prep, manual controls)
-- Implementation cost
-
-For each recommendation, select the most appropriate model and show the calculation.
-
-## Five Quick Wins (Start in 90 Days)
-
-Quick Wins build organizational confidence, prove ROI, and fund future investments. They typically leverage off-the-shelf Copilot capabilities or established RAG patterns without custom model training.
-
-For each Quick Win, provide:
-- **The Opportunity**: What is it? (1-2 sentences)
-- **Why It Matters for {company_name}**: Connect to their specific business pain point
-- **Why It Won** (Prioritization): Must reference at least two prioritization filters and one constraint (data, change, risk, or cost)
-- **Technology**: Specific tools/services (with citations per Research Protocol). Default to RAG over fine-tuning.
-- **Implementation**: What does it take? (weeks, resources, dependencies)
-- **ROI Calculation**: Use the appropriate model above with specific numbers
-- **Success Metrics**: How do you verify "realized" vs "projected" savings?
-
-Quick Win Categories (adapt to {company_name}):
-- Personal Productivity (M365 Copilot): 1-2 hours saved/week, 70% report quality improvement
-- Knowledge Discovery (RAG bots): 50% reduction in time-to-find, 30% reduction in Tier 1 tickets
-- Document Processing (AI Builder): 90% reduction in manual entry, days to minutes
-- Coding Assistance (GitHub Copilot): 55% faster for repetitive tasks
-
-## Five Bigger Bets (6-18 Month Horizon)
-
-Big Bets are "AI-native" transformations that reshape core business processes. They require custom development, deep integration, and agentic capabilities. High risk but competitive differentiation.
-
-For each Bigger Bet, provide:
-- **The Opportunity**: What is it? This should be an "AI-native" transformation, not just AI-enabled.
-- **Why It Matters for {company_name}**: Strategic importance, competitive moat creation
-- **Why It Won** (Prioritization): Must reference at least two prioritization filters and one constraint (data, change, risk, or cost)
-- **Technology Architecture**:
-  - Specific tools/services (with citations per Research Protocol)
-  - RAG vs Fine-Tuning decision (default to RAG unless style/format change required)
-  - Agent orchestration approach (single agent vs multi-agent)
-- **Implementation**: Months, team composition, investment level, dependencies
-- **ROI Model**: Use the appropriate model (Productivity, Revenue, or Risk) with specific numbers
-  - Baseline being transformed (current cost, cycle time, error rate)
-  - Target state metrics
-  - Adoption curve assumptions (expect productivity to dip during learning before surging)
-  - Time to breakeven
-  - 3-year NPV if applicable
-- **Risk Factors and Mitigation**: Technical, organizational, competitive risks
-- **Governance Tier**: Green/Yellow/Red based on data sensitivity and autonomy level
-- **Success Metrics**: Milestones at 6, 12, 18 months
-
-Big Bet Categories (adapt to {company_name}):
-- Agentic Operations: Autonomous agents monitoring signals, making decisions within parameters
-- Generative Product/Service: AI-generated offerings that change the business model
-- Autonomous Customer Service: Tier 1 fully handled by agents with resolution authority
-- Legacy Modernization: AI agents analyzing and migrating legacy systems
-
-## Three Things NOT to Pursue (Explicit Deprioritization)
-
-Boards care deeply about what they are choosing NOT to fund. Identify 3 AI initiatives or domains that {company_name} should explicitly deprioritize in the next 12-18 months:
-
-Optionality Guardrail: Deprioritized initiatives must include:
-- The condition under which we would revisit them
-- The signal that would indicate the condition has changed
-Never frame deprioritization as permanent or use "only viable path" language.
-
-For each deprioritized item:
-- **What it is**: The AI initiative or domain being deprioritized
-- **Why it is tempting**: Why might someone advocate for this?
-- **Why NOT now**: What makes this wrong for {company_name} at this time?
-- **Revisit trigger**: Under what specific, measurable conditions should this be reconsidered?
-- **Signal to watch**: What observable signal would indicate the trigger condition has changed?
-
-Examples of valid deprioritization reasons:
-- Data foundation not ready (revisit when data debt score improves to X)
-- Higher-ROI opportunities should come first (revisit after Quick Wins prove value)
-- Market/technology not mature enough (revisit when vendor X releases GA version)
-- Organizational capacity constraints (revisit after CoE is staffed)
-- Competitive dynamics do not require it yet (revisit if competitor Y launches)
-
-=============================================================================
-ORGANIZATIONAL MODEL
-=============================================================================
-
-## AI Practice Group Structure
-
-Recommend how {company_name} should organize for sustained AI innovation:
-
-**Governance Model: The Federated Approach**
-Best practice is a Federated (Hybrid) Model: Central CoE sets "non-negotiables" (security, responsible AI, tech stack) while embedded AI Champions in business units drive execution.
-
-Core CoE Roles:
-- AI Strategy Lead (aligns with corporate strategy)
-- AI Governance/Ethics Officer (compliance, bias audits, risk thresholds)
-- Data Stewards (quality, lineage, access policies)
-- MLOps Engineers (deployment, drift monitoring, retraining)
-- Change Management Lead (adoption, training, workforce anxiety)
-
-**Governance "Traffic Light" System for AI Approval**
-
-**Green (Low Risk)**: Internal, non-PII data. Standard productivity tasks.
-- Tools: M365 Copilot, Pre-built Agents
-- Approval: Auto-approved / Department Lead
-
-**Yellow (Medium Risk)**: Customer data, internal code, proprietary IP.
-- Tools: Azure AI Foundry with RAG, Copilot Studio with specific connectors
-- Approval: AI CoE Review required; Standard content filters enabled
-
-**Red (High Risk)**: Health/Financial decisions, high-volume automated actions, autonomous external agents.
-- Tools: Custom Models with strict Human-in-the-Loop gates and Red Teaming
-- Approval: Board/Ethics Committee sign-off required
-
-**Key Roles to Hire or Develop**
-- What skills do they need? (AI engineers, prompt engineers, data scientists, AI product managers)
-- Build vs. hire vs. partner?
-- Training and upskilling existing staff
-
-**Living Strategy Process**
-- How often should AI strategy be reviewed? (quarterly recommended)
-- How do they stay current with rapidly evolving technology?
-- How do they capture learnings and scale successes?
-
-## Operating Model for Experimentation and Failure
-
-AI initiatives will fail. A mature organization plans for this:
-- **Expected failure rate**: What percentage of AI pilots should be expected to fail or pivot? (20-40% is healthy)
-- **Fast failure detection**: How quickly can {company_name} determine an initiative is not working? What signals trigger review?
-- **Pivot authority**: Who has authority to stop, pivot, or kill an AI project? At what investment threshold?
-- **Learning capture**: How are lessons from failed initiatives captured and shared?
-- **Psychological safety**: How does leadership signal that smart failures are acceptable?
-
-This section signals maturity to the board and reassures them that risk is being managed, not ignored.
-
-## Investment Framework
-
-**Year 1 Investment Estimate**
-- Technology costs (licenses, compute, services)
-- People costs (new hires, training, contractors)
-- Implementation costs (consulting, integration)
-- Total investment range
-
-**ROI Framework**
-- How to measure AI ROI (productivity gains, cost savings, revenue impact)
-- Payback period expectations
-- How to track and report to the board
-
-**Build vs. Buy vs. Partner**
-- When to build custom solutions
-- When to buy off-the-shelf
-- When to partner with consultants or vendors
-
-=============================================================================
-RISK ANALYSIS
-=============================================================================
-
-## The Cost of Inaction
-"Wait and see" is a degradation strategy. Quantify the cost of NOT acting:
-- **Data Debt Accumulation**: Every day without unified data governance increases future integration cost. Data quality degrades, "cleanup tax" rises.
-- **Competitive Disadvantage**: Competitors using agentic AI for 24/7 service or dynamic pricing will seize market share expensive to recapture.
-- **Talent Drain**: Top talent expects modern tools. Forcing developers to code without AI assistants is a retention risk.
-- **Efficiency Gap**: Creates pricing disadvantage as competitors operate at lower cost.
-
-## Technology Risks
-- Vendor lock-in considerations
-- Model obsolescence (AI changes fast, plan for it)
-- Integration complexity (especially with legacy systems lacking APIs)
-- Data quality dependencies (garbage in, garbage out)
-- Runaway costs from agentic loops without FinOps controls
-
-## Organizational Risks
-- Productivity may dip during learning phase before surging. Leadership must be prepared for a 2-4 month adjustment.
-- Change resistance and adoption challenges
-- Skills gaps (AI fluency, not just literacy)
-- Competing priorities and "initiative fatigue"
-
-## AI-Specific Security Risks
-- **Jailbreaks and Prompt Injection**: Attackers manipulating agents to reveal data or perform unauthorized actions
-- **Hallucinations**: Mitigation requires strict Groundedness Checks and Human-in-the-Loop for high-stakes decisions
-- **Model Drift**: Agents degrade as data patterns change; requires continuous monitoring
-
-=============================================================================
-BOARD SUMMARY (ONE PAGE)
-=============================================================================
-
-CRITICAL: This section must fit on ONE PAGE (approximately 500-600 words).
-This is what the board will actually read. Everything else is supporting detail.
-
-**Strategic Thesis** (1 paragraph)
-Restate the AI strategic thesis from the beginning. This is what the board is aligning around.
-Include: current state, transformation goal, dominant value lever, what we will NOT do.
-
-**The 5 Most Important Decisions**
-
-Present as a concise list:
-- [Initiative 1]: $X investment, Y% ROI / $Z savings, Q1-Q2
-- [Initiative 2]: $X investment, Y% ROI / $Z savings, Q1-Q3
-- [Initiative 3]: $X investment, Y% ROI / $Z savings, Q2-Q4
-- [Initiative 4]: $X investment, Y% ROI / $Z savings, Q2-Q4
-- [Initiative 5]: $X investment, Y% ROI / $Z savings, Q3-Q4
-
-**Investment Summary**
-
-Total Year 1 Investment Ask:
-- Quick Wins: $X
-- Bigger Bets (initial funding): $Y
-- Organizational/People (CoE, training, change management): $Z
-- **Total: $X+Y+Z**
-
-**Expected Year 1 Returns**
-- Hard savings: $X
-- Productivity gains: Y FTE equivalent
-- Risk reduction: [quantified if possible]
-- Strategic value: [qualitative, 1 sentence]
-
-**What We Are Choosing NOT to Do**
-
-Brief restatement of the 3 deprioritized items:
-- [Item]: [One sentence why not now, when to revisit]
-- [Item]: [One sentence why not now, when to revisit]
-- [Item]: [One sentence why not now, when to revisit]
-
-**Key Risks Acknowledged**
-
-One sentence each on the top 3 risks and how they are being managed.
-
-=============================================================================
-NEXT STEPS (Next 30 Days)
-=============================================================================
-
-Specific, actionable next steps with owners:
-- [Action item] - Owner: [Role] - By: [Date]
-- [Action item] - Owner: [Role] - By: [Date]
-- [Action item] - Owner: [Role] - By: [Date]
-- [Action item] - Owner: [Role] - By: [Date]
-- [Action item] - Owner: [Role] - By: [Date]
-
-=============================================================================
-CITATIONS
-=============================================================================
-
-All vendor services, capabilities, and benchmarks cited in this document should be listed here
-with their source URLs and dates. Group by section for easy reference.
-
-=============================================================================
-DOWNSTREAM TRANSLATION NOTE
-=============================================================================
-
-This output is intended to inform internal thinking and deck creation. When reused externally, conclusions should be softened, hypotheses foregrounded, and language reframed for diplomacy.
-"""
-
 
 def _run_verification(
     company_name: str,

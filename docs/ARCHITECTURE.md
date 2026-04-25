@@ -336,6 +336,31 @@ The `scrape_page` primitive uses a tiered fallback system for web scraping, desi
 - **Content-Type Routing**: Automatic detection (HTML, PDF, binary) via headers and magic bytes — PDFs extracted via Gemini LLM with PyMuPDF fallback
 - **Smart Tier Escalation** (v1.2.4+): Stops after 3 consecutive failures of same error type to avoid wasting time on impossible pages
 - **Adaptive Timeout**: 45s max per page (reduced to 25s when best_tier is known for the host)
+- **Headed Popup Budget**: Opt-in counter (env `PRIMR_MAX_HEADED_POPUPS`, default `0`) shared across the Patchright stealth tier and the orchestrator's adaptive Playwright retry. When unset no visible-browser windows ever open; set to `N` to allow up to N total popups for a single run. External-source validation uses a separate orchestrator that excludes Patchright entirely, so validation scrapes never trigger popups regardless of the budget. On Linux the budget is treated as 0 unless `DISPLAY` or `WAYLAND_DISPLAY` is set, so headless runs never attempt a visible launch.
+
+### Hiring-Signal Gathering (v1.19.0)
+
+Location: `src/primr/data/hiring_signals.py`
+
+Runs after the main-site scrape (fast mode) and before Phase 2 research deepening. Extracts strategic signals from a company's open job postings — often the most honest public statement of what they're building right now.
+
+Discovery chain:
+1. **Slug candidates** — derived from the company name, website hostname, and any recon-supplied ATS subdomain hints. Capped at 6.
+2. **ATS board APIs (parallel)** — Greenhouse (`boards-api.greenhouse.io`), Lever (`api.lever.co`), Ashby (`api.ashbyhq.com`), SmartRecruiters (`api.smartrecruiters.com`). First provider returning postings wins. All four are free, public, and designed for programmatic reading.
+3. **HTML careers-page fallback** — if every ATS misses, crawl the company's own `/careers` or `/jobs` page via the popup-free external orchestrator, extract individual posting URLs with a regex scan, cap at 80 discovered links.
+4. **LLM triage** — small Grok call picks up to 15 signal-rich postings (biased toward senior / engineering / product / data / security / platform roles; down-weights retail / sales SDR / entry-level). Deterministic title-based ranker as fallback when the LLM call fails.
+5. **Body fetch** — ATS postings usually include the body inline. HTML postings fetched in parallel via the external orchestrator.
+6. **Batched LLM extraction** — one Grok reasoning call over the aggregated JD text produces structured JSON: roles & locations, tech-stack frequency, strategic initiatives, culture signals, notable absences, hiring volume, summary.
+
+Outputs:
+- `<working>/_hiring/hiring_signals.md` — human-readable summary
+- `<working>/_hiring/hiring_signals.json` — structured extraction
+- `<working>/_hiring/postings_index.json` — full discovered list before triage
+- `<working>/_hiring/raw/jd_NNN_*.txt` — individual JD bodies with metadata
+
+Integration: the extracted signals are rendered via `render_for_prompt` into a `=== HIRING SIGNALS ===` block and appended to `insights.txt` plus the raw external-sources bundle. The Phase 2 gap-filling rebuild preserves this block so every downstream phase (workbook, section writing, cross-validation, Phase 6 strategy) can see it.
+
+Fail-open at every stage. No ATS match + no careers page → `source: none`, run continues unchanged. Companies that don't publish jobs produce reports as if the phase never ran. Skip entirely with `PRIMR_SKIP_HIRING_SIGNALS=1`.
 
 ### Link Discovery (Homepage-First, v1.1.0)
 

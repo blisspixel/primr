@@ -27,6 +27,7 @@ from .content import (
     extract_text_from_pdf_via_llm,
     is_quality_content,
 )
+from .headed_budget import remaining_headed_budget, try_consume_headed_budget
 from .models import (
     Attempt,
     ErrorType,
@@ -247,12 +248,11 @@ class ScrapeOrchestrator:
             yield
             return
 
-        force_headed = headed or host_state.browser_headed_preferred
         previous_headed = os.environ.get("PRIMR_BROWSER_HEADED")
         previous_session = os.environ.get("PRIMR_BROWSER_SESSION_MODE")
         try:
             os.environ["PRIMR_BROWSER_SESSION_MODE"] = "persistent"
-            if force_headed:
+            if headed:
                 os.environ["PRIMR_BROWSER_HEADED"] = "1"
             elif previous_headed is None:
                 os.environ.pop("PRIMR_BROWSER_HEADED", None)
@@ -280,15 +280,39 @@ class ScrapeOrchestrator:
         """Retry browser tiers with stronger session settings before escalating away."""
         if tier.name not in ADAPTIVE_BROWSER_TIERS:
             return None
-        if host_state.browser_headed_preferred:
-            return None
         if host_state.browser_escalations.get(tier.name, 0) >= 1:
+            return None
+        if not try_consume_headed_budget():
+            logger.info(
+                "Skipping adaptive headed browser retry for %s on %s — popup budget exhausted",
+                tier.name,
+                url,
+            )
+            all_attempts.append(
+                Attempt(
+                    tier=f"{tier.name}:adaptive",
+                    success=False,
+                    error="headed-popup budget exhausted (PRIMR_MAX_HEADED_POPUPS)",
+                    error_type=ErrorType.SOFT_BLOCK,
+                    elapsed_ms=(time.time() - start_time) * 1000,
+                )
+            )
             return None
 
         logger.info("Adaptive browser retry for %s on %s", tier.name, url)
         host_state.browser_escalations[tier.name] = (
             host_state.browser_escalations.get(tier.name, 0) + 1
         )
+        try:
+            from primr.utils.console import console
+
+            remaining = remaining_headed_budget()
+            console.warn(
+                f"Browser retry needs a visible window briefly "
+                f"({remaining} popup{'s' if remaining != 1 else ''} remaining this run)"
+            )
+        except Exception:
+            logger.info("Adaptive browser retry needs a visible window briefly")
 
         try:
             self.rate_limiter.acquire(host_state.host)
@@ -335,8 +359,6 @@ class ScrapeOrchestrator:
                 )
             )
 
-        if retry_result.success:
-            host_state.browser_headed_preferred = True
         return retry_result
 
     def scrape_url(self, url: str) -> ScrapeResult:

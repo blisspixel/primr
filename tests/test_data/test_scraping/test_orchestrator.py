@@ -5,6 +5,7 @@ import tempfile
 from unittest.mock import Mock, patch
 
 from primr.data.scraping.cache import ScrapeCache
+from primr.data.scraping.headed_budget import reset_headed_budget_for_testing
 from primr.data.scraping.models import (
     Attempt,
     ErrorType,
@@ -179,7 +180,7 @@ class TestScrapeOrchestrator:
         assert result.access_assessment.state.value == "success"
 
     def test_adaptive_browser_retry_recovers_soft_block(self):
-        """Should retry Playwright in stronger mode before escalating away."""
+        """Should use one headed recovery without pinning the host to headed mode."""
         call_modes = []
 
         def playwright_fn(url: str, timeout: int) -> ScrapeResult:
@@ -211,6 +212,7 @@ class TestScrapeOrchestrator:
         tier2 = make_mock_tier("tier2", success=True, content=DEFAULT_MOCK_CONTENT)
 
         with tempfile.TemporaryDirectory() as tmpdir:
+            reset_headed_budget_for_testing()
             orchestrator = ScrapeOrchestrator(
                 tiers=[tier1, tier2],
                 cache=ScrapeCache(cache_dir=tmpdir),
@@ -218,18 +220,72 @@ class TestScrapeOrchestrator:
                 delay_between_tiers=(0, 0),
             )
 
-            result = orchestrator.scrape_url("https://example.com")
+            with patch.dict(os.environ, {"PRIMR_MAX_HEADED_POPUPS": "1"}, clear=False):
+                result = orchestrator.scrape_url("https://example.com")
 
-            assert result.success is True
-            assert result.tier == "playwright"
-            assert call_modes == [False, True]
+                assert result.success is True
+                assert result.tier == "playwright"
+                assert call_modes == [False, True]
 
-            call_modes.clear()
-            result2 = orchestrator.scrape_url("https://example.com/about")
+                call_modes.clear()
+                result2 = orchestrator.scrape_url("https://example.com/about")
 
-            assert result2.success is True
-            assert result2.tier == "playwright"
-            assert call_modes == [True]
+                assert result2.success is True
+                assert result2.tier == "tier2"
+                assert call_modes == [False]
+
+    def test_adaptive_browser_retry_respects_global_popup_budget(self):
+        """Should not open more visible browser retries than the run budget allows."""
+        headed_urls = []
+
+        def playwright_fn(url: str, timeout: int) -> ScrapeResult:
+            headed = os.environ.get("PRIMR_BROWSER_HEADED") == "1"
+            if headed:
+                headed_urls.append(url)
+                content = DEFAULT_MOCK_CONTENT
+            else:
+                content = b"""<!DOCTYPE html><html><body>
+                <script>window.KPSDK={};</script>
+                <script src="/challenge/ips.js?x-kpsdk-im=test"></script>
+                </body></html>"""
+            return ScrapeResult(
+                url=url,
+                success=True,
+                raw_content=content,
+                content_type="text/html",
+                http_status=200,
+                final_url=url,
+                tier="playwright",
+                elapsed_ms=100,
+                attempts=[
+                    Attempt(tier="playwright", success=True, elapsed_ms=100, http_status=200)
+                ],
+            )
+
+        tier1 = ScrapeTier(name="playwright", scrape_fn=playwright_fn, timeout=10, requires=None)
+        tier2 = make_mock_tier("tier2", success=True, content=DEFAULT_MOCK_CONTENT)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            reset_headed_budget_for_testing()
+            orchestrator = ScrapeOrchestrator(
+                tiers=[tier1, tier2],
+                cache=ScrapeCache(cache_dir=tmpdir),
+                rate_limiter=NoOpRateLimiter(),
+                delay_between_tiers=(0, 0),
+            )
+
+            with (
+                patch.dict(os.environ, {"PRIMR_MAX_HEADED_POPUPS": "1"}, clear=False),
+                patch("primr.utils.security.is_safe_url", return_value=(True, None)),
+            ):
+                result1 = orchestrator.scrape_url("https://host1.example.com")
+                result2 = orchestrator.scrape_url("https://host2.example.com")
+
+        assert result1.success is True
+        assert result1.tier == "playwright"
+        assert result2.success is True
+        assert result2.tier == "tier2"
+        assert headed_urls == ["https://host1.example.com"]
 
 
 class TestCircuitBreaker:
