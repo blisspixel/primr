@@ -239,18 +239,16 @@ class TestResearchEndpoints:
         assert response.status_code == 401
 
     def test_create_research_success(self, client, api_key):
-        """Test successful research creation."""
+        """Test create fails closed until API execution is implemented."""
         response = client.post(
             "/research",
             json={"company_name": "Acme Corp"},
             headers={"X-API-Key": api_key},
         )
 
-        assert response.status_code == 200
+        assert response.status_code == 501
         data = response.json()
-        assert "job_id" in data
-        assert data["company_name"] == "Acme Corp"
-        assert data["status"] == "pending"
+        assert "not wired to the production pipeline" in data["detail"]
 
     def test_get_research_not_found(self, client, api_key):
         """Test getting non-existent job."""
@@ -263,13 +261,8 @@ class TestResearchEndpoints:
 
     def test_get_research_success(self, client, api_key):
         """Test getting job status."""
-        # Create job
-        create_response = client.post(
-            "/research",
-            json={"company_name": "Acme Corp"},
-            headers={"X-API-Key": api_key},
-        )
-        job_id = create_response.json()["job_id"]
+        request = ResearchRequest(company_name="Acme Corp")
+        job_id = client.app.state.job_manager.create_job(request, api_key)
 
         # Get status
         response = client.get(
@@ -297,13 +290,10 @@ class TestResearchEndpoints:
 
     def test_list_research(self, client, api_key):
         """Test listing jobs."""
-        # Create some jobs
+        # Create some jobs directly in manager because submission endpoint fails closed
         for i in range(3):
-            client.post(
-                "/research",
-                json={"company_name": f"Company {i}"},
-                headers={"X-API-Key": api_key},
-            )
+            request = ResearchRequest(company_name=f"Company {i}")
+            client.app.state.job_manager.create_job(request, api_key)
 
         # List
         response = client.get(
@@ -324,13 +314,8 @@ class TestAccessControl:
         key1 = create_api_key("user-1")
         key2 = create_api_key("user-2")
 
-        # Create job with key1
-        create_response = client.post(
-            "/research",
-            json={"company_name": "Acme Corp"},
-            headers={"X-API-Key": key1},
-        )
-        job_id = create_response.json()["job_id"]
+        request = ResearchRequest(company_name="Acme Corp")
+        job_id = client.app.state.job_manager.create_job(request, key1)
 
         # Try to access with key2
         response = client.get(
@@ -405,7 +390,7 @@ class TestRateLimitHeaders:
             headers={"X-API-Key": api_key},
         )
 
-        assert response.status_code == 200
+        assert response.status_code == 501
         assert "X-RateLimit-Remaining" in response.headers
         assert "X-RateLimit-Limit" in response.headers
 

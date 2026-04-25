@@ -25,13 +25,16 @@ from __future__ import annotations
 
 import logging
 import os
-import threading
 import time
 from pathlib import Path
 from urllib.parse import urlparse
 
 from primr.config.config import PROJECT_ROOT
 
+from .headed_budget import (
+    remaining_headed_budget,
+    try_consume_headed_budget,
+)
 from .models import Attempt, ErrorType, ScrapeResult
 
 logger = logging.getLogger(__name__)
@@ -54,51 +57,6 @@ STEALTH_LAUNCH_ARGS = [
     "--window-size=600,400",
     "--window-position=-3000,-3000",
 ]
-
-
-# ---------------------------------------------------------------------------
-# Per-run global popup budget
-# ---------------------------------------------------------------------------
-#
-# Kasada sites sometimes blank dozens of pages in a single research run. If
-# every one of those escalated to a visible Chrome window, the user's desktop
-# becomes unusable. We cap total visible popups per process — once exhausted,
-# blocked pages fall through directly to public-data fallbacks without the
-# headed retry attempt.
-
-_HEADED_BUDGET_LOCK = threading.Lock()
-_HEADED_ATTEMPTS_USED = 0
-
-
-def _default_headed_budget() -> int:
-    """Total visible-browser attempts allowed in a single primr run."""
-    raw = os.getenv("PRIMR_MAX_HEADED_POPUPS", "3")
-    try:
-        return max(0, int(raw))
-    except (TypeError, ValueError):
-        return 3
-
-
-def _try_consume_headed_budget() -> bool:
-    """Atomically reserve one headed popup. Returns False if budget exhausted."""
-    global _HEADED_ATTEMPTS_USED
-    cap = _default_headed_budget()
-    with _HEADED_BUDGET_LOCK:
-        if cap <= _HEADED_ATTEMPTS_USED:
-            return False
-        _HEADED_ATTEMPTS_USED += 1
-        return True
-
-
-def _remaining_headed_budget() -> int:
-    with _HEADED_BUDGET_LOCK:
-        return max(0, _default_headed_budget() - _HEADED_ATTEMPTS_USED)
-
-
-def reset_headed_budget_for_testing() -> None:
-    global _HEADED_ATTEMPTS_USED
-    with _HEADED_BUDGET_LOCK:
-        _HEADED_ATTEMPTS_USED = 0
 
 
 def _profile_dir_for_host(host: str) -> Path:
@@ -592,8 +550,11 @@ def scrape_with_patchright(
 
     # Attempt 2: headed with user notice. Gated by:
     #   1. PRIMR_ALLOW_HEADED_FALLBACK env (0/false/no disables entirely)
-    #   2. A global per-run budget (default 3 popups total) so a run full of
-    #      blocked hosts doesn't bury the user's desktop in Chrome windows
+    #   2. A global per-run budget (default 0, shared with the orchestrator's
+    #      adaptive retry). Opt in per-run with PRIMR_MAX_HEADED_POPUPS=N if
+    #      you want the visible-browser path to be available. On Linux with
+    #      no DISPLAY the budget reports 0, so headless servers skip this
+    #      path entirely.
     if os.getenv("PRIMR_ALLOW_HEADED_FALLBACK", "1").lower() in ("0", "false", "no"):
         logger.info("Headed fallback disabled via PRIMR_ALLOW_HEADED_FALLBACK=0")
         return ScrapeResult(
@@ -606,7 +567,7 @@ def scrape_with_patchright(
             attempts=attempts,
         )
 
-    if not _try_consume_headed_budget():
+    if not try_consume_headed_budget():
         attempts.append(
             Attempt(
                 tier=f"{tier_name}:headed",
@@ -632,7 +593,7 @@ def scrape_with_patchright(
     try:
         from primr.utils.console import console
 
-        remaining = _remaining_headed_budget()
+        remaining = remaining_headed_budget()
         console.warn(
             f"Headless stealth blocked — opening visible browser briefly "
             f"({remaining} popup{'s' if remaining != 1 else ''} remaining this run)"

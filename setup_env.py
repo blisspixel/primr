@@ -9,6 +9,7 @@ import subprocess
 import sys
 import time
 import webbrowser
+from importlib import metadata
 from pathlib import Path
 
 # Force UTF-8 stdout/stderr on Windows so Rich can print Unicode symbols.
@@ -294,6 +295,44 @@ def is_installed(package):
         return False
 
 
+def get_project_version() -> str | None:
+    """Read the local project version from pyproject.toml."""
+    pyproject = Path("pyproject.toml")
+    if not pyproject.exists():
+        return None
+
+    try:
+        if sys.version_info >= (3, 11):
+            import tomllib
+        else:
+            import tomli as tomllib  # type: ignore[import-not-found]
+
+        data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+        return data.get("project", {}).get("version")
+    except Exception:
+        return None
+
+
+def get_installed_version(package: str) -> str | None:
+    """Return the installed package version, if present."""
+    try:
+        return metadata.version(package)
+    except metadata.PackageNotFoundError:
+        return None
+
+
+def install_status(package: str) -> tuple[bool, str | None, str | None]:
+    """Return whether the package is current, plus installed and expected versions."""
+    expected_version = get_project_version()
+    installed_version = get_installed_version(package)
+
+    if installed_version is None:
+        return False, None, expected_version
+    if expected_version and installed_version != expected_version:
+        return False, installed_version, expected_version
+    return True, installed_version, expected_version
+
+
 def get_env_keys():
     """Get current .env keys."""
     env = Path(".env")
@@ -404,11 +443,19 @@ def main_rich():
     console.print(f"  [green]✓[/green] Python {v.major}.{v.minor}")
 
     # Install primr
-    if is_installed("primr"):
-        console.print("  [green]✓[/green] Primr installed")
+    primr_ready, installed_version, expected_version = install_status("primr")
+    if primr_ready:
+        version_suffix = f" [dim](v{installed_version})[/dim]" if installed_version else ""
+        console.print(f"  [green]✓[/green] Primr installed{version_suffix}")
     else:
+        if installed_version and expected_version:
+            console.print(
+                f"  [yellow]>[/yellow] Primr v{installed_version} installed, updating to v{expected_version}..."
+            )
         if install_primr():
-            console.print("  [green]✓[/green] Primr installed")
+            refreshed_version = get_installed_version("primr")
+            version_suffix = f" [dim](v{refreshed_version})[/dim]" if refreshed_version else ""
+            console.print(f"  [green]✓[/green] Primr installed{version_suffix}")
         else:
             console.print("  [red]✗[/red] Installation failed")
             console.print()
@@ -606,9 +653,13 @@ def main_basic():
         sys.exit(1)
     print(f"  + Python {v.major}.{v.minor}")
 
-    if is_installed("primr"):
-        print("  + Primr installed")
+    primr_ready, installed_version, expected_version = install_status("primr")
+    if primr_ready:
+        version_suffix = f" (v{installed_version})" if installed_version else ""
+        print(f"  + Primr installed{version_suffix}")
     else:
+        if installed_version and expected_version:
+            print(f"  > Primr {installed_version} installed, updating to {expected_version}...")
         print("  > Cleaning build artifacts...")
         clean_build_artifacts()
         print("  > Installing primr...")

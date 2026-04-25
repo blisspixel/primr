@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.18.1 (released 2026-04-11)
+Current State: v1.19.0 (in development)
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -168,6 +168,7 @@ What has already shipped:
 - **Public-data fallback fan-out** (`src/primr/data/fallback_sources.py`): when the origin is fully blocked, Primr automatically routes around the block by fetching content in parallel from (1) the Wayback Machine via the CDX API, (2) live sister subdomains (investor / IR / newsroom / corporate / press), (3) SEC EDGAR 10-K filings when the company has a US public filer match, and (4) the Wikipedia REST API. All four sources fail open — any one of them returning content is enough for the run to produce a report instead of bailing.
 - Wayback tier filters out captures that are themselves challenge shells (preserves only real archived content)
 - New unit tests for fallback fan-out: per-source failure isolation, merge behavior, empty-result contract
+- **Hiring-signal gathering** (`src/primr/data/hiring_signals.py`): after the main-site scrape, Primr discovers a company's open postings (Greenhouse, Lever, Ashby, SmartRecruiters board APIs tried first, HTML careers-page fallback if every ATS misses), triages up to 15 via an LLM call biased toward senior / engineering / product / data / security / platform roles, and extracts structured signals: tech-stack frequency, strategic initiatives, culture cues, notable absences, and a one-paragraph synthesis. Output lands in `<working>/_hiring/` and is threaded into `insights.txt` plus the raw external-sources bundle so every downstream phase — gap analysis, workbook, section writing, cross-validation, and Phase 6 strategy — sees the signals. Fail-open at every step. Skip with `PRIMR_SKIP_HIRING_SIGNALS=1`.
 
 Planned next steps:
 - Expand first-party fallback probing beyond current sitemap/guessed-path recovery: investor/news/about/help PDFs, feeds, and structured data endpoints with better prioritization
@@ -175,7 +176,7 @@ Planned next steps:
 - Add optional screenshot/text-snapshot comparison for browser tiers to distinguish stable real homepages from interstitial templates
 - Surface a clearer user-facing blocked-site summary in the CLI with evidence snippets and recommended next actions (`--mode deep`, site-wide block vs partial access, first-party fallback coverage)
 - Extend trace analytics and eval suites to score false-positive and false-negative rates for access classification on protected sites
-- **Job-listing intelligence**: when initial discovery finds a careers/jobs site, crawl individual listings and have an LLM extract (a) the job title + location, (b) platforms/services/stack mentioned ("experience with Snowflake, dbt, Terraform required"), (c) strategic intent signals ("building our AI/ML platform", "expanding EMEA presence"), (d) cultural/org signals. Feed the aggregated extraction into the dossier as a separate "Hiring Signals" input alongside the main scrape. Job posts are often the single most honest statement of what a company is building right now.
+- **Hiring-signal extensions**: extend the ATS provider list (Workday, BambooHR, iCIMS) and wire hiring signals into `--premium` mode (currently fast-mode only). Consider host-level memory so subsequent runs of the same company skip re-probing providers that already missed.
 
 Decision principle:
 - A page counts as scraped only when Primr has evidence that the **real page content** appeared, not merely that a request returned HTML.

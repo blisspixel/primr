@@ -170,9 +170,11 @@ mypy src/primr --ignore-missing-imports
 | 8 | httpx | HTTP/2 sites |
 | 9 | requests | Simple sites (fallback) |
 
-Key features: Sticky tier (remembers what works), Circuit breaker (skips failing tiers), Cookie handoff (browser→HTTP), Content-type routing (PDF/HTML/binary detection), Per-host rate-limit memory (429-flagged hosts skip live scrape for 20 min), Headed popup budget (max 3 visible-browser challenges per run, configurable via `PRIMR_MAX_HEADED_POPUPS`).
+Key features: Sticky tier (remembers what works), Circuit breaker (skips failing tiers), Cookie handoff (browser→HTTP), Content-type routing (PDF/HTML/binary detection), Per-host rate-limit memory (429-flagged hosts skip live scrape for 20 min), Headed popup budget (default 0 — opt in per run via `PRIMR_MAX_HEADED_POPUPS=N` to allow up to N visible-browser challenges; shared across stealth + adaptive retry; auto-disabled on Linux without `DISPLAY`/`WAYLAND_DISPLAY`).
 
 **Public-data fallback fan-out** (`src/primr/data/fallback_sources.py`): when live scrape returns zero pages, primr routes around the block by fetching in parallel from (1) Wayback Machine via CDX API, (2) live sister subdomains (investor.*, ir.*, newsroom.*), (3) SEC EDGAR 10-K filings (for US public filers), (4) Wikipedia REST API, and (5) Grok web_search synthesis with citations. All fail open — any one returning content is enough to produce a report.
+
+**Hiring-signal gathering** (`src/primr/data/hiring_signals.py`): after the main-site scrape (fast mode only for now), primr tries Greenhouse / Lever / Ashby / SmartRecruiters public board APIs in parallel against slug candidates, falls back to an HTML careers-page crawl if they all miss, LLM-triages up to 15 postings, and runs a batched LLM extraction to produce tech-stack frequency, strategic initiatives, culture signals, and a one-paragraph summary. Output persists to `<working>/_hiring/` and is threaded into `insights.txt` + raw external-sources bundle so every downstream phase sees it. Skip with `PRIMR_SKIP_HIRING_SIGNALS=1`.
 
 </details>
 
