@@ -270,8 +270,8 @@ mypy src/primr --ignore-missing-imports     # Type check
 | Azure quickstart | [Azure Quickstart](docs/AZURE_QUICKSTART.md) |
 | OpenClaw | [Setup & Troubleshooting](docs/OPENCLAW.md) |
 | Security ops | [Security Operations](docs/SECURITY_OPS.md) |
-| Contributing | [Contribution Guidelines](CONTRIBUTING.md) |
-| Vulnerability reporting | [Security](SECURITY.md) |
+| Contributing | [Contribution Guidelines](docs/CONTRIBUTING.md) |
+| Vulnerability reporting | [Security](docs/SECURITY.md) |
 | Roadmap | [What's Planned](ROADMAP.md) |
 
 ## About This Project
