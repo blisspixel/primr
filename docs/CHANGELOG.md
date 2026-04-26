@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 No unreleased changes.
 
+## [1.20.1] - 2026-04-26
+
+### PyPI Release Infrastructure
+
+- **`.github/workflows/release.yml`** — release workflow that triggers on tag push (`v*`) and supports manual dispatch from the Actions tab. Two-stage pipeline: `build` verifies the tag version matches `pyproject.toml`, builds sdist + wheel via `python -m build`, runs `twine check` on the distribution metadata, and uploads artifacts; `publish` targets the `pypi` environment so deploys can be gated on review and uses the PyPI trusted-publisher OIDC flow (no API token in repo secrets).
+- **PyPI listing metadata already in place**: `pyproject.toml` carries the project URLs (Homepage, Documentation, Repository, Bug Tracker), classifiers (Development Status, Intended Audience, Python versions, Topics), keywords, and MIT license. First PyPI publish picks all of this up automatically.
+
+### Repo Cleanup
+
+- **Root `.md` reduced to `README.md` and `ROADMAP.md`.** `CHANGELOG.md`, `CONCURRENCY.md`, `CONTRIBUTING.md`, and `SECURITY.md` moved into `docs/`. All internal links updated (README, `docs/INDEX.md`, `docs/CHANGELOG.md` self-link, `MANIFEST.in`). `ROADMAP.md` stays at root because the agentic `RoadmapAPI`, MCP `agentic_resources` / `agentic_tools` modules, and the roadmap property tests all hardcode `Path("ROADMAP.md")`.
+- **`CLAUDE.md` removed from version control** (added to `.gitignore`, untracked via `git rm --cached`). It is project-level instructions for the local Claude Code workflow — useful locally, noise for anyone reading the public repo who does not use Claude Code. The local file on disk is untouched.
+- **ROADMAP entry queued**: when shipping to PyPI, fold `setup_env.py`'s post-install steps (`.env` template creation, Playwright/Patchright browser install, Python version validation, doctor handoff) into a `primr init` subcommand so PyPI installs get the same convenience as source installs without a separate top-level script.
+
 ## [1.20.0] - 2026-04-26
 
 ### Continuous Reasoning Session — Now Default

@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.20.0
+Current State: v1.20.1
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -1036,6 +1036,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.20.1 | Apr 2026 | PyPI release infrastructure: `.github/workflows/release.yml` triggers on `v*` tag push or manual dispatch, builds sdist + wheel, runs `twine check`, publishes via PyPI trusted-publisher OIDC (no API token in repo secrets). Repo cleanup: root `.md` reduced to `README.md` and `ROADMAP.md` — `CHANGELOG`, `CONCURRENCY`, `CONTRIBUTING`, `SECURITY` moved to `docs/`. `CLAUDE.md` removed from version control (gitignored, kept on disk for local workflow). ROADMAP entry queued to fold `setup_env.py` into a `primr init` subcommand once PyPI ships. |
 | 1.20.0 | Apr 2026 | Continuous reasoning session is now the default for the standard pipeline: workbook generation and cross-validation share a single Grok 4.20 session so the validator inherits corpus + workbook reasoning instead of re-reading the report cold. Decision driven by an n=3 paired-comparison pilot — 3/3 workbook wins, 2/3 cross-val wins, 2/3 final-report wins, ~81% reduction in leaked-instruction lines, avg ~+12% cost. New `ContinuousReasoningSession` class, `--no-continuous-reasoning` opt-out, `PRIMR_CONTINUOUS_REASONING` env var. Roadmap restructured into a single ordered priority list (no version-numbered milestones). Separate ROADMAP entry added for artifact drift in the standard pipeline (independent of topology). |
 | 1.19.0 | Apr 2026 | Hiring-signal gathering (Greenhouse / Lever / Ashby / SmartRecruiters board APIs + careers-page fallback, LLM triage and structured extraction, threaded into all downstream phases). Public-data fallback fan-out (Wayback / EDGAR / Wikipedia / sister subdomains) when the origin is fully blocked. Patchright stealth tier with global headed-popup budget. Verified page-access classifier promoted to first-class. |
 | 1.18.1 | Apr 2026 | Observability and reliability hardening: thread-safe `LogContext` via contextvars, `ContextFilter` wired into file logging, structured logging added to 15+ silent `except` paths (run state, source relevance, trust polish, gap analysis, cross-validation, search queries, section writing, scrape cache, domain profiles, usage tracker), cross-validation and gap analysis failures now surface to user instead of looking like clean passes, Gemini client errors logged to file (not just stdout), failed search query aggregate tracking, `__init__.py` version synced with pyproject.toml |
