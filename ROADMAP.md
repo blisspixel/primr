@@ -885,6 +885,7 @@ Make Primr available to the broader community via PyPI.
 - ~~GitHub Actions CI/CD for automated testing~~ (done - lint, type check, tests run on every push)
 - Contribution workflow for external contributors
 - Documentation site
+- Fold the post-install steps from `setup_env.py` (`.env` template creation, Playwright/Patchright browser install, Python version validation, doctor handoff) into a `primr init` subcommand so PyPI installs get the same convenience as source installs without a separate top-level script. Keep `setup_env.py` as a thin wrapper that calls `primr init` until PyPI ships, then retire it.
 
 
 ---
