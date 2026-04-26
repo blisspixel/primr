@@ -7,12 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+No unreleased changes.
+
+## [1.20.0] - 2026-04-26
+
 ### Continuous Reasoning Session — Now Default
 
 After an n=3 paired-comparison pilot (rich/mid/sparse signal density, blind LLM judge), the continuous-reasoning topology is now the default for the standard Grok 4.20 pipeline. Workbook generation (Phase 3) and cross-validation (Phase 5) share a single Grok session so the validator inherits the corpus + workbook reasoning instead of re-reading the report cold.
 
 - **New class `ContinuousReasoningSession`** in `src/primr/ai/grok_client.py`: multi-turn Grok session that preserves message history across stages, with the same retry/error/token-tracking semantics as the existing `grok_llm` helper. One session per primr run.
-- **Wired into the standard Grok pipeline**: workbook generation and cross-validation share the session. Section writing (Phase 4) is intentionally unchanged — it stays parallel + fresh-call per section because the underlying broken-telephone benchmark (VanSelst & Seal, *Unbroken Telephone*, April 2026) explicitly did not test parallel sub-agent topologies.
+- **Wired into the standard Grok pipeline**: workbook generation and cross-validation share the session. Section writing (Phase 4) is intentionally unchanged — it stays parallel + fresh-call per section since the topology change is targeted at sequential reasoning handoffs, not parallel sub-agents.
 - **`--continuous-reasoning` is on by default.** Pass `--no-continuous-reasoning` to revert to the fresh-call topology for a single run, or set `PRIMR_CONTINUOUS_REASONING=0` (or `false`/`no`/`off`) to disable across all runs on the machine.
 - **Lazy session construction with proper `role:system`**: the session is constructed at the workbook stage so the workbook's system prompt becomes a real `role:system` message at session init. (An earlier implementation that folded the system prompt into the first user turn measurably degraded workbook quality during the pilot; the fix is in.)
 - **Pilot results that drove the default-change decision**: workbook quality improved 3/3 by blind judge, cross-validation quality improved 2/3 (one close call), final report quality improved 2/3 with one judge call complicated by a separate baseline-pipeline drift issue (now its own ROADMAP entry — "Artifact Drift in the Standard Pipeline"). Quantified drift reduction independent of judge opinion: bare leaked-instruction lines drop from an average of 5.3 per baseline report to 1.0 per continuous report (~81% fewer). Cost delta ranged −3.7% to +32% across runs (average ~+12%); never catastrophic, well under the 40% pre-flip gate.
