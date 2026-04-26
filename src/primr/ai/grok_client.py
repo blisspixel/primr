@@ -294,6 +294,146 @@ def grok_llm(
 
 
 # ---------------------------------------------------------------------------
+# Continuous reasoning session (pilot)
+# ---------------------------------------------------------------------------
+#
+# A ContinuousReasoningSession holds a single message history across multiple
+# Grok calls so that the model retains its prior reasoning context instead of
+# re-reading a serialized summary at each handoff. Used by the workbook +
+# cross-validation stages of the standard pipeline when the
+# `--continuous-reasoning` flag (or PRIMR_CONTINUOUS_REASONING=1) is set.
+#
+# This implements the "continuous chat" topology from the VanSelst & Seal
+# 2026 broken-telephone benchmark, which reported reduced cross-stage drift on
+# factual long-horizon chains. Whether it actually helps Primr is what the
+# pilot exists to measure — do not promote to default without eval data.
+
+
+class ContinuousReasoningSession:
+    """Multi-turn Grok session that preserves message history across stages.
+
+    Use one session per primr run. Each `.send()` call appends a user turn
+    and an assistant turn to the history, so the next stage's call sees all
+    prior reasoning natively (no JSON re-serialization, no rolling summary).
+
+    Tracks tokens through the same module-level counters as `grok_llm`, so
+    cost reporting and the existing eval harness keep working unchanged.
+    """
+
+    def __init__(self, *, model: str = _DEFAULT_MODEL, system_prompt: str | None = None):
+        self.model = model
+        self.history: list[dict[str, str]] = []
+        if system_prompt:
+            self.history.append({"role": "system", "content": system_prompt})
+        self._turn_count = 0
+
+    @property
+    def turns(self) -> int:
+        return self._turn_count
+
+    @property
+    def approx_context_tokens(self) -> int:
+        """Rough estimate of accumulated context size (4 chars/token heuristic)."""
+        total_chars = sum(len(m.get("content", "")) for m in self.history)
+        return total_chars // 4
+
+    def send(
+        self,
+        prompt: str,
+        *,
+        temperature: float = 0.5,
+        max_tokens: int = 16_000,
+        retries: int = 4,
+    ) -> str:
+        """Append a user turn, call Grok, append the assistant reply, return it."""
+        global _session_input_tokens, _session_output_tokens, _session_tokens_by_model
+
+        client = _get_grok_client()
+        self.history.append({"role": "user", "content": prompt})
+
+        last_error: Exception | None = None
+        for attempt in range(1 + retries):
+            try:
+                response = client.chat.completions.create(
+                    model=self.model,
+                    messages=self.history,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                )
+
+                if not response.choices:
+                    self.history.pop()
+                    raise RuntimeError(
+                        "Grok returned empty response (no choices — possible content filter)"
+                    )
+
+                if response.usage:
+                    inp = response.usage.prompt_tokens or 0
+                    out = response.usage.completion_tokens or 0
+                    _session_input_tokens += inp
+                    _session_output_tokens += out
+                    if self.model not in _session_tokens_by_model:
+                        _session_tokens_by_model[self.model] = {
+                            "input_tokens": 0,
+                            "output_tokens": 0,
+                        }
+                    _session_tokens_by_model[self.model]["input_tokens"] += inp
+                    _session_tokens_by_model[self.model]["output_tokens"] += out
+
+                text = response.choices[0].message.content or ""
+                self.history.append({"role": "assistant", "content": text})
+                self._turn_count += 1
+                logger.info(
+                    "Continuous session turn %d complete: %d input, %d output tokens "
+                    "(history now %d turns, ~%dk context tokens)",
+                    self._turn_count,
+                    response.usage.prompt_tokens if response.usage else 0,
+                    response.usage.completion_tokens if response.usage else 0,
+                    self._turn_count,
+                    self.approx_context_tokens // 1000,
+                )
+                return text
+
+            except Exception as e:
+                last_error = e
+
+                if _is_billing_exhausted(e):
+                    self.history.pop()
+                    raise RuntimeError(
+                        "xAI API credits exhausted or spending limit reached. "
+                        "Add credits at https://console.x.ai/ and re-run."
+                    ) from e
+
+                if _is_retryable_grok_error(e):
+                    if attempt < retries:
+                        retry_after = _extract_retry_after_seconds(e)
+                        wait = (
+                            retry_after
+                            if retry_after is not None
+                            else _compute_backoff_delay(attempt)
+                        )
+                        logger.warning(
+                            "Continuous session transient error, retrying in %.1fs "
+                            "(attempt %d/%d): %s",
+                            wait,
+                            attempt + 1,
+                            retries + 1,
+                            e,
+                        )
+                        time.sleep(wait)
+                        continue
+                    break
+
+                self.history.pop()
+                raise RuntimeError(f"Grok continuous session call failed (non-retryable): {e}") from e
+
+        self.history.pop()
+        raise RuntimeError(
+            f"Grok continuous session call failed after {retries + 1} attempts: {last_error}"
+        ) from last_error
+
+
+# ---------------------------------------------------------------------------
 # Grok Agent Tools (browse + web search)
 # ---------------------------------------------------------------------------
 

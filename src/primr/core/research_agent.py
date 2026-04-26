@@ -3291,9 +3291,15 @@ def _fast_cross_validate(
     report_content: str,
     source_urls: list[str],
     model: str | None = None,
+    reasoning_session: Any = None,
 ) -> dict:
     """
     Phase 5 helper: Grok reviews the assembled report for quality issues.
+
+    When `reasoning_session` is supplied (a `ContinuousReasoningSession`), the
+    review runs as a follow-up turn inside the same session that produced the
+    workbook, so the validator inherits the original corpus and workbook
+    reasoning instead of re-reading just the report.
 
     Returns:
         {"weak_sections": [{"title": str, "reason": str, "queries": [str, str]}],
@@ -3303,7 +3309,39 @@ def _fast_cross_validate(
 
     source_list = "\n".join(f"- {url}" for url in source_urls[:50])
 
-    prompt = f"""Review this consulting brief for {company_name}. Identify quality issues.
+    if reasoning_session is not None:
+        # Continuous mode: the session already contains the corpus + workbook
+        # reasoning from Phase 3. Skip re-feeding sources; ask the model to
+        # validate the report against what it already analyzed.
+        prompt = f"""You produced the analysis workbook for {company_name} in your earlier turn.
+Below is the assembled consulting brief that was written from that workbook. Review it for
+quality issues, drawing on the corpus and reasoning you already have in context.
+
+REPORT:
+{report_content[:120_000]}
+
+ADDITIONAL SOURCES (gathered during gap-fill, may not have been in your earlier context):
+{source_list}
+
+Return JSON (no markdown fencing, just raw JSON):
+{{
+  "weak_sections": [
+    {{"title": "exact ## heading", "reason": "why it's weak", "queries": ["search query 1", "search query 2"]}}
+  ],
+  "contradictions": ["description of contradiction between sections"]
+}}
+
+A section is WEAK if it:
+- Makes claims without citing any source
+- Uses only generic industry statements, not company-specific evidence
+- Is significantly shorter than other sections
+- Relies heavily on the company's own marketing claims without external validation
+- Drifts from the strategic analysis the workbook called for, or contradicts the workbook's own evidence
+
+Limit: max 3 weak sections, max 3 contradictions. Only flag genuinely weak sections.
+If the report is solid, return empty arrays."""
+    else:
+        prompt = f"""Review this consulting brief for {company_name}. Identify quality issues.
 
 REPORT:
 {report_content[:120_000]}
@@ -3335,13 +3373,20 @@ If the report is solid, return empty arrays."""
     )
 
     try:
-        response = grok_llm(
-            prompt,
-            model=model,
-            max_tokens=5_000,
-            temperature=0.2,
-            system_prompt=system_prompt,
-        )
+        if reasoning_session is not None:
+            response = reasoning_session.send(
+                prompt,
+                temperature=0.2,
+                max_tokens=5_000,
+            )
+        else:
+            response = grok_llm(
+                prompt,
+                model=model,
+                max_tokens=5_000,
+                temperature=0.2,
+                system_prompt=system_prompt,
+            )
     except Exception as e:
         log_structured("warning", "Cross-validation failed", error=str(e))
         return {"weak_sections": [], "contradictions": [], "_failed": True}
@@ -4006,6 +4051,7 @@ def perform_fast_research(
     folder_path: str | None = None,
     resume_local: bool = False,
     grok_tier: str = "hybrid",
+    continuous_reasoning: bool = True,
 ) -> str | None:
     """
     Fast research mode using Grok 4.1 with accordion-style batch writing.
@@ -4025,6 +4071,7 @@ def perform_fast_research(
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
     from primr.ai.grok_client import (
+        ContinuousReasoningSession,
         get_grok_session_usage,
         get_grok_session_usage_by_model,
         grok_llm,
@@ -4035,6 +4082,30 @@ def perform_fast_research(
 
     # Resolve Grok model pair for this tier
     grok_reasoning, grok_writing = PrimrModels.get_grok_models(GrokTier(grok_tier))
+
+    # Continuous reasoning is on by default after the n=3 pilot — see ROADMAP
+    # "Continuous Reasoning Session". When on, workbook generation (Phase 3)
+    # and cross-validation (Phase 5) share a single Grok session so the
+    # validator inherits the corpus + workbook reasoning instead of re-reading
+    # the report cold. Pass --no-continuous-reasoning, or set
+    # PRIMR_CONTINUOUS_REASONING=0/false to revert to the fresh-call topology.
+    env_flag = os.getenv("PRIMR_CONTINUOUS_REASONING", "").strip().lower()
+    if env_flag in ("0", "false", "no", "off"):
+        continuous_reasoning = False
+    elif env_flag in ("1", "true", "yes", "on"):
+        continuous_reasoning = True
+
+    # Session is constructed lazily at the workbook stage so the workbook's
+    # system prompt becomes a real `role: system` message instead of being
+    # folded into the first user turn (which the v1 pilot showed measurably
+    # degrades workbook quality).
+    reasoning_session: ContinuousReasoningSession | None = None
+    if continuous_reasoning:
+        log_structured(
+            "info",
+            "Continuous reasoning enabled — session will be constructed at workbook stage",
+            model=grok_reasoning,
+        )
 
     display_name = company_name or (urlparse(website or "").netloc if website else "")
     folder_path = folder_path or create_working_folder(company_name, website)
@@ -4608,7 +4679,23 @@ def perform_fast_research(
         try:
             from primr.pipeline.integration import analysis_with_recovery
 
+            # In continuous mode, construct the session here with the workbook's
+            # system prompt as a real role:system message. The session then
+            # carries that role + the workbook reasoning forward into Phase 5
+            # cross-validation as a follow-up user turn.
+            if continuous_reasoning and reasoning_session is None:
+                reasoning_session = ContinuousReasoningSession(
+                    model=grok_reasoning,
+                    system_prompt=analysis_system,
+                )
+
             def _do_analysis():
+                if reasoning_session is not None:
+                    return reasoning_session.send(
+                        analysis_prompt,
+                        max_tokens=18_000,
+                        temperature=0.5,
+                    )
                 return grok_llm(
                     analysis_prompt,
                     model=grok_reasoning,
@@ -4873,6 +4960,7 @@ def perform_fast_research(
                     report_content,
                     source_urls,
                     model=grok_reasoning,
+                    reasoning_session=reasoning_session,
                 )
 
             _cv_stage_result = cross_validate_with_recovery(
@@ -5870,6 +5958,7 @@ def perform_research(
     verify: bool = False,
     grok_tier: str = "hybrid",
     skip_recon: bool = False,
+    continuous_reasoning: bool = True,
 ) -> str | None:
     if not company_name and not website:
         console.error("No company name or website provided")
@@ -6075,6 +6164,7 @@ def perform_research(
                 folder_path=folder_path,
                 resume_local=resume_local,
                 grok_tier=grok_tier,
+                continuous_reasoning=continuous_reasoning,
             )
             if fast_path:
                 _update_run_state(

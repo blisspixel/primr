@@ -97,31 +97,47 @@ Primr is intentionally not designed as a generic web scraper, a SaaS collaborati
 
 ## Planned Work
 
-Ordered by practical impact: first make the standard output more strategically useful, then make runs faster and cheaper, then expand extraction and provider choices, then enable compounding knowledge across runs.
+A single ordered list, top to bottom. The order reflects priority — items higher up either improve the core deliverable directly, address known regressions, or unlock items below them. No time estimates: this is the queue, not a schedule. Items may ship in different order if dependencies, capacity, or feedback change the picture, but the default is to work it top-down.
 
-### Near-Term
+#### Continuous Reasoning Session
 
-Scoped, practical improvements. Some are partially built.
+Primr's reasoning chain — gap analysis → workbook generation → cross-validation — used to run as independent Grok 4.20 calls that re-read `insights.txt` and `analysis_workbook.md` from disk at each handoff. External benchmark work (VanSelst & Seal, *Unbroken Telephone*, April 2026) showed that on factual long-horizon chains this fresh-call-per-stage pattern degrades against a continuous-session alternative, with the failure mode being Semantic Intent Divergence — the final stage drifting into reasoning *about* its own pipeline instead of the requested deliverable.
 
-#### Agent Control Plane Hardening
+The continuous-session topology is now the **default for the standard pipeline**. Workbook generation (Phase 3) and cross-validation (Phase 5) share a single Grok 4.20 session so the validator inherits the corpus + workbook reasoning instead of re-reading the report cold. Section writing (Phase 4) is intentionally unchanged and remains parallel + fresh-call per section — the benchmark explicitly did not test parallel sub-agent topologies.
 
-The MCP/OpenClaw/skill integrations are now treated as a disciplined Primr control plane rather than thin shell wrappers. The next work here is narrower and more intentional than the initial integration push.
+What shipped (full feature):
+- `ContinuousReasoningSession` class in `src/primr/ai/grok_client.py` — multi-turn Grok session with shared message history, same retry/error/token-tracking semantics as the existing `grok_llm` helper
+- Workbook + cross-validation wired through the shared session in `src/primr/core/research_agent.py`; the session is constructed lazily at the workbook stage so the workbook's system prompt becomes a real `role:system` message at session init (folding it into the first user turn measurably degraded workbook quality during the pilot)
+- `--continuous-reasoning` is on by default; `--no-continuous-reasoning` reverts to the fresh-call topology for one run; `PRIMR_CONTINUOUS_REASONING=0` (or `false`/`no`/`off`) disables across all runs on the machine
+- A deterministic artifact-type check in `ReportAnalyzer` that hard-blocks shipping if the final document drifts into a meta-pipeline shape regardless of reasoning topology (zero LLM cost; complements the topology change)
 
-What this work is for:
-- Make long-running, paid Primr runs safer and easier to route, approve, monitor, resume, and consume from agent clients.
-- Keep the user experience aligned to Primr's actual product shape: URL in, serious artifact out.
+How the default-change decision was made (n=3 paired-comparison pilot, blind LLM judge):
+- Workbook quality: continuous won 3/3
+- Cross-validation quality: continuous won 2/3 (one close call)
+- Final report quality: continuous won 2/3, with the third call complicated by a separate baseline-pipeline drift issue (see "Artifact Drift in the Standard Pipeline")
+- Quantified drift reduction: bare leaked-instruction lines drop from average 5.3 per baseline report to 1.0 per continuous report (−81%) — a hard count, not a judge opinion
+- Cost delta: highly variable (−3.7% to +32%, average ~+12%) — never catastrophic, well under the original 40% gate
 
-What this work is not for:
-- Turning Primr into a generic orchestration platform.
-- Replacing the CLI or duplicating core business logic in skills.
-- Exposing a shell-shaped `run_primr(command_string)` surface.
+Planned next steps (now that the default is shipped):
+- Wire `--continuous-reasoning` and `--no-continuous-reasoning` into the `primr eval` harness so future model upgrades or topology tweaks are scored against the same baseline systematically
+- Track real-usage cost variability across more companies and surface in `primr show-usage` so any regression vs the pre-flip baseline is visible
+- Revisit the "narrow topology" idea (fresh workbook + continuous cross-val seeded with corpus + workbook output) only if a future regression in workbook quality shows up — current data says the lazy-init `role:system` placement holds up
+
+Decision principle:
+- The reasoning chain is the most concentrated quality lever in the standard pipeline. Spend tokens there before spending them anywhere else, but only after the data confirms the topology is actually the bottleneck. The pilot confirmed it; the default flipped on the strength of n=3 directional evidence plus a hard quantitative drift-reduction signal, with `--no-continuous-reasoning` as the escape hatch for any user who hits a bad-cost case.
+
+#### Artifact Drift in the Standard Pipeline
+
+Surfaced during the continuous-reasoning pilot: the standard pipeline leaks internal scaffolding into final reports more often than expected. Across three baseline runs (one rich-signal, one mid-signal, one sparse-signal), reports averaged 5.3 bare `**What to validate:` instruction-style lines per report — text that looks like internal section-template guidance escaping into prose. One baseline run also leaked literal `[cross-ref Financial Profile][workbook]` markers. This is independent of which reasoning topology produced the workbook; it lives in the section-writing step or the typed `GeneratedSection` normalization at the writer boundary.
 
 Planned next steps:
-- Add server-issued approval tokens for cost-incurring operations so approval is harder to bypass than cost-cap propagation alone
-- Expand job-scoped resources for artifact consumption (`qa_summary`, source appendix, trace summary) so clients do not need large report bodies in context by default
-- Add integration eval suites for routing, approval, recovery, and recomputation avoidance
-- Keep skills thin and MCP-first; intentionally avoid turning SKILL files into duplicated application specs
-- Preserve typed lifecycle/control-plane primitives instead of free-form execution wrappers
+- Audit the section-writing prompts to see why the section template's `What to validate:` guidance sometimes survives into final prose as a bare instruction line rather than a discovery-question paragraph
+- Strengthen `GeneratedSection` normalization to strip leaked instruction-style fragments at the writer boundary (the canonicalization layer already enforces a single trailing `What to validate:` block — extend it to recognize and remove instruction-style leftovers)
+- Add a deterministic check to `ReportAnalyzer` that flags bare instruction-style lines and `[cross-ref ...]` / `[workbook]` markers in the shipping-artifact validation pass
+- Quantify with an offline scan over recent runs to confirm the drift is widespread, not specific to a few unlucky cells
+
+Decision principle:
+- Final shipping artifacts must read as deliverables, not as internal scaffolding. Drift markers are a signal the section-writing seam needs more discipline regardless of whether continuous reasoning becomes default.
 
 #### Artifact Pipeline Hardening
 
@@ -183,7 +199,7 @@ Decision principle:
 
 #### Grok Tier Evaluation — 4-Way Comparison
 
-Run the eval harness on 3-5 companies across all Grok tiers (fast/hybrid/max/multi-agent) plus premium to produce a proper scorecard. Hybrid is now the default based on initial Litehouse Foods comparison (meaningfully better analytical depth for ~$0.20 more). Need systematic data to confirm hybrid remains the right default, whether max tier ever justifies 6x the cost, and where multi-agent fits in the lineup.
+Run the eval harness on 3-5 companies across all Grok tiers (fast/hybrid/max/multi-agent) plus premium to produce a proper scorecard. Hybrid is now the default based on a single-company spot comparison that showed meaningfully better analytical depth for ~$0.20 more. Need systematic data to confirm hybrid remains the right default, whether max tier ever justifies 6x the cost, and where multi-agent fits in the lineup.
 
 - Same companies across all tiers for apples-to-apples comparison
 - Eval scorecard with quality, trust, utility, hallucination rate, and utility-per-dollar metrics
@@ -191,45 +207,7 @@ Run the eval harness on 3-5 companies across all Grok tiers (fast/hybrid/max/mul
 - Include multi-agent tier: compare hypothesis depth, source cross-checking quality, and contradiction detection against single-agent tiers
 - Decision: validate hybrid default, identify if multi-agent justifies higher cost for reasoning-heavy stages, identify if any company profile benefits from max
 
-#### v1.17.0 — Deeper Strategic Analysis
-
-**Pipeline Resilience Patterns** ✅ *(Implemented — see `src/primr/pipeline/`)*
-
-Primr's retry and recovery logic is now formalized into explicit, cost-ordered patterns across all pipeline stages. Implemented in `src/primr/pipeline/` with six modules: `stages.py`, `errors.py`, `recovery.py`, `model_breaker.py`, `executor.py`, `integration.py`.
-
-*What shipped:*
-
-- Cost-ordered recovery hierarchies for all six pipeline stages (cheapest action first)
-- Foreground/background stage classification (foreground retries aggressively, background bails on overload)
-- Model-level circuit breaker with provider-aware fallback chains (Grok 4.20 → Grok 4.1 → Gemini Flash)
-- Recovery executor that orchestrates retry/fallback/skip and logs events to `_run_state.json`
-- `--dry-run` includes the full recovery table (stage classifications + recovery hierarchies)
-- Error classification (transient/quota/configuration) delegates to existing `error_policy.py`
-
-*Recovery table (implemented):*
-
-| Stage | Recovery 1 (cheapest) | Recovery 2 | Recovery 3 (most expensive) |
-|---|---|---|---|
-| Scraping (per-page) | Retry same tier with jitter | Escalate to next tier | Skip page, log as failed |
-| External search | Retry query with backoff | Reduce query count by 50%+ | Skip search, proceed scrape-only |
-| Analysis (Grok/Gemini) | Retry with same model + backoff | Try next model in fallback chain | Abort with partial output |
-| Section writing | Retry with original prompt | Regenerate with simpler prompt | Skip section, insert gap marker |
-| Cross-validation | Retry validation call | Skip validation, flag as unvalidated | — |
-| Strategy generation | Retry strategy generation | Generate minimal strategy | Skip strategy, deliver report only |
-
-*Stage classification (implemented):*
-
-- Foreground (retry aggressively): scraping, external search, analysis, section writing
-- Background (bail on overload): cross-validation, strategy generation
-
-*Model circuit breaker (implemented):*
-
-- Tracks consecutive failures per model (failure_threshold=3, recovery_timeout=600s)
-- Fallback chains: analysis (Grok 4.20 → Grok 4.1 → Gemini Flash), premium (Gemini Pro → Grok 4.1)
-- Checks API key availability before cross-provider fallback
-- Logs model health transitions via `ModelHealthEvent`
-
-**Consultant-Grade Strategic Writing**
+#### Consultant-Grade Strategic Writing
 
 Push the standard output from a strong research artifact to a genuinely strategist-grade analysis for pre-discovery preparation.
 
@@ -239,7 +217,73 @@ Push the standard output from a strong research artifact to a genuinely strategi
 - Better trust summaries so users can see what is confirmed, inferred, hypothesized, and still weak
 - Target: sparse-company runs still feel substantive; rich-company runs become sharper and more differentiated
 
-**Grok 4.20 Multi-Agent Integration**
+#### Expert Perspective Passes
+
+After the standard pipeline, add domain-specific scrutiny of findings.
+
+- Default: single "multi-perspective" prompt that evaluates from CFO, CTO, competitive, and risk viewpoints in one pass (~$0.03)
+- `--with-experts full`: parallel expert reviews (4 separate Grok passes, ~$0.15) for deeper analysis
+- Output: "Expert Perspectives" section appended to report, or separate sidecar document
+
+**Perspectives:**
+- **CFO**: scrutinize financial claims, flag unsupported revenue estimates, assess unit economics
+- **CTO**: evaluate technology stack claims, assess technical moat, identify build-vs-buy signals
+- **Competitive analyst**: compare findings against known competitors, identify positioning gaps
+- **Risk analyst**: identify regulatory, market, and execution risks
+
+#### QA Iteration Loop
+
+Use QA feedback to iteratively improve weak sections until reports hit 90+.
+
+- `primr refine "Company"` command to re-run weak sections
+- QA identifies specific sections needing work
+- Section-level regeneration without full pipeline re-run
+- Repeat until grade >= 90
+- Integrates with diminishing returns detection : stop the loop when regeneration produces <5% QA improvement per iteration
+
+Structure the refinement loop around a four-phase consolidation protocol (Orient → Gather → Consolidate → Prune) to ensure the LLM surveys existing state before making changes:
+
+1. Orient: Read full report + QA summary + source appendix. Identify which sections scored lowest, which citations are weak, which confidence labels are missing.
+2. Gather: For weak sections, search for additional evidence. DDG queries targeted at specific gaps. Cross-reference existing scrape data for unused signal.
+3. Consolidate: Regenerate weak sections with enriched context. Merge new evidence into existing narrative rather than rewriting from scratch. Preserve existing citations and confidence labels that are still valid.
+4. Prune: Re-run deterministic QA. Normalize citations. Ensure Sources appendix is consistent with body citations. Validate budget/timeline figures in strategy sections.
+
+The critical principle: separate reading (Orient/Gather) from writing (Consolidate/Prune). The LLM has full context before it starts editing, which prevents hallucinated improvements that contradict existing content.
+
+#### Constrained Agent Permissions for Agentic Improve
+
+When `primr improve --improve-agentic` runs an agentic review pass, constrain the agent's write permissions to the output file only. This transforms the agentic improve from a trust-based policy ("the LLM should only edit the report") into an enforced architectural constraint.
+
+- Allow: read any file in the working directory and output directory
+- Allow: write only to the target output file (or `*_improved` variant)
+- Allow: DDG search for additional evidence (read-only external)
+- Deny: write to `_run_state.json`, `_raw_scrapes/`, working directory state files
+- Deny: any shell commands that modify files outside the output target
+- Implement as a wrapper around file I/O that checks the target path against an allowlist before writing
+
+This pattern applies to any future agentic pipeline stage that modifies artifacts: expert perspective passes, strategy enrichment, cross-validation regeneration. The principle is the same — declare what the agent can touch, enforce it in code, not in prompts.
+
+#### Diminishing Returns Detection for Cross-Validation
+
+Detect when cross-validation or section regeneration is making diminishing progress and stop early, rather than consuming the full token budget.
+
+- After each section regeneration, measure improvement: word count delta, new citation count, QA score change
+- If 3+ consecutive regenerations each produce <5% improvement in QA score, stop the loop early
+- Log the early stop in the QA summary: `cross-validation: stopped early (diminishing returns after N iterations)`
+- Applies to both the existing cross-validation pass and the planned QA iteration loop 
+- Start conservative and tune thresholds based on eval results
+
+#### Auto-Eval on Model Releases
+
+Reduce manual work when new Grok/Gemini variants drop by automating the eval-and-compare cycle.
+
+- Trigger eval sweep when a new model variant is registered in ModelRegistry (manual trigger initially, automated detection later)
+- Run the standard 3-5 company corpus against the new variant and current default, generate comparative scorecard
+- LLM judge overlay (cloud or local Ollama) for subjective metrics: utility, strategic sharpness, hallucination rate
+- Decision output: "new variant is better/worse/equivalent for [stage]" with evidence
+- Keeps defaults current (hybrid vs multi-agent vs premium) without gut calls on each release
+
+#### Grok 4.20 Multi-Agent Integration
 
 Leverage xAI's Grok 4.20 Multi-Agent Beta (parallel agents with built-in web_search/x_search tools, verbose streaming, reasoning effort control) for reasoning-heavy pipeline stages.
 
@@ -251,7 +295,7 @@ Leverage xAI's Grok 4.20 Multi-Agent Beta (parallel agents with built-in web_sea
 - Eval sweep required before promotion: compare hybrid vs multi-agent on 5 companies (quality, hallucination rate, depth, cost, utility-per-dollar)
 - Decision gated by eval harness, not assumption — multi-agent may not justify cost for all company profiles
 
-**Gemini 3.1 Pro Enhancements for Premium Mode**
+#### Gemini 3.1 Pro Enhancements for Premium Mode
 
 Adopt Gemini 3.1 Pro improvements to strengthen premium mode, especially for sparse-company runs and strategy sections.
 
@@ -261,24 +305,162 @@ Adopt Gemini 3.1 Pro improvements to strengthen premium mode, especially for spa
 - Test Interactions API / Deep Research Agent polling with durability features (`store=True`, improved resume) — builds on existing shared polling modules
 - Aligns with deterministic QA + constrained-evidence reasoning: stronger model reasoning reduces "thin" sections without huge cost jumps
 
-#### v1.18.0 — Faster Runs
+#### Provider Expansion
 
-**Quick Mode (`--quick`)**
+**OpenAI Integration**
 
-A real quick profile that finishes in under 5 minutes for most companies. Ideal for batch screening or fast lookups.
+Add OpenAI as a third provider option alongside Grok and Gemini.
 
-- New CLI profile with explicit runtime budget and reduced token/search footprint
-- Tight phase budget: fewer sections, capped external queries (5 max), smaller synthesis context
-- Scraping capped at tiers 1-3 (Playwright → Playwright Aggressive → curl_cffi) — skip slow stealth/vision tiers
-- Fewer pages scraped (10-15 instead of 50)
-- Grok 4.1 everywhere (skip cross-validation and coherence passes to stay under budget)
-- `--quick --lite-strategy` for minimal strategy sections only (skip full AI strategy generation)
-- Quality floor + graceful fallback when evidence is thin
-- Target: median runtime < 5 min, cost < $0.40, with citations and confidence labels
-- Users choose between `quick` (speed), `standard` (balanced), and `premium` (depth)
-- Cost-vs-depth profiles reflected in eval harness for systematic comparison across tiers
+- `OPENAI_API_KEY` env var support
+- OpenAI client in `src/primr/ai/` using the existing thin-client pattern
+- OpenAI Deep Research API for autonomous research (comparable to Gemini DR)
+- OpenAI reasoning models (o3, o4-mini) as candidates for analysis/writing stages
+- `--provider openai` flag (or auto-detect from available keys)
+- Cost estimator updated with OpenAI pricing
+- Shared deep research parsing/polling modules extended for OpenAI response format
+- Which tier(s) OpenAI best serves (quick, standard, premium) determined by eval results, not assumption
 
-**Pipeline Overlap**
+**Anthropic Claude Integration**
+
+Add Anthropic Claude as a fourth provider option.
+
+- `ANTHROPIC_API_KEY` env var support (shared with the Post-Research Skill Processing entry above)
+- Claude client in `src/primr/ai/` — Claude Opus for analysis/writing, Claude Sonnet for scraping/QA
+- Extended thinking support for reasoning-heavy stages (gap analysis, cross-validation)
+- Natural fit for the post-skill processing pipeline — same API key, same provider
+- Eval-gated adoption: Claude may excel at strategic writing and hypothesis generation but cost more than Grok for bulk section writing
+
+**Provider-Agnostic Routing Layer**
+
+Formalize the model selection into a proper routing layer so each pipeline stage declares capability requirements and the router selects the best available model.
+
+- Each pipeline stage declares: minimum reasoning depth, required capabilities (web search, structured output, long context), acceptable providers
+- Router selects the cheapest model that meets requirements from available providers
+- Integrates with the model circuit breaker — unhealthy models are skipped automatically
+- Integrates with effort-level routing for hybrid inference 
+- `primr doctor` shows available providers and which stages each can serve
+
+**Cross-Provider Eval**
+
+Extend the eval harness to compare all available providers and determine the best default for each research tier.
+
+- Eval profiles expanded: `grok-standard`, `gemini-premium`, `openai-quick`, `claude-standard`, etc.
+- Cross-provider scorecard: quality, cost, runtime, citation density compared side-by-side
+- Tier recommendation output: "For quick: use X, for standard: use Y, for premium: use Z"
+- Auto-detect available API keys and only eval providers the user has access to
+- Historical eval tracking: compare across eval IDs to see if a provider improved over time
+
+#### First-Class VLM Extraction
+
+Promote vision extraction from fallback tier to first-class path for data-dense pages (charts, tables, IR decks, org charts).
+
+Corporate sites are increasingly visual — investor relations decks, product comparison matrices, org charts, and pricing tables are often images or rendered graphics that pure-text extraction misses. The vision tier already works but only triggers after 5 other tiers fail.
+
+**Smart VLM Routing:**
+- Content-type detection identifies pages likely to be data-dense (PDF, pages with high image-to-text ratio)
+- Route those pages directly to VLM extraction alongside (not instead of) text extraction
+- LLM reconciliation merges text + VLM outputs, preferring structured data from VLM
+- No change to existing tier fallback for text-heavy pages
+
+**Structured Extraction:**
+- VLM prompt optimized for tables, org charts, and financial data
+- Output as structured JSON (not just prose description)
+- Table data extracted to markdown tables in report sections
+
+**Cost Control:**
+- VLM extraction is more expensive per page — only trigger on high-value pages
+- `--vlm-budget N` flag to cap VLM calls per run (default: 10 pages)
+- Cost estimator updated with VLM pricing
+
+**Scrape Tier Evolution**
+
+Expand the scraping engine with managed fallbacks and deeper data extraction.
+
+- Managed Playwright service fallback (e.g., Scrapfly or Firecrawl API key) when local browser tiers fail — handles infra/scaling edge cases without maintaining headless browser farms
+- `MANAGED_SCRAPE_API_KEY` env var, used only after local tiers 1-5 exhaust retries
+- Network interception during Playwright runs: capture underlying JSON APIs (XHR/fetch) during page loads — often yields cleaner structured data than HTML parsing, especially for company financials, careers pages, and dynamically loaded content
+- Intercepted API responses stored alongside HTML scrapes in `_raw_scrapes/` for downstream extraction
+- No change to existing tier priority or sequential same-host behavior
+
+#### Local Inference Mode
+
+Run the full Primr pipeline on local hardware with zero API costs. Primary target: RTX 4090 (24GB VRAM) with Ollama, which is available for testing and validation. The goal is a working `--inference local` mode that produces useful research output — not cloud-quality, but good enough for batch screening, internal research, and cost-sensitive workloads.
+
+At scale, API costs compound: 100 companies × $0.75 = $75 per batch. Local inference eliminates that entirely for workloads where 80% quality at $0 cost is the right tradeoff. Primr is already local-first in execution — scraping, orchestration, and outputs all run locally. This version makes the AI stages local too.
+
+**Three Execution Profiles:**
+
+- `--inference cloud`: current behavior, all AI stages use cloud providers (default)
+- `--inference hybrid`: local for high-volume/low-complexity stages, cloud for deep research and trust-critical synthesis — the sweet spot for most users with a GPU
+- `--inference local`: all compatible stages on local inference, $0 API cost, longer runtime
+
+**RTX 4090 Target (24GB VRAM):**
+
+The RTX 4090 is the validation target. Models that fit in 24GB VRAM and run at acceptable speed:
+
+- 7B-14B models for high-volume stages: link selection, content quality assessment, scrape summarization, extraction cleanup, QA checks
+- 14B-32B quantized models (Q4/Q5) for medium-complexity stages: section writing, insight extraction, report improvement
+- The eval harness determines which specific models work — not assumptions
+
+Larger GPUs (48GB+, multi-GPU, DGX-class) can run bigger models for better quality, but the 4090 is the baseline that must work.
+
+**Stage Routing:**
+
+Each pipeline stage declares a minimum capability tier. The router selects the best available model:
+
+| Stage | Local (RTX 4090) | Hybrid | Cloud |
+|---|---|---|---|
+| Link selection | Local 7B | Local 7B | Gemini Flash |
+| Content quality assessment | Local 7B | Local 7B | Gemini Flash |
+| Scrape summarization | Local 14B | Local 14B | Gemini Flash |
+| External search query generation | Local 14B | Cloud | Grok 4.1 |
+| Analysis workbook | Local 32B-Q4 | Cloud | Grok 4.20 |
+| Section writing | Local 14B-32B | Cloud | Grok 4.1 |
+| Cross-validation | Local 14B | Cloud | Grok 4.20 |
+| Strategy generation | Local 32B-Q4 | Cloud | Grok 4.1 |
+| Deep Research | Skip (no local equivalent) | Cloud | Gemini DR |
+
+This table is a starting hypothesis. The eval harness validates it — if a local 14B model can't write sections that pass the trust gate, it gets bumped to cloud in hybrid mode.
+
+**Backend Support:**
+
+- `--local-backend ollama` (primary): Ollama with OpenAI-compatible API at `localhost:11434`
+- `--local-backend openai-compatible`: any OpenAI-compatible endpoint (LAN-hosted servers, vLLM, etc.)
+- `OLLAMA_BASE_URL`, `LOCAL_LLM_BASE_URL`, `LOCAL_LLM_API_KEY` env vars
+- Model registry extended with local model entries: VRAM requirements, context limits, quantization level, capability flags
+
+**What's Already Built:**
+
+- Local eval judge capability: Ollama-backed LLM judging against staged reports
+- Named local model lists (`4090-top10`, `installed-starter`) for eval sweeps
+- Multi-model judge sweeps comparing every staged non-baseline profile
+- Eval artifacts with backend metadata, coverage, and consensus tracking
+
+**What Gets Built:**
+
+- Production-safe local/cloud/hybrid stage routing (extends the provider-agnostic routing layer described in the Provider Expansion entry above)
+- Per-stage model selection based on capability requirements + available backends
+- Cost estimator reflects local inference as $0.00 API cost while tracking runtime
+- `primr doctor --local` validates Ollama is running, models are pulled, VRAM is sufficient
+- Graceful degradation: if a local model can't handle a stage, fall back to cloud (hybrid) or skip (local) with clear logging
+- Progress display shows which backend each stage is using: `Analysis (local: qwen3:30b)` vs `Analysis (cloud: grok-4.1)`
+
+**Validation Approach:**
+
+- Run the eval harness on the standard company corpus: cloud baseline vs hybrid vs local
+- Compare quality, runtime, and trust gate pass rates
+- Start with hybrid (local for cheap stages, cloud for hard stages) before attempting full local
+- Publish the eval results so the tradeoffs are explicit and data-driven
+- If local quality is unacceptable for certain stages, that's a valid outcome — hybrid mode still saves significant cost
+
+**Promotion Criteria:**
+
+- Trust gate passes: citation coverage, section completeness, confidence-label quality
+- Decision-utility within acceptable band of cloud baseline for replaced stages
+- No silent fallback: if local can't meet requirements, fail clearly or require explicit hybrid
+- Runtime documented: local runs will be slower (minutes, not seconds per stage) — the tradeoff is cost, not speed
+
+#### Pipeline Overlap
 
 Reduce end-to-end runtime by overlapping independent pipeline phases.
 
@@ -302,7 +484,7 @@ Completion guarantees:
 - Run state tracks per-phase completion status for crash recovery
 - Progress display updated to show concurrent phases (e.g., "Scraping 23/50 | Searching 4/10")
 
-**Operational Observability**
+#### Operational Observability
 
 Surface the cost, performance, and scraping data that Primr already tracks internally.
 
@@ -313,27 +495,7 @@ Surface the cost, performance, and scraping data that Primr already tracks inter
 - Stored in run state JSON for post-hoc analysis
 - Informs sticky tier policy and circuit breaker thresholds
 
-**Diminishing Returns Detection for Cross-Validation**
-
-Detect when cross-validation or section regeneration is making diminishing progress and stop early, rather than consuming the full token budget.
-
-- After each section regeneration, measure improvement: word count delta, new citation count, QA score change
-- If 3+ consecutive regenerations each produce <5% improvement in QA score, stop the loop early
-- Log the early stop in the QA summary: `cross-validation: stopped early (diminishing returns after N iterations)`
-- Applies to both the existing cross-validation pass and the planned QA iteration loop (v1.19.0)
-- Directly supports quick mode: quick runs can use a tighter threshold (2 iterations, <3% improvement) to stay within budget
-- Start conservative and tune thresholds based on eval results
-
-**Windows Working-Directory Hardening**
-
-Reduce false negatives and transient failures on Windows machines where the repo lives inside OneDrive or similar synced folders.
-
-- Make checkpoint/state writes tolerant of transient `PermissionError` during atomic rename
-- Update `primr doctor` to probe the same atomic write path used during real runs
-- Add explicit docs for keeping high-churn `working/` paths outside synced folders when possible
-- Longer term: support a configurable working directory separate from the repo root
-
-**Prompt Cache Preparation**
+#### Prompt Cache Preparation
 
 Split section-writing prompts into cached (stable across sections) and volatile (per-section) components as a clean architectural separation, even before model providers fully support prompt caching for Primr's use case.
 
@@ -344,7 +506,7 @@ Split section-writing prompts into cached (stable across sections) and volatile 
 - When prompt caching becomes available (Anthropic supports it now; xAI and Google may follow), the payoff is significant: a cache miss on the shared prefix means paying full input token cost 23 times instead of once
 - Applies the same principle to strategy generation prompts and cross-validation prompts where a shared context prefix is reused across multiple calls
 
-**xAI Batch API for Section Writing (`--batch-api`)**
+#### xAI Batch API for Section Writing
 
 Use xAI's Batch API for the most token-intensive pipeline stage (section writing) to reduce cost and eliminate rate-limit risk during large batch runs.
 
@@ -365,65 +527,32 @@ Why section writing: each company generates 23 independent section-writing calls
 
 Larger batch pipeline restructuring (scrape-all-first, then batch all LLM work across companies) is a bigger architectural change. Evaluate after single-company batch API proves out. The wall-clock tradeoff (async queue vs immediate) may not justify the complexity for batches under ~20 companies.
 
-#### v1.19.0 — Better Reports
+#### Snapshot Subcommand
 
-**Expert Perspective Passes (`--with-experts`)**
+A new top-level subcommand for the case where you want a fast look at a company before deciding whether to spend $0.60 on a real run. Explicitly framed as screening, not analysis. Not a quality dial on `primr` — a separate, narrower product.
 
-After the standard pipeline, add domain-specific scrutiny of findings.
+Why this exists at all (and why the older "Quick Mode" framing was dropped): degrading the standard pipeline to chase sub-5-minute runtime is a bad trade. If you want fast-and-shallow, you can already get that for free from a search engine. The interesting cheap-and-fast tier is one that does specifically what's actually free or near-free in well under a minute: DNS recon, homepage render, and a single LLM synthesis pass. Anything beyond that costs real time and real money and should go through the real pipeline.
 
-- Default: single "multi-perspective" prompt that evaluates from CFO, CTO, competitive, and risk viewpoints in one pass (~$0.03)
-- `--with-experts full`: parallel expert reviews (4 separate Grok passes, ~$0.15) for deeper analysis
-- Output: "Expert Perspectives" section appended to report, or separate sidecar document
+What the subcommand does:
+- `primr recon` (DNS intelligence, ~3s, free, already exists)
+- Homepage + 2-3 highest-signal pages (about, leadership, products) via Playwright tier 1 only — no escalation, no fallback fan-out
+- One DDG search for recent news (free)
+- One Grok 4.1 synthesis call producing a one-page Markdown brief
 
-**Perspectives:**
-- **CFO**: scrutinize financial claims, flag unsupported revenue estimates, assess unit economics
-- **CTO**: evaluate technology stack claims, assess technical moat, identify build-vs-buy signals
-- **Competitive analyst**: compare findings against known competitors, identify positioning gaps
-- **Risk analyst**: identify regulatory, market, and execution risks
+Budget: ~30-45s wall-clock, ~$0.03, no DOCX, no QA gate, no cross-validation, no strategy.
 
-**QA Iteration Loop**
+Output shape: a single Markdown one-pager with sections for who they are, tech stack signals from DNS, what's on their homepage right now, one recent news item if DDG returned anything, and an explicit footer pointing to the full `primr` command. The artifact has a header banner that says "Snapshot — screening only, not strategic analysis" so it's never confused with a real report.
 
-Use QA feedback to iteratively improve weak sections until reports hit 90+.
+What it explicitly is not:
+- No tier escalation: if Playwright tier 1 doesn't render the homepage, the snapshot fails fast and tells the user to run the full pipeline
+- No public-data fallback fan-out (Wayback / EDGAR / Wikipedia) — that's a strategic recovery path, not a screening tool
+- No hiring signals, no cross-validation, no strategy, no DOCX
+- No cost-vs-depth dial on the standard pipeline — `primr` always means "excellent report"
 
-- `primr refine "Company"` command to re-run weak sections
-- QA identifies specific sections needing work
-- Section-level regeneration without full pipeline re-run
-- Repeat until grade >= 90
-- Integrates with diminishing returns detection (v1.18.0): stop the loop when regeneration produces <5% QA improvement per iteration
+Decision principle:
+- The standard pipeline is the product. Snapshot is the cheap pre-flight that helps you decide whether to invoke it. Speed is only worth paying for when the alternative is free.
 
-Structure the refinement loop around a four-phase consolidation protocol (Orient → Gather → Consolidate → Prune) to ensure the LLM surveys existing state before making changes:
-
-1. Orient: Read full report + QA summary + source appendix. Identify which sections scored lowest, which citations are weak, which confidence labels are missing.
-2. Gather: For weak sections, search for additional evidence. DDG queries targeted at specific gaps. Cross-reference existing scrape data for unused signal.
-3. Consolidate: Regenerate weak sections with enriched context. Merge new evidence into existing narrative rather than rewriting from scratch. Preserve existing citations and confidence labels that are still valid.
-4. Prune: Re-run deterministic QA. Normalize citations. Ensure Sources appendix is consistent with body citations. Validate budget/timeline figures in strategy sections.
-
-The critical principle: separate reading (Orient/Gather) from writing (Consolidate/Prune). The LLM has full context before it starts editing, which prevents hallucinated improvements that contradict existing content.
-
-**Constrained Agent Permissions for Agentic Improve**
-
-When `primr improve --improve-agentic` runs an agentic review pass, constrain the agent's write permissions to the output file only. This transforms the agentic improve from a trust-based policy ("the LLM should only edit the report") into an enforced architectural constraint.
-
-- Allow: read any file in the working directory and output directory
-- Allow: write only to the target output file (or `*_improved` variant)
-- Allow: DDG search for additional evidence (read-only external)
-- Deny: write to `_run_state.json`, `_raw_scrapes/`, working directory state files
-- Deny: any shell commands that modify files outside the output target
-- Implement as a wrapper around file I/O that checks the target path against an allowlist before writing
-
-This pattern applies to any future agentic pipeline stage that modifies artifacts: expert perspective passes, strategy enrichment, cross-validation regeneration. The principle is the same — declare what the agent can touch, enforce it in code, not in prompts.
-
-**Auto-Eval on Model Releases**
-
-Reduce manual work when new Grok/Gemini variants drop by automating the eval-and-compare cycle.
-
-- Trigger eval sweep when a new model variant is registered in ModelRegistry (manual trigger initially, automated detection later)
-- Run the standard 3-5 company corpus against the new variant and current default, generate comparative scorecard
-- LLM judge overlay (cloud or local Ollama) for subjective metrics: utility, strategic sharpness, hallucination rate
-- Decision output: "new variant is better/worse/equivalent for [stage]" with evidence
-- Keeps defaults current (hybrid vs multi-agent vs premium) without gut calls on each release
-
-#### v1.19.1 — Post-Research Skill Processing (Anthropic Skills API)
+#### Post-Research Skill Processing (Anthropic Skills API)
 
 **The problem Primr solves today ends at the artifact.** Primr produces a strategic overview, an AI strategy document, and supporting artifacts. What happens next — turning those into a client-ready deliverable, an internal brief, a CRM enrichment payload, an ideas page — is different for every user and every organization. Today that workflow is manual: copy the `.md` output, paste it into Claude, run your own skill or prompt, iterate.
 
@@ -487,12 +616,12 @@ When `PRIMR_POST_SKILL_ID` is set, every research run automatically pipes artifa
 
 ```
 my-downstream-skill/
-├── SKILL.md              # Instructions for Claude on what to produce
+├── SKILL.md # Instructions for Claude on what to produce
 ├── scripts/
-│   ├── generate_html.py  # Custom output generation
-│   └── brand_assets.py   # Org-specific styling/templates
+│ ├── generate_html.py # Custom output generation
+│ └── brand_assets.py # Org-specific styling/templates
 └── templates/
-    └── brief_template.html
+ └── brief_template.html
 ```
 
 Primr never sees or ships this. The user uploads it once, gets a skill ID, and configures Primr to use it.
@@ -505,9 +634,9 @@ When running `primr --batch companies.csv`, the post-skill phase runs per-compan
 
 The four skills in `skills/` (company-research, hypothesis-tracking, qa-iteration, scrape-strategy) are MCP-first control-plane skills — they tell Claude how to drive Primr. Post-skill processing is the inverse: Primr drives Claude with the user's skill to transform its own outputs. These are complementary, not competing.
 
-**Relationship to v1.25.0 (Agentic Interoperability):**
+**Relationship to Agentic Interoperability (Agentic Interoperability):**
 
-This is a concrete, near-term version of the "Primr produces intelligence, the next role picks it up" vision. The difference is that v1.25.0 envisions this happening via A2A protocol between agents, while post-skill processing does it via the Anthropic Skills API within a single pipeline. Post-skill processing is the simpler, more immediate path that works today without requiring a multi-agent orchestrator.
+This is a concrete, near-term version of the "Primr produces intelligence, the next role picks it up" vision. The difference is that Agentic Interoperability envisions this happening via A2A protocol between agents, while post-skill processing does it via the Anthropic Skills API within a single pipeline. Post-skill processing is the simpler, more immediate path that works today without requiring a multi-agent orchestrator.
 
 **Setup flow integration:**
 
@@ -520,170 +649,36 @@ This is a concrete, near-term version of the "Primr produces intelligence, the n
 - Users are responsible for the security of their own skills (same as any code they upload to a cloud API)
 - `primr doctor` warns if a configured skill ID is invalid or inaccessible
 
-### Medium-Term
+#### Agent Control Plane Hardening
 
-Larger investments that expand Primr's capabilities.
+The MCP/OpenClaw/skill integrations are now treated as a disciplined Primr control plane rather than thin shell wrappers. The next work here is narrower and more intentional than the initial integration push.
 
-#### v1.20.0 — First-Class VLM Extraction
+What this work is for:
+- Make long-running, paid Primr runs safer and easier to route, approve, monitor, resume, and consume from agent clients.
+- Keep the user experience aligned to Primr's actual product shape: URL in, serious artifact out.
 
-Promote vision extraction from fallback tier to first-class path for data-dense pages (charts, tables, IR decks, org charts).
+What this work is not for:
+- Turning Primr into a generic orchestration platform.
+- Replacing the CLI or duplicating core business logic in skills.
+- Exposing a shell-shaped `run_primr(command_string)` surface.
 
-Corporate sites are increasingly visual — investor relations decks, product comparison matrices, org charts, and pricing tables are often images or rendered graphics that pure-text extraction misses. The vision tier already works but only triggers after 5 other tiers fail.
+Planned next steps:
+- Add server-issued approval tokens for cost-incurring operations so approval is harder to bypass than cost-cap propagation alone
+- Expand job-scoped resources for artifact consumption (`qa_summary`, source appendix, trace summary) so clients do not need large report bodies in context by default
+- Add integration eval suites for routing, approval, recovery, and recomputation avoidance
+- Keep skills thin and MCP-first; intentionally avoid turning SKILL files into duplicated application specs
+- Preserve typed lifecycle/control-plane primitives instead of free-form execution wrappers
 
-**Smart VLM Routing:**
-- Content-type detection identifies pages likely to be data-dense (PDF, pages with high image-to-text ratio)
-- Route those pages directly to VLM extraction alongside (not instead of) text extraction
-- LLM reconciliation merges text + VLM outputs, preferring structured data from VLM
-- No change to existing tier fallback for text-heavy pages
+#### Windows Working-Directory Hardening
 
-**Structured Extraction:**
-- VLM prompt optimized for tables, org charts, and financial data
-- Output as structured JSON (not just prose description)
-- Table data extracted to markdown tables in report sections
+Reduce false negatives and transient failures on Windows machines where the repo lives inside OneDrive or similar synced folders.
 
-**Cost Control:**
-- VLM extraction is more expensive per page — only trigger on high-value pages
-- `--vlm-budget N` flag to cap VLM calls per run (default: 10 pages)
-- Cost estimator updated with VLM pricing
+- Make checkpoint/state writes tolerant of transient `PermissionError` during atomic rename
+- Update `primr doctor` to probe the same atomic write path used during real runs
+- Add explicit docs for keeping high-churn `working/` paths outside synced folders when possible
+- Longer term: support a configurable working directory separate from the repo root
 
-**Scrape Tier Evolution**
-
-Expand the scraping engine with managed fallbacks and deeper data extraction.
-
-- Managed Playwright service fallback (e.g., Scrapfly or Firecrawl API key) when local browser tiers fail — handles infra/scaling edge cases without maintaining headless browser farms
-- `MANAGED_SCRAPE_API_KEY` env var, used only after local tiers 1-5 exhaust retries
-- Network interception during Playwright runs: capture underlying JSON APIs (XHR/fetch) during page loads — often yields cleaner structured data than HTML parsing, especially for company financials, careers pages, and dynamically loaded content
-- Intercepted API responses stored alongside HTML scrapes in `_raw_scrapes/` for downstream extraction
-- No change to existing tier priority or sequential same-host behavior
-
-#### v1.21.0 — Provider Expansion
-
-**OpenAI Integration**
-
-Add OpenAI as a third provider option alongside Grok and Gemini.
-
-- `OPENAI_API_KEY` env var support
-- OpenAI client in `src/primr/ai/` using the existing thin-client pattern
-- OpenAI Deep Research API for autonomous research (comparable to Gemini DR)
-- OpenAI reasoning models (o3, o4-mini) as candidates for analysis/writing stages
-- `--provider openai` flag (or auto-detect from available keys)
-- Cost estimator updated with OpenAI pricing
-- Shared deep research parsing/polling modules extended for OpenAI response format
-- Which tier(s) OpenAI best serves (quick, standard, premium) determined by eval results, not assumption
-
-**Anthropic Claude Integration**
-
-Add Anthropic Claude as a fourth provider option.
-
-- `ANTHROPIC_API_KEY` env var support (shared with post-skill processing from v1.19.1)
-- Claude client in `src/primr/ai/` — Claude Opus for analysis/writing, Claude Sonnet for scraping/QA
-- Extended thinking support for reasoning-heavy stages (gap analysis, cross-validation)
-- Natural fit for the post-skill processing pipeline (v1.19.1) — same API key, same provider
-- Eval-gated adoption: Claude may excel at strategic writing and hypothesis generation but cost more than Grok for bulk section writing
-
-**Provider-Agnostic Routing Layer**
-
-Formalize the model selection into a proper routing layer so each pipeline stage declares capability requirements and the router selects the best available model.
-
-- Each pipeline stage declares: minimum reasoning depth, required capabilities (web search, structured output, long context), acceptable providers
-- Router selects the cheapest model that meets requirements from available providers
-- Integrates with the model circuit breaker (v1.17.0) — unhealthy models are skipped automatically
-- Integrates with effort-level routing for hybrid inference (v1.22.0)
-- `primr doctor` shows available providers and which stages each can serve
-
-**Cross-Provider Eval**
-
-Extend the eval harness to compare all available providers and determine the best default for each research tier.
-
-- Eval profiles expanded: `grok-standard`, `gemini-premium`, `openai-quick`, `claude-standard`, etc.
-- Cross-provider scorecard: quality, cost, runtime, citation density compared side-by-side
-- Tier recommendation output: "For quick: use X, for standard: use Y, for premium: use Z"
-- Auto-detect available API keys and only eval providers the user has access to
-- Historical eval tracking: compare across eval IDs to see if a provider improved over time
-
-#### v1.22.0 — Local Inference Mode
-
-Run the full Primr pipeline on local hardware with zero API costs. Primary target: RTX 4090 (24GB VRAM) with Ollama, which is available for testing and validation. The goal is a working `--inference local` mode that produces useful research output — not cloud-quality, but good enough for batch screening, internal research, and cost-sensitive workloads.
-
-At scale, API costs compound: 100 companies × $0.75 = $75 per batch. Local inference eliminates that entirely for workloads where 80% quality at $0 cost is the right tradeoff. Primr is already local-first in execution — scraping, orchestration, and outputs all run locally. This version makes the AI stages local too.
-
-**Three Execution Profiles:**
-
-- `--inference cloud`: current behavior, all AI stages use cloud providers (default)
-- `--inference hybrid`: local for high-volume/low-complexity stages, cloud for deep research and trust-critical synthesis — the sweet spot for most users with a GPU
-- `--inference local`: all compatible stages on local inference, $0 API cost, longer runtime
-
-**RTX 4090 Target (24GB VRAM):**
-
-The RTX 4090 is the validation target. Models that fit in 24GB VRAM and run at acceptable speed:
-
-- 7B-14B models for high-volume stages: link selection, content quality assessment, scrape summarization, extraction cleanup, QA checks
-- 14B-32B quantized models (Q4/Q5) for medium-complexity stages: section writing, insight extraction, report improvement
-- The eval harness determines which specific models work — not assumptions
-
-Larger GPUs (48GB+, multi-GPU, DGX-class) can run bigger models for better quality, but the 4090 is the baseline that must work.
-
-**Stage Routing:**
-
-Each pipeline stage declares a minimum capability tier. The router selects the best available model:
-
-| Stage | Local (RTX 4090) | Hybrid | Cloud |
-|---|---|---|---|
-| Link selection | Local 7B | Local 7B | Gemini Flash |
-| Content quality assessment | Local 7B | Local 7B | Gemini Flash |
-| Scrape summarization | Local 14B | Local 14B | Gemini Flash |
-| External search query generation | Local 14B | Cloud | Grok 4.1 |
-| Analysis workbook | Local 32B-Q4 | Cloud | Grok 4.20 |
-| Section writing | Local 14B-32B | Cloud | Grok 4.1 |
-| Cross-validation | Local 14B | Cloud | Grok 4.20 |
-| Strategy generation | Local 32B-Q4 | Cloud | Grok 4.1 |
-| Deep Research | Skip (no local equivalent) | Cloud | Gemini DR |
-
-This table is a starting hypothesis. The eval harness validates it — if a local 14B model can't write sections that pass the trust gate, it gets bumped to cloud in hybrid mode.
-
-**Backend Support:**
-
-- `--local-backend ollama` (primary): Ollama with OpenAI-compatible API at `localhost:11434`
-- `--local-backend openai-compatible`: any OpenAI-compatible endpoint (LAN-hosted servers, vLLM, etc.)
-- `OLLAMA_BASE_URL`, `LOCAL_LLM_BASE_URL`, `LOCAL_LLM_API_KEY` env vars
-- Model registry extended with local model entries: VRAM requirements, context limits, quantization level, capability flags
-
-**What's Already Built:**
-
-- Local eval judge capability: Ollama-backed LLM judging against staged reports
-- Named local model lists (`4090-top10`, `installed-starter`) for eval sweeps
-- Multi-model judge sweeps comparing every staged non-baseline profile
-- Eval artifacts with backend metadata, coverage, and consensus tracking
-
-**What Gets Built:**
-
-- Production-safe local/cloud/hybrid stage routing (extends the provider-agnostic routing layer from v1.21.0)
-- Per-stage model selection based on capability requirements + available backends
-- Cost estimator reflects local inference as $0.00 API cost while tracking runtime
-- `primr doctor --local` validates Ollama is running, models are pulled, VRAM is sufficient
-- Graceful degradation: if a local model can't handle a stage, fall back to cloud (hybrid) or skip (local) with clear logging
-- Progress display shows which backend each stage is using: `Analysis (local: qwen3:30b)` vs `Analysis (cloud: grok-4.1)`
-
-**Validation Approach:**
-
-- Run the eval harness on the standard company corpus: cloud baseline vs hybrid vs local
-- Compare quality, runtime, and trust gate pass rates
-- Start with hybrid (local for cheap stages, cloud for hard stages) before attempting full local
-- Publish the eval results so the tradeoffs are explicit and data-driven
-- If local quality is unacceptable for certain stages, that's a valid outcome — hybrid mode still saves significant cost
-
-**Promotion Criteria:**
-
-- Trust gate passes: citation coverage, section completeness, confidence-label quality
-- Decision-utility within acceptable band of cloud baseline for replaced stages
-- No silent fallback: if local can't meet requirements, fail clearly or require explicit hybrid
-- Runtime documented: local runs will be slower (minutes, not seconds per stage) — the tradeoff is cost, not speed
-
-### Later
-
-Larger capabilities that build on the medium-term foundation.
-
-#### v1.23.0 — Cross-Run Research Memory
+#### Cross-Run Research Memory
 
 Make research compound across runs by persisting extracted claims, citations, and hypotheses in a searchable store.
 
@@ -717,9 +712,9 @@ Lightweight precursor to the full claim store — turns one-off runs into living
 - `primr memory clear` to reset
 - No data leaves the machine unless user explicitly exports
 
-#### v1.23.1 — Knowledge Compounding
+#### Knowledge Compounding
 
-Build on cross-run memory (v1.23.0) to make research compound across batch runs and evolving investigations.
+Build on cross-run memory to make research compound across batch runs and evolving investigations.
 
 **Industry Knowledge Base for Batch Runs**
 
@@ -745,18 +740,18 @@ Support post-discovery learning without re-running everything from scratch.
 - `primr refine` command accepting new information, notes, and follow-up findings
 - Re-synthesize insights with updated confidence and revised hypotheses
 - Outputs evolve as understanding deepens
-- Cross-run memory (v1.23.0) stores the evolution
+- Cross-run memory stores the evolution
 
-#### v1.24.0 — Narrative Evolution
+#### Narrative Evolution
 
-Make Primr the system of record for how thinking evolves about a company. Requires cross-run memory (v1.23.0).
+Make Primr the system of record for how thinking evolves about a company. Requires cross-run memory .
 
 - Versioned research artifacts
 - Explicit "what changed and why" sections
 - Diff-style comparison between runs: what shifted in confidence, what new evidence appeared
 - Timeline view: how understanding of a company evolved across runs
 
-#### v1.25.0 — Agentic Interoperability
+#### Agentic Interoperability
 
 **The shift: from tool to role.**
 
@@ -769,16 +764,16 @@ The infrastructure is already in place (A2A protocol, MCP tools, subagent archit
 **Role-Aware Output Shaping:**
 - When called via A2A, Primr adapts its output to the requesting workflow's needs — a downstream agent building a proposal gets tighter focus on opportunities and angles; one doing risk assessment gets constraints and gaps emphasized
 - AgentCard skills already declare capabilities; extend with output-format negotiation so callers can request the emphasis they need
-- Expert perspective passes (v1.19.0) become named analyst roles that shape output tone, not just appended report sections
+- Expert perspective passes become named analyst roles that shape output tone, not just appended report sections
 
 **Workflow Composability:**
 - Primr as one role in a team: receives a company assignment, produces intelligence (MD, DOCX), and the next role picks it up
 - A2A protocol already supports assignment and handoff; the evolution is Primr understanding its place in a larger workflow rather than assuming it's the terminal step
 - No orchestrator built into Primr — Primr is a specialist, not the coordinator
 
-#### v1.26.0 — Cloud Deployment Hardening
+#### Cloud Deployment Hardening
 
-Take the existing IaC templates (`deploy/`) from reference implementations to validated, production-ready deployments. The infrastructure code exists (v1.6.0) but hasn't been battle-tested end-to-end. This version makes it real.
+Take the existing IaC templates (`deploy/`) from reference implementations to validated, production-ready deployments. The infrastructure code exists (the cloud deployment work) but hasn't been battle-tested end-to-end. This version makes it real.
 
 **Approach:** Azure first (most immediate need), then GCP, then AWS. Each cloud gets the same treatment: deploy, run real research jobs, validate artifacts, tear down, document.
 
@@ -876,13 +871,13 @@ Primr's Azure deployment now follows a tiered model — team and organization �
 - `primr doctor` works in both local and deployed contexts
 - Artifacts are downloadable as the same MD/DOCX/TXT files you get locally
 
-#### v2.0.0 — Public Release
+#### Public Release
 
 Make Primr available to the broader community via PyPI.
 
 **Prerequisites:**
-- v1.8.1 Content Sanitization Layer (complete - security requirement satisfied)
-- v1.26.0 Cloud Deployment Hardening (at least one cloud validated end-to-end)
+- Content Sanitization Layer (complete — security requirement satisfied)
+- Cloud Deployment Hardening (at least one cloud validated end-to-end — see entry above)
 
 **Scope:**
 - PyPI publication (`pip install primr`)
@@ -890,6 +885,7 @@ Make Primr available to the broader community via PyPI.
 - ~~GitHub Actions CI/CD for automated testing~~ (done - lint, type check, tests run on every push)
 - Contribution workflow for external contributors
 - Documentation site
+
 
 ---
 

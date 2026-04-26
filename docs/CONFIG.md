@@ -41,6 +41,19 @@ To revert to Gemini 3.0 Pro (flat $2/$12 pricing):
 | `PRIMR_BROWSER_HEADED` | Force the Playwright tiers to launch in headed mode for a specific call. Normally set internally by the adaptive-retry path, not by users. | unset |
 | `PRIMR_BROWSER_SESSION_MODE` | `persistent` enables a reused browser profile per host (set internally during adaptive retry). | unset |
 
+### Reasoning Topology
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PRIMR_CONTINUOUS_REASONING` | Controls whether workbook generation (Phase 3) and cross-validation (Phase 5) share a single Grok 4.20 session so the validator inherits the corpus + workbook reasoning the generator produced. Set to `0` / `false` / `no` / `off` to disable (revert to the fresh-call topology used before the n=3 pilot). Set to `1` / `true` / `yes` / `on` to force-enable regardless of CLI flags. Unset means use whatever the CLI passed (default on). | unset (effectively on via CLI default) |
+
+Notes on continuous reasoning:
+- On by default after the n=3 pilot. Pass `--no-continuous-reasoning` on the CLI to disable for a single run.
+- Section writing (Phase 4) is intentionally untouched and remains parallel + fresh-call per section. The topology change only affects Phase 3 + Phase 5.
+- Cost impact varies by company: an n=3 pilot saw deltas from −3.7% to +32% versus the prior fresh-call topology (average ~+12%). Token accumulation across the shared session is the source of any extra cost.
+- Quantified quality benefit: bare leaked-instruction lines in the final report drop from an average of 5.3 (fresh-call) to 1.0 (continuous) — about 81% fewer. Hard count, not LLM-judge opinion.
+- Env var precedence: `PRIMR_CONTINUOUS_REASONING` overrides the CLI flag if explicitly set, so you can disable across all runs on a machine without changing CLI invocations.
+
 Notes on the popup budget:
 - The budget is a single shared counter — opt in once with `PRIMR_MAX_HEADED_POPUPS=N` and that N is the total allowance across all trigger points in the run.
 - External-source validation (web-search results) uses a separate orchestrator that excludes the Patchright stealth tier by design, so validation-pass popups are already impossible even when the budget is set.

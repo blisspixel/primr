@@ -164,6 +164,7 @@ class CLIConfig:
     fast_mode: bool = False  # Use Grok 4.1 for fast research (~12 min, ~$0.25)
     premium_mode: bool = False  # Force Gemini + Deep Research pipeline
     grok_tier: str = "hybrid"  # Grok model tier: fast, hybrid, max
+    continuous_reasoning: bool = True  # Default-on after the n=3 pilot; --no-continuous-reasoning to disable
     no_qa: bool = False  # Disable automatic quality assessment
     verify: bool = False  # Run post-QA claim verification
     skip_scrape_validation: bool = False  # Continue even when scrape quality is too low
@@ -288,6 +289,13 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
     else:
         ai_strategy = True
 
+    # Continuous reasoning is on by default after the n=3 pilot.
+    # --no-continuous-reasoning explicitly disables it for one run.
+    if getattr(parsed, "no_continuous_reasoning", False):
+        continuous_reasoning = False
+    else:
+        continuous_reasoning = getattr(parsed, "continuous_reasoning", True)
+
     # Build context files tuple
     context_files = tuple(getattr(parsed, "context", None) or [])
 
@@ -384,6 +392,7 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         fast_mode=getattr(parsed, "fast_mode", False),
         premium_mode=getattr(parsed, "premium_mode", False),
         grok_tier=getattr(parsed, "grok_tier", "hybrid"),
+        continuous_reasoning=continuous_reasoning,
         no_qa=getattr(parsed, "no_qa", False),
         verify=getattr(parsed, "verify", False),
         skip_scrape_validation=getattr(parsed, "skip_scrape_validation", False),
@@ -916,6 +925,26 @@ Accordion Method Test (for development):
         default="hybrid",
         dest="grok_tier",
         help="Grok model tier: fast (~$0.47), hybrid (~$0.67, 4.20 reasoning, default), max (~$4.29, 4.20 everywhere)",
+    )
+    parser.add_argument(
+        "--continuous-reasoning",
+        action="store_true",
+        default=True,
+        dest="continuous_reasoning",
+        help=(
+            "Share a single Grok session across workbook + cross-validation so the "
+            "validator inherits corpus + workbook reasoning. On by default after the "
+            "n=3 pilot; pass --no-continuous-reasoning to revert to fresh-call topology. "
+            "Cost impact varies by company (avg ~+12%%, range -4%% to +32%%)."
+        ),
+    )
+    parser.add_argument(
+        "--no-continuous-reasoning",
+        action="store_true",
+        help=(
+            "Disable the shared Grok session for workbook + cross-validation "
+            "(revert to the fresh-call topology used before the n=3 pilot)."
+        ),
     )
     parser.add_argument(
         "--discovery-notes",
@@ -2656,6 +2685,7 @@ def _handle_research(config: CLIConfig) -> int:
         verify=config.verify,
         grok_tier=config.grok_tier,
         skip_recon=config.skip_recon,
+        continuous_reasoning=config.continuous_reasoning,
     )
 
     # Open report if requested
