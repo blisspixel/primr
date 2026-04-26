@@ -300,6 +300,7 @@ build/
 
 # Claude Code local config
 /.claude
+/CLAUDE.md
 
 # Windows reserved name artifacts
 nul
