@@ -1,6 +1,6 @@
 # Include documentation
 include README.md
-include CHANGELOG.md
+include docs/CHANGELOG.md
 include ROADMAP.md
 include LICENSE
 

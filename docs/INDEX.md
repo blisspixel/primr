@@ -23,7 +23,7 @@ Current version: 1.16.0
 |----------|-------------|
 | [ARCHITECTURE](ARCHITECTURE.md) | System design, scraping tiers |
 | [STATE_MACHINES](STATE_MACHINES.md) | Tier escalation, job lifecycle |
-| [CONCURRENCY](../CONCURRENCY.md) | Threading model |
+| [CONCURRENCY](CONCURRENCY.md) | Threading model |
 
 ## Deployment
 
@@ -37,6 +37,6 @@ Current version: 1.16.0
 | Document | Description |
 |----------|-------------|
 | [ROADMAP](../ROADMAP.md) | Development roadmap |
-| [CHANGELOG](../CHANGELOG.md) | Version history |
+| [CHANGELOG](CHANGELOG.md) | Version history |
 | [MIGRATION](MIGRATION.md) | Error hierarchy migration |
 | [INTERNALS](INTERNALS.md) | Core algorithms and prompt strategy |
