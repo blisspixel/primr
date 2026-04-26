@@ -458,6 +458,32 @@ response = client.generate(
 print(client.get_usage_summary())
 ```
 
+### Continuous Reasoning Session (default-on)
+
+Location: `src/primr/ai/grok_client.py` (class `ContinuousReasoningSession`)
+
+Multi-turn Grok session that preserves message history across pipeline stages, so workbook generation (Phase 3) and cross-validation (Phase 5) share working memory instead of each starting from a serialized summary read off disk. Sits alongside the stateless `grok_llm` helper and reuses the same retry, error-classification, and module-level token-tracking machinery. **On by default** after the n=3 pilot; pass `--no-continuous-reasoning` (or set `PRIMR_CONTINUOUS_REASONING=0`) to revert to the fresh-call topology.
+
+```python
+from primr.ai.grok_client import ContinuousReasoningSession
+
+session = ContinuousReasoningSession(
+    model="grok-4.20-0309-reasoning",
+    system_prompt="You are a senior strategic analyst...",
+)
+workbook = session.send(workbook_prompt, max_tokens=18_000, temperature=0.5)
+# ... section writing happens out-of-session (parallel + fresh-call) ...
+cross_val = session.send(cross_val_prompt, max_tokens=5_000, temperature=0.2)
+# Session retains the corpus + workbook reasoning, so the validator
+# can verify the report against the workbook's mandate, not just against URLs.
+```
+
+**When the session is constructed.** The CLI flag (or env var) sets a boolean at the top of `perform_fast_research`, but the session itself is constructed lazily at the workbook stage. That lets the workbook's system prompt be passed as a real `role:system` message at session init — Grok rejects mid-conversation system messages, so this placement matters. An earlier implementation that folded the system prompt into the first user turn measurably degraded workbook quality during the pilot; the lazy construction is the fix.
+
+**What stays unchanged.** Section writing (Phase 4) is intentionally untouched and remains parallel + fresh-call per section via the existing `ThreadPoolExecutor(max_workers=4)` pattern. The benchmark this work is based on (VanSelst & Seal, *Unbroken Telephone*, April 2026) explicitly did not test parallel sub-agent topologies, so we keep them out of the topology change. Strategy generation (Phase 6) and gap analysis (Phase 2) also remain fresh-call.
+
+**Status.** On by default. n=3 paired-comparison pilot showed measurably better workbooks (3/3 wins on a blind LLM judge), richer cross-validation in 2/3 cases, and ~81% fewer leaked-instruction lines in final reports, at an average ~+12% cost (range −3.7% to +32%). See ROADMAP "Continuous Reasoning Session" entry for the full pilot writeup and the rationale for the default flip.
+
 ## Data Flow
 
 ### Scrape Mode Data Flow

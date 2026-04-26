@@ -54,6 +54,14 @@ primr "Company" https://example.com --premium --platform ms --lite
 # Claim verification (~$0.01, 3-5 min, non-blocking)
 primr "Company" https://example.com --verify
 
+# Continuous reasoning is ON by default after the n=3 pilot: workbook + cross-validation share
+# one Grok session so the validator inherits corpus + workbook reasoning. Avg ~+12% cost
+# (range −3.7% to +32%) for sharper analysis and ~81% fewer leaked-instruction lines in the
+# final report. See ROADMAP "Continuous Reasoning Session".
+# To revert to fresh-call topology for one run:
+primr "Company" https://example.com --no-continuous-reasoning
+# To disable across all runs on this machine, set PRIMR_CONTINUOUS_REASONING=0 in env.
+
 # Check job status
 primr --check-jobs
 
