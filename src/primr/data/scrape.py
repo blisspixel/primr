@@ -248,8 +248,7 @@ def _collect_fallback_content(
         # synthesis-from-public-sources is most valuable. Cap at 3 to control
         # token spend.
         grok_urls = [
-            website.rstrip("/") + path
-            for path in ("/about", "/our-story", "/leadership")
+            website.rstrip("/") + path for path in ("/about", "/our-story", "/leadership")
         ][:3]
 
     pages = gather_fallback_content(
@@ -280,9 +279,7 @@ def _collect_fallback_content(
         if raw_folder:
             try:
                 safe_source = page.source.replace("/", "_")
-                raw_file = os.path.join(
-                    raw_folder, f"fb_{idx:02d}_{safe_source}.txt"
-                )
+                raw_file = os.path.join(raw_folder, f"fb_{idx:02d}_{safe_source}.txt")
                 with open(raw_file, "w", encoding="utf-8") as f:
                     f.write(f"URL: {page.url}\n")
                     f.write(f"Source: {page.source}\n")
@@ -445,7 +442,7 @@ def scrape_page(
 
 def fetch_web_content(
     website: str,
-    company_name: str,
+    company_name: str | None,
     max_pages: int | None = None,
     use_vision: bool = False,
     working_folder: str | None = None,
@@ -485,6 +482,10 @@ def fetch_web_content(
         extract_main_content,
         extract_structured_content,
     )
+
+    # Normalize so downstream helpers (validation prompts, fallback fan-out)
+    # never have to handle the None case themselves.
+    company_name = company_name or ""
 
     def _write_raw_file(file_path, url, tier, structured):
         """Write raw scrape file to disk (may run in background thread)."""
@@ -696,9 +697,7 @@ def fetch_web_content(
             append_trace=_append_trace,
         )
         if fallback_content:
-            console.done(
-                f"Recovered {len(fallback_content)} page(s) from public fallbacks"
-            )
+            console.done(f"Recovered {len(fallback_content)} page(s) from public fallbacks")
         return fallback_content
 
     # Route homepage through the orchestrator so it gets the same adaptive
@@ -920,9 +919,7 @@ def fetch_web_content(
             append_trace=_append_trace,
         )
         if fallback_content:
-            console.done(
-                f"Recovered {len(fallback_content)} page(s) from public fallbacks"
-            )
+            console.done(f"Recovered {len(fallback_content)} page(s) from public fallbacks")
             return fallback_content
 
         console.muted("  No public fallbacks returned content either")
@@ -973,7 +970,7 @@ def fetch_web_content(
         success_count = 1
 
         # Save homepage raw scrape (and cache extraction for Phase 2)
-        if raw_folder:
+        if raw_folder and write_executor is not None:
             try:
                 structured = extract_structured_content(homepage_html, website)
                 structured_cache[homepage_normalized] = structured
@@ -1076,7 +1073,7 @@ def fetch_web_content(
                 pilot_success += 1
                 pilot_chars_total += len(result.extracted_text or "")
 
-            if raw_folder:
+            if raw_folder and write_executor is not None:
                 try:
                     structured = extract_structured_content(result.raw_content, page_url)
                     structured_cache[normalized] = structured
@@ -1263,9 +1260,7 @@ def fetch_web_content(
     # any successful scrape (even a single thin homepage or one recovery
     # page) is trusted as-is. Fallbacks only replace nothing.
     if len(scraped_content) == 0:
-        logger.info(
-            "Origin produced no content — supplementing with public fallbacks"
-        )
+        logger.info("Origin produced no content — supplementing with public fallbacks")
         _append_trace(
             "FALLBACK",
             website,
@@ -1280,9 +1275,7 @@ def fetch_web_content(
         for url, text in supplementary.items():
             scraped_content[url] = text
         if supplementary:
-            console.done(
-                f"Added {len(supplementary)} page(s) from public fallbacks"
-            )
+            console.done(f"Added {len(supplementary)} page(s) from public fallbacks")
 
     return scraped_content
 
@@ -1336,8 +1329,8 @@ def scrape_external_sources(
 
 def scrape_external_sources_validated(
     search_results: list[dict],
-    company_name: str,
-    website: str,
+    company_name: str | None,
+    website: str | None,
     max_sources: int = 2,
     working_folder: str | None = None,
 ) -> dict[str, str]:
@@ -1352,8 +1345,10 @@ def scrape_external_sources_validated(
 
     Args:
         search_results: List of search result dicts with 'url' key
-        company_name: Name of the target company
-        website: Target company's website (for context)
+        company_name: Name of the target company. ``None`` is tolerated and
+            treated as an empty string for prompt-context purposes.
+        website: Target company's website (for context). ``None`` is tolerated
+            and treated as an empty string.
         max_sources: Maximum validated sources to return
         working_folder: If provided, save raw scrapes to _raw_scrapes subfolder
 
@@ -1363,6 +1358,11 @@ def scrape_external_sources_validated(
     import os
 
     from primr.ai.llm import llm
+
+    # Normalize None inputs so prompt-building f-strings don't render
+    # the literal string "None" into the validation prompt.
+    company_name = company_name or ""
+    website = website or ""
 
     # Use the popup-free orchestrator for external validation sources.
     orchestrator = get_external_orchestrator()
@@ -1663,13 +1663,27 @@ def clear_cache(max_age_hours: float | None = None) -> None:
 
 
 def cleanup_browser():
-    """Clean up shared browser resources."""
-    try:
-        from primr.data.scraping.browsers import SharedBrowser
+    """Clean up shared browser resources.
 
-        SharedBrowser.get().close()
-    except Exception:
-        pass  # atexit — don't crash on shutdown
+    Runs the actual close() in a daemon thread with a bounded join so a
+    stuck Playwright Node.js subprocess (e.g., when an abandoned validation
+    worker is mid-CDP-call) can't keep the interpreter from exiting. After
+    the timeout, we drop on the floor — the OS will reap the orphan
+    Chromium/Node processes when the parent exits.
+    """
+    import threading
+
+    def _do_close() -> None:
+        try:
+            from primr.data.scraping.browsers import SharedBrowser
+
+            SharedBrowser.get().close()
+        except Exception:
+            pass  # atexit — don't crash on shutdown
+
+    t = threading.Thread(target=_do_close, name="primr-cleanup-browser", daemon=True)
+    t.start()
+    t.join(timeout=5.0)
 
 
 # Register cleanup

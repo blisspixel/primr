@@ -1,16 +1,18 @@
 import logging
 import os
-import json
+
 import azure.functions as func
 from azure.identity import DefaultAzureCredential
-from deploy.control_plane.reconciler import Reconciler, ReconciliationConfig
+
 from deploy.control_plane.job_store import CosmosStore
+from deploy.control_plane.reconciler import Reconciler, ReconciliationConfig
 from deploy.storage import BlobStore
+
 
 def main(timer: func.TimerRequest) -> None:
     """Timer-triggered reconciliation function."""
     logging.info("Reconciler function triggered")
-    
+
     # Get configuration from environment
     cosmos_endpoint = os.environ.get("COSMOS_ENDPOINT")
     storage_account_name = os.environ.get("STORAGE_ACCOUNT_NAME")
@@ -18,10 +20,10 @@ def main(timer: func.TimerRequest) -> None:
     database = os.environ.get("COSMOS_DATABASE", "primr")
     container = os.environ.get("COSMOS_CONTAINER", "jobs")
     storage_container = os.environ.get("STORAGE_CONTAINER", "artifacts")
-    
+
     # Use DefaultAzureCredential (managed identity) instead of connection strings
     credential = DefaultAzureCredential()
-    
+
     # Create stores using managed identity
     job_store = CosmosStore(
         endpoint=cosmos_endpoint,
@@ -35,7 +37,7 @@ def main(timer: func.TimerRequest) -> None:
         account_name=storage_account_name,
         credential=credential,
     )
-    
+
     # Create reconciler with config
     config = ReconciliationConfig(
         max_duration_seconds=7200,  # 2 hours
@@ -43,8 +45,8 @@ def main(timer: func.TimerRequest) -> None:
         heartbeat_stale_seconds=600,  # 10 minutes
     )
     reconciler = Reconciler(job_store, artifact_store, config)
-    
+
     # Run reconciliation
     result = reconciler.reconcile()
-    
+
     logging.info(f"Reconciliation complete: {result.to_dict()}")

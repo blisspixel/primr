@@ -457,16 +457,20 @@ class TestGatherHiringSignalsE2E:
             # Triage call returns a JSON selection; extraction returns structured output.
             if "Pick up to" in prompt:
                 return '{"selected": [0]}'
-            return json.dumps({
-                "roles": [{"title": "Senior Data Engineer", "location": "NYC", "department": "Data"}],
-                "tech_stack": {"Snowflake": 1, "dbt": 1},
-                "strategic_initiatives": ["Building data platform"],
-                "culture_signals": [],
-                "locations": ["New York, NY"],
-                "hiring_volume": "moderate",
-                "notable_absences": [],
-                "summary": "Data platform buildout in progress.",
-            })
+            return json.dumps(
+                {
+                    "roles": [
+                        {"title": "Senior Data Engineer", "location": "NYC", "department": "Data"}
+                    ],
+                    "tech_stack": {"Snowflake": 1, "dbt": 1},
+                    "strategic_initiatives": ["Building data platform"],
+                    "culture_signals": [],
+                    "locations": ["New York, NY"],
+                    "hiring_volume": "moderate",
+                    "notable_absences": [],
+                    "summary": "Data platform buildout in progress.",
+                }
+            )
 
         with (
             patch.object(hs, "_http_get", side_effect=fake_http_get),
@@ -594,6 +598,7 @@ class TestGatherHiringSignalsE2E:
 class TestPostingStaleness:
     def test_fresh_posting_is_not_stale(self):
         from datetime import datetime, timezone
+
         fresh_iso = datetime.now(timezone.utc).isoformat()
         p = Posting(url="u", title="t", updated_at=fresh_iso)
         assert not p.is_stale()

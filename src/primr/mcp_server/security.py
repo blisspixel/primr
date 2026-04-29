@@ -11,6 +11,7 @@ import ipaddress
 import logging
 import os
 import re
+import socket
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -122,7 +123,7 @@ class PathValidator:
 
         self.allowed_roots = [Path(root).resolve() for root in allowed_roots]
 
-    def validate(self, path: str, client_id: str | None = None) -> PathValidationResult:
+    def validate(self, path: str | None, client_id: str | None = None) -> PathValidationResult:
         """
         Validate a path is within allowed directories.
 
@@ -135,6 +136,12 @@ class PathValidator:
 
         Requirements: 11.1-11.9
         """
+        if not isinstance(path, str) or not path:
+            return PathValidationResult(
+                valid=False,
+                error_type="path_traversal_blocked",
+                error_message="Path is missing or not a string",
+            )
         # Check for null bytes (OS truncates at \x00, classic injection vector)
         if "\x00" in path:
             self._log_rejection(client_id, path, "null_byte")
@@ -252,13 +259,13 @@ class PathValidator:
             current = current.parent
         return False
 
-    def _log_rejection(self, client_id: str, path: str, reason: str) -> None:
+    def _log_rejection(self, client_id: str | None, path: str | None, reason: str) -> None:
         """Log path traversal rejection attempt."""
         logger.warning(
             "Path traversal blocked",
             extra={
                 "client_id": client_id or "unknown",
-                "attempted_path": path,
+                "attempted_path": path or "<missing>",
                 "reason": reason,
             },
         )
@@ -311,12 +318,13 @@ class URLValidator:
         self.connect_timeout = connect_timeout
         self.read_timeout = read_timeout
 
-    def validate(self, url: str, client_id: str | None = None) -> URLValidationResult:
+    def validate(self, url: str | None, client_id: str | None = None) -> URLValidationResult:
         """
         Validate URL is safe to fetch.
 
         Args:
-            url: URL to validate
+            url: URL to validate. ``None`` or non-string values are rejected
+                with ``error_type="invalid_url"``.
             client_id: Client identifier for logging
 
         Returns:
@@ -324,6 +332,13 @@ class URLValidator:
 
         Requirements: 17.1-17.10
         """
+        if not isinstance(url, str) or not url:
+            return URLValidationResult(
+                valid=False,
+                error_type="invalid_url",
+                error_message="URL is missing or not a string",
+            )
+
         # Parse URL
         try:
             parsed = urlparse(url)
@@ -364,8 +379,6 @@ class URLValidator:
 
         # Resolve hostname to IP
         try:
-            import socket
-
             ip_addresses = socket.getaddrinfo(
                 hostname, parsed.port or (443 if parsed.scheme == "https" else 80)
             )
@@ -415,14 +428,20 @@ class URLValidator:
             resolved_ip=next(iter(resolved_ips)) if resolved_ips else None,
         )
 
-    def _log_rejection(self, client_id: str, url: str, resolved_ip: str, reason: str) -> None:
+    def _log_rejection(
+        self,
+        client_id: str | None,
+        url: str,
+        resolved_ip: str | None,
+        reason: str,
+    ) -> None:
         """Log SSRF rejection attempt."""
         logger.warning(
             "SSRF blocked",
             extra={
                 "client_id": client_id or "unknown",
                 "attempted_url": url,
-                "resolved_ip": resolved_ip,
+                "resolved_ip": resolved_ip or "unresolved",
                 "reason": reason,
             },
         )

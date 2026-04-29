@@ -6,7 +6,7 @@ This guide covers obtaining, configuring, and securing the API keys required for
 
 | Credential | Purpose | Console |
 |------------|---------|---------|
-| `GEMINI_API_KEY` | Google AI for research & analysis | [Google AI Studio](https://aistudio.google.com/apikey) |
+| `GEMINI_API_KEY` | Gemini-backed scrape summaries, premium mode, and resource cleanup checks | [Google AI Studio](https://aistudio.google.com/apikey) |
 
 > **That's it!** Primr uses DuckDuckGo for web search by default — no search API key needed.
 
@@ -14,6 +14,7 @@ This guide covers obtaining, configuring, and securing the API keys required for
 
 | Credential | Purpose | Console |
 |------------|---------|---------|
+| `XAI_API_KEY` | Recommended for the default Grok standard pipeline | [xAI Console](https://console.x.ai/) |
 | `SEARCH_API_KEY` | Google Custom Search API (only if `SEARCH_PROVIDER=google`) | [Google Cloud Console](https://console.cloud.google.com/apis/credentials) |
 | `SEARCH_ENGINE_ID` | Custom Search Engine config (only if `SEARCH_PROVIDER=google`) | [Programmable Search Engine](https://programmablesearchengine.google.com/) |
 
@@ -32,17 +33,49 @@ SEARCH_ENGINE_ID=your_id_here
 
 ## Step-by-Step Setup
 
-### 1. Gemini API Key
+### 1. Store Keys With Primr
+
+For a PyPI install, use the guided setup:
+
+```bash
+primr init
+```
+
+For scripting or direct key management, use Primr's user-level key store:
+
+```bash
+primr keys set gemini
+primr keys set xai
+primr keys list
+primr keys path
+```
+
+`primr init` and `primr keys set ...` prompt for keys without echoing them. Primr reads keys in this order:
+
+1. Shell environment variables
+2. The nearest local `.env`
+3. The per-user Primr config file shown by `primr keys path`
+
+### 2. Gemini API Key
 
 1. Go to [Google AI Studio](https://aistudio.google.com/apikey)
 2. Sign in with your Google account
 3. Click "Create API Key"
 4. **Immediately copy the key** - you won't see it again
-5. Store securely (see [Secure Storage](#secure-storage) below)
+5. Run `primr keys set gemini`
 
 **Pricing**: Free tier includes 60 requests/minute. See [pricing](https://ai.google.dev/pricing).
 
-### 2. Google Custom Search API Key
+### 3. xAI API Key
+
+1. Go to [xAI Console](https://console.x.ai/)
+2. Create or select a project
+3. Create an API key
+4. Run `primr keys set xai`
+
+`XAI_API_KEY` enables the Grok standard pipeline. Without it, Primr falls back to Gemini-backed modes where available.
+
+### 4. Google Custom Search API Key
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
 2. Create a new project (recommended: separate project for Primr)
@@ -54,7 +87,7 @@ SEARCH_ENGINE_ID=your_id_here
 
 **Pricing**: 100 free queries/day, then $5/1000 queries.
 
-### 3. Search Engine ID
+### 5. Search Engine ID
 
 1. Go to [Programmable Search Engine](https://programmablesearchengine.google.com/)
 2. Click "Add" to create a new search engine
@@ -66,7 +99,17 @@ This is a configuration ID, not a secret - but still don't share publicly.
 
 ## Secure Storage
 
-### Development: Environment File
+### Development: Primr User Config
+
+```bash
+primr keys set gemini
+primr keys set xai
+primr keys path
+```
+
+This writes a gitignored per-user config file outside your project checkout.
+
+### Project-Specific Environment File
 
 ```bash
 cp .env.example .env
@@ -125,12 +168,19 @@ primr doctor
 ```
 
 Healthy output shows all checks passing. If keys are invalid or expired, doctor will identify which one.
+For interactive recovery, run:
+
+```bash
+primr doctor --fix
+```
 
 ## Troubleshooting
 
 | Error | Cause | Fix |
 |-------|-------|-----|
 | "API key expired" | Key revoked or project deleted | Create new key in Cloud Console |
+| "XAI_API_KEY not set" | Grok standard pipeline not configured | Run `primr keys set xai` |
+| "GEMINI_API_KEY not set" | Gemini-backed stages not configured | Run `primr keys set gemini` |
 | "Quota exceeded" | Hit rate/daily limit | Wait for reset, or use `--mode deep` (uses Gemini search) |
 | "Invalid API key" | Typo, extra whitespace, or wrong key | Re-copy from console, check for spaces |
 | "API not enabled" | Custom Search API not enabled | Enable in Cloud Console → APIs & Services |
@@ -204,9 +254,9 @@ In Google Cloud Console:
 
 ## Security Checklist
 
-- [ ] Keys stored in `.env` file (not shell history)
-- [ ] `.env` has restricted permissions (`chmod 600`)
-- [ ] `.env` is in `.gitignore`
+- [ ] Keys stored with `primr keys set ...` or in a protected `.env` file
+- [ ] Project `.env` has restricted permissions (`chmod 600`)
+- [ ] Project `.env` is in `.gitignore`
 - [ ] API keys restricted to Custom Search API only
 - [ ] Separate keys for dev/staging/prod
 - [ ] Billing alerts configured

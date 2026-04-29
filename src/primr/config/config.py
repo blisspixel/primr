@@ -21,10 +21,10 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from dotenv import load_dotenv
+from primr.config.env import load_primr_env
 
 # Load environment variables (safe, no validation)
-load_dotenv()
+load_primr_env()
 
 
 # =============================================================================
@@ -57,6 +57,7 @@ PROJECT_ROOT = get_project_root()
 _gemini_api_key: str | None = os.getenv("GEMINI_API_KEY")
 _search_api_key: str | None = os.getenv("SEARCH_API_KEY")
 _search_engine_id: str | None = os.getenv("SEARCH_ENGINE_ID")
+_xai_api_key: str | None = os.getenv("XAI_API_KEY")
 
 
 class ConfigurationError(Exception):
@@ -88,7 +89,7 @@ def get_gemini_api_key() -> str:
     if not _gemini_api_key:
         raise ConfigurationError(
             "GEMINI_API_KEY not configured",
-            guidance="Add GEMINI_API_KEY=your_key to your .env file or environment",
+            guidance="Run 'primr keys set gemini' or add GEMINI_API_KEY to .env/environment",
         )
     return _gemini_api_key
 
@@ -156,6 +157,8 @@ def validate_config(include_optional: bool = False) -> ConfigValidationResult:
     # Required API keys
     if not _gemini_api_key:
         errors.append("GEMINI_API_KEY not set")
+    if not _xai_api_key:
+        warnings.append("XAI_API_KEY not set (recommended for Grok standard mode)")
     if not _search_api_key:
         warnings.append("SEARCH_API_KEY not set (optional, for Google Search)")
     if not _search_engine_id:
@@ -214,6 +217,7 @@ def require_valid_config() -> None:
 GEMINI_API_KEY = _gemini_api_key
 SEARCH_API_KEY = _search_api_key
 SEARCH_ENGINE_ID = _search_engine_id
+XAI_API_KEY = _xai_api_key
 
 ### **Search & Scraping Configuration** ###
 NUM_SEARCH_RESULTS = 10

@@ -21,7 +21,6 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Protocol, runtime_checkable
 
-
 # =============================================================================
 # DATA MODELS
 # =============================================================================
@@ -244,21 +243,13 @@ class InMemoryUsageStore:
         """Get all usage records for an API key in a given month."""
         prefix = f"{api_key_hash}:{year}-{month:02d}"
         with self._lock:
-            return [
-                record
-                for key, record in self._records.items()
-                if key.startswith(prefix)
-            ]
+            return [record for key, record in self._records.items() if key.startswith(prefix)]
 
     def get_all_usage_records(self, api_key_hash: str) -> list[UsageRecord]:
         """Get all usage records for an API key."""
         prefix = f"{api_key_hash}:"
         with self._lock:
-            return [
-                record
-                for key, record in self._records.items()
-                if key.startswith(prefix)
-            ]
+            return [record for key, record in self._records.items() if key.startswith(prefix)]
 
     def clear(self) -> None:
         """Clear all records (for testing)."""
@@ -308,9 +299,13 @@ def _monthly_reset_time() -> str:
     """Get the next monthly reset time (1st of next month, midnight UTC)."""
     now = datetime.now(timezone.utc)
     if now.month == 12:
-        next_month = now.replace(year=now.year + 1, month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+        next_month = now.replace(
+            year=now.year + 1, month=1, day=1, hour=0, minute=0, second=0, microsecond=0
+        )
     else:
-        next_month = now.replace(month=now.month + 1, day=1, hour=0, minute=0, second=0, microsecond=0)
+        next_month = now.replace(
+            month=now.month + 1, day=1, hour=0, minute=0, second=0, microsecond=0
+        )
     return next_month.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 

@@ -297,9 +297,10 @@ def _looks_like_challenge_shell(html: str) -> bool:
     # If the body has hundreds of elements and a big document, it's a real page.
     lower = html.lower()
     has_kasada_markers = "window.kpsdk" in lower or 'src="/149e9513-' in lower
-    has_real_structure = any(
-        tag in lower for tag in ("<main", "<article", "<section", "<nav", "<header")
-    ) and html.count("<div") > 20
+    has_real_structure = (
+        any(tag in lower for tag in ("<main", "<article", "<section", "<nav", "<header"))
+        and html.count("<div") > 20
+    )
 
     # Pure challenge: has markers but basically nothing else
     return has_kasada_markers and not has_real_structure
@@ -349,9 +350,7 @@ def _run_patchright(
                 )
                 break
             except Exception as e:
-                logger.debug(
-                    "Patchright launch failed with channel=%s: %s", channel, e
-                )
+                logger.debug("Patchright launch failed with channel=%s: %s", channel, e)
                 ctx = None
                 continue
 
@@ -603,9 +602,7 @@ def scrape_with_patchright(
 
     attempt_start = time.time()
     try:
-        html, body_text, status = _run_patchright(
-            url, timeout=timeout, headless=False, host=host
-        )
+        html, body_text, status = _run_patchright(url, timeout=timeout, headless=False, host=host)
     except Exception as e:
         attempts.append(
             Attempt(

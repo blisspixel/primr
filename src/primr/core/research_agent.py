@@ -102,14 +102,12 @@ import time
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypedDict
 from urllib.parse import urlparse
 
 if TYPE_CHECKING:
     from primr.output.final_artifact import GeneratedSection
     from primr.prompts.loader import SectionConfig
-
-from dotenv import load_dotenv
 
 from primr.ai.grading_agent import grade_report
 from primr.ai.llm import llm
@@ -126,6 +124,7 @@ from primr.config.config import (
     PROJECT_ROOT,
     WORKING_DIR,
 )
+from primr.config.env import load_primr_env
 from primr.config.models import GROK_MODEL_WRITING, GrokTier, PrimrModels
 from primr.config.sections_config import SECTION_KEY_MAP
 from primr.core.research_orchestrator import (
@@ -151,7 +150,7 @@ from primr.utils.observability import (
 )
 from primr.utils.validators import validate_url_for_request
 
-load_dotenv()
+load_primr_env()
 
 logger = get_logger("research_agent")
 
@@ -834,7 +833,11 @@ def research_section(
                 ai_response, section_name, company_name, website, overview, summarized_insights
             )
 
-            if needs_research and score < GRADE_THRESHOLD_FOR_RESEARCH_REFINEMENT:
+            if (
+                needs_research
+                and score is not None
+                and score < GRADE_THRESHOLD_FOR_RESEARCH_REFINEMENT
+            ):
                 queries = generate_search_queries(company_name, website, section_name, ai_response)
                 for query in queries[:2]:
                     results = search_web(query, company_name, website)
@@ -861,7 +864,7 @@ def run_research(
     website: str,
     on_progress: Callable[[str], None] | None = None,
     fail_on_low_scrape: bool = True,
-) -> dict:
+) -> dict | None:
     """
     Run structured research and return section results.
 
@@ -873,7 +876,8 @@ def run_research(
         on_progress: Optional callback for progress updates (message: str)
 
     Returns:
-        Dict mapping section_key to content
+        Dict mapping section_key to content, or None if scraping/quality
+        gates fail before any sections are produced.
     """
     import time as time_module
 
@@ -1092,7 +1096,11 @@ def perform_scrape_only(
 
     Cost: ~$0.01-0.05 (LLM for summarization only)
     """
-    display_name = company_name or (urlparse(website or "").netloc if website else "")
+    if not website:
+        console.fail("Scrape mode requires a website URL")
+        return None
+
+    display_name = company_name or urlparse(website).netloc
 
     # Create working folder (silent)
     folder_path = folder_path or create_working_folder(company_name, website)
@@ -1102,7 +1110,7 @@ def perform_scrape_only(
     # Build Site Corpus (shows its own progress)
     corpus = fetch_web_content(
         website=website,
-        company_name=company_name,
+        company_name=company_name or display_name,
         max_pages=50,
         working_folder=folder_path,
     )
@@ -1259,7 +1267,9 @@ def _build_fast_batch_prompt(
     )
 
     sources_text = (
-        "\n".join(f"- {url}" for url in source_urls) if source_urls else "(no external sources)"
+        "\n".join(f"[{i}] {url}" for i, url in enumerate(source_urls, start=1))
+        if source_urls
+        else "(no external sources)"
     )
     word_target = len(sections) * 800
     feedback_guidance = _load_fast_feedback_guidance()
@@ -1342,9 +1352,12 @@ CONSULTING RIGOR (critical):
   constraints, strategic tradeoffs, scenario paths, and the decisions leadership likely faces.
 
 CITATION FORMAT (strict):
-- Inline claims must reference citations as [cite: N]
-- Reuse the same citation number for the same URL
-- Do not emit [Source: URL] inline; use [cite: N] only
+- The SOURCES CONSULTED block above is a numbered citation key: [N] URL
+- Inline claims must reference citations as [cite: N], where N matches the
+  number assigned to that URL in the SOURCES CONSULTED block
+- Reuse the same N every time you cite the same URL
+- Do NOT emit [Source: URL] inline; use [cite: N] only
+- Do NOT invent citation numbers — only cite N values present in the key above
 
 OUTPUT CONTRACT (strict):
 - Preferred format: emit each section inside a lightweight XML envelope:
@@ -1463,7 +1476,9 @@ def _build_fast_section_prompt(
     )
 
     sources_text = (
-        "\n".join(f"- {url}" for url in source_urls) if source_urls else "(no external sources)"
+        "\n".join(f"[{i}] {url}" for i, url in enumerate(source_urls, start=1))
+        if source_urls
+        else "(no external sources)"
     )
     feedback_guidance = _load_fast_feedback_guidance()
     feedback_block = (
@@ -1558,9 +1573,12 @@ CONSULTING RIGOR (critical):
   it lose? What would a competitor say about them?
 
 CITATION FORMAT (strict):
-- Inline claims must reference citations as [cite: N]
-- Reuse the same citation number for the same URL
-- Do not emit [Source: URL] inline; use [cite: N] only
+- The SOURCES CONSULTED block above is a numbered citation key: [N] URL
+- Inline claims must reference citations as [cite: N], where N matches the
+  number assigned to that URL in the SOURCES CONSULTED block
+- Reuse the same N every time you cite the same URL
+- Do NOT emit [Source: URL] inline; use [cite: N] only
+- Do NOT invent citation numbers — only cite N values present in the key above
 
 OUTPUT CONTRACT (strict):
 - Preferred format: emit each section inside a lightweight XML envelope:
@@ -1747,10 +1765,10 @@ def _write_section_with_retry(
     report_system: str,
     reasoning_mode: str = "standard",
     model: str | None = None,
-) -> dict[str, Any] | None:
+) -> "GeneratedSection | None":
     """Write a single section with one retry if output is thin.
 
-    Returns the parsed section dict, or ``None`` on failure.
+    Returns the parsed section, or ``None`` on failure.
 
     NOTE (pipeline-resilience): The thin-section retry below is a *content
     quality* retry (re-prompt when word count is too low), not an API error
@@ -2321,12 +2339,21 @@ def _clean_strategy_output(strategy_content: str) -> str:
     return cleaned.strip() + "\n"
 
 
-def _normalize_fast_citations(report_content: str) -> str:
+def _normalize_fast_citations(report_content: str, source_urls: list[str] | None = None) -> str:
     """
     Normalize fast-mode citations to the deterministic analyzer format.
 
-    Converts `[Source: URL]` inline tags to `[cite: N]` and ensures a
-    trailing `## Sources` appendix with `[cite: N] URL` entries.
+    Three citation conventions are accepted, in priority order:
+
+    1. Inline ``[Source: URL]`` tags — collected and renumbered to ``[cite: N]``.
+    2. ``[cite: N] URL`` definitions — preserved as-is.
+    3. Bare ``[cite: N]`` references with no inline mapping — when ``source_urls``
+       is supplied, N is treated as a 1-indexed position into that list and the
+       URLs become the canonical citation key. This matches the section-writing
+       prompt contract that hands the writer a numbered SOURCES CONSULTED list.
+
+    If none of the above resolve, orphan ``[cite: N]`` markers are stripped to
+    avoid QA citation-integrity warnings.
     """
     report_content = _rewrite_cite_from_url_tags(report_content)
     report_content = re.sub(
@@ -2367,14 +2394,29 @@ def _normalize_fast_citations(report_content: str) -> str:
             urls_in_order.append(url)
 
     if not url_to_num and not num_to_url:
-        # No [Source: URL] tags and no [cite: N] URL definitions found.
-        # Check for orphan bare [cite: N] refs the LLM hallucinated without URLs —
-        # strip them so they don't trigger QA citation-integrity warnings.
-        bare_cite = re.compile(r"\s*\[cite:\s*\d+(?:\s*,\s*\d+)*\]", re.IGNORECASE)
-        if bare_cite.search(report_content):
-            logger.info("Stripping orphan [cite: N] refs with no backing URLs")
-            return bare_cite.sub("", report_content)
-        return report_content
+        # No inline mapping found. If the caller supplied source_urls AND the
+        # body has bare [cite: N] refs whose N values fit that list, treat the
+        # numbered list as the citation key (this matches the prompt contract).
+        bare_cite_pattern = re.compile(r"\[cite:\s*(\d+(?:\s*,\s*\d+)*)\]", re.IGNORECASE)
+        if source_urls:
+            cited_nums: set[int] = set()
+            for m in bare_cite_pattern.finditer(report_content):
+                for n in re.findall(r"\d+", m.group(1)):
+                    cited_nums.add(int(n))
+            valid_nums = {n for n in cited_nums if 1 <= n <= len(source_urls)}
+            if valid_nums:
+                num_to_url = {n: source_urls[n - 1] for n in valid_nums}
+                for n in sorted(num_to_url):
+                    url_to_num[num_to_url[n]] = n
+                    urls_in_order.append(num_to_url[n])
+                next_num = max(num_to_url.keys()) + 1
+        if not url_to_num and not num_to_url:
+            # No mapping resolvable — strip orphan refs so QA passes cleanly.
+            bare_strip = re.compile(r"\s*\[cite:\s*\d+(?:\s*,\s*\d+)*\]", re.IGNORECASE)
+            if bare_strip.search(report_content):
+                logger.info("Stripping orphan [cite: N] refs with no backing URLs")
+                return bare_strip.sub("", report_content)
+            return report_content
 
     def _replace_source(match: re.Match[str]) -> str:
         raw_url = match.group(1).strip()
@@ -2810,7 +2852,7 @@ Return the full corrected markdown report only.
         return report_content
 
     repaired = _clean_fast_report_output(repaired)
-    repaired = _normalize_fast_citations(repaired)
+    repaired = _normalize_fast_citations(repaired, source_urls=source_urls)
     repaired = _enforce_fast_section_quality_guards(repaired)
 
     if not _preserves_report_structure(report_content, repaired):
@@ -3945,16 +3987,16 @@ def _enrich_strategy_content(
         heading_lookup = {h.lower(): h for h, _ in parsed_sections}
 
         for ws in weak_sections[:2]:
-            raw_title = ws.get("title", "").strip().lstrip("#").strip()
+            raw_title = str(ws.get("title", "")).strip().lstrip("#").strip()
             queries = ws.get("queries", [])
             if not isinstance(queries, list):
                 queries = [str(queries)] if queries else []
-            reason = ws.get("reason", "")
+            reason = str(ws.get("reason", ""))
 
             if not raw_title or not queries:
                 continue
 
-            section_title = heading_lookup.get(raw_title.lower(), raw_title)
+            section_title: str = heading_lookup.get(raw_title.lower(), raw_title)
             console.info(f"Weak: {section_title} — {reason[:80]}")
 
             # Search for additional evidence
@@ -4304,8 +4346,7 @@ def perform_fast_research(
         _validation_deadline_s = 600.0  # 10 min total across all workers
         _val_pool = ThreadPoolExecutor(max_workers=4)
         futures = {
-            _val_pool.submit(_do_scrape, result, result["url"]): result
-            for result in _candidates
+            _val_pool.submit(_do_scrape, result, result["url"]): result for result in _candidates
         }
         _val_abandoned = False
         try:
@@ -4338,9 +4379,14 @@ def perform_fast_research(
                 f"({_completed_checks}/{_scrape_total} workers checked)"
             )
         finally:
-            # Don't block on hung threads — cancel queued work and let
-            # any still-running workers finish in the background.
+            # Don't block on hung threads — cancel queued work and detach
+            # still-running workers from the stdlib atexit join hook so
+            # they can't hang the process at interpreter shutdown.
+            from primr.utils.async_utils import detach_running_workers
+
             _val_pool.shutdown(wait=False, cancel_futures=True)
+            _val_abandoned_workers = bool(getattr(_val_pool, "_threads", ()))
+            detach_running_workers(_val_pool)
 
         if _val_abandoned:
             _update_run_state(
@@ -4467,7 +4513,9 @@ def perform_fast_research(
         if hiring_block:
             external_raw_base_parts.append(hiring_block)
         external_sources_raw = (
-            "\n\n".join(external_raw_base_parts) if external_raw_base_parts else "(no external sources)"
+            "\n\n".join(external_raw_base_parts)
+            if external_raw_base_parts
+            else "(no external sources)"
         )
 
         # =================================================================
@@ -4557,9 +4605,7 @@ def perform_fast_research(
             # above — a hung worker can't block shutdown forever.
             _gap_deadline_s = 420.0  # 7 min total across all workers
             _gap_pool = ThreadPoolExecutor(max_workers=4)
-            gap_futures = {
-                _gap_pool.submit(_validate_gap_source, r): r for r in _gap_candidates
-            }
+            gap_futures = {_gap_pool.submit(_validate_gap_source, r): r for r in _gap_candidates}
             try:
                 for fut in as_completed(gap_futures, timeout=_gap_deadline_s):
                     _gap_check_idx += 1
@@ -4594,7 +4640,10 @@ def perform_fast_research(
                     f"({_gap_check_idx}/{len(_gap_candidates)} workers checked)"
                 )
             finally:
+                from primr.utils.async_utils import detach_running_workers
+
                 _gap_pool.shutdown(wait=False, cancel_futures=True)
+                detach_running_workers(_gap_pool)
 
             console.ok(f"Searching for gap-filling sources ({console._elapsed(_gap_start)})")
 
@@ -4607,7 +4656,9 @@ def perform_fast_research(
             if hiring_block:
                 external_raw_rebuild.append(hiring_block)
             external_sources_raw = (
-                "\n\n".join(external_raw_rebuild) if external_raw_rebuild else "(no external sources)"
+                "\n\n".join(external_raw_rebuild)
+                if external_raw_rebuild
+                else "(no external sources)"
             )
 
             # Update insights file
@@ -5156,7 +5207,7 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
             model=grok_writing,
         )
         report_content = _clean_fast_report_output(report_content)
-        report_content = _normalize_fast_citations(report_content)
+        report_content = _normalize_fast_citations(report_content, source_urls=source_urls)
         report_content = _enforce_fast_section_quality_guards(report_content)
         qa_metrics = _compute_fast_report_qa_metrics(
             report_content,
@@ -5436,12 +5487,9 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
                 else:
                     from concurrent.futures import ThreadPoolExecutor, as_completed
 
-                    with ThreadPoolExecutor(
-                        max_workers=min(len(platforms), 3)
-                    ) as _strat_pool:
+                    with ThreadPoolExecutor(max_workers=min(len(platforms), 3)) as _strat_pool:
                         _strat_futures = {
-                            _strat_pool.submit(_run_ai_strategy_for_vendor, v): v
-                            for v in platforms
+                            _strat_pool.submit(_run_ai_strategy_for_vendor, v): v for v in platforms
                         }
                         for _sf in as_completed(_strat_futures):
                             v = _strat_futures[_sf]
@@ -6713,7 +6761,7 @@ def perform_deep_research(
         _append_run_event(folder_path, "deep_research", "started", f"{mode_label} started")
 
         # Track last phase to only print on phase changes
-        last_phase = [None]  # Use list to allow mutation in closure
+        last_phase: list[str | None] = [None]  # list = mutable cell for closure
         last_update_time = [time.time()]
 
         def progress_callback(msg: str) -> None:
@@ -7196,6 +7244,21 @@ def _scan_forbidden_output_patterns(text: str) -> list[str]:
     return issues
 
 
+class _ArtifactValidation(TypedDict):
+    """Result of an artifact validation pass.
+
+    Used by `_validate_output_markdown` and `_validate_output_docx`. The
+    dict-of-union shape it replaced (`dict[str, list[str] | bool]`) was
+    correct at runtime but unusable through the type checker — every
+    indexed access lost the per-key shape and required casts at every
+    call site.
+    """
+
+    passed: bool
+    issues: list[str]
+    errors: list[str]
+
+
 def _write_output_validation_report(
     base_path: Path, phase: str, issues: list[str], errors: list[str]
 ) -> Path | None:
@@ -7216,7 +7279,7 @@ def _write_output_validation_report(
     return report_path
 
 
-def _validate_output_markdown(markdown_content: str) -> dict[str, list[str] | bool]:
+def _validate_output_markdown(markdown_content: str) -> _ArtifactValidation:
     try:
         issues = _scan_forbidden_output_patterns(markdown_content)
         return {"passed": len(issues) == 0, "issues": issues, "errors": []}
@@ -7270,7 +7333,7 @@ def _prepare_markdown_for_shipping(content: str, kind: str) -> str:
 def _salvage_markdown_for_shipping(
     markdown_content: str,
     kind: str,
-) -> tuple[str, dict[str, list[str] | bool], bool]:
+) -> tuple[str, _ArtifactValidation, bool]:
     """Run one deterministic salvage pass before blocking artifact shipping.
 
     Three escalation levels:
@@ -7316,13 +7379,13 @@ def _salvage_markdown_for_shipping(
     return markdown_content, validation, False
 
 
-def _validate_output_docx(docx_path: Path) -> dict[str, list[str] | bool]:
+def _validate_output_docx(docx_path: Path) -> _ArtifactValidation:
     try:
         from docx import Document
 
         from primr.output.markdown_parser import ArtifactDetector
 
-        document = Document(docx_path)
+        document = Document(str(docx_path))
         detector = ArtifactDetector()
         artifacts = detector.scan_document(document)
         issues = [
@@ -8047,6 +8110,7 @@ def _build_ai_strategy_prompt(
         platform=platform,
         discovery_notes_content=discovery_notes_content,
     )
+
 
 def _run_verification(
     company_name: str,

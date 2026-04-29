@@ -885,7 +885,8 @@ Make Primr available to the broader community via PyPI.
 - ~~GitHub Actions CI/CD for automated testing~~ (done - lint, type check, tests run on every push)
 - Contribution workflow for external contributors
 - Documentation site
-- Fold the post-install steps from `setup_env.py` (`.env` template creation, Playwright/Patchright browser install, Python version validation, doctor handoff) into a `primr init` subcommand so PyPI installs get the same convenience as source installs without a separate top-level script. Keep `setup_env.py` as a thin wrapper that calls `primr init` until PyPI ships, then retire it.
+- Guided first-run setup is now covered by `primr init`, with `primr doctor --fix` as the explicit interactive recovery path and `primr keys set/list/path` for direct key management. PyPI users no longer need to discover a repo-local `.env` before running diagnostics.
+- Remaining packaging cleanup: keep `setup_env.py` as a source-checkout helper for now, then reduce it to a thin wrapper around `primr init` once the PyPI install path is the default documented path.
 
 
 ---

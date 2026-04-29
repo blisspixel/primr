@@ -42,13 +42,14 @@ class TestArtifactDetectorProperties:
         assert len(artifacts) == 0
 
     def test_detects_heading_artifacts(self):
-        """Detects ## heading patterns."""
+        """Detects ##+ heading patterns. Single-# H1 is intentionally ignored
+        because it is the legitimate document title."""
         detector = ArtifactDetector()
 
         test_cases = [
             "## This is a heading",
             "### Sub heading",
-            "# Main heading",
+            "#### Deeper heading",
             "Some text\n## Another heading\nMore text",
         ]
 
@@ -56,6 +57,10 @@ class TestArtifactDetectorProperties:
             artifacts = detector.scan_text(text)
             heading_artifacts = [a for a in artifacts if a["type"] == "heading"]
             assert len(heading_artifacts) > 0, f"Should detect heading in: {text}"
+
+        # Single # is the document title — must NOT be flagged as artifact.
+        h1_artifacts = [a for a in detector.scan_text("# Document title") if a["type"] == "heading"]
+        assert h1_artifacts == [], "Single-# H1 must not be flagged as an artifact"
 
     def test_detects_bold_artifacts(self):
         """Detects **bold** and __bold__ patterns."""

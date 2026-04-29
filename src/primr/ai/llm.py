@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from typing import Any
 
 from colorama import Fore, Style
-from dotenv import load_dotenv
 
 try:
     from google import genai as _google_genai
@@ -46,11 +45,12 @@ genai = _google_genai
 types = _google_types
 
 from primr.config.config import GEMINI_API_KEY, MAX_RETRIES
+from primr.config.env import load_primr_env
 from primr.config.models import PrimrModels
 from primr.utils.chat_logger import log_chat_interaction
 from primr.utils.logging_config import get_logger
 
-load_dotenv()
+load_primr_env()
 
 logger = get_logger("llm")
 

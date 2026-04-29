@@ -174,7 +174,7 @@ class VerifierSubagent(Subagent[VerificationResult]):
     async def execute(self) -> SubagentResult[VerificationResult]:
         """Execute claim verification pipeline."""
         self._status = SubagentStatus.RUNNING
-        start_time = time.time()
+        start_time = time.perf_counter()
 
         logger.info(f"VerifierSubagent starting for {self.company_name}")
 
@@ -199,7 +199,7 @@ class VerifierSubagent(Subagent[VerificationResult]):
             report_text = report_path.read_text(encoding="utf-8")
             if not report_text.strip():
                 # Empty report → no claims to verify
-                duration = time.time() - start_time
+                duration = time.perf_counter() - start_time
                 self._status = SubagentStatus.COMPLETED
                 return SubagentResult(
                     status=self._status,
@@ -213,7 +213,7 @@ class VerifierSubagent(Subagent[VerificationResult]):
             # Step 2: Extract claims
             claims = await self._extract_claims(report_text)
             if not claims:
-                duration = time.time() - start_time
+                duration = time.perf_counter() - start_time
                 self._status = SubagentStatus.COMPLETED
                 return SubagentResult(
                     status=self._status,
@@ -241,7 +241,7 @@ class VerifierSubagent(Subagent[VerificationResult]):
 
             trust_score = verified / total if total > 0 else 0.0
 
-            duration = time.time() - start_time
+            duration = time.perf_counter() - start_time
             self._status = SubagentStatus.COMPLETED
 
             verification_result = VerificationResult(
@@ -277,7 +277,7 @@ class VerifierSubagent(Subagent[VerificationResult]):
         except SubagentError:
             raise
         except Exception as e:
-            duration = time.time() - start_time
+            duration = time.perf_counter() - start_time
             self._status = SubagentStatus.FAILED
 
             logger.error(f"VerifierSubagent failed for {self.company_name}: {e}")

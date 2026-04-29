@@ -181,7 +181,7 @@ def _compute_backoff_delay(attempt: int, *, base: float = 5.0, cap: float = 90.0
 def grok_llm(
     prompt: str,
     *,
-    model: str = _DEFAULT_MODEL,
+    model: str | None = None,
     temperature: float = 0.7,
     max_tokens: int = 16_000,
     retries: int = 4,
@@ -192,8 +192,9 @@ def grok_llm(
 
     Args:
         prompt: The user prompt to send.
-        model: Model ID (default: grok-4-1-fast-reasoning).
-               Use grok-4-1-fast-non-reasoning for writing tasks.
+        model: Model ID. ``None`` selects the default
+               (``grok-4-1-fast-reasoning``). Use
+               ``grok-4-1-fast-non-reasoning`` for writing tasks.
         temperature: Sampling temperature.
         max_tokens: Maximum output tokens.
         retries: Number of retries on transient errors (429/5xx/network timeouts).
@@ -209,6 +210,8 @@ def grok_llm(
     """
     global _session_input_tokens, _session_output_tokens, _session_tokens_by_model
 
+    if model is None:
+        model = _DEFAULT_MODEL
     client = _get_grok_client()
 
     messages: list[dict[str, str]] = []
@@ -221,7 +224,7 @@ def grok_llm(
         try:
             response = client.chat.completions.create(
                 model=model,
-                messages=messages,
+                messages=messages,  # type: ignore[arg-type]
                 temperature=temperature,
                 max_tokens=max_tokens,
             )
@@ -356,7 +359,7 @@ class ContinuousReasoningSession:
             try:
                 response = client.chat.completions.create(
                     model=self.model,
-                    messages=self.history,
+                    messages=self.history,  # type: ignore[arg-type]
                     temperature=temperature,
                     max_tokens=max_tokens,
                 )
@@ -425,7 +428,9 @@ class ContinuousReasoningSession:
                     break
 
                 self.history.pop()
-                raise RuntimeError(f"Grok continuous session call failed (non-retryable): {e}") from e
+                raise RuntimeError(
+                    f"Grok continuous session call failed (non-retryable): {e}"
+                ) from e
 
         self.history.pop()
         raise RuntimeError(

@@ -211,29 +211,12 @@ class WriterSubagent(Subagent[WriterResult]):
         Returns:
             WriterResult with report metadata
         """
-        try:
-            # Try to use existing report generation
-            from primr.output.report import generate_report
-
-            result = await generate_report(
-                company_name=self.company_name,
-                insights_path=insights_path,
-                output_dir=self.working_dir,
-                format=self._output_format,
-            )
-
-            return WriterResult(
-                report_path=getattr(result, "report_path", self.working_dir / "report.md"),
-                word_count=getattr(result, "word_count", 0),
-                section_count=getattr(result, "section_count", 0),
-                citation_count=getattr(result, "citation_count", 0),
-                format=self._output_format,
-            )
-
-        except ImportError:
-            # Report module not available - generate basic report
-            logger.warning("primr.output.report not available, generating basic report")
-            return await self._generate_basic_report(insights_path, hypotheses)
+        # The agentic WriterSubagent currently always uses the basic-report
+        # path — there is no `primr.output.report.generate_report` in this
+        # codebase. The rich research pipeline lives in
+        # `primr.core.research_agent`; wiring this subagent to it is tracked
+        # separately. Until then, the basic report is the only real path.
+        return await self._generate_basic_report(insights_path, hypotheses)
 
     async def _generate_basic_report(
         self,

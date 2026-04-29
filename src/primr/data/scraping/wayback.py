@@ -35,7 +35,9 @@ WAYBACK_REPLAY_BASE = "https://web.archive.org/web"
 MIN_USEFUL_CAPTURE_BYTES = 3_000
 
 
-def _fetch(url: str, timeout: float, params: dict | None = None) -> tuple[int | None, bytes | None, str | None]:
+def _fetch(
+    url: str, timeout: float, params: dict | None = None
+) -> tuple[int | None, bytes | None, str | None]:
     """Tiny helper: plain HTTP GET, returns (status, body, final_url)."""
     try:
         import httpx

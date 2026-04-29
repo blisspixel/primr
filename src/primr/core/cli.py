@@ -92,6 +92,7 @@ class Command(Enum):
     """CLI commands."""
 
     RESEARCH = "research"
+    INIT = "init"
     DOCTOR = "doctor"
     LIST_RECENT = "list-recent"
     CLEAN_TEMP = "clean-temp"
@@ -164,7 +165,9 @@ class CLIConfig:
     fast_mode: bool = False  # Use Grok 4.1 for fast research (~12 min, ~$0.25)
     premium_mode: bool = False  # Force Gemini + Deep Research pipeline
     grok_tier: str = "hybrid"  # Grok model tier: fast, hybrid, max
-    continuous_reasoning: bool = True  # Default-on after the n=3 pilot; --no-continuous-reasoning to disable
+    continuous_reasoning: bool = (
+        True  # Default-on after the n=3 pilot; --no-continuous-reasoning to disable
+    )
     no_qa: bool = False  # Disable automatic quality assessment
     verify: bool = False  # Run post-QA claim verification
     skip_scrape_validation: bool = False  # Continue even when scrape quality is too low
@@ -206,6 +209,11 @@ class CLIConfig:
     eval_judge_max_cost: float = 0.0
     eval_local_stage: str | None = None
     eval_working_root: str = "working"
+    doctor_fix: bool = False
+    init_non_interactive: bool = False
+    init_yes: bool = False
+    init_skip_browsers: bool = False
+    init_no_doctor: bool = False
 
     @property
     def cloud_vendors(self) -> tuple[str, ...]:
@@ -431,6 +439,11 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         eval_judge_max_cost=getattr(parsed, "eval_judge_max_cost", 0.0),
         eval_local_stage=getattr(parsed, "eval_local_stage", None),
         eval_working_root=getattr(parsed, "eval_working_root", "working"),
+        doctor_fix=getattr(parsed, "fix", False),
+        init_non_interactive=getattr(parsed, "non_interactive", False),
+        init_yes=getattr(parsed, "yes", False),
+        init_skip_browsers=getattr(parsed, "skip_browsers", False),
+        init_no_doctor=getattr(parsed, "no_doctor", False),
     )
 
 
@@ -438,6 +451,130 @@ def _is_recon_command(args: list[str] | None) -> bool:
     """Check if the command line is a ``primr recon ...`` invocation."""
     argv = args if args is not None else sys.argv[1:]
     return len(argv) >= 1 and argv[0] == "recon"
+
+
+def _is_keys_command(args: list[str] | None) -> bool:
+    """Check if the command line is a ``primr keys ...`` invocation."""
+    argv = args if args is not None else sys.argv[1:]
+    return len(argv) >= 1 and argv[0] in {"keys", "key"}
+
+
+def _create_keys_parser() -> argparse.ArgumentParser:
+    """Create the parser for the keys helper command."""
+    from primr.config.env import KEY_ALIASES
+
+    key_choices = sorted(set(KEY_ALIASES) | set(KEY_ALIASES.values()))
+
+    parser = argparse.ArgumentParser(
+        prog="primr keys",
+        description="Store Primr API keys in the per-user Primr config file.",
+    )
+    subparsers = parser.add_subparsers(dest="action")
+
+    set_parser = subparsers.add_parser("set", help="Set an API key")
+    set_parser.add_argument(
+        "provider",
+        choices=key_choices,
+        help="Key to set. Common choices: gemini, xai",
+    )
+    set_parser.add_argument(
+        "provided_value",
+        nargs="?",
+        help="Key value. Omit this to enter it without echoing to the terminal.",
+    )
+    set_parser.add_argument(
+        "--value",
+        dest="option_value",
+        help="Key value for scripts. Prefer the hidden prompt for manual setup.",
+    )
+
+    unset_parser = subparsers.add_parser("unset", help="Remove a key from user config")
+    unset_parser.add_argument("provider", choices=key_choices)
+
+    subparsers.add_parser("list", help="Show configured key status")
+    subparsers.add_parser("path", help="Show where Primr stores user keys")
+    return parser
+
+
+def _run_keys(args: list[str] | None) -> int:
+    """Run the ``primr keys`` helper command."""
+    import getpass
+
+    from primr.config.env import (
+        KEY_HELP,
+        get_local_env_path,
+        get_user_env_path,
+        load_primr_env,
+        mask_secret,
+        normalize_key_name,
+        set_user_key,
+        unset_user_key,
+    )
+
+    argv = args if args is not None else sys.argv[1:]
+    parser = _create_keys_parser()
+    keys_args = argv[1:]
+    parsed = parser.parse_args(keys_args or ["list"])
+
+    if parsed.action == "path":
+        user_path = get_user_env_path()
+        console.info(f"User config: {user_path}")
+        local_path = get_local_env_path()
+        if local_path:
+            console.info(f"Local override: {local_path}")
+        return 0
+
+    if parsed.action == "list":
+        load_primr_env()
+        console.banner("Primr Keys")
+        console.info(f"User config: {get_user_env_path()}")
+        local_path = get_local_env_path()
+        if local_path:
+            console.info(f"Local override: {local_path}")
+        console.blank()
+        for env_name, purpose in KEY_HELP.items():
+            value = os.environ.get(env_name)
+            if value:
+                console.ok(f"{env_name} configured ({mask_secret(value)}) - {purpose}")
+            else:
+                console.info(f"{env_name} not set - {purpose}")
+        return 0
+
+    if parsed.action == "set":
+        env_name = normalize_key_name(parsed.provider)
+        value = parsed.option_value or parsed.provided_value
+        if value is None:
+            if not sys.stdin.isatty():
+                console.error("No key value provided and stdin is not interactive")
+                console.info(f"Usage: primr keys set {parsed.provider} --value <key>")
+                return 1
+            value = getpass.getpass(f"{env_name}: ")
+        value = value.strip()
+        if not value:
+            console.error("Key value cannot be empty")
+            return 1
+
+        saved_name, path = set_user_key(parsed.provider, value)
+        console.ok(f"{saved_name} saved to user config ({mask_secret(value)})")
+        console.info(f"Config file: {path}")
+        console.info("Run: primr doctor")
+        return 0
+
+    if parsed.action == "unset":
+        env_name, path, removed = unset_user_key(parsed.provider)
+        if removed:
+            console.ok(f"{env_name} removed from user config")
+            if os.environ.get(env_name):
+                console.warn(
+                    f"{env_name} is still set by your shell or local .env for this process"
+                )
+        else:
+            console.warn(f"{env_name} was not present in user config")
+        console.info(f"Config file: {path}")
+        return 0
+
+    parser.print_help()
+    return 0
 
 
 def _run_recon(args: list[str] | None) -> int:
@@ -491,6 +628,8 @@ def main(args: list[str] | None = None) -> int:
     # Intercept "primr recon ..." before argparse — delegate to the recon Typer app.
     if _is_recon_command(args):
         return _run_recon(args)
+    if _is_keys_command(args):
+        return _run_keys(args)
 
     from pathlib import Path
 
@@ -501,6 +640,7 @@ def main(args: list[str] | None = None) -> int:
 
     # Validate configuration early (skip API key check for utility commands)
     utility_commands = {
+        Command.INIT,
         Command.DOCTOR,
         Command.LIST_RECENT,
         Command.CLEAN_TEMP,
@@ -558,6 +698,7 @@ def main(args: list[str] | None = None) -> int:
 
     # Dispatch to appropriate handler
     handlers = {
+        Command.INIT: _handle_init,
         Command.DOCTOR: _handle_doctor,
         Command.LIST_RECENT: _handle_list_recent,
         Command.CLEAN_TEMP: _handle_clean_temp,
@@ -589,7 +730,7 @@ def main(args: list[str] | None = None) -> int:
     return handler(config)
 
 
-def run_doctor() -> int:
+def run_doctor(*, fix: bool = False) -> int:
     """
     Run system diagnostics.
 
@@ -643,8 +784,223 @@ def run_doctor() -> int:
         )
     else:
         console.error("Some checks failed - fix issues above before running research")
+        if not fix:
+            console.info("Run 'primr doctor --fix' for guided setup.")
+
+    if fix:
+        if all_passed and warnings_count == 0:
+            return 0
+        console.blank()
+        console.info("Launching guided setup...")
+        return _run_init_flow(
+            non_interactive=not sys.stdin.isatty(),
+            assume_yes=False,
+            skip_browsers=False,
+            run_doctor_after=True,
+        )
 
     return 0 if all_passed else 1
+
+
+def _prompt_yes_no(prompt: str, *, default: bool) -> bool:
+    """Prompt for a yes/no answer in interactive setup flows."""
+    suffix = "Y/n" if default else "y/N"
+    try:
+        answer = input(f"{prompt} [{suffix}] ").strip().lower()
+    except EOFError:
+        return default
+    if not answer:
+        return default
+    return answer in {"y", "yes"}
+
+
+def _key_looks_configured(env_name: str) -> bool:
+    value = os.environ.get(env_name, "")
+    return bool(value and len(value.strip()) >= 10)
+
+
+def _playwright_browsers_ready() -> bool:
+    """Return whether Playwright can launch Chromium."""
+    try:
+        from playwright.sync_api import sync_playwright
+
+        pw = sync_playwright().start()
+        try:
+            browser = pw.chromium.launch(headless=True)
+            browser.close()
+        finally:
+            pw.stop()
+        return True
+    except Exception:
+        return False
+
+
+def _install_playwright_browsers() -> bool:
+    """Install the Chromium browser bundle used by Playwright."""
+    import subprocess
+
+    result = subprocess.run(
+        [sys.executable, "-m", "playwright", "install", "chromium"],
+        check=False,
+        text=True,
+    )
+    return result.returncode == 0
+
+
+def _ensure_project_env_file() -> tuple[bool, str | None]:
+    """Create a safe local .env template for source/project checkouts."""
+    from pathlib import Path
+
+    cwd = Path.cwd()
+    env_path = cwd / ".env"
+    if env_path.exists():
+        return False, str(env_path)
+
+    if not ((cwd / ".env.example").exists() or (cwd / "pyproject.toml").exists()):
+        return False, None
+
+    env_path.write_text(
+        "\n".join(
+            [
+                "# Primr project-specific overrides",
+                "# Prefer `primr keys set ...` for user-level secrets.",
+                "# Uncomment values here only when this project needs different settings.",
+                "",
+                "# GEMINI_API_KEY=",
+                "# XAI_API_KEY=",
+                "# SEARCH_PROVIDER=auto",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    return True, str(env_path)
+
+
+def _run_init_flow(
+    *,
+    non_interactive: bool,
+    assume_yes: bool,
+    skip_browsers: bool,
+    run_doctor_after: bool,
+) -> int:
+    """Run first-time setup for CLI-first installs."""
+    import getpass
+
+    from primr.config.env import (
+        get_user_env_path,
+        load_primr_env,
+        mask_secret,
+        set_user_key,
+    )
+
+    load_primr_env()
+    interactive = (not non_interactive) and sys.stdin.isatty()
+    all_ready = True
+
+    console.banner("Primr Init")
+    console.info(f"User config: {get_user_env_path()}")
+    console.blank()
+
+    py_version = sys.version_info
+    if py_version >= (3, 11):
+        console.ok(f"Python {py_version.major}.{py_version.minor}.{py_version.micro}")
+    else:
+        console.error(f"Python {py_version.major}.{py_version.minor} (need 3.11+)")
+        all_ready = False
+
+    console.step("Project config")
+    created_env, project_env = _ensure_project_env_file()
+    if created_env:
+        console.ok(f"Created local .env template: {project_env}")
+    elif project_env:
+        console.ok(f"Local .env already exists: {project_env}")
+    else:
+        console.info("Using user-level config; no project .env needed here")
+
+    key_steps = [
+        (
+            "gemini",
+            "GEMINI_API_KEY",
+            "Gemini-backed stages and premium mode",
+            "https://aistudio.google.com/apikey",
+            True,
+        ),
+        (
+            "xai",
+            "XAI_API_KEY",
+            "Grok standard pipeline",
+            "https://console.x.ai/",
+            True,
+        ),
+    ]
+
+    console.step("API keys")
+    for provider, env_name, purpose, url, default_yes in key_steps:
+        if _key_looks_configured(env_name):
+            console.ok(f"{env_name} configured ({mask_secret(os.environ.get(env_name))})")
+            continue
+
+        console.warn(f"{env_name} not set - {purpose}")
+        console.info(f"  Get a key: {url}")
+
+        if not interactive:
+            all_ready = False
+            console.info(f"  Run: primr keys set {provider}")
+            continue
+
+        if assume_yes or _prompt_yes_no(f"Configure {env_name} now?", default=default_yes):
+            value = getpass.getpass(f"{env_name}: ").strip()
+            if value:
+                set_user_key(provider, value)
+                console.ok(f"{env_name} saved ({mask_secret(value)})")
+            else:
+                all_ready = False
+                console.warn(f"Skipped {env_name}")
+        else:
+            all_ready = False
+
+    console.step("Browser dependencies")
+    if skip_browsers:
+        console.info("Playwright browser install skipped")
+    elif _playwright_browsers_ready():
+        console.ok("Playwright Chromium available")
+    elif non_interactive and not assume_yes:
+        all_ready = False
+        console.warn("Playwright Chromium is not installed")
+        console.info("  Run: python -m playwright install chromium")
+        console.info("  Or: primr init --yes")
+    else:
+        should_install = assume_yes or (
+            interactive and _prompt_yes_no("Install Playwright Chromium now?", default=True)
+        )
+        if should_install:
+            if _install_playwright_browsers():
+                console.ok("Playwright Chromium installed")
+            else:
+                all_ready = False
+                console.error("Playwright Chromium install failed")
+                console.info("  Run: python -m playwright install chromium")
+        else:
+            all_ready = False
+            console.warn("Playwright Chromium skipped")
+            console.info("  Run later: python -m playwright install chromium")
+
+    if run_doctor_after and not non_interactive:
+        console.blank()
+        return run_doctor(fix=False)
+
+    console.blank()
+    if all_ready:
+        console.success_box(
+            "Setup complete",
+            'Run: primr "ExampleCo" https://example.co',
+        )
+        return 0
+
+    console.warn("Setup still needs attention")
+    console.info("Run 'primr doctor' after completing the steps above.")
+    return 1
 
 
 # =============================================================================
@@ -733,10 +1089,15 @@ Research Modes:
   parallel Both engines in parallel (legacy, ~25 min)
 
 Examples:
+  primr init                                         # Guided first-run setup
   primr "Acme Corp" https://acme.example
   primr "Acme Corp" acme.example --mode deep
   primr "Acme Corp" acme.example --mode scrape       # Build Site Corpus + Extract Insights
+  primr keys set gemini                              # Store Gemini key in user config
+  primr keys set xai                                 # Store xAI/Grok key in user config
+  primr keys list                                    # Show configured provider keys
   primr doctor                                       # System diagnostics
+  primr doctor --fix                                 # Diagnose, then launch guided fixes
   primr --qa "Acme Corp"                             # Show detailed QA analysis
   primr --qa-recent 5                                # Show QA summary for recent reports
   primr improve "output/Company_Strategic_Overview_03-06-2026.md"   # Improve one output
@@ -821,6 +1182,32 @@ Accordion Method Test (for development):
     )
     parser.add_argument("--quiet", "-q", action="store_true", help="Minimal output")
     parser.add_argument("--verbose", "-v", action="store_true", help="Detailed output")
+    parser.add_argument(
+        "--fix",
+        action="store_true",
+        help="With 'doctor', launch guided setup for missing keys and browser dependencies",
+    )
+    parser.add_argument(
+        "--non-interactive",
+        action="store_true",
+        help="With 'init', print missing setup steps without prompting",
+    )
+    parser.add_argument(
+        "--yes",
+        "-y",
+        action="store_true",
+        help="With 'init', accept safe defaults such as browser installation",
+    )
+    parser.add_argument(
+        "--skip-browsers",
+        action="store_true",
+        help="With 'init', skip Playwright browser installation",
+    )
+    parser.add_argument(
+        "--no-doctor",
+        action="store_true",
+        help="With 'init', skip the final doctor verification",
+    )
     parser.add_argument(
         "--banner",
         nargs="?",
@@ -1240,6 +1627,7 @@ Accordion Method Test (for development):
 
 
 _POSITIONAL_COMMANDS: dict[str, Command] = {
+    "init": Command.INIT,
     "doctor": Command.DOCTOR,
     "memory": Command.MEMORY,
     "orchestrate": Command.ORCHESTRATE,
@@ -1308,9 +1696,19 @@ def _determine_command(args: argparse.Namespace) -> Command:
 # =============================================================================
 
 
+def _handle_init(config: CLIConfig) -> int:
+    """Handle guided setup."""
+    return _run_init_flow(
+        non_interactive=config.init_non_interactive,
+        assume_yes=config.init_yes,
+        skip_browsers=config.init_skip_browsers,
+        run_doctor_after=not config.init_no_doctor,
+    )
+
+
 def _handle_doctor(config: CLIConfig) -> int:
     """Handle doctor command."""
-    return run_doctor()
+    return run_doctor(fix=config.doctor_fix)
 
 
 def _handle_list_recent(config: CLIConfig) -> int:
@@ -2452,7 +2850,10 @@ def _run_preflight_checks(mode: str) -> tuple[bool, list[str]]:
     # 1. Check GEMINI_API_KEY (required for all modes)
     gemini_key = os.environ.get("GEMINI_API_KEY", "")
     if not gemini_key or len(gemini_key) < 10:
-        errors.append("GEMINI_API_KEY not configured. Get your key at: https://ai.google.dev/")
+        errors.append(
+            "GEMINI_API_KEY not configured. Run 'primr keys set gemini' "
+            "or get a key at https://aistudio.google.com/apikey"
+        )
 
     # 2. Check Playwright browsers (required for scrape and full modes)
     if mode in ("scrape-only", "complete", "hybrid", "structured"):
@@ -2614,6 +3015,7 @@ def _handle_research(config: CLIConfig) -> int:
             return 1
         if not os.environ.get("XAI_API_KEY"):
             console.error("Fast mode requires XAI_API_KEY in your .env or environment")
+            console.info("Set it with: primr keys set xai")
             console.info("Get a key at https://console.x.ai/")
             return 1
         try:
@@ -2715,7 +3117,8 @@ def _check_api_keys(all_passed: bool, warnings_count: int) -> tuple[bool, int]:
             warnings_count += 1
     else:
         console.error("GEMINI_API_KEY not set or invalid")
-        console.info("  Get your key at: https://ai.google.dev/")
+        console.info("  Run: primr keys set gemini")
+        console.info("  Get your key at: https://aistudio.google.com/apikey")
         all_passed = False
 
     # Check search provider
@@ -2786,9 +3189,11 @@ def _check_api_keys(all_passed: bool, warnings_count: int) -> tuple[bool, int]:
     # Check xAI API key (optional — for --fast mode)
     xai_key = os.environ.get("XAI_API_KEY", "")
     if xai_key and len(xai_key) >= 10:
-        console.ok("XAI_API_KEY configured (enables --fast mode)")
+        console.ok("XAI_API_KEY configured (enables Grok standard mode)")
     else:
-        console.info("XAI_API_KEY not set (optional — needed for --fast mode)")
+        console.info("XAI_API_KEY not set (recommended for Grok standard mode)")
+        console.info("  Run: primr keys set xai")
+        console.info("  Get your key at: https://console.x.ai/")
 
     return all_passed, warnings_count
 

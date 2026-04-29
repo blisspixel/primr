@@ -629,7 +629,7 @@ async def get_results(
 @app.get("/usage/{api_key_hash}")
 async def get_usage(
     api_key_hash: str,
-    _api_key: str = Depends(get_api_key),  # noqa: B008 - FastAPI dependency injection
+    _api_key: str = Depends(get_api_key),
     budget_tracker: BudgetTracker = Depends(get_budget_tracker),  # noqa: B008 - FastAPI dependency injection
 ) -> JSONResponse:
     """
@@ -679,7 +679,7 @@ async def healthz() -> JSONResponse:
         # A lightweight read to verify connectivity
         store.get("__healthz_probe__")
         checks["cosmos_db"] = {"status": "ok"}
-    except Exception as e:
+    except Exception:
         logger.exception("Health check: Cosmos DB connectivity failed")
         checks["cosmos_db"] = {"status": "error", "detail": "connectivity check failed"}
 
@@ -689,7 +689,7 @@ async def healthz() -> JSONResponse:
         # A lightweight read to verify connectivity
         artifact_store.get("__healthz_probe__")
         checks["blob_storage"] = {"status": "ok"}
-    except Exception as e:
+    except Exception:
         logger.exception("Health check: Blob Storage connectivity failed")
         checks["blob_storage"] = {"status": "error", "detail": "connectivity check failed"}
 
@@ -708,7 +708,7 @@ async def healthz() -> JSONResponse:
 
 @app.get("/metrics")
 async def get_metrics_endpoint(
-    api_key: str = Depends(get_api_key),  # noqa: B008 - FastAPI dependency injection
+    api_key: str = Depends(get_api_key),
 ) -> JSONResponse:
     """
     Get control plane metrics.
@@ -722,7 +722,7 @@ async def get_metrics_endpoint(
 
 @app.get("/metrics/prometheus")
 async def get_prometheus_metrics(
-    api_key: str = Depends(get_api_key),  # noqa: B008 - FastAPI dependency injection
+    api_key: str = Depends(get_api_key),
 ) -> str:
     """
     Get control plane metrics in Prometheus format.
