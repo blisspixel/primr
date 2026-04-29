@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "primr"
-version = "1.20.3"
+version = "1.20.4"
 description = "Turn any company or organization URL into a strategic intelligence brief. Adaptive scraping + AI-powered research and synthesis."
 readme = "README.md"
 license = {text = "MIT"}
@@ -108,7 +108,13 @@ Repository = "https://github.com/blisspixel/primr"
 where = ["src"]
 
 [tool.setuptools.package-data]
-primr = ["py.typed"]
+primr = [
+    "py.typed",
+    "config/*.json",
+    "prompts/*.yaml",
+    "prompts/shared/*.yaml",
+    "prompts/strategies/*.yaml",
+]
 
 [tool.mypy]
 python_version = "3.11"

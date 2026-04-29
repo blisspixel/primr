@@ -1248,6 +1248,14 @@ Accordion Method Test (for development):
 """,
     )
 
+    from primr import __version__ as _primr_version
+
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"primr {_primr_version}",
+    )
+
     # Positional arguments
     parser.add_argument("company", nargs="?", type=str, help="Company name")
     parser.add_argument("website", nargs="?", type=str, help="Company website URL")
