@@ -89,11 +89,22 @@ For the schema and a worked example, see [references/custom-strategy-yaml.md](re
 
 ## Async monitoring
 
-Long runs are the common case. Treat each turn statelessly:
+Long runs are the common case. Pick the lightest async pattern your host supports — never poll synchronously in a tight loop.
 
-- On launch: record `job_id` and expected output path. Tell the user "I'll check back when you ping me, or you can ask me to check now."
-- On follow-up turn: read state first (`check_jobs` / `primr://research/status` / filesystem), then summarize. Never claim done until the report file exists *and* `check_jobs` reports `status: completed`.
-- On failure: read `primr://output/manifest/latest` if available — it contains the audit trail (estimate, approval, execution, error). Surface the failure cause; do not silently re-launch.
+**Preferred, in rough order:**
+
+1. **Background launch with completion notification.** If your host can run a command in the background and notify you when it exits, use that to launch primr. You get one event ~45 min later when the run finishes. This is the cleanest pattern.
+2. **Stream phase markers from the log.** If your host can tail a file and emit one event per matching line, watch the run log for the phase boundaries (`▸ PHASE`, `✓ Complete`, `✗`, `Error`) — about 6-8 events across a full run. Right density for "is it making progress?" without polling noise.
+3. **Schedule a single early sanity check at ~5 minutes.** Most failures (rejected key, scrape pilot fails, no external sources) surface in the first phase. A one-shot check at +5min catches those before the user wastes 45 minutes.
+4. **Fallback (no async primitives at all).** Tell the user "I'll check back in about an hour" and stop. When the next turn arrives, read state first (`check_jobs` / `primr://research/status` / the report file at `output/<company>/<Company>_Strategic_Overview_<MM-DD-YYYY>.md`), then summarize.
+
+**On every follow-up turn, regardless of how you got there:** read state first. Never claim done until the report file exists *and* `check_jobs` reports `status: completed`. On failure, read `primr://output/manifest/latest` if available — it contains the audit trail (estimate, approval, execution, error). Surface the failure cause; do not silently re-launch.
+
+**What not to do:**
+
+- Don't poll in a tight loop or with sub-minute sleeps. primr stages take minutes; sub-minute polling burns context for no information.
+- Don't promise a heartbeat cadence the host can't actually deliver. If you can't schedule wake-ups, "check back in an hour" is honest; "I'll update you every 10 minutes" is not.
+- Don't treat the absence of completion as failure. A run that's been going 60 minutes is probably fine; check the log for the most recent phase marker before assuming the worst.
 
 ## Output handling
 

@@ -1,6 +1,6 @@
 {
   "name": "primr",
-  "version": "1.21.0",
+  "version": "1.21.1",
   "_version_note": "Kept in sync with pyproject.toml; bump together",
   "description": "Consultant-grade strategic intelligence briefs from any company URL — adaptive scraping, AI-powered research and synthesis (Grok 4.1 / Gemini Deep Research), and structured report generation. Bundles the primr MCP server and a skill that teaches Claude when to reach for primr versus a quick web search, how to gate cost before launching a metered run, and how to handle the long-running async lifecycle.",
   "author": {

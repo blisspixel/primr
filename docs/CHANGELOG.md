@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 No unreleased changes.
 
+## [1.21.1] - 2026-04-29
+
+### Skill async-monitoring guidance: behavioral, not tool-specific
+
+- **`claude-code/skills/primr/SKILL.md` "Async monitoring"** rewritten as a four-tier preference list, ordered from cleanest to fallback: (1) background launch with completion notification if the host supports it, (2) phase-marker streaming from the log if the host can tail-and-emit, (3) a one-shot sanity check at +5min to catch first-phase failures, (4) honest "I'll check back in about an hour" when no async primitives are available. Same change in `AGENTS.md` (regenerated from the skill body). The earlier copy implied the agent should statelessly wait for the user to ping — the new copy lets the agent pick the lightest mechanism its host actually supports.
+- **No prescribed tool names.** The skill describes what the agent should *want* (one event on completion, light progress signals, early-fail catch) without assuming a specific Claude Code tool exists. Hosts with stronger async primitives (Claude Code's `run_in_background`, `Monitor`) get the cleaner experience; portable hosts get the honest "back in an hour" path.
+- **Explicit "what not to do"** section: no sub-minute polling, no promised heartbeat cadence the host can't deliver, no treating "still running at 60 minutes" as failure.
+
 ## [1.21.0] - 2026-04-29
 
 ### Native AI-tool integration: Claude Code plugin, AGENTS.md, per-host clients
