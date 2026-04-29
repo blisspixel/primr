@@ -115,7 +115,10 @@ class APIKeysConfig:
                 ConfigError(
                     field="GEMINI_API_KEY/XAI_API_KEY",
                     message="No model provider key set",
-                    suggestion=("Run 'primr keys set gemini' and optionally 'primr keys set xai'"),
+                    suggestion=(
+                        "Run 'primr init' for guided setup (paste keys, no .env editing), "
+                        "or 'primr keys set gemini' / 'primr keys set xai' to add one directly"
+                    ),
                 )
             )
 

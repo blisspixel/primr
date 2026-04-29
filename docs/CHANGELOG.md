@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 No unreleased changes.
 
+## [1.20.2] - 2026-04-29
+
+### Friendlier Missing-Key UX
+
+- **No more "open the .env file" prompt for missing keys.** When `primr "Company" url` is run without API keys configured, primr now offers to set them up inline: each key prompt explains *why* it's needed (with cost estimates) and *where to get one* (with a hint about free tiers/credits), and the user pastes the key directly into a hidden prompt. Pasted keys are saved to the per-user config file — no manual `.env` editing.
+- **Auto-launches when validation fails.** `src/primr/core/cli.py` now detects validation failures whose only errors are missing API keys, and offers the guided init flow inline if stdin/stdout is a TTY. After keys are saved, the original command continues automatically — users do not have to re-run their command.
+- **Updated suggestion copy** in `src/primr/utils/config_validation.py` so the missing-key error leads with `primr init` rather than a "set this in .env" instruction.
+
 ## [1.20.1] - 2026-04-26
 
 ### PyPI Release Infrastructure

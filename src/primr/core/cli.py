@@ -658,10 +658,40 @@ def main(args: list[str] | None = None) -> int:
 
     validation_result = validate_config(include_api_keys=include_api_keys)
     if not validation_result.valid:
-        console.error("Configuration validation failed:")
-        for err in validation_result.errors:
-            console.error(f"  - {err}")
-        return 1
+        if _should_offer_interactive_key_setup(validation_result):
+            console.warn("No API keys configured yet.")
+            console.info("Primr will tell you what each key is for and where to get it.")
+            console.blank()
+            if _prompt_yes_no("Set them up now? (paste keys when prompted, no .env editing)", default=True):
+                init_rc = _run_init_flow(
+                    non_interactive=False,
+                    assume_yes=False,
+                    skip_browsers=True,
+                    run_doctor_after=False,
+                )
+                if init_rc != 0:
+                    return init_rc
+                from primr.utils.config_validation import reset_config
+
+                reset_config()
+                validation_result = validate_config(include_api_keys=include_api_keys)
+                if validation_result.valid:
+                    console.blank()
+                    console.ok("Keys saved. Continuing...")
+                    console.blank()
+                else:
+                    console.error("Configuration validation failed:")
+                    for err in validation_result.errors:
+                        console.error(f"  - {err}")
+                    return 1
+            else:
+                console.info("Run 'primr init' when you're ready.")
+                return 1
+        else:
+            console.error("Configuration validation failed:")
+            for err in validation_result.errors:
+                console.error(f"  - {err}")
+            return 1
 
     # Setup logging to proper directory (not root!)
     log_level = "DEBUG" if config.verbose else "INFO"
@@ -814,6 +844,16 @@ def _prompt_yes_no(prompt: str, *, default: bool) -> bool:
     return answer in {"y", "yes"}
 
 
+def _should_offer_interactive_key_setup(validation_result) -> bool:
+    """Return True when the only validation errors are missing API keys and we're on a TTY."""
+    if not sys.stdin.isatty() or not sys.stdout.isatty():
+        return False
+    if not validation_result.errors:
+        return False
+    key_error_fields = {"GEMINI_API_KEY/XAI_API_KEY", "GEMINI_API_KEY", "XAI_API_KEY"}
+    return all(getattr(err, "field", "") in key_error_fields for err in validation_result.errors)
+
+
 def _key_looks_configured(env_name: str) -> bool:
     value = os.environ.get(env_name, "")
     return bool(value and len(value.strip()) >= 10)
@@ -922,35 +962,38 @@ def _run_init_flow(
         (
             "gemini",
             "GEMINI_API_KEY",
-            "Gemini-backed stages and premium mode",
+            "Premium mode (Gemini Deep Research, ~$5/run) + scrape summaries",
             "https://aistudio.google.com/apikey",
+            "free tier available",
             True,
         ),
         (
             "xai",
             "XAI_API_KEY",
-            "Grok standard pipeline",
+            "Default Grok 4.20 hybrid pipeline (~$0.75/run, recommended)",
             "https://console.x.ai/",
+            "$25 free credits for new accounts",
             True,
         ),
     ]
 
     console.step("API keys")
-    for provider, env_name, purpose, url, default_yes in key_steps:
+    for provider, env_name, purpose, url, hint, default_yes in key_steps:
         if _key_looks_configured(env_name):
             console.ok(f"{env_name} configured ({mask_secret(os.environ.get(env_name))})")
             continue
 
-        console.warn(f"{env_name} not set - {purpose}")
-        console.info(f"  Get a key: {url}")
+        console.warn(f"{env_name} not set")
+        console.info(f"  Why: {purpose}")
+        console.info(f"  Get one: {url}  ({hint})")
 
         if not interactive:
             all_ready = False
             console.info(f"  Run: primr keys set {provider}")
             continue
 
-        if assume_yes or _prompt_yes_no(f"Configure {env_name} now?", default=default_yes):
-            value = getpass.getpass(f"{env_name}: ").strip()
+        if assume_yes or _prompt_yes_no(f"Paste your {env_name} now?", default=default_yes):
+            value = getpass.getpass(f"  {env_name} (input hidden): ").strip()
             if value:
                 set_user_key(provider, value)
                 console.ok(f"{env_name} saved ({mask_secret(value)})")
