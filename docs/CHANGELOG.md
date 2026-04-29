@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 No unreleased changes.
 
+## [1.20.3] - 2026-04-29
+
+### Live Key Validation in `primr init`
+
+- **Pasted keys are now verified before they are saved.** `_validate_key_live(provider, value)` in `src/primr/core/cli.py` makes a cheap `models.list()` call against Gemini (`google-genai`) or xAI (`openai` SDK pointed at `https://api.x.ai/v1`). On 401/403/"invalid key" responses, the user sees a clear "rejected by provider" message and is offered up to two retries. Network/transient failures fall back to "could not verify" and let the user retry or skip without a hard block.
+- **Replace path for already-configured keys.** Previously, init silently skipped any key whose value looked configured (length ≥ 10), which left no obvious way to recover from a bad paste. Init now shows the masked existing key and asks "Replace? (only if the saved key is wrong) [y/N]" — defaulting to no, so the common path stays one keystroke. Saying yes drops into the same paste-and-validate flow used for first-time setup.
+- **No-token validation.** `models.list()` is metadata-only, so verification has zero token cost. Tests covering init/keys flows still pass (99/99).
+
 ## [1.20.2] - 2026-04-29
 
 ### Friendlier Missing-Key UX
