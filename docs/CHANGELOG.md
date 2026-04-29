@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 No unreleased changes.
 
+## [1.20.4] - 2026-04-29
+
+### Critical: PyPI Wheels 1.20.1 – 1.20.3 Were Missing Data Files
+
+PyPI installs of `primr` 1.20.1 through 1.20.3 crashed on the first research run with `FileNotFoundError: ... primr/config/prompts.json`. Source checkouts were unaffected. The wheel was packaging only `py.typed` because `[tool.setuptools.package-data]` in `pyproject.toml` did not include the JSON or YAML files that live inside the `primr` package.
+
+- **Fix in `pyproject.toml`** — `[tool.setuptools.package-data]` now ships `config/*.json`, `prompts/*.yaml`, `prompts/shared/*.yaml`, and `prompts/strategies/*.yaml` alongside `py.typed`. Local `python -m build` confirms 14 data files plus `py.typed` are present in the resulting wheel (vs. 1 file in the broken builds).
+- **Anyone on 1.20.1 – 1.20.3 from PyPI must upgrade**: `pip install -U primr`.
+
+### `--version` Flag
+
+- `primr --version` now prints `primr <semver>`, sourced from `primr.__version__`. Previously argparse rejected the flag with "unrecognized arguments: --version".
+
 ## [1.20.3] - 2026-04-29
 
 ### Live Key Validation in `primr init`
