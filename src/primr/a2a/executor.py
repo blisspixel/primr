@@ -421,10 +421,11 @@ def _extract_skill_id(message: Any) -> str | None:
         metadata = message.get("metadata", {})
         if isinstance(metadata, dict):
             return metadata.get("skillId")
+        return None
     # Try attribute access for SDK message objects
-    if hasattr(message, "metadata") and message.metadata:
-        if isinstance(message.metadata, dict):
-            return message.metadata.get("skillId")
+    metadata = getattr(message, "metadata", None)
+    if isinstance(metadata, dict):
+        return metadata.get("skillId")
     return None
 
 

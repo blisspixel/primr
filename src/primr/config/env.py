@@ -1,0 +1,195 @@
+"""Environment loading and user-level key storage for Primr."""
+
+from __future__ import annotations
+
+import os
+import re
+import sys
+from pathlib import Path
+
+from dotenv import dotenv_values, find_dotenv
+
+KEY_ALIASES: dict[str, str] = {
+    "xai": "XAI_API_KEY",
+    "grok": "XAI_API_KEY",
+    "gemini": "GEMINI_API_KEY",
+    "google": "GEMINI_API_KEY",
+    "search": "SEARCH_API_KEY",
+    "google-search": "SEARCH_API_KEY",
+    "search-engine": "SEARCH_ENGINE_ID",
+    "search-engine-id": "SEARCH_ENGINE_ID",
+}
+
+KEY_HELP: dict[str, str] = {
+    "XAI_API_KEY": "Grok standard pipeline",
+    "GEMINI_API_KEY": "Gemini, premium mode, and scrape summaries",
+    "SEARCH_API_KEY": "Google Custom Search, only with SEARCH_PROVIDER=google",
+    "SEARCH_ENGINE_ID": "Google Custom Search engine ID",
+}
+
+_ENV_ASSIGNMENT_RE = re.compile(r"^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=")
+_LOADED_ENV_VALUES: dict[str, str] = {}
+
+
+def get_user_config_dir() -> Path:
+    """Return the platform-appropriate Primr user config directory."""
+    override = os.getenv("PRIMR_CONFIG_DIR")
+    if override:
+        return Path(override).expanduser()
+
+    if sys.platform == "win32":
+        appdata = os.getenv("APPDATA")
+        if appdata:
+            return Path(appdata) / "primr"
+        return Path.home() / "AppData" / "Roaming" / "primr"
+
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / "primr"
+
+    xdg_config_home = os.getenv("XDG_CONFIG_HOME")
+    base = Path(xdg_config_home).expanduser() if xdg_config_home else Path.home() / ".config"
+    return base / "primr"
+
+
+def get_user_env_path() -> Path:
+    """Return the per-user Primr environment file path."""
+    return get_user_config_dir() / ".env"
+
+
+def get_local_env_path() -> Path | None:
+    """Return the nearest local .env found from the current working directory."""
+    found = find_dotenv(usecwd=True)
+    if not found:
+        return None
+    path = Path(found)
+    user_path = get_user_env_path()
+    try:
+        if path.resolve() == user_path.resolve():
+            return None
+    except OSError:
+        pass
+    return path
+
+
+def _apply_env_file(path: Path | None, protected_keys: set[str]) -> dict[str, str]:
+    loaded: dict[str, str] = {}
+    if not path or not path.exists():
+        return loaded
+    for key, value in dotenv_values(path).items():
+        if not key or value is None:
+            continue
+        if key not in protected_keys:
+            os.environ[key] = value
+            loaded[key] = value
+    return loaded
+
+
+def load_primr_env() -> None:
+    """Load Primr environment values with predictable precedence.
+
+    Precedence, highest to lowest:
+    1. Real process environment
+    2. Nearest local .env from the current working directory
+    3. Per-user Primr config file
+    """
+    protected_keys = {
+        key for key, value in os.environ.items() if _LOADED_ENV_VALUES.get(key) != value
+    }
+    loaded_values: dict[str, str] = {}
+    loaded_values.update(_apply_env_file(get_user_env_path(), protected_keys))
+    loaded_values.update(_apply_env_file(get_local_env_path(), protected_keys))
+    _LOADED_ENV_VALUES.update(loaded_values)
+
+
+def normalize_key_name(name: str) -> str:
+    """Map a provider/key alias to the environment variable Primr reads."""
+    normalized = name.strip().lower().replace("_", "-")
+    if normalized in KEY_ALIASES:
+        return KEY_ALIASES[normalized]
+
+    upper = name.strip().upper()
+    if upper in set(KEY_ALIASES.values()):
+        return upper
+
+    allowed = ", ".join(sorted(KEY_ALIASES))
+    raise ValueError(f"Unknown key '{name}'. Choose one of: {allowed}")
+
+
+def mask_secret(value: str | None) -> str:
+    """Return a safe display form for a configured secret."""
+    if not value:
+        return "not set"
+    if len(value) <= 8:
+        return "set"
+    return f"{value[:4]}...{value[-4:]}"
+
+
+def read_user_env_values() -> dict[str, str]:
+    """Read values from the per-user Primr environment file."""
+    path = get_user_env_path()
+    if not path.exists():
+        return {}
+    return {key: value or "" for key, value in dotenv_values(path).items() if key}
+
+
+def _format_env_assignment(key: str, value: str) -> str:
+    return f"{key}={value}"
+
+
+def set_user_key(name: str, value: str) -> tuple[str, Path]:
+    """Persist a key in the per-user Primr environment file."""
+    env_name = normalize_key_name(name)
+    path = get_user_env_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    lines: list[str]
+    if path.exists():
+        lines = path.read_text(encoding="utf-8").splitlines()
+    else:
+        lines = [
+            "# Primr user configuration",
+            "# Managed by 'primr keys'. Local .env files and shell env vars can override this.",
+            "",
+        ]
+
+    replacement = _format_env_assignment(env_name, value.strip())
+    replaced = False
+    for idx, line in enumerate(lines):
+        match = _ENV_ASSIGNMENT_RE.match(line)
+        if match and match.group(1) == env_name:
+            lines[idx] = replacement
+            replaced = True
+            break
+
+    if not replaced:
+        if lines and lines[-1].strip():
+            lines.append("")
+        lines.append(replacement)
+
+    path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+    os.environ[env_name] = value.strip()
+    _LOADED_ENV_VALUES[env_name] = value.strip()
+    return env_name, path
+
+
+def unset_user_key(name: str) -> tuple[str, Path, bool]:
+    """Remove a key from the per-user Primr environment file."""
+    env_name = normalize_key_name(name)
+    path = get_user_env_path()
+    if not path.exists():
+        return env_name, path, False
+
+    lines = path.read_text(encoding="utf-8").splitlines()
+    kept: list[str] = []
+    removed = False
+    for line in lines:
+        match = _ENV_ASSIGNMENT_RE.match(line)
+        if match and match.group(1) == env_name:
+            removed = True
+            continue
+        kept.append(line)
+
+    if removed:
+        path.write_text("\n".join(kept).rstrip() + "\n", encoding="utf-8")
+        _LOADED_ENV_VALUES.pop(env_name, None)
+    return env_name, path, removed

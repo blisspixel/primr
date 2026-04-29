@@ -19,6 +19,7 @@ from primr.core.cli import (
     MODE_MAP,
     CLIConfig,
     Command,
+    _ensure_project_env_file,
     _resolve_local_judge_models,
     main,
     parse_args,
@@ -36,6 +37,7 @@ class TestCommand:
     def test_command_values(self):
         """Test all command enum values exist."""
         assert Command.RESEARCH.value == "research"
+        assert Command.INIT.value == "init"
         assert Command.DOCTOR.value == "doctor"
         assert Command.LIST_RECENT.value == "list-recent"
         assert Command.CLEAN_TEMP.value == "clean-temp"
@@ -152,6 +154,20 @@ class TestParseArgs:
         """Test parsing doctor command."""
         config = parse_args(["doctor"])
         assert config.command == Command.DOCTOR
+
+    def test_parse_init_command(self):
+        """Test parsing init command."""
+        config = parse_args(["init", "--non-interactive", "--skip-browsers", "--no-doctor"])
+        assert config.command == Command.INIT
+        assert config.init_non_interactive is True
+        assert config.init_skip_browsers is True
+        assert config.init_no_doctor is True
+
+    def test_parse_doctor_fix(self):
+        """Test parsing doctor --fix."""
+        config = parse_args(["doctor", "--fix"])
+        assert config.command == Command.DOCTOR
+        assert config.doctor_fix is True
 
     def test_parse_mode_flag(self):
         """Test parsing mode flag."""
@@ -470,7 +486,82 @@ class TestMain:
             mock_doctor.return_value = 0
             result = main(["doctor"])
             assert result == 0
-            mock_doctor.assert_called_once()
+            mock_doctor.assert_called_once_with(fix=False)
+
+    def test_main_doctor_fix_passes_flag(self):
+        """Test main passes --fix through to doctor."""
+        with patch("primr.core.cli.run_doctor") as mock_doctor:
+            mock_doctor.return_value = 0
+            result = main(["doctor", "--fix"])
+            assert result == 0
+            mock_doctor.assert_called_once_with(fix=True)
+
+    def test_main_init_runs_guided_setup(self):
+        """Test main dispatches init to the guided setup flow."""
+        with patch("primr.core.cli._run_init_flow") as mock_init:
+            mock_init.return_value = 0
+            result = main(["init", "--non-interactive", "--skip-browsers", "--no-doctor"])
+            assert result == 0
+            mock_init.assert_called_once_with(
+                non_interactive=True,
+                assume_yes=False,
+                skip_browsers=True,
+                run_doctor_after=False,
+            )
+
+    def test_ensure_project_env_file_creates_safe_template(self, tmp_path, monkeypatch):
+        """Project .env creation should not activate placeholder secrets."""
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / ".env.example").write_text("# example\n", encoding="utf-8")
+
+        created, path = _ensure_project_env_file()
+
+        content = (tmp_path / ".env").read_text(encoding="utf-8")
+        assert created is True
+        assert path == str(tmp_path / ".env")
+        assert "# GEMINI_API_KEY=" in content
+        assert "# XAI_API_KEY=" in content
+        assert "GEMINI_API_KEY=your_" not in content
+
+    def test_main_keys_set_writes_user_config(self, tmp_path, monkeypatch):
+        """Test keys command writes to the user-level Primr config file."""
+        monkeypatch.setenv("PRIMR_CONFIG_DIR", str(tmp_path))
+        monkeypatch.delenv("XAI_API_KEY", raising=False)
+
+        result = main(["keys", "set", "xai", "xai-test-key-12345"])
+
+        content = (tmp_path / ".env").read_text(encoding="utf-8")
+        assert result == 0
+        assert content.count("XAI_API_KEY=") == 1
+        assert "XAI_API_KEY=xai-test-key-12345" in content
+        assert os.environ["XAI_API_KEY"] == "xai-test-key-12345"
+
+    def test_main_keys_set_updates_existing_key(self, tmp_path, monkeypatch):
+        """Test keys command updates an existing user config key in place."""
+        monkeypatch.setenv("PRIMR_CONFIG_DIR", str(tmp_path))
+        (tmp_path / ".env").write_text("GEMINI_API_KEY=old-key\n", encoding="utf-8")
+
+        result = main(["keys", "set", "gemini", "--value", "new-gemini-key-12345"])
+
+        content = (tmp_path / ".env").read_text(encoding="utf-8")
+        assert result == 0
+        assert "GEMINI_API_KEY=new-gemini-key-12345" in content
+        assert "old-key" not in content
+
+    def test_main_keys_unset_removes_user_config_key(self, tmp_path, monkeypatch):
+        """Test keys unset removes only the user config assignment."""
+        monkeypatch.setenv("PRIMR_CONFIG_DIR", str(tmp_path))
+        (tmp_path / ".env").write_text(
+            "XAI_API_KEY=xai-test-key-12345\nGEMINI_API_KEY=gemini-test-key-12345\n",
+            encoding="utf-8",
+        )
+
+        result = main(["keys", "unset", "xai"])
+
+        content = (tmp_path / ".env").read_text(encoding="utf-8")
+        assert result == 0
+        assert "XAI_API_KEY=" not in content
+        assert "GEMINI_API_KEY=gemini-test-key-12345" in content
 
     def test_main_show_usage(self):
         """Test main with show-usage flag."""

@@ -37,12 +37,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
-from dotenv import load_dotenv
+from primr.config.env import load_primr_env
 
 logger = logging.getLogger(__name__)
 
 # Load environment variables
-load_dotenv()
+load_primr_env()
 
 
 # =============================================================================
@@ -102,6 +102,7 @@ class APIKeysConfig:
     """API keys configuration with lazy validation."""
 
     gemini_api_key: str | None = field(default_factory=lambda: os.getenv("GEMINI_API_KEY"))
+    xai_api_key: str | None = field(default_factory=lambda: os.getenv("XAI_API_KEY"))
     search_api_key: str | None = field(default_factory=lambda: os.getenv("SEARCH_API_KEY"))
     search_engine_id: str | None = field(default_factory=lambda: os.getenv("SEARCH_ENGINE_ID"))
 
@@ -109,15 +110,16 @@ class APIKeysConfig:
         """Validate API keys are present."""
         errors = []
 
-        if not self.gemini_api_key:
+        if not self.gemini_api_key and not self.xai_api_key:
             errors.append(
                 ConfigError(
-                    field="GEMINI_API_KEY",
-                    message="Required API key not set",
-                    suggestion="Add GEMINI_API_KEY=your_key to .env file",
+                    field="GEMINI_API_KEY/XAI_API_KEY",
+                    message="No model provider key set",
+                    suggestion=("Run 'primr keys set gemini' and optionally 'primr keys set xai'"),
                 )
             )
-        elif len(self.gemini_api_key) < 10:
+
+        if self.gemini_api_key and len(self.gemini_api_key) < 10:
             errors.append(
                 ConfigError(
                     field="GEMINI_API_KEY",
@@ -127,11 +129,39 @@ class APIKeysConfig:
                 )
             )
 
+        if self.xai_api_key and len(self.xai_api_key) < 10:
+            errors.append(
+                ConfigError(
+                    field="XAI_API_KEY",
+                    message="API key appears too short",
+                    value=f"{self.xai_api_key[:4]}...",
+                    suggestion="Check that the full API key is provided",
+                )
+            )
+
         return errors
 
     def get_warnings(self) -> list[ConfigError]:
         """Get warnings for optional but recommended keys."""
         warnings = []
+
+        if not self.xai_api_key:
+            warnings.append(
+                ConfigError(
+                    field="XAI_API_KEY",
+                    message="Recommended key not set (Grok standard pipeline disabled)",
+                    suggestion="Run 'primr keys set xai'",
+                )
+            )
+
+        if not self.gemini_api_key:
+            warnings.append(
+                ConfigError(
+                    field="GEMINI_API_KEY",
+                    message="Gemini-backed premium and scrape summary stages disabled",
+                    suggestion="Run 'primr keys set gemini'",
+                )
+            )
 
         if not self.search_api_key:
             warnings.append(
@@ -508,6 +538,7 @@ class PrimrConfig:
             },
             "api_keys_configured": {
                 "gemini": bool(self.api_keys.gemini_api_key),
+                "xai": bool(self.api_keys.xai_api_key),
                 "search": bool(self.api_keys.search_api_key),
                 "search_engine": bool(self.api_keys.search_engine_id),
             },

@@ -8,14 +8,13 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
-from dotenv import load_dotenv
-
 from primr.ai.llm import llm
+from primr.config.env import load_primr_env
 from primr.utils.content_sanitizer import sanitize_for_llm
 from primr.utils.formatting import deduplicate_content, get_deduplication_stats
 from primr.utils.logging_config import get_logger
 
-load_dotenv()
+load_primr_env()
 
 logger = get_logger("summarize")
 

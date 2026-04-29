@@ -226,9 +226,7 @@ def fetch_subdomain_content(
                     metadata={"subdomain": sub_host, "path": path},
                 )
             )
-            logger.info(
-                "Subdomain fallback: fetched %s (%d chars)", url, len(extracted)
-            )
+            logger.info("Subdomain fallback: fetched %s (%d chars)", url, len(extracted))
 
     return pages
 
@@ -666,9 +664,7 @@ def fetch_wayback_pages(
     # Parallelize across up to 4 URLs at a time; Wayback tolerates concurrent
     # CDX queries from a single client.
     with ThreadPoolExecutor(max_workers=4) as pool:
-        futures = {
-            pool.submit(scrape_with_wayback, url, per_url_timeout): url for url in urls
-        }
+        futures = {pool.submit(scrape_with_wayback, url, per_url_timeout): url for url in urls}
 
         try:
             remaining = max(1.0, total_deadline - (time.time() - start))
@@ -764,9 +760,7 @@ def gather_fallback_content(
         if wayback_urls:
             futures[pool.submit(fetch_wayback_pages, wayback_urls)] = "wayback"
         if grok_surrogate_urls:
-            futures[
-                pool.submit(fetch_grok_surrogates, grok_surrogate_urls, company_name)
-            ] = "grok"
+            futures[pool.submit(fetch_grok_surrogates, grok_surrogate_urls, company_name)] = "grok"
 
         # Cap the total gather — some sources (Wayback over slow CDX) can hang.
         # Any futures that aren't done when we hit the deadline are abandoned.
@@ -776,9 +770,7 @@ def gather_fallback_content(
                 source = futures[f]
                 try:
                     pages = f.result()
-                    logger.info(
-                        "Fallback source %s returned %d page(s)", source, len(pages)
-                    )
+                    logger.info("Fallback source %s returned %d page(s)", source, len(pages))
                     results.extend(pages)
                 except Exception as e:
                     logger.warning("Fallback source %s raised: %s", source, e)
@@ -804,10 +796,11 @@ def gather_fallback_content(
                     )
                     f.cancel()
     finally:
+        from primr.utils.async_utils import detach_running_workers
+
         pool.shutdown(wait=False, cancel_futures=True)
+        detach_running_workers(pool)
 
     elapsed = time.time() - start
-    logger.info(
-        "Fallback gather done: %d total pages in %.1fs", len(results), elapsed
-    )
+    logger.info("Fallback gather done: %d total pages in %.1fs", len(results), elapsed)
     return results

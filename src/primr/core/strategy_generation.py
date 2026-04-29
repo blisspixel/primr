@@ -51,14 +51,10 @@ def build_strategy_prompt_from_yaml(
     ]
 
     if "document_purpose" in strategy_config:
-        prompt_parts.extend(
-            ["## YOUR ROLE AND TASK", strategy_config["document_purpose"], ""]
-        )
+        prompt_parts.extend(["## YOUR ROLE AND TASK", strategy_config["document_purpose"], ""])
 
     if "context_instructions" in strategy_config:
-        prompt_parts.extend(
-            ["## HOW TO USE CONTEXT", strategy_config["context_instructions"], ""]
-        )
+        prompt_parts.extend(["## HOW TO USE CONTEXT", strategy_config["context_instructions"], ""])
 
     if "writing_standards" in strategy_config:
         prompt_parts.extend(

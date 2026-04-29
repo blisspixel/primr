@@ -104,3 +104,50 @@ def test_normalize_fast_citations_strips_plural_cites_placeholders_without_urls(
 
     assert "[cites:" not in normalized
     assert "[cite:" not in normalized
+
+
+def test_normalize_fast_citations_uses_source_urls_for_bare_cite_refs():
+    """When the writer emits bare [cite: N] (per the prompt contract) and no
+    [Source: URL] tags exist, the supplied source_urls list provides the
+    citation key so refs survive normalization instead of being stripped."""
+    content = (
+        "## Findings\n\nFirst claim [cite: 1].\nSecond claim [cite: 2].\nRe-cite first [cite: 1].\n"
+    )
+    source_urls = [
+        "https://example.com/a",
+        "https://example.com/b",
+        "https://example.com/c",  # not cited; should not appear
+    ]
+
+    normalized = _normalize_fast_citations(content, source_urls=source_urls)
+
+    body = normalized.split("## Sources", 1)[0]
+    assert body.count("[cite: 1]") == 2
+    assert body.count("[cite: 2]") == 1
+    assert "## Sources" in normalized
+    assert "[cite: 1] https://example.com/a" in normalized
+    assert "[cite: 2] https://example.com/b" in normalized
+    # Uncited URL must not be appended.
+    assert "https://example.com/c" not in normalized
+
+
+def test_normalize_fast_citations_drops_out_of_range_cite_refs():
+    """[cite: N] where N > len(source_urls) is invalid — stripped, not faked."""
+    content = "## Findings\n\nReal cite [cite: 1]. Bogus cite [cite: 99].\n"
+    source_urls = ["https://example.com/a"]
+
+    normalized = _normalize_fast_citations(content, source_urls=source_urls)
+
+    assert "[cite: 99]" not in normalized
+    assert "[cite: 1]" in normalized
+    assert "[cite: 1] https://example.com/a" in normalized
+
+
+def test_normalize_fast_citations_no_source_urls_still_strips_orphans():
+    """Backward-compatible: with no source_urls and no inline tags, orphans
+    are still stripped so QA citation-integrity stays clean."""
+    content = "## Findings\n\nClaim [cite: 1]. Another [cite: 2].\n"
+
+    normalized = _normalize_fast_citations(content)
+
+    assert "[cite:" not in normalized

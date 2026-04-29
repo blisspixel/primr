@@ -4,13 +4,21 @@ This document describes all configuration options available in Primr.
 
 ## Environment Variables
 
-### Required API Keys
+### Model Provider Keys
 
 | Variable | Description | Required |
 |----------|-------------|----------|
-| `GEMINI_API_KEY` | Google Gemini API key for AI operations | Yes |
-| `SEARCH_API_KEY` | Google Custom Search API key | Yes |
-| `SEARCH_ENGINE_ID` | Google Custom Search Engine ID | Yes |
+| `GEMINI_API_KEY` | Google Gemini key for premium mode, scrape summaries, and Gemini-backed stages | Yes |
+| `XAI_API_KEY` | xAI key for the default Grok standard pipeline | Recommended |
+
+Run `primr init` for guided first-run setup. Set keys directly with `primr keys set gemini` and `primr keys set xai`, or provide them as shell env vars / local `.env` values. Run `primr keys path` to see the user-level config file.
+
+### Optional Search Keys
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `SEARCH_API_KEY` | Google Custom Search API key, only when `SEARCH_PROVIDER=google` | No |
+| `SEARCH_ENGINE_ID` | Google Custom Search Engine ID, only when `SEARCH_PROVIDER=google` | No |
 
 ### Optional Settings
 

@@ -69,16 +69,25 @@ For model evaluation and quality comparison, see [Evaluation Guide](docs/EVAL.md
 ## Quick Start
 
 ```bash
+pip install primr
+primr init                      # Guided keys + browser setup
+primr doctor                    # Verify everything works
+primr "ExampleCo" https://example.co
+```
+
+From a source checkout:
+
+```bash
 git clone https://github.com/blisspixel/primr.git
 cd primr
 py -3.13 setup_env.py           # Windows
 # or: python3.13 setup_env.py   # macOS/Linux
-# Add your API keys to .env (see docs/API_KEYS.md)
+primr init
 primr doctor                     # Verify everything works
 primr "ExampleCo" https://example.co  # Run your first research
 ```
 
-Requires Python 3.11+. On Windows, prefer `py -3.13` instead of bare `python` if your default interpreter is older. `setup_env.py` installs or upgrades the local editable package to the current repo version, installs dependencies, and creates `.env`. Set `XAI_API_KEY` for the standard Grok pipeline (recommended), or `GEMINI_API_KEY` for Gemini/premium mode. Web search uses DuckDuckGo (no key needed).
+Requires Python 3.11+. On Windows, prefer `py -3.13` instead of bare `python` if your default interpreter is older. `setup_env.py` installs or upgrades the local editable package to the current repo version, installs dependencies, and creates `.env`. `primr init` walks through user-level API keys, browser dependencies, and verification. Local `.env` files and shell environment variables still work and can override user-level keys. Set `GEMINI_API_KEY` for Gemini-backed stages and premium mode; set `XAI_API_KEY` for the standard Grok pipeline. Web search uses DuckDuckGo (no key needed).
 
 ### Platform Support
 
@@ -175,14 +184,24 @@ For full architecture details, model pricing, and the retrieval tier breakdown, 
 ## Configuration
 
 ```bash
-# Recommended - for default Grok 4.1 pipeline
-XAI_API_KEY=          # https://console.x.ai/
+# Recommended first-run setup
+primr init
 
-# Required for --premium mode or if XAI_API_KEY not set
-GEMINI_API_KEY=       # https://aistudio.google.com/apikey
+# Writes to the per-user Primr config file
+primr keys set gemini           # https://aistudio.google.com/apikey
+primr keys set xai              # https://console.x.ai/
+primr keys list
+primr keys path
 
-# Web search uses DuckDuckGo by default - no key needed
+# Diagnose, then launch guided fixes if needed
+primr doctor --fix
+
+# Local .env files and shell env vars are also supported:
+GEMINI_API_KEY=       # Gemini, premium mode, scrape summaries
+XAI_API_KEY=          # Grok standard pipeline
 ```
+
+Web search uses DuckDuckGo by default, no key needed.
 
 [Full config reference](docs/CONFIG.md) | [API key setup](docs/API_KEYS.md)
 

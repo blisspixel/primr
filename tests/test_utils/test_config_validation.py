@@ -71,13 +71,17 @@ class TestAPIKeysConfig:
         assert "too short" in errors[0].message
 
     def test_warnings_for_optional_keys(self):
-        """Should report warnings for missing optional keys."""
+        """Should report warnings for missing optional and recommended keys."""
         config = APIKeysConfig(
-            gemini_api_key="valid_api_key_here", search_api_key=None, search_engine_id=None
+            gemini_api_key="valid_api_key_here",
+            xai_api_key=None,
+            search_api_key=None,
+            search_engine_id=None,
         )
         warnings = config.get_warnings()
 
-        assert len(warnings) == 2
+        assert len(warnings) == 3
+        assert any("XAI_API_KEY" in w.field for w in warnings)
         assert any("SEARCH_API_KEY" in w.field for w in warnings)
         assert any("SEARCH_ENGINE_ID" in w.field for w in warnings)
 
@@ -294,7 +298,7 @@ class TestPrimrConfig:
     def test_validate_aggregates_all_errors(self):
         """Should aggregate errors from all sections."""
         config = PrimrConfig(
-            api_keys=APIKeysConfig(gemini_api_key=None),
+            api_keys=APIKeysConfig(gemini_api_key=None, xai_api_key=None),
             timeouts=TimeoutsConfig(connect_timeout=-1),
             retry=RetryConfig(max_retries=-1),
         )
@@ -370,7 +374,7 @@ class TestModuleFunctions:
         reset_config()
 
         # Mock environment to have no API key
-        with patch.dict(os.environ, {"GEMINI_API_KEY": ""}, clear=False):
+        with patch.dict(os.environ, {"GEMINI_API_KEY": "", "XAI_API_KEY": ""}, clear=False):
             reset_config()
             with pytest.raises(ValueError, match="validation failed"):
                 require_valid_config(include_api_keys=True)

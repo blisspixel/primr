@@ -789,7 +789,9 @@ class ResearchOrchestrator:
         """
         logger.debug(f"Executing stage: {stage_name}")
 
-        # Run pre-hooks
+        # Hoist the import once so the names are bound for both pre- and
+        # post-hook blocks even if `self._hooks` evaluates differently
+        # between the two checks.
         if self._hooks:
             from primr.agentic.hooks import HookContext, HookResult, HookType
 
@@ -814,6 +816,8 @@ class ResearchOrchestrator:
 
         # Run post-hooks
         if self._hooks:
+            from primr.agentic.hooks import HookContext, HookType
+
             post_context = HookContext(
                 hook_type=HookType.POST_TOOL_USE,
                 stage_name=stage_name,

@@ -972,7 +972,10 @@ class ContentSanitizationHook(Hook):
                 content_key = key
                 break
 
-        content = context.arguments.get(content_key, "") if content_key else ""
+        if content_key is None:
+            return HookResponse(result=HookResult.ALLOW)
+
+        content = context.arguments.get(content_key, "")
 
         if not content or not isinstance(content, str):
             return HookResponse(result=HookResult.ALLOW)

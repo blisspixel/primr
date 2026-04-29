@@ -11,7 +11,6 @@ from datetime import datetime
 from urllib.parse import urlparse
 
 import requests
-from dotenv import load_dotenv
 
 from primr.ai.llm import llm
 from primr.config.config import (
@@ -22,10 +21,11 @@ from primr.config.config import (
     SEARCH_API_KEY,
     SEARCH_ENGINE_ID,
 )
+from primr.config.env import load_primr_env
 from primr.utils.circuit_breaker import CircuitBreaker
 from primr.utils.logging_config import get_logger
 
-load_dotenv()
+load_primr_env()
 
 logger = get_logger("search")
 
@@ -126,7 +126,7 @@ We need more information on: {section_name}.
 
 
 def generate_external_search_queries(
-    company_name: str,
+    company_name: str | None,
     website: str | None = None,
     max_queries: int = MAX_EXTERNAL_SEARCH_QUERIES,
 ) -> list[str]:
@@ -137,13 +137,15 @@ def generate_external_search_queries(
     for the scrape phase's external source gathering.
 
     Args:
-        company_name: Name of the company to research.
+        company_name: Name of the company to research. ``None`` is tolerated
+            and rendered as an empty placeholder in the prompt.
         website: Optional company website URL for context.
 
     Returns:
         List of up to max_queries search queries covering news, funding, tech,
         leadership, competitive landscape, industry analysis, and financials.
     """
+    company_name = company_name or ""
     domain = ""
     domain_hint = ""
     if website:

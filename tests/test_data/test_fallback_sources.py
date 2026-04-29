@@ -43,10 +43,12 @@ def test_normalize_company_name_preserves_core_name():
 
 
 def test_find_edgar_cik_exact_match():
-    fake_index_body = json.dumps({
-        "0": {"cik_str": 1234567, "ticker": "EXMP", "title": "Example Holdings Inc."},
-        "1": {"cik_str": 7654321, "ticker": "WGT", "title": "Widget Corp"},
-    }).encode()
+    fake_index_body = json.dumps(
+        {
+            "0": {"cik_str": 1234567, "ticker": "EXMP", "title": "Example Holdings Inc."},
+            "1": {"cik_str": 7654321, "ticker": "WGT", "title": "Widget Corp"},
+        }
+    ).encode()
 
     with patch(
         "primr.data.fallback_sources._http_get",
@@ -54,6 +56,7 @@ def test_find_edgar_cik_exact_match():
     ):
         # Clear the module-level cache
         import primr.data.fallback_sources as fb
+
         fb._ticker_index_cache = None
 
         result = find_edgar_cik("Example Holdings Inc.")
@@ -65,15 +68,18 @@ def test_find_edgar_cik_exact_match():
 
 
 def test_find_edgar_cik_fuzzy_substring_match():
-    fake_index_body = json.dumps({
-        "0": {"cik_str": 1234567, "ticker": "EXMP", "title": "Example Holdings Inc."},
-    }).encode()
+    fake_index_body = json.dumps(
+        {
+            "0": {"cik_str": 1234567, "ticker": "EXMP", "title": "Example Holdings Inc."},
+        }
+    ).encode()
 
     with patch(
         "primr.data.fallback_sources._http_get",
         return_value=(200, fake_index_body, None),
     ):
         import primr.data.fallback_sources as fb
+
         fb._ticker_index_cache = None
 
         # Lookup with just "Example" should match "Example Holdings Inc."
@@ -84,15 +90,18 @@ def test_find_edgar_cik_fuzzy_substring_match():
 
 
 def test_find_edgar_cik_no_match_returns_none():
-    fake_index_body = json.dumps({
-        "0": {"cik_str": 1234567, "ticker": "EXMP", "title": "Example Holdings Inc."},
-    }).encode()
+    fake_index_body = json.dumps(
+        {
+            "0": {"cik_str": 1234567, "ticker": "EXMP", "title": "Example Holdings Inc."},
+        }
+    ).encode()
 
     with patch(
         "primr.data.fallback_sources._http_get",
         return_value=(200, fake_index_body, None),
     ):
         import primr.data.fallback_sources as fb
+
         fb._ticker_index_cache = None
 
         result = find_edgar_cik("Nonexistent Widget Company LLC")
@@ -105,6 +114,7 @@ def test_find_edgar_cik_handles_index_fetch_failure():
         return_value=(403, None, None),
     ):
         import primr.data.fallback_sources as fb
+
         fb._ticker_index_cache = None
 
         result = find_edgar_cik("Example Inc.")
@@ -117,14 +127,16 @@ def test_find_edgar_cik_handles_index_fetch_failure():
 
 
 def test_find_wikipedia_title_prefers_matching_title():
-    search_response = json.dumps({
-        "query": {
-            "search": [
-                {"title": "Unrelated Article", "snippet": "..."},
-                {"title": "Example Holdings", "snippet": "..."},
-            ]
+    search_response = json.dumps(
+        {
+            "query": {
+                "search": [
+                    {"title": "Unrelated Article", "snippet": "..."},
+                    {"title": "Example Holdings", "snippet": "..."},
+                ]
+            }
         }
-    }).encode()
+    ).encode()
 
     with patch(
         "primr.data.fallback_sources._http_get",
@@ -135,13 +147,15 @@ def test_find_wikipedia_title_prefers_matching_title():
 
 
 def test_find_wikipedia_title_falls_back_to_top_hit():
-    search_response = json.dumps({
-        "query": {
-            "search": [
-                {"title": "Some Other Article", "snippet": "..."},
-            ]
+    search_response = json.dumps(
+        {
+            "query": {
+                "search": [
+                    {"title": "Some Other Article", "snippet": "..."},
+                ]
+            }
         }
-    }).encode()
+    ).encode()
 
     with patch(
         "primr.data.fallback_sources._http_get",

@@ -101,11 +101,7 @@ def _save_state(state: dict[str, RateLimitEntry]) -> None:
     """Write state to disk. Prunes expired entries on the way out."""
     STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
     try:
-        serializable = {
-            host: entry.to_dict()
-            for host, entry in state.items()
-            if entry.is_active()
-        }
+        serializable = {host: entry.to_dict() for host, entry in state.items() if entry.is_active()}
         with STATE_FILE.open("w", encoding="utf-8") as f:
             json.dump(serializable, f, indent=2)
     except OSError as e:

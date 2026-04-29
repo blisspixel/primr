@@ -70,6 +70,7 @@ def configure_executor(max_workers: int = 4) -> None:
     # Reset executor so it gets recreated with new settings
     if _default_executor is not None:
         _default_executor.shutdown(wait=False)
+        detach_running_workers(_default_executor)
         _default_executor = None
 
 
@@ -85,7 +86,48 @@ def shutdown_executor(wait: bool = True) -> None:
     global _default_executor
     if _default_executor is not None:
         _default_executor.shutdown(wait=wait)
+        if not wait:
+            detach_running_workers(_default_executor)
         _default_executor = None
+
+
+def detach_running_workers(pool: ThreadPoolExecutor) -> None:
+    """Detach a pool's still-running workers so they can't block exit.
+
+    `ThreadPoolExecutor.shutdown(wait=False, cancel_futures=True)` only cancels
+    QUEUED futures. Workers already running keep going as non-daemon threads,
+    and Python's interpreter shutdown joins them in two places:
+
+    1. `concurrent.futures.thread._python_exit` (atexit hook) joins every
+       worker tracked in `_threads_queues`.
+    2. After atexit, `threading._shutdown()` waits on every `_tstate_lock`
+       still in `threading._shutdown_locks` (one per non-daemon thread).
+
+    A worker stuck inside Playwright or a slow HTTP call hangs both stages,
+    so the whole process appears frozen even though `main()` already
+    returned. Call this after an abandon-style shutdown to remove the
+    pool's workers from both registries; the orphaned threads keep
+    running (no kill is possible) but the interpreter can exit. Touches
+    private stdlib internals, so it is wrapped in a defensive try/except.
+    """
+    try:
+        import threading
+        from concurrent.futures import thread as _cft
+        from typing import Any, cast
+
+        # WeakKeyDictionary at runtime; typeshed types as a generic Mapping.
+        registry = cast("dict", _cft._threads_queues)  # type: ignore[attr-defined]
+        shutdown_locks: set[Any] = getattr(threading, "_shutdown_locks", set())
+        for _t in list(getattr(pool, "_threads", ()) or ()):
+            registry.pop(_t, None)
+            tslock = getattr(_t, "_tstate_lock", None)
+            if tslock is not None:
+                try:
+                    shutdown_locks.discard(tslock)
+                except Exception:
+                    pass
+    except Exception:
+        pass
 
 
 # =============================================================================
@@ -212,7 +254,7 @@ async def run_async(func: Callable[P, T], *args: P.args, **kwargs: P.kwargs) -> 
         func_with_args = functools.partial(func, *args, **kwargs)
         return await loop.run_in_executor(executor, func_with_args)
     else:
-        return await loop.run_in_executor(executor, func, *args)
+        return await loop.run_in_executor(executor, func, *args)  # type: ignore[arg-type]
 
 
 async def run_async_with_timeout(
@@ -401,7 +443,7 @@ class AsyncBridge:
             func_with_args = functools.partial(func, *args, **kwargs)
             return await loop.run_in_executor(executor, func_with_args)
         else:
-            return await loop.run_in_executor(executor, func, *args)
+            return await loop.run_in_executor(executor, func, *args)  # type: ignore[arg-type]
 
 
 # =============================================================================

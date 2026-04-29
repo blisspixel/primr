@@ -302,10 +302,7 @@ def get_project_version() -> str | None:
         return None
 
     try:
-        if sys.version_info >= (3, 11):
-            import tomllib
-        else:
-            import tomli as tomllib  # type: ignore[import-not-found]
+        import tomllib
 
         data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
         return data.get("project", {}).get("version")

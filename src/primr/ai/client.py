@@ -435,8 +435,9 @@ class AIClient:
             input_tokens = getattr(metadata, "prompt_token_count", None)
             output_tokens = getattr(metadata, "candidates_token_count", None)
 
-            # Use type guards to validate token counts are integers
-            if not is_valid_type(input_tokens, int) or not is_valid_type(output_tokens, int):
+            # isinstance gives Pyright the narrowing that is_valid_type
+            # (returning plain bool) does not.
+            if not isinstance(input_tokens, int) or not isinstance(output_tokens, int):
                 logger.debug(
                     f"Invalid token count types: input={type(input_tokens)}, "
                     f"output={type(output_tokens)}"
@@ -448,7 +449,7 @@ class AIClient:
                 logger.debug(f"Negative token counts: {input_tokens}, {output_tokens}")
                 return None
 
-            return TokenUsage(input_tokens=int(input_tokens), output_tokens=int(output_tokens))
+            return TokenUsage(input_tokens=input_tokens, output_tokens=output_tokens)
 
         except Exception as e:
             logger.debug(f"Could not extract usage metadata: {e}")

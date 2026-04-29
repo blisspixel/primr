@@ -14,13 +14,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from dotenv import load_dotenv
-
+from primr.config.env import load_primr_env
 from primr.config.models import PrimrModels
 from primr.utils.errors import ConfigurationError
 
 # Load environment variables
-load_dotenv()
+load_primr_env()
 
 
 # =============================================================================
@@ -130,7 +129,8 @@ class APIConfig:
         """Get Gemini API key, raising if not set."""
         if not self._gemini_key:
             raise ConfigurationError(
-                "GEMINI_API_KEY not set. Add it to your .env file or environment."
+                "GEMINI_API_KEY not set. Run 'primr keys set gemini' "
+                "or add it to your .env file/environment."
             )
         return self._gemini_key
 
@@ -157,8 +157,9 @@ class APIConfig:
         """Get xAI API key, raising if not set."""
         if not self._xai_key:
             raise ConfigurationError(
-                "XAI_API_KEY not set. Required for --fast mode. "
-                "Add it to your .env file or get a key at https://console.x.ai/"
+                "XAI_API_KEY not set. Run 'primr keys set xai' "
+                "or add it to your .env file/environment. "
+                "Get a key at https://console.x.ai/"
             )
         return self._xai_key
 

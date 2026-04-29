@@ -411,7 +411,9 @@ def _fetch_ashby(slug: str) -> list[Posting] | None:
     (Includes rich posting bodies directly.)
     """
     url = f"https://api.ashbyhq.com/posting-api/job-board/{slug}"
-    status, body, _ = _http_get(url, timeout=_ATS_TIMEOUT_S, params={"includeCompensation": "false"})
+    status, body, _ = _http_get(
+        url, timeout=_ATS_TIMEOUT_S, params={"includeCompensation": "false"}
+    )
     if status != 200 or not body:
         return None
     try:
@@ -602,7 +604,9 @@ def _extract_posting_links(html: bytes, base_url: str) -> list[tuple[str, str]]:
         return []
 
     # <a href="..." ...>LABEL</a>
-    pattern = re.compile(r'<a\s+[^>]*href=["\']([^"\']+)["\'][^>]*>(.*?)</a>', re.IGNORECASE | re.DOTALL)
+    pattern = re.compile(
+        r'<a\s+[^>]*href=["\']([^"\']+)["\'][^>]*>(.*?)</a>', re.IGNORECASE | re.DOTALL
+    )
     out: list[tuple[str, str]] = []
     seen: set[str] = set()
     for match in pattern.finditer(text):
@@ -730,7 +734,7 @@ def _llm_triage(
         listing_lines.append(f"{i}. {p.title}{dept_frag}{loc_frag}")
     listing = "\n".join(listing_lines)
 
-    prompt = f"""You are triaging open job postings at {company_name or 'a target company'} for a strategic research brief.
+    prompt = f"""You are triaging open job postings at {company_name or "a target company"} for a strategic research brief.
 
 Pick up to {k} postings whose descriptions are most likely to reveal:
 - Tech stack and platforms in use
@@ -865,7 +869,7 @@ def _extract_signals(
 
     aggregated = "\n\n".join(body_blocks)
 
-    prompt = f"""You are analysing open job postings at {company_name or 'a target company'} to surface strategic signals for a consultant brief.
+    prompt = f"""You are analysing open job postings at {company_name or "a target company"} to surface strategic signals for a consultant brief.
 
 Return ONLY valid JSON matching this schema:
 {{
@@ -913,6 +917,7 @@ def _coerce_extraction(parsed: dict[str, Any]) -> dict[str, Any]:
     Accepts missing fields, wrong-typed fields, etc. — always returns a
     dict with every expected key present.
     """
+
     def _string_list(val: Any, cap: int = 20) -> list[str]:
         if not isinstance(val, list):
             return []
@@ -1231,16 +1236,20 @@ def gather_hiring_signals(
         return skeleton
 
     parsed = _extract_signals(selected_with_body, company_name)
-    coerced = _coerce_extraction(parsed) if isinstance(parsed, dict) else {
-        "roles": [],
-        "tech_stack": {},
-        "strategic_initiatives": [],
-        "culture_signals": [],
-        "locations": [],
-        "hiring_volume": "unknown",
-        "notable_absences": [],
-        "summary": "",
-    }
+    coerced = (
+        _coerce_extraction(parsed)
+        if isinstance(parsed, dict)
+        else {
+            "roles": [],
+            "tech_stack": {},
+            "strategic_initiatives": [],
+            "culture_signals": [],
+            "locations": [],
+            "hiring_volume": "unknown",
+            "notable_absences": [],
+            "summary": "",
+        }
+    )
 
     stale_count = sum(1 for p in selected_with_body if p.is_stale())
     stale_fraction = stale_count / len(selected_with_body) if selected_with_body else 0.0

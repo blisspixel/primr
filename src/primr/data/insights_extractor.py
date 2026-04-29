@@ -5,14 +5,14 @@ Insight extraction and synthesis from search and scraped data.
 import time
 from typing import Any
 
-from dotenv import load_dotenv
 from google import genai
 
 from primr.config.config import GEMINI_API_KEY, MAX_RETRIES
+from primr.config.env import load_primr_env
 from primr.config.models import PrimrModels
 from primr.utils.logging_config import get_logger
 
-load_dotenv()
+load_primr_env()
 
 logger = get_logger("insights")
 

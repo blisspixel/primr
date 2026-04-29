@@ -20,6 +20,7 @@ from primr.config.config import (
     SEARCH_API_KEY,
     SEARCH_ENGINE_ID,
     WORKING_DIR,
+    XAI_API_KEY,
 )
 from primr.config.sections_config import SECTION_KEY_MAP
 from primr.config.settings import (
@@ -42,7 +43,6 @@ __all__ = [
     "AI_REPORT_MODEL",
     "AI_RESEARCH_MODEL",
     "EXCLUDED_SITES",
-    # Legacy exports
     "GEMINI_API_KEY",
     "GRADE_THRESHOLD_FOR_RESEARCH_REFINEMENT",
     "LOGS_DIR",
@@ -57,6 +57,7 @@ __all__ = [
     "SEARCH_ENGINE_ID",
     "SECTION_KEY_MAP",
     "WORKING_DIR",
+    "XAI_API_KEY",
     "AIConfig",
     "APIConfig",
     "CacheConfig",
@@ -65,7 +66,6 @@ __all__ = [
     "PricingConfig",
     "ScrapingConfig",
     "SearchConfig",
-    # New settings system
     "Settings",
     "TimeoutConfig",
     "configure",

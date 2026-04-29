@@ -489,7 +489,9 @@ def _estimate_fast_mode_cost(
         notes.append(f"AI Strategy via Grok ({num_vendors} vendor(s))")
     if verify:
         notes.append("Claim verification via Flash (~$0.01, 3-5 min)")
-    notes.append("Hiring signals via ATS / careers page (~$0.01, +1-2 min; skip with PRIMR_SKIP_HIRING_SIGNALS=1)")
+    notes.append(
+        "Hiring signals via ATS / careers page (~$0.01, +1-2 min; skip with PRIMR_SKIP_HIRING_SIGNALS=1)"
+    )
 
     total_input_tokens = flash_in + grok_in_total
     total_output_tokens = flash_out + grok_out_total
