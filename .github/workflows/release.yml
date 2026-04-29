@@ -85,3 +85,61 @@ jobs:
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+
+  github-release:
+    name: Create GitHub Release
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
+          fetch-depth: 0
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Resolve tag and version
+        id: meta
+        run: |
+          TAG_REF="${{ github.event.inputs.ref || github.ref }}"
+          TAG="${TAG_REF#refs/tags/}"
+          VERSION="${TAG#v}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Extract release notes from CHANGELOG.md
+        id: notes
+        run: |
+          python - <<'PY' "${{ steps.meta.outputs.version }}"
+          import re, sys, pathlib, os
+          version = sys.argv[1]
+          text = pathlib.Path("docs/CHANGELOG.md").read_text(encoding="utf-8")
+          pat = re.compile(r"^## \[" + re.escape(version) + r"\][^\n]*\n(.*?)(?=\n## \[|\Z)", re.M | re.S)
+          m = pat.search(text)
+          body = (m.group(1).strip() if m else f"Release {version}.")
+          out = pathlib.Path(os.environ["GITHUB_WORKSPACE"]) / "RELEASE_NOTES.md"
+          out.write_text(body, encoding="utf-8")
+          print(f"Extracted {len(body)} chars of notes for {version}")
+          PY
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ steps.meta.outputs.tag }}"
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --notes-file RELEASE_NOTES.md \
+            dist/*
