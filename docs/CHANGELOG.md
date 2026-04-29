@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 No unreleased changes.
 
+## [1.21.0] - 2026-04-29
+
+### Native AI-tool integration: Claude Code plugin, AGENTS.md, per-host clients
+
+primr now ships full agent-host integration mirroring the [recon](https://github.com/blisspixel/recon) layout. After `pip install primr`, AI-tool integration is one paste away — no install subcommand, no JSON-merge tooling, no host-specific glue inside the CLI.
+
+- **`claude-code/` plugin directory** — `.claude-plugin/plugin.json`, `.mcp.json` (registers `primr mcp` over stdio), and `skills/primr/SKILL.md` with three `references/` files. Installable via `/plugin marketplace add blisspixel/primr` then `/plugin install primr@blisspixel-primr` once a marketplace catalog is registered.
+- **`clients/` directory** — copy-pasteable MCP snippets for Kiro (`clients/kiro/mcp.json`), Windsurf (`clients/windsurf/mcp_config.json`), Cursor, VS Code + Copilot, and Claude Desktop. Each entry uses the unified `{"command": "primr", "args": ["mcp"]}` shape. README documents per-host file paths plus the macOS GUI-PATH gotcha.
+- **`AGENTS.md` at repo root** — same body as `SKILL.md` minus the frontmatter, in the [agents.md](https://agents.md) standard format. Auto-detected by Kiro, Codex, Aider, Jules, and any other tool that loads `AGENTS.md` without configuration.
+- **`primr mcp` subcommand** — single-binary entry point matching the recon `recon mcp` pattern. `primr mcp` defaults to `--stdio` (the canonical Claude Code use case); `primr mcp --http --port 8000` still works. The legacy `primr-mcp` console script is preserved for backwards compatibility.
+- **SKILL.md is agentskills.io-compliant** — same file works in Claude Code skills, Kiro skills, and any other host that follows the open Agent Skills standard. Encodes the cost gate, async-on-next-turn lifecycle, mode/tier/platform selection heuristics, hypothesis memory pattern, and behavioral deferral rules ("vague research → use the host's web search; DNS-only → shell out to dig").
+- **README "Use primr from your AI tool" section** — leads with the one-line "tell Claude to fetch this URL and save the skill" install for users who don't want the full plugin, plus the plugin install commands for users who do.
+
+### Why this shape
+
+We considered (and ruled out) shipping `primr install-skill` and `primr install-mcp` subcommands. The recon project's pattern proved better: skills live at stable raw GitHub URLs, the AI is the installer ("fetch this URL"), and per-host config snippets are copy/paste rather than auto-merged into user-owned files like `~/.claude.json`. Less primr code, no risk of corrupting user config, and the same `SKILL.md` works across Claude Code, Kiro, and any other agentskills.io-compliant host.
+
 ## [1.20.4] - 2026-04-29
 
 ### Critical: PyPI Wheels 1.20.1 – 1.20.3 Were Missing Data Files

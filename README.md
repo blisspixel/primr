@@ -205,16 +205,37 @@ Web search uses DuckDuckGo by default, no key needed.
 
 [Full config reference](docs/CONFIG.md) | [API key setup](docs/API_KEYS.md)
 
-## Agent Integration
+## Use primr from your AI tool
 
-Primr is built for the agentic era. Four ways to plug it in:
-**MCP Server** - Claude Desktop, Cursor, and any MCP-compatible client:
-```bash
-primr-mcp --stdio              # stdio transport
-primr-mcp --http --port 8000   # HTTP with JWT auth
+primr ships with an `AGENTS.md` (auto-loaded by Kiro, Codex, Aider, Jules), a Claude Code plugin under [`claude-code/`](claude-code/), and per-host MCP snippets under [`clients/`](clients/) for Cursor, Windsurf, VS Code + Copilot, and Claude Desktop.
+
+**Claude Code (one-command install):**
+
+```
+/plugin marketplace add blisspixel/primr
+/plugin install primr@blisspixel-primr
 ```
 
-**A2A Protocol** - Agent-to-Agent communication with any A2A-compatible agent:
+That registers both the MCP server (`primr mcp`, exposed as `mcp__primr__*` tools) and the skill (cost gate, async lifecycle, mode selection — loaded on-demand based on its description).
+
+**Skill-only install (no plugin):** paste this to Claude Code or any agent that can fetch and write files:
+
+> Fetch `https://raw.githubusercontent.com/blisspixel/primr/main/claude-code/skills/primr/SKILL.md` and save it to `~/.claude/skills/primr/SKILL.md`. Fetch the four files under `https://raw.githubusercontent.com/blisspixel/primr/main/claude-code/skills/primr/references/` and save them under `~/.claude/skills/primr/references/`. Then run `pip install primr && primr init`.
+
+**Other hosts (Cursor / Windsurf / Kiro / VS Code):** see [`clients/README.md`](clients/README.md) — copy-pasteable MCP config plus instructions for placing the skill or referencing `AGENTS.md` from the host's rules system.
+
+## Agent Integration (advanced)
+
+**MCP server** — Claude Code, Cursor, Windsurf, Claude Desktop, and any MCP-compatible client:
+
+```bash
+primr mcp                      # stdio transport (default — what hosts launch)
+primr mcp --http --port 8000   # HTTP with JWT auth
+primr-mcp --stdio              # legacy entry point, still supported
+```
+
+**A2A Protocol** — Agent-to-Agent communication with any A2A-compatible agent:
+
 ```bash
 pip install primr[a2a]                     # install optional A2A support
 primr-a2a --no-auth                        # standalone A2A server on port 9000

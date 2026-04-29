@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "primr": {
+      "command": "primr",
+      "args": ["mcp"],
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
