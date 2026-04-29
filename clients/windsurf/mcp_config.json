@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "primr": {
+      "command": "primr",
+      "args": ["mcp"]
+    }
+  }
+}

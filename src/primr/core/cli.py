@@ -577,6 +577,37 @@ def _run_keys(args: list[str] | None) -> int:
     return 0
 
 
+def _is_mcp_command(args: list[str] | None) -> bool:
+    """Check if the command line is a ``primr mcp ...`` invocation."""
+    argv = args if args is not None else sys.argv[1:]
+    return len(argv) >= 1 and argv[0] == "mcp"
+
+
+def _run_mcp(args: list[str] | None) -> int:
+    """Delegate ``primr mcp ...`` to the MCP server entry point.
+
+    With no additional args, defaults to ``--stdio`` since that's the
+    canonical mode for AI-host integration (Claude Code, Cursor, etc.).
+    Pass-through args allow ``primr mcp --http --port 8000`` to still work.
+    """
+    from primr.mcp_server.cli import main as mcp_main
+
+    argv = args if args is not None else sys.argv[1:]
+    mcp_argv = argv[1:]  # strip the "mcp" token
+    if not mcp_argv:
+        mcp_argv = ["--stdio"]
+
+    saved_argv = sys.argv
+    try:
+        sys.argv = ["primr-mcp", *list(mcp_argv)]
+        mcp_main()
+        return 0
+    except SystemExit as exc:
+        return int(exc.code) if exc.code is not None else 0
+    finally:
+        sys.argv = saved_argv
+
+
 def _run_recon(args: list[str] | None) -> int:
     """Delegate to the external recon-tool Typer CLI, returning an exit code.
 
@@ -630,6 +661,8 @@ def main(args: list[str] | None = None) -> int:
         return _run_recon(args)
     if _is_keys_command(args):
         return _run_keys(args)
+    if _is_mcp_command(args):
+        return _run_mcp(args)
 
     from pathlib import Path
 
