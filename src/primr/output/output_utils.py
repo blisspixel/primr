@@ -158,7 +158,7 @@ def strip_markdown_artifacts(text: str) -> str:
     return text
 
 
-def save_report_as_txt(section_results, company_name):
+def save_report_as_txt(section_results, company_name, output_dir: str | Path | None = None):
     """
     Save AI-generated report as a clean TXT file.
 
@@ -170,7 +170,9 @@ def save_report_as_txt(section_results, company_name):
     """
     date_str = datetime.now().strftime("%m-%d-%Y")
     file_name = f"{company_name}_Company_Overview_{date_str}.txt"
-    txt_path = os.path.join(OUTPUT_DIR, file_name)
+    destination_dir = Path(output_dir) if output_dir is not None else Path(OUTPUT_DIR)
+    destination_dir.mkdir(parents=True, exist_ok=True)
+    txt_path = destination_dir / file_name
 
     try:
         with open(txt_path, "w", encoding="utf-8") as f:
@@ -217,14 +219,19 @@ def save_report_as_txt(section_results, company_name):
             f.write("=" * 60 + "\n")
 
         console.ok("TXT saved")
-        return txt_path
+        return str(txt_path)
 
     except Exception as e:
         console.error(f"Failed to save TXT report: {e}")
         return None
 
 
-def save_report_as_docx_premium(section_results, company_name, citation_style="numbered"):
+def save_report_as_docx_premium(
+    section_results,
+    company_name,
+    citation_style="numbered",
+    output_dir: str | Path | None = None,
+):
     """
     Generate premium consultant-grade DOCX using DocumentBuilder.
 
@@ -249,7 +256,9 @@ def save_report_as_docx_premium(section_results, company_name, citation_style="n
 
     date_str = datetime.now().strftime("%m-%d-%Y")
     file_name = f"{company_name}_Strategic_Overview_{date_str}.docx"
-    docx_path = os.path.join(OUTPUT_DIR, file_name)
+    destination_dir = Path(output_dir) if output_dir is not None else Path(OUTPUT_DIR)
+    destination_dir.mkdir(parents=True, exist_ok=True)
+    docx_path = destination_dir / file_name
 
     try:
         # Map string to enum
@@ -275,7 +284,7 @@ def save_report_as_docx_premium(section_results, company_name, citation_style="n
             # Generate sidecar file if requested
             if style == CitationStyle.SIDECAR:
                 sidecar_filename, sidecar_content = processor.generate_sidecar_file(company_name)
-                sidecar_path = os.path.join(OUTPUT_DIR, sidecar_filename)
+                sidecar_path = destination_dir / sidecar_filename
                 with open(sidecar_path, "w", encoding="utf-8") as f:
                     f.write(sidecar_content)
                 console.ok(f"Sources file: {sidecar_filename}")
@@ -284,14 +293,14 @@ def save_report_as_docx_premium(section_results, company_name, citation_style="n
         document = builder.build()
         document.save(docx_path)
         console.ok("Premium DOCX saved")
-        return docx_path
+        return str(docx_path)
     except Exception as e:
         console.error(f"Failed to generate premium DOCX: {e}")
         # Fall back to legacy generation
         return None
 
 
-def save_report_as_docx(txt_path, company_name):
+def save_report_as_docx(txt_path, company_name, output_dir: str | Path | None = None):
     """
     Convert markdown TXT content into a formatted DOCX document.
 
@@ -300,7 +309,9 @@ def save_report_as_docx(txt_path, company_name):
     """
     date_str = datetime.now().strftime("%m-%d-%Y")
     file_name = f"{company_name}_Company_Overview_{date_str}.docx"
-    docx_path = os.path.join(OUTPUT_DIR, file_name)
+    destination_dir = Path(output_dir) if output_dir is not None else Path(OUTPUT_DIR)
+    destination_dir.mkdir(parents=True, exist_ok=True)
+    docx_path = destination_dir / file_name
 
     try:
         document = Document()
@@ -368,7 +379,7 @@ def save_report_as_docx(txt_path, company_name):
 
         document.save(docx_path)
         console.ok("DOCX saved")
-        return docx_path
+        return str(docx_path)
 
     except Exception as e:
         console.error(f"Failed to convert TXT to DOCX: {e}")
@@ -477,7 +488,12 @@ def cleanup(company_name):
 
 
 def generate_final_report(
-    company_name: str, premium: bool = True, citation_style: str = "numbered"
+    company_name: str,
+    premium: bool = True,
+    citation_style: str = "numbered",
+    output_dir: str | Path | None = None,
+    diagnostics_dir: str | Path | None = None,
+    write_txt: bool = True,
 ) -> str | None:
     """
     Generates the final structured report in TXT, DOCX, and ZIP archive formats.
@@ -496,17 +512,21 @@ def generate_final_report(
         console.error("No section data available for report")
         return None
 
-    # Always generate TXT for reference
-    txt_path = save_report_as_txt(section_results, company_name)
+    txt_path = None
+    if write_txt or diagnostics_dir is not None:
+        txt_output_dir = output_dir if write_txt else diagnostics_dir
+        txt_path = save_report_as_txt(section_results, company_name, output_dir=txt_output_dir)
 
     # Generate DOCX - try premium first, fall back to legacy
     docx_path = None
     if premium:
-        docx_path = save_report_as_docx_premium(section_results, company_name, citation_style)
+        docx_path = save_report_as_docx_premium(
+            section_results, company_name, citation_style, output_dir=output_dir
+        )
 
     # Fall back to legacy if premium fails or not requested
     if not docx_path and txt_path:
-        docx_path = save_report_as_docx(txt_path, company_name)
+        docx_path = save_report_as_docx(txt_path, company_name, output_dir=output_dir)
 
     if docx_path:
         convert_docx_to_pdf(docx_path)

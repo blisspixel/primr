@@ -325,6 +325,7 @@ class ResearchOrchestrator:
         self._memory = memory
         self._hooks = hook_system
         self._state = OrchestratorState.IDLE
+        self._working_dir_sequence = 0
         # v1.11.0 Interactive mode state
         self._paused_at_stage: str | None = None
         self._previous_state: OrchestratorState | None = None
@@ -859,8 +860,11 @@ class ResearchOrchestrator:
             :50
         ]
 
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        working_dir = self._config.output_dir / f"{safe_name}_{timestamp}"
+        self._working_dir_sequence += 1
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        working_dir = self._config.output_dir / (
+            f"{safe_name}_{timestamp}_{self._working_dir_sequence:04d}"
+        )
         working_dir.mkdir(parents=True, exist_ok=True)
 
         return working_dir

@@ -603,7 +603,10 @@ class TestComprehensiveReportReliability:
             else:
                 raise Exception("Persistent network error")
 
-        with patch.object(analyzer, "ai_client") as mock_client:
+        with (
+            patch.object(analyzer, "ai_client") as mock_client,
+            patch("time.sleep"),
+        ):
             mock_client.generate.side_effect = mock_generate
 
             result = analyzer.assess_report(test_report)

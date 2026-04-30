@@ -18,17 +18,20 @@ from __future__ import annotations
 import asyncio
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 
+import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
+import primr.agentic.orchestrator as orchestrator_module
 from primr.agentic.orchestrator import (
     OrchestratorConfig,
     OrchestratorResult,
     OrchestratorState,
     ResearchOrchestrator,
 )
-from primr.agentic.subagents import SubagentStatus
+from primr.agentic.subagents import SubagentResult, SubagentStatus
 
 # =============================================================================
 # STRATEGIES
@@ -58,6 +61,88 @@ modes = st.sampled_from(["scrape", "full"])
 
 # Orchestrator states
 orchestrator_states = st.sampled_from(list(OrchestratorState))
+
+
+class _FastSubagent:
+    """Deterministic stand-in for orchestrator unit/property tests."""
+
+    name = "FastSubagent"
+
+    def __init__(self, context, *args, **kwargs):
+        self._context = context
+        self.company_name = context.company_name
+        self.company_url = context.company_url
+        self.working_dir = context.working_dir
+
+
+class _FastScraperSubagent(_FastSubagent):
+    name = "ScraperSubagent"
+
+    async def execute(self):
+        corpus_path = self.working_dir / "corpus.txt"
+        corpus_path.write_text(
+            f"{self.company_name} provides cloud and AI services.",
+            encoding="utf-8",
+        )
+        return SubagentResult(
+            status=SubagentStatus.COMPLETED,
+            data=SimpleNamespace(corpus_path=corpus_path),
+        )
+
+
+class _FastAnalystSubagent(_FastSubagent):
+    name = "AnalystSubagent"
+
+    async def execute(self):
+        insights_path = self.working_dir / "insights.json"
+        insights_path.write_text('{"claims": ["Uses cloud services"]}', encoding="utf-8")
+        return SubagentResult(
+            status=SubagentStatus.COMPLETED,
+            data=SimpleNamespace(insights_path=insights_path),
+        )
+
+
+class _FastWriterSubagent(_FastSubagent):
+    name = "WriterSubagent"
+
+    async def execute(self):
+        report_path = self.working_dir / "report.md"
+        report_path.write_text("# Report\n\nDeterministic test report.", encoding="utf-8")
+        return SubagentResult(
+            status=SubagentStatus.COMPLETED,
+            data=SimpleNamespace(report_path=report_path),
+        )
+
+
+class _FastQASubagent(_FastSubagent):
+    name = "QASubagent"
+
+    async def execute(self):
+        return SubagentResult(
+            status=SubagentStatus.COMPLETED,
+            data=SimpleNamespace(score=100),
+        )
+
+
+class _FastVerifierSubagent(_FastSubagent):
+    name = "VerifierSubagent"
+
+    async def execute(self):
+        return SubagentResult(
+            status=SubagentStatus.COMPLETED,
+            data=SimpleNamespace(trust_percentage=100),
+        )
+
+
+@pytest.fixture(autouse=True)
+def fast_orchestrator_subagents(monkeypatch):
+    """Keep orchestrator property tests focused on orchestration, not the pipeline."""
+
+    monkeypatch.setattr(orchestrator_module, "ScraperSubagent", _FastScraperSubagent)
+    monkeypatch.setattr(orchestrator_module, "AnalystSubagent", _FastAnalystSubagent)
+    monkeypatch.setattr(orchestrator_module, "WriterSubagent", _FastWriterSubagent)
+    monkeypatch.setattr(orchestrator_module, "QASubagent", _FastQASubagent)
+    monkeypatch.setattr(orchestrator_module, "VerifierSubagent", _FastVerifierSubagent)
 
 
 @st.composite
@@ -492,15 +577,12 @@ def test_orchestrator_result_duration():
 
 def test_orchestrator_working_dir_creation():
     """Orchestrator creates unique working directories."""
-    import time
-
     with tempfile.TemporaryDirectory() as tmpdir:
         config = OrchestratorConfig(output_dir=Path(tmpdir))
         orchestrator = ResearchOrchestrator(config=config)
 
         # Create two working dirs for same company
         dir1 = orchestrator._create_working_dir("Test Corp")
-        time.sleep(1.1)  # Ensure different timestamp
         dir2 = orchestrator._create_working_dir("Test Corp")
 
         # Should be different (timestamp-based)

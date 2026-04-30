@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.21.1
+Current State: v1.21.2
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -36,12 +36,13 @@ For completed work, see the [Changelog](#changelog) at the bottom of this file, 
 
 - AI strategy and roadmap generation with multi-platform support (`--platform aws azure`)
 - Platform options: Azure, AWS, GCP, agnostic, private (NVIDIA/on-prem)
-- DNS intelligence pre-flight (recon): auto-detects cloud platform from DNS fingerprints, injects tech stack context into all strategy types
+- DNS intelligence pre-flight (recon): auto-detects AI strategy platform from strong infrastructure fingerprints, injects tech stack context into all strategy types, and falls back to Azure + private cloud/NVIDIA when no primary cloud is clear
 - `primr recon` subcommand for standalone DNS intelligence lookups
 - `--platform ms` shorthand for Microsoft Azure + NVIDIA private cloud
 - Multiple strategy types: AI, Customer Experience, Security, Data Fabric
 - Strategy enrichment: cross-validation, evidence search, section regeneration, polish pass, and pre-ship repair for citation/source/budget conflicts
 - TXT, DOCX, and PDF outputs with citation styles
+- Custom `--output-dir` support for clean client folders: Markdown and DOCX deliverables are written to the requested directory, while TXT mirrors and validation diagnostics stay with the run diagnostics
 - 23-section reports with adaptive section selection, constrained-evidence reasoning, deduplication, and cross-validation
 
 ### Agent Integration
@@ -1037,6 +1038,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.21.2 | Apr 2026 | Release fix for client-folder output and recon platform defaults: `--output-dir` now reaches the research pipeline, custom output directories keep only Markdown/DOCX deliverables while TXT mirrors and validation diagnostics stay in run diagnostics, recon platform selection now uses strong infrastructure signals only, and unclear/skipped recon falls back to Azure + private cloud/NVIDIA. |
 | 1.20.1 | Apr 2026 | PyPI release infrastructure: `.github/workflows/release.yml` triggers on `v*` tag push or manual dispatch, builds sdist + wheel, runs `twine check`, publishes via PyPI trusted-publisher OIDC (no API token in repo secrets). Repo cleanup: root `.md` reduced to `README.md` and `ROADMAP.md` — `CHANGELOG`, `CONCURRENCY`, `CONTRIBUTING`, `SECURITY` moved to `docs/`. `CLAUDE.md` removed from version control (gitignored, kept on disk for local workflow). ROADMAP entry queued to fold `setup_env.py` into a `primr init` subcommand once PyPI ships. |
 | 1.20.0 | Apr 2026 | Continuous reasoning session is now the default for the standard pipeline: workbook generation and cross-validation share a single Grok 4.20 session so the validator inherits corpus + workbook reasoning instead of re-reading the report cold. Decision driven by an n=3 paired-comparison pilot — 3/3 workbook wins, 2/3 cross-val wins, 2/3 final-report wins, ~81% reduction in leaked-instruction lines, avg ~+12% cost. New `ContinuousReasoningSession` class, `--no-continuous-reasoning` opt-out, `PRIMR_CONTINUOUS_REASONING` env var. Roadmap restructured into a single ordered priority list (no version-numbered milestones). Separate ROADMAP entry added for artifact drift in the standard pipeline (independent of topology). |
 | 1.19.0 | Apr 2026 | Hiring-signal gathering (Greenhouse / Lever / Ashby / SmartRecruiters board APIs + careers-page fallback, LLM triage and structured extraction, threaded into all downstream phases). Public-data fallback fan-out (Wayback / EDGAR / Wikipedia / sister subdomains) when the origin is fully blocked. Patchright stealth tier with global headed-popup budget. Verified page-access classifier promoted to first-class. |

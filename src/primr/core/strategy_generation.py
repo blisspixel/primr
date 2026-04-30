@@ -142,6 +142,9 @@ def generate_generic_strategy(
     company_name: str,
     company_research_path: str | None = None,
     discovery_notes_content: str | None = None,
+    output_dir: str | Path | None = None,
+    diagnostics_dir: str | Path | None = None,
+    write_txt: bool = True,
 ) -> str | None:
     """
     Generate a strategy document using Deep Research and the strategy YAML definition.
@@ -238,18 +241,24 @@ def generate_generic_strategy(
         date_str = datetime.now().strftime("%m-%d-%Y")
         output_filename = meta.get("output_filename", f"{{company_name}}_{strategy_name}")
         base_name = output_filename.format(company_name=company_name) + f"_{date_str}"
+        destination_dir = Path(output_dir) if output_dir is not None else Path(OUTPUT_DIR)
+        destination_dir.mkdir(parents=True, exist_ok=True)
+        internal_dir = Path(diagnostics_dir) if diagnostics_dir is not None else destination_dir
+        internal_dir.mkdir(parents=True, exist_ok=True)
 
-        md_path = os.path.join(OUTPUT_DIR, f"{base_name}.md")
+        md_path = destination_dir / f"{base_name}.md"
         with open(md_path, "w", encoding="utf-8") as handle:
             handle.write(result.content)
         console.ok(f"{strategy_display_name} MD: {base_name}.md", show_time=False)
 
-        txt_path = os.path.join(OUTPUT_DIR, f"{base_name}.txt")
-        with open(txt_path, "w", encoding="utf-8") as handle:
-            handle.write(result.content)
-        console.ok(f"{strategy_display_name} TXT: {base_name}.txt", show_time=False)
+        if write_txt or diagnostics_dir is not None:
+            txt_path = (destination_dir if write_txt else internal_dir) / f"{base_name}.txt"
+            with open(txt_path, "w", encoding="utf-8") as handle:
+                handle.write(result.content)
+            if write_txt:
+                console.ok(f"{strategy_display_name} TXT: {base_name}.txt", show_time=False)
 
-        docx_path = os.path.join(OUTPUT_DIR, f"{base_name}.docx")
+        docx_path = destination_dir / f"{base_name}.docx"
         try:
             subtitle = datetime.now().strftime("%B %d, %Y")
             markdown_to_docx(
@@ -261,7 +270,7 @@ def generate_generic_strategy(
             console.ok(f"{strategy_display_name} DOCX: {base_name}.docx", show_time=False)
         except PermissionError:
             timestamp = datetime.now().strftime("%H%M%S")
-            docx_path = os.path.join(OUTPUT_DIR, f"{base_name}_{timestamp}.docx")
+            docx_path = destination_dir / f"{base_name}_{timestamp}.docx"
             console.warn(f"Original file locked, saving as: {base_name}_{timestamp}.docx")
             markdown_to_docx(
                 markdown_text=result.content,
@@ -273,7 +282,7 @@ def generate_generic_strategy(
             console.warn(f"DOCX conversion failed: {exc}")
             docx_path = md_path
 
-        return docx_path
+        return str(docx_path)
 
     except Exception as exc:
         console.error(f"{strategy_display_name} generation failed: {exc}")

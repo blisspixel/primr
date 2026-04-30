@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 No unreleased changes.
 
+## [1.21.2] - 2026-04-30
+
+### Output Directory and Recon Platform Defaults
+
+- **`--output-dir` now applies to the research pipeline.** The CLI parser already accepted the flag, but the main research handler did not pass it through. Reports and strategy documents now write to the requested directory across standard, fast, deep, and strategy-only paths.
+- **Custom output folders are client-clean.** When `--output-dir` is set, Markdown and DOCX deliverables are written there; TXT mirrors and artifact validation diagnostics are kept under the run diagnostics folder instead of cluttering the client folder.
+- **Recon platform selection now uses strong infrastructure signals only.** DNS productivity, email, and certificate signals such as Microsoft 365, Google Workspace, Google Trust, AWS SES, and AWS ACM remain available as recon context but no longer declare a primary AI strategy cloud.
+- **Fallback strategy posture is Microsoft + private cloud/NVIDIA.** If recon is unclear or skipped, Primr defaults to `azure private` instead of a generic agnostic or accidental all-cloud posture.
+
 ## [1.21.1] - 2026-04-29
 
 ### Skill async-monitoring guidance: behavioral, not tool-specific

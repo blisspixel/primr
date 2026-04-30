@@ -121,6 +121,16 @@ primr recon acme.com                                           # DNS intelligenc
 primr recon acme.com --json                                    # Structured JSON output
 ```
 
+When `--platform` is omitted, Primr runs recon first and uses strong infrastructure signals (for example Azure DNS/App Service/CDN, AWS Route53/CloudFront, or GCP DNS) to choose the AI strategy platform. If multiple strong platforms are detected, it generates one strategy per platform. Productivity, certificate, and email-only signals do not count as primary-cloud proof. If recon is unclear or skipped, the default strategy posture is Microsoft Azure plus private cloud/NVIDIA (`azure private`).
+
+Use `--output-dir` to send customer-facing deliverables to a specific client folder:
+
+```bash
+primr "Company" https://company.com --output-dir "C:\Clients\Company"
+```
+
+With a custom output directory, Primr keeps that folder clean: Markdown and DOCX deliverables are written there, while TXT mirrors and validation diagnostics stay in the run's `working/<company>/<timestamp>/_diagnostics/` folder. The default `output/` folder still includes TXT mirrors for backward compatibility.
+
 For batch processing, see [Batch Guide](docs/BATCH.md). For crash recovery and resume, see [Recovery Guide](docs/RECOVERY.md). For post-generation quality improvement, see [Improve Guide](docs/IMPROVE.md).
 
 ### What a run looks like

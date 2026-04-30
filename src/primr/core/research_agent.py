@@ -4094,6 +4094,9 @@ def perform_fast_research(
     resume_local: bool = False,
     grok_tier: str = "hybrid",
     continuous_reasoning: bool = True,
+    output_dir: str | Path | None = None,
+    diagnostics_dir: str | Path | None = None,
+    write_txt: bool = True,
 ) -> str | None:
     """
     Fast research mode using Grok 4.1 with accordion-style batch writing.
@@ -5271,6 +5274,9 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
             company_name or display_name,
             website,
             gate_issues=report_gate_issues,
+            output_dir=output_dir,
+            diagnostics_dir=diagnostics_dir,
+            write_txt=write_txt,
         )
 
         # Also save raw markdown for AI strategy context
@@ -5472,6 +5478,9 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
                             company_name or display_name,
                             vendor,
                             strategy_label="AI_Strategy",
+                            output_dir=output_dir,
+                            diagnostics_dir=diagnostics_dir,
+                            write_txt=write_txt,
                         )
                         if strategy_path:
                             key = f"ai_{vendor}" if len(platforms) > 1 else "ai"
@@ -5685,6 +5694,9 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
                             company_name or display_name,
                             "agnostic",
                             strategy_label=file_label,
+                            output_dir=output_dir,
+                            diagnostics_dir=diagnostics_dir,
+                            write_txt=write_txt,
                         )
                         if strategy_path:
                             strategy_paths[stype] = strategy_path
@@ -5751,11 +5763,10 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
 
         actual_cost = grok_cost + flash_cost
 
-        from primr.output.output_utils import OUTPUT_DIR
-
         date_str = datetime.now().strftime("%m-%d-%Y")
+        fallback_dir = Path(output_dir) if output_dir is not None else Path(OUTPUT_DIR)
         fallback_md = (
-            Path(OUTPUT_DIR) / f"{company_name or display_name}_Strategic_Overview_{date_str}.md"
+            fallback_dir / f"{company_name or display_name}_Strategic_Overview_{date_str}.md"
         )
         primary_output_path = str(fallback_md) if fallback_md.exists() else docx_path
 
@@ -5847,6 +5858,9 @@ def _save_strategy_output(
     company_name: str,
     platform: str,
     strategy_label: str = "AI_Strategy",
+    output_dir: str | Path | None = None,
+    diagnostics_dir: str | Path | None = None,
+    write_txt: bool = True,
 ) -> str | None:
     """Save strategy markdown/txt/docx output. Returns docx path or None."""
     from primr.output.markdown_converter import markdown_to_docx
@@ -5855,6 +5869,10 @@ def _save_strategy_output(
     date_str = datetime.now().strftime("%m-%d-%Y")
     vendor_suffix = f"_{platform.upper()}" if platform != "agnostic" else ""
     base_name = f"{company_name}_{strategy_label}{vendor_suffix}_{date_str}"
+    destination_dir = Path(output_dir) if output_dir is not None else Path(OUTPUT_DIR)
+    destination_dir.mkdir(parents=True, exist_ok=True)
+    internal_dir = Path(diagnostics_dir) if diagnostics_dir is not None else destination_dir
+    internal_dir.mkdir(parents=True, exist_ok=True)
 
     # Human-readable title for DOCX
     display_label = strategy_label.replace("_", " ")
@@ -5865,13 +5883,14 @@ def _save_strategy_output(
             kind="strategy",
         )
 
-        md_path = Path(OUTPUT_DIR) / f"{base_name}.md"
+        md_path = destination_dir / f"{base_name}.md"
         with open(md_path, "w", encoding="utf-8") as f:
             f.write(strategy_content)
 
-        txt_path = Path(OUTPUT_DIR) / f"{base_name}.txt"
-        with open(txt_path, "w", encoding="utf-8") as f:
-            f.write(strategy_content)
+        if write_txt or diagnostics_dir is not None:
+            txt_path = (destination_dir if write_txt else internal_dir) / f"{base_name}.txt"
+            with open(txt_path, "w", encoding="utf-8") as f:
+                f.write(strategy_content)
         if salvaged:
             console.info(f"Adaptive salvage cleaned {display_label} markdown before shipping")
 
@@ -5893,6 +5912,7 @@ def _save_strategy_output(
                 "markdown",
                 strategy_gate_issues,
                 strategy_gate_errors,
+                diagnostics_dir=diagnostics_dir,
             )
             console.warn(f"{display_label} artifact issues: " + ", ".join(strategy_gate_issues[:3]))
             console.warn(
@@ -5906,6 +5926,7 @@ def _save_strategy_output(
                 "markdown",
                 strategy_advisory_issues,
                 strategy_gate_errors,
+                diagnostics_dir=diagnostics_dir,
             )
             console.warn(
                 f"{display_label} validation warnings: "
@@ -5913,7 +5934,7 @@ def _save_strategy_output(
                 + (f" ({report_path.name})" if report_path else "")
             )
 
-        docx_path = Path(OUTPUT_DIR) / f"{base_name}.docx"
+        docx_path = destination_dir / f"{base_name}.docx"
         try:
             markdown_to_docx(
                 markdown_text=strategy_content,
@@ -5934,6 +5955,7 @@ def _save_strategy_output(
                 "docx",
                 docx_validation["issues"],
                 docx_validation["errors"],
+                diagnostics_dir=diagnostics_dir,
             )
             try:
                 docx_path.unlink(missing_ok=True)
@@ -5953,6 +5975,7 @@ def _save_strategy_output(
                 "docx",
                 docx_validation["issues"],
                 docx_validation["errors"],
+                diagnostics_dir=diagnostics_dir,
             )
             console.warn(
                 "DOCX validator encountered non-fatal errors; shipping strategy DOCX"
@@ -5989,7 +6012,8 @@ def perform_research(
     mode: str = "structured",
     citation_style: str = "numbered",
     ai_strategy: bool = False,
-    platforms: tuple[str, ...] = ("agnostic",),
+    platforms: tuple[str, ...] | None = None,
+    output_dir: str | Path | None = None,
     skip_confirm: bool = False,
     context_files: list[Any] | None = None,
     refresh_vendor_research: bool = False,
@@ -6014,6 +6038,19 @@ def perform_research(
 
     display_name: str = company_name or (urlparse(website or "").netloc if website else "")
     folder_path = create_working_folder(company_name, website, reuse_incomplete=resume_local)
+    explicit_platforms = platforms is not None
+    if platforms is None:
+        from primr.core.platform_mapper import DEFAULT_PLATFORM_FALLBACK
+
+        platforms = DEFAULT_PLATFORM_FALLBACK
+    run_output_dir = Path(output_dir) if output_dir is not None else Path(OUTPUT_DIR)
+    run_output_dir.mkdir(parents=True, exist_ok=True)
+    diagnostics_dir: Path | None = None
+    write_public_txt = True
+    if output_dir is not None:
+        diagnostics_dir = Path(folder_path) / "_diagnostics"
+        diagnostics_dir.mkdir(parents=True, exist_ok=True)
+        write_public_txt = False
     existing_state = _load_run_state(folder_path)
     if resume_local and existing_state:
         # Ensure resilience keys exist even on resumed runs (NFR 3 backwards compat)
@@ -6103,14 +6140,15 @@ def perform_research(
                 recon_info = info  # noqa: F841 — kept for future downstream use
 
                 # Auto-detect platforms if user didn't specify
-                from primr.core.platform_mapper import map_platforms
+                from primr.core.platform_mapper import DEFAULT_PLATFORM_FALLBACK, map_platforms
 
                 detected_platforms = map_platforms(info.slugs)
-                if platforms == ("agnostic",) or platforms == ("azure",):
-                    # Default values — treat as "not explicitly specified"
+                if not explicit_platforms:
                     platforms = detected_platforms
                     console.info(f"Recon: auto-detected platform(s): {', '.join(platforms)}")
-                elif set(detected_platforms) != set(platforms):
+                elif detected_platforms != DEFAULT_PLATFORM_FALLBACK and set(
+                    detected_platforms
+                ) != set(platforms):
                     console.info(
                         f"Recon detected {', '.join(detected_platforms)}, "
                         f"but --platform {', '.join(platforms)} was specified. "
@@ -6134,6 +6172,7 @@ def perform_research(
 
                 _update_run_state(
                     folder_path,
+                    cloud_vendors=list(platforms),
                     recon_detected_platforms=list(detected_platforms),
                     recon_service_count=len(info.services),
                     recon_signal_count=len(info.insights),
@@ -6213,6 +6252,9 @@ def perform_research(
                 resume_local=resume_local,
                 grok_tier=grok_tier,
                 continuous_reasoning=continuous_reasoning,
+                output_dir=run_output_dir,
+                diagnostics_dir=diagnostics_dir,
+                write_txt=write_public_txt,
             )
             if fast_path:
                 _update_run_state(
@@ -6261,6 +6303,9 @@ def perform_research(
                 lite_strategy=lite_strategy,
                 fail_on_low_scrape=not skip_scrape_validation,
                 folder_path=folder_path,
+                output_dir=run_output_dir,
+                diagnostics_dir=diagnostics_dir,
+                write_txt=write_public_txt,
             )
 
         try:
@@ -6442,7 +6487,11 @@ def perform_research(
             _append_run_event(folder_path, "finalizing", "started", "Finalizing output documents")
             with console.timed_operation("Generating documents"):
                 docx_path = generate_final_report(
-                    company_name or display_name, citation_style=citation_style
+                    company_name or display_name,
+                    citation_style=citation_style,
+                    output_dir=run_output_dir,
+                    diagnostics_dir=diagnostics_dir,
+                    write_txt=write_public_txt,
                 )
 
             # Generate AI strategy if requested (uses Deep Research with company context)
@@ -6469,6 +6518,9 @@ def perform_research(
                     force_refresh_vendor=refresh_vendor_research,
                     discovery_notes_content=discovery_notes_content,
                     lite_strategy=lite_strategy,
+                    output_dir=run_output_dir,
+                    diagnostics_dir=diagnostics_dir,
+                    write_txt=write_public_txt,
                 )
                 if ai_strategy_path:
                     console.phase_complete("AI Strategy Analysis")
@@ -6491,6 +6543,8 @@ def perform_research(
                     # QA for main Strategic Overview report
                     if docx_path:
                         txt_report_path = Path(docx_path).with_suffix(".txt")
+                        if not txt_report_path.exists() and diagnostics_dir is not None:
+                            txt_report_path = diagnostics_dir / txt_report_path.name
                         if txt_report_path.exists():
                             qa_result = qa_integration.run_post_generation_qa(
                                 txt_report_path, company_name or display_name
@@ -6499,6 +6553,8 @@ def perform_research(
                     # QA for AI Strategy report
                     if ai_strategy_path:
                         ai_strategy_txt = Path(ai_strategy_path).with_suffix(".txt")
+                        if not ai_strategy_txt.exists() and diagnostics_dir is not None:
+                            ai_strategy_txt = diagnostics_dir / ai_strategy_txt.name
                         if ai_strategy_txt.exists():
                             ai_strategy_qa_result = qa_integration.run_post_generation_qa(
                                 ai_strategy_txt, f"{company_name or display_name} (AI Strategy)"
@@ -6652,6 +6708,9 @@ def perform_deep_research(
     lite_strategy: bool = False,
     fail_on_low_scrape: bool = True,
     folder_path: str | None = None,
+    output_dir: str | Path | None = None,
+    diagnostics_dir: str | Path | None = None,
+    write_txt: bool = True,
 ) -> str | None:
     """
     Perform research using Deep Research Agent, Complete, or Hybrid mode.
@@ -6673,6 +6732,10 @@ def perform_deep_research(
     """
     display_name: str = company_name or (urlparse(website or "").netloc if website else "")
     folder_path = folder_path or create_working_folder(company_name, website)
+    run_output_dir = Path(output_dir) if output_dir is not None else Path(OUTPUT_DIR)
+    run_output_dir.mkdir(parents=True, exist_ok=True)
+    if diagnostics_dir is not None:
+        Path(diagnostics_dir).mkdir(parents=True, exist_ok=True)
     _update_run_state(folder_path, current_phase="preflight", status="running")
     _append_run_event(folder_path, "preflight", "started", "Deep research run started")
 
@@ -6894,12 +6957,21 @@ def perform_deep_research(
                 if result.raw_content and mode in ("deep-research", "complete", "hybrid"):
                     # Deep Research: convert markdown directly to DOCX (preserves structure)
                     docx_path = _convert_deep_research_to_docx(
-                        result.raw_content, company_name or display_name, website
+                        result.raw_content,
+                        company_name or display_name,
+                        website,
+                        output_dir=run_output_dir,
+                        diagnostics_dir=diagnostics_dir,
+                        write_txt=write_txt,
                     )
                 else:
                     # Structured pipeline: use DocumentBuilder to assemble sections
                     docx_path = generate_final_report(
-                        company_name or display_name, citation_style=citation_style
+                        company_name or display_name,
+                        citation_style=citation_style,
+                        output_dir=run_output_dir,
+                        diagnostics_dir=diagnostics_dir,
+                        write_txt=write_txt,
                     )
 
             if is_simple_deep_research:
@@ -6974,6 +7046,9 @@ def perform_deep_research(
                             company_research_path=raw_md_path,
                             force_refresh_vendor=refresh_vendor_research,
                             lite_strategy=lite_strategy,
+                            output_dir=run_output_dir,
+                            diagnostics_dir=diagnostics_dir,
+                            write_txt=write_txt,
                         )
 
                         if strategy_path:
@@ -7260,12 +7335,21 @@ class _ArtifactValidation(TypedDict):
 
 
 def _write_output_validation_report(
-    base_path: Path, phase: str, issues: list[str], errors: list[str]
+    base_path: Path,
+    phase: str,
+    issues: list[str],
+    errors: list[str],
+    diagnostics_dir: str | Path | None = None,
 ) -> Path | None:
     if not issues and not errors:
         return None
 
-    report_path = base_path.with_name(f"{base_path.stem}_{phase}_validation.txt")
+    if diagnostics_dir is not None:
+        diagnostics_path = Path(diagnostics_dir)
+        diagnostics_path.mkdir(parents=True, exist_ok=True)
+        report_path = diagnostics_path / f"{base_path.stem}_{phase}_validation.txt"
+    else:
+        report_path = base_path.with_name(f"{base_path.stem}_{phase}_validation.txt")
     lines = [f"Artifact validation report ({phase})", ""]
     if issues:
         lines.append("Issues:")
@@ -7404,6 +7488,9 @@ def _convert_deep_research_to_docx(
     company_name: str,
     website: str | None,
     gate_issues: list[str] | None = None,
+    output_dir: str | Path | None = None,
+    diagnostics_dir: str | Path | None = None,
+    write_txt: bool = True,
 ) -> str | None:
     """
     Convert Deep Research markdown output to all output formats.
@@ -7430,6 +7517,10 @@ def _convert_deep_research_to_docx(
 
     date_str = datetime.now().strftime("%m-%d-%Y")
     base_name = f"{company_name}_Strategic_Overview_{date_str}"
+    destination_dir = Path(output_dir) if output_dir is not None else Path(OUTPUT_DIR)
+    destination_dir.mkdir(parents=True, exist_ok=True)
+    internal_dir = Path(diagnostics_dir) if diagnostics_dir is not None else destination_dir
+    internal_dir.mkdir(parents=True, exist_ok=True)
 
     try:
         markdown_content, markdown_validation, salvaged = _salvage_markdown_for_shipping(
@@ -7438,16 +7529,20 @@ def _convert_deep_research_to_docx(
         )
 
         # Save markdown (.md)
-        md_path = Path(OUTPUT_DIR) / f"{base_name}.md"
+        md_path = destination_dir / f"{base_name}.md"
         with open(md_path, "w", encoding="utf-8") as f:
             f.write(markdown_content)
         console.ok(f"MD saved: {base_name}.md", show_time=False)
 
-        # Save plain text (.txt)
-        txt_path = Path(OUTPUT_DIR) / f"{base_name}.txt"
-        with open(txt_path, "w", encoding="utf-8") as f:
-            f.write(markdown_content)
-        console.ok(f"TXT saved: {base_name}.txt", show_time=False)
+        # Save plain text (.txt). For custom output directories, keep this
+        # machine-facing mirror in the diagnostics folder so the requested
+        # output path stays focused on customer-facing deliverables.
+        if write_txt or diagnostics_dir is not None:
+            txt_path = (destination_dir if write_txt else internal_dir) / f"{base_name}.txt"
+            with open(txt_path, "w", encoding="utf-8") as f:
+                f.write(markdown_content)
+            if write_txt:
+                console.ok(f"TXT saved: {base_name}.txt", show_time=False)
         if salvaged:
             console.info("Adaptive salvage cleaned report markdown before shipping")
 
@@ -7466,6 +7561,7 @@ def _convert_deep_research_to_docx(
                 "markdown",
                 combined_markdown_issues,
                 markdown_validation["errors"],
+                diagnostics_dir=diagnostics_dir,
             )
             console.warn("Report artifact issues: " + ", ".join(combined_markdown_issues[:3]))
             console.warn(
@@ -7475,7 +7571,7 @@ def _convert_deep_research_to_docx(
             return None
 
         # Convert to DOCX
-        docx_path = Path(OUTPUT_DIR) / f"{base_name}.docx"
+        docx_path = destination_dir / f"{base_name}.docx"
         try:
             markdown_to_docx(
                 markdown_text=markdown_content,
@@ -7487,7 +7583,7 @@ def _convert_deep_research_to_docx(
             # File is probably open in Word - try with timestamp suffix
             timestamp = datetime.now().strftime("%H%M%S")
             file_name = f"{base_name}_{timestamp}.docx"
-            docx_path = Path(OUTPUT_DIR) / file_name
+            docx_path = destination_dir / file_name
             console.warn(f"Original file locked, saving as: {file_name}")
             markdown_to_docx(
                 markdown_text=markdown_content,
@@ -7503,6 +7599,7 @@ def _convert_deep_research_to_docx(
                 "docx",
                 docx_validation["issues"],
                 docx_validation["errors"],
+                diagnostics_dir=diagnostics_dir,
             )
             try:
                 docx_path.unlink(missing_ok=True)
@@ -7520,6 +7617,7 @@ def _convert_deep_research_to_docx(
                 "docx",
                 docx_validation["issues"],
                 docx_validation["errors"],
+                diagnostics_dir=diagnostics_dir,
             )
             console.warn(
                 "DOCX validator encountered non-fatal errors; shipping report DOCX"
@@ -7584,7 +7682,7 @@ def _generate_vendor_research(platform: str) -> str | None:
     preflight_errors = []
 
     # 1. Validate cloud vendor
-    valid_vendors = ["azure", "aws", "gcp", "agnostic"]
+    valid_vendors = ["azure", "aws", "gcp", "agnostic", "private"]
     if platform.lower() not in valid_vendors:
         preflight_errors.append(
             f"Invalid cloud vendor: {platform}. Must be one of: {', '.join(valid_vendors)}"
@@ -7962,6 +8060,9 @@ def _generate_strategy_section(
     force_refresh_vendor: bool = False,
     discovery_notes_content: str | None = None,
     lite_strategy: bool = False,
+    output_dir: str | Path | None = None,
+    diagnostics_dir: str | Path | None = None,
+    write_txt: bool = True,
 ) -> str | None:
     """
     Generate a strategy document using Deep Research.
@@ -7997,6 +8098,9 @@ def _generate_strategy_section(
             force_refresh_vendor=force_refresh_vendor,
             discovery_notes_content=discovery_notes_content,
             lite_strategy=lite_strategy,
+            output_dir=output_dir,
+            diagnostics_dir=diagnostics_dir,
+            write_txt=write_txt,
         )
 
     # Handle other fully-defined strategies
@@ -8007,6 +8111,9 @@ def _generate_strategy_section(
             company_name=company_name,
             company_research_path=company_research_path,
             discovery_notes_content=discovery_notes_content,
+            output_dir=output_dir,
+            diagnostics_dir=diagnostics_dir,
+            write_txt=write_txt,
         )
 
     # For placeholder strategies, show a message
@@ -8042,6 +8149,9 @@ def _generate_generic_strategy(
     company_name: str,
     company_research_path: str | None = None,
     discovery_notes_content: str | None = None,
+    output_dir: str | Path | None = None,
+    diagnostics_dir: str | Path | None = None,
+    write_txt: bool = True,
 ) -> str | None:
     return _generate_generic_strategy_impl(
         strategy_name=strategy_name,
@@ -8049,6 +8159,9 @@ def _generate_generic_strategy(
         company_name=company_name,
         company_research_path=company_research_path,
         discovery_notes_content=discovery_notes_content,
+        output_dir=output_dir,
+        diagnostics_dir=diagnostics_dir,
+        write_txt=write_txt,
     )
 
 
@@ -8069,6 +8182,9 @@ def _generate_ai_strategy_section(
     force_refresh_vendor: bool = False,
     discovery_notes_content: str | None = None,
     lite_strategy: bool = False,
+    output_dir: str | Path | None = None,
+    diagnostics_dir: str | Path | None = None,
+    write_txt: bool = True,
 ) -> str | None:
     """
     Generate AI strategy using Deep Research for board-level analysis.
@@ -8099,6 +8215,9 @@ def _generate_ai_strategy_section(
         force_refresh_vendor=force_refresh_vendor,
         discovery_notes_content=discovery_notes_content,
         lite_strategy=lite_strategy,
+        output_dir=output_dir,
+        diagnostics_dir=diagnostics_dir,
+        write_txt=write_txt,
     )
 
 

@@ -389,7 +389,10 @@ Focus on international expansion while maintaining product innovation leadership
         )
 
         # Test rate limit error handling
-        with patch.object(analyzer, "ai_client") as mock_client:
+        with (
+            patch.object(analyzer, "ai_client") as mock_client,
+            patch("time.sleep"),
+        ):
             mock_client.generate.side_effect = Exception("Rate limit exceeded (429)")
 
             result = analyzer.assess_report(error_test_report)

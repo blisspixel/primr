@@ -16,10 +16,13 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
-def reset_circuit_breaker():
+def reset_circuit_breaker(monkeypatch):
     """Reset circuit breaker before each test."""
-    from primr.data.search_utils import _search_circuit
+    from primr.data import search_utils
 
+    _search_circuit = search_utils._search_circuit
+    monkeypatch.setattr(search_utils, "INITIAL_RETRY_DELAY", 0)
+    monkeypatch.setattr(search_utils.time, "sleep", lambda _seconds: None)
     _search_circuit._failure_count = 0
     _search_circuit._state = "closed"
     _search_circuit._last_failure_time = None
@@ -230,7 +233,10 @@ class TestDomainFiltering:
             {"url": "https://investors.acme.com/news", "title": "Investor News"},
         ]
 
-        with patch("primr.data.scrape.get_external_orchestrator") as mock_orch:
+        with (
+            patch("primr.data.scrape.get_external_orchestrator") as mock_orch,
+            patch("primr.ai.llm.llm", return_value="NO\nValidation not relevant"),
+        ):
             mock_result = Mock()
             mock_result.success = True
             # Content must be > 100 chars
