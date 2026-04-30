@@ -291,7 +291,9 @@ def save_report_as_docx_premium(
 
         builder = DocumentBuilder(company_name, processed_sections, citations=citations)
         document = builder.build()
-        document.save(docx_path)
+        if document is None:
+            raise RuntimeError("Document builder returned no document")
+        document.save(str(docx_path))
         console.ok("Premium DOCX saved")
         return str(docx_path)
     except Exception as e:
@@ -377,7 +379,7 @@ def save_report_as_docx(txt_path, company_name, output_dir: str | Path | None = 
             para = document.add_paragraph()
             apply_inline_formatting(para, " ".join(current_text_buffer))
 
-        document.save(docx_path)
+        document.save(str(docx_path))
         console.ok("DOCX saved")
         return str(docx_path)
 
