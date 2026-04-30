@@ -7,6 +7,7 @@ Property-based tests for QA analysis completeness.
 
 from datetime import datetime
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from hypothesis import HealthCheck, given, settings
@@ -1041,11 +1042,26 @@ class TestDefaultQAIntegrationProperties:
 
         from src.primr.qa.integration import QAIntegration
         from src.primr.qa.models import QAOptions
+        from src.primr.qa.simple_analyzer import SimpleQAResult
 
         with tempfile.TemporaryDirectory() as temp_dir:
             # Test with QA enabled by default (default behavior)
             qa_options = QAOptions(enabled=True, save_detailed=True)
             qa_integration = QAIntegration(qa_options, output_dir=Path(temp_dir))
+            mock_simple_result = SimpleQAResult(
+                ready_for_use=True,
+                confidence_level="high",
+                key_strengths=["Deterministic integration assessment"],
+                areas_for_improvement=[],
+                recommendation="Strong report ready for internal use.",
+                scores={
+                    "company_understanding": 85,
+                    "analytical_depth": 85,
+                    "actionable_intelligence": 85,
+                    "evidence_quality": 85,
+                    "structure_clarity": 85,
+                },
+            )
 
             # Create a mock report file
             report_path = Path(temp_dir) / f"{company_name.replace(' ', '_')}_Report.txt"
@@ -1069,7 +1085,12 @@ Sources:
                 f.write(report_content)
 
             # Property: QA should execute automatically when enabled
-            qa_result = qa_integration.run_post_generation_qa(report_path, company_name)
+            with patch.object(
+                qa_integration.analyzer,
+                "assess_report",
+                return_value=mock_simple_result,
+            ):
+                qa_result = qa_integration.run_post_generation_qa(report_path, company_name)
 
             # Property: QA result should be produced when enabled
             assert qa_result is not None, "QA should produce result when enabled"

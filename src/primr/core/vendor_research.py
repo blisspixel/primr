@@ -386,7 +386,7 @@ def _validate_vendor_research_preflight(vendor: str) -> list[str]:
     errors = []
 
     # Validate vendor
-    valid_vendors = ["azure", "aws", "gcp", "agnostic"]
+    valid_vendors = ["azure", "aws", "gcp", "agnostic", "private"]
     if vendor.lower() not in valid_vendors:
         errors.append(f"Invalid vendor: {vendor}. Must be one of: {', '.join(valid_vendors)}")
 
@@ -430,6 +430,11 @@ def _get_vendor_metadata(vendor: str) -> dict[str, str]:
             "name": "the AI Industry (cross-vendor)",
             "conference": "NeurIPS, major vendor conferences",
             "platform": "major model providers and cloud platforms",
+        },
+        "private": {
+            "name": "Private Cloud / NVIDIA",
+            "conference": "NVIDIA GTC, VMware Explore, Red Hat Summit, Dell Tech World, HPE Discover",
+            "platform": "NVIDIA AI Enterprise, NIM, NeMo, DGX, and private cloud AI infrastructure",
         },
     }
     return metadata.get(vendor.lower(), metadata["agnostic"])

@@ -31,6 +31,9 @@ def generate_ai_strategy_section(
     force_refresh_vendor: bool = False,
     discovery_notes_content: str | None = None,
     lite_strategy: bool = False,
+    output_dir: str | Path | None = None,
+    diagnostics_dir: str | Path | None = None,
+    write_txt: bool = True,
 ) -> str | None:
     """Generate AI strategy using the legacy sync runtime."""
     preflight_errors: list[str] = []
@@ -38,7 +41,7 @@ def generate_ai_strategy_section(
     if not company_name or not company_name.strip():
         preflight_errors.append("Company name is required for AI strategy generation")
 
-    valid_vendors = ["azure", "aws", "gcp", "agnostic"]
+    valid_vendors = ["azure", "aws", "gcp", "agnostic", "private"]
     if platform.lower() not in valid_vendors:
         preflight_errors.append(
             f"Invalid cloud vendor: {platform}. Must be one of: {', '.join(valid_vendors)}"
@@ -178,18 +181,24 @@ def generate_ai_strategy_section(
         date_str = datetime.now().strftime("%m-%d-%Y")
         vendor_tag = f"_{platform.upper()}" if platform.lower() != "agnostic" else ""
         base_name = f"{company_name}_AI_Strategy{vendor_tag}_{date_str}"
+        destination_dir = Path(output_dir) if output_dir is not None else Path(OUTPUT_DIR)
+        destination_dir.mkdir(parents=True, exist_ok=True)
+        internal_dir = Path(diagnostics_dir) if diagnostics_dir is not None else destination_dir
+        internal_dir.mkdir(parents=True, exist_ok=True)
 
-        md_path = os.path.join(OUTPUT_DIR, f"{base_name}.md")
+        md_path = destination_dir / f"{base_name}.md"
         with open(md_path, "w", encoding="utf-8") as handle:
             handle.write(strategy_content)
         console.ok(f"AI Strategy MD: {base_name}.md", show_time=False)
 
-        txt_path = os.path.join(OUTPUT_DIR, f"{base_name}.txt")
-        with open(txt_path, "w", encoding="utf-8") as handle:
-            handle.write(strategy_content)
-        console.ok(f"AI Strategy TXT: {base_name}.txt", show_time=False)
+        if write_txt or diagnostics_dir is not None:
+            txt_path = (destination_dir if write_txt else internal_dir) / f"{base_name}.txt"
+            with open(txt_path, "w", encoding="utf-8") as handle:
+                handle.write(strategy_content)
+            if write_txt:
+                console.ok(f"AI Strategy TXT: {base_name}.txt", show_time=False)
 
-        docx_path = os.path.join(OUTPUT_DIR, f"{base_name}.docx")
+        docx_path = destination_dir / f"{base_name}.docx"
         try:
             subtitle = " | ".join([datetime.now().strftime("%B %d, %Y"), platform.title()])
             markdown_to_docx(
@@ -201,7 +210,7 @@ def generate_ai_strategy_section(
             console.ok(f"AI Strategy DOCX: {base_name}.docx", show_time=False)
         except PermissionError:
             timestamp = datetime.now().strftime("%H%M%S")
-            docx_path = os.path.join(OUTPUT_DIR, f"{base_name}_{timestamp}.docx")
+            docx_path = destination_dir / f"{base_name}_{timestamp}.docx"
             console.warn(f"Original file locked, saving as: {base_name}_{timestamp}.docx")
             markdown_to_docx(
                 markdown_text=strategy_content,
@@ -213,7 +222,7 @@ def generate_ai_strategy_section(
             console.warn(f"DOCX conversion failed: {exc}")
             docx_path = md_path
 
-        return docx_path
+        return str(docx_path)
 
     except Exception as exc:
         console.error(f"AI Strategy generation failed: {exc}")

@@ -20,6 +20,7 @@ from primr.core.cli import (
     CLIConfig,
     Command,
     _ensure_project_env_file,
+    _handle_research,
     _resolve_local_judge_models,
     main,
     parse_args,
@@ -215,6 +216,11 @@ class TestParseArgs:
         """Test parsing context files."""
         config = parse_args(["Acme Corp", "acme.example", "--context", "file1.pdf", "file2.txt"])
         assert config.context_files == ("file1.pdf", "file2.txt")
+
+    def test_parse_output_dir(self):
+        """Test parsing custom output directory."""
+        config = parse_args(["Acme Corp", "acme.example", "--output-dir", "client-output"])
+        assert config.output_dir == "client-output"
 
     def test_parse_csv_batch(self):
         """Test parsing CSV batch mode."""
@@ -470,6 +476,23 @@ class TestParseArgs:
         assert config.fast_mode is True
         assert config.cloud_vendors == ("aws",)
         assert config.cloud_vendor == "aws"
+
+    def test_handle_research_passes_output_dir_and_auto_platform_none(self):
+        """Research handler should pass custom output dir and preserve recon auto-detect."""
+        config = parse_args(["Acme Corp", "https://acme.example", "--output-dir", "client-output"])
+        with (
+            patch("primr.core.cli._run_preflight_checks", return_value=(True, [])),
+            patch(
+                "primr.core.research_agent.perform_research", return_value="report.docx"
+            ) as mock_research,
+            patch.dict(os.environ, {}, clear=True),
+        ):
+            result = _handle_research(config)
+
+        assert result == 0
+        kwargs = mock_research.call_args.kwargs
+        assert kwargs["output_dir"] == "client-output"
+        assert kwargs["platforms"] is None
 
 
 # =============================================================================
@@ -743,9 +766,9 @@ class TestPlatformFlag:
         assert config.platforms is None
 
     def test_cloud_vendors_property_default_when_none(self):
-        """Test CLIConfig.cloud_vendors returns ('azure',) when platforms is None."""
+        """Test CLIConfig.cloud_vendors returns Microsoft/private fallback when platforms is None."""
         config = CLIConfig(command=Command.RESEARCH, platforms=None)
-        assert config.cloud_vendors == ("azure",)
+        assert config.cloud_vendors == ("azure", "private")
         assert config.cloud_vendor == "azure"
 
     def test_cloud_vendors_property_with_platforms(self):

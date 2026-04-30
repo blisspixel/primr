@@ -217,8 +217,13 @@ class CLIConfig:
 
     @property
     def cloud_vendors(self) -> tuple[str, ...]:
-        """Backward-compatible alias. Returns platforms or default ('azure',)."""
-        return self.platforms or ("azure",)
+        """Backward-compatible alias. Returns platforms or default Microsoft/private."""
+        if self.platforms is not None:
+            return self.platforms
+
+        from primr.core.platform_mapper import DEFAULT_PLATFORM_FALLBACK
+
+        return DEFAULT_PLATFORM_FALLBACK
 
     @property
     def cloud_vendor(self) -> str:
@@ -695,7 +700,9 @@ def main(args: list[str] | None = None) -> int:
             console.warn("No API keys configured yet.")
             console.info("Primr will tell you what each key is for and where to get it.")
             console.blank()
-            if _prompt_yes_no("Set them up now? (paste keys when prompted, no .env editing)", default=True):
+            if _prompt_yes_no(
+                "Set them up now? (paste keys when prompted, no .env editing)", default=True
+            ):
                 init_rc = _run_init_flow(
                     non_interactive=False,
                     assume_yes=False,
@@ -912,7 +919,13 @@ def _validate_key_live(provider: str, value: str) -> tuple[bool, str]:
             return True, "saved without verification (google-genai not installed)"
         except Exception as exc:
             err = str(exc).lower()
-            if "api key" in err or "unauthenticated" in err or "permission" in err or "401" in err or "403" in err:
+            if (
+                "api key" in err
+                or "unauthenticated" in err
+                or "permission" in err
+                or "401" in err
+                or "403" in err
+            ):
                 return False, "rejected by Google (invalid key)"
             return False, f"could not verify: {exc}"
 
@@ -927,7 +940,13 @@ def _validate_key_live(provider: str, value: str) -> tuple[bool, str]:
             return True, "saved without verification (openai not installed)"
         except Exception as exc:
             err = str(exc).lower()
-            if "401" in err or "403" in err or "unauthorized" in err or "invalid" in err or "api key" in err:
+            if (
+                "401" in err
+                or "403" in err
+                or "unauthorized" in err
+                or "invalid" in err
+                or "api key" in err
+            ):
                 return False, "rejected by xAI (invalid key)"
             return False, f"could not verify: {exc}"
 
@@ -1076,7 +1095,9 @@ def _run_init_flow(
                 console.info(f"  Run: primr keys set {provider}")
                 continue
 
-            if not (assume_yes or _prompt_yes_no(f"Paste your {env_name} now?", default=default_yes)):
+            if not (
+                assume_yes or _prompt_yes_no(f"Paste your {env_name} now?", default=default_yes)
+            ):
                 all_ready = False
                 continue
 
@@ -2261,6 +2282,7 @@ def _handle_ai_strategy_only(config: CLIConfig) -> int:
     # For AI strategy, loop over each vendor; others run once
     vendors = list(config.cloud_vendors) if strategy_type == "ai" else ["agnostic"]
     result_paths: list[str] = []
+    diagnostics_dir = Path(config.output_dir) / "_diagnostics" if config.output_dir else None
 
     for vendor in vendors:
         result_path = _generate_strategy_section(
@@ -2271,6 +2293,9 @@ def _handle_ai_strategy_only(config: CLIConfig) -> int:
             force_refresh_vendor=config.refresh_vendor_research,
             discovery_notes_content=None,  # TODO: Add discovery notes support
             lite_strategy=config.lite_strategy,
+            output_dir=config.output_dir,
+            diagnostics_dir=diagnostics_dir,
+            write_txt=config.output_dir is None,
         )
 
         if result_path:
@@ -3219,7 +3244,8 @@ def _handle_research(config: CLIConfig) -> int:
         mode=config.mode,
         citation_style=config.citation_style,
         ai_strategy=config.ai_strategy,
-        platforms=config.cloud_vendors,
+        platforms=config.platforms,
+        output_dir=config.output_dir,
         skip_confirm=config.skip_confirm,
         context_files=context_files if context_files else None,
         refresh_vendor_research=config.refresh_vendor_research,

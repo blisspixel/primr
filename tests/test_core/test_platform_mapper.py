@@ -13,7 +13,11 @@ import copy
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from primr.core.platform_mapper import _PLATFORM_SLUG_MAP, map_platforms
+from primr.core.platform_mapper import (
+    _PLATFORM_SLUG_MAP,
+    DEFAULT_PLATFORM_FALLBACK,
+    map_platforms,
+)
 
 # ---------------------------------------------------------------------------
 # Strategies
@@ -57,7 +61,7 @@ class TestPlatformMappingCorrectnessAndOrdering:
         **Validates: Requirements 4.1**
         """
         result = map_platforms(slugs)
-        if result == ("agnostic",):
+        if result == DEFAULT_PLATFORM_FALLBACK:
             return
         for platform in result:
             matching = [s for s in slugs if _PLATFORM_SLUG_MAP.get(s) == platform]
@@ -73,7 +77,7 @@ class TestPlatformMappingCorrectnessAndOrdering:
         **Validates: Requirements 4.2**
         """
         result = map_platforms(slugs)
-        if result == ("agnostic",):
+        if result == DEFAULT_PLATFORM_FALLBACK:
             return
 
         # Compute expected counts
@@ -106,22 +110,31 @@ class TestPlatformMappingCorrectnessAndOrdering:
 
     @given(slugs=st.lists(unknown_slugs, min_size=0, max_size=10))
     @settings(deadline=None, max_examples=200)
-    def test_empty_or_unknown_returns_agnostic(self, slugs: list[str]):
-        """When no slugs match any platform, result is ("agnostic",).
+    def test_empty_or_unknown_returns_default_fallback(self, slugs: list[str]):
+        """When no slugs match any platform, result is the default fallback.
 
         **Validates: Requirements 4.3**
         """
         result = map_platforms(slugs)
-        assert result == ("agnostic",), f"Expected ('agnostic',) for unknown slugs, got {result}"
+        assert result == DEFAULT_PLATFORM_FALLBACK, (
+            f"Expected {DEFAULT_PLATFORM_FALLBACK} for unknown slugs, got {result}"
+        )
 
-    def test_empty_input_returns_agnostic(self):
-        """Empty input returns ("agnostic",).
+    def test_empty_input_returns_default_fallback(self):
+        """Empty input returns the default fallback.
 
         **Validates: Requirements 4.3**
         """
-        assert map_platforms(()) == ("agnostic",)
-        assert map_platforms([]) == ("agnostic",)
-        assert map_platforms(set()) == ("agnostic",)
+        assert map_platforms(()) == DEFAULT_PLATFORM_FALLBACK
+        assert map_platforms([]) == DEFAULT_PLATFORM_FALLBACK
+        assert map_platforms(set()) == DEFAULT_PLATFORM_FALLBACK
+
+    def test_productivity_and_certificate_slugs_do_not_select_primary_cloud(self):
+        """Weak SaaS/certificate signals do not override the default fallback."""
+        assert (
+            map_platforms(("microsoft365", "google-workspace", "google-trust", "aws-ses"))
+            == DEFAULT_PLATFORM_FALLBACK
+        )
 
 
 # ===========================================================================

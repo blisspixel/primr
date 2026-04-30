@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "primr"
-version = "1.21.1"
+version = "1.21.2"
 description = "Turn any company or organization URL into a strategic intelligence brief. Adaptive scraping + AI-powered research and synthesis."
 readme = "README.md"
 license = {text = "MIT"}

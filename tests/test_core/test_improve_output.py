@@ -175,6 +175,33 @@ def test_save_strategy_output_ships_docx_with_budget_warning(tmp_path: Path, mon
     assert list(tmp_path.glob("*.docx"))
 
 
+def test_custom_output_dir_keeps_diagnostics_out_of_deliverables(tmp_path: Path):
+    output_dir = tmp_path / "client"
+    diagnostics_dir = tmp_path / "working" / "_diagnostics"
+    content = (
+        "## AI Strategy\n\n"
+        "Recommended Year 1 investment: $1.2-1.8M.\n\n"
+        "## BOARD SUMMARY\n\n"
+        "**Total: $2.5M**\n"
+    )
+    result = _save_strategy_output(
+        content,
+        "DemoCo",
+        "azure",
+        strategy_label="AI_Strategy",
+        output_dir=output_dir,
+        diagnostics_dir=diagnostics_dir,
+        write_txt=False,
+    )
+
+    assert result is not None
+    assert list(output_dir.glob("*.md"))
+    assert list(output_dir.glob("*.docx"))
+    assert not list(output_dir.glob("*.txt"))
+    assert list(diagnostics_dir.glob("*.txt"))
+    assert list(diagnostics_dir.glob("*markdown_validation.txt"))
+
+
 def test_compute_strategy_qa_metrics_counts_numeric_citations_as_sources():
     content = (
         "## Strategy\n\n"

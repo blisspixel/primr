@@ -39,19 +39,19 @@ def _extract_primr_commands(md_text: str) -> list[str]:
 
 def _is_executable_example(line: str) -> bool:
     """Skip illustrative fragments that contain placeholder syntax."""
-    if "<" in line or ">" in line and not line.startswith("primr "):
+    if "<" in line or (">" in line and not line.startswith("primr ")):
         return False
     # Lines like "primr [options]" or with bracketed optional groups aren't real CLI input
-    if re.search(r"\[[a-z|-]+\]", line):
-        return False
-    return True
+    return not re.search(r"\[[a-z|-]+\]", line)
 
 
 def _gather_skill_files() -> list[Path]:
     return [SKILL_DIR / "SKILL.md", *sorted((SKILL_DIR / "references").glob("*.md"))]
 
 
-@pytest.mark.parametrize("md_file", _gather_skill_files(), ids=lambda p: p.relative_to(REPO_ROOT).as_posix())
+@pytest.mark.parametrize(
+    "md_file", _gather_skill_files(), ids=lambda p: p.relative_to(REPO_ROOT).as_posix()
+)
 def test_primr_examples_parse(md_file: Path) -> None:
     """Every executable ``primr ...`` example in the skill bundle parses cleanly."""
     from primr.core.cli import _create_parser, _is_keys_command, _is_mcp_command, _is_recon_command
@@ -93,4 +93,6 @@ def test_primr_examples_parse(md_file: Path) -> None:
 
     if failures:
         joined = "\n  ".join(failures)
-        pytest.fail(f"Skill bundle has {len(failures)} drifted example(s) in {md_file.name}:\n  {joined}")
+        pytest.fail(
+            f"Skill bundle has {len(failures)} drifted example(s) in {md_file.name}:\n  {joined}"
+        )
