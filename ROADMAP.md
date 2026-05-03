@@ -8,22 +8,84 @@ The design is intentionally opinionated and local-first. This roadmap reflects p
 
 For completed work, see the [Changelog](#changelog) at the bottom of this file, or check [GitHub releases](https://github.com/blisspixel/primr/releases) for the latest.
 
-## Next Version (v1.23.0)
+## Next Versions
 
-Concrete priorities for the next release, in order. Items lower in the queue may bump up if they unblock items above them.
+The work for the next two releases is sequenced around one principle: **build the full provider lineup first, then eval once across all of them.** Running an eval before OpenAI / Anthropic / local inference are wired up gives a Grok-vs-Gemini-only scorecard that gets thrown out as soon as another provider lands. The 4.3 default flip from v1.22.0 stays in place during the build-out — the legacy 4.20 IDs are still registered as an escape hatch (`get_grok_models(HYBRID)` is one revertable line), and `--grok-tier fast` plus `--no-continuous-reasoning` give per-run safety valves if 4.3 misbehaves on a specific company.
 
-1. **Eval-gate the Grok 4.3 default flip.** v1.22.0 promoted 4.3 to HYBRID/MAX on mechanical wiring + vendor recommendation. Run the eval harness against the standard 3-5 company corpus across `--grok-tier fast` (4.1), default (4.3 hybrid), `--grok-tier max` (4.3 everywhere), `--premium`, and a 4.20-hybrid baseline regenerated from the legacy registration. Decision criteria written down before the run: utility-per-dollar must be ≥ 4.20-hybrid baseline, hallucination rate ≤ baseline, no regression in drift markers. Either confirm the default or revert `get_grok_models(HYBRID)` to 4.20.
-2. **Wire Grok 4.3 prompt-cache token reporting.** v1.22.0 added `cost_per_1m_input_tokens_cached` to `ModelConfig` and `cached_input_tokens` to `calculate_cost`, but the Grok client doesn't yet read `usage.cached_tokens` from xAI responses. Until that lands, the cache discount doesn't show up in `primr show-usage` even when the API is hitting the cache.
-3. **Confirm Grok 4.3 high-tier (>200k) pricing.** v1.22.0 registered placeholder rates (2× base) for the >200k input-token tier. Verify against console.x.ai billing once a real >200k run completes and update `ModelRegistry.GROK_4_3.cost_per_1m_input_tokens_high`.
-4. **OpenAI integration via `OpenAICompatibleProvider`.** Foundation shipped in v1.22.0 (provider abstraction). Next: register `openai` in `KNOWN_PROVIDERS`, add `OPENAI_API_KEY` env var, register `gpt-4.1`/`o3`/`o4-mini` in `ModelRegistry`, add a routing branch. Eval-gate which roles OpenAI best serves.
-5. **Ollama / local-inference via `OpenAICompatibleProvider`.** Same path as OpenAI but `base_url=http://localhost:11434/v1`. Unblocks the long-standing "Local Inference Mode" entry below.
-6. **Anthropic Claude provider.** Different SDK shape, needs its own provider class. Use `cache_control` blocks for the cache discount, `extended_thinking_budget` for reasoning. Eval-gated adoption: Claude may excel at strategic writing where Grok 4.3 is weakest.
-7. **Quota-aware fallback in the routing layer.** Today the routing layer picks one provider per role and stays there. Wire `QuotaExhaustedError` into the model circuit breaker so the next call automatically fails over to the next-best provider for the role instead of crashing the run.
-8. **Move `grok_browse_and_summarize` and Gemini quota UI into providers.** Two pieces of provider-specific behaviour still live outside the abstraction. Their tests wouldn't fit the unit-test pattern in v1.22.0, so they're flagged here for the next pass.
+### v1.23.0 — Multi-provider foundation
 
-Eval gates 1, 4, and 6 use `docs/MODEL_ONBOARDING.md` as the playbook. New providers go through the new "Adding a new provider" section.
+The provider abstraction shipped in v1.22.0 was deliberately thin. v1.23.0 fills it in with concrete provider integrations so the v1.24.0 eval has something real to compare. Model IDs, pricing, and endpoints below were pulled from the live provider docs in May 2026 — verify against the providers' `/v1/models` endpoints before registering, since the model lineup churns faster than this roadmap.
 
-For the longer queue beyond v1.23.0, see "Planned Work" below.
+#### 1. OpenAI integration via `OpenAICompatibleProvider`
+
+- **Endpoint:** `https://api.openai.com/v1` (OpenAI-shaped chat completions; the same `OpenAICompatibleProvider` class that already handles xAI handles this — no new client class needed).
+- **Env:** `OPENAI_API_KEY`. Add to `KNOWN_PROVIDERS` with role coverage `("utility", "reasoning", "writing", "premium_research")`.
+- **Models to register** in `ModelRegistry`:
+  - `gpt-5.5` — flagship, 1M context, 128K output. Frontier reasoning + coding.
+  - `gpt-5.4` — affordable flagship, 1M context, 128K output. Default analysis/writing candidate.
+  - `gpt-5.4-mini` — 400K context, 128K output. Utility-tier candidate.
+  - The GPT-5.4 family also ships `gpt-5.4-thinking`, `gpt-5.4-pro`, `gpt-5.4-nano` — register what we'll actually eval. `nano` ($0.20 input) is interesting as a Grok 4.1-fast competitor for utility tier.
+- **Pricing approx (May 2026):** flagship band $2.50/$15.00, mini band lower, nano band $0.20/$1.25. **Cache discount: 75-90% on input** — set `cost_per_1m_input_tokens_cached` accordingly. Confirm exact rates against the pricing page when registering.
+- **Provider kwargs to pass through:** `reasoning_effort` (low/medium/high for o-series), `response_format`, `seed`, `top_p`, `stop`, `presence_penalty`, `frequency_penalty`. Already in `OpenAICompatibleProvider`'s whitelist.
+- **Docs:** [Models page](https://developers.openai.com/api/docs/models), [Pricing page](https://developers.openai.com/api/docs/pricing).
+
+#### 2. Ollama / local-inference via `OpenAICompatibleProvider`
+
+- **Endpoint:** `http://localhost:11434/v1`. Same provider class as OpenAI/xAI, just a different `base_url`.
+- **Env:** `OLLAMA_API_KEY` with `api_key_default="ollama"` (Ollama ignores the key but the OpenAI SDK requires a non-empty string). No real authentication when running locally.
+- **Models to register** (per `ollama pull <name>`, register as `ModelConfig` entries with `provider="ollama"` and zero pricing):
+  - `qwen3-coder:30b` — 256K context, agentic-friendly, strong tool-use. Best general candidate for utility + writing.
+  - `qwen2.5:32b` — strong general reasoning, fits on 24GB VRAM at Q4. Reasoning candidate.
+  - `deepseek-r1:32b` — open reasoning model, performance close to o3 / Gemini Pro on benchmarks.
+  - `qwen3:7b` — small, fast, fits easily on consumer GPUs. Utility-tier candidate for users on smaller hardware.
+- **Limitations to surface in docs:** vision endpoint is base64-only (no remote URLs), no logprobs, `tool_choice` not honoured, Responses API is stateless. For primr's pipeline this matters mostly for vision-tier scraping — keep that on cloud.
+- **Cost field:** `cost_per_1m_input_tokens=0` and `cost_per_1m_output_tokens=0` (zero marginal cost). Cost estimator should treat Ollama-routed runs as $0 + electricity.
+- **Docs:** [OpenAI compatibility](https://docs.ollama.com/api/openai-compatibility), [Model library](https://ollama.com/library).
+
+#### 3. Anthropic Claude provider (separate provider class)
+
+- **Endpoint:** `https://api.anthropic.com/v1/messages`. Different SDK shape (Messages API, not chat-completions) — needs its own `AnthropicProvider` class alongside `OpenAICompatibleProvider` and `GeminiProvider`.
+- **Env:** `ANTHROPIC_API_KEY`. Add to `KNOWN_PROVIDERS` with role coverage `("reasoning", "writing", "pro")` — Anthropic's strength is strategic writing and long-context reasoning, less so cheap utility-tier.
+- **Models to register:**
+  - `claude-opus-4-7` — most capable. **1M context, 128K output, $5 in / $25 out per 1M.** Adaptive thinking only (no extended-thinking control). Knowledge cutoff Jan 2026.
+  - `claude-sonnet-4-6` — best speed/intelligence balance. 1M context, 64K output, $3/$15. Extended thinking + adaptive thinking.
+  - `claude-haiku-4-5-20251001` (alias `claude-haiku-4-5`) — fastest. 200K context, 64K output, $1/$5. Extended thinking. Strong utility-tier candidate vs Grok 4.1-fast and GPT-5.4-nano.
+- **Cache:** Anthropic cache uses `cache_control` blocks at the message-content level, not a query parameter. Cached read is ~10% of standard input rate. Cache write is 25% premium on first request. Wire through `provider_kwargs["cache_control_blocks"]` and read `cache_read_input_tokens` / `cache_creation_input_tokens` from `usage`.
+- **Opus 4.7 caveat:** new tokenizer produces up to 35% more tokens for the same input than Opus 4.6. Cost estimator's pre-run estimates will under-count by ~35% on Opus 4.7 unless the tokenizer is updated. Flag in `ModelConfig` notes.
+- **Batch API:** Message Batches API runs at 50% off, async, 24h SLA. Out of scope for primr's pipeline (we want fresh results) but worth noting for future eval-corpus regeneration.
+- **Provider kwargs to pass through:** `cache_control_blocks`, `thinking` (for extended thinking budget), `system` (Anthropic puts system prompt at top level, not in messages list — provider class translates).
+- **Docs:** [Models overview](https://platform.claude.com/docs/en/about-claude/models/overview), [Pricing](https://platform.claude.com/docs/en/about-claude/pricing), [Messages API](https://platform.claude.com/docs/en/api/messages).
+
+#### 4. Quota-aware fallback in the routing layer
+
+- Wire `QuotaExhaustedError` (already defined in `providers/base.py`) into `pipeline/model_breaker.py::ModelCircuitBreaker`. When a provider raises it, mark the provider unhealthy for the day, route to the next-best provider for the role per the eval-derived ranking.
+- Needs to be in place **before** v1.24.0 — without it, one provider's daily-limit blip during the eval corrupts the scorecard.
+- `primr doctor` should show per-provider rate-limit / quota status when the breaker has flagged anything.
+
+#### 5. Prompt-cache token reporting
+
+- xAI: read `response.usage.cached_tokens` (or whatever xAI calls it — verify against `https://api.x.ai/v1/chat/completions` response sample) in `OpenAICompatibleProvider.chat`. Pass to `_record_usage` as a separate `cached_input_tokens` field.
+- Anthropic: read `response.usage.cache_read_input_tokens` and `cache_creation_input_tokens` separately. Cache writes count as standard input tokens with a 25% premium; cache reads at the discounted rate.
+- OpenAI: read `response.usage.prompt_tokens_details.cached_tokens`.
+- Surface all three in `primr show-usage` so users can see cache hit rate per run. Today the cache discount is wired into `calculate_cost` but never gets a non-zero `cached_input_tokens` argument from the actual call sites.
+
+### v1.24.0 — Cross-provider eval and default decisions
+
+With four providers wired up (xAI / Google / OpenAI / Anthropic / Ollama), the eval framework becomes a real cross-provider comparison instead of a Grok-tier spot check. This release is where defaults get *decided*, not assumed.
+
+1. **Cross-provider scorecard.** Extend `primr eval` to register profile slots per (provider × role) combination, run the standard 3-5 company corpus against each, score on quality, trust, utility, hallucination rate, drift markers, and **utility-per-dollar**. Auto-detect available API keys and only eval providers the user has access to. LLM judge overlay (cloud or local Ollama) for subjective quality.
+2. **Decision output: per-role default recommendations.** "For utility tier: use X. For analysis: use Y. For premium: use Z." Decision criteria written down *before* the run, the same way the v1.22.0 dispatch fix was structured. Defaults change in `pick_model_for_role` only if the scorecard clears the bar.
+3. **Folds in the 4.3 default-flip eval.** The "confirm or revert 4.3 hybrid" question is now a subset of the cross-provider scorecard, not a separate exercise.
+4. **Confirm Grok 4.3 high-tier (>200k) pricing.** v1.22.0 registered placeholder rates (2× base) for >200k input-token tier. Real eval runs will exercise the threshold; verify against console.x.ai billing and update `ModelRegistry.GROK_4_3.cost_per_1m_input_tokens_high`.
+
+### Parallel cleanups (any release)
+
+Not gated by anything in v1.23/v1.24, ship in whichever release has room:
+
+- **Move `grok_browse_and_summarize` and Gemini quota UI into providers.** Two pieces of provider-specific behaviour still live outside the abstraction. Their tests didn't fit the unit-test pattern in v1.22.0, so they're flagged for the next pass.
+- **Capability-requirement-based routing.** The longer ROADMAP "Provider-Agnostic Routing Layer" entry below describes stages declaring requirements (`needs reasoning`, `needs 1M context`) and the router solving for the cheapest match. Worth doing once there are 4+ providers wired up and the eval has produced real cost/quality data per role — the requirements themselves come from the eval, not from a priori guessing.
+
+New providers go through `docs/MODEL_ONBOARDING.md`'s "Adding a new provider" section. New models within an existing provider go through the five-step playbook in the same doc.
 
 ## What's Working Today
 
