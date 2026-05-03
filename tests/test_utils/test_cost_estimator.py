@@ -446,9 +446,9 @@ class TestFastModeAIStrategy:
         assert len(grok_notes) >= 1
 
     def test_fast_mode_returns_default_mode_label(self):
-        """Fast mode estimate should report mode as 'standard (Grok 4.20 hybrid)' by default."""
+        """Fast mode estimate should report mode as 'standard (Grok 4.3 hybrid)' by default."""
         estimate = estimate_cost("complete", fast_mode=True, use_historical=False)
-        assert estimate.mode == "standard (Grok 4.20 hybrid)"
+        assert estimate.mode == "standard (Grok 4.3 hybrid)"
 
     def test_fast_mode_explicit_fast_tier_label(self):
         """Fast mode with explicit fast tier should report 'standard (Grok 4.1)'."""
@@ -476,36 +476,64 @@ class TestGrokTier:
         assert writing == "grok-4-1-fast-non-reasoning"
 
     def test_get_grok_models_hybrid(self):
-        """Hybrid tier returns 4.20 reasoning + 4.1 writing."""
+        """Hybrid tier returns Grok 4.3 reasoning + 4.1 writing."""
         from primr.config.models import GrokTier
 
         reasoning, writing = PrimrModels.get_grok_models(GrokTier.HYBRID)
-        assert reasoning == "grok-4.20-0309-reasoning"
+        assert reasoning == "grok-4.3"
         assert writing == "grok-4-1-fast-non-reasoning"
 
     def test_get_grok_models_max(self):
-        """Max tier returns 4.20 for both."""
+        """Max tier returns Grok 4.3 for both stages (4.3 has no NR variant)."""
         from primr.config.models import GrokTier
 
         reasoning, writing = PrimrModels.get_grok_models(GrokTier.MAX)
-        assert reasoning == "grok-4.20-0309-reasoning"
-        assert writing == "grok-4.20-0309-non-reasoning"
+        assert reasoning == "grok-4.3"
+        assert writing == "grok-4.3"
+
+    def test_grok_43_pricing(self):
+        """Grok 4.3 standard pricing: $1.25/$2.50, cache $0.20."""
+        assert ModelRegistry.GROK_4_3.cost_per_1m_input_tokens == 1.25
+        assert ModelRegistry.GROK_4_3.cost_per_1m_output_tokens == 2.50
+        assert ModelRegistry.GROK_4_3.cost_per_1m_input_tokens_cached == 0.20
+
+    def test_grok_43_tiered_pricing(self):
+        """Grok 4.3 has tiered pricing above 200k tokens."""
+        assert ModelRegistry.GROK_4_3.has_tiered_pricing
+        assert ModelRegistry.GROK_4_3.tier_threshold_tokens == 200_000
+
+    def test_grok_43_always_on_reasoning(self):
+        """Grok 4.3 is reasoning-only — there is no non-reasoning variant."""
+        assert ModelRegistry.GROK_4_3.supports_thinking is True
+        assert ModelRegistry.GROK_4_3.supports_multimodal is True
+
+    def test_grok_43_in_all_models(self):
+        """Grok 4.3 should be registered in ALL_MODELS."""
+        assert "grok-4.3" in PrimrModels.ALL_MODELS
+
+    def test_grok_43_cache_discount(self):
+        """Cached input tokens should bill at the cache rate, not the standard rate."""
+        live_only = PrimrModels.calculate_cost("grok-4.3", 200_000, 10_000)
+        with_cache = PrimrModels.calculate_cost(
+            "grok-4.3", 200_000, 10_000, cached_input_tokens=150_000
+        )
+        assert with_cache < live_only
 
     def test_grok_420_pricing(self):
-        """Grok 4.20 models should have $2.00/$6.00 pricing."""
+        """Legacy Grok 4.20 still registered with $2.00/$6.00 pricing."""
         assert ModelRegistry.GROK_4_20_REASONING.cost_per_1m_input_tokens == 2.00
         assert ModelRegistry.GROK_4_20_REASONING.cost_per_1m_output_tokens == 6.00
         assert ModelRegistry.GROK_4_20_NR.cost_per_1m_input_tokens == 2.00
         assert ModelRegistry.GROK_4_20_NR.cost_per_1m_output_tokens == 6.00
 
     def test_grok_420_in_all_models(self):
-        """Grok 4.20 models should be registered in ALL_MODELS."""
+        """Legacy Grok 4.20 models should remain registered for back-compat."""
         assert "grok-4.20-0309-reasoning" in PrimrModels.ALL_MODELS
         assert "grok-4.20-0309-non-reasoning" in PrimrModels.ALL_MODELS
         assert "grok-4.20-multi-agent-0309" in PrimrModels.ALL_MODELS
 
     def test_grok_420_supports_thinking(self):
-        """Reasoning variant supports thinking, NR does not."""
+        """Legacy 4.20 reasoning variant supports thinking, NR does not."""
         assert ModelRegistry.GROK_4_20_REASONING.supports_thinking is True
         assert ModelRegistry.GROK_4_20_NR.supports_thinking is False
 
@@ -530,12 +558,12 @@ class TestGrokTier:
         estimate = estimate_cost(
             "complete", fast_mode=True, use_historical=False, grok_tier="hybrid"
         )
-        assert estimate.mode == "standard (Grok 4.20 hybrid)"
+        assert estimate.mode == "standard (Grok 4.3 hybrid)"
 
     def test_max_tier_mode_label(self):
         """Max tier estimate should have correct mode label."""
         estimate = estimate_cost("complete", fast_mode=True, use_historical=False, grok_tier="max")
-        assert estimate.mode == "standard (Grok 4.20 max)"
+        assert estimate.mode == "standard (Grok 4.3 max)"
 
     def test_fast_tier_cost_range(self):
         """Fast tier should be ~$0.55."""
@@ -543,14 +571,14 @@ class TestGrokTier:
         assert 0.30 < est.total_cost < 1.00
 
     def test_hybrid_tier_cost_range(self):
-        """Hybrid tier should be ~$1.00-1.10."""
+        """Hybrid tier (Grok 4.3 reasoning + 4.1 writing) should land below $1.00."""
         est = estimate_cost("complete", fast_mode=True, use_historical=False, grok_tier="hybrid")
-        assert 0.60 < est.total_cost < 1.60
+        assert 0.40 < est.total_cost < 1.20
 
     def test_max_tier_cost_range(self):
-        """Max tier should be ~$4.00."""
+        """Max tier (Grok 4.3 everywhere) should be in the $1.50-$4.00 band."""
         est = estimate_cost("complete", fast_mode=True, use_historical=False, grok_tier="max")
-        assert 2.50 < est.total_cost < 6.00
+        assert 1.50 < est.total_cost < 4.50
 
     def test_fast_mode_never_includes_deep_research_any_tier(self):
         """No Grok tier should include Deep Research cost."""

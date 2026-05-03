@@ -53,7 +53,8 @@ class FallbackChain:
 ANALYSIS_FALLBACK_CHAIN = FallbackChain(
     name="analysis",
     models=(
-        PrimrModels.GROK_MODEL_420,  # grok-4.20 reasoning
+        PrimrModels.GROK_MODEL_43,  # grok-4.3 (always-on reasoning, current flagship)
+        PrimrModels.GROK_MODEL_420,  # grok-4.20 reasoning (legacy fallback)
         PrimrModels.GROK_MODEL,  # grok-4.1 fast reasoning
         PrimrModels.FLASH_MODEL,  # gemini-3-flash
     ),

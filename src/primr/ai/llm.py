@@ -1,9 +1,17 @@
 """
 LLM interface using Google Gemini API (modern SDK)
-Supports Gemini 3 Pro with thinking_level control
+Supports Gemini 3 Pro with thinking_level control.
+
+Utility-tier dispatch: when ``XAI_API_KEY`` is set, the cheap utility calls
+(scraping summaries, link selection, generic "fast" tasks) route to Grok 4.1
+fast non-reasoning instead of Gemini Flash. Grok 4.1 NR is 2.5x cheaper on
+input and 6x cheaper on output than Gemini Flash, lives on the same key the
+user already needs for the standard pipeline, and removes a cross-provider
+dependency that previously could stall the run on a Gemini hang. Pro-tier
+calls (analysis, section writing) stay on Gemini regardless — those are
+provider-specific code paths.
 """
 
-import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -82,37 +90,29 @@ def _get_client() -> genai.Client:
 
 
 def _get_model_for_type(model_type: str) -> str:
-    """Get model name for a given type.
+    """Get model name for a given legacy ``model_type`` string.
+
+    This is a thin shim over :func:`primr.ai.routing.pick_model_for_legacy_type`.
+    The actual policy (utility tier prefers Grok 4.1-NR when ``XAI_API_KEY`` is
+    set, pro tier uses Gemini Pro) lives in the routing module.
 
     Model types (USE THESE):
-        - "scraping": Flash - summarizing scraped content
-        - "link_selection": Flash - intelligent link prioritization (which pages to scrape)
-        - "fast": Flash - general quick tasks
+        - "scraping": utility - summarizing scraped content
+        - "link_selection": utility - which pages to scrape
+        - "fast": utility - general quick tasks
         - "section_writing": Pro - writing report sections
         - "analysis": Pro - complex analysis
         - "reasoning": Pro - general reasoning tasks
 
     Legacy aliases (backward compatible):
-        - "filtering" -> Flash (DEPRECATED - use link_selection)
-        - "research" -> Flash (DEPRECATED - confusing name)
+        - "filtering" -> utility (DEPRECATED - use link_selection)
+        - "research" -> utility (DEPRECATED - confusing name)
+        - "summarization" -> utility
         - "report" -> Pro
-        - "summarization" -> Flash
     """
-    # Flash model (cheap, fast)
-    if model_type in (
-        "scraping",
-        "link_selection",
-        "filtering",
-        "fast",
-        "research",
-        "summarization",
-    ):
-        return PrimrModels.FLASH_MODEL
-    # Pro model (expensive, smart)
-    elif model_type in ("section_writing", "analysis", "reasoning", "report"):
-        return PrimrModels.PRO_MODEL
-    else:
-        return PrimrModels.FLASH_MODEL
+    from primr.ai.routing import pick_model_for_legacy_type
+
+    return pick_model_for_legacy_type(model_type)
 
 
 def llm(prompt, model_type="fast", temperature=1.0, thinking_level="high", streaming=False):
@@ -134,134 +134,84 @@ def llm(prompt, model_type="fast", temperature=1.0, thinking_level="high", strea
         str: AI-generated response (cleaned text).
     """
     model_name = _get_model_for_type(model_type)
-    retries = 0
+    config = PrimrModels.get_model_config(model_name)
+    if config is not None and config.provider == "xai":
+        # Utility-tier dispatch: caller asked for a Flash-class task and the
+        # resolver picked a Grok model because XAI_API_KEY is set. Route to
+        # the Grok client and return — thinking_level / streaming have no
+        # analogue on Grok 4.1 NR (it doesn't reason).
+        from primr.ai.grok_client import grok_llm
+
+        log_chat_interaction(prompt, f"Model: {model_name} (xai dispatch)")
+        return grok_llm(prompt, model=model_name, temperature=temperature)
 
     log_chat_interaction(prompt, f"Model: {model_name}")
 
-    # Build config - Gemini 3 uses thinking_level instead of thinking_budget
-    config_params = {
-        "temperature": temperature,
-        "thinking_config": types.ThinkingConfig(thinking_level=thinking_level),
-    }
+    # Delegate to GeminiProvider for the actual SDK call + retry. This keeps
+    # the colored quota-exhausted UI in this function (a CLI concern) while
+    # the API logic lives in one place we can share with future code paths.
+    from primr.ai.providers import QuotaExhaustedError
 
-    # NOTE (pipeline-resilience): This client-level retry loop is intentionally
-    # retained alongside the stage-level RecoveryExecutor.  The executor handles
-    # stage recovery (model fallback, skip/abort); this loop handles transient
-    # API-call retries within a single stage attempt.  Candidate for future
-    # consolidation if the executor gains per-call retry support.
-    while retries < MAX_RETRIES:
-        try:
-            ai_response = ""
+    provider = _get_gemini_provider()
+    # Allow tests that patched _get_client to inject a fake client through
+    # the provider's lazy slot.
+    if _client is not None:
+        provider._client = _client
 
-            if not streaming:
-                response = _get_client().models.generate_content(
-                    model=model_name,
-                    contents=prompt,
-                    config=types.GenerateContentConfig(**config_params),
-                )
-                ai_response = (response.text or "").strip()
-                if not ai_response:
-                    raise RuntimeError(
-                        "LLM returned empty response (possible content filter or safety block)"
-                    )
-            else:
-                stream_response = _get_client().models.generate_content_stream(
-                    model=model_name,
-                    contents=prompt,
-                    config=types.GenerateContentConfig(**config_params),
-                )
+    try:
+        result = provider.chat(
+            [{"role": "user", "content": prompt}],
+            model=model_name,
+            temperature=temperature,
+            retries=MAX_RETRIES - 1,
+            thinking_level=thinking_level,
+            streaming=streaming,
+        )
+    except QuotaExhaustedError as e:
+        logger.error(
+            "Gemini daily API quota exhausted. Options: wait for reset, "
+            "upgrade plan, use different key, or run 'primr --check-quota'"
+        )
+        print(Fore.RED + "\n" + "=" * 60 + Style.RESET_ALL)
+        print(Fore.RED + "[QUOTA EXHAUSTED] Daily API limit reached." + Style.RESET_ALL)
+        print(
+            Fore.YELLOW
+            + "Your Gemini API quota has been exhausted for today."
+            + Style.RESET_ALL
+        )
+        print(Fore.YELLOW + "Options:" + Style.RESET_ALL)
+        print(
+            Fore.YELLOW
+            + "  1. Wait until quota resets (usually midnight PT)"
+            + Style.RESET_ALL
+        )
+        print(
+            Fore.YELLOW
+            + "  2. Upgrade your API plan at https://ai.google.dev"
+            + Style.RESET_ALL
+        )
+        print(Fore.YELLOW + "  3. Use a different API key" + Style.RESET_ALL)
+        print(Fore.YELLOW + "  4. Check quota: primr --check-quota" + Style.RESET_ALL)
+        print(Fore.RED + "=" * 60 + "\n" + Style.RESET_ALL)
+        error_message = "[ERROR] Daily API quota exhausted. Cannot continue."
+        log_chat_interaction(prompt, error_message)
+        raise RuntimeError(error_message) from e
 
-                response_text: list[str] = []
-                for chunk in stream_response:
-                    if hasattr(chunk, "text") and chunk.text:
-                        response_text.append(str(chunk.text))
+    log_chat_interaction(prompt, result.text)
+    return result.text
 
-                ai_response = "".join(response_text).strip()
 
-            log_chat_interaction(prompt, ai_response)
-            return ai_response
+_gemini_provider: "object | None" = None  # forward decl, set by _get_gemini_provider
 
-        except Exception as e:
-            error_str = str(e).lower()
-            retries += 1
 
-            # Check for quota exhaustion (daily limit hit) - STOP IMMEDIATELY
-            # Matches: per_day, per_model_per_day, PerDay, etc.
-            is_quota_exhausted = "resource_exhausted" in error_str and (
-                "per_day" in error_str or ("quota" in error_str and "exceeded" in error_str)
-            )
+def _get_gemini_provider():
+    """Lazy singleton for the GeminiProvider used by ``llm()``."""
+    from primr.ai.providers.gemini import GeminiProvider
 
-            if is_quota_exhausted:
-                logger.error(
-                    "Gemini daily API quota exhausted. Options: wait for reset, "
-                    "upgrade plan, use different key, or run 'primr --check-quota'"
-                )
-                print(Fore.RED + "\n" + "=" * 60 + Style.RESET_ALL)
-                print(Fore.RED + "[QUOTA EXHAUSTED] Daily API limit reached." + Style.RESET_ALL)
-                print(
-                    Fore.YELLOW
-                    + "Your Gemini API quota has been exhausted for today."
-                    + Style.RESET_ALL
-                )
-                print(Fore.YELLOW + "Options:" + Style.RESET_ALL)
-                print(
-                    Fore.YELLOW
-                    + "  1. Wait until quota resets (usually midnight PT)"
-                    + Style.RESET_ALL
-                )
-                print(
-                    Fore.YELLOW
-                    + "  2. Upgrade your API plan at https://ai.google.dev"
-                    + Style.RESET_ALL
-                )
-                print(Fore.YELLOW + "  3. Use a different API key" + Style.RESET_ALL)
-                print(Fore.YELLOW + "  4. Check quota: primr --check-quota" + Style.RESET_ALL)
-                print(Fore.RED + "=" * 60 + "\n" + Style.RESET_ALL)
-                error_message = "[ERROR] Daily API quota exhausted. Cannot continue."
-                log_chat_interaction(prompt, error_message)
-                raise RuntimeError(error_message) from e
-
-            # Check for temporary rate limit (retry with backoff, but limit retries)
-            if "429" in str(e) or "resource_exhausted" in error_str:
-                if retries >= MAX_RETRIES:
-                    logger.error(
-                        "Gemini rate limit persists after %d retries, aborting", MAX_RETRIES
-                    )
-                    print(
-                        Fore.RED
-                        + f"[ERROR] Rate limit persists after {MAX_RETRIES} retries. Stopping."
-                        + Style.RESET_ALL
-                    )
-                    raise RuntimeError(f"Rate limit exceeded after {MAX_RETRIES} retries") from e
-                wait_time = min(2**retries * 5, 60)  # Exponential backoff: 10s, 20s, 40s, max 60s
-                logger.warning(
-                    "Gemini rate limited, waiting %.0fs before retry %d/%d",
-                    wait_time,
-                    retries,
-                    MAX_RETRIES,
-                )
-                print(
-                    Fore.YELLOW
-                    + f"[RATE LIMITED] Waiting {wait_time}s before retry {retries}/{MAX_RETRIES}..."
-                    + Style.RESET_ALL
-                )
-                time.sleep(wait_time)
-            else:
-                # Other errors: short delay
-                logger.warning(
-                    "Gemini API call failed (attempt %d/%d): %s", retries, MAX_RETRIES, e
-                )
-                print(
-                    Fore.YELLOW
-                    + f"[WARNING] Gemini API Call Failed. Retrying {retries}/{MAX_RETRIES}... Error: {e}"
-                    + Style.RESET_ALL
-                )
-                time.sleep(2)
-
-    error_message = f"[ERROR] LLM API call failed after {MAX_RETRIES} retries."
-    logger.error(error_message)
-    log_chat_interaction(prompt, error_message)
-    raise RuntimeError(error_message)
+    global _gemini_provider
+    if _gemini_provider is None:
+        _gemini_provider = GeminiProvider()
+    return _gemini_provider
 
 
 def llm_fast(prompt, model_type="fast"):

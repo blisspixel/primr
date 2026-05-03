@@ -1,10 +1,20 @@
 """
-Grok 4.1 client for fast research mode.
+Grok client for primr.
 
-Uses xAI's OpenAI-compatible API at https://api.x.ai/v1.
-Requires XAI_API_KEY environment variable and the `openai` package.
+Uses xAI's OpenAI-compatible API at https://api.x.ai/v1. Requires the
+``XAI_API_KEY`` environment variable and the ``openai`` package.
 
-Usage:
+As of v1.22.0 the chat path delegates to ``OpenAICompatibleProvider`` from
+``primr.ai.providers`` so adding new OpenAI-compatible providers (OpenAI
+itself, Ollama, vLLM) is a one-line registry entry rather than a parallel
+client file. This module remains the public entry point for xAI-specific
+features: ``grok_llm`` (chat completions), ``ContinuousReasoningSession``
+(multi-turn shared-history sessions used by the standard pipeline), and
+``grok_browse_and_summarize`` (xAI Responses API with the ``web_search``
+agent tool, which is xAI-specific and not OpenAI-shape-compatible).
+
+Usage::
+
     from primr.ai.grok_client import grok_llm, get_grok_session_usage
 
     text = grok_llm("Write a report about ...", max_tokens=16_000)
@@ -13,8 +23,8 @@ Usage:
 
 import random
 import re
-import time
 
+from primr.ai.providers import OpenAICompatibleProvider
 from primr.utils.logging_config import get_logger
 
 logger = get_logger("grok_client")
@@ -88,6 +98,26 @@ def _get_grok_client():
         base_url="https://api.x.ai/v1",
     )
     return _client
+
+
+# ---------------------------------------------------------------------------
+# xAI provider singleton (used by grok_llm; ContinuousReasoningSession also
+# delegates to it after Step 3 of the routing-layer migration)
+# ---------------------------------------------------------------------------
+_xai_provider: OpenAICompatibleProvider | None = None
+
+
+def _get_provider() -> OpenAICompatibleProvider:
+    """Lazy singleton for the xAI provider."""
+    global _xai_provider
+    if _xai_provider is None:
+        _xai_provider = OpenAICompatibleProvider(
+            name="xai",
+            base_url="https://api.x.ai/v1",
+            api_key_env="XAI_API_KEY",
+            billing_help_url="https://console.x.ai/",
+        )
+    return _xai_provider
 
 
 # ---------------------------------------------------------------------------
@@ -212,88 +242,39 @@ def grok_llm(
 
     if model is None:
         model = _DEFAULT_MODEL
-    client = _get_grok_client()
 
     messages: list[dict[str, str]] = []
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
     messages.append({"role": "user", "content": prompt})
 
-    last_error = None
-    for attempt in range(1 + retries):
-        try:
-            response = client.chat.completions.create(
-                model=model,
-                messages=messages,  # type: ignore[arg-type]
-                temperature=temperature,
-                max_tokens=max_tokens,
-            )
+    # Delegate the chat call (with retry/error handling) to the shared
+    # OpenAICompatibleProvider. We sync the lazy SDK client through
+    # _get_grok_client so callers/tests that patch _get_grok_client to inject
+    # a fake client still flow through.
+    provider = _get_provider()
+    provider._client = _get_grok_client()
+    response = provider.chat(
+        messages,
+        model=model,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        retries=retries,
+    )
 
-            if not response.choices:
-                raise RuntimeError(
-                    "Grok returned empty response (no choices — possible content filter)"
-                )
+    # Mirror per-call usage into the legacy module-level counters so existing
+    # readers (get_grok_session_usage / get_grok_session_usage_by_model) keep
+    # returning consistent numbers. ContinuousReasoningSession still writes
+    # to these directly; Step 3 of the routing-layer migration collapses the
+    # duplication.
+    _session_input_tokens += response.input_tokens
+    _session_output_tokens += response.output_tokens
+    if model not in _session_tokens_by_model:
+        _session_tokens_by_model[model] = {"input_tokens": 0, "output_tokens": 0}
+    _session_tokens_by_model[model]["input_tokens"] += response.input_tokens
+    _session_tokens_by_model[model]["output_tokens"] += response.output_tokens
 
-            # Track tokens only after confirming we got a valid response
-            if response.usage:
-                inp = response.usage.prompt_tokens or 0
-                out = response.usage.completion_tokens or 0
-                _session_input_tokens += inp
-                _session_output_tokens += out
-                # Per-model tracking for accurate cost reporting
-                if model not in _session_tokens_by_model:
-                    _session_tokens_by_model[model] = {"input_tokens": 0, "output_tokens": 0}
-                _session_tokens_by_model[model]["input_tokens"] += inp
-                _session_tokens_by_model[model]["output_tokens"] += out
-
-            text = response.choices[0].message.content or ""
-            logger.info(
-                "Grok call complete: %d input, %d output tokens",
-                response.usage.prompt_tokens if response.usage else 0,
-                response.usage.completion_tokens if response.usage else 0,
-            )
-            return text
-
-        except Exception as e:
-            last_error = e
-
-            # Billing exhaustion — abort immediately with a clear message
-            if _is_billing_exhausted(e):
-                raise RuntimeError(
-                    "xAI API credits exhausted or spending limit reached. "
-                    "Add credits at https://console.x.ai/ and re-run. "
-                    "Your progress has been saved — the same command will resume."
-                ) from e
-
-            if _is_retryable_grok_error(e):
-                if attempt < retries:
-                    retry_after = _extract_retry_after_seconds(e)
-                    wait = (
-                        retry_after if retry_after is not None else _compute_backoff_delay(attempt)
-                    )
-                    logger.warning(
-                        "Transient Grok API error, retrying in %.1fs (attempt %d/%d): %s",
-                        wait,
-                        attempt + 1,
-                        retries + 1,
-                        e,
-                    )
-                    time.sleep(wait)
-                    continue
-                logger.warning(
-                    "Transient Grok API error on final attempt (%d/%d): %s",
-                    attempt + 1,
-                    retries + 1,
-                    e,
-                )
-                break
-
-            # Non-retryable error
-            raise RuntimeError(f"Grok API call failed (non-retryable): {e}") from e
-
-    raise RuntimeError(
-        f"Grok API call failed after {retries + 1} attempts: {last_error}"
-    ) from last_error
+    return response.text
 
 
 # ---------------------------------------------------------------------------
@@ -351,91 +332,50 @@ class ContinuousReasoningSession:
         """Append a user turn, call Grok, append the assistant reply, return it."""
         global _session_input_tokens, _session_output_tokens, _session_tokens_by_model
 
-        client = _get_grok_client()
         self.history.append({"role": "user", "content": prompt})
 
-        last_error: Exception | None = None
-        for attempt in range(1 + retries):
-            try:
-                response = client.chat.completions.create(
-                    model=self.model,
-                    messages=self.history,  # type: ignore[arg-type]
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                )
+        # Delegate the chat call (with retry/error handling) to the shared
+        # OpenAICompatibleProvider. Errors propagate after rolling back the
+        # user turn so the session stays consistent with what the model
+        # actually saw.
+        provider = _get_provider()
+        provider._client = _get_grok_client()
+        try:
+            response = provider.chat(
+                list(self.history),
+                model=self.model,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                retries=retries,
+            )
+        except Exception:
+            self.history.pop()
+            raise
 
-                if not response.choices:
-                    self.history.pop()
-                    raise RuntimeError(
-                        "Grok returned empty response (no choices — possible content filter)"
-                    )
+        # Mirror per-call usage into legacy module-level counters for callers
+        # that still read get_grok_session_usage().
+        _session_input_tokens += response.input_tokens
+        _session_output_tokens += response.output_tokens
+        if self.model not in _session_tokens_by_model:
+            _session_tokens_by_model[self.model] = {
+                "input_tokens": 0,
+                "output_tokens": 0,
+            }
+        _session_tokens_by_model[self.model]["input_tokens"] += response.input_tokens
+        _session_tokens_by_model[self.model]["output_tokens"] += response.output_tokens
 
-                if response.usage:
-                    inp = response.usage.prompt_tokens or 0
-                    out = response.usage.completion_tokens or 0
-                    _session_input_tokens += inp
-                    _session_output_tokens += out
-                    if self.model not in _session_tokens_by_model:
-                        _session_tokens_by_model[self.model] = {
-                            "input_tokens": 0,
-                            "output_tokens": 0,
-                        }
-                    _session_tokens_by_model[self.model]["input_tokens"] += inp
-                    _session_tokens_by_model[self.model]["output_tokens"] += out
-
-                text = response.choices[0].message.content or ""
-                self.history.append({"role": "assistant", "content": text})
-                self._turn_count += 1
-                logger.info(
-                    "Continuous session turn %d complete: %d input, %d output tokens "
-                    "(history now %d turns, ~%dk context tokens)",
-                    self._turn_count,
-                    response.usage.prompt_tokens if response.usage else 0,
-                    response.usage.completion_tokens if response.usage else 0,
-                    self._turn_count,
-                    self.approx_context_tokens // 1000,
-                )
-                return text
-
-            except Exception as e:
-                last_error = e
-
-                if _is_billing_exhausted(e):
-                    self.history.pop()
-                    raise RuntimeError(
-                        "xAI API credits exhausted or spending limit reached. "
-                        "Add credits at https://console.x.ai/ and re-run."
-                    ) from e
-
-                if _is_retryable_grok_error(e):
-                    if attempt < retries:
-                        retry_after = _extract_retry_after_seconds(e)
-                        wait = (
-                            retry_after
-                            if retry_after is not None
-                            else _compute_backoff_delay(attempt)
-                        )
-                        logger.warning(
-                            "Continuous session transient error, retrying in %.1fs "
-                            "(attempt %d/%d): %s",
-                            wait,
-                            attempt + 1,
-                            retries + 1,
-                            e,
-                        )
-                        time.sleep(wait)
-                        continue
-                    break
-
-                self.history.pop()
-                raise RuntimeError(
-                    f"Grok continuous session call failed (non-retryable): {e}"
-                ) from e
-
-        self.history.pop()
-        raise RuntimeError(
-            f"Grok continuous session call failed after {retries + 1} attempts: {last_error}"
-        ) from last_error
+        self.history.append({"role": "assistant", "content": response.text})
+        self._turn_count += 1
+        logger.info(
+            "Continuous session turn %d complete: %d input, %d output tokens "
+            "(history now %d turns, ~%dk context tokens)",
+            self._turn_count,
+            response.input_tokens,
+            response.output_tokens,
+            self._turn_count,
+            self.approx_context_tokens // 1000,
+        )
+        return response.text
 
 
 # ---------------------------------------------------------------------------

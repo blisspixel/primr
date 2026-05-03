@@ -209,6 +209,8 @@ __marimo__/
 # Output directories (generated research reports)
 /output/
 /working/
+/eval_corpus/
+/verify_run/
 # Explicit eval artifacts (redundant with /output/, kept for clarity)
 output/evals/
 output/evals/**/scorecard.csv

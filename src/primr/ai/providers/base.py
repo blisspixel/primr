@@ -1,0 +1,138 @@
+"""
+Provider abstraction base classes.
+
+A ``Provider`` is the seam between primr's pipeline and a specific LLM API.
+It owns lazy client construction, retry/backoff, billing-exhaustion detection,
+and per-model token accounting. Routing decisions live one layer up.
+"""
+
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from typing import Any
+
+
+class ProviderUnavailableError(RuntimeError):
+    """Raised when a provider's API key or transport is not configured."""
+
+
+class QuotaExhaustedError(RuntimeError):
+    """Raised when a provider's daily/billing quota is exhausted.
+
+    This is distinct from transient rate-limiting (HTTP 429 with retry-after).
+    Callers typically print a UI message and then exit / fail the run rather
+    than retrying — the user has to wait for the quota window to reset, top
+    up credits, or rotate keys before another run can succeed.
+    """
+
+
+@dataclass(frozen=True)
+class ChatResponse:
+    """Normalized return shape for a single chat call.
+
+    ``input_tokens`` and ``output_tokens`` come from the provider's usage
+    metadata when available; both default to 0 for transports (e.g. local
+    Ollama) that don't report usage.
+    """
+
+    text: str
+    input_tokens: int = 0
+    output_tokens: int = 0
+
+
+@dataclass
+class _UsageAccumulator:
+    input_tokens: int = 0
+    output_tokens: int = 0
+    by_model: dict[str, dict[str, int]] = field(default_factory=dict)
+
+    def record(self, model: str, input_tokens: int, output_tokens: int) -> None:
+        self.input_tokens += input_tokens
+        self.output_tokens += output_tokens
+        bucket = self.by_model.setdefault(
+            model, {"input_tokens": 0, "output_tokens": 0}
+        )
+        bucket["input_tokens"] += input_tokens
+        bucket["output_tokens"] += output_tokens
+
+    def reset(self) -> None:
+        self.input_tokens = 0
+        self.output_tokens = 0
+        self.by_model = {}
+
+
+class Provider(ABC):
+    """Abstract LLM provider.
+
+    Subclasses implement ``chat()`` against their specific transport. The
+    base class owns usage accounting so callers see consistent token-tracking
+    semantics regardless of which provider serviced the call. Provider-
+    specific knobs (Gemini ``thinking_level``, Anthropic ``cache_control``,
+    OpenAI ``reasoning_effort``) flow through as ``**kwargs`` — providers that
+    recognize them apply them, others ignore them. This keeps the abstraction
+    thin without flattening real feature differences.
+    """
+
+    name: str
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+        self._usage = _UsageAccumulator()
+
+    @abstractmethod
+    def chat(
+        self,
+        messages: list[dict[str, str]],
+        *,
+        model: str,
+        temperature: float = 0.7,
+        max_tokens: int = 16_000,
+        retries: int = 4,
+        **provider_kwargs: Any,
+    ) -> ChatResponse:
+        """Send a chat-format request and return the response.
+
+        Args:
+            messages: List of ``{"role": ..., "content": ...}`` dicts. Roles
+                follow OpenAI/Anthropic conventions: ``system`` / ``user`` /
+                ``assistant``. Providers that put system prompts elsewhere
+                (Gemini ``system_instruction``) are responsible for handling
+                the conversion.
+            model: Provider-specific model ID.
+            temperature: Sampling temperature (provider clamps as needed).
+            max_tokens: Maximum output tokens.
+            retries: Number of retries for transient errors.
+            **provider_kwargs: Provider-specific knobs passed through
+                untouched. Providers should ignore unknown kwargs.
+
+        Returns:
+            ChatResponse with normalized text and token usage.
+
+        Raises:
+            ProviderUnavailable: API key missing or transport unreachable.
+            RuntimeError: All retry attempts failed.
+        """
+
+    @abstractmethod
+    def is_available(self) -> bool:
+        """Return ``True`` when the provider's key/transport is configured."""
+
+    def get_usage(self) -> dict[str, int]:
+        """Return cumulative ``{input_tokens, output_tokens}`` for this provider."""
+        return {
+            "input_tokens": self._usage.input_tokens,
+            "output_tokens": self._usage.output_tokens,
+        }
+
+    def get_usage_by_model(self) -> dict[str, dict[str, int]]:
+        """Return per-model token usage as ``{model: {input_tokens, output_tokens}}``."""
+        return {k: dict(v) for k, v in self._usage.by_model.items()}
+
+    def reset_usage(self) -> None:
+        """Reset usage counters. Useful for tests and per-run accounting."""
+        self._usage.reset()
+
+    def _record_usage(self, model: str, input_tokens: int, output_tokens: int) -> None:
+        """Subclass hook for recording usage into the accumulator."""
+        self._usage.record(model, input_tokens, output_tokens)

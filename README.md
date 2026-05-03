@@ -6,7 +6,7 @@
 
 **Turn any company or organization URL into deep strategic analysis that gets a consultant maximally up to speed.**
 
-Primr extracts primary-source data from company and organization websites using adaptive, org-aware scraping that handles modern site architectures, then synthesizes external research into long-form strategic analysis using AI-powered research and synthesis (Grok 4.1 by default, or Gemini Deep Research via `--premium`).
+Primr extracts primary-source data from company and organization websites using adaptive, org-aware scraping that handles modern site architectures, then synthesizes external research into long-form strategic analysis using AI-powered research and synthesis (Grok 4.3 hybrid by default, or Gemini Deep Research via `--premium`).
 
 Runs as a CLI, an MCP server, an OpenClaw integration, and a Claude Skill.
 
@@ -14,7 +14,7 @@ Runs as a CLI, an MCP server, an OpenClaw integration, and a Claude Skill.
 primr "ExampleCo" https://example.co
 ```
 
-About 35-50 minutes later: a deep strategic analysis covering competitive positioning, technology stack, strategic initiatives, likely constraints, and consultant-grade hypotheses, with dense references consolidated at the end. ~$0.75 in API costs.
+About 35-50 minutes later: a deep strategic analysis covering competitive positioning, technology stack, strategic initiatives, likely constraints, and consultant-grade hypotheses, with dense references consolidated at the end. ~$0.60 in API costs.
 
 ## Why This Exists
 
@@ -27,7 +27,7 @@ Company research is tedious. You visit the website, click around, search the com
 - **Adaptive scraping**: 8 retrieval methods from browser rendering to TLS fingerprinting to screenshot+vision extraction, with per-host optimization. Starts with full browser rendering (what works on 95%+ of modern sites) and falls back through increasingly specialized methods.
 - **Org-aware site selection**: Link discovery and prioritization now adapt for commercial companies, government sites, nonprofits, education, and healthcare organizations instead of assuming every site looks like a SaaS company.
 - **Fail-fast scrape quality gate**: Full/scrape modes now abort when site extraction is too thin, while still preserving short structured pages like contact, leadership, and org-chart references when they carry useful signal (override with `--skip-scrape-validation`).
-- **Autonomous external research**: Gemini Deep Research for comprehensive analysis, Grok 4.1 for fast turnaround — both plan queries, follow leads, cross-validate sources, and synthesize findings.
+- **Autonomous external research**: Gemini Deep Research for comprehensive analysis, Grok 4.3 for fast turnaround — both plan queries, follow leads, cross-validate sources, and synthesize findings.
 - **Cost controls built in**: `--dry-run` estimates (including recovery table and stage classifications), usage tracking, and governance hooks for budget limits.
 - **Agent-native interfaces**: CLI, MCP server, OpenClaw integration, and Claude Skills, all first-class.
 
@@ -49,12 +49,12 @@ Near-term work remains focused on pushing more structure upstream into the long-
 
 | Mode | What it does | Time | Cost |
 |------|--------------|------|------|
-| Default | Grok 4.20 hybrid + AI Strategy (recon auto-detects platform) | ~35-50 min | ~$0.75 |
-| `--platform ms` | Microsoft Azure + NVIDIA private cloud strategy | ~45-60 min | ~$0.80 |
-| Default + multi-platform | Add `--platform aws azure` | ~45-60 min | ~$0.80 |
-| Default + strategy type | Add `--strategy-type customer_experience` | ~35-50 min | ~$0.75 |
+| Default | Grok 4.3 hybrid + AI Strategy (recon auto-detects platform) | ~35-50 min | ~$0.60 |
+| `--platform ms` | Microsoft Azure + NVIDIA private cloud strategy | ~45-60 min | ~$0.65 |
+| Default + multi-platform | Add `--platform aws azure` | ~45-60 min | ~$0.65 |
+| Default + strategy type | Add `--strategy-type customer_experience` | ~35-50 min | ~$0.60 |
 | `--grok-tier fast` | Grok 4.1 everywhere (cheaper, slightly lower quality) | ~30-45 min | ~$0.47 |
-| `--grok-tier max` | Grok 4.20 everywhere (diminishing returns on writing) | ~35-50 min | ~$4.29 |
+| `--grok-tier max` | Grok 4.3 everywhere (deeper reasoning across writing too) | ~35-50 min | ~$2.50 |
 | `--premium` | Gemini + Deep Research + AI Strategy | 50-75 min | ~$5 |
 | `--premium --platform ms` | Premium + Microsoft/NVIDIA | 75-120 min | $6-9 |
 | `--premium --lite` | Pro model instead of DR for AI Strategy | 50-80 min | ~$4 |
@@ -62,7 +62,7 @@ Near-term work remains focused on pushing more structure upstream into the long-
 | `--mode deep` | Gemini Deep Research on external sources only | 10-15 min | $2.50 |
 | `primr recon` | DNS intelligence only (no API keys needed) | 2-3 sec | $0.00 |
 
-The default `primr` command auto-detects: when `XAI_API_KEY` is set, it uses the Grok 4.20 hybrid pipeline (4.20 for reasoning-heavy stages, 4.1 for bulk writing) at ~$0.67/run. The standard pipeline includes research deepening, cross-validation, trust-polish, citation normalization, and constrained-evidence reasoning. Strategy types (`ai`, `customer_experience`, `modern_security_compliance`, `data_fabric_strategy`) are YAML-defined and auto-discovered — run `primr --list-strategies` for details. DDG searches are free. Use `--dry-run` for accurate cost estimates.
+The default `primr` command auto-detects: when `XAI_API_KEY` is set, it uses the Grok 4.3 hybrid pipeline (4.3 for reasoning-heavy stages, 4.1-fast for bulk writing) at ~$0.60/run. The standard pipeline includes research deepening, cross-validation, trust-polish, citation normalization, and constrained-evidence reasoning. Strategy types (`ai`, `customer_experience`, `modern_security_compliance`, `data_fabric_strategy`) are YAML-defined and auto-discovered — run `primr --list-strategies` for details. DDG searches are free. Use `--dry-run` for accurate cost estimates.
 
 For model evaluation and quality comparison, see [Evaluation Guide](docs/EVAL.md).
 
@@ -87,7 +87,7 @@ primr doctor                     # Verify everything works
 primr "ExampleCo" https://example.co  # Run your first research
 ```
 
-Requires Python 3.11+. On Windows, prefer `py -3.13` instead of bare `python` if your default interpreter is older. `setup_env.py` installs or upgrades the local editable package to the current repo version, installs dependencies, and creates `.env`. `primr init` walks through user-level API keys, browser dependencies, and verification. Local `.env` files and shell environment variables still work and can override user-level keys. Set `GEMINI_API_KEY` for Gemini-backed stages and premium mode; set `XAI_API_KEY` for the standard Grok pipeline. Web search uses DuckDuckGo (no key needed).
+Requires Python 3.11+. On Windows, prefer `py -3.13` instead of bare `python` if your default interpreter is older. `setup_env.py` installs or upgrades the local editable package to the current repo version, installs dependencies, and creates `.env`. `primr init` walks through user-level API keys, browser dependencies, and verification. Local `.env` files and shell environment variables still work and can override user-level keys. Set `XAI_API_KEY` for the standard Grok pipeline (it covers analysis, writing, and utility-tier calls like scraping summaries and link selection). Set `GEMINI_API_KEY` only if you also want `--premium` mode or you do not have an xAI key. Web search uses DuckDuckGo (no key needed).
 
 ### Platform Support
 
@@ -136,7 +136,7 @@ For batch processing, see [Batch Guide](docs/BATCH.md). For crash recovery and r
 ### What a run looks like
 
 ```
-Grok 4.20 hybrid · recon auto-detected Azure
+Grok 4.3 hybrid · recon auto-detected Azure
 
 ▸ PHASE 0/6 · Recon
 ✓ 14 services, 8 insights, platform: azure (2s)
@@ -187,7 +187,7 @@ Reports include 23 structured sections, SWOT analysis, competitive landscape, di
 
 ## Under the Hood
 
-Primr uses an 8-tier browser-first retrieval engine with sticky tier memory, circuit breakers, and cookie handoff. Models range from Grok 4.1 ($0.20/$0.50 per 1M tokens) to Gemini Deep Research (~$2.50/task). The agentic architecture includes hypothesis tracking, subagents for each pipeline stage, governance hooks, and persistent research memory.
+Primr uses an 8-tier browser-first retrieval engine with sticky tier memory, circuit breakers, and cookie handoff. Models range from Grok 4.1 ($0.20/$0.50 per 1M tokens) through Grok 4.3 ($1.25/$2.50 with $0.20 cached input) to Gemini Deep Research (~$2.50/task). The agentic architecture includes hypothesis tracking, subagents for each pipeline stage, governance hooks, and persistent research memory.
 
 For full architecture details, model pricing, and the retrieval tier breakdown, see [System Design](docs/ARCHITECTURE.md).
 
@@ -207,8 +207,8 @@ primr keys path
 primr doctor --fix
 
 # Local .env files and shell env vars are also supported:
-GEMINI_API_KEY=       # Gemini, premium mode, scrape summaries
-XAI_API_KEY=          # Grok standard pipeline
+XAI_API_KEY=          # Grok standard pipeline (analysis + writing + utility tier)
+GEMINI_API_KEY=       # Required only for --premium mode (and for utility tier when no XAI_API_KEY)
 ```
 
 Web search uses DuckDuckGo by default, no key needed.
@@ -314,6 +314,7 @@ mypy src/primr --ignore-missing-imports     # Type check
 | Output improvement | [Improve Guide](docs/IMPROVE.md) |
 | Configuration | [Full Config Reference](docs/CONFIG.md) |
 | Architecture | [System Design](docs/ARCHITECTURE.md) |
+| Adding a new model | [Model Onboarding Playbook](docs/MODEL_ONBOARDING.md) |
 | Cloud deployment | [Deployment Guide](docs/CLOUD_DEPLOYMENT.md) |
 | Agent integration | [MCP & A2A API](docs/API.md) |
 | API key setup | [API Keys](docs/API_KEYS.md) |

@@ -87,6 +87,8 @@ class ModelConfig:
     cost_per_1m_input_tokens_high: float | None = None
     cost_per_1m_output_tokens_high: float | None = None
     tier_threshold_tokens: int | None = None
+    # Cached input pricing (optional) — discount rate for cache hits
+    cost_per_1m_input_tokens_cached: float | None = None
 
     @property
     def has_tiered_pricing(self) -> bool:
@@ -282,6 +284,33 @@ class ModelRegistry:
     )
 
     # =========================================================================
+    # GROK 4.3 - xAI flagship (released 2026-04-30), always-on reasoning
+    # USE FOR: All reasoning stages; replaces 4.20 in HYBRID and MAX tiers.
+    # $1.25 input / $2.50 output / $0.20 cached input per 1M tokens
+    # Context: 1M tokens, Output: 131k tokens. Tiered pricing above 200k input.
+    # No non-reasoning variant — reasoning cannot be disabled.
+    # Multimodal input (text + image), text output.
+    # NOTE: high-tier (>200k) rates are placeholders (2x base) until confirmed
+    # against console.x.ai billing. Cache rate is published.
+    # =========================================================================
+    GROK_4_3 = ModelConfig(
+        name="grok-4.3",
+        display_name="Grok 4.3",
+        provider="xai",
+        cost_per_1m_input_tokens=1.25,
+        cost_per_1m_output_tokens=2.50,
+        max_input_tokens=1_000_000,
+        max_output_tokens=131_072,
+        supports_thinking=True,  # Always-on, cannot be disabled
+        supports_tools=True,
+        supports_multimodal=True,  # Image input supported
+        cost_per_1m_input_tokens_high=2.50,  # PLACEHOLDER until xAI publishes
+        cost_per_1m_output_tokens_high=5.00,  # PLACEHOLDER until xAI publishes
+        tier_threshold_tokens=200_000,
+        cost_per_1m_input_tokens_cached=0.20,
+    )
+
+    # =========================================================================
     # GROK 4.20 REASONING - xAI flagship model, lowest hallucination rate
     # USE FOR: High-leverage reasoning stages (gap analysis, workbook, cross-val)
     # $2.00 input / $6.00 output per 1M tokens
@@ -427,10 +456,13 @@ class PrimrModels:
     FALLBACK_MODELS: dict = {}  # Empty - no fallbacks
 
     # --- GROK MODELS (xAI - for fast mode) ---
-    GROK_MODEL = ModelRegistry.GROK_4_1_FAST.name  # Reasoning — analytical tasks
-    GROK_MODEL_WRITING = ModelRegistry.GROK_4_1_FAST_NR.name  # Non-reasoning — writing tasks
-    GROK_MODEL_420 = ModelRegistry.GROK_4_20_REASONING.name  # 4.20 reasoning — hybrid/max tier
-    GROK_MODEL_420_WRITING = ModelRegistry.GROK_4_20_NR.name  # 4.20 non-reasoning — max tier
+    GROK_MODEL = ModelRegistry.GROK_4_1_FAST.name  # 4.1 reasoning — fast tier + writing fallback
+    GROK_MODEL_WRITING = ModelRegistry.GROK_4_1_FAST_NR.name  # 4.1 non-reasoning — writing tasks
+    GROK_MODEL_43 = ModelRegistry.GROK_4_3.name  # 4.3 — current flagship for hybrid/max tier
+    # Legacy 4.20 constants — kept for back-compat and resume of in-flight runs.
+    # New code should use GROK_MODEL_43.
+    GROK_MODEL_420 = ModelRegistry.GROK_4_20_REASONING.name
+    GROK_MODEL_420_WRITING = ModelRegistry.GROK_4_20_NR.name
 
     # Model registry for lookups
     ALL_MODELS = {
@@ -443,6 +475,7 @@ class PrimrModels:
         ModelRegistry.GEMINI_2_5_FLASH.name: ModelRegistry.GEMINI_2_5_FLASH,
         ModelRegistry.GROK_4_1_FAST.name: ModelRegistry.GROK_4_1_FAST,
         ModelRegistry.GROK_4_1_FAST_NR.name: ModelRegistry.GROK_4_1_FAST_NR,
+        ModelRegistry.GROK_4_3.name: ModelRegistry.GROK_4_3,
         ModelRegistry.GROK_4_20_REASONING.name: ModelRegistry.GROK_4_20_REASONING,
         ModelRegistry.GROK_4_20_NR.name: ModelRegistry.GROK_4_20_NR,
         ModelRegistry.GROK_4_20_MULTI_AGENT.name: ModelRegistry.GROK_4_20_MULTI_AGENT,
@@ -464,11 +497,16 @@ class PrimrModels:
 
     @classmethod
     def get_grok_models(cls, tier: GrokTier) -> tuple[str, str]:
-        """Return (reasoning_model, writing_model) for the given Grok tier."""
+        """Return (reasoning_model, writing_model) for the given Grok tier.
+
+        HYBRID: Grok 4.3 (always-on reasoning) for analysis stages, 4.1-fast NR for writing.
+        MAX: Grok 4.3 for everything (4.3 has no non-reasoning variant).
+        FAST: Grok 4.1 fast everywhere (cheapest path, no 4.3 calls).
+        """
         if tier == GrokTier.HYBRID:
-            return (cls.GROK_MODEL_420, cls.GROK_MODEL_WRITING)
+            return (cls.GROK_MODEL_43, cls.GROK_MODEL_WRITING)
         if tier == GrokTier.MAX:
-            return (cls.GROK_MODEL_420, cls.GROK_MODEL_420_WRITING)
+            return (cls.GROK_MODEL_43, cls.GROK_MODEL_43)
         # GrokTier.FAST (default)
         return (cls.GROK_MODEL, cls.GROK_MODEL_WRITING)
 
@@ -512,11 +550,16 @@ class PrimrModels:
         input_tokens: int,
         output_tokens: int,
         prompt_tokens: int | None = None,
+        cached_input_tokens: int = 0,
     ) -> float:
         """Calculate cost in USD for given token counts using model pricing.
 
         For tiered models, uses the high tier when prompt_tokens exceeds the
         tier threshold. When prompt_tokens is None, uses standard (low) tier.
+
+        cached_input_tokens are billed at the model's cached rate when the
+        config exposes one; otherwise they fall through to the standard input
+        rate. Non-cached input is (input_tokens - cached_input_tokens).
         """
         config = cls.ALL_MODELS.get(model_name)
         if config is None:
@@ -525,15 +568,31 @@ class PrimrModels:
         if (
             config.has_tiered_pricing
             and prompt_tokens is not None
-            and prompt_tokens > config.tier_threshold_tokens  # type: ignore[operator]
+            and config.tier_threshold_tokens is not None
+            and prompt_tokens > config.tier_threshold_tokens
         ):
-            inp_price = config.cost_per_1m_input_tokens_high  # type: ignore[assignment]
-            out_price = config.cost_per_1m_output_tokens_high  # type: ignore[assignment]
+            inp_price = config.cost_per_1m_input_tokens_high
+            out_price = config.cost_per_1m_output_tokens_high
+            assert inp_price is not None
+            assert out_price is not None
         else:
             inp_price = config.cost_per_1m_input_tokens
             out_price = config.cost_per_1m_output_tokens
 
-        return (input_tokens / 1_000_000) * inp_price + (output_tokens / 1_000_000) * out_price
+        cached_input_tokens = max(0, min(cached_input_tokens, input_tokens))
+        live_input_tokens = input_tokens - cached_input_tokens
+        cache_price = config.cost_per_1m_input_tokens_cached
+        cached_cost = (
+            (cached_input_tokens / 1_000_000) * cache_price
+            if cache_price is not None
+            else (cached_input_tokens / 1_000_000) * inp_price
+        )
+
+        return (
+            (live_input_tokens / 1_000_000) * inp_price
+            + cached_cost
+            + (output_tokens / 1_000_000) * out_price
+        )
 
     @classmethod
     def calculate_cost_conservative(
@@ -549,8 +608,10 @@ class PrimrModels:
             raise KeyError(f"Unknown model: {model_name}")
 
         if config.has_tiered_pricing:
-            inp_price = config.cost_per_1m_input_tokens_high  # type: ignore[assignment]
-            out_price = config.cost_per_1m_output_tokens_high  # type: ignore[assignment]
+            inp_price = config.cost_per_1m_input_tokens_high
+            out_price = config.cost_per_1m_output_tokens_high
+            assert inp_price is not None
+            assert out_price is not None
         else:
             inp_price = config.cost_per_1m_input_tokens
             out_price = config.cost_per_1m_output_tokens
@@ -645,8 +706,9 @@ PRO_MODEL = PrimrModels.PRO_MODEL
 DEEP_RESEARCH_AGENT = PrimrModels.DEEP_RESEARCH_AGENT
 GROK_MODEL = PrimrModels.GROK_MODEL
 GROK_MODEL_WRITING = PrimrModels.GROK_MODEL_WRITING
-GROK_MODEL_420 = PrimrModels.GROK_MODEL_420
-GROK_MODEL_420_WRITING = PrimrModels.GROK_MODEL_420_WRITING
+GROK_MODEL_43 = PrimrModels.GROK_MODEL_43
+GROK_MODEL_420 = PrimrModels.GROK_MODEL_420  # legacy, keep for back-compat
+GROK_MODEL_420_WRITING = PrimrModels.GROK_MODEL_420_WRITING  # legacy
 
 # Task-specific (preferred)
 SCRAPING_MODEL = PrimrModels.SCRAPING_MODEL

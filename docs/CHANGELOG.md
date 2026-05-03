@@ -9,6 +9,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 No unreleased changes.
 
+## [1.22.0] - 2026-05-03
+
+### Grok 4.3 onboarded as flagship reasoning model
+
+- **`grok-4.3` registered** in `ModelRegistry` ($1.25/$2.50 per 1M with $0.20 cached input, 1M context, always-on reasoning, no non-reasoning variant). HYBRID and MAX tiers now route reasoning stages to 4.3; FAST stays on 4.1; legacy `grok-4.20-*` IDs remain registered for resume of in-flight runs.
+- **`ModelConfig` extended** with `cost_per_1m_input_tokens_cached`. `calculate_cost` now accepts `cached_input_tokens` and bills the cached portion at the discount rate when the model exposes one.
+- **Analysis fallback chain reordered** to `(4.3 → 4.20 → 4.1 → Flash)`.
+- **`docs/MODEL_ONBOARDING.md`** added — five-step playbook (verify → register → wire → test → eval-gate) for future model additions, with Grok 4.3 as the worked example. Referenced from `README.md`.
+
+### Utility-tier LLM calls migrated to Grok when XAI_API_KEY is set
+
+- `llm()` now routes scraping summaries / link selection / generic "fast" calls to Grok 4.1-NR when `XAI_API_KEY` is set. Grok 4.1-NR is 2.5x cheaper input and 6x cheaper output than Gemini Flash and lives on the same key the standard pipeline already uses.
+- The standard pipeline no longer requires a Gemini key — `XAI_API_KEY` alone is sufficient. `GEMINI_API_KEY` is now only needed for `--premium` mode (or as a utility-tier fallback when no xAI key is set).
+- Surfaced when a stalled Gemini Flash link-selection call hung the first 4.3 comparison run; the cross-provider dependency was a historical artifact, not a deliberate design.
+
+### Provider abstraction and routing layer
+
+- **`src/primr/ai/providers/`** new package: `Provider` ABC, `ChatResponse`, `ProviderUnavailableError`, `QuotaExhaustedError`, shared `_UsageAccumulator`, plus three concrete provider classes:
+  - `OpenAICompatibleProvider` — single class for any OpenAI-shaped endpoint, parameterized by `base_url` and `api_key_env`. xAI / OpenAI / Ollama / vLLM / llama.cpp all become one-line registry entries.
+  - `GeminiProvider` — wraps `google.genai`, translates message lists into `system_instruction` + `contents`, raises `QuotaExhaustedError` on daily limits.
+  - `ProviderRegistry` (`registry.py`) — auto-detects which providers are configured from env keys.
+- **`src/primr/ai/routing.py`** — single source of truth for "which model for which role". `pick_model_for_role(role)` and `get_provider_for_model(name)` replace the previous scattered `if XAI_API_KEY` checks.
+- **`grok_llm`, `ContinuousReasoningSession`, and `llm()`** delegate to providers internally; public signatures unchanged.
+- **`primr doctor`** gains a "Providers" section listing each configured provider and the roles it serves.
+- **60+ new tests** across `test_providers.py`, `test_provider_registry.py`, `test_routing.py`, `test_grok_client.py`, `test_llm_dispatch.py`. Full suite remains green: 4945 pass, 28 skipped (optional deps).
+- **`docs/MODEL_ONBOARDING.md`** gains an "Adding a new provider" section covering OpenAI-compatible vs distinct-SDK cases.
+
+### Eval-gating of the 4.3 default flip
+
+The default flip from 4.20-hybrid to 4.3-hybrid was made on mechanical wiring + vendor recommendation. The full 4-way scorecard sweep (fast / hybrid / max / premium against the 4.20-hybrid baseline) is queued as the first item in the v1.23.0 roadmap.
+
 ## [1.21.2] - 2026-04-30
 
 ### Output Directory and Recon Platform Defaults
