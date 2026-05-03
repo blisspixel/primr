@@ -5793,7 +5793,7 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
         for trust_title, trust_stats in strategy_trust_stats:
             console.trust_summary(trust_title + " Trust", trust_stats)
 
-        _tier_labels = {"fast": "Grok 4.1", "hybrid": "Grok 4.20 hybrid", "max": "Grok 4.20 max"}
+        _tier_labels = {"fast": "Grok 4.1", "hybrid": "Grok 4.3 hybrid", "max": "Grok 4.3 max"}
         summary_items = [
             ("Mode", "fast (" + _tier_labels.get(grok_tier, "Grok") + ")"),
             ("Pages", str(pages_scraped)),

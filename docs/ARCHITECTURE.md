@@ -468,7 +468,7 @@ Multi-turn Grok session that preserves message history across pipeline stages, s
 from primr.ai.grok_client import ContinuousReasoningSession
 
 session = ContinuousReasoningSession(
-    model="grok-4.20-0309-reasoning",
+    model="grok-4.3",
     system_prompt="You are a senior strategic analyst...",
 )
 workbook = session.send(workbook_prompt, max_tokens=18_000, temperature=0.5)
@@ -782,7 +782,7 @@ The resilience layer sits between the pipeline orchestrator (`research_agent.py`
 
 - **Recovery Table** (`recovery.py`): Declarative mapping from each of the six pipeline stages to its recovery hierarchy. Pure data — serializable to JSON, inspectable via `--dry-run` (`primr --dry-run` includes the full recovery table).
 - **Stage Classifier** (`stages.py`): Static foreground/background classification. Foreground: scraping, external search, analysis, section writing. Background: cross-validation, strategy generation.
-- **Model Circuit Breaker** (`model_breaker.py`): Per-model health tracking with provider-aware fallback chains (e.g., Grok 4.20 → Grok 4.1 → Gemini Flash). Verifies API key availability before cross-provider fallback.
+- **Model Circuit Breaker** (`model_breaker.py`): Per-model health tracking with provider-aware fallback chains (e.g., Grok 4.3 → Grok 4.20 → Grok 4.1 → Gemini Flash). Verifies API key availability before cross-provider fallback.
 - **Recovery Executor** (`executor.py`): Integration glue that wraps stage callables, consults the classifier and recovery table on failure, and logs all recovery events to `_run_state.json`.
 - **Integration Helpers** (`integration.py`): Thin wrappers connecting the executor to each pipeline stage at the appropriate granularity (per-page for scraping, per-section for writing, per-stage for analysis).
 
@@ -1082,15 +1082,16 @@ Playwright tiers now perform adaptive lazy-load scrolling (up to 20 steps by def
 
 | Model | Role | Pricing (per 1M tokens) |
 |-------|------|-------------------------|
-| Grok 4.1 | Default mode: analysis, writing, strategy | $0.20 in / $0.50 out |
-| Grok 4.20 | `--grok-tier hybrid/max`: reasoning and/or writing | $2.00 in / $6.00 out |
-| Gemini 3 Flash | Scraping, link selection, QA | $0.50 in / $3 out |
+| Grok 4.3 | Default mode: reasoning stages (analysis, workbook, cross-validation) | $1.25 in / $2.50 out · $0.20 cached |
+| Grok 4.1 fast | Default mode: utility tier (scraping summaries, link selection, QA) and writing in HYBRID tier | $0.20 in / $0.50 out |
+| Grok 4.20 | Legacy flagship — kept registered for resume of in-flight runs and as a fallback in the analysis chain | $2.00 in / $6.00 out |
+| Gemini 3 Flash | Used for utility tier when only `GEMINI_API_KEY` is set (no `XAI_API_KEY`) | $0.50 in / $3 out |
 | Gemini 3.1 Pro | `--premium` mode: section writing, analysis | $2/$12 (≤200k) · $4/$18 (>200k) |
 | Deep Research Agent | `--premium` mode: autonomous research | ~$2.50/task (flat) |
 
 ### Why Grok is the Default
 
-Primr originally ran everything through Google's Deep Research API + Gemini 3.1 Pro — excellent research quality, but the Deep Research API runs ~$2.50 per task, pushing full runs to ~$5 and 50-75 minutes. When xAI released Grok 4.1, testing showed it handles company research comparably: strong at search-grounded analysis, solid structured output, and reliable citation handling. The default pipeline now uses Grok 4.20 hybrid (4.20 for reasoning, 4.1 for writing) at ~$0.75/run — ~85% cheaper than premium. Gemini Flash is still used for scraping in both modes. The full Gemini + Deep Research pipeline remains available via `--premium` when maximum research depth justifies the cost.
+Primr originally ran everything through Google's Deep Research API + Gemini 3.1 Pro — excellent research quality, but the Deep Research API runs ~$2.50 per task, pushing full runs to ~$5 and 50-75 minutes. When xAI released Grok 4.1, testing showed it handles company research comparably: strong at search-grounded analysis, solid structured output, and reliable citation handling. The default pipeline now uses Grok 4.3 hybrid (4.3 always-on reasoning for analysis stages, 4.1-fast for bulk writing and utility-tier calls like scraping summaries and link selection) at ~$0.60/run — ~88% cheaper than premium. As of v1.22.0, `XAI_API_KEY` alone is sufficient for the standard pipeline; Gemini Flash is only used for utility-tier calls when no xAI key is configured. The full Gemini + Deep Research pipeline remains available via `--premium` when maximum research depth justifies the cost.
 
 ### Agentic Architecture
 

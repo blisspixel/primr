@@ -53,7 +53,7 @@ To revert to Gemini 3.0 Pro (flat $2/$12 pricing):
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `PRIMR_CONTINUOUS_REASONING` | Controls whether workbook generation (Phase 3) and cross-validation (Phase 5) share a single Grok 4.20 session so the validator inherits the corpus + workbook reasoning the generator produced. Set to `0` / `false` / `no` / `off` to disable (revert to the fresh-call topology used before the n=3 pilot). Set to `1` / `true` / `yes` / `on` to force-enable regardless of CLI flags. Unset means use whatever the CLI passed (default on). | unset (effectively on via CLI default) |
+| `PRIMR_CONTINUOUS_REASONING` | Controls whether workbook generation (Phase 3) and cross-validation (Phase 5) share a single Grok session (4.3 in HYBRID/MAX tiers, 4.1-fast in FAST tier) so the validator inherits the corpus + workbook reasoning the generator produced. Set to `0` / `false` / `no` / `off` to disable (revert to the fresh-call topology used before the n=3 pilot). Set to `1` / `true` / `yes` / `on` to force-enable regardless of CLI flags. Unset means use whatever the CLI passed (default on). | unset (effectively on via CLI default) |
 
 Notes on continuous reasoning:
 - On by default after the n=3 pilot. Pass `--no-continuous-reasoning` on the CLI to disable for a single run.

@@ -20,8 +20,9 @@ class TestFallbackChainOrder:
     """Test that fallback chains are defined in the correct order."""
 
     def test_analysis_fallback_chain_order(self) -> None:
-        """Analysis chain: Grok 4.20 -> Grok 4.1 -> Gemini Flash."""
+        """Analysis chain: Grok 4.3 -> Grok 4.20 -> Grok 4.1 -> Gemini Flash."""
         assert ANALYSIS_FALLBACK_CHAIN.models == (
+            PrimrModels.GROK_MODEL_43,
             PrimrModels.GROK_MODEL_420,
             PrimrModels.GROK_MODEL,
             PrimrModels.FLASH_MODEL,

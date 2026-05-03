@@ -827,6 +827,10 @@ def run_doctor(*, fix: bool = False) -> int:
     console.step("API Configuration")
     all_passed, warnings_count = _check_api_keys(all_passed, warnings_count)
 
+    # 2b. Provider availability — what each configured key unlocks
+    console.step("Providers")
+    warnings_count = _check_providers(warnings_count)
+
     # 3. Dependencies
     console.step("Dependencies")
     warnings_count = _check_dependencies(warnings_count)
@@ -1064,7 +1068,7 @@ def _run_init_flow(
         (
             "xai",
             "XAI_API_KEY",
-            "Default Grok 4.20 hybrid pipeline (~$0.75/run, recommended)",
+            "Default Grok 4.3 hybrid pipeline (~$0.60/run, recommended)",
             "https://console.x.ai/",
             "$25 free credits for new accounts",
             True,
@@ -1969,7 +1973,7 @@ def _handle_dry_run(config: CLIConfig) -> int:
         console.error(f"--premium only works with full mode, not --mode {config.mode}")
         return 1
 
-    tier_labels = {"fast": "Grok 4.1", "hybrid": "Grok 4.20 hybrid", "max": "Grok 4.20 max"}
+    tier_labels = {"fast": "Grok 4.1", "hybrid": "Grok 4.3 hybrid", "max": "Grok 4.3 max"}
     if use_premium_mode:
         mode_label = "premium (Gemini + Deep Research)"
     elif use_fast_mode:
@@ -3168,7 +3172,7 @@ def _handle_research(config: CLIConfig) -> int:
         # Auto-detect: if XAI_API_KEY is set, default to fast mode
         if os.environ.get("XAI_API_KEY"):
             use_fast_mode = True
-            tier_label = {"fast": "Grok 4.1", "hybrid": "Grok 4.20 hybrid", "max": "Grok 4.20 max"}
+            tier_label = {"fast": "Grok 4.1", "hybrid": "Grok 4.3 hybrid", "max": "Grok 4.3 max"}
             console.info(
                 f"Using {tier_label.get(config.grok_tier, 'Grok')} · for deeper research add --premium"
             )
@@ -3370,6 +3374,33 @@ def _check_api_keys(all_passed: bool, warnings_count: int) -> tuple[bool, int]:
         console.info("  Get your key at: https://console.x.ai/")
 
     return all_passed, warnings_count
+
+
+def _check_providers(warnings_count: int) -> int:
+    """Report which LLM providers are configured and what each unlocks.
+
+    Reads from the provider registry (`primr.ai.providers.registry`) so
+    doctor stays in sync with the routing layer. Configured providers print
+    in green; unconfigured ones print as informational hints.
+    """
+    from primr.ai.providers import KNOWN_PROVIDERS, get_available_providers
+
+    available = {p.name for p in get_available_providers()}
+
+    if not available:
+        console.error("No LLM providers configured")
+        console.info(
+            "  Set XAI_API_KEY for the standard pipeline, or GEMINI_API_KEY for --premium"
+        )
+        return warnings_count + 1
+
+    for entry in KNOWN_PROVIDERS:
+        if entry.name in available:
+            roles = ", ".join(entry.roles) if entry.roles else "any"
+            console.ok(f"{entry.description} [{roles}]")
+        else:
+            console.info(f"  {entry.description}: not configured ({entry.api_key_env} unset)")
+    return warnings_count
 
 
 def _check_dependencies(warnings_count: int) -> int:

@@ -341,8 +341,10 @@ def estimate_cost(
     # Per-component cost for display
     flash_inp_price, flash_out_price = PrimrModels.get_price(PrimrModels.FLASH_MODEL)
     if active_pro.has_tiered_pricing:
-        pro_inp_price = active_pro.cost_per_1m_input_tokens_high  # type: ignore[assignment]
-        pro_out_price = active_pro.cost_per_1m_output_tokens_high  # type: ignore[assignment]
+        pro_inp_price = active_pro.cost_per_1m_input_tokens_high
+        pro_out_price = active_pro.cost_per_1m_output_tokens_high
+        assert pro_inp_price is not None
+        assert pro_out_price is not None
     else:
         pro_inp_price = active_pro.cost_per_1m_input_tokens
         pro_out_price = active_pro.cost_per_1m_output_tokens
@@ -477,12 +479,12 @@ def _estimate_fast_mode_cost(
     if include_ai_strategy:
         duration += " + AI strategy (Grok)"
 
-    tier_labels = {"fast": "Grok 4.1", "hybrid": "Grok 4.20 hybrid", "max": "Grok 4.20 max"}
+    tier_labels = {"fast": "Grok 4.1", "hybrid": "Grok 4.3 hybrid", "max": "Grok 4.3 max"}
     tier_label = tier_labels.get(grok_tier, "Grok")
     tier_desc = {
         "fast": "Grok 4.1 with research deepening + cross-validation (no Deep Research)",
-        "hybrid": "Grok 4.20 reasoning + 4.1 writing (hybrid tier)",
-        "max": "Grok 4.20 for all stages (max tier)",
+        "hybrid": "Grok 4.3 reasoning + 4.1 writing (hybrid tier)",
+        "max": "Grok 4.3 for all stages (max tier)",
     }
     notes = [f"Standard mode: {tier_desc.get(grok_tier, tier_label)}"]
     if include_ai_strategy:

@@ -1,12 +1,29 @@
 # Primr Roadmap
 
-Current State: v1.21.2
+Current State: v1.22.0
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
 The design is intentionally opinionated and local-first. This roadmap reflects planned improvements ordered by practical impact: first make the core output more strategically valuable, then make runs faster and cheaper, then expand extraction and provider choices, then enable compounding knowledge across runs.
 
 For completed work, see the [Changelog](#changelog) at the bottom of this file, or check [GitHub releases](https://github.com/blisspixel/primr/releases) for the latest.
+
+## Next Version (v1.23.0)
+
+Concrete priorities for the next release, in order. Items lower in the queue may bump up if they unblock items above them.
+
+1. **Eval-gate the Grok 4.3 default flip.** v1.22.0 promoted 4.3 to HYBRID/MAX on mechanical wiring + vendor recommendation. Run the eval harness against the standard 3-5 company corpus across `--grok-tier fast` (4.1), default (4.3 hybrid), `--grok-tier max` (4.3 everywhere), `--premium`, and a 4.20-hybrid baseline regenerated from the legacy registration. Decision criteria written down before the run: utility-per-dollar must be ≥ 4.20-hybrid baseline, hallucination rate ≤ baseline, no regression in drift markers. Either confirm the default or revert `get_grok_models(HYBRID)` to 4.20.
+2. **Wire Grok 4.3 prompt-cache token reporting.** v1.22.0 added `cost_per_1m_input_tokens_cached` to `ModelConfig` and `cached_input_tokens` to `calculate_cost`, but the Grok client doesn't yet read `usage.cached_tokens` from xAI responses. Until that lands, the cache discount doesn't show up in `primr show-usage` even when the API is hitting the cache.
+3. **Confirm Grok 4.3 high-tier (>200k) pricing.** v1.22.0 registered placeholder rates (2× base) for the >200k input-token tier. Verify against console.x.ai billing once a real >200k run completes and update `ModelRegistry.GROK_4_3.cost_per_1m_input_tokens_high`.
+4. **OpenAI integration via `OpenAICompatibleProvider`.** Foundation shipped in v1.22.0 (provider abstraction). Next: register `openai` in `KNOWN_PROVIDERS`, add `OPENAI_API_KEY` env var, register `gpt-4.1`/`o3`/`o4-mini` in `ModelRegistry`, add a routing branch. Eval-gate which roles OpenAI best serves.
+5. **Ollama / local-inference via `OpenAICompatibleProvider`.** Same path as OpenAI but `base_url=http://localhost:11434/v1`. Unblocks the long-standing "Local Inference Mode" entry below.
+6. **Anthropic Claude provider.** Different SDK shape, needs its own provider class. Use `cache_control` blocks for the cache discount, `extended_thinking_budget` for reasoning. Eval-gated adoption: Claude may excel at strategic writing where Grok 4.3 is weakest.
+7. **Quota-aware fallback in the routing layer.** Today the routing layer picks one provider per role and stays there. Wire `QuotaExhaustedError` into the model circuit breaker so the next call automatically fails over to the next-best provider for the role instead of crashing the run.
+8. **Move `grok_browse_and_summarize` and Gemini quota UI into providers.** Two pieces of provider-specific behaviour still live outside the abstraction. Their tests wouldn't fit the unit-test pattern in v1.22.0, so they're flagged here for the next pass.
+
+Eval gates 1, 4, and 6 use `docs/MODEL_ONBOARDING.md` as the playbook. New providers go through the new "Adding a new provider" section.
+
+For the longer queue beyond v1.23.0, see "Planned Work" below.
 
 ## What's Working Today
 
@@ -28,7 +45,7 @@ For completed work, see the [Changelog](#changelog) at the bottom of this file, 
 
 **Deep Mode**: Gemini Deep Research Agent with autonomous multi-step search and synthesis
 
-**Standard Mode** (default when `XAI_API_KEY` set): Grok 4.20 hybrid pipeline — 4.20 for reasoning stages (gap analysis, workbook, cross-validation), 4.1 for bulk writing. Research deepening, parallel section writing, cross-validation, coherence pass, and strategy enrichment. ~35-50 min, ~$0.67. Use `--grok-tier fast` for 4.1 everywhere (~$0.47) or `--grok-tier max` for 4.20 everywhere (~$4.29).
+**Standard Mode** (default when `XAI_API_KEY` set): Grok 4.3 hybrid pipeline — 4.3 for reasoning stages (gap analysis, workbook, cross-validation), 4.1-fast for bulk writing. Research deepening, parallel section writing, cross-validation, coherence pass, and strategy enrichment. ~35-50 min, ~$0.60. Use `--grok-tier fast` for 4.1 everywhere (~$0.47) or `--grok-tier max` for 4.3 everywhere (~$2.50).
 
 **Premium Mode** (`--premium`): Gemini + Deep Research pipeline for maximum depth. ~50-75 min, ~$5.
 
@@ -67,7 +84,7 @@ For completed work, see the [Changelog](#changelog) at the bottom of this file, 
 
 - Cost-ordered recovery hierarchies for all six pipeline stages (scraping, external search, analysis, section writing, cross-validation, strategy generation)
 - Foreground/background stage classification — foreground stages retry aggressively, background stages bail on API overload or budget stress
-- Model-level circuit breaker with provider-aware fallback chains (e.g., Grok 4.20 → Grok 4.1 → Gemini Flash)
+- Model-level circuit breaker with provider-aware fallback chains (e.g., Grok 4.3 → Grok 4.20 → Grok 4.1 → Gemini Flash)
 - Recovery executor that orchestrates retry/fallback/skip logic and logs events to `_run_state.json`
 - `--dry-run` shows the full recovery table (stage classifications + recovery hierarchies)
 
@@ -104,7 +121,7 @@ A single ordered list, top to bottom. The order reflects priority — items high
 
 Primr's reasoning chain — gap analysis → workbook generation → cross-validation — used to run as independent Grok 4.20 calls that re-read `insights.txt` and `analysis_workbook.md` from disk at each handoff. The fresh-call-per-stage pattern is lossy on factual long-horizon chains: the validator sees only the polished workbook output and a list of source URLs, not the corpus or the reasoning that produced the workbook. The failure mode worth naming is Semantic Intent Divergence — the final stage drifting into reasoning *about* its own pipeline instead of the requested deliverable.
 
-The continuous-session topology is now the **default for the standard pipeline**. Workbook generation (Phase 3) and cross-validation (Phase 5) share a single Grok 4.20 session so the validator inherits the corpus + workbook reasoning instead of re-reading the report cold. Section writing (Phase 4) is intentionally unchanged and remains parallel + fresh-call per section — the benchmark explicitly did not test parallel sub-agent topologies.
+The continuous-session topology is now the **default for the standard pipeline**. Workbook generation (Phase 3) and cross-validation (Phase 5) share a single Grok 4.3 session (was 4.20 before v1.22.0) so the validator inherits the corpus + workbook reasoning instead of re-reading the report cold. Section writing (Phase 4) is intentionally unchanged and remains parallel + fresh-call per section — the benchmark explicitly did not test parallel sub-agent topologies.
 
 What shipped (full feature):
 - `ContinuousReasoningSession` class in `src/primr/ai/grok_client.py` — multi-turn Grok session with shared message history, same retry/error/token-tracking semantics as the existing `grok_llm` helper
@@ -198,15 +215,17 @@ Planned next steps:
 Decision principle:
 - A page counts as scraped only when Primr has evidence that the **real page content** appeared, not merely that a request returned HTML.
 
-#### Grok Tier Evaluation — 4-Way Comparison
+#### Grok Tier Evaluation — 4-Way Comparison (Now Includes 4.3)
 
-Run the eval harness on 3-5 companies across all Grok tiers (fast/hybrid/max/multi-agent) plus premium to produce a proper scorecard. Hybrid is now the default based on a single-company spot comparison that showed meaningfully better analytical depth for ~$0.20 more. Need systematic data to confirm hybrid remains the right default, whether max tier ever justifies 6x the cost, and where multi-agent fits in the lineup.
+Run the eval harness on 3-5 companies across all Grok tiers (fast/hybrid/max/multi-agent) plus premium to produce a proper scorecard. The default flipped from 4.20-hybrid to 4.3-hybrid in v1.22.0 on mechanical wiring + vendor recommendation; this eval is the gate that confirms or reverts that decision.
 
-- Same companies across all tiers for apples-to-apples comparison
+- Same companies across all tiers for apples-to-apples comparison: `--grok-tier fast` (4.1 everywhere), current default (4.3 hybrid), `--grok-tier max` (4.3 everywhere), `--premium`, plus a held-out 4.20-hybrid baseline regenerated from the legacy registration so the comparison is grounded
 - Eval scorecard with quality, trust, utility, hallucination rate, and utility-per-dollar metrics
 - LLM judge overlay for subjective quality assessment
-- Include multi-agent tier: compare hypothesis depth, source cross-checking quality, and contradiction detection against single-agent tiers
-- Decision: validate hybrid default, identify if multi-agent justifies higher cost for reasoning-heavy stages, identify if any company profile benefits from max
+- Include multi-agent tier when xAI ships a 4.3 multi-agent SKU
+- Decision criteria written down before the run: utility-per-dollar must be ≥ 4.20-hybrid baseline, hallucination rate ≤ baseline, no regression in drift markers
+- Outcome: confirm 4.3 hybrid as default, or revert `get_grok_models(HYBRID)` to 4.20 and leave 4.3 as opt-in
+- Process documented in `docs/MODEL_ONBOARDING.md` so subsequent provider releases follow the same gate
 
 #### Consultant-Grade Strategic Writing
 
@@ -284,16 +303,15 @@ Reduce manual work when new Grok/Gemini variants drop by automating the eval-and
 - Decision output: "new variant is better/worse/equivalent for [stage]" with evidence
 - Keeps defaults current (hybrid vs multi-agent vs premium) without gut calls on each release
 
-#### Grok 4.20 Multi-Agent Integration
+#### Grok Multi-Agent Integration (4.3 SKU Pending)
 
-Leverage xAI's Grok 4.20 Multi-Agent Beta (parallel agents with built-in web_search/x_search tools, verbose streaming, reasoning effort control) for reasoning-heavy pipeline stages.
+Leverage xAI's Multi-Agent SKU (parallel agents with built-in web_search/x_search tools, verbose streaming, reasoning effort control) for reasoning-heavy pipeline stages. The 4.20 multi-agent variant is registered (`grok-4.20-multi-agent-0309`) but unwired; the more interesting integration is whichever 4.3 multi-agent SKU xAI ships next, given 4.3's $1.25/$2.50 + cache pricing.
 
-- Register `grok-4.20-multi-agent-beta` (or latest variant) in ModelRegistry with pricing and capability flags
+- Watch xAI for a 4.3 multi-agent variant; register it via the `docs/MODEL_ONBOARDING.md` playbook when it lands
 - Add `--grok-multi-agent` flag and `--grok-agent-count` (dynamic range 4-16 based on complexity + budget)
-- Route to multi-agent for reasoning-heavy stages only: gap analysis, workbook generation, cross-validation, strategy enrichment — keep 4.1 for bulk writing where single-agent is sufficient
+- Route to multi-agent for reasoning-heavy stages only: gap analysis, workbook generation, cross-validation, strategy enrichment — keep 4.1-fast for bulk writing where single-agent is sufficient
 - Multi-agent reasoning enables parallel hypothesis debate, real-time source cross-checking, and contradiction synthesis — directly improves analytical depth for sparse-company runs
-- Cost: ~$2-6/M input/output (higher than single-agent 4.1, but lower hallucination rate and deeper analysis)
-- Eval sweep required before promotion: compare hybrid vs multi-agent on 5 companies (quality, hallucination rate, depth, cost, utility-per-dollar)
+- Eval sweep required before promotion: compare 4.3 hybrid vs 4.3 multi-agent on 5 companies (quality, hallucination rate, depth, cost, utility-per-dollar) — same harness used for the 4.3 default flip
 - Decision gated by eval harness, not assumption — multi-agent may not justify cost for all company profiles
 
 #### Gemini 3.1 Pro Enhancements for Premium Mode
@@ -331,15 +349,22 @@ Add Anthropic Claude as a fourth provider option.
 - Natural fit for the post-skill processing pipeline — same API key, same provider
 - Eval-gated adoption: Claude may excel at strategic writing and hypothesis generation but cost more than Grok for bulk section writing
 
-**Provider-Agnostic Routing Layer**
+**Provider-Agnostic Routing Layer** (foundational pieces shipped v1.22.0; full requirement-based routing pending)
 
 Formalize the model selection into a proper routing layer so each pipeline stage declares capability requirements and the router selects the best available model.
 
+What shipped (v1.22.0):
+- `src/primr/ai/providers/` package with a `Provider` ABC, `ChatResponse`, and `OpenAICompatibleProvider` (xAI, OpenAI, Ollama, vLLM all parameterize the same class) plus a separate `GeminiProvider` for the non-OpenAI-shape SDK
+- `src/primr/ai/routing.py` exposing `pick_model_for_role(role)` and `get_provider_for_model(name)` — replaces the previous scattered `if XAI_API_KEY` checks
+- `src/primr/ai/providers/registry.py` listing known providers + auto-detection from env keys; `primr doctor` reports availability and per-provider role coverage
+- `grok_llm`, `ContinuousReasoningSession`, and `llm()` delegate to providers internally; public signatures unchanged
+- 60+ new tests pinning provider/dispatch/registry behavior
+
+Still planned (the actually-hard part, not started):
 - Each pipeline stage declares: minimum reasoning depth, required capabilities (web search, structured output, long context), acceptable providers
 - Router selects the cheapest model that meets requirements from available providers
 - Integrates with the model circuit breaker — unhealthy models are skipped automatically
-- Integrates with effort-level routing for hybrid inference 
-- `primr doctor` shows available providers and which stages each can serve
+- Integrates with effort-level routing for hybrid inference
 
 **Cross-Provider Eval**
 
@@ -415,9 +440,9 @@ Each pipeline stage declares a minimum capability tier. The router selects the b
 | Content quality assessment | Local 7B | Local 7B | Gemini Flash |
 | Scrape summarization | Local 14B | Local 14B | Gemini Flash |
 | External search query generation | Local 14B | Cloud | Grok 4.1 |
-| Analysis workbook | Local 32B-Q4 | Cloud | Grok 4.20 |
+| Analysis workbook | Local 32B-Q4 | Cloud | Grok 4.3 |
 | Section writing | Local 14B-32B | Cloud | Grok 4.1 |
-| Cross-validation | Local 14B | Cloud | Grok 4.20 |
+| Cross-validation | Local 14B | Cloud | Grok 4.3 |
 | Strategy generation | Local 32B-Q4 | Cloud | Grok 4.1 |
 | Deep Research | Skip (no local equivalent) | Cloud | Gemini DR |
 
@@ -1038,6 +1063,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.22.0 | May 2026 | Grok 4.3 onboarded as the new flagship reasoning model (registered as `grok-4.3`, $1.25/$2.50 per 1M with $0.20 cached input, 1M context, always-on reasoning). HYBRID and MAX tiers now route reasoning stages to 4.3; FAST stays on 4.1; 4.20 IDs remain registered for resume of in-flight runs. `ModelConfig` gains `cost_per_1m_input_tokens_cached` and `calculate_cost` accepts `cached_input_tokens`. Analysis fallback chain reordered to (4.3 → 4.20 → 4.1 → Flash). **Utility-tier dispatch rewired**: `llm()` now routes scraping summaries / link selection / generic "fast" calls to Grok 4.1-NR when `XAI_API_KEY` is set (Grok 4.1-NR is 2.5x cheaper input and 6x cheaper output than Gemini Flash anyway). The standard pipeline no longer requires a Gemini key — `XAI_API_KEY` alone is sufficient. **Provider abstraction landed**: new `src/primr/ai/providers/` package with `Provider` ABC, `OpenAICompatibleProvider` (parameterizes xAI / OpenAI / Ollama / vLLM under one class), `GeminiProvider`, and `ProviderRegistry` with auto-detection from env keys. `src/primr/ai/routing.py` centralizes role-to-model routing; the previous scattered `if XAI_API_KEY` checks now live in one place. `grok_llm`, `ContinuousReasoningSession`, and `llm()` delegate to providers internally; public signatures unchanged. `primr doctor` gains a "Providers" section listing what each configured key unlocks. Adds 60+ tests across providers, routing, registry, and dispatch. `docs/MODEL_ONBOARDING.md` codifies the verify → register → wire → test → eval-gate process plus a new "Adding a new provider" section covering OpenAI-compatible vs. distinct-SDK cases. Eval-gated promotion of 4.3 still pending — default flipped on mechanical wiring; full 4-way scorecard sweep tracked under "Grok Tier Evaluation". |
 | 1.21.2 | Apr 2026 | Release fix for client-folder output and recon platform defaults: `--output-dir` now reaches the research pipeline, custom output directories keep only Markdown/DOCX deliverables while TXT mirrors and validation diagnostics stay in run diagnostics, recon platform selection now uses strong infrastructure signals only, and unclear/skipped recon falls back to Azure + private cloud/NVIDIA. |
 | 1.20.1 | Apr 2026 | PyPI release infrastructure: `.github/workflows/release.yml` triggers on `v*` tag push or manual dispatch, builds sdist + wheel, runs `twine check`, publishes via PyPI trusted-publisher OIDC (no API token in repo secrets). Repo cleanup: root `.md` reduced to `README.md` and `ROADMAP.md` — `CHANGELOG`, `CONCURRENCY`, `CONTRIBUTING`, `SECURITY` moved to `docs/`. `CLAUDE.md` removed from version control (gitignored, kept on disk for local workflow). ROADMAP entry queued to fold `setup_env.py` into a `primr init` subcommand once PyPI ships. |
 | 1.20.0 | Apr 2026 | Continuous reasoning session is now the default for the standard pipeline: workbook generation and cross-validation share a single Grok 4.20 session so the validator inherits corpus + workbook reasoning instead of re-reading the report cold. Decision driven by an n=3 paired-comparison pilot — 3/3 workbook wins, 2/3 cross-val wins, 2/3 final-report wins, ~81% reduction in leaked-instruction lines, avg ~+12% cost. New `ContinuousReasoningSession` class, `--no-continuous-reasoning` opt-out, `PRIMR_CONTINUOUS_REASONING` env var. Roadmap restructured into a single ordered priority list (no version-numbered milestones). Separate ROADMAP entry added for artifact drift in the standard pipeline (independent of topology). |
