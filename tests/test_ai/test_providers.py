@@ -8,6 +8,7 @@ steps build on.
 
 from __future__ import annotations
 
+import importlib.util
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -18,6 +19,14 @@ from primr.ai.providers import (
     OpenAICompatibleProvider,
     Provider,
     ProviderUnavailableError,
+)
+
+# Some tests below patch `openai.OpenAI` directly, which requires the optional
+# `openai` package to be importable. Tests that only use the provider's own
+# attributes (set ``provider._client`` directly, etc.) work without it.
+_HAS_OPENAI = importlib.util.find_spec("openai") is not None
+_requires_openai = pytest.mark.skipif(
+    not _HAS_OPENAI, reason="openai package not installed (install primr[fast])"
 )
 
 # ---------------------------------------------------------------------------
@@ -102,6 +111,7 @@ class TestAvailability:
 # ---------------------------------------------------------------------------
 
 
+@_requires_openai
 class TestClientInit:
     def test_lazy_init_constructs_openai_client_with_url_and_key(self) -> None:
         provider = _make_provider()
