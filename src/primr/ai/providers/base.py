@@ -45,21 +45,34 @@ class ChatResponse:
 class _UsageAccumulator:
     input_tokens: int = 0
     output_tokens: int = 0
+    cached_input_tokens: int = 0
     by_model: dict[str, dict[str, int]] = field(default_factory=dict)
+    _lock: Any = field(default_factory=lambda: __import__("threading").Lock(), repr=False)
 
-    def record(self, model: str, input_tokens: int, output_tokens: int) -> None:
-        self.input_tokens += input_tokens
-        self.output_tokens += output_tokens
-        bucket = self.by_model.setdefault(
-            model, {"input_tokens": 0, "output_tokens": 0}
-        )
-        bucket["input_tokens"] += input_tokens
-        bucket["output_tokens"] += output_tokens
+    def record(
+        self,
+        model: str,
+        input_tokens: int,
+        output_tokens: int,
+        cached_input_tokens: int = 0,
+    ) -> None:
+        with self._lock:
+            self.input_tokens += input_tokens
+            self.output_tokens += output_tokens
+            self.cached_input_tokens += cached_input_tokens
+            bucket = self.by_model.setdefault(
+                model, {"input_tokens": 0, "output_tokens": 0, "cached_input_tokens": 0}
+            )
+            bucket["input_tokens"] += input_tokens
+            bucket["output_tokens"] += output_tokens
+            bucket["cached_input_tokens"] += cached_input_tokens
 
     def reset(self) -> None:
-        self.input_tokens = 0
-        self.output_tokens = 0
-        self.by_model = {}
+        with self._lock:
+            self.input_tokens = 0
+            self.output_tokens = 0
+            self.cached_input_tokens = 0
+            self.by_model = {}
 
 
 class Provider(ABC):
@@ -119,10 +132,11 @@ class Provider(ABC):
         """Return ``True`` when the provider's key/transport is configured."""
 
     def get_usage(self) -> dict[str, int]:
-        """Return cumulative ``{input_tokens, output_tokens}`` for this provider."""
+        """Return cumulative ``{input_tokens, output_tokens, cached_input_tokens}`` for this provider."""
         return {
             "input_tokens": self._usage.input_tokens,
             "output_tokens": self._usage.output_tokens,
+            "cached_input_tokens": self._usage.cached_input_tokens,
         }
 
     def get_usage_by_model(self) -> dict[str, dict[str, int]]:
@@ -133,6 +147,12 @@ class Provider(ABC):
         """Reset usage counters. Useful for tests and per-run accounting."""
         self._usage.reset()
 
-    def _record_usage(self, model: str, input_tokens: int, output_tokens: int) -> None:
+    def _record_usage(
+        self,
+        model: str,
+        input_tokens: int,
+        output_tokens: int,
+        cached_input_tokens: int = 0,
+    ) -> None:
         """Subclass hook for recording usage into the accumulator."""
-        self._usage.record(model, input_tokens, output_tokens)
+        self._usage.record(model, input_tokens, output_tokens, cached_input_tokens=cached_input_tokens)

@@ -42,6 +42,7 @@ class StrategyType(str, Enum):
     CUSTOMER_EXPERIENCE = "customer_experience"
     MODERN_SECURITY_COMPLIANCE = "modern_security_compliance"
     DATA_FABRIC_STRATEGY = "data_fabric_strategy"
+    SKILLS = "skills"
 
 
 class JobStatus(str, Enum):

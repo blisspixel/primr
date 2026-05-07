@@ -53,7 +53,7 @@ Near-term work remains focused on pushing more structure upstream into the long-
 | `--platform ms` | Microsoft Azure + NVIDIA private cloud strategy | ~45-60 min | ~$0.65 |
 | Default + multi-platform | Add `--platform aws azure` | ~45-60 min | ~$0.65 |
 | Default + strategy type | Add `--strategy-type customer_experience` | ~35-50 min | ~$0.60 |
-| `--grok-tier fast` | Grok 4.1 everywhere (cheaper, slightly lower quality) | ~30-45 min | ~$0.47 |
+| `--grok-tier fast` | Grok 4.3 low-effort + 4.20-nr (cheaper reasoning) | ~35-50 min | ~$4.27 |
 | `--grok-tier max` | Grok 4.3 everywhere (deeper reasoning across writing too) | ~35-50 min | ~$2.50 |
 | `--premium` | Gemini + Deep Research + AI Strategy | 50-75 min | ~$5 |
 | `--premium --platform ms` | Premium + Microsoft/NVIDIA | 75-120 min | $6-9 |
@@ -62,7 +62,7 @@ Near-term work remains focused on pushing more structure upstream into the long-
 | `--mode deep` | Gemini Deep Research on external sources only | 10-15 min | $2.50 |
 | `primr recon` | DNS intelligence only (no API keys needed) | 2-3 sec | $0.00 |
 
-The default `primr` command auto-detects: when `XAI_API_KEY` is set, it uses the Grok 4.3 hybrid pipeline (4.3 for reasoning-heavy stages, 4.1-fast for bulk writing) at ~$0.60/run. The standard pipeline includes research deepening, cross-validation, trust-polish, citation normalization, and constrained-evidence reasoning. Strategy types (`ai`, `customer_experience`, `modern_security_compliance`, `data_fabric_strategy`) are YAML-defined and auto-discovered — run `primr --list-strategies` for details. DDG searches are free. Use `--dry-run` for accurate cost estimates.
+The default `primr` command auto-detects: when `XAI_API_KEY` is set, it uses the Grok 4.3 hybrid pipeline (4.3 for reasoning-heavy stages, 4.20-non-reasoning for bulk writing) at ~$4.27/run. The standard pipeline includes research deepening, cross-validation, trust-polish, citation normalization, and constrained-evidence reasoning. Strategy types (`ai`, `customer_experience`, `modern_security_compliance`, `data_fabric_strategy`, `skills`) are YAML-defined and auto-discovered — run `primr --list-strategies` for details. DDG searches are free. Use `--dry-run` for accurate cost estimates.
 
 For model evaluation and quality comparison, see [Evaluation Guide](docs/EVAL.md).
 

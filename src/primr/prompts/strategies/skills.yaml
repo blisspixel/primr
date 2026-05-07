@@ -1,0 +1,99 @@
+# Skills Ideation Strategy Prompt Configuration
+# This file defines the structure for skills-based role hypothesis generation.
+#
+# Purpose: Identify top roles and skills for a target company based on observed signals.
+# Goal: Produce machine-readable skill artifacts for downstream agent consumption.
+# Audience: Consultants, account strategists, downstream agent workflows.
+#
+# Dependencies:
+#   - _recon_context.txt (DNS intelligence signals)
+#   - _hiring/hiring_signals.md (job posting analysis)
+
+meta:
+  name: "Skills Ideation"
+  id: "skills"
+  version: "1.0.0"
+  description: "Top-5 roles × top-3 skills hypothesis grounded in recon and hiring signals"
+  output_format: "markdown"
+  output_filename: "{company_name}_Skills_Ideation"
+  expected_pages: "5-10"
+  estimated_cost_usd: 0.08
+  estimated_time_minutes: 8
+  premium_cost_usd: 2.50
+
+data_sources:
+  - "_recon_context.txt"
+  - "_hiring/hiring_signals.md"
+
+output:
+  artifacts:
+    - type: "strategy_document"
+      filename: "{company_name}_Skills_Ideation_{date}.md"
+    - type: "role_skills"
+      directory: "roles/{role-slug}/"
+      filename: "SKILL.md"
+
+confidence_labels:
+  confirmed: "Direct evidence in job postings or DNS-confirmed tools"
+  inferred: "Implied by stack/industry patterns"
+  speculated: "Hypothesis from sector norms, validate with stakeholder"
+
+sparse_signal_mode: |
+  When hiring signals are sparse or unavailable, pivot to industry-baseline mode.
+  Explicitly state that roles are stack-and-sector hypotheses rather than fabricating roles.
+  Ground as many roles as possible in DNS-detected stack alone.
+  Include an explicit disclosure: "Signal strength: SPARSE — these are stack-and-sector
+  hypotheses, not confirmed roles. Validate with stakeholder before acting."
+
+document_purpose: |
+  This is a skills ideation document that hypothesizes the top 5 roles and top 3 skills
+  per role for the target company. Each role and skill is grounded in observed signal:
+  DNS-confirmed tools, hiring postings, or industry patterns.
+
+  The output serves two purposes:
+  1. A human-readable strategy document for consultants
+  2. Machine-readable SKILL.md files for downstream agent consumption
+
+  GROUNDING RULES:
+  - Every role must cite its evidence source (DNS, hiring, industry)
+  - Use confidence labels: Confirmed, Inferred, Speculated
+  - Never fabricate roles without evidence — use sparse-signal mode instead
+  - Prefer specific tool names over generic categories ("Salesforce admin" not "CRM admin")
+  - When a tool is DNS-confirmed, say so: "Salesforce admin (DNS-confirmed)"
+
+  OUTPUT FORMAT FOR ROLE BLOCKS:
+  Each role must be formatted as a level-3 heading (###) with exactly this structure:
+
+  ### Role: <Role Name>
+  **Confidence:** Confirmed | Inferred | Speculated
+  **Evidence:** <brief evidence citation>
+
+  **Skills:**
+  1. <Skill 1> — <one-line description>
+  2. <Skill 2> — <one-line description>
+  3. <Skill 3> — <one-line description>
+
+  This structured format enables deterministic parsing into SKILL.md files.
+
+sections:
+  - name: "executive_summary"
+    description: "Brief overview of signal strength and key findings"
+    word_target: 200
+  - name: "signal_strength_assessment"
+    description: "Assessment of available data quality: Rich (15+ postings analyzed), Moderate (5-14 postings), or Sparse (0-4 postings). When sparse, explicitly state the pivot to industry-baseline mode."
+    word_target: 150
+  - name: "observed_stack"
+    description: "Technology stack detected via DNS recon and hiring signals. List each tool with its detection source (DNS, hiring, both)."
+    word_target: 300
+  - name: "top_roles_and_skills"
+    description: "5 roles × 3 skills each, using the structured role block format. Each role grounded in observed signal with confidence labels."
+    word_target: 1500
+  - name: "cross_role_themes"
+    description: "Patterns that span multiple roles: shared tools, strategic initiatives, platform consolidation opportunities, notable absences."
+    word_target: 300
+  - name: "discovery_questions"
+    description: "5-8 questions to validate hypotheses with stakeholders. Prioritize questions that would upgrade Speculated roles to Confirmed."
+    word_target: 200
+  - name: "sources"
+    description: "Evidence sources cited in the document: DNS records, job postings (with ATS source), industry benchmarks."
+    word_target: 100

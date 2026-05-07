@@ -4128,6 +4128,11 @@ def perform_fast_research(
     # Resolve Grok model pair for this tier
     grok_reasoning, grok_writing = PrimrModels.get_grok_models(GrokTier(grok_tier))
 
+    # Determine reasoning_effort for the FAST tier — grok-4.3 supports
+    # low/medium/high effort levels. FAST uses "low" to reduce cost/latency;
+    # HYBRID and MAX use the default (no explicit effort = model decides).
+    grok_reasoning_effort: str | None = "low" if grok_tier == "fast" else None
+
     # Continuous reasoning is on by default after the n=3 pilot — see ROADMAP
     # "Continuous Reasoning Session". When on, workbook generation (Phase 3)
     # and cross-validation (Phase 5) share a single Grok session so the
@@ -4741,6 +4746,7 @@ def perform_fast_research(
                 reasoning_session = ContinuousReasoningSession(
                     model=grok_reasoning,
                     system_prompt=analysis_system,
+                    reasoning_effort=grok_reasoning_effort,
                 )
 
             def _do_analysis():
@@ -4756,6 +4762,7 @@ def perform_fast_research(
                     max_tokens=18_000,
                     temperature=0.5,
                     system_prompt=analysis_system,
+                    reasoning_effort=grok_reasoning_effort,
                 )
 
             with console.timed_operation("Generating analysis workbook via Grok"):
@@ -5793,7 +5800,7 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
         for trust_title, trust_stats in strategy_trust_stats:
             console.trust_summary(trust_title + " Trust", trust_stats)
 
-        _tier_labels = {"fast": "Grok 4.1", "hybrid": "Grok 4.3 hybrid", "max": "Grok 4.3 max"}
+        _tier_labels = {"fast": "Grok 4.3 (low-effort)", "hybrid": "Grok 4.3 hybrid", "max": "Grok 4.3 max"}
         summary_items = [
             ("Mode", "fast (" + _tier_labels.get(grok_tier, "Grok") + ")"),
             ("Pages", str(pages_scraped)),

@@ -969,7 +969,7 @@ def run_grok_judge(
     max_pairs: int,
     passes: int,
     max_cost_usd: float,
-    model: str = "grok-4-1-fast-reasoning",
+    model: str = "grok-4.3",
 ) -> tuple[list[LLMJudgeRow], float]:
     """Run optional Grok LLM judging on existing staged report pairs."""
     from primr.ai.grok_client import get_grok_session_usage, grok_llm

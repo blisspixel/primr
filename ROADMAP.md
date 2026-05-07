@@ -16,6 +16,8 @@ The work for the next two releases is sequenced around one principle: **build th
 
 The provider abstraction shipped in v1.22.0 was deliberately thin. v1.23.0 fills it in with concrete provider integrations so the v1.24.0 eval has something real to compare. Model IDs, pricing, and endpoints below were pulled from the live provider docs in May 2026 — verify against the providers' `/v1/models` endpoints before registering, since the model lineup churns faster than this roadmap.
 
+Plus one user-facing feature ride-along: a new `skills` strategy type (item 6 below). Orthogonal to the provider work, small enough to ship in the same release, and a useful proof point for the post-research-skill-processing thread.
+
 #### 1. OpenAI integration via `OpenAICompatibleProvider`
 
 - **Endpoint:** `https://api.openai.com/v1` (OpenAI-shaped chat completions; the same `OpenAICompatibleProvider` class that already handles xAI handles this — no new client class needed).
@@ -68,6 +70,35 @@ The provider abstraction shipped in v1.22.0 was deliberately thin. v1.23.0 fills
 - Anthropic: read `response.usage.cache_read_input_tokens` and `cache_creation_input_tokens` separately. Cache writes count as standard input tokens with a 25% premium; cache reads at the discounted rate.
 - OpenAI: read `response.usage.prompt_tokens_details.cached_tokens`.
 - Surface all three in `primr show-usage` so users can see cache hit rate per run. Today the cache discount is wired into `calculate_cost` but never gets a non-zero `cached_input_tokens` argument from the actual call sites.
+
+#### 6. Skills Ideation strategy (`--strategy-type skills`)
+
+A new YAML-defined strategy that ideates a top-5 roles × top-3 skills hypothesis for the target company, grounded in recon-detected tools and hiring-signal data the pipeline already collects. Off by default; opt-in per run.
+
+Output is dual:
+- **Strategy doc** — single Markdown / DOCX that reads as an executive deliverable, same shape as existing YAML strategies (CX, security, data fabric)
+- **Per-role SKILL.md folder** — `output/<Company>_Skills_Ideation_<date>/roles/<role-slug>/SKILL.md`, each with proper frontmatter (`name`, `description`) so it's drop-in loadable by Claude Code, Copilot Studio, or any skill-aware agent host
+
+Each role doc grounds its three skills in observed signal: "Salesforce admin (DNS-confirmed)" rather than "CRM admin," with confidence labels (Confirmed / Inferred / Speculated) per role and per skill. Sparse-signal companies pivot to industry-baseline mode and say so explicitly rather than fabricating roles.
+
+Implementation:
+- New YAML at `src/primr/prompts/strategies/skills.yaml` — sections for executive summary, signal strength, observed stack, top 5 roles, cross-role themes, discovery questions, sources
+- Small fix to the YAML strategy context loader at `src/primr/core/research_agent.py:~5554` to also pull `_recon_context.txt` and `_hiring/hiring_signals.md`. Currently those reach the AI strategy path but not other YAML strategies; this gap also strengthens grounding for CX, security, and data fabric strategies as a side effect
+- One Grok writing call produces the strategy doc with structured per-role blocks; deterministic post-step splits the blocks into `roles/<slug>/SKILL.md` files with assembled frontmatter (no extra LLM call). Graceful degradation: strategy doc ships even if role-block parsing fails
+- Add `skills` to MCP `strategy_type` enum in `research_company`, `estimate_strategy`, `generate_strategy`
+- Re-run on existing report via `--ai-strategy-only <path> --strategy-type skills` (the dispatcher already supports any strategy type — the flag name is misleading but works; rename to `--strategy-only` is a separate cleanup)
+- Docs updated in `claude-code/skills/primr/references/modes-and-strategies.md`, `AGENTS.md`, `claude-code/skills/primr/SKILL.md`, `README.md` strategy-type list
+
+Cost: ~$0.07-0.10 added in standard pipeline (Grok 4.1 writing), ~$2.50 in premium (Deep Research). Same per-strategy budget as existing YAML strategies.
+
+Naming note: "skills" is overloaded with Anthropic Skills / Claude Code skills. The CLI flag and YAML filename keep the meaning unambiguous in context, and the per-role outputs literally are `SKILL.md` files — so the overload is appropriate, not accidental.
+
+Validation (May 2026, against existing run artifacts):
+- **Rich-signal case — Nintendo of America** (`working/Nintendo_of_America_Inc/2026-04-23_1142/`): 67 Greenhouse postings, 15 analyzed, tech-stack frequency map (Python: 8, C/C++: 7, AWS: 4, Salesforce: 2, etc.), explicit strategic initiatives ("modernize how GRC operates", SFCC + SOM platforms, ERP rollouts), notable absences ("no data engineering roles"). Strategy would produce 5 Confirmed-label roles directly anchored to specific reqs (NTD Platform Engineer contract pool, Cloud Security Engineer, Salesforce BSA, ML/Data Science Engineer, GRC Engineer).
+- **Sparse-signal case — Lexitas** (`working/Lexitas/2026-04-26_1053/`): hiring signals empty (careers page is a LinkedIn redirect, 1 posting found, 0 analyzable), but recon detected 26 services including M365 + Intune + federated auth, Anthropic Claude (already adopted), AWS CloudFront/ELB, Dynatrace, HubSpot + Pardot coexisting, DocuSign, Box + Dropbox sprawl. Strategy grounds 4/5 roles in detected stack alone, with the 5th (Legal Tech PO) inferred from sector + DocuSign signal. Multi-platform sprawl (HubSpot+Pardot, Box+Dropbox) becomes natural discovery questions.
+- **Conclusion**: the thin-signal pivot the YAML's Signal Strength section requires is mandatory, not optional. Without it the sparse case fabricates roles. With it, the sparse case still produces a credible deliverable that explicitly says "we have no postings — these are stack-and-sector hypotheses, validate with stakeholder."
+
+Decision principle: primr's job ends at research artifacts; downstream agents pick them up. The SKILL.md output makes that handoff machine-readable, not just human-readable. This is a more direct, in-pipeline path to the same outcome the longer "Post-Research Skill Processing (Anthropic Skills API)" entry imagines via cloud skills.
 
 ### v1.24.0 — Cross-provider eval and default decisions
 
@@ -641,6 +672,8 @@ Decision principle:
 - The standard pipeline is the product. Snapshot is the cheap pre-flight that helps you decide whether to invoke it. Speed is only worth paying for when the alternative is free.
 
 #### Post-Research Skill Processing (Anthropic Skills API)
+
+> **Related:** v1.23.0's Skills Ideation strategy ships a narrower, in-pipeline version of the same idea — primr generates per-role `SKILL.md` files directly from its own research, no Anthropic Skills API call required. The entry below remains the broader vision: arbitrary user-supplied downstream skills running against any primr output.
 
 **The problem Primr solves today ends at the artifact.** Primr produces a strategic overview, an AI strategy document, and supporting artifacts. What happens next — turning those into a client-ready deliverable, an internal brief, a CRM enrichment payload, an ideas page — is different for every user and every organization. Today that workflow is manual: copy the `.md` output, paste it into Claude, run your own skill or prompt, iterate.
 

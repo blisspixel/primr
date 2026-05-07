@@ -23,6 +23,7 @@ Usage::
 
 import random
 import re
+from typing import Any
 
 from primr.ai.providers import OpenAICompatibleProvider
 from primr.utils.logging_config import get_logger
@@ -123,7 +124,7 @@ def _get_provider() -> OpenAICompatibleProvider:
 # ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
-_DEFAULT_MODEL = "grok-4-1-fast-reasoning"
+_DEFAULT_MODEL = "grok-4.3"
 
 
 def _is_billing_exhausted(error: Exception) -> bool:
@@ -216,6 +217,7 @@ def grok_llm(
     max_tokens: int = 16_000,
     retries: int = 4,
     system_prompt: str | None = None,
+    reasoning_effort: str | None = None,
 ) -> str:
     """
     Call Grok and return the text response.
@@ -223,12 +225,15 @@ def grok_llm(
     Args:
         prompt: The user prompt to send.
         model: Model ID. ``None`` selects the default
-               (``grok-4-1-fast-reasoning``). Use
-               ``grok-4-1-fast-non-reasoning`` for writing tasks.
+               (``grok-4.3``). Use
+               ``grok-4.20-non-reasoning`` for writing tasks.
         temperature: Sampling temperature.
         max_tokens: Maximum output tokens.
         retries: Number of retries on transient errors (429/5xx/network timeouts).
         system_prompt: Optional system message prepended before the user message.
+        reasoning_effort: Optional reasoning effort level ("low", "medium", "high").
+            Used to differentiate FAST tier (low) from HYBRID tier (default).
+            Only effective on models that support reasoning effort (e.g. grok-4.3).
 
     Returns:
         The assistant's text response.
@@ -254,12 +259,19 @@ def grok_llm(
     # a fake client still flow through.
     provider = _get_provider()
     provider._client = _get_grok_client()
+
+    # Build provider kwargs for optional parameters
+    provider_kwargs: dict[str, Any] = {}
+    if reasoning_effort is not None:
+        provider_kwargs["reasoning_effort"] = reasoning_effort
+
     response = provider.chat(
         messages,
         model=model,
         temperature=temperature,
         max_tokens=max_tokens,
         retries=retries,
+        **provider_kwargs,
     )
 
     # Mirror per-call usage into the legacy module-level counters so existing
@@ -304,8 +316,15 @@ class ContinuousReasoningSession:
     cost reporting and the existing eval harness keep working unchanged.
     """
 
-    def __init__(self, *, model: str = _DEFAULT_MODEL, system_prompt: str | None = None):
+    def __init__(
+        self,
+        *,
+        model: str = _DEFAULT_MODEL,
+        system_prompt: str | None = None,
+        reasoning_effort: str | None = None,
+    ):
         self.model = model
+        self.reasoning_effort = reasoning_effort
         self.history: list[dict[str, str]] = []
         if system_prompt:
             self.history.append({"role": "system", "content": system_prompt})
@@ -341,12 +360,17 @@ class ContinuousReasoningSession:
         provider = _get_provider()
         provider._client = _get_grok_client()
         try:
+            provider_kwargs: dict[str, Any] = {}
+            if self.reasoning_effort is not None:
+                provider_kwargs["reasoning_effort"] = self.reasoning_effort
+
             response = provider.chat(
                 list(self.history),
                 model=self.model,
                 temperature=temperature,
                 max_tokens=max_tokens,
                 retries=retries,
+                **provider_kwargs,
             )
         except Exception:
             self.history.pop()

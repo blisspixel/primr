@@ -52,7 +52,6 @@ def _is_retryable_error(error: Exception) -> bool:
         "429",
         "rate limit",
         "rate_limit",
-        "quota",
         "500",
         "502",
         "503",
@@ -195,11 +194,11 @@ class OpenAICompatibleProvider(Provider):
         """Run a chat completion against this provider.
 
         Unknown ``provider_kwargs`` are forwarded to the underlying SDK call
-        when they correspond to OpenAI-shaped knobs (``top_p``, ``stop``,
-        ``presence_penalty``, ``frequency_penalty``, ``seed``,
-        ``response_format``). Anything else is ignored so the abstraction
-        stays robust to provider-specific kwargs that this provider doesn't
-        know about.
+        when they correspond to OpenAI-shaped knobs (``reasoning_effort``,
+        ``top_p``, ``stop``, ``presence_penalty``, ``frequency_penalty``,
+        ``seed``, ``response_format``). Anything else is ignored so the
+        abstraction stays robust to provider-specific kwargs that this
+        provider doesn't know about.
         """
         client = self._get_client()
 
@@ -213,6 +212,7 @@ class OpenAICompatibleProvider(Provider):
             "frequency_penalty",
             "seed",
             "response_format",
+            "reasoning_effort",
         ):
             if key in provider_kwargs:
                 sdk_kwargs[key] = provider_kwargs[key]
@@ -236,10 +236,21 @@ class OpenAICompatibleProvider(Provider):
 
                 input_tokens = 0
                 output_tokens = 0
+                cached_input_tokens = 0
                 if response.usage:
                     input_tokens = response.usage.prompt_tokens or 0
                     output_tokens = response.usage.completion_tokens or 0
-                    self._record_usage(model, input_tokens, output_tokens)
+                    # xAI: usage.cached_tokens (top-level)
+                    cached_input_tokens = getattr(response.usage, "cached_tokens", 0) or 0
+                    # OpenAI: usage.prompt_tokens_details.cached_tokens
+                    if cached_input_tokens == 0:
+                        prompt_details = getattr(response.usage, "prompt_tokens_details", None)
+                        if prompt_details is not None:
+                            cached_input_tokens = getattr(prompt_details, "cached_tokens", 0) or 0
+                    self._record_usage(
+                        model, input_tokens, output_tokens,
+                        cached_input_tokens=cached_input_tokens,
+                    )
 
                 text = response.choices[0].message.content or ""
                 logger.info(
@@ -259,12 +270,14 @@ class OpenAICompatibleProvider(Provider):
                 last_error = e
 
                 if _is_billing_exhausted(e):
+                    from primr.ai.providers.base import QuotaExhaustedError
+
                     help_link = (
                         f" Add credits at {self._billing_help_url} and re-run."
                         if self._billing_help_url
                         else ""
                     )
-                    raise RuntimeError(
+                    raise QuotaExhaustedError(
                         f"{self.name} API credits exhausted or spending limit reached.{help_link} "
                         "Your progress has been saved — the same command will resume."
                     ) from e

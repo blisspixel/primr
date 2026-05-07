@@ -25,9 +25,11 @@ from primr.pipeline.executor import (
 from primr.pipeline.model_breaker import (
     ANALYSIS_FALLBACK_CHAIN,
     PREMIUM_FALLBACK_CHAIN,
+    UTILITY_FALLBACK_CHAIN,
     FallbackChain,
     ModelCircuitBreaker,
     ModelHealthEvent,
+    QuotaStatus,
 )
 from primr.pipeline.recovery import (
     RecoveryAction,
@@ -47,12 +49,14 @@ from primr.pipeline.stages import (
 __all__ = [
     "ANALYSIS_FALLBACK_CHAIN",
     "PREMIUM_FALLBACK_CHAIN",
+    "UTILITY_FALLBACK_CHAIN",
     "STAGE_CLASSIFICATIONS",
     "ErrorCategory",
     "FallbackChain",
     "ModelCircuitBreaker",
     "ModelHealthEvent",
     "PipelineStage",
+    "QuotaStatus",
     "RecoveryAction",
     "RecoveryActionType",
     "RecoveryContext",
