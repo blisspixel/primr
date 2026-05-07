@@ -27,11 +27,11 @@ Heuristics:
 
 | Tier | What it does | Cost (full mode) |
 |------|--------------|------|
-| `fast` | Grok 4.1 everywhere | ~$0.47 |
-| `hybrid` (default) | Grok 4.20 for reasoning-heavy stages, 4.1 for bulk writing | ~$0.75 |
-| `max` | Grok 4.20 everywhere | ~$4.29 |
+| `fast` | Grok 4.3 (reasoning_effort=low) + 4.20-nr writing | ~$4.27 |
+| `hybrid` (default) | Grok 4.3 for reasoning + 4.20-nr for writing | ~$4.27 |
+| `max` | Grok 4.3 everywhere | ~$3.75 |
 
-`fast` saves money on bulk-volume / cheap-target runs. `max` shows diminishing returns on writing quality and is rarely worth the 5x cost — only pick it if the user has explicitly asked for "absolute best Grok output" and you've already cost-gated.
+`fast` saves tokens on reasoning (low effort). `max` uses 4.3 for writing too — actually cheaper per-token than 4.20-nr but uses reasoning overhead on prose. Only pick it if the user has explicitly asked for "absolute best Grok output" and you've already cost-gated.
 
 ## Platform
 

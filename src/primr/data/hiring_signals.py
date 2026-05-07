@@ -754,7 +754,7 @@ Postings:
     try:
         raw = grok_llm(
             prompt,
-            model="grok-4-1-fast-non-reasoning",
+            model="grok-4.20-non-reasoning",
             temperature=0.2,
             max_tokens=1_500,
             retries=1,
@@ -896,7 +896,7 @@ Postings follow. Tags in [brackets] like [STALE] are hints — consider them.
     try:
         raw = grok_llm(
             prompt,
-            model="grok-4-1-fast-reasoning",
+            model="grok-4.3",
             temperature=0.3,
             max_tokens=4_000,
             retries=1,

@@ -50,9 +50,9 @@ from enum import Enum
 class GrokTier(str, Enum):
     """Grok model tier — controls quality/cost tradeoff in fast mode."""
 
-    FAST = "fast"  # 4.1-fast everywhere (~$0.47)
-    HYBRID = "hybrid"  # 4.20 reasoning + 4.1-fast writing (~$0.67) — DEFAULT
-    MAX = "max"  # 4.20 everywhere (~$4.29)
+    FAST = "fast"  # 4.3 (reasoning_effort=low) + 4.20-nr (~$4.27)
+    HYBRID = "hybrid"  # 4.3 + 4.20-nr (~$4.27, same models, default effort) — DEFAULT
+    MAX = "max"  # 4.3 everywhere (~$3.75)
 
 
 class ModelType(Enum):
@@ -89,6 +89,8 @@ class ModelConfig:
     tier_threshold_tokens: int | None = None
     # Cached input pricing (optional) — discount rate for cache hits
     cost_per_1m_input_tokens_cached: float | None = None
+    # Deprecation flag — model is retiring and should not be used in new routing
+    deprecated: bool = False
 
     @property
     def has_tiered_pricing(self) -> bool:
@@ -261,6 +263,7 @@ class ModelRegistry:
         supports_thinking=True,
         supports_tools=True,
         supports_multimodal=False,
+        deprecated=True,  # Retiring May 15, 2026 — use grok-4.3 instead
     )
 
     # =========================================================================
@@ -281,6 +284,7 @@ class ModelRegistry:
         supports_thinking=False,
         supports_tools=True,
         supports_multimodal=False,
+        deprecated=True,  # Retiring May 15, 2026 — use grok-4.20-non-reasoning instead
     )
 
     # =========================================================================
@@ -331,13 +335,34 @@ class ModelRegistry:
 
     # =========================================================================
     # GROK 4.20 NON-REASONING - xAI flagship without reasoning overhead
-    # USE FOR: Writing tasks in max tier (report sections, strategy, polish)
+    # ⚠️  LEGACY — kept only for resume of in-flight runs started before v1.23.
+    # DO NOT USE in new code. Use GROK_4_20_NR_NEW ("grok-4.20-non-reasoning").
     # $2.00 input / $6.00 output per 1M tokens
     # Context: 2M tokens, Output: 131k tokens
     # =========================================================================
     GROK_4_20_NR = ModelConfig(
         name="grok-4.20-0309-non-reasoning",
         display_name="Grok 4.20",
+        provider="xai",
+        cost_per_1m_input_tokens=2.00,
+        cost_per_1m_output_tokens=6.00,
+        max_input_tokens=2_000_000,
+        max_output_tokens=131_072,
+        supports_thinking=False,
+        supports_tools=True,
+        supports_multimodal=False,
+    )
+
+    # =========================================================================
+    # GROK 4.20 NON-REASONING (NEW) - xAI recommended replacement for NR workloads
+    # USE FOR: Writing tasks replacing grok-4-1-fast-non-reasoning after retirement
+    # $2.00 input / $6.00 output per 1M tokens
+    # Context: 2M tokens, Output: 131k tokens
+    # NOTE: Distinct from GROK_4_20_NR which uses the dated "0309" model ID
+    # =========================================================================
+    GROK_4_20_NR_NEW = ModelConfig(
+        name="grok-4.20-non-reasoning",
+        display_name="Grok 4.20 Non-Reasoning",
         provider="xai",
         cost_per_1m_input_tokens=2.00,
         cost_per_1m_output_tokens=6.00,
@@ -363,6 +388,207 @@ class ModelRegistry:
         max_input_tokens=2_000_000,
         max_output_tokens=131_072,
         supports_thinking=False,
+        supports_tools=True,
+        supports_multimodal=False,
+    )
+
+    # =========================================================================
+    # OPENAI GPT-5.5 - Flagship reasoning + coding
+    # $2.00 input / $10.00 output per 1M tokens, cached input $0.50
+    # Context: 1M tokens, Output: 100k tokens
+    # =========================================================================
+    OPENAI_GPT_5_5 = ModelConfig(
+        name="gpt-5.5",
+        display_name="GPT-5.5",
+        provider="openai",
+        cost_per_1m_input_tokens=2.00,
+        cost_per_1m_output_tokens=10.00,
+        max_input_tokens=1_000_000,
+        max_output_tokens=100_000,
+        supports_thinking=True,
+        supports_tools=True,
+        supports_multimodal=True,
+        cost_per_1m_input_tokens_cached=0.50,
+    )
+
+    # =========================================================================
+    # OPENAI GPT-5.4 - Affordable flagship
+    # $2.50 input / $10.00 output per 1M tokens, cached input $0.625
+    # Context: 200k tokens, Output: 100k tokens
+    # =========================================================================
+    OPENAI_GPT_5_4 = ModelConfig(
+        name="gpt-5.4",
+        display_name="GPT-5.4",
+        provider="openai",
+        cost_per_1m_input_tokens=2.50,
+        cost_per_1m_output_tokens=10.00,
+        max_input_tokens=200_000,
+        max_output_tokens=100_000,
+        supports_thinking=True,
+        supports_tools=True,
+        supports_multimodal=True,
+        cost_per_1m_input_tokens_cached=0.625,
+    )
+
+    # =========================================================================
+    # OPENAI GPT-5.4 MINI - Utility tier candidate
+    # $0.40 input / $1.60 output per 1M tokens, cached input $0.10
+    # Context: 200k tokens, Output: 100k tokens
+    # =========================================================================
+    OPENAI_GPT_5_4_MINI = ModelConfig(
+        name="gpt-5.4-mini",
+        display_name="GPT-5.4 Mini",
+        provider="openai",
+        cost_per_1m_input_tokens=0.40,
+        cost_per_1m_output_tokens=1.60,
+        max_input_tokens=200_000,
+        max_output_tokens=100_000,
+        supports_thinking=True,
+        supports_tools=True,
+        supports_multimodal=True,
+        cost_per_1m_input_tokens_cached=0.10,
+    )
+
+    # =========================================================================
+    # OPENAI GPT-5.4 NANO - Ultra-cheap utility tier
+    # $0.10 input / $0.40 output per 1M tokens, cached input $0.025
+    # Context: 200k tokens, Output: 16k tokens
+    # =========================================================================
+    OPENAI_GPT_5_4_NANO = ModelConfig(
+        name="gpt-5.4-nano",
+        display_name="GPT-5.4 Nano",
+        provider="openai",
+        cost_per_1m_input_tokens=0.10,
+        cost_per_1m_output_tokens=0.40,
+        max_input_tokens=200_000,
+        max_output_tokens=16_384,
+        supports_thinking=False,
+        supports_tools=True,
+        supports_multimodal=True,
+        cost_per_1m_input_tokens_cached=0.025,
+    )
+
+    # =========================================================================
+    # ANTHROPIC CLAUDE OPUS 4.7 - Most capable
+    # $5.00 input / $25.00 output per 1M tokens, cached input $0.50
+    # Context: 200k tokens, Output: 32k tokens
+    # =========================================================================
+    ANTHROPIC_OPUS = ModelConfig(
+        name="claude-opus-4-7",
+        display_name="Claude Opus 4.7",
+        provider="anthropic",
+        cost_per_1m_input_tokens=5.00,
+        cost_per_1m_output_tokens=25.00,
+        max_input_tokens=200_000,
+        max_output_tokens=32_000,
+        supports_thinking=True,
+        supports_tools=True,
+        supports_multimodal=True,
+        cost_per_1m_input_tokens_cached=0.50,
+    )
+
+    # =========================================================================
+    # ANTHROPIC CLAUDE SONNET 4.6 - Best speed/intelligence balance
+    # $3.00 input / $15.00 output per 1M tokens, cached input $0.30
+    # Context: 200k tokens, Output: 64k tokens
+    # =========================================================================
+    ANTHROPIC_SONNET = ModelConfig(
+        name="claude-sonnet-4-6",
+        display_name="Claude Sonnet 4.6",
+        provider="anthropic",
+        cost_per_1m_input_tokens=3.00,
+        cost_per_1m_output_tokens=15.00,
+        max_input_tokens=200_000,
+        max_output_tokens=64_000,
+        supports_thinking=True,
+        supports_tools=True,
+        supports_multimodal=True,
+        cost_per_1m_input_tokens_cached=0.30,
+    )
+
+    # =========================================================================
+    # ANTHROPIC CLAUDE HAIKU 4.5 - Fastest, utility tier candidate
+    # $1.00 input / $5.00 output per 1M tokens, cached input $0.10
+    # Context: 200k tokens, Output: 16k tokens
+    # =========================================================================
+    ANTHROPIC_HAIKU = ModelConfig(
+        name="claude-haiku-4-5",
+        display_name="Claude Haiku 4.5",
+        provider="anthropic",
+        cost_per_1m_input_tokens=1.00,
+        cost_per_1m_output_tokens=5.00,
+        max_input_tokens=200_000,
+        max_output_tokens=16_384,
+        supports_thinking=False,
+        supports_tools=True,
+        supports_multimodal=True,
+        cost_per_1m_input_tokens_cached=0.10,
+    )
+
+    # =========================================================================
+    # OLLAMA QWEN3 CODER 30B - Local inference, agentic-friendly
+    # Zero cost (local), 131k context
+    # =========================================================================
+    OLLAMA_QWEN3_CODER_30B = ModelConfig(
+        name="qwen3-coder:30b",
+        display_name="Qwen3 Coder 30B (Local)",
+        provider="ollama",
+        cost_per_1m_input_tokens=0.0,
+        cost_per_1m_output_tokens=0.0,
+        max_input_tokens=131_072,
+        max_output_tokens=32_768,
+        supports_thinking=True,
+        supports_tools=True,
+        supports_multimodal=False,
+    )
+
+    # =========================================================================
+    # OLLAMA QWEN 2.5 32B - Local reasoning model
+    # Zero cost (local), 131k context
+    # =========================================================================
+    OLLAMA_QWEN2_5_32B = ModelConfig(
+        name="qwen2.5:32b",
+        display_name="Qwen 2.5 32B (Local)",
+        provider="ollama",
+        cost_per_1m_input_tokens=0.0,
+        cost_per_1m_output_tokens=0.0,
+        max_input_tokens=131_072,
+        max_output_tokens=32_768,
+        supports_thinking=False,
+        supports_tools=True,
+        supports_multimodal=False,
+    )
+
+    # =========================================================================
+    # OLLAMA DEEPSEEK R1 32B - Local open reasoning model
+    # Zero cost (local), 131k context
+    # =========================================================================
+    OLLAMA_DEEPSEEK_R1_32B = ModelConfig(
+        name="deepseek-r1:32b",
+        display_name="DeepSeek R1 32B (Local)",
+        provider="ollama",
+        cost_per_1m_input_tokens=0.0,
+        cost_per_1m_output_tokens=0.0,
+        max_input_tokens=131_072,
+        max_output_tokens=32_768,
+        supports_thinking=True,
+        supports_tools=False,
+        supports_multimodal=False,
+    )
+
+    # =========================================================================
+    # OLLAMA QWEN3 7B - Small local model for consumer GPUs
+    # Zero cost (local), 131k context
+    # =========================================================================
+    OLLAMA_QWEN3_7B = ModelConfig(
+        name="qwen3:7b",
+        display_name="Qwen3 7B (Local)",
+        provider="ollama",
+        cost_per_1m_input_tokens=0.0,
+        cost_per_1m_output_tokens=0.0,
+        max_input_tokens=131_072,
+        max_output_tokens=16_384,
+        supports_thinking=True,
         supports_tools=True,
         supports_multimodal=False,
     )
@@ -456,8 +682,8 @@ class PrimrModels:
     FALLBACK_MODELS: dict = {}  # Empty - no fallbacks
 
     # --- GROK MODELS (xAI - for fast mode) ---
-    GROK_MODEL = ModelRegistry.GROK_4_1_FAST.name  # 4.1 reasoning — fast tier + writing fallback
-    GROK_MODEL_WRITING = ModelRegistry.GROK_4_1_FAST_NR.name  # 4.1 non-reasoning — writing tasks
+    GROK_MODEL = ModelRegistry.GROK_4_3.name  # 4.3 reasoning — replaces retired 4.1-fast
+    GROK_MODEL_WRITING = ModelRegistry.GROK_4_20_NR_NEW.name  # 4.20 non-reasoning — replaces retired 4.1-fast-nr
     GROK_MODEL_43 = ModelRegistry.GROK_4_3.name  # 4.3 — current flagship for hybrid/max tier
     # Legacy 4.20 constants — kept for back-compat and resume of in-flight runs.
     # New code should use GROK_MODEL_43.
@@ -478,7 +704,19 @@ class PrimrModels:
         ModelRegistry.GROK_4_3.name: ModelRegistry.GROK_4_3,
         ModelRegistry.GROK_4_20_REASONING.name: ModelRegistry.GROK_4_20_REASONING,
         ModelRegistry.GROK_4_20_NR.name: ModelRegistry.GROK_4_20_NR,
+        ModelRegistry.GROK_4_20_NR_NEW.name: ModelRegistry.GROK_4_20_NR_NEW,
         ModelRegistry.GROK_4_20_MULTI_AGENT.name: ModelRegistry.GROK_4_20_MULTI_AGENT,
+        ModelRegistry.OPENAI_GPT_5_5.name: ModelRegistry.OPENAI_GPT_5_5,
+        ModelRegistry.OPENAI_GPT_5_4.name: ModelRegistry.OPENAI_GPT_5_4,
+        ModelRegistry.OPENAI_GPT_5_4_MINI.name: ModelRegistry.OPENAI_GPT_5_4_MINI,
+        ModelRegistry.OPENAI_GPT_5_4_NANO.name: ModelRegistry.OPENAI_GPT_5_4_NANO,
+        ModelRegistry.ANTHROPIC_OPUS.name: ModelRegistry.ANTHROPIC_OPUS,
+        ModelRegistry.ANTHROPIC_SONNET.name: ModelRegistry.ANTHROPIC_SONNET,
+        ModelRegistry.ANTHROPIC_HAIKU.name: ModelRegistry.ANTHROPIC_HAIKU,
+        ModelRegistry.OLLAMA_QWEN3_CODER_30B.name: ModelRegistry.OLLAMA_QWEN3_CODER_30B,
+        ModelRegistry.OLLAMA_QWEN2_5_32B.name: ModelRegistry.OLLAMA_QWEN2_5_32B,
+        ModelRegistry.OLLAMA_DEEPSEEK_R1_32B.name: ModelRegistry.OLLAMA_DEEPSEEK_R1_32B,
+        ModelRegistry.OLLAMA_QWEN3_7B.name: ModelRegistry.OLLAMA_QWEN3_7B,
     }
 
     @classmethod
@@ -499,16 +737,21 @@ class PrimrModels:
     def get_grok_models(cls, tier: GrokTier) -> tuple[str, str]:
         """Return (reasoning_model, writing_model) for the given Grok tier.
 
-        HYBRID: Grok 4.3 (always-on reasoning) for analysis stages, 4.1-fast NR for writing.
-        MAX: Grok 4.3 for everything (4.3 has no non-reasoning variant).
-        FAST: Grok 4.1 fast everywhere (cheapest path, no 4.3 calls).
+        Post-retirement tier mapping (May 2026):
+        FAST: grok-4.3 (reasoning_effort=low) + grok-4.20-non-reasoning
+        HYBRID: grok-4.3 + grok-4.20-non-reasoning
+        MAX: grok-4.3 + grok-4.3
+
+        FAST and HYBRID now use the same models; the difference is in
+        reasoning_effort parameter (low for FAST, default/high for HYBRID)
+        which is a runtime concern handled by the caller.
         """
+        if tier == GrokTier.FAST:
+            return (cls.GROK_MODEL_43, cls.GROK_MODEL_WRITING)
         if tier == GrokTier.HYBRID:
             return (cls.GROK_MODEL_43, cls.GROK_MODEL_WRITING)
-        if tier == GrokTier.MAX:
-            return (cls.GROK_MODEL_43, cls.GROK_MODEL_43)
-        # GrokTier.FAST (default)
-        return (cls.GROK_MODEL, cls.GROK_MODEL_WRITING)
+        # GrokTier.MAX
+        return (cls.GROK_MODEL_43, cls.GROK_MODEL_43)
 
     @classmethod
     def get_model_config(cls, model_name: str) -> ModelConfig | None:
@@ -560,10 +803,17 @@ class PrimrModels:
         cached_input_tokens are billed at the model's cached rate when the
         config exposes one; otherwise they fall through to the standard input
         rate. Non-cached input is (input_tokens - cached_input_tokens).
+
+        All token counts are clamped to non-negative values defensively.
         """
         config = cls.ALL_MODELS.get(model_name)
         if config is None:
             raise KeyError(f"Unknown model: {model_name}")
+
+        # Defensive: clamp all token counts to non-negative
+        input_tokens = max(0, input_tokens)
+        output_tokens = max(0, output_tokens)
+        cached_input_tokens = max(0, min(cached_input_tokens, input_tokens))
 
         if (
             config.has_tiered_pricing
@@ -573,13 +823,14 @@ class PrimrModels:
         ):
             inp_price = config.cost_per_1m_input_tokens_high
             out_price = config.cost_per_1m_output_tokens_high
-            assert inp_price is not None
-            assert out_price is not None
+            if inp_price is None or out_price is None:  # pragma: no cover
+                raise ValueError(
+                    f"Model {model_name} has tiered pricing but missing high-tier rates"
+                )
         else:
             inp_price = config.cost_per_1m_input_tokens
             out_price = config.cost_per_1m_output_tokens
 
-        cached_input_tokens = max(0, min(cached_input_tokens, input_tokens))
         live_input_tokens = input_tokens - cached_input_tokens
         cache_price = config.cost_per_1m_input_tokens_cached
         cached_cost = (
@@ -602,16 +853,23 @@ class PrimrModels:
 
         For flat-pricing models this is identical to calculate_cost().
         Use this for **pre-run estimates** where we don't know prompt sizes.
+        All token counts are clamped to non-negative values defensively.
         """
         config = cls.ALL_MODELS.get(model_name)
         if config is None:
             raise KeyError(f"Unknown model: {model_name}")
 
+        # Defensive: clamp to non-negative
+        input_tokens = max(0, input_tokens)
+        output_tokens = max(0, output_tokens)
+
         if config.has_tiered_pricing:
             inp_price = config.cost_per_1m_input_tokens_high
             out_price = config.cost_per_1m_output_tokens_high
-            assert inp_price is not None
-            assert out_price is not None
+            if inp_price is None or out_price is None:  # pragma: no cover
+                raise ValueError(
+                    f"Model {model_name} has tiered pricing but missing high-tier rates"
+                )
         else:
             inp_price = config.cost_per_1m_input_tokens
             out_price = config.cost_per_1m_output_tokens
@@ -674,10 +932,13 @@ def calculate_cost(
     input_tokens: int,
     output_tokens: int,
     prompt_tokens: int | None = None,
+    cached_input_tokens: int = 0,
 ) -> float:
     """Calculate cost in USD for given token counts."""
     return PrimrModels.calculate_cost(
-        model_name, input_tokens, output_tokens, prompt_tokens=prompt_tokens
+        model_name, input_tokens, output_tokens,
+        prompt_tokens=prompt_tokens,
+        cached_input_tokens=cached_input_tokens,
     )
 
 

@@ -199,7 +199,7 @@ class CLIConfig:
     eval_auto_stage: bool = True
     eval_llm_judge: bool = False
     eval_judge_provider: str = "grok"
-    eval_judge_model: str = "grok-4-1-fast-reasoning"
+    eval_judge_model: str = "grok-4.3"
     eval_judge_models: tuple[str, ...] = ()
     eval_judge_model_list: str | None = None
     eval_judge_base_url: str | None = None
@@ -434,7 +434,7 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         eval_auto_stage=not getattr(parsed, "eval_no_auto_stage", False),
         eval_llm_judge=getattr(parsed, "eval_llm_judge", False),
         eval_judge_provider=getattr(parsed, "eval_judge_provider", "grok"),
-        eval_judge_model=getattr(parsed, "eval_judge_model", "grok-4-1-fast-reasoning"),
+        eval_judge_model=getattr(parsed, "eval_judge_model", "grok-4.3"),
         eval_judge_models=tuple(dict.fromkeys(getattr(parsed, "eval_judge_models", []) or [])),
         eval_judge_model_list=getattr(parsed, "eval_judge_model_list", None),
         eval_judge_base_url=getattr(parsed, "eval_judge_base_url", None),
@@ -1484,7 +1484,7 @@ Accordion Method Test (for development):
         choices=["fast", "hybrid", "max"],
         default="hybrid",
         dest="grok_tier",
-        help="Grok model tier: fast (~$0.47), hybrid (~$0.67, 4.20 reasoning, default), max (~$4.29, 4.20 everywhere)",
+        help="Grok model tier: fast (4.3 low-effort + 4.20-nr, ~$4.27), hybrid (4.3 + 4.20-nr, default), max (4.3 everywhere, ~$3.75)",
     )
     parser.add_argument(
         "--continuous-reasoning",
@@ -1736,7 +1736,7 @@ Accordion Method Test (for development):
     parser.add_argument(
         "--eval-judge-model",
         type=str,
-        default="grok-4-1-fast-reasoning",
+        default="grok-4.3",
         help="Model name for LLM judge (for local judge, set this to your Ollama/OpenAI-compatible model name)",
     )
     parser.add_argument(
@@ -3172,7 +3172,7 @@ def _handle_research(config: CLIConfig) -> int:
         # Auto-detect: if XAI_API_KEY is set, default to fast mode
         if os.environ.get("XAI_API_KEY"):
             use_fast_mode = True
-            tier_label = {"fast": "Grok 4.1", "hybrid": "Grok 4.3 hybrid", "max": "Grok 4.3 max"}
+            tier_label = {"fast": "Grok 4.3 (low-effort)", "hybrid": "Grok 4.3 hybrid", "max": "Grok 4.3 max"}
             console.info(
                 f"Using {tier_label.get(config.grok_tier, 'Grok')} · for deeper research add --premium"
             )
@@ -3381,7 +3381,8 @@ def _check_providers(warnings_count: int) -> int:
 
     Reads from the provider registry (`primr.ai.providers.registry`) so
     doctor stays in sync with the routing layer. Configured providers print
-    in green; unconfigured ones print as informational hints.
+    in green; unconfigured ones print as informational hints. Also displays
+    quota exhaustion status if any provider is marked as exhausted.
     """
     from primr.ai.providers import KNOWN_PROVIDERS, get_available_providers
 
@@ -3400,6 +3401,14 @@ def _check_providers(warnings_count: int) -> int:
             console.ok(f"{entry.description} [{roles}]")
         else:
             console.info(f"  {entry.description}: not configured ({entry.api_key_env} unset)")
+
+    # Note: Quota exhaustion status is tracked in-memory during a pipeline run.
+    # `primr doctor` runs in a separate process, so it cannot observe the
+    # runtime quota state of an active run. Quota status is visible in the
+    # pipeline's own logging and in _run_state.json after a run completes.
+    # A future enhancement could persist quota state to disk for cross-process
+    # visibility, but that's out of scope for v1.23.0.
+
     return warnings_count
 
 

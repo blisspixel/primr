@@ -228,7 +228,7 @@ def estimate_cost(
         use_historical: Whether to use historical averages (requires 3+ samples)
         num_vendors: Number of vendor strategies to generate
         lite_strategy: If True, strategy uses Pro model instead of Deep Research
-        fast_mode: If True, use Grok 4.1 fast mode estimates
+        fast_mode: If True, use Grok fast mode estimates
         premium_mode: If True, force Gemini + Deep Research estimates
 
     Returns:
@@ -479,11 +479,11 @@ def _estimate_fast_mode_cost(
     if include_ai_strategy:
         duration += " + AI strategy (Grok)"
 
-    tier_labels = {"fast": "Grok 4.1", "hybrid": "Grok 4.3 hybrid", "max": "Grok 4.3 max"}
+    tier_labels = {"fast": "Grok 4.3 (low-effort)", "hybrid": "Grok 4.3 hybrid", "max": "Grok 4.3 max"}
     tier_label = tier_labels.get(grok_tier, "Grok")
     tier_desc = {
-        "fast": "Grok 4.1 with research deepening + cross-validation (no Deep Research)",
-        "hybrid": "Grok 4.3 reasoning + 4.1 writing (hybrid tier)",
+        "fast": "Grok 4.3 (reasoning_effort=low) + 4.20-nr writing",
+        "hybrid": "Grok 4.3 reasoning + 4.20-nr writing (hybrid tier)",
         "max": "Grok 4.3 for all stages (max tier)",
     }
     notes = [f"Standard mode: {tier_desc.get(grok_tier, tier_label)}"]
@@ -533,7 +533,7 @@ def display_cost_estimate(
         include_ai_strategy: Whether AI strategy is included
         num_vendors: Number of vendor strategies
         lite_strategy: If True, strategy uses Pro model instead of DR
-        fast_mode: If True, use Grok 4.1 fast mode estimates
+        fast_mode: If True, use Grok fast mode estimates
         premium_mode: If True, force Gemini + Deep Research estimates
 
     Returns:

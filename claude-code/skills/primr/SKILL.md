@@ -58,7 +58,7 @@ primr runs cost real money and real time. **Never** launch a run without:
 2. **Reporting the estimate** verbatim — quoted dollars and minutes, plus what mode and what strategy.
 3. **Getting explicit user approval** in the conversation. "Want me to launch it?" → wait for "yes" / "go" / equivalent. A user asking *"how much would it cost"* is **not** approval.
 
-If the user pushes back on cost, suggest a cheaper mode (`scrape` ~$0.10, default ~$0.75) before walking away. If they want premium depth, surface the `--grok-tier max` (~$4.29) and `--premium` (~$5) tiers and re-estimate.
+If the user pushes back on cost, suggest a cheaper mode (`scrape` ~$0.10, default ~$4.27) before walking away. If they want premium depth, surface the `--grok-tier max` (~$3.75) and `--premium` (~$5) tiers and re-estimate.
 
 The MCP server enforces this gate via `primr://agent/governance`; the CLI does not, so on CLI you are the gate.
 

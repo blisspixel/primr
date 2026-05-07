@@ -283,7 +283,7 @@ class TestParseArgs:
                 "--eval-judge-provider",
                 "grok",
                 "--eval-judge-model",
-                "grok-4-1-fast-reasoning",
+                "grok-4.3",
                 "--eval-judge-max-pairs",
                 "1",
                 "--eval-judge-passes",
@@ -294,7 +294,7 @@ class TestParseArgs:
         )
         assert config.eval_llm_judge is True
         assert config.eval_judge_provider == "grok"
-        assert config.eval_judge_model == "grok-4-1-fast-reasoning"
+        assert config.eval_judge_model == "grok-4.3"
         assert config.eval_judge_max_pairs == 1
         assert config.eval_judge_passes == 1
         assert config.eval_judge_max_cost == 0.25

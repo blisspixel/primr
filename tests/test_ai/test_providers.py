@@ -177,13 +177,13 @@ class TestChatSuccess:
         provider._client = fake_client
 
         provider.chat([{"role": "user", "content": "x"}], model="grok-4.3")
-        provider.chat([{"role": "user", "content": "y"}], model="grok-4-1-fast-non-reasoning")
+        provider.chat([{"role": "user", "content": "y"}], model="grok-4.20-non-reasoning")
 
         usage = provider.get_usage_by_model()
         assert usage["grok-4.3"]["input_tokens"] == 10
         assert usage["grok-4.3"]["output_tokens"] == 5
-        assert usage["grok-4-1-fast-non-reasoning"]["input_tokens"] == 20
-        assert usage["grok-4-1-fast-non-reasoning"]["output_tokens"] == 8
+        assert usage["grok-4.20-non-reasoning"]["input_tokens"] == 20
+        assert usage["grok-4.20-non-reasoning"]["output_tokens"] == 8
 
         total = provider.get_usage()
         assert total["input_tokens"] == 30
@@ -200,7 +200,7 @@ class TestChatSuccess:
         provider.chat([{"role": "user", "content": "x"}], model="grok-4.3")
         provider.reset_usage()
 
-        assert provider.get_usage() == {"input_tokens": 0, "output_tokens": 0}
+        assert provider.get_usage() == {"input_tokens": 0, "output_tokens": 0, "cached_input_tokens": 0}
         assert provider.get_usage_by_model() == {}
 
     def test_passes_supported_sdk_kwargs(self) -> None:

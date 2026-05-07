@@ -30,6 +30,7 @@ class ProviderEntry:
     factory: type[Provider] | None = None
     base_url: str | None = None
     roles: tuple[str, ...] = ()
+    api_key_default: str | None = None
 
 
 # Static registry of providers primr knows about. Adding a new provider is
@@ -48,6 +49,25 @@ KNOWN_PROVIDERS: tuple[ProviderEntry, ...] = (
         description="Google Gemini (premium pipeline, utility fallback)",
         roles=("utility", "pro", "premium_research"),
     ),
+    ProviderEntry(
+        name="openai",
+        api_key_env="OPENAI_API_KEY",
+        description="OpenAI GPT (utility, reasoning, writing, premium research)",
+        roles=("utility", "reasoning", "writing", "premium_research"),
+    ),
+    ProviderEntry(
+        name="anthropic",
+        api_key_env="ANTHROPIC_API_KEY",
+        description="Anthropic Claude (reasoning, writing, pro)",
+        roles=("reasoning", "writing", "pro"),
+    ),
+    ProviderEntry(
+        name="ollama",
+        api_key_env="OLLAMA_API_KEY",
+        api_key_default="ollama",
+        description="Ollama local inference (utility, zero cost)",
+        roles=("utility",),
+    ),
 )
 
 
@@ -57,10 +77,18 @@ def list_known_providers() -> tuple[ProviderEntry, ...]:
 
 
 def get_available_providers() -> list[ProviderEntry]:
-    """Return the subset of providers whose API keys are present in the env."""
+    """Return the subset of providers that are usable.
+
+    A provider is available if its API key env var is set OR if it has a
+    configured default key (e.g. Ollama doesn't need a real key).
+    """
     import os
 
-    return [p for p in KNOWN_PROVIDERS if os.getenv(p.api_key_env)]
+    return [
+        p
+        for p in KNOWN_PROVIDERS
+        if os.getenv(p.api_key_env) or p.api_key_default is not None
+    ]
 
 
 def build_provider(entry: ProviderEntry) -> Provider:
@@ -74,4 +102,22 @@ def build_provider(entry: ProviderEntry) -> Provider:
         )
     if entry.name == "gemini":
         return GeminiProvider()
+    if entry.name == "openai":
+        return OpenAICompatibleProvider(
+            name="openai",
+            base_url="https://api.openai.com/v1",
+            api_key_env="OPENAI_API_KEY",
+            billing_help_url="https://platform.openai.com/account/billing",
+        )
+    if entry.name == "anthropic":
+        from primr.ai.providers.anthropic import AnthropicProvider
+
+        return AnthropicProvider()
+    if entry.name == "ollama":
+        return OpenAICompatibleProvider(
+            name="ollama",
+            base_url="http://localhost:11434/v1",
+            api_key_env="OLLAMA_API_KEY",
+            api_key_default="ollama",
+        )
     raise ValueError(f"No provider factory for entry {entry.name!r}")

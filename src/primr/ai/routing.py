@@ -68,10 +68,9 @@ LEGACY_TYPE_TO_ROLE: dict[str, Role] = {
 def pick_model_for_role(role: Role | str) -> str:
     """Pick the right model name for a named role given configured keys.
 
-    For the utility tier, prefers Grok 4.1 fast non-reasoning when
-    ``XAI_API_KEY`` is set (cheaper than Gemini Flash, lives on the same key
-    primr's standard pipeline already uses). Falls back to Gemini Flash
-    when only ``GEMINI_API_KEY`` is configured.
+    For the utility tier, prefers grok-4.20-non-reasoning when
+    ``XAI_API_KEY`` is set. Falls back to Gemini Flash when only
+    ``GEMINI_API_KEY`` is configured.
 
     For the pro tier, returns the active Pro model from the model registry
     (today: Gemini 3.1 Pro). Cross-provider Pro routing is a future
@@ -100,6 +99,58 @@ def pick_model_for_legacy_type(model_type: str) -> str:
 # Provider lookup
 # ---------------------------------------------------------------------------
 
+# Module-level cached provider instances (singletons)
+_openai_provider: Provider | None = None
+_anthropic_provider: Provider | None = None
+_ollama_provider: Provider | None = None
+
+
+def _get_openai_provider() -> Provider:
+    """Return a cached OpenAI provider instance."""
+    global _openai_provider
+    if _openai_provider is None:
+        from primr.ai.providers.openai_compatible import OpenAICompatibleProvider
+
+        _openai_provider = OpenAICompatibleProvider(
+            name="openai",
+            base_url="https://api.openai.com/v1",
+            api_key_env="OPENAI_API_KEY",
+        )
+    return _openai_provider
+
+
+def _get_anthropic_provider() -> Provider:
+    """Return a cached Anthropic provider instance."""
+    global _anthropic_provider
+    if _anthropic_provider is None:
+        from primr.ai.providers.anthropic import AnthropicProvider
+
+        _anthropic_provider = AnthropicProvider()
+    return _anthropic_provider
+
+
+def _get_ollama_provider() -> Provider:
+    """Return a cached Ollama provider instance.
+
+    Respects OLLAMA_BASE_URL env var for non-default Ollama endpoints.
+    Falls back to http://localhost:11434/v1.
+    """
+    global _ollama_provider
+    if _ollama_provider is None:
+        from primr.ai.providers.openai_compatible import OpenAICompatibleProvider
+
+        base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
+        if not base_url.endswith("/v1"):
+            base_url += "/v1"
+
+        _ollama_provider = OpenAICompatibleProvider(
+            name="ollama",
+            base_url=base_url,
+            api_key_env="OLLAMA_API_KEY",
+            api_key_default="ollama",
+        )
+    return _ollama_provider
+
 
 def get_provider_for_model(model_name: str) -> Provider:
     """Return the provider instance that knows how to call ``model_name``.
@@ -122,6 +173,12 @@ def get_provider_for_model(model_name: str) -> Provider:
         from primr.ai.llm import _get_gemini_provider
 
         return _get_gemini_provider()
+    if provider_name == "openai":
+        return _get_openai_provider()
+    if provider_name == "anthropic":
+        return _get_anthropic_provider()
+    if provider_name == "ollama":
+        return _get_ollama_provider()
 
     raise ValueError(
         f"Model {model_name!r} has provider {provider_name!r} which has no "
