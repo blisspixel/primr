@@ -36,19 +36,31 @@ class TestRegistry:
         assert len(result) >= 2
 
 
+# Providers like Ollama have a default key (no env var required) and so are
+# always reported as available. The tests below scope assertions to the
+# env-keyed providers we are actually toggling.
+_ENV_KEYED_PROVIDER_NAMES = {"xai", "gemini", "openai", "anthropic"}
+
+
+def _env_keyed_available() -> set[str]:
+    return {
+        p.name for p in get_available_providers() if p.name in _ENV_KEYED_PROVIDER_NAMES
+    }
+
+
 class TestAvailableProviders:
     def test_xai_only(self) -> None:
         env = {k: v for k, v in __import__("os").environ.items() if k != "GEMINI_API_KEY"}
         env["XAI_API_KEY"] = "test-xai"
         with patch.dict("os.environ", env, clear=True):
-            available = {p.name for p in get_available_providers()}
+            available = _env_keyed_available()
         assert available == {"xai"}
 
     def test_gemini_only(self) -> None:
         env = {k: v for k, v in __import__("os").environ.items() if k != "XAI_API_KEY"}
         env["GEMINI_API_KEY"] = "test-gemini"
         with patch.dict("os.environ", env, clear=True):
-            available = {p.name for p in get_available_providers()}
+            available = _env_keyed_available()
         assert available == {"gemini"}
 
     def test_both_keys(self) -> None:
@@ -57,7 +69,7 @@ class TestAvailableProviders:
             "GEMINI_API_KEY": "test-gemini",
         }
         with patch.dict("os.environ", env, clear=True):
-            available = {p.name for p in get_available_providers()}
+            available = _env_keyed_available()
         assert available == {"xai", "gemini"}
 
     def test_no_keys(self) -> None:
@@ -67,8 +79,8 @@ class TestAvailableProviders:
             if k not in {"XAI_API_KEY", "GEMINI_API_KEY"}
         }
         with patch.dict("os.environ", env, clear=True):
-            available = get_available_providers()
-        assert available == []
+            available = _env_keyed_available()
+        assert available == set()
 
 
 class TestBuildProvider:
