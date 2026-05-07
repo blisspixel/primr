@@ -54,10 +54,7 @@ def _is_quota_exhausted(error: Exception) -> bool:
         return True
 
     # Daily limit (distinct from transient rate-limit)
-    if "daily" in error_text and ("limit" in error_text or "quota" in error_text):
-        return True
-
-    return False
+    return "daily" in error_text and ("limit" in error_text or "quota" in error_text)
 
 
 def _is_retryable_status(status_code: int) -> bool:
