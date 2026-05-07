@@ -49,8 +49,8 @@ from primr.pipeline.stages import (
 __all__ = [
     "ANALYSIS_FALLBACK_CHAIN",
     "PREMIUM_FALLBACK_CHAIN",
-    "UTILITY_FALLBACK_CHAIN",
     "STAGE_CLASSIFICATIONS",
+    "UTILITY_FALLBACK_CHAIN",
     "ErrorCategory",
     "FallbackChain",
     "ModelCircuitBreaker",
