@@ -43,9 +43,9 @@ class TestStrategiesResourceSchema:
         assert "strategies" in strategies_response
         assert isinstance(strategies_response["strategies"], list)
 
-    def test_strategies_array_has_four_elements(self, strategies_response: dict) -> None:
-        """FR-5.2: strategies array has exactly 4 elements."""
-        assert len(strategies_response["strategies"]) == 4
+    def test_strategies_array_has_expected_elements(self, strategies_response: dict) -> None:
+        """FR-5.2: strategies array has one entry per StrategyType enum value."""
+        assert len(strategies_response["strategies"]) == len(VALID_STRATEGY_IDS)
 
 
 class TestStrategyFields:
@@ -169,14 +169,14 @@ class TestPropertyBasedStrategiesResource:
 
     @settings(max_examples=100)
     @given(st.integers(min_value=1, max_value=100))
-    def test_strategies_always_has_four_elements(self, _iteration: int) -> None:  # noqa: PT019
-        """Property 6: strategies array always has exactly 4 elements."""
+    def test_strategies_always_has_expected_elements(self, _iteration: int) -> None:  # noqa: PT019
+        """Property 6: strategies array always matches StrategyType enum."""
         from primr.mcp_server.resources import _read_strategies_available
 
         result = _read_strategies_available()
         data = json.loads(result[0].content)
 
-        assert len(data["strategies"]) == 4
+        assert len(data["strategies"]) == len(VALID_STRATEGY_IDS)
 
     @settings(max_examples=100)
     @given(st.integers(min_value=1, max_value=100))
