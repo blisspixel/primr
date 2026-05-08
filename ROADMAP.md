@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.22.0
+Current State: v1.23.0
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -12,97 +12,31 @@ For completed work, see the [Changelog](#changelog) at the bottom of this file, 
 
 The work for the next two releases is sequenced around one principle: **build the full provider lineup first, then eval once across all of them.** Running an eval before OpenAI / Anthropic / local inference are wired up gives a Grok-vs-Gemini-only scorecard that gets thrown out as soon as another provider lands. The 4.3 default flip from v1.22.0 stays in place during the build-out — the legacy 4.20 IDs are still registered as an escape hatch (`get_grok_models(HYBRID)` is one revertable line), and `--grok-tier fast` plus `--no-continuous-reasoning` give per-run safety valves if 4.3 misbehaves on a specific company.
 
-### v1.23.0 — Multi-provider foundation
+### v1.23.0 — Multi-provider foundation (shipped)
 
-The provider abstraction shipped in v1.22.0 was deliberately thin. v1.23.0 fills it in with concrete provider integrations so the v1.24.0 eval has something real to compare. Model IDs, pricing, and endpoints below were pulled from the live provider docs in May 2026 — verify against the providers' `/v1/models` endpoints before registering, since the model lineup churns faster than this roadmap.
+The provider abstraction shipped in v1.22.0 was deliberately thin. v1.23.0 fills it in with concrete provider integrations so the v1.24.0 eval has something real to compare against. Plus one user-facing feature ride-along: the `skills` strategy type (item 6 below).
 
-Plus one user-facing feature ride-along: a new `skills` strategy type (item 6 below). Orthogonal to the provider work, small enough to ship in the same release, and a useful proof point for the post-research-skill-processing thread.
+What shipped:
 
-#### 1. OpenAI integration via `OpenAICompatibleProvider`
+1. **OpenAI integration via `OpenAICompatibleProvider`.** Registered `gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.4-nano` with cached-input pricing. `OPENAI_API_KEY` env var auto-detected. `reasoning_effort` plumbed through provider kwargs.
+2. **Ollama / local-inference via `OpenAICompatibleProvider`.** Registered `qwen3-coder:30b`, `qwen2.5:32b`, `deepseek-r1:32b`, `qwen3:7b` at zero marginal cost. `api_key_default="ollama"` so the OpenAI SDK is happy. `OLLAMA_BASE_URL` env override honoured.
+3. **Anthropic Claude provider** as its own class (`src/primr/ai/providers/anthropic.py`). System-message translation, retry/backoff, billing-exhaustion detection raising `QuotaExhaustedError`, cache-aware token tracking from `cache_read_input_tokens` and `cache_creation_input_tokens`. Models registered: `claude-opus-4-7` (1M context / 128K output), `claude-sonnet-4-6` (1M context / 64K output), `claude-haiku-4-5` (200K context / 64K output).
+4. **Quota-aware fallback infrastructure.** `ModelCircuitBreaker.execute_with_fallback()` now consumes `QuotaExhaustedError`, marks the offending provider exhausted (with a midnight-UTC reset), and advances to the next model in the chain. Cross-provider chains defined: analysis (xai → anthropic → openai → gemini), utility, premium. *Note: per-call-site integration into the production pipeline is still scoped to v1.24.0 — today the breaker is callable and tested but not yet invoked from `research_agent.py` LLM call sites.*
+5. **Prompt-cache token plumbing.** Providers extract cached-token counts from xAI/OpenAI (`prompt_tokens_details.cached_tokens` / `cached_tokens`) and Anthropic (`cache_read_input_tokens` / `cache_creation_input_tokens`). `_UsageAccumulator` and per-provider `get_usage()` surface the counts. *Note: bridging cached-token counts into `tracker.record_usage()` and surfacing them in `primr show-usage` is deferred to v1.24.0 — current historical records still aggregate input/output only.*
+6. **Skills Ideation strategy (`--strategy-type skills`).** YAML at `src/primr/prompts/strategies/skills.yaml`, deterministic per-role `SKILL.md` emission via `src/primr/output/skills_generator.py`, dispatcher wiring at `src/primr/core/research_agent.py` so selecting `--strategy-type skills` produces both the strategy doc and `roles/<slug>/SKILL.md` files. The YAML strategy context loader was extended to include `_recon_context.txt` and `_hiring/hiring_signals.md`, which strengthens the existing CX / security / data-fabric strategies as a side effect.
 
-- **Endpoint:** `https://api.openai.com/v1` (OpenAI-shaped chat completions; the same `OpenAICompatibleProvider` class that already handles xAI handles this — no new client class needed).
-- **Env:** `OPENAI_API_KEY`. Add to `KNOWN_PROVIDERS` with role coverage `("utility", "reasoning", "writing", "premium_research")`.
-- **Models to register** in `ModelRegistry`:
-  - `gpt-5.5` — flagship, 1M context, 128K output. Frontier reasoning + coding.
-  - `gpt-5.4` — affordable flagship, 1M context, 128K output. Default analysis/writing candidate.
-  - `gpt-5.4-mini` — 400K context, 128K output. Utility-tier candidate.
-  - The GPT-5.4 family also ships `gpt-5.4-thinking`, `gpt-5.4-pro`, `gpt-5.4-nano` — register what we'll actually eval. `nano` ($0.20 input) is interesting as a Grok 4.1-fast competitor for utility tier.
-- **Pricing approx (May 2026):** flagship band $2.50/$15.00, mini band lower, nano band $0.20/$1.25. **Cache discount: 75-90% on input** — set `cost_per_1m_input_tokens_cached` accordingly. Confirm exact rates against the pricing page when registering.
-- **Provider kwargs to pass through:** `reasoning_effort` (low/medium/high for o-series), `response_format`, `seed`, `top_p`, `stop`, `presence_penalty`, `frequency_penalty`. Already in `OpenAICompatibleProvider`'s whitelist.
-- **Docs:** [Models page](https://developers.openai.com/api/docs/models), [Pricing page](https://developers.openai.com/api/docs/pricing).
+Anthropic correctness fixes also rolled into v1.23.0: Opus context window corrected to 1M (was 200K), Opus output corrected to 128K (was 32K), Sonnet context corrected to 1M (was 200K), Haiku output corrected to 64K (was 16K), Haiku `supports_thinking=True`. The `cache_control_blocks` provider-kwarg passthrough was removed — Anthropic prompt caching is configured at the message-content level (cache_control directives inside content blocks), not as a top-level API parameter; the previous plumbing would have raised `TypeError` if used.
 
-#### 2. Ollama / local-inference via `OpenAICompatibleProvider`
+### v1.24.0 — Cross-provider eval, default decisions, and quota/cache integration
 
-- **Endpoint:** `http://localhost:11434/v1`. Same provider class as OpenAI/xAI, just a different `base_url`.
-- **Env:** `OLLAMA_API_KEY` with `api_key_default="ollama"` (Ollama ignores the key but the OpenAI SDK requires a non-empty string). No real authentication when running locally.
-- **Models to register** (per `ollama pull <name>`, register as `ModelConfig` entries with `provider="ollama"` and zero pricing):
-  - `qwen3-coder:30b` — 256K context, agentic-friendly, strong tool-use. Best general candidate for utility + writing.
-  - `qwen2.5:32b` — strong general reasoning, fits on 24GB VRAM at Q4. Reasoning candidate.
-  - `deepseek-r1:32b` — open reasoning model, performance close to o3 / Gemini Pro on benchmarks.
-  - `qwen3:7b` — small, fast, fits easily on consumer GPUs. Utility-tier candidate for users on smaller hardware.
-- **Limitations to surface in docs:** vision endpoint is base64-only (no remote URLs), no logprobs, `tool_choice` not honoured, Responses API is stateless. For primr's pipeline this matters mostly for vision-tier scraping — keep that on cloud.
-- **Cost field:** `cost_per_1m_input_tokens=0` and `cost_per_1m_output_tokens=0` (zero marginal cost). Cost estimator should treat Ollama-routed runs as $0 + electricity.
-- **Docs:** [OpenAI compatibility](https://docs.ollama.com/api/openai-compatibility), [Model library](https://ollama.com/library).
+With five providers wired (xAI / Google / OpenAI / Anthropic / Ollama), the eval framework becomes a real cross-provider comparison. This release is where defaults get *decided*, and where v1.23.0's quota-fallback + cache-token plumbing get fully integrated into the production pipeline.
 
-#### 3. Anthropic Claude provider (separate provider class)
+Pre-eval integration work:
+- **Wire `execute_with_fallback` into production LLM call sites** in `research_agent.py` so a provider quota blip during the eval doesn't corrupt the scorecard. Today the breaker is callable but unused.
+- **Bridge cached-token counts into `tracker.record_usage()` and `UsageRecord`** so `primr show-usage` displays cache hit rate per run. Plumbing exists in providers; the missing piece is threading it through grok_client's session counters and the historical record schema.
+- **Extend `pick_model_for_role`** to actually pick from the new providers (OpenAI / Anthropic / Ollama) when their keys are set, not just Grok/Gemini. Uses eval-derived role rankings.
 
-- **Endpoint:** `https://api.anthropic.com/v1/messages`. Different SDK shape (Messages API, not chat-completions) — needs its own `AnthropicProvider` class alongside `OpenAICompatibleProvider` and `GeminiProvider`.
-- **Env:** `ANTHROPIC_API_KEY`. Add to `KNOWN_PROVIDERS` with role coverage `("reasoning", "writing", "pro")` — Anthropic's strength is strategic writing and long-context reasoning, less so cheap utility-tier.
-- **Models to register:**
-  - `claude-opus-4-7` — most capable. **1M context, 128K output, $5 in / $25 out per 1M.** Adaptive thinking only (no extended-thinking control). Knowledge cutoff Jan 2026.
-  - `claude-sonnet-4-6` — best speed/intelligence balance. 1M context, 64K output, $3/$15. Extended thinking + adaptive thinking.
-  - `claude-haiku-4-5-20251001` (alias `claude-haiku-4-5`) — fastest. 200K context, 64K output, $1/$5. Extended thinking. Strong utility-tier candidate vs Grok 4.1-fast and GPT-5.4-nano.
-- **Cache:** Anthropic cache uses `cache_control` blocks at the message-content level, not a query parameter. Cached read is ~10% of standard input rate. Cache write is 25% premium on first request. Wire through `provider_kwargs["cache_control_blocks"]` and read `cache_read_input_tokens` / `cache_creation_input_tokens` from `usage`.
-- **Opus 4.7 caveat:** new tokenizer produces up to 35% more tokens for the same input than Opus 4.6. Cost estimator's pre-run estimates will under-count by ~35% on Opus 4.7 unless the tokenizer is updated. Flag in `ModelConfig` notes.
-- **Batch API:** Message Batches API runs at 50% off, async, 24h SLA. Out of scope for primr's pipeline (we want fresh results) but worth noting for future eval-corpus regeneration.
-- **Provider kwargs to pass through:** `cache_control_blocks`, `thinking` (for extended thinking budget), `system` (Anthropic puts system prompt at top level, not in messages list — provider class translates).
-- **Docs:** [Models overview](https://platform.claude.com/docs/en/about-claude/models/overview), [Pricing](https://platform.claude.com/docs/en/about-claude/pricing), [Messages API](https://platform.claude.com/docs/en/api/messages).
-
-#### 4. Quota-aware fallback in the routing layer
-
-- Wire `QuotaExhaustedError` (already defined in `providers/base.py`) into `pipeline/model_breaker.py::ModelCircuitBreaker`. When a provider raises it, mark the provider unhealthy for the day, route to the next-best provider for the role per the eval-derived ranking.
-- Needs to be in place **before** v1.24.0 — without it, one provider's daily-limit blip during the eval corrupts the scorecard.
-- `primr doctor` should show per-provider rate-limit / quota status when the breaker has flagged anything.
-
-#### 5. Prompt-cache token reporting
-
-- xAI: read `response.usage.cached_tokens` (or whatever xAI calls it — verify against `https://api.x.ai/v1/chat/completions` response sample) in `OpenAICompatibleProvider.chat`. Pass to `_record_usage` as a separate `cached_input_tokens` field.
-- Anthropic: read `response.usage.cache_read_input_tokens` and `cache_creation_input_tokens` separately. Cache writes count as standard input tokens with a 25% premium; cache reads at the discounted rate.
-- OpenAI: read `response.usage.prompt_tokens_details.cached_tokens`.
-- Surface all three in `primr show-usage` so users can see cache hit rate per run. Today the cache discount is wired into `calculate_cost` but never gets a non-zero `cached_input_tokens` argument from the actual call sites.
-
-#### 6. Skills Ideation strategy (`--strategy-type skills`)
-
-A new YAML-defined strategy that ideates a top-5 roles × top-3 skills hypothesis for the target company, grounded in recon-detected tools and hiring-signal data the pipeline already collects. Off by default; opt-in per run.
-
-Output is dual:
-- **Strategy doc** — single Markdown / DOCX that reads as an executive deliverable, same shape as existing YAML strategies (CX, security, data fabric)
-- **Per-role SKILL.md folder** — `output/<Company>_Skills_Ideation_<date>/roles/<role-slug>/SKILL.md`, each with proper frontmatter (`name`, `description`) so it's drop-in loadable by Claude Code, Copilot Studio, or any skill-aware agent host
-
-Each role doc grounds its three skills in observed signal: "Salesforce admin (DNS-confirmed)" rather than "CRM admin," with confidence labels (Confirmed / Inferred / Speculated) per role and per skill. Sparse-signal companies pivot to industry-baseline mode and say so explicitly rather than fabricating roles.
-
-Implementation:
-- New YAML at `src/primr/prompts/strategies/skills.yaml` — sections for executive summary, signal strength, observed stack, top 5 roles, cross-role themes, discovery questions, sources
-- Small fix to the YAML strategy context loader at `src/primr/core/research_agent.py:~5554` to also pull `_recon_context.txt` and `_hiring/hiring_signals.md`. Currently those reach the AI strategy path but not other YAML strategies; this gap also strengthens grounding for CX, security, and data fabric strategies as a side effect
-- One Grok writing call produces the strategy doc with structured per-role blocks; deterministic post-step splits the blocks into `roles/<slug>/SKILL.md` files with assembled frontmatter (no extra LLM call). Graceful degradation: strategy doc ships even if role-block parsing fails
-- Add `skills` to MCP `strategy_type` enum in `research_company`, `estimate_strategy`, `generate_strategy`
-- Re-run on existing report via `--ai-strategy-only <path> --strategy-type skills` (the dispatcher already supports any strategy type — the flag name is misleading but works; rename to `--strategy-only` is a separate cleanup)
-- Docs updated in `claude-code/skills/primr/references/modes-and-strategies.md`, `AGENTS.md`, `claude-code/skills/primr/SKILL.md`, `README.md` strategy-type list
-
-Cost: ~$0.07-0.10 added in standard pipeline (Grok 4.1 writing), ~$2.50 in premium (Deep Research). Same per-strategy budget as existing YAML strategies.
-
-Naming note: "skills" is overloaded with Anthropic Skills / Claude Code skills. The CLI flag and YAML filename keep the meaning unambiguous in context, and the per-role outputs literally are `SKILL.md` files — so the overload is appropriate, not accidental.
-
-Validation (May 2026, against existing run artifacts):
-- **Rich-signal case — Nintendo of America** (`working/Nintendo_of_America_Inc/2026-04-23_1142/`): 67 Greenhouse postings, 15 analyzed, tech-stack frequency map (Python: 8, C/C++: 7, AWS: 4, Salesforce: 2, etc.), explicit strategic initiatives ("modernize how GRC operates", SFCC + SOM platforms, ERP rollouts), notable absences ("no data engineering roles"). Strategy would produce 5 Confirmed-label roles directly anchored to specific reqs (NTD Platform Engineer contract pool, Cloud Security Engineer, Salesforce BSA, ML/Data Science Engineer, GRC Engineer).
-- **Sparse-signal case — Lexitas** (`working/Lexitas/2026-04-26_1053/`): hiring signals empty (careers page is a LinkedIn redirect, 1 posting found, 0 analyzable), but recon detected 26 services including M365 + Intune + federated auth, Anthropic Claude (already adopted), AWS CloudFront/ELB, Dynatrace, HubSpot + Pardot coexisting, DocuSign, Box + Dropbox sprawl. Strategy grounds 4/5 roles in detected stack alone, with the 5th (Legal Tech PO) inferred from sector + DocuSign signal. Multi-platform sprawl (HubSpot+Pardot, Box+Dropbox) becomes natural discovery questions.
-- **Conclusion**: the thin-signal pivot the YAML's Signal Strength section requires is mandatory, not optional. Without it the sparse case fabricates roles. With it, the sparse case still produces a credible deliverable that explicitly says "we have no postings — these are stack-and-sector hypotheses, validate with stakeholder."
-
-Decision principle: primr's job ends at research artifacts; downstream agents pick them up. The SKILL.md output makes that handoff machine-readable, not just human-readable. This is a more direct, in-pipeline path to the same outcome the longer "Post-Research Skill Processing (Anthropic Skills API)" entry imagines via cloud skills.
-
-### v1.24.0 — Cross-provider eval and default decisions
-
-With four providers wired up (xAI / Google / OpenAI / Anthropic / Ollama), the eval framework becomes a real cross-provider comparison instead of a Grok-tier spot check. This release is where defaults get *decided*, not assumed.
+Then the eval itself:
 
 1. **Cross-provider scorecard.** Extend `primr eval` to register profile slots per (provider × role) combination, run the standard 3-5 company corpus against each, score on quality, trust, utility, hallucination rate, drift markers, and **utility-per-dollar**. Auto-detect available API keys and only eval providers the user has access to. LLM judge overlay (cloud or local Ollama) for subjective quality.
 2. **Decision output: per-role default recommendations.** "For utility tier: use X. For analysis: use Y. For premium: use Z." Decision criteria written down *before* the run, the same way the v1.22.0 dispatch fix was structured. Defaults change in `pick_model_for_role` only if the scorecard clears the bar.

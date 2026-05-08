@@ -83,7 +83,7 @@ ANALYSIS_FALLBACK_CHAIN = FallbackChain(
 UTILITY_FALLBACK_CHAIN = FallbackChain(
     name="utility",
     models=(
-        "grok-4.20-non-reasoning",  # Primary utility (xAI)
+        PrimrModels.GROK_MODEL_WRITING,  # Primary utility (xAI 4.20 non-reasoning)
         "gpt-5.4-mini",  # OpenAI fallback
         PrimrModels.FLASH_MODEL,  # Gemini fallback
     ),

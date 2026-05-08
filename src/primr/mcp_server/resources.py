@@ -528,7 +528,7 @@ def _read_config(mcp_server: "PrimrMCPServer") -> list[ReadResourceContents]:
             StrategyType.CUSTOMER_EXPERIENCE.value: "CX improvement plan",
             StrategyType.MODERN_SECURITY_COMPLIANCE.value: "Security posture assessment",
             StrategyType.DATA_FABRIC_STRATEGY.value: "Data platform modernization",
-            StrategyType.SKILLS.value: "Skills ideation (roles × skills hypothesis)",
+            StrategyType.SKILLS.value: "Skills ideation (roles x skills hypothesis)",
         },
         configured_vendors=["azure", "aws", "gcp"],
     )
@@ -696,7 +696,7 @@ def get_strategy_catalog() -> list[dict[str, object]]:
         {
             "id": StrategyType.SKILLS.value,
             "name": "Skills Ideation",
-            "description": "Top-5 roles × top-3 skills hypothesis grounded in recon and hiring signals",
+            "description": "Top-5 roles x top-3 skills hypothesis grounded in recon and hiring signals",
             "requires_platform": False,
             "estimated_time_minutes": 8,
             "estimated_cost_usd": 0.08,

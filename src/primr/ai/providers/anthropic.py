@@ -7,7 +7,15 @@ SDK. Handles:
 - Retry with exponential backoff on transient errors (429, 5xx)
 - Quota/billing exhaustion detection → raises ``QuotaExhaustedError``
 - Cache-aware token tracking (``cache_read_input_tokens``, ``cache_creation_input_tokens``)
-- Passthrough of Anthropic-specific kwargs (``cache_control_blocks``, ``thinking``)
+- Passthrough of Anthropic-specific kwargs (``thinking``)
+
+Prompt caching note: Anthropic's prompt caching is configured via ``cache_control``
+directives embedded *inside* message content blocks (not as a top-level API
+parameter). Callers wanting cache hits should construct messages with structured
+content arrays that include ``{"type": "text", "text": ..., "cache_control":
+{"type": "ephemeral"}}`` blocks and pass the whole structure as the message
+content. This provider records ``cache_read_input_tokens`` and
+``cache_creation_input_tokens`` from the response for usage tracking.
 """
 
 from __future__ import annotations
@@ -75,8 +83,12 @@ class AnthropicProvider(Provider):
     - user/assistant messages → ``messages`` array
 
     Provider-specific kwargs:
-    - cache_control_blocks: list[dict] — Anthropic prompt caching directives
     - thinking: dict — Extended thinking configuration (budget_tokens, etc.)
+
+    Prompt caching is not exposed as a kwarg here; callers embed
+    ``cache_control`` directives inside the structured message content they
+    pass via ``messages``. Cache token counts are still recorded from the
+    response.
     """
 
     def __init__(
@@ -214,9 +226,10 @@ class AnthropicProvider(Provider):
         if system_text is not None:
             sdk_kwargs["system"] = system_text
 
-        # Pass through Anthropic-specific kwargs
-        if "cache_control_blocks" in provider_kwargs:
-            sdk_kwargs["cache_control_blocks"] = provider_kwargs["cache_control_blocks"]
+        # Pass through Anthropic-specific kwargs.
+        # NOTE: prompt caching is configured at the message-content level
+        # (cache_control directives inside content blocks), not as a top-level
+        # parameter — see module docstring.
         if "thinking" in provider_kwargs:
             sdk_kwargs["thinking"] = provider_kwargs["thinking"]
 

@@ -5556,12 +5556,17 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
                         strategy_config, company_name or display_name, discovery_notes_content
                     )
 
-                    # Build context with report + working-folder artifacts
+                    # Build context with report + working-folder artifacts.
+                    # Recon + hiring signals are particularly important for the
+                    # `skills` strategy (and generally strengthen CX, security,
+                    # and data-fabric strategies as well).
                     yaml_context_parts = [f"--- Company Report ---\n{report_content[:50_000]}"]
                     for artifact_name, artifact_limit in [
                         ("insights.txt", 20_000),
                         ("gap_analysis.md", 15_000),
                         ("analysis_workbook.md", 20_000),
+                        ("_recon_context.txt", 10_000),
+                        ("_hiring/hiring_signals.md", 15_000),
                     ]:
                         artifact_path = os.path.join(folder_path, artifact_name)
                         if os.path.exists(artifact_path):
@@ -5707,6 +5712,35 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
                         )
                         if strategy_path:
                             strategy_paths[stype] = strategy_path
+
+                        # Skills Ideation strategy: also emit per-role SKILL.md
+                        # files in a sibling directory so the artifacts are
+                        # drop-in loadable by Claude Code / Copilot Studio /
+                        # any skill-aware agent host. Failure here never blocks
+                        # the strategy doc itself.
+                        if stype == "skills" and strategy_path:
+                            try:
+                                from primr.output.skills_generator import write_skill_files
+
+                                roles_root = (
+                                    Path(strategy_path).with_suffix("").parent
+                                    / Path(strategy_path).stem
+                                )
+                                written = write_skill_files(strategy_content, roles_root)
+                                if written:
+                                    console.info(
+                                        f"Skills Ideation: emitted {len(written)} per-role "
+                                        f"SKILL.md files under {roles_root.name}/roles/"
+                                    )
+                                else:
+                                    console.warn(
+                                        "Skills Ideation: no role blocks parsed from strategy "
+                                        "content — per-role SKILL.md files not emitted"
+                                    )
+                            except Exception as skill_err:
+                                logger.warning(
+                                    "Skills Ideation per-role emission failed: %s", skill_err
+                                )
 
             if strategy_paths:
                 console.phase_complete("Strategy (Grok)")
