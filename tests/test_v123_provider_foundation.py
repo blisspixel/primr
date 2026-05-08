@@ -9,13 +9,11 @@ Covers optional test tasks: 1.6, 3.6, 4.3, 5.3, 8.5, 8.6, 12.2, 12.3, 13.4.
 
 from __future__ import annotations
 
-import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 from primr.ai.providers.base import _UsageAccumulator
-from primr.config.models import GrokTier, ModelConfig, ModelRegistry, PrimrModels
-
+from primr.config.models import GrokTier, ModelRegistry, PrimrModels
 
 # =============================================================================
 # TASK 1.6: Unit tests for retirement migration
@@ -227,6 +225,46 @@ class TestOpenAIIntegration:
         # Should not raise KeyError or ValueError
         provider = get_provider_for_model("gpt-5.4")
         assert provider is not None
+
+
+# =============================================================================
+# Anthropic ModelConfig correctness (locked in v1.23.0 after audit fixes)
+# =============================================================================
+
+
+class TestAnthropicModelCorrectness:
+    """Pin the Anthropic context/output windows that were corrected in v1.23.0.
+
+    The original v1.23.0 work shipped with Opus/Sonnet at 200K context and Opus
+    output capped at 32K — both wrong per Anthropic's published specs. These
+    tests guard against regression.
+    """
+
+    def test_opus_has_1m_context(self) -> None:
+        config = PrimrModels.get_model_config("claude-opus-4-7")
+        assert config is not None
+        assert config.max_input_tokens == 1_000_000
+
+    def test_opus_has_128k_output(self) -> None:
+        config = PrimrModels.get_model_config("claude-opus-4-7")
+        assert config is not None
+        assert config.max_output_tokens == 128_000
+
+    def test_sonnet_has_1m_context(self) -> None:
+        config = PrimrModels.get_model_config("claude-sonnet-4-6")
+        assert config is not None
+        assert config.max_input_tokens == 1_000_000
+
+    def test_haiku_has_64k_output(self) -> None:
+        config = PrimrModels.get_model_config("claude-haiku-4-5")
+        assert config is not None
+        assert config.max_output_tokens >= 64_000
+
+    def test_haiku_supports_thinking(self) -> None:
+        """Haiku 4.5 supports extended thinking per Anthropic's docs."""
+        config = PrimrModels.get_model_config("claude-haiku-4-5")
+        assert config is not None
+        assert config.supports_thinking is True
 
 
 # =============================================================================
@@ -461,7 +499,6 @@ class TestDoctorDiagnostics:
 
     def test_check_providers_lists_all_five(self, monkeypatch, capsys) -> None:
         """_check_providers lists all five providers."""
-        from primr.ai.providers.registry import KNOWN_PROVIDERS
         from primr.core.cli import _check_providers
 
         # Set all keys so all providers show as configured

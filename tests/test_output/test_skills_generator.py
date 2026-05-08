@@ -11,17 +11,12 @@ Tests cover:
 
 from __future__ import annotations
 
-from pathlib import Path
-
-import pytest
-
 from primr.output.skills_generator import (
     generate_skill_md,
     parse_role_blocks,
     slugify,
     write_skill_files,
 )
-
 
 # ---------------------------------------------------------------------------
 # slugify
@@ -266,8 +261,6 @@ class TestWriteSkillFiles:
     def test_graceful_on_parse_error(self, tmp_path, monkeypatch):
         """If parsing raises, returns empty list without crashing."""
         import primr.output.skills_generator as sg
-
-        original = sg.parse_role_blocks
 
         def exploding_parse(text):
             raise RuntimeError("Simulated parse failure")

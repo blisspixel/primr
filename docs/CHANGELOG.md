@@ -9,6 +9,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 No unreleased changes.
 
+## [1.23.0] - 2026-05-08
+
+### Multi-provider foundation
+
+- **OpenAI integration** via `OpenAICompatibleProvider`. `gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.4-nano` registered with cached-input pricing. `OPENAI_API_KEY` auto-detected. `reasoning_effort` plumbed through provider kwargs.
+- **Ollama / local-inference** via `OpenAICompatibleProvider`. `qwen3-coder:30b`, `qwen2.5:32b`, `deepseek-r1:32b`, `qwen3:7b` registered at zero marginal cost. `OLLAMA_BASE_URL` env honoured; `api_key_default="ollama"` so the OpenAI SDK accepts the call.
+- **Anthropic Claude provider** as a separate class (`src/primr/ai/providers/anthropic.py`). System-message translation, retry/backoff, billing-exhaustion detection raising `QuotaExhaustedError`, cache-aware token tracking. `claude-opus-4-7`, `claude-sonnet-4-6`, `claude-haiku-4-5` registered.
+- **Quota-aware fallback infrastructure** in `ModelCircuitBreaker.execute_with_fallback()` — consumes `QuotaExhaustedError`, marks the provider exhausted with midnight-UTC reset, advances through cross-provider chains. Per-call-site integration into the production pipeline is scoped to v1.24.0.
+- **Prompt-cache token plumbing.** Providers extract cached counts from xAI / OpenAI (`prompt_tokens_details.cached_tokens` / `cached_tokens`) and Anthropic (`cache_read_input_tokens` / `cache_creation_input_tokens`). `_UsageAccumulator` aggregates them; `get_usage()` exposes them. Bridging into per-run `UsageRecord` and `primr show-usage` is scoped to v1.24.0.
+
+### Skills Ideation strategy (`--strategy-type skills`)
+
+- New YAML-defined strategy at `src/primr/prompts/strategies/skills.yaml` that ideates a top-5 roles x top-3 skills hypothesis grounded in DNS recon and hiring signals.
+- **Per-role `SKILL.md` emission** via `src/primr/output/skills_generator.py`. Selecting `--strategy-type skills` produces both the strategy markdown/DOCX *and* `output/<Company>_Skills_Ideation_<date>/roles/<slug>/SKILL.md` files with proper `name` / `description` frontmatter — drop-in loadable by Claude Code, Copilot Studio, or any skill-aware agent host.
+- **YAML strategy context loader extended** to also pull `_recon_context.txt` and `_hiring/hiring_signals.md`. This change strengthens the existing Customer Experience, Modern Security, and Data Fabric strategies as a side effect — they now see recon and hiring signals which previously only reached the AI strategy path.
+- Sparse-signal companies pivot to industry-baseline mode and say so explicitly rather than fabricating roles, per the YAML's mandatory Signal Strength section.
+
+### Anthropic correctness fixes
+
+- Opus 4.7 context window corrected to 1M (was 200K), output corrected to 128K (was 32K).
+- Sonnet 4.6 context window corrected to 1M (was 200K).
+- Haiku 4.5 output corrected to 64K (was 16K), `supports_thinking=True`.
+- Removed bogus `cache_control_blocks` provider-kwarg passthrough — Anthropic prompt caching is configured at the message-content level (cache_control directives inside content blocks), not as a top-level API parameter. The previous plumbing would have raised `TypeError` if a caller actually used it.
+- Opus 4.7 tokenizer-inflation caveat (~35% more tokens than 4.6 for the same input) documented in `ModelRegistry`.
+
+### Misc fixes
+
+- `--help` no longer crashes Python 3.10 on Windows when stdout decodes as UTF-8 — replaced the lone `×` (multiplication sign) in the skills strategy description with `x`.
+- `UTILITY_FALLBACK_CHAIN` now references `PrimrModels.GROK_MODEL_WRITING` instead of the hardcoded `"grok-4.20-non-reasoning"` string.
+- mypy fix in `core/cli.py` xAI key-verification branch.
+
 ## [1.22.0] - 2026-05-03
 
 ### Grok 4.3 onboarded as flagship reasoning model

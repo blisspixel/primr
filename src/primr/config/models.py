@@ -471,7 +471,10 @@ class ModelRegistry:
     # =========================================================================
     # ANTHROPIC CLAUDE OPUS 4.7 - Most capable
     # $5.00 input / $25.00 output per 1M tokens, cached input $0.50
-    # Context: 200k tokens, Output: 32k tokens
+    # Context: 1M tokens, Output: 128k tokens
+    # NOTE: Opus 4.7 uses a new tokenizer that produces up to ~35% more tokens
+    # for the same input vs Opus 4.6 — pre-run cost estimates may under-count
+    # for long inputs until the cost estimator's tokenizer is updated.
     # =========================================================================
     ANTHROPIC_OPUS = ModelConfig(
         name="claude-opus-4-7",
@@ -479,8 +482,8 @@ class ModelRegistry:
         provider="anthropic",
         cost_per_1m_input_tokens=5.00,
         cost_per_1m_output_tokens=25.00,
-        max_input_tokens=200_000,
-        max_output_tokens=32_000,
+        max_input_tokens=1_000_000,
+        max_output_tokens=128_000,
         supports_thinking=True,
         supports_tools=True,
         supports_multimodal=True,
@@ -490,7 +493,7 @@ class ModelRegistry:
     # =========================================================================
     # ANTHROPIC CLAUDE SONNET 4.6 - Best speed/intelligence balance
     # $3.00 input / $15.00 output per 1M tokens, cached input $0.30
-    # Context: 200k tokens, Output: 64k tokens
+    # Context: 1M tokens, Output: 64k tokens
     # =========================================================================
     ANTHROPIC_SONNET = ModelConfig(
         name="claude-sonnet-4-6",
@@ -498,7 +501,7 @@ class ModelRegistry:
         provider="anthropic",
         cost_per_1m_input_tokens=3.00,
         cost_per_1m_output_tokens=15.00,
-        max_input_tokens=200_000,
+        max_input_tokens=1_000_000,
         max_output_tokens=64_000,
         supports_thinking=True,
         supports_tools=True,
@@ -509,7 +512,7 @@ class ModelRegistry:
     # =========================================================================
     # ANTHROPIC CLAUDE HAIKU 4.5 - Fastest, utility tier candidate
     # $1.00 input / $5.00 output per 1M tokens, cached input $0.10
-    # Context: 200k tokens, Output: 16k tokens
+    # Context: 200k tokens, Output: 64k tokens
     # =========================================================================
     ANTHROPIC_HAIKU = ModelConfig(
         name="claude-haiku-4-5",
@@ -518,8 +521,8 @@ class ModelRegistry:
         cost_per_1m_input_tokens=1.00,
         cost_per_1m_output_tokens=5.00,
         max_input_tokens=200_000,
-        max_output_tokens=16_384,
-        supports_thinking=False,
+        max_output_tokens=65_536,
+        supports_thinking=True,
         supports_tools=True,
         supports_multimodal=True,
         cost_per_1m_input_tokens_cached=0.10,

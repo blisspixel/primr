@@ -14,7 +14,6 @@ from primr.pipeline.model_breaker import (
     UTILITY_FALLBACK_CHAIN,
     ModelCircuitBreaker,
     ModelHealthEvent,
-    QuotaStatus,
 )
 
 

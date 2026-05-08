@@ -937,8 +937,8 @@ def _validate_key_live(provider: str, value: str) -> tuple[bool, str]:
         try:
             import openai
 
-            client = openai.OpenAI(api_key=value, base_url="https://api.x.ai/v1")
-            list(client.models.list())
+            xai_client = openai.OpenAI(api_key=value, base_url="https://api.x.ai/v1")
+            list(xai_client.models.list())
             return True, "verified"
         except ImportError:
             return True, "saved without verification (openai not installed)"

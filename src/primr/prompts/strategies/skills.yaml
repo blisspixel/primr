@@ -13,7 +13,7 @@ meta:
   name: "Skills Ideation"
   id: "skills"
   version: "1.0.0"
-  description: "Top-5 roles × top-3 skills hypothesis grounded in recon and hiring signals"
+  description: "Top-5 roles x top-3 skills hypothesis grounded in recon and hiring signals"
   output_format: "markdown"
   output_filename: "{company_name}_Skills_Ideation"
   expected_pages: "5-10"
@@ -86,7 +86,7 @@ sections:
     description: "Technology stack detected via DNS recon and hiring signals. List each tool with its detection source (DNS, hiring, both)."
     word_target: 300
   - name: "top_roles_and_skills"
-    description: "5 roles × 3 skills each, using the structured role block format. Each role grounded in observed signal with confidence labels."
+    description: "5 roles x 3 skills each, using the structured role block format. Each role grounded in observed signal with confidence labels."
     word_target: 1500
   - name: "cross_role_themes"
     description: "Patterns that span multiple roles: shared tools, strategic initiatives, platform consolidation opportunities, notable absences."
