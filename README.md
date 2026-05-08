@@ -75,19 +75,9 @@ primr doctor                    # Verify everything works
 primr "ExampleCo" https://example.co
 ```
 
-From a source checkout:
+Requires Python 3.11+. On Windows, prefer `py -3.13` instead of bare `python` if your default interpreter is older. `primr init` walks through user-level API keys, browser dependencies, and verification. Local `.env` files and shell environment variables still work and can override user-level keys. Set `XAI_API_KEY` for the standard Grok pipeline (it covers analysis, writing, and utility-tier calls like scraping summaries and link selection). Set `GEMINI_API_KEY` only if you also want `--premium` mode or you do not have an xAI key. Web search uses DuckDuckGo (no key needed).
 
-```bash
-git clone https://github.com/blisspixel/primr.git
-cd primr
-py -3.13 setup_env.py           # Windows
-# or: python3.13 setup_env.py   # macOS/Linux
-primr init
-primr doctor                     # Verify everything works
-primr "ExampleCo" https://example.co  # Run your first research
-```
-
-Requires Python 3.11+. On Windows, prefer `py -3.13` instead of bare `python` if your default interpreter is older. `setup_env.py` installs or upgrades the local editable package to the current repo version, installs dependencies, and creates `.env`. `primr init` walks through user-level API keys, browser dependencies, and verification. Local `.env` files and shell environment variables still work and can override user-level keys. Set `XAI_API_KEY` for the standard Grok pipeline (it covers analysis, writing, and utility-tier calls like scraping summaries and link selection). Set `GEMINI_API_KEY` only if you also want `--premium` mode or you do not have an xAI key. Web search uses DuckDuckGo (no key needed).
+Working from a source checkout? See [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md) for the dev setup.
 
 ### Platform Support
 
