@@ -6,7 +6,9 @@ Thanks for your interest in contributing to Primr! This document provides guidel
 
 1. Fork the repository
 2. Clone your fork: `git clone https://github.com/YOUR_USERNAME/primr.git`
-3. Set up the development environment:
+3. Set up the development environment. Two options:
+
+   **Option A — manual (cross-platform):**
    ```bash
    cd primr
    python -m venv .venv
@@ -15,7 +17,16 @@ Thanks for your interest in contributing to Primr! This document provides guidel
    pip install -e ".[dev]"
    playwright install chromium
    ```
-4. Copy `.env.example` to `.env` and add your API keys
+
+   **Option B — guided bootstrap (Windows-friendly):**
+   ```bash
+   cd primr
+   py -3.13 setup_env.py           # Windows
+   # or: python3.13 setup_env.py   # macOS/Linux
+   ```
+   `setup_env.py` auto-picks Python 3.11+ if your default is older, installs the editable package, downloads Playwright browsers, and adds the user Scripts dir to PATH on Windows. Useful for first-time contributors who hit the "which Python do I use?" issue.
+
+4. Copy `.env.example` to `.env` and add your API keys (or run `primr init` to walk through it).
 
 ## Development Workflow
 
