@@ -2772,8 +2772,8 @@ def _handle_eval(config: CLIConfig) -> int:
                     continue
 
                 # Copy latest strategic overview artifact to eval profile folder.
-                # Match either underscored company names (Real_Matters_Inc.) or
-                # space-preserving names (Real Matters Inc.) — primr's actual
+                # Match either underscored company names (Acme_Corp_Inc.) or
+                # space-preserving names (Acme Corp Inc.) — primr's actual
                 # output filenames preserve spaces, but historical patterns
                 # used underscores.
                 output_root = Path(OUTPUT_DIR)
