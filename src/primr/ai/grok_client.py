@@ -253,6 +253,41 @@ def grok_llm(
         messages.append({"role": "system", "content": system_prompt})
     messages.append({"role": "user", "content": prompt})
 
+    # Cross-provider dispatch (v1.24.0). When the resolved model is not an xAI
+    # model — e.g. an eval recipe override has set writing="gemini-3.1-flash-lite"
+    # — route the call to that model's native provider instead of trying to
+    # call xAI with a non-Grok model ID. The function name stays grok_llm for
+    # back-compat but it now acts as a generic chat dispatcher when needed.
+    # Production reasoning-tier calls without an override still hit the xAI
+    # path below since they resolve to grok-4.3 / grok-4.20-NR.
+    from primr.config.models import PrimrModels as _PrimrModels
+
+    _model_config = _PrimrModels.get_model_config(model)
+    if _model_config is not None and _model_config.provider != "xai":
+        from primr.ai.routing import get_provider_for_model as _get_provider_for_model
+
+        cross_provider = _get_provider_for_model(model)
+        cross_kwargs: dict[str, Any] = {}
+        if reasoning_effort is not None:
+            cross_kwargs["reasoning_effort"] = reasoning_effort
+        cross_response = cross_provider.chat(
+            messages,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            retries=retries,
+            **cross_kwargs,
+        )
+        # Mirror tokens into the same session counters so cost reporting works
+        # uniformly regardless of which provider serviced the call.
+        _session_input_tokens += cross_response.input_tokens
+        _session_output_tokens += cross_response.output_tokens
+        if model not in _session_tokens_by_model:
+            _session_tokens_by_model[model] = {"input_tokens": 0, "output_tokens": 0}
+        _session_tokens_by_model[model]["input_tokens"] += cross_response.input_tokens
+        _session_tokens_by_model[model]["output_tokens"] += cross_response.output_tokens
+        return cross_response.text
+
     # Delegate the chat call (with retry/error handling) to the shared
     # OpenAICompatibleProvider. We sync the lazy SDK client through
     # _get_grok_client so callers/tests that patch _get_grok_client to inject

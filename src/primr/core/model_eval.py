@@ -32,6 +32,202 @@ EVAL_PROFILES: tuple[str, ...] = ("full", "lite", "fast")
 DEFAULT_BASELINE = "full"
 
 
+# =============================================================================
+# Profile Slot Registry
+# =============================================================================
+#
+# v1.24.0 prerequisite: cross-provider eval needs dynamic per-(provider x model
+# x role-recipe) profile slots, not the fixed 3-tuple ("full", "lite", "fast").
+# Registering a new slot lets the eval harness add cells incrementally — for
+# example, a post-I/O Gemini 3.2 Flash variant becomes:
+#
+#     register_eval_profile(EvalProfileSlot(
+#         name="grok43-gemini32flashlite",
+#         recipe=ProfileRecipe(
+#             reasoning="grok-4.3",
+#             writing="gemini-3.2-flash-lite",
+#             utility="gemini-3-flash-preview",
+#         ),
+#         estimated_cost_usd=0.65,
+#     ))
+#
+# After registration: run primr against the corpus once for that slot, score
+# the new pairs, and the rest of the matrix is unchanged. No full re-do.
+#
+# The three built-in slots (full / lite / fast) are pre-registered so existing
+# eval flows keep working unchanged.
+
+
+@dataclass(frozen=True)
+class ProfileRecipe:
+    """Per-role model assignments for an eval profile slot.
+
+    Each role corresponds to a primr pipeline stage class:
+      - reasoning: gap analysis, workbook, cross-validation, strategy
+      - writing: bulk section writing, polish
+      - utility: scrape summaries, link selection, QA
+      - premium_research: Deep Research Agent (premium mode only)
+
+    Roles can be None when the slot inherits the default for that role from
+    pick_model_for_role. Unknown roles are accepted but have no effect today;
+    they reserve namespace for future pipeline stages.
+    """
+
+    reasoning: str | None = None
+    writing: str | None = None
+    utility: str | None = None
+    premium_research: str | None = None
+    extra: dict[str, str] | None = None  # forward-compat for new role names
+
+    def role_assignments(self) -> dict[str, str]:
+        """Return the populated role → model_id mapping (None entries dropped)."""
+        out: dict[str, str] = {}
+        if self.reasoning:
+            out["reasoning"] = self.reasoning
+        if self.writing:
+            out["writing"] = self.writing
+        if self.utility:
+            out["utility"] = self.utility
+        if self.premium_research:
+            out["premium_research"] = self.premium_research
+        if self.extra:
+            for k, v in self.extra.items():
+                if v:
+                    out[k] = v
+        return out
+
+
+@dataclass(frozen=True)
+class EvalProfileSlot:
+    """One cell in the eval matrix.
+
+    Attributes:
+        name: Slot identifier used as the directory name under eval_root and
+            in scorecards. Must be filesystem-safe.
+        recipe: Optional per-role model assignments. None for legacy profiles
+            ("full", "lite", "fast") whose recipe is implicit in primr's mode
+            flags rather than a per-role override.
+        estimated_cost_usd: Optional fixed-cost override. When None, the
+            estimator falls back to the legacy mode-based estimator
+            (used by built-in full/lite/fast slots).
+        description: Human-readable summary of the recipe (e.g.,
+            "Grok 4.3 reasoning + Gemini 3.1 Flash-Lite writing").
+        is_builtin: True for the three legacy slots; protects them from
+            accidental unregister at module-init.
+    """
+
+    name: str
+    recipe: ProfileRecipe | None = None
+    estimated_cost_usd: float | None = None
+    description: str = ""
+    is_builtin: bool = False
+
+
+_PROFILE_REGISTRY: dict[str, EvalProfileSlot] = {}
+
+
+def register_eval_profile(slot: EvalProfileSlot, *, replace: bool = False) -> None:
+    """Register a new eval profile slot.
+
+    Args:
+        slot: The slot to register.
+        replace: If True, replace an existing entry with the same name. If
+            False (default), raise ValueError on collision so the caller is
+            forced to think about whether the redefinition was intentional.
+
+    Raises:
+        ValueError: If a slot with this name is already registered and
+            replace=False.
+    """
+    if not slot.name:
+        raise ValueError("EvalProfileSlot.name must be non-empty")
+    if not replace and slot.name in _PROFILE_REGISTRY:
+        existing = _PROFILE_REGISTRY[slot.name]
+        raise ValueError(
+            f"Profile slot {slot.name!r} is already registered "
+            f"(existing: {existing.description or 'no description'}). "
+            f"Pass replace=True to override."
+        )
+    _PROFILE_REGISTRY[slot.name] = slot
+
+
+def unregister_eval_profile(name: str) -> bool:
+    """Remove a profile slot. Built-in slots cannot be removed.
+
+    Returns:
+        True if the slot was removed, False if it didn't exist.
+
+    Raises:
+        ValueError: If the named slot is a built-in (full / lite / fast).
+    """
+    slot = _PROFILE_REGISTRY.get(name)
+    if slot is None:
+        return False
+    if slot.is_builtin:
+        raise ValueError(
+            f"Cannot unregister built-in profile slot {name!r}. "
+            f"Built-in slots are required for back-compat with existing eval flows."
+        )
+    del _PROFILE_REGISTRY[name]
+    return True
+
+
+def get_eval_profile(name: str) -> EvalProfileSlot | None:
+    """Look up a registered profile slot by name. Returns None if not found."""
+    return _PROFILE_REGISTRY.get(name)
+
+
+def list_eval_profile_names() -> tuple[str, ...]:
+    """Return all registered profile slot names in registration order."""
+    return tuple(_PROFILE_REGISTRY.keys())
+
+
+def list_eval_profiles() -> tuple[EvalProfileSlot, ...]:
+    """Return all registered profile slots in registration order."""
+    return tuple(_PROFILE_REGISTRY.values())
+
+
+def _register_builtin_profiles() -> None:
+    """Register the three legacy profile slots. Called at module init."""
+    for name, description in (
+        ("full", "Default Grok 4.3 hybrid pipeline (reasoning + writing + strategy)"),
+        ("lite", "Premium pipeline with Pro instead of Deep Research for strategy"),
+        ("fast", "Grok 4.3 low-effort + 4.20-non-reasoning bulk writing"),
+    ):
+        register_eval_profile(
+            EvalProfileSlot(
+                name=name,
+                recipe=None,  # legacy slots use mode flags, not per-role recipe
+                estimated_cost_usd=None,  # falls back to mode-based cost estimator
+                description=description,
+                is_builtin=True,
+            )
+        )
+
+
+_register_builtin_profiles()
+
+
+def _register_v1_24_0_eval_matrix() -> None:
+    """Side-effect import of the v1.24.0 cross-provider eval matrix.
+
+    Wrapped so a missing config module (e.g., during a partial install or
+    docs-only checkout) doesn't break the eval CLI for built-in slots.
+    See src/primr/config/eval_profiles.py.
+    """
+    try:
+        import primr.config.eval_profiles  # noqa: F401  - side-effect import
+    except ImportError as e:
+        logger.warning(
+            "Could not load v1.24.0 cross-provider eval matrix: %s. "
+            "Built-in slots (full/lite/fast) remain available.",
+            e,
+        )
+
+
+_register_v1_24_0_eval_matrix()
+
+
 @dataclass(frozen=True)
 class ReportMetrics:
     company: str
@@ -296,6 +492,25 @@ def _find_profile_reports(profile_dir: Path, profile: str) -> list[ReportMetrics
 
 
 def _estimated_profile_cost(profile: str) -> float:
+    """Resolve estimated cost for a profile.
+
+    Resolution order:
+      1. If the slot is registered with an explicit estimated_cost_usd, use it.
+      2. Else if the slot has a recipe (cross-provider eval slot), compute cost
+         from the recipe's role models. Today this returns a placeholder using
+         the recipe's writing model rate at default token volumes — sharpen
+         once primr's per-role token estimates are exposed by the cost
+         estimator (v1.24.0 follow-on).
+      3. Else fall back to the legacy mode-based estimator using the well-known
+         names ("fast", "lite", anything else = full).
+
+    The registry-based path is used for v1.24.0 cross-provider eval slots; the
+    legacy fallback keeps existing full/lite/fast eval flows unchanged.
+    """
+    slot = _PROFILE_REGISTRY.get(profile)
+    if slot is not None and slot.estimated_cost_usd is not None:
+        return slot.estimated_cost_usd
+
     if profile == "fast":
         return estimate_cost("complete", include_ai_strategy=True, fast_mode=True).total_cost
     if profile == "lite":

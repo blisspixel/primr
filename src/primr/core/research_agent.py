@@ -111,6 +111,7 @@ if TYPE_CHECKING:
 
 from primr.ai.grading_agent import grade_report
 from primr.ai.llm import llm
+from primr.ai.routing import Role, pick_model_for_role
 from primr.ai.summarize import summarize_scraped_content
 from primr.config.config import (
     FAST_FEEDBACK_RULES_PATH,
@@ -125,8 +126,24 @@ from primr.config.config import (
     WORKING_DIR,
 )
 from primr.config.env import load_primr_env
-from primr.config.models import GROK_MODEL_WRITING, GrokTier, PrimrModels
+from primr.config.models import GrokTier, PrimrModels
 from primr.config.sections_config import SECTION_KEY_MAP
+
+
+def _default_writing_model() -> str:
+    """Resolve the default writing-tier model via the routing layer.
+
+    The routing layer honors the active eval recipe override (set by the eval
+    generation runner via EvalRecipeOverride), so each writing-stage entry
+    point that uses this default automatically picks up the slot's writing
+    model when the eval is running. Production calls without an active recipe
+    fall through to the default routing (Grok 4.20-NR when XAI_API_KEY is set,
+    Pro model otherwise).
+
+    Replaces direct references to ``GROK_MODEL_WRITING`` for default resolution
+    so the recipe override actually flows through to writing calls.
+    """
+    return pick_model_for_role(Role.WRITING)
 from primr.core.research_orchestrator import (
     ResearchConfig,
     ResearchMode,
@@ -1794,7 +1811,7 @@ def _write_section_with_retry(
         reasoning_mode,
     )
 
-    writing_model = model or GROK_MODEL_WRITING
+    writing_model = model or _default_writing_model()
     try:
         section_content = grok_llm(
             prompt,
@@ -1916,7 +1933,7 @@ Return the full markdown report. No preamble.
 {report_content}
 --- REPORT END ---
 """
-    writing_model = model or GROK_MODEL_WRITING
+    writing_model = model or _default_writing_model()
     try:
         polished = grok_llm(
             prompt,
@@ -2593,7 +2610,7 @@ RULES:
         "Preserve depth, improve auditability, and resolve contradictions conservatively."
     )
 
-    writing_model = model or GROK_MODEL_WRITING
+    writing_model = model or _default_writing_model()
     try:
         repaired = grok_llm(
             prompt,
@@ -2835,7 +2852,7 @@ Return the full corrected markdown report only.
 {report_content}
 --- REPORT END ---
 """
-    writing_model = model or GROK_MODEL_WRITING
+    writing_model = model or _default_writing_model()
     try:
         repaired = grok_llm(
             prompt,
@@ -2927,7 +2944,7 @@ Return the fully edited markdown report only.
 {report_content}
 --- REPORT END ---
 """
-    writing_model = model or GROK_MODEL_WRITING
+    writing_model = model or _default_writing_model()
     try:
         polished = grok_llm(
             prompt,
@@ -3610,7 +3627,7 @@ RULES:
         "to make the section analytically stronger. Be conservative on financial inferences."
     )
 
-    writing_model = model or GROK_MODEL_WRITING
+    writing_model = model or _default_writing_model()
     try:
         result = grok_llm(
             prompt,
@@ -3800,7 +3817,7 @@ RULES:
         "more specific and actionable. Be conservative on cost estimates."
     )
 
-    writing_model = model or GROK_MODEL_WRITING
+    writing_model = model or _default_writing_model()
     try:
         result = grok_llm(
             prompt,
@@ -3881,7 +3898,7 @@ Return the fully edited markdown strategy document only. No preamble or commenta
 {strategy_content}
 --- STRATEGY END ---"""
 
-    writing_model = model or GROK_MODEL_WRITING
+    writing_model = model or _default_writing_model()
     try:
         polished = grok_llm(
             prompt,
@@ -4127,6 +4144,37 @@ def perform_fast_research(
 
     # Resolve Grok model pair for this tier
     grok_reasoning, grok_writing = PrimrModels.get_grok_models(GrokTier(grok_tier))
+
+    # v1.24.0: when an eval recipe override is active, the recipe's writing
+    # model wins over the Grok-tier writer. This is what makes cross-provider
+    # eval cells actually use their declared writing model (e.g. Gemini 3.1
+    # Flash-Lite) instead of always falling through to grok_writing. The
+    # cross-provider dispatch in grok_llm handles non-Grok models correctly.
+    #
+    # Reasoning is NOT overridden here — primr's reasoning stages call
+    # grok_llm directly with the xAI-specific session pattern (continuous
+    # reasoning, max-effort intensity). Cross-provider reasoning is deferred
+    # to a separate refactor; eval recipes that pick non-Grok reasoning
+    # (currently only o4mini-flashlite) are out of scope for v1.24.0 stage 1.
+    from primr.ai.routing import get_active_eval_recipe
+
+    _active_recipe = get_active_eval_recipe()
+    if _active_recipe is not None and _active_recipe.writing:
+        grok_writing = _active_recipe.writing
+
+    # Print the resolved models so an eval cell can verify (before any LLM
+    # spend) that the recipe override actually flowed through. This is a
+    # cheap correctness check — if the run-log shows grok_writing=grok-4.20-NR
+    # when the recipe specified gemini-3.1-flash-lite, the override didn't
+    # work and the cell should be aborted before paying for the full run.
+    if _active_recipe is not None:
+        from primr.utils.console import console as _console
+
+        _console.info(
+            f"Active eval recipe: writing={grok_writing}, reasoning={grok_reasoning} "
+            f"(recipe declared writing={_active_recipe.writing}, "
+            f"reasoning={_active_recipe.reasoning})"
+        )
 
     # Determine reasoning_effort for the FAST tier — grok-4.3 supports
     # low/medium/high effort levels. FAST uses "low" to reduce cost/latency;
@@ -5049,6 +5097,19 @@ def perform_fast_research(
             report_headings = re.findall(r"^## (.+)$", report_content, re.MULTILINE)
             heading_lookup = {h.lower().strip(): h for h in report_headings}
 
+            # Per-section enrichment deadline. Without this, a single slow
+            # query (DDG hang, slow validator, deadlocked external scrape)
+            # blocked the whole cross-validation phase indefinitely — caught
+            # twice during the v1.24.0 eval where two cells deadlocked here
+            # for 12-24 hours. The inner scrape_external_sources_validated
+            # call has retry/backoff but no overarching wall-clock cap, so
+            # we add one at this level instead. Matches the pattern used at
+            # line 4403 (external-source validation pool deadline).
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            from concurrent.futures import TimeoutError as _FutTimeout
+
+            _enrich_section_deadline_s = 300.0  # 5 min hard cap per section
+
             for ws in weak_sections:
                 raw_title = str(ws.get("title", "")).lstrip("#").strip()
                 raw_queries = ws.get("queries", [])
@@ -5060,34 +5121,89 @@ def perform_fast_research(
                 # Case-insensitive heading match
                 section_title = heading_lookup.get(raw_title.lower(), raw_title)
 
-                # Search for additional evidence
+                # Search for additional evidence — wrapped in a future so a
+                # hung sub-call can be abandoned without blocking the whole
+                # cross-validation phase. `_queries` is bound as a default arg
+                # to defeat the late-binding-in-closure trap (otherwise each
+                # iteration's submitted worker would capture the same `queries`
+                # name and see whatever it resolves to at call time).
+                def _enrich_section_work(
+                    _queries: list[str] = queries,
+                ) -> tuple[list[str], int, list[str], set[str]]:
+                    local_evidence: list[str] = []
+                    local_new_sources = 0
+                    local_urls: list[str] = []
+                    local_urls_seen: set[str] = set()
+                    for q in _queries:
+                        results = search_web(q, company_name, website)
+                        if not results:
+                            continue
+                        filtered = [
+                            r
+                            for r in results[:3]
+                            if (not website or website.lower() not in r.get("url", "").lower())
+                            and r.get("url", "") not in source_urls_seen
+                            and r.get("url", "") not in local_urls_seen
+                        ]
+                        scraped = scrape_external_sources_validated(
+                            filtered,
+                            company_name=company_name,
+                            website=website,
+                            max_sources=3,
+                        )
+                        for url, content in scraped.items():
+                            if url in source_urls_seen or url in local_urls_seen:
+                                continue
+                            local_urls.append(url)
+                            local_urls_seen.add(url)
+                            local_evidence.append(f"[Source: {url}]\n{content[:12_000]}")
+                            local_new_sources += 1
+                    return local_evidence, local_new_sources, local_urls, local_urls_seen
+
                 new_evidence_parts: list[str] = []
                 cv_new_sources = 0
+                _enrich_pool = ThreadPoolExecutor(max_workers=1)
+                cv_search_count += len(queries)  # count queries even if abandoned
                 with console.timed_operation(f"Enriching: {section_title}"):
-                    for q in queries:
-                        cv_search_count += 1
-                        results = search_web(q, company_name, website)
-                        if results:
-                            filtered = [
-                                r
-                                for r in results[:3]
-                                if (not website or website.lower() not in r.get("url", "").lower())
-                                and r.get("url", "") not in source_urls_seen
-                            ]
-                            scraped = scrape_external_sources_validated(
-                                filtered,
-                                company_name=company_name,
-                                website=website,
-                                max_sources=3,
-                            )
-                            for url, content in scraped.items():
+                    fut = _enrich_pool.submit(_enrich_section_work)
+                    try:
+                        # Single-future as_completed with deadline. Raises
+                        # TimeoutError if the worker hasn't finished in time.
+                        for completed in as_completed(
+                            [fut], timeout=_enrich_section_deadline_s
+                        ):
+                            (
+                                _evidence,
+                                _new_count,
+                                _urls,
+                                _seen,
+                            ) = completed.result()
+                            new_evidence_parts = _evidence
+                            cv_new_sources = _new_count
+                            # Merge per-section URL tracking back into outer scope
+                            for url in _urls:
                                 if url not in source_urls_seen:
                                     source_urls.append(url)
                                     source_urls_seen.add(url)
-                                    new_evidence_parts.append(
-                                        f"[Source: {url}]\n{content[:12_000]}"
-                                    )
-                                    cv_new_sources += 1
+                    except _FutTimeout:
+                        console.warn(
+                            f"Enrichment deadline ({int(_enrich_section_deadline_s)}s) "
+                            f"exceeded for '{section_title}' — abandoning this section "
+                            f"and continuing"
+                        )
+                        # Best-effort cancel of the stuck worker so it doesn't
+                        # keep eating resources while we move on.
+                        _enrich_pool.shutdown(wait=False, cancel_futures=True)
+                        continue
+                    except Exception as e:
+                        logger.warning(
+                            "Enrichment worker for %s failed: %s",
+                            section_title, e,
+                        )
+                        _enrich_pool.shutdown(wait=False, cancel_futures=True)
+                        continue
+                    finally:
+                        _enrich_pool.shutdown(wait=False)
 
                 if not new_evidence_parts:
                     continue

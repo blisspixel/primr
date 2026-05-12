@@ -5,42 +5,62 @@ Centralized Model Configuration for Primr
 THIS IS THE SINGLE SOURCE OF TRUTH FOR ALL AI MODELS.
 UPDATE HERE TO CHANGE MODELS GLOBALLY.
 
-AVAILABLE MODELS (February 2026):
-----------------------------------
-GEMINI 3.1 SERIES (Preview - February 2026 — CURRENT DEFAULT PRO):
-1. gemini-3.1-pro-preview  - Improved reasoning, token efficiency, factual consistency
-   - Also: gemini-3.1-pro-preview-customtools (optimized for agentic/tool-heavy workflows)
-   - TIERED PRICING: $2/$12 (prompts <=200k) | $4/$18 (prompts >200k) per 1M tokens
+Last audited: May 8, 2026 (see ROADMAP "Model Landscape Audit — May 2026").
+Pricing checked against provider docs the same day. Re-audit before each major
+eval — see ROADMAP "Model Adaptability".
 
-GEMINI 3 SERIES (GA January 2026):
-2. gemini-3-pro-preview    - PRO: Deep reasoning, 65k output, 1M context ($2/$12 per 1M)
-3. gemini-3-flash-preview  - FLASH: Speed + intelligence, 65k output, 1M context ($0.50/$3.00 per 1M)
+AVAILABLE MODELS (May 2026):
+-----------------------------
+xAI / GROK:
+  grok-4.3                   - Flagship reasoning, $1.25/$2.50 + $0.20 cached, 1M context
+                               No published >200K tier (flat rate)
+  grok-4.20-non-reasoning    - Bulk writing replacement after 4.1 retirement, $2/$6
+  grok-4.1-fast-*            - DEPRECATED, retired May 15, 2026
 
-GEMINI 2.5 SERIES (Stable Workhorses):
-4. gemini-2.5-pro          - Stable production, 8k output, 2M context ($1.25/$10 per 1M)
-5. gemini-2.5-flash        - High-volume, 8k output, 1M context ($0.30/$1.25 per 1M)
-6. gemini-2.5-flash-lite   - Ultra-cheap simple tasks ($0.10/$0.40 per 1M)
+GOOGLE / GEMINI:
+  gemini-3.1-pro-preview     - PRO default, $2/$12 (<=200k) | $4/$18 (>200k), 1M ctx, 65k out
+  gemini-3.1-flash-lite      - NEW (Mar 2026), $0.25/$1.50, 1M ctx, 65k out
+                               Leading writing-tier candidate for v1.24.0 sub-$1 default
+  gemini-3-flash-preview     - $0.50/$3.00, 1M ctx, 65k out
+  gemini-3-pro-preview       - DEPRECATED Mar 9, 2026 (replaced by 3.1 Pro)
+  gemini-2.5-flash-lite      - Ultra-cheap, $0.10/$0.40
+  gemini-2.5-flash           - $0.30/$2.50, 1M ctx (output rate updated May 2026)
+  gemini-2.5-pro             - Stable workhorse, $1.25/$10, 2M ctx, 8k out
+  deep-research-pro-preview-12-2025 - Autonomous 12+ page research reports
 
-SPECIALIZED:
-7. deep-research-pro-preview-12-2025 - Autonomous 12+ page research reports
+OPENAI:
+  gpt-5.5                    - Flagship, $5.00/$30.00 + $0.50 cached, 1M ctx
+  gpt-5.4                    - Affordable flagship, $2.50/$15.00 + $0.25 cached, 200k ctx
+  gpt-5.4-mini               - Utility candidate, $0.75/$4.50, 200k ctx
+  gpt-5.4-nano               - Ultra-cheap, $0.20/$1.25, 200k ctx, 16k out cap
+  o4-mini                    - Reasoning, $1.10/$4.40, alternative to Grok 4.3
+  All gpt-5.x: 2x input / 1.5x output above 272K input tokens.
 
-WHEN TO USE EACH:
------------------
-- FLASH (3): Smart chatbots, general assistance, scraping summaries, QA checks
-- PRO (3): Complex coding, reasoning, analysis, report writing (65k output!)
-- PRO (3.1): Same tasks as 3 Pro but with better thinking — use to validate before promoting
-- 2.5 FLASH: High-volume data processing where cost matters more than latest features
-- 2.5 FLASH-LITE: Simple classification, extraction, categorizing
+ANTHROPIC:
+  claude-opus-4-7            - Most capable, $5.00/$25.00 + $0.50 cached, 1M ctx, 128k out
+  claude-sonnet-4-6          - Balance, $3.00/$15.00 + $0.30 cached, 1M ctx, 64k out
+  claude-haiku-4-5           - Utility candidate, $1.00/$5.00 + $0.10 cached, 200k ctx
+  claude-haiku-3-5           - Cheaper utility option, $0.80/$4.00 + $0.08 cached, 200k ctx
 
-KEY UPGRADE: Gemini 3 has 65k max output tokens (vs 8k for 2.5) - can write entire files!
+OLLAMA (zero marginal cost):
+  qwen3-coder:30b, qwen2.5:32b, deepseek-r1:32b, qwen3:7b — 24GB VRAM compatible
 
-PRICING (February 2026):
--------------------------
-Gemini 3.1 Pro:  $2.00/$12.00 (prompts <=200k) | $4.00/$18.00 (prompts >200k) per 1M tokens
-Gemini 3 Pro:    $2.00 input / $12.00 output per 1M tokens (includes thinking tokens)
-Gemini 3 Flash:  $0.50 input / $3.00 output per 1M tokens
-Gemini 2.5 Pro:  $1.25 input / $10.00 output per 1M tokens
-Gemini 2.5 Flash: $0.30 input / $1.25 output per 1M tokens
+WHEN TO USE EACH (post-v1.24.0 eval-driven defaults will refine these):
+-----------------------------------------------------------------------
+- UTILITY tier (scraping summaries, link selection, QA): Gemini 3 Flash or Flash-Lite
+- WRITING tier (bulk section generation): Gemini 3.1 Flash-Lite (cheapest sub-$1 candidate)
+- REASONING tier (gap analysis, workbook, cross-validation): Grok 4.3 with cache
+- PREMIUM tier (Deep Research): Gemini Deep Research Agent
+
+KEY CHANGES SINCE v1.22.0:
+- Grok 4.1 line retired May 15, 2026 — `deprecated=True` on legacy entries
+- Grok 4.3 high-tier (>200K) placeholder REMOVED (xAI publishes no such tier)
+- Every gpt-5.x price updated (May 2026 audit found Feb registry prices stale)
+- Gemini 3.1 Flash-Lite added (Mar 2026 release, primary writing-tier candidate)
+- Gemini 3 Pro Preview marked deprecated (replaced by 3.1 Pro)
+- Gemini 2.5 Flash-Lite registered as ModelConfig (was only in module docstring)
+- o4-mini added as Grok 4.3 reasoning alternative
+- Haiku 3.5 added as alternate utility-tier candidate
 """
 
 from dataclasses import dataclass
@@ -130,7 +150,8 @@ class ModelRegistry:
 
     # =========================================================================
     # GEMINI 3 PRO - Deep reasoning, complex tasks (GA January 2026)
-    # USE FOR: Complex coding, reasoning, analysis, report writing
+    # ⚠️ DEPRECATED March 9, 2026 — replaced by gemini-3.1-pro-preview.
+    # Kept registered for historical eval comparison and back-compat only.
     # $2.00 input / $12.00 output per 1M tokens (includes thinking tokens)
     # Context: 2M tokens, Output: 65k tokens
     # =========================================================================
@@ -143,6 +164,30 @@ class ModelRegistry:
         max_input_tokens=2_000_000,  # 2M tokens
         max_output_tokens=65_536,  # 65k tokens (can write entire files!)
         supports_thinking=True,  # Native Chain-of-Thought
+        supports_tools=True,
+        supports_multimodal=True,
+        deprecated=True,  # Replaced by gemini-3.1-pro-preview on 2026-03-09
+    )
+
+    # =========================================================================
+    # GEMINI 3.1 FLASH-LITE - Cheapest Gemini-3-era model (released March 3, 2026)
+    # USE FOR: Bulk writing — leading writing-tier candidate for v1.24.0 sub-$1 default.
+    # $0.25 input / $1.50 output per 1M tokens (half the price of Gemini 3 Flash).
+    # Batch mode: $0.125 / $0.75 (50% off, currently unmodeled in cost estimator).
+    # Context: 1M tokens, Output: 65k tokens.
+    # ADDED: May 2026 audit — was missing from registry; this is the model that
+    # didn't exist when v1.22.0 was designed. With Grok 4.3 (cached) for reasoning,
+    # this brings the default pipeline back under $1.
+    # =========================================================================
+    GEMINI_3_1_FLASH_LITE = ModelConfig(
+        name="gemini-3.1-flash-lite",
+        display_name="Gemini 3.1 Flash-Lite",
+        provider="google",
+        cost_per_1m_input_tokens=0.25,
+        cost_per_1m_output_tokens=1.50,
+        max_input_tokens=1_048_576,  # 1M tokens
+        max_output_tokens=65_536,  # 65k tokens
+        supports_thinking=True,
         supports_tools=True,
         supports_multimodal=True,
     )
@@ -212,7 +257,8 @@ class ModelRegistry:
     # =========================================================================
     # GEMINI 2.5 FLASH - High-volume workhorse
     # USE FOR: High-volume data processing, cost-sensitive applications
-    # $0.30 input / $1.25 output per 1M tokens
+    # $0.30 input / $2.50 output per 1M tokens
+    # PRICING UPDATED: May 2026 audit — output rate moved from $1.25 to $2.50.
     # Context: 1M tokens, Output: 8k tokens
     # =========================================================================
     GEMINI_2_5_FLASH = ModelConfig(
@@ -220,7 +266,28 @@ class ModelRegistry:
         display_name="Gemini 2.5 Flash",
         provider="google",
         cost_per_1m_input_tokens=0.30,
-        cost_per_1m_output_tokens=1.25,
+        cost_per_1m_output_tokens=2.50,
+        max_input_tokens=1_000_000,  # 1M tokens
+        max_output_tokens=8_192,  # 8k tokens
+        supports_thinking=True,
+        supports_tools=True,
+        supports_multimodal=True,
+    )
+
+    # =========================================================================
+    # GEMINI 2.5 FLASH-LITE - Ultra-cheap utility tier
+    # USE FOR: Simple classification, extraction, categorizing
+    # $0.10 input / $0.40 output per 1M tokens
+    # Context: 1M tokens, Output: 8k tokens
+    # REGISTERED: May 2026 audit — was documented in module docstring but never
+    # registered as a ModelConfig. Now registered for inclusion in v1.24.0 eval.
+    # =========================================================================
+    GEMINI_2_5_FLASH_LITE = ModelConfig(
+        name="gemini-2.5-flash-lite",
+        display_name="Gemini 2.5 Flash-Lite",
+        provider="google",
+        cost_per_1m_input_tokens=0.10,
+        cost_per_1m_output_tokens=0.40,
         max_input_tokens=1_000_000,  # 1M tokens
         max_output_tokens=8_192,  # 8k tokens
         supports_thinking=True,
@@ -290,12 +357,13 @@ class ModelRegistry:
     # =========================================================================
     # GROK 4.3 - xAI flagship (released 2026-04-30), always-on reasoning
     # USE FOR: All reasoning stages; replaces 4.20 in HYBRID and MAX tiers.
-    # $1.25 input / $2.50 output / $0.20 cached input per 1M tokens
-    # Context: 1M tokens, Output: 131k tokens. Tiered pricing above 200k input.
+    # $1.25 input / $2.50 output / $0.20 cached input per 1M tokens — flat rate.
+    # Context: 1M tokens, Output: 131k tokens.
     # No non-reasoning variant — reasoning cannot be disabled.
+    # Reasoning intensity is a runtime parameter (3 levels) — see GrokTier mapping.
     # Multimodal input (text + image), text output.
-    # NOTE: high-tier (>200k) rates are placeholders (2x base) until confirmed
-    # against console.x.ai billing. Cache rate is published.
+    # NOTE: xAI publishes no >200K input tier — 4.3 launched as flat-rate.
+    # The high-tier placeholder fields from v1.22.0 were removed in May 2026 audit.
     # =========================================================================
     GROK_4_3 = ModelConfig(
         name="grok-4.3",
@@ -308,9 +376,6 @@ class ModelRegistry:
         supports_thinking=True,  # Always-on, cannot be disabled
         supports_tools=True,
         supports_multimodal=True,  # Image input supported
-        cost_per_1m_input_tokens_high=2.50,  # PLACEHOLDER until xAI publishes
-        cost_per_1m_output_tokens_high=5.00,  # PLACEHOLDER until xAI publishes
-        tier_threshold_tokens=200_000,
         cost_per_1m_input_tokens_cached=0.20,
     )
 
@@ -375,7 +440,9 @@ class ModelRegistry:
 
     # =========================================================================
     # GROK 4.20 MULTI-AGENT - xAI flagship with tool calling optimizations
-    # Registered but not wired — no pipeline stage currently needs tool calling
+    # Registered but not wired — superseded by Grok 4.3's reasoning-intensity
+    # parameter (3 levels) which delivers the same value via runtime control.
+    # Kept registered for back-compat; flagged for removal once tests are updated.
     # $2.00 input / $6.00 output per 1M tokens
     # Context: 2M tokens, Output: 131k tokens
     # =========================================================================
@@ -390,82 +457,117 @@ class ModelRegistry:
         supports_thinking=False,
         supports_tools=True,
         supports_multimodal=False,
+        deprecated=True,  # Superseded by Grok 4.3 reasoning-intensity parameter
     )
 
     # =========================================================================
-    # OPENAI GPT-5.5 - Flagship reasoning + coding
-    # $2.00 input / $10.00 output per 1M tokens, cached input $0.50
+    # OPENAI GPT-5.5 - Flagship reasoning + coding (released April 24, 2026)
+    # $5.00 input / $30.00 output per 1M tokens, cached input $0.50
+    # Long-context surcharge: 2x input / 1.5x output above 272K input tokens
     # Context: 1M tokens, Output: 100k tokens
+    # PRICING UPDATED: May 2026 audit — Feb 2026 registry had $2.00/$10.00 (wrong).
     # =========================================================================
     OPENAI_GPT_5_5 = ModelConfig(
         name="gpt-5.5",
         display_name="GPT-5.5",
         provider="openai",
-        cost_per_1m_input_tokens=2.00,
-        cost_per_1m_output_tokens=10.00,
+        cost_per_1m_input_tokens=5.00,
+        cost_per_1m_output_tokens=30.00,
         max_input_tokens=1_000_000,
         max_output_tokens=100_000,
         supports_thinking=True,
         supports_tools=True,
         supports_multimodal=True,
         cost_per_1m_input_tokens_cached=0.50,
+        cost_per_1m_input_tokens_high=10.00,   # 2x base above 272K input
+        cost_per_1m_output_tokens_high=45.00,  # 1.5x base above 272K input
+        tier_threshold_tokens=272_000,
     )
 
     # =========================================================================
     # OPENAI GPT-5.4 - Affordable flagship
-    # $2.50 input / $10.00 output per 1M tokens, cached input $0.625
+    # $2.50 input / $15.00 output per 1M tokens, cached input $0.25
+    # Long-context surcharge: 2x input / 1.5x output above 272K input tokens
     # Context: 200k tokens, Output: 100k tokens
+    # PRICING UPDATED: May 2026 audit — output was $10.00, cached was $0.625.
     # =========================================================================
     OPENAI_GPT_5_4 = ModelConfig(
         name="gpt-5.4",
         display_name="GPT-5.4",
         provider="openai",
         cost_per_1m_input_tokens=2.50,
-        cost_per_1m_output_tokens=10.00,
+        cost_per_1m_output_tokens=15.00,
         max_input_tokens=200_000,
         max_output_tokens=100_000,
         supports_thinking=True,
         supports_tools=True,
         supports_multimodal=True,
-        cost_per_1m_input_tokens_cached=0.625,
+        cost_per_1m_input_tokens_cached=0.25,
+        # Note: gpt-5.4 context cap is 200K; long-context surcharge above 272K
+        # would never trigger for this model. Tier fields omitted.
     )
 
     # =========================================================================
     # OPENAI GPT-5.4 MINI - Utility tier candidate
-    # $0.40 input / $1.60 output per 1M tokens, cached input $0.10
+    # $0.75 input / $4.50 output per 1M tokens
     # Context: 200k tokens, Output: 100k tokens
+    # PRICING UPDATED: May 2026 audit — was $0.40/$1.60 (wrong).
+    # Cached rate not separately published — OpenAI's general 90%-off cache
+    # rule would imply ~$0.075 cached input.
     # =========================================================================
     OPENAI_GPT_5_4_MINI = ModelConfig(
         name="gpt-5.4-mini",
         display_name="GPT-5.4 Mini",
         provider="openai",
-        cost_per_1m_input_tokens=0.40,
-        cost_per_1m_output_tokens=1.60,
+        cost_per_1m_input_tokens=0.75,
+        cost_per_1m_output_tokens=4.50,
         max_input_tokens=200_000,
         max_output_tokens=100_000,
         supports_thinking=True,
         supports_tools=True,
         supports_multimodal=True,
-        cost_per_1m_input_tokens_cached=0.10,
+        cost_per_1m_input_tokens_cached=0.075,  # Inferred from 90% cache rule
     )
 
     # =========================================================================
     # OPENAI GPT-5.4 NANO - Ultra-cheap utility tier
-    # $0.10 input / $0.40 output per 1M tokens, cached input $0.025
-    # Context: 200k tokens, Output: 16k tokens
+    # $0.20 input / $1.25 output per 1M tokens
+    # Context: 200k tokens, Output: 16k tokens (output cap may force per-section sizing)
+    # PRICING UPDATED: May 2026 audit — was $0.10/$0.40 (wrong).
     # =========================================================================
     OPENAI_GPT_5_4_NANO = ModelConfig(
         name="gpt-5.4-nano",
         display_name="GPT-5.4 Nano",
         provider="openai",
-        cost_per_1m_input_tokens=0.10,
-        cost_per_1m_output_tokens=0.40,
+        cost_per_1m_input_tokens=0.20,
+        cost_per_1m_output_tokens=1.25,
         max_input_tokens=200_000,
         max_output_tokens=16_384,
         supports_thinking=False,
         supports_tools=True,
         supports_multimodal=True,
-        cost_per_1m_input_tokens_cached=0.025,
+        cost_per_1m_input_tokens_cached=0.02,  # Inferred from 90% cache rule
+    )
+
+    # =========================================================================
+    # OPENAI O4-MINI - Reasoning model (faster than o3-mini, same price)
+    # $1.10 input / $4.40 output per 1M tokens
+    # Strong reasoning candidate for v1.24.0 eval — cheaper output than Grok 4.3.
+    # Context: 200K tokens (typical OpenAI tier; verify before relying), Output: 100K.
+    # ADDED: May 2026 audit — was missing from registry entirely.
+    # =========================================================================
+    OPENAI_O4_MINI = ModelConfig(
+        name="o4-mini",
+        display_name="o4-mini",
+        provider="openai",
+        cost_per_1m_input_tokens=1.10,
+        cost_per_1m_output_tokens=4.40,
+        max_input_tokens=200_000,
+        max_output_tokens=100_000,
+        supports_thinking=True,
+        supports_tools=True,
+        supports_multimodal=False,  # Reasoning models typically text-only
+        cost_per_1m_input_tokens_cached=0.11,  # Inferred from 90% cache rule
     )
 
     # =========================================================================
@@ -512,6 +614,7 @@ class ModelRegistry:
     # =========================================================================
     # ANTHROPIC CLAUDE HAIKU 4.5 - Fastest, utility tier candidate
     # $1.00 input / $5.00 output per 1M tokens, cached input $0.10
+    # Batch API: $0.50 / $2.50 (50% off, currently unmodeled in cost estimator)
     # Context: 200k tokens, Output: 64k tokens
     # =========================================================================
     ANTHROPIC_HAIKU = ModelConfig(
@@ -526,6 +629,28 @@ class ModelRegistry:
         supports_tools=True,
         supports_multimodal=True,
         cost_per_1m_input_tokens_cached=0.10,
+    )
+
+    # =========================================================================
+    # ANTHROPIC CLAUDE HAIKU 3.5 - Cheaper utility tier alternative
+    # $0.80 input / $4.00 output per 1M tokens, cached input $0.08
+    # Batch API: $0.40 / $2.00 (50% off, currently unmodeled)
+    # Context: 200k tokens, Output: 8k tokens (Claude 3 era)
+    # ADDED: May 2026 audit — useful as a cheap alternative to Haiku 4.5
+    # for utility-tier roles where Haiku 4.5's full capability isn't needed.
+    # =========================================================================
+    ANTHROPIC_HAIKU_3_5 = ModelConfig(
+        name="claude-haiku-3-5",
+        display_name="Claude Haiku 3.5",
+        provider="anthropic",
+        cost_per_1m_input_tokens=0.80,
+        cost_per_1m_output_tokens=4.00,
+        max_input_tokens=200_000,
+        max_output_tokens=8_192,
+        supports_thinking=False,  # Pre-Claude-4 era, no extended thinking
+        supports_tools=True,
+        supports_multimodal=True,
+        cost_per_1m_input_tokens_cached=0.08,
     )
 
     # =========================================================================
@@ -590,6 +715,115 @@ class ModelRegistry:
         cost_per_1m_input_tokens=0.0,
         cost_per_1m_output_tokens=0.0,
         max_input_tokens=131_072,
+        max_output_tokens=16_384,
+        supports_thinking=True,
+        supports_tools=True,
+        supports_multimodal=False,
+    )
+
+    # =========================================================================
+    # OLLAMA QWEN3 32B - Dense daily-driver candidate for 24GB GPUs
+    # Zero cost (local), 40k context, ~20GB VRAM at Q4
+    # ADDED: May 2026 — RTX 4090 top-tier candidate for v1.24.0 eval matrix
+    # =========================================================================
+    OLLAMA_QWEN3_32B = ModelConfig(
+        name="qwen3:32b",
+        display_name="Qwen3 32B (Local)",
+        provider="ollama",
+        cost_per_1m_input_tokens=0.0,
+        cost_per_1m_output_tokens=0.0,
+        max_input_tokens=40_960,
+        max_output_tokens=32_768,
+        supports_thinking=True,
+        supports_tools=True,
+        supports_multimodal=False,
+    )
+
+    # =========================================================================
+    # OLLAMA QWEN3.6 35B-A3B - MoE, 35B total / 3B active (released Apr 16, 2026)
+    # Zero cost (local), 262K native context expandable to ~1M, fast tok/s on 24GB
+    # ADDED: May 2026 — fast agentic tier for v1.24.0 eval matrix
+    # =========================================================================
+    OLLAMA_QWEN3_6_35B_A3B = ModelConfig(
+        name="qwen3.6:35b-a3b",
+        display_name="Qwen3.6 35B-A3B (Local)",
+        provider="ollama",
+        cost_per_1m_input_tokens=0.0,
+        cost_per_1m_output_tokens=0.0,
+        max_input_tokens=262_144,
+        max_output_tokens=32_768,
+        supports_thinking=True,
+        supports_tools=True,
+        supports_multimodal=False,
+    )
+
+    # =========================================================================
+    # OLLAMA GEMMA3 27B - Dense, multimodal, 128K context, ~17GB VRAM at Q4
+    # Zero cost (local), native multimodal text+image (relevant for vision tier)
+    # ADDED: May 2026 — multimodal-capable writing tier for v1.24.0 eval matrix
+    # =========================================================================
+    OLLAMA_GEMMA3_27B = ModelConfig(
+        name="gemma3:27b",
+        display_name="Gemma3 27B (Local)",
+        provider="ollama",
+        cost_per_1m_input_tokens=0.0,
+        cost_per_1m_output_tokens=0.0,
+        max_input_tokens=131_072,
+        max_output_tokens=8_192,
+        supports_thinking=True,
+        supports_tools=True,
+        supports_multimodal=True,
+    )
+
+    # =========================================================================
+    # OLLAMA LLAMA 4 SCOUT - 109B MoE / 17B active, 10M token context, multimodal
+    # Zero cost (local), ~22-24GB VRAM at Q4, unique 10M context window
+    # ADDED: May 2026 — long-context reasoning tier (full corpus + workbook +
+    # cross-validation could fit in one window)
+    # =========================================================================
+    OLLAMA_LLAMA4_SCOUT = ModelConfig(
+        name="llama4:scout",
+        display_name="Llama 4 Scout (Local)",
+        provider="ollama",
+        cost_per_1m_input_tokens=0.0,
+        cost_per_1m_output_tokens=0.0,
+        max_input_tokens=10_485_760,  # 10M tokens — uniquely large for local
+        max_output_tokens=32_768,
+        supports_thinking=True,
+        supports_tools=True,
+        supports_multimodal=True,
+    )
+
+    # =========================================================================
+    # OLLAMA GLM-4.6 - 200K context, strong agentic / tool-use benchmarks
+    # Zero cost (local), competitive with DeepSeek-V3.1 / Sonnet 4 per provider
+    # ADDED: May 2026 — reasoning candidate for v1.24.0 eval matrix
+    # =========================================================================
+    OLLAMA_GLM_4_6 = ModelConfig(
+        name="glm-4.6",
+        display_name="GLM-4.6 (Local)",
+        provider="ollama",
+        cost_per_1m_input_tokens=0.0,
+        cost_per_1m_output_tokens=0.0,
+        max_input_tokens=200_000,
+        max_output_tokens=32_768,
+        supports_thinking=True,
+        supports_tools=True,
+        supports_multimodal=False,
+    )
+
+    # =========================================================================
+    # OLLAMA PHI-4 14B - Microsoft, beats many 30-70B models on STEM/structured logic
+    # Zero cost (local), 14B params, fits comfortably under 24GB even at higher quant
+    # ADDED: May 2026 — small-footprint utility tier for v1.24.0 eval matrix
+    # =========================================================================
+    OLLAMA_PHI4_14B = ModelConfig(
+        name="phi4:14b",
+        display_name="Phi-4 14B (Local)",
+        provider="ollama",
+        cost_per_1m_input_tokens=0.0,
+        cost_per_1m_output_tokens=0.0,
+        max_input_tokens=16_384,
         max_output_tokens=16_384,
         supports_thinking=True,
         supports_tools=True,
@@ -695,13 +929,17 @@ class PrimrModels:
 
     # Model registry for lookups
     ALL_MODELS = {
+        # Google / Gemini
         ModelRegistry.GEMINI_3_1_PRO.name: ModelRegistry.GEMINI_3_1_PRO,
         ModelRegistry.GEMINI_3_1_PRO_CUSTOMTOOLS.name: ModelRegistry.GEMINI_3_1_PRO_CUSTOMTOOLS,
+        ModelRegistry.GEMINI_3_1_FLASH_LITE.name: ModelRegistry.GEMINI_3_1_FLASH_LITE,
         ModelRegistry.GEMINI_3_PRO.name: ModelRegistry.GEMINI_3_PRO,
         ModelRegistry.GEMINI_3_FLASH.name: ModelRegistry.GEMINI_3_FLASH,
         ModelRegistry.GEMINI_3_PRO_IMAGE.name: ModelRegistry.GEMINI_3_PRO_IMAGE,
         ModelRegistry.GEMINI_2_5_PRO.name: ModelRegistry.GEMINI_2_5_PRO,
         ModelRegistry.GEMINI_2_5_FLASH.name: ModelRegistry.GEMINI_2_5_FLASH,
+        ModelRegistry.GEMINI_2_5_FLASH_LITE.name: ModelRegistry.GEMINI_2_5_FLASH_LITE,
+        # xAI / Grok
         ModelRegistry.GROK_4_1_FAST.name: ModelRegistry.GROK_4_1_FAST,
         ModelRegistry.GROK_4_1_FAST_NR.name: ModelRegistry.GROK_4_1_FAST_NR,
         ModelRegistry.GROK_4_3.name: ModelRegistry.GROK_4_3,
@@ -709,17 +947,29 @@ class PrimrModels:
         ModelRegistry.GROK_4_20_NR.name: ModelRegistry.GROK_4_20_NR,
         ModelRegistry.GROK_4_20_NR_NEW.name: ModelRegistry.GROK_4_20_NR_NEW,
         ModelRegistry.GROK_4_20_MULTI_AGENT.name: ModelRegistry.GROK_4_20_MULTI_AGENT,
+        # OpenAI
         ModelRegistry.OPENAI_GPT_5_5.name: ModelRegistry.OPENAI_GPT_5_5,
         ModelRegistry.OPENAI_GPT_5_4.name: ModelRegistry.OPENAI_GPT_5_4,
         ModelRegistry.OPENAI_GPT_5_4_MINI.name: ModelRegistry.OPENAI_GPT_5_4_MINI,
         ModelRegistry.OPENAI_GPT_5_4_NANO.name: ModelRegistry.OPENAI_GPT_5_4_NANO,
+        ModelRegistry.OPENAI_O4_MINI.name: ModelRegistry.OPENAI_O4_MINI,
+        # Anthropic
         ModelRegistry.ANTHROPIC_OPUS.name: ModelRegistry.ANTHROPIC_OPUS,
         ModelRegistry.ANTHROPIC_SONNET.name: ModelRegistry.ANTHROPIC_SONNET,
         ModelRegistry.ANTHROPIC_HAIKU.name: ModelRegistry.ANTHROPIC_HAIKU,
+        ModelRegistry.ANTHROPIC_HAIKU_3_5.name: ModelRegistry.ANTHROPIC_HAIKU_3_5,
+        # Ollama (local, zero cost) — original four
         ModelRegistry.OLLAMA_QWEN3_CODER_30B.name: ModelRegistry.OLLAMA_QWEN3_CODER_30B,
         ModelRegistry.OLLAMA_QWEN2_5_32B.name: ModelRegistry.OLLAMA_QWEN2_5_32B,
         ModelRegistry.OLLAMA_DEEPSEEK_R1_32B.name: ModelRegistry.OLLAMA_DEEPSEEK_R1_32B,
         ModelRegistry.OLLAMA_QWEN3_7B.name: ModelRegistry.OLLAMA_QWEN3_7B,
+        # Ollama — May 2026 RTX 4090 candidates added for v1.24.0 eval matrix
+        ModelRegistry.OLLAMA_QWEN3_32B.name: ModelRegistry.OLLAMA_QWEN3_32B,
+        ModelRegistry.OLLAMA_QWEN3_6_35B_A3B.name: ModelRegistry.OLLAMA_QWEN3_6_35B_A3B,
+        ModelRegistry.OLLAMA_GEMMA3_27B.name: ModelRegistry.OLLAMA_GEMMA3_27B,
+        ModelRegistry.OLLAMA_LLAMA4_SCOUT.name: ModelRegistry.OLLAMA_LLAMA4_SCOUT,
+        ModelRegistry.OLLAMA_GLM_4_6.name: ModelRegistry.OLLAMA_GLM_4_6,
+        ModelRegistry.OLLAMA_PHI4_14B.name: ModelRegistry.OLLAMA_PHI4_14B,
     }
 
     @classmethod

@@ -14,7 +14,7 @@ Runs as a CLI, an MCP server, an OpenClaw integration, and a Claude Skill.
 primr "ExampleCo" https://example.co
 ```
 
-About 35-50 minutes later: a deep strategic analysis covering competitive positioning, technology stack, strategic initiatives, likely constraints, and consultant-grade hypotheses, with dense references consolidated at the end. ~$0.60 in API costs.
+About 23-35 minutes later: a deep strategic analysis covering competitive positioning, technology stack, strategic initiatives, likely constraints, and consultant-grade hypotheses, with dense references consolidated at the end. **~$0.79 in API costs** when both `GEMINI_API_KEY` and `XAI_API_KEY` are set (Grok 4.3 for reasoning with cached input, Gemini 3.1 Flash-Lite for bulk writing — the v1.24.0 default after a cross-provider eval). XAI-only setups stay on the legacy Grok-NR writing path at ~$4.27/run.
 
 ## Why This Exists
 
@@ -47,14 +47,16 @@ Near-term work remains focused on pushing more structure upstream into the long-
 
 ## Modes
 
+> **Cost note (May 2026 / v1.24.0):** Default is now ~$0.79/run when both `GEMINI_API_KEY` and `XAI_API_KEY` are set (Grok 4.3 reasoning + Gemini 3.1 Flash-Lite writing). XAI-only setups stay on the legacy ~$4.27/run Grok-NR path. The cross-provider default was picked via a real eval on Real Matters Inc. — 4.4x cheaper than the legacy default with trust gate PASS and faster runtime. See [docs/EVAL_V1_24_0.md](docs/EVAL_V1_24_0.md) for the decision audit.
+
 | Mode | What it does | Time | Cost |
 |------|--------------|------|------|
-| Default | Grok 4.3 hybrid + AI Strategy (recon auto-detects platform) | ~35-50 min | ~$0.60 |
-| `--platform ms` | Microsoft Azure + NVIDIA private cloud strategy | ~45-60 min | ~$0.65 |
-| Default + multi-platform | Add `--platform aws azure` | ~45-60 min | ~$0.65 |
-| Default + strategy type | Add `--strategy-type customer_experience` | ~35-50 min | ~$0.60 |
-| `--grok-tier fast` | Grok 4.3 low-effort + 4.20-nr (cheaper reasoning) | ~35-50 min | ~$4.27 |
-| `--grok-tier max` | Grok 4.3 everywhere (deeper reasoning across writing too) | ~35-50 min | ~$2.50 |
+| Default (Gemini + XAI) | Grok 4.3 reasoning + Gemini 3.1 Flash-Lite writing + AI Strategy | ~23-35 min | **~$0.79** |
+| Default (XAI only) | Grok 4.3 hybrid + Grok 4.20-NR writing (legacy fallback) | ~35-50 min | ~$4.27 |
+| `--platform ms` | Microsoft Azure + NVIDIA private cloud strategy | ~30-50 min | ~$0.85 |
+| Default + multi-platform | Add `--platform aws azure` | ~30-50 min | ~$0.85 |
+| Default + strategy type | Add `--strategy-type customer_experience` | ~23-35 min | ~$0.79 |
+| `--grok-tier max` | Grok 4.3 everywhere (deeper reasoning across writing too) | ~35-50 min | ~$3.75 |
 | `--premium` | Gemini + Deep Research + AI Strategy | 50-75 min | ~$5 |
 | `--premium --platform ms` | Premium + Microsoft/NVIDIA | 75-120 min | $6-9 |
 | `--premium --lite` | Pro model instead of DR for AI Strategy | 50-80 min | ~$4 |
@@ -158,7 +160,7 @@ Grok 4.3 hybrid · recon auto-detected Azure
 ✓ Complete in 38m
   output/ExampleCo_Strategic_Overview_04-10-2026.docx
 
-PASS | 23 chapters | 48 citations | ~$0.74
+PASS | 23 chapters | 48 citations | ~$0.79
 ```
 
 ### What the output looks like
@@ -177,7 +179,7 @@ Reports include 23 structured sections, SWOT analysis, competitive landscape, di
 
 ## Under the Hood
 
-Primr uses an 8-tier browser-first retrieval engine with sticky tier memory, circuit breakers, and cookie handoff. Models range from Grok 4.1 ($0.20/$0.50 per 1M tokens) through Grok 4.3 ($1.25/$2.50 with $0.20 cached input) to Gemini Deep Research (~$2.50/task). The agentic architecture includes hypothesis tracking, subagents for each pipeline stage, governance hooks, and persistent research memory.
+Primr uses an 8-tier browser-first retrieval engine with sticky tier memory, circuit breakers, and cookie handoff. The v1.24.0 default recipe pairs Gemini 3.1 Flash-Lite ($0.25/$1.50 per 1M tokens) for bulk writing with Grok 4.3 ($1.25/$2.50, $0.20 cached input) for reasoning. Gemini Deep Research (~$2.50/task) handles premium-mode autonomous synthesis. The agentic architecture includes hypothesis tracking, subagents for each pipeline stage, governance hooks, and persistent research memory.
 
 For full architecture details, model pricing, and the retrieval tier breakdown, see [System Design](docs/ARCHITECTURE.md).
 

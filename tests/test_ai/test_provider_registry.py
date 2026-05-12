@@ -48,39 +48,80 @@ def _env_keyed_available() -> set[str]:
     }
 
 
+# All env-keyed provider keys — must be scrubbed from the test environment so
+# the user's real .env doesn't contaminate availability assertions.
+_ENV_KEYED_API_KEYS = {
+    "XAI_API_KEY",
+    "GEMINI_API_KEY",
+    "OPENAI_API_KEY",
+    "ANTHROPIC_API_KEY",
+}
+
+
+def _scrubbed_env() -> dict[str, str]:
+    """Return the current env with all provider API key vars removed."""
+    return {
+        k: v
+        for k, v in __import__("os").environ.items()
+        if k not in _ENV_KEYED_API_KEYS
+    }
+
+
 class TestAvailableProviders:
     def test_xai_only(self) -> None:
-        env = {k: v for k, v in __import__("os").environ.items() if k != "GEMINI_API_KEY"}
+        env = _scrubbed_env()
         env["XAI_API_KEY"] = "test-xai"
         with patch.dict("os.environ", env, clear=True):
             available = _env_keyed_available()
         assert available == {"xai"}
 
     def test_gemini_only(self) -> None:
-        env = {k: v for k, v in __import__("os").environ.items() if k != "XAI_API_KEY"}
+        env = _scrubbed_env()
         env["GEMINI_API_KEY"] = "test-gemini"
         with patch.dict("os.environ", env, clear=True):
             available = _env_keyed_available()
         assert available == {"gemini"}
 
     def test_both_keys(self) -> None:
-        env = {
-            "XAI_API_KEY": "test-xai",
-            "GEMINI_API_KEY": "test-gemini",
-        }
+        env = _scrubbed_env()
+        env["XAI_API_KEY"] = "test-xai"
+        env["GEMINI_API_KEY"] = "test-gemini"
         with patch.dict("os.environ", env, clear=True):
             available = _env_keyed_available()
         assert available == {"xai", "gemini"}
 
     def test_no_keys(self) -> None:
-        env = {
-            k: v
-            for k, v in __import__("os").environ.items()
-            if k not in {"XAI_API_KEY", "GEMINI_API_KEY"}
-        }
+        env = _scrubbed_env()
         with patch.dict("os.environ", env, clear=True):
             available = _env_keyed_available()
         assert available == set()
+
+    def test_openai_only(self) -> None:
+        """OPENAI_API_KEY alone surfaces openai as the only env-keyed provider."""
+        env = _scrubbed_env()
+        env["OPENAI_API_KEY"] = "test-openai"
+        with patch.dict("os.environ", env, clear=True):
+            available = _env_keyed_available()
+        assert available == {"openai"}
+
+    def test_anthropic_only(self) -> None:
+        """ANTHROPIC_API_KEY alone surfaces anthropic as the only env-keyed provider."""
+        env = _scrubbed_env()
+        env["ANTHROPIC_API_KEY"] = "test-anthropic"
+        with patch.dict("os.environ", env, clear=True):
+            available = _env_keyed_available()
+        assert available == {"anthropic"}
+
+    def test_all_four_keys(self) -> None:
+        """All four env-keyed providers surface when their keys are set."""
+        env = _scrubbed_env()
+        env["XAI_API_KEY"] = "test-xai"
+        env["GEMINI_API_KEY"] = "test-gemini"
+        env["OPENAI_API_KEY"] = "test-openai"
+        env["ANTHROPIC_API_KEY"] = "test-anthropic"
+        with patch.dict("os.environ", env, clear=True):
+            available = _env_keyed_available()
+        assert available == {"xai", "gemini", "openai", "anthropic"}
 
 
 class TestBuildProvider:

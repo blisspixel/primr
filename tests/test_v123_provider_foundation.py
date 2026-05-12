@@ -77,11 +77,19 @@ class TestRetirementMigration:
             f"Deprecated models found in fallback chains: {deprecated_names & all_chain_models}"
         )
 
-    def test_pick_model_for_role_utility_with_xai_key(self, monkeypatch) -> None:
-        """pick_model_for_role(Role.UTILITY) returns grok-4.20-non-reasoning when XAI_API_KEY is set."""
+    def test_pick_model_for_role_utility_with_xai_only(self, monkeypatch) -> None:
+        """XAI-only fallback path: pick_model_for_role(Role.UTILITY) returns
+        grok-4.20-non-reasoning when only XAI_API_KEY is set.
+
+        Post-v1.24.0 the Gemini key wins the utility tier (gemini-3-flash-preview),
+        so this test scrubs GEMINI_API_KEY to exercise the XAI-only fallback path.
+        """
         from primr.ai.routing import Role, pick_model_for_role
 
         monkeypatch.setenv("XAI_API_KEY", "test-key")
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         result = pick_model_for_role(Role.UTILITY)
         assert result == "grok-4.20-non-reasoning"
 
@@ -437,24 +445,27 @@ class TestCostInvariants:
 class TestCostEstimatorEdgeCases:
     """Task 12.3 — Edge cases for cost estimation."""
 
-    def test_tiered_pricing_triggers_for_grok_43(self) -> None:
-        """Tiered pricing triggers for grok-4.3 when prompt_tokens > 200k."""
+    def test_grok_43_has_no_high_tier(self) -> None:
+        """Grok 4.3 launched as flat-rate — xAI publishes no >200K input tier.
+
+        v1.22.0 registered placeholder high-tier rates pending xAI confirmation.
+        The May 2026 audit confirmed no such tier exists; placeholders were
+        removed in the post-audit registry update.
+        """
         model = "grok-4.3"
         config = PrimrModels.get_model_config(model)
         assert config is not None
-        assert config.has_tiered_pricing
-        assert config.tier_threshold_tokens == 200_000
+        assert not config.has_tiered_pricing
+        assert config.tier_threshold_tokens is None
 
-        # Standard tier (prompt <= 200k)
-        cost_standard = PrimrModels.calculate_cost(
+        # Cost should be identical regardless of prompt size — no tier flip.
+        cost_small = PrimrModels.calculate_cost(
             model, 100_000, 50_000, prompt_tokens=100_000
         )
-        # High tier (prompt > 200k)
-        cost_high = PrimrModels.calculate_cost(
+        cost_large = PrimrModels.calculate_cost(
             model, 100_000, 50_000, prompt_tokens=300_000
         )
-        # High tier should cost more
-        assert cost_high > cost_standard
+        assert cost_large == cost_small
 
     def test_calculate_cost_conservative_uses_highest_tier(self) -> None:
         """calculate_cost_conservative uses highest tier for tiered models."""
