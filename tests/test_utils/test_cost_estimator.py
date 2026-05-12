@@ -497,10 +497,18 @@ class TestGrokTier:
         assert ModelRegistry.GROK_4_3.cost_per_1m_output_tokens == 2.50
         assert ModelRegistry.GROK_4_3.cost_per_1m_input_tokens_cached == 0.20
 
-    def test_grok_43_tiered_pricing(self):
-        """Grok 4.3 has tiered pricing above 200k tokens."""
-        assert ModelRegistry.GROK_4_3.has_tiered_pricing
-        assert ModelRegistry.GROK_4_3.tier_threshold_tokens == 200_000
+    def test_grok_43_flat_pricing(self):
+        """Grok 4.3 launched as flat-rate — xAI publishes no >200K tier.
+
+        v1.22.0 registered placeholder high-tier rates (2x base) pending xAI
+        confirmation. The May 2026 audit confirmed no such tier exists, so the
+        placeholders were removed in the post-audit registry update.
+        See ROADMAP "Model Landscape Audit — May 2026".
+        """
+        assert not ModelRegistry.GROK_4_3.has_tiered_pricing
+        assert ModelRegistry.GROK_4_3.tier_threshold_tokens is None
+        assert ModelRegistry.GROK_4_3.cost_per_1m_input_tokens_high is None
+        assert ModelRegistry.GROK_4_3.cost_per_1m_output_tokens_high is None
 
     def test_grok_43_always_on_reasoning(self):
         """Grok 4.3 is reasoning-only — there is no non-reasoning variant."""

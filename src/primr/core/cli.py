@@ -1659,16 +1659,23 @@ Accordion Method Test (for development):
         "--eval-profiles",
         type=str,
         nargs="+",
-        choices=["full", "lite", "fast"],
         default=["full", "lite", "fast"],
-        help="Profiles to compare (default: full lite fast)",
+        help=(
+            "Profiles to compare (default: full lite fast). "
+            "Any registered profile slot name is accepted -- see "
+            "primr.core.model_eval.list_eval_profile_names() for the full set. "
+            "Cross-provider eval slots registered via register_eval_profile() "
+            "are accepted at runtime; argparse no longer restricts to the legacy three."
+        ),
     )
     parser.add_argument(
         "--eval-baseline",
         type=str,
-        choices=["full", "lite", "fast"],
         default="full",
-        help="Baseline profile for quality/cost ratio comparison (default: full)",
+        help=(
+            "Baseline profile for quality/cost ratio comparison (default: full). "
+            "Must be a registered profile slot name."
+        ),
     )
     parser.add_argument(
         "--eval-manifest",
@@ -2591,6 +2598,8 @@ def _handle_eval(config: CLIConfig) -> int:
         auto_stage_existing_reports,
         evaluate_outputs,
         get_eval_judge_candidate_profiles,
+        get_eval_profile,
+        list_eval_profile_names,
         run_grok_judge,
         run_local_judge,
         write_fast_feedback_guidance,
@@ -2609,6 +2618,27 @@ def _handle_eval(config: CLIConfig) -> int:
     if config.eval_baseline not in config.eval_profiles:
         console.error(
             f"--eval-baseline '{config.eval_baseline}' must be included in --eval-profiles"
+        )
+        return 1
+
+    # Validate every profile name is a registered slot. argparse no longer
+    # restricts to the legacy three; cross-provider eval slots are accepted
+    # via runtime registration. See ROADMAP "v1.24.0 — Sub-$1 default eval".
+    unknown_profiles = [p for p in config.eval_profiles if get_eval_profile(p) is None]
+    if unknown_profiles:
+        registered = ", ".join(list_eval_profile_names())
+        console.error(
+            f"Unregistered eval profile(s): {', '.join(unknown_profiles)}. "
+            f"Registered slots: {registered}."
+        )
+        console.info(
+            "Register a new slot with primr.core.model_eval.register_eval_profile() "
+            "before running eval against it."
+        )
+        return 1
+    if get_eval_profile(config.eval_baseline) is None:
+        console.error(
+            f"--eval-baseline '{config.eval_baseline}' is not a registered profile slot."
         )
         return 1
 
@@ -2679,6 +2709,13 @@ def _handle_eval(config: CLIConfig) -> int:
             to_run = current.missing_pairs[: config.eval_max_new_runs]
 
             def _profile_estimate(profile: str) -> float:
+                # Consult the slot registry first — registered slots may declare
+                # an explicit estimated_cost_usd (v1.24.0 cross-provider slots).
+                slot = get_eval_profile(profile)
+                if slot is not None and slot.estimated_cost_usd is not None:
+                    return slot.estimated_cost_usd
+
+                # Built-in slots fall through to the legacy mode-based estimator.
                 if profile == "fast":
                     return estimate_cost(
                         "complete", include_ai_strategy=True, fast_mode=True
@@ -2701,6 +2738,8 @@ def _handle_eval(config: CLIConfig) -> int:
             console.step("Eval run-missing")
             console.info(f"Executing {len(to_run)} run(s), estimated <= ${estimated_total:.2f}")
 
+            from primr.ai.routing import EvalRecipeOverride
+
             for company, profile in to_run:
                 website = websites.get(company.lower())
                 if not website:
@@ -2710,29 +2749,56 @@ def _handle_eval(config: CLIConfig) -> int:
                 profile_output = eval_dir / profile
                 profile_output.mkdir(parents=True, exist_ok=True)
 
+                # Resolve the slot's recipe; install it as an override so the
+                # writing-tier defaults in research_agent pick up the slot's
+                # writing model. Built-in slots (full/lite/fast) have recipe=None
+                # and fall through to the legacy mode flags below.
+                slot = get_eval_profile(profile)
+                slot_recipe = slot.recipe if slot is not None else None
+
                 console.info(f"Running {company} [{profile}]")
-                run_result = perform_research(
-                    company_name=company,
-                    website=website,
-                    mode="complete",
-                    ai_strategy=True,
-                    skip_confirm=True,
-                    lite_strategy=(profile == "lite"),
-                    fast_mode=(profile == "fast"),
-                )
+                with EvalRecipeOverride(slot_recipe):
+                    run_result = perform_research(
+                        company_name=company,
+                        website=website,
+                        mode="complete",
+                        ai_strategy=True,
+                        skip_confirm=True,
+                        lite_strategy=(profile == "lite"),
+                        fast_mode=(profile == "fast"),
+                    )
                 if not run_result:
                     console.warn(f"Run failed: {company} [{profile}]")
                     continue
 
                 # Copy latest strategic overview artifact to eval profile folder.
-                company_prefix = company.replace(" ", "_")
+                # Match either underscored company names (Real_Matters_Inc.) or
+                # space-preserving names (Real Matters Inc.) — primr's actual
+                # output filenames preserve spaces, but historical patterns
+                # used underscores.
                 output_root = Path(OUTPUT_DIR)
+                company_prefix_underscore = company.replace(" ", "_")
                 matches: list[Path] = []
                 for ext in ("*.md", "*.txt"):
-                    matches.extend(output_root.glob(f"{company_prefix}_Strategic_Overview_{ext}"))
+                    matches.extend(
+                        output_root.glob(f"{company_prefix_underscore}_Strategic_Overview_{ext}")
+                    )
+                    matches.extend(output_root.glob(f"{company}_Strategic_Overview_{ext}"))
+                # Dedupe (the two patterns can both match in some setups)
+                matches = list(dict.fromkeys(matches).keys())
                 if matches:
                     latest = max(matches, key=lambda p: p.stat().st_mtime)
-                    shutil.copy2(latest, profile_output / latest.name)
+                    # Always copy with an underscored filename so eval
+                    # downstream tooling (scorecard reader) can rely on the
+                    # convention.
+                    canonical_name = (
+                        f"{company_prefix_underscore}_Strategic_Overview{latest.suffix}"
+                    )
+                    shutil.copy2(latest, profile_output / canonical_name)
+                    console.info(
+                        f"Staged report into eval folder: "
+                        f"{profile_output.name}/{canonical_name}"
+                    )
                 else:
                     console.warn(
                         f"Could not locate output artifact to copy for {company} [{profile}]"

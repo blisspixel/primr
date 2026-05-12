@@ -1,18 +1,28 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from primr.ai.openai_compatible_client import normalize_openai_base_url
 from primr.config.local_eval_models import (
     DEFAULT_LOCAL_EVAL_MODEL_LIST,
     get_local_eval_model_list,
 )
 from primr.core.model_eval import (
+    EvalProfileSlot,
     LLMJudgeMetadata,
     LLMJudgeRow,
+    ProfileRecipe,
     _company_similarity,
+    _estimated_profile_cost,
     auto_stage_existing_reports,
     evaluate_outputs,
     get_eval_judge_candidate_profiles,
+    get_eval_profile,
+    list_eval_profile_names,
+    list_eval_profiles,
+    register_eval_profile,
+    unregister_eval_profile,
     write_fast_feedback_guidance,
     write_llm_judge_report,
     write_local_judge_sweep_markdown,
@@ -384,3 +394,162 @@ def test_get_eval_judge_candidate_profiles_preserves_eval_order(tmp_path: Path):
     )
 
     assert get_eval_judge_candidate_profiles(result, baseline_profile="full") == ["lite", "fast"]
+
+
+# =============================================================================
+# Profile Slot Registry tests (v1.24.0 prerequisite)
+# =============================================================================
+
+
+class TestProfileSlotRegistry:
+    """Tests for the eval profile slot registry.
+
+    The registry is module-level state; tests that register slots clean them
+    up via unregister_eval_profile in a try/finally so they don't leak.
+    """
+
+    def test_builtin_profiles_pre_registered(self) -> None:
+        """The three legacy slots must be registered at module import."""
+        names = list_eval_profile_names()
+        assert "full" in names
+        assert "lite" in names
+        assert "fast" in names
+
+    def test_list_eval_profiles_returns_slot_objects(self) -> None:
+        """list_eval_profiles returns the full EvalProfileSlot objects, not just names."""
+        slots = list_eval_profiles()
+        assert all(isinstance(s, EvalProfileSlot) for s in slots)
+        builtin_names = {s.name for s in slots if s.is_builtin}
+        assert {"full", "lite", "fast"} <= builtin_names
+
+    def test_get_builtin_profile(self) -> None:
+        slot = get_eval_profile("full")
+        assert slot is not None
+        assert slot.name == "full"
+        assert slot.is_builtin is True
+        # Built-in slots have no per-role recipe — they use mode flags.
+        assert slot.recipe is None
+
+    def test_get_unknown_profile_returns_none(self) -> None:
+        assert get_eval_profile("does-not-exist-xyz") is None
+
+    def test_register_new_profile(self) -> None:
+        slot = EvalProfileSlot(
+            name="test-grok43-flashlite",
+            recipe=ProfileRecipe(
+                reasoning="grok-4.3",
+                writing="gemini-3.1-flash-lite",
+                utility="gemini-3-flash-preview",
+            ),
+            estimated_cost_usd=0.65,
+            description="Test slot for v1.24.0 sub-$1 candidate recipe",
+        )
+        try:
+            register_eval_profile(slot)
+            assert get_eval_profile("test-grok43-flashlite") is slot
+            assert "test-grok43-flashlite" in list_eval_profile_names()
+        finally:
+            unregister_eval_profile("test-grok43-flashlite")
+
+    def test_register_duplicate_raises_without_replace(self) -> None:
+        slot = EvalProfileSlot(name="test-duplicate", description="first")
+        try:
+            register_eval_profile(slot)
+            with pytest.raises(ValueError, match="already registered"):
+                register_eval_profile(EvalProfileSlot(name="test-duplicate", description="second"))
+        finally:
+            unregister_eval_profile("test-duplicate")
+
+    def test_register_duplicate_with_replace(self) -> None:
+        try:
+            register_eval_profile(EvalProfileSlot(name="test-replace", description="first"))
+            register_eval_profile(
+                EvalProfileSlot(name="test-replace", description="second"),
+                replace=True,
+            )
+            slot = get_eval_profile("test-replace")
+            assert slot is not None
+            assert slot.description == "second"
+        finally:
+            unregister_eval_profile("test-replace")
+
+    def test_register_empty_name_raises(self) -> None:
+        with pytest.raises(ValueError, match="non-empty"):
+            register_eval_profile(EvalProfileSlot(name=""))
+
+    def test_unregister_builtin_raises(self) -> None:
+        """Built-in slots cannot be removed — they're load-bearing for back-compat."""
+        with pytest.raises(ValueError, match="built-in"):
+            unregister_eval_profile("full")
+        # Confirm it's still registered.
+        assert get_eval_profile("full") is not None
+
+    def test_unregister_unknown_returns_false(self) -> None:
+        assert unregister_eval_profile("never-registered-xyz") is False
+
+    def test_unregister_returns_true_on_success(self) -> None:
+        register_eval_profile(EvalProfileSlot(name="test-unreg-target"))
+        assert unregister_eval_profile("test-unreg-target") is True
+        assert get_eval_profile("test-unreg-target") is None
+
+    def test_estimated_cost_uses_slot_override(self) -> None:
+        """When a slot declares estimated_cost_usd, _estimated_profile_cost uses it."""
+        slot = EvalProfileSlot(name="test-cost-override", estimated_cost_usd=0.42)
+        try:
+            register_eval_profile(slot)
+            assert _estimated_profile_cost("test-cost-override") == 0.42
+        finally:
+            unregister_eval_profile("test-cost-override")
+
+    def test_estimated_cost_falls_back_for_legacy_slots(self) -> None:
+        """Built-in slots without estimated_cost_usd fall back to the mode-based estimator."""
+        # Built-in slots should have estimated_cost_usd=None; cost comes from the legacy path.
+        full_slot = get_eval_profile("full")
+        assert full_slot is not None
+        assert full_slot.estimated_cost_usd is None
+        # Cost should be > 0 from the mode-based estimator.
+        assert _estimated_profile_cost("full") > 0
+        assert _estimated_profile_cost("fast") > 0
+        assert _estimated_profile_cost("lite") > 0
+
+    def test_estimated_cost_falls_back_for_unregistered_name(self) -> None:
+        """An unregistered profile name uses the legacy mode-based estimator (full default)."""
+        # "does-not-exist" hits the else branch → "full"-equivalent estimate.
+        assert _estimated_profile_cost("does-not-exist") > 0
+
+
+class TestProfileRecipe:
+    def test_role_assignments_drops_none(self) -> None:
+        recipe = ProfileRecipe(
+            reasoning="grok-4.3",
+            writing="gemini-3.1-flash-lite",
+            utility=None,  # not assigned
+        )
+        roles = recipe.role_assignments()
+        assert roles == {
+            "reasoning": "grok-4.3",
+            "writing": "gemini-3.1-flash-lite",
+        }
+
+    def test_role_assignments_includes_extra(self) -> None:
+        recipe = ProfileRecipe(
+            reasoning="grok-4.3",
+            extra={"future_role": "some-model"},
+        )
+        roles = recipe.role_assignments()
+        assert roles["future_role"] == "some-model"
+
+    def test_role_assignments_drops_empty_extra_values(self) -> None:
+        recipe = ProfileRecipe(
+            reasoning="grok-4.3",
+            extra={"future_role": "", "other": "real-model"},
+        )
+        roles = recipe.role_assignments()
+        assert "future_role" not in roles
+        assert roles["other"] == "real-model"
+
+    def test_recipe_is_immutable(self) -> None:
+        """ProfileRecipe is frozen — mutation should raise."""
+        recipe = ProfileRecipe(reasoning="grok-4.3")
+        with pytest.raises(AttributeError):
+            recipe.reasoning = "claude-opus-4-7"  # type: ignore[misc]

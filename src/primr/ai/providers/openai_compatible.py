@@ -217,6 +217,16 @@ class OpenAICompatibleProvider(Provider):
             if key in provider_kwargs:
                 sdk_kwargs[key] = provider_kwargs[key]
 
+        # Newer OpenAI models (gpt-5.x family, o-series) reject the legacy
+        # ``max_tokens`` parameter and require ``max_completion_tokens`` instead.
+        # xAI Grok and Ollama (OpenAI-compatible but on older convention) still
+        # use ``max_tokens``. We key off the provider name so the same
+        # OpenAICompatibleProvider class works for all three transports.
+        if self.name == "openai":
+            sdk_kwargs["max_completion_tokens"] = max_tokens
+        else:
+            sdk_kwargs["max_tokens"] = max_tokens
+
         last_error: Exception | None = None
         for attempt in range(1 + retries):
             try:
@@ -224,7 +234,6 @@ class OpenAICompatibleProvider(Provider):
                     model=model,
                     messages=messages,  # type: ignore[arg-type]
                     temperature=temperature,
-                    max_tokens=max_tokens,
                     **sdk_kwargs,
                 )
 

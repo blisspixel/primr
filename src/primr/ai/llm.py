@@ -139,11 +139,32 @@ def llm(prompt, model_type="fast", temperature=1.0, thinking_level="high", strea
         # Utility-tier dispatch: caller asked for a Flash-class task and the
         # resolver picked a Grok model because XAI_API_KEY is set. Route to
         # the Grok client and return — thinking_level / streaming have no
-        # analogue on Grok 4.1 NR (it doesn't reason).
+        # analogue on Grok 4.20-NR (it doesn't reason).
         from primr.ai.grok_client import grok_llm
 
         log_chat_interaction(prompt, f"Model: {model_name} (xai dispatch)")
         return grok_llm(prompt, model=model_name, temperature=temperature)
+
+    # v1.24.0 cross-provider dispatch: when an eval recipe override picks an
+    # OpenAI / Anthropic / Ollama model for a utility-tier role, the resolver
+    # returns that model's name. We must route to its native provider rather
+    # than fall through to the Gemini code path below (Gemini API rejects
+    # unknown model names with 404). The xAI branch above stays separate
+    # because grok_llm carries xAI-specific session-token bookkeeping.
+    if config is not None and config.provider in ("openai", "anthropic", "ollama"):
+        from primr.ai.routing import get_provider_for_model
+
+        log_chat_interaction(
+            prompt, f"Model: {model_name} ({config.provider} dispatch)"
+        )
+        cross_provider = get_provider_for_model(model_name)
+        cross_response = cross_provider.chat(
+            [{"role": "user", "content": prompt}],
+            model=model_name,
+            temperature=temperature,
+        )
+        log_chat_interaction(prompt, cross_response.text)
+        return cross_response.text
 
     log_chat_interaction(prompt, f"Model: {model_name}")
 

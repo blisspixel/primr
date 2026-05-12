@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.23.0
+Current State: v1.24.0
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -27,30 +27,125 @@ What shipped:
 
 Anthropic correctness fixes also rolled into v1.23.0: Opus context window corrected to 1M (was 200K), Opus output corrected to 128K (was 32K), Sonnet context corrected to 1M (was 200K), Haiku output corrected to 64K (was 16K), Haiku `supports_thinking=True`. The `cache_control_blocks` provider-kwarg passthrough was removed — Anthropic prompt caching is configured at the message-content level (cache_control directives inside content blocks), not as a top-level API parameter; the previous plumbing would have raised `TypeError` if used.
 
-### v1.24.0 — Cross-provider eval, default decisions, and quota/cache integration
+### v1.24.0 — Sub-$1 default via cross-provider eval (shipped)
 
-With five providers wired (xAI / Google / OpenAI / Anthropic / Ollama), the eval framework becomes a real cross-provider comparison. This release is where defaults get *decided*, and where v1.23.0's quota-fallback + cache-token plumbing get fully integrated into the production pipeline.
+**Shipped May 11, 2026.** Default `primr` run is now **~$0.79** when both `GEMINI_API_KEY` and `XAI_API_KEY` are set (Grok 4.3 reasoning + Gemini 3.1 Flash-Lite writing), down from ~$4.27 on the previous Grok-only hybrid. XAI-only setups stay on the legacy ~$4.27 path as fallback. Verified end-to-end against Real Matters Inc.; full decision audit in `docs/EVAL_V1_24_0.md`.
 
-Pre-eval integration work:
+What landed:
+- `pick_model_for_role` routes WRITING to `gemini-3.1-flash-lite` and UTILITY to `gemini-3-flash-preview` when `GEMINI_API_KEY` is set; REASONING stays on Grok 4.3 (cached input keeps it cheapest among flagships).
+- Phase 5 cross-validation enrichment loop got a per-section deadline (`research_agent.py:5114` area) after two eval cells hung 12-24 hours in the unbounded loop. The 5-min hard cap abandons stuck sections and continues.
+- Cross-provider dispatch: `grok_llm` and `llm()` both route to the model's native provider when the resolved model is non-Grok, so writing-tier calls with `gemini-3.1-flash-lite` reach Gemini instead of failing at xAI.
+- OpenAI provider uses `max_completion_tokens` (was `max_tokens`) — required by gpt-5.x family and o-series.
+- Eval profile slot registration shipped in `model_eval.py`; the cross-provider matrix lives in `src/primr/config/eval_profiles.py`.
+
+Provider-aware fallback chain (for users without Gemini):
+- `pick_model_for_role` now picks the best model from whichever provider keys are configured. WRITING/UTILITY priority: GEMINI > OPENAI > ANTHROPIC > XAI. REASONING priority: XAI > GEMINI > OPENAI > ANTHROPIC. So an OpenAI-only user gets gpt-5.4-nano writing + o4-mini reasoning automatically; an Anthropic-only user gets Haiku writing + Sonnet reasoning. 10 new tests pin the chain behavior.
+
+What didn't ship (deferred to v1.24.x or future):
+- Anthropic-batch-mode writing recipe (`grok43-haiku-batch`). The eval cell hung in pre-validation setup; root cause unclear, separate from the enrichment-loop deadline that was fixed. Haiku 4.5 is wired as the Anthropic-default writer but the batch-API discount isn't.
+- Local-only cells (`local-llama4scout`, `local-qwen32b`, `hybrid-grok-local`) — RTX 4090 wasn't available during the v1.24.0 eval window; matrix slots stay registered for a future incremental eval pass.
+- Recipe-driven cross-provider reasoning override in primr's `grok_llm` direct-call sites. Production routing handles cross-provider reasoning correctly via `pick_model_for_role`; the eval-time recipe override only flows through writing-stage defaults. The `o4mini-flashlite` eval slot can't be measured until this lands.
+
+What the cross-provider eval revealed (measured on Real Matters Inc., 1 company):
+
+| Slot | Actual cost | Duration | Trust gate | Notes |
+|---|---|---|---|---|
+| grok43-current-default (baseline) | $3.49 | 35m | PASS | |
+| **grok43-flashlite (new default)** | **$0.79** | **23m** | **PASS** | Winner. Sub-$1, faster than baseline. |
+| grok43-nano | $0.78 | 152m | WARN (2 contradictions) | Same cost as flashlite but 6.6x slower runtime. |
+| grok43-mini | $2.05 | 26m | PASS | Fails $1 hard gate. Eliminated. |
+| grok43-haiku-batch | hung | - | - | Deadlocked in pre-validation. Investigation deferred. |
+| all-gemini | hung | - | - | Reasoning override not yet wired; effectively duplicates flashlite anyway. |
+
+**Hard goal achieved:** default produces an excellent strategic-analysis report for under $1 (when Gemini key is available). The previous Grok-only fallback remains supported for users who only have an xAI key — same trust-gate quality, higher cost (~$4.27).
+
+---
+
+### Original v1.24.0 plan (pre-ship — kept for historical context)
+
+**Hard goal: the default `primr` command produces an excellent strategic-analysis report for under $1.** Today's Grok 4.3 hybrid default is ~$4.27/run because xAI deprecated the cheap 4.1 line on May 15, 2026 and the only Grok writing-tier replacement (4.20-NR at $2/$6) is 10-12× the retired 4.1-fast pricing. xAI alone cannot hit sub-$1 anymore. The path back runs through cross-provider routing — keep Grok 4.3 for reasoning where its $0.20 cached input is competitive, route bulk writing to a cheaper cross-provider model.
+
+Why this version is decisive: with five providers wired (xAI / Google / OpenAI / Anthropic / Ollama), the eval framework becomes a real cross-provider comparison. v1.22.0's 4.3 default-flip and v1.23.0's provider integrations were mechanical; v1.24.0 is where defaults get *decided* against an actual scorecard, with the $1 ceiling as the binding constraint.
+
+#### Pre-eval integration work
+
 - **Wire `execute_with_fallback` into production LLM call sites** in `research_agent.py` so a provider quota blip during the eval doesn't corrupt the scorecard. Today the breaker is callable but unused.
-- **Bridge cached-token counts into `tracker.record_usage()` and `UsageRecord`** so `primr show-usage` displays cache hit rate per run. Plumbing exists in providers; the missing piece is threading it through grok_client's session counters and the historical record schema.
+- **Bridge cached-token counts into `tracker.record_usage()` and `UsageRecord`** so `primr show-usage` displays cache hit rate per run. Cache hit rate is *load-bearing* on the sub-$1 target — Grok 4.3 cached input at $0.20/M is what makes 4.3-for-reasoning viable on the budget. Without visibility we can't validate that the recipe holds. Plumbing exists in providers; the missing piece is threading it through grok_client's session counters and the historical record schema.
 - **Extend `pick_model_for_role`** to actually pick from the new providers (OpenAI / Anthropic / Ollama) when their keys are set, not just Grok/Gemini. Uses eval-derived role rankings.
+- **Wire profile-slot registration into `primr eval`.** Today `EVAL_PROFILES` at `src/primr/core/model_eval.py:31` is a fixed tuple `("full", "lite", "fast")`. Cross-provider eval needs dynamic per-(provider × model × role-recipe) slots. After this lands, adding a single post-launch model (e.g., a post-I/O Gemini 3.2 Flash) means: register slot → run corpus once → score new pairs only. No full re-do.
+- **Apply the May 2026 model-landscape audit corrections.** See "Model Landscape Audit — May 2026" entry below. Several registered prices are wrong; eval runs against wrong prices produce a wrong scorecard.
 
-Then the eval itself:
+#### The eval itself
 
-1. **Cross-provider scorecard.** Extend `primr eval` to register profile slots per (provider × role) combination, run the standard 3-5 company corpus against each, score on quality, trust, utility, hallucination rate, drift markers, and **utility-per-dollar**. Auto-detect available API keys and only eval providers the user has access to. LLM judge overlay (cloud or local Ollama) for subjective quality.
-2. **Decision output: per-role default recommendations.** "For utility tier: use X. For analysis: use Y. For premium: use Z." Decision criteria written down *before* the run, the same way the v1.22.0 dispatch fix was structured. Defaults change in `pick_model_for_role` only if the scorecard clears the bar.
-3. **Folds in the 4.3 default-flip eval.** The "confirm or revert 4.3 hybrid" question is now a subset of the cross-provider scorecard, not a separate exercise.
-4. **Confirm Grok 4.3 high-tier (>200k) pricing.** v1.22.0 registered placeholder rates (2× base) for >200k input-token tier. Real eval runs will exercise the threshold; verify against console.x.ai billing and update `ModelRegistry.GROK_4_3.cost_per_1m_input_tokens_high`.
+1. **Cross-provider scorecard.** Extend `primr eval` to register profile slots per (provider × model × role-recipe), run the standard 3-5 company corpus against each, score on quality, trust, utility, hallucination rate, drift markers, and **utility-per-dollar**. Auto-detect available API keys and only eval providers the user has access to. LLM judge overlay (cloud or local Ollama) for subjective quality. Recipe candidates known to be promising:
+   - Grok 4.3 (reasoning, with cache) + Gemini 3.1 Flash-Lite (writing, $0.25/$1.50)
+   - Grok 4.3 + GPT-5.4-nano (writing, $0.20/$1.25, but 16K output cap may force per-section sizing)
+   - Grok 4.3 + Haiku 4.5 batch ($0.50/$2.50 effective)
+   - All-Gemini: 3.1 Pro reasoning + 3.1 Flash-Lite writing
+   - o4-mini ($1.10/$4.40) as Grok 4.3 reasoning alternative
+2. **Decision output: per-role default recommendations.** "For utility tier: use X. For analysis: use Y. For premium: use Z." Decision criteria written down *before* the run, the same way the v1.22.0 dispatch fix was structured.
+   - **Hard gate: total run cost < $1.00 on the eval corpus.**
+   - **Hard gate: trust gate passes at the same rate as the current 4.3 hybrid baseline.**
+   - **Soft gate: utility-per-dollar within or above current baseline.**
+   - Defaults change in `pick_model_for_role` only if the scorecard clears the bar.
+3. **Folds in the 4.3 default-flip eval.** The "confirm or revert 4.3 hybrid" question from v1.22.0 is now a subset of the cross-provider scorecard, not a separate exercise.
+
+#### Post-I/O re-eval (May 19-20, 2026)
+
+Google I/O 2026 is May 19-20. A Gemini 3.2 Flash leaked in iOS / AI Studio metadata May 5, 2026. v1.24.0 ships before I/O on the strength of the current model lineup; once I/O announcements land, the eval re-runs with any new models added to the matrix. The dynamic profile-slot work above is what makes this incremental rather than a full re-do — register a new slot, run corpus once for that slot, score only the new pairs. If a post-I/O model meaningfully beats the v1.24.0 default on quality-per-dollar, swap the default again.
+
+#### Removed: Grok 4.3 high-tier (>200K) placeholder pricing
+
+v1.22.0 registered placeholder rates (2× base) for Grok 4.3 inputs above 200K tokens. The May 2026 audit found xAI publishes no such tier — 4.3 launched explicitly as flat-rate. The placeholder fields will be removed from `ModelRegistry.GROK_4_3` rather than "verified," because the tier doesn't exist as a billing concept on xAI's side.
 
 ### Parallel cleanups (any release)
 
 Not gated by anything in v1.23/v1.24, ship in whichever release has room:
 
 - **Move `grok_browse_and_summarize` and Gemini quota UI into providers.** Two pieces of provider-specific behaviour still live outside the abstraction. Their tests didn't fit the unit-test pattern in v1.22.0, so they're flagged for the next pass.
-- **Capability-requirement-based routing.** The longer ROADMAP "Provider-Agnostic Routing Layer" entry below describes stages declaring requirements (`needs reasoning`, `needs 1M context`) and the router solving for the cheapest match. Worth doing once there are 4+ providers wired up and the eval has produced real cost/quality data per role — the requirements themselves come from the eval, not from a priori guessing.
+- **Capability-requirement-based routing.** The longer ROADMAP "Provider-Agnostic Routing Layer" entry below describes stages declaring requirements (`needs reasoning`, `needs 1M context`) and the router solving for the cheapest match. Worth doing once the v1.24.0 eval has produced real cost/quality data per role — the requirements themselves come from the eval, not from a priori guessing.
+- **Long-context surcharge modeling.** OpenAI's gpt-5.x line charges 2× input / 1.5× output for prompts > 272K tokens (audit finding, May 2026). `ModelConfig.tier_threshold_tokens` exists but isn't populated for any OpenAI entry. Wire it in so cost estimates aren't silently wrong on long-input runs.
+- **Batch-mode pricing fields on `ModelConfig`.** Anthropic, OpenAI, xAI, and Google all offer ~50% batch-API discounts. The expensive parallel-fan-out point in primr is Phase 4 section writing (~10-50 independent calls per run). A `--batch` flag that routes section writing through the provider's batch API would meaningfully change the economics, but `ModelConfig` has no fields for batch pricing today.
 
 New providers go through `docs/MODEL_ONBOARDING.md`'s "Adding a new provider" section. New models within an existing provider go through the five-step playbook in the same doc.
+
+### Model Landscape Audit — May 2026
+
+A May 8, 2026 sweep across xAI, OpenAI, Anthropic, and Google found the model registry (`src/primr/config/models.py`, last updated February 2026) drifted significantly during the three-month gap. The corrections below are prerequisites for the v1.24.0 eval — running the scorecard against wrong prices produces a wrong scorecard.
+
+**xAI — Grok lineup**
+- Grok 4.1 fast (reasoning + non-reasoning) retired May 15, 2026 as scheduled. Registry's `deprecated=True` flags are correct.
+- Grok 4.3 base pricing confirmed: $1.25 / $2.50 / $0.20 cached per 1M tokens.
+- Grok 4.3 has **no published >200K input tier**. Registry's placeholder $2.50/$5.00 high-tier rates and `tier_threshold_tokens=200_000` should be removed — the tier doesn't exist as a billing concept on xAI.
+- Grok 4.3 supports **three reasoning-intensity levels as a runtime parameter**, not separate model IDs. Primr's `GrokTier` enum (FAST/HYBRID/MAX) currently swaps model IDs to vary effort; it should map to the new intensity parameter instead, since FAST and HYBRID now use the same models in v1.23.
+- `grok-4.20-multi-agent-0309` is registered but unwired and superseded by the 4.3 reasoning-intensity parameter — flagged for removal.
+
+**OpenAI — every gpt-5.x price is wrong**
+
+The audit flagged this as the most material registry error. GPT-5.5 launched April 24, 2026 at higher prices than registered, and the broader 5.4 family was also repriced.
+
+| Model | Registry (Feb 2026) | Actual (May 2026) |
+|---|---|---|
+| gpt-5.5 | $2.00 / $10.00, $0.50 cached | $5.00 / $30.00, $0.50 cached |
+| gpt-5.4 | $2.50 / $10.00, $0.625 cached | $2.50 / $15.00, $0.25 cached |
+| gpt-5.4-mini | $0.40 / $1.60, $0.10 cached | $0.75 / $4.50 |
+| gpt-5.4-nano | $0.10 / $0.40, $0.025 cached | $0.20 / $1.25 |
+
+Missing entirely from the registry: **o4-mini** ($1.10 / $4.40 — strong reasoning candidate, cheaper output than Grok 4.3), gpt-5.5-pro, gpt-5.4-pro, o3, o3-pro. Long-context surcharge (>272K input: 2× input, 1.5× output) is not modeled at all. Batch API 50% discount unmodeled.
+
+**Anthropic — registry accurate**
+
+The three current Claude models are correctly registered with current pricing. No Sonnet 4.7, Haiku 4.6, or Opus 4.8 exists. Anthropic added an "advisor tool" beta in May 2026 (Sonnet/Haiku as executor with Opus as on-demand guide) which maps interestingly onto primr's reasoning/writing split — flagged for future eval consideration. Optional additions: Haiku 3.5 ($0.80 / $4) and Haiku 3 ($0.25 / $1.25) are still listed and not deprecated, useful as cheap utility-tier candidates if the v1.24.0 eval wants them in the matrix.
+
+**Google — Gemini lineup**
+- **Gemini 3.1 Flash-Lite shipped March 3, 2026: $0.25 / $1.50 per 1M.** Not in registry. This is the most consequential addition for the sub-$1 default — Gemini-3-era quality at half the price of Gemini 3 Flash, and the leading writing-tier candidate for v1.24.0. With batch mode (50% off) it's $0.125 / $0.75.
+- **Gemini 3 Pro Preview deprecated March 9, 2026** (replaced by 3.1 Pro). Registry still has it without a `deprecated=True` flag.
+- **Gemini 2.5 Flash output may have moved from $1.25 → $2.50.** Registry vs current pricing page conflict — needs verification before any cost-estimator math relies on it.
+- **Gemini 2.5 Flash-Lite** ($0.10 / $0.40) is documented in the module docstring but never registered as a `ModelConfig`. Add it.
+- **Deep Research now has Standard + Max SKUs.** Registry's `deep-research-pro-preview-12-2025` ID may be stale — verify against current API.
+- **Google I/O is May 19-20, 2026.** Gemini 3.2 Flash leaked in iOS / AI Studio metadata May 5, 2026. Plan for a post-I/O re-check (see v1.24.0 entry above).
+
+Decision principle: the registry is the eval's source of truth. Audit it before running the scorecard, not after.
 
 ## What's Working Today
 
@@ -72,7 +167,7 @@ New providers go through `docs/MODEL_ONBOARDING.md`'s "Adding a new provider" se
 
 **Deep Mode**: Gemini Deep Research Agent with autonomous multi-step search and synthesis
 
-**Standard Mode** (default when `XAI_API_KEY` set): Grok 4.3 hybrid pipeline — 4.3 for reasoning stages (gap analysis, workbook, cross-validation), 4.1-fast for bulk writing. Research deepening, parallel section writing, cross-validation, coherence pass, and strategy enrichment. ~35-50 min, ~$0.60. Use `--grok-tier fast` for 4.1 everywhere (~$0.47) or `--grok-tier max` for 4.3 everywhere (~$2.50).
+**Standard Mode** (default when `XAI_API_KEY` set): Grok 4.3 hybrid pipeline — 4.3 for reasoning stages (gap analysis, workbook, cross-validation), Grok 4.20-NR for bulk writing. Research deepening, parallel section writing, cross-validation, coherence pass, and strategy enrichment. ~35-50 min, **~$4.27** at current xAI pricing (Grok 4.1's $0.20/$0.50 retired May 15, 2026; the 4.20-NR replacement is $2/$6). Use `--grok-tier max` for 4.3 everywhere (~$3.75). The cost regression is the explicit driver of the v1.24.0 sub-$1 default work above — moving bulk writing to a cross-provider model (Gemini 3.1 Flash-Lite at $0.25/$1.50 is the leading candidate) while keeping 4.3 for reasoning brings the default back under $1.
 
 **Premium Mode** (`--premium`): Gemini + Deep Research pipeline for maximum depth. ~50-75 min, ~$5.
 
@@ -111,7 +206,7 @@ New providers go through `docs/MODEL_ONBOARDING.md`'s "Adding a new provider" se
 
 - Cost-ordered recovery hierarchies for all six pipeline stages (scraping, external search, analysis, section writing, cross-validation, strategy generation)
 - Foreground/background stage classification — foreground stages retry aggressively, background stages bail on API overload or budget stress
-- Model-level circuit breaker with provider-aware fallback chains (e.g., Grok 4.3 → Grok 4.20 → Grok 4.1 → Gemini Flash)
+- Model-level circuit breaker with provider-aware fallback chains (e.g., Grok 4.3 → Grok 4.20-NR → Gemini Flash; the legacy 4.1 step in this chain is removed post-May-15 retirement)
 - Recovery executor that orchestrates retry/fallback/skip logic and logs events to `_run_state.json`
 - `--dry-run` shows the full recovery table (stage classifications + recovery hierarchies)
 
@@ -242,17 +337,11 @@ Planned next steps:
 Decision principle:
 - A page counts as scraped only when Primr has evidence that the **real page content** appeared, not merely that a request returned HTML.
 
-#### Grok Tier Evaluation — 4-Way Comparison (Now Includes 4.3)
+#### Grok Tier Evaluation — Subsumed into v1.24.0 cross-provider eval
 
-Run the eval harness on 3-5 companies across all Grok tiers (fast/hybrid/max/multi-agent) plus premium to produce a proper scorecard. The default flipped from 4.20-hybrid to 4.3-hybrid in v1.22.0 on mechanical wiring + vendor recommendation; this eval is the gate that confirms or reverts that decision.
+This entry has been **folded into the v1.24.0 cross-provider scorecard above**. The "confirm or revert 4.3 hybrid as default" question is now a subset of the broader cross-provider decision: with v1.24.0's hard <$1 budget gate and the May 15 retirement of Grok 4.1, a Grok-only default is no longer viable regardless of which 4.x tier wins among themselves. The 4.3-vs-4.20 comparison still runs as part of the matrix, but the binding decision is now "what cross-provider recipe hits the sub-$1 target with quality at or above the current 4.3 hybrid baseline."
 
-- Same companies across all tiers for apples-to-apples comparison: `--grok-tier fast` (4.1 everywhere), current default (4.3 hybrid), `--grok-tier max` (4.3 everywhere), `--premium`, plus a held-out 4.20-hybrid baseline regenerated from the legacy registration so the comparison is grounded
-- Eval scorecard with quality, trust, utility, hallucination rate, and utility-per-dollar metrics
-- LLM judge overlay for subjective quality assessment
-- Include multi-agent tier when xAI ships a 4.3 multi-agent SKU
-- Decision criteria written down before the run: utility-per-dollar must be ≥ 4.20-hybrid baseline, hallucination rate ≤ baseline, no regression in drift markers
-- Outcome: confirm 4.3 hybrid as default, or revert `get_grok_models(HYBRID)` to 4.20 and leave 4.3 as opt-in
-- Process documented in `docs/MODEL_ONBOARDING.md` so subsequent provider releases follow the same gate
+The eval-harness mechanics described here (3-5 company corpus, scorecard with quality/trust/utility/hallucination/drift/utility-per-dollar, LLM judge overlay, decision criteria written before the run) are still the right shape — they're just applied to a wider matrix.
 
 #### Consultant-Grade Strategic Writing
 
@@ -393,15 +482,9 @@ Still planned (the actually-hard part, not started):
 - Integrates with the model circuit breaker — unhealthy models are skipped automatically
 - Integrates with effort-level routing for hybrid inference
 
-**Cross-Provider Eval**
+**Cross-Provider Eval — Now v1.24.0**
 
-Extend the eval harness to compare all available providers and determine the best default for each research tier.
-
-- Eval profiles expanded: `grok-standard`, `gemini-premium`, `openai-quick`, `claude-standard`, etc.
-- Cross-provider scorecard: quality, cost, runtime, citation density compared side-by-side
-- Tier recommendation output: "For quick: use X, for standard: use Y, for premium: use Z"
-- Auto-detect available API keys and only eval providers the user has access to
-- Historical eval tracking: compare across eval IDs to see if a provider improved over time
+This entry described the eval at a high level. The concrete plan, hard budget gate (<$1/run), and decision criteria are now in the **v1.24.0 — Sub-$1 default via cross-provider eval** entry at the top of this roadmap. Keep this section as the long-term framing; the actionable plan lives in v1.24.0.
 
 #### First-Class VLM Extraction
 
@@ -439,7 +522,7 @@ Expand the scraping engine with managed fallbacks and deeper data extraction.
 
 Run the full Primr pipeline on local hardware with zero API costs. Primary target: RTX 4090 (24GB VRAM) with Ollama, which is available for testing and validation. The goal is a working `--inference local` mode that produces useful research output — not cloud-quality, but good enough for batch screening, internal research, and cost-sensitive workloads.
 
-At scale, API costs compound: 100 companies × $0.75 = $75 per batch. Local inference eliminates that entirely for workloads where 80% quality at $0 cost is the right tradeoff. Primr is already local-first in execution — scraping, orchestration, and outputs all run locally. This version makes the AI stages local too.
+At scale, API costs compound: 100 companies × current ~$4.27/run = ~$427 per batch (~$100/batch once the v1.24.0 sub-$1 default ships). Local inference eliminates that entirely for workloads where 80% quality at $0 cost is the right tradeoff. Primr is already local-first in execution — scraping, orchestration, and outputs all run locally. This version makes the AI stages local too.
 
 **Three Execution Profiles:**
 
@@ -466,11 +549,11 @@ Each pipeline stage declares a minimum capability tier. The router selects the b
 | Link selection | Local 7B | Local 7B | Gemini Flash |
 | Content quality assessment | Local 7B | Local 7B | Gemini Flash |
 | Scrape summarization | Local 14B | Local 14B | Gemini Flash |
-| External search query generation | Local 14B | Cloud | Grok 4.1 |
+| External search query generation | Local 14B | Cloud | Gemini 3.1 Flash-Lite |
 | Analysis workbook | Local 32B-Q4 | Cloud | Grok 4.3 |
-| Section writing | Local 14B-32B | Cloud | Grok 4.1 |
+| Section writing | Local 14B-32B | Cloud | Gemini 3.1 Flash-Lite |
 | Cross-validation | Local 14B | Cloud | Grok 4.3 |
-| Strategy generation | Local 32B-Q4 | Cloud | Grok 4.1 |
+| Strategy generation | Local 32B-Q4 | Cloud | Grok 4.3 |
 | Deep Research | Skip (no local equivalent) | Cloud | Gemini DR |
 
 This table is a starting hypothesis. The eval harness validates it — if a local 14B model can't write sections that pass the trust gate, it gets bumped to cloud in hybrid mode.
@@ -570,7 +653,7 @@ Why section writing: each company generates 23 independent section-writing calls
 - Poll batch status until complete (typically minutes, SLA up to 24 hours)
 - Retrieve results and feed into cross-validation as normal
 - xAI Batch API benefits: reduced pricing (typically ~50% discount), no per-minute rate limits, requests processed in background queue
-- For a 100-company batch at ~$0.65 Grok spend each: saves ~$16-32 on section writing alone, plus zero risk of 429 errors during the most API-intensive phase
+- For a 100-company batch: section writing is ~40-50% of LLM spend at any per-run price point, and Batch API typically halves that — savings scale with whichever default-cost regime is current (large at today's ~$4.27/run, still material once the v1.24.0 sub-$1 default ships). Plus zero risk of 429 errors during the most API-intensive phase.
 - Scraping and sequential LLM stages (gap analysis, workbook, cross-validation, strategy) remain synchronous — they're either I/O-bound (scraping) or sequentially dependent
 - Graceful fallback: if Batch API is unavailable or times out, fall back to existing `ThreadPoolExecutor` path
 - Progress display updated: "Section writing (batch API, polling...)" with ETA based on batch state counters
@@ -582,7 +665,7 @@ Larger batch pipeline restructuring (scrape-all-first, then batch all LLM work a
 
 #### Snapshot Subcommand
 
-A new top-level subcommand for the case where you want a fast look at a company before deciding whether to spend $0.60 on a real run. Explicitly framed as screening, not analysis. Not a quality dial on `primr` — a separate, narrower product.
+A new top-level subcommand for the case where you want a fast look at a company before deciding whether to spend on a real run (~$4.27 today, ~$1 once v1.24.0 ships). Explicitly framed as screening, not analysis. Not a quality dial on `primr` — a separate, narrower product.
 
 Why this exists at all (and why the older "Quick Mode" framing was dropped): degrading the standard pipeline to chase sub-5-minute runtime is a bad trade. If you want fast-and-shallow, you can already get that for free from a search engine. The interesting cheap-and-fast tier is one that does specifically what's actually free or near-free in well under a minute: DNS recon, homepage render, and a single LLM synthesis pass. Anything beyond that costs real time and real money and should go through the real pipeline.
 
@@ -590,7 +673,7 @@ What the subcommand does:
 - `primr recon` (DNS intelligence, ~3s, free, already exists)
 - Homepage + 2-3 highest-signal pages (about, leadership, products) via Playwright tier 1 only — no escalation, no fallback fan-out
 - One DDG search for recent news (free)
-- One Grok 4.1 synthesis call producing a one-page Markdown brief
+- One synthesis call (cheap utility-tier model — Gemini 3.1 Flash-Lite or equivalent) producing a one-page Markdown brief
 
 Budget: ~30-45s wall-clock, ~$0.03, no DOCX, no QA gate, no cross-validation, no strategy.
 
@@ -950,12 +1033,12 @@ Make Primr available to the broader community via PyPI.
 
 AI models are released frequently. Primr's strategy for staying current without chasing hype:
 
-1. **Eval harness** — `primr eval` runs a fixed company corpus across profiles and generates a scorecard (cost, runtime, citation density, section completeness, confidence-label coverage)
-2. **Data-driven adoption** — A candidate model is adopted when: trust gate passes, mean decision-utility score >= 80% of baseline, and cost meets budget targets
-3. **Model registry** — New models are registered in `src/primr/config/models.py` with pricing, context limits, capability flags, and eventually backend/runtime metadata for local inference
-4. **No lock-in** — The pipeline should stay backend-agnostic by design. Grok for analysis, Gemini Flash for scraping, Deep Research for autonomous search, Ollama for local helper tasks — each should be swappable via the eval process rather than hard-coded ideology
+1. **Eval harness** — `primr eval` runs a fixed company corpus across profile slots (one slot per provider × model × role-recipe combination after v1.24.0) and generates a scorecard (cost, runtime, citation density, section completeness, confidence-label coverage)
+2. **Data-driven adoption** — A candidate recipe is adopted only when it clears all of: **default total run cost < $1.00** (the v1.24.0 budget gate), trust gate passes at or above current baseline, mean decision-utility score ≥ baseline. Soft signals (utility-per-dollar, hallucination rate, drift markers) are tiebreakers among recipes that clear the hard gates.
+3. **Model registry** — New models are registered in `src/primr/config/models.py` with pricing, context limits, capability flags, cached-input rates where applicable, and eventually backend/runtime metadata for local inference. Audit before each major eval — see "Model Landscape Audit — May 2026" above for the current state of this discipline.
+4. **No lock-in** — The pipeline should stay backend-agnostic by design. Grok 4.3 for reasoning, Gemini 3.1 Flash-Lite for bulk writing, Deep Research for autonomous search, Ollama for local helper tasks — each is swappable via the eval process rather than hard-coded ideology. The only hard constraint is the budget gate.
 
-When a new model or local runtime drops, the workflow is: register it → run eval → compare scorecard → adopt or skip. No gut decisions.
+When a new model or local runtime drops, the workflow is: audit registry → register new entry → run eval → compare scorecard against budget + quality gates → adopt or skip. No gut decisions.
 
 **Local inference eval policy:**
 - Start with staged-report judge sweeps and same-company/profile comparisons before replacing production pipeline stages
@@ -975,7 +1058,7 @@ The QA feedback suggested replacing the linear pipeline with a DAG orchestration
 
 **What the research shows:**
 - [Anthropic's own multi-agent research system](https://www.anthropic.com/engineering/multi-agent-research-system) does NOT use a DAG — it's a simple orchestrator-worker pattern (lead agent spawns 3-5 subagents in parallel, waits, synthesizes). They got 90% speed improvement purely from parallelism, not graph orchestration.
-- Multi-agent systems use ~15x more tokens than single-agent ([LangChain State of Agents](https://www.langchain.com/state-of-agent-engineering)), which directly conflicts with Primr's ~$0.75 value proposition.
+- Multi-agent systems use ~15x more tokens than single-agent ([LangChain State of Agents](https://www.langchain.com/state-of-agent-engineering)), which directly conflicts with Primr's sub-$1-per-run target (the v1.24.0 default goal).
 - [Production teams report](https://dev.to/isaachagoel/read-this-before-building-ai-agents-lessons-from-the-trenches-333i) the golden rule: "Can I code this without losing functionality?" Mechanical tasks (scraping, search) should be code, not agent orchestration.
 - [Community consensus](https://community.latenode.com/t/coordinating-multiple-ai-agents-for-scraping-validation-and-reporting-does-the-complexity-actually-pay-off/60040): keep simple pipelines simple; multi-agent DAGs only justified for horizontal scaling or dynamic replanning.
 
@@ -1040,7 +1123,7 @@ These require running the tool and capturing output manually:
 ## Usage Reference
 
 ```bash
-# Basic usage (auto-uses Grok 4.1 when XAI_API_KEY set)
+# Basic usage (auto-uses Grok 4.3 hybrid when XAI_API_KEY set)
 primr "ExampleCo" https://example.co
 
 # Research modes
@@ -1092,6 +1175,8 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.24.0 | May 2026 | **Sub-$1 default.** Cross-provider eval picked Grok 4.3 reasoning + Gemini 3.1 Flash-Lite writing as the new default — verified at $0.79/run on Real Matters Inc. (vs $3.49 on the previous Grok-only hybrid, 4.4x cheaper with trust gate PASS and faster runtime, LLM judge score 89.05 vs baseline 79-84). `pick_model_for_role` now uses a provider-aware fallback chain: WRITING/UTILITY prefer GEMINI > OPENAI > ANTHROPIC > XAI; REASONING prefers XAI (Grok 4.3 cached) > GEMINI > OPENAI > ANTHROPIC. Users with only OpenAI keys get gpt-5.4-nano writing + o4-mini reasoning; Anthropic-only users get Haiku + Sonnet. XAI-only setups stay on legacy ~$4.27/run path. Phase 5 enrichment loop got a 5-min per-section deadline (had been unbounded; caused 12-24h hangs in two eval cells). `grok_llm` extended with cross-provider dispatch so writing-tier calls with non-Grok models route to the right provider. OpenAI provider uses `max_completion_tokens` for gpt-5.x family (was `max_tokens`). Eval profile slot registry in `model_eval.py` + `src/primr/config/eval_profiles.py` with 11 candidate slots. Roles split: PRO -> REASONING + WRITING + UTILITY in `routing.py`; `EvalRecipeOverride` contextvar lets eval generation force per-run recipes without polluting prod routing. Stage 1 eval ran 3 of 6 candidates cleanly (flashlite, nano, mini); haiku-batch and all-gemini deferred. Decision audit in `docs/EVAL_V1_24_0.md`. |
+| 1.23.0 | May 2026 | Multi-provider foundation. OpenAI / Anthropic / Ollama providers wired in (OpenAI gpt-5.5 / 5.4 / 5.4-mini / 5.4-nano via `OpenAICompatibleProvider`, Claude Opus 4.7 / Sonnet 4.6 / Haiku 4.5 via dedicated `AnthropicProvider`, Ollama via `OpenAICompatibleProvider` with default key). Quota-aware fallback infrastructure (`ModelCircuitBreaker.execute_with_fallback`) with cross-provider chains and midnight-UTC reset. Prompt-cache token plumbing across xAI / OpenAI / Anthropic responses. Skills Ideation strategy (`--strategy-type skills`) with per-role `SKILL.md` emission. Anthropic correctness fixes: Opus 4.7 context 1M / output 128K, Sonnet 4.6 context 1M, Haiku 4.5 output 64K with `supports_thinking=True`; `cache_control_blocks` provider-kwarg removed (Anthropic caching is content-level, not top-level). |
 | 1.22.0 | May 2026 | Grok 4.3 onboarded as the new flagship reasoning model (registered as `grok-4.3`, $1.25/$2.50 per 1M with $0.20 cached input, 1M context, always-on reasoning). HYBRID and MAX tiers now route reasoning stages to 4.3; FAST stays on 4.1; 4.20 IDs remain registered for resume of in-flight runs. `ModelConfig` gains `cost_per_1m_input_tokens_cached` and `calculate_cost` accepts `cached_input_tokens`. Analysis fallback chain reordered to (4.3 → 4.20 → 4.1 → Flash). **Utility-tier dispatch rewired**: `llm()` now routes scraping summaries / link selection / generic "fast" calls to Grok 4.1-NR when `XAI_API_KEY` is set (Grok 4.1-NR is 2.5x cheaper input and 6x cheaper output than Gemini Flash anyway). The standard pipeline no longer requires a Gemini key — `XAI_API_KEY` alone is sufficient. **Provider abstraction landed**: new `src/primr/ai/providers/` package with `Provider` ABC, `OpenAICompatibleProvider` (parameterizes xAI / OpenAI / Ollama / vLLM under one class), `GeminiProvider`, and `ProviderRegistry` with auto-detection from env keys. `src/primr/ai/routing.py` centralizes role-to-model routing; the previous scattered `if XAI_API_KEY` checks now live in one place. `grok_llm`, `ContinuousReasoningSession`, and `llm()` delegate to providers internally; public signatures unchanged. `primr doctor` gains a "Providers" section listing what each configured key unlocks. Adds 60+ tests across providers, routing, registry, and dispatch. `docs/MODEL_ONBOARDING.md` codifies the verify → register → wire → test → eval-gate process plus a new "Adding a new provider" section covering OpenAI-compatible vs. distinct-SDK cases. Eval-gated promotion of 4.3 still pending — default flipped on mechanical wiring; full 4-way scorecard sweep tracked under "Grok Tier Evaluation". |
 | 1.21.2 | Apr 2026 | Release fix for client-folder output and recon platform defaults: `--output-dir` now reaches the research pipeline, custom output directories keep only Markdown/DOCX deliverables while TXT mirrors and validation diagnostics stay in run diagnostics, recon platform selection now uses strong infrastructure signals only, and unclear/skipped recon falls back to Azure + private cloud/NVIDIA. |
 | 1.20.1 | Apr 2026 | PyPI release infrastructure: `.github/workflows/release.yml` triggers on `v*` tag push or manual dispatch, builds sdist + wheel, runs `twine check`, publishes via PyPI trusted-publisher OIDC (no API token in repo secrets). Repo cleanup: root `.md` reduced to `README.md` and `ROADMAP.md` — `CHANGELOG`, `CONCURRENCY`, `CONTRIBUTING`, `SECURITY` moved to `docs/`. `CLAUDE.md` removed from version control (gitignored, kept on disk for local workflow). ROADMAP entry queued to fold `setup_env.py` into a `primr init` subcommand once PyPI ships. |

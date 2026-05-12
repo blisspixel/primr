@@ -7,24 +7,42 @@ eventually has to answer:
 1. **Which model should I use for this stage?** — answered by
    :func:`pick_model_for_role`, which inspects the configured environment
    keys and the registered ``ModelConfig`` entries to pick the right model
-   for a named *role* (utility / pro). Roles are deliberately coarse — the
-   stages of the pipeline group into a small number of capability classes,
-   and adding finer roles is cheap when a stage warrants it.
+   for a named *role*. Roles are split into capability classes:
+
+   - ``UTILITY``: scraping summaries, link selection, QA, generic "fast"
+     tasks — cheap-and-cheerful stages where 7B-class quality is sufficient.
+   - ``WRITING``: bulk section writing, polish, prose generation — the
+     largest token-consuming class, where utility-per-dollar matters most.
+   - ``REASONING``: gap analysis, workbook generation, cross-validation,
+     strategy reasoning — high-leverage stages where model quality drives
+     the final report's analytical depth.
+   - ``PRO``: legacy alias kept for back-compat with v1.22 call sites.
+     Maps to REASONING for default routing.
+
+   The split into WRITING and REASONING is what makes the v1.24.0 sub-$1
+   eval possible: we want to test recipes that pair an expensive reasoning
+   model (Grok 4.3 cached, o4-mini) with a cheap writing model
+   (Gemini 3.1 Flash-Lite, GPT-5.4-nano), and the routing layer needs to
+   distinguish those stages so a recipe override can target each independently.
 
 2. **Which provider talks to that model?** — answered by
    :func:`get_provider_for_model`, which maps a model name to the
    :class:`primr.ai.providers.Provider` instance that knows how to call it.
-   This keeps callers from importing provider modules directly: they ask
-   the routing layer for the right object and call ``.chat()`` on it.
 
 The dispatch in :func:`primr.ai.llm.llm` and :func:`primr.ai.llm._get_model_for_type`
-delegates here, so changing routing policy (e.g. preferring an OpenAI key
-over a Gemini key for the utility tier when both are set) happens in one
-place.
+delegates here, so changing routing policy happens in one place.
+
+Eval-mode recipe override (v1.24.0):
+   :func:`set_active_eval_recipe` installs a :class:`ProfileRecipe` that
+   overrides the default routing. Used by the eval generation runner to make
+   one primr run use the recipe of one specific eval profile slot. The
+   override is contextvar-scoped so it doesn't leak across concurrent runs.
+   Production calls pass through to the default routing unchanged.
 """
 
 from __future__ import annotations
 
+import contextvars
 import os
 from enum import Enum
 from typing import TYPE_CHECKING
@@ -33,19 +51,19 @@ from primr.config.models import PrimrModels
 
 if TYPE_CHECKING:
     from primr.ai.providers import Provider
+    from primr.core.model_eval import ProfileRecipe
 
 
 class Role(str, Enum):
-    """Coarse capability classes used by the routing layer.
+    """Capability classes used by the routing layer.
 
-    ``UTILITY`` covers scraping summaries, link selection, generic "fast"
-    tasks, QA — the cheap-and-cheerful stages where any modern model in the
-    7B-class range will do. ``PRO`` is for analysis, section writing, and
-    reasoning where model quality genuinely matters.
+    See module docstring for the rationale behind the split.
     """
 
     UTILITY = "utility"
-    PRO = "pro"
+    WRITING = "writing"
+    REASONING = "reasoning"
+    PRO = "pro"  # Legacy alias for REASONING, kept for v1.22 call-site compat
 
 
 # Legacy ``model_type`` strings → ``Role`` mapping. Kept here so the
@@ -58,34 +76,206 @@ LEGACY_TYPE_TO_ROLE: dict[str, Role] = {
     "fast": Role.UTILITY,
     "research": Role.UTILITY,
     "summarization": Role.UTILITY,
-    "section_writing": Role.PRO,
-    "analysis": Role.PRO,
-    "reasoning": Role.PRO,
-    "report": Role.PRO,
+    "section_writing": Role.WRITING,
+    "report": Role.WRITING,
+    "analysis": Role.REASONING,
+    "reasoning": Role.REASONING,
+}
+
+
+# =============================================================================
+# Eval-mode recipe override (v1.24.0)
+# =============================================================================
+#
+# When the eval generation runner is producing reports for a specific profile
+# slot (e.g., grok43-flashlite), it sets the active recipe before invoking
+# primr. pick_model_for_role checks the active recipe first; if a role is
+# populated in the recipe, that model wins. Otherwise default routing applies.
+#
+# contextvars makes this safe under asyncio and concurrent runs — each task
+# sees only its own override. Production callers never see a recipe override
+# and follow the default routing path.
+
+_active_eval_recipe: contextvars.ContextVar[ProfileRecipe | None] = (
+    contextvars.ContextVar("_active_eval_recipe", default=None)
+)
+
+
+def set_active_eval_recipe(recipe: ProfileRecipe | None) -> contextvars.Token:
+    """Install a recipe to override routing for the current execution context.
+
+    Returns a token that can be passed to :func:`reset_active_eval_recipe` to
+    restore the prior value. Most callers use the :class:`EvalRecipeOverride`
+    context manager instead.
+
+    Args:
+        recipe: The recipe to make active, or None to clear.
+
+    Returns:
+        A contextvars Token that captures the previous state.
+    """
+    return _active_eval_recipe.set(recipe)
+
+
+def reset_active_eval_recipe(token: contextvars.Token) -> None:
+    """Restore a prior eval-recipe state by token (from set_active_eval_recipe)."""
+    _active_eval_recipe.reset(token)
+
+
+def get_active_eval_recipe() -> ProfileRecipe | None:
+    """Return the currently active recipe override, or None if no override set."""
+    return _active_eval_recipe.get()
+
+
+class EvalRecipeOverride:
+    """Context manager that installs a recipe for the duration of a block.
+
+    Usage in the eval generation runner::
+
+        from primr.core.model_eval import get_eval_profile
+        from primr.ai.routing import EvalRecipeOverride
+
+        slot = get_eval_profile("grok43-flashlite")
+        with EvalRecipeOverride(slot.recipe):
+            # All pick_model_for_role calls inside this block return models
+            # from slot.recipe instead of the production defaults.
+            run_primr(...)
+    """
+
+    def __init__(self, recipe: ProfileRecipe | None) -> None:
+        self._recipe = recipe
+        self._token: contextvars.Token | None = None
+
+    def __enter__(self) -> EvalRecipeOverride:
+        self._token = set_active_eval_recipe(self._recipe)
+        return self
+
+    def __exit__(self, *exc_info: object) -> None:
+        if self._token is not None:
+            reset_active_eval_recipe(self._token)
+            self._token = None
+
+
+# Maps Role → recipe field name. Recipe entries take precedence over default
+# routing when the override is active.
+_ROLE_TO_RECIPE_FIELD: dict[Role, str] = {
+    Role.UTILITY: "utility",
+    Role.WRITING: "writing",
+    Role.REASONING: "reasoning",
+    Role.PRO: "reasoning",  # PRO is a legacy alias — recipe field is reasoning
 }
 
 
 def pick_model_for_role(role: Role | str) -> str:
     """Pick the right model name for a named role given configured keys.
 
-    For the utility tier, prefers grok-4.20-non-reasoning when
-    ``XAI_API_KEY`` is set. Falls back to Gemini Flash when only
-    ``GEMINI_API_KEY`` is configured.
+    Resolution order:
 
-    For the pro tier, returns the active Pro model from the model registry
-    (today: Gemini 3.1 Pro). Cross-provider Pro routing is a future
-    enhancement — when OpenAI / Anthropic pro models are wired in, this is
-    where the policy lands.
+    1. **Active eval recipe override** — if set_active_eval_recipe() has
+       installed a :class:`ProfileRecipe` and it has a non-None entry for
+       this role, return that model. Used by the eval generation runner to
+       make one primr run use a specific profile slot's recipe.
+    2. **Default routing by role + env keys** — same behavior as v1.23.0:
+
+       - UTILITY: prefer grok-4.20-non-reasoning when XAI_API_KEY is set,
+         else Gemini Flash.
+       - WRITING: prefer grok-4.20-non-reasoning when XAI_API_KEY is set,
+         else the active Pro model. (Same as UTILITY today; will diverge
+         once the v1.24.0 eval picks a winner and this routing changes.)
+       - REASONING / PRO: prefer Grok 4.3 when XAI_API_KEY is set, else the
+         active Pro model from the registry.
+
+    Cross-provider default routing (when OPENAI_API_KEY or ANTHROPIC_API_KEY
+    is set but no recipe override is active) is queued for v1.24.0 once the
+    eval scorecard determines which providers win each role.
     """
     if isinstance(role, str):
         role = Role(role)
 
+    # 1. Recipe override (eval mode)
+    recipe = _active_eval_recipe.get()
+    if recipe is not None:
+        field = _ROLE_TO_RECIPE_FIELD.get(role)
+        if field is not None:
+            override_model = getattr(recipe, field, None)
+            if override_model:
+                return override_model
+        # Also check the recipe's extra dict for forward-compat role names
+        if recipe.extra:
+            extra_model = recipe.extra.get(role.value)
+            if extra_model:
+                return extra_model
+
+    # 2. Default routing — provider-aware fallback chain (v1.24.0 + v1.24.x)
+    #
+    # The chain order reflects the v1.24.0 stage 1 eval winner (Gemini +
+    # XAI → grok43-flashlite at $0.79) and extends to single-provider
+    # configurations so users with only OpenAI or Anthropic keys still get
+    # a viable pipeline.
+    #
+    # Priority logic per role:
+    #
+    # UTILITY  (scrape summaries, link selection, generic "fast"):
+    #   GEMINI > OPENAI > ANTHROPIC > XAI > FLASH_MODEL fallback
+    #   Cheapest-per-quality wins; Gemini Flash is the validated default.
+    #
+    # WRITING  (bulk section writing):
+    #   GEMINI > OPENAI > ANTHROPIC > XAI > PRO_MODEL fallback
+    #   Same shape as UTILITY but writes use higher-output models.
+    #
+    # REASONING / PRO  (analysis, workbook, cross-validation, strategy):
+    #   XAI > GEMINI > OPENAI > ANTHROPIC > PRO_MODEL fallback
+    #   XAI wins because Grok 4.3's $0.20 cached input is unbeatable when
+    #   the continuous-reasoning session lands a high cache hit rate.
+    #   Without XAI, primr uses each provider's flagship reasoner.
+
+    from primr.config.models import ModelRegistry as _Registry
+
     if role is Role.UTILITY:
+        if os.getenv("GEMINI_API_KEY"):
+            return PrimrModels.FLASH_MODEL
+        if os.getenv("OPENAI_API_KEY"):
+            return _Registry.OPENAI_GPT_5_4_NANO.name
+        if os.getenv("ANTHROPIC_API_KEY"):
+            return _Registry.ANTHROPIC_HAIKU.name
         if os.getenv("XAI_API_KEY"):
             return PrimrModels.GROK_MODEL_WRITING
         return PrimrModels.FLASH_MODEL
 
-    # Role.PRO
+    if role is Role.WRITING:
+        # v1.24.0 measured winner: gemini-3.1-flash-lite at $0.79/run on
+        # Real Matters Inc. (vs $3.49 baseline; trust gate PASS; LLM judge
+        # score 89.05 vs baseline 79-84). See docs/EVAL_V1_24_0.md.
+        if os.getenv("GEMINI_API_KEY"):
+            return _Registry.GEMINI_3_1_FLASH_LITE.name
+        # OpenAI fallback: gpt-5.4-nano is the cheapest cross-provider writer
+        # ($0.20/$1.25). Verified working at $0.78/run in eval as grok43-nano.
+        # 16K output cap may force per-section sizing on long reports.
+        if os.getenv("OPENAI_API_KEY"):
+            return _Registry.OPENAI_GPT_5_4_NANO.name
+        # Anthropic fallback: Haiku 4.5 ($1.00/$5.00). Not directly measured
+        # in v1.24.0 (eval cell hung in pre-validation) but registered as a
+        # viable mid-cost writer for Anthropic-only users.
+        if os.getenv("ANTHROPIC_API_KEY"):
+            return _Registry.ANTHROPIC_HAIKU.name
+        # XAI-only legacy path: Grok 4.20-NR. ~$4.27/run on the standard
+        # corpus. Kept for users who don't want the Gemini dependency.
+        if os.getenv("XAI_API_KEY"):
+            return PrimrModels.GROK_MODEL_WRITING
+        return PrimrModels.PRO_MODEL
+
+    # Role.REASONING and Role.PRO
+    # XAI wins universally — Grok 4.3 with $0.20 cached input is the cheapest
+    # reasoning flagship across providers. Without XAI, fall through to the
+    # next available provider's flagship reasoner.
+    if os.getenv("XAI_API_KEY"):
+        return PrimrModels.GROK_MODEL_43
+    if os.getenv("GEMINI_API_KEY"):
+        return PrimrModels.PRO_MODEL
+    if os.getenv("OPENAI_API_KEY"):
+        return _Registry.OPENAI_O4_MINI.name
+    if os.getenv("ANTHROPIC_API_KEY"):
+        return _Registry.ANTHROPIC_SONNET.name
     return PrimrModels.PRO_MODEL
 
 
