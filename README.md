@@ -47,7 +47,7 @@ Near-term work remains focused on pushing more structure upstream into the long-
 
 ## Modes
 
-> **Cost note (May 2026 / v1.24.0):** Default is now ~$0.79/run when both `GEMINI_API_KEY` and `XAI_API_KEY` are set (Grok 4.3 reasoning + Gemini 3.1 Flash-Lite writing). XAI-only setups stay on the legacy ~$4.27/run Grok-NR path. The cross-provider default was picked via a real eval on Real Matters Inc. — 4.4x cheaper than the legacy default with trust gate PASS and faster runtime. See [docs/EVAL_V1_24_0.md](docs/EVAL_V1_24_0.md) for the decision audit.
+> **Cost note (May 2026 / v1.24.0):** Default is now ~$0.79/run when both `GEMINI_API_KEY` and `XAI_API_KEY` are set (Grok 4.3 reasoning + Gemini 3.1 Flash-Lite writing). XAI-only setups stay on the legacy ~$4.27/run Grok-NR path. The cross-provider default was picked via a real eval on a mid-market public-signal company — 4.4x cheaper than the legacy default with trust gate PASS and faster runtime. See [docs/EVAL_V1_24_0.md](docs/EVAL_V1_24_0.md) for the decision audit.
 
 | Mode | What it does | Time | Cost |
 |------|--------------|------|------|

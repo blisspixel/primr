@@ -244,8 +244,9 @@ def pick_model_for_role(role: Role | str) -> str:
 
     if role is Role.WRITING:
         # v1.24.0 measured winner: gemini-3.1-flash-lite at $0.79/run on
-        # Real Matters Inc. (vs $3.49 baseline; trust gate PASS; LLM judge
-        # score 89.05 vs baseline 79-84). See docs/EVAL_V1_24_0.md.
+        # the v1.24.0 stage-1 eval target (vs $3.49 baseline; trust gate
+        # PASS; LLM judge score 89.05 vs baseline 79-84). See
+        # docs/EVAL_V1_24_0.md.
         if os.getenv("GEMINI_API_KEY"):
             return _Registry.GEMINI_3_1_FLASH_LITE.name
         # OpenAI fallback: gpt-5.4-nano is the cheapest cross-provider writer
