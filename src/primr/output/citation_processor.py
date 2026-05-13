@@ -47,8 +47,8 @@ class CitationProcessor:
     """
     Transforms inline URLs into numbered references for clean document output.
 
-    Input: "According to [Tesla](https://tesla.com), the Model 3..."
-    Output: "According to Tesla [1], the Model 3..."
+    Input: "According to [Acme Corp](https://acme.example), the Model X..."
+    Output: "According to Acme Corp [1], the Model X..."
 
     Reuses reference numbers for duplicate URLs.
     """
