@@ -1,4 +1,4 @@
-"""Debug what's being extracted from Stripe pages."""
+"""Debug what's being extracted from a target page."""
 
 import sys
 from pathlib import Path
@@ -8,9 +8,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 from primr.data.scraping import extract_main_content, scrape_with_requests
 from primr.data.scraping.content import is_quality_content
 
-# Scrape Stripe pricing
-print("Scraping Stripe pricing page...")
-result = scrape_with_requests("https://stripe.com/pricing", 10)
+# Scrape a pricing page (replace URL with the page you want to inspect).
+target_url = "https://example.com/pricing"
+print(f"Scraping {target_url} ...")
+result = scrape_with_requests(target_url, 10)
 print(f"Success: {result.success}")
 print(f"Content length: {len(result.raw_content or b'')} bytes\n")
 

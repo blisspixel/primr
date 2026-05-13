@@ -15,7 +15,7 @@ easy to inspect, backup, and version control research state.
 Storage Format:
     .primr/memory/
     ├── acme_corp.yaml
-    ├── tesla.yaml
+    ├── exampleco.yaml
     └── ...
 
 Example:

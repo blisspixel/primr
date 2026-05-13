@@ -15,7 +15,7 @@ from pathlib import Path
 builder = DocumentBuilder()
 doc_path = builder.build_docx(
     sections=result.section_results,
-    company_name="Tesla",
+    company_name="Acme Corp",
     output_dir=Path("output")
 )
 ```
