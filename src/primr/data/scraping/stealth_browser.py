@@ -406,8 +406,8 @@ def _run_patchright(
             except Exception:
                 pass  # many sites never reach networkidle; that's ok
 
-            # Extra buffer for sites like Canada Goose where Kasada takes
-            # 6-10s of JS work even after networkidle.
+            # Extra buffer for Kasada-protected sites that need 6-10s of JS
+            # proof-of-work even after networkidle.
             page.wait_for_timeout(6000)
 
             html = page.content()
