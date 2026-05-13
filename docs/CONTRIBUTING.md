@@ -65,6 +65,29 @@ python -m bandit -r src/primr/ -c .bandit
 - Write docstrings for public functions and classes
 - Keep functions focused and under 50 lines when possible
 
+### No Real Company Data in the Repo
+
+Primr is a company-research tool, which makes it tempting to use real company names when writing examples, fixtures, eval results, sample reports, or commit messages. **Don't.** This applies to docs, code comments, test fixtures, prompt templates, eval artifacts, debug scripts, and git commit messages — anywhere that gets pushed to GitHub.
+
+Use these placeholders instead:
+
+| Use case | Placeholder |
+|---|---|
+| Generic example company name | `Acme Corp` |
+| Domain for examples | `acme.example` or `example.com` |
+| Alternate company (multi-company snippets) | `ExampleCo` |
+| Fictional product / brand | `Cirrus Fleet` (or any made-up name) |
+
+Vendor/technology names referenced as **first-class product features** are fine — Cloudflare in bot-protection detection, Snowflake / Databricks / Microsoft Fabric in the data-fabric strategy, AWS / Azure / GCP / NVIDIA as `--platform` options. The line is: real names as *technical references* OK; real names as *research-subject examples* not OK.
+
+When in doubt, grep your PR before opening it:
+
+```bash
+git diff main...HEAD | grep -i -E "\\b(real|actual)\\b.*\\binc\\.|<real-company-name>"
+```
+
+If a real name slips into a commit message, fix it before the commit lands — rewriting messages after a tagged release means rewriting tags too.
+
 ## Pull Request Process
 
 1. Create a feature branch: `git checkout -b feature/your-feature-name`
