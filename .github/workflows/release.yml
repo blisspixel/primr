@@ -85,6 +85,13 @@ jobs:
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          # Re-pushing an already-tagged version (e.g. after a git history
+          # rewrite that moves the tag) hits PyPI's immutable-version rule and
+          # would otherwise fail with 400 File already exists. skip-existing
+          # lets the workflow exit cleanly in that case — the wheels on PyPI
+          # stay as the originally-published artifacts.
+          skip-existing: true
 
   github-release:
     name: Create GitHub Release
@@ -134,12 +141,20 @@ jobs:
           print(f"Extracted {len(body)} chars of notes for {version}")
           PY
 
-      - name: Create GitHub Release
+      - name: Create or update GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="${{ steps.meta.outputs.tag }}"
-          gh release create "$TAG" \
-            --title "$TAG" \
-            --notes-file RELEASE_NOTES.md \
-            dist/*
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            # Release already exists (e.g. after a history rewrite that moved
+            # the tag). Refresh notes + replace artifacts in place.
+            echo "Release $TAG already exists; updating notes and artifacts."
+            gh release edit "$TAG" --notes-file RELEASE_NOTES.md
+            gh release upload "$TAG" dist/* --clobber
+          else
+            gh release create "$TAG" \
+              --title "$TAG" \
+              --notes-file RELEASE_NOTES.md \
+              dist/*
+          fi
