@@ -6,14 +6,14 @@ from primr.data.scraping.page_access import classify_page_access, infer_page_kin
 REAL_HOMEPAGE = b"""<!DOCTYPE html>
 <html>
 <head>
-  <title>Canada Goose | Official Site</title>
+  <title>ExampleCo | Official Site</title>
   <script type="application/ld+json">{"@type":"Organization"}</script>
 </head>
 <body>
   <header><nav><a>Shop</a><a>Men</a><a>Women</a><a>Sustainability</a></nav></header>
   <main>
     <h1>Performance Luxury Apparel</h1>
-    <p>Canada Goose makes outerwear and apparel built for extreme conditions and everyday wear.</p>
+    <p>ExampleCo makes outerwear and apparel built for extreme conditions and everyday wear.</p>
     <p>Explore new arrivals, heritage parkas, and seasonal collections.</p>
   </main>
   <footer><a>Contact</a><a>Stores</a></footer>
@@ -53,21 +53,21 @@ def test_infer_page_kind():
 def test_classifies_real_homepage_as_success():
     result = classify_page_access(
         REAL_HOMEPAGE,
-        url="https://www.canadagoose.com/",
+        url="https://www.example.com/",
         http_status=200,
         content_type="text/html",
-        expected_markers=["canada goose"],
+        expected_markers=["exampleco"],
     )
 
     assert result.state == PageAccessState.SUCCESS
-    assert "canada goose" in result.matched_expected_markers
+    assert "exampleco" in result.matched_expected_markers
     assert result.visible_text_length > 100
 
 
 def test_classifies_kasada_shell_as_soft_block():
     result = classify_page_access(
         KASADA_SHELL,
-        url="https://www.canadagoose.com/",
+        url="https://www.example.com/",
         http_status=200,
         content_type="text/html",
     )
