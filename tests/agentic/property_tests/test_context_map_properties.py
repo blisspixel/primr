@@ -105,7 +105,7 @@ def test_context_map_token_budget():
 
     # Skip if CLAUDE.md doesn't exist yet
     if not claude_md_path.exists():
-        pytest.skip("CLAUDE.md not found - run Task 9 first")
+        pytest.skip("CLAUDE.md not present (gitignored; tests run when a local copy exists)")
 
     content = claude_md_path.read_text(encoding="utf-8")
     quick_start = extract_quick_start_section(content)
@@ -138,7 +138,7 @@ def test_context_map_structure():
     claude_md_path = Path("CLAUDE.md")
 
     if not claude_md_path.exists():
-        pytest.skip("CLAUDE.md not found - run Task 9 first")
+        pytest.skip("CLAUDE.md not present (gitignored; tests run when a local copy exists)")
 
     content = claude_md_path.read_text(encoding="utf-8")
 
@@ -164,7 +164,7 @@ def test_context_map_negative_constraints():
     claude_md_path = Path("CLAUDE.md")
 
     if not claude_md_path.exists():
-        pytest.skip("CLAUDE.md not found - run Task 9 first")
+        pytest.skip("CLAUDE.md not present (gitignored; tests run when a local copy exists)")
 
     content = claude_md_path.read_text(encoding="utf-8")
 
@@ -192,7 +192,7 @@ def test_context_map_verification_commands():
     claude_md_path = Path("CLAUDE.md")
 
     if not claude_md_path.exists():
-        pytest.skip("CLAUDE.md not found - run Task 9 first")
+        pytest.skip("CLAUDE.md not present (gitignored; tests run when a local copy exists)")
 
     content = claude_md_path.read_text(encoding="utf-8")
 
@@ -216,7 +216,7 @@ def test_context_map_progressive_disclosure():
     claude_md_path = Path("CLAUDE.md")
 
     if not claude_md_path.exists():
-        pytest.skip("CLAUDE.md not found - run Task 9 first")
+        pytest.skip("CLAUDE.md not present (gitignored; tests run when a local copy exists)")
 
     content = claude_md_path.read_text(encoding="utf-8")
 
