@@ -9,6 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 No unreleased changes.
 
+## [1.24.4] - 2026-05-16
+
+### Cost estimator now reflects cross-provider routing
+
+The dry-run estimator for the standard pipeline (`primr "X" url --dry-run`) was reporting the legacy ~$5.67/run number even when both `GEMINI_API_KEY` and `XAI_API_KEY` were configured — the v1.24.x cross-provider routing that picks `gemini-3.1-flash-lite` for bulk writing was implemented in `pick_model_for_role` but never threaded through the estimator. `_estimate_fast_mode_cost` was calling `PrimrModels.get_grok_models(tier)` directly, which always returns Grok models regardless of which keys are set.
+
+Fixed by deferring writing-model resolution to `pick_model_for_role(Role.WRITING)` for the FAST and HYBRID tiers. `--grok-tier max` still uses Grok-everywhere — that flag is the explicit user opt-in to the all-Grok stack. The estimate now reports:
+
+- Standard run, no AI strategy: ~$0.76 (matches the README's $0.79 claim and the v1.24.0 stage-1 eval)
+- Standard + verify: ~$0.78
+- Standard + 1-vendor AI strategy: ~$0.89
+- Standard + 2-vendor AI strategy (typical default): ~$1.01
+- `--grok-tier max`: ~$3.38 (Grok-everywhere, as before)
+
+The displayed mode notes now also show the actual resolved model pair (`grok-4.3 reasoning + gemini-3.1-flash-lite writing`) rather than the hardcoded `4.20-nr writing` string.
+
+### Docs
+
+- Updated stale `routing.py:pick_model_for_role` docstring that still described v1.23.0 single-provider behavior. The actual code has run the v1.24.x cross-provider chain since v1.24.0.
+
+### Tests
+
+- Three test cases that assumed Grok-only writing (`test_max_tier_cheaper_writing_than_hybrid`, `test_fast_tier_cost_range`, `test_hybrid_tier_cost_range`) were rewritten to monkeypatch env vars to a deterministic state and to assert the correct relationship for both XAI-only and Gemini+XAI configurations.
+- Added `test_hybrid_cheaper_than_max_with_gemini` and `test_hybrid_tier_cost_range_with_gemini` as forward-looking regression guards for the v1.24.x routing.
+
 ## [1.24.3] - 2026-05-16
 
 Re-release of v1.24.2: prior release had `primr.__version__` still at `1.24.1` while `pyproject.toml` was at `1.24.2`, breaking the package-version integrity check. v1.24.2 was yanked from PyPI; v1.24.3 is the clean release.

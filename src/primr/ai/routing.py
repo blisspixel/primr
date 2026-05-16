@@ -175,19 +175,17 @@ def pick_model_for_role(role: Role | str) -> str:
        installed a :class:`ProfileRecipe` and it has a non-None entry for
        this role, return that model. Used by the eval generation runner to
        make one primr run use a specific profile slot's recipe.
-    2. **Default routing by role + env keys** — same behavior as v1.23.0:
+    2. **Default routing by role + env keys** — provider-aware fallback chain
+       installed in v1.24.0 once the cross-provider eval picked winners per
+       role. The full per-role priority is in the inline comment below;
+       summary:
 
-       - UTILITY: prefer grok-4.20-non-reasoning when XAI_API_KEY is set,
-         else Gemini Flash.
-       - WRITING: prefer grok-4.20-non-reasoning when XAI_API_KEY is set,
-         else the active Pro model. (Same as UTILITY today; will diverge
-         once the v1.24.0 eval picks a winner and this routing changes.)
-       - REASONING / PRO: prefer Grok 4.3 when XAI_API_KEY is set, else the
-         active Pro model from the registry.
-
-    Cross-provider default routing (when OPENAI_API_KEY or ANTHROPIC_API_KEY
-    is set but no recipe override is active) is queued for v1.24.0 once the
-    eval scorecard determines which providers win each role.
+       - UTILITY: GEMINI > OPENAI > ANTHROPIC > XAI > FLASH fallback.
+       - WRITING: GEMINI > OPENAI > ANTHROPIC > XAI > PRO fallback.
+         (v1.24.0 stage-1 winner: gemini-3.1-flash-lite at $0.79/run.)
+       - REASONING / PRO: XAI > GEMINI > OPENAI > ANTHROPIC > PRO fallback.
+         (XAI wins on cached-input price when continuous-reasoning session
+         lands a high cache hit rate.)
     """
     if isinstance(role, str):
         role = Role(role)

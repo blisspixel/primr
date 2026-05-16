@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.24.3
+Current State: v1.24.4
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -702,6 +702,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.24.4 | May 2026 | **Cost estimator now reflects cross-provider routing.** `_estimate_fast_mode_cost` hardcoded the Grok 4.20-nr writing model and always reported the legacy ~$5.67 number, even when GEMINI_API_KEY was set and the live pipeline correctly routed bulk writing to gemini-3.1-flash-lite. Now defers to `pick_model_for_role(Role.WRITING)` for FAST / HYBRID tiers (still respects `--grok-tier max` as the explicit Grok-everywhere opt-in). Dry-run for the v1.24.x sub-$1 default now correctly reports ~$0.76 baseline / ~$1.01 with 2-vendor AI strategy. Updated stale `routing.py:pick_model_for_role` docstring that still described v1.23.0 behavior. Tests deterministic via env monkeypatch; +3 cross-provider tests. |
 | 1.24.3 | May 2026 | Re-release of v1.24.2 — prior release had a `primr.__version__` mismatch with pyproject.toml that broke the integrity check; v1.24.2 was yanked. Same content as v1.24.2. |
 | 1.24.2 | May 2026 | (Yanked.) **Artifact drift cleanup (roadmap #1).** Offline scan of 16 recent reports surfaced 240 leaked `[workbook]` markers, 87 `[cross-ref ...]` markers, and 65 bold-wrapped `**What to validate:**` lines. Three root causes fixed at the canonicalization seam: cross-ref strip was colon-only (missed space-separated form, the dominant variant); workbook strip missed bare `[workbook]` and space-separated `[workbook ARDA/prior]`; section normalizer didn't match bold-wrapped validate lines. Verified on five historical reports: 28+51 leaked markers stripped to 0; bold-validate now dedups at the per-section writer boundary. Added `ReportAnalyzer.analyze_scaffolding_leakage()` covering all four categories plus informal `[cite: label]` markers. Bonus: removed a hardcoded vendor-domain URL categorizer (leftover from an early test report); fixed `lstrip("www.")` → `removeprefix("www.")` typo introduced in the same patch. +11 tests. |
 | 1.24.1 | May 2026 | Re-release of v1.24.0 with sanitized docs (generic placeholder for eval-target company). |
