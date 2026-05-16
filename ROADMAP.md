@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.24.1
+Current State: v1.24.3
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -117,15 +117,13 @@ Primr is intentionally not designed as a generic web scraper, a SaaS collaborati
 
 The next ~15 items, ordered top-down by priority. Each is concrete enough to start without further design work.
 
-### 1. Artifact Drift in the Standard Pipeline
+### 1. Artifact Drift — Remaining Work
 
-Surfaced during the continuous-reasoning pilot: the standard pipeline leaks internal scaffolding into final reports more often than expected. Across three baseline runs, reports averaged 5.3 bare `**What to validate:` instruction-style lines per report — text that looks like internal section-template guidance escaping into prose. One baseline run also leaked literal `[cross-ref Financial Profile][workbook]` markers. This is independent of which reasoning topology produced the workbook; it lives in the section-writing step or the typed `GeneratedSection` normalization at the writer boundary.
+The cleanup cuts shipped in v1.24.2 fixed the dominant leak vectors at the canonicalization seam: bold-wrapped `**What to validate:**` lines now dedup into the single canonical trailing line via `_normalize_generated_section_payload`, and `[cross-ref ...]` plus bare/space-separated `[workbook]` markers are stripped in `_clean_fast_report_output`. An offline scan over 16 recent reports confirmed the leak was widespread (240 workbook + 87 cross-ref + 65 bold-validate instances), and the new `ReportAnalyzer.analyze_scaffolding_leakage()` check makes regressions visible. What remains:
 
-Planned:
-- Audit the section-writing prompts to see why the section template's `What to validate:` guidance sometimes survives into final prose as a bare instruction line rather than a discovery-question paragraph
-- Strengthen `GeneratedSection` normalization to strip leaked instruction-style fragments at the writer boundary (canonicalization already enforces a single trailing `What to validate:` block — extend it to recognize and remove instruction-style leftovers)
-- Add a deterministic check to `ReportAnalyzer` that flags bare instruction-style lines and `[cross-ref ...]` / `[workbook]` markers in the shipping-artifact validation pass
-- Quantify with an offline scan over recent runs to confirm the drift is widespread, not specific to a few unlucky cells
+- Audit the section-writing prompts to see why the section template's `What to validate:` guidance sometimes survives into final prose as a bare instruction line rather than a discovery-question paragraph — addressing the symptom at the canonicalization seam is sufficient for now but the upstream cause is still worth understanding
+- Promote the leakage check from a warning block to a configurable QA gate so leaks block shipping when the count exceeds a threshold, not just surface as a warning
+- Periodically re-run the offline scan against the latest shipped reports to confirm the regression stays at zero — wire this into the eval harness rather than running it ad-hoc
 
 Decision principle: final shipping artifacts must read as deliverables, not as internal scaffolding.
 
@@ -704,6 +702,8 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.24.3 | May 2026 | Re-release of v1.24.2 — prior release had a `primr.__version__` mismatch with pyproject.toml that broke the integrity check; v1.24.2 was yanked. Same content as v1.24.2. |
+| 1.24.2 | May 2026 | (Yanked.) **Artifact drift cleanup (roadmap #1).** Offline scan of 16 recent reports surfaced 240 leaked `[workbook]` markers, 87 `[cross-ref ...]` markers, and 65 bold-wrapped `**What to validate:**` lines. Three root causes fixed at the canonicalization seam: cross-ref strip was colon-only (missed space-separated form, the dominant variant); workbook strip missed bare `[workbook]` and space-separated `[workbook ARDA/prior]`; section normalizer didn't match bold-wrapped validate lines. Verified on five historical reports: 28+51 leaked markers stripped to 0; bold-validate now dedups at the per-section writer boundary. Added `ReportAnalyzer.analyze_scaffolding_leakage()` covering all four categories plus informal `[cite: label]` markers. Bonus: removed a hardcoded vendor-domain URL categorizer (leftover from an early test report); fixed `lstrip("www.")` → `removeprefix("www.")` typo introduced in the same patch. +11 tests. |
 | 1.24.1 | May 2026 | Re-release of v1.24.0 with sanitized docs (generic placeholder for eval-target company). |
 | 1.24.0 | May 2026 | **Sub-$1 default.** Cross-provider eval picked Grok 4.3 reasoning + Gemini 3.1 Flash-Lite writing as the new default — verified at $0.79/run (vs $3.49 on the previous Grok-only hybrid, 4.4x cheaper with trust gate PASS and faster runtime). `pick_model_for_role` uses a provider-aware fallback chain: WRITING/UTILITY prefer GEMINI > OPENAI > ANTHROPIC > XAI; REASONING prefers XAI (Grok 4.3 cached) > GEMINI > OPENAI > ANTHROPIC. OpenAI-only users get gpt-5.4-nano writing + o4-mini reasoning; Anthropic-only users get Haiku + Sonnet. XAI-only stays on legacy ~$4.27/run. Phase 5 enrichment loop got a 5-min per-section deadline (had been unbounded). `grok_llm` extended with cross-provider dispatch. OpenAI provider uses `max_completion_tokens` for gpt-5.x family. Eval profile slot registry in `model_eval.py` + `src/primr/config/eval_profiles.py` with 11 candidate slots. Roles split: PRO -> REASONING + WRITING + UTILITY in `routing.py`; `EvalRecipeOverride` contextvar for per-run recipe forcing. Decision audit in `docs/EVAL_V1_24_0.md`. |
 | 1.23.0 | May 2026 | Multi-provider foundation. OpenAI / Anthropic / Ollama providers wired in (gpt-5.5 / 5.4 / 5.4-mini / 5.4-nano via `OpenAICompatibleProvider`; Claude Opus 4.7 / Sonnet 4.6 / Haiku 4.5 via dedicated `AnthropicProvider`; Ollama via `OpenAICompatibleProvider`). Quota-aware `ModelCircuitBreaker.execute_with_fallback` with cross-provider chains and midnight-UTC reset. Prompt-cache token plumbing across xAI / OpenAI / Anthropic responses. Skills Ideation strategy (`--strategy-type skills`) with per-role `SKILL.md` emission. Anthropic correctness fixes: Opus 4.7 context 1M / output 128K, Sonnet 4.6 context 1M, Haiku 4.5 output 64K with `supports_thinking=True`; `cache_control_blocks` provider-kwarg removed (Anthropic caching is content-level). |

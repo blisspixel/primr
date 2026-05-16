@@ -178,18 +178,30 @@ class ReportAnalyzer:
         # Find all URLs
         urls = re.findall(r"https?://[^\s\)]+", self.content)
 
-        # Categorize URLs
+        # Derive the most-cited host as a generic "primary host" counter, since
+        # the analyzer doesn't know the company's canonical domain at runtime.
+        # Skip linkedin/news domains so the count reflects first-party citations
+        # rather than the dominant aggregator on the page.
+        from collections import Counter
+        from urllib.parse import urlparse
+
+        news_domains = ("reuters", "bloomberg", "techcrunch", "prnewswire")
+        host_counts: Counter[str] = Counter()
+        for url in urls:
+            try:
+                host = (urlparse(url).hostname or "").lower().removeprefix("www.")
+            except ValueError:
+                continue
+            if not host or "linkedin.com" in host or any(n in host for n in news_domains):
+                continue
+            host_counts[host] += 1
+        primary_host = host_counts.most_common(1)[0][0] if host_counts else ""
+        primary_host_count = host_counts.get(primary_host, 0)
+
         url_categories = {
-            "company_website": len([u for u in urls if "mrisoftware.com" in u.lower()]),
+            "primary_host": primary_host_count,
             "news_sources": len(
-                [
-                    u
-                    for u in urls
-                    if any(
-                        news in u.lower()
-                        for news in ["reuters", "bloomberg", "techcrunch", "prnewswire"]
-                    )
-                ]
+                [u for u in urls if any(news in u.lower() for news in news_domains)]
             ),
             "linkedin": len([u for u in urls if "linkedin.com" in u.lower()]),
             "other": 0,
@@ -199,8 +211,63 @@ class ReportAnalyzer:
         return {
             "total_urls": len(urls),
             "unique_urls": len(set(urls)),
+            "primary_host": primary_host,
             "url_categories": url_categories,
             "sample_urls": urls[:5] if urls else [],
+        }
+
+    def analyze_scaffolding_leakage(self) -> dict:
+        """Detect internal scaffolding that leaked into the shipping artifact.
+
+        Strategic reports should read as deliverables, not as internal template
+        machinery. This check flags markers that the writer pipeline should
+        have stripped but didn't: bare ``[workbook]`` / ``[cross-ref ...]``
+        references, bold-wrapped ``**What to validate:**`` lines that survived
+        normalization, and known internal cite labels.
+
+        A non-zero ``total_leaked`` is a shipping-artifact regression, not a
+        content-quality issue — the body content may be fine, but the
+        formatting reveals scaffolding that callers should not see.
+        """
+        # Cross-ref markers: colon-separated, space-separated, or bare.
+        cross_ref_count = len(
+            re.findall(r"\[cross-ref(?:[\s:][^\]]*)?\]", self.content, re.IGNORECASE)
+        )
+
+        # Workbook markers: bare, plus ":", " ", and "§" separated forms.
+        workbook_count = len(
+            re.findall(r"\[workbook(?:[\s:§][^\]]*)?\]", self.content, re.IGNORECASE)
+        )
+
+        # Bold-wrapped instruction-style "What to validate:" lines that survived
+        # the writer-side normalization (the canonical form is plain text).
+        bold_validate_count = len(
+            re.findall(
+                r"^\s*\*{1,2}What to validate\b[^\n]*",
+                self.content,
+                re.MULTILINE | re.IGNORECASE,
+            )
+        )
+
+        # Internal cite labels that should never ship: [cite: workbook],
+        # [cite: bbb], etc. Numeric cites and URL-bearing cites are fine.
+        informal_cite_count = len(
+            re.findall(
+                r"\[cite:\s*(?!\d|https?:)[a-z]+[^\]]*\]",
+                self.content,
+                re.IGNORECASE,
+            )
+        )
+
+        total = cross_ref_count + workbook_count + bold_validate_count + informal_cite_count
+
+        return {
+            "cross_ref_markers": cross_ref_count,
+            "workbook_markers": workbook_count,
+            "bare_bold_validate": bold_validate_count,
+            "informal_cite_markers": informal_cite_count,
+            "total_leaked": total,
+            "clean": total == 0,
         }
 
     def analyze_hypothesis_coverage(self) -> dict:
@@ -353,6 +420,7 @@ class ReportAnalyzer:
         confidence = self.analyze_confidence_labels()
         section_lengths = self.analyze_section_lengths()
         citation_density = self.analyze_citation_density()
+        leakage = self.analyze_scaffolding_leakage()
 
         key_section_total = len(structure["key_sections_found"]) + len(
             structure["key_sections_missing"]
@@ -403,6 +471,21 @@ class ReportAnalyzer:
                 report += f"  - {title}\n"
             report += "\n"
 
+        # Report scaffolding leakage — markers that should have been stripped
+        # before shipping. Surface counts only when something leaked, so clean
+        # reports stay terse.
+        if not leakage["clean"]:
+            report += f"\n**WARNING: {leakage['total_leaked']} SCAFFOLDING LEAKS:**\n"
+            if leakage["workbook_markers"]:
+                report += f"  - [workbook] markers: {leakage['workbook_markers']}\n"
+            if leakage["cross_ref_markers"]:
+                report += f"  - [cross-ref ...] markers: {leakage['cross_ref_markers']}\n"
+            if leakage["bare_bold_validate"]:
+                report += f"  - bold-wrapped 'What to validate:' lines: {leakage['bare_bold_validate']}\n"
+            if leakage["informal_cite_markers"]:
+                report += f"  - informal [cite: label] markers: {leakage['informal_cite_markers']}\n"
+            report += "\n"
+
         report += f"""
 ## Content Quality
 - **Strategic Frameworks**: {quality["frameworks_used"]}/3 frameworks used
@@ -424,8 +507,9 @@ class ReportAnalyzer:
 
 ## Source Analysis
 - **Total URLs**: {sources["total_urls"]} ({sources["unique_urls"]} unique)
+- **Primary Host**: {sources.get("primary_host") or "(none detected)"}
 - **Source Breakdown**:
-  - Company Website: {sources["url_categories"]["company_website"]}
+  - Primary Host: {sources["url_categories"]["primary_host"]}
   - News Sources: {sources["url_categories"]["news_sources"]}
   - LinkedIn: {sources["url_categories"]["linkedin"]}
   - Other: {sources["url_categories"]["other"]}

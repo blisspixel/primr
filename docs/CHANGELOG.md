@@ -9,6 +9,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 No unreleased changes.
 
+## [1.24.3] - 2026-05-16
+
+Re-release of v1.24.2: prior release had `primr.__version__` still at `1.24.1` while `pyproject.toml` was at `1.24.2`, breaking the package-version integrity check. v1.24.2 was yanked from PyPI; v1.24.3 is the clean release.
+
+### Artifact drift cleanup (roadmap item #1)
+
+Internal scaffolding markers were leaking into shipped reports more often than the roadmap previously estimated. A scan of 16 recent reports found 240 `[workbook]` markers, 87 `[cross-ref ...]` markers, and 65 bold-wrapped `**What to validate:**` lines that should never reach a deliverable. Three root causes, all fixed:
+
+- **`[cross-ref ...]` cleanup was too narrow.** The strip regex in `_clean_fast_report_output` required a colon (`\[cross-ref:`), so the space-separated variant the model actually emits most often (`[cross-ref Financial Profile]`) sailed through. Broadened to match colon-separated, space-separated, and bare forms. Verified on five historical reports: 28 leaked instances stripped to 0.
+- **`[workbook]` cleanup missed the bare and space-separated forms.** The existing regexes caught `[Workbook: ...]`, `[workbook section ...]`, and `[Workbook §...]` but missed bare `[workbook]` and `[workbook ARDA/prior sections]` — the variants the model emits when treating workbook as a literal source citation. Replaced with one inclusive `[workbook(?:[\s:§]...)?\]` regex. Verified: 51 leaked instances stripped to 0.
+- **Bold-wrapped `**What to validate:**` lines bypassed normalization.** `_normalize_generated_section_payload` matched `^What to validate:` but not `**What to validate:**`, so bolded variants leaked into the body alongside a separately-appended default trailing line. New regex recognizes optional leading/trailing bold or italic emphasis and dedups into the single canonical trailing line.
+
+### ReportAnalyzer scaffolding-leakage check
+
+Added `analyze_scaffolding_leakage()` to `ReportAnalyzer` covering the four leak categories above plus informal `[cite: workbook]` / `[cite: bbb]` cite labels that should never ship. Surfaced as a warning block in `generate_report()` when `total_leaked > 0`; clean reports stay terse.
+
+### Bonus fixes
+
+- `analyze_urls_and_sources()` had a hardcoded vendor domain as the "company_website" category — a leftover from one early test report that was meaningless for every other run. Replaced with a generic `primary_host` derived from the most-cited non-news, non-LinkedIn domain.
+- Fixed a `lstrip("www.")` bug in the same area (would have stripped any leading `w` or `.` character, not the literal prefix) — switched to `removeprefix("www.")`.
+
+### Tests
+
+- +5 normalization tests in `tests/test_core/test_fast_mode_research.py` covering bold-wrapped validate lines (with content, fully bolded, bare), space-separated cross-ref, and bare workbook variants.
+- +6 ReportAnalyzer tests in `tests/test_qa/test_report_analyzer_deterministic.py` covering each leak category and the combined total.
+
+## [1.24.1] - 2026-05-13
+
+Re-release of v1.24.0 with sanitized docs (generic placeholder for eval-target company). No code changes.
+
+## [1.24.0] - 2026-05-13
+
+### Sub-$1 default via cross-provider eval
+
+Cross-provider eval picked Grok 4.3 reasoning + Gemini 3.1 Flash-Lite writing as the new default — verified at $0.79/run (vs $3.49 on the previous Grok-only hybrid, 4.4x cheaper with trust gate PASS and faster runtime). Default auto-selects when both `XAI_API_KEY` and `GEMINI_API_KEY` are configured; XAI-only setups stay on the legacy ~$4.27/run path.
+
+### Provider-aware role routing
+
+- `pick_model_for_role` uses a provider-aware fallback chain: WRITING/UTILITY prefer GEMINI > OPENAI > ANTHROPIC > XAI; REASONING prefers XAI (Grok 4.3 cached) > GEMINI > OPENAI > ANTHROPIC.
+- OpenAI-only users get gpt-5.4-nano writing + o4-mini reasoning; Anthropic-only users get Haiku + Sonnet.
+- `grok_llm` extended with cross-provider dispatch so writing-tier calls reach the right provider when the resolved model is non-Grok.
+- OpenAI provider switched to `max_completion_tokens` for the gpt-5.x family.
+- PRO role split into REASONING + WRITING + UTILITY in `routing.py`; `EvalRecipeOverride` contextvar added for per-run recipe forcing.
+
+### Eval profile slot registry
+
+`src/primr/core/model_eval.py` + `src/primr/config/eval_profiles.py` gain a profile slot registry with 11 candidate slots — one slot per (provider × model × role-recipe). New models register a slot, run the corpus once, and score against existing baselines without re-doing prior work.
+
+### Pipeline resilience
+
+Phase 5 enrichment loop got a 5-minute per-section deadline (had been unbounded). Stops runaway regeneration loops without affecting the common case.
+
+Full decision audit in `docs/EVAL_V1_24_0.md`.
+
 ## [1.23.0] - 2026-05-08
 
 ### Multi-provider foundation
