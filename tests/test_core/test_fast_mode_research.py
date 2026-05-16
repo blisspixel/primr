@@ -639,6 +639,32 @@ class TestCleanFastReportOutput:
         assert "[Workbook §" not in result
         assert "[External Sources]" not in result
 
+    def test_strips_bare_workbook_marker(self):
+        content = "## Section\n\nClaim about growth (2026 [workbook]) and trend [workbook] continues.\n"
+        result = _clean_fast_report_output(content)
+        assert "[workbook]" not in result
+        # Surrounding prose stays intact (whitespace collapsed to single space).
+        assert "(2026)" in result
+        assert "trend continues." in result
+
+    def test_strips_space_separated_workbook_with_content(self):
+        content = "## Section\n\nNote [workbook ARDA/prior sections] from research.\n"
+        result = _clean_fast_report_output(content)
+        assert "[workbook" not in result
+        assert "Note from research." in result
+
+    def test_strips_space_separated_cross_ref(self):
+        content = "## Section\n\nSee [cross-ref Financial Profile] and [cross-ref SWOT] for detail.\n"
+        result = _clean_fast_report_output(content)
+        assert "[cross-ref" not in result
+        assert "See and for detail." in result
+
+    def test_strips_bare_cross_ref(self):
+        content = "## Section\n\nDetail here [cross-ref] and more text.\n"
+        result = _clean_fast_report_output(content)
+        assert "[cross-ref" not in result
+        assert "Detail here and more text." in result
+
     def test_empty_input_returns_unchanged(self):
         assert _clean_fast_report_output("") == ""
         assert _clean_fast_report_output("   ") == "   "
@@ -801,6 +827,53 @@ class TestGeneratedSectionNormalization:
         assert not payload.content.startswith("## ")
         assert payload.content.startswith("Comparison body.")
         assert payload.content.endswith("What to validate: Confirm competitor win-loss reasons.")
+
+    def test_normalize_generated_section_payload_dedups_bold_validate_line(self):
+        # The writer sometimes wraps the validate line in bold markdown
+        # (e.g. "**What to validate:** Confirm X?"). Normalization must
+        # extract the question and emit a single canonical trailing line,
+        # not leave the bold variant in the body alongside a default line.
+        payload = _normalize_generated_section_payload(
+            "Financial Profile",
+            "Revenue analysis here.\n\n**What to validate:** Confirm 2026 ARR growth rate.",
+            "Financial Profile",
+        )
+
+        assert payload.content.count("What to validate:") == 1
+        assert payload.validate_line == "What to validate: Confirm 2026 ARR growth rate."
+        # The bold markers must not survive into the body.
+        assert "**What to validate" not in payload.content
+        assert payload.content.endswith("What to validate: Confirm 2026 ARR growth rate.")
+
+    def test_normalize_generated_section_payload_drops_bare_bold_validate_scaffold(self):
+        # A bare "**What to validate:**" with no question is prompt-template
+        # scaffolding that leaked through. It should be removed entirely and
+        # the default trailing line used instead.
+        payload = _normalize_generated_section_payload(
+            "SWOT Analysis",
+            "Strengths and weaknesses summary.\n\n**What to validate:**",
+            "SWOT Analysis",
+        )
+
+        assert "**What to validate" not in payload.content
+        assert payload.content.count("What to validate:") == 1
+        # Falls back to the default question since no real question was supplied.
+        assert payload.validate_line.startswith("What to validate:")
+        assert payload.content.endswith(payload.validate_line)
+
+    def test_normalize_generated_section_payload_fully_bolded_validate_line(self):
+        # "**What to validate: question?**" — bold wrapper spans the whole
+        # line including the question. Trailing bold markers should be stripped
+        # so the canonical line is plain text.
+        payload = _normalize_generated_section_payload(
+            "Customer Profile",
+            "Customer base description.\n\n**What to validate: What is the net revenue retention?**",
+            "Customer Profile",
+        )
+
+        assert "**" not in payload.validate_line
+        assert payload.validate_line == "What to validate: What is the net revenue retention?"
+        assert payload.content.endswith(payload.validate_line)
 
     def test_parse_single_section_normalizes_title_and_validate_line(self):
         class ExpectedSection:

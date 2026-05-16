@@ -1632,12 +1632,22 @@ def _normalize_generated_section_payload(
 
     validation_lines: list[str] = []
     cleaned_lines: list[str] = []
+    # Match the validate-line prefix with optional leading/trailing bold or italic
+    # emphasis and an optional colon. Catches the bare prompt-template scaffolding
+    # ("**What to validate:**") plus the bolded variants ("**What to validate:** Q?",
+    # "**What to validate: Q?**") that the writer sometimes emits.
+    validate_prefix_re = re.compile(
+        r"^\s*\**\s*What to validate\s*:?\s*\**\s*",
+        flags=re.IGNORECASE,
+    )
     for raw_line in working_body.splitlines():
         stripped = raw_line.strip()
-        if re.match(r"^What to validate:\s*", stripped, flags=re.IGNORECASE):
-            question = re.sub(r"^What to validate:\s*", "", stripped, flags=re.IGNORECASE).strip()
-            if question:
-                validation_lines.append(f"What to validate: {question}")
+        if validate_prefix_re.match(stripped):
+            remainder = validate_prefix_re.sub("", stripped).rstrip()
+            # Strip trailing emphasis markers that wrap the question text.
+            remainder = re.sub(r"\*+\s*$", "", remainder).rstrip()
+            if remainder:
+                validation_lines.append(f"What to validate: {remainder}")
             continue
         cleaned_lines.append(raw_line)
 
@@ -2027,8 +2037,16 @@ def _clean_fast_report_output(report_content: str) -> str:
         flags=re.IGNORECASE,
     )
 
-    # Also strip [cross-ref: ...] tags — internal analysis references
-    report_content = re.sub(r"\s*\[cross-ref:[^\]]*\]", "", report_content, flags=re.IGNORECASE)
+    # Also strip [cross-ref ...] tags — internal analysis references.
+    # The model emits both colon-separated ("[cross-ref: Section]") and
+    # space-separated ("[cross-ref Section]") variants — match both, plus
+    # bare "[cross-ref]".
+    report_content = re.sub(
+        r"\s*\[cross-ref(?:[\s:][^\]]*)?\]",
+        "",
+        report_content,
+        flags=re.IGNORECASE,
+    )
 
     # 4. Strip internal citation inventory/debug notes that should never ship.
     report_content = re.sub(
@@ -2039,10 +2057,16 @@ def _clean_fast_report_output(report_content: str) -> str:
     )
 
     # 4b. Strip internal workbook/external-source references that are useful
-    # during generation but should not appear in shipped artifacts.
-    report_content = re.sub(r"\[Workbook:[^\]]*\]", "", report_content, flags=re.IGNORECASE)
-    report_content = re.sub(r"\[workbook section[^\]]*\]", "", report_content, flags=re.IGNORECASE)
-    report_content = re.sub(r"\[Workbook §[^\]]*\]", "", report_content, flags=re.IGNORECASE)
+    # during generation but should not appear in shipped artifacts. One
+    # inclusive [workbook ...] pattern catches the bare marker plus the
+    # ":", " ", and "§" separated forms ("[Workbook: ...]", "[workbook section
+    # 3]", "[Workbook §7]", "[workbook ARDA/prior sections]", "[workbook]").
+    report_content = re.sub(
+        r"\s*\[workbook(?:[\s:§][^\]]*)?\]",
+        "",
+        report_content,
+        flags=re.IGNORECASE,
+    )
     report_content = re.sub(r"\[Analysis Workbook[^\]]*\]", "", report_content, flags=re.IGNORECASE)
     report_content = re.sub(r"\[Analysis:[^\]]*\]", "", report_content, flags=re.IGNORECASE)
     report_content = re.sub(r"\[External Sources\]", "", report_content, flags=re.IGNORECASE)
