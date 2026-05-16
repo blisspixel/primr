@@ -444,10 +444,25 @@ def _estimate_fast_mode_cost(
     duration_min += 1
     duration_max += 2
 
-    # Resolve model pair for this tier
-    reasoning_model, writing_model = PrimrModels.get_grok_models(GrokTier(grok_tier))
+    # Resolve the model pair.
+    #
+    # For ``--grok-tier max`` the user has explicitly opted into Grok-
+    # everywhere (no Gemini writing). For ``fast`` and ``hybrid`` tiers, defer
+    # the writing model to the cross-provider router so the estimate matches
+    # what the live pipeline actually runs (the v1.24.0 sub-$1 default uses
+    # gemini-3.1-flash-lite for bulk writing when GEMINI_API_KEY is set).
+    # The router for REASONING already returns Grok 4.3 when XAI_API_KEY is
+    # set, which is what every supported tier uses for reasoning.
+    tier_reasoning_model, tier_writing_model = PrimrModels.get_grok_models(GrokTier(grok_tier))
+    if grok_tier == "max":
+        reasoning_model, writing_model = tier_reasoning_model, tier_writing_model
+    else:
+        from primr.ai.routing import Role, pick_model_for_role
 
-    # Costs — price each bucket using the appropriate tier model
+        reasoning_model = pick_model_for_role(Role.REASONING)
+        writing_model = pick_model_for_role(Role.WRITING)
+
+    # Costs — price each bucket using the resolved model
     flash_cost = PrimrModels.calculate_flash_cost(flash_in, flash_out)
     reasoning_cost = PrimrModels.calculate_cost(
         reasoning_model, grok_reasoning_in, grok_reasoning_out
@@ -475,20 +490,28 @@ def _estimate_fast_mode_cost(
     grok_in_total = grok_reasoning_in + grok_writing_in
     grok_out_total = grok_reasoning_out + grok_writing_out
 
+    # Strategy stages flow through the reasoning stack, so attribute their
+    # duration suffix to whichever provider is doing the reasoning.
+    strategy_provider = "Grok" if "grok" in reasoning_model.lower() else "Gemini"
+
     duration = f"{duration_min}-{duration_max} min"
     if include_ai_strategy:
-        duration += " + AI strategy (Grok)"
+        duration += f" + AI strategy ({strategy_provider})"
 
-    tier_labels = {"fast": "Grok 4.3 (low-effort)", "hybrid": "Grok 4.3 hybrid", "max": "Grok 4.3 max"}
-    tier_label = tier_labels.get(grok_tier, "Grok")
-    tier_desc = {
-        "fast": "Grok 4.3 (reasoning_effort=low) + 4.20-nr writing",
-        "hybrid": "Grok 4.3 reasoning + 4.20-nr writing (hybrid tier)",
-        "max": "Grok 4.3 for all stages (max tier)",
+    tier_labels = {
+        "fast": "Grok 4.3 (low-effort)",
+        "hybrid": "Grok 4.3 hybrid",
+        "max": "Grok 4.3 max",
     }
-    notes = [f"Standard mode: {tier_desc.get(grok_tier, tier_label)}"]
+    tier_label = tier_labels.get(grok_tier, "Grok")
+    tier_desc = f"{reasoning_model} reasoning + {writing_model} writing"
+    if grok_tier == "fast":
+        tier_desc = f"{reasoning_model} (reasoning_effort=low) + {writing_model} writing"
+    elif grok_tier == "max":
+        tier_desc = f"{reasoning_model} for all stages (max tier)"
+    notes = [f"Standard mode: {tier_desc}"]
     if include_ai_strategy:
-        notes.append(f"AI Strategy via Grok ({num_vendors} vendor(s))")
+        notes.append(f"AI Strategy via {strategy_provider} ({num_vendors} vendor(s))")
     if verify:
         notes.append("Claim verification via Flash (~$0.01, 3-5 min)")
     notes.append(

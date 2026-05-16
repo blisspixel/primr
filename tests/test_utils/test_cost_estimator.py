@@ -553,16 +553,38 @@ class TestGrokTier:
         )
         assert abs(hybrid_est.total_cost - fast_est.total_cost) < 0.001
 
-    def test_max_tier_cheaper_writing_than_hybrid(self):
-        """Max tier uses grok-4.3 ($1.25/$2.50) for writing which is cheaper than
-        hybrid's grok-4.20-non-reasoning ($2.00/$6.00), so max may cost less overall."""
+    def test_max_tier_cheaper_than_hybrid_when_xai_only(self, monkeypatch):
+        """With XAI-only (legacy) routing both tiers price writing as Grok, and
+        MAX (grok-4.3 cached) edges out HYBRID (grok-4.20-nr) on writing.
+
+        Once GEMINI_API_KEY is also set, the v1.24.x cross-provider routing
+        makes HYBRID much cheaper than MAX (gemini-3.1-flash-lite writing
+        vs grok-4.3 writing) — see test_hybrid_cheaper_than_max_with_gemini.
+        """
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.setenv("XAI_API_KEY", "fake-test-key")
         hybrid_est = estimate_cost(
             "complete", fast_mode=True, use_historical=False, grok_tier="hybrid"
         )
         max_est = estimate_cost("complete", fast_mode=True, use_historical=False, grok_tier="max")
-        # MAX uses cheaper writing model (grok-4.3 at $1.25/$2.50 vs grok-4.20-nr at $2.00/$6.00)
-        # so MAX should actually cost less than or equal to HYBRID
         assert max_est.total_cost <= hybrid_est.total_cost
+
+    def test_hybrid_cheaper_than_max_with_gemini(self, monkeypatch):
+        """With GEMINI_API_KEY set, HYBRID routes writing to gemini-3.1-flash-lite
+        ($0.25/$1.50) while MAX stays all-Grok ($1.25/$2.50). HYBRID should
+        come in well under MAX — the v1.24.0 sub-$1 default behavior."""
+        monkeypatch.setenv("GEMINI_API_KEY", "fake-test-key")
+        monkeypatch.setenv("XAI_API_KEY", "fake-test-key")
+        hybrid_est = estimate_cost(
+            "complete", fast_mode=True, use_historical=False, grok_tier="hybrid"
+        )
+        max_est = estimate_cost("complete", fast_mode=True, use_historical=False, grok_tier="max")
+        assert hybrid_est.total_cost < max_est.total_cost
+        # Standard-mode default should now sit in the sub-$2 band, not the
+        # legacy $4+ band — guard against regression of the v1.24.x routing fix.
+        assert hybrid_est.total_cost < 2.00
 
     def test_hybrid_tier_mode_label(self):
         """Hybrid tier estimate should have correct mode label."""
@@ -576,15 +598,34 @@ class TestGrokTier:
         estimate = estimate_cost("complete", fast_mode=True, use_historical=False, grok_tier="max")
         assert estimate.mode == "standard (Grok 4.3 max)"
 
-    def test_fast_tier_cost_range(self):
-        """Fast tier uses grok-4.3 ($1.25/$2.50) + grok-4.20-non-reasoning ($2.00/$6.00)."""
+    def test_fast_tier_cost_range_xai_only(self, monkeypatch):
+        """Fast tier in legacy XAI-only mode: grok-4.3 reasoning + grok-4.20-nr writing,
+        roughly $1.50-$5.00 range."""
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.setenv("XAI_API_KEY", "fake-test-key")
         est = estimate_cost("complete", fast_mode=True, use_historical=False, grok_tier="fast")
         assert 1.50 < est.total_cost < 5.00
 
-    def test_hybrid_tier_cost_range(self):
-        """Hybrid tier uses same models as fast (difference is reasoning_effort)."""
+    def test_hybrid_tier_cost_range_xai_only(self, monkeypatch):
+        """Hybrid tier in legacy XAI-only mode: same model pair as fast, same band."""
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.setenv("XAI_API_KEY", "fake-test-key")
         est = estimate_cost("complete", fast_mode=True, use_historical=False, grok_tier="hybrid")
         assert 1.50 < est.total_cost < 5.00
+
+    def test_hybrid_tier_cost_range_with_gemini(self, monkeypatch):
+        """Hybrid tier with GEMINI_API_KEY set: writing routed to gemini-3.1-flash-lite,
+        total drops into the sub-$1 band that the v1.24.0 default targets."""
+        monkeypatch.setenv("GEMINI_API_KEY", "fake-test-key")
+        monkeypatch.setenv("XAI_API_KEY", "fake-test-key")
+        est = estimate_cost("complete", fast_mode=True, use_historical=False, grok_tier="hybrid")
+        # Sub-$2 (with strategy/hiring overhead included); without overhead,
+        # the v1.24.0 stage-1 eval landed at $0.79.
+        assert est.total_cost < 2.00
 
     def test_max_tier_cost_range(self):
         """Max tier (Grok 4.3 everywhere) should be in the $2.00-$5.00 band."""
