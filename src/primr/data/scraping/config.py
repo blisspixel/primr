@@ -5,8 +5,8 @@ NOTE: This module contains ONLY constants and dataclasses.
 DEFAULT_TIERS is defined in tier_registry.py to avoid circular imports.
 """
 
-import os
 from dataclasses import dataclass
+import os
 
 # =============================================================================
 # Rate Limiting Configuration

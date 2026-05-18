@@ -9,9 +9,9 @@ from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
+import pytest
 
 from src.primr.qa.analyzer import QAAnalyzer
 from src.primr.qa.models import (
@@ -779,9 +779,9 @@ class TestFilePersistenceProperties:
         Property: For any company name, when QA analysis is saved,
         the detailed analysis files should be created and readable.
         """
-        import tempfile
         from datetime import datetime
         from pathlib import Path
+        import tempfile
 
         # Create a mock QA analysis
         analysis = QAAnalysis(
@@ -858,9 +858,9 @@ class TestFilePersistenceProperties:
         """
         Edge case: File persistence should handle company names with special characters.
         """
-        import tempfile
         from datetime import datetime
         from pathlib import Path
+        import tempfile
 
         # Test with company names that need file system normalization
         test_companies = ["Acme & Associates", "Stark & Banner", "Wayne & Kent", "Wonka's Treats"]
@@ -929,8 +929,8 @@ class TestDetailedQAReviewProperties:
         """
         Test that QA review succeeds when a report exists.
         """
-        import tempfile
         from pathlib import Path
+        import tempfile
         from unittest.mock import patch
 
         from src.primr.qa.command import QACommand
@@ -961,8 +961,8 @@ class TestDetailedQAReviewProperties:
         """
         Edge case: QA review should handle multiple reports and select the latest.
         """
-        import tempfile
         from pathlib import Path
+        import tempfile
         from unittest.mock import patch
 
         from src.primr.qa.command import QACommand
@@ -1037,8 +1037,8 @@ class TestDefaultQAIntegrationProperties:
         Property: For any company name, when QA is enabled by default,
         the QA integration should execute automatically and produce results.
         """
-        import tempfile
         from pathlib import Path
+        import tempfile
 
         from src.primr.qa.integration import QAIntegration
         from src.primr.qa.models import QAOptions
@@ -1126,8 +1126,8 @@ Sources:
         """
         Test that QA integration respects the disabled setting.
         """
-        import tempfile
         from pathlib import Path
+        import tempfile
 
         from src.primr.qa.integration import QAIntegration
         from src.primr.qa.models import QAOptions
@@ -1149,8 +1149,8 @@ Sources:
         """
         Test that QA integration handles errors gracefully.
         """
-        import tempfile
         from pathlib import Path
+        import tempfile
 
         from src.primr.qa.integration import QAIntegration
         from src.primr.qa.models import QAOptions
@@ -1186,9 +1186,9 @@ class TestWorkspaceIntegrationProperties:
         Property: For any company name, QA system should integrate properly
         with workspace file structure and naming conventions.
         """
-        import tempfile
         from datetime import datetime
         from pathlib import Path
+        import tempfile
 
         from src.primr.output.qa_report_generator import QAReportGenerator
         from src.primr.qa.models import (
@@ -1269,9 +1269,9 @@ class TestWorkspaceIntegrationProperties:
         """
         Test workspace integration when files already exist.
         """
-        import tempfile
         from datetime import datetime
         from pathlib import Path
+        import tempfile
 
         from src.primr.output.qa_report_generator import QAReportGenerator
         from src.primr.qa.models import (
@@ -1331,9 +1331,9 @@ class TestQAHistoryPreservationProperties:
         """
         Test that QA history tracking works with mocked file operations.
         """
-        import tempfile
         from datetime import datetime
         from pathlib import Path
+        import tempfile
         from unittest.mock import patch
 
         from src.primr.output.qa_report_generator import QAReportGenerator
@@ -1409,10 +1409,10 @@ class TestQAHistoryPreservationProperties:
         """
         Test that QA history properly handles timestamps and chronological ordering.
         """
-        import os
-        import tempfile
         from datetime import datetime
+        import os
         from pathlib import Path
+        import tempfile
         from unittest.mock import patch
 
         from src.primr.output.qa_report_generator import QAReportGenerator
@@ -1518,8 +1518,8 @@ class TestErrorRecoveryProperties:
         Property: For any company name, when QA operations encounter errors,
         the system should recover gracefully and provide meaningful feedback.
         """
-        import tempfile
         from pathlib import Path
+        import tempfile
 
         from src.primr.qa.integration import QAIntegration
         from src.primr.qa.models import QAOptions

@@ -1,7 +1,7 @@
 """Tests for MCP + A2A co-hosting in server.py."""
 
-import tempfile
 from pathlib import Path
+import tempfile
 
 import pytest
 

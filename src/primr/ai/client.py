@@ -11,8 +11,8 @@ This module provides:
 
 import asyncio
 import concurrent.futures
-import time
 from dataclasses import dataclass
+import time
 from typing import Any
 
 try:

@@ -8,12 +8,11 @@ Task 0: Protocol spike validation
 - 0.6: Stdout purity in stdio mode
 """
 
+from io import StringIO
 import json
 import sys
-from io import StringIO
 from unittest.mock import patch
 
-import pytest
 from mcp.types import (
     CallToolRequest,
     CallToolRequestParams,
@@ -22,6 +21,7 @@ from mcp.types import (
     ReadResourceRequest,
     ReadResourceRequestParams,
 )
+import pytest
 
 from primr.mcp_server.spike import create_spike_server
 

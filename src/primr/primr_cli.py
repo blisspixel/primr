@@ -11,8 +11,8 @@ Recommended (after pip install -e .):
     primr doctor
 """
 
-import sys
 from pathlib import Path
+import sys
 
 # Add src to path for package imports
 sys.path.insert(0, str(Path(__file__).parent / "src"))

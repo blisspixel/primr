@@ -1,8 +1,8 @@
 """Tests for scrape trace logging."""
 
 import json
-import tempfile
 from pathlib import Path
+import tempfile
 
 from primr.data.scraping.models import (
     Attempt,

@@ -3,8 +3,8 @@ QA integration handler for automatic post-generation quality assurance.
 """
 
 import logging
-import time
 from pathlib import Path
+import time
 
 from .error_handler import QAErrorHandler, safe_qa_operation
 from .models import QAOptions, QAResult

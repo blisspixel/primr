@@ -3,8 +3,8 @@
 Tests SR-3.1, SR-3.2, SR-3.3, SR-3.4 requirements.
 """
 
-import re
 from pathlib import Path
+import re
 
 import pytest
 

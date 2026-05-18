@@ -5,10 +5,10 @@ Task 2: JobStore and concurrency model
 - 2.1-2.13: JobStore lifecycle, stage monotonicity, invariants, persistence
 """
 
-import json
-import tempfile
 from datetime import datetime, timedelta, timezone
+import json
 from pathlib import Path
+import tempfile
 
 import pytest
 

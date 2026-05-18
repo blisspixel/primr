@@ -17,11 +17,11 @@ by tracking failure rates and temporarily blocking requests.
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+import logging
 
 from primr.utils.errors import PrimrError
 

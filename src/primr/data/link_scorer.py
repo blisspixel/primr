@@ -13,10 +13,10 @@ Usage:
     best_links = scorer.get_top_links(scored_links, limit=10)
 """
 
-import contextlib
-import re
 from collections import defaultdict
+import contextlib
 from dataclasses import dataclass, field
+import re
 from urllib.parse import urlparse
 
 from primr.utils.logging_config import get_logger

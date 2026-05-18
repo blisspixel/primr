@@ -4,8 +4,8 @@ Unit tests for the prompts module.
 Tests prompt loading, variable extraction, and error handling.
 """
 
-import sys
 from pathlib import Path
+import sys
 
 import pytest
 

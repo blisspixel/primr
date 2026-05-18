@@ -31,12 +31,12 @@ Example:
 
 from __future__ import annotations
 
-import contextvars
-import logging
-import traceback
 from contextlib import asynccontextmanager, contextmanager
+import contextvars
 from dataclasses import dataclass, field
 from enum import Enum
+import logging
+import traceback
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:

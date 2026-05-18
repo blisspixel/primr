@@ -12,15 +12,15 @@ Usage:
     # Automatically uses the best tier for example.com
 """
 
-import functools
-import json
-import threading
-import time
 from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
+import functools
+import json
 from pathlib import Path
+import threading
+import time
 from typing import Any
 from urllib.parse import urlparse
 

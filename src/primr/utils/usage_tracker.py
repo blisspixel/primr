@@ -16,9 +16,9 @@ Usage:
     tracker.update_estimates()
 """
 
-import json
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
+import json
 from pathlib import Path
 
 from primr.utils.logging_config import get_logger

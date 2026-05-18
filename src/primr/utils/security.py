@@ -14,14 +14,14 @@ Security best practices:
 - Validate and sanitize all user inputs
 """
 
+from collections.abc import Callable
+from functools import wraps
 import hashlib
 import hmac
 import logging
 import os
 import re
 import secrets
-from collections.abc import Callable
-from functools import wraps
 from typing import Any, TypeVar
 
 logger = logging.getLogger(__name__)

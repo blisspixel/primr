@@ -17,10 +17,10 @@ backoff, jitter, and error-specific retry delays.
 from __future__ import annotations
 
 import asyncio
-import logging
-import random
 from dataclasses import dataclass, field
 from datetime import datetime
+import logging
+import random
 from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar
 
 from primr.utils.errors import (

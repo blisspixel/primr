@@ -4,8 +4,8 @@ Unit tests for the structured_research module.
 Tests dataclasses, phase functions, and section research.
 """
 
-import sys
 from pathlib import Path
+import sys
 from unittest.mock import MagicMock, patch
 
 # Add src to path for imports

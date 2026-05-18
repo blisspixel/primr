@@ -5,8 +5,8 @@ Converts Deep Research Agent output into the section format
 expected by the report generation system.
 """
 
-import re
 from dataclasses import dataclass
+import re
 
 from primr.config.sections_config import SECTION_KEY_MAP
 from primr.utils.logging_config import get_logger

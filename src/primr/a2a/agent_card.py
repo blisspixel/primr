@@ -8,8 +8,8 @@ Requires: pip install primr[a2a]
 
 from __future__ import annotations
 
-import logging
 from importlib.metadata import version as pkg_version
+import logging
 
 from a2a.types import (
     AgentCapabilities,

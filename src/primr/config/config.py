@@ -17,8 +17,8 @@ Usage:
         print(result.errors)
 """
 
-import os
 from dataclasses import dataclass
+import os
 from pathlib import Path
 
 from primr.config.env import load_primr_env

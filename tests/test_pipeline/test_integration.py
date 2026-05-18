@@ -73,8 +73,8 @@ class TestDryRunRecoveryTable:
 
         **Validates: Requirements 14.1, 14.2**
         """
-        import io
         from contextlib import redirect_stdout
+        import io
 
         from primr.core.cli import CLIConfig, Command, _handle_dry_run
 

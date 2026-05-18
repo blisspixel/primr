@@ -5,8 +5,8 @@ Tests for async/sync boundary utilities.
 """
 
 import asyncio
-import time
 from concurrent.futures import ThreadPoolExecutor
+import time
 
 import pytest
 

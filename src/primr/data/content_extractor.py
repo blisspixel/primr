@@ -13,8 +13,8 @@ Usage:
     figures = extractor.extract_financial_figures(text)
 """
 
-import re
 from dataclasses import dataclass
+import re
 from typing import Any
 
 from bs4 import BeautifulSoup

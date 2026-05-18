@@ -10,12 +10,12 @@ of the circuit breaker implementation as specified in the PhD-Level Excellence s
 
 from __future__ import annotations
 
-import time
 from datetime import datetime
+import time
 
-import pytest
 from hypothesis import HealthCheck, assume, given, settings
 from hypothesis import strategies as st
+import pytest
 
 from primr.utils.circuit_breaker import (
     CircuitBreaker,

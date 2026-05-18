@@ -20,10 +20,10 @@ Env overrides:
 from __future__ import annotations
 
 import colorsys
+from dataclasses import dataclass
 import os
 import sys
 import time
-from dataclasses import dataclass
 
 from rich.console import Console
 from rich.markup import escape

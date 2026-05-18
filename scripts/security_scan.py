@@ -14,10 +14,10 @@ Usage:
 """
 
 import argparse
+from pathlib import Path
 import re
 import subprocess
 import sys
-from pathlib import Path
 
 # Colors for output
 RED = "\033[91m"

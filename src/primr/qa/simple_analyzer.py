@@ -2,9 +2,9 @@
 Simplified QA analyzer focused on practical assessment: "Is this report ready for internal use?"
 """
 
+from dataclasses import dataclass
 import logging
 import re
-from dataclasses import dataclass
 from typing import Literal
 
 from ..config.models import PrimrModels

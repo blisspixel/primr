@@ -9,9 +9,9 @@ Tests proper creation, upload, and cleanup of File Search Stores.
 
 from unittest.mock import Mock, patch
 
-import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
+import pytest
 
 # =============================================================================
 # Fixtures

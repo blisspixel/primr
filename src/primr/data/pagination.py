@@ -8,9 +8,9 @@ This module provides:
 - Load more button detection
 """
 
-import re
 from dataclasses import dataclass, field
 from enum import Enum
+import re
 from urllib.parse import parse_qs, urlencode, urljoin, urlparse, urlunparse
 
 from primr.utils.logging_config import get_logger

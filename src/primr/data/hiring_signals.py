@@ -37,13 +37,13 @@ direction than any marketing page will.
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import asdict, dataclass, field
+from datetime import datetime
 import json
 import logging
 import os
 import re
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import asdict, dataclass, field
-from datetime import datetime
 from typing import Any
 from urllib.parse import urljoin, urlparse
 

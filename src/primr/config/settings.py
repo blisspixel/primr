@@ -9,8 +9,8 @@ This module provides:
 - Validated timeout, cache, and retry configurations
 """
 
-import os
 from dataclasses import dataclass, field
+import os
 from pathlib import Path
 from typing import Any
 

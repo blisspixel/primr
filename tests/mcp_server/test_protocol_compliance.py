@@ -9,10 +9,9 @@ These tests validate that the MCP server follows protocol requirements:
 """
 
 import json
-import tempfile
 from pathlib import Path
+import tempfile
 
-import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 from mcp.types import (
@@ -26,6 +25,7 @@ from mcp.types import (
     ReadResourceRequest,
     ReadResourceRequestParams,
 )
+import pytest
 
 from primr.mcp_server.server import create_mcp_server
 from primr.mcp_server.types import MCPErrorCode

@@ -8,10 +8,10 @@ This module provides:
 - Information freshness tracking
 """
 
-import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+import re
 from urllib.parse import urlparse
 
 from primr.utils.logging_config import get_logger

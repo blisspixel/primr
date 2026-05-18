@@ -5,8 +5,8 @@ These tests use mocks to avoid actual API calls.
 Real API integration tests should be run separately.
 """
 
-import tempfile
 from datetime import datetime
+import tempfile
 from unittest.mock import Mock, patch
 
 import pytest

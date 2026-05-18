@@ -5,8 +5,8 @@ Feature: qa-grading-fix, Property 1: Assessment covers Primr quality standards
 Validates: Requirements 1.1
 """
 
-import json
 from datetime import datetime
+import json
 from pathlib import Path
 from unittest.mock import patch
 

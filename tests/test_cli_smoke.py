@@ -8,12 +8,12 @@ They use subprocess.run() to execute the actual CLI commands.
 **Validates: Requirements 2.1, 2.2, 2.3, 2.4, 2.5**
 """
 
-import subprocess
 from pathlib import Path
+import subprocess
 
-import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
+import pytest
 
 # Project root for running CLI
 PROJECT_ROOT = Path(__file__).parent.parent

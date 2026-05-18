@@ -20,8 +20,8 @@ import json
 import threading
 from typing import TYPE_CHECKING
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 
 from deploy.control_plane.api import app, configure_app
 from deploy.control_plane.cancellation import CancellationResult, CancellationService

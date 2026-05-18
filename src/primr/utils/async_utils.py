@@ -27,10 +27,10 @@ Usage:
 from __future__ import annotations
 
 import asyncio
-import functools
-import logging
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
+import functools
+import logging
 from typing import TYPE_CHECKING, ParamSpec, TypeVar
 
 if TYPE_CHECKING:
@@ -111,8 +111,8 @@ def detach_running_workers(pool: ThreadPoolExecutor) -> None:
     private stdlib internals, so it is wrapped in a defensive try/except.
     """
     try:
-        import threading
         from concurrent.futures import thread as _cft
+        import threading
         from typing import Any, cast
 
         # WeakKeyDictionary at runtime; typeshed types as a generic Mapping.

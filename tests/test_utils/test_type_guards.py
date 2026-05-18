@@ -6,9 +6,9 @@ Includes property-based tests using Hypothesis for comprehensive validation.
 
 from dataclasses import dataclass
 
-import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
+import pytest
 
 from primr.utils.type_guards import (
     TypeValidationError,

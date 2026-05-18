@@ -5,9 +5,9 @@ Provides additional formatting and content enhancement components
 for consultant-grade document output.
 """
 
-import re
 from dataclasses import dataclass
 from datetime import datetime
+import re
 from typing import Any
 
 from docx import Document

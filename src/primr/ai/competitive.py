@@ -6,11 +6,11 @@ Provides competitor identification, comparison, and SWOT analysis.
 
 from __future__ import annotations
 
-import re
-import threading
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+import re
+import threading
 from typing import Any
 
 

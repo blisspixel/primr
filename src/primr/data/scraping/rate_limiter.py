@@ -4,10 +4,10 @@ Per-host rate limiting with token bucket and concurrency control.
 Used by both orchestrator and discovery (verify_urls_exist).
 """
 
+from collections import defaultdict
 import random
 import threading
 import time
-from collections import defaultdict
 
 from .config import RateLimitConfig
 

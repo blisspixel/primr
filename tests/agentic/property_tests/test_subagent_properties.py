@@ -20,8 +20,8 @@ Validates: Requirements 3.3, 3.5, 3.7
 from __future__ import annotations
 
 import asyncio
-import tempfile
 from pathlib import Path
+import tempfile
 from typing import Any
 
 from hypothesis import assume, given, settings

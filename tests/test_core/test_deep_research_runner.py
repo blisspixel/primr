@@ -10,13 +10,13 @@ Tests cover:
 - validate_preflight function
 """
 
-import tempfile
 from pathlib import Path
+import tempfile
 from unittest.mock import MagicMock, patch
 
-import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
+import pytest
 
 from primr.core.deep_research_runner import (
     DeepResearchConfig,

@@ -184,6 +184,12 @@ ignore = [
 
 [tool.ruff.lint.isort]
 known-first-party = ["primr"]
+# Force a single sorted block per section. Without this, ruff allowed two
+# different layouts for sibling submodules (e.g. mcp.server vs
+# mcp.server.stdio) and the auto-fix oscillated between them depending
+# on which order each file already had — which made local and CI
+# disagree even on the exact same source + ruff version.
+force-sort-within-sections = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

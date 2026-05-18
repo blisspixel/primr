@@ -8,8 +8,8 @@ instructions for parallel Deep Research execution.
 The Master Architect uses Flash model for fast, cost-effective planning.
 """
 
-import json
 from dataclasses import dataclass, field
+import json
 from typing import Any
 
 try:

@@ -8,9 +8,9 @@ This module provides:
 - Aggregated sentiment scoring
 """
 
-import re
 from dataclasses import dataclass, field
 from enum import Enum
+import re
 from typing import Any
 
 from primr.utils.logging_config import get_logger

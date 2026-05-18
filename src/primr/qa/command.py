@@ -2,10 +2,10 @@
 QA command-line interface for reviewing and analyzing report quality.
 """
 
+from datetime import datetime
 import glob
 import logging
 import os
-from datetime import datetime
 from pathlib import Path
 
 from ..config.models import PrimrModels

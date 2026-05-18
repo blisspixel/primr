@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import json
 import logging
-import uuid
 from typing import TYPE_CHECKING, Any
+import uuid
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
