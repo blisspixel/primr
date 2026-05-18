@@ -240,8 +240,9 @@ primr-mcp --stdio              # legacy entry point, still supported
 
 ```bash
 pip install primr[a2a]                     # install optional A2A support
-primr-a2a --no-auth                        # standalone A2A server on port 9000
-primr-mcp --http --a2a                     # co-hosted with MCP server
+primr-a2a                                  # standalone A2A on 127.0.0.1:9000 (auth required)
+primr-a2a --host 127.0.0.1 --no-auth       # local dev only — refuses non-loopback hosts
+primr-mcp --http --a2a                     # co-hosted with MCP server (shares MCP auth)
 curl localhost:9000/.well-known/agent.json  # discover agent capabilities
 ```
 

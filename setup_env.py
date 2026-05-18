@@ -371,14 +371,41 @@ def get_key_interactive(name, url, description):
         webbrowser.open(url)
         console.print(f"  [dim]Opened {url[:50]}...[/dim]")
 
+    # password=True masks input so pasted API keys don't appear in the
+    # terminal, scrollback, screen-share recordings, or session capture.
     while True:
-        value = Prompt.ask("\n  Paste key").strip()
+        value = Prompt.ask("\n  Paste key", password=True).strip()
         if value and key_looks_valid(name, value):
             return value
         elif value:
             console.print("  [yellow]Doesn't look right - try again[/yellow]")
         else:
             console.print("  [red]Required[/red]")
+
+
+def _write_env_file_securely(env_path: Path, contents: str) -> None:
+    """Write the .env file with owner-only permissions on POSIX.
+
+    Using ``Path.write_text`` creates the file with the process umask, so
+    on a typical 0022 umask the resulting ``.env`` is world-readable
+    (0644). API keys are sensitive material — open the file with O_CREAT |
+    O_TRUNC | 0o600 in one syscall so there's no race window where another
+    local user could read it. Windows relies on NTFS ACLs inherited from
+    the user profile and ignores the chmod argument.
+    """
+    data = contents.encode("utf-8")
+    if os.name == "posix":
+        fd = os.open(str(env_path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        try:
+            os.write(fd, data)
+        finally:
+            os.close(fd)
+        try:
+            env_path.chmod(0o600)
+        except OSError:
+            pass
+    else:
+        env_path.write_bytes(data)
 
 
 def main_rich():
@@ -524,7 +551,10 @@ def main_rich():
             current[key] = get_key_interactive(key, url, desc)
             console.print(f"  [green]✓[/green] {key}")
 
-        Path(".env").write_text("\n".join(f"{k}={v}" for k, v in current.items()) + "\n")
+        _write_env_file_securely(
+            Path(".env"),
+            "\n".join(f"{k}={v}" for k, v in current.items()) + "\n",
+        )
 
     # Offer to set up XAI key if not present
     if "XAI_API_KEY" not in current or not key_looks_valid("XAI_API_KEY", current["XAI_API_KEY"]):
@@ -538,7 +568,10 @@ def main_rich():
                 "Powers Grok analysis — default mode (~$0.55/run, ~30 min)",
             )
             current["XAI_API_KEY"] = xai_key
-            Path(".env").write_text("\n".join(f"{k}={v}" for k, v in current.items()) + "\n")
+            _write_env_file_securely(
+            Path(".env"),
+            "\n".join(f"{k}={v}" for k, v in current.items()) + "\n",
+        )
             console.print("  [green]✓[/green] XAI_API_KEY")
 
     # Verify

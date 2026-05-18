@@ -1339,8 +1339,12 @@ Primr can also expose its capabilities via the A2A (Agent-to-Agent) protocol, al
 # Install A2A support
 pip install primr[a2a]
 
-# Standalone A2A server
-primr-a2a --no-auth
+# Standalone A2A server (auth on; binds to 127.0.0.1 by default)
+primr-a2a
+
+# Local-development shortcut. --no-auth is refused unless --host is loopback,
+# so accidentally exposing the A2A skill set on a public interface fails closed.
+primr-a2a --host 127.0.0.1 --no-auth
 
 # Co-hosted with MCP server
 primr-mcp --http --a2a --a2a-port 9000

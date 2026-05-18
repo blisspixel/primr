@@ -43,7 +43,24 @@ def _http_get(
     headers: dict | None = None,
     params: dict | None = None,
 ) -> tuple[int | None, bytes | None, str | None]:
-    """Plain httpx GET with follow_redirects. Returns (status, body, final_url)."""
+    """Plain httpx GET with follow_redirects. Returns (status, body, final_url).
+
+    SSRF protection: validates the initial URL and the final URL after
+    redirects against the central SSRF blocklist. The fallback fan-out
+    builds URLs from arbitrary subdomains of a user-supplied host, and the
+    raw response is later merged into scrape artifacts — without this
+    check, attacker-controlled DNS or HTTP redirects could read internal
+    services. Mirror any changes here in
+    ``hiring_signals.py::_http_get`` and
+    ``scraping/stealth_browser.py``.
+    """
+    from primr.utils.security import is_safe_url, validate_final_url_after_redirect
+
+    safe, reason = is_safe_url(url)
+    if not safe:
+        logger.info("fallback: blocked outbound request to %s (%s)", url, reason)
+        return None, None, None
+
     try:
         import httpx
 
@@ -61,7 +78,17 @@ def _http_get(
             headers=base_headers,
         ) as client:
             resp = client.get(url, params=params)
-            return resp.status_code, resp.content, str(resp.url)
+            final_url = str(resp.url)
+            safe_final, reason = validate_final_url_after_redirect(final_url)
+            if not safe_final:
+                logger.info(
+                    "fallback: dropped response from %s — final URL %s blocked (%s)",
+                    url,
+                    final_url,
+                    reason,
+                )
+                return None, None, None
+            return resp.status_code, resp.content, final_url
     except Exception as e:
         logger.debug("fallback HTTP get failed for %s: %s", url, e)
         return None, None, None

@@ -39,13 +39,22 @@ Health Check:
     parser.add_argument(
         "--host",
         type=str,
-        default="0.0.0.0",
-        help="Host to bind to (default: 0.0.0.0)",
+        default="127.0.0.1",
+        # Default is loopback so that a stray --no-auth on a multi-user or
+        # cloud host doesn't expose research_company / check_jobs / run_qa
+        # to the open internet. Operators who want a public listener must
+        # opt in explicitly with --host 0.0.0.0 and configure real auth.
+        help="Host to bind to (default: 127.0.0.1; use 0.0.0.0 for external access)",
     )
     parser.add_argument(
         "--no-auth",
         action="store_true",
-        help="Disable authentication (for local development only)",
+        help=(
+            "Disable authentication. ONLY safe with --host 127.0.0.1; "
+            "combining --no-auth with a non-loopback host exposes the A2A "
+            "skill set (research_company, check_jobs, run_qa) to anyone "
+            "who can reach the port."
+        ),
     )
     parser.add_argument(
         "--no-mcp",
@@ -66,6 +75,23 @@ Health Check:
     )
 
     args = parser.parse_args()
+
+    # Fail-closed guard: --no-auth + public bind is a misconfiguration we
+    # refuse to start. The previous CLI accepted this combination and was
+    # documented as such in README/ROADMAP, which produced an
+    # unauthenticated A2A service exposing research_company on 0.0.0.0:9000
+    # whenever someone followed the docs literally.
+    if args.no_auth and args.host not in ("127.0.0.1", "localhost", "::1"):
+        print(
+            (
+                f"Error: --no-auth requires --host 127.0.0.1 (got {args.host!r}). "
+                "Exposing the A2A skills without authentication on a non-loopback "
+                "interface lets any reachable client start research jobs and read "
+                "job state. Either keep auth on, or bind to loopback."
+            ),
+            file=sys.stderr,
+        )
+        sys.exit(2)
 
     # Check a2a-sdk availability
     try:

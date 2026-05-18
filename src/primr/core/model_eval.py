@@ -653,6 +653,43 @@ def _find_strategic_reports(source_dir: Path) -> list[Path]:
     return [p for p in candidates if p.is_file()]
 
 
+_SAFE_EVAL_ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
+
+
+def _safe_eval_dir(eval_root: Path, eval_id: str) -> Path:
+    """Resolve ``eval_root / eval_id`` after rejecting traversal/separators.
+
+    The CLI's --eval-id is forwarded as a filesystem component to write
+    scorecards, manifests, and per-profile staged report copies. Without
+    a containment check, '../' or absolute eval_id values silently escape
+    eval_root and let the eval workflow create or copy files anywhere the
+    process can write.
+    """
+    if not _SAFE_EVAL_ID_RE.fullmatch(eval_id):
+        raise ValueError(f"Unsafe eval_id (allowed: [A-Za-z0-9._-], 1-128 chars): {eval_id!r}")
+    resolved_root = eval_root.resolve()
+    candidate = (eval_root / eval_id).resolve()
+    try:
+        candidate.relative_to(resolved_root)
+    except ValueError as e:
+        raise ValueError(f"eval_id resolves outside eval_root: {eval_id!r}") from e
+    return candidate
+
+
+def _sanitize_target_company(target: str) -> str:
+    """Strip path separators and traversal sequences from a company name
+    before using it as a glob/filename component.
+    """
+    if not target:
+        return "Unknown_Company"
+    cleaned = re.sub(r"[\\/]", "_", target)
+    cleaned = cleaned.replace("..", "_")
+    # Drop glob metacharacters so an attacker-chosen company name can't
+    # accidentally match unrelated files during stale-file cleanup.
+    cleaned = re.sub(r"[\*\?\[\]]", "_", cleaned)
+    return cleaned.strip(" .") or "Unknown_Company"
+
+
 def auto_stage_existing_reports(
     *,
     eval_id: str,
@@ -668,7 +705,7 @@ def auto_stage_existing_reports(
     Returns:
         Mapping profile -> staged files.
     """
-    eval_dir = eval_root / eval_id
+    eval_dir = _safe_eval_dir(eval_root, eval_id)
     eval_dir.mkdir(parents=True, exist_ok=True)
     all_reports = _find_strategic_reports(source_dir)
     if not all_reports:
@@ -730,7 +767,8 @@ def auto_stage_existing_reports(
         profile_dir.mkdir(parents=True, exist_ok=True)
         profile_entries: list[dict[str, str]] = []
         for target in target_companies:
-            target_prefix = target.replace(" ", "_") + "_Strategic_Overview"
+            safe_target = _sanitize_target_company(target)
+            target_prefix = safe_target.replace(" ", "_") + "_Strategic_Overview"
             for stale in profile_dir.glob(f"{target_prefix}*"):
                 if stale.is_file():
                     stale.unlink()
@@ -744,8 +782,19 @@ def auto_stage_existing_reports(
             selected = _best_report_for(target, profile)
             if not selected:
                 continue
-            staged_name = f"{target.replace(' ', '_')}_Strategic_Overview{selected.suffix}"
+            safe_target = _sanitize_target_company(target)
+            staged_name = (
+                f"{safe_target.replace(' ', '_')}_Strategic_Overview{selected.suffix}"
+            )
             staged_path = profile_dir / staged_name
+            # Defense in depth: confirm the staged path stays under the
+            # profile dir even after path resolution.
+            if not staged_path.resolve().is_relative_to(profile_dir.resolve()):
+                logger.warning(
+                    "Skipping staged copy for %r — resolved path escapes profile dir",
+                    target,
+                )
+                continue
             shutil.copy2(selected, staged_path)
             staged[profile].append(staged_path)
             profile_entries.append(
@@ -816,7 +865,7 @@ def evaluate_outputs(
     cost_ratio_threshold: float,
     manifest_path: Path | None = None,
 ) -> EvaluationResult:
-    eval_dir = eval_root / eval_id
+    eval_dir = _safe_eval_dir(eval_root, eval_id)
     metrics_by_profile: dict[str, list[ReportMetrics]] = {}
     for profile in profiles:
         metrics = _find_profile_reports(eval_dir / profile, profile)

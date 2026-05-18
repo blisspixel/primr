@@ -14,18 +14,42 @@ on:
         required: true
         default: 'v1.20.0'
 
+# Strict semver regex applied to every tag/ref consumed by a shell step.
+# Tag names can legally contain shell metacharacters (quotes, $, ;, #, braces)
+# under git's refname rules, so any value pulled from github.ref or
+# workflow_dispatch input MUST be validated before it touches bash.
+env:
+  TAG_PATTERN: '^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$'
+
 jobs:
   build:
     name: Build sdist + wheel
     runs-on: ubuntu-latest
 
     steps:
+      - name: Resolve and validate tag
+        id: meta
+        env:
+          RAW_REF: ${{ github.event.inputs.ref || github.ref }}
+        run: |
+          # Strip refs/tags/ prefix when triggered by tag push
+          TAG="${RAW_REF#refs/tags/}"
+          if ! [[ "$TAG" =~ $TAG_PATTERN ]]; then
+            echo "::error::Tag '$TAG' does not match required semver pattern $TAG_PATTERN"
+            exit 1
+          fi
+          VERSION="${TAG#v}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.ref || github.ref }}
+          ref: ${{ steps.meta.outputs.tag }}
           # Full history so setuptools-scm or anything reading commits works.
           fetch-depth: 0
+          # We only need to read the tree; no push from this job.
+          persist-credentials: false
 
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
@@ -38,12 +62,9 @@ jobs:
           pip install build twine
 
       - name: Verify version matches tag
+        env:
+          TAG_VERSION: ${{ steps.meta.outputs.version }}
         run: |
-          TAG_REF="${{ github.event.inputs.ref || github.ref }}"
-          # Strip refs/tags/ prefix when triggered by tag push
-          TAG="${TAG_REF#refs/tags/}"
-          # Strip leading v
-          TAG_VERSION="${TAG#v}"
           PKG_VERSION=$(python -c "import tomllib; print(tomllib.loads(open('pyproject.toml','rb').read().decode())['project']['version'])")
           echo "Tag version:     $TAG_VERSION"
           echo "Package version: $PKG_VERSION"
@@ -100,11 +121,27 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Resolve and validate tag
+        id: meta
+        env:
+          RAW_REF: ${{ github.event.inputs.ref || github.ref }}
+        run: |
+          TAG="${RAW_REF#refs/tags/}"
+          if ! [[ "$TAG" =~ $TAG_PATTERN ]]; then
+            echo "::error::Tag '$TAG' does not match required semver pattern $TAG_PATTERN"
+            exit 1
+          fi
+          VERSION="${TAG#v}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.ref || github.ref }}
+          ref: ${{ steps.meta.outputs.tag }}
           fetch-depth: 0
+          # gh release uses GH_TOKEN env, not the checkout-persisted credential.
+          persist-credentials: false
 
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
@@ -117,21 +154,13 @@ jobs:
           name: dist
           path: dist/
 
-      - name: Resolve tag and version
-        id: meta
-        run: |
-          TAG_REF="${{ github.event.inputs.ref || github.ref }}"
-          TAG="${TAG_REF#refs/tags/}"
-          VERSION="${TAG#v}"
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
       - name: Extract release notes from CHANGELOG.md
-        id: notes
+        env:
+          RELEASE_VERSION: ${{ steps.meta.outputs.version }}
         run: |
-          python - <<'PY' "${{ steps.meta.outputs.version }}"
-          import re, sys, pathlib, os
-          version = sys.argv[1]
+          python - <<'PY'
+          import re, os, pathlib
+          version = os.environ["RELEASE_VERSION"]
           text = pathlib.Path("docs/CHANGELOG.md").read_text(encoding="utf-8")
           pat = re.compile(r"^## \[" + re.escape(version) + r"\][^\n]*\n(.*?)(?=\n## \[|\Z)", re.M | re.S)
           m = pat.search(text)
@@ -144,12 +173,25 @@ jobs:
       - name: Create or update GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.meta.outputs.tag }}
+          # Opt-in escape hatch for the rare case where an operator
+          # genuinely needs to replace release assets (e.g. a yanked
+          # wheel). Default is fail-closed so a force-moved tag or a
+          # re-dispatched workflow against altered code cannot silently
+          # swap out artifacts that downstream consumers already trust.
+          ALLOW_ASSET_REPLACE: ${{ vars.ALLOW_RELEASE_ASSET_REPLACE || 'false' }}
         run: |
-          TAG="${{ steps.meta.outputs.tag }}"
           if gh release view "$TAG" >/dev/null 2>&1; then
-            # Release already exists (e.g. after a history rewrite that moved
-            # the tag). Refresh notes + replace artifacts in place.
-            echo "Release $TAG already exists; updating notes and artifacts."
+            if [ "$ALLOW_ASSET_REPLACE" != "true" ]; then
+              echo "::error::Release $TAG already exists. Refusing to replace assets."
+              echo "::error::Same-version asset replacement is a supply-chain risk."
+              echo "::error::To intentionally update notes/assets, set the"
+              echo "::error::ALLOW_RELEASE_ASSET_REPLACE repository variable to true"
+              echo "::error::or delete the release manually first."
+              exit 1
+            fi
+            # Opt-in path: refresh notes and replace artifacts in place.
+            echo "::warning::ALLOW_RELEASE_ASSET_REPLACE=true — replacing assets for $TAG"
             gh release edit "$TAG" --notes-file RELEASE_NOTES.md
             gh release upload "$TAG" dist/* --clobber
           else

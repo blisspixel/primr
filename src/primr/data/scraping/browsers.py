@@ -64,11 +64,28 @@ def _resolve_headless(headless: bool | None) -> bool:
 # Shared Browser Launch Args
 # =============================================================================
 
+_SANDBOX_OPT_OUT = os.getenv("PRIMR_DISABLE_CHROMIUM_SANDBOX", "").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+}
+
+# Primr renders arbitrary third-party company websites — i.e. attacker-
+# controlled JavaScript. The Chromium sandbox is the primary containment
+# boundary for renderer compromise, so the previous unconditional
+# --no-sandbox / --disable-setuid-sandbox flags removed our last line of
+# defense and were a regression. Sandbox is now ON by default and only
+# disabled when an operator explicitly opts in via
+# PRIMR_DISABLE_CHROMIUM_SANDBOX=1 (containers that genuinely cannot run
+# the SUID sandbox should set it knowingly, not by default).
+_SANDBOX_ARGS = (
+    ["--no-sandbox", "--disable-setuid-sandbox"] if _SANDBOX_OPT_OUT else []
+)
+
 BROWSER_LAUNCH_ARGS = [
     "--disable-blink-features=AutomationControlled",
     "--disable-http2",
-    "--no-sandbox",
-    "--disable-setuid-sandbox",
+    *_SANDBOX_ARGS,
     "--disable-dev-shm-usage",
     "--disable-infobars",
     "--disable-background-networking",
@@ -173,14 +190,16 @@ class SharedBrowser:
         if context is not None:
             return context
 
+        # bypass_csp/ignore_https_errors deliberately omitted: scraping
+        # third-party sites should respect CSP and TLS validation. Bypassing
+        # them weakens defense-in-depth against hostile XSS/MITM during
+        # content extraction.
         context = browser.new_context(
             viewport=viewport,
             locale=locale,
             timezone_id=timezone_id,
             user_agent=user_agent,
             java_script_enabled=True,
-            bypass_csp=True,
-            ignore_https_errors=True,
             extra_http_headers={"Accept-Language": accept_language},
         )
         if stealth_script:
@@ -485,7 +504,10 @@ class PlaywrightSession(BrowserSession):
                     stealth_script=stealth_script,
                 )
             else:
-                # Create context with profile settings
+                # Create context with profile settings. bypass_csp /
+                # ignore_https_errors removed: see _SANDBOX_OPT_OUT comment
+                # — Primr scrapes untrusted sites and should not weaken
+                # CSP or TLS validation by default.
                 self._context = self._browser.new_context(
                     viewport={
                         "width": self._profile.viewport_width,
@@ -495,8 +517,6 @@ class PlaywrightSession(BrowserSession):
                     timezone_id=self._profile.timezone,
                     user_agent=http_profile.user_agent,
                     java_script_enabled=True,
-                    bypass_csp=True,
-                    ignore_https_errors=True,
                     extra_http_headers={"Accept-Language": http_profile.accept_language},
                 )
                 if stealth_script:
@@ -1072,6 +1092,8 @@ def _scrape_with_playwright_impl(
             )
             _using_persistent_context = True
         else:
+            # bypass_csp / ignore_https_errors deliberately not set —
+            # see _SANDBOX_OPT_OUT comment at the top of the module.
             context = browser.new_context(
                 viewport={
                     "width": ctx_profile.viewport_width,
@@ -1080,10 +1102,7 @@ def _scrape_with_playwright_impl(
                 locale=ctx_profile.locale,
                 timezone_id=ctx_profile.timezone,
                 user_agent=http_profile.user_agent,
-                # Additional context options for stealth
                 java_script_enabled=True,
-                bypass_csp=True,
-                ignore_https_errors=True,
                 extra_http_headers={"Accept-Language": http_profile.accept_language},
             )
             if stealth_script:
@@ -1857,13 +1876,16 @@ def scrape_with_vision(
             )
 
         with sync_playwright() as p:
+            # Sandbox stays on unless PRIMR_DISABLE_CHROMIUM_SANDBOX=1
+            # is set — see _SANDBOX_OPT_OUT comment at the top of the
+            # module. Same rationale as the main scraper: vision tier
+            # renders attacker-controlled JS too.
             browser = p.chromium.launch(
                 headless=True,
                 args=[
                     "--disable-blink-features=AutomationControlled",
                     "--disable-http2",
-                    "--no-sandbox",
-                    "--disable-setuid-sandbox",
+                    *_SANDBOX_ARGS,
                     "--disable-dev-shm-usage",
                 ],
             )

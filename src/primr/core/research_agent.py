@@ -2040,9 +2040,12 @@ def _clean_fast_report_output(report_content: str) -> str:
     # Also strip [cross-ref ...] tags — internal analysis references.
     # The model emits both colon-separated ("[cross-ref: Section]") and
     # space-separated ("[cross-ref Section]") variants — match both, plus
-    # bare "[cross-ref]".
+    # bare "[cross-ref]". The inner scan is length-bounded (was [^\]]*)
+    # so an unclosed "[cross-ref " in pathological input can't drive each
+    # match to scan the rest of the report — that turned report cleanup
+    # quadratic on adversarial content.
     report_content = re.sub(
-        r"\s*\[cross-ref(?:[\s:][^\]]*)?\]",
+        r"\s*\[cross-ref(?:[\s:][^\]]{0,200})?\]",
         "",
         report_content,
         flags=re.IGNORECASE,
@@ -2061,8 +2064,10 @@ def _clean_fast_report_output(report_content: str) -> str:
     # inclusive [workbook ...] pattern catches the bare marker plus the
     # ":", " ", and "§" separated forms ("[Workbook: ...]", "[workbook section
     # 3]", "[Workbook §7]", "[workbook ARDA/prior sections]", "[workbook]").
+    # Inner scan bounded to 200 chars to prevent ReDoS on repeated unclosed
+    # "[workbook " markers — see comment on the cross-ref strip above.
     report_content = re.sub(
-        r"\s*\[workbook(?:[\s:§][^\]]*)?\]",
+        r"\s*\[workbook(?:[\s:§][^\]]{0,200})?\]",
         "",
         report_content,
         flags=re.IGNORECASE,
@@ -4169,19 +4174,38 @@ def perform_fast_research(
     # Resolve Grok model pair for this tier
     grok_reasoning, grok_writing = PrimrModels.get_grok_models(GrokTier(grok_tier))
 
+    # Cross-provider writing routing (v1.24.4 fix): for FAST/HYBRID the
+    # estimator already prices writing via pick_model_for_role(Role.WRITING),
+    # which prefers gemini-3.1-flash-lite when GEMINI_API_KEY is set. Until
+    # this fix, perform_fast_research kept using the Grok-tier writer
+    # (grok-4.20-non-reasoning), so a max_estimated_cost_usd cap approved
+    # against a ~$0.79 Gemini estimate could let through a real ~$4.27 Grok
+    # run. MAX is the explicit "Grok everywhere" opt-in and still uses the
+    # Grok-tier writer for both reasoning and writing.
+    from primr.ai.routing import Role, get_active_eval_recipe, pick_model_for_role
+
+    if grok_tier != "max":
+        try:
+            routed_writing = pick_model_for_role(Role.WRITING)
+        except Exception as e:
+            # Routing failure must not abort the run — fall back to the
+            # tier-default Grok writer. The cap divergence is logged so an
+            # operator can see why production didn't match the estimate.
+            logger.warning(
+                "Writing-role routing failed (%s); falling back to %s", e, grok_writing
+            )
+        else:
+            if routed_writing and routed_writing != grok_writing:
+                logger.info(
+                    "Cross-provider routing: writing %s -> %s", grok_writing, routed_writing
+                )
+                grok_writing = routed_writing
+
     # v1.24.0: when an eval recipe override is active, the recipe's writing
     # model wins over the Grok-tier writer. This is what makes cross-provider
     # eval cells actually use their declared writing model (e.g. Gemini 3.1
     # Flash-Lite) instead of always falling through to grok_writing. The
     # cross-provider dispatch in grok_llm handles non-Grok models correctly.
-    #
-    # Reasoning is NOT overridden here — primr's reasoning stages call
-    # grok_llm directly with the xAI-specific session pattern (continuous
-    # reasoning, max-effort intensity). Cross-provider reasoning is deferred
-    # to a separate refactor; eval recipes that pick non-Grok reasoning
-    # (currently only o4mini-flashlite) are out of scope for v1.24.0 stage 1.
-    from primr.ai.routing import get_active_eval_recipe
-
     _active_recipe = get_active_eval_recipe()
     if _active_recipe is not None and _active_recipe.writing:
         grok_writing = _active_recipe.writing
@@ -7549,8 +7573,13 @@ def _validate_output_markdown(markdown_content: str) -> _ArtifactValidation:
         issues = _scan_forbidden_output_patterns(markdown_content)
         return {"passed": len(issues) == 0, "issues": issues, "errors": []}
     except Exception as exc:
+        # Fail closed: an exception inside the scaffolding scanner means
+        # we could not confirm the artifact is clean. Treating that as
+        # passed would let forbidden internal markers leak into shipped
+        # MD/TXT/DOCX. The downstream pipeline then writes a sidecar
+        # validation report and saves MD/TXT only — DOCX is blocked.
         logger.warning("Markdown artifact validation failed: %s", exc)
-        return {"passed": True, "issues": [], "errors": [str(exc)]}
+        return {"passed": False, "issues": [], "errors": [str(exc)]}
 
 
 def _extract_docx_text(document: Any) -> str:
@@ -7660,8 +7689,9 @@ def _validate_output_docx(docx_path: Path) -> _ArtifactValidation:
         issues.extend(_scan_forbidden_output_patterns(_extract_docx_text(document)))
         return {"passed": len(issues) == 0, "issues": issues, "errors": []}
     except Exception as exc:
+        # Fail closed — see _validate_output_markdown for the rationale.
         logger.warning("DOCX artifact validation failed: %s", exc)
-        return {"passed": True, "issues": [], "errors": [str(exc)]}
+        return {"passed": False, "issues": [], "errors": [str(exc)]}
 
 
 def _convert_deep_research_to_docx(

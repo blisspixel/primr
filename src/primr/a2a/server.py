@@ -35,19 +35,31 @@ class PrimrA2AServer:
     def __init__(
         self,
         mcp_server: PrimrMCPServer,
-        host: str = "0.0.0.0",
+        host: str = "127.0.0.1",
         port: int = 9000,
         require_auth: bool = True,
+        public_path: str = "/",
     ):
+        """
+        Args:
+            public_path: The URL path the A2A app is reachable at. Must
+                match the actual mount: "/" when running standalone (the
+                A2A app owns the uvicorn server), "/a2a/" when co-hosted
+                under the MCP Starlette app. The AgentCard URL is built
+                from (host, port, public_path) so clients that follow
+                AgentCard.url land on a real listener instead of an
+                unused port.
+        """
         self._mcp = mcp_server
         self.host = host
         self.port = port
         self.require_auth = require_auth
+        self.public_path = public_path
 
         # A2A components
         self._task_store = PrimrTaskStore(mcp_server.job_store)
         self._executor = PrimrAgentExecutor(mcp_server, self._task_store)
-        self._agent_card = build_agent_card(host=host, port=port)
+        self._agent_card = build_agent_card(host=host, port=port, path=public_path)
 
     @property
     def task_store(self) -> PrimrTaskStore:

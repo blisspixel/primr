@@ -230,13 +230,17 @@ class ReportAnalyzer:
         formatting reveals scaffolding that callers should not see.
         """
         # Cross-ref markers: colon-separated, space-separated, or bare.
+        # Inner scan length-bounded (was [^\]]*) so an attacker-shaped report
+        # full of unclosed "[cross-ref " markers can't drive quadratic regex
+        # work — same fix as _clean_fast_report_output.
         cross_ref_count = len(
-            re.findall(r"\[cross-ref(?:[\s:][^\]]*)?\]", self.content, re.IGNORECASE)
+            re.findall(r"\[cross-ref(?:[\s:][^\]]{0,200})?\]", self.content, re.IGNORECASE)
         )
 
         # Workbook markers: bare, plus ":", " ", and "§" separated forms.
+        # Same bounded inner scan rationale as cross-ref above.
         workbook_count = len(
-            re.findall(r"\[workbook(?:[\s:§][^\]]*)?\]", self.content, re.IGNORECASE)
+            re.findall(r"\[workbook(?:[\s:§][^\]]{0,200})?\]", self.content, re.IGNORECASE)
         )
 
         # Bold-wrapped instruction-style "What to validate:" lines that survived

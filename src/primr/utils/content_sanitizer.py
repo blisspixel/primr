@@ -239,10 +239,21 @@ _MAX_CONTENT_LENGTH = 500_000  # ~500KB
 # =============================================================================
 
 
+# Hard cap on materialized issue records. The sanitizer previously
+# allocated one ``SanitizationIssue`` dataclass per offending character
+# before stripping, so a 500KB string of null bytes produced ~500K objects
+# (~130MB peak, multi-second CPU). The strip operation is the actual
+# security control; counting beyond a few hundred bad characters adds no
+# operational value and turns hostile input into a DoS vector.
+_MAX_RECORDED_ISSUES = 256
+
+
 def _detect_control_chars(text: str) -> list[SanitizationIssue]:
-    """Detect control characters in text."""
-    issues = []
+    """Detect control characters in text. Bounded by ``_MAX_RECORDED_ISSUES``."""
+    issues: list[SanitizationIssue] = []
     for match in _CONTROL_CHAR_PATTERN.finditer(text):
+        if len(issues) >= _MAX_RECORDED_ISSUES:
+            break
         issues.append(
             SanitizationIssue(
                 issue_type=IssueType.CONTROL_CHAR,
@@ -255,11 +266,13 @@ def _detect_control_chars(text: str) -> list[SanitizationIssue]:
 
 
 def _detect_unicode_issues(text: str) -> list[SanitizationIssue]:
-    """Detect problematic Unicode characters."""
-    issues = []
+    """Detect problematic Unicode characters. Bounded by ``_MAX_RECORDED_ISSUES``."""
+    issues: list[SanitizationIssue] = []
 
     # Check for invisible characters
     for i, char in enumerate(text):
+        if len(issues) >= _MAX_RECORDED_ISSUES:
+            break
         if char in _INVISIBLE_UNICODE:
             issues.append(
                 SanitizationIssue(
@@ -283,11 +296,15 @@ def _detect_unicode_issues(text: str) -> list[SanitizationIssue]:
 
 
 def _detect_injection_patterns(text: str) -> list[SanitizationIssue]:
-    """Detect prompt injection patterns."""
-    issues = []
+    """Detect prompt injection patterns. Bounded by ``_MAX_RECORDED_ISSUES``."""
+    issues: list[SanitizationIssue] = []
 
     for pattern, description in _INJECTION_PATTERNS:
+        if len(issues) >= _MAX_RECORDED_ISSUES:
+            break
         for match in pattern.finditer(text):
+            if len(issues) >= _MAX_RECORDED_ISSUES:
+                break
             issues.append(
                 SanitizationIssue(
                     issue_type=IssueType.PROMPT_INJECTION,

@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 import sys
 from pathlib import Path
 
 from dotenv import dotenv_values, find_dotenv
+
+logger = logging.getLogger(__name__)
 
 KEY_ALIASES: dict[str, str] = {
     "xai": "XAI_API_KEY",
@@ -136,11 +139,46 @@ def _format_env_assignment(key: str, value: str) -> str:
     return f"{key}={value}"
 
 
+def _secure_path_modes(path: Path) -> None:
+    """Best-effort POSIX permission hardening for the user key store.
+
+    On POSIX hosts the directory is forced to 0700 and the file to 0600 so
+    other local users on the same machine cannot read the stored provider
+    API keys — previously the file was created with the default umask
+    (typically 0644), making Gemini / xAI / search keys world-readable on
+    multi-user systems. ``chmod`` is best-effort: filesystems without
+    POSIX permissions (FAT, some network mounts) silently no-op. Windows
+    relies on its NTFS default ACL where files in a user profile inherit
+    owner-only rights, so we skip chmod there.
+    """
+    if os.name != "posix":
+        return
+    try:
+        path.parent.chmod(0o700)
+    except OSError as e:
+        logger.debug("Could not chmod %s to 0700: %s", path.parent, e)
+    if path.exists():
+        try:
+            path.chmod(0o600)
+        except OSError as e:
+            logger.debug("Could not chmod %s to 0600: %s", path, e)
+
+
 def set_user_key(name: str, value: str) -> tuple[str, Path]:
-    """Persist a key in the per-user Primr environment file."""
+    """Persist a key in the per-user Primr environment file.
+
+    The on-disk file holds provider secrets, so we tighten permissions to
+    owner-only on POSIX before any data lands on disk. ``open(..., 0o600)``
+    via ``os.open`` ensures the file is created with restrictive mode
+    instead of inheriting the umask, and ``_secure_path_modes`` corrects
+    a pre-existing file that may have been written by an older release.
+    """
     env_name = normalize_key_name(name)
     path = get_user_env_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
+    # mkdir with mode=0o700 is honored only on POSIX (Windows ignores the
+    # mode arg). Pre-existing dirs keep their mode; _secure_path_modes
+    # tightens them below.
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
 
     lines: list[str]
     if path.exists():
@@ -166,7 +204,21 @@ def set_user_key(name: str, value: str) -> tuple[str, Path]:
             lines.append("")
         lines.append(replacement)
 
-    path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+    data = ("\n".join(lines).rstrip() + "\n").encode("utf-8")
+    # Create-or-truncate with restrictive permissions in one syscall so
+    # there is no window where the file is readable to other users.
+    if os.name == "posix":
+        flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+        fd = os.open(str(path), flags, 0o600)
+        try:
+            os.write(fd, data)
+        finally:
+            os.close(fd)
+    else:
+        path.write_bytes(data)
+
+    _secure_path_modes(path)
+
     os.environ[env_name] = value.strip()
     _LOADED_ENV_VALUES[env_name] = value.strip()
     return env_name, path

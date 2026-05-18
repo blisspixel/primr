@@ -95,8 +95,14 @@ Authentication (HTTP mode):
     parser.add_argument(
         "--a2a-port",
         type=int,
-        default=9000,
-        help="A2A server port when co-hosted (default: 9000)",
+        default=None,
+        help=(
+            "Deprecated and ignored in --a2a co-host mode. The A2A app is "
+            "mounted under /a2a/ on the same MCP listener, so it shares "
+            "--port; advertising a separate port misled clients to send "
+            "bearer tokens to an unused/attacker-controllable port. Run "
+            "the standalone primr-a2a command if you need a dedicated port."
+        ),
     )
 
     # Other options
@@ -129,7 +135,14 @@ Authentication (HTTP mode):
             import a2a  # noqa: F401
 
             server._a2a_enabled = True
-            server._a2a_port = args.a2a_port
+            if args.a2a_port is not None and args.a2a_port != args.port:
+                print(
+                    (
+                        f"Warning: --a2a-port {args.a2a_port} ignored in co-host mode; "
+                        f"A2A is mounted at /a2a/ on the MCP listener (port {args.port})."
+                    ),
+                    file=sys.stderr,
+                )
         except ImportError:
             print(
                 "Warning: --a2a requested but a2a-sdk not installed. "

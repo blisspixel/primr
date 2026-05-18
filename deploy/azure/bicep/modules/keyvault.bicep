@@ -95,6 +95,21 @@ resource anthropicSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
   }
 }
 
+// MCP server bearer-token verifier secret. The MCP Starlette app installs
+// its auth middleware only when require_auth=true; the middleware uses
+// MCP_JWT_SECRET to verify HS256 tokens. We seed a placeholder so the
+// Container App can start; replace the value before exposing the public
+// FQDN to real traffic:
+//   az keyvault secret set --vault-name <name> --name MCP-JWT-SECRET \
+//     --value "$(openssl rand -base64 48)"
+resource mcpJwtSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: keyVault
+  name: 'MCP-JWT-SECRET'
+  properties: {
+    value: 'placeholder-replace-before-exposing-public-fqdn'
+  }
+}
+
 @description('Key Vault name')
 output keyVaultName string = keyVault.name
 

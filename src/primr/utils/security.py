@@ -505,7 +505,11 @@ def is_safe_url(url: str) -> tuple[bool, str | None]:
     try:
         parsed = urlparse(url)
     except (ValueError, Exception) as e:
-        logger.warning("URL parse failed for %s: %s", url, e)
+        # Log only the exception class — the raw URL may carry secrets in
+        # userinfo / query / fragment (webhook tokens, signed callbacks),
+        # and warnings land in stderr + persistent log files where
+        # operators or log aggregators can see them.
+        logger.warning("URL parse failed: %s", type(e).__name__)
         return False, "Failed to parse URL"
 
     # Check scheme
@@ -535,20 +539,50 @@ def is_safe_url(url: str) -> tuple[bool, str | None]:
 
     # Check each resolved IP
     for ip_str in resolved_ips:
-        # Check metadata IP
+        # Check metadata IP literal first (covers EC2 IMDS, ECS task metadata).
         if ip_str in _METADATA_HOSTS:
             return False, "Cloud metadata endpoints are blocked"
 
         try:
             ip = ipaddress.ip_address(ip_str)
-
-            # Check private/reserved ranges
-            for network_str in _PRIVATE_IP_RANGES:
-                network = ipaddress.ip_network(network_str)
-                if ip in network:
-                    return False, "Private/reserved IP addresses are blocked"
         except ValueError:
             continue
+
+        # IPv4-mapped IPv6 (::ffff:127.0.0.1, ::ffff:169.254.169.254) and
+        # 6to4-style mappings sneak past raw network containment checks
+        # because the IPv6 representation is not in any IPv4 CIDR. Unwrap to
+        # the underlying IPv4 before evaluating reachability classes.
+        ips_to_check: list[ipaddress.IPv4Address | ipaddress.IPv6Address] = [ip]
+        mapped = getattr(ip, "ipv4_mapped", None)
+        if mapped is not None:
+            ips_to_check.append(mapped)
+        six_to_four = getattr(ip, "sixtofour", None)
+        if six_to_four is not None:
+            ips_to_check.append(six_to_four)
+
+        for candidate in ips_to_check:
+            if str(candidate) in _METADATA_HOSTS:
+                return False, "Cloud metadata endpoints are blocked"
+
+            # ipaddress.is_* properties cover loopback, link-local, private,
+            # unspecified (0.0.0.0/::), reserved, and multicast in one go —
+            # less surface than maintaining a hand-rolled CIDR list.
+            if (
+                candidate.is_loopback
+                or candidate.is_link_local
+                or candidate.is_private
+                or candidate.is_unspecified
+                or candidate.is_reserved
+                or candidate.is_multicast
+            ):
+                return False, "Private/reserved IP addresses are blocked"
+
+            # Belt-and-suspenders for additional ranges that aren't covered
+            # by the standard properties (CGNAT 100.64/10, benchmarking, etc.).
+            for network_str in _PRIVATE_IP_RANGES:
+                network = ipaddress.ip_network(network_str)
+                if candidate.version == network.version and candidate in network:
+                    return False, "Private/reserved IP addresses are blocked"
 
     return True, None
 
@@ -573,7 +607,11 @@ def validate_redirect_url(url: str, allowed_hosts: set[str] | None = None) -> bo
     try:
         parsed = urlparse(url)
     except (ValueError, Exception) as e:
-        logger.warning("URL parse failed for %s: %s", url, e)
+        # Log only the exception class — the raw URL may carry secrets in
+        # userinfo / query / fragment (webhook tokens, signed callbacks),
+        # and warnings land in stderr + persistent log files where
+        # operators or log aggregators can see them.
+        logger.warning("URL parse failed: %s", type(e).__name__)
         return False
 
     # Relative URLs are always safe
@@ -791,7 +829,11 @@ def sanitize_webhook_url(
     try:
         parsed = urlparse(url)
     except (ValueError, Exception) as e:
-        logger.warning("URL parse failed for %s: %s", url, e)
+        # Log only the exception class — the raw URL may carry secrets in
+        # userinfo / query / fragment (webhook tokens, signed callbacks),
+        # and warnings land in stderr + persistent log files where
+        # operators or log aggregators can see them.
+        logger.warning("URL parse failed: %s", type(e).__name__)
         return "", "Invalid webhook URL format"
 
     # Check scheme

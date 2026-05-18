@@ -93,8 +93,14 @@ def client(
     artifact_store: LocalStore,
     cost_governor: CostGovernor,
     cancellation_service: CancellationService,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> TestClient:
-    """Create a test client with configured app."""
+    """Create a test client with configured app.
+
+    Registers the bearer token the tests use so the get_api_key dependency
+    (which now fails closed when no verifier is configured) accepts it.
+    """
+    monkeypatch.setenv("PRIMR_CONTROL_PLANE_API_KEYS", "test-api-key-with-min-16chars")
     configure_app(
         job_store=job_store,
         queue=queue,
@@ -120,7 +126,7 @@ class TestJobStore:
             job_id="test-123",
             deployment="test",
             idempotency_key="key-1",
-            api_key_hash="sha256:abc",
+            api_key_hash="sha256:e57738b05634c14f60498c6c2300b86d2d808ab317af8e951edba985e8ff388c",
             canonical_hash="hash-1",
             status=JobStatus.QUEUED,
             inputs=JobInputs(
@@ -146,7 +152,7 @@ class TestJobStore:
             job_id="test-123",
             deployment="test",
             idempotency_key="key-1",
-            api_key_hash="sha256:abc",
+            api_key_hash="sha256:e57738b05634c14f60498c6c2300b86d2d808ab317af8e951edba985e8ff388c",
             canonical_hash="hash-1",
             status=JobStatus.QUEUED,
             inputs=JobInputs(
@@ -170,7 +176,7 @@ class TestJobStore:
             job_id="test-123",
             deployment="test",
             idempotency_key="key-1",
-            api_key_hash="sha256:abc",
+            api_key_hash="sha256:e57738b05634c14f60498c6c2300b86d2d808ab317af8e951edba985e8ff388c",
             canonical_hash="hash-1",
             status=JobStatus.QUEUED,
             inputs=JobInputs(
@@ -199,7 +205,7 @@ class TestJobStore:
                 job_id=f"test-{i}",
                 deployment="test",
                 idempotency_key=f"key-{i}",
-                api_key_hash="sha256:abc",
+                api_key_hash="sha256:e57738b05634c14f60498c6c2300b86d2d808ab317af8e951edba985e8ff388c",
                 canonical_hash=f"hash-{i}",
                 status=status,
                 inputs=JobInputs(
@@ -241,7 +247,7 @@ class TestIdempotency:
         response1 = client.post(
             "/submit",
             json=request,
-            headers={"Authorization": "Bearer test-api-key"},
+            headers={"Authorization": "Bearer test-api-key-with-min-16chars"},
         )
         assert response1.status_code == 200
         data1 = response1.json()
@@ -250,7 +256,7 @@ class TestIdempotency:
         response2 = client.post(
             "/submit",
             json=request,
-            headers={"Authorization": "Bearer test-api-key"},
+            headers={"Authorization": "Bearer test-api-key-with-min-16chars"},
         )
         assert response2.status_code == 200
         data2 = response2.json()
@@ -274,7 +280,7 @@ class TestIdempotency:
         response1 = client.post(
             "/submit",
             json=request1,
-            headers={"Authorization": "Bearer test-api-key"},
+            headers={"Authorization": "Bearer test-api-key-with-min-16chars"},
         )
         assert response1.status_code == 200
 
@@ -290,7 +296,7 @@ class TestIdempotency:
         response2 = client.post(
             "/submit",
             json=request2,
-            headers={"Authorization": "Bearer test-api-key"},
+            headers={"Authorization": "Bearer test-api-key-with-min-16chars"},
         )
 
         # Should return 409 Conflict
@@ -338,7 +344,7 @@ class TestConcurrentSubmission:
                     job_id="concurrent-test",
                     deployment="test",
                     idempotency_key="key-1",
-                    api_key_hash="sha256:abc",
+                    api_key_hash="sha256:e57738b05634c14f60498c6c2300b86d2d808ab317af8e951edba985e8ff388c",
                     canonical_hash="hash-1",
                     status=JobStatus.QUEUED,
                     inputs=JobInputs(
@@ -446,7 +452,7 @@ class TestQuotaEnforcement:
 
     def test_quota_returns_429(self, client: TestClient, cost_governor: CostGovernor) -> None:
         """API should return 429 when quota exceeded."""
-        api_key_hash = hash_api_key("test-api-key")
+        api_key_hash = hash_api_key("test-api-key-with-min-16chars")
 
         # Set very low quota
         cost_governor.set_quota(api_key_hash, QuotaConfig(max_concurrent_jobs=0))
@@ -462,7 +468,7 @@ class TestQuotaEnforcement:
         response = client.post(
             "/submit",
             json=request,
-            headers={"Authorization": "Bearer test-api-key"},
+            headers={"Authorization": "Bearer test-api-key-with-min-16chars"},
         )
 
         assert response.status_code == 429
@@ -487,7 +493,7 @@ class TestJobStateTransitions:
             job_id="cancel-test-1",
             deployment="test",
             idempotency_key="key-1",
-            api_key_hash="sha256:abc",
+            api_key_hash="sha256:e57738b05634c14f60498c6c2300b86d2d808ab317af8e951edba985e8ff388c",
             canonical_hash="hash-1",
             status=JobStatus.QUEUED,
             inputs=JobInputs(
@@ -521,7 +527,7 @@ class TestJobStateTransitions:
             job_id="cancel-test-2",
             deployment="test",
             idempotency_key="key-2",
-            api_key_hash="sha256:abc",
+            api_key_hash="sha256:e57738b05634c14f60498c6c2300b86d2d808ab317af8e951edba985e8ff388c",
             canonical_hash="hash-2",
             status=JobStatus.RUNNING,
             inputs=JobInputs(
@@ -557,7 +563,7 @@ class TestJobStateTransitions:
             job_id="cancel-test-3",
             deployment="test",
             idempotency_key="key-3",
-            api_key_hash="sha256:abc",
+            api_key_hash="sha256:e57738b05634c14f60498c6c2300b86d2d808ab317af8e951edba985e8ff388c",
             canonical_hash="hash-3",
             status=JobStatus.SUCCEEDED,
             inputs=JobInputs(
@@ -591,7 +597,7 @@ class TestJobStateTransitions:
         response = client.post(
             "/submit",
             json=request,
-            headers={"Authorization": "Bearer test-api-key"},
+            headers={"Authorization": "Bearer test-api-key-with-min-16chars"},
         )
         assert response.status_code == 200
         data = response.json()
@@ -599,8 +605,11 @@ class TestJobStateTransitions:
 
         job_id = data["job_id"]
 
-        # Approve the job
-        response = client.post(f"/approve/{job_id}")
+        # Approve the job (now requires owner auth)
+        response = client.post(
+            f"/approve/{job_id}",
+            headers={"Authorization": "Bearer test-api-key-with-min-16chars"},
+        )
         assert response.status_code == 200
 
         # Verify status changed
@@ -620,7 +629,10 @@ class TestStatusEndpoint:
     def test_status_returns_404_for_unknown_job(self, client: TestClient) -> None:
         """Status should return 404 for unknown job."""
         # Validates: Requirements 3.10
-        response = client.get("/status/unknown-job-id")
+        response = client.get(
+            "/status/unknown-job-id",
+            headers={"Authorization": "Bearer test-api-key-with-min-16chars"},
+        )
         assert response.status_code == 404
 
     def test_status_returns_last_event(
@@ -636,7 +648,7 @@ class TestStatusEndpoint:
             job_id="status-test-1",
             deployment="test",
             idempotency_key="key-1",
-            api_key_hash="sha256:abc",
+            api_key_hash="sha256:e57738b05634c14f60498c6c2300b86d2d808ab317af8e951edba985e8ff388c",
             canonical_hash="hash-1",
             status=JobStatus.RUNNING,
             inputs=JobInputs(
@@ -664,7 +676,10 @@ class TestStatusEndpoint:
         artifact_store.put("status-test-1/events.jsonl", events_content.encode())
 
         # Get status
-        response = client.get("/status/status-test-1")
+        response = client.get(
+            "/status/status-test-1",
+            headers={"Authorization": "Bearer test-api-key-with-min-16chars"},
+        )
         assert response.status_code == 200
         data = response.json()
 
@@ -684,7 +699,10 @@ class TestResultsEndpoint:
     def test_results_returns_404_for_unknown_job(self, client: TestClient) -> None:
         """Results should return 404 for unknown job."""
         # Validates: Requirements 3.16
-        response = client.get("/results/unknown-job-id")
+        response = client.get(
+            "/results/unknown-job-id",
+            headers={"Authorization": "Bearer test-api-key-with-min-16chars"},
+        )
         assert response.status_code == 404
 
     def test_results_returns_425_when_no_manifest(
@@ -699,7 +717,7 @@ class TestResultsEndpoint:
             job_id="results-test-1",
             deployment="test",
             idempotency_key="key-1",
-            api_key_hash="sha256:abc",
+            api_key_hash="sha256:e57738b05634c14f60498c6c2300b86d2d808ab317af8e951edba985e8ff388c",
             canonical_hash="hash-1",
             status=JobStatus.RUNNING,
             inputs=JobInputs(
@@ -714,7 +732,10 @@ class TestResultsEndpoint:
         job_store.put_if_not_exists(job)
 
         # Get results (no manifest exists)
-        response = client.get("/results/results-test-1")
+        response = client.get(
+            "/results/results-test-1",
+            headers={"Authorization": "Bearer test-api-key-with-min-16chars"},
+        )
         assert response.status_code == 425
 
     def test_results_returns_manifest_and_presigned_urls(
@@ -733,7 +754,7 @@ class TestResultsEndpoint:
             job_id="results-test-2",
             deployment="test",
             idempotency_key="key-2",
-            api_key_hash="sha256:abc",
+            api_key_hash="sha256:e57738b05634c14f60498c6c2300b86d2d808ab317af8e951edba985e8ff388c",
             canonical_hash="hash-2",
             status=JobStatus.SUCCEEDED,
             inputs=JobInputs(
@@ -775,7 +796,10 @@ class TestResultsEndpoint:
         artifact_store.put_manifest("results-test-2", manifest)
 
         # Get results
-        response = client.get("/results/results-test-2")
+        response = client.get(
+            "/results/results-test-2",
+            headers={"Authorization": "Bearer test-api-key-with-min-16chars"},
+        )
         assert response.status_code == 200
         data = response.json()
 
@@ -856,7 +880,7 @@ class TestQueue:
         message = QueueMessage(
             job_id="test-job",
             deployment="test",
-            api_key_hash="sha256:abc",
+            api_key_hash="sha256:e57738b05634c14f60498c6c2300b86d2d808ab317af8e951edba985e8ff388c",
             inputs={"company_name": "Acme"},
             enqueued_at="2024-01-01T00:00:00Z",
         )
@@ -872,7 +896,7 @@ class TestQueue:
         message = QueueMessage(
             job_id="test-job",
             deployment="test",
-            api_key_hash="sha256:abc",
+            api_key_hash="sha256:e57738b05634c14f60498c6c2300b86d2d808ab317af8e951edba985e8ff388c",
             inputs={"company_name": "Acme"},
             enqueued_at="2024-01-01T00:00:00Z",
         )
@@ -892,7 +916,7 @@ class TestQueue:
         message = QueueMessage(
             job_id="test-job",
             deployment="test",
-            api_key_hash="sha256:abc",
+            api_key_hash="sha256:e57738b05634c14f60498c6c2300b86d2d808ab317af8e951edba985e8ff388c",
             inputs={"company_name": "Acme"},
             enqueued_at="2024-01-01T00:00:00Z",
         )

@@ -61,12 +61,60 @@ class A2AClient:
             headers: dict[str, str] = {"Content-Type": "application/json"}
             if self.auth_token:
                 headers["Authorization"] = f"Bearer {self.auth_token}"
+            # follow_redirects=False is deliberate: the MCP delegate_to_agent
+            # tool only validates the originally-supplied agent_url. An
+            # attacker-controlled public agent can return a 302/307 to a
+            # loopback / RFC1918 / cloud metadata endpoint and httpx would
+            # otherwise issue the JSON-RPC POST to that internal target.
+            # Manual redirect handling with per-hop SSRF validation lives in
+            # _follow_redirects_safely().
             self._client = httpx.AsyncClient(
                 headers=headers,
                 timeout=self.timeout,
-                follow_redirects=True,
+                follow_redirects=False,
             )
         return self._client
+
+    @staticmethod
+    def _validate_url(url: str) -> None:
+        """Raise A2AError if the URL fails the central SSRF check."""
+        from primr.utils.security import is_safe_url
+
+        safe, reason = is_safe_url(url)
+        if not safe:
+            raise A2AError(f"A2A request blocked by SSRF guard: {reason} ({url})")
+
+    async def _follow_redirects_safely(
+        self,
+        method: str,
+        url: str,
+        *,
+        json_body: dict[str, Any] | None = None,
+        max_redirects: int = 5,
+    ) -> httpx.Response:
+        """Issue ``method url`` and follow redirects manually, validating
+        each Location target with the SSRF helper before re-requesting.
+
+        Used for non-streaming requests. Streaming (SSE) requests reject any
+        redirect outright; a streaming endpoint should not be relocating
+        mid-handshake under normal A2A use.
+        """
+        client = await self._get_client()
+        current_url = url
+        for _ in range(max_redirects + 1):
+            self._validate_url(current_url)
+            if method.upper() == "GET":
+                resp = await client.get(current_url)
+            else:
+                resp = await client.post(current_url, json=json_body)
+            if resp.status_code not in (301, 302, 303, 307, 308):
+                return resp
+            location = resp.headers.get("location")
+            if not location:
+                return resp
+            # Resolve relative redirects against the current URL.
+            current_url = str(httpx.URL(current_url).join(location))
+        raise A2AError(f"A2A request exceeded {max_redirects} redirects (last: {current_url})")
 
     async def close(self) -> None:
         """Close the underlying HTTP client."""
@@ -90,11 +138,12 @@ class A2AClient:
 
     async def _send_rpc(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
         """Send a JSON-RPC request and return the result."""
-        client = await self._get_client()
         payload = self._build_jsonrpc(method, params)
 
         logger.debug("A2A RPC %s → %s", method, self.agent_url)
-        response = await client.post(self.agent_url, json=payload)
+        response = await self._follow_redirects_safely(
+            "POST", self.agent_url, json_body=payload
+        )
         response.raise_for_status()
 
         try:
@@ -116,10 +165,9 @@ class A2AClient:
         Returns:
             Agent card as a dictionary.
         """
-        client = await self._get_client()
         url = f"{self.agent_url}{_AGENT_CARD_PATH}"
         logger.info("Discovering agent at %s", url)
-        response = await client.get(url)
+        response = await self._follow_redirects_safely("GET", url)
         response.raise_for_status()
         try:
             card = response.json()
@@ -193,6 +241,10 @@ class A2AClient:
 
         payload = self._build_jsonrpc(_METHOD_STREAM, params)
 
+        # Streaming requests don't get a manual redirect chain — an SSE
+        # handshake redirecting to a different host mid-stream is not part
+        # of normal A2A flows, so we just SSRF-check the target and post.
+        self._validate_url(self.agent_url)
         async with client.stream("POST", self.agent_url, json=payload) as response:
             response.raise_for_status()
             buffer = ""

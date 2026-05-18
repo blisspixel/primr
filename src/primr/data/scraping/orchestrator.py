@@ -19,6 +19,25 @@ import time
 from urllib.parse import urlparse
 
 from .cache import ScrapeCache
+
+# Strip CR / LF / ESC / other control bytes from untrusted strings before
+# they hit log handlers. The canonical href and raw URL are derived from
+# attacker-controllable page HTML and discovered links, and Python logging
+# preserves whatever the f-string produced — including newlines and ANSI
+# escape sequences that can forge log lines or corrupt terminal output.
+_CONTROL_CHARS_RE = re.compile(r"[\x00-\x1f\x7f]")
+_LOG_VALUE_MAX = 256
+
+
+def _safe_for_log(value: object) -> str:
+    """Render ``value`` for INFO-level logging without log-injection risk."""
+    if value is None:
+        return ""
+    text = str(value)
+    text = _CONTROL_CHARS_RE.sub("?", text)
+    if len(text) > _LOG_VALUE_MAX:
+        text = text[: _LOG_VALUE_MAX - 3] + "..."
+    return text
 from .config import RateLimitConfig
 from .content import (
     detect_content_type,
@@ -814,7 +833,10 @@ class ScrapeOrchestrator:
                 )
                 if wrong:
                     logger.info(
-                        f"Wrong page for {url}: canonical={canonical}, final={tier_result.final_url}"
+                        "Wrong page for %s: canonical=%s, final=%s",
+                        _safe_for_log(url),
+                        _safe_for_log(canonical),
+                        _safe_for_log(tier_result.final_url),
                     )
                     host_state.record_tier_attempt(tier.name, success=False)
                     # Overwrite last_result so the "all tiers failed" block
@@ -1002,7 +1024,7 @@ class ScrapeOrchestrator:
         for i, url in enumerate(urls[:max_pages]):
             page_num = i + 1
             total = min(len(urls), max_pages)
-            logger.info(f"Scraping {page_num}/{total}: {url}")
+            logger.info("Scraping %d/%d: %s", page_num, total, _safe_for_log(url))
 
             page_start = time.time()
             result = self.scrape_url(url)
@@ -1012,11 +1034,15 @@ class ScrapeOrchestrator:
             # Log progress at INFO so it's always visible
             if result.success:
                 logger.info(
-                    f"  [{page_secs:.1f}s] OK via {result.tier} "
-                    f"({len(result.raw_content or b'')} bytes)"
+                    "  [%.1fs] OK via %s (%d bytes)",
+                    page_secs,
+                    result.tier,
+                    len(result.raw_content or b""),
                 )
             else:
-                logger.info(f"  [{page_secs:.1f}s] FAIL: {result.error}")
+                logger.info(
+                    "  [%.1fs] FAIL: %s", page_secs, _safe_for_log(result.error)
+                )
 
         return results
 

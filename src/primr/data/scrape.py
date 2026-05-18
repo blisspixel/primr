@@ -134,10 +134,25 @@ def evaluate_scrape_pilot(
         avg_chars < SCRAPE_PILOT_MIN_CHARS and success_rate < high_success_relief_rate
     )
 
-    # Permit a sparse pilot when the pages that did land are substantively rich.
-    rich_content_relief = avg_chars >= max(SCRAPE_PILOT_MIN_CHARS * 3, 2000) and (
-        pilot_success >= 3
-        or (pilot_success >= 2 and pilot_chars_total >= max(SCRAPE_PILOT_MIN_CHARS * 6, 4000))
+    # Permit a sparse pilot when the pages that did land are substantively
+    # rich AND the success rate is at least half the configured floor.
+    # Without the success-rate floor, an attacker-controlled site could
+    # serve 3 rich pages and 7+ failures and still drive primr into the
+    # full concurrent crawl phase, multiplying outbound work past the
+    # documented pilot abort. Half the configured floor (0.35 at default)
+    # preserves the legitimate "patchy site with a few good pages" case
+    # while rejecting 3/50-style adversarial samples.
+    rich_content_relief_floor = max(SCRAPE_PILOT_MIN_SUCCESS_RATE / 2, 0.30)
+    rich_content_relief = (
+        success_rate >= rich_content_relief_floor
+        and avg_chars >= max(SCRAPE_PILOT_MIN_CHARS * 3, 2000)
+        and (
+            pilot_success >= 3
+            or (
+                pilot_success >= 2
+                and pilot_chars_total >= max(SCRAPE_PILOT_MIN_CHARS * 6, 4000)
+            )
+        )
     )
     useful_corpus_relief = pilot_success >= 4 and pilot_chars_total >= max(MIN_SCRAPED_CHARS, 4000)
 

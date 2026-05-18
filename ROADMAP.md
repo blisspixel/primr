@@ -686,8 +686,9 @@ primr-mcp --stdio
 primr-mcp --http --port 8000
 
 # A2A Server
-primr-a2a --no-auth                        # Standalone A2A on port 9000
-primr-mcp --http --a2a                     # Co-hosted MCP + A2A
+primr-a2a                                  # Standalone A2A on 127.0.0.1:9000 (auth required)
+primr-a2a --host 127.0.0.1 --no-auth       # Local dev only — refuses non-loopback hosts
+primr-mcp --http --a2a                     # Co-hosted MCP + A2A (shares MCP auth)
 
 # Cloud Deployment
 cd deploy/aws && ./deploy.sh -d prod deploy

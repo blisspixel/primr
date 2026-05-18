@@ -354,16 +354,39 @@ class TestPilotScrapeValidation:
         assert result["should_abort"] is True
 
     def test_allows_sparse_but_content_rich_pilot_sample(self):
-        """A few strong pages should be enough to continue when content is rich."""
+        """A few strong pages still pass when the success rate clears the
+        rich-content relief floor (≥half the configured min success rate,
+        i.e. ≥35% at default).
+
+        The previous threshold accepted 2/10 (20%) and 3/10 (30%), which
+        let an attacker-controlled site with 7+ failing pages bypass the
+        configured pilot abort. The floor was raised to prevent that.
+        """
         result = evaluate_scrape_pilot(
-            pilot_success=2,
+            pilot_success=4,
             pilot_attempts=10,
-            pilot_chars_total=4336,
+            pilot_chars_total=4 * 2200,
         )
 
-        assert result["avg_chars"] == 2168
+        assert result["avg_chars"] == 2200
         assert result["rich_content_relief"] is True
         assert result["should_abort"] is False
+
+    def test_rich_content_relief_blocks_low_success_rate(self):
+        """3/10 rich pages must not bypass the pilot abort.
+
+        Regression guard for the relief-rate floor: without it, an
+        attacker-controlled origin serving 3 rich pages and 7 failures
+        could drive primr into the full concurrent crawl phase.
+        """
+        result = evaluate_scrape_pilot(
+            pilot_success=3,
+            pilot_attempts=10,
+            pilot_chars_total=3 * 2500,
+        )
+
+        assert result["rich_content_relief"] is False
+        assert result["should_abort"] is True
 
     def test_allows_moderate_success_when_total_corpus_is_useful(self):
         """Several decent pages should pass once the pilot corpus is already useful."""

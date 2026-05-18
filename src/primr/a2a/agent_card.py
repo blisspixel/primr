@@ -119,16 +119,26 @@ def build_agent_card(
     host: str = "localhost",
     port: int = 9000,
     version: str | None = None,
+    path: str = "/",
+    scheme: str = "http",
 ) -> AgentCard:
     """Build an AgentCard for the Primr A2A server.
 
     Args:
         host: Server hostname.
-        port: Server port.
+        port: Server port that is actually listening for A2A traffic.
         version: Version string. If None, reads from package metadata.
+        path: Path prefix the A2A app is mounted under. Must match the
+            actual mount; in co-hosted mode this is ``/a2a/`` because the
+            A2A app is mounted under the MCP Starlette listener rather
+            than getting its own uvicorn server.
+        scheme: ``http`` or ``https``.
 
-    Returns:
-        Configured AgentCard instance.
+    The previous signature accepted only host+port, which caused co-hosted
+    deployments to advertise ``http://host:a2a_port/`` even though no
+    listener was bound on ``a2a_port`` — clients following AgentCard.url
+    would talk to whatever service did happen to be listening there and
+    could leak bearer tokens to it.
     """
     if version is None:
         try:
@@ -137,7 +147,10 @@ def build_agent_card(
             logger.warning("Failed to get primr version from package metadata: %s", e)
             version = "0.0.0"
 
-    url = f"http://{host}:{port}/"
+    normalized_path = path if path.startswith("/") else f"/{path}"
+    if not normalized_path.endswith("/"):
+        normalized_path = normalized_path + "/"
+    url = f"{scheme}://{host}:{port}{normalized_path}"
 
     skills = [
         AgentSkill(

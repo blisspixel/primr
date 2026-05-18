@@ -372,9 +372,12 @@ class TestCleanupOrphanedResources:
     """Tests for the pre/post-run orphan cleanup function."""
 
     def test_cleanup_deletes_orphaned_caches(self):
-        """Orphaned caches are deleted."""
+        """Orphaned caches owned by Primr and older than the stale window are deleted."""
         mock_cache = Mock()
         mock_cache.name = "cache-orphan-1"
+        # Carry the Primr display-name prefix; embed an old epoch timestamp
+        # so the age gate treats this as stale (>1h).
+        mock_cache.display_name = "primr-research_context_1700000000"
 
         mock_client = Mock()
         mock_client.caches.list.return_value = [mock_cache]
@@ -394,11 +397,12 @@ class TestCleanupOrphanedResources:
         mock_client.caches.delete.assert_called_once_with(name="cache-orphan-1")
 
     def test_cleanup_deletes_orphaned_stores(self):
-        """Orphaned file search stores are deleted (docs first, then store)."""
+        """Orphaned Primr-owned, stale file search stores are deleted (docs first, then store)."""
         mock_doc = Mock()
         mock_doc.name = "doc-1"
         mock_store = Mock()
         mock_store.name = "store-orphan-1"
+        mock_store.display_name = "primr-research_context_1700000000"
 
         mock_client = Mock()
         mock_client.caches.list.return_value = []
@@ -420,6 +424,67 @@ class TestCleanupOrphanedResources:
         mock_client.file_search_stores.documents.delete.assert_called_once()
         # Then store
         mock_client.file_search_stores.delete.assert_called_once_with(name="store-orphan-1")
+
+    def test_cleanup_skips_non_primr_resources(self):
+        """Resources without the primr- display_name prefix are not deleted.
+
+        Guards against the prior blanket-delete behavior that wiped every
+        cache/store visible to a shared GEMINI_API_KEY, including other
+        tenants' or applications' resources.
+        """
+        foreign_cache = Mock()
+        foreign_cache.name = "someone-elses-cache"
+        foreign_cache.display_name = "other-app-cache"
+        foreign_store = Mock()
+        foreign_store.name = "someone-elses-store"
+        foreign_store.display_name = "other-app-store"
+
+        mock_client = Mock()
+        mock_client.caches.list.return_value = [foreign_cache]
+        mock_client.file_search_stores.list.return_value = [foreign_store]
+
+        with (
+            patch("primr.ai.deep_research.genai.Client", return_value=mock_client),
+            patch("primr.ai.deep_research.get_settings") as mock_settings,
+        ):
+            mock_settings.return_value.api.gemini_key = "test-key"
+
+            from primr.ai.deep_research import cleanup_orphaned_resources
+
+            result = cleanup_orphaned_resources(api_key="test-key")
+
+        assert result == {"caches_deleted": 0, "stores_deleted": 0}
+        mock_client.caches.delete.assert_not_called()
+        mock_client.file_search_stores.delete.assert_not_called()
+
+    def test_cleanup_skips_fresh_primr_resources(self):
+        """Primr-owned resources younger than the stale window are kept.
+
+        Prevents one job's post-run cleanup from deleting another concurrent
+        job's active store.
+        """
+        import time as _time
+
+        fresh_store = Mock()
+        fresh_store.name = "store-fresh"
+        fresh_store.display_name = f"primr-research_context_{int(_time.time())}"
+
+        mock_client = Mock()
+        mock_client.caches.list.return_value = []
+        mock_client.file_search_stores.list.return_value = [fresh_store]
+
+        with (
+            patch("primr.ai.deep_research.genai.Client", return_value=mock_client),
+            patch("primr.ai.deep_research.get_settings") as mock_settings,
+        ):
+            mock_settings.return_value.api.gemini_key = "test-key"
+
+            from primr.ai.deep_research import cleanup_orphaned_resources
+
+            result = cleanup_orphaned_resources(api_key="test-key")
+
+        assert result["stores_deleted"] == 0
+        mock_client.file_search_stores.delete.assert_not_called()
 
     def test_cleanup_returns_zero_when_clean(self):
         """Returns zero counts when no orphans exist."""
