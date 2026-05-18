@@ -6,8 +6,8 @@ Validates: Requirements 1.3
 """
 
 import os
-from pathlib import Path
 import tempfile
+from pathlib import Path
 
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st

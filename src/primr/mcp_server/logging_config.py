@@ -7,12 +7,12 @@ ensuring all logs go to stderr to preserve stdout for JSON-RPC framing.
 Requirements: 14.1, 14.2, 14.4
 """
 
-from collections.abc import Iterator
-from contextlib import contextmanager
 import logging
 import sys
-from typing import TextIO
 import warnings
+from collections.abc import Iterator
+from contextlib import contextmanager
+from typing import TextIO
 
 
 class StdioSafeHandler(logging.Handler):

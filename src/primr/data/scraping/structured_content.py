@@ -45,10 +45,10 @@ Multi-pass Pipeline:
 5. Quality Scoring - Compute metrics and flags
 """
 
-from collections import Counter
 import contextlib
-from dataclasses import dataclass, field
 import re
+from collections import Counter
+from dataclasses import dataclass, field
 
 from bs4 import BeautifulSoup, Tag
 

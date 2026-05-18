@@ -1,8 +1,8 @@
 """Tests for multi-tenancy support."""
 
-from datetime import datetime, timedelta
 import os
 import tempfile
+from datetime import datetime, timedelta
 
 import pytest
 

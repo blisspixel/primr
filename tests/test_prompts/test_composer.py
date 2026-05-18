@@ -4,12 +4,12 @@ Tests for the PromptComposer.
 Includes property-based tests using Hypothesis for comprehensive validation.
 """
 
-from pathlib import Path
 import tempfile
+from pathlib import Path
 
+import pytest
 from hypothesis import assume, given, settings
 from hypothesis import strategies as st
-import pytest
 
 from primr.prompts.composer import PromptComposer, get_composer
 from primr.prompts.exceptions import PromptConfigNotFoundError

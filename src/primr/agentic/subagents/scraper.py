@@ -30,9 +30,9 @@ Example:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import logging
 import time
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from primr.agentic.errors import SubagentError

@@ -5,13 +5,13 @@ Caches raw content and extracted text separately to allow re-parsing
 without re-scraping.
 """
 
-from collections import OrderedDict
-from datetime import datetime
 import hashlib
 import json
 import logging
-from pathlib import Path
 import threading
+from collections import OrderedDict
+from datetime import datetime
+from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 logger = logging.getLogger("primr.scraping.cache")

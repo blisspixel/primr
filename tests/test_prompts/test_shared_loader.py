@@ -4,13 +4,13 @@ Tests for the shared component loader.
 Includes property-based tests using Hypothesis for comprehensive validation.
 """
 
-from pathlib import Path
 import tempfile
+from pathlib import Path
 
-from hypothesis import given, settings
-from hypothesis import strategies as st
 import pytest
 import yaml
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from primr.prompts.schema import SharedComponents
 from primr.prompts.shared_loader import (

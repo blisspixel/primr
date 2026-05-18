@@ -11,9 +11,9 @@ of the telemetry system implementation as specified in the PhD-Level Excellence 
 import asyncio
 from typing import Any
 
+import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
-import pytest
 
 from primr.utils.observability import correlation_scope
 from primr.utils.telemetry import (

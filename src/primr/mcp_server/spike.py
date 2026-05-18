@@ -18,10 +18,11 @@ Test with: npx @modelcontextprotocol/inspector
 """
 
 import asyncio
-from datetime import datetime
 import sys
+from datetime import datetime
 from typing import Any
 
+from mcp.server import Server
 from mcp.server.lowlevel.helper_types import ReadResourceContents
 from mcp.server.stdio import stdio_server
 from mcp.types import (
@@ -29,8 +30,6 @@ from mcp.types import (
     TextContent,
     Tool,
 )
-
-from mcp.server import Server
 
 
 def create_spike_server() -> Server:

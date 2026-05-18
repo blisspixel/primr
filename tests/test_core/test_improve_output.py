@@ -2,6 +2,7 @@ from pathlib import Path
 
 from docx import Document
 
+import primr.output.output_utils as output_utils
 from primr.core.research_agent import (
     _clean_strategy_output,
     _compute_strategy_qa_metrics,
@@ -19,7 +20,6 @@ from primr.output.final_artifact import (
     canonicalize_final_markdown,
     parse_final_markdown,
 )
-import primr.output.output_utils as output_utils
 
 
 def test_compute_strategy_qa_metrics_flags_budget_inconsistency():

@@ -18,11 +18,11 @@ Usage:
 """
 
 import argparse
-from dataclasses import dataclass
-from enum import Enum
 import os
 import re
 import sys
+from dataclasses import dataclass
+from enum import Enum
 from typing import Any, Protocol
 
 from primr.config.config import LOGS_DIR, OUTPUT_DIR, WORKING_DIR
@@ -2235,8 +2235,8 @@ def _handle_qa_recent(config: CLIConfig) -> int:
 
 def _handle_ai_strategy_only(config: CLIConfig) -> int:
     """Handle strategy generation using existing report as context."""
-    from pathlib import Path
     import re
+    from pathlib import Path
 
     from primr.core.research_agent import _generate_strategy_section
 
@@ -2616,8 +2616,8 @@ def _handle_roadmap(config: CLIConfig) -> int:
 def _handle_eval(config: CLIConfig) -> int:
     """Handle versioned model/profile evaluation."""
     import csv
-    from pathlib import Path
     import shutil
+    from pathlib import Path
 
     from primr.config.config import FAST_FEEDBACK_RULES_PATH, OUTPUT_DIR
     from primr.core.local_stage_eval import (
@@ -3681,8 +3681,8 @@ def _check_gemini_resources(all_passed: bool, warnings_count: int) -> tuple[bool
 
 def list_recent_outputs() -> None:
     """List recent research outputs from the output directory."""
-    from datetime import datetime
     import glob
+    from datetime import datetime
 
     output_files = glob.glob(os.path.join(OUTPUT_DIR, "*.docx"))
     if not output_files:
@@ -4541,9 +4541,9 @@ def process_batch(
     billing_wait_minutes = 10  # How long to pause when billing/credits exhausted
 
     # Check for existing reports (enables resume)
-    from datetime import datetime
     import glob
     import time as _time
+    from datetime import datetime
 
     from primr.config.config import OUTPUT_DIR
 

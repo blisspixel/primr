@@ -4,9 +4,9 @@ Property tests for formatting utilities.
 **Feature: consulting-tier-report**
 """
 
+import pytest
 from hypothesis import HealthCheck, assume, given, settings
 from hypothesis import strategies as st
-import pytest
 
 from primr.utils.formatting import (
     clean_content,

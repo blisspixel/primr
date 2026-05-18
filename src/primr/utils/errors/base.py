@@ -10,9 +10,9 @@ This module provides foundational utilities used by the error hierarchy:
 from __future__ import annotations
 
 import contextvars
-from dataclasses import dataclass
 import logging
 import random
+from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 

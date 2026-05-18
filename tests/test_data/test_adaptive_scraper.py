@@ -4,9 +4,9 @@ Tests for the adaptive scraper module.
 Tests domain learning, tier selection, and adaptive behavior.
 """
 
-from pathlib import Path
 import tempfile
 import threading
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest

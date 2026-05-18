@@ -10,12 +10,12 @@ This module provides:
 - Request ID tracking for audit trails
 """
 
+import threading
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-import threading
 from typing import Any
-import uuid
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware

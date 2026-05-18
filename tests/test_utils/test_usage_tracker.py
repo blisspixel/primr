@@ -4,8 +4,8 @@ Tests for the usage tracker module.
 Verifies usage tracking and cost calculation.
 """
 
-from pathlib import Path
 import tempfile
+from pathlib import Path
 
 from primr.utils.usage_tracker import (
     SessionUsage,

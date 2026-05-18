@@ -7,9 +7,9 @@ It wraps the new modular scraping system in primr.data.scraping.
 
 import hashlib
 import os
-from pathlib import Path
 import re
 import time
+from pathlib import Path
 from urllib.parse import urlparse
 
 from primr.config.config import (
@@ -487,8 +487,8 @@ def fetch_web_content(
     Returns:
         Dict mapping URL -> extracted text (cleaned, boilerplate removed)
     """
-    from concurrent.futures import ThreadPoolExecutor, as_completed
     import os
+    from concurrent.futures import ThreadPoolExecutor, as_completed
 
     from .scraping import (
         BoilerplateFilter,

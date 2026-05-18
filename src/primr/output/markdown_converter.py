@@ -10,8 +10,8 @@ Design decision: Converter owns the header.
 - If markdown has a header block, it gets stripped automatically
 """
 
-from pathlib import Path
 import re
+from pathlib import Path
 from typing import Any
 
 from docx import Document

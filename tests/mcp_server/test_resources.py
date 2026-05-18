@@ -5,11 +5,11 @@ Task 7: Resource handlers
 """
 
 import json
-from pathlib import Path
 import tempfile
+from pathlib import Path
 
-from mcp.types import ListResourcesRequest, ReadResourceRequest, ReadResourceRequestParams
 import pytest
+from mcp.types import ListResourcesRequest, ReadResourceRequest, ReadResourceRequestParams
 
 from primr.mcp_server.server import create_mcp_server
 from primr.mcp_server.types import ResearchStage

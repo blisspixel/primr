@@ -4,8 +4,8 @@ Tests for the Insight Engine.
 **Feature: consulting-tier-report**
 """
 
-from datetime import datetime
 import json
+from datetime import datetime
 from unittest.mock import patch
 
 from primr.ai.insight_engine import InsightEngine

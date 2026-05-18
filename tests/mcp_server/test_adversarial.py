@@ -11,11 +11,11 @@ These tests validate that the MCP server properly defends against:
 """
 
 import json
-from pathlib import Path
 import tempfile
+from pathlib import Path
 
-from mcp.types import CallToolRequest, CallToolRequestParams
 import pytest
+from mcp.types import CallToolRequest, CallToolRequestParams
 
 from primr.mcp_server.security import PathValidator, URLValidator
 from primr.mcp_server.server import create_mcp_server

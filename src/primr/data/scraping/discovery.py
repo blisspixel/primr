@@ -8,12 +8,12 @@ Provides multiple strategies for discovering URLs on a website:
 - Heuristic scoring for prioritization
 """
 
-from dataclasses import dataclass
 import gzip
 import logging
 import re
-from urllib.parse import urljoin, urlparse
 import xml.etree.ElementTree as ET
+from dataclasses import dataclass
+from urllib.parse import urljoin, urlparse
 
 from .config import COMMON_PAGE_PATTERNS, SitemapConfig
 from .net import extract_host, head_exists, is_same_domain, make_request

@@ -16,9 +16,9 @@ Usage:
     container.register_scraper(mock_scraper)
 """
 
+import threading
 from collections.abc import Callable
 from dataclasses import dataclass
-import threading
 from typing import Any, TypeVar
 
 from primr.types import (

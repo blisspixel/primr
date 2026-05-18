@@ -14,8 +14,8 @@ Validates: Requirements 6.5, 6.6
 
 from __future__ import annotations
 
-from pathlib import Path
 import re
+from pathlib import Path
 from typing import Any
 
 import pytest

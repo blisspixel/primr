@@ -40,12 +40,12 @@ Example:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
 import json
 import logging
-from pathlib import Path
 import re
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 import yaml  # type: ignore[import-untyped]

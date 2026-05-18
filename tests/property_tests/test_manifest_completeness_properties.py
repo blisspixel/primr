@@ -12,8 +12,8 @@ for proper job tracking and artifact retrieval.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import json
+from datetime import datetime, timezone
 
 from hypothesis import given, settings
 from hypothesis import strategies as st
@@ -140,8 +140,8 @@ class TestManifestCompleteness:
         status: str,
     ) -> None:
         """Built manifests should always have required fields."""
-        from pathlib import Path
         import tempfile
+        from pathlib import Path
 
         # Create temp output directory
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -169,8 +169,8 @@ class TestManifestCompleteness:
     @settings(max_examples=30)
     def test_manifest_job_id_matches_spec(self, job_spec: JobSpec) -> None:
         """Manifest job_id should match the job spec."""
-        from pathlib import Path
         import tempfile
+        from pathlib import Path
 
         with tempfile.TemporaryDirectory() as tmpdir:
             output_dir = Path(tmpdir)
@@ -192,8 +192,8 @@ class TestManifestCompleteness:
     @settings(max_examples=30)
     def test_manifest_deployment_matches_spec(self, job_spec: JobSpec) -> None:
         """Manifest deployment should match the job spec."""
-        from pathlib import Path
         import tempfile
+        from pathlib import Path
 
         with tempfile.TemporaryDirectory() as tmpdir:
             output_dir = Path(tmpdir)
@@ -215,8 +215,8 @@ class TestManifestCompleteness:
     @settings(max_examples=30)
     def test_manifest_attempt_matches_spec(self, job_spec: JobSpec) -> None:
         """Manifest attempt should match the job spec."""
-        from pathlib import Path
         import tempfile
+        from pathlib import Path
 
         with tempfile.TemporaryDirectory() as tmpdir:
             output_dir = Path(tmpdir)
@@ -242,8 +242,8 @@ class TestManifestTimestamps:
     @settings(max_examples=30)
     def test_timestamps_are_iso_format(self, job_spec: JobSpec) -> None:
         """Timestamps should be in ISO 8601 format."""
-        from pathlib import Path
         import tempfile
+        from pathlib import Path
 
         with tempfile.TemporaryDirectory() as tmpdir:
             output_dir = Path(tmpdir)
@@ -272,9 +272,9 @@ class TestManifestTimestamps:
     @settings(max_examples=30)
     def test_completed_at_after_started_at(self, job_spec: JobSpec) -> None:
         """completed_at should be >= started_at."""
+        import tempfile
         from datetime import timedelta
         from pathlib import Path
-        import tempfile
 
         with tempfile.TemporaryDirectory() as tmpdir:
             output_dir = Path(tmpdir)
@@ -306,8 +306,8 @@ class TestManifestSerialization:
     @settings(max_examples=30)
     def test_manifest_roundtrip(self, job_spec: JobSpec, status: str) -> None:
         """Manifest should survive JSON roundtrip."""
-        from pathlib import Path
         import tempfile
+        from pathlib import Path
 
         with tempfile.TemporaryDirectory() as tmpdir:
             output_dir = Path(tmpdir)

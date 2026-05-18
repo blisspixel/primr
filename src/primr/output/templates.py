@@ -8,10 +8,10 @@ This module provides:
 - Section-based report structure
 """
 
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-import re
 from typing import TYPE_CHECKING, Any
 
 from primr.utils.logging_config import get_logger

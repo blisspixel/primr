@@ -8,9 +8,9 @@ This module provides:
 - Source citations
 """
 
+import re
 from dataclasses import dataclass, field
 from enum import Enum
-import re
 
 from primr.utils.logging_config import get_logger
 

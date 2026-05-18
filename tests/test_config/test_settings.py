@@ -5,10 +5,10 @@ Tests for the new Settings configuration system.
 import os
 from unittest.mock import patch
 
+import pytest
 from hypothesis import HealthCheck, given
 from hypothesis import settings as hyp_settings
 from hypothesis import strategies as st
-import pytest
 
 from primr.config.settings import (
     AIConfig,

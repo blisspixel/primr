@@ -2,10 +2,10 @@
 Report loader for QA analysis.
 """
 
-from datetime import datetime
 import logging
-from pathlib import Path
 import re
+from datetime import datetime
+from pathlib import Path
 
 from .models import ReportContent, ReportMetadata
 

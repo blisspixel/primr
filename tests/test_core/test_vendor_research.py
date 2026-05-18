@@ -4,10 +4,10 @@ Unit tests for the vendor_research module.
 Tests vendor research path generation, caching, and metadata.
 """
 
-from datetime import datetime
-from pathlib import Path
 import sys
 import tempfile
+from datetime import datetime
+from pathlib import Path
 from unittest.mock import patch
 
 # Add src to path for imports

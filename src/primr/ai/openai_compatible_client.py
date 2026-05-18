@@ -6,11 +6,11 @@ expose an OpenAI-compatible chat completions API.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import os
 import random
 import re
 import time
+from dataclasses import dataclass
 
 from primr.utils.logging_config import get_logger
 

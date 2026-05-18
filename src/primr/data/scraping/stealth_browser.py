@@ -25,8 +25,8 @@ from __future__ import annotations
 
 import logging
 import os
-from pathlib import Path
 import time
+from pathlib import Path
 from urllib.parse import urlparse
 
 from primr.config.config import PROJECT_ROOT

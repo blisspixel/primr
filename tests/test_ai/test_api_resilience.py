@@ -9,9 +9,9 @@ Tests retry behavior, exponential backoff, fallback logic, and consecutive failu
 
 from unittest.mock import Mock
 
+import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
-import pytest
 
 from primr.ai.deep_research import (
     DeepResearchOrchestrator,

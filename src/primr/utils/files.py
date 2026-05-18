@@ -8,17 +8,17 @@ This module provides:
 - File validation utilities
 """
 
-from collections.abc import Iterator
-from contextlib import contextmanager, suppress
 import hashlib
 import os
-from pathlib import Path
 import platform
 import re
 import shutil
 import subprocess
 import tempfile
 import webbrowser
+from collections.abc import Iterator
+from contextlib import contextmanager, suppress
+from pathlib import Path
 
 from primr.utils.errors import ValidationError
 

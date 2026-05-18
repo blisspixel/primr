@@ -2,9 +2,9 @@
 Configuration and model management for QA system.
 """
 
-from dataclasses import dataclass, field
 import json
 import logging
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 

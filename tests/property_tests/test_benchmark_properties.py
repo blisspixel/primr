@@ -10,9 +10,9 @@ of the BenchmarkRunner, BenchmarkStore, and RegressionDetector implementations.
 
 import tempfile
 
+import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
-import pytest
 
 from primr.utils.benchmarks import (
     BenchmarkResult,
