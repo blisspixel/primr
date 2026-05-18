@@ -2,7 +2,7 @@
 name: primr
 description: Generate a consultant-grade strategic intelligence brief on a company. Long-running (35-120 min) and metered ($0.10-$5). Use when the user asks for a primr report / full strategic dossier / deep company brief, or names a company alongside research-it-with-primr / generate-the-strategic-overview / build-the-AI-strategy / get-the-full-report language. Skip for quick web research (use the host's built-in search and reasoning instead) or DNS-only intelligence (shell out to dig or a passive-recon tool — primr's recon stage is bundled into the full pipeline, not a standalone path).
 argument-hint: "Company Name" https://company.url [--mode full|premium|scrape|deep] [--platform aws|ms|gcp] [--strategy-type ai|customer_experience|...]
-allowed-tools: Bash(primr:*), Read, Write, Edit
+allowed-tools: Bash(primr:*), Read
 ---
 
 # primr

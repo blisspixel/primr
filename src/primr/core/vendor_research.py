@@ -185,21 +185,25 @@ def get_or_generate_vendor_research_sync(
         if manual_path:
             result_paths.append(str(manual_path))
 
-    # Check for fresh auto-generated research (within 14 days)
+    # See get_or_generate_vendor_research (async) for the cost-cap-driven
+    # reason this defaults to reusing stale rather than auto-refreshing.
     research_path = get_vendor_research_path(vendor)
-    research_is_fresh = False
-    if research_path.exists() and not force_refresh:
-        mtime = datetime.fromtimestamp(research_path.stat().st_mtime)
-        age_days = (datetime.now() - mtime).days
-        research_is_fresh = age_days <= 14
+    research_exists, age_days = _vendor_research_age(research_path)
+    is_fresh = research_exists and age_days is not None and age_days <= 14
+    is_stale = research_exists and not is_fresh
+    refresh_now = force_refresh or (is_stale and _allow_vendor_auto_refresh())
 
-    if research_is_fresh:
+    if is_fresh and not force_refresh:
         result_paths.append(str(research_path))
-        age_days = (datetime.now() - datetime.fromtimestamp(research_path.stat().st_mtime)).days
         console.info(f"Using vendor research: {research_path.name} ({age_days}d old)")
-        logger.info(f"Reusing vendor research file: {research_path} (age: {age_days}d)")
-    elif not result_paths or force_refresh:
-        # Generate fresh if stale (>14d), missing, or force refresh
+        logger.info("Reusing vendor research file: %s (age: %dd)", research_path, age_days)
+    elif is_stale and not refresh_now:
+        result_paths.append(str(research_path))
+        console.warn(
+            f"Vendor research is {age_days}d old (>14d) — reusing without refresh "
+            "(set PRIMR_ALLOW_VENDOR_REFRESH=1 or pass force_refresh=True to regenerate)"
+        )
+    elif refresh_now or not result_paths:
         generated = generate_vendor_research_sync(vendor, on_progress)
         if generated:
             result_paths.append(generated)
@@ -207,32 +211,50 @@ def get_or_generate_vendor_research_sync(
     return result_paths
 
 
+def _vendor_research_age(research_path: Path) -> tuple[bool, int | None]:
+    """Return (exists, age_in_days) for a vendor research cache file."""
+    if not research_path.exists():
+        return False, None
+    mtime = datetime.fromtimestamp(research_path.stat().st_mtime)
+    return True, (datetime.now() - mtime).days
+
+
+def _allow_vendor_auto_refresh() -> bool:
+    """Gate auto-refresh of stale vendor research on an explicit env opt-in.
+
+    See ``get_or_generate_vendor_research`` for the cost-cap rationale.
+    """
+    import os as _os
+
+    return _os.environ.get("PRIMR_ALLOW_VENDOR_REFRESH", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+
+
 async def get_or_generate_vendor_research(
     vendor: str, force_refresh: bool = False, on_progress: Callable[[str], None] | None = None
 ) -> VendorResearchResult:
-    """
-    Get vendor research files, generating if needed (async).
+    """Get vendor research files, generating only when explicitly approved.
 
     Priority order:
     1. Manually curated files (e.g., Ignite analysis for Azure)
-    2. Current month's auto-generated research
-    3. Generate fresh research if nothing available
-
-    Args:
-        vendor: Cloud vendor (azure, aws, gcp, agnostic)
-        force_refresh: If True, regenerate even if current exists
-        on_progress: Optional progress callback
-
-    Returns:
-        VendorResearchResult with file paths
+    2. Fresh (≤14d) auto-generated research
+    3. Stale auto-generated research is REUSED, not refreshed, unless
+       ``force_refresh=True`` or ``PRIMR_ALLOW_VENDOR_REFRESH=1``. The
+       MCP/static cost-cap estimate does not include a ~$0.50 Deep
+       Research refresh, so silently triggering one would bypass the
+       approved spend ceiling.
+    4. Generate fresh research when nothing exists at all.
     """
     import time
 
     start_time = time.time()
-    files = []
+    files: list[VendorResearchFile] = []
     generated = False
+    current_month = datetime.now().strftime("%Y-%m")
 
-    # Azure: always include manually curated Ignite analysis
     if vendor.lower() == "azure":
         manual_path = get_manual_research_path(vendor)
         if manual_path:
@@ -240,33 +262,37 @@ async def get_or_generate_vendor_research(
                 VendorResearchFile(path=manual_path, vendor=vendor, month="manual", is_manual=True)
             )
 
-    # Check for fresh auto-generated research (within 14 days)
-    current_month = datetime.now().strftime("%Y-%m")
     research_path = get_vendor_research_path(vendor)
+    research_exists, age_days = _vendor_research_age(research_path)
+    is_fresh = research_exists and age_days is not None and age_days <= 14
+    is_stale = research_exists and not is_fresh
+    refresh_now = force_refresh or (is_stale and _allow_vendor_auto_refresh())
 
-    research_is_fresh = False
-    if research_path.exists() and not force_refresh:
-        mtime = datetime.fromtimestamp(research_path.stat().st_mtime)
-        age_days = (datetime.now() - mtime).days
-        research_is_fresh = age_days <= 14
-
-    if research_is_fresh:
-        # Reuse existing research (less than 14 days old)
+    if is_fresh and not force_refresh:
         files.append(
             VendorResearchFile(
                 path=research_path, vendor=vendor, month=current_month, is_manual=False
             )
         )
-        age_days = (datetime.now() - datetime.fromtimestamp(research_path.stat().st_mtime)).days
         console.info(f"Using vendor research: {research_path.name} ({age_days}d old)")
-        logger.info(f"Reusing vendor research file: {research_path} (age: {age_days}d)")
-    elif not files or force_refresh:
-        # Generate fresh research if:
-        # 1. No files at all (not even manual), OR
-        # 2. Force refresh requested, OR
-        # 3. Existing research is stale (>14 days)
-        if research_path.exists() and not force_refresh:
-            age_days = (datetime.now() - datetime.fromtimestamp(research_path.stat().st_mtime)).days
+        logger.info("Reusing vendor research file: %s (age: %dd)", research_path, age_days)
+    elif is_stale and not refresh_now:
+        files.append(
+            VendorResearchFile(
+                path=research_path, vendor=vendor, month=current_month, is_manual=False
+            )
+        )
+        console.warn(
+            f"Vendor research is {age_days}d old (>14d) — reusing without refresh "
+            "(set PRIMR_ALLOW_VENDOR_REFRESH=1 or pass force_refresh=True to regenerate)"
+        )
+        logger.info(
+            "Stale vendor research kept: %s (age=%dd, allow_auto_refresh=False)",
+            research_path,
+            age_days,
+        )
+    elif refresh_now or not files:
+        if research_exists and not force_refresh:
             console.info(f"Vendor research is {age_days}d old (>14d) — refreshing...")
         result = await generate_vendor_research(vendor, on_progress)
         if result:

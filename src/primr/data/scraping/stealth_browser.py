@@ -400,6 +400,27 @@ def _run_patchright(
             response = page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
             status = response.status if response else None
 
+            # Post-navigation SSRF check: an attacker-controlled origin may
+            # redirect into RFC1918 / loopback / cloud metadata, and unlike
+            # plain HTTP tiers we cannot opt out of redirect-follow here. If
+            # the final URL is internal, abort before reading the page body
+            # so internal response content cannot escape into the scrape
+            # corpus or raw artifacts.
+            try:
+                from primr.utils.security import validate_final_url_after_redirect
+
+                safe_final, reason = validate_final_url_after_redirect(page.url)
+            except Exception:
+                safe_final, reason = True, None
+            if not safe_final:
+                logger.info(
+                    "patchright: dropped %s — final URL %s blocked (%s)",
+                    url,
+                    page.url,
+                    reason,
+                )
+                return None, None, None
+
             # Give Kasada time to run proof-of-work and swap in real content.
             try:
                 page.wait_for_load_state("networkidle", timeout=min(timeout_ms, 20000))
@@ -449,6 +470,32 @@ def scrape_with_patchright(
             error="patchright not installed — reinstall primr to pull it as a dependency",
             tier="patchright",
             elapsed_ms=0,
+        )
+
+    # SSRF guard: scraping is reached from research jobs whose company_url
+    # was validated upstream, but discovered links and fallback fan-outs
+    # can route arbitrary URLs into the scraper. Refuse loopback / RFC1918
+    # / link-local / cloud metadata destinations before launching a browser.
+    from primr.utils.security import is_safe_url
+
+    safe, ssrf_reason = is_safe_url(url)
+    if not safe:
+        logger.info("patchright: blocked %s (%s)", url, ssrf_reason)
+        return ScrapeResult(
+            url=url,
+            success=False,
+            error_type=ErrorType.SOFT_BLOCK,
+            error=f"URL blocked by SSRF guard: {ssrf_reason}",
+            tier="patchright",
+            elapsed_ms=0,
+            attempts=[
+                Attempt(
+                    tier="patchright",
+                    success=False,
+                    error=f"ssrf blocked: {ssrf_reason}",
+                    error_type=ErrorType.SOFT_BLOCK,
+                )
+            ],
         )
 
     # Short-circuit low-value URLs BEFORE spending any stealth-browser time.

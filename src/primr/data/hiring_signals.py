@@ -162,7 +162,22 @@ def _http_get(
     Mirrors the helper in ``fallback_sources.py`` so the two fail-open
     fan-outs behave consistently. Errors are logged at debug and returned
     as ``(None, None, None)`` — the caller decides what to do.
+
+    SSRF protection: validates the initial URL and the final URL after
+    redirects against the central SSRF blocklist (loopback / RFC1918 /
+    link-local / cloud metadata). An attacker-controlled careers page that
+    links to or redirects to internal infrastructure is dropped here, even
+    though the original company_url passed the MCP URL validator. The
+    fallback HTTP helper in ``fallback_sources.py`` applies the same
+    checks; keep them in sync if either is updated.
     """
+    from primr.utils.security import is_safe_url, validate_final_url_after_redirect
+
+    safe, reason = is_safe_url(url)
+    if not safe:
+        logger.info("hiring-signals: blocked outbound request to %s (%s)", url, reason)
+        return None, None, None
+
     try:
         import httpx
 
@@ -180,7 +195,17 @@ def _http_get(
             headers=base_headers,
         ) as client:
             resp = client.get(url, params=params)
-            return resp.status_code, resp.content, str(resp.url)
+            final_url = str(resp.url)
+            safe_final, reason = validate_final_url_after_redirect(final_url)
+            if not safe_final:
+                logger.info(
+                    "hiring-signals: dropped response from %s — final URL %s blocked (%s)",
+                    url,
+                    final_url,
+                    reason,
+                )
+                return None, None, None
+            return resp.status_code, resp.content, final_url
     except Exception as e:
         logger.debug("hiring-signals HTTP GET failed for %s: %s", url, e)
         return None, None, None

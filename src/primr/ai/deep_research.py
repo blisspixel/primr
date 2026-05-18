@@ -21,6 +21,7 @@ Usage:
 """
 
 import asyncio
+import re
 import threading
 import time
 import warnings
@@ -357,12 +358,33 @@ async def resolve_redirect_url(url: str, timeout: float = 10.0, retries: int = 2
     Returns:
         The final destination URL, or the original URL if resolution fails
     """
+    from urllib.parse import urlparse
+
     import httpx
 
-    from primr.utils.security import validate_final_url_after_redirect
+    from primr.utils.security import is_safe_url, validate_final_url_after_redirect
 
-    # Only resolve Google grounding redirect URLs
-    if "vertexaisearch.cloud.google.com/grounding-api-redirect" not in url:
+    # Parse the URL and require the actual hostname (not a substring) to be
+    # the Google grounding redirector. The original substring check accepted
+    # attacker-controlled URLs that merely contained the marker in a path or
+    # query parameter (e.g. http://169.254.169.254/?x=vertexaisearch...).
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return url
+    if (parsed.hostname or "").lower() != "vertexaisearch.cloud.google.com":
+        return url
+    if not parsed.path.startswith("/grounding-api-redirect"):
+        return url
+    if parsed.scheme != "https":
+        return url
+
+    # Defense in depth — the path-scheme-host gate already excludes private
+    # destinations, but if Google ever serves a CNAME pointing somewhere
+    # unexpected the SSRF helper catches it.
+    safe_initial, initial_reason = is_safe_url(url)
+    if not safe_initial:
+        logger.info("Citation resolver: blocking %s (%s)", url, initial_reason)
         return url
 
     for attempt in range(retries + 1):
@@ -1112,9 +1134,12 @@ Frame everything as hypotheses to explore, not conclusions."""
 
         store_name: str = ""
         try:
-            # Create a file search store
+            # Create a file search store. Every Primr-created store carries
+            # the ``primr-`` display_name prefix so cleanup_orphaned_resources
+            # can recognise our own resources and refuse to delete anything
+            # belonging to a different application sharing this API key.
             store = self._client.file_search_stores.create(
-                config={"display_name": f"research_context_{int(time.time())}"}
+                config={"display_name": f"primr-research_context_{int(time.time())}"}
             )
             store_name = store.name or ""
             if not store_name:
@@ -3887,8 +3912,11 @@ class FileSearchStoreManager:
             AIError: If store creation fails
         """
         try:
+            # ``primr-`` prefix is load-bearing for cleanup_orphaned_resources:
+            # without it, post-run cleanup would refuse to delete this store
+            # and the operator would accumulate paying-for-nothing artifacts.
             store = self._client.file_search_stores.create(
-                config={"display_name": f"{display_name}_{int(time.time())}"}
+                config={"display_name": f"primr-{display_name}_{int(time.time())}"}
             )
             store_name: str = store.name or ""
             if not store_name:
@@ -4050,45 +4078,150 @@ def get_file_search_store_manager() -> FileSearchStoreManager:
 # =============================================================================
 
 
-def cleanup_orphaned_resources(api_key: str | None = None) -> dict[str, int]:
-    """
-    Clean up orphaned Gemini resources (caches and file search stores).
+_PRIMR_RESOURCE_PREFIX = "primr-"
+# Don't touch stores younger than this — they may belong to a concurrent
+# Primr run on the same API key. Configurable via env for operators who
+# want a tighter or looser window.
+_DEFAULT_STALE_AGE_SECONDS = 3600.0
 
-    Should be called before and after research runs to prevent billing leaks.
-    File Search Stores have NO TTL — they persist (and cost money) until
-    manually deleted. If a prior run crashed, stores may be left behind.
+
+def _is_primr_owned(resource: Any) -> bool:
+    """True if a Gemini cache/store carries the Primr display-name prefix.
+
+    Any unprefixed resource is treated as foreign and must not be deleted —
+    historically this function would delete every resource under the
+    GEMINI_API_KEY, including ones belonging to other tenants or unrelated
+    applications. Belongs-to-us is now an explicit, fail-closed check.
+    """
+    display_name = getattr(resource, "display_name", None) or ""
+    return isinstance(display_name, str) and display_name.startswith(_PRIMR_RESOURCE_PREFIX)
+
+
+def _resource_age_seconds(resource: Any) -> float | None:
+    """Approximate age in seconds for a Gemini resource, or None if unknown.
+
+    Falls back to the timestamp embedded in the Primr display_name
+    (``primr-...{int(time.time())}``) when the SDK doesn't expose a
+    create_time we can parse.
+    """
+    from datetime import datetime, timezone
+
+    create_time = getattr(resource, "create_time", None)
+    if create_time is not None:
+        try:
+            if hasattr(create_time, "timestamp"):
+                return max(0.0, datetime.now(timezone.utc).timestamp() - create_time.timestamp())
+            if isinstance(create_time, str):
+                parsed = datetime.fromisoformat(create_time.replace("Z", "+00:00"))
+                return max(0.0, datetime.now(timezone.utc).timestamp() - parsed.timestamp())
+        except Exception:
+            pass
+
+    display_name = getattr(resource, "display_name", None) or ""
+    if isinstance(display_name, str):
+        match = re.search(r"_(\d{9,11})(?:\D|$)", display_name)
+        if match:
+            try:
+                return max(0.0, time.time() - float(match.group(1)))
+            except ValueError:
+                pass
+    return None
+
+
+def cleanup_orphaned_resources(
+    api_key: str | None = None,
+    stale_age_seconds: float | None = None,
+) -> dict[str, int]:
+    """
+    Clean up orphaned Gemini resources that Primr created and abandoned.
+
+    Two safety gates protect resources we did not create or that may still
+    be in use:
+
+    1. **Ownership**: only resources whose ``display_name`` starts with the
+       Primr prefix (``primr-``) are eligible. Foreign caches/stores under
+       the same API key — other tenants, other applications, manual
+       experiments — are left alone.
+    2. **Staleness**: only resources older than ``stale_age_seconds``
+       (default ~1h, configurable via ``PRIMR_CLEANUP_STALE_AGE_SECONDS``)
+       are eligible. This prevents a post-run cleanup in one job from
+       deleting an active store belonging to a concurrent job.
+
+    Before this hardening the function deleted every resource visible to
+    the API key, which in shared-credential deployments meant one user's
+    research job could destroy another user's stores or any unrelated
+    application's data.
 
     Args:
         api_key: Optional API key override. Uses settings if not provided.
+        stale_age_seconds: Minimum age before a resource is eligible for
+            deletion. Defaults to the value of
+            ``PRIMR_CLEANUP_STALE_AGE_SECONDS`` or 3600s.
 
     Returns:
-        Dict with counts: {"caches_deleted": N, "stores_deleted": N}
+        Dict with counts: ``{"caches_deleted": N, "stores_deleted": N}``.
     """
+    import os as _os
+
     _require_genai_dependency()
     settings = get_settings()
     key = api_key or settings.api.gemini_key
     client = genai.Client(api_key=key)
 
+    if stale_age_seconds is None:
+        try:
+            stale_age_seconds = float(
+                _os.environ.get("PRIMR_CLEANUP_STALE_AGE_SECONDS", _DEFAULT_STALE_AGE_SECONDS)
+            )
+        except ValueError:
+            stale_age_seconds = _DEFAULT_STALE_AGE_SECONDS
+
     result = {"caches_deleted": 0, "stores_deleted": 0}
 
-    # 1. Clean up explicit context caches (shouldn't exist, but check anyway)
+    # 1. Caches — Primr does not currently create explicit context caches,
+    # but if a future code path does it MUST tag with the primr- prefix so
+    # this loop will still find and remove orphans.
     try:
         caches = list(client.caches.list())
         for cache in caches:
+            if not _is_primr_owned(cache):
+                logger.debug("Skipping non-Primr cache: %s", getattr(cache, "name", "?"))
+                continue
+            age = _resource_age_seconds(cache)
+            if age is not None and age < stale_age_seconds:
+                logger.debug(
+                    "Skipping Primr cache younger than %.0fs: %s (age=%.0fs)",
+                    stale_age_seconds,
+                    cache.name,
+                    age,
+                )
+                continue
             try:
                 client.caches.delete(name=cache.name)
                 result["caches_deleted"] += 1
-                logger.info(f"Deleted orphaned cache: {cache.name}")
+                logger.info("Deleted orphaned Primr cache: %s", cache.name)
             except Exception as e:
-                logger.warning(f"Could not delete cache {cache.name}: {e}")
+                logger.warning("Could not delete cache %s: %s", cache.name, e)
     except Exception as e:
-        logger.warning(f"Could not list caches: {e}")
+        logger.warning("Could not list caches: %s", e)
 
-    # 2. Clean up orphaned file search stores
+    # 2. File search stores — same two-gate policy.
     try:
         stores = list(client.file_search_stores.list())
         for store in stores:
             store_name = store.name
+            if not _is_primr_owned(store):
+                logger.debug("Skipping non-Primr store: %s", store_name)
+                continue
+            age = _resource_age_seconds(store)
+            if age is not None and age < stale_age_seconds:
+                logger.debug(
+                    "Skipping Primr store younger than %.0fs: %s (age=%.0fs)",
+                    stale_age_seconds,
+                    store_name,
+                    age,
+                )
+                continue
             # Delete documents inside the store first
             try:
                 docs = list(client.file_search_stores.documents.list(parent=store_name))
@@ -4100,19 +4233,19 @@ def cleanup_orphaned_resources(api_key: str | None = None) -> dict[str, int]:
                     except TypeError:
                         client.file_search_stores.documents.delete(name=doc.name)
                     except Exception as e:
-                        logger.warning(f"Could not delete doc {doc.name}: {e}")
+                        logger.warning("Could not delete doc %s: %s", doc.name, e)
             except Exception as e:
-                logger.warning(f"Could not list docs in {store_name}: {e}")
+                logger.warning("Could not list docs in %s: %s", store_name, e)
 
             # Now delete the empty store
             try:
                 client.file_search_stores.delete(name=store_name)
                 result["stores_deleted"] += 1
-                logger.info(f"Deleted orphaned store: {store_name}")
+                logger.info("Deleted orphaned Primr store: %s", store_name)
             except Exception as e:
-                logger.warning(f"Could not delete store {store_name}: {e}")
+                logger.warning("Could not delete store %s: %s", store_name, e)
     except Exception as e:
-        logger.warning(f"Could not list file search stores: {e}")
+        logger.warning("Could not list file search stores: %s", e)
 
     total = result["caches_deleted"] + result["stores_deleted"]
     if total > 0:

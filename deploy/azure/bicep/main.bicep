@@ -119,6 +119,7 @@ module containerApp 'modules/container-app.bicep' = {
     cosmosEndpoint: cosmosDb.outputs.endpoint
     storageAccountName: storage.outputs.storageAccountName
     keyVaultName: keyVault.outputs.keyVaultName
+    keyVaultUri: keyVault.outputs.keyVaultUri
     corsOrigins: corsOrigins
   }
 }

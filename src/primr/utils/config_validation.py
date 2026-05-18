@@ -433,14 +433,20 @@ class PathsConfig:
                 )
                 continue
 
-            # Test write permission
-            test_file = path / ".primr_write_test"
-            try:
-                test_file.write_text("test")
-                test_file.unlink()
-            except OSError as e:
+            # Test write permission with a symlink-safe probe. The prior
+            # implementation wrote to a predictable .primr_write_test path
+            # via Path.write_text, which followed any pre-existing symlink
+            # and clobbered the target file.
+            from primr.utils.fs_safety import check_dir_writable
+
+            ok, why = check_dir_writable(path)
+            if not ok:
                 errors.append(
-                    ConfigError(field=name, message=f"Directory not writable: {e}", value=str(path))
+                    ConfigError(
+                        field=name,
+                        message=f"Directory not writable: {why}",
+                        value=str(path),
+                    )
                 )
 
         return errors

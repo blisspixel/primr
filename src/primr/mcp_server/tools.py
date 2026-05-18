@@ -24,8 +24,9 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any
 
-from mcp.server import Server
 from mcp.types import TextContent, Tool
+
+from mcp.server import Server
 from primr.mcp_server.agentic_tools import handle_agentic_tool, register_agentic_tools
 from primr.mcp_server.job_store import JobInProgressError, ResearchJobState
 from primr.mcp_server.types import (
@@ -428,10 +429,16 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
         import json
 
         # Rate limiting - use "stdio" for stdio mode, auth context for HTTP
-        # HTTP mode client_id is extracted by auth middleware and stored in mcp_server._auth_context
+        # HTTP mode client_id is extracted by auth middleware and stored in
+        # mcp_server._auth_context. Only honor it when client_id is a real
+        # string — MagicMock placeholders in unit tests would otherwise look
+        # like an HTTP caller and trip ownership checks.
         client_id = "stdio"
-        if mcp_server._auth_context and mcp_server._auth_context.client_id:
-            client_id = mcp_server._auth_context.client_id
+        ctx = getattr(mcp_server, "_auth_context", None)
+        if ctx is not None:
+            _cid = getattr(ctx, "client_id", None)
+            if isinstance(_cid, str) and _cid:
+                client_id = _cid
 
         rate_result = mcp_server.rate_limiter.check_and_record(client_id, name)
         if not rate_result.allowed:
@@ -465,7 +472,7 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
         elif name == "generate_strategy":
             return await _handle_generate_strategy(mcp_server, arguments)
         elif name == "check_jobs":
-            return await _handle_check_jobs(mcp_server, arguments)
+            return await _handle_check_jobs(mcp_server, arguments, client_id)
         elif name == "run_qa":
             return await _handle_run_qa(mcp_server, arguments)
         elif name == "doctor":
@@ -475,7 +482,7 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
         elif name == "cancel_job":
             return await _handle_cancel_job(mcp_server, arguments, client_id)
         elif name == "wait_for_status_change":
-            return await _handle_wait_for_status_change(mcp_server, arguments)
+            return await _handle_wait_for_status_change(mcp_server, arguments, client_id)
         elif name == "delegate_to_agent":
             return await _handle_delegate_to_agent(mcp_server, arguments)
         elif name == "show_usage":
@@ -715,6 +722,36 @@ async def _handle_research_company(
     max_estimated_cost_usd = arguments.get("max_estimated_cost_usd")
     destination = arguments.get("destination")
 
+    # Validate company name. The fast pipeline interpolates company_name into
+    # report filenames and into the working-folder path, so '../' / '/' /
+    # drive prefixes could otherwise write artifacts outside OUTPUT_DIR.
+    from primr.utils.validators import InputValidationError, validate_company_name
+
+    try:
+        company_name = validate_company_name(company_name or "")
+    except InputValidationError as e:
+        return [
+            TextContent(
+                type="text",
+                text=json.dumps(
+                    {
+                        "error": True,
+                        "error_type": "invalid_company_name",
+                        "message": e.reason,
+                    }
+                ),
+            )
+        ]
+    # The estimator honors no_ai_strategy and lowers the priced cost when
+    # it is true. Production used to ignore the flag and still run strategy
+    # whenever platform was set, which bypassed max_estimated_cost_usd.
+    # Treat no_ai_strategy as authoritative for execution: when set, drop
+    # platform so the runner's `ai_strategy=platform is not None` check
+    # produces the same shape the cost cap was approved against.
+    no_ai_strategy = bool(arguments.get("no_ai_strategy", False))
+    if no_ai_strategy:
+        platform = None
+
     # Validate URL
     url_result = mcp_server.url_validator.validate(company_url)
     if not url_result.valid:
@@ -907,15 +944,31 @@ async def _handle_generate_strategy(
         ]
 
 
+def _caller_owns_job(job: "ResearchJobState", client_id: str) -> bool:
+    """Whether ``client_id`` is allowed to read this job's metadata + artifacts.
+
+    stdio transport is implicitly single-user, so it sees everything. For HTTP
+    clients we require an exact match against the recorded owner. Legacy jobs
+    with no recorded owner (created before owner tracking landed, or by a
+    shutdown-recovery path) are treated as non-readable to fail closed.
+    """
+    if client_id == "stdio":
+        return True
+    return job.owner_client_id is not None and job.owner_client_id == client_id
+
+
 async def _handle_check_jobs(
     mcp_server: "PrimrMCPServer",
     arguments: dict[str, Any],
+    client_id: str,
 ) -> list[TextContent]:
     """
     Handle check_jobs tool.
 
     When a job is completed, returns artifact content inline so the agent
-    client does not need filesystem access to read the output files.
+    client does not need filesystem access to read the output files. Access
+    is gated by owner_client_id so one HTTP client cannot read another's
+    completed report.
 
     Requirements: 7.1-7.6
     """
@@ -928,10 +981,9 @@ async def _handle_check_jobs(
     if job_id:
         # Check specific job
         job = mcp_server.job_store.get(job_id)
-        if job:
-            job_data = _build_job_response(job)
-            jobs.append(job_data)
-        else:
+        # Return 404 whether the job is missing OR owned by someone else, so
+        # the caller cannot probe for the existence of another client's jobs.
+        if not job or not _caller_owns_job(job, client_id):
             return [
                 TextContent(
                     type="text",
@@ -945,14 +997,19 @@ async def _handle_check_jobs(
                     ),
                 )
             ]
+        jobs.append(_build_job_response(job))
     else:
-        # Return all jobs (just the current one in single-job model)
+        # Return active + latest terminal — but only if owned by this client.
         active = mcp_server.job_store.get_active()
-        if active:
+        if active and _caller_owns_job(active, client_id):
             jobs.append(_build_job_response(active))
 
         terminal = mcp_server.job_store.get_latest_terminal()
-        if terminal and (not active or terminal.job_id != active.job_id):
+        if (
+            terminal
+            and _caller_owns_job(terminal, client_id)
+            and (not active or terminal.job_id != active.job_id)
+        ):
             jobs.append(_build_job_response(terminal))
 
     return [
@@ -1374,23 +1431,24 @@ async def _handle_cancel_job(
 async def _handle_wait_for_status_change(
     mcp_server: "PrimrMCPServer",
     arguments: dict[str, Any],
+    client_id: str,
 ) -> list[TextContent]:
     """
     Handle wait_for_status_change tool.
 
-    Blocks until job status changes or timeout occurs.
-    More efficient than polling check_jobs.
-
-    Requirements: MCP Progress Subscriptions (v1.9.0)
+    Blocks until job status changes or timeout occurs. Ownership-gated like
+    check_jobs: cross-client subscriptions to another user's job (which
+    leaked progress, output_path, and error_message) return 404.
     """
     import json
 
     job_id = arguments.get("job_id")
     timeout_seconds = min(arguments.get("timeout_seconds", 60), 300)  # Cap at 5 minutes
 
-    # Get current job state
+    # Get current job state. Return 404 whether the job is missing OR owned
+    # by someone else, so an attacker can't probe for live job IDs.
     job = mcp_server.job_store.get(job_id)
-    if not job:
+    if not job or not _caller_owns_job(job, client_id):
         return [
             TextContent(
                 type="text",

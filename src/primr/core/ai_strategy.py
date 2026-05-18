@@ -295,7 +295,30 @@ async def generate_ai_strategy(
         content=content, company_name=company_name, platform=vendor
     )
 
-    # Usage tracked by the main research pipeline (research_agent.py)
+    # Record usage for standalone invocations (MCP generate_strategy and
+    # CLI --ai-strategy-only do not flow through the main research
+    # pipeline's tracking seam). Without this, paid Deep Research runs
+    # for strategy generation were invisible to primr show-usage and
+    # downstream budget alerts.
+    try:
+        from primr.utils.usage_tracker import get_usage_tracker
+
+        tracker = get_usage_tracker()
+        elapsed_s = max(0.0, time.time() - start_time)
+        vendor_label = vendor.value if hasattr(vendor, "value") else str(vendor)
+        tracker.record_usage(
+            mode=f"standalone_ai_strategy_{vendor_label}",
+            company=company_name,
+            input_tokens=0,
+            output_tokens=0,
+            duration_seconds=elapsed_s,
+            # Catalog price for the ai_strategy task; provider invoices remain
+            # the source of truth, but this surfaces the spend in the UI.
+            deep_research_cost=0.30,
+        )
+    except Exception as exc:
+        # Tracking failure must never fail the strategy run itself.
+        logger.debug("Standalone AI strategy usage tracking skipped: %s", exc)
 
     return AIStrategyResult(
         docx_path=output_paths.get("docx"),

@@ -64,8 +64,18 @@ def budget_tracker(usage_store: InMemoryUsageStore) -> BudgetTracker:
 
 
 @pytest.fixture
-def client(tmp_path: Path, budget_tracker: BudgetTracker) -> TestClient:
-    """Create a test client with configured app including budget tracker."""
+def client(
+    tmp_path: Path,
+    budget_tracker: BudgetTracker,
+    monkeypatch: pytest.MonkeyPatch,
+) -> TestClient:
+    """Create a test client with configured app including budget tracker.
+
+    Sets PRIMR_CONTROL_PLANE_API_KEYS so the auth dependency (which now
+    fails closed when no verifier is configured) accepts the "test-key-with-min-len-16"
+    bearer used by the test cases below.
+    """
+    monkeypatch.setenv("PRIMR_CONTROL_PLANE_API_KEYS", "test-key-with-min-len-16")
     job_store = InMemoryJobStore()
     configure_app(
         job_store=job_store,
@@ -314,10 +324,10 @@ class TestUsageEndpoint:
         # The caller's api_key_hash must match the path parameter (H2 authorization fix)
         from deploy.control_plane.job_store import hash_api_key
 
-        caller_hash = hash_api_key("test-key")
+        caller_hash = hash_api_key("test-key-with-min-len-16")
         response = client.get(
             f"/usage/{caller_hash}",
-            headers={"Authorization": "Bearer test-key"},
+            headers={"Authorization": "Bearer test-key-with-min-len-16"},
         )
         assert response.status_code == 200
         data = response.json()
@@ -331,11 +341,11 @@ class TestUsageEndpoint:
     ) -> None:
         from deploy.control_plane.job_store import hash_api_key
 
-        caller_hash = hash_api_key("test-key")
+        caller_hash = hash_api_key("test-key-with-min-len-16")
         budget_tracker.record_job_cost(caller_hash, "job-1", 2.5, "deep")
         response = client.get(
             f"/usage/{caller_hash}",
-            headers={"Authorization": "Bearer test-key"},
+            headers={"Authorization": "Bearer test-key-with-min-len-16"},
         )
         assert response.status_code == 200
         data = response.json()
@@ -351,6 +361,6 @@ class TestUsageEndpoint:
         """Callers cannot query usage for a different API key (H2 fix)."""
         response = client.get(
             "/usage/sha256:someone_elses_hash",
-            headers={"Authorization": "Bearer test-key"},
+            headers={"Authorization": "Bearer test-key-with-min-len-16"},
         )
         assert response.status_code == 403

@@ -14,8 +14,9 @@ import signal
 import sys
 from typing import Literal
 
-from mcp.server import Server
 from mcp.server.stdio import stdio_server
+
+from mcp.server import Server
 from primr.mcp_server.job_store import SingleJobStore
 from primr.mcp_server.logging_config import configure_http_logging, configure_stdio_logging
 from primr.mcp_server.security import PathValidator, RateLimiter, URLValidator
@@ -221,10 +222,9 @@ class PrimrMCPServer:
         Requirements: 1.2, 1.7, 1.8, 13.1-13.10
         """
         import uvicorn
+        from mcp.server.streamable_http import StreamableHTTPServerTransport
         from starlette.applications import Starlette
         from starlette.routing import Mount
-
-        from mcp.server.streamable_http import StreamableHTTPServerTransport
 
         configure_http_logging(self.log_level)
         self._setup_signal_handlers()
@@ -273,12 +273,17 @@ class PrimrMCPServer:
             try:
                 from primr.a2a.server import PrimrA2AServer
 
-                a2a_port = getattr(self, "_a2a_port", 9000)
+                # In co-hosted mode there is exactly one uvicorn listener —
+                # the MCP one on self.port — and the A2A app is mounted under
+                # /a2a. The AgentCard URL must reflect that real listener,
+                # not the historical --a2a-port (which was advertised but
+                # never bound, sending clients toward an unrelated port).
                 a2a_server = PrimrA2AServer(
                     mcp_server=self,
                     host=self.host,
-                    port=a2a_port,
+                    port=self.port,
                     require_auth=self.require_auth,
+                    public_path="/a2a/",
                 )
                 a2a_app = a2a_server.build_app()
                 routes.append(Mount("/a2a", app=a2a_app))

@@ -117,14 +117,20 @@ def create_api_key(display_name: str, restrict_to_api: str | None = None) -> tup
     if not key_string:
         return None
 
-    # Optionally restrict to specific API
+    # Optionally restrict to specific API. Fail closed: a key that the
+    # caller asked to be restricted but which silently came back
+    # unrestricted is over-permissive and must not flow into .env. We
+    # tear it down and return None so the rotation as a whole fails.
     if restrict_to_api:
         print(f"Restricting key to {restrict_to_api}...")
         code, _, err = run_gcloud(
             ["services", "api-keys", "update", key_id, f"--api-target=service={restrict_to_api}"]
         )
         if code != 0:
-            print(f"⚠ Warning: Failed to restrict key: {err}")
+            print(f"❌ Failed to restrict key: {err}")
+            print("  Deleting just-created unrestricted key to avoid leaving it deployable...")
+            run_gcloud(["services", "api-keys", "delete", key_id, "--quiet"])
+            return None
 
     return key_id, key_string
 
@@ -176,13 +182,15 @@ def rotate_search_key(old_key_id: str | None = None) -> bool:
     if not update_env_file("SEARCH_API_KEY", new_key_string):
         print("⚠ Remember to manually update SEARCH_API_KEY in .env")
 
-    # Delete old key if provided
+    # Delete old key if provided. Fail closed: a rotation that leaves the
+    # old credential alive is no rotation at all. Caller is expected to
+    # delete out-of-band, so we surface failure rather than print success.
     if old_key_id:
         print(f"Deleting old key: {old_key_id[-12:]}...")
-        if delete_api_key(old_key_id):
-            print("✓ Old key deleted")
-        else:
-            print("⚠ Failed to delete old key - delete manually")
+        if not delete_api_key(old_key_id):
+            print("❌ Failed to delete old key. Revoke it manually before declaring rotation done.")
+            return False
+        print("✓ Old key deleted")
 
     print("\n✓ Search API key rotated successfully")
     return True

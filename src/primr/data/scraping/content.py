@@ -7,6 +7,7 @@ Uses BeautifulSoup for robust HTML parsing and reader-mode extraction.
 
 import contextlib
 import logging
+import os
 import re
 import warnings
 
@@ -453,24 +454,53 @@ def extract_text_from_pdf(pdf_bytes: bytes) -> str | None:
         return None
 
 
+# Per-process budget for Gemini PDF extraction. Without it, an authenticated
+# user (or attacker-controlled scraped site serving many small PDFs) could
+# burn unbounded Gemini spend that is not reflected in the static
+# scrape/full mode cost estimates. Tunable via env so operators can lift
+# the cap when they need to.
+_PDF_LLM_CALL_BUDGET = int(os.environ.get("PRIMR_PDF_LLM_MAX_CALLS", "8"))
+_PDF_LLM_BYTE_BUDGET = int(os.environ.get("PRIMR_PDF_LLM_MAX_TOTAL_MB", "40")) * 1024 * 1024
+_PDF_LLM_TIMEOUT_S = float(os.environ.get("PRIMR_PDF_LLM_TIMEOUT_S", "60"))
+_pdf_llm_calls_made = 0
+_pdf_llm_bytes_sent = 0
+
+
+def reset_pdf_llm_budget() -> None:
+    """Reset the in-process PDF LLM-call counters (test/operator helper)."""
+    global _pdf_llm_calls_made, _pdf_llm_bytes_sent
+    _pdf_llm_calls_made = 0
+    _pdf_llm_bytes_sent = 0
+
+
 def extract_text_from_pdf_via_llm(pdf_bytes: bytes) -> str | None:
     """
     Extract text from PDF bytes using Gemini (handles charts, tables, images).
 
-    Falls back to PyMuPDF text extraction if Gemini is unavailable.
-    Uses the flash model to keep costs low (~$0.01 per PDF).
-
-    Args:
-        pdf_bytes: Raw PDF bytes
-
-    Returns:
-        Extracted text or None if extraction fails
+    Falls back to PyMuPDF text extraction if Gemini is unavailable or if
+    the per-process budget (PRIMR_PDF_LLM_MAX_CALLS /
+    PRIMR_PDF_LLM_MAX_TOTAL_MB) has been exhausted.
     """
+    global _pdf_llm_calls_made, _pdf_llm_bytes_sent
+
     if not pdf_bytes:
         return None
 
     # Limit PDF size to 20MB to avoid excessive API costs
     if len(pdf_bytes) > 20 * 1024 * 1024:
+        return extract_text_from_pdf(pdf_bytes)
+
+    if _pdf_llm_calls_made >= _PDF_LLM_CALL_BUDGET:
+        logger.info(
+            "PDF LLM extraction budget reached (%d calls); falling back to PyMuPDF",
+            _PDF_LLM_CALL_BUDGET,
+        )
+        return extract_text_from_pdf(pdf_bytes)
+    if _pdf_llm_bytes_sent + len(pdf_bytes) > _PDF_LLM_BYTE_BUDGET:
+        logger.info(
+            "PDF LLM byte budget reached (%d bytes); falling back to PyMuPDF",
+            _PDF_LLM_BYTE_BUDGET,
+        )
         return extract_text_from_pdf(pdf_bytes)
 
     try:
@@ -483,6 +513,10 @@ def extract_text_from_pdf_via_llm(pdf_bytes: bytes) -> str | None:
             return extract_text_from_pdf(pdf_bytes)
 
         import base64
+
+        # Charge the budget before the API call so error retries can't loop.
+        _pdf_llm_calls_made += 1
+        _pdf_llm_bytes_sent += len(pdf_bytes)
 
         pdf_b64 = base64.b64encode(pdf_bytes).decode("utf-8")
 
@@ -497,13 +531,24 @@ Focus on:
 Return the extracted content in clean, readable format with proper structure."""
 
         client = genai.Client(api_key=settings.api.gemini_key)
-        response = client.models.generate_content(
-            model=settings.ai.flash_model,
-            contents=[
-                {"text": prompt},
-                {"inline_data": {"mime_type": "application/pdf", "data": pdf_b64}},
-            ],
-        )
+        try:
+            response = client.models.generate_content(
+                model=settings.ai.flash_model,
+                contents=[
+                    {"text": prompt},
+                    {"inline_data": {"mime_type": "application/pdf", "data": pdf_b64}},
+                ],
+                config={"http_options": {"timeout": int(_PDF_LLM_TIMEOUT_S * 1000)}},
+            )
+        except TypeError:
+            # Older google-genai SDKs reject the config kwarg.
+            response = client.models.generate_content(
+                model=settings.ai.flash_model,
+                contents=[
+                    {"text": prompt},
+                    {"inline_data": {"mime_type": "application/pdf", "data": pdf_b64}},
+                ],
+            )
 
         text = response.text.strip() if response.text else ""
         return text if len(text) >= 100 else extract_text_from_pdf(pdf_bytes)

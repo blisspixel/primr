@@ -53,7 +53,19 @@ jobs:
       - name: Test
         env:
           GEMINI_API_KEY: fake-key-for-ci-tests
-        run: pytest tests/ --ignore=tests/manual --ignore=tests/test_output --ignore=tests/property_tests --ignore=tests/agentic/property_tests --ignore=tests/a2a/property_tests --ignore=tests/test_qa -x --tb=short -q -k "not test_wait_times_out_when_no_change" -m "not integration"
+        run: pytest tests/ --ignore=tests/manual --ignore=tests/test_qa -x --tb=short -q -k "not test_wait_times_out_when_no_change" -m "not integration"
+
+      # Property tests live in tests/property_tests / tests/agentic/property_tests
+      # and include the deploy/** hardcoded-secret scanner. They were previously
+      # excluded from the main Test step to suppress collection failures; that
+      # also disabled the security gate. Run them as a separate step so a single
+      # collection error doesn't drop the whole suite.
+      - name: Property + security-gate tests
+        env:
+          GEMINI_API_KEY: fake-key-for-ci-tests
+        run: |
+          pytest tests/property_tests tests/agentic/property_tests \
+            --tb=short -q -m "not integration"
 
   a2a-tests:
     runs-on: ubuntu-latest

@@ -9,8 +9,9 @@ This module provides workflow guidance prompts:
 Requirements: 9.1-9.5, 10.1-10.4
 """
 
+from mcp.types import GetPromptResult, Prompt, PromptArgument, PromptMessage, TextContent
+
 from mcp.server import Server
-from mcp.types import Prompt, PromptArgument, PromptMessage, TextContent
 
 
 def register_prompts(server: Server) -> None:
@@ -50,16 +51,23 @@ def register_prompts(server: Server) -> None:
         ]
 
     @server.get_prompt()
-    async def get_prompt(name: str, arguments: dict | None = None) -> list[PromptMessage]:
-        """Get a prompt by name."""
-        if name == "research_workflow":
-            return _get_research_workflow_prompt(arguments or {})
-        elif name == "strategy_selection":
-            return _get_strategy_selection_prompt(arguments or {})
-        elif name == "governed_execution":
-            return _get_governed_execution_prompt()
+    async def get_prompt(name: str, arguments: dict | None = None) -> GetPromptResult:
+        """Get a prompt by name.
 
-        raise ValueError(f"Unknown prompt: {name}")
+        Wrapped in GetPromptResult so the MCP SDK's pydantic validator
+        accepts the response in strict mode. Earlier MCP SDK versions
+        accepted a bare ``list[PromptMessage]``; the current SDK validates
+        the response shape and rejects the list form.
+        """
+        if name == "research_workflow":
+            messages = _get_research_workflow_prompt(arguments or {})
+        elif name == "strategy_selection":
+            messages = _get_strategy_selection_prompt(arguments or {})
+        elif name == "governed_execution":
+            messages = _get_governed_execution_prompt()
+        else:
+            raise ValueError(f"Unknown prompt: {name}")
+        return GetPromptResult(messages=messages)
 
 
 def _get_research_workflow_prompt(arguments: dict) -> list[PromptMessage]:

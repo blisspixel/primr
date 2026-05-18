@@ -21,9 +21,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from mcp.server import Server
 from mcp.server.lowlevel.helper_types import ReadResourceContents
 from mcp.types import Resource
+
+from mcp.server import Server
 from primr.mcp_server.agentic_resources import get_agentic_resources, read_agentic_resource
 from primr.mcp_server.types import (
     ArtifactInfo,
@@ -162,7 +163,7 @@ def register_resources(server: Server, mcp_server: "PrimrMCPServer") -> None:
         elif uri_str == "primr://output/manifest/latest" or uri_str.startswith(
             "primr://output/manifest/latest"
         ):
-            return _read_manifest_latest()
+            return _read_manifest_latest(mcp_server)
 
         raise ValueError(f"Unknown resource: {uri}")
 
@@ -729,9 +730,37 @@ def _read_strategies_available() -> list[ReadResourceContents]:
     ]
 
 
+def _caller_client_id(mcp_server: "PrimrMCPServer") -> str:
+    """Resolve the calling client_id from the active auth context.
+
+    Matches the dispatcher in tools.py: stdio has implicit single-user
+    access, HTTP requests carry an auth_context.client_id set by middleware.
+    Only treats the auth context as present when client_id is a real
+    string — otherwise MagicMock-style placeholders in unit tests would
+    look like an HTTP caller and trip ownership checks.
+    """
+    ctx = getattr(mcp_server, "_auth_context", None)
+    if ctx is not None:
+        cid = getattr(ctx, "client_id", None)
+        if isinstance(cid, str) and cid:
+            return cid
+    return "stdio"
+
+
+def _caller_owns_job_resource(job, client_id: str) -> bool:
+    """Ownership gate for output/by_job/* and manifest-by-job resources."""
+    if client_id == "stdio":
+        return True
+    return job.owner_client_id is not None and job.owner_client_id == client_id
+
+
 def _read_output_by_job(mcp_server: "PrimrMCPServer", uri: str) -> list[ReadResourceContents]:
     """
     Read output for a specific job ID.
+
+    Owner-gated: HTTP clients only see their own jobs. Returning 404 on
+    ownership mismatch prevents authenticated clients from probing for
+    other users' job IDs and reading their report previews / paths.
 
     Requirements: FR-6.2
     """
@@ -744,12 +773,13 @@ def _read_output_by_job(mcp_server: "PrimrMCPServer", uri: str) -> list[ReadReso
         raise ValueError(f"Invalid job ID in URI: {uri}")
 
     requested_job_id = match.group(1)
+    client_id = _caller_client_id(mcp_server)
 
     # Look up job in store
     job = mcp_server.job_store.get_by_id(requested_job_id)
 
-    if job is None:
-        # Return 404-like response
+    if job is None or not _caller_owns_job_resource(job, client_id):
+        # 404 for both missing and not-owned, identical body shape.
         data = {
             "error": "job_not_found",
             "message": f"No job found with ID: {requested_job_id}",
@@ -817,13 +847,20 @@ def _read_output_by_job(mcp_server: "PrimrMCPServer", uri: str) -> list[ReadReso
     ]
 
 
-def _read_manifest_latest() -> list[ReadResourceContents]:
+def _read_manifest_latest(mcp_server: "PrimrMCPServer") -> list[ReadResourceContents]:
     """
     Read most recent run manifest (audit trail).
+
+    Owner-gated: in HTTP mode this only returns a manifest that the caller
+    actually owns. Previously this scanned output/**/run_manifest.json and
+    returned the newest file, which leaked another client's company_url,
+    artifact paths, and approval metadata. stdio retains full access.
 
     Requirements: FR-7.3
     """
     import json
+
+    client_id = _caller_client_id(mcp_server)
 
     # Find latest run_manifest.json in output directory
     output_dir = Path("output")
@@ -839,8 +876,29 @@ def _read_manifest_latest() -> list[ReadResourceContents]:
             )
         ]
 
-    # Find all run_manifest.json files
-    manifest_files = list(output_dir.glob("**/run_manifest.json"))
+    # HTTP clients are restricted to manifests under their own job's
+    # output paths; if they have no recent owned job we return 404
+    # rather than scanning the whole directory.
+    if client_id != "stdio":
+        owned = mcp_server.job_store.get_latest_terminal()
+        if owned is None or not _caller_owns_job_resource(owned, client_id):
+            return [
+                ReadResourceContents(
+                    content=json.dumps(
+                        {"error": "no_manifest", "message": "No manifests available"},
+                        indent=2,
+                    ),
+                    mime_type="application/json",
+                )
+            ]
+        # Limit the glob to directories that belong to the owned job.
+        manifest_files: list[Path] = []
+        for output_path in owned.output_paths or []:
+            parent = Path(output_path).parent
+            manifest_files.extend(parent.glob("**/run_manifest.json"))
+    else:
+        # stdio: legacy behavior — full scan.
+        manifest_files = list(output_dir.glob("**/run_manifest.json"))
     if not manifest_files:
         data = {
             "error": "no_manifest",

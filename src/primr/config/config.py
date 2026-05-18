@@ -178,13 +178,12 @@ def validate_config(include_optional: bool = False) -> ConfigValidationResult:
                 errors.append(f"{dir_name} cannot be created: {e}")
                 continue
 
-        # Actually test write permission by creating a temp file
-        test_file = path / ".primr_write_test"
-        try:
-            test_file.write_text("test")
-            test_file.unlink()
-        except OSError as e:
-            errors.append(f"{dir_name} is not writable: {path} - {e}")
+        # Symlink-safe writability probe — see fs_safety for rationale.
+        from primr.utils.fs_safety import check_dir_writable
+
+        ok, why = check_dir_writable(path)
+        if not ok:
+            errors.append(f"{dir_name} is not writable: {path} - {why}")
 
     return ConfigValidationResult(
         valid=len(errors) == 0, errors=tuple(errors), warnings=tuple(warnings)

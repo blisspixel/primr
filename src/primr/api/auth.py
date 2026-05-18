@@ -146,12 +146,32 @@ class APIKeyAuth:
                 logger.warning("Attempted to rotate invalid/inactive key")
                 return None
 
+            # Mirror verify()'s expiry/grace gates here. Without these
+            # checks an old key whose rotation grace had already elapsed
+            # (but which had not yet been seen by verify() or
+            # cleanup_expired()) could still mint a brand-new active key
+            # — effectively reviving a retired credential indefinitely.
+            now = datetime.now()
+            if old_info.expires_at and now > old_info.expires_at:
+                logger.warning(
+                    "Refusing to rotate expired key: %s", old_info.name
+                )
+                old_info.is_active = False
+                return None
+            if old_info.rotation_grace_until and now > old_info.rotation_grace_until:
+                logger.warning(
+                    "Refusing to rotate key whose grace window has elapsed: %s",
+                    old_info.name,
+                )
+                old_info.is_active = False
+                return None
+
             # Generate new key
             new_key = f"cr_{secrets.token_urlsafe(32)}"
             new_hash = self._hash_key(new_key)
 
             # Set grace period on old key
-            grace_until = datetime.now() + timedelta(hours=grace_hours)
+            grace_until = now + timedelta(hours=grace_hours)
             old_info.rotation_grace_until = grace_until
 
             # Create new key info, inheriting settings from old key

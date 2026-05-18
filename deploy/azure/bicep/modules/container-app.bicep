@@ -49,8 +49,12 @@ param keyVaultName string
 @description('CORS allowed origins (must be explicitly configured, empty by default)')
 param corsOrigins string = ''
 
+@description('Key Vault URI used to source the MCP JWT signing secret (must contain MCP-JWT-SECRET)')
+param keyVaultUri string
+
 var envName = '${resourcePrefix}-env'
 var appName = '${resourcePrefix}-api'
+var mcpJwtSecretUri = '${keyVaultUri}secrets/MCP-JWT-SECRET'
 
 resource containerAppEnv 'Microsoft.App/managedEnvironments@2024-03-01' = {
   name: envName
@@ -88,14 +92,31 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
           identity: identityId
         }
       ]
+      // Container App secret resolved from Key Vault at runtime via the
+      // managed identity. The secret value is mounted into the container
+      // env as MCP_JWT_SECRET and consumed by the MCP server's auth
+      // middleware (see src/primr/mcp_server/auth.py::AuthConfig.from_env).
+      secrets: [
+        {
+          name: 'mcp-jwt-secret'
+          keyVaultUrl: mcpJwtSecretUri
+          identity: identityId
+        }
+      ]
     }
     template: {
       containers: [
         {
           name: 'api'
           image: '${acrLoginServer}/${imageName}:${imageTag}'
-          // Run the existing MCP server — same as local `primr-mcp --http`
-          command: ['primr-mcp', '--http', '--port', '8000', '--host', '0.0.0.0', '--no-auth', '--allow-plaintext']
+          // Run the MCP server with authentication required. The previous
+          // command included --no-auth and --allow-plaintext, which made
+          // the public Container App ingress hand out research_company /
+          // check_jobs / cancel_job without any authorization. Both flags
+          // are removed: the server now defaults to require_auth=true and
+          // refuses plaintext-only deployments. Azure ingress terminates
+          // TLS in front of the container, so HTTPS to the FQDN is fine.
+          command: ['primr-mcp', '--http', '--port', '8000', '--host', '0.0.0.0']
           resources: {
             cpu: json('0.5')
             memory: '1Gi'
@@ -106,6 +127,10 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
             { name: 'KEY_VAULT_NAME', value: keyVaultName }
             { name: 'AZURE_CLIENT_ID', value: identityClientId }
             { name: 'PRIMR_CORS_ORIGINS', value: corsOrigins }
+            // AuthConfig.from_env reads MCP_JWT_SECRET to verify HS256
+            // bearer tokens. Sourced from Key Vault via the container
+            // app's `mcp-jwt-secret` secretRef — never inline a literal.
+            { name: 'MCP_JWT_SECRET', secretRef: 'mcp-jwt-secret' }
           ]
           probes: [
             {
