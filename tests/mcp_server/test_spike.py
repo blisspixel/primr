@@ -14,7 +14,6 @@ from io import StringIO
 from unittest.mock import patch
 
 import pytest
-
 from mcp.types import (
     CallToolRequest,
     CallToolRequestParams,
@@ -23,6 +22,7 @@ from mcp.types import (
     ReadResourceRequest,
     ReadResourceRequestParams,
 )
+
 from primr.mcp_server.spike import create_spike_server
 
 

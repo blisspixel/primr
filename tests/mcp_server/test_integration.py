@@ -12,13 +12,13 @@ import tempfile
 from pathlib import Path
 
 import pytest
-
 from mcp.types import (
     CallToolRequest,
     CallToolRequestParams,
     ReadResourceRequest,
     ReadResourceRequestParams,
 )
+
 from primr.mcp_server.server import create_mcp_server
 from primr.mcp_server.types import ResearchStage
 

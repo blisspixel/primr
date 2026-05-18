@@ -9,8 +9,8 @@ import tempfile
 from pathlib import Path
 
 import pytest
-
 from mcp.types import CallToolRequest, CallToolRequestParams, ListToolsRequest
+
 from primr.mcp_server.server import create_mcp_server
 
 
