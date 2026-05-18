@@ -16,10 +16,10 @@ Usage:
     content = http_get("https://example.com")
 """
 
-from dataclasses import dataclass
 import random
 import threading
 import time
+from dataclasses import dataclass
 from typing import Any
 
 import requests

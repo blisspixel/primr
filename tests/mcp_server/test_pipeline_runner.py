@@ -4,8 +4,8 @@ Tests for pipeline runner.
 Task 19: Heartbeat updates and pipeline wiring.
 """
 
-from pathlib import Path
 import tempfile
+from pathlib import Path
 
 import pytest
 

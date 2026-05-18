@@ -25,12 +25,12 @@ Usage:
     context_file = consolidate_working_folder(folder)
 """
 
+import os
+import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-import os
 from pathlib import Path
-import tempfile
 from urllib.parse import urlparse
 
 from primr.config.config import WORKING_DIR

@@ -1,7 +1,7 @@
 """Debug why Stripe pages are failing."""
 
-from pathlib import Path
 import sys
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 

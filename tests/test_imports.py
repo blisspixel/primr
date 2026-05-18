@@ -5,8 +5,8 @@ Property tests for import resolution verification.
 **Validates: Requirements 3.1, 4.3**
 """
 
-from pathlib import Path
 import sys
+from pathlib import Path
 
 from hypothesis import given, settings
 from hypothesis import strategies as st

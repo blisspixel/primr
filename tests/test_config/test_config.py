@@ -5,8 +5,8 @@ Property tests for configuration and runtime directory handling.
 **Validates: Requirements 7.2, 7.3**
 """
 
-from pathlib import Path
 import sys
+from pathlib import Path
 
 from hypothesis import given, settings
 from hypothesis import strategies as st

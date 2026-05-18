@@ -6,11 +6,11 @@ and export capabilities.
 """
 
 import contextlib
-from datetime import datetime
 import os
-from pathlib import Path
 import shutil
 import tempfile
+from datetime import datetime
+from pathlib import Path
 
 from primr.core.report_models import Insight, Report, ReportMetadata, SectionContent, SourceCitation
 from primr.utils.logging_config import get_logger

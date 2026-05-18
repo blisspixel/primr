@@ -4,13 +4,13 @@ Property 3: SKILL.md AgentSkills Compliance
 Validates: FR-2.2, FR-2.3
 """
 
-from pathlib import Path
 import re
+from pathlib import Path
 
-from hypothesis import given, settings
-from hypothesis import strategies as st
 import pytest
 import yaml
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 SKILLS_DIR = Path(__file__).parent.parent.parent / "openclaw" / "skills"
 SKILL_FILES = list(SKILLS_DIR.glob("*/SKILL.md"))

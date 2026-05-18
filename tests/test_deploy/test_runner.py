@@ -9,12 +9,12 @@ Tests:
 Requirements: 1.1, 1.2, 1.8, 1.10, 2.6
 """
 
-from datetime import datetime, timezone
 import json
 import os
 import signal
 import subprocess
 import threading
+from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest

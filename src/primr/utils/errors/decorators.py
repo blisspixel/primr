@@ -11,9 +11,9 @@ This module provides:
 
 from __future__ import annotations
 
-from contextlib import contextmanager
 import functools
 import logging
+from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any, Literal, TypeVar
 
 if TYPE_CHECKING:

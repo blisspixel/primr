@@ -93,15 +93,15 @@ __all__ = [
 
 import asyncio
 import atexit
-from collections.abc import Callable
-from datetime import datetime
 import gc
 import json
 import os
-from pathlib import Path
 import re
 import sys
 import time
+from collections.abc import Callable
+from datetime import datetime
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypedDict
 from urllib.parse import urlparse
 
@@ -8596,8 +8596,8 @@ atexit.register(cleanup)
 
 def _list_recent_outputs():
     """List recent research outputs from the output directory."""
-    from datetime import datetime
     import glob
+    from datetime import datetime
 
     output_files = glob.glob(os.path.join(OUTPUT_DIR, "*.docx"))
     if not output_files:

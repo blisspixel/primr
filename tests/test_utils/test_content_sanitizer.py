@@ -5,9 +5,9 @@ Tests prompt injection protection, control character handling,
 and Unicode normalization for LLM prompt safety.
 """
 
+import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
-import pytest
 
 from primr.utils.content_sanitizer import (
     ContentSanitizer,

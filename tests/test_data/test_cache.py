@@ -4,10 +4,10 @@ Tests for the SQLite-based content cache.
 Tests caching, TTL, statistics, and cleanup.
 """
 
-from datetime import datetime, timedelta
-from pathlib import Path
 import tempfile
 import threading
+from datetime import datetime, timedelta
+from pathlib import Path
 
 import pytest
 

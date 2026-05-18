@@ -3,17 +3,17 @@ Google Search API test - moved from root.
 """
 
 import csv
-from datetime import datetime
 import json
 import os
-from pathlib import Path
 import re
 import sys
 import time
+from datetime import datetime
+from pathlib import Path
 
+import requests
 from colorama import Fore, Style
 from dotenv import load_dotenv
-import requests
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))

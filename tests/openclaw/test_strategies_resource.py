@@ -6,9 +6,9 @@ Validates: FR-5.1, FR-5.2
 
 import json
 
+import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
-import pytest
 
 from primr.mcp_server.types import StrategyType
 

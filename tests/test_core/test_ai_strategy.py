@@ -8,13 +8,13 @@ Tests cover:
 - Prompt building functions
 """
 
-from pathlib import Path
 import tempfile
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
-import pytest
 
 from primr.core.ai_strategy import (
     AIStrategyConfig,

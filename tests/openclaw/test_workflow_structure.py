@@ -6,10 +6,10 @@ Validates: FR-3.1, FR-3.2, FR-3.3
 
 from pathlib import Path
 
-from hypothesis import given, settings
-from hypothesis import strategies as st
 import pytest
 import yaml
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 WORKFLOWS_DIR = Path(__file__).parent.parent.parent / "openclaw" / "workflows"
 WORKFLOW_FILES = list(WORKFLOWS_DIR.glob("*.yaml"))

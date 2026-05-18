@@ -21,9 +21,9 @@ Usage:
     config = require_not_none(get_config(), "Configuration is required")
 """
 
+import logging
 from collections.abc import Callable
 from functools import wraps
-import logging
 from typing import Any, TypeVar
 
 logger = logging.getLogger(__name__)

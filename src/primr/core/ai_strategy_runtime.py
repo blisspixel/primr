@@ -5,8 +5,8 @@ Legacy AI strategy runtime extracted from research_agent.
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
 import os
+from datetime import datetime
 from pathlib import Path
 
 from primr.ai.llm import llm

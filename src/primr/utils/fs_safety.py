@@ -16,8 +16,8 @@ from __future__ import annotations
 import errno
 import logging
 import os
-from pathlib import Path  # noqa: TC003 - used at runtime in helpers below
 import secrets
+from pathlib import Path  # noqa: TC003 - used at runtime in helpers below
 
 logger = logging.getLogger(__name__)
 

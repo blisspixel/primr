@@ -4,11 +4,11 @@ Scrape trace artifact logging for debugging and QA.
 Schema is stable and versioned for analytics.
 """
 
+import json
+import uuid
 from dataclasses import asdict, dataclass
 from datetime import datetime
-import json
 from pathlib import Path
-import uuid
 
 from .models import ErrorType, ScrapeResult
 

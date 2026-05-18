@@ -8,9 +8,9 @@ Usage:
     python tests/manual/test_5_site_validation.py
 """
 
-from pathlib import Path
 import sys
 import time
+from pathlib import Path
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))

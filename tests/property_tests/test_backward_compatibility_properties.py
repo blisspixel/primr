@@ -9,9 +9,9 @@ with existing code and tests.
 
 from __future__ import annotations
 
+import pytest
 from hypothesis import assume, given, settings
 from hypothesis import strategies as st
-import pytest
 
 # Import existing error classes (legacy)
 from src.primr.utils.errors import (

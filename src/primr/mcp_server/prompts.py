@@ -9,9 +9,8 @@ This module provides workflow guidance prompts:
 Requirements: 9.1-9.5, 10.1-10.4
 """
 
-from mcp.types import GetPromptResult, Prompt, PromptArgument, PromptMessage, TextContent
-
 from mcp.server import Server
+from mcp.types import GetPromptResult, Prompt, PromptArgument, PromptMessage, TextContent
 
 
 def register_prompts(server: Server) -> None:

@@ -13,12 +13,12 @@ Validates: Requirements 1.5
 
 from __future__ import annotations
 
-from pathlib import Path
 import re
+from pathlib import Path
 
+import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
-import pytest
 
 # =============================================================================
 # TOKEN COUNTING UTILITIES

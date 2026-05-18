@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import logging
 import os
-from pathlib import Path
 import re
 import sys
+from pathlib import Path
 
 from dotenv import dotenv_values, find_dotenv
 

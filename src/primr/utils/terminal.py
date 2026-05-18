@@ -9,11 +9,11 @@ Detects terminal features to enable graceful degradation:
 - Interactive vs piped output
 """
 
-from dataclasses import dataclass
-from functools import lru_cache
 import os
 import shutil
 import sys
+from dataclasses import dataclass
+from functools import lru_cache
 
 
 @dataclass

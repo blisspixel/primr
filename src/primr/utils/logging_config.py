@@ -8,14 +8,14 @@ This module provides:
 - Context-aware logging
 """
 
-from collections.abc import Callable
 import contextvars
-from datetime import datetime
 import functools
 import logging
+import sys
+from collections.abc import Callable
+from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-import sys
 from typing import Any
 
 # =============================================================================

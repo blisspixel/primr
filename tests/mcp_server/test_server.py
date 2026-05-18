@@ -4,8 +4,8 @@ Tests for MCP server core.
 Task 6: MCP server core with transport support
 """
 
-from pathlib import Path
 import tempfile
+from pathlib import Path
 
 import pytest
 

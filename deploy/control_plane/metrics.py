@@ -12,11 +12,11 @@ Requirements: 10.3
 
 from __future__ import annotations
 
+import json
+import threading
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-import json
-import threading
 
 
 def format_timestamp(dt: datetime) -> str:

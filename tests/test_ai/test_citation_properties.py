@@ -12,9 +12,9 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
+import pytest
 from hypothesis import assume, given, settings
 from hypothesis import strategies as st
-import pytest
 
 from primr.ai.deep_research import (
     resolve_citation_urls,

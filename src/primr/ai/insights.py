@@ -6,10 +6,10 @@ Provides risk assessment, opportunity identification, and strategic recommendati
 
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-import threading
 from typing import Any
 
 

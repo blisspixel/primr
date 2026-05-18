@@ -13,14 +13,15 @@ from __future__ import annotations
 
 import json
 import logging
-from pathlib import Path
 import re
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from mcp.types import TextContent, Tool
 
 if TYPE_CHECKING:
     from mcp.server import Server
+
     from primr.mcp_server.server import PrimrMCPServer
 
 logger = logging.getLogger(__name__)

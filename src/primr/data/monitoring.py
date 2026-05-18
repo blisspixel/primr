@@ -6,15 +6,15 @@ Tracks company changes, news, and updates over time.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta
-from enum import Enum
 import hashlib
 import json
 import logging
 import sqlite3
 import threading
 import time
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 logger = logging.getLogger(__name__)

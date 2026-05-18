@@ -2,10 +2,10 @@
 Comprehensive error handling and retry logic for QA system.
 """
 
-from collections.abc import Callable
-from functools import wraps
 import logging
 import time
+from collections.abc import Callable
+from functools import wraps
 from typing import Any
 
 logger = logging.getLogger(__name__)

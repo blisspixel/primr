@@ -11,9 +11,9 @@ The aggregator:
 - Handles missing chapters gracefully
 """
 
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
-import re
 from typing import Any
 
 try:

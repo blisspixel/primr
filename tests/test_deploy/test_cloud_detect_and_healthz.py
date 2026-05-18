@@ -11,8 +11,8 @@ Requirements: 2.7, 11.2, 11.3
 
 from __future__ import annotations
 
-from fastapi.testclient import TestClient
 import pytest
+from fastapi.testclient import TestClient
 
 from deploy.control_plane.api import app, configure_app
 from deploy.control_plane.cost_governor import CostGovernor

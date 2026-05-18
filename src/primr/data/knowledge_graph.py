@@ -6,13 +6,13 @@ Builds and queries company relationship graphs, tracks executives, and maps conn
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import datetime
-from enum import Enum
 import json
 import re
 import sqlite3
 import threading
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import Enum
 from typing import Any
 
 

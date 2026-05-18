@@ -8,12 +8,12 @@ of the StateMachine, TierStateMachine, and JobStateMachine implementations.
 **Validates: Requirements 9.1-9.6, 10.1-10.6**
 """
 
-from pathlib import Path
 import tempfile
+from pathlib import Path
 
+import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
-import pytest
 
 from primr.utils.state_machine import (
     InvalidTransitionError,

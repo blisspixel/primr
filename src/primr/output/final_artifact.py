@@ -7,8 +7,8 @@ before Markdown/TXT/DOCX rendering.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import re
+from dataclasses import dataclass, field
 
 _REFERENCE_HEADINGS = {"sources", "citations", "references"}
 _SECTION_HEADING_RE = re.compile(r"^##\s+(.+?)\s*$", re.MULTILINE)

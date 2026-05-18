@@ -5,13 +5,13 @@ Validates: FR-4.3, OR-1.1, OR-1.2
 """
 
 import json
-from pathlib import Path
 import shutil
 import subprocess
+from pathlib import Path
 
+import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
-import pytest
 
 ADAPTER_PATH = (
     Path(__file__).parent.parent.parent

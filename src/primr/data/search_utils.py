@@ -5,9 +5,9 @@ Supports DuckDuckGo (default, no API key needed) and Google Custom Search (optio
 Set SEARCH_PROVIDER env var to control: "auto" (default=DDG), "ddg", or "google".
 """
 
-from datetime import datetime
 import os
 import time
+from datetime import datetime
 from urllib.parse import urlparse
 
 import requests

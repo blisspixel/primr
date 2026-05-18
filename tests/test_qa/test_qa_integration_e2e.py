@@ -4,9 +4,9 @@ Integration tests for end-to-end QA workflow.
 **Validates: All QA requirements**
 """
 
+import tempfile
 from datetime import datetime
 from pathlib import Path
-import tempfile
 
 from src.primr.qa.command import QACommand
 from src.primr.qa.integration import QAIntegration

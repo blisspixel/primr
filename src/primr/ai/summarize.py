@@ -2,11 +2,11 @@
 Content summarization using AI.
 """
 
-from collections.abc import Callable
 import json
 import os
-from pathlib import Path
 import time
+from collections.abc import Callable
+from pathlib import Path
 
 from primr.ai.llm import llm
 from primr.config.env import load_primr_env
