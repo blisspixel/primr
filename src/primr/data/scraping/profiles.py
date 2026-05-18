@@ -10,10 +10,10 @@ Modern WAF detection looks at:
 This module provides realistic 2026 browser profiles.
 """
 
+from dataclasses import dataclass
 import platform
 import random
 import re
-from dataclasses import dataclass
 
 
 @dataclass

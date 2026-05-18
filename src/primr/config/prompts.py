@@ -20,10 +20,10 @@ Usage:
     print(template.required_vars)
 """
 
-import json
-import re
 from dataclasses import dataclass
+import json
 from pathlib import Path
+import re
 from typing import Any
 
 

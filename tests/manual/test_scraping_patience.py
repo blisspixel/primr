@@ -3,9 +3,9 @@ Manual test to verify scraping patience improvements.
 Tests that scraping waits for quality data and provides detailed diagnostics.
 """
 
+from pathlib import Path
 import sys
 import time
-from pathlib import Path
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))

@@ -18,8 +18,8 @@ that the executor consults.
 
 from __future__ import annotations
 
-import random
 from dataclasses import dataclass, field
+import random
 from typing import TYPE_CHECKING, Any
 
 from primr.pipeline.errors import ErrorCategory, classify_error, is_rate_limited

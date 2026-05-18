@@ -6,8 +6,8 @@ Validates: Requirements 1.1
 """
 
 import os
-import tempfile
 from pathlib import Path
+import tempfile
 from unittest.mock import Mock, patch
 
 from hypothesis import HealthCheck, given, settings

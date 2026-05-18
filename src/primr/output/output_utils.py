@@ -5,14 +5,14 @@ This module provides the main entry points for generating premium
 consultant-grade reports in TXT, DOCX, and PDF formats.
 """
 
-import os
-import re
-import shutil
-import zipfile
 from contextlib import suppress
 from datetime import datetime
 from io import StringIO
+import os
 from pathlib import Path
+import re
+import shutil
+import zipfile
 
 from docx import Document
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT

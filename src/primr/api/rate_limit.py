@@ -7,9 +7,9 @@ This module provides:
 - Configurable limits and windows
 """
 
+from dataclasses import dataclass, field
 import threading
 import time
-from dataclasses import dataclass, field
 
 from primr.utils.logging_config import get_logger
 

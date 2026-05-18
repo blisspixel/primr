@@ -2,8 +2,8 @@
 QA report generator for saving detailed analysis.
 """
 
-import logging
 from datetime import datetime
+import logging
 from pathlib import Path
 
 from ..qa.models import QAAnalysis, QAReport

@@ -21,13 +21,13 @@ and merges whatever comes back.
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass, field
 import json
 import logging
 import re
 import socket
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass, field
 from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)

@@ -7,8 +7,8 @@ Validates report structure, section ordering, and format conversion.
 **Validates: Requirements 7.1, 7.2, 7.3, 7.4, 7.5**
 """
 
-import tempfile
 from pathlib import Path
+import tempfile
 
 from hypothesis import given, settings
 from hypothesis import strategies as st

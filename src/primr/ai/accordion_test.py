@@ -20,11 +20,11 @@ Usage:
 """
 
 import asyncio
-import os
-import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
+import os
+import time
 
 from primr.config.config import OUTPUT_DIR
 from primr.utils.logging_config import get_logger

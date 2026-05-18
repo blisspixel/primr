@@ -5,8 +5,8 @@ Unit tests for QA configuration management.
 """
 
 import json
-import tempfile
 from pathlib import Path
+import tempfile
 
 from src.primr.config.models import PrimrModels
 from src.primr.qa.config import QAConfigManager, QAModelConfig, get_qa_config, reset_qa_config

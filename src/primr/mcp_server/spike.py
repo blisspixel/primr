@@ -18,8 +18,8 @@ Test with: npx @modelcontextprotocol/inspector
 """
 
 import asyncio
-import sys
 from datetime import datetime
+import sys
 from typing import Any
 
 from mcp.server.lowlevel.helper_types import ReadResourceContents

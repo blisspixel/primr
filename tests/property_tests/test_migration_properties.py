@@ -8,14 +8,14 @@ of the MigrationTool implementation as specified in the PhD-Level Excellence spe
 **Validates: Requirements 7.1-7.6**
 """
 
-import tempfile
 from pathlib import Path
+import tempfile
 from typing import Any
 
-import pytest
-import yaml
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
+import pytest
+import yaml
 
 from primr.prompts.migration import (
     CURRENT_SCHEMA_VERSION,

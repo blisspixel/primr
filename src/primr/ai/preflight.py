@@ -27,9 +27,9 @@ Design Principles:
     - No side effects: Validation should not modify state
 """
 
-import os
 from collections.abc import Callable
 from dataclasses import dataclass, field
+import os
 
 from primr.config.settings import get_settings
 from primr.utils.logging_config import get_logger

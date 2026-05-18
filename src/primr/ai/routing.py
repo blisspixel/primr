@@ -43,8 +43,8 @@ Eval-mode recipe override (v1.24.0):
 from __future__ import annotations
 
 import contextvars
-import os
 from enum import Enum
+import os
 from typing import TYPE_CHECKING
 
 from primr.config.models import PrimrModels

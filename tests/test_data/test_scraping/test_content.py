@@ -1,7 +1,7 @@
 """Tests for content extraction - Property 7: Text Extraction Cleanliness."""
 
-import warnings
 from pathlib import Path
+import warnings
 
 from bs4 import XMLParsedAsHTMLWarning
 

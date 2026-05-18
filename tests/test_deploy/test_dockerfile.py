@@ -9,8 +9,8 @@ Tests Dockerfile structure for the Primr Job Runner:
 Requirements: 1.1, 1.4
 """
 
-import re
 from pathlib import Path
+import re
 
 import pytest
 

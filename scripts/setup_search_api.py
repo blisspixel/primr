@@ -20,10 +20,10 @@ Usage:
 
 import argparse
 import json
+from pathlib import Path
 import re
 import subprocess
 import sys
-from pathlib import Path
 
 # Fix Windows console encoding
 if sys.platform == "win32":

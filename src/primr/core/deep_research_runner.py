@@ -19,13 +19,13 @@ Usage:
         result = await perform_deep_research(config)
 """
 
-import os
-import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+import os
 from pathlib import Path
+import time
 from typing import Any, Protocol
 from urllib.parse import urlparse
 

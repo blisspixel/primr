@@ -8,12 +8,12 @@ This module provides:
 - Cost tracking
 """
 
-import threading
-import time
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+import threading
+import time
 from typing import Any
 
 from primr.utils.logging_config import get_logger

@@ -20,10 +20,10 @@ circuit breaker logic.
 
 from __future__ import annotations
 
-import logging
-import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import logging
+import os
 from typing import TYPE_CHECKING, Any
 
 from primr.config.models import PrimrModels

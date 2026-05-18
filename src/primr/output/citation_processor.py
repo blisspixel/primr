@@ -5,10 +5,10 @@ Transforms inline markdown URLs into numbered references [1] style,
 collecting all sources in a Sources appendix for professional documents.
 """
 
-import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+import re
 from urllib.parse import urlparse
 
 

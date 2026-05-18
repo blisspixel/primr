@@ -8,8 +8,8 @@ expensive full pipeline tests. Run these first to catch issues early.
 """
 
 import socket
-import warnings
 from unittest.mock import MagicMock, patch
+import warnings
 
 import pytest
 

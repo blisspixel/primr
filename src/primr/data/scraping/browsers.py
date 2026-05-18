@@ -5,13 +5,13 @@ Provides browser-based scraping tiers for sites that require JavaScript
 rendering or challenge solving.
 """
 
+from abc import ABC, abstractmethod
 import contextlib
 import logging
 import os
 import platform
 import threading
 import time
-from abc import ABC, abstractmethod
 from urllib.parse import urlparse
 
 from .config import (

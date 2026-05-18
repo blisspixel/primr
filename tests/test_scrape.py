@@ -3,8 +3,8 @@ Comprehensive test suite for scrape.py
 Run with: pytest tests/test_scrape.py -v
 """
 
-import sys
 from pathlib import Path
+import sys
 
 from bs4 import BeautifulSoup
 

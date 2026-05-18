@@ -11,9 +11,9 @@ Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7
 
 from __future__ import annotations
 
-import threading
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+import threading
 from typing import Any
 
 from deploy.control_plane.job_store import (

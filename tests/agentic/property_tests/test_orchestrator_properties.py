@@ -16,13 +16,13 @@ Validates: Requirements 3.1, 3.6, 3.7, 3.8
 from __future__ import annotations
 
 import asyncio
-import tempfile
 from pathlib import Path
+import tempfile
 from types import SimpleNamespace
 
-import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
+import pytest
 
 import primr.agentic.orchestrator as orchestrator_module
 from primr.agentic.orchestrator import (

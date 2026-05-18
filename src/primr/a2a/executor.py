@@ -11,8 +11,8 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import uuid
 from typing import TYPE_CHECKING, Any
+import uuid
 
 from a2a.server.agent_execution import AgentExecutor, RequestContext
 from a2a.types import Message, TaskState, TaskStatus, TaskStatusUpdateEvent

@@ -16,9 +16,9 @@ Validates: Requirements 2.1, 2.4, 2.5, 2.6, 2.7
 
 from __future__ import annotations
 
+from pathlib import Path
 import tempfile
 import time
-from pathlib import Path
 
 from hypothesis import given, settings
 from hypothesis import strategies as st

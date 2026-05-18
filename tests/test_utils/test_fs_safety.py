@@ -5,9 +5,9 @@ probe and the owner-only write helpers introduced to close the
 from __future__ import annotations
 
 import os
+from pathlib import Path  # noqa: TC003 - used at runtime in fixtures below
 import stat
 import sys
-from pathlib import Path  # noqa: TC003 - used at runtime in fixtures below
 
 import pytest
 

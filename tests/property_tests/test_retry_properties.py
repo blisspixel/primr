@@ -12,9 +12,9 @@ import asyncio
 from datetime import datetime, timedelta
 from typing import Any
 
-import pytest
 from hypothesis import HealthCheck, assume, given, settings
 from hypothesis import strategies as st
+import pytest
 
 from primr.utils.errors import (
     AuthenticationError,

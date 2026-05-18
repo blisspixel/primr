@@ -34,18 +34,18 @@ Example:
         ...
 """
 
+from collections.abc import Callable, Generator
+from contextlib import contextmanager
+from dataclasses import dataclass, field
+from datetime import datetime
 import functools
 import json
 import logging
 import sys
 import threading
 import time
-import uuid
-from collections.abc import Callable, Generator
-from contextlib import contextmanager
-from dataclasses import dataclass, field
-from datetime import datetime
 from typing import Any, Literal, TypeVar
+import uuid
 
 logger = logging.getLogger(__name__)
 

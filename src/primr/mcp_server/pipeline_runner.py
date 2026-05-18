@@ -8,9 +8,9 @@ Requirements: 15.2, 19.1-19.4
 """
 
 import asyncio
+from collections.abc import Callable
 import contextlib
 import logging
-from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from primr.mcp_server.job_store import ResearchJobState
@@ -262,8 +262,8 @@ class PipelineRunner:
 
         Returns the output path.
         """
-        import os
         from datetime import datetime
+        import os
 
         from primr.config.config import OUTPUT_DIR
 
@@ -449,8 +449,8 @@ def _copy_artifacts_to_destination(artifact_paths: list[str], destination: str) 
     Returns:
         List of new artifact paths in the destination directory.
     """
-    import shutil
     from pathlib import Path
+    import shutil
 
     dest_dir = Path(destination)
     dest_dir.mkdir(parents=True, exist_ok=True)

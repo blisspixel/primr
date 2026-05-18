@@ -25,10 +25,10 @@ Example:
             print(f"{error.field}: {error.message}")
 """
 
-import types
 from collections.abc import Callable
 from dataclasses import dataclass, field, is_dataclass
 from dataclasses import fields as dataclass_fields
+import types
 from typing import (
     Any,
     Generic,

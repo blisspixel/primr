@@ -30,13 +30,13 @@ Example:
 
 from __future__ import annotations
 
-import json
-import logging
-import re
-import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
+import json
+import logging
 from pathlib import Path
+import re
+import time
 from typing import Any
 
 from primr.agentic.errors import SubagentError

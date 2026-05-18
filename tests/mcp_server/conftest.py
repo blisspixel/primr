@@ -2,8 +2,8 @@
 Shared fixtures for MCP server tests.
 """
 
-import tempfile
 from pathlib import Path
+import tempfile
 
 import pytest
 

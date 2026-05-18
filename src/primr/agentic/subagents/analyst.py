@@ -33,13 +33,13 @@ Example:
 
 from __future__ import annotations
 
-import logging
-import time
-import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+import logging
 from pathlib import Path
+import time
 from typing import Any
+import uuid
 
 from primr.agentic.errors import SubagentError
 from primr.agentic.models import ConfidenceLevel, Hypothesis

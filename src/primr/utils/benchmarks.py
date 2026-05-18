@@ -16,13 +16,13 @@ Components:
 
 from __future__ import annotations
 
-import json
-import logging
-import statistics
-import time
 from dataclasses import dataclass, field
 from datetime import datetime
+import json
+import logging
 from pathlib import Path
+import statistics
+import time
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:

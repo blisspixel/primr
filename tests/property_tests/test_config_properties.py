@@ -10,10 +10,10 @@ of the ConfigValidator implementation as specified in the PhD-Level Excellence s
 
 from typing import Any
 
-import pytest
 from hypothesis import HealthCheck, assume, given, settings
 from hypothesis import strategies as st
 from pydantic import ValidationError
+import pytest
 
 from primr.prompts.validation import (
     CURRENT_SCHEMA_VERSION,

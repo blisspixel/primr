@@ -13,12 +13,12 @@ Security:
 - Static admin tokens are hashed before comparison
 """
 
+from dataclasses import dataclass, field
 import hashlib
 import hmac
 import logging
 import os
 import time
-from dataclasses import dataclass, field
 
 from mcp.server.auth.provider import AccessToken
 

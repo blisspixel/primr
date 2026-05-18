@@ -8,14 +8,14 @@ Design principles:
 - Unicode symbols for modern terminals, ASCII fallback
 """
 
+from contextlib import contextmanager
+from dataclasses import dataclass
+from functools import lru_cache
 import os
 import shutil
 import sys
 import threading
 import time
-from contextlib import contextmanager
-from dataclasses import dataclass
-from functools import lru_cache
 
 
 @dataclass

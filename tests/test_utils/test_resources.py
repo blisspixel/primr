@@ -4,9 +4,9 @@ Tests for resource management utilities.
 Includes property-based tests using Hypothesis for comprehensive validation.
 """
 
+from pathlib import Path
 import threading
 import time
-from pathlib import Path
 
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st

@@ -2,9 +2,9 @@
 Shared pytest fixtures and configuration for Company Researcher tests.
 """
 
+from pathlib import Path
 import sys
 import warnings
-from pathlib import Path
 
 import pytest
 

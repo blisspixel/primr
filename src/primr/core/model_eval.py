@@ -9,12 +9,12 @@ no API calls are required for analysis.
 from __future__ import annotations
 
 import csv
+from dataclasses import dataclass
+from datetime import datetime, timezone
 import json
 import logging
 import re
 import shutil
-from dataclasses import dataclass
-from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from primr.config.models import PrimrModels

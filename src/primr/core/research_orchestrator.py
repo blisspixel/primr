@@ -19,13 +19,13 @@ Usage:
 """
 
 import asyncio
-import os
-import tempfile
 from collections.abc import Callable, Generator
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+import os
+import tempfile
 
 from primr.ai.deep_research import (
     DeepResearchClient,
@@ -726,8 +726,8 @@ class ResearchOrchestrator:
         Returns:
             Path to the temporary markdown file
         """
-        import tempfile
         from datetime import datetime
+        import tempfile
 
         # Build markdown document
         lines = [

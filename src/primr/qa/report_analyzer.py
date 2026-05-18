@@ -5,8 +5,8 @@ Analyzes generated reports for completeness, citations, and quality metrics.
 """
 
 import argparse
-import re
 from pathlib import Path
+import re
 
 
 class ReportAnalyzer:

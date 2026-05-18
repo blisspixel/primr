@@ -2,8 +2,8 @@
 Tests for the API service module.
 """
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 
 from primr.api.auth import create_api_key, reset_auth
 from primr.api.rate_limit import reset_rate_limiter

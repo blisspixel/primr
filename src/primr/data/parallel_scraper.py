@@ -12,12 +12,12 @@ Usage:
     results = scraper.scrape_urls(urls)
 """
 
-import threading
-import time
 from collections import defaultdict
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
+import threading
+import time
 from typing import Any
 from urllib.parse import urlparse
 

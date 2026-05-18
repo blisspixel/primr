@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 import json
 import os
-from datetime import datetime
 from unittest.mock import Mock, patch
 
 from primr.core import cli

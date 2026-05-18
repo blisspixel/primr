@@ -18,10 +18,10 @@ Requirements:
 """
 
 import argparse
+from pathlib import Path
 import re
 import subprocess
 import sys
-from pathlib import Path
 
 
 def run_gcloud(args: list[str], capture: bool = True) -> tuple[int, str, str]:

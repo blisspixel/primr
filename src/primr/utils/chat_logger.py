@@ -2,8 +2,8 @@
 Chat logging utility for AI interactions.
 """
 
-import json
 from datetime import datetime
+import json
 from pathlib import Path
 
 from colorama import Fore, Style

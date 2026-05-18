@@ -6,8 +6,8 @@ and QAGateHook ReportAnalyzer-backed analysis.
 """
 
 import asyncio
-import tempfile
 from pathlib import Path
+import tempfile
 from unittest.mock import MagicMock
 
 from src.primr.agentic.hooks import HookContext, HookResult, HookType, QAGateHook

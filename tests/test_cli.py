@@ -6,8 +6,8 @@ Property tests for CLI backward compatibility.
 """
 
 import argparse
-import sys
 from pathlib import Path
+import sys
 
 from hypothesis import given, settings
 from hypothesis import strategies as st

@@ -15,9 +15,9 @@ Usage:
 """
 
 import argparse
+from datetime import datetime
 import os
 import sys
-from datetime import datetime
 
 # Fix Windows console encoding for Unicode characters
 if sys.platform == "win32":

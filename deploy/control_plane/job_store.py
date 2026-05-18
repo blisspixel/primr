@@ -18,12 +18,12 @@ Requirements: 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.18
 
 from __future__ import annotations
 
-import hashlib
-import json
-import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
+import hashlib
+import json
+import threading
 from typing import Any, Protocol, runtime_checkable
 from urllib.parse import urlparse
 

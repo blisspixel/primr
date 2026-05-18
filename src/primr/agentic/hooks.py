@@ -36,10 +36,10 @@ Example:
 
 from __future__ import annotations
 
-import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
+import logging
 from typing import TYPE_CHECKING, Any
 
 from primr.agentic.errors import HookError

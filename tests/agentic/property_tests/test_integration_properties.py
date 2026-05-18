@@ -13,9 +13,9 @@ Validates: Requirements 8.2, 8.3, 8.4, 8.5, 8.6
 
 from __future__ import annotations
 
-import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
+import pytest
 
 # =============================================================================
 # PROPERTY 22: Error Hierarchy Compliance

@@ -5,9 +5,9 @@ Tests working folder creation, consolidation, and file validation.
 """
 
 import os
+from pathlib import Path
 import sys
 import tempfile
-from pathlib import Path
 
 import pytest
 

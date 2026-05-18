@@ -8,14 +8,14 @@ including allocation tracking, unbounded growth detection, and threshold-based w
 
 from __future__ import annotations
 
-import gc
-import logging
-import sys
-import tracemalloc
 from collections import defaultdict
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
+import gc
+import logging
+import sys
+import tracemalloc
 from typing import TYPE_CHECKING, Any, TypeVar
 
 if TYPE_CHECKING:
