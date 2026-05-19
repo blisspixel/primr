@@ -1,0 +1,408 @@
+"""Unit tests for primr.core.cli_doctor.
+
+Focused tests on each of the `_check_*` helpers plus the `run_doctor`
+orchestrator. These cover the API-key checker, provider/availability
+report, dependency check, filesystem write probe, API connectivity,
+and Gemini orphaned-resource scanner.
+"""
+
+from __future__ import annotations
+
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from primr.core import cli_doctor
+from primr.core.cli_doctor import (
+    _check_api_connectivity,
+    _check_api_keys,
+    _check_dependencies,
+    _check_filesystem,
+    _check_gemini_resources,
+    _check_providers,
+    run_doctor,
+)
+
+# ---------------------------------------------------------------------------
+# _check_api_keys
+# ---------------------------------------------------------------------------
+
+
+class TestCheckApiKeys:
+    def test_passes_with_valid_ai_prefix_key(self, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "AI" + "x" * 30)
+        monkeypatch.setenv("SEARCH_PROVIDER", "duckduckgo")
+        monkeypatch.delenv("XAI_API_KEY", raising=False)
+
+        with patch("ddgs.DDGS") as ddgs_mock:
+            ddgs_mock.return_value.text.return_value = [{"title": "x"}]
+            all_passed, warnings = _check_api_keys(True, 0)
+        assert all_passed is True
+
+    def test_warns_for_non_ai_prefix(self, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "xxx" * 10)
+        monkeypatch.setenv("SEARCH_PROVIDER", "duckduckgo")
+        monkeypatch.delenv("XAI_API_KEY", raising=False)
+
+        with patch("ddgs.DDGS") as ddgs_mock:
+            ddgs_mock.return_value.text.return_value = [{"title": "x"}]
+            all_passed, warnings = _check_api_keys(True, 0)
+        # Non-AI prefix is a warning but still passes
+        assert all_passed is True
+        assert warnings >= 1
+
+    def test_fails_without_gemini_key(self, monkeypatch):
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        monkeypatch.setenv("SEARCH_PROVIDER", "duckduckgo")
+
+        with patch("ddgs.DDGS") as ddgs_mock:
+            ddgs_mock.return_value.text.return_value = [{"title": "x"}]
+            all_passed, _ = _check_api_keys(True, 0)
+        assert all_passed is False
+
+    def test_google_search_provider_requires_keys(self, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "AI" + "x" * 30)
+        monkeypatch.setenv("SEARCH_PROVIDER", "google")
+        monkeypatch.delenv("SEARCH_API_KEY", raising=False)
+        monkeypatch.delenv("SEARCH_ENGINE_ID", raising=False)
+
+        all_passed, _ = _check_api_keys(True, 0)
+        assert all_passed is False
+
+    def test_google_search_api_success(self, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "AI" + "x" * 30)
+        monkeypatch.setenv("SEARCH_PROVIDER", "google")
+        monkeypatch.setenv("SEARCH_API_KEY", "x" * 30)
+        monkeypatch.setenv("SEARCH_ENGINE_ID", "y" * 30)
+
+        with patch("requests.get") as get_mock:
+            get_mock.return_value = MagicMock(status_code=200)
+            all_passed, _ = _check_api_keys(True, 0)
+        assert all_passed is True
+
+    def test_google_search_api_403_fails(self, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "AI" + "x" * 30)
+        monkeypatch.setenv("SEARCH_PROVIDER", "google")
+        monkeypatch.setenv("SEARCH_API_KEY", "x" * 30)
+        monkeypatch.setenv("SEARCH_ENGINE_ID", "y" * 30)
+
+        with patch("requests.get") as get_mock:
+            get_mock.return_value = MagicMock(status_code=403)
+            all_passed, _ = _check_api_keys(True, 0)
+        assert all_passed is False
+
+    def test_ddg_failure_marks_failed(self, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "AI" + "x" * 30)
+        monkeypatch.setenv("SEARCH_PROVIDER", "duckduckgo")
+        monkeypatch.delenv("XAI_API_KEY", raising=False)
+
+        with patch("ddgs.DDGS") as ddgs_mock:
+            ddgs_mock.return_value.text.side_effect = RuntimeError("net down")
+            all_passed, _ = _check_api_keys(True, 0)
+        assert all_passed is False
+
+
+# ---------------------------------------------------------------------------
+# _check_providers
+# ---------------------------------------------------------------------------
+
+
+class TestCheckProviders:
+    def test_no_providers_increments_warning(self):
+        with (
+            patch("primr.ai.providers.get_available_providers", return_value=[]),
+            patch("primr.ai.providers.KNOWN_PROVIDERS", []),
+        ):
+            assert _check_providers(0) == 1
+
+    def test_with_providers_no_warning_added(self):
+        prov = MagicMock(name="grok", description="Grok (xAI)", roles=["reasoning"])
+        prov.name = "grok"
+        with (
+            patch(
+                "primr.ai.providers.get_available_providers", return_value=[prov]
+            ),
+            patch(
+                "primr.ai.providers.KNOWN_PROVIDERS",
+                [
+                    MagicMock(
+                        name="grok",
+                        description="Grok (xAI)",
+                        roles=["reasoning"],
+                        api_key_env="XAI_API_KEY",
+                    )
+                ],
+            ),
+        ):
+            # Force the inner MagicMock to compare equal by setting .name
+            from primr.ai import providers
+
+            providers.KNOWN_PROVIDERS[0].name = "grok"
+            assert _check_providers(2) == 2
+
+
+# ---------------------------------------------------------------------------
+# _check_dependencies
+# ---------------------------------------------------------------------------
+
+
+class TestCheckDependencies:
+    def test_playwright_available(self):
+        with patch(
+            "playwright.sync_api.sync_playwright"
+        ) as pw_mock:
+            pw_mock.return_value.__enter__.return_value = MagicMock()
+            pw_mock.return_value.__exit__.return_value = None
+            assert _check_dependencies(0) == 0
+
+    def test_playwright_failure_increments_warning(self):
+        with patch(
+            "playwright.sync_api.sync_playwright",
+            side_effect=ImportError("no playwright"),
+        ):
+            assert _check_dependencies(0) == 1
+
+
+# ---------------------------------------------------------------------------
+# _check_filesystem
+# ---------------------------------------------------------------------------
+
+
+class TestCheckFilesystem:
+    def test_writes_succeed_for_writable_dirs(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cli_doctor, "OUTPUT_DIR", str(tmp_path / "out"))
+        monkeypatch.setattr(cli_doctor, "WORKING_DIR", str(tmp_path / "work"))
+        monkeypatch.setattr(cli_doctor, "LOGS_DIR", str(tmp_path / "logs"))
+        all_passed, warnings = _check_filesystem(True, 0)
+        assert all_passed is True
+
+    def test_output_write_failure(self, monkeypatch):
+        monkeypatch.setattr(cli_doctor, "OUTPUT_DIR", "C:/nonexistent/forbidden/dir")
+        monkeypatch.setattr(cli_doctor, "WORKING_DIR", "C:/nonexistent/forbidden/dir2")
+        monkeypatch.setattr(cli_doctor, "LOGS_DIR", "C:/nonexistent/forbidden/dir3")
+        # Force os.makedirs to fail
+        with patch("os.makedirs", side_effect=PermissionError("denied")):
+            all_passed, _ = _check_filesystem(True, 0)
+        assert all_passed is False
+
+
+# ---------------------------------------------------------------------------
+# _check_api_connectivity
+# ---------------------------------------------------------------------------
+
+
+class TestCheckApiConnectivity:
+    def test_no_key_warns(self, monkeypatch):
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        all_passed, warnings = _check_api_connectivity(True, 0)
+        assert all_passed is True
+        assert warnings == 1
+
+    def test_gemini_responding(self, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "x" * 30)
+        fake_module = MagicMock()
+        client = MagicMock()
+        client.models.generate_content.return_value = MagicMock(
+            text="hello", candidates=[MagicMock()]
+        )
+        fake_module.Client.return_value = client
+        with patch.dict(
+            "sys.modules", {"google": MagicMock(genai=fake_module)}
+        ), patch("google.genai", fake_module, create=True):
+            all_passed, _ = _check_api_connectivity(True, 0)
+        assert all_passed is True
+
+    def test_gemini_quota_fails(self, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "x" * 30)
+        fake_module = MagicMock()
+        fake_module.Client.side_effect = RuntimeError("quota exceeded")
+        with patch.dict(
+            "sys.modules", {"google": MagicMock(genai=fake_module)}
+        ), patch("google.genai", fake_module, create=True):
+            all_passed, _ = _check_api_connectivity(True, 0)
+        assert all_passed is False
+
+    def test_gemini_invalid_key_fails(self, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "x" * 30)
+        fake_module = MagicMock()
+        fake_module.Client.side_effect = RuntimeError("invalid key")
+        with patch.dict(
+            "sys.modules", {"google": MagicMock(genai=fake_module)}
+        ), patch("google.genai", fake_module, create=True):
+            all_passed, _ = _check_api_connectivity(True, 0)
+        assert all_passed is False
+
+
+# ---------------------------------------------------------------------------
+# _check_gemini_resources
+# ---------------------------------------------------------------------------
+
+
+class TestCheckGeminiResources:
+    def test_no_key_skips_with_warning(self, monkeypatch):
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        all_passed, warnings = _check_gemini_resources(True, 0)
+        assert warnings == 1
+
+    def test_no_orphans(self, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "x" * 30)
+        fake_module = MagicMock()
+        client = MagicMock()
+        client.caches.list.return_value = []
+        client.file_search_stores.list.return_value = []
+        fake_module.Client.return_value = client
+        with patch.dict(
+            "sys.modules", {"google": MagicMock(genai=fake_module)}
+        ), patch("google.genai", fake_module, create=True):
+            all_passed, warnings = _check_gemini_resources(True, 0)
+        assert warnings == 0
+
+    def test_orphaned_caches_warn(self, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "x" * 30)
+        fake_module = MagicMock()
+        client = MagicMock()
+        client.caches.list.return_value = [MagicMock()]
+        client.file_search_stores.list.return_value = []
+        fake_module.Client.return_value = client
+        with patch.dict(
+            "sys.modules", {"google": MagicMock(genai=fake_module)}
+        ), patch("google.genai", fake_module, create=True):
+            all_passed, warnings = _check_gemini_resources(True, 0)
+        assert warnings == 1
+
+    def test_orphaned_stores_warn(self, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "x" * 30)
+        fake_module = MagicMock()
+        client = MagicMock()
+        client.caches.list.return_value = []
+        client.file_search_stores.list.return_value = [MagicMock(), MagicMock()]
+        fake_module.Client.return_value = client
+        with patch.dict(
+            "sys.modules", {"google": MagicMock(genai=fake_module)}
+        ), patch("google.genai", fake_module, create=True):
+            all_passed, warnings = _check_gemini_resources(True, 0)
+        assert warnings == 1
+
+
+# ---------------------------------------------------------------------------
+# run_doctor (orchestration)
+# ---------------------------------------------------------------------------
+
+
+class TestRunDoctor:
+    def _stub_all_checks(self, monkeypatch, *, all_passed=True, warnings=0):
+        for name in (
+            "_check_api_keys",
+            "_check_filesystem",
+            "_check_api_connectivity",
+            "_check_gemini_resources",
+        ):
+            monkeypatch.setattr(
+                cli_doctor, name, lambda ap, wc: (ap and all_passed, wc + warnings)
+            )
+        monkeypatch.setattr(cli_doctor, "_check_providers", lambda wc: wc + warnings)
+        monkeypatch.setattr(cli_doctor, "_check_dependencies", lambda wc: wc + warnings)
+
+    def test_all_pass_returns_zero(self, monkeypatch):
+        self._stub_all_checks(monkeypatch, all_passed=True, warnings=0)
+        assert run_doctor(fix=False) == 0
+
+    def test_failures_return_one(self, monkeypatch):
+        self._stub_all_checks(monkeypatch, all_passed=False, warnings=0)
+        assert run_doctor(fix=False) == 1
+
+    def test_warnings_only_returns_zero(self, monkeypatch):
+        self._stub_all_checks(monkeypatch, all_passed=True, warnings=1)
+        assert run_doctor(fix=False) == 0
+
+    def test_fix_mode_dispatches_to_init_flow(self, monkeypatch):
+        self._stub_all_checks(monkeypatch, all_passed=False, warnings=0)
+        with patch(
+            "primr.core.cli_init._run_init_flow", return_value=99
+        ) as init_mock:
+            result = run_doctor(fix=True)
+        init_mock.assert_called_once()
+        assert result == 99
+
+    def test_fix_mode_with_clean_state_returns_zero(self, monkeypatch):
+        self._stub_all_checks(monkeypatch, all_passed=True, warnings=0)
+        with patch("primr.core.cli_init._run_init_flow") as init_mock:
+            result = run_doctor(fix=True)
+        init_mock.assert_not_called()
+        assert result == 0
+
+
+class TestCheckApiKeysEdgeCases:
+    def test_google_search_api_400_fails(self, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "AI" + "x" * 30)
+        monkeypatch.setenv("SEARCH_PROVIDER", "google")
+        monkeypatch.setenv("SEARCH_API_KEY", "x" * 30)
+        monkeypatch.setenv("SEARCH_ENGINE_ID", "y" * 30)
+        with patch("requests.get") as get_mock:
+            response = MagicMock(status_code=400)
+            response.json.return_value = {"error": {"message": "bad request"}}
+            get_mock.return_value = response
+            all_passed, _ = _check_api_keys(True, 0)
+        assert all_passed is False
+
+    def test_google_search_api_500_fails(self, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "AI" + "x" * 30)
+        monkeypatch.setenv("SEARCH_PROVIDER", "google")
+        monkeypatch.setenv("SEARCH_API_KEY", "x" * 30)
+        monkeypatch.setenv("SEARCH_ENGINE_ID", "y" * 30)
+        with patch("requests.get") as get_mock:
+            get_mock.return_value = MagicMock(status_code=500)
+            all_passed, _ = _check_api_keys(True, 0)
+        assert all_passed is False
+
+    def test_google_search_api_timeout(self, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "AI" + "x" * 30)
+        monkeypatch.setenv("SEARCH_PROVIDER", "google")
+        monkeypatch.setenv("SEARCH_API_KEY", "x" * 30)
+        monkeypatch.setenv("SEARCH_ENGINE_ID", "y" * 30)
+        import requests as real_requests
+
+        with patch(
+            "requests.get",
+            side_effect=real_requests.exceptions.Timeout("timed out"),
+        ):
+            all_passed, _ = _check_api_keys(True, 0)
+        assert all_passed is False
+
+    def test_google_search_missing_engine_id_fails(self, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "AI" + "x" * 30)
+        monkeypatch.setenv("SEARCH_PROVIDER", "google")
+        monkeypatch.setenv("SEARCH_API_KEY", "x" * 30)
+        monkeypatch.delenv("SEARCH_ENGINE_ID", raising=False)
+        all_passed, _ = _check_api_keys(True, 0)
+        assert all_passed is False
+
+    def test_ddg_empty_results_warns(self, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "AI" + "x" * 30)
+        monkeypatch.setenv("SEARCH_PROVIDER", "duckduckgo")
+        with patch("ddgs.DDGS") as ddgs_mock:
+            ddgs_mock.return_value.text.return_value = []
+            all_passed, warnings = _check_api_keys(True, 0)
+        assert all_passed is True
+        assert warnings >= 1
+
+    def test_xai_key_configured(self, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "AI" + "x" * 30)
+        monkeypatch.setenv("XAI_API_KEY", "y" * 30)
+        monkeypatch.setenv("SEARCH_PROVIDER", "duckduckgo")
+        with patch("ddgs.DDGS") as ddgs_mock:
+            ddgs_mock.return_value.text.return_value = [{"title": "x"}]
+            all_passed, _ = _check_api_keys(True, 0)
+        assert all_passed is True
+
+
+@pytest.mark.parametrize("warnings", [0, 1, 5])
+def test_check_api_keys_preserves_warnings_count(monkeypatch, warnings):
+    monkeypatch.setenv("GEMINI_API_KEY", "AI" + "x" * 30)
+    monkeypatch.setenv("SEARCH_PROVIDER", "duckduckgo")
+    monkeypatch.delenv("XAI_API_KEY", raising=False)
+    with patch("ddgs.DDGS") as ddgs_mock:
+        ddgs_mock.return_value.text.return_value = [{"title": "x"}]
+        _, result_warnings = _check_api_keys(True, warnings)
+    # warnings should only stay the same or increase
+    assert result_warnings >= warnings

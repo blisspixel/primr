@@ -643,7 +643,7 @@ class TestRunDoctor:
         """Test doctor returns appropriate exit code."""
         with (
             patch.dict(os.environ, {"GEMINI_API_KEY": ""}),
-            patch("primr.core.cli._check_api_connectivity") as mock_api,
+            patch("primr.core.cli_doctor._check_api_connectivity") as mock_api,
         ):
             mock_api.return_value = (False, 0)
             result = run_doctor()
@@ -654,9 +654,9 @@ class TestRunDoctor:
         """Test doctor with valid configuration."""
         with (
             patch.dict(os.environ, {"GEMINI_API_KEY": "AItest1234567890"}),
-            patch("primr.core.cli._check_dependencies") as mock_deps,
-            patch("primr.core.cli._check_filesystem") as mock_fs,
-            patch("primr.core.cli._check_api_connectivity") as mock_api,
+            patch("primr.core.cli_doctor._check_dependencies") as mock_deps,
+            patch("primr.core.cli_doctor._check_filesystem") as mock_fs,
+            patch("primr.core.cli_doctor._check_api_connectivity") as mock_api,
         ):
             mock_deps.return_value = 0
             mock_fs.return_value = (True, 0)

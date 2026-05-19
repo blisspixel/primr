@@ -90,7 +90,7 @@ For completed work, see the [Changelog](#changelog) at the bottom of this file, 
 
 - Cost estimation, usage tracking, job recovery, crash/reboot recovery
 - System diagnostics (`primr doctor`)
-- 5,700+ tests, full ruff and mypy compliance
+- 6,500+ tests, full ruff and mypy compliance
 - Serverless cloud deployment templates (AWS, Azure, GCP); Azure validated end-to-end (remaining hardening below)
 - Agentic architecture: hypothesis tracking, subagents, hooks, orchestrator
 - Content sanitization for prompt injection protection
@@ -174,7 +174,11 @@ Cache hit rate is load-bearing on the sub-$1 default — Grok 4.3 cached input a
 - `primr show-usage` enhancements: total lifetime spend, per-company history, cost-by-mode breakdown
 - Stored in run state JSON for post-hoc analysis; informs sticky tier policy and circuit breaker thresholds
 
-### 6. Diminishing Returns Detection for Cross-Validation
+### 6. Wire Circuit Breaker Into Production LLM Call Sites
+
+The `ModelCircuitBreaker.execute_with_fallback()` mechanism is callable and tested but not yet invoked from `research_agent.py` LLM call sites. Today a provider quota blip during a run can fail the run instead of advancing to the next model in the cross-provider chain. Wire it into the production pipeline so quota events trigger automatic provider failover.
+
+### 7. Diminishing Returns Detection for Cross-Validation
 
 Detect when cross-validation or section regeneration is making diminishing progress and stop early, rather than consuming the full token budget.
 
@@ -183,10 +187,6 @@ Detect when cross-validation or section regeneration is making diminishing progr
 - Log the early stop in the QA summary: `cross-validation: stopped early (diminishing returns after N iterations)`
 - Applies to both the existing cross-validation pass and the planned QA iteration loop
 - Start conservative and tune thresholds based on eval results
-
-### 7. Wire Circuit Breaker Into Production LLM Call Sites
-
-The `ModelCircuitBreaker.execute_with_fallback()` mechanism is callable and tested but not yet invoked from `research_agent.py` LLM call sites. Today a provider quota blip during a run can fail the run instead of advancing to the next model in the cross-provider chain. Wire it into the production pipeline so quota events trigger automatic provider failover.
 
 ### 8. Prompt Cache Preparation
 
@@ -242,7 +242,16 @@ When `primr improve --improve-agentic` runs an agentic review pass, constrain th
 
 This pattern applies to any future agentic pipeline stage that modifies artifacts: expert perspective passes, strategy enrichment, cross-validation regeneration.
 
-### 12. Expert Perspective Passes
+### 12. Windows Working-Directory Hardening
+
+Reduce false negatives and transient failures on Windows machines where the repo lives inside OneDrive or similar synced folders. Bumped up from the bottom of the queue because it actively bites this very dev environment (transient `PermissionError` on atomic renames, CRLF warnings on every git operation, OneDrive-driven race conditions on `_run_state.json`).
+
+- Make checkpoint/state writes tolerant of transient `PermissionError` during atomic rename
+- Update `primr doctor` to probe the same atomic write path used during real runs
+- Add explicit docs for keeping high-churn `working/` paths outside synced folders when possible
+- Longer term: support a configurable working directory separate from the repo root
+
+### 13. Expert Perspective Passes
 
 After the standard pipeline, add domain-specific scrutiny of findings.
 
@@ -256,7 +265,7 @@ Perspectives:
 - **Competitive analyst**: compare findings against known competitors, identify positioning gaps
 - **Risk analyst**: identify regulatory, market, and execution risks
 
-### 13. Auto-Eval on Model Releases
+### 14. Auto-Eval on Model Releases
 
 Reduce manual work when new model variants drop by automating the eval-and-compare cycle.
 
@@ -267,7 +276,7 @@ Reduce manual work when new model variants drop by automating the eval-and-compa
 - Decision output: "new variant is better/worse/equivalent for [stage]" with evidence
 - Keeps defaults current without gut calls on each release
 
-### 14. Capability-Requirement Routing Layer
+### 15. Capability-Requirement Routing Layer
 
 Provider abstraction and role-based routing shipped in v1.22.0/v1.23.0. The still-planned half: each pipeline stage declares capability requirements and the router solves for the cheapest match.
 
@@ -280,7 +289,7 @@ Provider abstraction and role-based routing shipped in v1.22.0/v1.23.0. The stil
 
 The requirements themselves come from observed eval cost/quality data per role, not a priori guessing.
 
-### 15. Pipeline Overlap
+### 16. Pipeline Overlap
 
 Reduce end-to-end runtime by overlapping independent pipeline phases.
 
@@ -304,7 +313,7 @@ Completion guarantees:
 - Run state tracks per-phase completion status for crash recovery
 - Progress display updated to show concurrent phases (e.g., "Scraping 23/50 | Searching 4/10")
 
-### 16. Snapshot Subcommand
+### 17. Snapshot Subcommand
 
 A new top-level subcommand for the case where you want a fast look at a company before deciding whether to spend on a real run. Explicitly framed as screening, not analysis. Not a quality dial on `primr` — a separate, narrower product.
 
@@ -328,7 +337,7 @@ What it explicitly is not:
 
 Decision principle: the standard pipeline is the product. Snapshot is the cheap pre-flight that helps you decide whether to invoke it. Speed is only worth paying for when the alternative is free.
 
-### 17. Agent Control Plane Hardening
+### 18. Agent Control Plane Hardening
 
 The MCP/OpenClaw/skill integrations are treated as a disciplined Primr control plane rather than thin shell wrappers. Next work is narrower and more intentional than the initial integration push.
 
@@ -343,15 +352,6 @@ Planned:
 - Keep skills thin and MCP-first; intentionally avoid turning SKILL files into duplicated application specs
 - Preserve typed lifecycle/control-plane primitives instead of free-form execution wrappers
 
-### 18. Windows Working-Directory Hardening
-
-Reduce false negatives and transient failures on Windows machines where the repo lives inside OneDrive or similar synced folders.
-
-- Make checkpoint/state writes tolerant of transient `PermissionError` during atomic rename
-- Update `primr doctor` to probe the same atomic write path used during real runs
-- Add explicit docs for keeping high-churn `working/` paths outside synced folders when possible
-- Longer term: support a configurable working directory separate from the repo root
-
 ### 19. Azure Deployment Finalization
 
 The Azure tiered deployment (team and organization) has its Bicep IaC, deploy script, OpenAPI spec, budget tracker, environment auto-detection, JWT validation, and cloud diagnostics in place. The deployment provisions in ~3.5 min, /healthz passes, and 162 tests across budget/auth/environment are green. The remaining items are concrete:
@@ -361,6 +361,15 @@ The Azure tiered deployment (team and organization) has its Bicep IaC, deploy sc
 - **ACR build log streaming on Windows**: Azure CLI's `az acr build` crashes on Windows due to a Unicode encoding bug in colorama/cp1252. Workaround in place: poll `az acr task list-runs` for completion instead of streaming logs. Needs to be finalized in `deploy.ps1`.
 - **Structured logging for Application Insights**: Log fields (request_id, job_id, tool_name, duration_ms) are designed but not yet wired into the container runtime.
 - **VNet integration**: Documented as a production TODO. Private endpoints for Cosmos DB, Storage, Key Vault, and Service Bus are not yet configured.
+
+### 20. Refactor Orchestrators for Unit-Test Coverage
+
+After the v1.25.x refactor extracted `cli_batch.py`, `cli_doctor.py`, `cli_parser.py`, `section_planning.py`, `strategy_artifacts.py`, and similar helper modules out of the three monsters, line coverage now sits at: `cli.py` 82%, `deep_research.py` 72%, `research_agent.py` 30%. The remaining gap is concentrated in two functions that resist unit-mock testing because they interleave I/O, LLM calls, and state-machine transitions in a single body:
+
+- `research_agent.perform_fast_research` (~1900 lines) — extract pure helpers for the per-section orchestration loop, the strategy-artifact pipeline, and the cross-validation/repair cycle so each stage is callable in isolation with a mocked LLM and scrape boundary
+- `deep_research.DeepResearchOrchestrator._execute_consulting_research` (~270 lines) — split Phase 1 (dossier) and Phase 2 (section-by-section writing) into discrete async helpers that take pre-built prompts and return structured results, so failure modes (consecutive-failure stop, fallback to Stage 1 context) can be tested without standing up the full pipeline
+
+Target: all three monster files at 80%+ line coverage. This is a refactor for testability, not a new feature — the rule should be no behavior change, only seam introduction, and existing eval scores should remain identical.
 
 ---
 

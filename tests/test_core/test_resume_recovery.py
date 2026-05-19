@@ -35,7 +35,10 @@ def test_build_recovered_basename_strategic_overview():
 
 
 def test_save_recovered_outputs_writes_md_txt_and_docx(tmp_path, monkeypatch):
+    from primr.core import cli_recovery
+
     monkeypatch.setattr(cli, "OUTPUT_DIR", str(tmp_path))
+    monkeypatch.setattr(cli_recovery, "OUTPUT_DIR", str(tmp_path))
     job_info = {
         "type": "deep_research",
         "metadata": {
@@ -60,7 +63,10 @@ def test_save_recovered_outputs_writes_md_txt_and_docx(tmp_path, monkeypatch):
 
 
 def test_find_latest_run_state_returns_most_recent(tmp_path, monkeypatch):
+    from primr.core import cli_recovery
+
     monkeypatch.setattr(cli, "WORKING_DIR", str(tmp_path))
+    monkeypatch.setattr(cli_recovery, "WORKING_DIR", str(tmp_path))
     older = tmp_path / "ExampleCo" / "2026-02-24_1700"
     newer = tmp_path / "ExampleCo" / "2026-02-25_0200"
     older.mkdir(parents=True)
@@ -101,6 +107,8 @@ def test_resume_pending_jobs_returns_error_when_check_error(monkeypatch):
 def test_resume_pending_jobs_finalizes_completed(monkeypatch):
     import importlib
 
+    from primr.core import cli_recovery
+
     deep_research_module = importlib.import_module("primr.ai.deep_research")
     jobs = {"job-1": {"description": "ExampleCo AI strategy", "type": "deep_research"}}
     client = Mock()
@@ -109,7 +117,7 @@ def test_resume_pending_jobs_finalizes_completed(monkeypatch):
     monkeypatch.setattr(deep_research_module, "get_pending_jobs", lambda: jobs)
     monkeypatch.setattr(deep_research_module, "get_deep_research_client", lambda: client)
     monkeypatch.setattr(
-        cli,
+        cli_recovery,
         "_save_recovered_outputs",
         lambda interaction_id, job_info, content: {"md": "a.md", "docx": "a.docx", "txt": "a.txt"},
     )
@@ -121,16 +129,19 @@ def test_resume_pending_jobs_finalizes_completed(monkeypatch):
 def test_resume_pending_jobs_falls_back_to_txt_when_finalize_fails(tmp_path, monkeypatch):
     import importlib
 
+    from primr.core import cli_recovery
+
     deep_research_module = importlib.import_module("primr.ai.deep_research")
     jobs = {"job-1": {"description": "ExampleCo AI strategy", "type": "deep_research"}}
     client = Mock()
     client.check_job.return_value = {"status": "completed", "content": "Recovered body"}
 
     monkeypatch.setattr(cli, "OUTPUT_DIR", str(tmp_path))
+    monkeypatch.setattr(cli_recovery, "OUTPUT_DIR", str(tmp_path))
     monkeypatch.setattr(deep_research_module, "get_pending_jobs", lambda: jobs)
     monkeypatch.setattr(deep_research_module, "get_deep_research_client", lambda: client)
     monkeypatch.setattr(
-        cli,
+        cli_recovery,
         "_save_recovered_outputs",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("docx fail")),
     )
@@ -144,7 +155,10 @@ def test_resume_pending_jobs_falls_back_to_txt_when_finalize_fails(tmp_path, mon
 
 
 def test_find_latest_run_state_returns_none_for_malformed_json(tmp_path, monkeypatch):
+    from primr.core import cli_recovery
+
     monkeypatch.setattr(cli, "WORKING_DIR", str(tmp_path))
+    monkeypatch.setattr(cli_recovery, "WORKING_DIR", str(tmp_path))
     bad = tmp_path / "ExampleCo" / "2026-02-25_0200"
     bad.mkdir(parents=True)
     (bad / "_run_state.json").write_text("{not-json", encoding="utf-8")
@@ -154,7 +168,10 @@ def test_find_latest_run_state_returns_none_for_malformed_json(tmp_path, monkeyp
 
 
 def test_find_latest_run_state_skips_bad_newest_file(tmp_path, monkeypatch):
+    from primr.core import cli_recovery
+
     monkeypatch.setattr(cli, "WORKING_DIR", str(tmp_path))
+    monkeypatch.setattr(cli_recovery, "WORKING_DIR", str(tmp_path))
     older = tmp_path / "ExampleCo" / "2026-02-24_1700"
     newer_bad = tmp_path / "ExampleCo" / "2026-02-25_0200"
     older.mkdir(parents=True)
