@@ -59,11 +59,146 @@ from primr.core.deep_research_runner import (
     DeepResearchConfig,
     DeepResearchMode,
 )
+from primr.core.fast_mode_helpers import (
+    _assemble_fast_report,
+    _compute_fast_report_qa_metrics,
+    _enforce_fast_section_quality_guards,
+)
+from primr.core.fast_mode_helpers import (
+    _parse_batch_sections as _parse_batch_sections,
+)
+from primr.core.report_cleanup import (
+    _INTERNAL_REFERENCE_TERMS as _INTERNAL_REFERENCE_TERMS,
+)
+from primr.core.report_cleanup import (
+    _clean_fast_report_output,
+    _preserves_report_structure,
+    _strip_internal_source_placeholders,
+)
+from primr.core.report_cleanup import (
+    _extract_markdown_headings as _extract_markdown_headings,
+)
+from primr.core.report_cleanup import (
+    _rewrite_cite_from_url_tags as _rewrite_cite_from_url_tags,
+)
+from primr.core.report_cleanup import (
+    _rewrite_inline_confidence_citations as _rewrite_inline_confidence_citations,
+)
+from primr.core.report_cleanup import (
+    _sanitize_numeric_cite_bracket as _sanitize_numeric_cite_bracket,
+)
+from primr.core.report_cleanup import (
+    _strip_unresolved_section_cross_references as _strip_unresolved_section_cross_references,
+)
+from primr.core.resilience_listeners import (
+    _build_health_listener as _build_health_listener,
+)
+from primr.core.resilience_listeners import (
+    _build_resilience_event_listener,
+)
+from primr.core.run_state_io import (
+    _append_background_abort as _append_background_abort,
+)
+from primr.core.run_state_io import (
+    _append_model_health_event as _append_model_health_event,
+)
+from primr.core.run_state_io import (
+    _append_recovery_event as _append_recovery_event,
+)
+from primr.core.run_state_io import (
+    _append_run_event,
+    _ensure_resilience_keys,
+    _load_run_state,
+    _save_run_state,
+    _update_run_state,
+)
+from primr.core.run_state_io import (
+    _init_run_state_with_resilience as _init_run_state_with_resilience,
+)
+from primr.core.run_state_io import (
+    _run_state_file as _run_state_file,
+)
+from primr.core.section_parsing import (
+    _extract_generated_section_blocks as _extract_generated_section_blocks,
+)
+from primr.core.section_parsing import (
+    _normalize_generated_section_payload as _normalize_generated_section_payload,
+)
+from primr.core.section_parsing import (
+    _parse_single_section,
+)
+from primr.core.section_parsing import (
+    _parse_structured_section_envelopes as _parse_structured_section_envelopes,
+)
+from primr.core.section_planning import (
+    _HIGH_DEPTH_SECTION_IDS as _HIGH_DEPTH_SECTION_IDS,
+)
+from primr.core.section_planning import (
+    _PART_LABELS,
+    _get_section_word_target,
+)
+from primr.core.section_planning import (
+    _determine_section_reasoning_mode as _determine_section_reasoning_mode,
+)
+from primr.core.section_planning import (
+    _get_section_max_tokens as _get_section_max_tokens,
+)
+from primr.core.section_planning import (
+    _group_sections_by_part as _group_sections_by_part,
+)
+from primr.core.section_prompts import (
+    _build_fast_analysis_prompt,
+    _build_fast_section_prompt,
+    _build_link_selection_prompt,
+    _load_fast_feedback_guidance,
+)
+from primr.core.section_prompts import (
+    _build_fast_batch_prompt as _build_fast_batch_prompt,
+)
+from primr.core.strategy_artifacts import (
+    _clean_strategy_output,
+    _compute_strategy_qa_metrics,
+    _ensure_strategy_source_inventory,
+    _normalize_fast_citations,
+    _normalize_strategy_source_urls,
+    _split_markdown_sections,
+)
+from primr.core.strategy_artifacts import (
+    _extract_strategy_citation_definitions as _extract_strategy_citation_definitions,
+)
+from primr.core.strategy_artifacts import (
+    _is_auditable_source_url as _is_auditable_source_url,
+)
+from primr.core.strategy_artifacts import (
+    _strategy_money_to_millions as _strategy_money_to_millions,
+)
 from primr.core.strategy_generation import (
     build_strategy_prompt_from_yaml as _build_strategy_prompt_from_yaml_impl,
 )
 from primr.core.strategy_generation import (
     generate_generic_strategy as _generate_generic_strategy_impl,
+)
+from primr.output.artifact_validation import (
+    _FORBIDDEN_INTERNAL_TERMS as _FORBIDDEN_INTERNAL_TERMS,
+)
+from primr.output.artifact_validation import (
+    _FORBIDDEN_OUTPUT_CLEANERS as _FORBIDDEN_OUTPUT_CLEANERS,
+)
+from primr.output.artifact_validation import (
+    _FORBIDDEN_OUTPUT_PATTERNS as _FORBIDDEN_OUTPUT_PATTERNS,
+)
+from primr.output.artifact_validation import (
+    _ArtifactValidation,
+    _auto_strip_forbidden_patterns,
+    _validate_output_docx,
+    _validate_output_markdown,
+    _write_output_validation_report,
+)
+from primr.output.artifact_validation import (
+    _extract_docx_text as _extract_docx_text,
+)
+from primr.output.artifact_validation import (
+    _scan_forbidden_output_patterns as _scan_forbidden_output_patterns,
 )
 
 # =============================================================================
@@ -102,7 +237,7 @@ import time
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, TypedDict
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 if TYPE_CHECKING:
@@ -114,7 +249,6 @@ from primr.ai.llm import llm
 from primr.ai.routing import Role, pick_model_for_role
 from primr.ai.summarize import summarize_scraped_content
 from primr.config.config import (
-    FAST_FEEDBACK_RULES_PATH,
     GRADE_THRESHOLD_FOR_RESEARCH_REFINEMENT,
     LOGS_DIR,
     MAX_EXTERNAL_SEARCH_QUERIES,
@@ -150,7 +284,6 @@ from primr.core.research_orchestrator import (
     get_orchestrator,
 )
 from primr.data.scrape import fetch_web_content, scrape_external_sources_validated
-from primr.data.scraping.org_profile import get_focus_areas_for_org_type
 from primr.data.search_utils import (
     generate_external_search_queries,
     generate_search_queries,
@@ -165,7 +298,6 @@ from primr.utils.observability import (
     log_job_summary,
     log_structured,
 )
-from primr.utils.validators import validate_url_for_request
 
 load_primr_env()
 
@@ -201,22 +333,6 @@ TIER_DISPLAY_NAMES = {
 }
 
 
-def _load_fast_feedback_guidance() -> str:
-    """Load persisted fast-mode guidance generated from eval feedback loops."""
-    path = Path(FAST_FEEDBACK_RULES_PATH)
-    if not path.exists():
-        return ""
-    try:
-        text = path.read_text(encoding="utf-8", errors="ignore").strip()
-    except Exception as e:
-        logger.debug("Failed to load fast feedback guidance from %s: %s", path, e)
-        return ""
-    if not text:
-        return ""
-    # Bound prompt growth.
-    return text[:4000]
-
-
 def format_tier_stats(tier_stats: dict) -> str:
     """Format tier stats for user-friendly display."""
     # Sort by count descending
@@ -243,28 +359,6 @@ def _validate_scrape_quality(
         f"requires >= {min_pages} pages and >= {min_chars:,} chars)"
     )
     return ok, reason
-
-
-def _build_link_selection_prompt(
-    company_name: str,
-    website: str,
-    links_text: str,
-    max_links: int,
-    organization_type: str,
-) -> str:
-    focus_areas = "\n".join(
-        f"- {focus}" for focus in get_focus_areas_for_org_type(organization_type)
-    )
-    return (
-        f"You are selecting pages for intelligence gathering on {company_name} ({website}).\n\n"
-        f"Organization type: {organization_type}.\n"
-        "Choose only from the discovered URLs below. Do not invent, normalize, or rewrite URLs.\n\n"
-        "Prioritize pages that help explain the organization through these focus areas:\n"
-        f"{focus_areas}\n\n"
-        "Discovered URLs:\n"
-        f"{links_text}\n\n"
-        f"Return only URLs from the discovered list, up to {max_links}, one per line."
-    )
 
 
 def select_links_with_llm(
@@ -397,214 +491,6 @@ def create_working_folder(company_name, website, reuse_incomplete: bool = False)
     os.makedirs(folder_path, exist_ok=True)
     logger.info(f"Created working folder: {folder_path}")
     return folder_path
-
-
-def _run_state_file(folder_path: str) -> str:
-    """Return path to the per-run state file."""
-    return os.path.join(folder_path, "_run_state.json")
-
-
-def _load_run_state(folder_path: str) -> dict[str, Any]:
-    """Load run state JSON if present, else return empty dict."""
-    path = _run_state_file(folder_path)
-    if not os.path.exists(path):
-        return {}
-    try:
-        with open(path, encoding="utf-8") as f:
-            data = json.load(f)
-        return data if isinstance(data, dict) else {}
-    except json.JSONDecodeError as e:
-        logger.warning("Run state file corrupted (%s), starting with empty state: %s", path, e)
-        return {}
-    except Exception as e:
-        logger.warning("Failed to load run state from %s, starting with empty state: %s", path, e)
-        return {}
-
-
-def _save_run_state(folder_path: str, state: dict[str, Any]) -> None:
-    """Persist run state JSON without aborting the run on transient Windows locks."""
-    path = _run_state_file(folder_path)
-    tmp = f"{path}.{os.getpid()}.tmp"
-    os.makedirs(folder_path, exist_ok=True)
-    payload = json.dumps(state, indent=2)
-    with open(tmp, "w", encoding="utf-8") as f:
-        f.write(payload)
-        f.flush()
-        os.fsync(f.fileno())
-
-    last_error: PermissionError | None = None
-    for attempt in range(5):
-        try:
-            os.replace(tmp, path)
-            return
-        except PermissionError as exc:
-            last_error = exc
-            if attempt == 4:
-                break
-            time.sleep(0.05 * (attempt + 1))
-
-    logger.warning(
-        "Atomic run state save failed for %s; falling back to direct overwrite: %s",
-        path,
-        last_error,
-    )
-    try:
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(payload)
-    finally:
-        if os.path.exists(tmp):
-            try:
-                os.remove(tmp)
-            except OSError:
-                logger.debug("Failed to remove stale run-state temp file %s", tmp, exc_info=True)
-
-
-def _update_run_state(folder_path: str, **updates: Any) -> None:
-    """Merge updates into run state file and refresh timestamp."""
-    state = _load_run_state(folder_path)
-    state.update(updates)
-    state["updated_at"] = datetime.now().isoformat()
-    _save_run_state(folder_path, state)
-
-
-def _append_run_event(
-    folder_path: str, phase: str, status: str, message: str, **extra: Any
-) -> None:
-    """Append a timeline event into run state."""
-    state = _load_run_state(folder_path)
-    events = state.get("events", [])
-    if not isinstance(events, list):
-        events = []
-    event: dict[str, Any] = {
-        "ts": datetime.now().isoformat(),
-        "phase": phase,
-        "status": status,
-        "message": message,
-    }
-    if extra:
-        event["extra"] = extra
-    events.append(event)
-    state["events"] = events[-200:]  # keep recent history bounded
-    state["updated_at"] = datetime.now().isoformat()
-    _save_run_state(folder_path, state)
-
-
-# =============================================================================
-# RESILIENCE RUN STATE HELPERS (pipeline-resilience feature)
-# =============================================================================
-
-
-def _ensure_resilience_keys(state: dict[str, Any]) -> dict[str, Any]:
-    """Ensure resilience arrays exist in run state (backwards compatible).
-
-    Adds ``model_health``, ``recovery_events``, and ``background_aborts``
-    arrays if they are missing.  Existing keys are never overwritten.
-
-    **Feature: pipeline-resilience**
-    **Validates: Requirements 16.3, 12.2, NFR 3**
-    """
-    for key in ("model_health", "recovery_events", "background_aborts"):
-        if key not in state or not isinstance(state[key], list):
-            state[key] = state.get(key, []) if isinstance(state.get(key), list) else []
-    return state
-
-
-def _append_model_health_event(folder_path: str, event_dict: dict[str, Any]) -> None:
-    """Append a ModelHealthEvent dict to the ``model_health`` array in run state.
-
-    **Feature: pipeline-resilience**
-    **Validates: Requirements 12.2**
-    """
-    state = _load_run_state(folder_path)
-    _ensure_resilience_keys(state)
-    state["model_health"].append(event_dict)
-    state["model_health"] = state["model_health"][-200:]
-    state["updated_at"] = datetime.now().isoformat()
-    _save_run_state(folder_path, state)
-
-
-def _append_recovery_event(folder_path: str, event_dict: dict[str, Any]) -> None:
-    """Append a recovery event dict to the ``recovery_events`` array in run state.
-
-    **Feature: pipeline-resilience**
-    **Validates: Requirements 16.3**
-    """
-    state = _load_run_state(folder_path)
-    _ensure_resilience_keys(state)
-    state["recovery_events"].append(event_dict)
-    state["recovery_events"] = state["recovery_events"][-200:]
-    state["updated_at"] = datetime.now().isoformat()
-    _save_run_state(folder_path, state)
-
-
-def _append_background_abort(folder_path: str, event_dict: dict[str, Any]) -> None:
-    """Append a background abort dict to the ``background_aborts`` array in run state.
-
-    **Feature: pipeline-resilience**
-    **Validates: Requirements 16.3**
-    """
-    state = _load_run_state(folder_path)
-    _ensure_resilience_keys(state)
-    state["background_aborts"].append(event_dict)
-    state["background_aborts"] = state["background_aborts"][-200:]
-    state["updated_at"] = datetime.now().isoformat()
-    _save_run_state(folder_path, state)
-
-
-def _init_run_state_with_resilience(folder_path: str, base_state: dict[str, Any]) -> None:
-    """Initialize run state with resilience keys included.
-
-    Merges the base state dict with empty resilience arrays and saves.
-    Backwards compatible — existing keys in *base_state* are preserved.
-
-    **Feature: pipeline-resilience**
-    **Validates: Requirements 16.3, NFR 3**
-    """
-    _ensure_resilience_keys(base_state)
-    _save_run_state(folder_path, base_state)
-
-
-def _build_resilience_event_listener(folder_path: str):
-    """Build an event listener callback that routes recovery events to run state.
-
-    Returns a callable suitable for ``RecoveryExecutor(event_listener=...)``.
-
-    **Feature: pipeline-resilience**
-    **Validates: Requirements 16.1, 16.2, 16.3**
-    """
-    from primr.pipeline.executor import BackgroundAbort, RecoveryEvent
-
-    def _listener(event) -> None:
-        if isinstance(event, RecoveryEvent):
-            _append_recovery_event(folder_path, event.to_dict())
-        elif isinstance(event, BackgroundAbort):
-            _append_background_abort(folder_path, event.to_dict())
-
-    return _listener
-
-
-def _build_health_listener(folder_path: str):
-    """Build a health listener callback that logs ModelHealthEvents to run state.
-
-    Returns a callable suitable for ``ModelCircuitBreaker(health_listener=...)``.
-
-    **Feature: pipeline-resilience**
-    **Validates: Requirements 12.1, 12.2**
-    """
-    from primr.pipeline.model_breaker import ModelHealthEvent
-
-    def _listener(event: ModelHealthEvent) -> None:
-        _append_model_health_event(folder_path, event.to_dict())
-        log_structured(
-            "info",
-            "Model health transition",
-            model=event.model,
-            from_state=event.from_state,
-            to_state=event.to_state,
-            failure_count=event.failure_count,
-        )
-
-    return _listener
 
 
 def ensure_valid_url(website):
@@ -1198,586 +1084,6 @@ def perform_scrape_only(
     return folder_path
 
 
-# Part labels for console output
-_PART_LABELS = {
-    1: "Foundation",
-    2: "Industry",
-    3: "Strategic",
-    4: "Deep Insights",
-    5: "Synthesis",
-}
-
-
-def _group_sections_by_part() -> list[list["SectionConfig"]]:
-    """
-    Load sections from company_overview.yaml and group by ``part`` number.
-
-    Returns a list of 5 lists (parts 1-5), each containing the
-    :class:`SectionConfig` objects that belong to that part.
-    """
-    from primr.prompts.loader import load_prompt_config
-
-    config = load_prompt_config("company_overview")
-    groups: dict[int, list] = {}
-    for section in config.sections:
-        groups.setdefault(section.part, []).append(section)
-    # Return in part order (1-5)
-    return [groups[p] for p in sorted(groups)]
-
-
-def _build_fast_batch_prompt(
-    company_name: str,
-    website: str | None,
-    analysis_workbook: str,
-    raw_corpus_subset: str,
-    external_sources: str,
-    source_urls: list[str],
-    sections: list["SectionConfig"],
-    previous_sections: list["GeneratedSection"],
-    batch_number: int,
-    total_batches: int,
-) -> str:
-    """
-    Build the prompt for writing one batch of report sections.
-
-    Each batch receives:
-    - The analysis workbook (shared across all batches)
-    - Raw corpus + external sources for evidence
-    - 300-word rolling summaries of the last 5 completed sections
-    - Section-specific instructions from the YAML config
-    """
-    current_date = datetime.now().strftime("%B %d, %Y")
-
-    # Build section instructions for this batch
-    section_parts: list[str] = []
-    for section in sections:
-        covers_text = "\n".join(f"      - {item}" for item in section.covers)
-        depth_text = section.depth.strip() if section.depth else "Thorough analysis"
-        position_label = section.position or "middle"
-        section_parts.append(
-            f"### {section.name}\n"
-            f"**Purpose:** {section.purpose}\n"
-            f"**Position:** {position_label}\n"
-            f"**Must cover:**\n{covers_text}\n"
-            f"**Depth:** {depth_text}"
-        )
-    section_block = "\n\n".join(section_parts)
-
-    # Rolling context: 400-word summaries of last 7 completed sections
-    rolling_context = ""
-    if previous_sections:
-        recent = previous_sections[-7:]
-        context_parts: list[str] = []
-        for s in recent:
-            # Truncate each section to ~400 words for rolling context
-            words = s.content.split()
-            summary = " ".join(words[:400])
-            if len(words) > 400:
-                summary += " ..."
-            context_parts.append(f"**{s.title}** (completed):\n{summary}")
-        rolling_context = "\n\n".join(context_parts)
-
-    rolling_block = (
-        f"## PREVIOUS SECTIONS (for narrative continuity)\n{rolling_context}"
-        if rolling_context
-        else "## PREVIOUS SECTIONS\n(This is the first batch — no prior sections.)"
-    )
-
-    sources_text = (
-        "\n".join(f"[{i}] {url}" for i, url in enumerate(source_urls, start=1))
-        if source_urls
-        else "(no external sources)"
-    )
-    word_target = len(sections) * 800
-    feedback_guidance = _load_fast_feedback_guidance()
-    feedback_block = (
-        f"=== FAST FEEDBACK GUIDANCE (from prior evals) ===\n{feedback_guidance}\n"
-        if feedback_guidance
-        else ""
-    )
-    return f"""**Company:** {company_name}
-**Website:** {website or "N/A"}
-**Date:** {current_date}
-**Batch:** {batch_number + 1} of {total_batches}
-
-You are writing batch {batch_number + 1} of {total_batches} for a Strategic Company Overview.
-This batch contains {len(sections)} sections. Write each section under its own ## heading.
-
-{rolling_block}
-
-=== ANALYSIS WORKBOOK ===
-{analysis_workbook}
-
-=== RAW DATA (for evidence and citations) ===
-{raw_corpus_subset}
-
-=== EXTERNAL SOURCES ===
-{external_sources}
-
-{feedback_block}
-
-SOURCES CONSULTED:
-{sources_text}
-
----
-
-Write the following sections. Each section MUST start with a ## heading matching the section name exactly.
-
-{section_block}
-
-REQUIREMENTS:
-- Write at least {word_target:,} words total across all sections in this batch
-- Use specific facts, numbers, examples, and strategic comparisons — cite sources with [cite: N]
-- Be analytical and hypothesis-driven, not just descriptive
-- Label claims with confidence levels (Confirmed/Reported/Estimated/Hypothesis)
-- If direct evidence is limited, still write a deep section by anchoring on observed facts,
-  extending with defensible inference, and making the strategic implication explicit
-- Build on the previous sections' narrative (see rolling context above)
-- For framework sections (SWOT, Porter's, Value Chain): organize insights from
-  earlier sections, don't introduce wholly new observations
-- Include tables where instructed (financials, competitors, timelines)
-- Each section should have substantive depth — multiple paragraphs with evidence
-- If a numeric claim cannot be supported by a cited source, replace it with
-  "Not publicly disclosed", a bounded qualitative range, or a clearly labeled low-confidence directional statement
-- Do not invent market sizes, CAGR, revenue ranges, headcount ranges, or shares
-  unless directly grounded in one or more cited sources or a transparent comparative heuristic
-- End each section with a short "What to validate:" line containing one concrete
-  discovery question or data point to confirm in client interviews
-- ZERO REPETITION: Before writing a section, review the rolling context above.
-  If an insight, data point, or hypothesis already appeared in a prior section,
-  do NOT restate it. Reference the earlier section instead ("as noted in the
-  Executive Summary...") or build on it with new evidence.
-- AI/TECHNOLOGY INTEGRATION: When relevant, explicitly connect AI or technology
-  use cases to the company's specific business challenges. Don't just mention
-  "AI could help" — specify which AI capability (NLP, computer vision, predictive
-  analytics, etc.) maps to which concrete business problem identified in this report.
-
-CONSULTING RIGOR (critical):
-- Do NOT paraphrase the company's marketing. When you cite their claims, immediately
-  stress-test them against external evidence or flag what's unverifiable.
-- For each major hypothesis or insight, include "What to validate": a specific question
-  or data point a consultant should probe in discovery.
-- Be CONSERVATIVE on financial estimates. If you're inferring revenue from employee
-  count, say "highly uncertain" and use wide ranges. Never state inferences as fact.
-- Frame "why now" for the company — what transition or inflection point makes this
-  moment interesting? Platform shifts, PE investment, leadership changes, etc.
-- Think like a buyer, not a narrator. Where does this company win deals? Where does
-  it lose? What would a competitor say about them?
-- When direct evidence is sparse, go deeper on likely economics, buyer behavior,
-  operating constraints, strategic tradeoffs, scenario paths, and the decisions leadership faces.
-- When direct evidence is sparse, go deeper on likely economics, buyer behavior, operating
-  constraints, strategic tradeoffs, scenario paths, and the decisions leadership likely faces.
-
-CITATION FORMAT (strict):
-- The SOURCES CONSULTED block above is a numbered citation key: [N] URL
-- Inline claims must reference citations as [cite: N], where N matches the
-  number assigned to that URL in the SOURCES CONSULTED block
-- Reuse the same N every time you cite the same URL
-- Do NOT emit [Source: URL] inline; use [cite: N] only
-- Do NOT invent citation numbers — only cite N values present in the key above
-
-OUTPUT CONTRACT (strict):
-- Preferred format: emit each section inside a lightweight XML envelope:
-  <section><title>Exact Section Name</title><body>Section body here</body></section>
-- If you do not use the XML envelope, start each section with exactly one ## heading matching the requested section name
-- Do not add a ## Sources, ## References, or ## Citations subsection inside section output
-- Include exactly one What to validate: line per section, and make it the final line of that section
-- Do not include any preamble or commentary outside the requested section bodies
-"""
-
-
-# --- Section-level fast-mode helpers (individual section writing) ---
-
-_HIGH_DEPTH_SECTION_IDS = frozenset(
-    {
-        "executive_summary",
-        "competitive_landscape",
-        "company_history",
-        "engagement_opportunities",
-    }
-)
-
-
-def _get_section_word_target(section: "SectionConfig") -> int:
-    """Return adaptive word target for a single section.
-
-    - Sections with depth mentioning 'pages'/'comprehensive', or IDs in
-      ``_HIGH_DEPTH_SECTION_IDS`` → 1,200 words
-    - Framework sections (position == 'framework') → 800 words
-    - Everything else → 800 words
-    """
-    depth_lower = (section.depth or "").lower()
-    if (
-        section.id in _HIGH_DEPTH_SECTION_IDS
-        or "pages" in depth_lower
-        or "comprehensive" in depth_lower
-    ):
-        return 1_200
-    if section.position == "framework":
-        return 800
-    return 800
-
-
-def _get_section_max_tokens(section: "SectionConfig") -> int:
-    """Return max_tokens for a single-section Grok call."""
-    return 6_000 if _get_section_word_target(section) >= 1_000 else 4_000
-
-
-def _build_fast_section_prompt(
-    company_name: str,
-    website: str | None,
-    analysis_workbook: str,
-    raw_corpus_subset: str,
-    external_sources: str,
-    source_urls: list[str],
-    section: "SectionConfig",
-    written_sections: list["GeneratedSection"],
-    section_index: int,
-    all_section_names: list[str],
-    reasoning_mode: str = "standard",
-) -> str:
-    """Build prompt for writing a single report section.
-
-    Similar to ``_build_fast_batch_prompt`` but tailored for one section at
-    a time with table-of-contents awareness and rolling context.
-    """
-    current_date = datetime.now().strftime("%B %d, %Y")
-    word_target = _get_section_word_target(section)
-
-    # Section instructions
-    covers_text = "\n".join(f"      - {item}" for item in section.covers)
-    depth_text = section.depth.strip() if section.depth else "Thorough analysis"
-    position_label = section.position or "middle"
-    section_block = (
-        f"### {section.name}\n"
-        f"**Purpose:** {section.purpose}\n"
-        f"**Position:** {position_label}\n"
-        f"**Must cover:**\n{covers_text}\n"
-        f"**Depth:** {depth_text}"
-    )
-
-    # Table of contents with [DONE]/[NOW]/[TODO] markers
-    toc_parts: list[str] = []
-    for idx, name in enumerate(all_section_names):
-        if idx < section_index:
-            toc_parts.append(f"  [DONE] {name}")
-        elif idx == section_index:
-            toc_parts.append(f"  [NOW]  {name}")
-        else:
-            toc_parts.append(f"  [TODO] {name}")
-    toc_block = "## REPORT TABLE OF CONTENTS\n" + "\n".join(toc_parts)
-
-    # Rolling context: framework/exec-summary sections get full prior content for synthesis;
-    # regular sections get 300-word summaries of last 5 completed sections
-    rolling_context = ""
-    if written_sections:
-        if section.position == "framework" or section.id == "executive_summary":
-            # Framework sections and executive summary need full prior content
-            # to synthesise insights from earlier analytical sections
-            context_parts = [f"**{s.title}** (completed):\n{s.content}" for s in written_sections]
-        else:
-            recent = written_sections[-5:]
-            context_parts = []
-            for s in recent:
-                words = s.content.split()
-                summary = " ".join(words[:300])
-                if len(words) > 300:
-                    summary += " ..."
-                context_parts.append(f"**{s.title}** (completed):\n{summary}")
-        rolling_context = "\n\n".join(context_parts)
-
-    rolling_block = (
-        f"## PREVIOUS SECTIONS (for narrative continuity)\n{rolling_context}"
-        if rolling_context
-        else "## PREVIOUS SECTIONS\n(This is the first section — no prior sections.)"
-    )
-
-    sources_text = (
-        "\n".join(f"[{i}] {url}" for i, url in enumerate(source_urls, start=1))
-        if source_urls
-        else "(no external sources)"
-    )
-    feedback_guidance = _load_fast_feedback_guidance()
-    feedback_block = (
-        f"=== FAST FEEDBACK GUIDANCE (from prior evals) ===\n{feedback_guidance}\n"
-        if feedback_guidance
-        else ""
-    )
-
-    reasoning_guidance = (
-        "CONSTRAINED-EVIDENCE MODE: Direct company-specific evidence for this section is limited. "
-        "Do NOT collapse into a thin fact check. Use the website, news, industry structure, competitor "
-        "analogs, and operating logic to build a deep strategic section. Separate what is observed, what "
-        "is inferred, what is hypothesis, and what the strategic implication is."
-        if reasoning_mode == "constrained_evidence"
-        else "STANDARD-EVIDENCE MODE: Use the strongest available mix of direct evidence, external research, "
-        "and strategic inference."
-    )
-
-    return f"""**Company:** {company_name}
-**Website:** {website or "N/A"}
-**Date:** {current_date}
-**Section:** {section_index + 1} of {len(all_section_names)} — {section.name}
-
-{toc_block}
-
-You are writing ONE section of a Strategic Company Overview.
-Write this section under a single ## heading matching the section name exactly.
-
-{rolling_block}
-
-=== ANALYSIS WORKBOOK ===
-{analysis_workbook}
-
-=== RAW DATA (for evidence and citations) ===
-{raw_corpus_subset}
-
-=== EXTERNAL SOURCES ===
-{external_sources}
-
-{feedback_block}
-
-REASONING MODE:
-{reasoning_guidance}
-
-SOURCES CONSULTED:
-{sources_text}
-
----
-
-Write the following section. It MUST start with a ## heading matching the section name exactly.
-
-{section_block}
-
-REQUIREMENTS:
-- Write at least {word_target:,} words for this section
-- Use specific facts, numbers, examples, and strategic comparisons — cite sources with [cite: N]
-- Be analytical and hypothesis-driven, not just descriptive
-- Label claims with confidence levels (Confirmed/Reported/Estimated/Hypothesis)
-- If direct evidence is limited, still write a deep section by anchoring on observed facts,
-  extending with defensible inference, and making the strategic implication explicit
-- Build on the previous sections' narrative (see rolling context above)
-- For framework sections (SWOT, Porter's, Value Chain): organize insights from
-  earlier sections, don't introduce wholly new observations
-- Include tables where instructed (financials, competitors, timelines)
-- This section should have substantive depth — multiple paragraphs with evidence
-- If a numeric claim cannot be supported by a cited source, replace it with
-  "Not publicly disclosed", a bounded qualitative range, or a clearly labeled low-confidence directional statement
-- Do not invent market sizes, CAGR, revenue ranges, headcount ranges, or shares
-  unless directly grounded in one or more cited sources or a transparent comparative heuristic
-- End the section with a short "What to validate:" line containing one concrete
-  discovery question or data point to confirm in client interviews
-- ZERO REPETITION: Before writing, review the rolling context and TOC above.
-  If an insight, data point, or hypothesis already appeared in a prior section,
-  do NOT restate it. Reference the earlier section instead ("as noted in the
-  Executive Summary...") or build on it with new evidence.
-- AI/TECHNOLOGY INTEGRATION: When relevant, explicitly connect AI or technology
-  use cases to the company's specific business challenges. Don't just mention
-  "AI could help" — specify which AI capability maps to which concrete problem.
-- CITATION HYGIENE: Keep citations compact. Prefer paragraph-end citation clusters over
-  interrupting every sentence, and let the final Sources appendix carry the dense reference load.
-
-CONSULTING RIGOR (critical):
-- Do NOT paraphrase the company's marketing. When you cite their claims, immediately
-  stress-test them against external evidence or flag what's unverifiable.
-- For each major hypothesis or insight, include "What to validate": a specific question
-  or data point a consultant should probe in discovery.
-- Be CONSERVATIVE on financial estimates. If you're inferring revenue from employee
-  count, say "highly uncertain" and use wide ranges. Never state inferences as fact.
-- Frame "why now" for the company — what transition or inflection point makes this
-  moment interesting? Platform shifts, PE investment, leadership changes, etc.
-- Think like a buyer, not a narrator. Where does this company win deals? Where does
-  it lose? What would a competitor say about them?
-
-CITATION FORMAT (strict):
-- The SOURCES CONSULTED block above is a numbered citation key: [N] URL
-- Inline claims must reference citations as [cite: N], where N matches the
-  number assigned to that URL in the SOURCES CONSULTED block
-- Reuse the same N every time you cite the same URL
-- Do NOT emit [Source: URL] inline; use [cite: N] only
-- Do NOT invent citation numbers — only cite N values present in the key above
-
-OUTPUT CONTRACT (strict):
-- Preferred format: emit each section inside a lightweight XML envelope:
-  <section><title>Exact Section Name</title><body>Section body here</body></section>
-- If you do not use the XML envelope, start each section with exactly one ## heading matching the requested section name
-- Do not add a ## Sources, ## References, or ## Citations subsection inside section output
-- Include exactly one What to validate: line per section, and make it the final line of that section
-- Do not include any preamble or commentary outside the requested section bodies
-"""
-
-
-def _normalize_generated_section_payload(
-    title: str,
-    body: str,
-    expected_title: str | None = None,
-) -> "GeneratedSection":
-    """Normalize a generated section into a stricter payload contract."""
-    canonical_title = (expected_title or title or "Section").strip().rstrip("#").strip()
-    working_body = body.strip()
-
-    # Drop a duplicated section heading if the model nested one inside the body.
-    heading_match = re.match(r"^##\s+.+?(?:\n+|$)", working_body)
-    if heading_match:
-        working_body = working_body[heading_match.end() :].lstrip()
-
-    # Drop any embedded reference appendix the model tried to include inside a section.
-    ref_match = re.search(
-        r"^##\s+(Sources|References|Citations)\s*$",
-        working_body,
-        flags=re.IGNORECASE | re.MULTILINE,
-    )
-    if ref_match:
-        working_body = working_body[: ref_match.start()].rstrip()
-
-    validation_lines: list[str] = []
-    cleaned_lines: list[str] = []
-    # Match the validate-line prefix with optional leading/trailing bold or italic
-    # emphasis and an optional colon. Catches the bare prompt-template scaffolding
-    # ("**What to validate:**") plus the bolded variants ("**What to validate:** Q?",
-    # "**What to validate: Q?**") that the writer sometimes emits.
-    validate_prefix_re = re.compile(
-        r"^\s*\**\s*What to validate\s*:?\s*\**\s*",
-        flags=re.IGNORECASE,
-    )
-    for raw_line in working_body.splitlines():
-        stripped = raw_line.strip()
-        if validate_prefix_re.match(stripped):
-            remainder = validate_prefix_re.sub("", stripped).rstrip()
-            # Strip trailing emphasis markers that wrap the question text.
-            remainder = re.sub(r"\*+\s*$", "", remainder).rstrip()
-            if remainder:
-                validation_lines.append(f"What to validate: {remainder}")
-            continue
-        cleaned_lines.append(raw_line)
-
-    cleaned_body = "\n".join(cleaned_lines).strip()
-    validation_line = (
-        validation_lines[-1]
-        if validation_lines
-        else "What to validate: Confirm this section's key claim with primary customer or operator evidence."
-    )
-    content = (cleaned_body + "\n\n" + validation_line).strip() if cleaned_body else validation_line
-    citation_numbers: list[int] = []
-    for raw_group in re.findall(r"\[cite:\s*([0-9,\s]+)\]", content, re.IGNORECASE):
-        for raw_num in raw_group.split(","):
-            raw_num = raw_num.strip()
-            if raw_num.isdigit():
-                num = int(raw_num)
-                if num not in citation_numbers:
-                    citation_numbers.append(num)
-
-    from primr.output.final_artifact import GeneratedSection
-
-    return GeneratedSection(
-        title=canonical_title,
-        content=content,
-        words=len(content.split()),
-        validate_line=validation_line,
-        citation_numbers=citation_numbers,
-    )
-
-
-def _parse_structured_section_envelopes(content: str) -> list[tuple[str, str]]:
-    """Parse optional XML-style section envelopes emitted by the writer stage."""
-    matches = re.findall(
-        r"<section>\s*<title>(.*?)</title>\s*<body>(.*?)</body>\s*</section>",
-        content,
-        flags=re.IGNORECASE | re.DOTALL,
-    )
-    parsed: list[tuple[str, str]] = []
-    for title, body in matches:
-        clean_title = re.sub(r"\s+", " ", title).strip()
-        clean_body = body.strip()
-        if clean_title:
-            parsed.append((clean_title, clean_body))
-    return parsed
-
-
-_SECTION_ENVELOPE_RE = re.compile(
-    r"<section>\s*<title>(.*?)</title>\s*<body>(.*?)</body>\s*</section>",
-    re.IGNORECASE | re.DOTALL,
-)
-_SECTION_HEADING_RE = re.compile(r"^##\s+(.+?)\s*$", re.MULTILINE)
-
-
-def _extract_generated_section_blocks(content: str) -> tuple[str, list[tuple[str, str]]]:
-    """Extract generated sections in source order from XML envelopes and/or markdown headings."""
-    envelope_matches = list(_SECTION_ENVELOPE_RE.finditer(content))
-    envelope_spans = [(match.start(), match.end()) for match in envelope_matches]
-
-    def inside_envelope(position: int) -> bool:
-        return any(start <= position < end for start, end in envelope_spans)
-
-    heading_matches = [
-        match
-        for match in _SECTION_HEADING_RE.finditer(content)
-        if not inside_envelope(match.start())
-    ]
-
-    block_starts = sorted(
-        [match.start() for match in envelope_matches] + [match.start() for match in heading_matches]
-    )
-    parsed_blocks: list[tuple[int, str, str]] = []
-
-    for match in envelope_matches:
-        title = re.sub(r"\s+", " ", match.group(1)).strip()
-        body = match.group(2).strip()
-        if title:
-            parsed_blocks.append((match.start(), title, body))
-
-    for match in heading_matches:
-        next_start = next((start for start in block_starts if start > match.start()), len(content))
-        title = match.group(1).strip().rstrip("#").strip()
-        body = content[match.end() : next_start].strip()
-        if title:
-            parsed_blocks.append((match.start(), title, body))
-
-    parsed_blocks.sort(key=lambda item: item[0])
-    preamble_end = parsed_blocks[0][0] if parsed_blocks else 0
-    preamble = content[:preamble_end].strip()
-    ordered_blocks = [(title, body) for _, title, body in parsed_blocks]
-    return preamble, ordered_blocks
-
-
-def _parse_single_section(
-    content: str,
-    expected_section: "SectionConfig",
-) -> "GeneratedSection":
-    """Parse Grok's single-section response.
-
-    Expects one ``## `` heading or an optional ``<section>`` envelope.
-    Falls back to using the expected section name if no heading found.
-    """
-    preamble, blocks = _extract_generated_section_blocks(content)
-    if blocks:
-        title, body = blocks[0]
-        if preamble:
-            body = f"{preamble}\n\n{body}".strip()
-        return _normalize_generated_section_payload(title, body, expected_section.name)
-
-    return _normalize_generated_section_payload(
-        expected_section.name,
-        content.strip(),
-        expected_section.name,
-    )
-
-
-def _determine_section_reasoning_mode(section: "SectionConfig", analysis_workbook: str) -> str:
-    """Use constrained-evidence reasoning when direct company signal is thin."""
-    evidence_keywords = {
-        "financial_profile": ["revenue", "profit", "margin", "funding", "valuation", "earnings"],
-        "company_history": ["founded", "history", "acquisition", "pivot", "milestone"],
-        "industry_outlook": ["industry trend", "regulation", "outlook", "forecast", "disruption"],
-    }
-    keywords = evidence_keywords.get(section.id)
-    if not keywords:
-        return "standard"
-    workbook_lower = analysis_workbook.lower() if analysis_workbook else ""
-    hits = sum(1 for kw in keywords if kw in workbook_lower)
-    return "constrained_evidence" if hits == 0 else "standard"
-
-
 def _write_section_with_retry(
     section: "SectionConfig",
     section_index: int,
@@ -1803,7 +1109,6 @@ def _write_section_with_retry(
     RecoveryExecutor which handles API failures, model fallback, and
     skip/abort.  The two layers are complementary.
     """
-    from primr.ai.grok_client import grok_llm
 
     word_target = _get_section_word_target(section)
 
@@ -1822,10 +1127,16 @@ def _write_section_with_retry(
     )
 
     writing_model = model or _default_writing_model()
+    # v1.26.0: route section writes through the circuit breaker so a quota
+    # event on the primary writing model fails over to the next provider
+    # in UTILITY_FALLBACK_CHAIN instead of killing the whole section.
+    from primr.pipeline.llm_failover import LLMRole, call_with_failover
+
     try:
-        section_content = grok_llm(
+        section_content = call_with_failover(
+            LLMRole.WRITING,
             prompt,
-            model=writing_model,
+            preferred_model=writing_model,
             max_tokens=_get_section_max_tokens(section),
             temperature=0.6,
             system_prompt=report_system,
@@ -1858,9 +1169,10 @@ def _write_section_with_retry(
             f"inference and strategic implications rather than staying thin.\n\n" + prompt
         )
         try:
-            retry_content = grok_llm(
+            retry_content = call_with_failover(
+                LLMRole.WRITING,
                 retry_prompt,
-                model=writing_model,
+                preferred_model=writing_model,
                 max_tokens=_get_section_max_tokens(section),
                 temperature=0.6,
                 system_prompt=report_system,
@@ -1986,610 +1298,6 @@ Return the full markdown report. No preamble.
         return report_content
 
 
-def _clean_fast_report_output(report_content: str) -> str:
-    """
-    Final cleanup of fast-mode report artifacts before citation normalization.
-
-    Removes:
-    - Standalone (Reported)/(Estimated)/(Confirmed) confidence labels at section
-      boundaries (inline labels within prose are preserved)
-    - Grok model disclaimer boilerplate
-    - Informal [cite: name] tags that reference internal labels (not URLs)
-    - Excess blank lines
-    """
-    if not report_content.strip():
-        return report_content
-
-    # Rewrite noisy inline citation patterns into cleaner, auditable forms.
-    report_content = _rewrite_inline_confidence_citations(report_content)
-    report_content = _rewrite_cite_from_url_tags(report_content)
-
-    # 1. Strip Grok disclaimer (appears at end of report or AI strategy)
-    report_content = re.sub(
-        r"\n*_?Disclaimer:\s*Grok is not a financial advi[sc]er[^\n]*\n?",
-        "\n",
-        report_content,
-        flags=re.IGNORECASE,
-    )
-
-    # 2. Strip standalone confidence labels at section boundaries.
-    #    These appear as "(Reported)" on their own line, typically between
-    #    a "What to validate" line and the next section heading or EOF.
-    report_content = re.sub(
-        r"\n\s*\((?:Reported|Estimated|Confirmed|Hypothesis)\)\s*\n(?=\s*\n|$)",
-        "\n",
-        report_content,
-    )
-
-    # 3. Strip informal [cite: name] tags (non-numeric, non-URL references).
-    #    These are internal labels like [cite: workbook], [cite: bbb] that
-    #    can't be resolved to URLs. Inline confidence labels in prose are the
-    #    proper way to indicate source type.
-    #    Matches: [cite: workbook], [cite: website; cite: bbb], [cite: enrollment]
-    #    Preserves: [cite: 1], [cite: 2, 3], [Source: URL]
-    def _strip_informal_cites(match: re.Match[str]) -> str:
-        return _sanitize_numeric_cite_bracket(match.group(1))
-
-    report_content = re.sub(
-        r"\[([^\]]*cites?:\s*[^\]]+)\]",
-        _strip_informal_cites,
-        report_content,
-        flags=re.IGNORECASE,
-    )
-
-    # Also strip [cross-ref ...] tags — internal analysis references.
-    # The model emits both colon-separated ("[cross-ref: Section]") and
-    # space-separated ("[cross-ref Section]") variants — match both, plus
-    # bare "[cross-ref]". The inner scan is length-bounded (was [^\]]*)
-    # so an unclosed "[cross-ref " in pathological input can't drive each
-    # match to scan the rest of the report — that turned report cleanup
-    # quadratic on adversarial content.
-    report_content = re.sub(
-        r"\s*\[cross-ref(?:[\s:][^\]]{0,200})?\]",
-        "",
-        report_content,
-        flags=re.IGNORECASE,
-    )
-
-    # 4. Strip internal citation inventory/debug notes that should never ship.
-    report_content = re.sub(
-        r"\n?\[citation inventory[^\]]*\]\n?",
-        "\n",
-        report_content,
-        flags=re.IGNORECASE,
-    )
-
-    # 4b. Strip internal workbook/external-source references that are useful
-    # during generation but should not appear in shipped artifacts. One
-    # inclusive [workbook ...] pattern catches the bare marker plus the
-    # ":", " ", and "§" separated forms ("[Workbook: ...]", "[workbook section
-    # 3]", "[Workbook §7]", "[workbook ARDA/prior sections]", "[workbook]").
-    # Inner scan bounded to 200 chars to prevent ReDoS on repeated unclosed
-    # "[workbook " markers — see comment on the cross-ref strip above.
-    report_content = re.sub(
-        r"\s*\[workbook(?:[\s:§][^\]]{0,200})?\]",
-        "",
-        report_content,
-        flags=re.IGNORECASE,
-    )
-    report_content = re.sub(r"\[Analysis Workbook[^\]]*\]", "", report_content, flags=re.IGNORECASE)
-    report_content = re.sub(r"\[Analysis:[^\]]*\]", "", report_content, flags=re.IGNORECASE)
-    report_content = re.sub(r"\[External Sources\]", "", report_content, flags=re.IGNORECASE)
-    report_content = re.sub(
-        r"vendor-research-[\w.-]+\.txt", "", report_content, flags=re.IGNORECASE
-    )
-    report_content = re.sub(r"\bInternal ROI Model\b", "", report_content, flags=re.IGNORECASE)
-    report_content = re.sub(r"\bInternal Analysis\b", "", report_content, flags=re.IGNORECASE)
-    report_content = re.sub(r"\bAnalysis Workbook\b", "", report_content, flags=re.IGNORECASE)
-
-    # 5. Strip LLM meta-annotations like [Word count: 1028]
-    report_content = re.sub(r"\[Word count:\s*[\d,]+\]", "", report_content, flags=re.IGNORECASE)
-
-    # 6. Clean up double spaces left by stripped citations/tags
-    report_content = re.sub(r"  +", " ", report_content)
-
-    # 7. Clean up excess blank lines (3+ newlines -> 2)
-    report_content = re.sub(r"\n{3,}", "\n\n", report_content)
-
-    return report_content.strip() + "\n"
-
-
-def _rewrite_inline_confidence_citations(content: str) -> str:
-    """Convert nested confidence/source annotations into cleaner prose."""
-    pattern = re.compile(
-        r"\[(Confirmed|Reported|Estimated|Hypothesis):\s*([^\[\]]*?)\s*"
-        r"\[cite:\s*\d+\s+from\s+(https?://[^\]\s]+)\]\s*\]",
-        re.IGNORECASE,
-    )
-
-    def _replace(match: re.Match[str]) -> str:
-        label = match.group(1).capitalize()
-        detail = re.sub(r"\s+", " ", match.group(2)).strip(" ;,")
-        url = match.group(3).strip()
-        if detail:
-            return f"({label}: {detail}) [Source: {url}]"
-        return f"({label}) [Source: {url}]"
-
-    return pattern.sub(_replace, content)
-
-
-def _rewrite_cite_from_url_tags(content: str) -> str:
-    """Convert malformed `[cite: N from URL]` tags into source tags for normalization."""
-    return re.sub(
-        r"\[cite:\s*\d+\s+from\s+(https?://[^\]\s]+)\]",
-        lambda m: f"[Source: {m.group(1).strip()}]",
-        content,
-        flags=re.IGNORECASE,
-    )
-
-
-def _sanitize_numeric_cite_bracket(inner: str) -> str:
-    """Keep only numeric cite ids from a mixed citation bracket."""
-    nums: list[str] = []
-    for cite_match in re.finditer(r"cites?:\s*([^;\]]+)", inner, re.IGNORECASE):
-        for raw_num in re.findall(r"\d+", cite_match.group(1)):
-            if raw_num not in nums:
-                nums.append(raw_num)
-    if not nums:
-        return ""
-    return "[cite: " + ", ".join(nums) + "]"
-
-
-_INTERNAL_REFERENCE_TERMS = (
-    "analysis context",
-    "analysis workbook",
-    "internal analysis",
-    "internal roi model",
-    "vendor-research",
-    "workbook",
-    "company report",
-    "industry baseline",
-    "market analysis",
-    "itr on website",
-    "itron website",
-    "insights.txt",
-    "workbook.md",
-)
-
-
-def _strip_internal_source_placeholders(content: str) -> str:
-    """Remove non-auditable internal source placeholders from final outputs."""
-    if not content.strip():
-        return content
-
-    confidence_bracket = re.compile(
-        r"\[(Confirmed|Reported|Estimated|Hypothesis):\s*([^\]]+)\]", re.IGNORECASE
-    )
-
-    def _drop_if_internal(match: re.Match[str]) -> str:
-        source_text = match.group(2).lower()
-        if any(term in source_text for term in _INTERNAL_REFERENCE_TERMS):
-            return ""
-        return match.group(0)
-
-    cleaned = confidence_bracket.sub(_drop_if_internal, content)
-    cleaned = re.sub(
-        r"\[(?:Reported|Confirmed|Estimated|Hypothesis):\s*\]", "", cleaned, flags=re.IGNORECASE
-    )
-    cleaned = re.sub(r"\[citation inventory[^\]]*\]", "", cleaned, flags=re.IGNORECASE)
-    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
-    return cleaned
-
-
-def _strip_unresolved_section_cross_references(content: str) -> str:
-    """Remove unresolved internal section references that should not ship."""
-    if not content.strip():
-        return content
-
-    cleaned = re.sub(
-        r"\[\s*(?:see|cross-?ref|xref)\s+##\s+[^\]]+\]",
-        "",
-        content,
-        flags=re.IGNORECASE,
-    )
-    cleaned = re.sub(r"\s{2,}", " ", cleaned)
-    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
-    return cleaned
-
-
-def _extract_markdown_headings(content: str) -> list[str]:
-    """Return normalized markdown headings in document order."""
-    return [heading.strip() for heading in re.findall(r"^##\s+(.+?)\s*$", content, re.MULTILINE)]
-
-
-def _preserves_report_structure(original: str, candidate: str) -> bool:
-    """Require same ordered headings, allowing only an appended sources section."""
-    original_headings = _extract_markdown_headings(original)
-    candidate_headings = _extract_markdown_headings(candidate)
-    if candidate_headings[: len(original_headings)] != original_headings:
-        return False
-    extra_headings = [h.strip().lower() for h in candidate_headings[len(original_headings) :]]
-    if any(h not in {"sources", "citations", "references"} for h in extra_headings):
-        return False
-
-    original_words = len(original.split())
-    candidate_words = len(candidate.split())
-    if original_words == 0:
-        return False
-    return candidate_words >= int(original_words * 0.98)
-
-
-def _strategy_money_to_millions(value: float, unit: str) -> float:
-    unit = unit.upper()
-    if unit == "B":
-        return value * 1000.0
-    if unit == "K":
-        return value / 1000.0
-    return value
-
-
-def _is_auditable_source_url(url: str) -> bool:
-    """Require a public HTTP(S) URL with a plausible hostname for source appendices."""
-    import ipaddress
-
-    try:
-        parsed = urlparse(url)
-    except Exception:
-        return False
-
-    host = (parsed.hostname or "").strip().lower()
-    if not host:
-        return False
-
-    try:
-        ipaddress.ip_address(host)
-        return True
-    except ValueError:
-        pass
-
-    if "." not in host:
-        return False
-
-    labels = host.split(".")
-    if any(not label or label.startswith("-") or label.endswith("-") for label in labels):
-        return False
-
-    host_label = re.compile(r"^[a-z0-9-]{1,63}$")
-    return all(host_label.fullmatch(label) for label in labels)
-
-
-def _normalize_strategy_source_urls(source_urls: list[str]) -> tuple[list[str], list[str]]:
-    """Return normalized auditable source URLs plus rejected raw entries."""
-    normalized_urls: list[str] = []
-    rejected_urls: list[str] = []
-    seen: set[str] = set()
-
-    for raw_url in source_urls:
-        candidate = raw_url.strip()
-        if not candidate:
-            continue
-        is_valid, normalized, _error = validate_url_for_request(candidate)
-        if not is_valid or not _is_auditable_source_url(normalized):
-            rejected_urls.append(candidate)
-            continue
-        if normalized not in seen:
-            seen.add(normalized)
-            normalized_urls.append(normalized)
-
-    return normalized_urls, rejected_urls
-
-
-def _extract_strategy_citation_definitions(
-    strategy_content: str,
-) -> tuple[set[int], dict[int, str], list[str]]:
-    """Parse strategy citation definitions and keep only valid auditable URLs."""
-    cited_numbers = {
-        int(n) for n in re.findall(r"\[cite:\s*(\d+)\]", strategy_content, re.IGNORECASE)
-    }
-    valid_defs: dict[int, str] = {}
-    invalid_defs: list[str] = []
-
-    for num_str, raw_url in re.findall(
-        r"\[cite:\s*(\d+)\]\s+([^\s]+)", strategy_content, re.IGNORECASE
-    ):
-        cite_num = int(num_str)
-        is_valid, normalized, _error = validate_url_for_request(raw_url.strip())
-        if not is_valid or not _is_auditable_source_url(normalized):
-            invalid_defs.append(raw_url.strip())
-            continue
-        valid_defs[cite_num] = normalized
-
-    return cited_numbers, valid_defs, invalid_defs
-
-
-def _compute_strategy_qa_metrics(strategy_content: str) -> dict[str, int | float | bool]:
-    """Deterministic QA checks for strategy outputs."""
-    if not strategy_content.strip():
-        return {
-            "placeholder_refs": 0,
-            "source_urls": 0,
-            "citation_defs": 0,
-            "missing_citations": 0,
-            "invalid_source_urls": 0,
-            "budget_totals_found": 0,
-            "budget_inconsistent": False,
-            "qa_gate_passed": False,
-        }
-
-    lower = strategy_content.lower()
-    placeholder_refs = sum(1 for term in _INTERNAL_REFERENCE_TERMS if term in lower)
-    placeholder_refs += len(
-        re.findall(r"\[\s*(?:see|cross-?ref|xref)\s+##\s+[^\]]+\]", strategy_content, re.IGNORECASE)
-    )
-    raw_source_urls = len(
-        re.findall(r"\[Source:\s*https?://[^\]\s]+", strategy_content, re.IGNORECASE)
-    )
-    cited_numbers, valid_defs, invalid_defs = _extract_strategy_citation_definitions(
-        strategy_content
-    )
-    missing_citations = sorted(cited_numbers - set(valid_defs))
-    source_urls = max(raw_source_urls, len(valid_defs))
-
-    totals: list[float] = []
-    explicit_totals: list[float] = []
-    year_one_totals: list[float] = []
-    for m in re.finditer(
-        r"Total\s*:?\s*\$([0-9]+(?:\.[0-9]+)?)\s*([KMB])", strategy_content, re.IGNORECASE
-    ):
-        total_value = _strategy_money_to_millions(float(m.group(1)), m.group(2))
-        totals.append(total_value)
-        explicit_totals.append(total_value)
-
-    for m in re.finditer(
-        r"Year 1 investment\s*\(?[^\n)]*\)?\s*:?\s*\$([0-9]+(?:\.[0-9]+)?)(?:\s*-\s*([0-9]+(?:\.[0-9]+)?))?\s*([KMB])",
-        strategy_content,
-        re.IGNORECASE,
-    ):
-        low = _strategy_money_to_millions(float(m.group(1)), m.group(3))
-        high = _strategy_money_to_millions(float(m.group(2)), m.group(3)) if m.group(2) else low
-        midpoint = (low + high) / 2.0
-        totals.append(midpoint)
-        year_one_totals.append(midpoint)
-
-    budget_inconsistent = False
-    comparison_pool = explicit_totals + year_one_totals
-    if len(explicit_totals) >= 2 or (explicit_totals and year_one_totals):
-        min_total = min(comparison_pool)
-        max_total = max(comparison_pool)
-        if min_total > 0 and ((max_total - min_total) / min_total) > 0.20:
-            budget_inconsistent = True
-
-    qa_passed = bool(
-        placeholder_refs == 0
-        and source_urls >= 2
-        and len(missing_citations) == 0
-        and len(invalid_defs) == 0
-        and not budget_inconsistent
-    )
-    return {
-        "placeholder_refs": placeholder_refs,
-        "source_urls": source_urls,
-        "citation_defs": len(valid_defs),
-        "missing_citations": len(missing_citations),
-        "invalid_source_urls": len(invalid_defs),
-        "budget_totals_found": len(totals),
-        "budget_inconsistent": budget_inconsistent,
-        "qa_gate_passed": qa_passed,
-    }
-
-
-def _clean_strategy_output(strategy_content: str) -> str:
-    """Final deterministic cleanup for strategy artifacts."""
-    if not strategy_content.strip():
-        return strategy_content
-    cleaned = _clean_fast_report_output(strategy_content)
-    cleaned = _normalize_fast_citations(cleaned)
-    cleaned = _strip_internal_source_placeholders(cleaned)
-    cleaned = _strip_unresolved_section_cross_references(cleaned)
-    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
-    return cleaned.strip() + "\n"
-
-
-def _normalize_fast_citations(report_content: str, source_urls: list[str] | None = None) -> str:
-    """
-    Normalize fast-mode citations to the deterministic analyzer format.
-
-    Three citation conventions are accepted, in priority order:
-
-    1. Inline ``[Source: URL]`` tags — collected and renumbered to ``[cite: N]``.
-    2. ``[cite: N] URL`` definitions — preserved as-is.
-    3. Bare ``[cite: N]`` references with no inline mapping — when ``source_urls``
-       is supplied, N is treated as a 1-indexed position into that list and the
-       URLs become the canonical citation key. This matches the section-writing
-       prompt contract that hands the writer a numbered SOURCES CONSULTED list.
-
-    If none of the above resolve, orphan ``[cite: N]`` markers are stripped to
-    avoid QA citation-integrity warnings.
-    """
-    report_content = _rewrite_cite_from_url_tags(report_content)
-    report_content = re.sub(
-        r"\[([^\]]*cites?:\s*[^\]]+)\]",
-        lambda m: _sanitize_numeric_cite_bracket(m.group(1)),
-        report_content,
-        flags=re.IGNORECASE,
-    )
-
-    # Collect existing citation definitions if present.
-    existing_cite_def = re.compile(r"\[cite:\s*(\d+)\]\s*(https?://\S+)", re.IGNORECASE)
-    num_to_url: dict[int, str] = {}
-    for m in existing_cite_def.finditer(report_content):
-        num_to_url[int(m.group(1))] = m.group(2).strip()
-
-    # Collect and number source URLs found inline.
-    # Match both [Source: https://...] and [Source: domain.com/...] (bare domains).
-    source_pattern = re.compile(r"\[Source:\s*((?:https?://)?[^\]\s]+)\s*\]", re.IGNORECASE)
-    # Also match multi-word non-URL source tags like [Source: Microsoft Azure]
-    # and strip them entirely (they're not auditable citations).
-    multiword_source_pattern = re.compile(r"\[Source:\s*[^\]]+\]", re.IGNORECASE)
-    urls_in_order: list[str] = []
-    url_to_num: dict[str, int] = {}
-    next_num = max(num_to_url.keys(), default=0) + 1
-
-    # Seed URL mappings from existing defs.
-    for num, url in sorted(num_to_url.items()):
-        url_to_num[url] = num
-        urls_in_order.append(url)
-
-    for match in source_pattern.finditer(report_content):
-        raw_url = match.group(1).strip()
-        # Normalize bare domains to https:// for consistent keying
-        url = raw_url if raw_url.startswith(("http://", "https://")) else f"https://{raw_url}"
-        if url not in url_to_num:
-            url_to_num[url] = next_num
-            next_num += 1
-            urls_in_order.append(url)
-
-    if not url_to_num and not num_to_url:
-        # No inline mapping found. If the caller supplied source_urls AND the
-        # body has bare [cite: N] refs whose N values fit that list, treat the
-        # numbered list as the citation key (this matches the prompt contract).
-        bare_cite_pattern = re.compile(r"\[cite:\s*(\d+(?:\s*,\s*\d+)*)\]", re.IGNORECASE)
-        if source_urls:
-            cited_nums: set[int] = set()
-            for m in bare_cite_pattern.finditer(report_content):
-                for n in re.findall(r"\d+", m.group(1)):
-                    cited_nums.add(int(n))
-            valid_nums = {n for n in cited_nums if 1 <= n <= len(source_urls)}
-            if valid_nums:
-                num_to_url = {n: source_urls[n - 1] for n in valid_nums}
-                for n in sorted(num_to_url):
-                    url_to_num[num_to_url[n]] = n
-                    urls_in_order.append(num_to_url[n])
-                next_num = max(num_to_url.keys()) + 1
-        if not url_to_num and not num_to_url:
-            # No mapping resolvable — strip orphan refs so QA passes cleanly.
-            bare_strip = re.compile(r"\s*\[cite:\s*\d+(?:\s*,\s*\d+)*\]", re.IGNORECASE)
-            if bare_strip.search(report_content):
-                logger.info("Stripping orphan [cite: N] refs with no backing URLs")
-                return bare_strip.sub("", report_content)
-            return report_content
-
-    def _replace_source(match: re.Match[str]) -> str:
-        raw_url = match.group(1).strip()
-        url = raw_url if raw_url.startswith(("http://", "https://")) else f"https://{raw_url}"
-        num = url_to_num.get(url)
-        if num is None:
-            nonlocal next_num
-            num = next_num
-            next_num += 1
-            url_to_num[url] = num
-            urls_in_order.append(url)
-        return f"[cite: {num}]"
-
-    normalized = source_pattern.sub(_replace_source, report_content)
-
-    # Strip leftover multi-word [Source: ...] tags that the URL-only pattern missed
-    # (e.g. [Source: Microsoft Azure], [Source: Company Website]).
-    normalized = multiword_source_pattern.sub("", normalized)
-
-    # Replace "Sources" heading if present to avoid duplicate appendices.
-    sources_heading = re.compile(
-        r"^##\s+(Sources|Citations|References)\s*$", re.IGNORECASE | re.MULTILINE
-    )
-    if sources_heading.search(normalized):
-        # Remove existing appendix section content from first sources heading onward.
-        lines = normalized.splitlines()
-        start_idx = None
-        for i, line in enumerate(lines):
-            if sources_heading.match(line.strip()):
-                start_idx = i
-                break
-        if start_idx is not None:
-            normalized = "\n".join(lines[:start_idx]).rstrip()
-
-    # Resolve body citation refs against known definitions; drop orphan refs.
-    known = dict(num_to_url)
-    for url, num in url_to_num.items():
-        known[num] = url
-
-    cite_ref = re.compile(r"\[cite:\s*([0-9,\s]+)\]", re.IGNORECASE)
-    used_old_nums: list[int] = []
-
-    def _clean_refs(match: re.Match[str]) -> str:
-        nums: list[int] = []
-        for raw in match.group(1).split(","):
-            raw = raw.strip()
-            if not raw.isdigit():
-                continue
-            n = int(raw)
-            if n in known and n not in nums:
-                nums.append(n)
-        if not nums:
-            return ""
-        for n in nums:
-            if n not in used_old_nums:
-                used_old_nums.append(n)
-        return "[cite: " + ", ".join(str(n) for n in nums) + "]"
-
-    normalized = cite_ref.sub(_clean_refs, normalized)
-
-    # Renumber used citations to contiguous sequence in first-use order.
-    remap = {old: idx + 1 for idx, old in enumerate(used_old_nums)}
-
-    def _renumber_refs(match: re.Match[str]) -> str:
-        nums: list[str] = []
-        for raw in match.group(1).split(","):
-            raw = raw.strip()
-            if not raw.isdigit():
-                continue
-            old = int(raw)
-            if old in remap:
-                new_num = str(remap[old])
-                if new_num not in nums:
-                    nums.append(new_num)
-        return f"[cite: {', '.join(nums)}]" if nums else ""
-
-    normalized = cite_ref.sub(_renumber_refs, normalized)
-
-    sources_lines = ["## Sources", ""]
-    for old in used_old_nums:
-        url = known[old]
-        sources_lines.append(f"[cite: {remap[old]}] {url}")
-
-    return normalized.rstrip() + "\n\n" + "\n".join(sources_lines) + "\n"
-
-
-def _ensure_strategy_source_inventory(
-    strategy_content: str, source_urls: list[str], min_sources: int = 2
-) -> str:
-    """Append a minimal sources inventory when strategy output lacks explicit source URLs."""
-    if not strategy_content.strip() or not source_urls:
-        return strategy_content
-
-    metrics = _compute_strategy_qa_metrics(strategy_content)
-    if metrics["source_urls"] >= min_sources:
-        return strategy_content
-
-    normalized_source_urls, _rejected_urls = _normalize_strategy_source_urls(source_urls)
-    if not normalized_source_urls:
-        return strategy_content
-
-    existing_defs = re.findall(
-        r"\[cite:\s*(\d+)\]\s*(https?://\S+)", strategy_content, re.IGNORECASE
-    )
-    existing_urls = {url.strip() for _, url in existing_defs}
-    next_num = max((int(num) for num, _ in existing_defs), default=0) + 1
-    new_lines: list[str] = []
-
-    for url in normalized_source_urls:
-        normalized = url.strip()
-        if not normalized or normalized in existing_urls:
-            continue
-        new_lines.append(f"[cite: {next_num}] {normalized}")
-        existing_urls.add(normalized)
-        next_num += 1
-        if len(new_lines) >= max(min_sources, 4):
-            break
-
-    if not new_lines:
-        return strategy_content
-
-    if re.search(r"^##\s+Sources\s*$", strategy_content, re.IGNORECASE | re.MULTILINE):
-        return strategy_content.rstrip() + "\n" + "\n".join(new_lines) + "\n"
-
-    return strategy_content.rstrip() + "\n\n## Sources\n\n" + "\n".join(new_lines) + "\n"
-
-
 def _repair_strategy_artifact_issues(
     strategy_content: str,
     company_name: str,
@@ -2695,153 +1403,6 @@ def _prepare_strategy_for_output(
         qa = _compute_strategy_qa_metrics(prepared)
 
     return prepared, qa, rejected_source_urls
-
-
-def _split_markdown_sections(content: str) -> tuple[str, list[tuple[str, str]]]:
-    """Split markdown into preamble and (heading, body) sections."""
-    lines = content.splitlines()
-    sections: list[tuple[str, str]] = []
-    preamble_lines: list[str] = []
-    current_heading: str | None = None
-    current_body: list[str] = []
-
-    for line in lines:
-        if line.startswith("## "):
-            if current_heading is None:
-                preamble = "\n".join(preamble_lines).strip()
-            else:
-                sections.append((current_heading, "\n".join(current_body).strip()))
-            current_heading = line[3:].strip()
-            current_body = []
-            continue
-        if current_heading is None:
-            preamble_lines.append(line)
-        else:
-            current_body.append(line)
-
-    if current_heading is not None:
-        sections.append((current_heading, "\n".join(current_body).strip()))
-        preamble = "\n".join(preamble_lines).strip()
-    else:
-        preamble = content.strip()
-
-    return preamble, sections
-
-
-def _enforce_fast_section_quality_guards(report_content: str) -> str:
-    """
-    Apply deterministic quality guards to fast reports.
-
-    - Ensure each section has at least one confidence label token.
-    - Ensure each non-reference section includes a "What to validate:" line.
-    """
-    preamble, sections = _split_markdown_sections(report_content)
-    if not sections:
-        return report_content
-
-    label_pattern = re.compile(r"\((Confirmed|Reported|Estimated|Hypothesis)[^)]*\)", re.IGNORECASE)
-    reference_headings = {"sources", "citations", "references"}
-    rebuilt: list[str] = [preamble] if preamble else []
-
-    for heading, body in sections:
-        lower_heading = heading.strip().lower()
-        guarded_body = body.strip()
-
-        if lower_heading not in reference_headings:
-            if not label_pattern.search(guarded_body):
-                guarded_body = (guarded_body + "\n\n(Reported)").strip()
-            if "what to validate" not in guarded_body.lower():
-                guarded_body = (
-                    guarded_body
-                    + "\n\nWhat to validate: Confirm this section's key claim with primary customer or operator evidence."
-                ).strip()
-
-        rebuilt.append(f"## {heading}\n\n{guarded_body}")
-
-    return "\n\n".join(part for part in rebuilt if part).strip() + "\n"
-
-
-def _compute_fast_report_qa_metrics(
-    report_content: str,
-    unresolved_contradictions: int = 0,
-) -> dict[str, int | float | bool]:
-    """Compute lightweight local QA metrics for fast reports.
-
-    Checks: confidence labels, citations, validation prompts, duplicate
-    sections, thin sections, and unresolved contradiction carry-through.
-    """
-    confidence_labels = len(
-        re.findall(
-            r"\((Confirmed|Reported|Estimated|Hypothesis)[^)]*\)", report_content, re.IGNORECASE
-        )
-    )
-    cited_numbers: set[int] = set()
-    for raw_group in re.findall(r"\[cite:\s*([0-9,\s]+)\]", report_content, re.IGNORECASE):
-        for raw_num in raw_group.split(","):
-            raw_num = raw_num.strip()
-            if raw_num.isdigit():
-                cited_numbers.add(int(raw_num))
-
-    sources_block = ""
-    match = re.search(r"^##\s+Sources\s*$", report_content, flags=re.IGNORECASE | re.MULTILINE)
-    if match:
-        sources_block = report_content[match.start() :]
-    defined: set[int] = set()
-    for raw_group in re.findall(r"\[cite:\s*([0-9,\s]+)\]", sources_block, re.IGNORECASE):
-        for raw_num in raw_group.split(","):
-            raw_num = raw_num.strip()
-            if raw_num.isdigit():
-                defined.add(int(raw_num))
-    missing = sorted(cited_numbers - defined)
-
-    _, sections = _split_markdown_sections(report_content)
-    reference_headings = {"sources", "citations", "references"}
-    content_sections = [h for h, _ in sections if h.strip().lower() not in reference_headings]
-    with_validate = sum(
-        1
-        for h, body in sections
-        if h.strip().lower() not in reference_headings and "what to validate:" in body.lower()
-    )
-
-    # Check for duplicate section headings
-    heading_counts: dict[str, int] = {}
-    for h, _ in sections:
-        key = h.strip().lower()
-        heading_counts[key] = heading_counts.get(key, 0) + 1
-    duplicate_sections = sum(1 for c in heading_counts.values() if c > 1)
-
-    # Check for thin sections (< 100 words)
-    thin_sections = sum(
-        1
-        for h, body in sections
-        if h.strip().lower() not in reference_headings and len(body.split()) < 100
-    )
-
-    # QA gate: stricter — also checks for duplicates and thin sections
-    qa_passed = bool(
-        confidence_labels >= 8
-        and len(cited_numbers) > 0
-        and len(defined) > 0
-        and len(missing) == 0
-        and with_validate >= max(1, len(content_sections))
-        and duplicate_sections == 0
-        and thin_sections == 0
-        and unresolved_contradictions == 0
-    )
-
-    return {
-        "word_count": len(report_content.split()),
-        "confidence_labels": confidence_labels,
-        "citations_used": len(cited_numbers),
-        "citations_defined": len(defined),
-        "missing_citations": len(missing),
-        "section_count": len(content_sections),
-        "sections_with_validate": with_validate,
-        "duplicate_sections": duplicate_sections,
-        "thin_sections": thin_sections,
-        "unresolved_contradictions": unresolved_contradictions,
-        "qa_gate_passed": qa_passed,
-    }
 
 
 def _repair_fast_report_citation_integrity(
@@ -3014,182 +1575,6 @@ Return the fully edited markdown report only.
         return report_content
 
 
-def _parse_batch_sections(
-    content: str,
-    expected_sections: list["SectionConfig"],
-) -> list["GeneratedSection"]:
-    """Parse Grok's batch response from XML envelopes and/or markdown headings."""
-    parsed: list[GeneratedSection] = []
-    preamble, blocks = _extract_generated_section_blocks(content)
-
-    for idx, (title, body) in enumerate(blocks):
-        expected_title = expected_sections[idx].name if idx < len(expected_sections) else title
-        parsed.append(_normalize_generated_section_payload(title, body, expected_title))
-
-    if not parsed and content.strip():
-        expected_title = expected_sections[0].name if expected_sections else "Section"
-        parsed.append(
-            _normalize_generated_section_payload(
-                expected_title,
-                content.strip(),
-                expected_title,
-            )
-        )
-
-    if preamble and parsed:
-        first_body = parsed[0].content
-        parsed[0] = _normalize_generated_section_payload(
-            parsed[0].title,
-            preamble + "\n\n" + first_body,
-            parsed[0].title,
-        )
-
-    return parsed
-
-
-def _assemble_fast_report(
-    company_name: str,
-    website: str | None,
-    written_sections: list["GeneratedSection"],
-) -> str:
-    """
-    Assemble individual batch sections into a final markdown report.
-    """
-    current_date = datetime.now().strftime("%B %d, %Y")
-
-    header = f"# Strategic Company Overview: {company_name}\n\n"
-    header += f"*{current_date}*"
-    if website:
-        header += f" | [{website}]({website})"
-    header += "\n\n---\n"
-
-    body_parts: list[str] = []
-    for i, section in enumerate(written_sections):
-        body_parts.append(section.to_markdown())
-        # Horizontal separator every 5 sections (matches full mode)
-        if (i + 1) % 5 == 0 and i + 1 < len(written_sections):
-            body_parts.append("---")
-
-    return header + "\n\n".join(body_parts)
-
-
-def _build_fast_analysis_prompt(
-    company_name: str,
-    website: str | None,
-    raw_corpus: str,
-    external_sources: str,
-) -> str:
-    """
-    Build the Phase 2 analysis workbook prompt for Grok fast mode.
-
-    Sends raw scraped data + external sources to Grok and asks for a
-    structured analysis workbook (facts, hypotheses, tensions — not prose).
-    """
-    current_date = datetime.now().strftime("%B %d, %Y")
-
-    return f"""**Company:** {company_name}
-**Website:** {website or "N/A"}
-**Date:** {current_date}
-
-Below is raw data scraped from the company's website and external sources.
-Analyze it and produce a Structured Analysis Workbook.
-
-=== RAW WEBSITE DATA ===
-{raw_corpus}
-
-=== EXTERNAL SOURCES ===
-{external_sources}
-
----
-
-Produce a **Structured Analysis Workbook** with the following sections.
-Use bullet points, tables, and short paragraphs. This is working notes, not prose.
-
-CRITICAL: You are doing PRE-ENGAGEMENT ANALYSIS for a consulting firm, not summarizing
-the company's marketing. Separate what {company_name} CLAIMS from what external evidence
-SUPPORTS. Be conservative on financial estimates — use wide ranges and note confidence.
-
-1. **Company Basics**
-   - Official name, headquarters, founding date, employee count
-   - Ownership structure (public/private, investors)
-   - Label each fact: (Confirmed), (Reported), (Estimated), or (Hypothesis)
-
-2. **Products & Services Catalog**
-   - Every product/service found, organized by category
-   - Pricing models, contract structures if visible
-   - Recent launches or pivots (last 2-3 years)
-   - Distinguish what's live/adopted vs. what's announced/marketing
-
-3. **Customer Segments & Market Positioning**
-   - Primary segments with evidence
-   - Geographic distribution
-   - Enterprise vs SMB vs consumer mix
-   - Go-to-market approach
-   - Flag any logo references that lack depth (vague "powered by" vs. detailed case)
-
-4. **Competitive Landscape**
-   - At least 5 competitors with: name, estimated size, key differentiator
-   - Where {company_name} appears to win and lose (from external evidence, not their claims)
-   - Emerging disruptors
-   - Include competitors the company DOESN'T mention but should
-
-5. **Financial Profile**
-   - Revenue (actual or estimated with WIDE ranges and LOW confidence if inferred)
-   - Growth rate and trajectory
-   - Profitability indicators
-   - Funding history / capital structure
-   - Include a summary table
-   - AVOID aggressive inferences — if data is thin, say so explicitly
-
-6. **Leadership Profiles**
-   - C-suite with backgrounds, tenure, previous roles
-   - Board composition
-   - Recent departures or hires
-
-7. **Industry Dynamics**
-   - Industry size, growth rate
-   - Key trends and disruption factors
-   - Regulatory environment
-
-8. **Strategic Hypotheses** (3-5)
-   For each:
-   - Hypothesis statement
-   - Supporting evidence (with sources)
-   - Counter-evidence or alternative explanation
-   - Confidence level
-   - What question would you ask in discovery to TEST this?
-
-9. **Strategic Tensions** (3-5)
-   For each:
-   - The tension (a tradeoff they must manage, e.g., "Scale vs Customization")
-   - Evidence from the data
-   - How they appear to be managing it currently
-
-10. **Narrative Gaps** (3-5)
-    For each:
-    - What they claim (with quote/source from THEIR marketing)
-    - Contradicting or complicating EXTERNAL signals
-    - Question to explore
-    These should be genuine stress-tests of their story, not minor wording quibbles.
-
-11. **Areas of Potential Fragility** (3-4)
-    Focus on systemic risks: single points of failure, concentration risks,
-    dependencies that could break under stress.
-
-12. **Patterns Worth Exploring** (3-5)
-    Novel observations: surprising correlations, timing signals, behavioral
-    patterns that don't fit the narrative.
-
-13. **Discovery Questions** (6-8)
-    For each:
-    - The question
-    - Why we're asking (what evidence prompted it)
-    - What we hope to learn
-    These should be questions a CONSULTING PARTNER would ask in a first meeting —
-    sharp, grounded in evidence, testing specific hypotheses.
-"""
-
-
 def _assess_source_relevance(
     company_name: str,
     external_data: dict[str, str],
@@ -3297,7 +1682,6 @@ def _fast_gap_analysis(
     Returns:
         (list of search queries, gap analysis text for logging)
     """
-    from primr.ai.grok_client import grok_llm
 
     # Build corpus summary — first 500 chars of each page
     corpus_lines = raw_corpus.split("\n\n")
@@ -3346,10 +1730,16 @@ technology direction, recent news, risk factors.
         "targeted web searches to fill those gaps. Be specific and actionable."
     )
 
+    # Gap analysis is a REASONING-class call: a quota event here would
+    # silently abort gap-driven external search. Route through the
+    # circuit breaker so we fall through ANALYSIS_FALLBACK_CHAIN.
+    from primr.pipeline.llm_failover import LLMRole, call_with_failover
+
     try:
-        response = grok_llm(
+        response = call_with_failover(
+            LLMRole.REASONING,
             prompt,
-            model=model,
+            preferred_model=model,
             max_tokens=5_000,
             temperature=0.4,
             system_prompt=system_prompt,
@@ -7443,158 +5833,6 @@ def perform_deep_research(
                 logger.debug(f"Post-run resource cleanup failed (non-fatal): {cleanup_err}")
 
 
-_FORBIDDEN_OUTPUT_PATTERNS: tuple[tuple[str, str], ...] = (
-    ("raw_source_tag", r"\[Source:\s*(?:https?://)?[^\]\s]+"),
-    ("section_cross_ref", r"\[\s*(?:see|cross-?ref|xref)\s+##\s+[^\]]+\]"),
-    ("workbook_ref", r"\[Workbook:[^\]]*\]"),
-    ("workbook_section_ref", r"\[workbook section[^\]]*\]"),
-    ("workbook_section_symbol", r"\[Workbook §[^\]]*\]"),
-    ("analysis_workbook_ref", r"\[Analysis Workbook[^\]]*\]"),
-    ("analysis_ref", r"\[Analysis:[^\]]*\]"),
-    ("external_sources_ref", r"\[External Sources\]"),
-    ("citation_inventory", r"\[citation inventory[^\]]*\]"),
-    ("vendor_research_file", r"vendor-research-[\w.-]+\.txt"),
-    ("internal_roi_model", r"\bInternal ROI Model\b"),
-    ("internal_analysis", r"\bInternal Analysis\b"),
-)
-
-# Cleaning counterparts for each forbidden detection pattern.
-# Detection patterns are partial-match (e.g. no closing bracket) for scanning;
-# cleaning patterns match the full token so we can strip it cleanly.
-# This list is the SINGLE SOURCE OF TRUTH for what gets auto-stripped.
-_FORBIDDEN_OUTPUT_CLEANERS: tuple[tuple[str, str], ...] = (
-    ("raw_source_tag", r"\[Source:[^\]]*\]"),
-    ("section_cross_ref", r"\[\s*(?:see|cross-?ref|xref)\s+##\s+[^\]]+\]"),
-    ("workbook_ref", r"\[Workbook:[^\]]*\]"),
-    ("workbook_section_ref", r"\[workbook section[^\]]*\]"),
-    ("workbook_section_symbol", r"\[Workbook §[^\]]*\]"),
-    ("analysis_workbook_ref", r"\[Analysis Workbook[^\]]*\]"),
-    ("analysis_ref", r"\[Analysis:[^\]]*\]"),
-    ("external_sources_ref", r"\[External Sources\]"),
-    ("citation_inventory", r"\[citation inventory[^\]]*\]"),
-    ("vendor_research_file", r"vendor-research-[\w.-]+\.txt"),
-    ("internal_roi_model", r"\bInternal ROI Model\b"),
-    ("internal_analysis", r"\bInternal Analysis\b"),
-)
-
-# Internal terms that should never appear in shipped artifacts (bare text).
-_FORBIDDEN_INTERNAL_TERMS: tuple[str, ...] = (
-    "analysis context",
-    "vendor-research",
-)
-
-
-def _auto_strip_forbidden_patterns(text: str) -> str:
-    """Last-resort defensive sweep: strip anything the artifact scanner would flag.
-
-    This runs AFTER all specific cleaners (citation normalizer, report cleaner,
-    source placeholder stripper).  It uses the same patterns the scanner checks,
-    so any new forbidden pattern automatically gets cleaned too — no drift.
-    """
-    if not text.strip():
-        return text
-
-    for _label, pattern in _FORBIDDEN_OUTPUT_CLEANERS:
-        text = re.sub(pattern, "", text, flags=re.IGNORECASE)
-
-    lower = text.lower()
-    for term in _FORBIDDEN_INTERNAL_TERMS:
-        if term in lower:
-            text = re.sub(re.escape(term), "", text, flags=re.IGNORECASE)
-
-    # Clean up artifacts left by stripping: double spaces, excess blank lines
-    text = re.sub(r"  +", " ", text)
-    text = re.sub(r"\n{3,}", "\n\n", text)
-
-    return text
-
-
-def _scan_forbidden_output_patterns(text: str) -> list[str]:
-    issues: list[str] = []
-    for label, pattern in _FORBIDDEN_OUTPUT_PATTERNS:
-        match = re.search(pattern, text, re.IGNORECASE)
-        if match:
-            issues.append(f"{label}: {match.group(0)[:120]}")
-
-    lower = text.lower()
-    for term in _FORBIDDEN_INTERNAL_TERMS:
-        if term in lower:
-            issues.append(f"internal_term: {term}")
-
-    return issues
-
-
-class _ArtifactValidation(TypedDict):
-    """Result of an artifact validation pass.
-
-    Used by `_validate_output_markdown` and `_validate_output_docx`. The
-    dict-of-union shape it replaced (`dict[str, list[str] | bool]`) was
-    correct at runtime but unusable through the type checker — every
-    indexed access lost the per-key shape and required casts at every
-    call site.
-    """
-
-    passed: bool
-    issues: list[str]
-    errors: list[str]
-
-
-def _write_output_validation_report(
-    base_path: Path,
-    phase: str,
-    issues: list[str],
-    errors: list[str],
-    diagnostics_dir: str | Path | None = None,
-) -> Path | None:
-    if not issues and not errors:
-        return None
-
-    if diagnostics_dir is not None:
-        diagnostics_path = Path(diagnostics_dir)
-        diagnostics_path.mkdir(parents=True, exist_ok=True)
-        report_path = diagnostics_path / f"{base_path.stem}_{phase}_validation.txt"
-    else:
-        report_path = base_path.with_name(f"{base_path.stem}_{phase}_validation.txt")
-    lines = [f"Artifact validation report ({phase})", ""]
-    if issues:
-        lines.append("Issues:")
-        lines.extend(f"- {item}" for item in issues)
-        lines.append("")
-    if errors:
-        lines.append("Validator errors:")
-        lines.extend(f"- {item}" for item in errors)
-        lines.append("")
-    report_path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
-    return report_path
-
-
-def _validate_output_markdown(markdown_content: str) -> _ArtifactValidation:
-    try:
-        issues = _scan_forbidden_output_patterns(markdown_content)
-        return {"passed": len(issues) == 0, "issues": issues, "errors": []}
-    except Exception as exc:
-        # Fail closed: an exception inside the scaffolding scanner means
-        # we could not confirm the artifact is clean. Treating that as
-        # passed would let forbidden internal markers leak into shipped
-        # MD/TXT/DOCX. The downstream pipeline then writes a sidecar
-        # validation report and saves MD/TXT only — DOCX is blocked.
-        logger.warning("Markdown artifact validation failed: %s", exc)
-        return {"passed": False, "issues": [], "errors": [str(exc)]}
-
-
-def _extract_docx_text(document: Any) -> str:
-    parts: list[str] = []
-    for para in document.paragraphs:
-        if para.text:
-            parts.append(para.text)
-    for table in document.tables:
-        for row in table.rows:
-            for cell in row.cells:
-                if cell.text:
-                    parts.append(cell.text)
-    return "\n".join(parts)
-
-
 def _prepare_report_markdown_for_shipping(markdown_content: str) -> str:
     """Apply deterministic cleanup before report artifact validation/shipping."""
     from primr.output.final_artifact import canonicalize_final_markdown
@@ -7644,7 +5882,6 @@ def _salvage_markdown_for_shipping(
 
     prepared = _prepare_markdown_for_shipping(markdown_content, kind)
     if prepared == markdown_content:
-        # Specific cleaners made no changes — escalate to auto-strip
         stripped = _auto_strip_forbidden_patterns(markdown_content)
         if stripped != markdown_content:
             stripped_validation = _validate_output_markdown(stripped)
@@ -7658,7 +5895,6 @@ def _salvage_markdown_for_shipping(
     if prepared_validation["passed"]:
         return prepared, prepared_validation, True
 
-    # Specific cleaners reduced but didn't eliminate issues — auto-strip remainder
     stripped = _auto_strip_forbidden_patterns(prepared)
     if stripped != prepared:
         stripped_validation = _validate_output_markdown(stripped)
@@ -7671,27 +5907,6 @@ def _salvage_markdown_for_shipping(
         return prepared, prepared_validation, True
 
     return markdown_content, validation, False
-
-
-def _validate_output_docx(docx_path: Path) -> _ArtifactValidation:
-    try:
-        from docx import Document
-
-        from primr.output.markdown_parser import ArtifactDetector
-
-        document = Document(str(docx_path))
-        detector = ArtifactDetector()
-        artifacts = detector.scan_document(document)
-        issues = [
-            f"markdown_artifact:{artifact['type']}:{artifact['match']}"
-            for artifact in artifacts[:10]
-        ]
-        issues.extend(_scan_forbidden_output_patterns(_extract_docx_text(document)))
-        return {"passed": len(issues) == 0, "issues": issues, "errors": []}
-    except Exception as exc:
-        # Fail closed — see _validate_output_markdown for the rationale.
-        logger.warning("DOCX artifact validation failed: %s", exc)
-        return {"passed": False, "issues": [], "errors": [str(exc)]}
 
 
 def _convert_deep_research_to_docx(

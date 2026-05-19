@@ -1,0 +1,109 @@
+"""Unit tests for _handle_dry_run in primr.core.cli.
+
+Mocks the cost estimator and recovery table builder to exercise each
+flag-combination branch and exit code without printing real estimates.
+"""
+
+from __future__ import annotations
+
+from unittest.mock import MagicMock
+
+import pytest
+
+from primr.core.cli import CLIConfig, Command, _handle_dry_run
+
+
+def _config(**overrides):
+    defaults = {"command": Command.DRY_RUN, "mode": "complete"}
+    defaults.update(overrides)
+    return CLIConfig(**defaults)
+
+
+@pytest.fixture
+def mocks(monkeypatch):
+    estimate = MagicMock()
+    estimate.__str__ = lambda self: "ESTIMATE STRING"
+    monkeypatch.setattr(
+        "primr.utils.cost_estimator.estimate_cost",
+        MagicMock(return_value=estimate),
+    )
+    # recovery table builder used at the end of dry-run
+    recovery_table = MagicMock()
+    recovery_table.hierarchies = {}
+    recovery_table.to_json.return_value = "{}"
+    monkeypatch.setattr(
+        "primr.pipeline.recovery.build_default_recovery_table",
+        MagicMock(return_value=recovery_table),
+    )
+    monkeypatch.setattr(
+        "primr.pipeline.stages.STAGE_CLASSIFICATIONS", {}
+    )
+    return estimate
+
+
+class TestDryRunFlags:
+    def test_fast_and_premium_together_fails(self, mocks):
+        result = _handle_dry_run(_config(fast_mode=True, premium_mode=True))
+        assert result == 1
+
+    def test_fast_with_invalid_mode_fails(self, mocks):
+        result = _handle_dry_run(_config(fast_mode=True, mode="scrape"))
+        assert result == 1
+
+    def test_premium_with_invalid_mode_fails(self, mocks):
+        result = _handle_dry_run(_config(premium_mode=True, mode="scrape"))
+        assert result == 1
+
+    def test_premium_with_complete_mode_succeeds(self, mocks):
+        result = _handle_dry_run(_config(premium_mode=True, mode="complete"))
+        assert result == 0
+
+    def test_fast_with_complete_mode_succeeds(self, mocks):
+        result = _handle_dry_run(_config(fast_mode=True, mode="complete"))
+        assert result == 0
+
+    def test_auto_fast_mode_when_xai_key_set(self, mocks, monkeypatch):
+        # Without --fast or --premium, complete mode auto-promotes to fast when XAI key is set.
+        monkeypatch.setenv("XAI_API_KEY", "x" * 30)
+        result = _handle_dry_run(_config(mode="complete"))
+        assert result == 0
+
+    def test_skip_recon_branch_taken(self, mocks):
+        result = _handle_dry_run(_config(mode="scrape", skip_recon=True))
+        assert result == 0
+
+    def test_default_mode_returns_zero(self, mocks):
+        result = _handle_dry_run(_config(mode="scrape"))
+        assert result == 0
+
+
+class TestDryRunCostEstimator:
+    def test_passes_cloud_vendor_count_to_estimator(self, mocks, monkeypatch):
+        est_mock = MagicMock()
+        monkeypatch.setattr(
+            "primr.utils.cost_estimator.estimate_cost",
+            est_mock,
+        )
+        _handle_dry_run(
+            _config(mode="complete", platforms=("aws", "azure", "gcp"))
+        )
+        kwargs = est_mock.call_args.kwargs
+        assert kwargs["num_vendors"] == 3
+
+    def test_passes_lite_strategy_flag(self, mocks, monkeypatch):
+        est_mock = MagicMock()
+        monkeypatch.setattr(
+            "primr.utils.cost_estimator.estimate_cost",
+            est_mock,
+        )
+        _handle_dry_run(_config(mode="complete", lite_strategy=True))
+        assert est_mock.call_args.kwargs["lite_strategy"] is True
+
+    def test_passes_grok_tier(self, mocks, monkeypatch):
+        est_mock = MagicMock()
+        monkeypatch.setattr(
+            "primr.utils.cost_estimator.estimate_cost",
+            est_mock,
+        )
+        _handle_dry_run(_config(mode="complete", fast_mode=True, grok_tier="max"))
+        assert est_mock.call_args.kwargs["grok_tier"] == "max"

@@ -194,327 +194,48 @@ class ResearchResult:
 # =============================================================================
 
 import contextlib
-import json
 import os
 
-
-def _get_jobs_file_path() -> str:
-    """Get path to the jobs tracking file."""
-    from primr.config.config import LOGS_DIR
-
-    return os.path.join(LOGS_DIR, "pending_research_jobs.json")
-
-
-# File lock for job tracking (prevents concurrent write corruption)
-_jobs_file_lock = threading.Lock()
-
-
-def save_pending_job(
-    interaction_id: str,
-    job_type: str,
-    description: str,
-    metadata: dict[str, Any] | None = None,
-) -> None:
-    """
-    Save a pending research job for later recovery.
-
-    Thread-safe: Uses file locking to prevent concurrent write corruption.
-
-    Args:
-        interaction_id: The Gemini interaction ID
-        job_type: Type of job (e.g., "vendor_research", "company_research", "ai_strategy")
-        description: Human-readable description
-    """
-    jobs_file = _get_jobs_file_path()
-
-    with _jobs_file_lock:
-        # Load existing jobs
-        jobs = {}
-        if os.path.exists(jobs_file):
-            try:
-                with open(jobs_file, encoding="utf-8") as f:
-                    content = f.read().strip()
-                    if content:
-                        jobs = json.loads(content)
-                        # Validate structure
-                        if not isinstance(jobs, dict):
-                            logger.warning("Jobs file corrupted (not a dict), resetting")
-                            jobs = {}
-            except (OSError, json.JSONDecodeError) as e:
-                logger.warning(f"Failed to load jobs file, resetting: {e}")
-                jobs = {}
-
-        # Add new job
-        jobs[interaction_id] = {
-            "type": job_type,
-            "description": description,
-            "started": datetime.now().isoformat(),
-            "status": "pending",
-            "metadata": metadata or {},
-        }
-
-        # Save atomically (write to temp, then rename)
-        os.makedirs(os.path.dirname(jobs_file), exist_ok=True)
-        temp_file = jobs_file + ".tmp"
-        try:
-            with open(temp_file, "w", encoding="utf-8") as f:
-                json.dump(jobs, f, indent=2)
-            # Atomic rename (on POSIX) or replace (on Windows)
-            if os.path.exists(jobs_file):
-                os.replace(temp_file, jobs_file)
-            else:
-                os.rename(temp_file, jobs_file)
-        except OSError as e:
-            logger.error(f"Failed to save jobs file: {e}")
-            # Clean up temp file if it exists
-            if os.path.exists(temp_file):
-                with contextlib.suppress(OSError):
-                    os.remove(temp_file)
-            raise
-
-    logger.info(f"Saved pending job: {interaction_id} ({job_type})")
-
-
-def remove_pending_job(interaction_id: str) -> None:
-    """
-    Remove a job from the pending list (after completion or failure).
-
-    Thread-safe: Uses file locking to prevent concurrent write corruption.
-    """
-    jobs_file = _get_jobs_file_path()
-
-    with _jobs_file_lock:
-        if not os.path.exists(jobs_file):
-            return
-
-        try:
-            with open(jobs_file, encoding="utf-8") as f:
-                content = f.read().strip()
-                if not content:
-                    return
-                jobs = json.loads(content)
-                if not isinstance(jobs, dict):
-                    logger.warning("Jobs file corrupted, cannot remove job")
-                    return
-
-            if interaction_id in jobs:
-                del jobs[interaction_id]
-                # Save atomically
-                temp_file = jobs_file + ".tmp"
-                with open(temp_file, "w", encoding="utf-8") as f:
-                    json.dump(jobs, f, indent=2)
-                os.replace(temp_file, jobs_file)
-                logger.info(f"Removed completed job: {interaction_id}")
-        except (OSError, json.JSONDecodeError) as e:
-            logger.warning(f"Failed to remove job {interaction_id}: {e}")
-
-
-def get_pending_jobs() -> dict[str, dict[str, Any]]:
-    """
-    Get all pending research jobs.
-
-    Thread-safe: Uses file locking for consistent reads.
-    """
-    jobs_file = _get_jobs_file_path()
-
-    with _jobs_file_lock:
-        if not os.path.exists(jobs_file):
-            return {}
-
-        try:
-            with open(jobs_file, encoding="utf-8") as f:
-                content = f.read().strip()
-                if not content:
-                    return {}
-                result = json.loads(content)
-                if not isinstance(result, dict):
-                    logger.warning("Jobs file corrupted (not a dict)")
-                    return {}
-                return result
-        except (OSError, json.JSONDecodeError) as e:
-            logger.warning(f"Failed to read jobs file: {e}")
-            return {}
-
-
-# =============================================================================
-# URL RESOLUTION - Resolve Google redirect URLs to final destinations
-# =============================================================================
-
-
-async def resolve_redirect_url(url: str, timeout: float = 10.0, retries: int = 2) -> str:
-    """
-    Resolve a Google grounding redirect URL to its final destination.
-
-    The Deep Research API returns URLs like:
-    https://vertexaisearch.cloud.google.com/grounding-api-redirect/...
-
-    This function follows the redirect chain to get the actual source URL.
-
-    Args:
-        url: The redirect URL to resolve
-        timeout: Maximum time to wait for resolution (seconds)
-        retries: Number of retry attempts on failure
-
-    Returns:
-        The final destination URL, or the original URL if resolution fails
-    """
-    from urllib.parse import urlparse
-
-    import httpx
-
-    from primr.utils.security import is_safe_url, validate_final_url_after_redirect
-
-    # Parse the URL and require the actual hostname (not a substring) to be
-    # the Google grounding redirector. The original substring check accepted
-    # attacker-controlled URLs that merely contained the marker in a path or
-    # query parameter (e.g. http://169.254.169.254/?x=vertexaisearch...).
-    try:
-        parsed = urlparse(url)
-    except Exception:
-        return url
-    if (parsed.hostname or "").lower() != "vertexaisearch.cloud.google.com":
-        return url
-    if not parsed.path.startswith("/grounding-api-redirect"):
-        return url
-    if parsed.scheme != "https":
-        return url
-
-    # Defense in depth — the path-scheme-host gate already excludes private
-    # destinations, but if Google ever serves a CNAME pointing somewhere
-    # unexpected the SSRF helper catches it.
-    safe_initial, initial_reason = is_safe_url(url)
-    if not safe_initial:
-        logger.info("Citation resolver: blocking %s (%s)", url, initial_reason)
-        return url
-
-    for attempt in range(retries + 1):
-        try:
-            async with httpx.AsyncClient(follow_redirects=True, timeout=timeout) as client:
-                # Use HEAD request to follow redirects without downloading content
-                response = await client.head(url)
-                # Return the final URL after all redirects
-                final_url = str(response.url)
-
-                # SSRF protection: validate final URL after redirects
-                is_safe, redirect_error = validate_final_url_after_redirect(final_url)
-                if not is_safe:
-                    logger.warning(
-                        f"Redirect to unsafe URL blocked: {final_url} - {redirect_error}"
-                    )
-                    return url  # Return original URL instead of unsafe redirect target
-
-                logger.debug(f"Resolved URL: {url[:50]}... -> {final_url[:80]}...")
-                return final_url
-        except (TimeoutError, httpx.TimeoutException):
-            if attempt < retries:
-                logger.debug(f"URL resolution timeout (attempt {attempt + 1}), retrying...")
-                await asyncio.sleep(0.5)
-                continue
-            logger.warning(f"URL resolution timed out after {retries + 1} attempts: {url[:50]}...")
-            # Try to extract domain from the redirect URL as fallback
-            return _extract_domain_from_redirect(url)
-        except Exception as e:
-            if attempt < retries:
-                logger.debug(f"URL resolution failed (attempt {attempt + 1}): {e}, retrying...")
-                await asyncio.sleep(0.5)
-                continue
-            logger.warning(f"URL resolution failed after {retries + 1} attempts: {e}")
-            return _extract_domain_from_redirect(url)
-
-    return url
-
-
-def _extract_domain_from_redirect(redirect_url: str) -> str:
-    """
-    Extract a readable domain hint from a Google redirect URL.
-
-    When URL resolution fails, we try to extract any domain hints from the
-    redirect URL itself. This is better than showing the ugly redirect URL.
-
-    Args:
-        redirect_url: The Google grounding redirect URL
-
-    Returns:
-        A cleaner URL or the original if extraction fails
-    """
-    import base64
-    import re
-
-    # The redirect URL often contains base64-encoded data with the target URL
-    # Try to extract it
-    try:
-        # Look for the encoded part after /grounding-api-redirect/
-        match = re.search(r"/grounding-api-redirect/([A-Za-z0-9_-]+)", redirect_url)
-        if match:
-            encoded = match.group(1)
-            # Add padding if needed
-            padding = 4 - len(encoded) % 4
-            if padding != 4:
-                encoded += "=" * padding
-            # Try to decode
-            try:
-                decoded = base64.urlsafe_b64decode(encoded).decode("utf-8", errors="ignore")
-                # Look for URLs in the decoded content
-                url_match = re.search(r'https?://[^\s<>"\']+', decoded)
-                if url_match:
-                    return url_match.group(0)
-            except (ValueError, UnicodeDecodeError) as e:
-                logger.debug("Failed to decode redirect URL base64: %s", e)
-    except (re.error, ValueError, UnicodeDecodeError) as e:
-        logger.debug("Failed to extract domain from redirect URL: %s", e)
-
-    # Return original if we can't extract anything useful
-    return redirect_url
-
-
-async def resolve_citation_urls(citations: list[dict[str, str]]) -> list[dict[str, str]]:
-    """
-    Resolve all citation URLs in parallel.
-
-    Args:
-        citations: List of citation dicts with 'url' keys
-
-    Returns:
-        Updated citations with resolved URLs
-    """
-    if not citations:
-        return citations
-
-    # Create tasks for all URL resolutions
-    tasks = [resolve_redirect_url(c.get("url", "")) for c in citations]
-
-    # Run all resolutions in parallel
-    resolved_urls = await asyncio.gather(*tasks)
-
-    # Update citations with resolved URLs
-    for citation, resolved_url in zip(citations, resolved_urls, strict=False):
-        if resolved_url:
-            citation["url"] = resolved_url
-
-    return citations
-
-
-def resolve_citation_urls_sync(citations: list[dict[str, str]]) -> list[dict[str, str]]:
-    """
-    Synchronous wrapper for resolve_citation_urls.
-
-    Uses asyncio.run() or gets the existing event loop.
-    """
-    if not citations:
-        return citations
-
-    try:
-        # Try to get existing event loop
-        asyncio.get_running_loop()
-        # If we're already in an async context, create a task
-        import concurrent.futures
-
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            future = executor.submit(asyncio.run, resolve_citation_urls(citations))
-            return future.result(timeout=30)
-    except RuntimeError:
-        # No running loop, safe to use asyncio.run()
-        return asyncio.run(resolve_citation_urls(citations))
+from primr.ai.citation_resolution import (
+    _extract_domain_from_redirect as _extract_domain_from_redirect,
+)
+from primr.ai.citation_resolution import (
+    resolve_citation_urls as resolve_citation_urls,
+)
+from primr.ai.citation_resolution import (
+    resolve_citation_urls_sync,
+)
+from primr.ai.citation_resolution import (
+    resolve_redirect_url as resolve_redirect_url,
+)
+from primr.ai.file_search_resources import (
+    _DEFAULT_STALE_AGE_SECONDS as _DEFAULT_STALE_AGE_SECONDS,
+)
+from primr.ai.file_search_resources import (
+    _PRIMR_RESOURCE_PREFIX as _PRIMR_RESOURCE_PREFIX,
+)
+from primr.ai.file_search_resources import (
+    _is_primr_owned as _is_primr_owned,
+)
+from primr.ai.file_search_resources import (
+    _resource_age_seconds as _resource_age_seconds,
+)
+from primr.ai.file_search_resources import (
+    cleanup_orphaned_resources as cleanup_orphaned_resources,
+)
+from primr.ai.job_persistence import (
+    _get_jobs_file_path as _get_jobs_file_path,
+)
+from primr.ai.job_persistence import (
+    _jobs_file_lock as _jobs_file_lock,
+)
+from primr.ai.job_persistence import (
+    get_pending_jobs as get_pending_jobs,
+)
+from primr.ai.job_persistence import (
+    remove_pending_job,
+    save_pending_job,
+)
 
 
 class DeepResearchClient:
@@ -992,7 +713,6 @@ Cite all sources.
 
         Uses externalized YAML configuration from src/primr/prompts/company_overview.yaml
         """
-        import re
 
         from primr.prompts import build_company_overview_prompt
 
@@ -1110,7 +830,6 @@ Frame everything as hypotheses to explore, not conclusions."""
         Raises:
             AIError: If upload fails for any reason
         """
-        import os
 
         # Validate files exist BEFORE any API calls
         missing_files = [f for f in file_paths if not os.path.exists(f)]
@@ -3205,7 +2924,6 @@ use a descriptive subtitle if needed."""
         if not stage1_context:
             return None
 
-        import re
 
         # Look for "## Industry" section in the context
         match = re.search(
@@ -3224,7 +2942,6 @@ use a descriptive subtitle if needed."""
         if not stage1_context:
             return None
 
-        import re
 
         # Look for "## Company Name" section in the context
         match = re.search(
@@ -3598,7 +3315,6 @@ class ReportFormatter:
 
     def __init__(self):
         """Initialize the ReportFormatter."""
-        import re
 
         self._prohibited_re = [re.compile(p, re.MULTILINE) for p in self.PROHIBITED_PATTERNS]
 
@@ -3663,7 +3379,6 @@ class ReportFormatter:
 
     def _ensure_clean_header(self, content: str, company_name: str) -> str:
         """Ensure the document has a clean professional header."""
-        import re
 
         # Check if content already has a clean header
         if content.strip().startswith(f"# Strategic Company Overview: {company_name}"):
@@ -3689,7 +3404,6 @@ class ReportFormatter:
 
     def _extract_chapters(self, content: str) -> list[str]:
         """Extract chapter titles from content."""
-        import re
 
         chapters = []
         # Match ## headers (level 2)
@@ -3705,7 +3419,6 @@ class ReportFormatter:
 
     def _generate_clean_toc(self, chapters: list[str]) -> str:
         """Generate a clean Table of Contents without status markers."""
-        import re
 
         lines = ["## Table of Contents\n"]
 
@@ -3729,7 +3442,6 @@ class ReportFormatter:
 
     def _format_numbered_citations(self, content: str, citations: list[dict[str, str]]) -> str:
         """Apply numbered citation formatting with clickable links and resolved URLs."""
-        import re
         from urllib.parse import urlparse
 
         if not citations:
@@ -3804,7 +3516,6 @@ class ReportFormatter:
 
     def _relocate_key_metrics(self, content: str) -> str:
         """Move KEY METRICS section to after Executive Summary for better readability."""
-        import re
 
         # Find KEY METRICS block (usually at the end)
         # Pattern: **KEY METRICS:** followed by bullet points until next section or end
@@ -3839,7 +3550,6 @@ class ReportFormatter:
 
     def has_memo_headers(self, content: str) -> bool:
         """Check if content contains memo-style headers."""
-        import re
 
         memo_patterns = [
             r"RESEARCH REQUEST:",
@@ -3947,7 +3657,6 @@ class FileSearchStoreManager:
         Raises:
             AIError: If upload fails
         """
-        import os
         import tempfile
 
         # Write content to temp file for upload
@@ -3982,7 +3691,6 @@ class FileSearchStoreManager:
         Raises:
             AIError: If upload fails
         """
-        import os
 
         if not os.path.exists(file_path):
             raise AIError(f"File not found: {file_path}", model="file_search_store")
@@ -4078,188 +3786,9 @@ def get_file_search_store_manager() -> FileSearchStoreManager:
 # =============================================================================
 
 
-_PRIMR_RESOURCE_PREFIX = "primr-"
 # Don't touch stores younger than this — they may belong to a concurrent
 # Primr run on the same API key. Configurable via env for operators who
 # want a tighter or looser window.
-_DEFAULT_STALE_AGE_SECONDS = 3600.0
-
-
-def _is_primr_owned(resource: Any) -> bool:
-    """True if a Gemini cache/store carries the Primr display-name prefix.
-
-    Any unprefixed resource is treated as foreign and must not be deleted —
-    historically this function would delete every resource under the
-    GEMINI_API_KEY, including ones belonging to other tenants or unrelated
-    applications. Belongs-to-us is now an explicit, fail-closed check.
-    """
-    display_name = getattr(resource, "display_name", None) or ""
-    return isinstance(display_name, str) and display_name.startswith(_PRIMR_RESOURCE_PREFIX)
-
-
-def _resource_age_seconds(resource: Any) -> float | None:
-    """Approximate age in seconds for a Gemini resource, or None if unknown.
-
-    Falls back to the timestamp embedded in the Primr display_name
-    (``primr-...{int(time.time())}``) when the SDK doesn't expose a
-    create_time we can parse.
-    """
-    from datetime import datetime, timezone
-
-    create_time = getattr(resource, "create_time", None)
-    if create_time is not None:
-        try:
-            if hasattr(create_time, "timestamp"):
-                return max(0.0, datetime.now(timezone.utc).timestamp() - create_time.timestamp())
-            if isinstance(create_time, str):
-                parsed = datetime.fromisoformat(create_time.replace("Z", "+00:00"))
-                return max(0.0, datetime.now(timezone.utc).timestamp() - parsed.timestamp())
-        except Exception:
-            pass
-
-    display_name = getattr(resource, "display_name", None) or ""
-    if isinstance(display_name, str):
-        match = re.search(r"_(\d{9,11})(?:\D|$)", display_name)
-        if match:
-            try:
-                return max(0.0, time.time() - float(match.group(1)))
-            except ValueError:
-                pass
-    return None
-
-
-def cleanup_orphaned_resources(
-    api_key: str | None = None,
-    stale_age_seconds: float | None = None,
-) -> dict[str, int]:
-    """
-    Clean up orphaned Gemini resources that Primr created and abandoned.
-
-    Two safety gates protect resources we did not create or that may still
-    be in use:
-
-    1. **Ownership**: only resources whose ``display_name`` starts with the
-       Primr prefix (``primr-``) are eligible. Foreign caches/stores under
-       the same API key — other tenants, other applications, manual
-       experiments — are left alone.
-    2. **Staleness**: only resources older than ``stale_age_seconds``
-       (default ~1h, configurable via ``PRIMR_CLEANUP_STALE_AGE_SECONDS``)
-       are eligible. This prevents a post-run cleanup in one job from
-       deleting an active store belonging to a concurrent job.
-
-    Before this hardening the function deleted every resource visible to
-    the API key, which in shared-credential deployments meant one user's
-    research job could destroy another user's stores or any unrelated
-    application's data.
-
-    Args:
-        api_key: Optional API key override. Uses settings if not provided.
-        stale_age_seconds: Minimum age before a resource is eligible for
-            deletion. Defaults to the value of
-            ``PRIMR_CLEANUP_STALE_AGE_SECONDS`` or 3600s.
-
-    Returns:
-        Dict with counts: ``{"caches_deleted": N, "stores_deleted": N}``.
-    """
-    import os as _os
-
-    _require_genai_dependency()
-    settings = get_settings()
-    key = api_key or settings.api.gemini_key
-    client = genai.Client(api_key=key)
-
-    if stale_age_seconds is None:
-        try:
-            stale_age_seconds = float(
-                _os.environ.get("PRIMR_CLEANUP_STALE_AGE_SECONDS", _DEFAULT_STALE_AGE_SECONDS)
-            )
-        except ValueError:
-            stale_age_seconds = _DEFAULT_STALE_AGE_SECONDS
-
-    result = {"caches_deleted": 0, "stores_deleted": 0}
-
-    # 1. Caches — Primr does not currently create explicit context caches,
-    # but if a future code path does it MUST tag with the primr- prefix so
-    # this loop will still find and remove orphans.
-    try:
-        caches = list(client.caches.list())
-        for cache in caches:
-            if not _is_primr_owned(cache):
-                logger.debug("Skipping non-Primr cache: %s", getattr(cache, "name", "?"))
-                continue
-            age = _resource_age_seconds(cache)
-            if age is not None and age < stale_age_seconds:
-                logger.debug(
-                    "Skipping Primr cache younger than %.0fs: %s (age=%.0fs)",
-                    stale_age_seconds,
-                    cache.name,
-                    age,
-                )
-                continue
-            try:
-                client.caches.delete(name=cache.name)
-                result["caches_deleted"] += 1
-                logger.info("Deleted orphaned Primr cache: %s", cache.name)
-            except Exception as e:
-                logger.warning("Could not delete cache %s: %s", cache.name, e)
-    except Exception as e:
-        logger.warning("Could not list caches: %s", e)
-
-    # 2. File search stores — same two-gate policy.
-    try:
-        stores = list(client.file_search_stores.list())
-        for store in stores:
-            store_name = store.name
-            if not _is_primr_owned(store):
-                logger.debug("Skipping non-Primr store: %s", store_name)
-                continue
-            age = _resource_age_seconds(store)
-            if age is not None and age < stale_age_seconds:
-                logger.debug(
-                    "Skipping Primr store younger than %.0fs: %s (age=%.0fs)",
-                    stale_age_seconds,
-                    store_name,
-                    age,
-                )
-                continue
-            # Delete documents inside the store first
-            try:
-                docs = list(client.file_search_stores.documents.list(parent=store_name))
-                for doc in docs:
-                    try:
-                        client.file_search_stores.documents.delete(
-                            name=doc.name, config={"force": True}
-                        )
-                    except TypeError:
-                        client.file_search_stores.documents.delete(name=doc.name)
-                    except Exception as e:
-                        logger.warning("Could not delete doc %s: %s", doc.name, e)
-            except Exception as e:
-                logger.warning("Could not list docs in %s: %s", store_name, e)
-
-            # Now delete the empty store
-            try:
-                client.file_search_stores.delete(name=store_name)
-                result["stores_deleted"] += 1
-                logger.info("Deleted orphaned Primr store: %s", store_name)
-            except Exception as e:
-                logger.warning("Could not delete store %s: %s", store_name, e)
-    except Exception as e:
-        logger.warning("Could not list file search stores: %s", e)
-
-    total = result["caches_deleted"] + result["stores_deleted"]
-    if total > 0:
-        logger.warning(
-            f"Cleaned up {total} orphaned resource(s): "
-            f"{result['caches_deleted']} cache(s), {result['stores_deleted']} store(s)"
-        )
-
-    return result
-
-
-# =============================================================================
-# SINGLETON ACCESS (Thread-Safe)
-# =============================================================================
 
 _client: DeepResearchClient | None = None
 _client_lock = threading.Lock()

@@ -27,6 +27,90 @@ from typing import Any, Protocol
 
 from primr.config.config import LOGS_DIR, OUTPUT_DIR, WORKING_DIR
 from primr.config.models import PrimrModels
+from primr.core.cli_batch import (
+    _DANGEROUS_LEAD_CHARS as _DANGEROUS_LEAD_CHARS,
+)
+from primr.core.cli_batch import (
+    _classify_columns as _classify_columns,
+)
+from primr.core.cli_batch import (
+    _ColumnMap as _ColumnMap,
+)
+from primr.core.cli_batch import (
+    _csv_safe as _csv_safe,
+)
+from primr.core.cli_batch import (
+    _ensure_valid_url,
+    _prepare_batch_df,
+)
+from primr.core.cli_batch import (
+    _read_batch_file as _read_batch_file,
+)
+from primr.core.cli_doctor import (
+    _check_api_connectivity as _check_api_connectivity,
+)
+from primr.core.cli_doctor import (
+    _check_api_keys as _check_api_keys,
+)
+from primr.core.cli_doctor import (
+    _check_dependencies as _check_dependencies,
+)
+from primr.core.cli_doctor import (
+    _check_filesystem as _check_filesystem,
+)
+from primr.core.cli_doctor import (
+    _check_gemini_resources as _check_gemini_resources,
+)
+from primr.core.cli_doctor import (
+    _check_providers as _check_providers,
+)
+from primr.core.cli_doctor import (
+    run_doctor,
+)
+from primr.core.cli_init import (
+    _ensure_project_env_file as _ensure_project_env_file,
+)
+from primr.core.cli_init import (
+    _install_playwright_browsers as _install_playwright_browsers,
+)
+from primr.core.cli_init import (
+    _key_looks_configured as _key_looks_configured,
+)
+from primr.core.cli_init import (
+    _playwright_browsers_ready as _playwright_browsers_ready,
+)
+from primr.core.cli_init import (
+    _prompt_yes_no,
+    _run_init_flow,
+    _should_offer_interactive_key_setup,
+)
+from primr.core.cli_init import (
+    _validate_key_live as _validate_key_live,
+)
+from primr.core.cli_parser import (
+    _determine_command,
+    _get_strategy_choices,
+    _get_strategy_help,
+)
+from primr.core.cli_parser import (
+    _discover_strategies as _discover_strategies,
+)
+from primr.core.cli_recovery import (
+    _build_recovered_basename as _build_recovered_basename,
+)
+from primr.core.cli_recovery import (
+    _find_latest_run_state as _find_latest_run_state,
+)
+from primr.core.cli_recovery import (
+    _sanitize_output_stem as _sanitize_output_stem,
+)
+from primr.core.cli_recovery import (
+    _save_recovered_outputs,
+    resume_pending_jobs,
+)
+from primr.core.cli_recovery import (
+    _show_latest_run_state_hint as _show_latest_run_state_hint,
+)
 from primr.utils.banner import maybe_show_startup_banner
 from primr.utils.console import console
 from primr.utils.logging_config import get_logger
@@ -800,446 +884,6 @@ def main(args: list[str] | None = None) -> int:
     return handler(config)
 
 
-def run_doctor(*, fix: bool = False) -> int:
-    """
-    Run system diagnostics.
-
-    Returns:
-        Exit code (0 if all checks pass, 1 otherwise)
-    """
-
-    console.banner("Primr Doctor")
-    console.blank()
-
-    all_passed = True
-    warnings_count = 0
-
-    # 1. Python version
-    console.step("Environment")
-    py_version = sys.version_info
-    if py_version >= (3, 10):
-        console.ok(f"Python {py_version.major}.{py_version.minor}.{py_version.micro}")
-    else:
-        console.error(f"Python {py_version.major}.{py_version.minor} (need 3.10+)")
-        all_passed = False
-
-    # 2. API Keys
-    console.step("API Configuration")
-    all_passed, warnings_count = _check_api_keys(all_passed, warnings_count)
-
-    # 2b. Provider availability — what each configured key unlocks
-    console.step("Providers")
-    warnings_count = _check_providers(warnings_count)
-
-    # 3. Dependencies
-    console.step("Dependencies")
-    warnings_count = _check_dependencies(warnings_count)
-
-    # 4. File System
-    console.step("File System")
-    all_passed, warnings_count = _check_filesystem(all_passed, warnings_count)
-
-    # 5. API Connectivity
-    console.step("API Connectivity")
-    all_passed, warnings_count = _check_api_connectivity(all_passed, warnings_count)
-
-    # 6. Gemini Resource Cleanup Check
-    console.step("Gemini Resources")
-    all_passed, warnings_count = _check_gemini_resources(all_passed, warnings_count)
-
-    # Summary
-    console.blank()
-    if all_passed and warnings_count == 0:
-        console.success_box("All checks passed", "Primr is ready to use")
-    elif all_passed:
-        console.success_box(
-            f"Ready with {warnings_count} warning(s)",
-            "Primr can run, but some features may be limited",
-        )
-    else:
-        console.error("Some checks failed - fix issues above before running research")
-        if not fix:
-            console.info("Run 'primr doctor --fix' for guided setup.")
-
-    if fix:
-        if all_passed and warnings_count == 0:
-            return 0
-        console.blank()
-        console.info("Launching guided setup...")
-        return _run_init_flow(
-            non_interactive=not sys.stdin.isatty(),
-            assume_yes=False,
-            skip_browsers=False,
-            run_doctor_after=True,
-        )
-
-    return 0 if all_passed else 1
-
-
-def _prompt_yes_no(prompt: str, *, default: bool) -> bool:
-    """Prompt for a yes/no answer in interactive setup flows."""
-    suffix = "Y/n" if default else "y/N"
-    try:
-        answer = input(f"{prompt} [{suffix}] ").strip().lower()
-    except EOFError:
-        return default
-    if not answer:
-        return default
-    return answer in {"y", "yes"}
-
-
-def _should_offer_interactive_key_setup(validation_result) -> bool:
-    """Return True when the only validation errors are missing API keys and we're on a TTY."""
-    if not sys.stdin.isatty() or not sys.stdout.isatty():
-        return False
-    if not validation_result.errors:
-        return False
-    key_error_fields = {"GEMINI_API_KEY/XAI_API_KEY", "GEMINI_API_KEY", "XAI_API_KEY"}
-    return all(getattr(err, "field", "") in key_error_fields for err in validation_result.errors)
-
-
-def _key_looks_configured(env_name: str) -> bool:
-    value = os.environ.get(env_name, "")
-    return bool(value and len(value.strip()) >= 10)
-
-
-def _validate_key_live(provider: str, value: str) -> tuple[bool, str]:
-    """Make a cheap, no-token API call to verify the key authenticates.
-
-    Returns (ok, message). On failure, message is a short user-facing reason.
-    """
-    value = value.strip()
-    if not value:
-        return False, "empty key"
-
-    if provider == "gemini":
-        try:
-            from google import genai
-
-            client = genai.Client(api_key=value)
-            list(client.models.list())
-            return True, "verified"
-        except ImportError:
-            return True, "saved without verification (google-genai not installed)"
-        except Exception as exc:
-            err = str(exc).lower()
-            if (
-                "api key" in err
-                or "unauthenticated" in err
-                or "permission" in err
-                or "401" in err
-                or "403" in err
-            ):
-                return False, "rejected by Google (invalid key)"
-            return False, f"could not verify: {exc}"
-
-    if provider == "xai":
-        try:
-            import openai
-
-            xai_client = openai.OpenAI(api_key=value, base_url="https://api.x.ai/v1")
-            list(xai_client.models.list())
-            return True, "verified"
-        except ImportError:
-            return True, "saved without verification (openai not installed)"
-        except Exception as exc:
-            err = str(exc).lower()
-            if (
-                "401" in err
-                or "403" in err
-                or "unauthorized" in err
-                or "invalid" in err
-                or "api key" in err
-            ):
-                return False, "rejected by xAI (invalid key)"
-            return False, f"could not verify: {exc}"
-
-    return True, "saved without verification"
-
-
-def _playwright_browsers_ready() -> bool:
-    """Return whether Playwright can launch Chromium."""
-    try:
-        from playwright.sync_api import sync_playwright
-
-        pw = sync_playwright().start()
-        try:
-            browser = pw.chromium.launch(headless=True)
-            browser.close()
-        finally:
-            pw.stop()
-        return True
-    except Exception:
-        return False
-
-
-def _install_playwright_browsers() -> bool:
-    """Install the Chromium browser bundle used by Playwright."""
-    import subprocess
-
-    result = subprocess.run(
-        [sys.executable, "-m", "playwright", "install", "chromium"],
-        check=False,
-        text=True,
-    )
-    return result.returncode == 0
-
-
-def _ensure_project_env_file() -> tuple[bool, str | None]:
-    """Create a safe local .env template for source/project checkouts."""
-    from pathlib import Path
-
-    cwd = Path.cwd()
-    env_path = cwd / ".env"
-    if env_path.exists():
-        return False, str(env_path)
-
-    if not ((cwd / ".env.example").exists() or (cwd / "pyproject.toml").exists()):
-        return False, None
-
-    env_path.write_text(
-        "\n".join(
-            [
-                "# Primr project-specific overrides",
-                "# Prefer `primr keys set ...` for user-level secrets.",
-                "# Uncomment values here only when this project needs different settings.",
-                "",
-                "# GEMINI_API_KEY=",
-                "# XAI_API_KEY=",
-                "# SEARCH_PROVIDER=auto",
-                "",
-            ]
-        ),
-        encoding="utf-8",
-    )
-    return True, str(env_path)
-
-
-def _run_init_flow(
-    *,
-    non_interactive: bool,
-    assume_yes: bool,
-    skip_browsers: bool,
-    run_doctor_after: bool,
-) -> int:
-    """Run first-time setup for CLI-first installs."""
-    import getpass
-
-    from primr.config.env import (
-        get_user_env_path,
-        load_primr_env,
-        mask_secret,
-        set_user_key,
-    )
-
-    load_primr_env()
-    interactive = (not non_interactive) and sys.stdin.isatty()
-    all_ready = True
-
-    console.banner("Primr Init")
-    console.info(f"User config: {get_user_env_path()}")
-    console.blank()
-
-    py_version = sys.version_info
-    if py_version >= (3, 11):
-        console.ok(f"Python {py_version.major}.{py_version.minor}.{py_version.micro}")
-    else:
-        console.error(f"Python {py_version.major}.{py_version.minor} (need 3.11+)")
-        all_ready = False
-
-    console.step("Project config")
-    created_env, project_env = _ensure_project_env_file()
-    if created_env:
-        console.ok(f"Created local .env template: {project_env}")
-    elif project_env:
-        console.ok(f"Local .env already exists: {project_env}")
-    else:
-        console.info("Using user-level config; no project .env needed here")
-
-    key_steps = [
-        (
-            "gemini",
-            "GEMINI_API_KEY",
-            "Premium mode (Gemini Deep Research, ~$5/run) + scrape summaries",
-            "https://aistudio.google.com/apikey",
-            "free tier available",
-            True,
-        ),
-        (
-            "xai",
-            "XAI_API_KEY",
-            "Default Grok 4.3 hybrid pipeline (~$0.60/run, recommended)",
-            "https://console.x.ai/",
-            "$25 free credits for new accounts",
-            True,
-        ),
-    ]
-
-    console.step("API keys")
-    for provider, env_name, purpose, url, hint, default_yes in key_steps:
-        already_set = _key_looks_configured(env_name)
-        if already_set:
-            existing = os.environ.get(env_name)
-            console.ok(f"{env_name} configured ({mask_secret(existing)})")
-            if not interactive or assume_yes:
-                continue
-            if not _prompt_yes_no(
-                f"  Replace {env_name}? (only if the saved key is wrong)", default=False
-            ):
-                continue
-            console.info(f"  Why: {purpose}")
-            console.info(f"  Get one: {url}  ({hint})")
-        else:
-            console.warn(f"{env_name} not set")
-            console.info(f"  Why: {purpose}")
-            console.info(f"  Get one: {url}  ({hint})")
-
-            if not interactive:
-                all_ready = False
-                console.info(f"  Run: primr keys set {provider}")
-                continue
-
-            if not (
-                assume_yes or _prompt_yes_no(f"Paste your {env_name} now?", default=default_yes)
-            ):
-                all_ready = False
-                continue
-
-        saved = False
-        for attempt in range(3):
-            value = getpass.getpass(f"  {env_name} (input hidden): ").strip()
-            if not value:
-                console.warn(f"Skipped {env_name}")
-                break
-            console.info("  Verifying key with provider...")
-            ok, message = _validate_key_live(provider, value)
-            if ok:
-                set_user_key(provider, value)
-                os.environ[env_name] = value
-                console.ok(f"{env_name} saved ({mask_secret(value)}) — {message}")
-                saved = True
-                break
-            console.error(f"  {message}")
-            if attempt < 2:
-                console.info("  Try again, or press Enter to skip.")
-        if not saved and not already_set:
-            all_ready = False
-
-    console.step("Browser dependencies")
-    if skip_browsers:
-        console.info("Playwright browser install skipped")
-    elif _playwright_browsers_ready():
-        console.ok("Playwright Chromium available")
-    elif non_interactive and not assume_yes:
-        all_ready = False
-        console.warn("Playwright Chromium is not installed")
-        console.info("  Run: python -m playwright install chromium")
-        console.info("  Or: primr init --yes")
-    else:
-        should_install = assume_yes or (
-            interactive and _prompt_yes_no("Install Playwright Chromium now?", default=True)
-        )
-        if should_install:
-            if _install_playwright_browsers():
-                console.ok("Playwright Chromium installed")
-            else:
-                all_ready = False
-                console.error("Playwright Chromium install failed")
-                console.info("  Run: python -m playwright install chromium")
-        else:
-            all_ready = False
-            console.warn("Playwright Chromium skipped")
-            console.info("  Run later: python -m playwright install chromium")
-
-    if run_doctor_after and not non_interactive:
-        console.blank()
-        return run_doctor(fix=False)
-
-    console.blank()
-    if all_ready:
-        console.success_box(
-            "Setup complete",
-            'Run: primr "ExampleCo" https://example.co',
-        )
-        return 0
-
-    console.warn("Setup still needs attention")
-    console.info("Run 'primr doctor' after completing the steps above.")
-    return 1
-
-
-# =============================================================================
-# INTERNAL FUNCTIONS - Parser
-# =============================================================================
-
-
-def _discover_strategies() -> list[dict[str, str]]:
-    """Discover available strategy types from YAML configs.
-
-    Returns list of dicts with 'name', 'display_name', 'description', 'status'.
-    Results are cached after first call.
-    """
-    if hasattr(_discover_strategies, "_cache"):
-        return _discover_strategies._cache  # type: ignore[attr-defined]
-
-    from pathlib import Path
-
-    import yaml  # type: ignore[import-untyped]
-
-    strategies_dir = Path(__file__).parent.parent / "prompts" / "strategies"
-    results: list[dict[str, str]] = [
-        {
-            "name": "ai",
-            "display_name": "AI Strategy",
-            "description": "AI transformation roadmap with vendor-specific recommendations",
-            "status": "active",
-        },
-    ]
-
-    if strategies_dir.exists():
-        for yaml_path in sorted(strategies_dir.glob("*.yaml")):
-            stem = yaml_path.stem
-            # Skip files that map to the built-in "ai" type
-            if stem in ("ai_strategy", "ai_first_transformation"):
-                continue
-            try:
-                with open(yaml_path, encoding="utf-8") as f:
-                    data = yaml.safe_load(f)
-                meta = data.get("meta", {})
-                status = meta.get("status", "active")
-                if status == "placeholder":
-                    continue
-                desc = meta.get("cli_description") or meta.get("description", "")
-                display = meta.get("name", stem.replace("_", " ").title())
-                results.append(
-                    {"name": stem, "display_name": display, "description": desc, "status": status}
-                )
-            except Exception as e:
-                logger.warning("Failed to load strategy %s: %s", yaml_path.name, e)
-                continue
-
-    _discover_strategies._cache = results  # type: ignore[attr-defined]
-    return results
-
-
-def _get_strategy_choices() -> list[str]:
-    """Get valid --strategy-type choices from YAML discovery."""
-    return [s["name"] for s in _discover_strategies()]
-
-
-def _get_strategy_help() -> str:
-    """Build --strategy-type help text from YAML descriptions."""
-    strategies = _discover_strategies()
-    parts = ["Strategy type. Options:"]
-    for s in strategies:
-        short_desc = s["description"]
-        if len(short_desc) > 80:
-            short_desc = short_desc[:77] + "..."
-        parts.append(f"  {s['name']}: {short_desc}")
-    parts.append("Use --list-strategies for details.")
-    return " ".join(parts)
-
-
 def _create_parser() -> argparse.ArgumentParser:
     """Create the argument parser."""
     parser = argparse.ArgumentParser(
@@ -1840,40 +1484,6 @@ _FLAG_COMMANDS: list[tuple[str, Command]] = [
     ("dry_run", Command.DRY_RUN),
     ("generate_vendor_research", Command.GENERATE_VENDOR),
 ]
-
-
-def _determine_command(args: argparse.Namespace) -> Command:
-    """Determine which command to run based on parsed args."""
-    # Check for positional command words (e.g. "primr doctor")
-    if args.company:
-        cmd = _POSITIONAL_COMMANDS.get(args.company.lower())
-        if cmd is not None:
-            return cmd
-
-    # Check flag-based commands
-    for attr, cmd in _FLAG_COMMANDS:
-        if getattr(args, attr, None):
-            return cmd
-
-    # qa_recent uses `is not None` (0 is a valid value)
-    if getattr(args, "qa_recent", None) is not None:
-        return Command.QA_RECENT
-
-    if getattr(args, "enrich", False) and getattr(args, "batch", None):
-        return Command.ENRICH
-
-    if getattr(args, "batch", None):
-        return Command.BATCH
-
-    if args.csv:
-        return Command.BATCH
-
-    return Command.RESEARCH
-
-
-# =============================================================================
-# INTERNAL FUNCTIONS - Command Handlers
-# =============================================================================
 
 
 def _handle_init(config: CLIConfig) -> int:
@@ -3388,297 +2998,6 @@ def _handle_research(config: CLIConfig) -> int:
 # =============================================================================
 
 
-def _check_api_keys(all_passed: bool, warnings_count: int) -> tuple[bool, int]:
-    """Check API key configuration and actually test connectivity."""
-    import requests
-
-    # Check Gemini API key
-    gemini_key = os.environ.get("GEMINI_API_KEY", "")
-    if gemini_key and len(gemini_key) >= 10:
-        if gemini_key.startswith("AI"):
-            console.ok("GEMINI_API_KEY configured (valid format)")
-        else:
-            console.ok("GEMINI_API_KEY configured")
-            console.warn("  Key format unusual (expected to start with 'AI')")
-            warnings_count += 1
-    else:
-        console.error("GEMINI_API_KEY not set or invalid")
-        console.info("  Run: primr keys set gemini")
-        console.info("  Get your key at: https://aistudio.google.com/apikey")
-        all_passed = False
-
-    # Check search provider
-    search_provider = os.environ.get("SEARCH_PROVIDER", "auto").lower().strip()
-    search_key = os.environ.get("SEARCH_API_KEY", "")
-    search_engine_id = os.environ.get("SEARCH_ENGINE_ID", "")
-
-    if search_provider == "google":
-        # Google Custom Search mode - require keys and test API
-        if not search_key or len(search_key) < 10:
-            console.error("SEARCH_API_KEY not set or invalid (required for SEARCH_PROVIDER=google)")
-            console.info("  Get your key at: https://console.cloud.google.com/apis/credentials")
-            all_passed = False
-        elif not search_engine_id or len(search_engine_id) < 10:
-            console.error(
-                "SEARCH_ENGINE_ID not set or invalid (required for SEARCH_PROVIDER=google)"
-            )
-            console.info(
-                "  Get it at: https://programmablesearchengine.google.com/controlpanel/all"
-            )
-            all_passed = False
-        else:
-            try:
-                test_url = "https://www.googleapis.com/customsearch/v1"
-                params: dict[str, str | int] = {
-                    "q": "test",
-                    "key": search_key,
-                    "cx": search_engine_id,
-                    "num": 1,
-                }
-                response = requests.get(test_url, params=params, timeout=10)
-                if response.status_code == 200:
-                    console.ok("Google Search API working")
-                elif response.status_code == 400:
-                    error_detail = response.json().get("error", {}).get("message", "Bad Request")
-                    console.error(f"Google Search API config invalid: {error_detail}")
-                    console.info(
-                        "  Check SEARCH_ENGINE_ID at: https://programmablesearchengine.google.com/controlpanel/all"
-                    )
-                    all_passed = False
-                elif response.status_code == 403:
-                    console.error("Google Search API key invalid or quota exceeded")
-                    all_passed = False
-                else:
-                    console.error(f"Google Search API error: HTTP {response.status_code}")
-                    all_passed = False
-            except requests.exceptions.Timeout:
-                console.error("Google Search API timeout")
-                all_passed = False
-            except Exception as e:
-                console.error(f"Google Search API check failed: {e}")
-                all_passed = False
-    else:
-        # DuckDuckGo mode (default) - test connectivity
-        try:
-            from ddgs import DDGS
-
-            results = DDGS().text("test", max_results=1)
-            if results:
-                console.ok("DuckDuckGo search working (no API key needed)")
-            else:
-                console.warn("DuckDuckGo returned no results for test query")
-                warnings_count += 1
-        except Exception as e:
-            console.error(f"DuckDuckGo search check failed: {e}")
-            all_passed = False
-
-    # Check xAI API key (optional — for --fast mode)
-    xai_key = os.environ.get("XAI_API_KEY", "")
-    if xai_key and len(xai_key) >= 10:
-        console.ok("XAI_API_KEY configured (enables Grok standard mode)")
-    else:
-        console.info("XAI_API_KEY not set (recommended for Grok standard mode)")
-        console.info("  Run: primr keys set xai")
-        console.info("  Get your key at: https://console.x.ai/")
-
-    return all_passed, warnings_count
-
-
-def _check_providers(warnings_count: int) -> int:
-    """Report which LLM providers are configured and what each unlocks.
-
-    Reads from the provider registry (`primr.ai.providers.registry`) so
-    doctor stays in sync with the routing layer. Configured providers print
-    in green; unconfigured ones print as informational hints. Also displays
-    quota exhaustion status if any provider is marked as exhausted.
-    """
-    from primr.ai.providers import KNOWN_PROVIDERS, get_available_providers
-
-    available = {p.name for p in get_available_providers()}
-
-    if not available:
-        console.error("No LLM providers configured")
-        console.info(
-            "  Set XAI_API_KEY for the standard pipeline, or GEMINI_API_KEY for --premium"
-        )
-        return warnings_count + 1
-
-    for entry in KNOWN_PROVIDERS:
-        if entry.name in available:
-            roles = ", ".join(entry.roles) if entry.roles else "any"
-            console.ok(f"{entry.description} [{roles}]")
-        else:
-            console.info(f"  {entry.description}: not configured ({entry.api_key_env} unset)")
-
-    # Note: Quota exhaustion status is tracked in-memory during a pipeline run.
-    # `primr doctor` runs in a separate process, so it cannot observe the
-    # runtime quota state of an active run. Quota status is visible in the
-    # pipeline's own logging and in _run_state.json after a run completes.
-    # A future enhancement could persist quota state to disk for cross-process
-    # visibility, but that's out of scope for v1.23.0.
-
-    return warnings_count
-
-
-def _check_dependencies(warnings_count: int) -> int:
-    """Check required dependencies."""
-    try:
-        from playwright.sync_api import sync_playwright
-
-        with sync_playwright():
-            console.ok("Playwright browsers available")
-    except Exception as e:
-        console.warn(f"Playwright not ready: {e}")
-        console.info("  Run: playwright install chromium")
-        warnings_count += 1
-    return warnings_count
-
-
-def _check_filesystem(all_passed: bool, warnings_count: int) -> tuple[bool, int]:
-    """Check filesystem access."""
-
-    def _atomic_write_probe(directory: str) -> None:
-        os.makedirs(directory, exist_ok=True)
-        target = os.path.join(directory, ".primr_test")
-        tmp = f"{target}.tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            f.write("test")
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(tmp, target)
-        os.remove(target)
-
-    # Output directory
-    try:
-        _atomic_write_probe(OUTPUT_DIR)
-        console.ok("Output directory writable")
-    except Exception as e:
-        console.error(f"Cannot write to output directory: {e}")
-        all_passed = False
-
-    # Working directory
-    try:
-        _atomic_write_probe(WORKING_DIR)
-        console.ok("Working directory writable")
-    except Exception as e:
-        console.error(f"Cannot write to working directory: {e}")
-        all_passed = False
-
-    # Cache directory
-    try:
-        cache_path = os.path.join(LOGS_DIR, "cache.db")
-        if os.path.exists(cache_path):
-            cache_size = os.path.getsize(cache_path) / (1024 * 1024)
-            console.ok(f"Cache accessible ({cache_size:.1f} MB)")
-        else:
-            console.ok("Cache directory ready")
-    except Exception as e:
-        console.warn(f"Cache check failed: {e}")
-        warnings_count += 1
-
-    return all_passed, warnings_count
-
-
-def _check_api_connectivity(all_passed: bool, warnings_count: int) -> tuple[bool, int]:
-    """Check API connectivity."""
-    gemini_key = os.environ.get("GEMINI_API_KEY", "")
-    if gemini_key:
-        try:
-            from google import genai
-
-            client = genai.Client(api_key=gemini_key)
-            response = client.models.generate_content(
-                model=PrimrModels.FAST_MODEL,
-                contents="Reply with exactly: hello",
-            )
-            # Check if we got any response at all (connection works)
-            if response and (response.text or response.candidates):
-                console.ok("Gemini API responding")
-            else:
-                # Still connected, just empty - not a failure
-                console.ok("Gemini API connected")
-        except Exception as e:
-            error_str = str(e).lower()
-            if "quota" in error_str or "rate" in error_str:
-                console.error("Gemini API quota exceeded - wait and retry")
-                all_passed = False
-            elif "invalid" in error_str and "key" in error_str:
-                console.error("Gemini API key is invalid")
-                all_passed = False
-            else:
-                console.warn(f"Gemini API test failed: {e}")
-                warnings_count += 1
-    else:
-        console.warn("Skipping API test (no key configured)")
-        warnings_count += 1
-
-    return all_passed, warnings_count
-
-
-def _check_gemini_resources(all_passed: bool, warnings_count: int) -> tuple[bool, int]:
-    """Check for orphaned Gemini resources that could be incurring costs.
-
-    Checks for:
-    - Explicit context caches ($1-4.50/M tokens/hour storage)
-    - File search stores (persist until manually deleted)
-    """
-    gemini_key = os.environ.get("GEMINI_API_KEY", "")
-    if not gemini_key:
-        console.warn("Skipping Gemini resource check (no API key)")
-        warnings_count += 1
-        return all_passed, warnings_count
-
-    try:
-        from google import genai
-
-        client = genai.Client(api_key=gemini_key)
-        python_cmd = f'"{sys.executable}"'
-
-        # Check for explicit caches
-        try:
-            caches = list(client.caches.list())
-            if caches:
-                console.warn(f"Found {len(caches)} orphaned cache(s) - costing money!")
-                console.info(
-                    f"  Run: {python_cmd} scripts/check_gemini_resources.py --delete-caches"
-                )
-                warnings_count += 1
-            else:
-                console.ok("No orphaned caches")
-        except Exception as e:
-            # Don't fail the whole check if cache listing fails
-            logger.debug(f"Could not list caches: {e}")
-
-        # Check for file search stores
-        try:
-            stores = list(client.file_search_stores.list())
-            if stores:
-                console.warn(f"Found {len(stores)} orphaned file search store(s)")
-                console.info(
-                    f"  Run: {python_cmd} scripts/check_gemini_resources.py --delete-stores --force-empty"
-                )
-                warnings_count += 1
-            else:
-                console.ok("No orphaned file search stores")
-        except Exception as e:
-            # Don't fail the whole check if store listing fails
-            logger.debug(f"Could not list file search stores: {e}")
-
-    except ImportError:
-        console.warn("google-genai not installed, skipping resource check")
-        warnings_count += 1
-    except Exception as e:
-        console.warn(f"Gemini resource check failed: {e}")
-        warnings_count += 1
-
-    return all_passed, warnings_count
-
-
-# =============================================================================
-# UTILITY FUNCTIONS
-# =============================================================================
-
-
 def list_recent_outputs() -> None:
     """List recent research outputs from the output directory."""
     import glob
@@ -3834,226 +3153,6 @@ def check_pending_jobs() -> None:
                 console.info("  Terminal state reached; job removed from pending list.")
 
 
-def _sanitize_output_stem(value: str) -> str:
-    """Convert user/model-provided names into safe filename stems."""
-    import re
-
-    cleaned = re.sub(r"[^A-Za-z0-9 _-]", "", (value or "").strip())
-    cleaned = re.sub(r"\s+", "_", cleaned)
-    cleaned = re.sub(r"_+", "_", cleaned).strip("_")
-    return cleaned or "Recovered"
-
-
-def _build_recovered_basename(interaction_id: str, job_info: dict[str, Any]) -> str:
-    """Build canonical output basename for recovered jobs."""
-    from datetime import datetime
-
-    metadata: dict[str, Any] = (
-        job_info.get("metadata", {}) if isinstance(job_info.get("metadata"), dict) else {}
-    )
-    report_kind = str(metadata.get("report_kind", "")).lower()
-    strategy_type = str(metadata.get("strategy_type", "")).lower()
-    company_name = _sanitize_output_stem(str(metadata.get("company_name", "")).strip())
-    cloud_vendor = str(metadata.get("cloud_vendor", "")).lower().strip()
-    date_str = datetime.now().strftime("%m-%d-%Y")
-
-    if report_kind == "ai_strategy" or strategy_type == "ai":
-        vendor_tag = (
-            f"_{cloud_vendor.upper()}" if cloud_vendor and cloud_vendor != "agnostic" else ""
-        )
-        return f"{company_name}_AI_Strategy{vendor_tag}_{date_str}"
-
-    if report_kind in {"customer_experience", "modern_security_compliance", "data_fabric_strategy"}:
-        labels = {
-            "customer_experience": "Customer_Experience_Strategy",
-            "modern_security_compliance": "Modern_Security_Compliance_Strategy",
-            "data_fabric_strategy": "Data_Fabric_Strategy",
-        }
-        label = labels.get(report_kind, _sanitize_output_stem(report_kind))
-        return f"{company_name}_{label}_{date_str}"
-
-    if report_kind == "strategic_overview":
-        return f"{company_name}_Strategic_Overview_{date_str}"
-
-    job_type = _sanitize_output_stem(job_info.get("type", "deep_research"))
-    return f"recovered_{job_type}_{interaction_id[:8]}_{date_str}"
-
-
-def _save_recovered_outputs(
-    interaction_id: str,
-    job_info: dict[str, Any],
-    content: str,
-) -> dict[str, str]:
-    """Save recovered content to canonical MD/TXT/DOCX paths."""
-    from pathlib import Path
-
-    from primr.output.markdown_converter import markdown_to_docx
-
-    base_name = _build_recovered_basename(interaction_id, job_info)
-    base_path = Path(OUTPUT_DIR) / base_name
-    md_path = str(base_path.with_suffix(".md"))
-    txt_path = str(base_path.with_suffix(".txt"))
-    docx_path = str(base_path.with_suffix(".docx"))
-
-    with open(md_path, "w", encoding="utf-8") as f:
-        f.write(content)
-    with open(txt_path, "w", encoding="utf-8") as f:
-        f.write(content)
-
-    metadata: dict[str, Any] = (
-        job_info.get("metadata", {}) if isinstance(job_info.get("metadata"), dict) else {}
-    )
-    company_name = str(metadata.get("company_name", "")).strip() or "Recovered"
-    report_kind = str(metadata.get("report_kind", "")).lower()
-    cloud_vendor = str(metadata.get("cloud_vendor", "")).strip()
-    if report_kind == "strategic_overview":
-        title = f"Strategic Overview: {company_name}"
-    elif report_kind == "ai_strategy":
-        title = f"AI Strategy: {company_name}"
-    else:
-        title = f"Recovered Research: {company_name}"
-
-    subtitle_parts = ["Recovered from background job", interaction_id[:8]]
-    if cloud_vendor:
-        subtitle_parts.append(cloud_vendor.upper())
-    subtitle = " | ".join(subtitle_parts)
-
-    markdown_to_docx(
-        markdown_text=content,
-        output_path=Path(docx_path),
-        title=title,
-        subtitle=subtitle,
-    )
-
-    return {"md": md_path, "txt": txt_path, "docx": docx_path}
-
-
-def _find_latest_run_state() -> tuple[str, dict[str, Any]] | None:
-    """Find the most recently updated run state file under working/."""
-    import glob
-    import json
-
-    pattern = os.path.join(WORKING_DIR, "*", "*", "_run_state.json")
-    candidates = glob.glob(pattern)
-    if not candidates:
-        return None
-
-    # Walk newest -> oldest and return the first valid JSON state.
-    # This avoids losing recovery hints when the freshest file is truncated/corrupt.
-    for state_path in sorted(candidates, key=os.path.getmtime, reverse=True):
-        try:
-            with open(state_path, encoding="utf-8") as f:
-                state = json.load(f)
-            if isinstance(state, dict):
-                return state_path, state
-        except Exception as e:
-            logger.warning("Skipping corrupt state file %s: %s", state_path, e)
-            continue
-    return None
-
-
-def _show_latest_run_state_hint() -> None:
-    """Print the latest local run state summary if available."""
-    latest = _find_latest_run_state()
-    if not latest:
-        return
-    path, state = latest
-    company = state.get("company_name", "Unknown")
-    mode = state.get("mode", "unknown")
-    status = state.get("status", "unknown")
-    phase = state.get("current_phase", "unknown")
-    updated = state.get("updated_at", "unknown")
-    console.blank()
-    console.info("Latest local run state:")
-    console.info(f"  Company: {company}")
-    console.info(f"  Mode: {mode}")
-    console.info(f"  Status: {status}")
-    console.info(f"  Phase: {phase}")
-    console.info(f"  Updated: {updated}")
-    console.info(f"  File: {path}")
-
-
-def resume_pending_jobs() -> int:
-    """Recover and finalize pending jobs into canonical outputs."""
-    from primr.ai.deep_research import get_deep_research_client, get_pending_jobs
-
-    console.banner("Resume Pending Jobs")
-    jobs = get_pending_jobs()
-    if not jobs:
-        console.info("No pending jobs found.")
-        _show_latest_run_state_hint()
-        return 0
-
-    console.info(f"Found {len(jobs)} pending job(s)")
-    client = get_deep_research_client()
-
-    finalized = 0
-    still_running = 0
-    failed = 0
-    check_errors = 0
-
-    for interaction_id, job_info in jobs.items():
-        description = str(job_info.get("description", "Unknown"))[:60]
-        console.step(f"Resuming: {description}...")
-        result = client.check_job(interaction_id)
-        status = result.get("status", "unknown")
-        error = result.get("error")
-
-        if status == "completed":
-            content = result.get("content", "")
-            if not content:
-                console.error("  Completed but returned empty content")
-                failed += 1
-                continue
-
-            try:
-                outputs = _save_recovered_outputs(interaction_id, job_info, content)
-                console.ok("  Status: COMPLETED")
-                console.ok(f"  Finalized MD: {outputs['md']}")
-                console.ok(f"  Finalized DOCX: {outputs['docx']}")
-                finalized += 1
-            except Exception as e:
-                fallback_path = os.path.join(
-                    OUTPUT_DIR, f"recovered_deep_research_{interaction_id[:8]}.txt"
-                )
-                with open(fallback_path, "w", encoding="utf-8") as f:
-                    f.write(content)
-                console.error(f"  Finalization failed: {e}")
-                console.ok(f"  Saved fallback TXT: {fallback_path}")
-                failed += 1
-            continue
-
-        if status == "in_progress":
-            console.info("  Status: IN PROGRESS")
-            still_running += 1
-            continue
-
-        if status == "check_error":
-            console.error("  Status: CHECK ERROR")
-            console.error(f"  Error: {error or 'Unknown'}")
-            check_errors += 1
-            continue
-
-        console.error(f"  Status: {status}")
-        console.error(f"  Error: {error or 'Unknown'}")
-        failed += 1
-
-    console.blank()
-    console.info(
-        f"Summary: finalized={finalized}, in_progress={still_running}, "
-        f"failed={failed}, check_errors={check_errors}"
-    )
-
-    if check_errors > 0:
-        console.info(
-            "Network/API issue detected during resume. Re-run `primr --resume-latest` when connectivity is stable."
-        )
-        return 1
-    if failed > 0 and finalized == 0:
-        return 1
-    return 0
-
-
 def _handle_list_strategies(config: CLIConfig) -> int:
     """List available strategy documents (dynamically from YAML configs)."""
     from pathlib import Path
@@ -4156,163 +3255,6 @@ def _handle_list_strategies(config: CLIConfig) -> int:
 # =============================================================================
 # BATCH / ENRICH FUNCTIONS
 # =============================================================================
-
-
-@dataclass(frozen=True)
-class _ColumnMap:
-    """Result of LLM-based column classification."""
-
-    company: str  # Column name for company name (required)
-    website: str | None  # Column name for website URL
-    industry: str | None  # Column name for industry/sector
-    context: list[str]  # Columns useful for company disambiguation
-
-
-def _classify_columns(df) -> _ColumnMap:
-    """
-    Use LLM to classify spreadsheet columns into roles.
-
-    Shows the column names + a few sample rows so the LLM understands
-    what each column actually contains.
-    """
-    import json
-
-    from primr.ai.llm import llm
-
-    columns = list(df.columns)
-    if not columns:
-        raise ValueError("Spreadsheet has no columns — cannot classify an empty file")
-
-    # Build sample rows (up to 3) for context
-    sample_lines = []
-    for _, row in df.head(3).iterrows():
-        vals = {
-            col: str(row[col]).strip() for col in columns if str(row[col]).strip().lower() != "nan"
-        }
-        sample_lines.append(json.dumps(vals, ensure_ascii=False))
-    samples_text = "\n".join(sample_lines)
-
-    prompt = f"""Classify these spreadsheet columns for a company research tool.
-
-Columns: {json.dumps(columns)}
-
-Sample rows:
-{samples_text}
-
-Classify each column into exactly ONE role:
-- "company_name": the column containing the company/organization name (exactly one)
-- "website": the column containing the company website URL (if any)
-- "industry": the column containing industry, sector, or vertical (if any)
-- "context": columns useful for identifying the company (region, country, revenue, employees, HQ, etc.)
-- "skip": internal CRM fields not useful for identifying the company (owner, sales team, dates, internal IDs, etc.)
-
-Return JSON only, no explanation:
-{{"company_name": "column_name", "website": "column_name_or_null", "industry": "column_name_or_null", "context": ["col1", "col2"], "skip": ["col1", "col2"]}}"""
-
-    response = llm(prompt, model_type="fast", streaming=False).strip()
-
-    # Parse JSON from response (handle markdown code fences)
-    if response.startswith("```"):
-        parts = response.split("\n", 1)
-        if len(parts) > 1:
-            response = parts[1].rsplit("```", 1)[0].strip()
-        else:
-            # No newline after opening fences (e.g. ```{...}```)
-            response = response[3:].rsplit("```", 1)[0].strip()
-
-    try:
-        result = json.loads(response)
-    except json.JSONDecodeError:
-        logger.warning("LLM column classification failed to parse, falling back")
-        console.warn(
-            f"Column detection fell back to '{columns[0]}' — verify this is the company name column"
-        )
-        return _ColumnMap(company=columns[0], website=None, industry=None, context=[])
-
-    company_col = result.get("company_name")
-    if not company_col or company_col not in columns:
-        # Fallback: try common names
-        for candidate in ["Account Name", "Company", "company_name", "Name"]:
-            if candidate in columns:
-                company_col = candidate
-                break
-        if not company_col:
-            company_col = columns[0]
-
-    website_col = result.get("website")
-    if website_col and website_col not in columns:
-        website_col = None
-
-    industry_col = result.get("industry")
-    if industry_col and industry_col not in columns:
-        industry_col = None
-
-    context_cols = [c for c in result.get("context", []) if c in columns]
-
-    mapping = _ColumnMap(
-        company=company_col,
-        website=website_col,
-        industry=industry_col,
-        context=context_cols,
-    )
-
-    logger.debug(f"Column mapping: {mapping}")
-    return mapping
-
-
-def _read_batch_file(file_path: str):
-    """Read an Excel or CSV file into a pandas DataFrame."""
-    import pandas as pd
-
-    if file_path.lower().endswith((".xlsx", ".xls")):
-        return pd.read_excel(file_path, engine="openpyxl")
-    return pd.read_csv(file_path, encoding="utf-8")
-
-
-def _prepare_batch_df(
-    file_path: str,
-    industry: str | None = None,
-    limit: int | None = None,
-) -> tuple:
-    """
-    Read batch file, classify columns with LLM, filter, and limit.
-
-    Returns:
-        (df, column_map: _ColumnMap)
-    """
-    df = _read_batch_file(file_path)
-
-    # LLM classifies columns
-    console.info("Analyzing columns...")
-    col_map = _classify_columns(df)
-    console.info(f"  Company: {col_map.company}")
-    if col_map.website:
-        console.info(f"  Website: {col_map.website}")
-    if col_map.industry:
-        console.info(f"  Industry: {col_map.industry}")
-    if col_map.context:
-        console.info(f"  Context: {', '.join(col_map.context)}")
-    console.blank()
-
-    # Filter by industry if requested
-    if industry and col_map.industry:
-        df = df[df[col_map.industry].astype(str).str.lower() == industry.lower()]
-        if df.empty:
-            df_full = _read_batch_file(file_path)
-            unique = sorted(df_full[col_map.industry].dropna().unique())
-            console.error(f"No rows match industry '{industry}'.")
-            console.info(f"Available industries: {', '.join(str(v) for v in unique[:20])}")
-            raise SystemExit(1)
-    elif industry and not col_map.industry:
-        console.error(f"--industry specified but no industry column found in {file_path}")
-        console.info(f"Available columns: {', '.join(list(df.columns))}")
-        raise SystemExit(1)
-
-    # Apply limit
-    if limit and limit > 0:
-        df = df.head(limit)
-
-    return df, col_map
 
 
 def enrich_batch(
@@ -4864,21 +3806,3 @@ def open_file(filepath: str) -> None:
         console.warn(f"Could not open file: {e}")
 
 
-def _ensure_valid_url(website: str | None) -> str | None:
-    """Ensure URL has proper scheme."""
-    if not website:
-        return None
-    website = website.strip()
-    if website.startswith(("http://", "https://")):
-        return website
-    if website.startswith("www."):
-        return f"https://{website}"
-    return f"https://{website}"
-
-
-# =============================================================================
-# ENTRY POINT
-# =============================================================================
-
-if __name__ == "__main__":
-    sys.exit(main())
