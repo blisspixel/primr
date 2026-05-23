@@ -31,7 +31,7 @@ class TestInvalidUrlRejection:
             result = scrape_with_requests("http://169.254.169.254/")
         assert result.success is False
         assert result.error_type == ErrorType.NETWORK_ERROR
-        assert "Invalid URL" in result.error
+        assert "Invalid URL" in (result.error or "")
         assert result.tier == "requests"
 
     def test_httpx_rejects_invalid_url(self):
@@ -79,7 +79,7 @@ class TestRedirectRejection:
         ):
             result = scrape_with_requests("https://example.com")
         assert result.success is False
-        assert "SSRF protection" in result.error
+        assert "SSRF protection" in (result.error or "")
 
     def test_httpx_blocks_unsafe_redirect(self):
         mock_resp = MagicMock()
@@ -104,7 +104,7 @@ class TestRedirectRejection:
         ):
             result = scrape_with_httpx("https://example.com")
         assert result.success is False
-        assert "SSRF protection" in result.error
+        assert "SSRF protection" in (result.error or "")
 
 
 # =============================================================================
@@ -262,4 +262,4 @@ class TestCurlCffi:
         ):
             result = scrape_with_curl_cffi("https://example.com")
         assert result.success is False
-        assert "SSRF protection" in result.error
+        assert "SSRF protection" in (result.error or "")

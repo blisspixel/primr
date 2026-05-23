@@ -6,6 +6,7 @@ from primr.data.scraping.net import (
     extract_host,
     get_default_headers,
     head_exists,
+    is_in_scope,
     is_same_domain,
     make_request,
     normalize_url_for_request,
@@ -236,6 +237,39 @@ class TestIsSameDomain:
     def test_case_insensitive(self):
         """Should be case insensitive."""
         assert is_same_domain("https://EXAMPLE.COM/page", "https://example.com/page") is True
+
+    def test_embedded_www_not_stripped(self):
+        """Only a leading 'www.' is stripped; an embedded 'www.' must not be.
+
+        Regression: host.replace('www.', '') corrupted hosts like
+        'my-www.example.com' into 'my-.example.com'.
+        """
+        assert is_same_domain("https://my-www.example.com/a", "https://my-www.example.com/b") is True
+        # The corrupted form must NOT be treated as the same domain.
+        assert is_same_domain("https://my-www.example.com/a", "https://my-.example.com/b") is False
+        # Leading www. is still normalized away.
+        assert is_same_domain("https://www.example.com/a", "https://example.com/b") is True
+
+
+class TestIsInScope:
+    """Tests for is_in_scope function (same domain + subdomains)."""
+
+    def test_same_domain_in_scope(self):
+        assert is_in_scope("https://example.com/x", "https://example.com") is True
+
+    def test_subdomain_in_scope(self):
+        assert is_in_scope("https://docs.example.com/x", "https://example.com") is True
+
+    def test_external_out_of_scope(self):
+        assert is_in_scope("https://linkedin.com/x", "https://example.com") is False
+
+    def test_embedded_www_not_stripped(self):
+        """Regression: an embedded 'www.' must not be stripped, which would
+        corrupt the host and mis-classify scope."""
+        # Same host with an embedded www. is in scope with itself.
+        assert is_in_scope("https://my-www.example.com/a", "https://my-www.example.com") is True
+        # A genuinely different host is not pulled into scope by the corruption.
+        assert is_in_scope("https://my-.example.com/a", "https://my-www.example.com") is False
 
 
 class TestNormalizeUrlForRequest:

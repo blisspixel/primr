@@ -3070,6 +3070,11 @@ def perform_fast_research(
                         f"Searching for gap-filling sources ({_gap_queries_done}/{len(gap_queries)} queries, {len(gap_search_results)} results)"
                     )
 
+            # Record how many gap searches we actually issued, so the usage
+            # telemetry total (search_queries) includes them — gap_search_count
+            # was previously summed into that total but never assigned.
+            gap_search_count = _gap_queries_done
+
             # Phase 2: parallel validation with a hard attempt cap (same
             # design as the main external-source pass: 4 workers, cap at
             # 2x the target to bound runtime on noisy searches).
