@@ -96,7 +96,12 @@ class PipelineRunner:
             # Create progress callback that updates job state
             def on_progress(message: str) -> None:
                 if self._cancel_requested:
-                    raise RuntimeError("Job cancelled by user")
+                    # Raise CancelledError (a BaseException) so it bypasses the
+                    # orchestrator's broad `except Exception` and reaches the
+                    # CANCELLED-recording handler below. A RuntimeError here is
+                    # caught as a generic failure and mis-records the job as
+                    # FAILED/research_failed instead of CANCELLED/user_cancelled.
+                    raise asyncio.CancelledError("Job cancelled by user")
                 job.heartbeat()
                 self.mcp_server.job_store.update(job)
                 logger.debug(f"Progress: {message}")

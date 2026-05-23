@@ -5509,9 +5509,11 @@ def perform_deep_research(
             )
             log_structured("info", "Deep research complete", sections=section_count)
 
-            # Calculate word and page count from raw content
+            # Calculate word and page count from raw content. Round to nearest
+            # page and floor at 1 for any non-empty report — plain floor
+            # division shows "~0 pages" for 1-499-word reports.
             word_count = len(result.raw_content.split()) if result.raw_content else 0
-            page_count = word_count // 500  # ~500 words per page
+            page_count = max(1, round(word_count / 500)) if word_count else 0  # ~500 words/page
 
             if is_simple_deep_research:
                 console.phase_complete(

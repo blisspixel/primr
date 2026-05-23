@@ -3,6 +3,12 @@
 Primr Setup - Interactive setup wizard
 """
 
+# Postpone annotation evaluation so PEP 604 unions (e.g. `str | None`) used in
+# this module's function signatures don't raise TypeError at definition time on
+# Python < 3.10 — otherwise the script crashes during import, before its own
+# friendly "need 3.10+" version check can run.
+from __future__ import annotations
+
 import os
 import shutil
 import subprocess

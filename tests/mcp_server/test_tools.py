@@ -299,6 +299,53 @@ class TestCostCaps:
         assert data["error_type"] == "cost_cap_exceeded"
 
     @pytest.mark.asyncio
+    async def test_research_company_accepts_numeric_string_cap(self, server):
+        """A numeric string cap (OpenClaw passes the estimate via quoted
+        interpolation) is coerced to float and still enforced — previously this
+        raised TypeError in the comparison."""
+        handler = server.server.request_handlers[CallToolRequest]
+        result = await handler(
+            CallToolRequest(
+                method="tools/call",
+                params=CallToolRequestParams(
+                    name="research_company",
+                    arguments={
+                        "company_name": "Acme Corp",
+                        "company_url": "https://example.com",
+                        "mode": "full",
+                        "max_estimated_cost_usd": "0.01",
+                    },
+                ),
+            )
+        )
+        data = json.loads(result.root.content[0].text)
+        assert data["error"] is True
+        assert data["error_type"] == "cost_cap_exceeded"
+
+    @pytest.mark.asyncio
+    async def test_research_company_rejects_non_numeric_cap(self, server):
+        """A non-numeric cap returns a structured invalid_cost_cap error rather
+        than raising TypeError inside the comparison."""
+        handler = server.server.request_handlers[CallToolRequest]
+        result = await handler(
+            CallToolRequest(
+                method="tools/call",
+                params=CallToolRequestParams(
+                    name="research_company",
+                    arguments={
+                        "company_name": "Acme Corp",
+                        "company_url": "https://example.com",
+                        "mode": "full",
+                        "max_estimated_cost_usd": "not-a-number",
+                    },
+                ),
+            )
+        )
+        data = json.loads(result.root.content[0].text)
+        assert data["error"] is True
+        assert data["error_type"] == "invalid_cost_cap"
+
+    @pytest.mark.asyncio
     async def test_research_company_requires_cap_when_enforced(self, server, monkeypatch):
         monkeypatch.setenv("PRIMR_ENFORCE_MCP_COST_CAPS", "1")
         handler = server.server.request_handlers[CallToolRequest]

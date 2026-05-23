@@ -658,7 +658,8 @@ def fetch_web_content(
         limit: int,
     ) -> list[str]:
         """Probe first-party deep paths when the homepage is blocked."""
-        from .scraping.discovery import discover_links, is_same_domain
+        from .scraping.discovery import discover_links
+        from .scraping.net import is_in_scope
 
         recovery_links = discover_links(
             base_url=base_url,
@@ -668,10 +669,13 @@ def fetch_web_content(
             organization_type=organization_type,
         )
 
+        # First-party recovery legitimately includes subdomains (investor.*,
+        # ir.*, newsroom.*), so scope with is_in_scope rather than the
+        # exact-host is_same_domain.
         filtered_links = [
             link
             for link in recovery_links
-            if is_same_domain(base_url, link.url)
+            if is_in_scope(link.url, base_url)
             and _is_recoverable_selected_url(link.url, base_url)
         ]
         return [link.url for link in filtered_links[:limit]]
@@ -852,7 +856,8 @@ def fetch_web_content(
         if homepage_access_ok:
             # Step 2: Discover ALL links using full discovery pipeline
             # This includes: homepage links, common URL guessing, sitemap fallback
-            from .scraping.discovery import discover_links, is_same_domain
+            from .scraping.discovery import discover_links
+            from .scraping.net import is_in_scope
 
             all_links = discover_links(
                 base_url=website,
@@ -862,8 +867,11 @@ def fetch_web_content(
                 organization_type=organization_type,
             )
 
-            # Filter to in-scope links (same domain + subdomains)
-            in_scope_links = [link for link in all_links if is_same_domain(website, link.url)]
+            # Filter to in-scope links (same domain + subdomains). Use
+            # is_in_scope, not is_same_domain: the latter was narrowed to
+            # exact-host equality, which silently dropped docs./investors./
+            # careers. subdomains and shrank report coverage.
+            in_scope_links = [link for link in all_links if is_in_scope(link.url, website)]
             in_scope_count = len(in_scope_links)
 
             # Use LLM to intelligently select the most valuable pages for company research

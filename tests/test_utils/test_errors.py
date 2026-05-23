@@ -899,6 +899,18 @@ class TestErrorGuidance:
 
         assert guidance == "Custom guidance here"
 
+    def test_configuration_error_preserves_custom_guidance(self):
+        """ConfigurationError must keep caller-supplied guidance.
+
+        It inherits the legacy config.ConfigurationError whose __init__ resets
+        guidance to None during dataclass post-init; without the override this
+        silently fell back to the generic category guidance.
+        """
+        error = ConfigurationError("Missing key", guidance="Run primr keys set xai")
+
+        assert error.guidance == "Run primr keys set xai"
+        assert get_error_guidance(error) == "Run primr keys set xai"
+
     def test_common_error_guidance(self):
         """Should provide guidance for common error types."""
         error = ConnectionError("Connection refused")

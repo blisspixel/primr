@@ -30,6 +30,34 @@ MIN_SECRET_KEY_LENGTH = 32
 # Maximum number of entries in the token cache
 MAX_CACHE_SIZE = 10000
 
+# Substrings that betray a non-secret placeholder accidentally shipped from an
+# IaC template, example, or hand-edit. A JWT signing secret containing any of
+# these is treated as not-a-real-secret. The Azure Bicep now generates a random
+# secret per deployment (deploy/azure/bicep/modules/keyvault.bicep), but a
+# redeploy or manual `az keyvault secret set` could reintroduce a literal like
+# "placeholder-replace-before-exposing-public-fqdn" — which passes the 32-char
+# length floor yet is public in the repo. Since forging HS256 tokens against a
+# known secret is a full authentication bypass, this is the runtime backstop.
+PLACEHOLDER_SECRET_MARKERS: tuple[str, ...] = (
+    "placeholder",
+    "replace-before",
+    "replace-after",
+    "replace-me",
+    "replace_me",
+    "changeme",
+    "change-me",
+    "your-secret",
+    "your_secret",
+    "example-secret",
+    "dummy-secret",
+)
+
+
+def _is_placeholder_secret(secret: str) -> bool:
+    """Return True if *secret* looks like a non-random placeholder value."""
+    lowered = secret.lower()
+    return any(marker in lowered for marker in PLACEHOLDER_SECRET_MARKERS)
+
 
 @dataclass
 class AuthConfig:
@@ -84,6 +112,24 @@ class AuthConfig:
                 logger.warning(
                     f"MCP_JWT_SECRET is shorter than {MIN_SECRET_KEY_LENGTH} characters. "
                     "Consider using a longer secret for better security."
+                )
+
+        # L3b: Refuse known placeholder secrets. A long-but-public placeholder
+        # (e.g. the IaC's old "placeholder-replace-before-exposing-public-fqdn",
+        # 47 chars) passes the length floor above but lets anyone forge admin
+        # bearer tokens. Fail closed in cloud mode; warn loudly otherwise.
+        if jwt_secret and _is_placeholder_secret(jwt_secret):
+            if is_cloud:
+                raise ValueError(
+                    "MCP_JWT_SECRET appears to be a placeholder value and is not safe "
+                    "for a public deployment (AZURE_CLIENT_ID is set). Set it to a "
+                    "cryptographically random secret of 32+ characters, e.g. "
+                    '`az keyvault secret set --name MCP-JWT-SECRET --value "$(openssl rand -base64 48)"`.'
+                )
+            else:
+                logger.warning(
+                    "MCP_JWT_SECRET looks like a placeholder value. Replace it with a "
+                    "cryptographically random secret before exposing the server publicly."
                 )
 
         # L4: Optional admin token max age

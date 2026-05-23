@@ -21,6 +21,7 @@ Requirements: 5.1-5.13, 6.1-6.7, 7.1-7.6, 8.1-8.6, 18.1-18.12
 """
 
 import logging
+import math
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any
 
@@ -579,16 +580,46 @@ def _enforce_cost_cap(
             }
         return None
 
-    if estimated_cost > max_estimated_cost_usd:
+    # Coerce the cap to a finite, non-negative float before comparing. MCP
+    # input schemas are advisory and the packaged OpenClaw workflows pass the
+    # estimate through quoted interpolation, so this value can arrive as a
+    # string (e.g. "0.30") or another non-numeric JSON type. A raw
+    # `estimated_cost > max_estimated_cost_usd` would then raise TypeError (or
+    # silently mis-compare against NaN/Infinity). Return a structured error so
+    # the cost governor fails closed instead of bubbling an opaque tool error.
+    try:
+        cap = float(max_estimated_cost_usd)
+    except (TypeError, ValueError):
+        return {
+            "error": True,
+            "error_type": "invalid_cost_cap",
+            "error_code": MCPErrorCode.INVALID_PARAMS,
+            "message": (
+                f"max_estimated_cost_usd must be a number for {operation_name}, "
+                f"got {max_estimated_cost_usd!r}"
+            ),
+        }
+    if not math.isfinite(cap) or cap < 0:
+        return {
+            "error": True,
+            "error_type": "invalid_cost_cap",
+            "error_code": MCPErrorCode.INVALID_PARAMS,
+            "message": (
+                f"max_estimated_cost_usd must be a finite, non-negative number for "
+                f"{operation_name}, got {max_estimated_cost_usd!r}"
+            ),
+        }
+
+    if estimated_cost > cap:
         return {
             "error": True,
             "error_type": "cost_cap_exceeded",
             "error_code": MCPErrorCode.COST_CAP_EXCEEDED,
             "message": (
-                f"Estimated cost ${estimated_cost:.2f} exceeds approved cap ${max_estimated_cost_usd:.2f} for {operation_name}"
+                f"Estimated cost ${estimated_cost:.2f} exceeds approved cap ${cap:.2f} for {operation_name}"
             ),
             "estimated_cost_usd": estimated_cost,
-            "max_estimated_cost_usd": max_estimated_cost_usd,
+            "max_estimated_cost_usd": cap,
         }
     return None
 

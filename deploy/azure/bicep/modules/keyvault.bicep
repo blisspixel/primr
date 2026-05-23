@@ -16,6 +16,11 @@ param identityPrincipalId string
 @description('Principal ID of the deploying user (for secret management). Empty = skip.')
 param deployerPrincipalId string = ''
 
+@description('MCP server JWT signing secret (HS256 bearer-token verification). MUST be a cryptographically random value of 32+ characters supplied by the caller — main.bicep auto-generates one per deployment via newGuid(). Never seed a literal placeholder: the MCP server fails closed on known placeholder values when AZURE_CLIENT_ID is set (see src/primr/mcp_server/auth.py).')
+@secure()
+@minLength(32)
+param mcpJwtSecret string
+
 var keyVaultName = '${resourcePrefix}-kv'
 
 // Key Vault Secrets User role (read secrets)
@@ -97,16 +102,19 @@ resource anthropicSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
 
 // MCP server bearer-token verifier secret. The MCP Starlette app installs
 // its auth middleware only when require_auth=true; the middleware uses
-// MCP_JWT_SECRET to verify HS256 tokens. We seed a placeholder so the
-// Container App can start; replace the value before exposing the public
-// FQDN to real traffic:
+// MCP_JWT_SECRET to verify HS256 tokens. The value is the random secret
+// supplied by main.bicep (defaulting to a fresh newGuid()-derived value per
+// deployment), NOT a repo-known literal — a public placeholder here would let
+// anyone forge admin bearer tokens. To pin a stable secret you rotate
+// out-of-band, override the mcpJwtSecret parameter at deploy time, or set it
+// directly afterward:
 //   az keyvault secret set --vault-name <name> --name MCP-JWT-SECRET \
 //     --value "$(openssl rand -base64 48)"
-resource mcpJwtSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+resource mcpJwtSecretResource 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
   parent: keyVault
   name: 'MCP-JWT-SECRET'
   properties: {
-    value: 'placeholder-replace-before-exposing-public-fqdn'
+    value: mcpJwtSecret
   }
 }
 

@@ -135,6 +135,18 @@ def create_working_folder(
     else:
         folder_path = os.path.join(WORKING_DIR, folder_name)
 
+    # Defense-in-depth: company_name is sanitized at the input boundary
+    # (validate_company_name rejects path separators and traversal), but this
+    # is the sink that creates directories. Refuse anything that resolves
+    # outside WORKING_DIR so a name that bypassed validation can't escape.
+    base = Path(WORKING_DIR).resolve()
+    resolved = Path(folder_path).resolve()
+    if base not in resolved.parents:
+        raise ValueError(
+            f"Refusing to create a working folder outside WORKING_DIR for "
+            f"company name {company_name!r}"
+        )
+
     os.makedirs(folder_path, exist_ok=True)
     return folder_path
 

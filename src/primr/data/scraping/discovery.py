@@ -223,13 +223,16 @@ def _parse_sitemap_recursive(
 
             url = loc.text.strip()
 
-            # Get optional metadata
+            # Get optional metadata. <priority> is third-party content and is
+            # frequently off-spec (e.g. "high", "0,8", stray text); a bad value
+            # must not raise ValueError and abort the entire sitemap parse.
             priority_elem = url_elem.find("sm:priority", SITEMAP_NS)
-            priority = (
-                float(priority_elem.text)
-                if priority_elem is not None and priority_elem.text
-                else None
-            )
+            priority: float | None = None
+            if priority_elem is not None and priority_elem.text:
+                try:
+                    priority = float(priority_elem.text.strip())
+                except (ValueError, TypeError):
+                    priority = None
 
             lastmod_elem = url_elem.find("sm:lastmod", SITEMAP_NS)
             lastmod = (

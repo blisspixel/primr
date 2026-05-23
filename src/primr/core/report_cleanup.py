@@ -174,7 +174,12 @@ def _strip_unresolved_section_cross_references(content: str) -> str:
         content,
         flags=re.IGNORECASE,
     )
-    cleaned = re.sub(r"\s{2,}", " ", cleaned)
+    # Collapse only repeated horizontal whitespace left behind by the removed
+    # token. `\s{2,}` would also eat newlines (including the blank line after a
+    # heading), flattening "## Heading\n\n..." into "## Heading ..." and
+    # breaking downstream heading/section parsing. Restrict to spaces/tabs and
+    # let the following rule normalize any excess blank lines.
+    cleaned = re.sub(r"[ \t]{2,}", " ", cleaned)
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
     return cleaned
 
