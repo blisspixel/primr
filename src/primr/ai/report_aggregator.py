@@ -318,7 +318,7 @@ Do NOT:
 Return the edited document with smooth transitions.
 
 Document:
-{content[:50000]}  # Truncate to avoid token limits
+{content[:50000]}
 """
 
         try:

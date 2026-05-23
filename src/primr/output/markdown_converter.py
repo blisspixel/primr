@@ -141,6 +141,32 @@ def render_table(doc: Document, table_lines: list[str]) -> None:
                         run.font.bold = True
 
 
+def _is_table_separator(line: str) -> bool:
+    """True for a markdown table separator row like ``|---|---|`` (only pipes,
+    dashes, colons, and spaces, with at least one dash)."""
+    s = line.strip()
+    return bool(s) and "-" in s and set(s) <= {"|", "-", ":", " "}
+
+
+def _flush_table_block(doc: Document, table_lines: list[str]) -> None:
+    """Render buffered potential-table lines.
+
+    Only render a DOCX table when the block is an actual markdown table (it has
+    a ``|---|`` separator row). Otherwise render each line as a normal
+    paragraph: ``render_table`` no-ops on blocks with <2 lines or no parsed
+    rows, and the callers would otherwise silently drop prose that merely
+    contains a ``|`` (e.g. "Strengths | Weaknesses").
+    """
+    if not table_lines:
+        return
+    if len(table_lines) >= 2 and any(_is_table_separator(ln) for ln in table_lines):
+        render_table(doc, table_lines)
+        return
+    for ln in table_lines:
+        if ln.strip():
+            parse_inline_markdown(doc.add_paragraph(), ln.strip())
+
+
 def strip_heading_markers(text: str) -> str:
     """Remove markdown formatting from heading text."""
     text = sanitize_text(text)
@@ -322,7 +348,7 @@ def markdown_to_docx(
                 i += 1
                 continue
             else:
-                render_table(doc, table_lines)
+                _flush_table_block(doc, table_lines)
                 in_table = False
                 table_lines = []
                 continue
@@ -373,7 +399,7 @@ def markdown_to_docx(
         i += 1
     # Handle remaining table
     if in_table and table_lines:
-        render_table(doc, table_lines)
+        _flush_table_block(doc, table_lines)
     doc.save(output_path)
     return output_path
 
@@ -411,7 +437,7 @@ def render_section_content(doc: Document, content: str) -> None:
                 i += 1
                 continue
             else:
-                render_table(doc, table_lines)
+                _flush_table_block(doc, table_lines)
                 in_table = False
                 table_lines = []
                 continue
@@ -459,4 +485,4 @@ def render_section_content(doc: Document, content: str) -> None:
         i += 1
     # Handle remaining table
     if in_table and table_lines:
-        render_table(doc, table_lines)
+        _flush_table_block(doc, table_lines)

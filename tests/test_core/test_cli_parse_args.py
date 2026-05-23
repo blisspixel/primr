@@ -140,3 +140,20 @@ class TestFlagCommands:
     def test_dry_run_command(self):
         config = parse_args(["Acme", "https://acme.example", "--dry-run"])
         assert config.command == Command.DRY_RUN
+
+
+class TestPremiumMode:
+    def test_mode_premium_sets_premium_mode(self):
+        # --mode premium is documented as the Gemini + Deep Research pipeline,
+        # so it must enable premium_mode (it maps to the "complete" internal mode).
+        config = parse_args(["Acme", "https://acme.example", "--mode", "premium"])
+        assert config.premium_mode is True
+        assert config.mode == "complete"
+
+    def test_premium_flag_sets_premium_mode(self):
+        config = parse_args(["Acme", "https://acme.example", "--premium"])
+        assert config.premium_mode is True
+
+    def test_full_mode_does_not_set_premium(self):
+        config = parse_args(["Acme", "https://acme.example", "--mode", "full"])
+        assert config.premium_mode is False

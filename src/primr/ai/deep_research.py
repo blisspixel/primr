@@ -3477,12 +3477,17 @@ class ReportFormatter:
 
         # Build consolidated References section at the very end
         if citations:
-            # Deduplicate and renumber citations
+            # Deduplicate and renumber citations. Key by URL when present,
+            # otherwise by title — so title-only citations (no URL) are still
+            # included in the References section instead of being dropped (the
+            # `elif title` branch below was previously unreachable).
             seen_urls: dict[str, dict] = {}
             for citation in citations:
                 url = citation.get("url", "")
-                if url and url not in seen_urls:
-                    seen_urls[url] = citation
+                title = citation.get("title", "")
+                key = url or (f"title::{title}" if title else "")
+                if key and key not in seen_urls:
+                    seen_urls[key] = citation
 
             # Build clean references list
             ref_lines = ["\n\n---\n\n## References\n"]

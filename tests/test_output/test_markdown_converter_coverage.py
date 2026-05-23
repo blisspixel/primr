@@ -245,3 +245,24 @@ def test_render_section_content_all_elements():
     render_section_content(doc, content)
     assert len(doc.tables) == 1
     assert len(doc.paragraphs) > 0
+
+
+# --------------------------------------------------------------------------- #
+# table-detection content loss (regression)
+# --------------------------------------------------------------------------- #
+def test_single_pipe_prose_not_dropped():
+    """A prose line containing a single '|' but no table separator must be
+    rendered as a paragraph, not silently dropped as a degenerate table."""
+    doc = Document()
+    render_section_content(doc, "Strengths | Weaknesses\n\nFollowing paragraph text")
+    texts = "\n".join(p.text for p in doc.paragraphs)
+    assert "Strengths" in texts
+    assert "Weaknesses" in texts
+    assert "Following paragraph text" in texts
+
+
+def test_real_table_still_renders_as_table():
+    """A genuine markdown table (with a |---| separator row) renders as a DOCX table."""
+    doc = Document()
+    render_section_content(doc, "| A | B |\n| --- | --- |\n| 1 | 2 |")
+    assert len(doc.tables) == 1
