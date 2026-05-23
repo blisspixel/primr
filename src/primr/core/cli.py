@@ -487,7 +487,14 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         resume_local=getattr(parsed, "resume_local", False),
         lite_strategy=getattr(parsed, "lite_strategy", False),
         fast_mode=getattr(parsed, "fast_mode", False),
-        premium_mode=getattr(parsed, "premium_mode", False),
+        # `--mode premium` is documented (and MODE_MAP comments) as requesting
+        # the Gemini + Deep Research pipeline, but it maps to "complete" and
+        # would otherwise run the cheaper pipeline. Treat it as equivalent to
+        # the --premium flag so the requested (and dry-run-priced) pipeline runs.
+        premium_mode=(
+            getattr(parsed, "premium_mode", False)
+            or getattr(parsed, "mode", None) == "premium"
+        ),
         grok_tier=getattr(parsed, "grok_tier", "hybrid"),
         continuous_reasoning=continuous_reasoning,
         no_qa=getattr(parsed, "no_qa", False),
@@ -3733,9 +3740,13 @@ def process_batch(
                     console.info("  Re-run the same command to retry failed companies.")
                     break
 
-        # Check overall error rate (after at least 3 new attempts)
+        # Check overall error rate (after at least 3 new attempts). Count all
+        # failures rather than slicing results[skipped_existing:] — resumed and
+        # freshly-processed companies interleave in company order, so the slice
+        # miscounted. Resumed entries are always status "ok", so every "failed"
+        # entry is a new attempt.
         new_attempted = len(results) - skipped_existing
-        new_failed = sum(1 for r in results[skipped_existing:] if r["status"] == "failed")
+        new_failed = sum(1 for r in results if r["status"] == "failed")
         if new_attempted >= 3 and new_failed > new_attempted / 2:
             console.warn(f"  High failure rate: {new_failed}/{new_attempted} failed so far")
 
