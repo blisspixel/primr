@@ -1762,7 +1762,11 @@ def _handle_analyze_report(config: CLIConfig) -> int:
         return 1
 
     try:
-        from report_analyzer import ReportAnalyzer  # type: ignore[import-not-found]
+        # Package-qualified import. A bare `from report_analyzer import ...`
+        # resolves against sys.path, so running the CLI from a directory that
+        # contains a malicious report_analyzer.py would execute it; it also
+        # fails for installed users since the helper lives under primr.qa.
+        from primr.qa.report_analyzer import ReportAnalyzer
 
         analyzer = ReportAnalyzer(config.analyze_report_path)
         report = analyzer.generate_report()
@@ -3559,6 +3563,7 @@ def process_batch(
                 continue
 
         # Research with retry and progressive backoff
+        results_len_before = len(results)
         for attempt in range(max_retries_per_company + 1):
             # Progressive backoff: wait before retries (not before first attempt)
             wait_min = retry_wait_minutes[attempt] if attempt < len(retry_wait_minutes) else 5
@@ -3680,6 +3685,26 @@ def process_batch(
                 )
                 consecutive_failures += 1
                 break
+
+        # If the retry loop exited without recording any terminal result for
+        # this company — e.g. skip_confirm billing exhaustion kept `continue`-ing
+        # until the bounded attempts ran out — record a failure. Otherwise the
+        # company is silently dropped and the batch summary can report success
+        # (failed_count == 0) despite producing no report for it.
+        if len(results) == results_len_before:
+            console.error(
+                f"  {company_name}: exhausted retries without completing — recording failure"
+            )
+            results.append(
+                {
+                    "company": company_name,
+                    "status": "failed",
+                    "path": None,
+                    "size_kb": 0,
+                    "error": "exhausted retries (billing/quota not recovered)",
+                }
+            )
+            consecutive_failures += 1
 
         # Billing stop — the inner loop broke because user chose to stop
         last_result = results[-1] if results else None

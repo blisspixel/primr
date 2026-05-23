@@ -421,15 +421,18 @@ def _validate_vendor_research_preflight(vendor: str) -> list[str]:
     if not settings.api.gemini_key:
         errors.append("GEMINI_API_KEY not configured")
 
-    # Check docs directory is writable
-    docs_dir = Path(PROJECT_ROOT) / "docs"
+    # Check the actual output directory is writable. Generated vendor research
+    # is saved under PROJECT_ROOT/vendor-research (see get_vendor_research_path),
+    # so validate that directory — not docs/ — or an unwritable output dir is
+    # only discovered after the expensive Deep Research call has completed.
+    vendor_dir = Path(PROJECT_ROOT) / "vendor-research"
     try:
-        docs_dir.mkdir(parents=True, exist_ok=True)
-        test_file = docs_dir / ".write_test"
+        vendor_dir.mkdir(parents=True, exist_ok=True)
+        test_file = vendor_dir / ".write_test"
         test_file.write_text("test")
         test_file.unlink()
     except Exception as e:
-        errors.append(f"Docs directory not writable: {docs_dir} ({e})")
+        errors.append(f"Vendor research directory not writable: {vendor_dir} ({e})")
 
     return errors
 

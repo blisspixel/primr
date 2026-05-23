@@ -358,6 +358,33 @@ class TestFetchSitemapLinks:
 
         assert links[0].sitemap_priority == 0.8
 
+    def test_handles_malformed_priority(self):
+        """An off-spec <priority> must be ignored, not crash the whole parse."""
+        sitemap_xml = b"""<?xml version="1.0" encoding="UTF-8"?>
+        <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+            <url>
+                <loc>https://example.com/about</loc>
+                <priority>high</priority>
+            </url>
+            <url>
+                <loc>https://example.com/contact</loc>
+                <priority>0.5</priority>
+            </url>
+        </urlset>
+        """
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.content = sitemap_xml
+
+        with patch("primr.data.scraping.discovery.make_request", return_value=mock_response):
+            links = fetch_sitemap_links("https://example.com")
+
+        # Both URLs parsed; the bad priority is dropped to None, the good one kept.
+        by_url = {link.url: link for link in links}
+        assert by_url["https://example.com/about"].sitemap_priority is None
+        assert by_url["https://example.com/contact"].sitemap_priority == 0.5
+
     def test_handles_gzipped_sitemap(self):
         """Should handle gzipped sitemaps."""
         sitemap_xml = b"""<?xml version="1.0" encoding="UTF-8"?>

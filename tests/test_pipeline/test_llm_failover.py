@@ -173,8 +173,10 @@ class TestPreferredModel:
         )
         assert calls[0] == preferred
 
-    def test_unknown_preferred_model_ignored(self, fresh_breaker, all_keys_set):
-        """preferred_model not in the chain is silently ignored (no error)."""
+    def test_unknown_preferred_model_falls_through(self, fresh_breaker, all_keys_set):
+        """preferred_model with no known config is prepended but skipped by
+        select_model (no config / no API key), so dispatch safely falls through
+        to the chain head without erroring."""
         calls: list[str] = []
 
         def fake_llm(prompt: str, *, model: str, **kw) -> str:
@@ -187,8 +189,35 @@ class TestPreferredModel:
             preferred_model="not-a-real-model-xyz",
             grok_llm_fn=fake_llm,
         )
-        # First call uses the default chain head, not the unknown preferred.
+        # First call uses the default chain head, not the unusable preferred.
         assert calls[0] == _chain_for_role(LLMRole.REASONING).models[0]
+
+    def test_usable_preferred_model_outside_chain_is_honored(
+        self, fresh_breaker, all_keys_set
+    ):
+        """A real model that is NOT a standing chain member must still be tried
+        first. This is the cost-cap fix: fast-mode writing routes to
+        gemini-3.1-flash-lite, which is absent from UTILITY_FALLBACK_CHAIN and
+        is what the MCP estimate is priced against. Before the fix, an absent
+        preferred model was silently dropped and the pricier Grok chain head ran
+        instead — diverging from the approved max_estimated_cost_usd.
+        """
+        preferred = "gemini-3.1-flash-lite"
+        # Guard the premise: the bug only bites for models outside the chain.
+        assert preferred not in UTILITY_FALLBACK_CHAIN.models
+        calls: list[str] = []
+
+        def fake_llm(prompt: str, *, model: str, **kw) -> str:
+            calls.append(model)
+            return f"ok from {model}"
+
+        call_with_failover(
+            LLMRole.WRITING,
+            "test",
+            preferred_model=preferred,
+            grok_llm_fn=fake_llm,
+        )
+        assert calls[0] == preferred
 
 
 class TestProductionDispatchDefault:

@@ -438,8 +438,14 @@ def _read_artifacts(mcp_server: "PrimrMCPServer") -> list[ReadResourceContents]:
     job_status = job.get_status() if job else None
 
     if job and job.company_name:
-        # Look for artifacts in company workspace
-        workspace_dir = Path("output") / job.company_name.replace(" ", "_").lower()
+        # Look for artifacts in the company workspace. Derive the path exactly
+        # as the writer does (pipeline_runner._save_report): absolute OUTPUT_DIR
+        # (not relative "output", which only matches when cwd == project root)
+        # and the same slug, including the "/" -> "_" replacement.
+        from primr.config.config import OUTPUT_DIR
+
+        safe_name = job.company_name.replace(" ", "_").replace("/", "_").lower()
+        workspace_dir = Path(OUTPUT_DIR) / safe_name
 
         if workspace_dir.exists():
             for artifact_type, filename in ARTIFACT_FILES.items():

@@ -54,6 +54,11 @@ param azureOpenaiDeployment string = ''
 @description('Principal ID of the deploying user (for Key Vault access). Get via: az ad signed-in-user show --query id -o tsv')
 param deployerPrincipalId string = ''
 
+@description('MCP server JWT signing secret (HS256). Leave unset to auto-generate a cryptographically random secret on every deployment; pass an explicit 32+ character random value to pin a stable secret you rotate out-of-band. Marked @secure() so it never appears in deployment history/logs. Do NOT pass a guessable or placeholder string — the MCP server fails closed on known placeholders in cloud mode.')
+@secure()
+@minLength(32)
+param mcpJwtSecret string = '${newGuid()}-${newGuid()}'
+
 var isOrgTier = tier == 'organization'
 
 // =============================================================================
@@ -78,6 +83,7 @@ module keyVault 'modules/keyvault.bicep' = {
     resourcePrefix: resourcePrefix
     identityPrincipalId: identity.outputs.principalId
     deployerPrincipalId: deployerPrincipalId
+    mcpJwtSecret: mcpJwtSecret
   }
 }
 

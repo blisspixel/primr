@@ -24,8 +24,31 @@ from primr.config.sections_config import SECTION_KEY_MAP
 # Import new premium report components
 from primr.output.document_builder import DocumentBuilder
 from primr.utils.console import console
+from primr.utils.validators import sanitize_for_filename
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+
+def _safe_working_subdir(company_name: str) -> Path:
+    """Resolve the per-company working folder, guaranteeing it stays inside
+    WORKING_DIR.
+
+    ``company_name`` is sanitized at the input boundary
+    (``validate_company_name`` rejects path separators, ``..``, and drive
+    prefixes), but this is the last line of defense in front of a destructive
+    ``shutil.rmtree``. The result must be a *strict* subdirectory of
+    WORKING_DIR: anything resolving outside it (traversal, an absolute path, a
+    drive prefix) OR to WORKING_DIR itself (an empty/whitespace name, which
+    would otherwise delete the whole working dir) raises ``ValueError``.
+    """
+    base = Path(WORKING_DIR).resolve()
+    folder = (base / company_name.replace(" ", "_")).resolve()
+    if base not in folder.parents:
+        raise ValueError(
+            f"Refusing filesystem operation outside the working directory for "
+            f"company name {company_name!r}"
+        )
+    return folder
 
 
 def parse_markdown_line(line):
@@ -97,7 +120,7 @@ def apply_inline_formatting(paragraph, text):
 def load_section_results(company_name: str) -> dict[str, str]:
     """Loads section data from the most recent working/{company_name}/ run folder."""
     section_results: dict[str, str] = {}
-    working_dir = os.path.join(WORKING_DIR, company_name.replace(" ", "_"))
+    working_dir = str(_safe_working_subdir(company_name))
 
     if not os.path.exists(working_dir):
         console.error(f"Working directory not found: {working_dir}")
@@ -459,10 +482,10 @@ def zip_research_files(company_name):
     """Zips the research files for the company and moves to the output directory."""
     try:
         date_str = datetime.now().strftime("%m-%d-%Y")
-        zip_filename = f"{company_name}_research_{date_str}.zip"
+        zip_filename = f"{sanitize_for_filename(company_name)}_research_{date_str}.zip"
         zip_filepath = os.path.join(OUTPUT_DIR, zip_filename)
 
-        company_folder = os.path.join(WORKING_DIR, company_name.replace(" ", "_"))
+        company_folder = str(_safe_working_subdir(company_name))
         if os.path.exists(company_folder):
             with zipfile.ZipFile(zip_filepath, "w", zipfile.ZIP_DEFLATED) as zipf:
                 for root, _, files in os.walk(company_folder):
@@ -481,7 +504,7 @@ def cleanup(company_name):
     """Handles cleanup tasks: generates ZIP archive and removes temporary working files."""
     try:
         zip_research_files(company_name)
-        company_folder = os.path.join(WORKING_DIR, company_name.replace(" ", "_"))
+        company_folder = str(_safe_working_subdir(company_name))
         if os.path.exists(company_folder):
             shutil.rmtree(company_folder)
 

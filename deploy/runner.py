@@ -268,9 +268,19 @@ def setup_signal_handlers() -> None:
     """Setup signal handlers for graceful shutdown."""
     # SIGINT works on all platforms
     signal.signal(signal.SIGINT, handle_sigterm)
-    # SIGTERM only exists on Unix-like systems
-    if sys.platform != "win32":
-        signal.signal(signal.SIGTERM, handle_sigterm)
+    # SIGTERM exists on Windows too (Python maps it), and the cloud
+    # cancellation model delivers SIGTERM for graceful stop. Register it
+    # wherever the platform actually exposes it instead of skipping win32 —
+    # otherwise a SIGTERM-based stop bypasses handle_sigterm() and the
+    # CANCELLED manifest never gets written.
+    sigterm = getattr(signal, "SIGTERM", None)
+    if sigterm is not None:
+        try:
+            signal.signal(sigterm, handle_sigterm)
+        except (ValueError, OSError, RuntimeError):
+            # Not on the main thread, or the platform refuses the handler.
+            # SIGINT stays registered as the graceful-stop fallback.
+            pass
 
 
 def utc_now() -> datetime:

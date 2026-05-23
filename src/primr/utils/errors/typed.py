@@ -302,6 +302,18 @@ class PrimrConfigurationError(PermanentError, _ConfigConfigurationError):
     config_path: str = ""
     missing_keys: list[str] = field(default_factory=list)
 
+    def __post_init__(self) -> None:
+        # Preserve caller-supplied guidance. This class also inherits the
+        # legacy config.ConfigurationError, whose __init__ is reached when
+        # PrimrError.__post_init__ calls super().__init__(self.message) and
+        # resets self.guidance to None — so without saving/restoring it,
+        # PrimrConfigurationError(..., guidance="specific help") would silently
+        # fall back to the generic category guidance.
+        saved_guidance = self.guidance
+        super().__post_init__()
+        if saved_guidance:
+            self.guidance = saved_guidance
+
 
 @dataclass
 class PrimrAIError(TransientError):

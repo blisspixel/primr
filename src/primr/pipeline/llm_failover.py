@@ -118,10 +118,14 @@ def call_with_failover(
     Args:
         role: Pipeline role used to select the fallback chain.
         prompt: The user prompt forwarded to ``grok_llm``.
-        preferred_model: If provided AND present in the role's chain, the
-            chain is rotated so this model is tried first. Used by stages
-            that have a strong opinion about which model they want (e.g.
-            a recipe override picking gemini-3.1-flash-lite for writing).
+        preferred_model: If provided, this model is tried first, with the
+            role's chain following as fallback order. The model is honored
+            even when it is not a standing member of the chain — used by
+            stages that have a strong opinion about which model they want
+            (e.g. fast-mode writing routed to gemini-3.1-flash-lite). The
+            estimator prices the run against this routed model, so dispatching
+            the chain's default instead would diverge from the approved cost
+            cap (see ``perform_fast_research``).
         grok_llm_fn: Test/DI hook. Defaults to the real ``grok_llm``.
         **kwargs: Forwarded to ``grok_llm`` (temperature, max_tokens, etc.).
 
@@ -139,8 +143,16 @@ def call_with_failover(
         grok_llm_fn = _grok_llm
 
     chain = _chain_for_role(role)
-    if preferred_model and preferred_model in chain.models:
-        # Rotate preferred to the front, preserving the rest as fallback order.
+    if preferred_model:
+        # Put the preferred model first, preserving the rest as fallback order.
+        # This honors the preference even when the model is NOT a standing
+        # member of the chain (e.g. gemini-3.1-flash-lite, the routed fast-mode
+        # writer, is absent from UTILITY_FALLBACK_CHAIN). Before this, an absent
+        # preferred model was silently ignored and the chain's default (the
+        # pricier Grok writer) ran instead — diverging from the cost estimate
+        # the MCP cap was approved against. select_model still skips it if it
+        # lacks a known config or API key, so an unusable preference safely
+        # falls through to the chain default.
         ordered = (
             preferred_model,
             *(m for m in chain.models if m != preferred_model),

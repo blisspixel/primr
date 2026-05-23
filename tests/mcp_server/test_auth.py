@@ -854,6 +854,80 @@ class TestJwtSecretCloudEnforcement:
         assert config.jwt_secret == TEST_JWT_SECRET
 
 
+class TestJwtSecretPlaceholderRejection:
+    """Tests for L3b: refuse known placeholder JWT secrets.
+
+    A long-but-public placeholder (e.g. the IaC's old 47-char
+    "placeholder-replace-before-exposing-public-fqdn") passes the length
+    floor yet lets anyone forge admin bearer tokens. Cloud deployments must
+    fail closed rather than serve traffic with a guessable signing key.
+    """
+
+    # The exact literal the Azure Bicep used to seed into Key Vault.
+    OLD_IAC_PLACEHOLDER = "placeholder-replace-before-exposing-public-fqdn"
+
+    def _clean_env(self, monkeypatch):
+        monkeypatch.delenv("MCP_ADMIN_TOKENS", raising=False)
+        monkeypatch.delenv("MCP_JWT_ISSUER", raising=False)
+        monkeypatch.delenv("MCP_JWT_AUDIENCE", raising=False)
+        monkeypatch.delenv("MCP_ADMIN_TOKEN_MAX_AGE_HOURS", raising=False)
+
+    def test_old_iac_placeholder_rejected_in_cloud_mode(self, monkeypatch):
+        """The historical IaC placeholder is long enough to pass the length
+        check but must still be refused in cloud mode."""
+        assert len(self.OLD_IAC_PLACEHOLDER) >= 32  # premise: passes length floor
+        monkeypatch.setenv("AZURE_CLIENT_ID", "some-client-id")
+        monkeypatch.setenv("MCP_JWT_SECRET", self.OLD_IAC_PLACEHOLDER)
+        self._clean_env(monkeypatch)
+
+        with pytest.raises(ValueError, match="placeholder"):
+            AuthConfig.from_env()
+
+    @pytest.mark.parametrize(
+        "placeholder",
+        [
+            "placeholder-replace-before-exposing-public-fqdn",
+            "CHANGEME-CHANGEME-CHANGEME-CHANGEME-1234",
+            "set-your-secret-here-set-your-secret-here",
+            "dummy-secret-dummy-secret-dummy-secret12",
+        ],
+    )
+    def test_assorted_placeholders_rejected_in_cloud_mode(self, monkeypatch, placeholder):
+        monkeypatch.setenv("AZURE_CLIENT_ID", "some-client-id")
+        monkeypatch.setenv("MCP_JWT_SECRET", placeholder)
+        self._clean_env(monkeypatch)
+
+        with pytest.raises(ValueError, match="placeholder"):
+            AuthConfig.from_env()
+
+    def test_placeholder_warns_in_local_mode(self, monkeypatch, caplog):
+        """Local (non-cloud) mode only warns — stdio dev runs aren't network
+        exposed, so we don't hard-fail and break local workflows."""
+        import logging
+
+        monkeypatch.delenv("AZURE_CLIENT_ID", raising=False)
+        monkeypatch.setenv("MCP_JWT_SECRET", self.OLD_IAC_PLACEHOLDER)
+        self._clean_env(monkeypatch)
+
+        with caplog.at_level(logging.WARNING):
+            config = AuthConfig.from_env()
+
+        assert config.jwt_secret == self.OLD_IAC_PLACEHOLDER
+        assert "placeholder" in caplog.text.lower()
+
+    def test_real_random_secret_accepted_in_cloud_mode(self, monkeypatch):
+        """A genuine random secret (no placeholder markers) is accepted."""
+        # 48 hex chars: random-looking, length-safe, and cannot contain any
+        # placeholder marker (markers use letters absent from the hex alphabet).
+        random_secret = "f3a9c1e87b6d4a2f90e5c7d1b8a4f6e2c3d9a0b1f4e6c8d2"
+        monkeypatch.setenv("AZURE_CLIENT_ID", "some-client-id")
+        monkeypatch.setenv("MCP_JWT_SECRET", random_secret)
+        self._clean_env(monkeypatch)
+
+        config = AuthConfig.from_env()
+        assert config.jwt_secret == random_secret
+
+
 class TestAdminTokenMaxAge:
     """Tests for L4: Admin token max age expiry."""
 

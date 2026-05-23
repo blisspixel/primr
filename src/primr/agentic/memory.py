@@ -593,8 +593,14 @@ class ResearchMemory:
             try:
                 with open(path, encoding="utf-8") as f:
                     data = yaml.safe_load(f)
-                    if data and "company_name" in data:
-                        companies.append(data["company_name"])
+                # safe_load can return non-mapping values (a bare scalar or
+                # list) for a malformed/planted file. `"x" in data` and the
+                # CLI's later sorted() would raise TypeError on those, so
+                # require a dict with a string company_name before appending.
+                if isinstance(data, dict):
+                    name = data.get("company_name")
+                    if isinstance(name, str) and name:
+                        companies.append(name)
             except (yaml.YAMLError, OSError):
                 # Skip invalid files
                 continue
