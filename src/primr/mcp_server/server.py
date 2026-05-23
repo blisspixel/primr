@@ -265,8 +265,34 @@ class PrimrMCPServer:
                 # Handle HTTP requests
                 await transport.handle_request(scope, receive, send)
 
-        # Build routes
-        routes = [Mount("/mcp", app=handle_mcp)]
+        from starlette.responses import JSONResponse
+        from starlette.routing import Route
+
+        # Wrap the MCP ASGI app with auth when required. Auth is applied to the
+        # mounted /mcp app rather than the whole server so (a) /healthz stays
+        # public for liveness probes and (b) lifespan events never reach the
+        # auth middleware — RequireAuthMiddleware does not guard the scope type
+        # and would try to 401 a lifespan scope, breaking startup/shutdown.
+        mcp_app = handle_mcp
+        if self.require_auth:
+            from primr.mcp_server.auth import (
+                AuthConfig,
+                PrimrTokenVerifier,
+                create_auth_middleware,
+            )
+
+            config = AuthConfig.from_env()
+            verifier = PrimrTokenVerifier(config)
+            mcp_app = create_auth_middleware(verifier)(mcp_app)
+
+        async def _healthz(_request: object) -> JSONResponse:
+            return JSONResponse({"status": "ok"})
+
+        # Build routes — /healthz is intentionally unauthenticated.
+        routes = [
+            Route("/healthz", _healthz, methods=["GET"]),
+            Mount("/mcp", app=mcp_app),
+        ]
 
         # Co-host A2A server if available and enabled
         if getattr(self, "_a2a_enabled", False):
@@ -293,21 +319,13 @@ class PrimrMCPServer:
             except Exception:
                 logger.exception("Failed to initialize A2A co-hosting")
 
-        # Build app with optional auth middleware
+        # Build app. Auth is already applied per-mount above (and the co-hosted
+        # A2A app applies its own in build_app); /healthz remains public.
         app = Starlette(
             routes=routes,
             on_startup=[lambda: logger.info("MCP HTTP server started")],
             on_shutdown=[self._graceful_shutdown],
         )
-
-        # Add auth middleware if required
-        if self.require_auth:
-            from primr.mcp_server.auth import AuthConfig, PrimrTokenVerifier, create_auth_middleware
-
-            config = AuthConfig.from_env()
-            verifier = PrimrTokenVerifier(config)
-            auth_middleware = create_auth_middleware(verifier)
-            app = auth_middleware(app)
 
         # Run with uvicorn
         config = uvicorn.Config(

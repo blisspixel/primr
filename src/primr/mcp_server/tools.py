@@ -773,6 +773,31 @@ async def _handle_research_company(
                 ),
             )
         ]
+
+    # Validate the optional destination directory. report_path (generate_strategy
+    # / run_qa) is path-validated, but destination was passed straight into
+    # mkdir()/copy2(), letting an authenticated HTTP client write report
+    # artifacts to an arbitrary path (e.g. /etc/cron.d) outside the managed
+    # output roots. Contain it the same way — the tool documents destination as
+    # an output directory under output/.
+    if destination is not None:
+        dest_result = mcp_server.path_validator.validate(destination, client_id)
+        if not dest_result.valid:
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps(
+                        {
+                            "error": True,
+                            "error_type": dest_result.error_type,
+                            "error_code": MCPErrorCode.PATH_TRAVERSAL_BLOCKED,
+                            "message": f"Invalid destination: {dest_result.error_message}",
+                        }
+                    ),
+                )
+            ]
+        destination = str(dest_result.resolved_path)
+
     # The estimator honors no_ai_strategy and lowers the priced cost when
     # it is true. Production used to ignore the flag and still run strategy
     # whenever platform was set, which bypassed max_estimated_cost_usd.

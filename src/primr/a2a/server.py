@@ -87,25 +87,23 @@ class PrimrA2AServer:
 
         app = a2a_app_builder.build()
 
-        # Add auth middleware if required
+        # Add auth middleware if required. Fail CLOSED: if auth setup raises
+        # (e.g. AuthConfig.from_env() rejects a short/placeholder MCP_JWT_SECRET
+        # in cloud mode), let the exception abort startup rather than silently
+        # serving the agent unauthenticated. This matches the MCP server, which
+        # also does not swallow auth-setup failures.
         if self.require_auth:
-            try:
-                from primr.mcp_server.auth import (
-                    AuthConfig,
-                    PrimrTokenVerifier,
-                    create_auth_middleware,
-                )
+            from primr.mcp_server.auth import (
+                AuthConfig,
+                PrimrTokenVerifier,
+                create_auth_middleware,
+            )
 
-                config = AuthConfig.from_env()
-                verifier = PrimrTokenVerifier(config)
-                auth_middleware = create_auth_middleware(verifier)
-                app = auth_middleware(app)
-                logger.info("A2A server: authentication enabled")
-            except Exception:
-                logger.error(
-                    "A2A server: auth middleware setup failed, running WITHOUT auth",
-                    exc_info=True,
-                )
+            config = AuthConfig.from_env()
+            verifier = PrimrTokenVerifier(config)
+            auth_middleware = create_auth_middleware(verifier)
+            app = auth_middleware(app)
+            logger.info("A2A server: authentication enabled")
 
         return app
 

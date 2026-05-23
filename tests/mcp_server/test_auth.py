@@ -16,6 +16,7 @@ from primr.mcp_server.auth import (
     AuthConfig,
     AuthContext,
     PrimrTokenVerifier,
+    create_auth_middleware,
     get_entra_id_config,
     log_auth_failure,
     validate_entra_id_audience,
@@ -1009,3 +1010,46 @@ class TestAdminTokenMaxAge:
 
         assert config.admin_token_max_age_hours is None
         assert "Invalid MCP_ADMIN_TOKEN_MAX_AGE_HOURS" in caplog.text
+
+
+class TestAuthMiddlewareEnforcement:
+    """End-to-end proof that create_auth_middleware actually enforces auth.
+
+    Regression: the previous implementation called RequireAuthMiddleware with
+    the wrong argument and no required_scopes, so it raised at startup and the
+    middleware was never installed (A2A swallowed the error and ran open; MCP
+    crashed). These tests drive a real ASGI request through the wrapped app.
+    """
+
+    def _wrapped_app(self, token: str = "secret-admin-token"):
+        from starlette.applications import Starlette
+        from starlette.responses import PlainTextResponse
+        from starlette.routing import Route
+
+        async def _ok(_request: object) -> PlainTextResponse:
+            return PlainTextResponse("ok")
+
+        inner = Starlette(routes=[Route("/x", _ok)])
+        verifier = PrimrTokenVerifier(AuthConfig(admin_tokens={token}))
+        return create_auth_middleware(verifier)(inner)
+
+    def test_rejects_request_without_token(self):
+        from starlette.testclient import TestClient
+
+        client = TestClient(self._wrapped_app())
+        assert client.get("/x").status_code == 401
+
+    def test_rejects_invalid_token(self):
+        from starlette.testclient import TestClient
+
+        client = TestClient(self._wrapped_app())
+        resp = client.get("/x", headers={"Authorization": "Bearer not-the-token"})
+        assert resp.status_code == 401
+
+    def test_accepts_valid_token(self):
+        from starlette.testclient import TestClient
+
+        client = TestClient(self._wrapped_app(token="secret-admin-token"))
+        resp = client.get("/x", headers={"Authorization": "Bearer secret-admin-token"})
+        assert resp.status_code == 200
+        assert resp.text == "ok"
