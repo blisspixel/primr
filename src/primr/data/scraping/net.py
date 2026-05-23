@@ -41,7 +41,11 @@ def get_default_headers(profile: HttpHeaderProfile | None = None) -> dict:
     if profile.sec_ch_ua:
         headers["Sec-CH-UA"] = profile.sec_ch_ua
         headers["Sec-CH-UA-Mobile"] = "?0"
-        headers["Sec-CH-UA-Platform"] = profile.sec_ch_ua_platform
+        # sec_ch_ua_platform is Optional; only emit the header when present so a
+        # None value can't leak into the (str-valued) header dict and get sent
+        # as the literal "None" or raise in the HTTP client.
+        if profile.sec_ch_ua_platform:
+            headers["Sec-CH-UA-Platform"] = profile.sec_ch_ua_platform
         headers["Sec-Fetch-Dest"] = "document"
         headers["Sec-Fetch-Mode"] = "navigate"
         headers["Sec-Fetch-Site"] = "none"
@@ -194,8 +198,8 @@ def is_same_domain(url1: str, url2: str) -> bool:
     if not host1 or not host2:
         return False
 
-    host1 = host1.replace("www.", "")
-    host2 = host2.replace("www.", "")
+    host1 = host1[4:] if host1.startswith("www.") else host1
+    host2 = host2[4:] if host2.startswith("www.") else host2
     return host1 == host2
 
 
@@ -223,9 +227,11 @@ def is_in_scope(url: str, target_url: str) -> bool:
     if not url_host or not target_host:
         return False
 
-    # Remove www. prefix for comparison
-    url_host = url_host.replace("www.", "")
-    target_host = target_host.replace("www.", "")
+    # Remove a leading www. prefix for comparison — only the prefix, not any
+    # embedded "www." (e.g. "my-www.example.com" must stay intact, otherwise
+    # the scope/subdomain check below is computed against a corrupted host).
+    url_host = url_host[4:] if url_host.startswith("www.") else url_host
+    target_host = target_host[4:] if target_host.startswith("www.") else target_host
 
     # Exact match
     if url_host == target_host:
