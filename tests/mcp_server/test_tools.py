@@ -600,3 +600,55 @@ class TestShowUsage:
         show_usage_tool = next(t for t in tools if t.name == "show_usage")
         assert "spending" in show_usage_tool.description.lower()
         assert "budget" in show_usage_tool.description.lower()
+
+
+class TestDestinationValidation:
+    """research_company must path-validate the optional destination directory,
+    so an authenticated client cannot write report artifacts outside the
+    allowed output roots (report_path is validated; destination was not)."""
+
+    @pytest.fixture
+    def server(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            journal_path = str(Path(tmpdir) / "test_journal.json")
+            yield create_mcp_server(journal_path=journal_path, skip_background_tasks=True)
+
+    @pytest.mark.asyncio
+    async def test_traversal_destination_rejected(self, server):
+        handler = server.server.request_handlers[CallToolRequest]
+        result = await handler(
+            CallToolRequest(
+                method="tools/call",
+                params=CallToolRequestParams(
+                    name="research_company",
+                    arguments={
+                        "company_name": "Acme Corp",
+                        "company_url": "https://example.com",
+                        "destination": "../../../etc/primr_evil",
+                    },
+                ),
+            )
+        )
+        data = json.loads(result.root.content[0].text)
+        assert data["error"] is True
+        assert "destination" in data["message"].lower()
+
+    @pytest.mark.asyncio
+    async def test_absolute_outside_root_destination_rejected(self, server):
+        handler = server.server.request_handlers[CallToolRequest]
+        result = await handler(
+            CallToolRequest(
+                method="tools/call",
+                params=CallToolRequestParams(
+                    name="research_company",
+                    arguments={
+                        "company_name": "Acme Corp",
+                        "company_url": "https://example.com",
+                        "destination": "/etc/primr_evil",
+                    },
+                ),
+            )
+        )
+        data = json.loads(result.root.content[0].text)
+        assert data["error"] is True
+        assert "destination" in data["message"].lower()

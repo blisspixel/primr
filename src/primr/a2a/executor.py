@@ -220,6 +220,21 @@ class PrimrAgentExecutor(AgentExecutor):
             )
             return
 
+        # Validate company name. It is interpolated into report filenames and
+        # the working-folder path downstream, so '../', '/', '\\', or drive
+        # prefixes could otherwise write artifacts outside OUTPUT_DIR. The CLI
+        # and MCP research_company entry points already gate this; the A2A
+        # handler must too.
+        from primr.utils.validators import InputValidationError, validate_company_name
+
+        try:
+            company_name = validate_company_name(company_name)
+        except InputValidationError as e:
+            await event_queue.enqueue_event(
+                new_agent_text_message(f"Invalid company name: {e.reason}")
+            )
+            return
+
         # Create job in the shared job store
         try:
             job = self._mcp.job_store.create(

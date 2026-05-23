@@ -19,6 +19,7 @@ import logging
 import os
 import time
 from dataclasses import dataclass, field
+from typing import Any
 
 from mcp.server.auth.provider import AccessToken
 
@@ -563,18 +564,41 @@ class AuthContext:
         return self.client_id == job_owner_id
 
 
-def create_auth_middleware(verifier: PrimrTokenVerifier):
+def create_auth_middleware(verifier: PrimrTokenVerifier, required_scopes: list[str] | None = None):
     """
-    Create ASGI middleware for bearer token authentication.
+    Return a callable that wraps an ASGI app with bearer-token authentication.
 
-    This wraps the MCP SDK's RequireAuthMiddleware with our token verifier.
+    Two SDK/Starlette middlewares are layered so the result actually enforces
+    auth (the previous implementation called ``RequireAuthMiddleware(backend)``
+    with the wrong argument and no ``required_scopes``, which raised at startup
+    and meant auth was never installed):
+
+    * ``AuthenticationMiddleware`` (outer) runs ``BearerAuthBackend`` to read the
+      ``Authorization: Bearer`` header, verify the token, and populate
+      ``scope["user"]`` / ``scope["auth"]``.
+    * ``RequireAuthMiddleware`` (inner) rejects any request whose ``scope["user"]``
+      is not an authenticated user (HTTP 401), and enforces ``required_scopes``
+      (HTTP 403) when provided.
+
+    Usage: ``app = create_auth_middleware(verifier)(app)``.
 
     Requirements: 13.2, 13.3, 13.6, 13.7
     """
     from mcp.server.auth.middleware.bearer_auth import BearerAuthBackend, RequireAuthMiddleware
+    from starlette.middleware.authentication import AuthenticationMiddleware
 
     backend = BearerAuthBackend(verifier)
-    return RequireAuthMiddleware(backend)
+    scopes = list(required_scopes) if required_scopes is not None else []
+
+    def _wrap(app: Any) -> Any:
+        # Inner: require an authenticated user (+ any required scopes).
+        app = RequireAuthMiddleware(app, required_scopes=scopes)
+        # Outer: authenticate the request so scope["user"] is set before the
+        # inner middleware checks it.
+        app = AuthenticationMiddleware(app, backend=backend)
+        return app
+
+    return _wrap
 
 
 def validate_entra_id_audience(token_payload: dict, expected_audience: str) -> bool:
