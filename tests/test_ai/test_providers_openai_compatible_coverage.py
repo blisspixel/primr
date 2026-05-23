@@ -92,11 +92,33 @@ def test_compute_backoff_bounds():
 
 
 def test_get_client_missing_key_raises(monkeypatch):
+    # The key-check branch is only reachable once `import openai` succeeds, so
+    # this assertion only applies when the optional 'openai' package is present
+    # (it is not installed in CI's default extras).
+    pytest.importorskip("openai")
     monkeypatch.delenv("ABSENT_OAI_KEY", raising=False)
     p = OpenAICompatibleProvider(
         name="x", base_url="u", api_key_env="ABSENT_OAI_KEY"
     )
-    with patch("openai.OpenAI"), pytest.raises(ProviderUnavailableError, match="not set"):
+    with pytest.raises(ProviderUnavailableError, match="not set"):
+        p._get_client()
+
+
+def test_get_client_missing_openai_package_raises(monkeypatch):
+    """The ImportError branch fires when 'openai' is not installed. Simulated by
+    blocking the import so this covers the branch regardless of the environment."""
+    import builtins
+
+    real_import = builtins.__import__
+
+    def _fake_import(name, *args, **kwargs):
+        if name == "openai":
+            raise ImportError("simulated: openai not installed")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", _fake_import)
+    p = OpenAICompatibleProvider(name="x", base_url="u", api_key_env="ANY_KEY")
+    with pytest.raises(ProviderUnavailableError, match="openai"):
         p._get_client()
 
 
