@@ -3507,7 +3507,11 @@ def process_batch(
         # Try both raw name and underscore-sanitized name for broader matching
         candidates = {company, company.replace(" ", "_").replace("/", "_")}
         for name in candidates:
-            pattern = os.path.join(OUTPUT_DIR, f"{name}*Overview*{today_str}*")
+            # glob.escape the company-name fragment so glob metacharacters in
+            # the name (e.g. brackets in "Acme [Holdings]", "?", "*") are
+            # matched literally — without this, resume silently misses the
+            # existing report and re-runs the (paid) research.
+            pattern = os.path.join(OUTPUT_DIR, f"{glob.escape(name)}*Overview*{today_str}*")
             matches = glob.glob(pattern)
             if matches:
                 # Prefer .docx > .md > .txt > anything else
