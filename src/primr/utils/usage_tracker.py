@@ -101,8 +101,11 @@ class UsageRecord:
             INPUT_PRICE = active_pro.cost_per_1m_input_tokens
             OUTPUT_PRICE = active_pro.cost_per_1m_output_tokens
 
-        input_cost = (input_tokens / 1_000_000) * INPUT_PRICE
-        output_cost = (output_tokens / 1_000_000) * OUTPUT_PRICE
+        # Guard against a model whose price field is None (the config field is
+        # Optional): fall back to 0.0 rather than raising TypeError on the
+        # multiply. In practice configured models always have a price.
+        input_cost = (input_tokens / 1_000_000) * (INPUT_PRICE or 0.0)
+        output_cost = (output_tokens / 1_000_000) * (OUTPUT_PRICE or 0.0)
 
         return cls(
             timestamp=datetime.now().isoformat(),
@@ -272,10 +275,14 @@ class UsageTracker:
             return None
 
         count = len(mode_records)
-        avg_input = sum(r["input_tokens"] for r in mode_records) / count
-        avg_output = sum(r["output_tokens"] for r in mode_records) / count
+        # Use .get with defaults throughout: usage_history.json is persisted
+        # across versions and may contain older-schema or hand-edited records
+        # missing some fields; a direct r["..."] would KeyError and crash
+        # `primr show-usage` / estimate updates.
+        avg_input = sum(r.get("input_tokens", 0) for r in mode_records) / count
+        avg_output = sum(r.get("output_tokens", 0) for r in mode_records) / count
         avg_searches = sum(r.get("search_queries", 0) for r in mode_records) / count
-        avg_cost = sum(r["total_cost"] for r in mode_records) / count
+        avg_cost = sum(r.get("total_cost", 0) for r in mode_records) / count
         avg_duration = sum(r.get("duration_seconds", 0) for r in mode_records) / count
 
         return {
